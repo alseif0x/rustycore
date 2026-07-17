@@ -68,7 +68,8 @@ use crate::session::{
     ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP, CharacterPetAuraEffectRowLikeCpp,
     CharacterPetAuraRowLikeCpp, CharacterPetDeclinedNamesRowLikeCpp,
     CharacterPetSpellChargeRowLikeCpp, CharacterPetSpellCooldownRowLikeCpp,
-    CharacterPetSpellRowLikeCpp, CharacterPetStableRowLikeCpp, RepresentedAlterAppearanceLikeCpp,
+    CharacterPetSpellRowLikeCpp, CharacterPetStableRowLikeCpp, REST_STATE_NORMAL_LIKE_CPP,
+    REST_STATE_RAF_LINKED_LIKE_CPP, RepresentedAlterAppearanceLikeCpp,
     RepresentedBankItemMoveLikeCpp, RepresentedConfirmBarbersChoiceLikeCpp,
     RepresentedGameObjectUseState, RepresentedHomebindLikeCpp, SpellCastMetadata,
 };
@@ -1090,6 +1091,14 @@ fn bind_create_character_difficulties_like_cpp(stmt: &mut PreparedStatement) {
     stmt.set_u8(16, DIFFICULTY_NORMAL_LIKE_CPP);
     stmt.set_u8(17, DIFFICULTY_NORMAL_RAID_LIKE_CPP);
     stmt.set_u8(18, DIFFICULTY_10_N_LIKE_CPP);
+}
+
+fn initial_character_rest_state_like_cpp(is_a_recruiter: bool, recruiter_id: u32) -> u8 {
+    if is_a_recruiter || recruiter_id != 0 {
+        REST_STATE_RAF_LINKED_LIKE_CPP
+    } else {
+        REST_STATE_NORMAL_LIKE_CPP
+    }
 }
 
 fn creature_movement_generator_type_from_db_like_cpp(
@@ -3445,7 +3454,13 @@ impl WorldSession {
         ins_stmt.set_u64(8, 0); // money
         ins_stmt.set_u32(9, 0); // inventorySlots
         ins_stmt.set_u32(10, 0); // bankSlots
-        ins_stmt.set_u8(11, 0); // restState
+        ins_stmt.set_u8(
+            11,
+            initial_character_rest_state_like_cpp(
+                self.is_a_recruiter_like_cpp(),
+                self.recruiter_id_like_cpp(),
+            ),
+        ); // restState, C++ Player::Create
         ins_stmt.set_u32(12, 0); // playerFlags
         ins_stmt.set_u32(13, 0); // playerFlagsEx
         ins_stmt.set_i32(14, map_id); // map
@@ -3467,7 +3482,7 @@ impl WorldSession {
         ins_stmt.set_u32(32, 0); // totaltime
         ins_stmt.set_u32(33, 0); // leveltime
         ins_stmt.set_f32(34, 0.0); // rest_bonus
-        ins_stmt.set_u32(35, 0); // logout_time
+        ins_stmt.set_u64(35, create_time.max(0) as u64); // logout_time
         ins_stmt.set_u8(36, 0); // is_logout_resting
         ins_stmt.set_u32(37, 0); // resettalents_cost
         ins_stmt.set_u32(38, 0); // resettalents_time
@@ -4927,8 +4942,19 @@ impl WorldSession {
         self.set_represented_bonus_talent_groups_like_cpp(result.try_read::<u8>(31).unwrap_or(0));
         self.set_player_create_mode_like_cpp(create_mode);
         self.set_represented_at_login_flags_like_cpp(at_login_flags);
+        let saved_rest_state = result
+            .try_read::<u8>(11)
+            .unwrap_or(REST_STATE_NORMAL_LIKE_CPP);
+        let saved_rest_bonus = result.try_read::<f32>(25).unwrap_or(0.0);
+        let saved_logout_time_secs = result
+            .try_read::<u64>(26)
+            .or_else(|| result.try_read::<i64>(26).map(|value| value.max(0) as u64))
+            .unwrap_or(0);
+        let saved_logout_was_resting = result.try_read::<u8>(27).unwrap_or(0) != 0;
         self.load_represented_explored_zones_like_cpp(&result.read_string(64));
         self.set_player_guid(Some(guid));
+        self.set_loaded_player_flags_like_cpp(result.try_read::<u32>(12).unwrap_or(0));
+        self.set_loaded_player_flags_ex_like_cpp(result.try_read::<u32>(13).unwrap_or(0));
         self.set_loaded_player_identity_like_cpp(map_id as u16, race, class, level, gender);
         // C++ recalculates zone/area from terrain after AddToMap
         // (`Player::SendInitialPacketsAfterAddToMap`). Seed from DB until
@@ -5284,6 +5310,7 @@ impl WorldSession {
             }
         }
         self.refresh_next_level_xp();
+        self.clamp_loaded_player_xp_to_next_level_like_cpp();
         let attached_controller = self.ensure_login_player_controller_like_cpp(
             guid,
             name.clone(),
@@ -5341,7 +5368,27 @@ impl WorldSession {
             );
         }
         if attached_controller {
+            self.apply_loaded_player_flags_to_canonical_like_cpp();
             let _ = self.apply_represented_group_leader_flag_like_cpp();
+        }
+        self.load_represented_xp_rest_bonus_like_cpp(saved_rest_state, saved_rest_bonus);
+        let applied_rest_bonus = self.apply_offline_xp_rest_bonus_like_cpp(
+            saved_logout_time_secs,
+            Self::current_game_time_secs_like_cpp(),
+            saved_logout_was_resting,
+        );
+        if std::env::var_os("RUSTYCORE_REST_TRACE").is_some() {
+            info!(
+                player_guid = guid.counter(),
+                saved_rest_state,
+                saved_rest_bonus,
+                saved_logout_time_secs,
+                saved_logout_was_resting,
+                applied_rest_bonus,
+                rest_bonus = self.represented_xp_rest_bonus_like_cpp(),
+                rest_state = self.represented_xp_rest_state_like_cpp(),
+                "RUST_PLAYER_REST_LOAD"
+            );
         }
         self.load_represented_character_titles_like_cpp(
             &result.try_read::<String>(65).unwrap_or_default(),
@@ -9365,7 +9412,13 @@ impl WorldSession {
             TypeMask::OBJECT | TypeMask::UNIT | TypeMask::PLAYER,
         );
         player.object_mut().create(self.player_guid()?);
-        let _ = player.set_map(u32::from(self.player_map_id_like_cpp()), 0);
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let _ = player.set_map(u32::from(self.player_map_id_like_cpp()), instance_id);
+        let (zone_id, area_id) = self.player_zone_area_like_cpp();
+        player.set_zone_and_area(zone_id, area_id);
         if let Some(position) = self.player_position_like_cpp() {
             player.relocate(position);
         }
@@ -9406,8 +9459,8 @@ impl WorldSession {
     ) -> crate::conditions::ConditionUnitSnapshot {
         crate::conditions::ConditionUnitSnapshot {
             level: u32::from(self.player_level_like_cpp()),
-            health: 1,
-            max_health: 1,
+            health: u64::from(self.player_health_like_cpp()),
+            max_health: u64::from(self.player_max_health_like_cpp()),
             class_mask: player_class_mask(self.player_class_like_cpp()),
             race: self.player_race_like_cpp(),
             creature_type: None,
@@ -9429,7 +9482,7 @@ impl WorldSession {
             can_be_game_master: false,
             is_game_master: false,
             pet_type: None,
-            is_in_flight: false,
+            is_in_flight: self.is_in_taxi_flight_like_cpp(),
         }
     }
 
@@ -15379,7 +15432,10 @@ impl WorldSession {
             },
         ) {
             Ok((resolved_zone_id, resolved_area_id)) => {
-                self.set_player_zone_area_like_cpp(resolved_zone_id, resolved_area_id);
+                self.update_zone_represented_without_rest_update_packet_like_cpp(
+                    resolved_zone_id,
+                    resolved_area_id,
+                );
                 info!(
                     map_id,
                     x = position.x,
@@ -15397,8 +15453,14 @@ impl WorldSession {
                     %error,
                     "failed to resolve C++ terrain zone/area before InitWorldStates; using DB-seeded zone/area"
                 );
+                let (seeded_zone_id, seeded_area_id) = self.player_zone_area_like_cpp();
+                self.update_zone_represented_without_rest_update_packet_like_cpp(
+                    seeded_zone_id,
+                    seeded_area_id,
+                );
             }
         }
+        let rest_flag_update_dirty = self.take_deferred_rest_flag_update_dirty_like_cpp();
 
         // 27. InitWorldStates — C++ `Player::SendInitWorldStates` delegates to
         // `WorldStateMgr::FillInitialWorldStates`: realm values first, then map
@@ -15425,6 +15487,11 @@ impl WorldSession {
         // C++ `Player::SendInitialPacketsAfterAddToMap` calls
         // `SendAurasForTarget(this)` after movement aura state setup.
         self.send_initial_player_auras_like_cpp();
+        // C++ RestMgr only dirties PLAYER_FLAGS_RESTING during UpdateZone; the
+        // map object-update owner flushes that field after post-add packets.
+        if rest_flag_update_dirty {
+            self.send_represented_resting_player_flag_update_like_cpp();
+        }
         if updateobject_trace_enabled {
             info!(guid = ?guid, "RUST_LOGIN after_initial_packets_after_add");
         }
@@ -15955,7 +16022,23 @@ impl WorldSession {
                 quest_log,
                 self.party_member_party_type_like_cpp(),
             );
+            let (player_flags, player_flags_ex) =
+                self.represented_player_flags_for_create_like_cpp();
+            player_pkt.set_player_flags_like_cpp(player_flags, player_flags_ex);
             player_pkt.set_player_current_power0_like_cpp(current_power0);
+            player_pkt.set_player_xp_like_cpp(self.player_xp_like_cpp() as i32);
+            player_pkt
+                .set_player_next_level_xp_like_cpp(self.player_next_level_xp_like_cpp() as i32);
+            player_pkt
+                .set_player_max_level_like_cpp(self.player_active_max_level_like_cpp() as i32);
+            player_pkt.set_player_scaling_level_delta_like_cpp(
+                self.player_scaling_level_delta_like_cpp(),
+            );
+            player_pkt.set_player_rest_info_like_cpp(
+                0,
+                self.represented_xp_rest_threshold_like_cpp(),
+                self.represented_xp_rest_state_like_cpp(),
+            );
             if std::env::var_os("RUSTYCORE_SPELL_POWER_TRACE").is_some() {
                 info!(
                     guid = ?guid,
@@ -18092,6 +18175,22 @@ mod tests {
         assert_eq!(
             stmt.params()[18],
             wow_database::SqlParam::U8(DIFFICULTY_10_N_LIKE_CPP)
+        );
+    }
+
+    #[test]
+    fn create_character_seeds_valid_cpp_rest_state_for_raf_roles() {
+        assert_eq!(
+            initial_character_rest_state_like_cpp(false, 0),
+            REST_STATE_NORMAL_LIKE_CPP
+        );
+        assert_eq!(
+            initial_character_rest_state_like_cpp(false, 7),
+            REST_STATE_RAF_LINKED_LIKE_CPP
+        );
+        assert_eq!(
+            initial_character_rest_state_like_cpp(true, 0),
+            REST_STATE_RAF_LINKED_LIKE_CPP
         );
     }
 

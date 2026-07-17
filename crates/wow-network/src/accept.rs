@@ -315,7 +315,10 @@ pub struct SessionResources {
         Option<Arc<wow_data::GameObjectTemplateLifecycleStoreLikeCpp>>,
     pub area_table_store: Option<Arc<wow_data::AreaTableStore>>,
     pub fishing_base_skill_store: Option<Arc<wow_data::FishingBaseSkillStoreLikeCpp>>,
+    pub area_trigger_db2_store: Option<Arc<wow_data::AreaTriggerDb2Store>>,
     pub area_trigger_store: Option<Arc<wow_data::AreaTriggerStore>>,
+    pub area_trigger_script_store: Option<Arc<wow_data::AreaTriggerScriptStoreLikeCpp>>,
+    pub tavern_area_trigger_store: Option<Arc<wow_data::TavernAreaTriggerStoreLikeCpp>>,
     pub graveyard_store: Option<Arc<wow_data::GraveyardStore>>,
     pub area_trigger_template_store: Option<Arc<wow_data::AreaTriggerTemplateStore>>,
     pub chr_specialization_store: Option<Arc<wow_data::ChrSpecializationStore>>,
@@ -373,6 +376,22 @@ pub struct SessionResources {
     pub exploration_base_xp_store: Option<Arc<wow_data::ExplorationBaseXpStoreLikeCpp>>,
     /// C++ `sWorld->getRate(RATE_XP_EXPLORE)`.
     pub exploration_xp_rate: f32,
+    /// C++ `CONFIG_MAX_PLAYER_LEVEL`.
+    pub max_player_level_config: u32,
+    /// C++ PvP/RP-PvP/FFA-PvP `CONFIG_GAME_TYPE` classification.
+    pub is_pvp_realm: bool,
+    /// C++ `World::IsFFAPvPRealm()` classification.
+    pub is_ffa_pvp_realm: bool,
+    /// C++ `CONFIG_MAX_RECRUIT_A_FRIEND_BONUS_PLAYER_LEVEL`.
+    pub max_recruit_a_friend_bonus_player_level: u32,
+    /// C++ `CONFIG_MAX_RECRUIT_A_FRIEND_BONUS_PLAYER_LEVEL_DIFFERENCE`.
+    pub max_recruit_a_friend_bonus_player_level_difference: u32,
+    /// C++ `sWorld->getRate(RATE_REST_OFFLINE_IN_WILDERNESS)`.
+    pub rest_offline_wilderness_rate: f32,
+    /// C++ `sWorld->getRate(RATE_REST_OFFLINE_IN_TAVERN_OR_CITY)`.
+    pub rest_offline_tavern_or_city_rate: f32,
+    /// C++ `sWorld->getRate(RATE_REST_INGAME)`.
+    pub rest_ingame_rate: f32,
     /// C++ `CONFIG_MIN_QUEST_SCALED_XP_RATIO`.
     pub min_quest_scaled_xp_ratio: u32,
     /// C++ `CONFIG_MIN_DISCOVERED_SCALED_XP_RATIO`.

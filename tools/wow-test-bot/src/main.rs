@@ -30,12 +30,19 @@ const SMSG_PONG: u16 = 0x304E;
 const SMSG_UPDATE_OBJECT: u16 = 0x27CB;
 const SMSG_AURA_UPDATE: u16 = 0x2C1F;
 const SMSG_TIME_SYNC_REQUEST: u16 = 0x2DD2;
+const CMSG_TIME_SYNC_RESPONSE: u16 = 0x3A3D;
 const SMSG_ON_MONSTER_MOVE: u16 = 0x2DD4;
+const SMSG_ATTACK_STOP: u16 = 0x293E;
 const CMSG_BANKER_ACTIVATE: u16 = 0x34B3;
 const CMSG_BINDER_ACTIVATE: u16 = 0x34B2;
 const CMSG_AUTOBANK_ITEM: u16 = 0x3997;
 const CMSG_AUTOSTORE_BANK_ITEM: u16 = 0x3996;
 const CMSG_SWAP_INV_ITEM: u16 = 0x399B;
+const CMSG_ATTACK_SWING: u16 = 0x3255;
+const CMSG_MOVE_HEARTBEAT: u16 = 0x3A10;
+const CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE: u16 = 0x3A46;
+const SMSG_LOG_XP_GAIN: u16 = 0x26E5;
+const SMSG_ATTACKER_STATE_UPDATE: u16 = 0x2952;
 const SMSG_NPC_INTERACTION_OPEN_RESULT: u16 = 0x288A;
 const SMSG_INVENTORY_CHANGE_FAILURE: u16 = 0x2DA5;
 const SMSG_BIND_POINT_UPDATE: u16 = 0x257D;
@@ -53,6 +60,31 @@ const NPC_FLAG_INNKEEPER: u32 = 0x10000;
 const DEFAULT_BANK_SMOKE_ITEM_ENTRY: u32 = 2589;
 const DEFAULT_INVENTORY_SWAP_ITEM_ENTRY_A: u32 = 2589;
 const DEFAULT_INVENTORY_SWAP_ITEM_ENTRY_B: u32 = 2592;
+const DEFAULT_RESTED_XP_CREATURE_ENTRY: u32 = 15274;
+const DEFAULT_RESTED_XP_OFFLINE_SECS: u64 = 86_400;
+// A fresh level-1 Mana Wyrm has 42 HP. The intentionally empty disposable
+// fixture attacks for 1 damage roughly every two seconds, so 45 seconds could
+// never complete a legitimate unarmed kill.
+const DEFAULT_RESTED_XP_TIMEOUT_SECS: u64 = 120;
+const MIN_RESTED_XP_TARGET_RESPAWN_SECS: u32 = 30;
+const MAX_RESTED_XP_TARGET_RESPAWN_SECS: u32 = 600;
+const RESTED_XP_RESPAWN_GRACE_SECS: u64 = 15;
+const MAX_RESTED_XP_RESPAWN_CLEANUP_WAIT_SECS: u64 = 900;
+const ACK_DISPOSABLE_RESTED_XP_FLAG: &str = "--ack-disposable-rested-xp";
+const REST_STATE_RESTED: u8 = 1;
+const REST_STATE_NORMAL: u8 = 2;
+const PLAYER_FLAGS_RESTING: u32 = 0x0000_0020;
+const PLAYER_FLAGS_NO_XP_GAIN: u32 = 0x0200_0000;
+const CREATURE_STATIC_FLAG_NO_XP: u32 = 0x0000_0002;
+const CREATURE_FLAG_EXTRA_NO_XP: u32 = 0x0000_0040;
+const CREATURE_TYPE_CRITTER: u8 = 8;
+const OBJECT_GUID_COUNTER_MASK: u64 = 0xFF_FFFF_FFFF;
+const NOMINAL_MELEE_RANGE_LIKE_CPP: f32 = 5.0;
+const RESTED_XP_INSTANCE_OBSERVATION_WINDOW: Duration = Duration::from_secs(2);
+// Both legacy C++ implementations use `NextLevelXP * 1.5f / 2`.
+const REST_BONUS_CAP_NEXT_LEVEL_FACTOR: f32 = 1.5 / 2.0;
+const REST_OFFLINE_WILDERNESS_BUBBLE: f32 = 0.031;
+const REST_OFFLINE_TAVERN_OR_CITY_BUBBLE: f32 = 0.125;
 const UNIT_STAND_STATE_STAND: u8 = 0;
 const UNIT_STAND_STATE_SIT: u8 = 1;
 const UNIT_STAND_STATE_SLEEP: u8 = 3;
@@ -155,6 +187,13 @@ struct CliOptions {
     inventory_swap_item_entry_a: u32,
     inventory_swap_item_entry_b: u32,
     inventory_swap_timeout_secs: u64,
+    rested_xp_smoke: bool,
+    ack_disposable_rested_xp: bool,
+    rested_xp_creature_entry: u32,
+    rested_xp_creature_guid: Option<u64>,
+    rested_xp_runtime_counter: Option<u64>,
+    rested_xp_offline_secs: u64,
+    rested_xp_timeout_secs: u64,
     quest_smoke: bool,
     quest_creature_entry: Option<u32>,
     quest_creature_guid: Option<u64>,
@@ -242,6 +281,21 @@ struct BotRunResult {
     inventory_swap_relogin_after_forward: bool,
     inventory_swap_reverse_persisted: bool,
     inventory_swap_failure: Option<String>,
+    rested_xp_smoke: bool,
+    rested_xp_smoke_passed: Option<bool>,
+    rested_xp_offline_wilderness_bonus: Option<f32>,
+    rested_xp_offline_resting_bonus: Option<f32>,
+    rested_xp_target_entry: Option<u32>,
+    rested_xp_target_spawn_guid: Option<u64>,
+    rested_xp_target_guid_counter: Option<u64>,
+    rested_xp_packet_amount: Option<i32>,
+    rested_xp_packet_original: Option<i32>,
+    rested_xp_db_xp_before: Option<u32>,
+    rested_xp_db_xp_after: Option<u32>,
+    rested_xp_db_rest_before: Option<f32>,
+    rested_xp_db_rest_after: Option<f32>,
+    rested_xp_relog_verified: bool,
+    rested_xp_failure: Option<String>,
     quest_smoke: bool,
     quest_smoke_passed: Option<bool>,
     quest_target_entry: Option<u32>,
@@ -308,6 +362,12 @@ impl BotRunResult {
                 && self.player_login_verified
                 && self.inventory_swap_smoke_passed.unwrap_or(false);
         }
+        if self.rested_xp_smoke {
+            return self.world_auth
+                && self.enum_characters
+                && self.player_login_verified
+                && self.rested_xp_smoke_passed.unwrap_or(false);
+        }
         if login_only {
             return self.world_auth && self.enum_characters && self.player_login_verified;
         }
@@ -329,6 +389,7 @@ struct RunReport {
     bank_smoke: bool,
     homebind_smoke: bool,
     inventory_swap_smoke: bool,
+    rested_xp_smoke: bool,
     quest_smoke: bool,
     results: Vec<BotRunResult>,
 }
@@ -475,6 +536,85 @@ struct InventorySwapSmokeFixture {
     options: InventorySwapSmokeOptions,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RestedXpSmokePhase {
+    OfflineWilderness,
+    OfflineResting,
+    ConsumeKill,
+    VerifyRelog,
+}
+
+#[derive(Debug, Clone)]
+struct RestedXpSmokeOptions {
+    phase: RestedXpSmokePhase,
+    target: ResolvedCreatureTarget,
+    target_match_radius: f32,
+    test_level: u8,
+    next_level_xp: u32,
+    seeded_rest_bonus: f32,
+    expected_xp: Option<u32>,
+    expected_rest_bonus: Option<f32>,
+    timeout_secs: u64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct RestedXpCharacterRestorePoint {
+    level: u8,
+    xp: u32,
+    rest_state: u8,
+    player_flags: u32,
+    rest_bonus: f32,
+    logout_time: u64,
+    is_logout_resting: u8,
+    map_id: u32,
+    zone_id: u32,
+    instance_id: u32,
+    x: f64,
+    y: f64,
+    z: f64,
+    orientation: f32,
+    health: u32,
+    powers: [u32; 10],
+    total_kills: u32,
+    today_kills: u16,
+    yesterday_kills: u16,
+    total_time: u32,
+    level_time: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct RestedXpDbState {
+    level: u8,
+    xp: u32,
+    rest_state: u8,
+    rest_bonus: f32,
+    online: u8,
+}
+
+#[derive(Debug, Clone)]
+struct RestedXpSmokeFixture {
+    options: RestedXpSmokeOptions,
+    original: RestedXpCharacterRestorePoint,
+    original_achievements: Vec<(u32, i64)>,
+    original_achievement_progress: Vec<(u32, u64, i64)>,
+    battlenet_account_id: u32,
+    target_respawn_secs: u32,
+    test_level: u8,
+    offline_secs: u64,
+    wilderness_rate: f32,
+    resting_rate: f32,
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+struct RestedXpFixtureSafetyState {
+    at_login: u16,
+    game_account_online: u8,
+    bnet_email_matches_configured_account: bool,
+    characters_on_game_account: u64,
+    game_accounts_on_bnet_account: u64,
+    nonempty_side_state: Vec<(String, u64)>,
+}
+
 #[derive(Debug, Clone)]
 struct ResolvedCreatureTarget {
     entry: u32,
@@ -486,6 +626,15 @@ struct ResolvedCreatureTarget {
     z: f64,
     orientation: f32,
     packed_guid: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct DiscoveredCreatureGuid {
+    low: u64,
+    high: u64,
+    x: f32,
+    y: f32,
+    z: f32,
 }
 
 fn test_dungeon_id(app_config: &config::AppConfig) -> u32 {
@@ -598,6 +747,36 @@ fn parse_cli() -> Result<CliOptions> {
             .map(|value| value.parse::<u64>())
             .transpose()?
             .unwrap_or(8),
+        rested_xp_smoke: std::env::var("WOW_BOT_RESTED_XP_SMOKE")
+            .ok()
+            .map(|value| is_truthy(&value))
+            .unwrap_or(false),
+        // Deliberately CLI-only: an inherited environment must never acknowledge
+        // destructive use of a disposable fixture implicitly.
+        ack_disposable_rested_xp: false,
+        rested_xp_creature_entry: std::env::var("WOW_BOT_RESTED_XP_CREATURE_ENTRY")
+            .ok()
+            .map(|value| value.parse::<u32>())
+            .transpose()?
+            .unwrap_or(DEFAULT_RESTED_XP_CREATURE_ENTRY),
+        rested_xp_creature_guid: std::env::var("WOW_BOT_RESTED_XP_CREATURE_GUID")
+            .ok()
+            .map(|value| value.parse::<u64>())
+            .transpose()?,
+        rested_xp_runtime_counter: std::env::var("WOW_BOT_RESTED_XP_RUNTIME_COUNTER")
+            .ok()
+            .map(|value| value.parse::<u64>())
+            .transpose()?,
+        rested_xp_offline_secs: std::env::var("WOW_BOT_RESTED_XP_OFFLINE_SECS")
+            .ok()
+            .map(|value| value.parse::<u64>())
+            .transpose()?
+            .unwrap_or(DEFAULT_RESTED_XP_OFFLINE_SECS),
+        rested_xp_timeout_secs: std::env::var("WOW_BOT_RESTED_XP_TIMEOUT_SECS")
+            .ok()
+            .map(|value| value.parse::<u64>())
+            .transpose()?
+            .unwrap_or(DEFAULT_RESTED_XP_TIMEOUT_SECS),
         quest_smoke: std::env::var("WOW_BOT_QUEST_SMOKE")
             .ok()
             .map(|v| is_truthy(&v))
@@ -740,6 +919,28 @@ fn parse_cli() -> Result<CliOptions> {
                 opts.inventory_swap_timeout_secs =
                     next_arg(&mut args, "--inventory-swap-timeout")?.parse()?;
             }
+            "--rested-xp-smoke" => opts.rested_xp_smoke = true,
+            arg if parse_ack_disposable_rested_xp_arg(arg, &mut opts.ack_disposable_rested_xp) => {}
+            "--rested-xp-creature-entry" => {
+                opts.rested_xp_creature_entry =
+                    next_arg(&mut args, "--rested-xp-creature-entry")?.parse()?;
+            }
+            "--rested-xp-creature-guid" => {
+                opts.rested_xp_creature_guid =
+                    Some(next_arg(&mut args, "--rested-xp-creature-guid")?.parse()?);
+            }
+            "--rested-xp-runtime-counter" => {
+                opts.rested_xp_runtime_counter =
+                    Some(next_arg(&mut args, "--rested-xp-runtime-counter")?.parse()?);
+            }
+            "--rested-xp-offline-secs" => {
+                opts.rested_xp_offline_secs =
+                    next_arg(&mut args, "--rested-xp-offline-secs")?.parse()?;
+            }
+            "--rested-xp-timeout" => {
+                opts.rested_xp_timeout_secs =
+                    next_arg(&mut args, "--rested-xp-timeout")?.parse()?;
+            }
             "--quest-smoke" => opts.quest_smoke = true,
             "--quest-creature-entry" => {
                 opts.quest_creature_entry =
@@ -817,11 +1018,106 @@ fn next_arg(args: &mut impl Iterator<Item = String>, flag: &str) -> Result<Strin
     args.next().ok_or_else(|| anyhow!("{} needs a value", flag))
 }
 
+fn parse_ack_disposable_rested_xp_arg(arg: &str, acknowledged: &mut bool) -> bool {
+    if arg != ACK_DISPOSABLE_RESTED_XP_FLAG {
+        return false;
+    }
+
+    *acknowledged = true;
+    true
+}
+
 fn is_truthy(value: &str) -> bool {
     matches!(
         value.to_ascii_lowercase().as_str(),
         "1" | "true" | "yes" | "y" | "on"
     )
+}
+
+fn validate_rested_xp_cli_values(
+    enabled: bool,
+    acknowledged_disposable: bool,
+    bot_count: usize,
+    creature_entry: u32,
+    offline_secs: u64,
+    timeout_secs: u64,
+    now_secs: u64,
+) -> Result<()> {
+    if !enabled {
+        if acknowledged_disposable {
+            bail!("{ACK_DISPOSABLE_RESTED_XP_FLAG} is only valid with --rested-xp-smoke");
+        }
+        return Ok(());
+    }
+    if !acknowledged_disposable {
+        bail!(
+            "--rested-xp-smoke requires {ACK_DISPOSABLE_RESTED_XP_FLAG}; this acknowledges that the selected account, character, and Battle.net identity are disposable QA fixtures"
+        );
+    }
+    if bot_count != 1 {
+        bail!("--rested-xp-smoke requires exactly one bot; select it with --single");
+    }
+    if creature_entry == 0 {
+        bail!("--rested-xp-creature-entry must be nonzero");
+    }
+    if offline_secs == 0 {
+        bail!("--rested-xp-offline-secs must be greater than zero");
+    }
+    if u32::try_from(offline_secs).is_err() {
+        bail!("--rested-xp-offline-secs must fit the legacy C++ uint32 interval");
+    }
+    if offline_secs >= now_secs {
+        bail!(
+            "--rested-xp-offline-secs ({offline_secs}) must be smaller than the current Unix timestamp ({now_secs})"
+        );
+    }
+    if timeout_secs == 0 {
+        bail!("--rested-xp-timeout must be greater than zero");
+    }
+    Ok(())
+}
+
+fn validate_rested_xp_fixture_safety_state(state: &RestedXpFixtureSafetyState) -> Result<()> {
+    if state.at_login != 0 {
+        bail!(
+            "rested-XP fixture requires characters.at_login = 0, found 0x{:X}; login flags can reset or create non-restored character state",
+            state.at_login
+        );
+    }
+    if state.game_account_online != 0 {
+        bail!(
+            "rested-XP fixture game account is marked online; refusing concurrent or stale account state"
+        );
+    }
+    if !state.bnet_email_matches_configured_account {
+        bail!(
+            "rested-XP fixture account ID does not belong to the configured @bot.local Battle.net email"
+        );
+    }
+    if state.characters_on_game_account != 1 {
+        bail!(
+            "rested-XP fixture requires a dedicated game account with exactly one character, found {}",
+            state.characters_on_game_account
+        );
+    }
+    if state.game_accounts_on_bnet_account != 1 {
+        bail!(
+            "rested-XP fixture requires a dedicated Battle.net identity with exactly one game account, found {}",
+            state.game_accounts_on_bnet_account
+        );
+    }
+    if !state.nonempty_side_state.is_empty() {
+        let summary = state
+            .nonempty_side_state
+            .iter()
+            .map(|(table, rows)| format!("{table}={rows}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        bail!(
+            "rested-XP fixture has non-restored high-risk side state ({summary}); use a clean disposable QA character/account"
+        );
+    }
+    Ok(())
 }
 
 fn parse_quest_objective_rows(value: &str) -> Result<Vec<QuestObjectiveDbRow>> {
@@ -895,6 +1191,22 @@ fn print_help() {
     println!("  --homebind-timeout <secs> Bind response timeout (default: 8)");
     println!(
         "                           Env: WOW_BOT_HOMEBIND_SMOKE, WOW_BOT_HOMEBIND_RUNTIME_COUNTER, WOW_BOT_HOMEBIND_TIMEOUT_SECS"
+    );
+    println!(
+        "  --rested-xp-smoke       Compare offline rest rates, kill one mob, and verify XP/rest persistence"
+    );
+    println!(
+        "  {ACK_DISPOSABLE_RESTED_XP_FLAG} Acknowledge the rested-XP account/character/BNet fixture is disposable"
+    );
+    println!("  --rested-xp-creature-entry <id>  Low-level XP target (default: 15274 Mana Wyrm)");
+    println!("  --rested-xp-creature-guid <guid> Optional exact world.creature spawn GUID");
+    println!(
+        "  --rested-xp-runtime-counter <n> Optional live counter; must match the target's discovered CREATE_OBJECT"
+    );
+    println!("  --rested-xp-offline-secs <n> Simulated offline interval (default: 86400)");
+    println!("  --rested-xp-timeout <secs> Combat/DB response timeout (default: 120)");
+    println!(
+        "                           Env: WOW_BOT_RESTED_XP_SMOKE, WOW_BOT_RESTED_XP_CREATURE_ENTRY, WOW_BOT_RESTED_XP_CREATURE_GUID, WOW_BOT_RESTED_XP_RUNTIME_COUNTER, WOW_BOT_RESTED_XP_OFFLINE_SECS, WOW_BOT_RESTED_XP_TIMEOUT_SECS"
     );
     println!("  --quest-smoke            After login, right-click/query one questgiver NPC");
     println!("  --quest-creature-entry <id>  Creature entry to resolve from world.creature");
@@ -1196,13 +1508,14 @@ async fn main() -> Result<()> {
         cli.bank_smoke,
         cli.homebind_smoke,
         cli.inventory_swap_smoke,
+        cli.rested_xp_smoke,
         cli.quest_smoke,
     ]
     .into_iter()
     .filter(|enabled| *enabled)
     .count();
     if post_login_mode_count > 1 {
-        bail!("stand-state, bank, homebind, inventory-swap, and quest smoke are separate post-login modes");
+        bail!("stand-state, bank, homebind, inventory-swap, rested-xp, and quest smoke are separate post-login modes");
     }
     if cli.bank_smoke && bots.len() != 1 {
         bail!("--bank-smoke requires exactly one bot; select it with --single");
@@ -1232,6 +1545,15 @@ async fn main() -> Result<()> {
     {
         bail!("inventory-swap fixture item entries must be different to avoid stack merging");
     }
+    validate_rested_xp_cli_values(
+        cli.rested_xp_smoke,
+        cli.ack_disposable_rested_xp,
+        bots.len(),
+        cli.rested_xp_creature_entry,
+        cli.rested_xp_offline_secs,
+        cli.rested_xp_timeout_secs,
+        current_epoch_secs(),
+    )?;
     let stand_state_options = if cli.stand_state_smoke {
         Some(stand_state_smoke_options_from_cli(&cli)?)
     } else {
@@ -1276,6 +1598,8 @@ async fn main() -> Result<()> {
             "homebind-smoke"
         } else if cli.inventory_swap_smoke {
             "inventory-swap-smoke"
+        } else if cli.rested_xp_smoke {
+            "rested-xp-smoke"
         } else if cli.quest_smoke {
             "quest-smoke"
         } else if cli.login_only {
@@ -1296,6 +1620,7 @@ async fn main() -> Result<()> {
         && !cli.bank_smoke
         && !cli.homebind_smoke
         && !cli.inventory_swap_smoke
+        && !cli.rested_xp_smoke
     {
         cleanup_bot_group_state(&bots)?;
     }
@@ -1337,6 +1662,19 @@ async fn main() -> Result<()> {
                     cli.inventory_swap_timeout_secs,
                 )
                 .await
+            } else if cli.rested_xp_smoke {
+                run_rested_xp_smoke_workflow(
+                    bot,
+                    dungeon_id,
+                    timeout_secs,
+                    auto_teleport,
+                    cli.rested_xp_creature_entry,
+                    cli.rested_xp_creature_guid,
+                    cli.rested_xp_runtime_counter,
+                    cli.rested_xp_offline_secs,
+                    cli.rested_xp_timeout_secs,
+                )
+                .await
             } else {
                 run_bot(
                     bot,
@@ -1345,6 +1683,7 @@ async fn main() -> Result<()> {
                     auto_teleport,
                     cli.login_only,
                     stand_state_options.clone(),
+                    None,
                     None,
                     None,
                     None,
@@ -1384,6 +1723,7 @@ async fn main() -> Result<()> {
                     None,
                     None,
                     None,
+                    None,
                     quest_options_for_bot,
                 )
                 .await;
@@ -1416,6 +1756,7 @@ async fn main() -> Result<()> {
         cli.bank_smoke,
         cli.homebind_smoke,
         cli.inventory_swap_smoke,
+        cli.rested_xp_smoke,
         cli.quest_smoke,
         &results,
     )?;
@@ -1540,6 +1881,7 @@ async fn run_bot(
     bank_options: Option<BankSmokeOptions>,
     homebind_options: Option<HomebindSmokeOptions>,
     inventory_swap_options: Option<InventorySwapSmokeOptions>,
+    rested_xp_options: Option<RestedXpSmokeOptions>,
     quest_options: Option<QuestSmokeOptions>,
 ) -> Result<BotRunResult> {
     let bot_index = bot.account_id as usize;
@@ -1629,6 +1971,27 @@ async fn run_bot(
         inventory_swap_relogin_after_forward: false,
         inventory_swap_reverse_persisted: false,
         inventory_swap_failure: None,
+        rested_xp_smoke: rested_xp_options.is_some(),
+        rested_xp_smoke_passed: None,
+        rested_xp_offline_wilderness_bonus: None,
+        rested_xp_offline_resting_bonus: None,
+        rested_xp_target_entry: rested_xp_options
+            .as_ref()
+            .map(|options| options.target.entry),
+        rested_xp_target_spawn_guid: rested_xp_options
+            .as_ref()
+            .map(|options| options.target.spawn_guid),
+        rested_xp_target_guid_counter: rested_xp_options.as_ref().and_then(|options| {
+            (options.target.guid_counter != 0).then_some(options.target.guid_counter)
+        }),
+        rested_xp_packet_amount: None,
+        rested_xp_packet_original: None,
+        rested_xp_db_xp_before: None,
+        rested_xp_db_xp_after: None,
+        rested_xp_db_rest_before: None,
+        rested_xp_db_rest_after: None,
+        rested_xp_relog_verified: false,
+        rested_xp_failure: None,
         quest_smoke: quest_options.is_some(),
         quest_smoke_passed: None,
         quest_target_entry: None,
@@ -1932,7 +2295,8 @@ async fn run_bot(
     info!("[Bot {}] ✅ CMSG_PLAYER_LOGIN sent", bot_index);
 
     let mut login_ok = false;
-    let preserve_realm_connection = stand_state_options.is_some() || homebind_options.is_some();
+    let preserve_realm_connection =
+        stand_state_options.is_some() || homebind_options.is_some() || rested_xp_options.is_some();
     for _ in 0..30 {
         match tokio::time::timeout(
             Duration::from_secs(5),
@@ -2107,6 +2471,25 @@ async fn run_bot(
         {
             result.inventory_swap_failure = Some(error.to_string());
             result.inventory_swap_smoke_passed = Some(false);
+        }
+        return Ok(result);
+    }
+
+    if let Some(rested_xp_options) = rested_xp_options {
+        if let Err(error) = run_rested_xp_smoke_phase(
+            bot_index,
+            &bot,
+            &mut stream,
+            &mut crypt,
+            &mut server_inflater,
+            &mut realm_connection,
+            &rested_xp_options,
+            &mut result,
+        )
+        .await
+        {
+            result.rested_xp_failure = Some(error.to_string());
+            result.rested_xp_smoke_passed = Some(false);
         }
         return Ok(result);
     }
@@ -2370,6 +2753,24 @@ fn log_bot_summary(
             );
             return;
         }
+        if result.rested_xp_smoke {
+            info!(
+                "✅ Bot {}: SUCCESS rested_xp_smoke offline={:?}/{:?} target={:?}/{:?}/counter={:?} xp={:?}+{:?} rest={:?}->{:?} relog={} failure={:?}",
+                result.account,
+                result.rested_xp_offline_wilderness_bonus,
+                result.rested_xp_offline_resting_bonus,
+                result.rested_xp_target_entry,
+                result.rested_xp_target_spawn_guid,
+                result.rested_xp_target_guid_counter,
+                result.rested_xp_packet_amount,
+                result.rested_xp_packet_original,
+                result.rested_xp_db_rest_before,
+                result.rested_xp_db_rest_after,
+                result.rested_xp_relog_verified,
+                result.rested_xp_failure,
+            );
+            return;
+        }
         info!(
             "✅ Bot {}: SUCCESS login={{auth:{}, enum:{}, player:{}}} join={:?}/{:?} proposal={} group={} teleport_denied={:?}",
             result.account,
@@ -2463,6 +2864,26 @@ fn log_bot_summary(
             );
             return;
         }
+        if result.rested_xp_smoke {
+            error!(
+                "❌ Bot {}: FAILED rested_xp_smoke offline={:?}/{:?} target={:?}/{:?}/counter={:?} packet={:?}/{:?} db_xp={:?}->{:?} db_rest={:?}->{:?} relog={} failure={:?}",
+                result.account,
+                result.rested_xp_offline_wilderness_bonus,
+                result.rested_xp_offline_resting_bonus,
+                result.rested_xp_target_entry,
+                result.rested_xp_target_spawn_guid,
+                result.rested_xp_target_guid_counter,
+                result.rested_xp_packet_amount,
+                result.rested_xp_packet_original,
+                result.rested_xp_db_xp_before,
+                result.rested_xp_db_xp_after,
+                result.rested_xp_db_rest_before,
+                result.rested_xp_db_rest_after,
+                result.rested_xp_relog_verified,
+                result.rested_xp_failure,
+            );
+            return;
+        }
         error!(
             "❌ Bot {}: FAILED login={{auth:{}, enum:{}, player:{}}} join={:?}/{:?} proposal={} group={} teleport_denied={:?}",
             result.account,
@@ -2490,6 +2911,7 @@ fn write_report_if_requested(
     bank_smoke: bool,
     homebind_smoke: bool,
     inventory_swap_smoke: bool,
+    rested_xp_smoke: bool,
     quest_smoke: bool,
     results: &[BotRunResult],
 ) -> Result<()> {
@@ -2510,6 +2932,7 @@ fn write_report_if_requested(
         bank_smoke,
         homebind_smoke,
         inventory_swap_smoke,
+        rested_xp_smoke,
         quest_smoke,
         results: results.to_vec(),
     };
@@ -2968,8 +3391,7 @@ async fn send_and_verify_stand_state_capture_fence(
     timeout_secs: u64,
     result: &mut BotRunResult,
 ) -> Result<()> {
-    let mut payload = [0u8; 8];
-    payload[..4].copy_from_slice(&STAND_STATE_CAPTURE_FENCE_SERIAL.to_le_bytes());
+    let payload = build_ping_payload(STAND_STATE_CAPTURE_FENCE_SERIAL);
     send_encrypted_packet(stream, crypt, CMSG_PING, &payload).await?;
     info!(
         "[Bot {}] ✅ deterministic CMSG_PING capture fence sent (serial=0x{:08X})",
@@ -3006,6 +3428,28 @@ async fn send_and_verify_stand_state_capture_fence(
         }
         return Ok(());
     }
+}
+
+/// C++ `WorldPackets::Auth::Ping::Read`: uint32 serial then uint32 latency.
+fn build_ping_payload(serial: u32) -> [u8; 8] {
+    let mut payload = [0u8; 8];
+    payload[..4].copy_from_slice(&serial.to_le_bytes());
+    payload
+}
+
+/// C++ `TimeSyncResponse::Read`: request sequence then client ticks in ms.
+fn build_time_sync_response_payload(sequence_index: u32, client_time: u32) -> [u8; 8] {
+    let mut payload = [0u8; 8];
+    payload[..4].copy_from_slice(&sequence_index.to_le_bytes());
+    payload[4..].copy_from_slice(&client_time.to_le_bytes());
+    payload
+}
+
+fn parse_time_sync_request_sequence(payload: &[u8]) -> Result<u32> {
+    let bytes: [u8; 4] = payload
+        .try_into()
+        .map_err(|_| anyhow!("SMSG_TIME_SYNC_REQUEST payload must contain exactly 4 bytes"))?;
+    Ok(u32::from_le_bytes(bytes))
 }
 
 /// C++ WorldPackets::Misc::StandStateChange::Read: one little-endian uint32.
@@ -3182,6 +3626,332 @@ async fn logout_and_verify_quest_objectives(
     Ok(())
 }
 
+async fn run_rested_xp_smoke_workflow(
+    bot: config::BotConfig,
+    dungeon_id: u32,
+    lfg_secs: u64,
+    auto_teleport: bool,
+    creature_entry: u32,
+    creature_spawn_guid: Option<u64>,
+    runtime_counter: Option<u64>,
+    offline_secs: u64,
+    timeout_secs: u64,
+) -> Result<BotRunResult> {
+    let bot_for_setup = bot.clone();
+    let fixture = tokio::task::spawn_blocking(move || {
+        prepare_rested_xp_smoke_fixture(
+            &bot_for_setup,
+            creature_entry,
+            creature_spawn_guid,
+            runtime_counter,
+            offline_secs,
+            timeout_secs,
+        )
+    })
+    .await
+    .map_err(|error| anyhow!("Rested-XP fixture setup worker failed: {error}"))??;
+
+    let workflow = run_rested_xp_smoke_workflow_inner(
+        bot.clone(),
+        dungeon_id,
+        lfg_secs,
+        auto_teleport,
+        &fixture,
+    )
+    .await;
+
+    // Cleanup is deliberately outside the workflow result so every login,
+    // protocol, assertion, and DB error path attempts the bounded selected-field
+    // restore after the server has completed its disconnect save.
+    let bot_for_cleanup = bot.clone();
+    let fixture_for_cleanup = fixture.clone();
+    let cleanup = tokio::task::spawn_blocking(move || {
+        cleanup_rested_xp_smoke_fixture(&bot_for_cleanup, &fixture_for_cleanup)
+    })
+    .await
+    .map_err(|error| anyhow!("Rested-XP cleanup worker failed: {error}"))?;
+
+    match (workflow, cleanup) {
+        (Ok(result), Ok(())) => Ok(result),
+        (Ok(mut result), Err(error)) => {
+            result.rested_xp_smoke_passed = Some(false);
+            result.rested_xp_failure = Some(format!("fixture cleanup failed: {error}"));
+            Ok(result)
+        }
+        (Err(error), Ok(())) => Err(error),
+        (Err(workflow_error), Err(cleanup_error)) => Err(anyhow!(
+            "Rested-XP workflow failed: {workflow_error}; fixture cleanup failed: {cleanup_error}"
+        )),
+    }
+}
+
+async fn run_rested_xp_smoke_workflow_inner(
+    bot: config::BotConfig,
+    dungeon_id: u32,
+    lfg_secs: u64,
+    auto_teleport: bool,
+    fixture: &RestedXpSmokeFixture,
+) -> Result<BotRunResult> {
+    let mut wilderness_options = fixture.options.clone();
+    wilderness_options.phase = RestedXpSmokePhase::OfflineWilderness;
+    prepare_rested_xp_phase_async(
+        bot.clone(),
+        fixture.clone(),
+        RestedXpSmokePhase::OfflineWilderness,
+    )
+    .await?;
+    let mut combined = run_bot(
+        bot.clone(),
+        dungeon_id,
+        lfg_secs,
+        auto_teleport,
+        false,
+        None,
+        None,
+        None,
+        None,
+        Some(wilderness_options),
+        None,
+    )
+    .await?;
+    if !combined.rested_xp_smoke_passed.unwrap_or(false) {
+        return Ok(combined);
+    }
+    let wilderness = load_rested_xp_db_state_async(bot.clone()).await?;
+    let expected_wilderness = offline_rest_bonus_like_cpp(
+        fixture.options.next_level_xp,
+        fixture.offline_secs,
+        REST_OFFLINE_WILDERNESS_BUBBLE,
+        fixture.wilderness_rate,
+    );
+    if let Err(error) = validate_rested_xp_saved_state_shape(
+        wilderness,
+        fixture.test_level,
+        0,
+        0,
+        "wilderness offline accrual",
+    ) {
+        set_rested_xp_failure(&mut combined, error.to_string());
+        return Ok(combined);
+    }
+    if !offline_rest_bonus_matches_like_cpp(
+        wilderness.rest_bonus,
+        expected_wilderness,
+        fixture.options.next_level_xp,
+        REST_OFFLINE_WILDERNESS_BUBBLE,
+        fixture.wilderness_rate,
+        fixture.options.timeout_secs,
+    ) {
+        set_rested_xp_failure(
+            &mut combined,
+            format!(
+                "wilderness offline bonus mismatch: expected approximately {expected_wilderness:.4}, got {:.4}",
+                wilderness.rest_bonus
+            ),
+        );
+        return Ok(combined);
+    }
+    combined.rested_xp_offline_wilderness_bonus = Some(wilderness.rest_bonus);
+
+    let mut resting_options = fixture.options.clone();
+    resting_options.phase = RestedXpSmokePhase::OfflineResting;
+    prepare_rested_xp_phase_async(
+        bot.clone(),
+        fixture.clone(),
+        RestedXpSmokePhase::OfflineResting,
+    )
+    .await?;
+    let resting_result = run_bot(
+        bot.clone(),
+        dungeon_id,
+        lfg_secs,
+        auto_teleport,
+        false,
+        None,
+        None,
+        None,
+        None,
+        Some(resting_options),
+        None,
+    )
+    .await?;
+    merge_rested_xp_results(&mut combined, resting_result);
+    if !combined.rested_xp_smoke_passed.unwrap_or(false) {
+        return Ok(combined);
+    }
+    let resting = load_rested_xp_db_state_async(bot.clone()).await?;
+    let expected_resting = offline_rest_bonus_like_cpp(
+        fixture.options.next_level_xp,
+        fixture.offline_secs,
+        REST_OFFLINE_TAVERN_OR_CITY_BUBBLE,
+        fixture.resting_rate,
+    );
+    if let Err(error) = validate_rested_xp_saved_state_shape(
+        resting,
+        fixture.test_level,
+        0,
+        0,
+        "resting offline accrual",
+    ) {
+        set_rested_xp_failure(&mut combined, error.to_string());
+        return Ok(combined);
+    }
+    if !offline_rest_bonus_matches_like_cpp(
+        resting.rest_bonus,
+        expected_resting,
+        fixture.options.next_level_xp,
+        REST_OFFLINE_TAVERN_OR_CITY_BUBBLE,
+        fixture.resting_rate,
+        fixture.options.timeout_secs,
+    ) {
+        set_rested_xp_failure(
+            &mut combined,
+            format!(
+                "resting offline bonus mismatch: expected approximately {expected_resting:.4}, got {:.4}",
+                resting.rest_bonus
+            ),
+        );
+        return Ok(combined);
+    }
+    combined.rested_xp_offline_resting_bonus = Some(resting.rest_bonus);
+    if resting.rest_bonus <= wilderness.rest_bonus {
+        set_rested_xp_failure(
+            &mut combined,
+            format!(
+                "resting offline bonus {:.4} was not greater than wilderness {:.4}",
+                resting.rest_bonus, wilderness.rest_bonus
+            ),
+        );
+        return Ok(combined);
+    }
+
+    let mut consume_options = fixture.options.clone();
+    consume_options.phase = RestedXpSmokePhase::ConsumeKill;
+    prepare_rested_xp_phase_async(
+        bot.clone(),
+        fixture.clone(),
+        RestedXpSmokePhase::ConsumeKill,
+    )
+    .await?;
+    let consume_result = run_bot(
+        bot.clone(),
+        dungeon_id,
+        lfg_secs,
+        auto_teleport,
+        false,
+        None,
+        None,
+        None,
+        None,
+        Some(consume_options),
+        None,
+    )
+    .await?;
+    merge_rested_xp_results(&mut combined, consume_result);
+    if !combined.rested_xp_smoke_passed.unwrap_or(false) {
+        return Ok(combined);
+    }
+
+    let expected_xp = combined
+        .rested_xp_db_xp_after
+        .context("rested-XP consume phase omitted persisted XP")?;
+    let expected_rest_bonus = combined
+        .rested_xp_db_rest_after
+        .context("rested-XP consume phase omitted persisted rest bonus")?;
+    let mut verify_options = fixture.options.clone();
+    verify_options.phase = RestedXpSmokePhase::VerifyRelog;
+    verify_options.expected_xp = Some(expected_xp);
+    verify_options.expected_rest_bonus = Some(expected_rest_bonus);
+    let verify_result = run_bot(
+        bot,
+        dungeon_id,
+        lfg_secs,
+        auto_teleport,
+        false,
+        None,
+        None,
+        None,
+        None,
+        Some(verify_options),
+        None,
+    )
+    .await?;
+    merge_rested_xp_results(&mut combined, verify_result);
+    combined.rested_xp_smoke_passed =
+        Some(combined.rested_xp_smoke_passed.unwrap_or(false) && combined.rested_xp_relog_verified);
+    Ok(combined)
+}
+
+async fn prepare_rested_xp_phase_async(
+    bot: config::BotConfig,
+    fixture: RestedXpSmokeFixture,
+    phase: RestedXpSmokePhase,
+) -> Result<()> {
+    tokio::task::spawn_blocking(move || prepare_rested_xp_character_phase(&bot, &fixture, phase))
+        .await
+        .map_err(|error| anyhow!("Rested-XP phase setup worker failed: {error}"))?
+}
+
+async fn load_rested_xp_db_state_async(bot: config::BotConfig) -> Result<RestedXpDbState> {
+    tokio::task::spawn_blocking(move || load_rested_xp_db_state(&bot))
+        .await
+        .map_err(|error| anyhow!("Rested-XP DB state worker failed: {error}"))?
+}
+
+fn set_rested_xp_failure(result: &mut BotRunResult, message: String) {
+    result.rested_xp_smoke_passed = Some(false);
+    result.rested_xp_failure = Some(message);
+}
+
+fn merge_rested_xp_results(combined: &mut BotRunResult, next: BotRunResult) {
+    combined.world_auth &= next.world_auth;
+    combined.enum_characters &= next.enum_characters;
+    combined.player_login_verified &= next.player_login_verified;
+    combined.seen_opcodes.extend(next.seen_opcodes);
+    combined.rested_xp_smoke_passed = Some(
+        combined.rested_xp_smoke_passed.unwrap_or(false)
+            && next.rested_xp_smoke_passed.unwrap_or(false),
+    );
+    if next.rested_xp_target_guid_counter.is_some() {
+        combined.rested_xp_target_guid_counter = next.rested_xp_target_guid_counter;
+    }
+    if next.rested_xp_packet_amount.is_some() {
+        combined.rested_xp_packet_amount = next.rested_xp_packet_amount;
+        combined.rested_xp_packet_original = next.rested_xp_packet_original;
+        combined.rested_xp_db_xp_before = next.rested_xp_db_xp_before;
+        combined.rested_xp_db_xp_after = next.rested_xp_db_xp_after;
+        combined.rested_xp_db_rest_before = next.rested_xp_db_rest_before;
+        combined.rested_xp_db_rest_after = next.rested_xp_db_rest_after;
+    }
+    combined.rested_xp_relog_verified |= next.rested_xp_relog_verified;
+    if next.rested_xp_failure.is_some() {
+        combined.rested_xp_failure = next.rested_xp_failure;
+    }
+}
+
+fn offline_rest_bonus_like_cpp(
+    next_level_xp: u32,
+    offline_secs: u64,
+    bubble: f32,
+    rate: f32,
+) -> f32 {
+    let extra = offline_secs as f32 * next_level_xp as f32 / 72_000.0 * bubble * rate;
+    extra.clamp(0.0, next_level_xp as f32 * REST_BONUS_CAP_NEXT_LEVEL_FACTOR)
+}
+
+fn offline_rest_bonus_matches_like_cpp(
+    actual: f32,
+    expected: f32,
+    next_level_xp: u32,
+    bubble: f32,
+    rate: f32,
+    timeout_secs: u64,
+) -> bool {
+    let per_second = next_level_xp as f32 / 72_000.0 * bubble * rate.abs();
+    let timing_slop = timeout_secs.saturating_add(30) as f32 * per_second;
+    (actual - expected).abs() <= timing_slop.max(0.05)
+}
+
 async fn run_bank_smoke_workflow(
     bot: config::BotConfig,
     dungeon_id: u32,
@@ -3208,6 +3978,7 @@ async fn run_bank_smoke_workflow(
         false,
         None,
         Some(deposit_options),
+        None,
         None,
         None,
         None,
@@ -3238,6 +4009,7 @@ async fn run_bank_smoke_workflow(
             false,
             None,
             Some(withdraw_options),
+            None,
             None,
             None,
             None,
@@ -3308,6 +4080,7 @@ async fn run_homebind_smoke_workflow(
         Some(fixture.options.clone()),
         None,
         None,
+        None,
     )
     .await;
 
@@ -3370,6 +4143,7 @@ async fn run_homebind_smoke_workflow(
                 None,
                 None,
                 Some(relog_options),
+                None,
                 None,
                 None,
             )
@@ -3664,6 +4438,567 @@ async fn run_homebind_smoke_phase(
     Ok(())
 }
 
+async fn run_rested_xp_smoke_phase(
+    bot_index: usize,
+    bot: &config::BotConfig,
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    server_inflater: &mut ServerPacketInflater,
+    realm_connection: &mut Option<EncryptedWorldConnection>,
+    options: &RestedXpSmokeOptions,
+    result: &mut BotRunResult,
+) -> Result<()> {
+    match options.phase {
+        RestedXpSmokePhase::OfflineWilderness | RestedXpSmokePhase::OfflineResting => {
+            disconnect_rested_xp_and_wait(
+                bot_index,
+                bot,
+                stream,
+                realm_connection,
+                options.timeout_secs,
+            )
+            .await?;
+            result.rested_xp_smoke_passed = Some(true);
+            return Ok(());
+        }
+        RestedXpSmokePhase::VerifyRelog => {
+            let expected_xp = options
+                .expected_xp
+                .context("rested-XP relog phase missing expected XP")?;
+            let expected_rest_bonus = options
+                .expected_rest_bonus
+                .context("rested-XP relog phase missing expected rest bonus")?;
+            let before_logout = load_rested_xp_db_state_async(bot.clone()).await?;
+            validate_rested_xp_persistence_state(
+                before_logout,
+                options.test_level,
+                expected_xp,
+                expected_rest_bonus,
+                1,
+                "after relog",
+            )?;
+            disconnect_rested_xp_and_wait(
+                bot_index,
+                bot,
+                stream,
+                realm_connection,
+                options.timeout_secs,
+            )
+            .await?;
+            let after_logout = load_rested_xp_db_state_async(bot.clone()).await?;
+            validate_rested_xp_persistence_state(
+                after_logout,
+                options.test_level,
+                expected_xp,
+                expected_rest_bonus,
+                0,
+                "after relog logout",
+            )?;
+            result.rested_xp_relog_verified = true;
+            result.rested_xp_smoke_passed = Some(true);
+            return Ok(());
+        }
+        RestedXpSmokePhase::ConsumeKill => {}
+    }
+
+    let realm = realm_connection.as_mut().context(
+        "rested-XP smoke requires distinct realm/instance sockets to validate XP routing",
+    )?;
+    let realm_drain_deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    while tokio::time::Instant::now() < realm_drain_deadline {
+        let remaining = realm_drain_deadline.saturating_duration_since(tokio::time::Instant::now());
+        let Some((opcode, payload)) = read_encrypted_packet_if_ready(
+            &mut realm.stream,
+            &mut realm.crypt,
+            &mut realm.inflater,
+            Duration::from_millis(250).min(remaining),
+            Duration::from_secs(5),
+            "rested-XP realm login drain",
+        )
+        .await?
+        else {
+            break;
+        };
+        result.seen_opcodes.push(format!("0x{opcode:04X}"));
+        info!(
+            "[Bot {}] 📦 realm rested-XP login drain {}",
+            bot_index,
+            parse_packet(opcode, &payload)
+        );
+    }
+
+    // C++ Player::CanNeverSee returns true until the client acknowledges that
+    // its active mover is initialized. Send the ACK before discovery because
+    // C++ may defer the target's visibility update until this packet, whereas
+    // Rust currently can have queued the CREATE slightly earlier.
+    let active_mover_complete = build_move_init_active_mover_complete_payload(0);
+    send_encrypted_packet(
+        stream,
+        crypt,
+        CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE,
+        &active_mover_complete,
+    )
+    .await?;
+    info!(
+        "[Bot {}] ✅ CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE sent before live target discovery",
+        bot_index
+    );
+
+    // Search until the declared deadline, not merely until the first 250 ms
+    // gap. This also drains the visibility work caused by the active-mover ACK.
+    // Stop as soon as the CREATE_OBJECT candidate is decoded so its live
+    // position is still fresh enough for deterministic engagement below.
+    let expected_runtime_counter = (options.target.guid_counter != 0)
+        .then_some(options.target.guid_counter & OBJECT_GUID_COUNTER_MASK);
+    let mut discovered = None;
+    let discovery_deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    while discovered.is_none() && tokio::time::Instant::now() < discovery_deadline {
+        let remaining = discovery_deadline.saturating_duration_since(tokio::time::Instant::now());
+        let Some((opcode, payload)) = read_encrypted_packet_if_ready(
+            stream,
+            crypt,
+            server_inflater,
+            Duration::from_millis(250).min(remaining),
+            Duration::from_secs(5),
+            "rested-XP instance login discovery",
+        )
+        .await?
+        else {
+            continue;
+        };
+        result.seen_opcodes.push(format!("0x{opcode:04X}"));
+        if opcode == SMSG_UPDATE_OBJECT {
+            discovered = find_creature_guid_near_position_in_update_object(
+                &payload,
+                options.target.map_id,
+                options.target.entry,
+                options.target.x as f32,
+                options.target.y as f32,
+                options.target.z as f32,
+                options.target_match_radius,
+                expected_runtime_counter,
+            );
+        }
+    }
+
+    let candidate = resolve_rested_xp_runtime_target(&options.target, discovered)?;
+    let player_x = candidate.x + 1.0;
+    let player_y = candidate.y;
+    let player_z = candidate.z;
+    let player_orientation = (candidate.y - player_y).atan2(candidate.x - player_x);
+    let player_distance = ((candidate.x - player_x).powi(2)
+        + (candidate.y - player_y).powi(2)
+        + (candidate.z - player_z).powi(2))
+    .sqrt();
+    if player_distance > NOMINAL_MELEE_RANGE_LIKE_CPP {
+        bail!(
+            "rested-XP live engagement placement remained {player_distance:.2} yards from the target (C++ nominal melee range is {NOMINAL_MELEE_RANGE_LIKE_CPP:.2})"
+        );
+    }
+    let (player_low, player_high) = create_player_guid_raw(bot.character_guid, realm_id());
+    let movement = build_move_heartbeat_payload(
+        player_low,
+        player_high,
+        player_x,
+        player_y,
+        player_z,
+        player_orientation,
+    );
+    send_encrypted_packet(stream, crypt, CMSG_MOVE_HEARTBEAT, &movement).await?;
+    info!(
+        "[Bot {}] ✅ CMSG_MOVE_HEARTBEAT placed the bot {:.2} yards from the live target and facing it",
+        bot_index, player_distance
+    );
+    let (runtime_low, runtime_high) = (candidate.low, candidate.high);
+    result.rested_xp_target_guid_counter = Some(runtime_low & OBJECT_GUID_COUNTER_MASK);
+    let packed_target = build_packed_guid(runtime_low, runtime_high);
+    send_encrypted_packet(stream, crypt, CMSG_ATTACK_SWING, &packed_target).await?;
+    info!(
+        "[Bot {}] ✅ CMSG_ATTACK_SWING sent on instance to entry={} spawn={} counter={}",
+        bot_index,
+        options.target.entry,
+        options.target.spawn_guid,
+        runtime_low & OBJECT_GUID_COUNTER_MASK
+    );
+
+    enum RestedXpReady {
+        Instance,
+        Realm,
+    }
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(options.timeout_secs);
+    let client_clock_origin = tokio::time::Instant::now();
+    let mut player_damage_observed = 0i64;
+    let mut target_death_observed = false;
+    let xp_gain = loop {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if remaining.is_zero() {
+            bail!(
+                "timed out waiting for realm SMSG_LOG_XP_GAIN after observing {player_damage_observed} player damage (target_death={target_death_observed})"
+            );
+        }
+        let mut instance_peek = [0u8; 1];
+        let mut realm_peek = [0u8; 1];
+        let ready = tokio::time::timeout(remaining, async {
+            tokio::select! {
+                ready = stream.peek(&mut instance_peek) => {
+                    if ready.context("rested-XP instance peek failed")? == 0 {
+                        bail!("instance connection closed during rested-XP combat");
+                    }
+                    Ok(RestedXpReady::Instance)
+                }
+                ready = realm.stream.peek(&mut realm_peek) => {
+                    if ready.context("rested-XP realm peek failed")? == 0 {
+                        bail!("realm connection closed during rested-XP combat");
+                    }
+                    Ok(RestedXpReady::Realm)
+                }
+            }
+        })
+        .await
+        .map_err(|_| {
+            anyhow!(
+                "timed out waiting for rested-XP combat packets after observing {player_damage_observed} player damage (target_death={target_death_observed})"
+            )
+        })??;
+        let (connection, opcode, payload) = match ready {
+            RestedXpReady::Instance => {
+                let (opcode, payload) = tokio::time::timeout(
+                    deadline.saturating_duration_since(tokio::time::Instant::now()),
+                    read_encrypted_packet(stream, crypt, server_inflater),
+                )
+                .await
+                .map_err(|_| anyhow!("rested-XP instance packet read timed out"))??;
+                ("instance", opcode, payload)
+            }
+            RestedXpReady::Realm => {
+                let (opcode, payload) = tokio::time::timeout(
+                    deadline.saturating_duration_since(tokio::time::Instant::now()),
+                    read_encrypted_packet(&mut realm.stream, &mut realm.crypt, &mut realm.inflater),
+                )
+                .await
+                .map_err(|_| anyhow!("rested-XP realm packet read timed out"))??;
+                ("realm", opcode, payload)
+            }
+        };
+        result.seen_opcodes.push(format!("0x{opcode:04X}"));
+        info!(
+            "[Bot {}] 📦 {} rested-XP {}",
+            bot_index,
+            connection,
+            parse_packet(opcode, &payload)
+        );
+        if opcode == SMSG_TIME_SYNC_REQUEST {
+            if connection != "instance" {
+                bail!("SMSG_TIME_SYNC_REQUEST arrived on realm during rested-XP combat");
+            }
+            let sequence_index = parse_time_sync_request_sequence(&payload)?;
+            let client_time = client_clock_origin.elapsed().as_millis() as u32;
+            let response = build_time_sync_response_payload(sequence_index, client_time);
+            send_encrypted_packet(stream, crypt, CMSG_TIME_SYNC_RESPONSE, &response).await?;
+            info!(
+                "[Bot {}] ✅ rested-XP CMSG_TIME_SYNC_RESPONSE sent (sequence={}, client_time={})",
+                bot_index, sequence_index, client_time
+            );
+            continue;
+        }
+        if opcode == SMSG_ATTACKER_STATE_UPDATE {
+            let update = parse_attacker_state_update_summary(&payload)
+                .context("malformed SMSG_ATTACKER_STATE_UPDATE during rested-XP combat")?;
+            if (update.attacker_guid_low, update.attacker_guid_high) == (player_low, player_high)
+                && (update.victim_guid_low, update.victim_guid_high) == (runtime_low, runtime_high)
+            {
+                if update.damage < 0 {
+                    bail!(
+                        "rested-XP player auto-attack reported negative damage {}",
+                        update.damage
+                    );
+                }
+                // C++ can emit zero-damage MISS/DODGE/PARRY swings. They are
+                // valid combat progress, but only positive damage contributes
+                // to the proof that this bot killed the selected target.
+                if update.damage > 0 {
+                    player_damage_observed += i64::from(update.damage);
+                }
+                target_death_observed |= update.over_damage >= 0;
+            }
+        }
+        if opcode == SMSG_ATTACK_STOP {
+            let stop = parse_attack_stop_summary(&payload)
+                .context("malformed SMSG_ATTACK_STOP payload during rested-XP combat")?;
+            let attacker = (stop.attacker_guid_low, stop.attacker_guid_high);
+            let victim = (stop.victim_guid_low, stop.victim_guid_high);
+            if attacker == (runtime_low, runtime_high) && victim == (player_low, player_high) {
+                if stop.now_dead {
+                    bail!("the rested-XP target killed the bot before XP was awarded");
+                }
+                // C++ CombatStop can emit the reciprocal creature->player stop
+                // before the player's target-death stop.
+                continue;
+            }
+            if attacker != (player_low, player_high) || victim != (runtime_low, runtime_high) {
+                continue;
+            }
+            if stop.now_dead {
+                // C++ sends AttackStop when the victim dies. XP can arrive on
+                // the realm connection immediately before or after this
+                // instance packet, so keep polling both sockets.
+                target_death_observed = true;
+                continue;
+            }
+            bail!("server stopped the rested-XP attack while the target was still alive");
+        }
+        if opcode != SMSG_LOG_XP_GAIN {
+            continue;
+        }
+        if connection != "realm" {
+            bail!("SMSG_LOG_XP_GAIN arrived on instance; C++ routes it on realm");
+        }
+        let gain =
+            parse_log_xp_gain_summary(&payload).context("malformed SMSG_LOG_XP_GAIN payload")?;
+        break gain;
+    };
+
+    if (xp_gain.victim_guid_low, xp_gain.victim_guid_high) != (runtime_low, runtime_high) {
+        bail!("SMSG_LOG_XP_GAIN victim did not match the attacked creature");
+    }
+    if player_damage_observed <= 0 {
+        bail!("rested-XP reward arrived without any positive player damage to the target");
+    }
+    if xp_gain.reason != 0 || xp_gain.amount <= 0 {
+        bail!(
+            "SMSG_LOG_XP_GAIN was not a positive kill reward: reason={} amount={}",
+            xp_gain.reason,
+            xp_gain.amount
+        );
+    }
+    if xp_gain.original != xp_gain.amount.saturating_mul(2) {
+        bail!(
+            "rested kill was not exactly 200% XP: amount={} original={}",
+            xp_gain.amount,
+            xp_gain.original
+        );
+    }
+    if (xp_gain.group_bonus - 1.0).abs() > f32::EPSILON {
+        bail!("unexpected rested-XP group bonus: {}", xp_gain.group_bonus);
+    }
+    let expected_xp = u32::try_from(xp_gain.original)
+        .context("positive SMSG_LOG_XP_GAIN original did not fit u32")?;
+    let spent = xp_gain.amount as f32;
+    let expected_rest_bonus = options.seeded_rest_bonus - spent;
+    if expected_rest_bonus < 0.0 {
+        bail!("fixture rest bonus was smaller than the awarded base XP");
+    }
+    observe_instance_after_realm_xp(bot_index, stream, crypt, server_inflater, result).await?;
+    // C++ Player::GiveXP mutates update fields in memory; persistence occurs
+    // during the later character save. Disconnect both sockets and wait for a
+    // stable offline row before asserting DB state so this workflow is valid
+    // against both the legacy server and RustyCore. This also avoids coupling
+    // rested-XP QA to C++'s unrelated 20-second wilderness logout delay.
+    disconnect_rested_xp_and_wait(
+        bot_index,
+        bot,
+        stream,
+        realm_connection,
+        options.timeout_secs,
+    )
+    .await?;
+    let persisted = load_rested_xp_db_state_async(bot.clone()).await?;
+    validate_rested_xp_persistence_state(
+        persisted,
+        options.test_level,
+        expected_xp,
+        expected_rest_bonus,
+        0,
+        "after rested-XP disconnect save",
+    )?;
+    result.rested_xp_packet_amount = Some(xp_gain.amount);
+    result.rested_xp_packet_original = Some(xp_gain.original);
+    result.rested_xp_db_xp_before = Some(0);
+    result.rested_xp_db_xp_after = Some(persisted.xp);
+    result.rested_xp_db_rest_before = Some(options.seeded_rest_bonus);
+    result.rested_xp_db_rest_after = Some(persisted.rest_bonus);
+    result.rested_xp_smoke_passed = Some(true);
+    Ok(())
+}
+
+fn validate_rested_xp_instance_post_realm_opcode(opcode: u16) -> Result<()> {
+    if opcode == SMSG_LOG_XP_GAIN {
+        bail!(
+            "SMSG_LOG_XP_GAIN was duplicated/misrouted to instance after it arrived on realm; C++ routes it only on realm"
+        );
+    }
+    Ok(())
+}
+
+async fn read_encrypted_packet_if_ready(
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    server_inflater: &mut ServerPacketInflater,
+    readiness_wait: Duration,
+    frame_timeout: Duration,
+    context: &str,
+) -> Result<Option<(u16, Vec<u8>)>> {
+    // Waiting on `peek` is cancellation-safe: a readiness timeout cannot
+    // consume a partial encrypted frame and desynchronize framing/crypt state.
+    let mut peek = [0u8; 1];
+    match tokio::time::timeout(readiness_wait, stream.peek(&mut peek)).await {
+        Err(_) => return Ok(None),
+        Ok(Ok(0)) => bail!("{context}: connection closed"),
+        Ok(Ok(_)) => {}
+        Ok(Err(error)) => return Err(anyhow!("{context}: peek failed: {error}")),
+    }
+
+    // Once data is ready, finish the whole frame. A timeout is terminal for
+    // this workflow, so a partially consumed frame is never reused.
+    let packet = tokio::time::timeout(
+        frame_timeout,
+        read_encrypted_packet(stream, crypt, server_inflater),
+    )
+    .await
+    .map_err(|_| anyhow!("{context}: encrypted frame read timed out"))??;
+    Ok(Some(packet))
+}
+
+async fn observe_instance_after_realm_xp(
+    bot_index: usize,
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    server_inflater: &mut ServerPacketInflater,
+    result: &mut BotRunResult,
+) -> Result<()> {
+    let deadline = tokio::time::Instant::now() + RESTED_XP_INSTANCE_OBSERVATION_WINDOW;
+    loop {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if remaining.is_zero() {
+            return Ok(());
+        }
+        let Some((opcode, payload)) = read_encrypted_packet_if_ready(
+            stream,
+            crypt,
+            server_inflater,
+            remaining,
+            Duration::from_secs(5),
+            "rested-XP post-realm instance observation",
+        )
+        .await?
+        else {
+            return Ok(());
+        };
+        result.seen_opcodes.push(format!("0x{opcode:04X}"));
+        info!(
+            "[Bot {}] 📦 instance post-realm rested-XP drain {}",
+            bot_index,
+            parse_packet(opcode, &payload)
+        );
+        validate_rested_xp_instance_post_realm_opcode(opcode)?;
+    }
+}
+
+fn validate_rested_xp_persistence_state(
+    state: RestedXpDbState,
+    expected_level: u8,
+    expected_xp: u32,
+    expected_rest_bonus: f32,
+    expected_online: u8,
+    phase: &str,
+) -> Result<()> {
+    validate_rested_xp_saved_state_shape(
+        state,
+        expected_level,
+        expected_xp,
+        expected_online,
+        phase,
+    )?;
+    if (state.rest_bonus - expected_rest_bonus).abs() > 0.05 {
+        bail!(
+            "rested-XP persistence mismatch {phase}: expected xp/rest {expected_xp}/{expected_rest_bonus:.4}, got {}/{:.4}",
+            state.xp,
+            state.rest_bonus
+        );
+    }
+    Ok(())
+}
+
+fn validate_rested_xp_saved_state_shape(
+    state: RestedXpDbState,
+    expected_level: u8,
+    expected_xp: u32,
+    expected_online: u8,
+    phase: &str,
+) -> Result<()> {
+    // Rest bonus accrual is time-sensitive within a small tolerance. Derive
+    // the state relation from the persisted value itself so a legitimate
+    // boundary crossing near 1.0 is not rejected while still enforcing C++'s
+    // exact SetRestBonus state rule.
+    let expected_rest_state = if state.rest_bonus >= 1.0 {
+        REST_STATE_RESTED
+    } else {
+        REST_STATE_NORMAL
+    };
+    if state.level != expected_level
+        || state.xp != expected_xp
+        || state.rest_state != expected_rest_state
+        || state.online != expected_online
+    {
+        bail!(
+            "rested-XP saved-state mismatch {phase}: expected level/xp/state/online {expected_level}/{expected_xp}/{expected_rest_state}/{expected_online}, got {}/{}/{}/{}",
+            state.level,
+            state.xp,
+            state.rest_state,
+            state.online
+        );
+    }
+    Ok(())
+}
+
+fn validate_rested_xp_target_template(
+    entry: u32,
+    creature_type: u8,
+    vehicle_id: u32,
+) -> Result<()> {
+    if creature_type == CREATURE_TYPE_CRITTER {
+        bail!("rested-XP target entry {entry} is a critter; C++ dynamically marks critters NO_XP");
+    }
+    if vehicle_id != 0 {
+        bail!(
+            "rested-XP target entry {entry} has VehicleId {vehicle_id}; C++ creates it with HighGuid::Vehicle, which this creature-only smoke does not support"
+        );
+    }
+    Ok(())
+}
+
+async fn disconnect_rested_xp_and_wait(
+    bot_index: usize,
+    bot: &config::BotConfig,
+    instance_stream: &mut TcpStream,
+    realm_connection: &mut Option<EncryptedWorldConnection>,
+    timeout_secs: u64,
+) -> Result<()> {
+    instance_stream
+        .shutdown()
+        .await
+        .context("shut down rested-XP instance socket")?;
+    if let Some(mut realm) = realm_connection.take() {
+        realm
+            .stream
+            .shutdown()
+            .await
+            .context("shut down rested-XP realm socket")?;
+    }
+
+    let bot_for_wait = bot.clone();
+    tokio::task::spawn_blocking(move || {
+        wait_for_rested_xp_character_offline_and_stable(&bot_for_wait, timeout_secs)
+    })
+    .await
+    .map_err(|error| anyhow!("Rested-XP disconnect-save worker failed: {error}"))??;
+    info!(
+        "[Bot {}] ✅ rested-XP sockets disconnected and character save reached a stable offline row",
+        bot_index
+    );
+    Ok(())
+}
+
 async fn run_bank_smoke_phase(
     bot_index: usize,
     bot: &config::BotConfig,
@@ -3811,6 +5146,7 @@ async fn run_inventory_swap_smoke_workflow(
         None,
         Some(forward_options),
         None,
+        None,
     )
     .await;
 
@@ -3840,6 +5176,7 @@ async fn run_inventory_swap_smoke_workflow(
             None,
             None,
             Some(reverse_options),
+            None,
             None,
         )
         .await
@@ -4678,6 +6015,1143 @@ fn prepare_quest_smoke_before_login(
         );
     }
 
+    Ok(())
+}
+
+const RESTED_XP_RESTORE_CHARACTER_SQL: &str =
+    "UPDATE characters SET level = ?, xp = ?, restState = ?, playerFlags = ?, rest_bonus = ?, \
+     logout_time = ?, is_logout_resting = ?, map = ?, zone = ?, instance_id = ?, \
+     position_x = ?, position_y = ?, position_z = ?, orientation = ?, health = ?, \
+     power1 = ?, power2 = ?, power3 = ?, power4 = ?, power5 = ?, power6 = ?, power7 = ?, \
+     power8 = ?, power9 = ?, power10 = ?, totalKills = ?, todayKills = ?, yesterdayKills = ?, \
+     totaltime = ?, leveltime = ? WHERE guid = ? AND online = 0";
+
+fn prepare_rested_xp_smoke_fixture(
+    bot: &config::BotConfig,
+    creature_entry: u32,
+    creature_spawn_guid: Option<u64>,
+    runtime_counter: Option<u64>,
+    offline_secs: u64,
+    timeout_secs: u64,
+) -> Result<RestedXpSmokeFixture> {
+    use mysql::prelude::Queryable;
+
+    if !bot.account.to_ascii_uppercase().ends_with("@BOT.LOCAL") {
+        bail!(
+            "refusing rested-XP fixture setup for non-local account {}",
+            bot.account
+        );
+    }
+    if let Some(counter) = runtime_counter {
+        if counter == 0 || counter > OBJECT_GUID_COUNTER_MASK {
+            bail!(
+                "rested-XP runtime counter override {counter} must fit the nonzero 40-bit ObjectGuid counter field"
+            );
+        }
+    }
+
+    let characters_url = characters_db_url()?;
+    let character_opts = mysql::Opts::from_url(&characters_url)
+        .map_err(|error| anyhow!("Bad characters DB URL: {error}"))?;
+    let mut characters = mysql::Conn::new(character_opts)
+        .map_err(|error| anyhow!("Connect to characters DB failed: {error}"))?;
+    let character_row: mysql::Row = characters
+        .exec_first(
+            "SELECT account, online, at_login, level, xp, restState, playerFlags, rest_bonus, logout_time, \
+             is_logout_resting, map, zone, instance_id, position_x, position_y, position_z, \
+             orientation, health, power1, power2, power3, power4, power5, power6, power7, power8, \
+             power9, power10, totalKills, todayKills, yesterdayKills, totaltime, leveltime \
+             FROM characters WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Load rested-XP bot character: {error}"))?
+        .ok_or_else(|| anyhow!("No characters row for guid {}", bot.character_guid))?;
+    let owner: u32 = required_row_value(&character_row, "account")?;
+    let online: u8 = required_row_value(&character_row, "online")?;
+    let at_login: u16 = required_row_value(&character_row, "at_login")?;
+    if owner != bot.account_id {
+        bail!(
+            "character {} belongs to account {}, expected {}",
+            bot.character_guid,
+            owner,
+            bot.account_id
+        );
+    }
+    if online != 0 {
+        bail!(
+            "character {} is online; refusing rested-XP fixture setup",
+            bot.character_guid
+        );
+    }
+    let characters_on_game_account = rested_xp_count_rows(
+        &mut characters,
+        "SELECT COUNT(*) FROM characters WHERE account = ?",
+        u64::from(bot.account_id),
+        "characters on game account",
+    )?;
+    let mut safety_state = RestedXpFixtureSafetyState {
+        at_login,
+        characters_on_game_account,
+        ..RestedXpFixtureSafetyState::default()
+    };
+    for (table, sql) in [
+        (
+            "character_inventory",
+            "SELECT COUNT(*) FROM character_inventory WHERE guid = ?",
+        ),
+        (
+            "character_pet",
+            "SELECT COUNT(*) FROM character_pet WHERE owner = ?",
+        ),
+        (
+            "character_aura",
+            "SELECT COUNT(*) FROM character_aura WHERE guid = ?",
+        ),
+        (
+            "character_aura_effect",
+            "SELECT COUNT(*) FROM character_aura_effect WHERE guid = ?",
+        ),
+        (
+            "character_spell_cooldown",
+            "SELECT COUNT(*) FROM character_spell_cooldown WHERE guid = ?",
+        ),
+        (
+            "character_spell_charges",
+            "SELECT COUNT(*) FROM character_spell_charges WHERE guid = ?",
+        ),
+        (
+            "character_skills",
+            "SELECT COUNT(*) FROM character_skills WHERE guid = ?",
+        ),
+        (
+            "character_glyphs",
+            "SELECT COUNT(*) FROM character_glyphs WHERE guid = ?",
+        ),
+        (
+            "character_talent",
+            "SELECT COUNT(*) FROM character_talent WHERE guid = ?",
+        ),
+        (
+            "character_spell",
+            "SELECT COUNT(*) FROM character_spell WHERE guid = ?",
+        ),
+        (
+            "character_spell_favorite",
+            "SELECT COUNT(*) FROM character_spell_favorite WHERE guid = ?",
+        ),
+        (
+            "character_action",
+            "SELECT COUNT(*) FROM character_action WHERE guid = ?",
+        ),
+        (
+            "character_reputation",
+            "SELECT COUNT(*) FROM character_reputation WHERE guid = ?",
+        ),
+        (
+            "character_equipmentsets",
+            "SELECT COUNT(*) FROM character_equipmentsets WHERE guid = ?",
+        ),
+        (
+            "character_transmog_outfits",
+            "SELECT COUNT(*) FROM character_transmog_outfits WHERE guid = ?",
+        ),
+        (
+            "character_cuf_profiles",
+            "SELECT COUNT(*) FROM character_cuf_profiles WHERE guid = ?",
+        ),
+        ("corpse", "SELECT COUNT(*) FROM corpse WHERE guid = ?"),
+    ] {
+        let rows = rested_xp_count_rows(&mut characters, sql, bot.character_guid, table)?;
+        if rows != 0 {
+            safety_state
+                .nonempty_side_state
+                .push((table.to_string(), rows));
+        }
+    }
+    let instance_lock_rows = rested_xp_count_rows(
+        &mut characters,
+        "SELECT COUNT(*) FROM account_instance_times WHERE accountId = ?",
+        u64::from(bot.account_id),
+        "account_instance_times",
+    )?;
+    if instance_lock_rows != 0 {
+        safety_state
+            .nonempty_side_state
+            .push(("account_instance_times".to_string(), instance_lock_rows));
+    }
+    let tutorial_rows = rested_xp_count_rows(
+        &mut characters,
+        "SELECT COUNT(*) FROM account_tutorial WHERE accountId = ?",
+        u64::from(bot.account_id),
+        "account_tutorial",
+    )?;
+    if tutorial_rows != 0 {
+        safety_state
+            .nonempty_side_state
+            .push(("account_tutorial".to_string(), tutorial_rows));
+    }
+    let original = rested_xp_character_restore_point_from_row(&character_row)?;
+    let original_achievements: Vec<(u32, i64)> = characters
+        .exec(
+            "SELECT achievement, date FROM character_achievement WHERE guid = ? ORDER BY achievement",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Snapshot rested-XP character achievements: {error}"))?;
+    let original_achievement_progress: Vec<(u32, u64, i64)> = characters
+        .exec(
+            "SELECT criteria, counter, date FROM character_achievement_progress WHERE guid = ? ORDER BY criteria",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Snapshot rested-XP character achievement progress: {error}"))?;
+
+    let active_quests: u64 = characters
+        .exec_first(
+            "SELECT COUNT(*) FROM character_queststatus WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Check rested-XP active quests: {error}"))?
+        .unwrap_or(0);
+    let active_objectives: u64 = characters
+        .exec_first(
+            "SELECT COUNT(*) FROM character_queststatus_objectives WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Check rested-XP quest objectives: {error}"))?
+        .unwrap_or(0);
+    let active_criteria = rested_xp_count_rows(
+        &mut characters,
+        "SELECT COUNT(*) FROM character_queststatus_objectives_criteria WHERE guid = ?",
+        bot.character_guid,
+        "character_queststatus_objectives_criteria",
+    )?;
+    let active_criteria_progress = rested_xp_count_rows(
+        &mut characters,
+        "SELECT COUNT(*) FROM character_queststatus_objectives_criteria_progress WHERE guid = ?",
+        bot.character_guid,
+        "character_queststatus_objectives_criteria_progress",
+    )?;
+    if active_quests != 0
+        || active_objectives != 0
+        || active_criteria != 0
+        || active_criteria_progress != 0
+    {
+        bail!(
+            "character {} has active quest state ({active_quests} quests/{active_objectives} objectives/{active_criteria} criteria/{active_criteria_progress} criteria progress); use a clean @bot.local character so the kill cannot mutate quest progress",
+            bot.character_guid
+        );
+    }
+    let group_rows: u64 = characters
+        .exec_first(
+            "SELECT COUNT(*) FROM group_member WHERE memberGuid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Check rested-XP group membership: {error}"))?
+        .unwrap_or(0);
+    if group_rows != 0 {
+        bail!(
+            "character {} is in a persisted group; refusing ambiguous rested/RAF XP QA",
+            bot.character_guid
+        );
+    }
+
+    let auth_url = auth_db_url()?;
+    let auth_opts =
+        mysql::Opts::from_url(&auth_url).map_err(|error| anyhow!("Bad auth DB URL: {error}"))?;
+    let mut auth = mysql::Conn::new(auth_opts)
+        .map_err(|error| anyhow!("Connect to auth DB failed: {error}"))?;
+    let (recruiter, battlenet_account_id, game_account_online, battlenet_email): (
+        u32,
+        Option<u32>,
+        u8,
+        Option<String>,
+    ) = auth
+        .exec_first(
+            "SELECT a.recruiter, a.battlenet_account, a.online, ba.email \
+             FROM account a LEFT JOIN battlenet_accounts ba ON ba.id = a.battlenet_account \
+             WHERE a.id = ?",
+            (bot.account_id,),
+        )
+        .map_err(|error| anyhow!("Check rested-XP account scope: {error}"))?
+        .ok_or_else(|| anyhow!("No auth.account row for id {}", bot.account_id))?;
+    let battlenet_account_id = battlenet_account_id.ok_or_else(|| {
+        anyhow!(
+            "auth.account {} has no Battle.net identity; refusing disposable rested-XP fixture",
+            bot.account_id
+        )
+    })?;
+    safety_state.game_account_online = game_account_online;
+    safety_state.bnet_email_matches_configured_account = battlenet_email
+        .as_deref()
+        .is_some_and(|email| email.eq_ignore_ascii_case(&bot.account));
+    safety_state.game_accounts_on_bnet_account = rested_xp_count_rows(
+        &mut auth,
+        "SELECT COUNT(*) FROM account WHERE battlenet_account = ?",
+        u64::from(battlenet_account_id),
+        "game accounts on Battle.net identity",
+    )?;
+    for (table, sql) in [
+        (
+            "battlenet_account_mounts",
+            "SELECT COUNT(*) FROM battlenet_account_mounts WHERE battlenetAccountId = ?",
+        ),
+        (
+            "battlenet_account_toys",
+            "SELECT COUNT(*) FROM battlenet_account_toys WHERE accountId = ?",
+        ),
+        (
+            "battlenet_account_heirlooms",
+            "SELECT COUNT(*) FROM battlenet_account_heirlooms WHERE accountId = ?",
+        ),
+        (
+            "battlenet_item_appearances",
+            "SELECT COUNT(*) FROM battlenet_item_appearances WHERE battlenetAccountId = ?",
+        ),
+        (
+            "battlenet_item_favorite_appearances",
+            "SELECT COUNT(*) FROM battlenet_item_favorite_appearances WHERE battlenetAccountId = ?",
+        ),
+        (
+            "battlenet_account_transmog_illusions",
+            "SELECT COUNT(*) FROM battlenet_account_transmog_illusions WHERE battlenetAccountId = ?",
+        ),
+    ] {
+        let rows = rested_xp_count_rows(
+            &mut auth,
+            sql,
+            u64::from(battlenet_account_id),
+            table,
+        )?;
+        if rows != 0 {
+            safety_state
+                .nonempty_side_state
+                .push((table.to_string(), rows));
+        }
+    }
+    let recruited_accounts: u64 = auth
+        .exec_first(
+            "SELECT COUNT(*) FROM account WHERE recruiter = ?",
+            (bot.account_id,),
+        )
+        .map_err(|error| anyhow!("Check rested-XP recruited accounts: {error}"))?
+        .unwrap_or(0);
+    if recruiter != 0 || recruited_accounts != 0 {
+        bail!(
+            "account {} participates in Recruit-A-Friend; refusing a rested-XP test that could award 300% XP",
+            bot.account_id
+        );
+    }
+    validate_rested_xp_fixture_safety_state(&safety_state)?;
+
+    let world_url = world_db_url()?;
+    let world_opts =
+        mysql::Opts::from_url(&world_url).map_err(|error| anyhow!("Bad world DB URL: {error}"))?;
+    let mut world = mysql::Conn::new(world_opts)
+        .map_err(|error| anyhow!("Connect to world DB failed: {error}"))?;
+    let target_row: mysql::Row = if let Some(spawn_guid) = creature_spawn_guid {
+        world
+            .exec_first(
+                "SELECT c.guid, c.id, c.map, c.position_x, c.position_y, c.position_z, c.orientation, \
+                 c.wander_distance, c.spawntimesecs AS SpawnTimeSecs, COALESCE(d.MinLevel, 1) AS MinLevel, \
+                 COALESCE(d.MaxLevel, 1) AS MaxLevel, ct.type AS CreatureType, \
+                 ct.VehicleId, ct.flags_extra, \
+                 COALESCE(d.StaticFlags1, 0) AS StaticFlags1 \
+                 FROM creature c JOIN creature_template ct ON ct.entry = c.id \
+                 LEFT JOIN creature_template_difficulty d ON d.Entry = c.id AND d.DifficultyID = 0 \
+                 WHERE c.guid = ? AND c.id = ?",
+                (spawn_guid, creature_entry),
+            )
+            .map_err(|error| anyhow!("Resolve rested-XP target spawn: {error}"))?
+    } else {
+        world
+            .exec_first(
+                "SELECT c.guid, c.id, c.map, c.position_x, c.position_y, c.position_z, c.orientation, \
+                 c.wander_distance, c.spawntimesecs AS SpawnTimeSecs, COALESCE(d.MinLevel, 1) AS MinLevel, \
+                 COALESCE(d.MaxLevel, 1) AS MaxLevel, ct.type AS CreatureType, \
+                 ct.VehicleId, ct.flags_extra, \
+                 COALESCE(d.StaticFlags1, 0) AS StaticFlags1 \
+                 FROM creature c JOIN creature_template ct ON ct.entry = c.id \
+                 LEFT JOIN creature_template_difficulty d ON d.Entry = c.id AND d.DifficultyID = 0 \
+                 WHERE c.id = ? ORDER BY c.guid LIMIT 1",
+                (creature_entry,),
+            )
+            .map_err(|error| anyhow!("Resolve rested-XP target entry: {error}"))?
+    }
+    .ok_or_else(|| {
+        anyhow!(
+            "No world.creature spawn for rested-XP entry {}{}",
+            creature_entry,
+            creature_spawn_guid
+                .map(|guid| format!(" and guid {guid}"))
+                .unwrap_or_default()
+        )
+    })?;
+    let spawn_guid: u64 = required_row_value(&target_row, "guid")?;
+    let entry: u32 = required_row_value(&target_row, "id")?;
+    let map_id_u32: u32 = required_row_value(&target_row, "map")?;
+    let map_id = u16::try_from(map_id_u32)
+        .map_err(|_| anyhow!("rested-XP target map {map_id_u32} does not fit protocol u16"))?;
+    let x: f64 = required_row_value(&target_row, "position_x")?;
+    let y: f64 = required_row_value(&target_row, "position_y")?;
+    let z: f64 = required_row_value(&target_row, "position_z")?;
+    let orientation: f32 = required_row_value(&target_row, "orientation")?;
+    let wander_distance: f32 = required_row_value(&target_row, "wander_distance")?;
+    let target_match_radius = wander_distance.max(0.0) + 2.0;
+    let target_respawn_secs: u32 = required_row_value(&target_row, "SpawnTimeSecs")?;
+    let min_level: u8 = required_row_value(&target_row, "MinLevel")?;
+    let max_level: u8 = required_row_value(&target_row, "MaxLevel")?;
+    let creature_type: u8 = required_row_value(&target_row, "CreatureType")?;
+    let vehicle_id: u32 = required_row_value(&target_row, "VehicleId")?;
+    let flags_extra: u32 = required_row_value(&target_row, "flags_extra")?;
+    let static_flags_1: u32 = required_row_value(&target_row, "StaticFlags1")?;
+    if runtime_counter.is_none() {
+        let overlapping_spawn: Option<u64> = world
+            .exec_first(
+                "SELECT guid FROM creature \
+                 WHERE id = ? AND map = ? AND guid <> ? \
+                   AND SQRT(POW(position_x - ?, 2) + POW(position_y - ?, 2) + POW(position_z - ?, 2)) \
+                       <= ? + GREATEST(wander_distance, 0) \
+                 ORDER BY guid LIMIT 1",
+                (entry, map_id_u32, spawn_guid, x, y, z, target_match_radius),
+            )
+            .map_err(|error| anyhow!("Check rested-XP target spawn ambiguity: {error}"))?;
+        if let Some(overlapping_spawn) = overlapping_spawn {
+            bail!(
+                "rested-XP SQL spawn {spawn_guid} has an overlapping same-entry movement radius with spawn {overlapping_spawn}; set --rested-xp-runtime-counter from a trusted live discovery or choose an isolated spawn"
+            );
+        }
+    }
+    validate_rested_xp_target_template(entry, creature_type, vehicle_id)?;
+    if !(MIN_RESTED_XP_TARGET_RESPAWN_SECS..=MAX_RESTED_XP_TARGET_RESPAWN_SECS)
+        .contains(&target_respawn_secs)
+    {
+        bail!(
+            "rested-XP target entry {entry} has an unsuitable {target_respawn_secs}s respawn; choose a disposable target in {MIN_RESTED_XP_TARGET_RESPAWN_SECS}..={MAX_RESTED_XP_TARGET_RESPAWN_SECS}s so the harness can observe the persisted timer before it clears"
+        );
+    }
+    if min_level == 0 || max_level == 0 || min_level > max_level || max_level > 6 {
+        bail!(
+            "rested-XP target {} has nondeterministic/unsafe level range {}..={}; choose a level 1..=6 creature",
+            entry,
+            min_level,
+            max_level
+        );
+    }
+    if flags_extra & CREATURE_FLAG_EXTRA_NO_XP != 0
+        || static_flags_1 & CREATURE_STATIC_FLAG_NO_XP != 0
+    {
+        bail!("rested-XP target entry {entry} is marked NO_XP");
+    }
+    let reputation_rows: u64 = world
+        .exec_first(
+            "SELECT COUNT(*) FROM creature_onkill_reputation WHERE creature_id = ?",
+            (entry,),
+        )
+        .map_err(|error| anyhow!("Check rested-XP target reputation side effects: {error}"))?
+        .unwrap_or(0);
+    if reputation_rows != 0 {
+        bail!("rested-XP target entry {entry} has on-kill reputation; choose an isolated target");
+    }
+
+    let pending_respawn: Option<u64> = characters
+        .exec_first(
+            "SELECT respawnTime FROM respawn WHERE type = 0 AND spawnId = ? AND mapId = ? AND instanceId = 0",
+            (spawn_guid, map_id_u32),
+        )
+        .map_err(|error| anyhow!("Check rested-XP target respawn timer: {error}"))?;
+    let now = chrono::Utc::now().timestamp().max(0) as u64;
+    if let Some(respawn_time) = pending_respawn {
+        bail!(
+            "rested-XP target spawn {spawn_guid} already has persisted respawn row {respawn_time} (now={now}); refusing to overwrite world state"
+        );
+    }
+
+    let test_level = max_level;
+    let next_level_xp: u32 = world
+        .exec_first(
+            "SELECT Experience FROM player_xp_for_level WHERE Level = ?",
+            (test_level,),
+        )
+        .map_err(|error| anyhow!("Load rested-XP next-level threshold: {error}"))?
+        .ok_or_else(|| anyhow!("No player_xp_for_level row for level {test_level}"))?;
+    if next_level_xp == 0 {
+        bail!("level {test_level} has zero next-level XP; cannot test rested XP");
+    }
+    let wilderness_rate = worldserver_config_f32("Rate.Rest.Offline.InWilderness", 1.0)?;
+    let resting_rate = worldserver_config_f32("Rate.Rest.Offline.InTavernOrCity", 1.0)?;
+    let expected_wilderness = offline_rest_bonus_like_cpp(
+        next_level_xp,
+        offline_secs,
+        REST_OFFLINE_WILDERNESS_BUBBLE,
+        wilderness_rate,
+    );
+    let expected_resting = offline_rest_bonus_like_cpp(
+        next_level_xp,
+        offline_secs,
+        REST_OFFLINE_TAVERN_OR_CITY_BUBBLE,
+        resting_rate,
+    );
+    if expected_wilderness <= 0.0 || expected_resting <= expected_wilderness {
+        bail!(
+            "configured rest rates/interval cannot prove resting>wilderness: wilderness={expected_wilderness:.4}, resting={expected_resting:.4}"
+        );
+    }
+
+    let guid_counter = runtime_counter.unwrap_or(0);
+    let packed_guid = if guid_counter == 0 {
+        Vec::new()
+    } else {
+        let (low, high) = create_creature_guid_raw(map_id, entry, guid_counter);
+        build_packed_guid(low, high)
+    };
+    let target = ResolvedCreatureTarget {
+        entry,
+        spawn_guid,
+        guid_counter,
+        map_id,
+        x,
+        y,
+        z,
+        orientation,
+        packed_guid,
+    };
+    let seeded_rest_bonus = next_level_xp as f32 * REST_BONUS_CAP_NEXT_LEVEL_FACTOR;
+    info!(
+        "Rested-XP fixture ready: character={} target={}/{} map={} level={} nextXP={} rates={}/{}",
+        bot.character_guid,
+        entry,
+        spawn_guid,
+        map_id,
+        test_level,
+        next_level_xp,
+        wilderness_rate,
+        resting_rate
+    );
+    Ok(RestedXpSmokeFixture {
+        options: RestedXpSmokeOptions {
+            phase: RestedXpSmokePhase::OfflineWilderness,
+            target,
+            target_match_radius,
+            test_level,
+            next_level_xp,
+            seeded_rest_bonus,
+            expected_xp: None,
+            expected_rest_bonus: None,
+            timeout_secs,
+        },
+        original,
+        original_achievements,
+        original_achievement_progress,
+        battlenet_account_id,
+        target_respawn_secs,
+        test_level,
+        offline_secs,
+        wilderness_rate,
+        resting_rate,
+    })
+}
+
+fn required_row_value<T>(row: &mysql::Row, column: &str) -> Result<T>
+where
+    T: mysql::prelude::FromValue,
+{
+    row.get(column)
+        .ok_or_else(|| anyhow!("Missing/invalid `{column}` in QA fixture query"))
+}
+
+fn rested_xp_count_rows(conn: &mut mysql::Conn, sql: &str, key: u64, label: &str) -> Result<u64> {
+    use mysql::prelude::Queryable;
+
+    conn.exec_first(sql, (key,))
+        .map_err(|error| anyhow!("Check rested-XP fixture state in {label}: {error}"))
+        .map(|count| count.unwrap_or(0))
+}
+
+fn rested_xp_character_restore_point_from_row(
+    row: &mysql::Row,
+) -> Result<RestedXpCharacterRestorePoint> {
+    Ok(RestedXpCharacterRestorePoint {
+        level: required_row_value(row, "level")?,
+        xp: required_row_value(row, "xp")?,
+        rest_state: required_row_value(row, "restState")?,
+        player_flags: required_row_value(row, "playerFlags")?,
+        rest_bonus: required_row_value(row, "rest_bonus")?,
+        logout_time: required_row_value(row, "logout_time")?,
+        is_logout_resting: required_row_value(row, "is_logout_resting")?,
+        map_id: required_row_value(row, "map")?,
+        zone_id: required_row_value(row, "zone")?,
+        instance_id: required_row_value(row, "instance_id")?,
+        x: required_row_value(row, "position_x")?,
+        y: required_row_value(row, "position_y")?,
+        z: required_row_value(row, "position_z")?,
+        orientation: required_row_value(row, "orientation")?,
+        health: required_row_value(row, "health")?,
+        powers: [
+            required_row_value(row, "power1")?,
+            required_row_value(row, "power2")?,
+            required_row_value(row, "power3")?,
+            required_row_value(row, "power4")?,
+            required_row_value(row, "power5")?,
+            required_row_value(row, "power6")?,
+            required_row_value(row, "power7")?,
+            required_row_value(row, "power8")?,
+            required_row_value(row, "power9")?,
+            required_row_value(row, "power10")?,
+        ],
+        total_kills: required_row_value(row, "totalKills")?,
+        today_kills: required_row_value(row, "todayKills")?,
+        yesterday_kills: required_row_value(row, "yesterdayKills")?,
+        total_time: required_row_value(row, "totaltime")?,
+        level_time: required_row_value(row, "leveltime")?,
+    })
+}
+
+fn prepare_rested_xp_character_phase(
+    bot: &config::BotConfig,
+    fixture: &RestedXpSmokeFixture,
+    phase: RestedXpSmokePhase,
+) -> Result<()> {
+    use mysql::prelude::Queryable;
+
+    if phase == RestedXpSmokePhase::VerifyRelog {
+        return wait_for_rested_xp_character_offline_and_stable(bot, fixture.options.timeout_secs);
+    }
+    let characters_url = characters_db_url()?;
+    let opts = mysql::Opts::from_url(&characters_url)
+        .map_err(|error| anyhow!("Bad characters DB URL: {error}"))?;
+    let mut conn = mysql::Conn::new(opts)
+        .map_err(|error| anyhow!("Connect to characters DB failed: {error}"))?;
+    let mut transaction = conn
+        .start_transaction(mysql::TxOpts::default())
+        .map_err(|error| anyhow!("Start rested-XP phase transaction: {error}"))?;
+    let online: u8 = transaction
+        .exec_first(
+            "SELECT online FROM characters WHERE guid = ? FOR UPDATE",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Lock rested-XP character row: {error}"))?
+        .ok_or_else(|| anyhow!("No characters row for guid {}", bot.character_guid))?;
+    if online != 0 {
+        bail!(
+            "character {} remained online before {:?}; refusing DB mutation",
+            bot.character_guid,
+            phase
+        );
+    }
+    let (rest_state, rest_bonus, logout_time, is_logout_resting) = match phase {
+        RestedXpSmokePhase::OfflineWilderness => (
+            REST_STATE_NORMAL,
+            0.0,
+            current_epoch_secs().saturating_sub(fixture.offline_secs),
+            0u8,
+        ),
+        RestedXpSmokePhase::OfflineResting => (
+            REST_STATE_NORMAL,
+            0.0,
+            current_epoch_secs().saturating_sub(fixture.offline_secs),
+            1u8,
+        ),
+        RestedXpSmokePhase::ConsumeKill => (
+            REST_STATE_RESTED,
+            fixture.options.seeded_rest_bonus,
+            current_epoch_secs(),
+            0,
+        ),
+        RestedXpSmokePhase::VerifyRelog => unreachable!(),
+    };
+    let player_flags =
+        fixture.original.player_flags & !(PLAYER_FLAGS_RESTING | PLAYER_FLAGS_NO_XP_GAIN);
+    let player_x = fixture.options.target.x + 1.0;
+    let player_y = fixture.options.target.y;
+    let player_z = fixture.options.target.z;
+    let player_orientation =
+        (fixture.options.target.y - player_y).atan2(fixture.options.target.x - player_x) as f32;
+    transaction
+        .exec_drop(
+            "UPDATE characters SET level = ?, xp = 0, restState = ?, playerFlags = ?, rest_bonus = ?, \
+             logout_time = ?, is_logout_resting = ?, map = ?, zone = 0, instance_id = 0, \
+             position_x = ?, position_y = ?, position_z = ?, orientation = ?, health = ? \
+             WHERE guid = ? AND online = 0",
+            mysql::Params::Positional(vec![
+                fixture.test_level.into(),
+                rest_state.into(),
+                player_flags.into(),
+                rest_bonus.into(),
+                logout_time.into(),
+                is_logout_resting.into(),
+                u32::from(fixture.options.target.map_id).into(),
+                player_x.into(),
+                player_y.into(),
+                player_z.into(),
+                player_orientation.into(),
+                u32::MAX.into(),
+                bot.character_guid.into(),
+            ]),
+        )
+        .map_err(|error| anyhow!("Prepare rested-XP character phase {phase:?}: {error}"))?;
+    transaction
+        .commit()
+        .map_err(|error| anyhow!("Commit rested-XP phase {phase:?}: {error}"))?;
+    Ok(())
+}
+
+fn current_epoch_secs() -> u64 {
+    chrono::Utc::now().timestamp().max(0) as u64
+}
+
+fn load_rested_xp_db_state(bot: &config::BotConfig) -> Result<RestedXpDbState> {
+    use mysql::prelude::Queryable;
+
+    let characters_url = characters_db_url()?;
+    let opts = mysql::Opts::from_url(&characters_url)
+        .map_err(|error| anyhow!("Bad characters DB URL: {error}"))?;
+    let mut conn = mysql::Conn::new(opts)
+        .map_err(|error| anyhow!("Connect to characters DB failed: {error}"))?;
+    let row: Option<(u8, u32, u8, f32, u8)> = conn
+        .exec_first(
+            "SELECT level, xp, restState, rest_bonus, online FROM characters WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Load rested-XP persistence state: {error}"))?;
+    row.map(
+        |(level, xp, rest_state, rest_bonus, online)| RestedXpDbState {
+            level,
+            xp,
+            rest_state,
+            rest_bonus,
+            online,
+        },
+    )
+    .ok_or_else(|| anyhow!("No characters row for guid {}", bot.character_guid))
+}
+
+fn rested_xp_restore_params(
+    restore_point: &RestedXpCharacterRestorePoint,
+    character_guid: u64,
+) -> Vec<mysql::Value> {
+    let mut values = vec![
+        restore_point.level.into(),
+        restore_point.xp.into(),
+        restore_point.rest_state.into(),
+        restore_point.player_flags.into(),
+        restore_point.rest_bonus.into(),
+        restore_point.logout_time.into(),
+        restore_point.is_logout_resting.into(),
+        restore_point.map_id.into(),
+        restore_point.zone_id.into(),
+        restore_point.instance_id.into(),
+        restore_point.x.into(),
+        restore_point.y.into(),
+        restore_point.z.into(),
+        restore_point.orientation.into(),
+        restore_point.health.into(),
+    ];
+    values.extend(restore_point.powers.iter().copied().map(mysql::Value::from));
+    values.extend([
+        restore_point.total_kills.into(),
+        restore_point.today_kills.into(),
+        restore_point.yesterday_kills.into(),
+        restore_point.total_time.into(),
+        restore_point.level_time.into(),
+        character_guid.into(),
+    ]);
+    values
+}
+
+fn wait_for_rested_xp_character_offline_and_stable(
+    bot: &config::BotConfig,
+    timeout_secs: u64,
+) -> Result<()> {
+    use mysql::prelude::Queryable;
+
+    let characters_url = characters_db_url()?;
+    let opts = mysql::Opts::from_url(&characters_url)
+        .map_err(|error| anyhow!("Bad characters DB URL: {error}"))?;
+    let mut conn = mysql::Conn::new(opts)
+        .map_err(|error| anyhow!("Connect to characters DB failed: {error}"))?;
+    let deadline = std::time::Instant::now() + Duration::from_secs(timeout_secs.clamp(10, 60));
+    let mut previous_offline_marker: Option<(u32, u32, u64, u8)> = None;
+    loop {
+        let row: Option<(u8, u32, f32, u64, u8)> = conn
+            .exec_first(
+                "SELECT online, xp, rest_bonus, logout_time, is_logout_resting FROM characters WHERE guid = ?",
+                (bot.character_guid,),
+            )
+            .map_err(|error| anyhow!("Wait for rested-XP disconnect save: {error}"))?;
+        let (online, xp, rest_bonus, logout_time, is_logout_resting) =
+            row.ok_or_else(|| anyhow!("No characters row for guid {}", bot.character_guid))?;
+        if online == 0 {
+            let marker = (xp, rest_bonus.to_bits(), logout_time, is_logout_resting);
+            if previous_offline_marker == Some(marker) {
+                return Ok(());
+            }
+            previous_offline_marker = Some(marker);
+        } else {
+            previous_offline_marker = None;
+        }
+        if std::time::Instant::now() >= deadline {
+            bail!(
+                "character {} did not reach a stable offline DB state; refusing selected-field restore",
+                bot.character_guid
+            );
+        }
+        std::thread::sleep(Duration::from_millis(250));
+    }
+}
+
+fn wait_for_rested_xp_game_account_offline(
+    bot: &config::BotConfig,
+    fixture: &RestedXpSmokeFixture,
+) -> Result<()> {
+    use mysql::prelude::Queryable;
+
+    let auth_url = auth_db_url()?;
+    let opts =
+        mysql::Opts::from_url(&auth_url).map_err(|error| anyhow!("Bad auth DB URL: {error}"))?;
+    let mut conn =
+        mysql::Conn::new(opts).map_err(|error| anyhow!("Connect to auth DB failed: {error}"))?;
+    let deadline =
+        std::time::Instant::now() + Duration::from_secs(fixture.options.timeout_secs.clamp(10, 60));
+    loop {
+        let row: Option<(Option<u32>, u8, Option<String>)> = conn
+            .exec_first(
+                "SELECT a.battlenet_account, a.online, ba.email \
+                 FROM account a LEFT JOIN battlenet_accounts ba ON ba.id = a.battlenet_account \
+                 WHERE a.id = ?",
+                (bot.account_id,),
+            )
+            .map_err(|error| anyhow!("Wait for rested-XP game account offline: {error}"))?;
+        let (battlenet_account_id, online, email) =
+            row.ok_or_else(|| anyhow!("No auth.account row for id {}", bot.account_id))?;
+        if battlenet_account_id != Some(fixture.battlenet_account_id)
+            || !email
+                .as_deref()
+                .is_some_and(|email| email.eq_ignore_ascii_case(&bot.account))
+        {
+            bail!(
+                "rested-XP fixture identity changed while waiting for account {} to disconnect",
+                bot.account_id
+            );
+        }
+        if online == 0 {
+            return Ok(());
+        }
+        if std::time::Instant::now() >= deadline {
+            bail!(
+                "game account {} remained online; refusing rested-XP cleanup mutation",
+                bot.account_id
+            );
+        }
+        std::thread::sleep(Duration::from_millis(250));
+    }
+}
+
+fn wait_for_rested_xp_target_respawn_cleanup(
+    conn: &mut mysql::Conn,
+    fixture: &RestedXpSmokeFixture,
+) -> Result<()> {
+    use mysql::prelude::Queryable;
+
+    let target = &fixture.options.target;
+    let wait_secs = rested_xp_respawn_cleanup_wait_secs(
+        fixture.options.timeout_secs,
+        fixture.target_respawn_secs,
+    );
+    let mut deadline = std::time::Instant::now() + Duration::from_secs(wait_secs);
+    let mut absent_since = None;
+    let mut last_respawn_time = None;
+    let mut saw_persisted_respawn = false;
+    loop {
+        let respawn_time: Option<u64> = conn
+            .exec_first(
+                "SELECT respawnTime FROM respawn WHERE type = 0 AND spawnId = ? AND mapId = ? AND instanceId = 0",
+                (target.spawn_guid, u32::from(target.map_id)),
+            )
+            .map_err(|error| anyhow!("Wait for rested-XP target respawn cleanup: {error}"))?;
+        if let Some(respawn_time) = respawn_time {
+            last_respawn_time = Some(respawn_time);
+            absent_since = None;
+            if !saw_persisted_respawn {
+                info!(
+                    "Rested-XP target persisted respawn row observed for spawn {} map {} at {}",
+                    target.spawn_guid, target.map_id, respawn_time
+                );
+            }
+            saw_persisted_respawn = true;
+            let remaining =
+                rested_xp_observed_respawn_remaining_secs(respawn_time, current_epoch_secs())?;
+            deadline = deadline.max(std::time::Instant::now() + Duration::from_secs(remaining));
+        } else {
+            if saw_persisted_respawn {
+                let absent_since = absent_since.get_or_insert_with(std::time::Instant::now);
+                if absent_since.elapsed() >= Duration::from_secs(1) {
+                    info!(
+                        "Rested-XP target respawn row cleared naturally for spawn {} map {} after the persisted timer was observed",
+                        target.spawn_guid, target.map_id
+                    );
+                    return Ok(());
+                }
+            }
+        }
+
+        if std::time::Instant::now() >= deadline {
+            bail!(
+                "rested-XP target respawn transition was not observed within the bounded wait (initial_wait={wait_secs}s, spawn={}, map={}, saw_persisted_respawn={}, last_respawnTime={:?}); the harness did not delete it, so wait for the runtime respawn before retrying",
+                target.spawn_guid,
+                target.map_id,
+                saw_persisted_respawn,
+                last_respawn_time
+            );
+        }
+        std::thread::sleep(Duration::from_millis(250));
+    }
+}
+
+fn rested_xp_observed_respawn_remaining_secs(respawn_time: u64, now: u64) -> Result<u64> {
+    let remaining = respawn_time
+        .saturating_sub(now)
+        .saturating_add(RESTED_XP_RESPAWN_GRACE_SECS);
+    if remaining > MAX_RESTED_XP_RESPAWN_CLEANUP_WAIT_SECS {
+        bail!(
+            "observed rested-XP respawn timer requires {remaining}s, exceeding the {MAX_RESTED_XP_RESPAWN_CLEANUP_WAIT_SECS}s safety bound"
+        );
+    }
+    Ok(remaining)
+}
+
+fn rested_xp_respawn_cleanup_wait_secs(protocol_timeout_secs: u64, respawn_secs: u32) -> u64 {
+    protocol_timeout_secs
+        .max(u64::from(respawn_secs).saturating_add(RESTED_XP_RESPAWN_GRACE_SECS))
+        .clamp(
+            10,
+            u64::from(MAX_RESTED_XP_TARGET_RESPAWN_SECS)
+                .saturating_add(RESTED_XP_RESPAWN_GRACE_SECS),
+        )
+}
+
+fn cleanup_rested_xp_smoke_fixture(
+    bot: &config::BotConfig,
+    fixture: &RestedXpSmokeFixture,
+) -> Result<()> {
+    use mysql::prelude::Queryable;
+
+    if !bot.account.to_ascii_uppercase().ends_with("@BOT.LOCAL") {
+        bail!(
+            "refusing rested-XP fixture cleanup for non-local account {}",
+            bot.account
+        );
+    }
+    wait_for_rested_xp_character_offline_and_stable(bot, fixture.options.timeout_secs)?;
+    wait_for_rested_xp_game_account_offline(bot, fixture)?;
+
+    let characters_url = characters_db_url()?;
+    let opts = mysql::Opts::from_url(&characters_url)
+        .map_err(|error| anyhow!("Bad characters DB URL: {error}"))?;
+    let mut conn = mysql::Conn::new(opts)
+        .map_err(|error| anyhow!("Connect to characters DB failed: {error}"))?;
+    let mut character_tx = conn
+        .start_transaction(mysql::TxOpts::default())
+        .map_err(|error| anyhow!("Start rested-XP character cleanup transaction: {error}"))?;
+    let (owner, online): (u32, u8) = character_tx
+        .exec_first(
+            "SELECT account, online FROM characters WHERE guid = ? FOR UPDATE",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Lock rested-XP cleanup character: {error}"))?
+        .ok_or_else(|| anyhow!("No characters row for guid {}", bot.character_guid))?;
+    if owner != bot.account_id || online != 0 {
+        bail!(
+            "rested-XP cleanup character ownership/online state changed (owner={owner}, online={online})"
+        );
+    }
+    let characters_on_game_account: u64 = character_tx
+        .exec_first(
+            "SELECT COUNT(*) FROM characters WHERE account = ?",
+            (bot.account_id,),
+        )
+        .map_err(|error| anyhow!("Recheck rested-XP character exclusivity: {error}"))?
+        .unwrap_or(0);
+    if characters_on_game_account != 1 {
+        bail!(
+            "rested-XP cleanup requires the game account to remain exclusive; found {characters_on_game_account} characters"
+        );
+    }
+
+    let auth_url = auth_db_url()?;
+    let auth_opts =
+        mysql::Opts::from_url(&auth_url).map_err(|error| anyhow!("Bad auth DB URL: {error}"))?;
+    let mut auth = mysql::Conn::new(auth_opts)
+        .map_err(|error| anyhow!("Connect to auth DB failed: {error}"))?;
+    let mut auth_tx = auth
+        .start_transaction(mysql::TxOpts::default())
+        .map_err(|error| anyhow!("Start rested-XP auth cleanup transaction: {error}"))?;
+    let (battlenet_account_id, game_account_online, battlenet_email): (
+        Option<u32>,
+        u8,
+        Option<String>,
+    ) = auth_tx
+        .exec_first(
+            "SELECT a.battlenet_account, a.online, ba.email \
+             FROM account a LEFT JOIN battlenet_accounts ba ON ba.id = a.battlenet_account \
+             WHERE a.id = ? FOR UPDATE",
+            (bot.account_id,),
+        )
+        .map_err(|error| anyhow!("Lock rested-XP cleanup game account: {error}"))?
+        .ok_or_else(|| anyhow!("No auth.account row for id {}", bot.account_id))?;
+    if battlenet_account_id != Some(fixture.battlenet_account_id)
+        || game_account_online != 0
+        || !battlenet_email
+            .as_deref()
+            .is_some_and(|email| email.eq_ignore_ascii_case(&bot.account))
+    {
+        bail!("rested-XP cleanup Battle.net identity or online state changed");
+    }
+    let game_accounts_on_bnet: u64 = auth_tx
+        .exec_first(
+            "SELECT COUNT(*) FROM account WHERE battlenet_account = ?",
+            (fixture.battlenet_account_id,),
+        )
+        .map_err(|error| anyhow!("Recheck rested-XP Battle.net exclusivity: {error}"))?
+        .unwrap_or(0);
+    if game_accounts_on_bnet != 1 {
+        bail!(
+            "rested-XP cleanup requires the Battle.net identity to remain exclusive; found {game_accounts_on_bnet} game accounts"
+        );
+    }
+
+    character_tx
+        .exec_drop(
+            RESTED_XP_RESTORE_CHARACTER_SQL,
+            mysql::Params::Positional(rested_xp_restore_params(
+                &fixture.original,
+                bot.character_guid,
+            )),
+        )
+        .map_err(|error| anyhow!("Restore rested-XP selected character fields: {error}"))?;
+    // A real C++ kill can update both achievement tables. Restore their exact
+    // pre-smoke snapshots rather than assuming this disposable character had
+    // no existing criteria or completed achievements.
+    character_tx
+        .exec_drop(
+            "DELETE FROM character_achievement WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Clear rested-XP character achievements: {error}"))?;
+    for (achievement, date) in &fixture.original_achievements {
+        character_tx
+            .exec_drop(
+                "INSERT INTO character_achievement (guid, achievement, date) VALUES (?, ?, ?)",
+                (bot.character_guid, achievement, date),
+            )
+            .map_err(|error| anyhow!("Restore rested-XP character achievement: {error}"))?;
+    }
+    character_tx
+        .exec_drop(
+            "DELETE FROM character_achievement_progress WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Clear rested-XP character achievement progress: {error}"))?;
+    for (criteria, counter, date) in &fixture.original_achievement_progress {
+        character_tx
+            .exec_drop(
+                "INSERT INTO character_achievement_progress (guid, criteria, counter, date) VALUES (?, ?, ?, ?)",
+                (bot.character_guid, criteria, counter, date),
+            )
+            .map_err(|error| anyhow!("Restore rested-XP achievement progress: {error}"))?;
+    }
+    // Preflight proved these tables were empty. C++ login/save deterministically
+    // creates them, so remove only the rows scoped to this disposable fixture.
+    character_tx
+        .exec_drop(
+            "DELETE FROM character_glyphs WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Remove rested-XP fixture glyph rows: {error}"))?;
+    character_tx
+        .exec_drop(
+            "DELETE FROM character_reputation WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Remove rested-XP fixture reputation rows: {error}"))?;
+    for (label, sql) in [
+        (
+            "character_glyphs",
+            "SELECT COUNT(*) FROM character_glyphs WHERE guid = ?",
+        ),
+        (
+            "character_reputation",
+            "SELECT COUNT(*) FROM character_reputation WHERE guid = ?",
+        ),
+    ] {
+        let rows: u64 = character_tx
+            .exec_first(sql, (bot.character_guid,))
+            .map_err(|error| anyhow!("Verify rested-XP cleanup {label}: {error}"))?
+            .unwrap_or(0);
+        if rows != 0 {
+            bail!("rested-XP cleanup left {rows} rows in {label}");
+        }
+    }
+    let restored_row: mysql::Row = character_tx
+        .exec_first(
+            "SELECT level, xp, restState, playerFlags, rest_bonus, logout_time, is_logout_resting, \
+             map, zone, instance_id, position_x, position_y, position_z, orientation, health, \
+             power1, power2, power3, power4, power5, power6, power7, power8, power9, power10, \
+             totalKills, todayKills, yesterdayKills, totaltime, leveltime \
+             FROM characters WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Reload restored rested-XP selected fields: {error}"))?
+        .ok_or_else(|| anyhow!("No characters row for guid {}", bot.character_guid))?;
+    let restored = rested_xp_character_restore_point_from_row(&restored_row)?;
+    if restored != fixture.original {
+        bail!("rested-XP cleanup verification did not reproduce the selected character fields");
+    }
+    let restored_achievements: Vec<(u32, i64)> = character_tx
+        .exec(
+            "SELECT achievement, date FROM character_achievement WHERE guid = ? ORDER BY achievement",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Verify rested-XP character achievements: {error}"))?;
+    if restored_achievements != fixture.original_achievements {
+        bail!("rested-XP cleanup verification did not restore character achievements");
+    }
+    let restored_achievement_progress: Vec<(u32, u64, i64)> = character_tx
+        .exec(
+            "SELECT criteria, counter, date FROM character_achievement_progress WHERE guid = ? ORDER BY criteria",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Verify rested-XP achievement progress: {error}"))?;
+    if restored_achievement_progress != fixture.original_achievement_progress {
+        bail!("rested-XP cleanup verification did not restore achievement progress");
+    }
+
+    auth_tx
+        .exec_drop(
+            "DELETE FROM battlenet_account_transmog_illusions WHERE battlenetAccountId = ?",
+            (fixture.battlenet_account_id,),
+        )
+        .map_err(|error| anyhow!("Remove rested-XP fixture illusion rows: {error}"))?;
+    let illusion_rows: u64 = auth_tx
+        .exec_first(
+            "SELECT COUNT(*) FROM battlenet_account_transmog_illusions WHERE battlenetAccountId = ?",
+            (fixture.battlenet_account_id,),
+        )
+        .map_err(|error| anyhow!("Verify rested-XP illusion cleanup: {error}"))?
+        .unwrap_or(0);
+    if illusion_rows != 0 {
+        bail!("rested-XP cleanup left {illusion_rows} transmog illusion rows");
+    }
+
+    character_tx
+        .commit()
+        .map_err(|error| anyhow!("Commit rested-XP character cleanup: {error}"))?;
+    auth_tx
+        .commit()
+        .map_err(|error| anyhow!("Commit rested-XP auth cleanup: {error}"))?;
+    info!(
+        "Rested-XP fixture restored character {} and its deterministic glyph/reputation/illusion save rows",
+        bot.character_guid,
+    );
+    wait_for_rested_xp_target_respawn_cleanup(&mut conn, fixture)?;
     Ok(())
 }
 
@@ -5667,6 +8141,35 @@ fn database_url(env_name: &str, conf_key: &str) -> Result<String> {
     })
 }
 
+fn worldserver_config_f32(key: &str, default: f32) -> Result<f32> {
+    let path = std::env::var("WOW_BOT_DB_CONF")
+        .unwrap_or_else(|_| "/home/server/trinity-legacy-install/etc/worldserver.conf".to_string());
+    let contents =
+        std::fs::read_to_string(&path).map_err(|error| anyhow!("Read {path} failed: {error}"))?;
+    worldserver_config_f32_from_contents(&contents, key, default)
+        .with_context(|| format!("Read {key} from {path}"))
+}
+
+fn worldserver_config_f32_from_contents(contents: &str, key: &str, default: f32) -> Result<f32> {
+    let mut effective = None;
+    for line in contents.lines() {
+        let line = line.split('#').next().unwrap_or_default().trim();
+        let Some((candidate_key, raw_value)) = line.split_once('=') else {
+            continue;
+        };
+        if !candidate_key.trim().eq_ignore_ascii_case(key) {
+            continue;
+        }
+        effective = Some(raw_value.trim().trim_matches('"'));
+    }
+    let Some(value) = effective else {
+        return Ok(default);
+    };
+    value
+        .parse::<f32>()
+        .map_err(|error| anyhow!("invalid {key} value `{value}`: {error}"))
+}
+
 fn database_url_from_worldserver_conf(conf_key: &str) -> Result<String> {
     let path = std::env::var("WOW_BOT_DB_CONF")
         .unwrap_or_else(|_| "/home/server/trinity-legacy-install/etc/worldserver.conf".to_string());
@@ -6079,10 +8582,8 @@ fn build_cmsg_auth_session(
 
 /// Build player login data (packed GUID + farClip)
 fn build_player_login(guid: u64, realm_id: u32, far_clip: f32) -> Vec<u8> {
-    let (low_mask, low_bytes) = pack_u64(guid);
-
-    // High part: (HighGuid::Player << 58) | (realmId << 42)
-    let high = (2u64 << 58) | ((u64::from(realm_id) & 0x1FFF) << 42);
+    let (low, high) = create_player_guid_raw(guid, realm_id);
+    let (low_mask, low_bytes) = pack_u64(low);
     let (high_mask, high_bytes) = pack_u64(high);
 
     let mut data = Vec::with_capacity(2 + low_bytes.len() + high_bytes.len() + 4);
@@ -6093,6 +8594,44 @@ fn build_player_login(guid: u64, realm_id: u32, far_clip: f32) -> Vec<u8> {
     data.extend_from_slice(&far_clip.to_le_bytes());
 
     data
+}
+
+fn create_player_guid_raw(guid: u64, realm_id: u32) -> (u64, u64) {
+    // C++ ObjectGuid::Create<HighGuid::Player>(realmId, guid).
+    let high = (2u64 << 58) | ((u64::from(realm_id) & 0x1FFF) << 42);
+    (guid, high)
+}
+
+fn build_move_heartbeat_payload(
+    player_low: u64,
+    player_high: u64,
+    x: f32,
+    y: f32,
+    z: f32,
+    orientation: f32,
+) -> Vec<u8> {
+    // C++ MovementInfo wire order, mirrored by wow-packet::MovementInfo::read.
+    let mut data = build_packed_guid(player_low, player_high);
+    data.extend_from_slice(&0u32.to_le_bytes()); // MovementFlags
+    data.extend_from_slice(&0u32.to_le_bytes()); // MovementFlags2
+    data.extend_from_slice(&0u32.to_le_bytes()); // MovementFlags3
+    data.extend_from_slice(&0u32.to_le_bytes()); // client time; server uses its fallback clock
+    data.extend_from_slice(&x.to_le_bytes());
+    data.extend_from_slice(&y.to_le_bytes());
+    data.extend_from_slice(&z.to_le_bytes());
+    data.extend_from_slice(&orientation.to_le_bytes());
+    data.extend_from_slice(&0f32.to_le_bytes()); // pitch
+    data.extend_from_slice(&0f32.to_le_bytes()); // step-up start elevation
+    data.extend_from_slice(&0u32.to_le_bytes()); // remove movement forces count
+    data.extend_from_slice(&0u32.to_le_bytes()); // move index
+    data.push(0); // no transport/fall/spline/inertia/advanced-flying bits
+    data
+}
+
+fn build_move_init_active_mover_complete_payload(ticks: u32) -> [u8; 4] {
+    // C++ WorldPackets::Movement::MoveInitActiveMoverComplete::Read reads one
+    // little-endian uint32. Zero is valid for this non-transport fixture.
+    ticks.to_le_bytes()
 }
 
 fn resolve_quest_runtime_counter(
@@ -6109,8 +8648,44 @@ fn resolve_quest_runtime_counter(
 
 fn create_creature_guid_raw(map_id: u16, entry: u32, counter: u64) -> (u64, u64) {
     let high = (8u64 << 58) | ((map_id as u64 & 0x1FFF) << 29) | ((entry as u64 & 0x7F_FFFF) << 6);
-    let low = counter & 0xFF_FFFF_FFFF;
+    let low = counter & OBJECT_GUID_COUNTER_MASK;
     (low, high)
+}
+
+fn resolve_rested_xp_runtime_target(
+    target: &ResolvedCreatureTarget,
+    discovered: Option<DiscoveredCreatureGuid>,
+) -> Result<DiscoveredCreatureGuid> {
+    let candidate = discovered.ok_or_else(|| {
+        if target.guid_counter == 0 {
+            anyhow!(
+                "target entry {} spawn {} was not discovered near its SQL position in login SMSG_UPDATE_OBJECT packets; restart the QA world and retry",
+                target.entry,
+                target.spawn_guid
+            )
+        } else {
+            anyhow!(
+                "runtime counter {} for target entry {} spawn {} was not discovered near that spawn's SQL position; the override cannot be linked safely",
+                target.guid_counter & OBJECT_GUID_COUNTER_MASK,
+                target.entry,
+                target.spawn_guid
+            )
+        }
+    })?;
+
+    if target.guid_counter != 0 {
+        let expected = create_creature_guid_raw(target.map_id, target.entry, target.guid_counter);
+        if (candidate.low, candidate.high) != expected {
+            bail!(
+                "runtime counter override {} did not match discovered counter {} for SQL spawn {}",
+                expected.0,
+                candidate.low & OBJECT_GUID_COUNTER_MASK,
+                target.spawn_guid
+            );
+        }
+    }
+
+    Ok(candidate)
 }
 
 fn find_creature_guid_in_update_object(
@@ -6136,6 +8711,93 @@ fn find_creature_guid_in_update_object(
         }
     }
     None
+}
+
+fn find_creature_guid_near_position_in_update_object(
+    payload: &[u8],
+    map_id: u16,
+    entry: u32,
+    expected_x: f32,
+    expected_y: f32,
+    expected_z: f32,
+    max_distance: f32,
+    expected_counter: Option<u64>,
+) -> Option<DiscoveredCreatureGuid> {
+    let mut nearest: Option<(f32, DiscoveredCreatureGuid)> = None;
+    for offset in 0..payload.len().saturating_sub(2) {
+        if !matches!(payload[offset], 1 | 2) {
+            continue;
+        }
+        let Some(guid_bytes) = payload.get(offset + 1..) else {
+            continue;
+        };
+        let Some((guid_len, low, high)) = parse_packed_guid(guid_bytes) else {
+            continue;
+        };
+        if ((high >> 58) & 0x3F) != 8
+            || ((high >> 29) & 0x1FFF) != u64::from(map_id)
+            || ((high >> 6) & 0x7F_FFFF) != u64::from(entry)
+            || expected_counter.is_some_and(|expected| low != expected & OBJECT_GUID_COUNTER_MASK)
+        {
+            continue;
+        }
+        let Some(mut position) = offset.checked_add(1 + guid_len) else {
+            continue;
+        };
+        if payload.get(position).copied() != Some(5) {
+            continue;
+        }
+        position += 1;
+        // C++ CreateObjectBits are 18 MSB-first bits, flushed to three bytes.
+        let Some(next_position) = position.checked_add(3) else {
+            continue;
+        };
+        position = next_position;
+        let Some(mover_bytes) = payload.get(position..) else {
+            continue;
+        };
+        let Some((mover_len, mover_low, mover_high)) = parse_packed_guid(mover_bytes) else {
+            continue;
+        };
+        if (mover_low, mover_high) != (low, high) {
+            continue;
+        }
+        let Some(next_position) = position.checked_add(mover_len + 12 + 4) else {
+            continue;
+        };
+        position = next_position;
+        let (Some(x), Some(y), Some(z)) = (
+            read_f32_at(payload, position),
+            read_f32_at(payload, position + 4),
+            read_f32_at(payload, position + 8),
+        ) else {
+            continue;
+        };
+        if !(x.is_finite() && y.is_finite() && z.is_finite()) {
+            continue;
+        }
+        let distance =
+            ((x - expected_x).powi(2) + (y - expected_y).powi(2) + (z - expected_z).powi(2)).sqrt();
+        if distance > max_distance.max(0.0) {
+            continue;
+        }
+        let candidate = DiscoveredCreatureGuid { low, high, x, y, z };
+        if nearest
+            .as_ref()
+            .is_none_or(|(nearest_distance, _)| distance < *nearest_distance)
+        {
+            nearest = Some((distance, candidate));
+        }
+    }
+    nearest.map(|(_, candidate)| candidate)
+}
+
+fn read_f32_at(data: &[u8], position: usize) -> Option<f32> {
+    let bytes: [u8; 4] = data
+        .get(position..position.checked_add(4)?)?
+        .try_into()
+        .ok()?;
+    Some(f32::from_le_bytes(bytes))
 }
 
 fn parse_bind_point_update(
@@ -6383,6 +9045,43 @@ mod tests {
         payload
     }
 
+    fn rested_xp_create_object_fixture(
+        map_id: u16,
+        entry: u32,
+        counter: u64,
+        x: f32,
+        y: f32,
+        z: f32,
+    ) -> Vec<u8> {
+        let (low, high) = create_creature_guid_raw(map_id, entry, counter);
+        let mut payload = vec![1]; // CreateObject1
+        payload.extend(build_packed_guid(low, high));
+        payload.push(5); // TypeId::Unit
+        payload.extend_from_slice(&[0; 3]); // CreateObjectBits
+        payload.extend(build_packed_guid(low, high)); // movement MoverGUID
+        payload.extend_from_slice(&[0; 12]); // movement flags
+        payload.extend_from_slice(&123u32.to_le_bytes()); // MoveTime
+        payload.extend_from_slice(&x.to_le_bytes());
+        payload.extend_from_slice(&y.to_le_bytes());
+        payload.extend_from_slice(&z.to_le_bytes());
+        payload
+    }
+
+    fn rested_xp_target_fixture(guid_counter: u64) -> ResolvedCreatureTarget {
+        let (low, high) = create_creature_guid_raw(530, 15_274, guid_counter);
+        ResolvedCreatureTarget {
+            entry: 15_274,
+            spawn_guid: 54_931,
+            guid_counter,
+            map_id: 530,
+            x: 10_187.8,
+            y: -6_347.56,
+            z: 30.459,
+            orientation: 0.0,
+            packed_guid: build_packed_guid(low, high),
+        }
+    }
+
     #[test]
     fn auto_bank_payload_uses_cpp_inv_update_then_source_position() {
         assert_eq!(build_auto_bank_item_payload(35), [0x40, 255, 35, 255, 35]);
@@ -6502,6 +9201,58 @@ mod tests {
     }
 
     #[test]
+    fn rested_xp_move_heartbeat_uses_live_position_and_cpp_movement_layout() {
+        let (player_low, player_high) = create_player_guid_raw(14, 1);
+        let target = DiscoveredCreatureGuid {
+            low: 77_001,
+            high: create_creature_guid_raw(530, 15_274, 77_001).1,
+            x: 10_188.0,
+            y: -6_347.5,
+            z: 30.5,
+        };
+        let player_x = target.x + 1.0;
+        let player_y = target.y;
+        let player_z = target.z;
+        let orientation = (target.y - player_y).atan2(target.x - player_x);
+        let payload = build_move_heartbeat_payload(
+            player_low,
+            player_high,
+            player_x,
+            player_y,
+            player_z,
+            orientation,
+        );
+
+        let (guid_len, low, high) = parse_packed_guid(&payload).expect("packed player GUID");
+        assert_eq!((low, high), (player_low, player_high));
+        let movement = &payload[guid_len..];
+        assert_eq!(movement.len(), 49);
+        assert_eq!(&movement[..16], &[0; 16]);
+        assert_eq!(read_f32_at(movement, 16), Some(player_x));
+        assert_eq!(read_f32_at(movement, 20), Some(player_y));
+        assert_eq!(read_f32_at(movement, 24), Some(player_z));
+        assert_eq!(read_f32_at(movement, 28), Some(orientation));
+        assert_eq!(&movement[32..48], &[0; 16]);
+        assert_eq!(movement[48], 0);
+
+        let distance = ((target.x - player_x).powi(2)
+            + (target.y - player_y).powi(2)
+            + (target.z - player_z).powi(2))
+        .sqrt();
+        assert!(distance < NOMINAL_MELEE_RANGE_LIKE_CPP);
+        assert!((orientation - std::f32::consts::PI).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn rested_xp_active_mover_ack_matches_cpp_wire_layout() {
+        assert_eq!(CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE, 0x3A46);
+        assert_eq!(
+            build_move_init_active_mover_complete_payload(0x1234_5678),
+            [0x78, 0x56, 0x34, 0x12]
+        );
+    }
+
+    #[test]
     fn homebind_smoke_discovers_loaded_creature_guid_from_update_object() {
         let (low, high) = create_creature_guid_raw(1, 12_196, 733);
         let mut payload = vec![0, 0, 0, 0, 1, 0, 0, 0];
@@ -6617,6 +9368,296 @@ mod tests {
             player_low,
             player_high,
         ));
+    }
+
+    #[test]
+    fn rested_xp_smoke_cli_validation_is_fail_closed_only_when_enabled() {
+        const NOW: u64 = 2_000_000_000;
+        assert!(validate_rested_xp_cli_values(false, false, 0, 0, 0, 0, NOW).is_ok());
+        assert!(validate_rested_xp_cli_values(true, true, 1, 15_274, 86_400, 45, NOW).is_ok());
+
+        let stray_ack = validate_rested_xp_cli_values(false, true, 0, 0, 0, 0, NOW)
+            .expect_err("the destructive ACK must not apply to other modes");
+        assert!(stray_ack.to_string().contains("only valid"));
+
+        let missing_ack = validate_rested_xp_cli_values(true, false, 1, 15_274, 86_400, 45, NOW)
+            .expect_err("rested-XP smoke must require an explicit destructive ACK");
+        assert!(missing_ack
+            .to_string()
+            .contains(ACK_DISPOSABLE_RESTED_XP_FLAG));
+
+        let bot_count = validate_rested_xp_cli_values(true, true, 2, 15_274, 86_400, 45, NOW)
+            .expect_err("multiple bots must be rejected");
+        assert!(bot_count.to_string().contains("exactly one bot"));
+
+        let entry = validate_rested_xp_cli_values(true, true, 1, 0, 86_400, 45, NOW)
+            .expect_err("zero creature entry must be rejected");
+        assert!(entry.to_string().contains("must be nonzero"));
+
+        let offline = validate_rested_xp_cli_values(true, true, 1, 15_274, 0, 45, NOW)
+            .expect_err("zero offline duration must be rejected");
+        assert!(offline.to_string().contains("greater than zero"));
+
+        let overflow = validate_rested_xp_cli_values(
+            true,
+            true,
+            1,
+            15_274,
+            u64::from(u32::MAX) + 1,
+            45,
+            u64::MAX,
+        )
+        .expect_err("legacy C++ cannot represent a wider offline interval");
+        assert!(overflow.to_string().contains("uint32"));
+
+        let current_or_future = validate_rested_xp_cli_values(true, true, 1, 15_274, NOW, 45, NOW)
+            .expect_err("logout_time=0/future fixtures must be rejected");
+        assert!(current_or_future.to_string().contains("Unix timestamp"));
+
+        let timeout = validate_rested_xp_cli_values(true, true, 1, 15_274, 86_400, 0, NOW)
+            .expect_err("zero timeout must be rejected");
+        assert!(timeout.to_string().contains("greater than zero"));
+    }
+
+    #[test]
+    fn rested_xp_destructive_ack_parser_accepts_only_the_exact_cli_flag() {
+        let mut acknowledged = false;
+        assert!(!parse_ack_disposable_rested_xp_arg(
+            "--ack-disposable-rested-xp=true",
+            &mut acknowledged,
+        ));
+        assert!(!acknowledged);
+        assert!(parse_ack_disposable_rested_xp_arg(
+            ACK_DISPOSABLE_RESTED_XP_FLAG,
+            &mut acknowledged,
+        ));
+        assert!(acknowledged);
+    }
+
+    #[test]
+    fn rested_xp_fixture_safety_requires_exclusive_clean_disposable_scope() {
+        let safe = RestedXpFixtureSafetyState {
+            bnet_email_matches_configured_account: true,
+            characters_on_game_account: 1,
+            game_accounts_on_bnet_account: 1,
+            ..RestedXpFixtureSafetyState::default()
+        };
+        assert!(validate_rested_xp_fixture_safety_state(&safe).is_ok());
+
+        let mut at_login = RestedXpFixtureSafetyState {
+            bnet_email_matches_configured_account: true,
+            characters_on_game_account: 1,
+            game_accounts_on_bnet_account: 1,
+            at_login: 0x20,
+            ..RestedXpFixtureSafetyState::default()
+        };
+        let error = validate_rested_xp_fixture_safety_state(&at_login)
+            .expect_err("first-login state must be rejected");
+        assert!(error.to_string().contains("at_login"));
+
+        at_login.at_login = 0;
+        at_login.characters_on_game_account = 2;
+        let error = validate_rested_xp_fixture_safety_state(&at_login)
+            .expect_err("shared game accounts must be rejected");
+        assert!(error.to_string().contains("exactly one character"));
+
+        let dirty = RestedXpFixtureSafetyState {
+            bnet_email_matches_configured_account: true,
+            characters_on_game_account: 1,
+            game_accounts_on_bnet_account: 1,
+            nonempty_side_state: vec![("character_inventory".to_string(), 3)],
+            ..RestedXpFixtureSafetyState::default()
+        };
+        let error = validate_rested_xp_fixture_safety_state(&dirty)
+            .expect_err("non-restored side tables must be rejected");
+        assert!(error.to_string().contains("character_inventory=3"));
+
+        let crossed_identity = RestedXpFixtureSafetyState {
+            characters_on_game_account: 1,
+            game_accounts_on_bnet_account: 1,
+            ..RestedXpFixtureSafetyState::default()
+        };
+        let error = validate_rested_xp_fixture_safety_state(&crossed_identity)
+            .expect_err("a configured bot email must own the selected game account");
+        assert!(error.to_string().contains("configured @bot.local"));
+    }
+
+    #[test]
+    fn rested_xp_respawn_cleanup_wait_covers_the_selected_spawn_timer() {
+        assert_eq!(rested_xp_respawn_cleanup_wait_secs(120, 300), 315);
+        assert_eq!(rested_xp_respawn_cleanup_wait_secs(180, 30), 180);
+        assert_eq!(rested_xp_respawn_cleanup_wait_secs(1, 1), 16);
+        assert_eq!(
+            rested_xp_observed_respawn_remaining_secs(1_360, 1_000).unwrap(),
+            375
+        );
+        assert_eq!(
+            rested_xp_observed_respawn_remaining_secs(900, 1_000).unwrap(),
+            15
+        );
+        assert!(rested_xp_observed_respawn_remaining_secs(2_000, 1_000).is_err());
+    }
+
+    #[test]
+    fn rested_xp_time_sync_response_matches_cpp_wire_layout() {
+        assert_eq!(
+            build_time_sync_response_payload(0x1122_3344, 0x5566_7788),
+            [0x44, 0x33, 0x22, 0x11, 0x88, 0x77, 0x66, 0x55]
+        );
+        assert_eq!(
+            parse_time_sync_request_sequence(&[4, 3, 2, 1]).unwrap(),
+            0x0102_0304
+        );
+        assert!(parse_time_sync_request_sequence(&[0, 1, 2]).is_err());
+    }
+
+    #[test]
+    fn rested_xp_create_discovery_filters_position_and_runtime_counter() {
+        let payload =
+            rested_xp_create_object_fixture(530, 15_274, 77_001, 10_188.0, -6_347.5, 30.5);
+        let discovered = find_creature_guid_near_position_in_update_object(
+            &payload,
+            530,
+            15_274,
+            10_187.8,
+            -6_347.56,
+            30.459,
+            2.0,
+            Some(77_001),
+        )
+        .expect("matching CREATE_OBJECT must be discovered");
+        assert_eq!(discovered.low, 77_001);
+        assert!((discovered.x - 10_188.0).abs() < f32::EPSILON);
+
+        assert!(
+            find_creature_guid_near_position_in_update_object(
+                &payload,
+                530,
+                15_274,
+                10_187.8,
+                -6_347.56,
+                30.459,
+                2.0,
+                Some(77_002),
+            )
+            .is_none(),
+            "an override for another runtime object must not bind this SQL-position candidate"
+        );
+        assert!(
+            find_creature_guid_near_position_in_update_object(
+                &payload, 530, 15_274, 10_000.0, -6_347.56, 30.459, 2.0, None,
+            )
+            .is_none(),
+            "a same-entry runtime object away from the selected SQL spawn must be rejected"
+        );
+    }
+
+    #[test]
+    fn rested_xp_runtime_override_must_match_discovered_sql_position_candidate() {
+        let target = rested_xp_target_fixture(77_001);
+        let (low, high) = create_creature_guid_raw(target.map_id, target.entry, 77_001);
+        let candidate = DiscoveredCreatureGuid {
+            low,
+            high,
+            x: target.x as f32,
+            y: target.y as f32,
+            z: target.z as f32,
+        };
+        assert_eq!(
+            resolve_rested_xp_runtime_target(&target, Some(candidate)).unwrap(),
+            candidate
+        );
+
+        let (wrong_low, wrong_high) = create_creature_guid_raw(target.map_id, target.entry, 77_002);
+        let wrong_candidate = DiscoveredCreatureGuid {
+            low: wrong_low,
+            high: wrong_high,
+            ..candidate
+        };
+        let mismatch = resolve_rested_xp_runtime_target(&target, Some(wrong_candidate))
+            .expect_err("a counter from another spawn must fail closed");
+        assert!(mismatch
+            .to_string()
+            .contains("did not match discovered counter"));
+
+        let missing = resolve_rested_xp_runtime_target(&target, None)
+            .expect_err("an unobserved override cannot prove SQL spawn identity");
+        assert!(missing.to_string().contains("cannot be linked safely"));
+    }
+
+    #[test]
+    fn rested_xp_realm_routing_rejects_any_instance_duplicate() {
+        assert!(validate_rested_xp_instance_post_realm_opcode(SMSG_UPDATE_OBJECT).is_ok());
+        let duplicate = validate_rested_xp_instance_post_realm_opcode(SMSG_LOG_XP_GAIN)
+            .expect_err("instance XP must invalidate a realm observation");
+        assert!(duplicate.to_string().contains("duplicated/misrouted"));
+        assert_eq!(NOMINAL_MELEE_RANGE_LIKE_CPP, 5.0);
+    }
+
+    #[test]
+    fn rested_xp_target_rejects_cpp_dynamic_no_xp_critters_and_vehicle_guids() {
+        assert!(validate_rested_xp_target_template(15_274, 1, 0).is_ok());
+
+        let critter = validate_rested_xp_target_template(15_274, CREATURE_TYPE_CRITTER, 0)
+            .expect_err("critters must be rejected even without a persisted NO_XP flag");
+        assert!(critter.to_string().contains("critter"));
+
+        let vehicle = validate_rested_xp_target_template(15_274, 1, 123)
+            .expect_err("vehicles use a different C++ HighGuid and must fail closed");
+        assert!(vehicle.to_string().contains("HighGuid::Vehicle"));
+    }
+
+    #[test]
+    fn rested_xp_offline_math_and_cap_match_both_cpp_references() {
+        let wilderness =
+            offline_rest_bonus_like_cpp(400, 86_400, REST_OFFLINE_WILDERNESS_BUBBLE, 1.0);
+        let resting =
+            offline_rest_bonus_like_cpp(400, 86_400, REST_OFFLINE_TAVERN_OR_CITY_BUBBLE, 1.0);
+
+        assert!((wilderness - 14.88).abs() < 0.001);
+        assert!((resting - 60.0).abs() < 0.001);
+        assert_eq!(offline_rest_bonus_like_cpp(400, u64::MAX, 1.0, 1.0), 300.0);
+        assert!((REST_BONUS_CAP_NEXT_LEVEL_FACTOR - 0.75).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn rested_xp_saved_state_distinguishes_active_relog_from_offline_save() {
+        let active = RestedXpDbState {
+            level: 1,
+            xp: 100,
+            rest_state: REST_STATE_RESTED,
+            rest_bonus: 250.0,
+            online: 1,
+        };
+
+        assert!(
+            validate_rested_xp_persistence_state(active, 1, 100, 250.0, 1, "active relog",).is_ok()
+        );
+        assert!(
+            validate_rested_xp_persistence_state(active, 1, 100, 250.0, 0, "offline save",)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn rested_xp_world_config_rate_is_case_insensitive_and_last_wins() {
+        let contents = r#"
+            Rate.Rest.Offline.InWilderness = 1.0
+            rate.rest.offline.inwilderness = "1.5" # effective value
+        "#;
+        assert_eq!(
+            worldserver_config_f32_from_contents(contents, "Rate.Rest.Offline.InWilderness", 0.25,)
+                .unwrap(),
+            1.5
+        );
+        assert_eq!(
+            worldserver_config_f32_from_contents(contents, "Missing.Rate", 0.25).unwrap(),
+            0.25
+        );
+
+        let error = worldserver_config_f32_from_contents("Rate.Rest = nope", "Rate.Rest", 1.0)
+            .expect_err("malformed configured rate must not fall back silently");
+        assert!(error.to_string().contains("invalid Rate.Rest value"));
     }
 }
 

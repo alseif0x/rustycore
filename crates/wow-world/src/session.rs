@@ -59,14 +59,15 @@ use wow_core::{ObjectGuid, ObjectGuidGenerator, Position, guid::HighGuid};
 use wow_data::character_progression::{ChrClassesStore, ChrRacesStore};
 use wow_data::trait_tree::TraitDefinitionStore;
 use wow_data::{
-    AccessRequirementStoreLikeCpp, AdventureMapPoiStore, AreaTableStore, AreaTriggerStore,
-    BankBagSlotPricesStore, BattlePetBreedQualityStore, BattlePetBreedStateStore,
-    BattlePetSpeciesStateStore, BattlePetSpeciesStore, BattlePetXpGameTableLikeCpp,
-    BattlemasterListStore, ChrSpecializationStore, CinematicSequencesStore,
-    CombatRatingsGameTableLikeCpp, ConditionEntriesByTypeStore, CreatureAddonStoreLikeCpp,
-    CreatureBaseStatsStoreLikeCpp, CreatureClassificationHealthRatesLikeCpp,
-    CreatureDifficultyStoreLikeCpp, CreatureDisplayInfoExtraStore, CreatureDisplayInfoStore,
-    CreatureEquipmentStoreLikeCpp, CreatureModelDataStore, CreatureTemplateLifecycleStoreLikeCpp,
+    AccessRequirementStoreLikeCpp, AdventureMapPoiStore, AreaTableStore, AreaTriggerDb2Store,
+    AreaTriggerScriptStoreLikeCpp, AreaTriggerStore, BankBagSlotPricesStore,
+    BattlePetBreedQualityStore, BattlePetBreedStateStore, BattlePetSpeciesStateStore,
+    BattlePetSpeciesStore, BattlePetXpGameTableLikeCpp, BattlemasterListStore,
+    ChrSpecializationStore, CinematicSequencesStore, CombatRatingsGameTableLikeCpp,
+    ConditionEntriesByTypeStore, CreatureAddonStoreLikeCpp, CreatureBaseStatsStoreLikeCpp,
+    CreatureClassificationHealthRatesLikeCpp, CreatureDifficultyStoreLikeCpp,
+    CreatureDisplayInfoExtraStore, CreatureDisplayInfoStore, CreatureEquipmentStoreLikeCpp,
+    CreatureModelDataStore, CreatureTemplateLifecycleStoreLikeCpp,
     CreatureTemplateMountStoreLikeCpp, CurrencyTypesEntry, CurrencyTypesStore,
     DISABLE_TYPE_BATTLEGROUND, DISABLE_TYPE_MAP, DifficultyStore, DisableMgrLikeCpp,
     DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
@@ -103,10 +104,10 @@ use wow_data::{
     SpellRadiusStore, SpellRangeStore, SpellRequiredStoreLikeCpp, SpellShapeshiftFormStore,
     SpellStore, SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp,
     SpellTotemModelStoreLikeCpp, SummonPropertiesEntry, TactKeyStore, TalentStore, TalentTabStore,
-    ToyStore, TransmogSetEntry, TransmogSetItemStore, TrinityStringStoreLikeCpp,
-    VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore,
-    VehicleTemplateStoreLikeCpp, calculate_battle_pet_stats_like_cpp,
-    is_player_meeting_condition_like_cpp,
+    TavernAreaTriggerStoreLikeCpp, ToyStore, TransmogSetEntry, TransmogSetItemStore,
+    TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp,
+    VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
+    calculate_battle_pet_stats_like_cpp, is_player_meeting_condition_like_cpp,
     progression_rewards::{
         ContentTuningStore, CurvePointStore, CurveStore, FactionEntry, FactionStore,
         FactionTemplateStore, FriendshipRepReactionStore, NumTalentsAtLevelStore,
@@ -229,6 +230,27 @@ const PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP: u32 = 0x0000_0001;
 const PLAYER_FLAGS_AFK_LIKE_CPP: u32 = 0x0000_0002;
 const PLAYER_FLAGS_DND_LIKE_CPP: u32 = 0x0000_0004;
 const PLAYER_FLAGS_GHOST_LIKE_CPP: u32 = 0x0000_0010;
+const PLAYER_FLAGS_RESTING_LIKE_CPP: u32 = 0x0000_0020;
+const PLAYER_FLAGS_NO_XP_GAIN_LIKE_CPP: u32 = 0x0200_0000;
+pub(crate) const REST_STATE_RESTED_LIKE_CPP: u8 = 1;
+pub(crate) const REST_STATE_NORMAL_LIKE_CPP: u8 = 2;
+pub(crate) const REST_STATE_RAF_LINKED_LIKE_CPP: u8 = 6;
+
+/// Live seam for C++ `ScriptMgr::OnAreaTrigger`.
+///
+/// A ported content script receives the mutable session and returns the same
+/// consumed/not-consumed boolean that controls C++ handler continuation.
+pub type AreaTriggerScriptDispatcherLikeCpp =
+    Arc<dyn Fn(&mut WorldSession, ScriptIdLikeCpp, u32, bool) -> bool + Send + Sync>;
+
+const REST_FLAG_IN_TAVERN_LIKE_CPP: u32 = 0x1;
+const REST_FLAG_IN_CITY_LIKE_CPP: u32 = 0x2;
+const REST_FLAG_IN_FACTION_AREA_LIKE_CPP: u32 = 0x4;
+// C++ `RestMgr::SetRestBonus`: `float(next_level_xp) * 1.5f / 2`.
+const REST_BONUS_MAX_NEXT_LEVEL_XP_FACTOR_LIKE_CPP: f32 = 1.5 / 2.0;
+const REST_OFFLINE_WILDERNESS_BUBBLE_LIKE_CPP: f32 = 0.031;
+const REST_OFFLINE_TAVERN_OR_CITY_BUBBLE_LIKE_CPP: f32 = 0.125;
+const REST_ONLINE_INGAME_BUBBLE_LIKE_CPP: f32 = 0.125;
 const DIFFICULTY_NORMAL_LIKE_CPP: u32 = 1;
 const DIFFICULTY_NORMAL_RAID_LIKE_CPP: u32 = 14;
 const DIFFICULTY_10_N_LIKE_CPP: u32 = 3;
@@ -246,6 +268,10 @@ const LANG_RESET_SPELLS_TEXT_LIKE_CPP: &str = "Your spells have been reset.";
 const LANG_RESET_TALENTS_TEXT_LIKE_CPP: &str = "Your talents have been reset.";
 pub(crate) const TRADE_STATUS_PLAYER_BUSY_LIKE_CPP: u8 = 0;
 const PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP: u32 = 0x0000_0800;
+const AREA_FLAG_ENEMIES_PVP_FLAGGED_LIKE_CPP: u32 = 0x0000_0010;
+const AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP: u32 = 0x0000_0080;
+const AREA_FLAG_CONTESTED_LIKE_CPP: u32 = 0x0004_0000;
+const AREA_FLAG_COMBAT_ZONE_LIKE_CPP: u32 = 0x0100_0000;
 const CURRENCY_DB_UNUSED_FLAGS_LIKE_CPP: u8 = 0x13;
 pub(crate) type TeleportToOptionsLikeCpp = u32;
 pub(crate) const TELE_TO_NONE_LIKE_CPP: TeleportToOptionsLikeCpp = 0x00;
@@ -3867,6 +3893,7 @@ pub struct WorldSession {
     battlenet_account_id: u32,
     realm_list_secret_like_cpp: [u8; 32],
     recruiter_id_like_cpp: u32,
+    is_a_recruiter_like_cpp: bool,
     pub account_name: String,
     pub security: u8,
     pub expansion: u8,
@@ -4091,7 +4118,11 @@ pub struct WorldSession {
     fishing_base_skill_store: Option<Arc<FishingBaseSkillStoreLikeCpp>>,
 
     // Area trigger store (collision detection + teleportation)
+    area_trigger_db2_store: Option<Arc<AreaTriggerDb2Store>>,
     area_trigger_store: Option<Arc<AreaTriggerStore>>,
+    area_trigger_script_store: Option<Arc<AreaTriggerScriptStoreLikeCpp>>,
+    area_trigger_script_dispatcher_like_cpp: Option<AreaTriggerScriptDispatcherLikeCpp>,
+    tavern_area_trigger_store: Option<Arc<TavernAreaTriggerStoreLikeCpp>>,
 
     // C++ ObjectMgr::GraveyardStore loaded from graveyard_zone plus attached conditions.
     graveyard_store: Option<Arc<GraveyardStore>>,
@@ -4243,6 +4274,43 @@ pub struct WorldSession {
     pub(crate) total_played_time: u32,
     /// Time played at current level loaded from DB (seconds).
     pub(crate) level_played_time: u32,
+    /// C++ `CONFIG_MAX_PLAYER_LEVEL`. `RestMgr::SetRestBonus` reads this value
+    /// directly; `Player::IsMaxLevel` reads the expansion-bounded active field.
+    max_player_level_config_like_cpp: u32,
+    /// C++ `World::IsPvPRealm()` classification.
+    is_pvp_realm_like_cpp: bool,
+    /// C++ `World::IsFFAPvPRealm()` classification.
+    is_ffa_pvp_realm_like_cpp: bool,
+    /// C++ Recruit-A-Friend XP level gates used by `Player::GetsRecruitAFriendBonus(true)`.
+    max_recruit_a_friend_bonus_player_level_like_cpp: u32,
+    max_recruit_a_friend_bonus_player_level_difference_like_cpp: u32,
+    /// C++ `RestMgr::_restBonus[REST_TYPE_XP]`, loaded from `characters.rest_bonus`.
+    represented_rest_bonus_xp_like_cpp: f32,
+    /// C++ `UF::ActivePlayerData::RestInfo[REST_TYPE_XP].StateID`.
+    represented_rest_state_xp_like_cpp: u8,
+    /// C++ `RestMgr::_restFlagMask`.
+    represented_rest_flag_mask_like_cpp: u32,
+    /// Whether UpdateArea/UpdateZone has rebuilt the session-local RestMgr flags.
+    represented_rest_location_initialized_like_cpp: bool,
+    /// Coalesce UpdateArea + UpdateZone rest mutations into one visible field transition.
+    represented_defer_rest_flag_sync_like_cpp: bool,
+    /// A deferred RestMgr zero-boundary crossing marked PLAYER_FLAGS_RESTING dirty.
+    represented_deferred_rest_flag_update_dirty_like_cpp: bool,
+    /// C++ `RestMgr::_innAreaTriggerId`.
+    represented_inn_area_trigger_id_like_cpp: u32,
+    /// C++ `RestMgr::_restTime`, represented as Unix seconds.
+    represented_rest_time_secs_like_cpp: u64,
+    /// C++ `characters.playerFlags` as loaded by `Player::LoadFromDB`.
+    represented_loaded_player_flags_like_cpp: Option<u32>,
+    /// C++ `characters.playerFlagsEx` as loaded by `Player::LoadFromDB`.
+    represented_loaded_player_flags_ex_like_cpp: Option<u32>,
+    represented_loaded_player_flags_applied_like_cpp: bool,
+    /// C++ `RATE_REST_OFFLINE_IN_WILDERNESS`.
+    rest_offline_wilderness_rate_like_cpp: f32,
+    /// C++ `RATE_REST_OFFLINE_IN_TAVERN_OR_CITY`.
+    rest_offline_tavern_or_city_rate_like_cpp: f32,
+    /// C++ `RATE_REST_INGAME`.
+    rest_ingame_rate_like_cpp: f32,
     /// Player's current money in copper (1 gold = 10,000 copper).
     /// Loaded from `characters.money` on login; saved on logout + buy/sell.
     player_gold: u64,
@@ -5721,6 +5789,7 @@ pub enum RepresentedAuraEffectLikeCpp {
     ModSpeedNoControl,
     ModBattlePetXpPct,
     ModReputationGain,
+    ModRestedXpConsumption,
     ProvideSpellFocus,
     Stealth,
     WaterWalk,
@@ -5926,6 +5995,7 @@ impl WorldSession {
             battlenet_account_id: account_id,
             realm_list_secret_like_cpp: [0; 32],
             recruiter_id_like_cpp: 0,
+            is_a_recruiter_like_cpp: false,
             account_name,
             security,
             expansion,
@@ -6036,7 +6106,11 @@ impl WorldSession {
             skill_tiers_store: None,
             area_table_store: None,
             fishing_base_skill_store: None,
+            area_trigger_db2_store: None,
             area_trigger_store: None,
+            area_trigger_script_store: None,
+            area_trigger_script_dispatcher_like_cpp: None,
+            tavern_area_trigger_store: None,
             graveyard_store: None,
             chr_specialization_store: None,
             dungeon_encounter_store: None,
@@ -6128,6 +6202,25 @@ impl WorldSession {
             pending_periodic_player_save_like_cpp: false,
             total_played_time: 0,
             level_played_time: 0,
+            max_player_level_config_like_cpp: 80,
+            is_pvp_realm_like_cpp: false,
+            is_ffa_pvp_realm_like_cpp: false,
+            max_recruit_a_friend_bonus_player_level_like_cpp: 85,
+            max_recruit_a_friend_bonus_player_level_difference_like_cpp: 4,
+            represented_rest_bonus_xp_like_cpp: 0.0,
+            represented_rest_state_xp_like_cpp: REST_STATE_NORMAL_LIKE_CPP,
+            represented_rest_flag_mask_like_cpp: 0,
+            represented_rest_location_initialized_like_cpp: false,
+            represented_defer_rest_flag_sync_like_cpp: false,
+            represented_deferred_rest_flag_update_dirty_like_cpp: false,
+            represented_inn_area_trigger_id_like_cpp: 0,
+            represented_rest_time_secs_like_cpp: 0,
+            represented_loaded_player_flags_like_cpp: None,
+            represented_loaded_player_flags_ex_like_cpp: None,
+            represented_loaded_player_flags_applied_like_cpp: false,
+            rest_offline_wilderness_rate_like_cpp: 1.0,
+            rest_offline_tavern_or_city_rate_like_cpp: 1.0,
+            rest_ingame_rate_like_cpp: 1.0,
             player_gold: 0,
             represented_talent_reset_cost_like_cpp: 0,
             represented_talent_reset_time_secs_like_cpp: 0,
@@ -7434,6 +7527,7 @@ impl WorldSession {
         self.apply_represented_player_powers_to_canonical_like_cpp(&mut player);
         player.set_xp(self.player_xp_like_cpp() as i32);
         player.set_next_level_xp(self.player_next_level_xp_like_cpp() as i32);
+        player.set_scaling_player_level_delta_like_cpp(self.player_scaling_level_delta_like_cpp());
         player.set_money(self.player_gold_like_cpp());
         player.set_bank_bag_slot_count(self.player_bank_bag_slot_count_like_cpp());
         for (category, party_type) in self
@@ -13663,6 +13757,14 @@ impl WorldSession {
 
     pub(crate) fn recruiter_id_like_cpp(&self) -> u32 {
         self.recruiter_id_like_cpp
+    }
+
+    pub fn set_is_a_recruiter_like_cpp(&mut self, is_a_recruiter: bool) {
+        self.is_a_recruiter_like_cpp = is_a_recruiter;
+    }
+
+    pub(crate) fn is_a_recruiter_like_cpp(&self) -> bool {
+        self.is_a_recruiter_like_cpp
     }
 
     /// Get the character database reference.
@@ -21618,7 +21720,16 @@ impl WorldSession {
         self.tact_key_store.as_ref()
     }
 
-    /// Set the area trigger store for this session.
+    /// Set the DB2-backed area trigger store for this session.
+    pub fn set_area_trigger_db2_store(&mut self, store: Arc<AreaTriggerDb2Store>) {
+        self.area_trigger_db2_store = Some(store);
+    }
+
+    pub(crate) fn area_trigger_db2_store(&self) -> Option<&Arc<AreaTriggerDb2Store>> {
+        self.area_trigger_db2_store.as_ref()
+    }
+
+    /// Set the area trigger teleport store for this session.
     pub fn set_area_trigger_store(&mut self, store: Arc<AreaTriggerStore>) {
         self.area_trigger_store = Some(store);
     }
@@ -21626,6 +21737,118 @@ impl WorldSession {
     /// Get the area trigger store reference.
     pub fn area_trigger_store(&self) -> Option<&Arc<AreaTriggerStore>> {
         self.area_trigger_store.as_ref()
+    }
+
+    pub fn set_area_trigger_script_store(&mut self, store: Arc<AreaTriggerScriptStoreLikeCpp>) {
+        self.area_trigger_script_store = Some(store);
+    }
+
+    pub(crate) fn area_trigger_script_store(&self) -> Option<&Arc<AreaTriggerScriptStoreLikeCpp>> {
+        self.area_trigger_script_store.as_ref()
+    }
+
+    pub fn set_area_trigger_script_dispatcher_like_cpp(
+        &mut self,
+        dispatcher: AreaTriggerScriptDispatcherLikeCpp,
+    ) {
+        self.area_trigger_script_dispatcher_like_cpp = Some(dispatcher);
+    }
+
+    pub(crate) fn dispatch_area_trigger_script_like_cpp(
+        &mut self,
+        script_id: ScriptIdLikeCpp,
+        trigger_id: u32,
+        entered: bool,
+    ) -> Option<bool> {
+        let dispatcher = Arc::clone(self.area_trigger_script_dispatcher_like_cpp.as_ref()?);
+        Some(dispatcher(self, script_id, trigger_id, entered))
+    }
+
+    pub fn set_tavern_area_trigger_store(&mut self, store: Arc<TavernAreaTriggerStoreLikeCpp>) {
+        self.tavern_area_trigger_store = Some(store);
+    }
+
+    pub(crate) fn tavern_area_trigger_store(&self) -> Option<&Arc<TavernAreaTriggerStoreLikeCpp>> {
+        self.tavern_area_trigger_store.as_ref()
+    }
+
+    pub(crate) fn represented_is_tavern_area_trigger_like_cpp(&self, trigger_id: u32) -> bool {
+        self.tavern_area_trigger_store()
+            .is_some_and(|store| store.is_tavern_area_trigger_like_cpp(trigger_id))
+    }
+
+    pub(crate) fn area_trigger_db2_entry_like_cpp(
+        &self,
+        trigger_id: u32,
+    ) -> Option<&wow_data::AreaTriggerDb2Entry> {
+        self.area_trigger_db2_store()
+            .and_then(|store| store.get(trigger_id))
+    }
+
+    /// C++ `Player::IsInAreaTriggerRadius`.
+    pub(crate) fn player_is_in_area_trigger_radius_like_cpp(
+        &self,
+        trigger: &wow_data::AreaTriggerDb2Entry,
+    ) -> bool {
+        let Some(pos) = self.player_position_like_cpp() else {
+            return false;
+        };
+
+        let Some(trigger_map_id) = u16::try_from(trigger.continent_id).ok() else {
+            return false;
+        };
+        if self.player_map_id_like_cpp() != trigger_map_id
+            && !self
+                .represented_player_phase_shift_like_cpp()
+                .has_visible_map_id_like_cpp(u32::from(trigger_map_id))
+        {
+            return false;
+        }
+
+        if trigger.phase_id != 0 || trigger.phase_group_id != 0 || trigger.phase_use_flags != 0 {
+            let (trigger_phase_shift, _) = self.db_spawn_phase_shift_like_cpp(
+                trigger_map_id,
+                trigger.phase_use_flags as u8,
+                u16::try_from(trigger.phase_id).unwrap_or_default(),
+                u32::try_from(trigger.phase_group_id).unwrap_or_default(),
+                -1,
+            );
+            if !self.can_see_phase_shift_like_cpp(&trigger_phase_shift) {
+                return false;
+            }
+        }
+
+        let center = Position::new(trigger.pos.x, trigger.pos.y, trigger.pos.z, trigger.box_yaw);
+        if trigger.radius > 0.0 {
+            pos.is_within_dist(&center, trigger.radius)
+        } else {
+            Self::position_is_within_area_trigger_box_like_cpp(
+                &pos,
+                &center,
+                trigger.box_length / 2.0,
+                trigger.box_width / 2.0,
+                trigger.box_height / 2.0,
+            )
+        }
+    }
+
+    fn position_is_within_area_trigger_box_like_cpp(
+        pos: &Position,
+        center: &Position,
+        half_length: f32,
+        half_width: f32,
+        half_height: f32,
+    ) -> bool {
+        let dx = pos.x - center.x;
+        let dy = pos.y - center.y;
+        let cos_yaw = center.orientation.cos();
+        let sin_yaw = center.orientation.sin();
+        let rel_x = dx * cos_yaw + dy * sin_yaw;
+        let rel_y = -dx * sin_yaw + dy * cos_yaw;
+
+        rel_x.abs() <= half_length
+            && rel_y.abs() <= half_width
+            && (pos.z - center.z).abs() <= half_height
     }
 
     pub fn set_graveyard_store(&mut self, store: Arc<GraveyardStore>) {
@@ -23132,6 +23355,712 @@ impl WorldSession {
         stmt
     }
 
+    pub(crate) fn current_game_time_secs_like_cpp() -> u64 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs()
+    }
+
+    fn sanitize_rest_bonus_like_cpp(rest_bonus: f32) -> f32 {
+        if rest_bonus.is_finite() {
+            rest_bonus
+        } else {
+            0.0
+        }
+    }
+
+    fn valid_player_rest_state_like_cpp(rest_state: u8) -> bool {
+        matches!(
+            rest_state,
+            REST_STATE_RESTED_LIKE_CPP
+                | REST_STATE_NORMAL_LIKE_CPP
+                | REST_STATE_RAF_LINKED_LIKE_CPP
+        )
+    }
+
+    fn player_is_at_configured_max_level_like_cpp(&self) -> bool {
+        let max_level = self.max_player_level_config_like_cpp;
+        max_level != 0 && u32::from(self.player_level_like_cpp()) >= max_level
+    }
+
+    /// C++ `Player::IsMaxLevel` reads `ActivePlayerData::MaxLevel`, which
+    /// `InitStatsForLevel` derives from both the account's active expansion
+    /// and CONFIG_MAX_PLAYER_LEVEL. RestMgr deliberately uses the config-only
+    /// check above instead, so keep these two concepts separate.
+    pub(crate) fn player_active_max_level_like_cpp(&self) -> u32 {
+        let expansion_max = u32::from(max_level_for_expansion_like_cpp(self.expansion));
+        let configured_max = self.max_player_level_config_like_cpp;
+        if expansion_max == 80 || expansion_max >= configured_max {
+            configured_max
+        } else {
+            expansion_max
+        }
+    }
+
+    fn player_is_max_level_like_cpp(&self) -> bool {
+        u32::from(self.player_level_like_cpp()) >= self.player_active_max_level_like_cpp()
+    }
+
+    fn can_gain_represented_xp_rest_bonus_like_cpp(&self) -> bool {
+        if self.player_is_at_configured_max_level_like_cpp() {
+            return false;
+        }
+
+        let next_level_xp = self.player_next_level_xp_like_cpp();
+        next_level_xp != 0 && next_level_xp != u32::MAX
+    }
+
+    fn represented_xp_rest_bonus_cap_like_cpp(&self) -> f32 {
+        self.player_next_level_xp_like_cpp() as f32 * REST_BONUS_MAX_NEXT_LEVEL_XP_FACTOR_LIKE_CPP
+    }
+
+    fn represented_recruit_a_friend_xp_rest_state_applies_like_cpp(&self) -> bool {
+        self.gets_recruit_a_friend_xp_bonus_like_cpp()
+    }
+
+    pub(crate) fn load_represented_xp_rest_bonus_like_cpp(
+        &mut self,
+        rest_state: u8,
+        rest_bonus: f32,
+    ) {
+        self.clear_represented_rest_flags_for_character_load_like_cpp();
+        // C++ `RestMgr::LoadRestBonus` restores both DB values verbatim. It does
+        // not clamp or recompute the state until a later `AddRestBonus` reaches
+        // `SetRestBonus` (for example when offline time is applied).
+        // C++-created rows only contain the declared PlayerRestState values.
+        // Normalize legacy Rust rows that persisted the old invalid value 0,
+        // while preserving every valid DB state verbatim like LoadRestBonus.
+        self.represented_rest_state_xp_like_cpp =
+            if Self::valid_player_rest_state_like_cpp(rest_state) {
+                rest_state
+            } else {
+                REST_STATE_NORMAL_LIKE_CPP
+            };
+        self.represented_rest_bonus_xp_like_cpp = rest_bonus;
+        self.sync_represented_rest_info_to_canonical_player_like_cpp();
+    }
+
+    fn clear_represented_rest_flags_for_character_load_like_cpp(&mut self) {
+        self.represented_rest_flag_mask_like_cpp = 0;
+        self.represented_rest_location_initialized_like_cpp = false;
+        self.represented_defer_rest_flag_sync_like_cpp = false;
+        self.represented_deferred_rest_flag_update_dirty_like_cpp = false;
+        self.represented_inn_area_trigger_id_like_cpp = 0;
+        self.represented_rest_time_secs_like_cpp = 0;
+        let loaded_resting = self
+            .represented_loaded_player_flags_like_cpp
+            .is_some_and(|flags| (flags & PLAYER_FLAGS_RESTING_LIKE_CPP) != 0);
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            if loaded_resting {
+                player.set_player_flag(PLAYER_FLAGS_RESTING_LIKE_CPP);
+            } else {
+                player.remove_player_flag(PLAYER_FLAGS_RESTING_LIKE_CPP);
+            }
+        });
+    }
+
+    fn set_represented_xp_rest_bonus_like_cpp(&mut self, rest_bonus: f32) -> u8 {
+        let old_threshold = self.represented_xp_rest_threshold_like_cpp();
+        let old_state = self.represented_xp_rest_state_like_cpp();
+        let mut rest_bonus = Self::sanitize_rest_bonus_like_cpp(rest_bonus);
+        if !self.can_gain_represented_xp_rest_bonus_like_cpp() {
+            rest_bonus = 0.0;
+        }
+
+        rest_bonus = rest_bonus.clamp(0.0, self.represented_xp_rest_bonus_cap_like_cpp());
+        let is_raf_linked = self.represented_recruit_a_friend_xp_rest_state_applies_like_cpp();
+        self.represented_rest_bonus_xp_like_cpp = rest_bonus;
+        // The older legacy2 snapshot uses a `rest_bonus > 10` deadband here.
+        // Current legacy1 uses `rest_bonus >= 1` with multi-type RestInfo and
+        // is the selected port target; the divergence is retained as evidence
+        // that matching one C++ tree alone is not proof that behavior is sound.
+        self.represented_rest_state_xp_like_cpp = if is_raf_linked {
+            REST_STATE_RAF_LINKED_LIKE_CPP
+        } else if rest_bonus >= 1.0 {
+            REST_STATE_RESTED_LIKE_CPP
+        } else {
+            REST_STATE_NORMAL_LIKE_CPP
+        };
+        let new_threshold = self.represented_xp_rest_threshold_like_cpp();
+        let new_state = self.represented_xp_rest_state_like_cpp();
+        // C++ writes both RestInfo fields after this combined early-return,
+        // and `ModifyValue` marks both nested bits even if one value stayed
+        // equal. Therefore every emitted SetRestBonus delta carries 0x07.
+        let nested_mask = if old_threshold != new_threshold || old_state != new_state {
+            0x07
+        } else {
+            0
+        };
+        if nested_mask != 0 {
+            self.sync_represented_rest_info_to_canonical_player_like_cpp();
+        }
+        nested_mask
+    }
+
+    pub(crate) fn add_represented_xp_rest_bonus_like_cpp(&mut self, rest_bonus: f32) -> u8 {
+        let total = self.represented_rest_bonus_xp_like_cpp + rest_bonus;
+        self.set_represented_xp_rest_bonus_like_cpp(total)
+    }
+
+    fn calc_represented_xp_rest_extra_per_sec_like_cpp(&self, bubble: f32) -> f32 {
+        if !self.can_gain_represented_xp_rest_bonus_like_cpp() {
+            return 0.0;
+        }
+        self.player_next_level_xp_like_cpp() as f32 / 72_000.0 * bubble
+    }
+
+    pub(crate) fn apply_offline_xp_rest_bonus_like_cpp(
+        &mut self,
+        logout_time_secs: u64,
+        now_secs: u64,
+        was_logout_resting: bool,
+    ) -> f32 {
+        // Issue #81 input hardening: both C++ references assume a valid past
+        // logout timestamp and subtract into `uint32`, so zero/future rows can
+        // wrap into an immediately capped bonus. Rust intentionally rejects
+        // those corrupt persistence values rather than reproducing that bug.
+        if logout_time_secs == 0 {
+            return 0.0;
+        }
+        let Some(time_diff) = now_secs.checked_sub(logout_time_secs) else {
+            return 0.0;
+        };
+        if time_diff == 0 {
+            return 0.0;
+        }
+
+        let bubble = if was_logout_resting {
+            REST_OFFLINE_TAVERN_OR_CITY_BUBBLE_LIKE_CPP
+                * self.rest_offline_tavern_or_city_rate_like_cpp
+        } else {
+            REST_OFFLINE_WILDERNESS_BUBBLE_LIKE_CPP * self.rest_offline_wilderness_rate_like_cpp
+        };
+        let extra = time_diff as f32 * self.calc_represented_xp_rest_extra_per_sec_like_cpp(bubble);
+        let _ = self.add_represented_xp_rest_bonus_like_cpp(extra);
+        extra
+    }
+
+    fn update_represented_online_xp_rest_bonus_like_cpp(&mut self, now_secs: u64) -> (f32, u8) {
+        let rest_time = self.represented_rest_time_secs_like_cpp;
+        if rest_time == 0 {
+            return (0.0, 0);
+        }
+        let Some(time_diff) = now_secs.checked_sub(rest_time) else {
+            return (0.0, 0);
+        };
+        if time_diff < 10 {
+            return (0.0, 0);
+        }
+
+        self.represented_rest_time_secs_like_cpp = now_secs;
+        let bubble = REST_ONLINE_INGAME_BUBBLE_LIKE_CPP * self.rest_ingame_rate_like_cpp;
+        let extra = time_diff as f32 * self.calc_represented_xp_rest_extra_per_sec_like_cpp(bubble);
+        let nested_mask = self.add_represented_xp_rest_bonus_like_cpp(extra);
+        (extra, nested_mask)
+    }
+
+    fn tick_represented_online_xp_rest_bonus_like_cpp(&mut self, now_secs: u64) {
+        // C++ `RestMgr::Update` freezes the elapsed-time update behind
+        // `roll_chance_i(3)`. Use the session's runtime RNG so the gate is
+        // probabilistic in production and seedable in focused tests.
+        let update_roll_passed = self.represented_urand_u32_like_cpp(1, 100) <= 3;
+        self.tick_represented_online_xp_rest_bonus_with_roll_like_cpp(now_secs, update_roll_passed);
+    }
+
+    fn tick_represented_online_xp_rest_bonus_with_roll_like_cpp(
+        &mut self,
+        now_secs: u64,
+        update_roll_passed: bool,
+    ) {
+        if !update_roll_passed {
+            return;
+        }
+        let (_, nested_mask) = self.update_represented_online_xp_rest_bonus_like_cpp(now_secs);
+        if nested_mask != 0 {
+            self.send_represented_rest_info_update_like_cpp(nested_mask);
+        }
+    }
+
+    fn revalidate_represented_tavern_resting_like_cpp(&mut self) {
+        if (self.represented_rest_flag_mask_like_cpp & REST_FLAG_IN_TAVERN_LIKE_CPP) == 0 {
+            return;
+        }
+
+        let Some(at_entry) = self
+            .area_trigger_db2_entry_like_cpp(self.represented_inn_area_trigger_id_like_cpp)
+            .cloned()
+        else {
+            if self.remove_represented_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP) {
+                self.send_represented_resting_player_flag_update_like_cpp();
+            }
+            return;
+        };
+
+        if !self.player_is_in_area_trigger_radius_like_cpp(&at_entry)
+            && self.remove_represented_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP)
+        {
+            self.send_represented_resting_player_flag_update_like_cpp();
+        }
+    }
+
+    fn apply_represented_pct_modifier_to_u32_like_cpp(value: u32, pct: i32) -> u32 {
+        let adjusted = i64::from(value) + (i64::from(value) * i64::from(pct)) / 100;
+        adjusted.clamp(0, i64::from(u32::MAX)) as u32
+    }
+
+    fn represented_player_has_flag_like_cpp(&self, flag: u32) -> bool {
+        let canonical = self
+            .player_guid()
+            .and_then(|guid| self.canonical_player_has_player_flag_like_cpp(guid, flag));
+        match (
+            canonical,
+            self.represented_loaded_player_flags_like_cpp,
+            self.represented_loaded_player_flags_applied_like_cpp,
+        ) {
+            (Some(value), Some(_), true) | (Some(value), None, _) => value,
+            (Some(_), Some(loaded_flags), false) | (None, Some(loaded_flags), _) => {
+                (loaded_flags & flag) != 0
+            }
+            (None, None, _) => false,
+        }
+    }
+
+    fn represented_creature_has_loot_recipient_like_cpp(
+        &self,
+        creature_guid: wow_core::ObjectGuid,
+    ) -> Option<bool> {
+        if let Some(manager) = self.map_manager.as_ref() {
+            let manager = manager
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            if let Some(creature) =
+                manager.find_creature(self.player_map_id_like_cpp(), 0, creature_guid)
+            {
+                return Some(creature.creature.has_loot_recipient());
+            }
+        }
+
+        let key = self
+            .current_canonical_player_map_key_like_cpp()
+            .unwrap_or(wow_map::MapKey::new(
+                u32::from(self.player_map_id_like_cpp()),
+                0,
+            ));
+        let manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
+        manager
+            .find_map(key.map_id, key.instance_id)?
+            .map()
+            .get_typed_creature(creature_guid)
+            .map(|creature| creature.has_loot_recipient())
+    }
+
+    fn take_represented_xp_rest_bonus_for_gain_like_cpp(
+        &mut self,
+        xp: u32,
+        victim: wow_core::ObjectGuid,
+    ) -> (u32, u8) {
+        if xp == 0 || victim.is_empty() {
+            return (0, 0);
+        }
+
+        let rested_bonus = (self.represented_xp_rest_bonus_like_cpp() as u32).min(xp);
+        if rested_bonus == 0 {
+            return (0, 0);
+        }
+
+        let rested_loss = Self::apply_represented_pct_modifier_to_u32_like_cpp(
+            rested_bonus,
+            self.total_represented_aura_modifier_like_cpp(
+                RepresentedAuraEffectLikeCpp::ModRestedXpConsumption,
+            ),
+        );
+        let nested_mask = self.set_represented_xp_rest_bonus_like_cpp(
+            self.represented_xp_rest_bonus_like_cpp() - rested_loss as f32,
+        );
+        (rested_bonus, nested_mask)
+    }
+
+    pub(crate) fn represented_xp_rest_bonus_like_cpp(&self) -> f32 {
+        self.represented_rest_bonus_xp_like_cpp
+    }
+
+    pub(crate) fn represented_xp_rest_state_like_cpp(&self) -> u8 {
+        self.represented_rest_state_xp_like_cpp
+    }
+
+    pub(crate) fn represented_xp_rest_threshold_like_cpp(&self) -> u32 {
+        self.represented_rest_bonus_xp_like_cpp
+            .clamp(0.0, u32::MAX as f32) as u32
+    }
+
+    fn update_represented_hostile_area_state_like_cpp(&mut self, zone: &wow_data::AreaTableEntry) {
+        let war_mode_active = self.player_war_mode_local_active_like_cpp();
+        let zone_hostile = if zone.is_sanctuary_like_cpp() {
+            false
+        } else if (zone.flags
+            & (AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP | AREA_FLAG_COMBAT_ZONE_LIKE_CPP))
+            != 0
+        {
+            true
+        } else if (zone.flags & AREA_FLAG_ENEMIES_PVP_FLAGGED_LIKE_CPP) != 0 {
+            if (zone.flags & AREA_FLAG_CONTESTED_LIKE_CPP) != 0 {
+                war_mode_active
+            } else {
+                let faction_group_mask = self
+                    .area_table_store
+                    .as_ref()
+                    .map(|store| store.faction_group_mask_like_cpp(zone.id))
+                    .unwrap_or(0);
+                self.player_faction_template_like_cpp
+                    .and_then(|id| {
+                        self.faction_template_store
+                            .as_ref()
+                            .and_then(|store| store.get(id))
+                    })
+                    .is_some_and(|faction_template| {
+                        if (faction_template.friend_group & faction_group_mask) != 0 {
+                            false
+                        } else if (faction_template.enemy_group & faction_group_mask) != 0 {
+                            true
+                        } else {
+                            self.is_pvp_realm_like_cpp
+                        }
+                    })
+            }
+        } else {
+            false
+        };
+        self.player_pvp_hostile_like_cpp = zone_hostile || war_mode_active;
+    }
+
+    pub(crate) fn represented_is_resting_like_cpp(&self) -> bool {
+        self.represented_rest_flag_mask_like_cpp != 0
+    }
+
+    pub(crate) fn represented_visible_resting_like_cpp(&self) -> bool {
+        if self.represented_rest_location_initialized_like_cpp {
+            return self.represented_is_resting_like_cpp();
+        }
+
+        self.canonical_player_snapshot_like_cpp(|player| {
+            (player.data().player_flags & PLAYER_FLAGS_RESTING_LIKE_CPP) != 0
+        })
+        .or_else(|| {
+            self.represented_loaded_player_flags_like_cpp
+                .map(|flags| (flags & PLAYER_FLAGS_RESTING_LIKE_CPP) != 0)
+        })
+        .unwrap_or(false)
+    }
+
+    fn sync_represented_rest_info_to_canonical_player_like_cpp(&mut self) {
+        let rest_state = self.represented_xp_rest_state_like_cpp();
+        let rest_threshold = self.represented_xp_rest_threshold_like_cpp();
+        let is_resting = self.represented_is_resting_like_cpp();
+        let location_initialized = self.represented_rest_location_initialized_like_cpp;
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            player.set_xp_rest_info_like_cpp(rest_threshold, rest_state);
+            if location_initialized {
+                if is_resting {
+                    player.set_player_flag(PLAYER_FLAGS_RESTING_LIKE_CPP);
+                } else {
+                    player.remove_player_flag(PLAYER_FLAGS_RESTING_LIKE_CPP);
+                }
+            }
+        });
+    }
+
+    pub(crate) fn set_represented_rest_flag_like_cpp(
+        &mut self,
+        rest_flag: u32,
+        trigger_id: u32,
+    ) -> bool {
+        let old_mask = self.represented_rest_flag_mask_like_cpp;
+        self.represented_rest_location_initialized_like_cpp = true;
+        self.represented_rest_flag_mask_like_cpp |= rest_flag;
+        let crossed_zero = old_mask == 0 && self.represented_rest_flag_mask_like_cpp != 0;
+        if crossed_zero {
+            self.represented_rest_time_secs_like_cpp = Self::current_game_time_secs_like_cpp();
+        }
+        if trigger_id != 0 {
+            self.represented_inn_area_trigger_id_like_cpp = trigger_id;
+        }
+        if crossed_zero {
+            if self.represented_defer_rest_flag_sync_like_cpp {
+                self.represented_deferred_rest_flag_update_dirty_like_cpp = true;
+            } else {
+                self.sync_represented_rest_info_to_canonical_player_like_cpp();
+            }
+        }
+        crossed_zero
+    }
+
+    pub(crate) fn remove_represented_rest_flag_like_cpp(&mut self, rest_flag: u32) -> bool {
+        let old_mask = self.represented_rest_flag_mask_like_cpp;
+        self.represented_rest_flag_mask_like_cpp &= !rest_flag;
+        if old_mask != self.represented_rest_flag_mask_like_cpp {
+            self.represented_rest_location_initialized_like_cpp = true;
+        }
+        if (rest_flag & REST_FLAG_IN_TAVERN_LIKE_CPP) != 0
+            && (self.represented_rest_flag_mask_like_cpp & REST_FLAG_IN_TAVERN_LIKE_CPP) == 0
+        {
+            self.represented_inn_area_trigger_id_like_cpp = 0;
+        }
+        let crossed_zero = old_mask != 0 && self.represented_rest_flag_mask_like_cpp == 0;
+        if crossed_zero {
+            self.represented_rest_time_secs_like_cpp = 0;
+        }
+        if crossed_zero {
+            if self.represented_defer_rest_flag_sync_like_cpp {
+                self.represented_deferred_rest_flag_update_dirty_like_cpp = true;
+            } else {
+                self.sync_represented_rest_info_to_canonical_player_like_cpp();
+            }
+        }
+        crossed_zero
+    }
+
+    fn update_represented_rest_flag_like_cpp(&mut self, rest_flag: u32, active: bool) -> bool {
+        if active {
+            self.set_represented_rest_flag_like_cpp(rest_flag, 0)
+        } else {
+            self.remove_represented_rest_flag_like_cpp(rest_flag)
+        }
+    }
+
+    pub(crate) fn set_represented_tavern_resting_like_cpp(
+        &mut self,
+        trigger_id: u32,
+        entered: bool,
+    ) -> bool {
+        if entered {
+            self.set_represented_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP, trigger_id)
+        } else {
+            self.remove_represented_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP)
+        }
+    }
+
+    /// Mirror `Unit::SetPvpFlag` / `RemovePvpFlag` for the realm-wide FFA bit.
+    ///
+    /// The canonical player remains the runtime authority. The isolated delta
+    /// keeps this direct owner update limited to `UnitData::PvpFlags` without
+    /// clearing or leaking any other dirty canonical fields that the map tick
+    /// still owns.
+    fn set_represented_ffa_pvp_flag_like_cpp(&mut self, enabled: bool) -> bool {
+        let update = self
+            .mutate_canonical_player_like_cpp(|player| {
+                let before = player.unit().pvp_flags_like_cpp();
+                if before.contains(UnitPvpFlags::FFA_PVP) == enabled {
+                    return None;
+                }
+
+                if enabled {
+                    player
+                        .unit_mut()
+                        .set_pvp_flag_like_cpp(UnitPvpFlags::FFA_PVP);
+                } else {
+                    player
+                        .unit_mut()
+                        .remove_pvp_flag_like_cpp(UnitPvpFlags::FFA_PVP);
+                }
+                let after = player.unit().pvp_flags_like_cpp();
+
+                let mut delta = Player::new(None, false);
+                delta.unit_mut().replace_all_pvp_flags_like_cpp(before);
+                delta.clear_data_changes();
+                delta.unit_mut().replace_all_pvp_flags_like_cpp(after);
+                Some(delta.values_update(true))
+            })
+            .flatten();
+        let Some(update) = update else {
+            return false;
+        };
+
+        self.send_player_values_update_like_cpp(&update);
+        self.sync_player_registry_state_like_cpp();
+        true
+    }
+
+    /// C++ `HandlePlayerLogin`: realm-wide FFA is enabled after the player is
+    /// in the map, except for GMs and players whose loaded/zone-restored flags
+    /// already say they are resting.
+    fn apply_represented_ffa_pvp_login_state_like_cpp(&mut self) -> bool {
+        if !self.is_ffa_pvp_realm_like_cpp
+            || self.player_is_game_master_like_cpp()
+            || self.represented_visible_resting_like_cpp()
+        {
+            return false;
+        }
+
+        self.set_represented_ffa_pvp_flag_like_cpp(true)
+    }
+
+    pub(crate) fn handle_represented_tavern_area_trigger_like_cpp(
+        &mut self,
+        trigger_id: u32,
+        entered: bool,
+    ) -> bool {
+        if !self.represented_is_tavern_area_trigger_like_cpp(trigger_id) {
+            return false;
+        }
+
+        if self.set_represented_tavern_resting_like_cpp(trigger_id, entered) {
+            self.send_represented_resting_player_flag_update_like_cpp();
+        }
+        if self.is_ffa_pvp_realm_like_cpp {
+            self.set_represented_ffa_pvp_flag_like_cpp(!entered);
+        }
+        true
+    }
+
+    pub(crate) fn send_represented_resting_player_flag_update_like_cpp(&self) {
+        let Some(guid) = self.player_guid() else {
+            return;
+        };
+        let Some(mut player) = self.player_values_update_snapshot() else {
+            return;
+        };
+
+        let canonical_flags = self
+            .canonical_player_snapshot_like_cpp(|player| player.data().player_flags)
+            .unwrap_or_default();
+        if self.represented_is_resting_like_cpp() {
+            player.replace_all_player_flags(canonical_flags & !PLAYER_FLAGS_RESTING_LIKE_CPP);
+            player.set_player_flag(PLAYER_FLAGS_RESTING_LIKE_CPP);
+        } else {
+            player.replace_all_player_flags(canonical_flags | PLAYER_FLAGS_RESTING_LIKE_CPP);
+            player.remove_player_flag(PLAYER_FLAGS_RESTING_LIKE_CPP);
+        }
+        let update = player.values_update(true);
+        if let Some(packet) =
+            player_values_update_to_update_object(guid, self.player_map_id_like_cpp(), &update)
+        {
+            self.send_packet(&packet);
+        }
+    }
+
+    pub(crate) fn send_represented_rest_info_update_like_cpp(&self, nested_mask: u8) {
+        let Some(guid) = self.player_guid() else {
+            return;
+        };
+        let mut player = Player::new(None, false);
+        player.prepare_rest_info_values_update_like_cpp(
+            0,
+            self.represented_xp_rest_threshold_like_cpp(),
+            self.represented_xp_rest_state_like_cpp(),
+            nested_mask,
+        );
+        let update = player.values_update(true);
+        if let Some(packet) =
+            player_values_update_to_update_object(guid, self.player_map_id_like_cpp(), &update)
+        {
+            self.send_packet(&packet);
+        }
+    }
+
+    fn build_character_rest_state_save_statement_like_cpp(
+        rest_state: u8,
+        player_flags: u32,
+        rest_bonus: f32,
+        logout_time_secs: u64,
+        is_logout_resting: bool,
+        guid_counter: u64,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::UPD_CHAR_REST_STATE.sql());
+        stmt.set_u8(0, rest_state);
+        stmt.set_u32(1, player_flags);
+        stmt.set_f32(2, Self::sanitize_rest_bonus_like_cpp(rest_bonus));
+        stmt.set_u64(3, logout_time_secs);
+        stmt.set_u8(4, u8::from(is_logout_resting));
+        stmt.set_u64(5, guid_counter);
+        stmt
+    }
+
+    fn build_character_online_rest_state_save_statement_like_cpp(
+        rest_state: u8,
+        player_flags: u32,
+        rest_bonus: f32,
+        guid_counter: u64,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::UPD_CHAR_ONLINE_REST_STATE.sql());
+        stmt.set_u8(0, rest_state);
+        stmt.set_u32(1, player_flags);
+        stmt.set_f32(2, Self::sanitize_rest_bonus_like_cpp(rest_bonus));
+        stmt.set_u64(3, guid_counter);
+        stmt
+    }
+
+    fn represented_player_flags_for_rest_state_save_like_cpp(&self) -> u32 {
+        let canonical_flags =
+            self.canonical_player_snapshot_like_cpp(|player| player.data().player_flags);
+        let mut player_flags = match (
+            canonical_flags,
+            self.represented_loaded_player_flags_like_cpp,
+            self.represented_loaded_player_flags_applied_like_cpp,
+        ) {
+            (Some(flags), Some(_), true) | (Some(flags), None, _) => flags,
+            (Some(_), Some(loaded_flags), false) | (None, Some(loaded_flags), _) => loaded_flags,
+            (None, None, _) => 0,
+        };
+        if self.represented_rest_location_initialized_like_cpp {
+            if self.represented_is_resting_like_cpp() {
+                player_flags |= PLAYER_FLAGS_RESTING_LIKE_CPP;
+            } else {
+                player_flags &= !PLAYER_FLAGS_RESTING_LIKE_CPP;
+            }
+        }
+        player_flags
+    }
+
+    pub(crate) fn represented_player_flags_for_create_like_cpp(&self) -> (u32, u32) {
+        let player_flags = self.represented_player_flags_for_rest_state_save_like_cpp();
+        let canonical_flags_ex =
+            self.canonical_player_snapshot_like_cpp(|player| player.data().player_flags_ex);
+        let player_flags_ex = match (
+            canonical_flags_ex,
+            self.represented_loaded_player_flags_ex_like_cpp,
+            self.represented_loaded_player_flags_applied_like_cpp,
+        ) {
+            (Some(flags), Some(_), true) | (Some(flags), None, _) => flags,
+            (Some(_), Some(loaded_flags), false) | (None, Some(loaded_flags), _) => loaded_flags,
+            (None, None, _) => 0,
+        };
+        (player_flags, player_flags_ex)
+    }
+
+    fn current_player_xp_save_statement_plan_like_cpp(
+        &self,
+        level_changed: bool,
+        rest_bonus_consumed: bool,
+        guid_counter: u64,
+    ) -> Vec<PreparedStatement> {
+        let mut plan = Vec::with_capacity(2);
+        if level_changed {
+            let mut stmt = PreparedStatement::new(CharStatements::UPD_CHAR_LEVEL.sql());
+            stmt.set_u8(0, self.player_level_like_cpp());
+            stmt.set_u32(1, self.player_xp_like_cpp());
+            stmt.set_u64(2, guid_counter);
+            plan.push(stmt);
+        } else {
+            let mut stmt = PreparedStatement::new(CharStatements::UPD_CHAR_XP.sql());
+            stmt.set_u32(0, self.player_xp_like_cpp());
+            stmt.set_u64(1, guid_counter);
+            plan.push(stmt);
+        }
+
+        if rest_bonus_consumed {
+            plan.push(
+                Self::build_character_online_rest_state_save_statement_like_cpp(
+                    self.represented_xp_rest_state_like_cpp(),
+                    self.represented_player_flags_for_rest_state_save_like_cpp(),
+                    self.represented_xp_rest_bonus_like_cpp(),
+                    guid_counter,
+                ),
+            );
+        }
+        plan
+    }
+
     fn build_character_health_save_statement_like_cpp(
         health: u32,
         guid_counter: u64,
@@ -23467,6 +24396,15 @@ impl WorldSession {
         plan.statements
             .push(Self::build_character_gold_save_statement_like_cpp(
                 self.player_gold_like_cpp(),
+                guid_counter,
+            ));
+        plan.statements
+            .push(Self::build_character_rest_state_save_statement_like_cpp(
+                self.represented_xp_rest_state_like_cpp(),
+                self.represented_player_flags_for_rest_state_save_like_cpp(),
+                self.represented_xp_rest_bonus_like_cpp(),
+                now_unix_secs.max(0) as u64,
+                self.represented_visible_resting_like_cpp(),
                 guid_counter,
             ));
         plan.statements
@@ -23845,12 +24783,38 @@ impl WorldSession {
     /// Represented C++ `Player::UpdateArea` criteria branch.
     ///
     /// C++ records `EnterArea`/`LeaveArea` after updating area-dependent state when
-    /// `oldArea != newArea`; this represented slice records only those criteria
-    /// side effects. PvP/rest flags, phasing, aura checks, quest push, mount
+    /// `oldArea != newArea`; this represented slice records those criteria and
+    /// the C++ area rest flag side effects. PvP flags, phasing, aura checks, quest push, mount
     /// capability refresh, and chat-channel updates remain runtime gaps.
     pub(crate) fn update_area_represented_like_cpp(&mut self, new_area: u32) -> bool {
+        self.update_area_represented_with_rest_update_like_cpp(new_area, true)
+    }
+
+    fn update_area_represented_with_rest_update_like_cpp(
+        &mut self,
+        new_area: u32,
+        send_rest_update: bool,
+    ) -> bool {
         let old_area = self.player_area_id_like_cpp;
         self.player_area_id_like_cpp = new_area;
+
+        let mut rest_changed = false;
+        let area_resting = self.area_table_store.as_ref().and_then(|store| {
+            store.get(new_area).map(|area| {
+                let team = player_team_for_race_cpp(self.player_race_like_cpp());
+                match team {
+                    Team::Alliance => area.alliance_resting_like_cpp(),
+                    Team::Horde | Team::Other => area.horde_resting_like_cpp(),
+                }
+            })
+        });
+        rest_changed |= self.update_represented_rest_flag_like_cpp(
+            REST_FLAG_IN_FACTION_AREA_LIKE_CPP,
+            area_resting.unwrap_or(false),
+        );
+        if send_rest_update && rest_changed {
+            self.send_represented_resting_player_flag_update_like_cpp();
+        }
 
         if old_area == new_area {
             return false;
@@ -23874,24 +24838,77 @@ impl WorldSession {
         new_zone: u32,
         new_area: u32,
     ) -> bool {
+        self.update_zone_represented_with_rest_update_like_cpp(new_zone, new_area, true)
+    }
+
+    pub(crate) fn update_zone_represented_without_rest_update_packet_like_cpp(
+        &mut self,
+        new_zone: u32,
+        new_area: u32,
+    ) -> bool {
+        self.update_zone_represented_with_rest_update_like_cpp(new_zone, new_area, false)
+    }
+
+    pub(crate) fn take_deferred_rest_flag_update_dirty_like_cpp(&mut self) -> bool {
+        std::mem::take(&mut self.represented_deferred_rest_flag_update_dirty_like_cpp)
+    }
+
+    fn update_zone_represented_with_rest_update_like_cpp(
+        &mut self,
+        new_zone: u32,
+        new_area: u32,
+        send_rest_update: bool,
+    ) -> bool {
         if self.player_guid().is_none() {
             return false;
         }
 
         let old_zone = self.player_zone_id_like_cpp;
         self.player_zone_id_like_cpp = new_zone;
-        self.update_area_represented_like_cpp(new_area);
+        self.represented_deferred_rest_flag_update_dirty_like_cpp = false;
+        self.represented_defer_rest_flag_sync_like_cpp = true;
+        self.update_area_represented_with_rest_update_like_cpp(new_area, false);
+
+        let zone_entry = self
+            .area_table_store
+            .as_ref()
+            .and_then(|store| store.get(new_zone).copied());
+        let Some(zone) = zone_entry else {
+            self.represented_defer_rest_flag_sync_like_cpp = false;
+            let rest_flag_update_dirty = self.represented_deferred_rest_flag_update_dirty_like_cpp;
+            if rest_flag_update_dirty {
+                self.sync_represented_rest_info_to_canonical_player_like_cpp();
+            }
+            if send_rest_update && rest_flag_update_dirty {
+                self.send_represented_resting_player_flag_update_like_cpp();
+                self.represented_deferred_rest_flag_update_dirty_like_cpp = false;
+            }
+            return true;
+        };
+
+        self.update_represented_hostile_area_state_like_cpp(&zone);
+        // C++ keeps an existing city-rest flag in a hostile, non-sanctuary
+        // LinkedChat zone. It removes the flag only in the outer non-LinkedChat
+        // branch; the hostile inner branch performs no RestMgr mutation.
+        if zone.linked_chat_like_cpp() {
+            if !self.player_pvp_hostile_like_cpp || zone.is_sanctuary_like_cpp() {
+                self.set_represented_rest_flag_like_cpp(REST_FLAG_IN_CITY_LIKE_CPP, 0);
+            }
+        } else {
+            self.remove_represented_rest_flag_like_cpp(REST_FLAG_IN_CITY_LIKE_CPP);
+        }
+        self.represented_defer_rest_flag_sync_like_cpp = false;
+        let rest_flag_update_dirty = self.represented_deferred_rest_flag_update_dirty_like_cpp;
+        if rest_flag_update_dirty {
+            self.sync_represented_rest_info_to_canonical_player_like_cpp();
+        }
+        if send_rest_update && rest_flag_update_dirty {
+            self.send_represented_resting_player_flag_update_like_cpp();
+            self.represented_deferred_rest_flag_update_dirty_like_cpp = false;
+        }
 
         if old_zone == new_zone {
             return false;
-        }
-
-        if !self
-            .area_table_store
-            .as_ref()
-            .is_some_and(|store| store.get(new_zone).is_some())
-        {
-            return true;
         }
 
         self.represented_area_zone_criteria_like_cpp.push(
@@ -23979,7 +24996,7 @@ impl WorldSession {
             };
 
             if xp != 0 {
-                self.give_xp(xp, ObjectGuid::EMPTY, false).await;
+                self.give_xp(xp, ObjectGuid::EMPTY, 1.0).await;
             }
             self.send_packet(&ExplorationExperience {
                 area_id: area_id as i32,
@@ -25667,35 +26684,63 @@ impl WorldSession {
 
     /// Apply XP to the live session state, leveling up if threshold reached.
     /// C++ `Player::GiveXP` visible side effects; persistence is handled by async wrappers.
+    /// `group_rate` is packet metadata only: C++ `KillRewarder::_RewardXP`
+    /// scales `xp` before calling this method and passes `_groupRate` separately.
     pub(crate) fn give_xp_runtime_like_cpp(
         &mut self,
         xp: u32,
         victim: wow_core::ObjectGuid,
-        is_kill: bool,
+        group_rate: f32,
     ) -> bool {
         use wow_packet::packets::misc::{LevelUpInfo, LogXpGain};
 
         if xp == 0 {
             return false;
         }
-        if self.player_level_like_cpp() >= 80 {
+        if !self.player_is_alive_like_cpp() && !self.player_in_represented_battleground_like_cpp() {
+            return false;
+        }
+        if self.represented_player_has_flag_like_cpp(PLAYER_FLAGS_NO_XP_GAIN_LIKE_CPP) {
+            return false;
+        }
+        if victim.is_any_type_creature()
+            && !self
+                .represented_creature_has_loot_recipient_like_cpp(victim)
+                .unwrap_or(false)
+        {
+            return false;
+        }
+        if self.player_is_max_level_like_cpp() {
             return false;
         } // max level
 
-        // Send floating XP text — C++ `WorldPackets::Character::LogXPGain`.
-        self.send_packet(&LogXpGain {
-            victim,
-            original: xp as i32,
-            reason: if is_kill { 0 } else { 1 },
-            amount: xp as i32,
-            group_bonus: 1.0,
-        });
+        // C++ `Player::GiveXP`: Recruit-A-Friend is mutually exclusive with
+        // rested XP and contributes 2 * base XP (3x total).
+        let old_level = self.player_level_like_cpp();
+        let recruit_a_friend = self.gets_recruit_a_friend_xp_bonus_like_cpp();
+        let (bonus_xp, rest_info_mask) = if recruit_a_friend {
+            (xp.saturating_mul(2), 0)
+        } else {
+            self.take_represented_xp_rest_bonus_for_gain_like_cpp(xp, victim)
+        };
+        let total_xp = xp.saturating_add(bonus_xp);
 
-        self.set_player_xp_like_cpp(self.player_xp_like_cpp().saturating_add(xp));
+        // Send floating XP text — C++ `WorldPackets::Character::LogXPGain`.
+        // C++ opcode registration routes SMSG_LOG_XP_GAIN through
+        // CONNECTION_TYPE_REALM, even after the session has switched its
+        // default channel to the instance connection.
+        self.send_packet_realm(&LogXpGain {
+            victim,
+            original: total_xp.min(i32::MAX as u32) as i32,
+            reason: if victim.is_empty() { 1 } else { 0 },
+            amount: xp.min(i32::MAX as u32) as i32,
+            group_bonus: group_rate,
+        });
+        self.set_player_xp_like_cpp(self.player_xp_like_cpp().saturating_add(total_xp));
 
         // C++ `Player::GiveXP`: while (newXP >= nextLvlXP && !IsMaxLevel()).
         while self.player_xp_like_cpp() >= self.player_next_level_xp_like_cpp()
-            && self.player_level_like_cpp() < 80
+            && !self.player_is_max_level_like_cpp()
         {
             self.set_player_xp_like_cpp(
                 self.player_xp_like_cpp() - self.player_next_level_xp_like_cpp(),
@@ -25707,7 +26752,8 @@ impl WorldSession {
             // Send SMSG_LEVELUP_INFO — "Ding!" popup
             // Stats deltas are loaded from player_levelstats in real impl;
             // for now send 0 deltas (client will update from UpdateObject).
-            self.send_packet(&LevelUpInfo {
+            // C++ registers SMSG_LEVEL_UP_INFO on CONNECTION_TYPE_REALM too.
+            self.send_packet_realm(&LevelUpInfo {
                 level: new_level as i32,
                 health_delta: 0,
                 power_delta: [0i32; 10],
@@ -25719,41 +26765,93 @@ impl WorldSession {
             self.refresh_next_level_xp();
         }
 
+        self.sync_represented_xp_level_to_canonical_and_client_like_cpp(
+            self.player_level_like_cpp() != old_level,
+            rest_info_mask,
+        );
+
         true
+    }
+
+    /// Mirror C++ update-field side effects from `SetXP` / `GiveLevel` until
+    /// canonical map-owned `SendObjectUpdates` has complete session fanout.
+    fn sync_represented_xp_level_to_canonical_and_client_like_cpp(
+        &mut self,
+        level_changed: bool,
+        rest_info_mask: u8,
+    ) {
+        if self.player_guid().is_none() {
+            return;
+        }
+
+        let level = self.player_level_like_cpp();
+        let xp = self.player_xp_like_cpp().min(i32::MAX as u32) as i32;
+        let next_level_xp = self.player_next_level_xp_like_cpp().min(i32::MAX as u32) as i32;
+        let scaling_player_level_delta = self.player_scaling_level_delta_like_cpp();
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_level(level);
+            player.set_xp(xp);
+            // C++ `SetXP` uses `ModifyValue` before assignment, so even an
+            // equal final remainder remains dirty after a level boundary.
+            player.mark_xp_changed_like_cpp();
+            player.set_next_level_xp(next_level_xp);
+            player.set_scaling_player_level_delta_like_cpp(scaling_player_level_delta);
+            player.mark_scaling_player_level_delta_changed_like_cpp();
+        });
+
+        // C++ mutates RestInfo and XP on the same Player update mask before
+        // `Map::SendObjectUpdates`. Build one isolated transitional delta so
+        // the explicit session fanout neither splits nor duplicates RestInfo,
+        // and does not leak unrelated canonical dirty fields.
+        let mut delta = Player::new(None, false);
+        delta.clear_data_changes();
+        if level_changed {
+            delta.unit_mut().set_level(level);
+            delta.set_next_level_xp(next_level_xp);
+        }
+        delta.set_xp(xp);
+        delta.mark_xp_changed_like_cpp();
+        delta.set_scaling_player_level_delta_like_cpp(scaling_player_level_delta);
+        delta.mark_scaling_player_level_delta_changed_like_cpp();
+        if rest_info_mask != 0 {
+            delta.prepare_rest_info_values_update_like_cpp(
+                0,
+                self.represented_xp_rest_threshold_like_cpp(),
+                self.represented_xp_rest_state_like_cpp(),
+                rest_info_mask,
+            );
+        }
+        let update = delta.values_update(true);
+        self.send_player_values_update_like_cpp(&update);
     }
 
     /// Give XP to the player, leveling up if threshold reached.
     /// C++ `Player::GiveXP(xp, victim, group_rate)`.
-    pub(crate) async fn give_xp(&mut self, xp: u32, victim: wow_core::ObjectGuid, is_kill: bool) {
+    pub(crate) async fn give_xp(&mut self, xp: u32, victim: wow_core::ObjectGuid, group_rate: f32) {
         let old_level = self.player_level_like_cpp();
-        if !self.give_xp_runtime_like_cpp(xp, victim, is_kill) {
+        let old_rest_bonus = self.represented_xp_rest_bonus_like_cpp();
+        if !self.give_xp_runtime_like_cpp(xp, victim, group_rate) {
             return;
         }
 
-        if self.player_level_like_cpp() != old_level {
-            if let Some(guid) = self.player_guid() {
-                let char_db = self.char_db().map(Arc::clone);
-                if let Some(db) = char_db {
-                    use wow_database::CharStatements;
-                    let mut stmt = db.prepare(CharStatements::UPD_CHAR_LEVEL);
-                    stmt.set_u8(0, self.player_level_like_cpp());
-                    stmt.set_u32(1, self.player_xp_like_cpp());
-                    stmt.set_u32(2, guid.counter() as u32);
-                    let _ = db.execute(&stmt).await;
-                }
-            }
+        let (Some(guid), Some(char_db)) = (self.player_guid(), self.char_db().map(Arc::clone))
+        else {
+            return;
+        };
+        let plan = self.current_player_xp_save_statement_plan_like_cpp(
+            self.player_level_like_cpp() != old_level,
+            self.represented_xp_rest_bonus_like_cpp() < old_rest_bonus,
+            guid.counter() as u64,
+        );
+        let mut transaction = SqlTransaction::new();
+        for statement in plan {
+            transaction.append(statement);
         }
-
-        // Persist current XP
-        if let Some(guid) = self.player_guid() {
-            let char_db = self.char_db().map(Arc::clone);
-            if let Some(db) = char_db {
-                use wow_database::CharStatements;
-                let mut stmt = db.prepare(CharStatements::UPD_CHAR_XP);
-                stmt.set_u32(0, self.player_xp_like_cpp());
-                stmt.set_u32(1, guid.counter() as u32);
-                let _ = db.execute(&stmt).await;
-            }
+        if let Err(err) = char_db.commit_transaction(transaction).await {
+            warn!(
+                guid = guid.counter(),
+                "Failed to atomically persist represented XP/rest state: {err}"
+            );
         }
     }
 
@@ -25961,6 +27059,24 @@ impl WorldSession {
     }
 
     fn gets_recruit_a_friend_reputation_bonus_like_cpp(&self) -> bool {
+        self.gets_recruit_a_friend_bonus_like_cpp(false)
+    }
+
+    fn gets_recruit_a_friend_xp_bonus_like_cpp(&self) -> bool {
+        self.gets_recruit_a_friend_bonus_like_cpp(true)
+    }
+
+    fn gets_recruit_a_friend_bonus_like_cpp(&self, for_xp: bool) -> bool {
+        // C++ `WorldObject::IsInMap` requires both players to be in world.
+        // In particular, offline rest accrual runs during LoadFromDB before
+        // `AddPlayerToMap` and must not normalize the state as RAF-linked.
+        if self.state != SessionState::LoggedIn {
+            return false;
+        }
+        let player_level = u32::from(self.player_level_like_cpp());
+        if for_xp && player_level > self.max_recruit_a_friend_bonus_player_level_like_cpp {
+            return false;
+        }
         let (Some(player_guid), Some(group_guid), Some(group_registry), Some(player_registry)) = (
             self.player_guid(),
             self.group_guid,
@@ -25982,6 +27098,10 @@ impl WorldSession {
             return false;
         };
         let player_map_id = self.player_map_id_like_cpp();
+        let player_instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
         let max_distance = self.reputation_rates_like_cpp().recruit_a_friend_distance;
 
         for member_guid in group_members {
@@ -25994,8 +27114,32 @@ impl WorldSession {
             if member.map_id != player_map_id {
                 continue;
             }
+            if member.instance_id != player_instance_id {
+                continue;
+            }
+            if !member.is_in_world {
+                continue;
+            }
+            // C++ measures a dead member from their corpse. The shared registry
+            // does not yet publish corpse location, so fail closed instead of
+            // granting RAF from a stale live-player position.
+            if !member.is_alive {
+                continue;
+            }
             if member.position.distance(&player_position) > max_distance {
                 continue;
+            }
+            if for_xp {
+                let member_level = u32::from(member.level);
+                if member_level > self.max_recruit_a_friend_bonus_player_level_like_cpp {
+                    continue;
+                }
+                if member_level < player_level
+                    && player_level - member_level
+                        > self.max_recruit_a_friend_bonus_player_level_difference_like_cpp
+                {
+                    continue;
+                }
             }
 
             let member_recruited_self = member.recruiter_id == self.account_id;
@@ -27249,6 +28393,36 @@ impl WorldSession {
         self.exploration_xp_rate_like_cpp = rate.max(0.0);
     }
 
+    pub fn set_rested_xp_config_like_cpp(
+        &mut self,
+        max_player_level_config: u32,
+        rest_offline_wilderness_rate: f32,
+        rest_offline_tavern_or_city_rate: f32,
+        rest_ingame_rate: f32,
+    ) {
+        self.max_player_level_config_like_cpp = max_player_level_config;
+        self.rest_offline_wilderness_rate_like_cpp = rest_offline_wilderness_rate;
+        self.rest_offline_tavern_or_city_rate_like_cpp = rest_offline_tavern_or_city_rate;
+        self.rest_ingame_rate_like_cpp = rest_ingame_rate;
+    }
+
+    pub fn set_recruit_a_friend_xp_config_like_cpp(
+        &mut self,
+        max_bonus_level: u32,
+        max_level_difference: u32,
+    ) {
+        self.max_recruit_a_friend_bonus_player_level_like_cpp = max_bonus_level;
+        self.max_recruit_a_friend_bonus_player_level_difference_like_cpp = max_level_difference;
+    }
+
+    pub fn set_pvp_realm_like_cpp(&mut self, is_pvp_realm: bool) {
+        self.is_pvp_realm_like_cpp = is_pvp_realm;
+    }
+
+    pub fn set_ffa_pvp_realm_like_cpp(&mut self, is_ffa_pvp_realm: bool) {
+        self.is_ffa_pvp_realm_like_cpp = is_ffa_pvp_realm;
+    }
+
     pub fn set_min_quest_scaled_xp_ratio_like_cpp(&mut self, ratio: u32) {
         self.min_quest_scaled_xp_ratio_like_cpp = if ratio > 100 { 0 } else { ratio };
     }
@@ -27262,6 +28436,28 @@ impl WorldSession {
         if let Some(table) = &self.player_xp_table {
             let lvl = self.player_level_like_cpp() as usize;
             self.set_player_next_level_xp_like_cpp(table.get(lvl).copied().unwrap_or(u32::MAX));
+        }
+    }
+
+    /// C++ `Player::InitStatsForLevel` repairs an invalid persisted XP value
+    /// after deriving `ActivePlayerData::NextLevelXP` for the loaded level.
+    pub(crate) fn clamp_loaded_player_xp_to_next_level_like_cpp(&mut self) {
+        let next_level_xp = self.player_next_level_xp_like_cpp();
+        if self.player_xp_like_cpp() >= next_level_xp {
+            self.set_player_xp_like_cpp(next_level_xp.saturating_sub(1));
+        }
+    }
+
+    /// C++ `Player::SetXP` updates this field every time XP changes. It uses
+    /// the client build's compile-time `MAX_LEVEL`, not the configurable or
+    /// account-expansion-specific active maximum.
+    pub(crate) fn player_scaling_level_delta_like_cpp(&self) -> i32 {
+        if self.player_level_like_cpp() < WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP
+            && self.player_xp_like_cpp() < self.player_next_level_xp_like_cpp() / 2
+        {
+            -1
+        } else {
+            0
         }
     }
 
@@ -28695,6 +29891,10 @@ impl WorldSession {
                 self.tick_auras();
             }
             self.update_player_save_timer_like_cpp(diff_ms);
+            self.revalidate_represented_tavern_resting_like_cpp();
+            self.tick_represented_online_xp_rest_bonus_like_cpp(
+                Self::current_game_time_secs_like_cpp(),
+            );
             self.represented_can_delay_teleport_like_cpp = false;
             self.process_represented_delayed_teleport_after_update_like_cpp();
         }
@@ -30439,7 +31639,10 @@ impl WorldSession {
                 .then(|| self.creature_kill_xp(reward.creature_level))
                 .unwrap_or(0);
             if xp > 0 {
-                self.give_xp(xp, reward.creature_guid, true).await;
+                // The represented reward queue is still solo-session only.
+                // Full C++ KillRewarder group fanout must pre-scale XP per
+                // member before passing its separate `_groupRate` here.
+                self.give_xp(xp, reward.creature_guid, 1.0).await;
             }
             let reputation_rate = self.represented_creature_kill_reputation_rate_like_cpp(
                 reward.killer_guid,
@@ -32257,39 +33460,50 @@ impl WorldSession {
             return;
         };
 
-        // Get all triggers at the current position on the player's current map
-        let triggers = store.get_triggers_at_position(self.player_map_id_like_cpp(), &pos);
+        let (exited_trigger_id, entered_trigger) = {
+            // Get all triggers at the current position on the player's current map.
+            let triggers = store.get_triggers_at_position(self.player_map_id_like_cpp(), &pos);
+            let exited_trigger_id = self.active_area_trigger.filter(|prev_trigger_id| {
+                !triggers
+                    .iter()
+                    .any(|trigger| trigger.trigger_id == *prev_trigger_id)
+            });
+            let entered_trigger = triggers
+                .first()
+                .map(|trigger| (trigger.trigger_id, trigger.teleport.clone()));
+            (exited_trigger_id, entered_trigger)
+        };
 
         // Check if we've exited the previous trigger
-        if let Some(prev_trigger_id) = self.active_area_trigger {
-            if !triggers.iter().any(|t| t.trigger_id == prev_trigger_id) {
-                info!(
-                    account = self.account_id,
-                    trigger_id = prev_trigger_id,
-                    "Exited area trigger"
-                );
-                self.active_area_trigger = None;
-            }
+        if let Some(prev_trigger_id) = exited_trigger_id {
+            info!(
+                account = self.account_id,
+                trigger_id = prev_trigger_id,
+                "Exited area trigger"
+            );
+            self.handle_represented_tavern_area_trigger_like_cpp(prev_trigger_id, false);
+            self.active_area_trigger = None;
         }
 
         // Check if we've entered a new trigger
-        if let Some(trigger) = triggers.first() {
-            let trigger_id = trigger.trigger_id;
-
+        if let Some((trigger_id, teleport)) = entered_trigger {
             // Only trigger if this is a NEW trigger (wasn't active before)
             if self.active_area_trigger != Some(trigger_id) {
                 info!(
                     account = self.account_id,
-                    trigger_id = trigger.trigger_id,
-                    "Entered area trigger"
+                    trigger_id, "Entered area trigger"
                 );
                 self.active_area_trigger = Some(trigger_id);
 
+                if self.handle_represented_tavern_area_trigger_like_cpp(trigger_id, true) {
+                    return;
+                }
+
                 // Handle teleportation if present
-                if let Some(ref teleport) = trigger.teleport {
+                if let Some(ref teleport) = teleport {
                     info!(
                         account = self.account_id,
-                        trigger_id = trigger.trigger_id,
+                        trigger_id,
                         target_map = teleport.target_map,
                         target_x = teleport.target_position.x,
                         target_y = teleport.target_position.y,
@@ -33817,6 +35031,38 @@ impl WorldSession {
         }
         self.initialize_reputation_mgr_like_cpp();
         self.refresh_represented_talent_points_like_cpp();
+    }
+
+    pub(crate) fn set_loaded_player_flags_like_cpp(&mut self, player_flags: u32) {
+        self.represented_loaded_player_flags_like_cpp = Some(player_flags);
+        self.represented_loaded_player_flags_ex_like_cpp
+            .get_or_insert(0);
+        self.represented_loaded_player_flags_applied_like_cpp = false;
+        self.apply_loaded_player_flags_to_canonical_like_cpp();
+    }
+
+    pub(crate) fn set_loaded_player_flags_ex_like_cpp(&mut self, player_flags_ex: u32) {
+        self.represented_loaded_player_flags_ex_like_cpp = Some(player_flags_ex);
+        self.represented_loaded_player_flags_applied_like_cpp = false;
+        self.apply_loaded_player_flags_to_canonical_like_cpp();
+    }
+
+    pub(crate) fn apply_loaded_player_flags_to_canonical_like_cpp(&mut self) {
+        let Some(player_flags) = self.represented_loaded_player_flags_like_cpp else {
+            return;
+        };
+        let player_flags_ex = self
+            .represented_loaded_player_flags_ex_like_cpp
+            .unwrap_or(0);
+        if self
+            .mutate_canonical_player_like_cpp(|player| {
+                player.replace_all_player_flags(player_flags);
+                player.replace_all_player_flags_ex(player_flags_ex);
+            })
+            .is_some()
+        {
+            self.represented_loaded_player_flags_applied_like_cpp = true;
+        }
     }
 
     pub(crate) fn set_loaded_player_powers_like_cpp(
@@ -38619,6 +39865,10 @@ impl WorldSession {
 
     pub(crate) fn player_health_like_cpp(&self) -> u32 {
         self.player_health_like_cpp
+    }
+
+    pub(crate) fn player_max_health_like_cpp(&self) -> u32 {
+        self.player_max_health_like_cpp
     }
 
     pub(crate) fn set_represented_resurrection_request_like_cpp(
@@ -48913,7 +50163,11 @@ impl WorldSession {
 
     /// Set the session state (e.g., after character login).
     pub fn set_state(&mut self, state: SessionState) {
+        let entered_world = state == SessionState::LoggedIn && self.state != SessionState::LoggedIn;
         self.state = state;
+        if entered_world {
+            self.apply_represented_ffa_pvp_login_state_like_cpp();
+        }
     }
 
     /// Time since the last packet was received.
@@ -52778,6 +54032,8 @@ impl WorldSession {
                             != wow_data::spell::aura_types::SPELL_AURA_MOD_DETECT_RANGE
                         && effect.effect_aura
                             != wow_data::spell::aura_types::SPELL_AURA_MOD_DETECTED_RANGE
+                        && effect.effect_aura
+                            != wow_data::spell::aura_types::SPELL_AURA_MOD_RESTED_XP_CONSUMPTION
                 })
                 .count();
             for effect in spell_info.effects().iter().filter(|effect| {
@@ -52815,6 +54071,16 @@ impl WorldSession {
                         player_guid,
                         effect,
                         RepresentedAuraEffectLikeCpp::ModDetectedRange,
+                        30_000,
+                    )?;
+                } else if effect.effect_aura
+                    == wow_data::spell::aura_types::SPELL_AURA_MOD_RESTED_XP_CONSUMPTION
+                {
+                    self.apply_represented_aura_modifier_like_cpp(
+                        spell_id,
+                        player_guid,
+                        effect,
+                        RepresentedAuraEffectLikeCpp::ModRestedXpConsumption,
                         30_000,
                     )?;
                 } else if effect.effect_aura == wow_data::spell::aura_types::SPELL_AURA_MOD_SCALE {
@@ -56567,7 +57833,10 @@ impl WorldSession {
                 .then(|| self.creature_kill_xp(mob_level))
                 .unwrap_or(0);
             if xp > 0 {
-                self.give_xp(xp, guid, true).await;
+                // This direct spell-damage kill path has no represented
+                // KillRewarder group fanout yet; do not advertise a group
+                // rate until the XP amount is scaled per member like C++.
+                self.give_xp(xp, guid, 1.0).await;
             }
             let reputation_rate =
                 self.represented_creature_kill_reputation_rate_like_cpp(player_guid, guid);
@@ -82630,6 +83899,75 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn post_add_flushes_deferred_rest_flag_update_after_world_states_like_cpp() {
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 74_334);
+        let player_position = Position::new(10.0, 10.0, 0.0, 0.0);
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "PostAddRest".to_string(),
+            player_position,
+            571,
+            1,
+            1,
+            10,
+            0,
+        ));
+        session.set_player_zone_area_like_cpp(20, 102);
+        session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
+            wow_data::AreaTableEntry {
+                id: 20,
+                continent_id: 571,
+                parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: wow_data::AREA_FLAG_LINKED_CHAT_LIKE_CPP,
+            },
+            wow_data::AreaTableEntry {
+                id: 102,
+                continent_id: 571,
+                parent_area_id: 20,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: 0,
+            },
+        ])));
+        assert!(session.set_represented_rest_flag_like_cpp(REST_FLAG_IN_FACTION_AREA_LIKE_CPP, 0));
+        let _ = drain_server_packet_bytes(&send_rx);
+
+        session
+            .send_initial_packets_after_add_to_map(player_guid, &player_position, 571, false)
+            .await;
+
+        let opcodes: Vec<_> = drain_server_packet_bytes(&send_rx)
+            .iter()
+            .filter_map(|packet| {
+                (packet.len() >= 2).then(|| u16::from_le_bytes([packet[0], packet[1]]))
+            })
+            .collect();
+        let init_world_states_index = opcodes
+            .iter()
+            .position(|opcode| *opcode == ServerOpcodes::InitWorldStates as u16)
+            .expect("post-add InitWorldStates");
+        let rest_update_indices: Vec<_> = opcodes
+            .iter()
+            .enumerate()
+            .filter_map(|(index, opcode)| {
+                (*opcode == ServerOpcodes::UpdateObject as u16).then_some(index)
+            })
+            .collect();
+        assert_eq!(
+            rest_update_indices.len(),
+            1,
+            "the deferred zone rest transition flushes as one final PlayerFlags update"
+        );
+        assert!(rest_update_indices[0] > init_world_states_index);
+        assert_eq!(session.represented_rest_flag_mask_like_cpp, 0);
+    }
+
+    #[tokio::test]
     async fn far_sight_update_visibility_uses_represented_seer_position_like_cpp() {
         let (mut session, _pkt_tx, _send_rx) = make_session();
         let manager = shared_map_manager();
@@ -88549,6 +89887,7 @@ mod tests {
         session.group_guid = Some(group_guid);
         session.set_player_registry(player_registry);
         session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+        session.set_state(SessionState::LoggedIn);
 
         assert_eq!(
             session.calculate_reputation_gain_like_cpp(
@@ -88604,6 +89943,7 @@ mod tests {
         session.group_guid = Some(group_guid);
         session.set_player_registry(player_registry);
         session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+        session.set_state(SessionState::LoggedIn);
 
         assert_eq!(
             session.calculate_reputation_gain_like_cpp(
@@ -99336,11 +100676,16 @@ mod tests {
             "C++ HealthLeech excludes overkill from the caster heal"
         );
         let opcodes = drain_server_opcodes(&send_rx);
+        // Lethal damage now has three C++ update-field effects bridged to the
+        // client: `Player::SetXP`, the victim death state, and the caster heal.
+        // The focused GiveXP test above validates the XP/level field mask;
+        // this test keeps the health-leech ordering contract explicit.
         assert_eq!(
             opcodes,
             vec![
                 ServerOpcodes::SpellGo,
                 ServerOpcodes::LogXpGain,
+                ServerOpcodes::UpdateObject,
                 ServerOpcodes::UpdateObject,
                 ServerOpcodes::UpdateObject,
                 ServerOpcodes::CooldownEvent
@@ -105341,11 +106686,12 @@ mod tests {
         let sqls: Vec<&str> = plan.statements.iter().map(PreparedStatement::sql).collect();
 
         assert_eq!(
-            &sqls[..10],
+            &sqls[..11],
             &[
                 CharStatements::UPD_CHARACTER_POSITION_PRESERVE_TRAVEL.sql(),
                 CharStatements::UPD_CHAR_LEVEL.sql(),
                 CharStatements::UPD_CHAR_MONEY.sql(),
+                CharStatements::UPD_CHAR_REST_STATE.sql(),
                 CharStatements::UPD_CHAR_HEALTH.sql(),
                 CharStatements::UPD_CHAR_POWERS.sql(),
                 CharStatements::UPD_CHAR_TALENT_RESET_STATE.sql(),
@@ -105367,6 +106713,34 @@ mod tests {
                     || *sql == CharStatements::REP_CHAR_QUEST_STATUS_OBJECTIVES.sql()
             }),
             "C++ _SaveQuestStatus only writes m_QuestStatusSave dirty entries; represented full-save must preserve unchanged objective rows until Rust owns that dirty set"
+        );
+    }
+
+    #[test]
+    fn offline_rested_xp_tavern_accrues_more_than_wilderness_like_cpp() {
+        let (mut wilderness, _, _) = make_session();
+        wilderness.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        wilderness.set_player_next_level_xp_like_cpp(72_000);
+        wilderness.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
+
+        let (mut tavern, _, _) = make_session();
+        tavern.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        tavern.set_player_next_level_xp_like_cpp(72_000);
+        tavern.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
+
+        let wilderness_extra = wilderness.apply_offline_xp_rest_bonus_like_cpp(1_000, 4_600, false);
+        let tavern_extra = tavern.apply_offline_xp_rest_bonus_like_cpp(1_000, 4_600, true);
+
+        assert!((wilderness_extra - 111.6).abs() < 0.01);
+        assert!((tavern_extra - 450.0).abs() < 0.01);
+        assert!(tavern_extra > wilderness_extra);
+        assert!(
+            tavern.represented_xp_rest_bonus_like_cpp()
+                > wilderness.represented_xp_rest_bonus_like_cpp()
+        );
+        assert_eq!(
+            tavern.represented_xp_rest_state_like_cpp(),
+            REST_STATE_RESTED_LIKE_CPP
         );
     }
 
@@ -105458,6 +106832,684 @@ mod tests {
     }
 
     #[test]
+    fn rested_xp_uses_configured_rest_rates_like_cpp() {
+        let (mut wilderness, _, _) = make_session();
+        wilderness.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        wilderness.set_player_next_level_xp_like_cpp(72_000);
+        wilderness.set_rested_xp_config_like_cpp(80, 2.0, 3.0, 4.0);
+        wilderness.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
+
+        let (mut tavern, _, _) = make_session();
+        tavern.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        tavern.set_player_next_level_xp_like_cpp(72_000);
+        tavern.set_rested_xp_config_like_cpp(80, 2.0, 3.0, 4.0);
+        tavern.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
+
+        let wilderness_extra = wilderness.apply_offline_xp_rest_bonus_like_cpp(1_000, 4_600, false);
+        let tavern_extra = tavern.apply_offline_xp_rest_bonus_like_cpp(1_000, 4_600, true);
+
+        assert!((wilderness_extra - 223.2).abs() < 0.01);
+        assert!((tavern_extra - 1_350.0).abs() < 0.01);
+
+        let (mut online, _, _) = make_session();
+        online.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        online.set_player_next_level_xp_like_cpp(72_000);
+        online.set_rested_xp_config_like_cpp(80, 2.0, 3.0, 4.0);
+        online.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
+        assert!(online.set_represented_rest_flag_like_cpp(REST_FLAG_IN_CITY_LIKE_CPP, 0));
+        online.represented_rest_time_secs_like_cpp = 1_000;
+
+        let (online_extra, _) = online.update_represented_online_xp_rest_bonus_like_cpp(1_010);
+
+        assert!((online_extra - 5.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn negative_rest_rate_is_preserved_and_clamped_by_rest_bonus_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        session.set_player_next_level_xp_like_cpp(72_000);
+        session.set_rested_xp_config_like_cpp(80, -1.0, 1.0, 1.0);
+        session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 100.0);
+
+        let extra = session.apply_offline_xp_rest_bonus_like_cpp(1_000, 4_600, false);
+
+        assert!(extra < 0.0);
+        assert_eq!(session.represented_xp_rest_bonus_like_cpp(), 0.0);
+        assert_eq!(
+            session.represented_xp_rest_state_like_cpp(),
+            REST_STATE_NORMAL_LIKE_CPP
+        );
+    }
+
+    #[test]
+    fn offline_rested_xp_caps_at_cpp_next_level_threshold_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        session.set_player_next_level_xp_like_cpp(1_000);
+        session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 700.0);
+
+        let extra = session.apply_offline_xp_rest_bonus_like_cpp(1, 1_000_000, true);
+
+        assert!(extra > 0.0);
+        assert_eq!(session.represented_xp_rest_bonus_like_cpp(), 750.0);
+        assert_eq!(session.represented_xp_rest_threshold_like_cpp(), 750);
+        assert_eq!(
+            session.represented_xp_rest_state_like_cpp(),
+            REST_STATE_RESTED_LIKE_CPP
+        );
+    }
+
+    fn install_xp_victim_like_cpp(
+        session: &mut WorldSession,
+        creature_guid: ObjectGuid,
+        tapped: bool,
+    ) {
+        let player_guid = session
+            .player_guid()
+            .unwrap_or_else(|| ObjectGuid::create_player(1, 0xE1C0));
+        session.set_player_guid(Some(player_guid));
+        let map_id = session.player_map_id_like_cpp();
+        session.set_map_manager(shared_map_manager());
+        if session.player_position_like_cpp().is_none() {
+            session.set_player_map_position_like_cpp(map_id, Position::new(10.0, 10.0, 0.0, 0.0));
+        }
+        session.register_world_creature(
+            map_id,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            test_creature_create_data(creature_guid, 9_001, 100),
+            3,
+            5,
+            20.0,
+            0,
+            0,
+            0,
+            0,
+            None,
+            0,
+            0,
+            0,
+            0,
+            -1,
+        );
+        if tapped {
+            session
+                .mutate_world_creature(creature_guid, |creature| {
+                    creature.creature.set_tapped_by_player(player_guid, &[]);
+                })
+                .expect("XP victim is installed in the represented map");
+        }
+    }
+
+    fn install_tapped_xp_victim_like_cpp(session: &mut WorldSession, creature_guid: ObjectGuid) {
+        install_xp_victim_like_cpp(session, creature_guid, true);
+    }
+
+    #[test]
+    fn rested_xp_uses_configured_max_player_level_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let victim = test_creature_guid(88);
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 70, 0);
+        session.set_player_next_level_xp_like_cpp(1_000);
+        session.set_rested_xp_config_like_cpp(70, 1.0, 1.0, 1.0);
+        install_tapped_xp_victim_like_cpp(&mut session, victim);
+
+        session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 100.0);
+
+        assert_eq!(session.represented_xp_rest_bonus_like_cpp(), 100.0);
+        assert_eq!(
+            session.represented_xp_rest_state_like_cpp(),
+            REST_STATE_RESTED_LIKE_CPP
+        );
+        assert!(!session.give_xp_runtime_like_cpp(50, victim, 1.0));
+        assert_eq!(session.player_xp_like_cpp(), 0);
+    }
+
+    #[test]
+    fn give_xp_uses_active_expansion_max_level_like_cpp() {
+        for (expansion, max_level) in [(0, 60), (1, 70)] {
+            let (mut session, _, send_rx) = make_session();
+            session.expansion = expansion;
+            session.set_loaded_player_identity_like_cpp(1, 1, 8, max_level, 0);
+            session.set_player_next_level_xp_like_cpp(1_000);
+            session.set_rested_xp_config_like_cpp(80, 1.0, 1.0, 1.0);
+
+            assert!(!session.give_xp_runtime_like_cpp(50, ObjectGuid::EMPTY, 1.0));
+            assert_eq!(session.player_xp_like_cpp(), 0);
+            assert!(drain_server_packet_bytes(&send_rx).is_empty());
+        }
+    }
+
+    #[test]
+    fn active_player_max_level_combines_expansion_and_config_like_cpp() {
+        for (expansion, configured, expected) in
+            [(0, 80, 60), (1, 80, 70), (2, 70, 70), (2, 85, 85)]
+        {
+            let (mut session, _, _) = make_session();
+            session.expansion = expansion;
+            session.set_rested_xp_config_like_cpp(configured, 1.0, 1.0, 1.0);
+            assert_eq!(session.player_active_max_level_like_cpp(), expected);
+        }
+    }
+
+    #[test]
+    fn loaded_xp_is_clamped_below_next_level_threshold_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_player_next_level_xp_like_cpp(1_000);
+        session.set_player_xp_like_cpp(1_000);
+
+        session.clamp_loaded_player_xp_to_next_level_like_cpp();
+
+        assert_eq!(session.player_xp_like_cpp(), 999);
+
+        session.set_player_xp_like_cpp(998);
+        session.clamp_loaded_player_xp_to_next_level_like_cpp();
+        assert_eq!(session.player_xp_like_cpp(), 998);
+    }
+
+    #[test]
+    fn scaling_player_level_delta_uses_half_xp_and_compile_time_max_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_rested_xp_config_like_cpp(60, 1.0, 1.0, 1.0);
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 79, 0);
+        session.set_player_next_level_xp_like_cpp(1_000);
+        session.set_player_xp_like_cpp(499);
+        assert_eq!(session.player_scaling_level_delta_like_cpp(), -1);
+
+        session.set_player_xp_like_cpp(500);
+        assert_eq!(session.player_scaling_level_delta_like_cpp(), 0);
+
+        session.set_player_level_like_cpp(80);
+        session.set_player_xp_like_cpp(0);
+        assert_eq!(session.player_scaling_level_delta_like_cpp(), 0);
+    }
+
+    #[test]
+    fn give_xp_allows_custom_levels_for_current_expansion_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.expansion = 2;
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 80, 0);
+        session.set_player_next_level_xp_like_cpp(1_000);
+        session.set_rested_xp_config_like_cpp(85, 1.0, 1.0, 1.0);
+
+        assert!(session.give_xp_runtime_like_cpp(50, ObjectGuid::EMPTY, 1.0));
+        assert_eq!(session.player_xp_like_cpp(), 50);
+    }
+
+    #[test]
+    fn load_rested_xp_preserves_saved_bonus_and_state_before_offline_accrual_like_cpp() {
+        let (mut capped, _, _) = make_session();
+        capped.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        capped.set_player_next_level_xp_like_cpp(1_000);
+
+        capped.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 900.0);
+
+        assert_eq!(capped.represented_xp_rest_bonus_like_cpp(), 900.0);
+        assert_eq!(capped.represented_xp_rest_threshold_like_cpp(), 900);
+        assert_eq!(
+            capped.represented_xp_rest_state_like_cpp(),
+            REST_STATE_RESTED_LIKE_CPP
+        );
+
+        let (mut max_level, _, _) = make_session();
+        max_level.set_loaded_player_identity_like_cpp(1, 1, 8, 80, 0);
+        max_level.set_player_next_level_xp_like_cpp(1_000);
+
+        max_level.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 100.0);
+
+        assert_eq!(max_level.represented_xp_rest_bonus_like_cpp(), 100.0);
+        assert_eq!(max_level.represented_xp_rest_threshold_like_cpp(), 100);
+        assert_eq!(
+            max_level.represented_xp_rest_state_like_cpp(),
+            REST_STATE_RESTED_LIKE_CPP
+        );
+    }
+
+    #[test]
+    fn load_rested_xp_repairs_legacy_rust_zero_state_without_clamping_bonus() {
+        let (mut session, _, _) = make_session();
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        session.set_player_next_level_xp_like_cpp(1_000);
+
+        session.load_represented_xp_rest_bonus_like_cpp(0, 123.5);
+
+        assert_eq!(
+            session.represented_xp_rest_state_like_cpp(),
+            REST_STATE_NORMAL_LIKE_CPP
+        );
+        assert_eq!(session.represented_xp_rest_bonus_like_cpp(), 123.5);
+        assert_eq!(session.represented_xp_rest_threshold_like_cpp(), 123);
+    }
+
+    #[test]
+    fn offline_rested_xp_zero_logout_time_is_rejected_instead_of_cpp_wrap() {
+        let (mut session, _, _) = make_session();
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        session.set_player_next_level_xp_like_cpp(72_000);
+        session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
+
+        let extra = session.apply_offline_xp_rest_bonus_like_cpp(0, 4_600, true);
+
+        assert_eq!(extra, 0.0);
+        assert_eq!(session.represented_xp_rest_bonus_like_cpp(), 0.0);
+        assert_eq!(
+            session.represented_xp_rest_state_like_cpp(),
+            REST_STATE_NORMAL_LIKE_CPP
+        );
+    }
+
+    #[test]
+    fn offline_rested_xp_future_logout_time_is_rejected_instead_of_cpp_wrap() {
+        let (mut session, _, _) = make_session();
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        session.set_player_next_level_xp_like_cpp(72_000);
+        session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
+
+        let extra = session.apply_offline_xp_rest_bonus_like_cpp(4_601, 4_600, true);
+
+        assert_eq!(extra, 0.0);
+        assert_eq!(session.represented_xp_rest_bonus_like_cpp(), 0.0);
+        assert_eq!(
+            session.represented_xp_rest_state_like_cpp(),
+            REST_STATE_NORMAL_LIKE_CPP
+        );
+    }
+
+    #[test]
+    fn offline_rested_xp_invalid_or_max_level_cases_do_not_accrue_like_cpp() {
+        let (mut no_next_level_xp, _, _) = make_session();
+        no_next_level_xp.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        no_next_level_xp.set_player_next_level_xp_like_cpp(0);
+        no_next_level_xp.load_represented_xp_rest_bonus_like_cpp(99, f32::NAN);
+
+        let no_next_extra = no_next_level_xp.apply_offline_xp_rest_bonus_like_cpp(10, 3_610, true);
+
+        assert_eq!(no_next_extra, 0.0);
+        assert_eq!(no_next_level_xp.represented_xp_rest_bonus_like_cpp(), 0.0);
+        assert_eq!(
+            no_next_level_xp.represented_xp_rest_state_like_cpp(),
+            REST_STATE_NORMAL_LIKE_CPP
+        );
+
+        let (mut max_level, _, _) = make_session();
+        max_level.set_loaded_player_identity_like_cpp(1, 1, 8, 80, 0);
+        max_level.set_player_next_level_xp_like_cpp(72_000);
+        max_level.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 100.0);
+
+        let max_level_extra = max_level.apply_offline_xp_rest_bonus_like_cpp(10, 3_610, true);
+
+        assert_eq!(max_level_extra, 0.0);
+        assert_eq!(max_level.represented_xp_rest_bonus_like_cpp(), 0.0);
+        assert_eq!(
+            max_level.represented_xp_rest_state_like_cpp(),
+            REST_STATE_NORMAL_LIKE_CPP
+        );
+    }
+
+    #[test]
+    fn offline_rested_xp_login_does_not_modify_current_health_or_power_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        session.set_player_next_level_xp_like_cpp(72_000);
+        session.set_player_health_like_cpp(41, 100);
+        session.set_loaded_player_powers_like_cpp([17, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
+
+        let extra = session.apply_offline_xp_rest_bonus_like_cpp(1_000, 4_600, true);
+
+        assert!(extra > 0.0);
+        assert_eq!(session.player_health_like_cpp(), 41);
+        assert_eq!(
+            session
+                .represented_player_power_values_like_cpp()
+                .expect("power snapshot should be authoritative")[0],
+            17
+        );
+    }
+
+    #[test]
+    fn character_rest_state_save_statement_matches_cpp_bind_order() {
+        let guid = ObjectGuid::create_player(1, 5007);
+
+        let stmt = WorldSession::build_character_rest_state_save_statement_like_cpp(
+            REST_STATE_RESTED_LIKE_CPP,
+            PLAYER_FLAGS_AFK_LIKE_CPP | PLAYER_FLAGS_RESTING_LIKE_CPP,
+            123.5,
+            1_723_456_789,
+            true,
+            guid.counter() as u64,
+        );
+
+        assert_eq!(stmt.sql(), CharStatements::UPD_CHAR_REST_STATE.sql());
+        assert_eq!(
+            stmt.params()[0],
+            wow_database::SqlParam::U8(REST_STATE_RESTED_LIKE_CPP)
+        );
+        assert_eq!(
+            stmt.params()[1],
+            wow_database::SqlParam::U32(PLAYER_FLAGS_AFK_LIKE_CPP | PLAYER_FLAGS_RESTING_LIKE_CPP)
+        );
+        assert!(matches!(stmt.params()[2], wow_database::SqlParam::F32(v) if v == 123.5));
+        assert_eq!(stmt.params()[3], wow_database::SqlParam::U64(1_723_456_789));
+        assert_eq!(stmt.params()[4], wow_database::SqlParam::U8(1));
+        assert!(
+            matches!(stmt.params()[5], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
+        );
+    }
+
+    #[test]
+    fn online_rest_state_save_statement_does_not_touch_logout_columns_like_cpp() {
+        let guid = ObjectGuid::create_player(1, 5008);
+
+        let stmt = WorldSession::build_character_online_rest_state_save_statement_like_cpp(
+            REST_STATE_RESTED_LIKE_CPP,
+            PLAYER_FLAGS_RESTING_LIKE_CPP,
+            42.5,
+            guid.counter() as u64,
+        );
+
+        assert_eq!(stmt.sql(), CharStatements::UPD_CHAR_ONLINE_REST_STATE.sql());
+        assert_eq!(
+            stmt.sql(),
+            "UPDATE characters SET restState = ?, playerFlags = ?, rest_bonus = ? WHERE guid = ?"
+        );
+        assert_eq!(
+            stmt.params()[0],
+            wow_database::SqlParam::U8(REST_STATE_RESTED_LIKE_CPP)
+        );
+        assert_eq!(
+            stmt.params()[1],
+            wow_database::SqlParam::U32(PLAYER_FLAGS_RESTING_LIKE_CPP)
+        );
+        assert!(matches!(stmt.params()[2], wow_database::SqlParam::F32(v) if v == 42.5));
+        assert!(
+            matches!(stmt.params()[3], wow_database::SqlParam::U64(v) if v == guid.counter() as u64)
+        );
+    }
+
+    #[test]
+    fn xp_and_consumed_rest_state_share_one_transaction_plan_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 5009);
+        session.set_player_guid(Some(guid));
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        session.set_player_next_level_xp_like_cpp(1_000);
+        session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 70.0);
+        let victim = test_creature_guid(80);
+        install_tapped_xp_victim_like_cpp(&mut session, victim);
+        assert!(session.give_xp_runtime_like_cpp(50, victim, 1.0));
+
+        let plan = session.current_player_xp_save_statement_plan_like_cpp(
+            false,
+            true,
+            guid.counter() as u64,
+        );
+
+        assert_eq!(plan.len(), 2);
+        assert_eq!(plan[0].sql(), CharStatements::UPD_CHAR_XP.sql());
+        assert_eq!(
+            plan[1].sql(),
+            CharStatements::UPD_CHAR_ONLINE_REST_STATE.sql()
+        );
+        assert_eq!(plan[0].params()[0], wow_database::SqlParam::U32(100));
+        assert!(matches!(plan[1].params()[2], wow_database::SqlParam::F32(v) if v == 20.0));
+    }
+
+    #[test]
+    fn rest_state_save_player_flags_preserves_current_bits_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 0xE1AF);
+        let canonical = Arc::new(Mutex::new(wow_map::MapManager::new(60_000, 1)));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_player_guid(Some(guid));
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        session.ensure_login_player_controller_like_cpp(
+            guid,
+            "RestFlags".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            1,
+            1,
+            8,
+            10,
+            0,
+        );
+        insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.set_player_flag(PLAYER_FLAGS_AFK_LIKE_CPP);
+                player.set_player_flag(PLAYER_FLAGS_DND_LIKE_CPP);
+            })
+            .expect("canonical player exists");
+
+        assert_eq!(
+            session.represented_player_flags_for_rest_state_save_like_cpp(),
+            PLAYER_FLAGS_AFK_LIKE_CPP | PLAYER_FLAGS_DND_LIKE_CPP
+        );
+
+        session.set_represented_rest_flag_like_cpp(REST_FLAG_IN_CITY_LIKE_CPP, 0);
+        assert_eq!(
+            session.represented_player_flags_for_rest_state_save_like_cpp(),
+            PLAYER_FLAGS_AFK_LIKE_CPP | PLAYER_FLAGS_DND_LIKE_CPP | PLAYER_FLAGS_RESTING_LIKE_CPP
+        );
+
+        session.remove_represented_rest_flag_like_cpp(REST_FLAG_IN_CITY_LIKE_CPP);
+        assert_eq!(
+            session.represented_player_flags_for_rest_state_save_like_cpp(),
+            PLAYER_FLAGS_AFK_LIKE_CPP | PLAYER_FLAGS_DND_LIKE_CPP
+        );
+    }
+
+    #[test]
+    fn rest_state_save_player_flags_preserves_loaded_db_bits_without_canonical_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_loaded_player_flags_like_cpp(
+            PLAYER_FLAGS_GHOST_LIKE_CPP | PLAYER_FLAGS_AFK_LIKE_CPP,
+        );
+
+        assert_eq!(
+            session.represented_player_flags_for_rest_state_save_like_cpp(),
+            PLAYER_FLAGS_GHOST_LIKE_CPP | PLAYER_FLAGS_AFK_LIKE_CPP
+        );
+
+        session.set_represented_rest_flag_like_cpp(REST_FLAG_IN_CITY_LIKE_CPP, 0);
+        assert_eq!(
+            session.represented_player_flags_for_rest_state_save_like_cpp(),
+            PLAYER_FLAGS_GHOST_LIKE_CPP | PLAYER_FLAGS_AFK_LIKE_CPP | PLAYER_FLAGS_RESTING_LIKE_CPP
+        );
+    }
+
+    #[test]
+    fn loaded_player_flags_rehydrate_canonical_player_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 0xE1B2);
+        let canonical = Arc::new(Mutex::new(wow_map::MapManager::new(60_000, 1)));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_player_guid(Some(guid));
+        session.set_loaded_player_flags_like_cpp(
+            PLAYER_FLAGS_GHOST_LIKE_CPP | PLAYER_FLAGS_AFK_LIKE_CPP,
+        );
+        session.ensure_login_player_controller_like_cpp(
+            guid,
+            "LoadedFlags".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            1,
+            1,
+            8,
+            10,
+            0,
+        );
+        insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
+
+        session.apply_loaded_player_flags_to_canonical_like_cpp();
+
+        assert!(
+            session
+                .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_GHOST_LIKE_CPP)
+                .unwrap_or(false)
+        );
+        assert!(
+            session
+                .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_AFK_LIKE_CPP)
+                .unwrap_or(false)
+        );
+    }
+
+    #[test]
+    fn load_rest_bonus_preserves_db_resting_flag_until_zone_rebuild_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 0xE1B4);
+        let canonical = Arc::new(Mutex::new(wow_map::MapManager::new(60_000, 1)));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_player_guid(Some(guid));
+        session.set_loaded_player_flags_like_cpp(
+            PLAYER_FLAGS_AFK_LIKE_CPP | PLAYER_FLAGS_RESTING_LIKE_CPP,
+        );
+        session.ensure_login_player_controller_like_cpp(
+            guid,
+            "LoadedResting".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            1,
+            1,
+            8,
+            10,
+            0,
+        );
+        insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
+        session.apply_loaded_player_flags_to_canonical_like_cpp();
+
+        session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
+
+        assert!(
+            session
+                .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_RESTING_LIKE_CPP)
+                .unwrap_or(false),
+            "C++ RestMgr::LoadRestBonus updates RestInfo but does not clear loaded PlayerFlags"
+        );
+        assert_eq!(
+            session.represented_player_flags_for_create_like_cpp().0,
+            PLAYER_FLAGS_AFK_LIKE_CPP | PLAYER_FLAGS_RESTING_LIKE_CPP
+        );
+    }
+
+    #[test]
+    fn player_create_flags_use_loaded_and_canonical_bits_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 0xE1B3);
+        let canonical = Arc::new(Mutex::new(wow_map::MapManager::new(60_000, 1)));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_player_guid(Some(guid));
+        session.set_loaded_player_flags_like_cpp(
+            PLAYER_FLAGS_GHOST_LIKE_CPP | PLAYER_FLAGS_AFK_LIKE_CPP,
+        );
+        session.set_loaded_player_flags_ex_like_cpp(0x04);
+
+        assert_eq!(
+            session.represented_player_flags_for_create_like_cpp(),
+            (
+                PLAYER_FLAGS_GHOST_LIKE_CPP | PLAYER_FLAGS_AFK_LIKE_CPP,
+                0x04
+            )
+        );
+
+        session.ensure_login_player_controller_like_cpp(
+            guid,
+            "CreateFlags".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            1,
+            1,
+            8,
+            10,
+            0,
+        );
+        insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
+        session.apply_loaded_player_flags_to_canonical_like_cpp();
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.set_player_flag(PLAYER_FLAGS_DND_LIKE_CPP);
+            })
+            .expect("canonical player exists");
+        session.set_represented_rest_flag_like_cpp(REST_FLAG_IN_CITY_LIKE_CPP, 0);
+
+        assert_eq!(
+            session.represented_player_flags_for_create_like_cpp(),
+            (
+                PLAYER_FLAGS_GHOST_LIKE_CPP
+                    | PLAYER_FLAGS_AFK_LIKE_CPP
+                    | PLAYER_FLAGS_DND_LIKE_CPP
+                    | PLAYER_FLAGS_RESTING_LIKE_CPP,
+                0x04,
+            )
+        );
+    }
+
+    #[test]
+    fn logout_resting_only_selects_offline_rate_and_does_not_restore_online_rest_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 0xE1B0);
+        let canonical = Arc::new(Mutex::new(wow_map::MapManager::new(60_000, 1)));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        session.ensure_login_player_controller_like_cpp(
+            guid,
+            "RestLogin".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            1,
+            1,
+            8,
+            10,
+            0,
+        );
+        insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
+        session.set_player_next_level_xp_like_cpp(72_000);
+        session.set_player_zone_area_like_cpp(10, 100);
+        session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 123.0);
+
+        assert!(!session.represented_is_resting_like_cpp());
+        assert!(
+            !session
+                .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_RESTING_LIKE_CPP)
+                .unwrap_or(false)
+        );
+
+        let applied = session.apply_offline_xp_rest_bonus_like_cpp(1_000, 1_100, true);
+
+        assert!(
+            applied > 0.0,
+            "the persisted bit still selects the tavern/city offline rate"
+        );
+        assert!(!session.represented_is_resting_like_cpp());
+        assert_eq!(session.represented_inn_area_trigger_id_like_cpp, 0);
+        assert_eq!(session.represented_rest_time_secs_like_cpp, 0);
+        assert!(
+            !session
+                .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_RESTING_LIKE_CPP)
+                .unwrap_or(true)
+        );
+        assert!(session.represented_xp_rest_bonus_like_cpp() > 123.0);
+        assert_eq!(
+            session.represented_xp_rest_state_like_cpp(),
+            REST_STATE_RESTED_LIKE_CPP
+        );
+
+        let bonus_after_offline_accrual = session.represented_xp_rest_bonus_like_cpp();
+        assert_eq!(
+            session.update_represented_online_xp_rest_bonus_like_cpp(1_200),
+            (0.0, 0),
+            "C++ LoadRestBonus does not initialize RestMgr::_restTime"
+        );
+        assert_eq!(
+            session.represented_xp_rest_bonus_like_cpp(),
+            bonus_after_offline_accrual
+        );
+        assert!(!session.represented_is_resting_like_cpp());
+        assert!(
+            !session
+                .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_RESTING_LIKE_CPP)
+                .unwrap_or(true)
+        );
+    }
+
+    #[test]
     fn player_save_timer_marks_periodic_save_due_like_cpp() {
         let (mut session, _, _) = make_session();
         session.set_player_save_interval_ms_like_cpp(100);
@@ -105494,6 +107546,1042 @@ mod tests {
             "autosave remains pending until the teleport handshake clears"
         );
         assert_eq!(session.next_player_save_ms_like_cpp, 0);
+    }
+
+    #[test]
+    fn load_rest_state_clears_stale_rest_flags_between_characters_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 0xE1B1);
+        let canonical = Arc::new(Mutex::new(wow_map::MapManager::new(60_000, 1)));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        session.ensure_login_player_controller_like_cpp(
+            guid,
+            "RestSwap".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            1,
+            1,
+            8,
+            10,
+            0,
+        );
+        insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
+
+        assert!(session.set_represented_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP, 42));
+        assert!(session.represented_is_resting_like_cpp());
+        assert_eq!(session.represented_inn_area_trigger_id_like_cpp, 42);
+        assert_ne!(session.represented_rest_time_secs_like_cpp, 0);
+
+        session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
+
+        assert!(!session.represented_is_resting_like_cpp());
+        assert_eq!(session.represented_inn_area_trigger_id_like_cpp, 0);
+        assert_eq!(session.represented_rest_time_secs_like_cpp, 0);
+        assert!(
+            !session
+                .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_RESTING_LIKE_CPP)
+                .unwrap_or(true)
+        );
+    }
+
+    #[test]
+    fn saved_raf_linked_rest_state_is_preserved_until_bonus_is_normalized_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        session.set_player_next_level_xp_like_cpp(1_000);
+
+        session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RAF_LINKED_LIKE_CPP, 0.0);
+
+        assert_eq!(
+            session.represented_xp_rest_state_like_cpp(),
+            REST_STATE_RAF_LINKED_LIKE_CPP
+        );
+        assert_eq!(session.represented_xp_rest_bonus_like_cpp(), 0.0);
+
+        session.add_represented_xp_rest_bonus_like_cpp(25.0);
+
+        assert_eq!(
+            session.represented_xp_rest_state_like_cpp(),
+            REST_STATE_RESTED_LIKE_CPP,
+            "C++ RestMgr::SetRestBonus only keeps REST_STATE_RAF_LINKED when RAF currently applies"
+        );
+        assert_eq!(session.represented_xp_rest_bonus_like_cpp(), 25.0);
+    }
+
+    #[test]
+    fn tavern_area_trigger_sets_and_clears_represented_resting_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let outcome = wow_data::TavernAreaTriggerStoreLikeCpp::from_ids_like_cpp([42], |_| true);
+        session.set_tavern_area_trigger_store(Arc::new(outcome.store));
+
+        assert!(session.handle_represented_tavern_area_trigger_like_cpp(42, true));
+        assert!(session.represented_is_resting_like_cpp());
+
+        assert!(session.handle_represented_tavern_area_trigger_like_cpp(42, false));
+        assert!(!session.represented_is_resting_like_cpp());
+        assert!(!session.handle_represented_tavern_area_trigger_like_cpp(77, true));
+    }
+
+    #[test]
+    fn ffa_realm_login_sets_ffa_only_for_non_resting_non_gm_player_like_cpp() {
+        for (case, (resting, game_master, expected_ffa)) in [
+            (false, false, true),
+            (true, false, false),
+            (false, true, false),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let (mut session, _, send_rx) = make_session();
+            let guid = ObjectGuid::create_player(1, 0xFFA0 + case as i64);
+            let canonical = shared_canonical_map_manager();
+            session.set_canonical_map_manager(Arc::clone(&canonical));
+            session.ensure_login_player_controller_like_cpp(
+                guid,
+                "FfaLogin".to_string(),
+                Position::new(1.0, 2.0, 3.0, 0.0),
+                1,
+                1,
+                8,
+                10,
+                0,
+            );
+            insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
+            session.set_ffa_pvp_realm_like_cpp(true);
+            session.set_player_game_master_like_cpp(game_master);
+            if resting {
+                assert!(
+                    session.set_represented_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP, 42,)
+                );
+            }
+            let _ = drain_server_packet_bytes(&send_rx);
+
+            session.set_state(SessionState::LoggedIn);
+
+            assert_eq!(
+                session
+                    .canonical_player_pvp_flags_like_cpp(guid)
+                    .is_some_and(|flags| flags.contains(UnitPvpFlags::FFA_PVP)),
+                expected_ffa
+            );
+            let update_count = drain_server_packet_bytes(&send_rx)
+                .iter()
+                .filter(|packet| {
+                    WorldPacket::from_bytes(packet).server_opcode()
+                        == Some(ServerOpcodes::UpdateObject)
+                })
+                .count();
+            assert_eq!(update_count, usize::from(expected_ffa));
+        }
+    }
+
+    #[test]
+    fn ffa_realm_tavern_enter_removes_and_leave_restores_ffa_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let guid = ObjectGuid::create_player(1, 0xFFA4);
+        let canonical = shared_canonical_map_manager();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.ensure_login_player_controller_like_cpp(
+            guid,
+            "FfaTavern".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            1,
+            1,
+            8,
+            10,
+            0,
+        );
+        insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
+        session.set_ffa_pvp_realm_like_cpp(true);
+        let outcome = wow_data::TavernAreaTriggerStoreLikeCpp::from_ids_like_cpp([42], |_| true);
+        session.set_tavern_area_trigger_store(Arc::new(outcome.store));
+        session.set_state(SessionState::LoggedIn);
+        assert!(
+            session
+                .canonical_player_pvp_flags_like_cpp(guid)
+                .is_some_and(|flags| flags.contains(UnitPvpFlags::FFA_PVP))
+        );
+        let _ = drain_server_packet_bytes(&send_rx);
+
+        assert!(session.handle_represented_tavern_area_trigger_like_cpp(42, true));
+        assert!(session.represented_is_resting_like_cpp());
+        assert!(
+            !session
+                .canonical_player_pvp_flags_like_cpp(guid)
+                .is_some_and(|flags| flags.contains(UnitPvpFlags::FFA_PVP))
+        );
+        assert_eq!(
+            drain_server_packet_bytes(&send_rx)
+                .iter()
+                .filter(|packet| {
+                    WorldPacket::from_bytes(packet).server_opcode()
+                        == Some(ServerOpcodes::UpdateObject)
+                })
+                .count(),
+            2,
+            "entering sends PlayerFlags::RESTING and UnitData::PvpFlags deltas"
+        );
+
+        assert!(session.handle_represented_tavern_area_trigger_like_cpp(42, false));
+        assert!(!session.represented_is_resting_like_cpp());
+        assert!(
+            session
+                .canonical_player_pvp_flags_like_cpp(guid)
+                .is_some_and(|flags| flags.contains(UnitPvpFlags::FFA_PVP))
+        );
+        assert_eq!(
+            drain_server_packet_bytes(&send_rx)
+                .iter()
+                .filter(|packet| {
+                    WorldPacket::from_bytes(packet).server_opcode()
+                        == Some(ServerOpcodes::UpdateObject)
+                })
+                .count(),
+            2,
+            "leaving sends PlayerFlags::RESTING and UnitData::PvpFlags deltas"
+        );
+    }
+
+    #[test]
+    fn normal_realm_tavern_does_not_toggle_ffa_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 0xFFA5);
+        let canonical = shared_canonical_map_manager();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.ensure_login_player_controller_like_cpp(
+            guid,
+            "NormalTavern".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            1,
+            1,
+            8,
+            10,
+            0,
+        );
+        insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
+        let outcome = wow_data::TavernAreaTriggerStoreLikeCpp::from_ids_like_cpp([42], |_| true);
+        session.set_tavern_area_trigger_store(Arc::new(outcome.store));
+
+        assert!(session.handle_represented_tavern_area_trigger_like_cpp(42, true));
+        assert!(session.handle_represented_tavern_area_trigger_like_cpp(42, false));
+        assert!(
+            !session
+                .canonical_player_pvp_flags_like_cpp(guid)
+                .is_some_and(|flags| flags.contains(UnitPvpFlags::FFA_PVP))
+        );
+    }
+
+    #[test]
+    fn overlapping_rest_flags_only_report_visible_zero_boundary_like_cpp() {
+        let (mut session, _, _) = make_session();
+
+        assert!(session.set_represented_rest_flag_like_cpp(REST_FLAG_IN_CITY_LIKE_CPP, 0));
+        assert!(!session.set_represented_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP, 42));
+        assert!(!session.remove_represented_rest_flag_like_cpp(REST_FLAG_IN_CITY_LIKE_CPP));
+        assert!(session.remove_represented_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP));
+    }
+
+    #[test]
+    fn fractional_rest_bonus_only_reports_visible_threshold_or_state_change_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        session.set_player_next_level_xp_like_cpp(72_000);
+        session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
+
+        assert_eq!(session.add_represented_xp_rest_bonus_like_cpp(0.5), 0);
+        assert_eq!(session.represented_xp_rest_threshold_like_cpp(), 0);
+        assert_eq!(
+            session.represented_xp_rest_state_like_cpp(),
+            REST_STATE_NORMAL_LIKE_CPP
+        );
+
+        assert_eq!(session.add_represented_xp_rest_bonus_like_cpp(0.5), 0x07);
+        assert_eq!(session.represented_xp_rest_threshold_like_cpp(), 1);
+        assert_eq!(
+            session.represented_xp_rest_state_like_cpp(),
+            REST_STATE_RESTED_LIKE_CPP
+        );
+    }
+
+    #[test]
+    fn online_rest_update_adds_rested_xp_after_ten_seconds_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        session.set_player_next_level_xp_like_cpp(72_000);
+        session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
+        assert!(session.set_represented_rest_flag_like_cpp(REST_FLAG_IN_CITY_LIKE_CPP, 0));
+        session.represented_rest_time_secs_like_cpp = 1_000;
+
+        assert_eq!(
+            session.update_represented_online_xp_rest_bonus_like_cpp(1_009),
+            (0.0, 0)
+        );
+        assert_eq!(session.represented_xp_rest_bonus_like_cpp(), 0.0);
+
+        let (extra, nested_mask) = session.update_represented_online_xp_rest_bonus_like_cpp(1_010);
+
+        assert!(extra > 0.0);
+        assert_eq!(nested_mask, 0x07);
+        assert_eq!(session.represented_rest_time_secs_like_cpp, 1_010);
+        assert_eq!(session.represented_xp_rest_bonus_like_cpp(), extra);
+        assert_eq!(
+            session.represented_xp_rest_state_like_cpp(),
+            REST_STATE_RESTED_LIKE_CPP
+        );
+    }
+
+    #[test]
+    fn online_rest_tick_only_accrues_when_cpp_three_percent_gate_passes() {
+        let (mut session, _, _) = make_session();
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        session.set_player_next_level_xp_like_cpp(72_000);
+        session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
+        assert!(session.set_represented_rest_flag_like_cpp(REST_FLAG_IN_CITY_LIKE_CPP, 0));
+        session.represented_rest_time_secs_like_cpp = 1_000;
+
+        session.tick_represented_online_xp_rest_bonus_with_roll_like_cpp(1_010, false);
+        assert_eq!(session.represented_rest_time_secs_like_cpp, 1_000);
+        assert_eq!(session.represented_xp_rest_bonus_like_cpp(), 0.0);
+
+        session.tick_represented_online_xp_rest_bonus_with_roll_like_cpp(1_010, true);
+        assert_eq!(session.represented_rest_time_secs_like_cpp, 1_010);
+        assert!(session.represented_xp_rest_bonus_like_cpp() > 0.0);
+    }
+
+    fn test_db2_area_trigger_like_cpp(
+        trigger_id: u32,
+        map_id: u16,
+        pos: Position,
+    ) -> wow_data::AreaTriggerDb2Entry {
+        wow_data::AreaTriggerDb2Entry {
+            id: trigger_id,
+            message: String::new(),
+            pos: wow_data::Db2Position3 {
+                x: pos.x,
+                y: pos.y,
+                z: pos.z,
+            },
+            continent_id: map_id as i16,
+            phase_use_flags: 0,
+            phase_id: 0,
+            phase_group_id: 0,
+            radius: 5.0,
+            box_length: 0.0,
+            box_width: 0.0,
+            box_height: 0.0,
+            box_yaw: 0.0,
+            shape_type: 0,
+            shape_id: 0,
+            area_trigger_action_set_id: 0,
+            flags: 0,
+        }
+    }
+
+    #[tokio::test]
+    async fn area_trigger_tavern_validates_db2_trigger_and_position_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let outcome = wow_data::TavernAreaTriggerStoreLikeCpp::from_ids_like_cpp([42], |_| true);
+        session.set_tavern_area_trigger_store(Arc::new(outcome.store));
+        session.set_area_trigger_db2_store(Arc::new(wow_data::AreaTriggerDb2Store::from_entries(
+            [test_db2_area_trigger_like_cpp(
+                42,
+                1,
+                Position::new(10.0, 20.0, 30.0, 0.0),
+            )],
+        )));
+        session.set_player_map_position_like_cpp(1, Position::new(11.0, 20.0, 30.0, 0.0));
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(42);
+        pkt.write_bit(true);
+        pkt.write_bit(false);
+        pkt.flush_bits();
+
+        session.handle_area_trigger(pkt).await;
+
+        assert!(session.represented_is_resting_like_cpp());
+    }
+
+    #[tokio::test]
+    async fn area_trigger_tavern_rejects_spoofed_far_enter_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let outcome = wow_data::TavernAreaTriggerStoreLikeCpp::from_ids_like_cpp([42], |_| true);
+        session.set_tavern_area_trigger_store(Arc::new(outcome.store));
+        session.set_area_trigger_db2_store(Arc::new(wow_data::AreaTriggerDb2Store::from_entries(
+            [test_db2_area_trigger_like_cpp(
+                42,
+                1,
+                Position::new(10.0, 20.0, 30.0, 0.0),
+            )],
+        )));
+        session.set_player_map_position_like_cpp(1, Position::new(100.0, 20.0, 30.0, 0.0));
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(42);
+        pkt.write_bit(true);
+        pkt.write_bit(false);
+        pkt.flush_bits();
+
+        session.handle_area_trigger(pkt).await;
+
+        assert!(!session.represented_is_resting_like_cpp());
+    }
+
+    #[tokio::test]
+    async fn area_trigger_tavern_accepts_inside_leave_without_radius_check_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let outcome = wow_data::TavernAreaTriggerStoreLikeCpp::from_ids_like_cpp([42], |_| true);
+        session.set_tavern_area_trigger_store(Arc::new(outcome.store));
+        session.set_area_trigger_db2_store(Arc::new(wow_data::AreaTriggerDb2Store::from_entries(
+            [test_db2_area_trigger_like_cpp(
+                42,
+                1,
+                Position::new(10.0, 20.0, 30.0, 0.0),
+            )],
+        )));
+        session.set_player_map_position_like_cpp(1, Position::new(11.0, 20.0, 30.0, 0.0));
+
+        let mut enter = WorldPacket::new_empty();
+        enter.write_uint32(42);
+        enter.write_bit(true);
+        enter.write_bit(false);
+        enter.flush_bits();
+        session.handle_area_trigger(enter).await;
+        assert!(session.represented_is_resting_like_cpp());
+
+        let mut inside_leave = WorldPacket::new_empty();
+        inside_leave.write_uint32(42);
+        inside_leave.write_bit(false);
+        inside_leave.write_bit(false);
+        inside_leave.flush_bits();
+        session.handle_area_trigger(inside_leave).await;
+
+        assert!(!session.represented_is_resting_like_cpp());
+    }
+
+    #[tokio::test]
+    async fn area_trigger_tavern_is_ignored_during_taxi_flight_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let outcome = wow_data::TavernAreaTriggerStoreLikeCpp::from_ids_like_cpp([42], |_| true);
+        session.set_tavern_area_trigger_store(Arc::new(outcome.store));
+        session.set_area_trigger_db2_store(Arc::new(wow_data::AreaTriggerDb2Store::from_entries(
+            [test_db2_area_trigger_like_cpp(
+                42,
+                1,
+                Position::new(10.0, 20.0, 30.0, 0.0),
+            )],
+        )));
+        session.set_player_map_position_like_cpp(1, Position::new(11.0, 20.0, 30.0, 0.0));
+        session.set_taxi_flight_state_like_cpp(
+            RepresentedTaxiFlightNodeLikeCpp {
+                map_id: 1,
+                position: Position::new(11.0, 20.0, 30.0, 0.0),
+                teleport_flag: false,
+            },
+            None,
+        );
+
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(42);
+        pkt.write_bit(true);
+        pkt.write_bit(false);
+        pkt.flush_bits();
+        session.handle_area_trigger(pkt).await;
+
+        assert!(!session.represented_is_resting_like_cpp());
+    }
+
+    #[tokio::test]
+    async fn truncated_area_trigger_packet_cannot_enter_tavern_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let outcome = wow_data::TavernAreaTriggerStoreLikeCpp::from_ids_like_cpp([42], |_| true);
+        session.set_tavern_area_trigger_store(Arc::new(outcome.store));
+        session.set_area_trigger_db2_store(Arc::new(wow_data::AreaTriggerDb2Store::from_entries(
+            [test_db2_area_trigger_like_cpp(
+                42,
+                1,
+                Position::new(10.0, 20.0, 30.0, 0.0),
+            )],
+        )));
+        session.set_player_map_position_like_cpp(1, Position::new(11.0, 20.0, 30.0, 0.0));
+
+        let mut truncated = WorldPacket::new_empty();
+        truncated.write_uint32(42);
+        session.handle_area_trigger(truncated).await;
+
+        assert!(!session.represented_is_resting_like_cpp());
+    }
+
+    #[tokio::test]
+    async fn area_trigger_tavern_respects_client_triggered_conditions_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 0xA7C0);
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        let outcome = wow_data::TavernAreaTriggerStoreLikeCpp::from_ids_like_cpp([42], |_| true);
+        session.set_tavern_area_trigger_store(Arc::new(outcome.store));
+        session.set_area_trigger_db2_store(Arc::new(wow_data::AreaTriggerDb2Store::from_entries(
+            [test_db2_area_trigger_like_cpp(
+                42,
+                1,
+                Position::new(10.0, 20.0, 30.0, 0.0),
+            )],
+        )));
+        session.set_player_map_position_like_cpp(1, Position::new(11.0, 20.0, 30.0, 0.0));
+        session.set_condition_store(Arc::new(
+            ConditionEntriesByTypeStore::from_conditions_like_cpp([Condition {
+                source_type: ConditionSourceType::AreaTriggerClientTriggered,
+                source_group: 0,
+                source_entry: 42,
+                source_id: 0,
+                condition_type: ConditionType::MapId,
+                condition_value1: 999_999,
+                ..Condition::default()
+            }]),
+        ));
+
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(42);
+        pkt.write_bit(true);
+        pkt.write_bit(false);
+        pkt.flush_bits();
+        session.handle_area_trigger(pkt).await;
+
+        assert!(!session.represented_is_resting_like_cpp());
+
+        session.set_condition_store(Arc::new(
+            ConditionEntriesByTypeStore::from_conditions_like_cpp([Condition {
+                source_type: ConditionSourceType::AreaTriggerClientTriggered,
+                source_group: 0,
+                source_entry: 42,
+                source_id: 0,
+                condition_type: ConditionType::WorldState,
+                condition_value1: 123,
+                condition_value2: 1,
+                negative_condition: true,
+                ..Condition::default()
+            }]),
+        ));
+        let mut unsupported = WorldPacket::new_empty();
+        unsupported.write_uint32(42);
+        unsupported.write_bit(true);
+        unsupported.write_bit(false);
+        unsupported.flush_bits();
+        session.handle_area_trigger(unsupported).await;
+
+        assert!(
+            !session.represented_is_resting_like_cpp(),
+            "a valid negative condition without represented map state must fail closed before negation"
+        );
+
+        session.set_condition_store(Arc::new(
+            ConditionEntriesByTypeStore::from_conditions_like_cpp([Condition {
+                source_type: ConditionSourceType::AreaTriggerClientTriggered,
+                source_group: 0,
+                source_entry: 42,
+                source_id: 0,
+                condition_type: ConditionType::None,
+                script_id: 7,
+                ..Condition::default()
+            }]),
+        ));
+        let mut scripted_condition = WorldPacket::new_empty();
+        scripted_condition.write_uint32(42);
+        scripted_condition.write_bit(true);
+        scripted_condition.write_bit(false);
+        scripted_condition.flush_bits();
+        session.handle_area_trigger(scripted_condition).await;
+
+        assert!(
+            !session.represented_is_resting_like_cpp(),
+            "a ConditionScript row must not bypass its unrepresented OnConditionCheck callback"
+        );
+    }
+
+    #[tokio::test]
+    async fn area_trigger_tavern_script_continues_unless_dispatcher_consumes_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let outcome = wow_data::TavernAreaTriggerStoreLikeCpp::from_ids_like_cpp([42], |_| true);
+        session.set_tavern_area_trigger_store(Arc::new(outcome.store));
+        session.set_area_trigger_db2_store(Arc::new(wow_data::AreaTriggerDb2Store::from_entries(
+            [test_db2_area_trigger_like_cpp(
+                42,
+                1,
+                Position::new(10.0, 20.0, 30.0, 0.0),
+            )],
+        )));
+        session.set_player_map_position_like_cpp(1, Position::new(11.0, 20.0, 30.0, 0.0));
+        let mut script_names = wow_data::ScriptNameInternerLikeCpp::new();
+        let scripts = wow_data::AreaTriggerScriptStoreLikeCpp::from_rows_like_cpp(
+            [wow_data::AreaTriggerScriptRowLikeCpp {
+                entry: 42,
+                script_name: "at_test_tavern".to_string(),
+            }],
+            |entry| entry == 42,
+            &mut script_names,
+        );
+        session.set_area_trigger_script_store(Arc::new(scripts.store));
+
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_uint32(42);
+        pkt.write_bit(true);
+        pkt.write_bit(false);
+        pkt.flush_bits();
+        session.handle_area_trigger(pkt).await;
+
+        assert!(
+            session.represented_is_resting_like_cpp(),
+            "a DB binding alone is not the C++ callback return value"
+        );
+
+        let mut leave = WorldPacket::new_empty();
+        leave.write_uint32(42);
+        leave.write_bit(false);
+        leave.write_bit(false);
+        leave.flush_bits();
+        session.handle_area_trigger(leave).await;
+        assert!(!session.represented_is_resting_like_cpp());
+
+        session.set_area_trigger_script_dispatcher_like_cpp(Arc::new(
+            |_session, _script_id, _trigger_id, _entered| true,
+        ));
+        let mut consumed = WorldPacket::new_empty();
+        consumed.write_uint32(42);
+        consumed.write_bit(true);
+        consumed.write_bit(false);
+        consumed.flush_bits();
+        session.handle_area_trigger(consumed).await;
+
+        assert!(!session.represented_is_resting_like_cpp());
+    }
+
+    #[test]
+    fn tavern_rest_revalidation_clears_stale_trigger_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 0xE1B2);
+        let canonical = Arc::new(Mutex::new(wow_map::MapManager::new(60_000, 1)));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_player_guid(Some(guid));
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        session.ensure_login_player_controller_like_cpp(
+            guid,
+            "RestRecheck".to_string(),
+            Position::new(10.0, 20.0, 30.0, 0.0),
+            1,
+            1,
+            8,
+            10,
+            0,
+        );
+        insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
+        session.set_area_trigger_db2_store(Arc::new(wow_data::AreaTriggerDb2Store::from_entries(
+            [test_db2_area_trigger_like_cpp(
+                42,
+                1,
+                Position::new(10.0, 20.0, 30.0, 0.0),
+            )],
+        )));
+        session.set_player_map_position_like_cpp(1, Position::new(11.0, 20.0, 30.0, 0.0));
+
+        assert!(session.set_represented_tavern_resting_like_cpp(42, true));
+        assert!(session.represented_is_resting_like_cpp());
+        assert_eq!(session.represented_inn_area_trigger_id_like_cpp, 42);
+        assert!(
+            session
+                .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_RESTING_LIKE_CPP)
+                .unwrap_or(false)
+        );
+
+        session.set_player_map_position_like_cpp(1, Position::new(100.0, 20.0, 30.0, 0.0));
+        session.revalidate_represented_tavern_resting_like_cpp();
+
+        assert!(!session.represented_is_resting_like_cpp());
+        assert_eq!(session.represented_inn_area_trigger_id_like_cpp, 0);
+        assert!(
+            !session
+                .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_RESTING_LIKE_CPP)
+                .unwrap_or(true)
+        );
+    }
+
+    #[test]
+    fn give_xp_runtime_spends_rested_bonus_for_victim_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let victim = test_creature_guid(77);
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        session.set_player_next_level_xp_like_cpp(1_000);
+        session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 70.0);
+        install_tapped_xp_victim_like_cpp(&mut session, victim);
+
+        assert!(session.give_xp_runtime_like_cpp(50, victim, 1.0));
+
+        assert_eq!(session.player_xp_like_cpp(), 100);
+        assert_eq!(session.represented_xp_rest_bonus_like_cpp(), 20.0);
+        let packets = drain_server_packet_bytes(&send_rx);
+        let mut pkt = WorldPacket::from_bytes(
+            packets
+                .iter()
+                .find(|bytes| {
+                    WorldPacket::from_bytes(bytes).server_opcode() == Some(ServerOpcodes::LogXpGain)
+                })
+                .expect("GiveXP sends LogXPGain"),
+        );
+        pkt.skip_opcode();
+        assert_eq!(pkt.read_packed_guid().unwrap(), victim);
+        assert_eq!(pkt.read_int32().unwrap(), 100);
+        assert_eq!(pkt.read_uint8().unwrap(), 0);
+        assert_eq!(pkt.read_int32().unwrap(), 50);
+        assert!((pkt.read_float().unwrap() - 1.0).abs() < f32::EPSILON);
+        assert_eq!(pkt.remaining(), 0);
+
+        let values_packets = packets
+            .iter()
+            .filter(|bytes| {
+                WorldPacket::from_bytes(bytes).server_opcode() == Some(ServerOpcodes::UpdateObject)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            values_packets.len(),
+            1,
+            "C++ accumulates RestInfo and XP in one Player values update"
+        );
+        let mut expected_delta = Player::new(None, false);
+        expected_delta.clear_data_changes();
+        expected_delta.set_xp(100);
+        expected_delta.mark_xp_changed_like_cpp();
+        expected_delta.set_scaling_player_level_delta_like_cpp(-1);
+        expected_delta.mark_scaling_player_level_delta_changed_like_cpp();
+        expected_delta.prepare_rest_info_values_update_like_cpp(
+            0,
+            20,
+            REST_STATE_RESTED_LIKE_CPP,
+            0x07,
+        );
+        let expected_packet = player_values_update_to_update_object(
+            session.player_guid().expect("loaded test player"),
+            session.player_map_id_like_cpp(),
+            &expected_delta.values_update(true),
+        )
+        .expect("combined XP/rest delta")
+        .to_bytes();
+        assert_eq!(
+            values_packets[0].as_slice(),
+            expected_packet.as_slice(),
+            "the single instance update must contain exactly XP plus RestInfo"
+        );
+    }
+
+    #[test]
+    fn give_xp_runtime_preserves_cpp_group_rate_in_log_packet() {
+        let (mut session, _, send_rx) = make_session();
+        let victim = test_creature_guid(0xE1BF);
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        session.set_player_next_level_xp_like_cpp(1_000);
+        install_tapped_xp_victim_like_cpp(&mut session, victim);
+
+        let group_rate = 1.166;
+        assert!(session.give_xp_runtime_like_cpp(50, victim, group_rate));
+        assert_eq!(session.player_xp_like_cpp(), 50);
+
+        let packets = drain_server_packet_bytes(&send_rx);
+        let mut packet = WorldPacket::from_bytes(
+            packets
+                .iter()
+                .find(|bytes| {
+                    WorldPacket::from_bytes(bytes).server_opcode() == Some(ServerOpcodes::LogXpGain)
+                })
+                .expect("GiveXP sends LogXPGain"),
+        );
+        packet.skip_opcode();
+        assert_eq!(packet.read_packed_guid().unwrap(), victim);
+        assert_eq!(packet.read_int32().unwrap(), 50);
+        assert_eq!(packet.read_uint8().unwrap(), 0);
+        assert_eq!(packet.read_int32().unwrap(), 50);
+        assert!((packet.read_float().unwrap() - group_rate).abs() < f32::EPSILON);
+        assert_eq!(packet.remaining(), 0);
+    }
+
+    #[test]
+    fn give_xp_runtime_routes_log_xp_gain_on_realm_connection_like_cpp() {
+        let (mut session, _, instance_rx) = make_session();
+        let (realm_tx, realm_rx) = flume::unbounded();
+        let victim = test_creature_guid(0xE1C0);
+        session.install_realm_send_channel_for_test(realm_tx);
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        session.set_player_next_level_xp_like_cpp(1_000);
+        install_tapped_xp_victim_like_cpp(&mut session, victim);
+
+        assert!(session.give_xp_runtime_like_cpp(50, victim, 1.0));
+
+        assert!(
+            drain_server_packet_bytes(&instance_rx).iter().all(|bytes| {
+                WorldPacket::from_bytes(bytes).server_opcode() != Some(ServerOpcodes::LogXpGain)
+            }),
+            "C++ registers SMSG_LOG_XP_GAIN as CONNECTION_TYPE_REALM"
+        );
+        let realm_packets = drain_server_packet_bytes(&realm_rx);
+        assert_eq!(
+            realm_packets
+                .iter()
+                .filter(|bytes| {
+                    WorldPacket::from_bytes(bytes).server_opcode() == Some(ServerOpcodes::LogXpGain)
+                })
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn give_xp_runtime_routes_level_up_info_on_realm_connection_like_cpp() {
+        let (mut session, _, instance_rx) = make_session();
+        let (realm_tx, realm_rx) = flume::unbounded();
+        session.install_realm_send_channel_for_test(realm_tx);
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 1, 0);
+        session.set_player_next_level_xp_like_cpp(50);
+
+        assert!(session.give_xp_runtime_like_cpp(50, ObjectGuid::EMPTY, 1.0));
+        assert_eq!(session.player_level_like_cpp(), 2);
+
+        assert!(
+            drain_server_packet_bytes(&instance_rx).iter().all(|bytes| {
+                WorldPacket::from_bytes(bytes).server_opcode() != Some(ServerOpcodes::LevelUpInfo)
+            }),
+            "C++ registers SMSG_LEVEL_UP_INFO as CONNECTION_TYPE_REALM"
+        );
+        let realm_packets = drain_server_packet_bytes(&realm_rx);
+        assert_eq!(
+            realm_packets
+                .iter()
+                .filter(|bytes| {
+                    WorldPacket::from_bytes(bytes).server_opcode()
+                        == Some(ServerOpcodes::LevelUpInfo)
+                })
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn give_xp_runtime_updates_canonical_progression_and_client_fields_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let guid = ObjectGuid::create_player(1, 0xE1C2);
+        let canonical = Arc::new(Mutex::new(wow_map::MapManager::new(60_000, 1)));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_player_guid(Some(guid));
+        session.ensure_login_player_controller_like_cpp(
+            guid,
+            "Progression".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            1,
+            1,
+            8,
+            10,
+            0,
+        );
+        session.set_player_next_level_xp_like_cpp(50);
+        insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
+        let _ = drain_server_packet_bytes(&send_rx);
+
+        assert!(session.give_xp_runtime_like_cpp(50, ObjectGuid::EMPTY, 1.0));
+
+        assert_eq!(
+            session.canonical_player_snapshot_like_cpp(|player| (
+                player.unit().data().level,
+                player.active_data().xp,
+                player.active_data().next_level_xp,
+                player.active_data().scaling_player_level_delta,
+                player
+                    .unit()
+                    .unit_data_changes_mask()
+                    .is_set(wow_entities::UNIT_DATA_LEVEL_BIT),
+                player
+                    .active_player_data_changes_mask()
+                    .is_set(wow_entities::ACTIVE_PLAYER_DATA_XP_BIT),
+                player
+                    .active_player_data_changes_mask()
+                    .is_set(wow_entities::ACTIVE_PLAYER_DATA_NEXT_LEVEL_XP_BIT),
+                player
+                    .active_player_data_changes_mask()
+                    .is_set(wow_entities::ACTIVE_PLAYER_DATA_SCALING_PLAYER_LEVEL_DELTA_BIT,),
+            )),
+            Some((11, 0, 50, -1, true, true, true, true))
+        );
+        assert!(drain_server_packet_bytes(&send_rx).iter().any(|bytes| {
+            WorldPacket::from_bytes(bytes).server_opcode() == Some(ServerOpcodes::UpdateObject)
+        }));
+    }
+
+    #[test]
+    fn give_xp_runtime_rejects_dead_player_outside_battleground_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        session.set_player_next_level_xp_like_cpp(1_000);
+        session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 70.0);
+        session.set_player_alive_like_cpp(false);
+
+        assert!(!session.give_xp_runtime_like_cpp(50, ObjectGuid::EMPTY, 1.0));
+        assert_eq!(session.player_xp_like_cpp(), 0);
+        assert_eq!(session.represented_xp_rest_bonus_like_cpp(), 70.0);
+        assert!(drain_server_packet_bytes(&send_rx).is_empty());
+
+        session.set_player_battleground_type_id_like_cpp(BATTLEGROUND_WS_LIKE_CPP);
+        assert!(session.give_xp_runtime_like_cpp(50, ObjectGuid::EMPTY, 1.0));
+        assert_eq!(session.player_xp_like_cpp(), 50);
+        assert_eq!(session.represented_xp_rest_bonus_like_cpp(), 70.0);
+    }
+
+    #[test]
+    fn give_xp_runtime_rejects_no_xp_gain_player_flag_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        session.set_player_next_level_xp_like_cpp(1_000);
+        session.set_loaded_player_flags_like_cpp(PLAYER_FLAGS_NO_XP_GAIN_LIKE_CPP);
+        session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 70.0);
+
+        assert!(!session.give_xp_runtime_like_cpp(50, ObjectGuid::EMPTY, 1.0));
+        assert_eq!(session.player_xp_like_cpp(), 0);
+        assert_eq!(session.represented_xp_rest_bonus_like_cpp(), 70.0);
+        assert!(drain_server_packet_bytes(&send_rx).is_empty());
+    }
+
+    #[test]
+    fn give_xp_runtime_rejects_creature_without_loot_recipient_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let victim = test_creature_guid(0xE1C1);
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        session.set_player_next_level_xp_like_cpp(1_000);
+        session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 70.0);
+        install_xp_victim_like_cpp(&mut session, victim, false);
+
+        assert!(!session.give_xp_runtime_like_cpp(50, victim, 1.0));
+        assert_eq!(session.player_xp_like_cpp(), 0);
+        assert_eq!(session.represented_xp_rest_bonus_like_cpp(), 70.0);
+        assert!(drain_server_packet_bytes(&send_rx).is_empty());
+
+        let player_guid = session.player_guid().expect("test player");
+        session
+            .mutate_world_creature(victim, |creature| {
+                creature.creature.set_tapped_by_player(player_guid, &[]);
+            })
+            .expect("test victim");
+        assert!(session.give_xp_runtime_like_cpp(50, victim, 1.0));
+        assert_eq!(session.player_xp_like_cpp(), 100);
+        assert_eq!(session.represented_xp_rest_bonus_like_cpp(), 20.0);
+    }
+
+    #[test]
+    fn give_xp_runtime_raf_awards_triple_xp_without_spending_rested_bonus_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 1);
+        let recruit_guid = ObjectGuid::create_player(1, 2);
+        let victim = test_creature_guid(78);
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        session.set_player_next_level_xp_like_cpp(1_000);
+        session.set_player_map_position_like_cpp(1, Position::ZERO);
+        session.set_recruiter_id_like_cpp(2);
+        session.set_recruit_a_friend_xp_config_like_cpp(85, 4);
+
+        let (recruit_tx, _recruit_rx) = flume::bounded(10);
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let mut recruit_info = broadcast_info(recruit_guid, recruit_tx);
+        recruit_info.map_id = 1;
+        recruit_info.position = Position::new(10.0, 0.0, 0.0, 0.0);
+        recruit_info.account_id = 2;
+        recruit_info.level = 10;
+        player_registry.insert(recruit_guid, recruit_info);
+
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(player_guid);
+        group.add_member(recruit_guid);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(Arc::clone(&player_registry));
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+        assert!(
+            !session.gets_recruit_a_friend_xp_bonus_like_cpp(),
+            "C++ LoadFromDB runs before the player enters the world"
+        );
+        session.set_state(SessionState::LoggedIn);
+        player_registry
+            .get_mut(&recruit_guid)
+            .expect("linked member remains registered")
+            .is_in_world = false;
+        assert!(
+            !session.gets_recruit_a_friend_xp_bonus_like_cpp(),
+            "C++ IsInMap rejects a grouped member that is not in world"
+        );
+        player_registry
+            .get_mut(&recruit_guid)
+            .expect("linked member remains registered")
+            .is_in_world = true;
+        assert!(session.gets_recruit_a_friend_xp_bonus_like_cpp());
+        session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 70.0);
+        install_tapped_xp_victim_like_cpp(&mut session, victim);
+
+        assert!(session.give_xp_runtime_like_cpp(50, victim, 1.0));
+
+        assert_eq!(session.player_xp_like_cpp(), 150);
+        assert_eq!(session.represented_xp_rest_bonus_like_cpp(), 70.0);
+    }
+
+    #[test]
+    fn give_xp_runtime_applies_rested_xp_consumption_modifier_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let victim = test_creature_guid(79);
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        session.set_player_next_level_xp_like_cpp(1_000);
+        session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 70.0);
+        install_tapped_xp_victim_like_cpp(&mut session, victim);
+        let effect = wow_data::SpellEffectInfo {
+            effect_index: 0,
+            effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_RESTED_XP_CONSUMPTION,
+            effect_base_points: 50,
+            ..Default::default()
+        };
+        session
+            .apply_represented_aura_modifier_like_cpp(
+                12_345,
+                ObjectGuid::EMPTY,
+                &effect,
+                RepresentedAuraEffectLikeCpp::ModRestedXpConsumption,
+                30_000,
+            )
+            .expect("rested consumption aura should apply");
+
+        assert!(session.give_xp_runtime_like_cpp(40, victim, 1.0));
+
+        assert_eq!(session.player_xp_like_cpp(), 80);
+        assert_eq!(session.represented_xp_rest_bonus_like_cpp(), 10.0);
+    }
+
+    #[test]
+    fn give_xp_runtime_does_not_spend_rested_bonus_without_victim_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        session.set_player_next_level_xp_like_cpp(1_000);
+        session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 70.0);
+
+        assert!(session.give_xp_runtime_like_cpp(50, ObjectGuid::EMPTY, 1.0));
+
+        assert_eq!(session.player_xp_like_cpp(), 50);
+        assert_eq!(session.represented_xp_rest_bonus_like_cpp(), 70.0);
+        let packets = drain_server_packet_bytes(&send_rx);
+        let mut pkt = WorldPacket::from_bytes(
+            packets
+                .iter()
+                .find(|bytes| {
+                    WorldPacket::from_bytes(bytes).server_opcode() == Some(ServerOpcodes::LogXpGain)
+                })
+                .expect("GiveXP sends LogXPGain"),
+        );
+        pkt.skip_opcode();
+        assert_eq!(pkt.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
+        assert_eq!(pkt.read_int32().unwrap(), 50);
+        assert_eq!(pkt.read_uint8().unwrap(), 1);
+        assert_eq!(pkt.read_int32().unwrap(), 50);
+        assert!((pkt.read_float().unwrap() - 1.0).abs() < f32::EPSILON);
+        assert_eq!(pkt.remaining(), 0);
     }
 
     #[test]
@@ -105909,6 +108997,49 @@ mod tests {
     }
 
     #[test]
+    fn update_area_sets_faction_area_rest_flag_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 0xE19F);
+        session.ensure_login_player_controller_like_cpp(
+            player_guid,
+            "AllianceRestArea".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        );
+        session.set_player_zone_area_like_cpp(10, 100);
+        session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
+            wow_data::AreaTableEntry {
+                id: 101,
+                continent_id: 571,
+                parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: wow_data::AREA_FLAG_ALLIANCE_RESTING_LIKE_CPP,
+            },
+            wow_data::AreaTableEntry {
+                id: 102,
+                continent_id: 571,
+                parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: wow_data::AREA_FLAG_HORDE_RESTING_LIKE_CPP,
+            },
+        ])));
+
+        assert!(session.update_area_represented_like_cpp(101));
+        assert!(session.represented_is_resting_like_cpp());
+
+        assert!(session.update_area_represented_like_cpp(102));
+        assert!(!session.represented_is_resting_like_cpp());
+    }
+
+    #[test]
     fn update_zone_records_area_then_top_level_criteria_like_cpp() {
         let (mut session, _, _) = make_session();
         let player_guid = ObjectGuid::create_player(1, 0xE1A0);
@@ -105946,6 +109077,328 @@ mod tests {
                 RepresentedAreaZoneCriteriaLikeCpp::LeaveTopLevelArea(10),
             ],
             "C++ Player::UpdateZone calls UpdateArea before EnterTopLevelArea/LeaveTopLevelArea"
+        );
+    }
+
+    #[test]
+    fn login_update_zone_rebuilds_city_and_faction_rest_when_ids_are_preseeded_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 0xE1A3);
+        session.ensure_login_player_controller_like_cpp(
+            player_guid,
+            "LoginCityRest".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            1,
+            1,
+            10,
+            0,
+        );
+        session.set_player_zone_area_like_cpp(20, 101);
+        session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
+            wow_data::AreaTableEntry {
+                id: 20,
+                continent_id: 571,
+                parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: wow_data::AREA_FLAG_LINKED_CHAT_LIKE_CPP,
+            },
+            wow_data::AreaTableEntry {
+                id: 101,
+                continent_id: 571,
+                parent_area_id: 20,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: wow_data::AREA_FLAG_ALLIANCE_RESTING_LIKE_CPP,
+            },
+        ])));
+
+        assert!(!session.update_zone_represented_like_cpp(20, 101));
+
+        assert!(session.represented_is_resting_like_cpp());
+        assert_ne!(
+            session.represented_rest_flag_mask_like_cpp & REST_FLAG_IN_CITY_LIKE_CPP,
+            0
+        );
+        assert_ne!(
+            session.represented_rest_flag_mask_like_cpp & REST_FLAG_IN_FACTION_AREA_LIKE_CPP,
+            0
+        );
+        assert_ne!(session.represented_rest_time_secs_like_cpp, 0);
+        assert!(session.represented_area_zone_criteria_like_cpp().is_empty());
+    }
+
+    #[test]
+    fn update_zone_coalesces_faction_to_city_zero_crossings_into_one_final_update_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 0xE1A5);
+        let canonical = shared_canonical_map_manager();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.ensure_login_player_controller_like_cpp(
+            player_guid,
+            "RestTransition".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            1,
+            1,
+            10,
+            0,
+        );
+        insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
+        session.set_player_zone_area_like_cpp(10, 101);
+        session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
+            wow_data::AreaTableEntry {
+                id: 20,
+                continent_id: 571,
+                parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: wow_data::AREA_FLAG_LINKED_CHAT_LIKE_CPP,
+            },
+            wow_data::AreaTableEntry {
+                id: 102,
+                continent_id: 571,
+                parent_area_id: 20,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: 0,
+            },
+        ])));
+        assert!(session.set_represented_rest_flag_like_cpp(REST_FLAG_IN_FACTION_AREA_LIKE_CPP, 0));
+        let _ = drain_server_packet_bytes(&send_rx);
+
+        assert!(session.update_zone_represented_like_cpp(20, 102));
+
+        let update_count = drain_server_packet_bytes(&send_rx)
+            .iter()
+            .filter(|packet| {
+                packet.len() >= 2
+                    && u16::from_le_bytes([packet[0], packet[1]])
+                        == ServerOpcodes::UpdateObject as u16
+            })
+            .count();
+        assert_eq!(
+            update_count, 1,
+            "C++ leaves the update-field bit dirty across the faction-off/city-on sequence and flushes one final value"
+        );
+        assert_eq!(
+            session.represented_rest_flag_mask_like_cpp,
+            REST_FLAG_IN_CITY_LIKE_CPP
+        );
+        assert!(
+            session
+                .canonical_player_has_player_flag_like_cpp(
+                    player_guid,
+                    PLAYER_FLAGS_RESTING_LIKE_CPP
+                )
+                .unwrap_or(false)
+        );
+    }
+
+    #[test]
+    fn update_zone_with_overlapping_tavern_flag_does_not_dirty_player_flags_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 0xE1A6);
+        session.ensure_login_player_controller_like_cpp(
+            player_guid,
+            "RestOverlap".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            1,
+            1,
+            10,
+            0,
+        );
+        session.set_player_zone_area_like_cpp(10, 101);
+        session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
+            wow_data::AreaTableEntry {
+                id: 20,
+                continent_id: 571,
+                parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: wow_data::AREA_FLAG_LINKED_CHAT_LIKE_CPP,
+            },
+            wow_data::AreaTableEntry {
+                id: 102,
+                continent_id: 571,
+                parent_area_id: 20,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: 0,
+            },
+        ])));
+        assert!(session.set_represented_rest_flag_like_cpp(REST_FLAG_IN_FACTION_AREA_LIKE_CPP, 0));
+        assert!(!session.set_represented_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP, 42));
+        let _ = drain_server_packet_bytes(&send_rx);
+
+        assert!(session.update_zone_represented_like_cpp(20, 102));
+
+        let update_count = drain_server_packet_bytes(&send_rx)
+            .iter()
+            .filter(|packet| {
+                packet.len() >= 2
+                    && u16::from_le_bytes([packet[0], packet[1]])
+                        == ServerOpcodes::UpdateObject as u16
+            })
+            .count();
+        assert_eq!(update_count, 0, "the RestMgr mask never crossed zero");
+        assert_eq!(
+            session.represented_rest_flag_mask_like_cpp,
+            REST_FLAG_IN_TAVERN_LIKE_CPP | REST_FLAG_IN_CITY_LIKE_CPP
+        );
+    }
+
+    #[test]
+    fn update_zone_linked_chat_sets_city_rest_only_when_not_hostile_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 0xE1A2);
+        session.ensure_login_player_controller_like_cpp(
+            player_guid,
+            "CityRest".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            1,
+            1,
+            80,
+            0,
+        );
+        session.set_player_zone_area_like_cpp(10, 100);
+        session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
+            wow_data::AreaTableEntry {
+                id: 20,
+                continent_id: 571,
+                parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: wow_data::AREA_FLAG_LINKED_CHAT_LIKE_CPP,
+            },
+            wow_data::AreaTableEntry {
+                id: 30,
+                continent_id: 571,
+                parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: 0,
+            },
+            wow_data::AreaTableEntry {
+                id: 40,
+                continent_id: 571,
+                parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: wow_data::AREA_FLAG_LINKED_CHAT_LIKE_CPP
+                    | AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP,
+            },
+            wow_data::AreaTableEntry {
+                id: 50,
+                continent_id: 571,
+                parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: wow_data::AREA_FLAG_LINKED_CHAT_LIKE_CPP
+                    | wow_data::AREA_FLAG_NO_PVP_LIKE_CPP,
+            },
+        ])));
+
+        session.set_player_pvp_hostile_like_cpp(true);
+        assert!(session.update_zone_represented_like_cpp(20, 101));
+        assert!(session.represented_is_resting_like_cpp());
+        assert!(
+            !session.player_pvp_hostile_like_cpp,
+            "C++ Player::UpdateZone recalculates pvpInfo.IsHostile before city rest"
+        );
+
+        assert!(session.update_zone_represented_like_cpp(40, 102));
+        assert!(
+            session.represented_is_resting_like_cpp(),
+            "C++ leaves an existing city-rest flag untouched in hostile LinkedChat zones"
+        );
+        assert!(session.player_pvp_hostile_like_cpp);
+
+        assert!(session.update_zone_represented_like_cpp(50, 103));
+        assert!(session.represented_is_resting_like_cpp());
+
+        session.set_player_pvp_hostile_like_cpp(false);
+        assert!(session.update_zone_represented_like_cpp(30, 104));
+        assert!(!session.represented_is_resting_like_cpp());
+    }
+
+    #[test]
+    fn update_zone_enemies_pvp_flagged_uses_faction_group_mask_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 0xE1A4);
+        session.ensure_login_player_controller_like_cpp(
+            player_guid,
+            "FactionCityRest".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            1,
+            1,
+            10,
+            0,
+        );
+        session.set_player_faction_template_like_cpp(100);
+        session.set_faction_template_store(Arc::new(
+            wow_data::progression_rewards::FactionTemplateStore::from_entries([
+                wow_data::progression_rewards::FactionTemplateEntry {
+                    id: 100,
+                    faction: 1,
+                    flags: 0,
+                    faction_group: 1,
+                    friend_group: 1,
+                    enemy_group: 2,
+                    enemies: [0; 8],
+                    friend: [0; 8],
+                },
+            ]),
+        ));
+        let mut areas = wow_data::AreaTableStore::from_entries([
+            wow_data::AreaTableEntry {
+                id: 60,
+                continent_id: 571,
+                parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: wow_data::AREA_FLAG_LINKED_CHAT_LIKE_CPP
+                    | AREA_FLAG_ENEMIES_PVP_FLAGGED_LIKE_CPP,
+            },
+            wow_data::AreaTableEntry {
+                id: 70,
+                continent_id: 571,
+                parent_area_id: 0,
+                area_bit: -1,
+                exploration_level: 0,
+                mount_flags: 0,
+                flags: wow_data::AREA_FLAG_LINKED_CHAT_LIKE_CPP
+                    | AREA_FLAG_ENEMIES_PVP_FLAGGED_LIKE_CPP,
+            },
+        ]);
+        areas.set_faction_group_mask_like_cpp(60, 1);
+        areas.set_faction_group_mask_like_cpp(70, 2);
+        session.set_area_table_store(Arc::new(areas));
+
+        assert!(session.update_zone_represented_like_cpp(60, 60));
+        assert!(session.represented_is_resting_like_cpp());
+        assert!(!session.player_pvp_hostile_like_cpp);
+
+        assert!(session.update_zone_represented_like_cpp(70, 70));
+        assert!(session.player_pvp_hostile_like_cpp);
+        assert!(
+            session.represented_is_resting_like_cpp(),
+            "C++ hostile LinkedChat branch leaves an existing city-rest flag untouched"
         );
     }
 

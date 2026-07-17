@@ -28,6 +28,7 @@ pub struct AreaTableEntry {
 #[derive(Debug, Clone, Default)]
 pub struct AreaTableStore {
     entries: HashMap<u32, AreaTableEntry>,
+    faction_group_masks: HashMap<u32, u8>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -36,6 +37,10 @@ pub struct FishingBaseSkillStoreLikeCpp {
 }
 
 pub const AREA_FLAG_ALLOW_HEARTH_AND_RESURRECT_FROM_AREA_LIKE_CPP: u32 = 0x0800_0000;
+pub const AREA_FLAG_LINKED_CHAT_LIKE_CPP: u32 = 0x0000_0100;
+pub const AREA_FLAG_NO_PVP_LIKE_CPP: u32 = 0x0000_0800;
+pub const AREA_FLAG_HORDE_RESTING_LIKE_CPP: u32 = 0x0040_0000;
+pub const AREA_FLAG_ALLIANCE_RESTING_LIKE_CPP: u32 = 0x0080_0000;
 pub const AREA_FLAG_IS_SUBZONE_LIKE_CPP: u32 = 0x4000_0000;
 
 impl AreaTableEntry {
@@ -55,6 +60,22 @@ impl AreaTableEntry {
         self.flags & AREA_FLAG_ALLOW_HEARTH_AND_RESURRECT_FROM_AREA_LIKE_CPP != 0
     }
 
+    pub fn linked_chat_like_cpp(&self) -> bool {
+        self.flags & AREA_FLAG_LINKED_CHAT_LIKE_CPP != 0
+    }
+
+    pub fn is_sanctuary_like_cpp(&self) -> bool {
+        self.flags & AREA_FLAG_NO_PVP_LIKE_CPP != 0
+    }
+
+    pub fn alliance_resting_like_cpp(&self) -> bool {
+        self.flags & AREA_FLAG_ALLIANCE_RESTING_LIKE_CPP != 0
+    }
+
+    pub fn horde_resting_like_cpp(&self) -> bool {
+        self.flags & AREA_FLAG_HORDE_RESTING_LIKE_CPP != 0
+    }
+
     pub fn is_subzone_like_cpp(&self) -> bool {
         self.flags & AREA_FLAG_IS_SUBZONE_LIKE_CPP != 0
     }
@@ -64,6 +85,7 @@ impl AreaTableStore {
     pub fn from_entries(entries: impl IntoIterator<Item = AreaTableEntry>) -> Self {
         Self {
             entries: entries.into_iter().map(|entry| (entry.id, entry)).collect(),
+            faction_group_masks: HashMap::new(),
         }
     }
 
@@ -83,7 +105,9 @@ impl AreaTableStore {
             .with_context(|| format!("failed to open {}", path.display()))?;
 
         let mut entries = HashMap::with_capacity(reader.total_count());
+        let mut faction_group_masks = HashMap::with_capacity(reader.total_count());
         for (id, idx) in reader.iter_records() {
+            faction_group_masks.insert(id, reader.get_field_u8(idx, 14));
             entries.insert(
                 id,
                 AreaTableEntry {
@@ -105,7 +129,10 @@ impl AreaTableStore {
         }
 
         info!("Loaded {} areas from {}", entries.len(), path.display());
-        Ok(Self { entries })
+        Ok(Self {
+            entries,
+            faction_group_masks,
+        })
     }
 
     pub async fn load_with_hotfixes(
@@ -131,6 +158,7 @@ impl AreaTableStore {
         let mut count = 0usize;
         loop {
             let id: u32 = result.read(0);
+            self.faction_group_masks.insert(id, result.read(15));
             self.entries.insert(
                 id,
                 AreaTableEntry {
@@ -158,6 +186,17 @@ impl AreaTableStore {
 
     pub fn contains(&self, id: u32) -> bool {
         self.entries.contains_key(&id)
+    }
+
+    /// C++ `AreaTableEntry::FactionGroupMask` (DB2 field 15).
+    pub fn faction_group_mask_like_cpp(&self, id: u32) -> u8 {
+        self.faction_group_masks.get(&id).copied().unwrap_or(0)
+    }
+
+    pub fn set_faction_group_mask_like_cpp(&mut self, id: u32, mask: u8) {
+        if self.entries.contains_key(&id) {
+            self.faction_group_masks.insert(id, mask);
+        }
     }
 
     /// C++ `DB2Manager::IsInArea(objectAreaId, areaId)`.

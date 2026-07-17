@@ -74,6 +74,50 @@ pub struct TrainerListSummary {
     pub spell_count: u32,
 }
 
+/// Parsed `SMSG_LOG_XP_GAIN` values.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LogXpGainSummary {
+    pub victim_guid_low: u64,
+    pub victim_guid_high: u64,
+    pub original: i32,
+    pub reason: u8,
+    pub amount: i32,
+    pub group_bonus: f32,
+}
+
+/// Parsed `SMSG_ATTACK_STOP` values.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AttackStopSummary {
+    pub attacker_guid_low: u64,
+    pub attacker_guid_high: u64,
+    pub victim_guid_low: u64,
+    pub victim_guid_high: u64,
+    pub now_dead: bool,
+}
+
+/// Parsed `SMSG_ATTACKER_STATE_UPDATE` values used by the live combat smoke.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AttackerStateUpdateSummary {
+    pub attacker_guid_low: u64,
+    pub attacker_guid_high: u64,
+    pub victim_guid_low: u64,
+    pub victim_guid_high: u64,
+    pub hit_info: u32,
+    pub damage: i32,
+    pub original_damage: i32,
+    pub over_damage: i32,
+    pub victim_state: u8,
+    pub target_level: u8,
+}
+
+/// Parsed `SMSG_HEALTH_UPDATE` values used by the live combat smoke.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HealthUpdateSummary {
+    pub guid_low: u64,
+    pub guid_high: u64,
+    pub health: i64,
+}
+
 /// Decode a TC 9.x packed ObjectGuid (`u8 lowMask | u8 highMask | <packed bytes>`).
 /// Returns the number of bytes consumed plus the low/high u64 components.
 pub fn parse_packed_guid(data: &[u8]) -> Option<(usize, u64, u64)> {
@@ -104,6 +148,134 @@ pub fn parse_packed_guid(data: &[u8]) -> Option<(usize, u64, u64)> {
         }
     }
     Some((pos, low, high))
+}
+
+/// Decode `WorldPackets::Combat::AttackStop` in the C++ wire order:
+/// attacker GUID, victim GUID, then the MSB-first `NowDead` bit.
+pub fn parse_attack_stop_summary(data: &[u8]) -> Option<AttackStopSummary> {
+    let (attacker_len, attacker_guid_low, attacker_guid_high) = parse_packed_guid(data)?;
+    let (victim_len, victim_guid_low, victim_guid_high) =
+        parse_packed_guid(data.get(attacker_len..)?)?;
+    let bit_offset = attacker_len.checked_add(victim_len)?;
+    let now_dead_byte = *data.get(bit_offset)?;
+    if data.len() != bit_offset + 1 {
+        return None;
+    }
+    Some(AttackStopSummary {
+        attacker_guid_low,
+        attacker_guid_high,
+        victim_guid_low,
+        victim_guid_high,
+        now_dead: now_dead_byte & 0x80 != 0,
+    })
+}
+
+/// Decode the basic-log `WorldPackets::Combat::AttackerStateUpdate` shape.
+///
+/// Rust currently omits `SubDmg`, while C++ `Unit::SendAttackStateUpdate`
+/// always includes it for a normal melee swing. Accept both wire shapes and
+/// skip every C++ hit-info-gated field before the fixed ContentTuning tail.
+pub fn parse_attacker_state_update_summary(data: &[u8]) -> Option<AttackerStateUpdateSummary> {
+    // `CombatLogServerPacket::WriteLogDataBit(false)` + FlushBits, followed by
+    // uint32 attackRoundInfo size and the attackRoundInfo bytes.
+    if data.len() < 5 || data[0] != 0 {
+        return None;
+    }
+    let info_len = usize::try_from(read_u32(data, 1)?).ok()?;
+    if info_len != data.len().checked_sub(5)? {
+        return None;
+    }
+    let info = data.get(5..)?;
+    let mut pos = 0usize;
+    let hit_info = read_u32(info, pos)?;
+    pos += 4;
+    let (attacker_len, attacker_guid_low, attacker_guid_high) =
+        parse_packed_guid(info.get(pos..)?)?;
+    pos += attacker_len;
+    let (victim_len, victim_guid_low, victim_guid_high) = parse_packed_guid(info.get(pos..)?)?;
+    pos += victim_len;
+    let damage = read_i32(info, pos)?;
+    pos += 4;
+    let original_damage = read_i32(info, pos)?;
+    pos += 4;
+    let over_damage = read_i32(info, pos)?;
+    pos += 4;
+    let sub_damage_present = *info.get(pos)?;
+    pos += 1;
+    match sub_damage_present {
+        0 => {}
+        1 => {
+            // SchoolMask, FDamage, Damage.
+            pos = checked_skip(info, pos, 12)?;
+            if hit_info & (0x0000_0020 | 0x0000_0040) != 0 {
+                pos = checked_skip(info, pos, 4)?; // Absorbed
+            }
+            if hit_info & (0x0000_0080 | 0x0000_0100) != 0 {
+                pos = checked_skip(info, pos, 4)?; // Resisted
+            }
+        }
+        _ => return None,
+    }
+    let victim_state = *info.get(pos)?;
+    pos += 1;
+    read_u32(info, pos)?; // attacker state
+    pos += 4;
+    read_u32(info, pos)?; // melee spell ID
+    pos += 4;
+
+    if hit_info & 0x0000_2000 != 0 {
+        pos = checked_skip(info, pos, 4)?; // BlockAmount
+    }
+    if hit_info & 0x0080_0000 != 0 {
+        pos = checked_skip(info, pos, 4)?; // RageGained
+    }
+    if hit_info & 0x0000_0001 != 0 {
+        // UnkState: one uint32, ten floats, one uint32.
+        pos = checked_skip(info, pos, 48)?;
+    }
+    if hit_info & (0x0000_2000 | 0x0000_1000) != 0 {
+        pos = checked_skip(info, pos, 4)?; // trailing Unk float
+    }
+
+    // ContentTuning: type, target level, expansion, two deltas, two item
+    // levels, curve ID, flags, and the two content-tuning IDs (30 bytes).
+    if info.len().checked_sub(pos)? != 30 {
+        return None;
+    }
+    let target_level = *info.get(pos + 1)?;
+
+    Some(AttackerStateUpdateSummary {
+        attacker_guid_low,
+        attacker_guid_high,
+        victim_guid_low,
+        victim_guid_high,
+        hit_info,
+        damage,
+        original_damage,
+        over_damage,
+        victim_state,
+        target_level,
+    })
+}
+
+fn checked_skip(data: &[u8], pos: usize, count: usize) -> Option<usize> {
+    let end = pos.checked_add(count)?;
+    data.get(pos..end)?;
+    Some(end)
+}
+
+/// Decode `WorldPackets::Combat::HealthUpdate`: packed GUID then int64 health.
+pub fn parse_health_update_summary(data: &[u8]) -> Option<HealthUpdateSummary> {
+    let (guid_len, guid_low, guid_high) = parse_packed_guid(data)?;
+    if data.len() != guid_len.checked_add(8)? {
+        return None;
+    }
+    let health = i64::from_le_bytes(data.get(guid_len..)?.try_into().ok()?);
+    Some(HealthUpdateSummary {
+        guid_low,
+        guid_high,
+        health,
+    })
 }
 
 fn read_u32(data: &[u8], pos: usize) -> Option<u32> {
@@ -331,6 +503,38 @@ pub fn parse_trainer_list_summary(data: &[u8]) -> Option<TrainerListSummary> {
     Some(TrainerListSummary {
         trainer_id,
         spell_count,
+    })
+}
+
+/// Parse `SMSG_LOG_XP_GAIN` (opcode `0x26E5`).
+///
+/// Wire layout follows TrinityCore
+/// `src/server/game/Server/Packets/CharacterPackets.cpp::LogXPGain::Write`:
+/// `PackedGuid Victim`, `int32 Original`, `uint8 Reason`, `int32 Amount`,
+/// `float GroupBonus`.
+pub fn parse_log_xp_gain_summary(data: &[u8]) -> Option<LogXpGainSummary> {
+    let (mut pos, victim_guid_low, victim_guid_high) = parse_packed_guid(data)?;
+
+    // LogXPGain::Write has no optional or trailing fields after the packed GUID.
+    if data.len().checked_sub(pos)? != 4 + 1 + 4 + 4 {
+        return None;
+    }
+
+    let original = read_i32(data, pos)?;
+    pos += 4;
+    let reason = *data.get(pos)?;
+    pos += 1;
+    let amount = read_i32(data, pos)?;
+    pos += 4;
+    let group_bonus = f32::from_bits(read_u32(data, pos)?);
+
+    Some(LogXpGainSummary {
+        victim_guid_low,
+        victim_guid_high,
+        original,
+        reason,
+        amount,
+        group_bonus,
     })
 }
 
@@ -576,6 +780,67 @@ pub fn parse_packet(opcode: u16, data: &[u8]) -> String {
         0x2A3A => format!("SMSG_LFG_READY_CHECK_RESULT ({} bytes)", data.len()),
         0x2683 => format!("SMSG_LOGOUT_RESPONSE ({} bytes)", data.len()),
         0x2684 => "SMSG_LOGOUT_COMPLETE".to_string(),
+        0x26E5 => {
+            if let Some(summary) = parse_log_xp_gain_summary(data) {
+                format!(
+                    "SMSG_LOG_XP_GAIN: victim=0x{:016X}{:016X}, original={}, reason={}, amount={}, group_bonus={}",
+                    summary.victim_guid_high,
+                    summary.victim_guid_low,
+                    summary.original,
+                    summary.reason,
+                    summary.amount,
+                    summary.group_bonus
+                )
+            } else {
+                format!("SMSG_LOG_XP_GAIN: <parse failed, {} bytes>", data.len())
+            }
+        }
+        0x293D => format!("SMSG_ATTACK_START ({} bytes)", data.len()),
+        0x293E => {
+            if let Some(summary) = parse_attack_stop_summary(data) {
+                format!(
+                    "SMSG_ATTACK_STOP: attacker=0x{:016X}{:016X}, victim=0x{:016X}{:016X}, now_dead={}",
+                    summary.attacker_guid_high,
+                    summary.attacker_guid_low,
+                    summary.victim_guid_high,
+                    summary.victim_guid_low,
+                    summary.now_dead
+                )
+            } else {
+                format!("SMSG_ATTACK_STOP: <parse failed, {} bytes>", data.len())
+            }
+        }
+        0x2952 => {
+            if let Some(summary) = parse_attacker_state_update_summary(data) {
+                format!(
+                    "SMSG_ATTACKER_STATE_UPDATE: attacker=0x{:016X}{:016X}, victim=0x{:016X}{:016X}, damage={}, original={}, over={}, victim_state={}, target_level={}",
+                    summary.attacker_guid_high,
+                    summary.attacker_guid_low,
+                    summary.victim_guid_high,
+                    summary.victim_guid_low,
+                    summary.damage,
+                    summary.original_damage,
+                    summary.over_damage,
+                    summary.victim_state,
+                    summary.target_level
+                )
+            } else {
+                format!(
+                    "SMSG_ATTACKER_STATE_UPDATE: <parse failed, {} bytes>",
+                    data.len()
+                )
+            }
+        }
+        0x26D1 => {
+            if let Some(summary) = parse_health_update_summary(data) {
+                format!(
+                    "SMSG_HEALTH_UPDATE: guid=0x{:016X}{:016X}, health={}",
+                    summary.guid_high, summary.guid_low, summary.health
+                )
+            } else {
+                format!("SMSG_HEALTH_UPDATE: <parse failed, {} bytes>", data.len())
+            }
+        }
         0x2A32 => {
             let raw = data.first().copied().unwrap_or(0);
             let reason = raw >> 4;
@@ -643,5 +908,168 @@ pub fn parse_packet(opcode: u16, data: &[u8]) -> String {
             }
         }
         _ => format!("Unknown opcode 0x{:04X} ({} bytes)", opcode, data.len()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn attacker_state_update_payload(sub_damage: bool) -> Vec<u8> {
+        let mut info = Vec::new();
+        info.extend_from_slice(&2u32.to_le_bytes()); // HIT_INFO_NORMAL_SWING
+        info.extend_from_slice(&[0x01, 0x00, 0x0E]); // player 14
+        info.extend_from_slice(&[0x01, 0x01, 0x26, 0xA4]); // creature 38/high 164
+        info.extend_from_slice(&1i32.to_le_bytes());
+        info.extend_from_slice(&1i32.to_le_bytes());
+        info.extend_from_slice(&(-1i32).to_le_bytes());
+        info.push(u8::from(sub_damage));
+        if sub_damage {
+            info.extend_from_slice(&1i32.to_le_bytes()); // physical SchoolMask
+            info.extend_from_slice(&1.0f32.to_le_bytes()); // FDamage
+            info.extend_from_slice(&1i32.to_le_bytes()); // Damage
+        }
+        info.push(1); // VICTIM_STATE_HIT
+        info.extend_from_slice(&0u32.to_le_bytes()); // attacker state
+        info.extend_from_slice(&0u32.to_le_bytes()); // melee spell ID
+        info.extend_from_slice(&[0, 1, 2]); // tuning type, target level, expansion
+        info.extend_from_slice(&0i16.to_le_bytes());
+        info.push(0); // target scaling level delta
+        info.extend_from_slice(&0.0f32.to_le_bytes());
+        info.extend_from_slice(&0.0f32.to_le_bytes());
+        info.extend_from_slice(&0u32.to_le_bytes()); // health curve
+        info.extend_from_slice(&0u32.to_le_bytes()); // flags
+        info.extend_from_slice(&0i32.to_le_bytes()); // player content tuning
+        info.extend_from_slice(&0i32.to_le_bytes()); // target content tuning
+
+        let mut payload = vec![0]; // no advanced combat-log data
+        payload.extend_from_slice(&(info.len() as u32).to_le_bytes());
+        payload.extend_from_slice(&info);
+        payload
+    }
+
+    fn log_xp_gain_payload() -> Vec<u8> {
+        let mut payload = vec![
+            0b0000_0101, // Victim low mask: bytes 0 and 2.
+            0b0000_0010, // Victim high mask: byte 1.
+            0xAA,
+            0xBB,
+            0xCC,
+        ];
+        payload.extend_from_slice(&240i32.to_le_bytes());
+        payload.push(0);
+        payload.extend_from_slice(&120i32.to_le_bytes());
+        payload.extend_from_slice(&1.25f32.to_le_bytes());
+        payload
+    }
+
+    #[test]
+    fn attack_stop_parser_matches_cpp_wire_layout() {
+        let mut payload = vec![0x01, 0x00, 0x0E];
+        payload.extend_from_slice(&[0x01, 0x01, 0x26, 0xA4]);
+        payload.push(0x80);
+
+        assert_eq!(
+            parse_attack_stop_summary(&payload),
+            Some(AttackStopSummary {
+                attacker_guid_low: 14,
+                attacker_guid_high: 0,
+                victim_guid_low: 38,
+                victim_guid_high: 164,
+                now_dead: true,
+            })
+        );
+        assert!(parse_attack_stop_summary(&payload[..payload.len() - 1]).is_none());
+        assert!(parse_attack_stop_summary(&[payload, vec![0]].concat()).is_none());
+    }
+
+    #[test]
+    fn attacker_state_update_parser_matches_cpp_wire_layout() {
+        let payload = attacker_state_update_payload(true);
+
+        assert_eq!(
+            parse_attacker_state_update_summary(&payload),
+            Some(AttackerStateUpdateSummary {
+                attacker_guid_low: 14,
+                attacker_guid_high: 0,
+                victim_guid_low: 38,
+                victim_guid_high: 164,
+                hit_info: 2,
+                damage: 1,
+                original_damage: 1,
+                over_damage: -1,
+                victim_state: 1,
+                target_level: 1,
+            })
+        );
+        assert_eq!(
+            parse_attacker_state_update_summary(&attacker_state_update_payload(false)),
+            parse_attacker_state_update_summary(&payload),
+            "the current Rust no-SubDmg packet and the C++ melee SubDmg packet must decode equivalently"
+        );
+        assert!(parse_attacker_state_update_summary(&payload[..payload.len() - 1]).is_none());
+        assert!(parse_attacker_state_update_summary(&[payload, vec![0]].concat()).is_none());
+    }
+
+    #[test]
+    fn health_update_parser_matches_cpp_wire_layout() {
+        let mut payload = vec![0x01, 0x00, 0x0E];
+        payload.extend_from_slice(&83i64.to_le_bytes());
+
+        assert_eq!(
+            parse_health_update_summary(&payload),
+            Some(HealthUpdateSummary {
+                guid_low: 14,
+                guid_high: 0,
+                health: 83,
+            })
+        );
+        assert!(parse_health_update_summary(&payload[..payload.len() - 1]).is_none());
+        assert!(parse_health_update_summary(&[payload, vec![0]].concat()).is_none());
+    }
+
+    #[test]
+    fn log_xp_gain_parser_matches_cpp_wire_layout() {
+        let payload = log_xp_gain_payload();
+
+        assert_eq!(
+            parse_log_xp_gain_summary(&payload),
+            Some(LogXpGainSummary {
+                victim_guid_low: 0x00BB_00AA,
+                victim_guid_high: 0x0000_CC00,
+                original: 240,
+                reason: 0,
+                amount: 120,
+                group_bonus: 1.25,
+            })
+        );
+        assert_eq!(
+            parse_packet(0x26E5, &payload),
+            "SMSG_LOG_XP_GAIN: victim=0x000000000000CC000000000000BB00AA, original=240, reason=0, amount=120, group_bonus=1.25"
+        );
+    }
+
+    #[test]
+    fn log_xp_gain_parser_rejects_every_truncated_prefix() {
+        let payload = log_xp_gain_payload();
+
+        for len in 0..payload.len() {
+            assert!(
+                parse_log_xp_gain_summary(&payload[..len]).is_none(),
+                "accepted truncated payload of {len} bytes"
+            );
+        }
+    }
+
+    #[test]
+    fn log_xp_gain_parser_rejects_trailing_bytes() {
+        let mut payload = log_xp_gain_payload();
+        payload.push(0xFF);
+
+        assert!(parse_log_xp_gain_summary(&payload).is_none());
+        assert_eq!(
+            parse_packet(0x26E5, &payload),
+            format!("SMSG_LOG_XP_GAIN: <parse failed, {} bytes>", payload.len())
+        );
     }
 }

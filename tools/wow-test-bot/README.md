@@ -47,6 +47,22 @@ authenticates again, swaps them back, verifies both items after both commits,
 and removes the fixture. Optional entry overrides are
 `WOW_BOT_INVENTORY_SWAP_ITEM_ENTRY_A/B` (defaults `2589`/`2592`).
 
+For a complete rested-XP calculation and consumption round-trip, set both
+`WOW_BOT_RESTED_XP_SMOKE=1` and `WOW_BOT_ACK_DISPOSABLE_RESTED_XP=1` when using
+the wrapper. The bot records and later restores only the selected character
+fields needed by this smoke; it does not back up every character/account table.
+The underlying binary therefore requires the CLI-only
+`--ack-disposable-rested-xp` flag and rejects shared or non-clean fixtures. It
+verifies wilderness/resting offline accrual, attacks a nearby creature, validates
+the `SMSG_LOG_XP_GAIN` rested split and DB persistence, relogs, and waits for the
+target's normal runtime respawn to remove its DB row. The default target is Mana
+Wyrm entry `15274`; see `RUSTYCORE_SMOKE.md` for the full destructive-fixture
+contract and overrides. Cleanup is deliberately bounded: it restores selected
+character fields plus exact achievement snapshots and removes only the listed
+baseline-zero login rows. Any other rows created by the server remain visible,
+which is why the acknowledged disposable identity and clean preflight are
+mandatory.
+
 `config.example.json` is versioned with blank passwords. Use `WOW_BOT_PASSWORD`,
 the per-account `WOW_BOT_PASSWORD_<ACCOUNT>` override, or an ignored local
 `config.json` for credentials. Do not commit real local bot passwords.
@@ -56,3 +72,6 @@ generates an ignored `.env.local` password when none exists, then upserts only
 local `@bot.local` BNet/game account rows with matching SRP credentials before
 running. Set `WOW_BOT_GENERATE_LOCAL_PASSWORD=0` or
 `WOW_BOT_ENSURE_TEST_ACCOUNTS=0` to disable that local QA bootstrap.
+
+Build and test this bot with Rust 1.88.0 (`cargo +1.88.0 ...`), matching the
+RustyCore toolchain.

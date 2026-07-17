@@ -10,8 +10,8 @@
 use tracing::{debug, info, warn};
 use wow_constants::unit::{NPCFlags1, Team};
 use wow_constants::{
-    ClientOpcodes, ConditionType, InventoryResult, ItemExtendedCostFlags, SpellCastResult,
-    UnitStandStateType,
+    ClientOpcodes, ConditionSourceType, ConditionType, InventoryResult, ItemExtendedCostFlags,
+    SpellCastResult, UnitStandStateType,
 };
 use wow_core::{GameTime, ObjectGuid};
 use wow_database::{
@@ -2192,6 +2192,18 @@ impl crate::session::WorldSession {
             quest_log,
             party_type,
         );
+        let (player_flags, player_flags_ex) = self.represented_player_flags_for_create_like_cpp();
+        player_pkt.set_player_flags_like_cpp(player_flags, player_flags_ex);
+        player_pkt.set_player_xp_like_cpp(self.player_xp_like_cpp() as i32);
+        player_pkt.set_player_next_level_xp_like_cpp(self.player_next_level_xp_like_cpp() as i32);
+        player_pkt.set_player_max_level_like_cpp(self.player_active_max_level_like_cpp() as i32);
+        player_pkt
+            .set_player_scaling_level_delta_like_cpp(self.player_scaling_level_delta_like_cpp());
+        player_pkt.set_player_rest_info_like_cpp(
+            0,
+            self.represented_xp_rest_threshold_like_cpp(),
+            self.represented_xp_rest_state_like_cpp(),
+        );
         player_pkt.set_player_account_guids_like_cpp(
             ObjectGuid::create_global(HighGuid::WowAccount, 0, self.account_id as i64),
             ObjectGuid::create_global(HighGuid::BNetAccount, 0, self.battlenet_account_id() as i64),
@@ -2363,38 +2375,204 @@ impl crate::session::WorldSession {
     }
 
     /// CMSG_AREA_TRIGGER — player entered an area trigger.
-    /// C# ref: MiscHandler.HandleAreaTrigger
+    /// C++ ref: `WorldSession::HandleAreaTriggerOpcode`.
     pub async fn handle_area_trigger(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let trigger_id: u32 = pkt.read_uint32().unwrap_or(0);
+        let Ok(trigger_id) = pkt.read_uint32() else {
+            warn!(
+                account = self.account_id,
+                "AreaTrigger packet missing trigger ID"
+            );
+            return;
+        };
+        let Ok(entered) = pkt.read_bit() else {
+            warn!(
+                account = self.account_id,
+                trigger_id, "AreaTrigger packet missing Entered bit"
+            );
+            return;
+        };
+        let Ok(_from_client) = pkt.read_bit() else {
+            warn!(
+                account = self.account_id,
+                trigger_id, "AreaTrigger packet missing FromClient bit"
+            );
+            return;
+        };
 
         info!(
-            "AreaTrigger: account {} trigger_id={}",
-            self.account_id, trigger_id
+            "AreaTrigger: account {} trigger_id={} entered={}",
+            self.account_id, trigger_id, entered
         );
 
-        // Lookup in area trigger store
-        if let Some(store) = self.area_trigger_store() {
-            if let Some(trigger) = store.get_trigger(trigger_id) {
-                info!(
-                    "AreaTrigger {} detected at map {} pos ({}, {}, {})",
-                    trigger_id, trigger.map_id, trigger.pos.x, trigger.pos.y, trigger.pos.z
-                );
-
-                if let Some(ref teleport) = trigger.teleport {
-                    let target_map = teleport.target_map;
-                    let target_pos = teleport.target_position;
-                    info!(
-                        "AreaTrigger {} → teleport to map {} ({:.2}, {:.2}, {:.2})",
-                        trigger_id, target_map, target_pos.x, target_pos.y, target_pos.z
-                    );
-                    self.teleport_to(target_map, target_pos).await;
-                }
-            } else {
-                debug!("Unknown area trigger ID {}", trigger_id);
-            }
-        } else {
-            debug!("Area trigger store not available");
+        if self.is_in_taxi_flight_like_cpp() {
+            debug!(
+                "Area trigger {} ignored because player is in taxi flight",
+                trigger_id
+            );
+            return;
         }
+
+        let Some(at_entry) = self.area_trigger_db2_entry_like_cpp(trigger_id).cloned() else {
+            debug!("Unknown area trigger ID {}", trigger_id);
+            return;
+        };
+
+        let player_in_area_trigger = self.player_is_in_area_trigger_radius_like_cpp(&at_entry);
+        // Legacy1 validates radius only for an enter notification and is the
+        // selected parity behavior. Legacy2 instead requires `entered` to
+        // equal the current inside/outside result, so it rejects a leave that
+        // arrives while the player is still inside. Keep the disagreement
+        // explicit; a 3.4.3 client capture is still needed to adjudicate it.
+        if entered && !player_in_area_trigger {
+            debug!(
+                "Area trigger {} ignored because player is too far",
+                trigger_id
+            );
+            return;
+        }
+
+        if !self.area_trigger_client_conditions_meet_like_cpp(trigger_id) {
+            debug!("Area trigger {} rejected by C++ conditions", trigger_id);
+            return;
+        }
+
+        // C++ continues unless `ScriptMgr::OnAreaTrigger` returns true. A DB
+        // binding alone therefore cannot consume the event.
+        let bound_script_id = self
+            .area_trigger_script_store()
+            .and_then(|store| store.get_script_id_like_cpp(trigger_id))
+            .filter(|script_id| *script_id != wow_data::ScriptIdLikeCpp::NONE);
+        if let Some(script_id) = bound_script_id {
+            match self.dispatch_area_trigger_script_like_cpp(script_id, trigger_id, entered) {
+                Some(true) => return,
+                Some(false) => {}
+                None => warn!(
+                    trigger_id,
+                    entered,
+                    ?script_id,
+                    "Area trigger script dispatch is unrepresented; preserving prior continuation"
+                ),
+            }
+        }
+
+        if self.handle_represented_tavern_area_trigger_like_cpp(trigger_id, entered) {
+            return;
+        }
+
+        let Some(trigger) = self
+            .area_trigger_store()
+            .and_then(|store| store.get_trigger(trigger_id).cloned())
+        else {
+            return;
+        };
+
+        // Lookup in represented teleport store
+        info!(
+            "AreaTrigger {} detected at map {} pos ({}, {}, {})",
+            trigger_id, trigger.map_id, trigger.pos.x, trigger.pos.y, trigger.pos.z
+        );
+
+        if !entered {
+            return;
+        }
+
+        if let Some(ref teleport) = trigger.teleport {
+            let target_map = teleport.target_map;
+            let target_pos = teleport.target_position;
+            info!(
+                "AreaTrigger {} → teleport to map {} ({:.2}, {:.2}, {:.2})",
+                trigger_id, target_map, target_pos.x, target_pos.y, target_pos.z
+            );
+            self.teleport_to(target_map, target_pos).await;
+        }
+    }
+
+    fn area_trigger_client_conditions_meet_like_cpp(&mut self, trigger_id: u32) -> bool {
+        let Some(condition_store) = self.condition_store().cloned() else {
+            return true;
+        };
+        let Some(player_object) = self.build_condition_player_object_like_cpp() else {
+            return false;
+        };
+
+        let player_unit_snapshot = self.condition_player_unit_snapshot_like_cpp();
+        let player_snapshot = self.condition_player_snapshot_like_cpp();
+        let area_table_store = self.area_table_store().cloned();
+
+        let mut source_info =
+            crate::conditions::ConditionSourceInfo::from_targets(Some(&player_object), None, None);
+        source_info.set_unit_target_snapshot(0, player_unit_snapshot);
+        source_info.set_player_target_snapshot(0, player_snapshot);
+
+        crate::conditions::is_object_meeting_not_grouped_conditions_like_cpp(
+            condition_store.as_ref(),
+            ConditionSourceType::AreaTriggerClientTriggered,
+            trigger_id,
+            &mut source_info,
+            |condition, source_info| {
+                // C++ combines the base condition with
+                // `ScriptMgr::OnConditionCheck`. Rust does not yet have a
+                // ConditionScript dispatcher, so allowing a scripted row
+                // through would silently bypass its only custom predicate.
+                if condition.script_id != 0 {
+                    warn!(
+                        trigger_id,
+                        script_id = condition.script_id,
+                        "Area trigger ConditionScript dispatch is unrepresented; failing closed"
+                    );
+                    return false;
+                }
+
+                let context_is_represented = match condition.condition_type {
+                    ConditionType::None
+                    | ConditionType::MapId
+                    | ConditionType::ZoneId
+                    | ConditionType::Class
+                    | ConditionType::Team
+                    | ConditionType::Race
+                    | ConditionType::Gender
+                    | ConditionType::Level
+                    | ConditionType::Alive
+                    | ConditionType::HpVal
+                    | ConditionType::HpPct
+                    | ConditionType::Taxi
+                    | ConditionType::ObjectEntryGuid
+                    | ConditionType::ObjectEntryGuidLegacy
+                    | ConditionType::TypeMask
+                    | ConditionType::TypeMaskLegacy => true,
+                    ConditionType::AreaId => area_table_store.is_some(),
+                    _ => false,
+                };
+                if !context_is_represented {
+                    warn!(
+                        trigger_id,
+                        condition_type = ?condition.condition_type,
+                        "Area trigger condition context is unrepresented; failing closed"
+                    );
+                    return false;
+                }
+
+                match crate::conditions::condition_meets_basic_like_cpp(
+                    condition,
+                    source_info,
+                    |current_area, required_area| {
+                        area_table_store.as_ref().is_some_and(|store| {
+                            store.is_in_area_like_cpp(current_area, required_area)
+                        })
+                    },
+                ) {
+                    crate::conditions::ConditionMeetResult::Evaluated(value) => value,
+                    crate::conditions::ConditionMeetResult::Unsupported => {
+                        warn!(
+                            trigger_id,
+                            condition_type = ?condition.condition_type,
+                            "Area trigger condition evaluation is unrepresented; failing closed"
+                        );
+                        false
+                    }
+                }
+            },
+        )
     }
 
     /// CMSG_REQUEST_CEMETERY_LIST — client asks for graveyards in zone.
@@ -7051,6 +7229,7 @@ mod tests {
         shared::DifficultyFlags,
     };
     use wow_core::{ObjectGuid, Position, guid::HighGuid};
+    use wow_data::area::AREA_FLAG_IS_SUBZONE_LIKE_CPP;
     use wow_data::progression_rewards::{FactionEntry, FactionStore};
     use wow_data::quest::{
         QUEST_ITEM_DROP_COUNT, QUEST_REWARD_CHOICES_COUNT, QUEST_REWARD_CURRENCY_COUNT,
@@ -7154,6 +7333,59 @@ mod tests {
         }
     }
 
+    fn area_entry(id: u32, parent_area_id: u16, flags: u32) -> wow_data::AreaTableEntry {
+        wow_data::AreaTableEntry {
+            id,
+            continent_id: 571,
+            parent_area_id,
+            area_bit: -1,
+            exploration_level: 0,
+            mount_flags: 0,
+            flags,
+        }
+    }
+
+    fn unique_temp_data_dir(test_name: &str) -> std::path::PathBuf {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system clock before unix epoch")
+            .as_nanos();
+        let data_dir = std::env::temp_dir().join(format!("rustycore-{test_name}-{unique}"));
+        std::fs::create_dir_all(data_dir.join("maps")).expect("create maps test dir");
+        data_dir
+    }
+
+    fn write_no_area_map_file_like_cpp(
+        data_dir: &std::path::Path,
+        map_id: u32,
+        x: f32,
+        y: f32,
+        area_id: u16,
+    ) {
+        let (grid_x, grid_y) =
+            crate::map_manager::terrain_grid_coords_for_wow_position_like_cpp(x, y);
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(b"MAPS");
+        bytes.extend_from_slice(&10_u32.to_le_bytes());
+        bytes.extend_from_slice(&0_u32.to_le_bytes());
+        bytes.extend_from_slice(&44_u32.to_le_bytes());
+        bytes.extend_from_slice(&8_u32.to_le_bytes());
+        for _ in 0..6 {
+            bytes.extend_from_slice(&0_u32.to_le_bytes());
+        }
+        assert_eq!(bytes.len(), 44);
+        bytes.extend_from_slice(b"AREA");
+        bytes.extend_from_slice(&1_u16.to_le_bytes());
+        bytes.extend_from_slice(&area_id.to_le_bytes());
+        std::fs::write(
+            data_dir
+                .join("maps")
+                .join(format!("{map_id:04}_{grid_x:02}_{grid_y:02}.map")),
+            bytes,
+        )
+        .expect("write test map");
+    }
+
     #[test]
     fn item_purchase_contents_skip_season_earned_currency_like_cpp() {
         let extended_cost = wow_data::item_extended_cost::ItemExtendedCostEntry {
@@ -7182,7 +7414,7 @@ mod tests {
 
     fn make_session() -> (crate::session::WorldSession, flume::Receiver<Vec<u8>>) {
         let (_pkt_tx, pkt_rx) = flume::bounded(8);
-        let (send_tx, send_rx) = flume::bounded(8);
+        let (send_tx, send_rx) = flume::bounded(16);
         (
             crate::session::WorldSession::new(
                 1,
@@ -7400,6 +7632,40 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn far_teleport_self_create_preserves_current_xp_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 0xE1C3);
+        session.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
+            player_guid,
+            "TeleportXp".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            571,
+            1,
+            8,
+            10,
+            0,
+        ));
+        session.set_player_xp_like_cpp(1_234_567);
+        session.set_player_next_level_xp_like_cpp(2_345_678);
+
+        session
+            .send_player_self_create_for_teleport_like_cpp()
+            .await;
+
+        let bytes = send_rx.recv().expect("far teleport sends self CREATE");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::UpdateObject as u16
+        );
+        assert!(
+            bytes
+                .windows(4)
+                .any(|window| window == 1_234_567i32.to_le_bytes()),
+            "ActivePlayerData::XP must survive a far-map self CREATE"
+        );
+    }
+
+    #[tokio::test]
     async fn world_port_response_clears_far_teleport_semaphore_like_cpp() {
         let (mut session, send_rx) = make_session();
         let canonical = shared_canonical_map_manager_for_misc_test();
@@ -7501,6 +7767,86 @@ mod tests {
                 ServerOpcodes::PhaseShiftChange as u16,
                 ServerOpcodes::LoadCufProfiles as u16,
             ]
+        );
+    }
+
+    #[tokio::test]
+    async fn world_port_response_recomputes_destination_rest_state_post_add_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        let canonical = shared_canonical_map_manager_for_misc_test();
+        let data_dir = unique_temp_data_dir("world-port-rest-state");
+        let player_guid = ObjectGuid::create_player(1, 43);
+        let destination = Position::new(0.0, 0.0, 9.0, 0.25);
+        write_no_area_map_file_like_cpp(&data_dir, 571, destination.x, destination.y, 300);
+
+        session.set_mmap_runtime_config_like_cpp(crate::session::MMapRuntimeConfigLikeCpp {
+            data_dir: data_dir.to_string_lossy().to_string(),
+            enabled: true,
+            disabled_map_ids: HashSet::new(),
+        });
+        session.set_map_store(Arc::new(MapStore::from_entries([
+            map_entry(0, wow_data::map::MAP_COMMON),
+            map_entry(571, wow_data::map::MAP_COMMON),
+        ])));
+        session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
+            area_entry(20, 0, wow_data::AREA_FLAG_LINKED_CHAT_LIKE_CPP),
+            area_entry(200, 0, 0),
+            area_entry(300, 200, AREA_FLAG_IS_SUBZONE_LIKE_CPP),
+        ])));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
+            player_guid,
+            "WorldportRest".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            0,
+            1,
+            1,
+            10,
+            0,
+        ));
+        add_canonical_test_player_on_map_for_misc_test(
+            &canonical,
+            player_guid,
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            0,
+            0,
+        );
+        session.set_player_zone_area_like_cpp(10, 10);
+        assert!(session.update_zone_represented_like_cpp(20, 20));
+        assert!(
+            session.represented_is_resting_like_cpp(),
+            "pre-teleport city rest flag should be active before moving to wilderness"
+        );
+        while send_rx.try_recv().is_ok() {}
+
+        session.pending_teleport = Some((571, destination));
+        session.set_represented_far_teleport_pending_like_cpp(true);
+        session.set_state(crate::session::SessionState::Transfer);
+
+        session
+            .handle_world_port_response(WorldPacket::new_empty())
+            .await;
+
+        assert_eq!(session.player_zone_area_like_cpp(), (200, 300));
+        assert!(
+            !session.represented_is_resting_like_cpp(),
+            "C++ HandleMoveWorldportAck calls UpdateZone in SendInitialPacketsAfterAddToMap before later rest-state saves observe flags"
+        );
+        assert_eq!(session.state(), crate::session::SessionState::LoggedIn);
+        let opcodes: Vec<_> = std::iter::from_fn(|| send_rx.try_recv().ok())
+            .map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
+            .collect();
+        let init_world_states_index = opcodes
+            .iter()
+            .position(|opcode| *opcode == ServerOpcodes::InitWorldStates as u16)
+            .expect("post-add init sends InitWorldStates");
+        let last_update_index = opcodes
+            .iter()
+            .rposition(|opcode| *opcode == ServerOpcodes::UpdateObject as u16)
+            .expect("self-create/rest transition sends UpdateObject");
+        assert!(
+            last_update_index > init_world_states_index,
+            "the destination RESTING field update must follow post-add InitWorldStates"
         );
     }
 
