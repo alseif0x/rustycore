@@ -16,9 +16,9 @@ use wow_packet::packets::update::{
     CorpseDataValuesUpdate, DynamicObjectDataValuesUpdate, GameObjectDataValuesUpdate,
     ItemBonusKeyValuesUpdate, ItemDataValuesDeltaUpdate, ItemEnchantmentValuesUpdate,
     ItemModListValuesUpdate, ItemModValuesUpdate, ObjectDataValuesUpdate,
-    PlayerDataValuesDeltaUpdate, ScaleCurveValuesUpdate, SceneObjectDataValuesUpdate,
-    SocketedGemValuesUpdate, UnitDataValuesDeltaUpdate, UpdateObject, VisibleItemValuesUpdate,
-    VisualAnimValuesUpdate,
+    PlayerDataValuesDeltaUpdate, RestInfoValuesUpdate, ScaleCurveValuesUpdate,
+    SceneObjectDataValuesUpdate, SocketedGemValuesUpdate, UnitDataValuesDeltaUpdate, UpdateObject,
+    VisibleItemValuesUpdate, VisualAnimValuesUpdate,
 };
 
 const VISIBLE_ITEM_FULL_UPDATE_MASK: u32 = 0x0F;
@@ -958,6 +958,7 @@ fn active_player_data_update_to_packet(
     packet_update.honor = update.values.honor;
     packet_update.honor_next_level = update.values.honor_next_level;
     packet_update.watched_faction_index = update.values.watched_faction_index;
+    packet_update.scaling_player_level_delta = update.values.scaling_player_level_delta;
     packet_update.num_backpack_slots = update.values.num_backpack_slots;
     packet_update.farsight_object = update.values.farsight_object;
     packet_update.summoned_battle_pet_guid = update.values.summoned_battle_pet_guid;
@@ -967,6 +968,18 @@ fn active_player_data_update_to_packet(
     packet_update
         .explored_zones
         .copy_from_slice(&update.values.explored_zones);
+    for ((dst, src), nested_mask) in packet_update
+        .rest_info
+        .iter_mut()
+        .zip(update.values.rest_info.iter())
+        .zip(update.rest_info_change_masks.iter())
+    {
+        *dst = RestInfoValuesUpdate {
+            rest_info_mask: *nested_mask,
+            threshold: src.threshold,
+            state_id: src.state_id,
+        };
+    }
     packet_update.buyback_price = update.values.buyback_price;
     packet_update.buyback_timestamp = update.values.buyback_timestamp;
     packet_update.bank_bag_slot_flags = update.values.bank_bag_slot_flags;
@@ -1010,7 +1023,9 @@ mod tests {
         ACTIVE_PLAYER_DATA_HEIRLOOMS_BIT, ACTIVE_PLAYER_DATA_HONOR_BIT,
         ACTIVE_PLAYER_DATA_HONOR_NEXT_LEVEL_BIT, ACTIVE_PLAYER_DATA_HONOR_PARENT_BIT,
         ACTIVE_PLAYER_DATA_PARENT_BIT, ACTIVE_PLAYER_DATA_QUEST_COMPLETED_FIRST_BIT,
-        ACTIVE_PLAYER_DATA_QUEST_COMPLETED_PARENT_BIT, ACTIVE_PLAYER_DATA_TOYS_BIT,
+        ACTIVE_PLAYER_DATA_QUEST_COMPLETED_PARENT_BIT, ACTIVE_PLAYER_DATA_REST_INFO_FIRST_BIT,
+        ACTIVE_PLAYER_DATA_REST_INFO_PARENT_BIT, ACTIVE_PLAYER_DATA_SCALING_PLAYER_LEVEL_DELTA_BIT,
+        ACTIVE_PLAYER_DATA_SCALING_PLAYER_LEVEL_DELTA_PARENT_BIT, ACTIVE_PLAYER_DATA_TOYS_BIT,
         ACTIVE_PLAYER_DATA_TRANSMOG_BIT, ACTIVE_PLAYER_DATA_WATCHED_FACTION_INDEX_BIT,
         AREA_TRIGGER_DATA_DURATION_BIT, AREA_TRIGGER_DATA_PARENT_BIT, Bag,
         CONTAINER_DATA_NUM_SLOTS_BIT, CONVERSATION_DATA_LAST_LINE_END_TIME_BIT,
@@ -1091,6 +1106,91 @@ mod tests {
             ACTIVE_PLAYER_DATA_EXPLORED_ZONES_FIRST_BIT + 9
         ));
         assert_eq!(active.explored_zones[9], u64::MAX);
+    }
+
+    #[test]
+    fn bridges_scaling_player_level_delta_with_cpp_section_mask() {
+        let mut player = Player::new(None, false);
+        player.clear_data_changes();
+        player.set_scaling_player_level_delta_like_cpp(-1);
+
+        let update = player.values_update(true);
+        let packet_update = player_values_update_to_packet(&update).unwrap();
+
+        assert_eq!(
+            packet_update.changed_object_type_mask,
+            1 << TYPEID_ACTIVE_PLAYER
+        );
+        let active = packet_update.active_player_data.unwrap();
+        assert_eq!(active.scaling_player_level_delta, -1);
+        assert_eq!(active.active_player_data_mask[0], 1);
+        assert_eq!(active.active_player_data_mask[1], 0);
+        assert_eq!(
+            active.active_player_data_mask[2],
+            (1 << (ACTIVE_PLAYER_DATA_SCALING_PLAYER_LEVEL_DELTA_PARENT_BIT - 64))
+                | (1 << (ACTIVE_PLAYER_DATA_SCALING_PLAYER_LEVEL_DELTA_BIT - 64))
+        );
+        assert!(
+            active.active_player_data_mask[3..]
+                .iter()
+                .all(|block| *block == 0)
+        );
+    }
+
+    #[test]
+    fn bridges_isolated_rest_info_delta_without_player_flags_like_cpp() {
+        let mut player = Player::new(None, false);
+        player.clear_data_changes();
+        player.prepare_rest_info_values_update_like_cpp(0, 123, 1, 0x07);
+
+        let update = player.values_update(true);
+        let packet_update = player_values_update_to_packet(&update).unwrap();
+
+        assert_eq!(
+            packet_update.changed_object_type_mask,
+            1 << TYPEID_ACTIVE_PLAYER
+        );
+        assert!(packet_update.object_data.is_none());
+        assert!(packet_update.unit_data.is_none());
+        assert!(
+            packet_update
+                .player_data_mask
+                .iter()
+                .all(|block| *block == 0)
+        );
+        let active = packet_update.active_player_data.unwrap();
+        assert!(mask_has(
+            &active.active_player_data_mask,
+            ACTIVE_PLAYER_DATA_REST_INFO_PARENT_BIT
+        ));
+        assert!(mask_has(
+            &active.active_player_data_mask,
+            ACTIVE_PLAYER_DATA_REST_INFO_FIRST_BIT
+        ));
+        assert_eq!(active.rest_info[0].rest_info_mask, 0x07);
+        assert_eq!(active.rest_info[0].threshold, 123);
+        assert_eq!(active.rest_info[0].state_id, 1);
+    }
+
+    #[test]
+    fn rest_bonus_combined_set_marks_both_nested_fields_like_cpp() {
+        let mut player = Player::new(None, false);
+        player.clear_data_changes();
+
+        player.set_xp_rest_info_like_cpp(123, 0);
+        let threshold_only = player_values_update_to_packet(&player.values_update(true)).unwrap();
+        assert_eq!(
+            threshold_only.active_player_data.unwrap().rest_info[0].rest_info_mask,
+            0x07
+        );
+
+        player.clear_data_changes();
+        player.set_xp_rest_info_like_cpp(123, 1);
+        let state_only = player_values_update_to_packet(&player.values_update(true)).unwrap();
+        assert_eq!(
+            state_only.active_player_data.unwrap().rest_info[0].rest_info_mask,
+            0x07
+        );
     }
 
     #[test]

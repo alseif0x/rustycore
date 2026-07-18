@@ -1186,6 +1186,13 @@ pub enum CharStatements {
     /// UPDATE characters SET power1 = ?, ..., power10 = ? WHERE guid = ?
     UPD_CHAR_POWERS,
     /// C++ `CHAR_UPD_CHARACTER` persists these fields in the full save.
+    /// UPDATE characters SET restState = ?, playerFlags = ?, rest_bonus = ?, logout_time = ?, is_logout_resting = ? WHERE guid = ?
+    UPD_CHAR_REST_STATE,
+    /// C++ `RestMgr::GetRestBonusFor` updates in-memory rest state during online XP gain; Rust
+    /// persists only those fields here and leaves logout_time/is_logout_resting untouched.
+    /// UPDATE characters SET restState = ?, playerFlags = ?, rest_bonus = ? WHERE guid = ?
+    UPD_CHAR_ONLINE_REST_STATE,
+    /// C++ `CHAR_UPD_CHARACTER` persists these fields in the full save.
     /// UPDATE characters SET resettalents_cost = ?, resettalents_time = ? WHERE guid = ?
     UPD_CHAR_TALENT_RESET_STATE,
     /// UPDATE characters SET xp = ? WHERE guid = ?
@@ -2774,6 +2781,12 @@ impl StatementDef for CharStatements {
             Self::UPD_CHAR_HEALTH => "UPDATE characters SET health = ? WHERE guid = ?",
             Self::UPD_CHAR_POWERS => {
                 "UPDATE characters SET power1 = ?, power2 = ?, power3 = ?, power4 = ?, power5 = ?, power6 = ?, power7 = ?, power8 = ?, power9 = ?, power10 = ? WHERE guid = ?"
+            }
+            Self::UPD_CHAR_REST_STATE => {
+                "UPDATE characters SET restState = ?, playerFlags = ?, rest_bonus = ?, logout_time = ?, is_logout_resting = ? WHERE guid = ?"
+            }
+            Self::UPD_CHAR_ONLINE_REST_STATE => {
+                "UPDATE characters SET restState = ?, playerFlags = ?, rest_bonus = ? WHERE guid = ?"
             }
             Self::UPD_CHAR_TALENT_RESET_STATE => {
                 "UPDATE characters SET resettalents_cost = ?, resettalents_time = ? WHERE guid = ?"
@@ -4636,6 +4649,14 @@ mod tests {
         assert_eq!(
             CharStatements::UPD_CHAR_POWERS.sql(),
             "UPDATE characters SET power1 = ?, power2 = ?, power3 = ?, power4 = ?, power5 = ?, power6 = ?, power7 = ?, power8 = ?, power9 = ?, power10 = ? WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_CHAR_REST_STATE.sql(),
+            "UPDATE characters SET restState = ?, playerFlags = ?, rest_bonus = ?, logout_time = ?, is_logout_resting = ? WHERE guid = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_CHAR_ONLINE_REST_STATE.sql(),
+            "UPDATE characters SET restState = ?, playerFlags = ?, rest_bonus = ? WHERE guid = ?"
         );
         assert_eq!(
             CharStatements::UPD_CHAR_DIFFICULTIES.sql(),

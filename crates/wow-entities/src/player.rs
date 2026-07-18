@@ -683,6 +683,8 @@ pub const ACTIVE_PLAYER_DATA_SUMMONED_BATTLE_PET_GUID_BIT: usize = 27;
 pub const ACTIVE_PLAYER_DATA_COINAGE_BIT: usize = 28;
 pub const ACTIVE_PLAYER_DATA_XP_BIT: usize = 29;
 pub const ACTIVE_PLAYER_DATA_NEXT_LEVEL_XP_BIT: usize = 30;
+pub const ACTIVE_PLAYER_DATA_SCALING_PLAYER_LEVEL_DELTA_PARENT_BIT: usize = 70;
+pub const ACTIVE_PLAYER_DATA_SCALING_PLAYER_LEVEL_DELTA_BIT: usize = 94;
 pub const ACTIVE_PLAYER_DATA_CHARACTER_POINTS_BIT: usize = 33;
 pub const ACTIVE_PLAYER_DATA_HEIRLOOMS_BIT: usize = 7;
 pub const ACTIVE_PLAYER_DATA_HEIRLOOM_FLAGS_BIT: usize = 8;
@@ -697,6 +699,8 @@ pub const ACTIVE_PLAYER_DATA_INV_SLOTS_PARENT_BIT: usize = 124;
 pub const ACTIVE_PLAYER_DATA_INV_SLOTS_FIRST_BIT: usize = 125;
 pub const ACTIVE_PLAYER_DATA_EXPLORED_ZONES_PARENT_BIT: usize = 298;
 pub const ACTIVE_PLAYER_DATA_EXPLORED_ZONES_FIRST_BIT: usize = 299;
+pub const ACTIVE_PLAYER_DATA_REST_INFO_PARENT_BIT: usize = 539;
+pub const ACTIVE_PLAYER_DATA_REST_INFO_FIRST_BIT: usize = 540;
 pub const ACTIVE_PLAYER_DATA_BUYBACK_PARENT_BIT: usize = 549;
 pub const ACTIVE_PLAYER_DATA_BUYBACK_PRICE_FIRST_BIT: usize = 550;
 pub const ACTIVE_PLAYER_DATA_BUYBACK_TIMESTAMP_FIRST_BIT: usize = 562;
@@ -3171,9 +3175,11 @@ pub struct ActivePlayerDataValues {
     pub honor: i32,
     pub honor_next_level: i32,
     pub watched_faction_index: i32,
+    pub scaling_player_level_delta: i32,
     pub num_backpack_slots: u8,
     pub inv_slots: [ObjectGuid; PLAYER_SLOT_END],
     pub explored_zones: [u64; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP],
+    pub rest_info: [PlayerRestInfoValueLikeCpp; 2],
     pub buyback_price: [u32; BUYBACK_SLOT_COUNT],
     pub buyback_timestamp: [i64; BUYBACK_SLOT_COUNT],
     pub bank_bag_slot_flags: [u32; 7],
@@ -3190,6 +3196,12 @@ pub struct ActivePlayerDataValues {
     pub quest_completed: [u64; QUESTS_COMPLETED_BITS_SIZE],
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct PlayerRestInfoValueLikeCpp {
+    pub threshold: u32,
+    pub state_id: u8,
+}
+
 impl Default for ActivePlayerDataValues {
     fn default() -> Self {
         Self {
@@ -3202,9 +3214,11 @@ impl Default for ActivePlayerDataValues {
             honor: 0,
             honor_next_level: 0,
             watched_faction_index: -1,
+            scaling_player_level_delta: 0,
             num_backpack_slots: 0,
             inv_slots: [ObjectGuid::EMPTY; PLAYER_SLOT_END],
             explored_zones: [0; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP],
+            rest_info: [PlayerRestInfoValueLikeCpp::default(); 2],
             buyback_price: [0; BUYBACK_SLOT_COUNT],
             buyback_timestamp: [0; BUYBACK_SLOT_COUNT],
             bank_bag_slot_flags: [0; 7],
@@ -3233,6 +3247,7 @@ pub struct PlayerDataUpdate {
 pub struct ActivePlayerDataUpdate {
     pub mask: UpdateMask,
     pub values: ActivePlayerDataValues,
+    pub rest_info_change_masks: [u8; 2],
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -3260,6 +3275,7 @@ pub struct Player {
     gameplay_state: PlayerGameplayState,
     player_data_changes: UpdateMask,
     active_player_data_changes: UpdateMask,
+    rest_info_change_masks: [u8; 2],
     mod_melee_hit_chance: f32,
     mod_ranged_hit_chance: f32,
     mod_spell_hit_chance: f32,
@@ -3297,6 +3313,7 @@ impl Player {
             gameplay_state: PlayerGameplayState::default(),
             player_data_changes: UpdateMask::new(PLAYER_DATA_BITS),
             active_player_data_changes: UpdateMask::new(ACTIVE_PLAYER_DATA_BITS),
+            rest_info_change_masks: [0; 2],
             mod_melee_hit_chance: 7.5,
             mod_ranged_hit_chance: 7.5,
             mod_spell_hit_chance: 15.0,
@@ -3656,6 +3673,7 @@ impl Player {
 
     pub fn clear_active_player_data_changes(&mut self) {
         self.active_player_data_changes.reset_all();
+        self.rest_info_change_masks = [0; 2];
     }
 
     pub fn clear_data_changes(&mut self) {
@@ -3901,10 +3919,81 @@ impl Player {
         self.set_active_i32(ACTIVE_PLAYER_DATA_XP_BIT, xp, |data| &mut data.xp);
     }
 
+    /// Mirror C++ `ModifyValue(&m_activePlayerData->XP)`, which marks XP as
+    /// changed before the caller mutates it. This matters when `GiveXP`
+    /// crosses a level boundary and the final remainder equals the old XP.
+    pub fn mark_xp_changed_like_cpp(&mut self) {
+        self.mark_active_player_data(ACTIVE_PLAYER_DATA_XP_BIT);
+    }
+
     pub fn set_next_level_xp(&mut self, xp: i32) {
         self.set_active_i32(ACTIVE_PLAYER_DATA_NEXT_LEVEL_XP_BIT, xp, |data| {
             &mut data.next_level_xp
         });
+    }
+
+    pub fn set_scaling_player_level_delta_like_cpp(&mut self, delta: i32) {
+        self.set_active_i32_in_section(
+            ACTIVE_PLAYER_DATA_SCALING_PLAYER_LEVEL_DELTA_PARENT_BIT,
+            ACTIVE_PLAYER_DATA_SCALING_PLAYER_LEVEL_DELTA_BIT,
+            delta,
+            |data| &mut data.scaling_player_level_delta,
+        );
+    }
+
+    /// Mirror the unconditional C++ `ModifyValue` performed by `Player::SetXP`.
+    pub fn mark_scaling_player_level_delta_changed_like_cpp(&mut self) {
+        self.mark_active_player_data_section(
+            ACTIVE_PLAYER_DATA_SCALING_PLAYER_LEVEL_DELTA_PARENT_BIT,
+            ACTIVE_PLAYER_DATA_SCALING_PLAYER_LEVEL_DELTA_BIT,
+        );
+    }
+
+    pub fn set_xp_rest_info_like_cpp(&mut self, threshold: u32, state_id: u8) {
+        self.set_rest_info_like_cpp(0, threshold, state_id);
+    }
+
+    pub fn set_rest_info_like_cpp(&mut self, index: usize, threshold: u32, state_id: u8) {
+        let Some(rest_info) = self.active_data.rest_info.get_mut(index) else {
+            return;
+        };
+        if rest_info.threshold != threshold || rest_info.state_id != state_id {
+            rest_info.threshold = threshold;
+            rest_info.state_id = state_id;
+            // C++ `RestMgr::SetRestBonus` calls both `SetRestThreshold` and
+            // `SetRestState` whenever either visible value changes. Each
+            // `ModifyValue` marks its field before the value comparison, so
+            // the nested RestInfo mask is always parent + both fields.
+            self.rest_info_change_masks[index] |= 0x07;
+            self.mark_active_player_data_section(
+                ACTIVE_PLAYER_DATA_REST_INFO_PARENT_BIT,
+                ACTIVE_PLAYER_DATA_REST_INFO_FIRST_BIT + index,
+            );
+        }
+    }
+
+    /// Build an isolated nested RestInfo values update with an explicit mask.
+    pub fn prepare_rest_info_values_update_like_cpp(
+        &mut self,
+        index: usize,
+        threshold: u32,
+        state_id: u8,
+        nested_mask: u8,
+    ) {
+        let Some(rest_info) = self.active_data.rest_info.get_mut(index) else {
+            return;
+        };
+        let nested_mask = nested_mask & 0x07;
+        if nested_mask & 0x01 == 0 {
+            return;
+        }
+        rest_info.threshold = threshold;
+        rest_info.state_id = state_id;
+        self.rest_info_change_masks[index] = nested_mask;
+        self.mark_active_player_data_section(
+            ACTIVE_PLAYER_DATA_REST_INFO_PARENT_BIT,
+            ACTIVE_PLAYER_DATA_REST_INFO_FIRST_BIT + index,
+        );
     }
 
     pub fn set_honor_like_cpp(&mut self, honor: i32) {
@@ -8538,6 +8627,7 @@ impl Player {
             .then(|| ActivePlayerDataUpdate {
                 mask: self.active_player_data_changes.clone(),
                 values: self.active_data.clone(),
+                rest_info_change_masks: self.rest_info_change_masks,
             }),
         }
     }
@@ -12795,6 +12885,37 @@ mod tests {
 
         assert!(player.modify_money(1));
         assert_eq!(player.active_data().coinage, MAX_MONEY_AMOUNT);
+    }
+
+    #[test]
+    fn scaling_player_level_delta_marks_cpp_parent_and_field_bits() {
+        let mut player = Player::new(None, false);
+        player.clear_data_changes();
+
+        player.set_scaling_player_level_delta_like_cpp(-1);
+
+        assert_eq!(player.active_data().scaling_player_level_delta, -1);
+        let mask = player.active_player_data_changes_mask();
+        assert_eq!(mask.get_block(0), 1 << ACTIVE_PLAYER_DATA_PARENT_BIT);
+        assert_eq!(mask.get_block(1), 0);
+        assert_eq!(
+            mask.get_block(2),
+            (1 << (ACTIVE_PLAYER_DATA_SCALING_PLAYER_LEVEL_DELTA_PARENT_BIT - 64))
+                | (1 << (ACTIVE_PLAYER_DATA_SCALING_PLAYER_LEVEL_DELTA_BIT - 64))
+        );
+        assert!(mask.blocks()[3..].iter().all(|block| *block == 0));
+
+        player.clear_data_changes();
+        player.set_scaling_player_level_delta_like_cpp(-1);
+        assert!(!player.active_player_data_changes_mask().is_any_set());
+        player.mark_scaling_player_level_delta_changed_like_cpp();
+        let mask = player.active_player_data_changes_mask();
+        assert_eq!(mask.get_block(0), 1 << ACTIVE_PLAYER_DATA_PARENT_BIT);
+        assert_eq!(
+            mask.get_block(2),
+            (1 << (ACTIVE_PLAYER_DATA_SCALING_PLAYER_LEVEL_DELTA_PARENT_BIT - 64))
+                | (1 << (ACTIVE_PLAYER_DATA_SCALING_PLAYER_LEVEL_DELTA_BIT - 64))
+        );
     }
 
     #[test]

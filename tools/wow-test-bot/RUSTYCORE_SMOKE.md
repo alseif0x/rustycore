@@ -26,6 +26,11 @@ the corresponding Rust server port is ready.
 - `--inventory-swap-smoke`: creates two distinct occupied backpack slots, sends
   `CMSG_SWAP_INV_ITEM`, logs out/re-authenticates, swaps them back, and verifies
   both atomic DB transitions before cleaning the isolated local fixture.
+- `--rested-xp-smoke`: records a bounded set of fields from one disposable local
+  bot character, verifies offline wilderness/resting accrual, attacks a real
+  creature, checks `SMSG_LOG_XP_GAIN` and DB consumption, relogs, restores those
+  selected fields, and verifies natural target respawn cleanup. It requires the
+  CLI-only `--ack-disposable-rested-xp` acknowledgement.
 - `WOW_BOT_LOGIN_ONLY=1`: env equivalent of `--login-only`.
 - `WOW_BOT_CLIENT_BUILD` / `WOW_BOT_BUILD`: build value printed by the smoke,
   default `54261`.
@@ -41,6 +46,25 @@ the corresponding Rust server port is ready.
   `player_login_verified`. Quest smoke reports additionally include
   `quest_smoke_passed`, target entry/spawn/map, `quest_ids_seen`,
   `quest_titles_seen`, and `quest_failure`.
+
+The bot crate follows RustyCore's Rust 1.88.0 toolchain. Use `cargo +1.88.0` for
+standalone builds/tests of `tools/wow-test-bot`.
+
+The wrapper normally builds the bot locally. To run a reproducible PR artifact
+without invoking the local compiler, provide both the canonical executable path
+and its verified hash:
+
+```bash
+WOW_BOT_EXEC=/absolute/path/to/wow-test-bot \
+WOW_BOT_EXEC_SHA256=<sha256> \
+./run_rustycore_login_smoke.sh
+```
+
+The wrapper rejects relative paths, symlinks, non-executable files, missing or
+malformed hashes, and hash mismatches before starting the bot.
+GitHub artifact downloads do not preserve executable mode; verify the published
+hash first, then copy each binary into its immutable runtime path with
+`install -m 0755` before invoking the wrapper.
 
 The bot still supports the previous LFG path. Do not use LFG as the RustyCore
 migration gate until the server-side LFG port is explicitly ready.
@@ -91,6 +115,140 @@ full relog to observe the persisted forward state, and the inverse exchange to
 persist after the second logout. Setup and cleanup are restricted to
 `@bot.local` accounts. `WOW_BOT_INVENTORY_SWAP_ITEM_ENTRY_A/B` (defaults
 `2589`/`2592`) and `WOW_BOT_INVENTORY_SWAP_TIMEOUT_SECS` are optional.
+
+## Rested XP accrual and consumption smoke
+
+Run the complete offline-accrual, kill-consumption, DB-persistence, and relog
+round-trip with:
+
+```bash
+WOW_BOT_RESTED_XP_SMOKE=1 \
+WOW_BOT_ACK_DISPOSABLE_RESTED_XP=1 \
+./run_rustycore_login_smoke.sh
+```
+
+The wrapper converts `WOW_BOT_ACK_DISPOSABLE_RESTED_XP=1` into the mandatory
+`--ack-disposable-rested-xp` CLI flag. The bot binary deliberately has no
+environment-variable bypass for that acknowledgement, and the flag is rejected
+unless rested-XP smoke is enabled.
+
+The default fixture uses Mana Wyrm entry `15274`, simulates `86400` seconds
+offline, and allows `120` seconds for the live protocol phase. The conservative
+bound accommodates the current unarmed canonical-player damage boundary while
+still failing closed on an invalid target or a stalled combat stream. It validates both
+offline rates (wilderness and a resting location), then gives the character a
+known rest pool and attacks a real nearby creature. A pass requires the
+corresponding `SMSG_LOG_XP_GAIN`, its base/rested split, matching XP/rest values
+in the character DB, and a fresh authentication/login that observes the same
+persisted values and `restState`. The live bot does not yet decode the nested
+ActivePlayer XP/RestInfo fields inside `SMSG_UPDATE_OBJECT`; their atomic mask
+and values remain covered by focused packet/unit tests, not claimed as a live
+wire assertion here.
+
+Each rested-XP phase requests a normal logout, handles the stock C++ wilderness
+countdown (including time-sync traffic), then closes both realm and instance
+sockets and waits for a stable offline character row before reading
+persistence. The bounded DB wait also covers C++'s 60-second raw socket-loss
+session expiry if a runtime closes before `SMSG_LOGOUT_COMPLETE`. The workflow
+does not assume that `Player::GiveXP` writes the database before character
+save.
+
+Useful overrides:
+
+- `WOW_BOT_RESTED_XP_CREATURE_ENTRY` / `--rested-xp-creature-entry`: target
+  creature template entry; default `15274`.
+- `WOW_BOT_RESTED_XP_CREATURE_GUID` / `--rested-xp-creature-guid`: optional
+  exact persistent `world.creature.guid` spawn identity.
+- `WOW_BOT_RESTED_XP_RUNTIME_COUNTER` / `--rested-xp-runtime-counter`:
+  optional live map-generated `ObjectGuid` low counter. It is fail-closed: the
+  same counter must be discovered near the selected SQL spawn in that login's
+  `SMSG_UPDATE_OBJECT` stream; it cannot bypass spawn discovery.
+- `WOW_BOT_RESTED_XP_OFFLINE_SECS` / `--rested-xp-offline-secs`: simulated
+  offline interval; default `86400`. It must fit `uint32` and be smaller than
+  the current Unix timestamp.
+- `WOW_BOT_RESTED_XP_TIMEOUT_SECS` / `--rested-xp-timeout`: live protocol
+  timeout; default `120`. Natural-respawn cleanup uses the larger of this value
+  and the persisted runtime `respawnTime` plus a 15-second tick grace. A pass
+  requires observing the DB transition from a present timer to a stable absent
+  row; absence alone is not treated as proof of respawn. The precheck accepts
+  only SQL respawns from 30 through 600 seconds, and the observed wait has a
+  fail-closed 900-second safety bound.
+
+The GUID overrides are not normally required: the bot selects the requested
+spawn near the fixture position and discovers its live counter in the login
+`SMSG_UPDATE_OBJECT` stream. The wire GUID does not contain the persistent SQL
+spawn id, so the harness links both identities fail-closed through entry, map,
+and proximity to the selected spawn's SQL home position. Once it discovers the
+live position, it first acknowledges active-mover initialization with
+`CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE` (required by C++ visibility), then sends
+a complete `CMSG_MOVE_HEARTBEAT` to stand one yard away
+and face the target before `CMSG_ATTACK_SWING`. During the bounded combat wait,
+it answers every periodic `SMSG_TIME_SYNC_REQUEST` with the C++-layout
+`CMSG_TIME_SYNC_RESPONSE`. This mirrors a real client and keeps the session
+active while a full-health target takes longer than the idle-session interval,
+instead of silently ceasing to advance player auto-attacks.
+
+Without an explicit trusted runtime counter, preflight also rejects another
+same-entry/map SQL spawn whose movement radius overlaps the selected target's
+matching sphere. This prevents a nearby wanderer from satisfying discovery
+while cleanup watches the wrong persistent spawn.
+
+This is a destructive **disposable-fixture-only** smoke, not a rollback-safe test
+for a normal character. Its cleanup restores the explicitly recorded
+`characters` fields used by the workflow (level/XP/rest flags and bonus,
+logout marker, location, health/powers, kill counters, and played time). Because
+preflight proves they start empty, cleanup also removes only this fixture's
+deterministic login/save rows from `character_glyphs`, `character_reputation`,
+`character_skills`, and `battlenet_account_transmog_illusions`. These rows are
+the bounded defaults materialized by a stock C++ login/save on the disposable
+fixture; an unexpected protected-table mutation is still left visible and
+fails the next preflight. It also snapshots and exactly
+restores `character_achievement` and `character_achievement_progress`, which a
+real C++ kill can mutate, plus `character_trait_config` and
+`character_trait_entry`, where C++ login/save can materialize missing
+specialization defaults. It likewise preserves optional homebind, fishing, and
+battleground rows, all game-account last-played rows, and Battle.net pet slots;
+stock C++ can replace or materialize those during login/save. The smoke fails
+closed unless `PlayerSave.Stats.MinLevel=0`, because enabling that diagnostic
+table makes C++ rewrite `character_stats` on logout, and unless
+`PlayerStart.AllSpells=0`, which prevents configuration-driven spell
+materialization. Other
+character/account/Battle.net tables remain outside that bounded restore.
+
+The precheck therefore requires an `@bot.local` identity whose configured email
+matches the Battle.net owner of the selected game account, with exactly one
+character on its game account and exactly one game account on its Battle.net
+identity, `characters.at_login = 0`, no Recruit-A-Friend or group membership,
+and no active quest/objective/criteria state. It also rejects non-empty
+high-risk state in `character_inventory`, pets, auras, spell cooldowns/charges,
+skills, glyphs, talents, spells/favorites, action bars, reputation,
+equipment/transmog sets, CUF profiles, corpses, tutorials, account instance
+locks, guild membership, void storage, Battle.net pets, and Battle.net
+collection tables. The target must have no on-kill
+reputation and no pre-existing respawn row. These checks reduce collateral
+mutation; they do not turn the bounded field restore into a complete database
+backup. If the server creates rows in any other protected table during the
+login/logout cycle, cleanup intentionally leaves them visible so the next
+preflight fails instead of hiding a new side effect.
+
+After the workflow, the harness waits for the server's normal runtime respawn
+to remove the target's `respawn` row and verifies stable absence. It never
+deletes that row manually. If the bounded wait expires, the smoke fails and
+reports the remaining spawn/map/`respawnTime`; wait for the runtime respawn
+before retrying. Do not interrupt cleanup, never point this mode at a player's
+normal character, and inspect `rested_xp_failure` after any failure.
+
+Default artifacts:
+
+```text
+/tmp/rustycore-bot-rested-xp-smoke.log
+/tmp/rustycore-bot-rested-xp-smoke-report.json
+```
+
+The report summary exposes `rested_xp_smoke_passed`, both offline bonuses,
+target entry/spawn/runtime ids, XP packet `amount`/`original`, DB XP/rest values
+before and after consumption, `rested_xp_relog_verified`, and
+`rested_xp_failure`.
 
 ## Default RustyCore smoke command
 

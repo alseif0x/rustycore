@@ -1,11 +1,15 @@
 # Migration: Entities / Player
 
 > **C++ canonical path:** `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/`
-> **Rust target crate(s):** `crates/wow-world/` (currently flat fields on `WorldSession`), proposed `crates/wow-entities/` (does not exist), partials in `crates/wow-database/`, `crates/wow-data/`, `crates/wow-spell/`, `crates/wow-loot/`
+> **Rust target crate(s):** `crates/wow-entities/` (`Player` exists), with transitional live state and persistence still split across `crates/wow-world/`, `crates/world-server/`, `crates/wow-map/`, `crates/wow-database/`, `crates/wow-data/`, `crates/wow-spell/`, and `crates/wow-loot/`
 > **Layer:** L4 (Entity layer; subclass of `Unit` from `entities-unit.md`)
-> **Status:** 🔧 broken (rewrite needed) — `Player` as a class **does not exist** in RustyCore. Per-character state is exploded into ~70+ flat fields on `WorldSession` (`crates/wow-world/src/session.rs:65-309`). There is no `Player::Update()` aggregation, no `LoadFromDB`/`SaveToDB`, no equip/store/inventory pipeline beyond a `HashMap<u8, InventoryItem>`, no talent/spec/glyph state, no skill state object, no rest manager, no taxi, no trade data, no scene manager, no cinematic manager, no kill rewarder, no equipment sets. The C# legacy port had `Player` split across many partial files; the Rust rewrite has not begun the entity model.
-> **Audited vs C++:** ✅ complete (2026-05-01) — header-by-header inventory of `Player.h` (3189 lines) + spot audit of `Player.cpp` (29358 lines) and the eight neighbour managers
-> **Last updated:** 2026-05-01
+> **Status:** 🔧 **PARTIAL** — a real `wow_entities::Player` and several live persistence/gameplay slices now exist, but ownership remains split with `WorldSession`; unified C++-style `Player::Update`, `LoadFromDB`, `SaveToDB`, full `RestMgr`, `KillRewarder`, taxi/trade/scene/cinematic managers, and much of the long tail remain incomplete.
+> **Audited vs C++:** the 2026-05-01 inventory below is useful for surface area but its Rust status snapshot is superseded by `STATE.md`; the rested-XP slice was re-contrasted against both C++ trees on 2026-07-18.
+> **Last updated:** 2026-07-18 (bounded issue #81 evidence; not a full Player re-audit)
+
+> Historical-status warning: sections that say `Player` or `wow-entities` do not
+> exist describe the 2026-05-01 snapshot. They are retained as audit history,
+> not current-state proof.
 
 ---
 
@@ -70,7 +74,7 @@ The Player module is **not split per-feature** in this branch (unlike the C# por
 | `PlayerTaxi.h` | 95 | `PlayerTaxi` — owned by `Player` (`Player::m_taxi`), per-zone bitmask (`taximask` BLOB column) + active path queue |
 | `PlayerTaxi.cpp` | 229 | Mask init by race/class/level, save/load, Append/Pop nodes |
 | `RestMgr.h` | 92 | `RestMgr` — owned by `Player` (`Player::_restMgr`), in-tavern/in-city flag tracking + rested XP accrual |
-| `RestMgr.cpp` | 172 | `Update()` ticked from `Player::Update()` line 1006; awards 5%/8h regular, 25%/8h tavern multiplier |
+| `RestMgr.cpp` | 172 | `Update()` ticked from `Player::Update()` line 1006; at rate 1 the offline formula awards about 1.24% of next-level XP per 8h in wilderness and 5% per 8h in tavern/city |
 | `SceneDefines.h` | 37 | `SceneFlag`, `SceneTriggerEvent` enums |
 | `SceneMgr.h` | 87 | `SceneMgr` — scenario/scene-template runner per Player |
 | `SceneMgr.cpp` | 247 | `PlayScene`/`CancelScene`; very thin in 3.4.3, used by some questline cinematics |
@@ -666,6 +670,22 @@ Numbered for cross-reference from `MIGRATION_ROADMAP.md` §5. Complexity: **L** 
 - [ ] **#PLAYER.10** AFK report tick + chat-flood throttle (M)
 - [ ] **#PLAYER.11** Item duration + soulbound trade-window expiry tick (depends on `Item` entity) (M)
 - [ ] **#PLAYER.12** `RestMgr` port — ZONE_UPDATE_INTERVAL gate, in-tavern flag, rested XP accrual (H)
+  - 2026-07-18 / issue #81 live slice: C++-anchored XP rest load/save,
+    wilderness/resting offline accrual, caps/thresholds, live kill consumption,
+    DB persistence and relog now pass focused tests plus the guarded symmetric
+    bot workflow. The committed `rested-xp-kill` flow is strict-CLEAN for the
+    realm-routed `SMSG_LOG_XP_GAIN`, normalizing only the victim's nonzero lower
+    40-bit runtime GUID counter.
+  - Keep this aggregate open: state still lives across `WorldSession` and the
+    transitional Player/runtime models rather than a dedicated per-Player
+    `RestMgr`; exact `Player::Update` ownership/gating, honor rest, a real
+    tavern/city AreaTrigger walk, and captured nested `RestInfo` update-field
+    wire remain incomplete.
+  - Legacy discrepancy recorded: the primary C++ tree marks XP rested at
+    `bonus >= 1`, supports XP/honor rest and aura-modified consumption; legacy2
+    uses `> 10`/`<= 1`, XP only, and no consumption aura. Both agree on the
+    offline formula and `LogXPGain` layout. Rust follows the primary source of
+    truth; the difference is not silently resolved from the secondary tree.
 - [ ] **#PLAYER.13** Mirror timers (`HandleDrowning`) — fatigue, breath, environmental fire (H)
 - [ ] **#PLAYER.14** Drunk timer + sobering (L)
 - [ ] **#PLAYER.15** Death/JustDied → KillPlayer + corpse repop graveyard sweep (M)
@@ -931,9 +951,10 @@ For the 3.4.3 client target, ignore these. The Wrath canonical loaders are ~33 o
 
 ---
 
-## 13. Audit (vs C++)
+## 13. Historical audit (vs C++, 2026-05-01; status superseded)
 
-**Conclusion**: 🔧 broken — `Player` as a class **does not exist** in RustyCore.
+**Historical conclusion (2026-05-01; no longer current)**: 🔧 broken — `Player`
+as a class **does not exist** in the audited snapshot.
 
 **Evidence cross-checked 2026-05-01:**
 

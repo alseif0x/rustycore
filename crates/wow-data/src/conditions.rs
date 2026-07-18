@@ -761,7 +761,7 @@ pub struct ConditionExternalValidationStoresLikeCpp<'a> {
     pub map_store: Option<&'a crate::MapStore>,
     pub phase_store: Option<&'a crate::PhaseStore>,
     pub quest_store: Option<&'a crate::quest::QuestStore>,
-    pub area_trigger_store: Option<&'a crate::AreaTriggerStore>,
+    pub area_trigger_db2_store: Option<&'a crate::AreaTriggerDb2Store>,
     pub graveyard_store: Option<&'a crate::GraveyardStore>,
     pub spawn_group_store: Option<&'a crate::SpawnGroupTemplateStore>,
     pub creature_template_store: Option<&'a crate::WorldIdStore>,
@@ -1513,10 +1513,10 @@ pub fn validate_and_normalize_condition_source_external_like_cpp(
             }
         }
         ConditionSourceType::AreaTriggerClientTriggered => {
-            if let Some(store) = stores.area_trigger_store
+            if let Some(store) = stores.area_trigger_db2_store
                 && u32::try_from(condition.source_entry)
                     .ok()
-                    .and_then(|id| store.get_trigger(id))
+                    .and_then(|id| store.get(id))
                     .is_none()
             {
                 return Err(Error::NonExistingClientAreaTrigger(condition.source_entry));
@@ -3617,19 +3617,29 @@ mod tests {
                 ],
             },
         );
-        let mut area_trigger_store = crate::AreaTriggerStore::new();
-        area_trigger_store.insert(crate::AreaTriggerData {
-            trigger_id: 300,
-            map_id: 571,
-            pos: wow_core::Position::ZERO,
-            shape: crate::TriggerShape::Sphere,
-            radius: 1.0,
-            extents: [0.0; 3],
-            height: 0.0,
-            yaw: 0.0,
-            vertices: Vec::new(),
-            teleport: None,
-        });
+        let area_trigger_store =
+            crate::AreaTriggerDb2Store::from_entries([crate::AreaTriggerDb2Entry {
+                id: 300,
+                message: String::new(),
+                pos: crate::maps_world::Db2Position3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                continent_id: 571,
+                phase_use_flags: 0,
+                phase_id: 0,
+                phase_group_id: 0,
+                radius: 1.0,
+                box_length: 0.0,
+                box_width: 0.0,
+                box_height: 0.0,
+                box_yaw: 0.0,
+                shape_type: 0,
+                shape_id: 0,
+                area_trigger_action_set_id: 0,
+                flags: 0,
+            }]);
         let mut graveyard_store = crate::GraveyardStore::default();
         graveyard_store.load_graveyard_zones_from_rows_like_cpp(
             [crate::GraveyardZoneRow {
@@ -3673,7 +3683,7 @@ mod tests {
             map_store: Some(&map_store),
             quest_store: Some(&quest_store),
             spell_store: Some(&spell_store),
-            area_trigger_store: Some(&area_trigger_store),
+            area_trigger_db2_store: Some(&area_trigger_store),
             graveyard_store: Some(&graveyard_store),
             spawn_group_store: Some(&spawn_group_store),
             creature_template_store: Some(&creature_template_store),

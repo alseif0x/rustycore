@@ -13,6 +13,10 @@
 #   PM2_CPP_WORLD   pm2 name of the C++ world  (default: cpp-world) — stopped first
 #   RUST_WORLD_PORT realm listener readiness port (default: 8085)
 #   RUST_INSTANCE_PORT instance listener readiness port (default: 8086)
+#   RUST_CAPTURE_EXEC optional absolute canonical executable used only while
+#                     capturing; the original PM2 executable is still restored
+#   RUST_CAPTURE_EXEC_SHA256 mandatory 64-hex SHA-256 when RUST_CAPTURE_EXEC is
+#                            set; both the file and live /proc executable must match
 #
 # This restarts the live world server (disconnecting players). Pass --yes to skip
 # the confirmation prompt.
@@ -31,6 +35,96 @@ PM2_RUST_WORLD="${PM2_RUST_WORLD:-rustycore-world}"
 PM2_CPP_WORLD="${PM2_CPP_WORLD:-cpp-world}"
 RUST_WORLD_PORT="${RUST_WORLD_PORT:-8085}"
 RUST_INSTANCE_PORT="${RUST_INSTANCE_PORT:-8086}"
+RUST_CAPTURE_EXEC="${RUST_CAPTURE_EXEC:-}"
+RUST_CAPTURE_EXEC_SHA256="${RUST_CAPTURE_EXEC_SHA256:-}"
+CAPTURE_EXEC=""
+CAPTURE_EXEC_SHA256=""
+
+sha256_of_file() {
+  local output digest
+  output="$(sha256sum <"$1")" || return 1
+  digest="${output%% *}"
+  [[ "$digest" =~ ^[0-9a-f]{64}$ ]] || return 1
+  printf '%s\n' "$digest"
+}
+
+capture_exec_source_matches() {
+  [ -n "$CAPTURE_EXEC" ] || return 0
+
+  local canonical digest
+  canonical="$(realpath -e -- "$CAPTURE_EXEC" 2>/dev/null)" || return 1
+  [ "$canonical" = "$CAPTURE_EXEC" ] || return 1
+  [ -f "$CAPTURE_EXEC" ] && [ -x "$CAPTURE_EXEC" ] || return 1
+  digest="$(sha256_of_file "$CAPTURE_EXEC")" || return 1
+  [ "$digest" = "$CAPTURE_EXEC_SHA256" ]
+}
+
+capture_process_exec_matches() {
+  local identity="$1"
+  [ -n "$CAPTURE_EXEC" ] || return 0
+
+  local pid proc_exe live_exec source_digest live_digest
+  [[ "$identity" == *$'\t'* ]] || return 1
+  pid="${identity%%$'\t'*}"
+  [[ "$pid" =~ ^[1-9][0-9]*$ ]] || return 1
+  proc_exe="/proc/${pid}/exe"
+  [ -L "$proc_exe" ] || return 1
+
+  # Resolve through /proc so an unlinked/replaced executable (reported as
+  # "(deleted)") is rejected instead of being confused with the supplied path.
+  live_exec="$(realpath -e -- "$proc_exe" 2>/dev/null)" || return 1
+  [ "$live_exec" = "$CAPTURE_EXEC" ] || return 1
+
+  # Hash both names: CAPTURE_EXEC proves the source path still names the pinned
+  # bytes, while /proc/<pid>/exe proves those are the bytes PM2 actually ran.
+  source_digest="$(sha256_of_file "$CAPTURE_EXEC")" || return 1
+  live_digest="$(sha256_of_file "$proc_exe")" || return 1
+  [ "$source_digest" = "$CAPTURE_EXEC_SHA256" ] \
+    && [ "$live_digest" = "$CAPTURE_EXEC_SHA256" ]
+}
+
+if [ -n "$RUST_CAPTURE_EXEC" ]; then
+  command -v realpath >/dev/null 2>&1 || {
+    echo "error: realpath is required when RUST_CAPTURE_EXEC is set" >&2
+    exit 1
+  }
+  [[ "$RUST_CAPTURE_EXEC" = /* ]] || {
+    echo "error: RUST_CAPTURE_EXEC must be an absolute canonical path" >&2
+    exit 1
+  }
+  if ! CAPTURE_EXEC="$(realpath -e -- "$RUST_CAPTURE_EXEC" 2>/dev/null)"; then
+    echo "error: RUST_CAPTURE_EXEC does not exist: ${RUST_CAPTURE_EXEC}" >&2
+    exit 1
+  fi
+  [ "$CAPTURE_EXEC" = "$RUST_CAPTURE_EXEC" ] || {
+    echo "error: RUST_CAPTURE_EXEC must already be canonical: ${CAPTURE_EXEC}" >&2
+    exit 1
+  }
+  [ -f "$CAPTURE_EXEC" ] && [ -x "$CAPTURE_EXEC" ] || {
+    echo "error: RUST_CAPTURE_EXEC is not an executable regular file" >&2
+    exit 1
+  }
+  [ -n "$RUST_CAPTURE_EXEC_SHA256" ] || {
+    echo "error: RUST_CAPTURE_EXEC_SHA256 is required when RUST_CAPTURE_EXEC is set" >&2
+    exit 1
+  }
+  [[ "$RUST_CAPTURE_EXEC_SHA256" =~ ^[0-9A-Fa-f]{64}$ ]] || {
+    echo "error: RUST_CAPTURE_EXEC_SHA256 must contain exactly 64 hexadecimal characters" >&2
+    exit 1
+  }
+  command -v sha256sum >/dev/null 2>&1 || {
+    echo "error: sha256sum is required when RUST_CAPTURE_EXEC is set" >&2
+    exit 1
+  }
+  CAPTURE_EXEC_SHA256="${RUST_CAPTURE_EXEC_SHA256,,}"
+  if ! capture_exec_source_matches; then
+    echo "error: RUST_CAPTURE_EXEC does not match RUST_CAPTURE_EXEC_SHA256" >&2
+    exit 1
+  fi
+elif [ -n "$RUST_CAPTURE_EXEC_SHA256" ]; then
+  echo "error: RUST_CAPTURE_EXEC_SHA256 requires RUST_CAPTURE_EXEC" >&2
+  exit 1
+fi
 
 DUMP_DIR="${REPO_ROOT}/target/captures/${FLOW}/rust"
 
@@ -112,7 +206,7 @@ snapshot_process_identity() {
         and ($running[0].pm2_env.pmx != false)
         and ($running[0].pm2_env.autostart != false)
         and ($running[0].pm2_env.increment_var // null) == null
-        and ($running[0].pm2_env.filter_env // null) == null
+        and ($running[0].pm2_env.filter_env // []) == ($wanted.filter_env // [])
         and ($running[0].pm2_env.append_env_to_name // false) == false
         and ($running[0].pm2_env.log_type // null) == null
         and ($running[0].pm2_env.log_date_format // null) == null
@@ -157,6 +251,7 @@ rust_world_ports_ready() {
 cleanup() {
   local capture_status=$?
   trap - EXIT
+  trap '' HUP INT TERM
   if [ "$CAPTURE_MUTATED" -eq 0 ]; then
     rm -f "$RESTORE_FILE" "$CAPTURE_CONFIG_FILE"
     exit "$capture_status"
@@ -213,6 +308,9 @@ cleanup() {
   exit "$capture_status"
 }
 trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # This harness intentionally supports the repository's documented PM2 profile:
 # one online fork-mode process, one instance, no watch mode. Reject a different
@@ -252,7 +350,8 @@ if ! pm2 jlist | jq -e --arg name "$PM2_RUST_WORLD" '
       or (.pm2_env.pmx == false)
       or (.pm2_env.autostart == false)
       or (.pm2_env.increment_var // null) != null
-      or (.pm2_env.filter_env // null) != null
+      or ((.pm2_env.filter_env // []) | type) != "array"
+      or ((.pm2_env.filter_env // []) | length) != 0
       or (.pm2_env.append_env_to_name // false) != false
       or (.pm2_env.log_type // null) != null
       or (.pm2_env.log_date_format // null) != null
@@ -283,6 +382,7 @@ if ! pm2 jlist | jq -e --arg name "$PM2_RUST_WORLD" '
         instances: 1,
         autorestart: .pm2_env.autorestart,
         watch: false,
+        filter_env: (.pm2_env.filter_env // []),
         namespace: (.pm2_env.namespace // "default"),
         out_file: .pm2_env.pm_out_log_path,
         error_file: .pm2_env.pm_err_log_path,
@@ -297,9 +397,14 @@ fi
   echo "error: failed to create PM2 restore snapshot" >&2
   exit 1
 }
-if ! jq --arg dump_dir "$DUMP_DIR" \
-    '.apps[0].env.RUSTYCORE_PACKET_DUMP_DIR = $dump_dir' \
-    "$RESTORE_FILE" >"$CAPTURE_CONFIG_FILE"; then
+if ! jq \
+    --arg dump_dir "$DUMP_DIR" \
+    --arg capture_exec "$CAPTURE_EXEC" '
+      .apps[0].env.RUSTYCORE_PACKET_DUMP_DIR = $dump_dir
+      | if $capture_exec == "" then .
+        else .apps[0].script = $capture_exec
+        end
+    ' "$RESTORE_FILE" >"$CAPTURE_CONFIG_FILE"; then
   echo "error: failed to create PM2 capture snapshot" >&2
   exit 1
 fi
@@ -308,6 +413,13 @@ fi
   exit 1
 }
 RESTORE_READY=1
+
+# Recheck immediately before touching either server. The earlier validation is
+# intentionally repeated because confirmation and snapshotting may take time.
+if ! capture_exec_source_matches; then
+  echo "error: RUST_CAPTURE_EXEC changed or no longer matches its pinned SHA-256" >&2
+  exit 1
+fi
 
 # Make sure the C++ swap server is not holding the ports.
 pm2 stop "$PM2_CPP_WORLD" >/dev/null 2>&1 || true
@@ -329,14 +441,15 @@ CAPTURE_READY=0
 CAPTURE_IDENTITY=""
 for _ in $(seq 1 40); do
   if CAPTURE_IDENTITY="$(snapshot_process_identity "$CAPTURE_CONFIG_FILE" 2>/dev/null)" \
-      && rust_world_ports_ready; then
+      && rust_world_ports_ready \
+      && capture_process_exec_matches "$CAPTURE_IDENTITY"; then
     CAPTURE_READY=1
     break
   fi
   sleep 0.25
 done
 [ "$CAPTURE_READY" -eq 1 ] || {
-  echo "error: ${PM2_RUST_WORLD} did not start online with packet dumping enabled" >&2
+  echo "error: ${PM2_RUST_WORLD} did not start online with the pinned capture executable and packet dumping enabled" >&2
   exit 1
 }
 
@@ -346,8 +459,9 @@ read -r -p ">>> Press ENTER when the flow is complete to finish the capture... "
 
 FINAL_CAPTURE_IDENTITY=""
 if ! FINAL_CAPTURE_IDENTITY="$(snapshot_process_identity "$CAPTURE_CONFIG_FILE" 2>/dev/null)" \
-    || ! rust_world_ports_ready; then
-  echo "error: ${PM2_RUST_WORLD} changed configuration or stopped serving during capture" >&2
+    || ! rust_world_ports_ready \
+    || ! capture_process_exec_matches "$FINAL_CAPTURE_IDENTITY"; then
+  echo "error: ${PM2_RUST_WORLD} changed configuration, executable provenance, or stopped serving during capture" >&2
   exit 1
 fi
 if [ "$FINAL_CAPTURE_IDENTITY" != "$CAPTURE_IDENTITY" ]; then

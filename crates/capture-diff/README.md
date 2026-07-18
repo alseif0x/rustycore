@@ -57,6 +57,36 @@ also refuses to write fixtures or a baseline unless the isolated flow is fully
 clean. This prevents a missing or byte-different Rust response from being
 hidden inside an accepted baseline.
 
+The rested-XP gate isolates the first kill reward packet from the complete bot
+round-trip:
+
+```bash
+cargo +1.88.0 run -q -p capture-diff -- import rested-xp-kill \
+  --cpp target/captures/rested-xp-kill/cpp.pkt \
+  --rust target/captures/rested-xp-kill/rust \
+  --from-opcode s2c:0x26E5 \
+  --until-opcode s2c:0x26E5 \
+  --direction s2c \
+  --strict
+```
+
+`SMSG_LOG_XP_GAIN` uses one narrow semantic comparator only for Creature Kill
+XP with nonzero runtime counters. It normalizes the lower 40-bit runtime
+counter of the victim `ObjectGuid`; socket routing, high type, realm, map,
+entry, subtype, server id, `Original`, `Reason`, `Amount`, and the exact IEEE
+bits of `GroupBonus` remain strict. Malformed bodies and zero counters can
+never compare clean. If a semantic mismatch is ever recorded in a non-clean
+baseline, its signature includes the comparator plus the exact mismatched
+stable values and decode errors from both sides. Invalid bodies additionally
+carry a SHA-256 identity, as does any valid non-kill side that enters a semantic
+mismatch because its peer is malformed or is creature-kill XP. Raw lengths are
+omitted because the normalized packed GUID counter can change them between
+equivalent runs. A regression in a different field—or different bytes producing
+the same decode error—therefore cannot silently reuse the accepted divergence.
+The one-packet fixture proves the reward wire shape; the bot workflow separately
+proves offline accrual, DB XP/rest consumption, relog persistence, fixture
+restoration, and the natural respawn timer.
+
 `--ignore-opcode` is repeatable, direction-required, and applied symmetrically
 after boundary selection. It is fail-closed to the reviewed periodic allowlist
 (`s2c:0x2DD2 SMSG_TIME_SYNC_REQUEST` and `s2c:0x2DD4
@@ -116,9 +146,16 @@ artifact into `target/captures/<flow>/`. See each script's header for the env
 vars (server paths, pm2 process names) it honors. The Rust script recreates the
 world process from a mode-0600 snapshot whose only capture-time difference is
 `RUSTYCORE_PACKET_DUMP_DIR`, verifies the exact PM2 profile and listener ports,
-and rejects a capture if the process PID/restart counter changes. The dump
-parser also rejects duplicate global sequence numbers, which would otherwise
-make a capture spanning an autorestart ambiguous.
+and rejects a capture if the process PID/restart counter changes. Set
+`RUST_CAPTURE_EXEC` to an absolute canonical path when a feature-branch binary
+must be captured and set `RUST_CAPTURE_EXEC_SHA256` to that file's 64-hex
+SHA-256. The script verifies the source immediately before launch and checks
+that both `/proc/<pid>/exe` and its bytes match the pinned path and digest before
+and after the interactive capture; a provenance mismatch fails closed. The
+snapshot's original executable is still restored on normal exit or a caught
+termination signal. The dump parser also rejects
+duplicate global sequence numbers, which would otherwise make a capture
+spanning an autorestart ambiguous.
 
 ## Flows and the golden fixtures
 

@@ -449,17 +449,16 @@ impl ObjectGuid {
         )
     }
 
-    /// Matches the current Rust world-object GUID contract.
-    ///
-    /// The call shape keeps raw realm/server fields at zero. Active-realm normalization is a
-    /// broader GUID parity concern and is intentionally outside quest packet review fixes.
-    pub fn create_creature_like_cpp(map_id: u16, entry: u32, counter: i64) -> Self {
-        Self::create_world_object(HighGuid::Creature, 0, 0, map_id, 0, entry, counter)
+    /// Matches TrinityCore `ObjectGuid::Create<HighGuid::Creature>` after its
+    /// zero realm argument is normalized through the active `realm.Id.Realm`.
+    pub fn create_creature_like_cpp(realm_id: u16, map_id: u16, entry: u32, counter: i64) -> Self {
+        Self::create_world_object(HighGuid::Creature, 0, realm_id, map_id, 0, entry, counter)
     }
 
-    /// Matches TrinityCore `ObjectGuid::Create<HighGuid::Vehicle>(mapId, entry, counter)`.
-    pub fn create_vehicle_like_cpp(map_id: u16, entry: u32, counter: i64) -> Self {
-        Self::create_world_object(HighGuid::Vehicle, 0, 0, map_id, 0, entry, counter)
+    /// Matches TrinityCore `ObjectGuid::Create<HighGuid::Vehicle>` after active
+    /// realm normalization.
+    pub fn create_vehicle_like_cpp(realm_id: u16, map_id: u16, entry: u32, counter: i64) -> Self {
+        Self::create_world_object(HighGuid::Vehicle, 0, realm_id, map_id, 0, entry, counter)
     }
 
     /// Matches TrinityCore `ObjectGuid::Create<HighGuid::GameObject>(mapId, entry, counter)`.
@@ -703,13 +702,14 @@ mod tests {
     #[test]
     fn test_create_creature() {
         let guid = ObjectGuid::create_creature_like_cpp(
+            7,    // active realm_id
             530,  // map_id (Outland)
             1234, // entry
             5678, // counter
         );
         assert!(guid.is_creature());
         assert_eq!(guid.high_type(), HighGuid::Creature);
-        assert_eq!(guid.realm_id(), 0);
+        assert_eq!(guid.realm_id(), 7);
         assert_eq!(guid.server_id(), 0);
         assert_eq!(guid.map_id(), 530);
         assert_eq!(guid.entry(), 1234);
@@ -719,9 +719,9 @@ mod tests {
 
     #[test]
     fn test_create_world_object_helpers_like_cpp() {
-        let vehicle = ObjectGuid::create_vehicle_like_cpp(571, 29929, 0x6A);
+        let vehicle = ObjectGuid::create_vehicle_like_cpp(7, 571, 29929, 0x6A);
         assert_eq!(vehicle.high_type(), HighGuid::Vehicle);
-        assert_eq!(vehicle.realm_id(), 0);
+        assert_eq!(vehicle.realm_id(), 7);
         assert_eq!(vehicle.server_id(), 0);
         assert_eq!(vehicle.map_id(), 571);
         assert_eq!(vehicle.entry(), 29929);
@@ -844,7 +844,7 @@ mod tests {
         assert!(!restored.has_entry());
         assert!(!format!("{restored}").contains("Entry:"));
 
-        let creature = ObjectGuid::create_creature_like_cpp(571, 9999, 123456);
+        let creature = ObjectGuid::create_creature_like_cpp(1, 571, 9999, 123456);
         assert!(creature.has_entry());
         assert!(format!("{creature}").contains("Entry: 9999"));
     }
@@ -889,7 +889,7 @@ mod tests {
 
     #[test]
     fn test_raw_bytes_roundtrip() {
-        let original = ObjectGuid::create_creature_like_cpp(571, 9999, 123456);
+        let original = ObjectGuid::create_creature_like_cpp(1, 571, 9999, 123456);
         let bytes = original.to_raw_bytes();
         let restored = ObjectGuid::from_raw_bytes(&bytes);
         assert_eq!(original, restored);

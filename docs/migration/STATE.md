@@ -90,6 +90,27 @@ observable mutation · **ABSENT**.
 | Item enchant/gem/socket, durability repair, binding | WORKS⚠ | `wow-entities/src/item.rs`; correct in-memory, but **not reloaded from DB (D-C1)** |
 | Bank / equipment-sets / void-storage persistence | **STUB** | recorded in-memory, **never saved** (D-C3/M6/M7) — full loss on logout |
 | UpdateFields / CREATE-block serialization | WORKS | `wow-packet/src/packets/update.rs` (capture-diffed); minor value gaps in M1.4 |
+| Rested XP / offline rest state (XP slice) | **PARTIAL (live)** | issue #81: live accrual, consumption, DB persistence/relog and `SMSG_LOG_XP_GAIN` are capture-clean under the reviewed runtime-counter comparator; full `RestMgr` ownership and rest-area wire remain open |
+
+#### 2026-07-18 bounded rested-XP evidence
+
+The same guarded bot workflow passed against the primary C++ reference and
+RustyCore. A DB-controlled 86,400-second offline interval produced wilderness
+and resting bonuses of about `14.88` and `60.00`; a live Mana Wyrm kill
+(`entry=15274`, map `530`) emitted realm-routed `SMSG_LOG_XP_GAIN` with
+`Original=100`, `Reason=Kill`, `Amount=50`, and `GroupBonus=1.0`. XP persisted
+`0 -> 100`, rest bonus persisted `300 -> 250`, a full relog observed the saved
+state, the disposable fixture was restored, and the persisted 300-second
+creature respawn row cleared naturally.
+
+The committed one-packet C++/Rust flow is strict-CLEAN only under the narrowly
+reviewed comparator that omits the nonzero lower 40-bit runtime counter of a
+Creature Kill victim GUID. It still requires realm routing and exact high type,
+realm, map, entry, subtype, server id, and every XP field; malformed or
+zero-counter bodies fail. This does not prove a real tavern/city AreaTrigger
+walk, nested `RestInfo` update-field wire, honor rest, full group/KillRewarder
+fanout, or a per-Player `RestMgr`/`Player::Update` owner. The aggregate
+`#PLAYER.12` therefore remains open.
 
 ### Engines — PARTIAL / STUB (the gameplay-quality gap)
 | Capability | Status | Evidence |
@@ -172,6 +193,8 @@ concentrated in a 235k-line `wow-world` monolith; the per-domain crate split in 
 ## 5. Definition of "done" going forward (replaces `represented-complete`)
 
 A capability is **done** only when: (1) it runs in the **live runtime**, (2) its wire output
-is **byte/opcode-clean vs a C++ capture** of the same action, (3) it has been **exercised on
-a running server/client**, and (4) C++ refs + the validating capture/test are cited.
+is **capture-clean vs a C++ capture** of the same action — byte/opcode exact unless a narrowly
+reviewed comparator omits only an intrinsically runtime-allocated identifier while retaining
+every stable bit and failing malformed input — (3) it has been **exercised on a running
+server/client**, and (4) C++ refs + the validating capture/test are cited.
 `represented-complete` is no longer a closure state — it means "logic drafted, not yet live".

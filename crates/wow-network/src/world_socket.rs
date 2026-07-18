@@ -233,6 +233,8 @@ pub struct AccountInfo {
     pub mute_time: i64,
     pub locale: String,
     pub recruiter: u32,
+    /// C++ `WorldSession::IsARecruiter()`, derived from `LEFT JOIN account r`.
+    pub is_a_recruiter: bool,
     pub os: String,
     pub timezone_offset: i32,
     pub battlenet_account_id: u32,

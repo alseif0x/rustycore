@@ -6187,10 +6187,10 @@ impl WorldSession {
         self.record_represented_quest_reward_spell_casts_like_cpp(quest);
 
         if xp > 0 {
-            let player_guid = self
-                .player_guid()
-                .unwrap_or(wow_core::ObjectGuid::new(0, 0));
-            self.give_xp(xp, player_guid, false).await;
+            // C++ `Player::RewardQuest` calls `GiveXP(XP, nullptr)`: quest XP
+            // does not consume rested XP. RAF remains mutually exclusive with
+            // rested XP and may still apply inside `GiveXP`.
+            self.give_xp(xp, ObjectGuid::EMPTY, 1.0).await;
         }
 
         self.set_represented_can_delay_teleport_like_cpp(false);

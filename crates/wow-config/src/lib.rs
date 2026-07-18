@@ -1492,7 +1492,7 @@ LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth"
     #[test]
     fn test_world_config_registry_covers_cpp_inventory() {
         let registry = world_config_registry();
-        assert_eq!(registry.len(), 343);
+        assert_eq!(registry.len(), 346);
         assert_eq!(
             registry
                 .iter()
@@ -1505,7 +1505,7 @@ LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth"
                 .iter()
                 .filter(|entry| entry.kind == WorldConfigKind::Float)
                 .count(),
-            40
+            43
         );
         assert_eq!(
             registry
@@ -1539,6 +1539,27 @@ LoginDatabaseInfo = "127.0.0.1;3306;trinity;trinity;auth"
             xp_explore.default_value.as_ref(),
             Some(&WorldConfigValue::Float(1.0))
         );
+        for (enum_name, key) in [
+            ("RATE_REST_INGAME", "Rate.Rest.InGame"),
+            (
+                "RATE_REST_OFFLINE_IN_TAVERN_OR_CITY",
+                "Rate.Rest.Offline.InTavernOrCity",
+            ),
+            (
+                "RATE_REST_OFFLINE_IN_WILDERNESS",
+                "Rate.Rest.Offline.InWilderness",
+            ),
+        ] {
+            let entry = registry
+                .iter()
+                .find(|entry| entry.enum_name == enum_name)
+                .expect("rest rate must be represented");
+            assert_eq!(entry.key.as_deref(), Some(key));
+            assert_eq!(
+                entry.default_value.as_ref(),
+                Some(&WorldConfigValue::Float(1.0))
+            );
+        }
     }
 
     #[test]
@@ -1611,6 +1632,9 @@ Support.SuggestionsEnabled = 1
 MaxGroupXPDistance = 120.5
 WorldServerPort = 8088
 CharacterCreating.Disabled.RaceMask = 12
+Rate.Rest.InGame = 2.5
+Rate.Rest.Offline.InTavernOrCity = 3.5
+Rate.Rest.Offline.InWilderness = 0.5
 "#,
         )
         .expect("load failed");
@@ -1639,6 +1663,15 @@ CharacterCreating.Disabled.RaceMask = 12
             Some(false)
         );
         assert_eq!(values.get_int("CONFIG_INTERVAL_SAVE"), Some(900_000));
+        assert_eq!(values.get_float("RATE_REST_INGAME"), Some(2.5));
+        assert_eq!(
+            values.get_float("RATE_REST_OFFLINE_IN_TAVERN_OR_CITY"),
+            Some(3.5)
+        );
+        assert_eq!(
+            values.get_float("RATE_REST_OFFLINE_IN_WILDERNESS"),
+            Some(0.5)
+        );
     }
 
     #[test]
