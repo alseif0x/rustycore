@@ -23660,7 +23660,7 @@ impl WorldSession {
         xp: u32,
         victim: wow_core::ObjectGuid,
     ) -> (u32, u8) {
-        if xp == 0 || victim.is_empty() {
+        if victim.is_empty() {
             return (0, 0);
         }
 
@@ -26701,7 +26701,7 @@ impl WorldSession {
     /// scales `xp` before calling this method and passes `_groupRate` separately.
     pub(crate) fn give_xp_runtime_like_cpp(
         &mut self,
-        xp: u32,
+        mut xp: u32,
         victim: wow_core::ObjectGuid,
         group_rate: f32,
     ) -> bool {
@@ -26723,13 +26723,25 @@ impl WorldSession {
         {
             return false;
         }
+
+        // C++ captures the pre-hook level, dispatches the mutable PlayerScript
+        // amount, and only then checks max level. Do not reapply the xp == 0
+        // guard after dispatch: C++ continues when a hook changes the amount
+        // to zero.
+        let old_level = self.player_level_like_cpp();
+        let _ = wow_script::player::on_give_player_xp_like_cpp(
+            wow_script::player::GivePlayerXpContextLikeCpp {
+                player_guid: self.player_guid().unwrap_or(wow_core::ObjectGuid::EMPTY),
+                victim_guid: victim,
+            },
+            &mut xp,
+        );
         if self.player_is_max_level_like_cpp() {
             return false;
         } // max level
 
         // C++ `Player::GiveXP`: Recruit-A-Friend is mutually exclusive with
         // rested XP and contributes 2 * base XP (3x total).
-        let old_level = self.player_level_like_cpp();
         let recruit_a_friend = self.gets_recruit_a_friend_xp_bonus_like_cpp();
         let (bonus_xp, rest_info_mask) = if recruit_a_friend {
             (xp.saturating_mul(2), 0)
@@ -58125,6 +58137,7 @@ fn default_available_classes() -> Vec<wow_packet::packets::auth::RaceClassAvaila
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
     use wow_constants::ItemModType;
     use wow_constants::{
         BagFamilyMask, ConditionSourceType, ConditionType, EnchantmentSlot, InventoryResult,
@@ -58193,6 +58206,48 @@ mod tests {
     };
 
     const BATTLEGROUND_AB_LIKE_CPP: u32 = 3;
+    const XP_HOOK_DOUBLE_PLAYER_COUNTER: i64 = 0xE1D0;
+    const XP_HOOK_ZERO_PLAYER_COUNTER: i64 = 0xE1D1;
+    const XP_HOOK_MAX_PLAYER_COUNTER: i64 = 0xE1D2;
+    const XP_HOOK_GUARD_PLAYER_COUNTER: i64 = 0xE1D3;
+
+    static XP_HOOK_DOUBLE_CALLS: AtomicUsize = AtomicUsize::new(0);
+    static XP_HOOK_ZERO_CALLS: AtomicUsize = AtomicUsize::new(0);
+    static XP_HOOK_MAX_CALLS: AtomicUsize = AtomicUsize::new(0);
+    static XP_HOOK_GUARD_CALLS: AtomicUsize = AtomicUsize::new(0);
+
+    fn represented_test_give_player_xp_hook_like_cpp(
+        context: wow_script::player::GivePlayerXpContextLikeCpp,
+        amount: &mut u32,
+    ) {
+        match context.player_guid.counter() {
+            XP_HOOK_DOUBLE_PLAYER_COUNTER => {
+                assert_eq!(context.victim_guid.counter(), 0xE1D0);
+                XP_HOOK_DOUBLE_CALLS.fetch_add(1, AtomicOrdering::SeqCst);
+                *amount = amount.saturating_mul(2);
+            }
+            XP_HOOK_ZERO_PLAYER_COUNTER => {
+                assert_eq!(context.victim_guid.counter(), 0xE1D1);
+                XP_HOOK_ZERO_CALLS.fetch_add(1, AtomicOrdering::SeqCst);
+                *amount = 0;
+            }
+            XP_HOOK_MAX_PLAYER_COUNTER => {
+                assert_eq!(context.victim_guid.counter(), 0xE1D2);
+                XP_HOOK_MAX_CALLS.fetch_add(1, AtomicOrdering::SeqCst);
+            }
+            XP_HOOK_GUARD_PLAYER_COUNTER => {
+                XP_HOOK_GUARD_CALLS.fetch_add(1, AtomicOrdering::SeqCst);
+            }
+            _ => {}
+        }
+    }
+
+    inventory::submit! {
+        wow_script::player::GivePlayerXpHookLikeCpp {
+            name: "represented_test_give_player_xp_hook_like_cpp",
+            callback: represented_test_give_player_xp_hook_like_cpp,
+        }
+    }
 
     fn make_session() -> (
         WorldSession,
@@ -108406,6 +108461,127 @@ mod tests {
                 .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_RESTING_LIKE_CPP)
                 .unwrap_or(true)
         );
+    }
+
+    #[test]
+    fn give_xp_runtime_dispatches_mutable_script_before_rested_bonus_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player = ObjectGuid::create_player(1, XP_HOOK_DOUBLE_PLAYER_COUNTER);
+        let victim = test_creature_guid(0xE1D0);
+        session.set_player_guid(Some(player));
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        session.set_player_next_level_xp_like_cpp(1_000);
+        session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 150.0);
+        install_tapped_xp_victim_like_cpp(&mut session, victim);
+        let calls_before = XP_HOOK_DOUBLE_CALLS.load(AtomicOrdering::SeqCst);
+
+        assert!(session.give_xp_runtime_like_cpp(50, victim, 1.0));
+
+        assert_eq!(
+            XP_HOOK_DOUBLE_CALLS.load(AtomicOrdering::SeqCst),
+            calls_before + 1
+        );
+        assert_eq!(session.player_xp_like_cpp(), 200);
+        assert_eq!(session.represented_xp_rest_bonus_like_cpp(), 50.0);
+        let packets = drain_server_packet_bytes(&send_rx);
+        let mut packet = WorldPacket::from_bytes(
+            packets
+                .iter()
+                .find(|bytes| {
+                    WorldPacket::from_bytes(bytes).server_opcode() == Some(ServerOpcodes::LogXpGain)
+                })
+                .expect("script-adjusted GiveXP sends LogXPGain"),
+        );
+        packet.skip_opcode();
+        assert_eq!(packet.read_packed_guid().unwrap(), victim);
+        assert_eq!(packet.read_int32().unwrap(), 200);
+        assert_eq!(packet.read_uint8().unwrap(), 0);
+        assert_eq!(packet.read_int32().unwrap(), 100);
+        assert!((packet.read_float().unwrap() - 1.0).abs() < f32::EPSILON);
+        assert_eq!(packet.remaining(), 0);
+    }
+
+    #[test]
+    fn give_xp_runtime_does_not_reapply_zero_guard_after_script_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player = ObjectGuid::create_player(1, XP_HOOK_ZERO_PLAYER_COUNTER);
+        let victim = test_creature_guid(0xE1D1);
+        session.set_player_guid(Some(player));
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        session.set_player_next_level_xp_like_cpp(1_000);
+        session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 0.5);
+        install_tapped_xp_victim_like_cpp(&mut session, victim);
+        let calls_before = XP_HOOK_ZERO_CALLS.load(AtomicOrdering::SeqCst);
+
+        assert!(session.give_xp_runtime_like_cpp(50, victim, 1.0));
+
+        assert_eq!(
+            XP_HOOK_ZERO_CALLS.load(AtomicOrdering::SeqCst),
+            calls_before + 1
+        );
+        assert_eq!(session.player_xp_like_cpp(), 0);
+        assert_eq!(session.represented_xp_rest_bonus_like_cpp(), 0.5);
+        assert_eq!(
+            session.represented_xp_rest_state_like_cpp(),
+            REST_STATE_NORMAL_LIKE_CPP,
+            "C++ still calls GetRestBonusFor(0) after a script zeroes the amount"
+        );
+        let packets = drain_server_packet_bytes(&send_rx);
+        let mut packet = WorldPacket::from_bytes(
+            packets
+                .iter()
+                .find(|bytes| {
+                    WorldPacket::from_bytes(bytes).server_opcode() == Some(ServerOpcodes::LogXpGain)
+                })
+                .expect("C++ continues GiveXP after a script changes amount to zero"),
+        );
+        packet.skip_opcode();
+        assert_eq!(packet.read_packed_guid().unwrap(), victim);
+        assert_eq!(packet.read_int32().unwrap(), 0);
+        assert_eq!(packet.read_uint8().unwrap(), 0);
+        assert_eq!(packet.read_int32().unwrap(), 0);
+    }
+
+    #[test]
+    fn give_xp_runtime_dispatches_script_before_max_level_return_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player = ObjectGuid::create_player(1, XP_HOOK_MAX_PLAYER_COUNTER);
+        let victim = test_creature_guid(0xE1D2);
+        session.set_player_guid(Some(player));
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 80, 0);
+        session.set_player_next_level_xp_like_cpp(1_000);
+        install_tapped_xp_victim_like_cpp(&mut session, victim);
+        let calls_before = XP_HOOK_MAX_CALLS.load(AtomicOrdering::SeqCst);
+
+        assert!(!session.give_xp_runtime_like_cpp(50, victim, 1.0));
+
+        assert_eq!(
+            XP_HOOK_MAX_CALLS.load(AtomicOrdering::SeqCst),
+            calls_before + 1
+        );
+        assert_eq!(session.player_xp_like_cpp(), 0);
+        assert!(drain_server_packet_bytes(&send_rx).is_empty());
+    }
+
+    #[test]
+    fn give_xp_runtime_rejection_guards_run_before_script_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player = ObjectGuid::create_player(1, XP_HOOK_GUARD_PLAYER_COUNTER);
+        session.set_player_guid(Some(player));
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        session.set_player_next_level_xp_like_cpp(1_000);
+        let calls_before = XP_HOOK_GUARD_CALLS.load(AtomicOrdering::SeqCst);
+
+        assert!(!session.give_xp_runtime_like_cpp(0, ObjectGuid::EMPTY, 1.0));
+        let untapped = test_creature_guid(0xE1D3);
+        install_xp_victim_like_cpp(&mut session, untapped, false);
+        assert!(!session.give_xp_runtime_like_cpp(50, untapped, 1.0));
+
+        assert_eq!(
+            XP_HOOK_GUARD_CALLS.load(AtomicOrdering::SeqCst),
+            calls_before
+        );
+        assert!(drain_server_packet_bytes(&send_rx).is_empty());
     }
 
     #[test]

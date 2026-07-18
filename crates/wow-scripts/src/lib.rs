@@ -4,6 +4,10 @@
 //! Rust content scripts are linked through this crate and expose dispatcher
 //! functions that `world-server` can call at the matching lifecycle points.
 
+pub mod player {
+    pub use wow_script::player::{GivePlayerXpContextLikeCpp, GivePlayerXpHookLikeCpp};
+}
+
 pub mod lifecycle {
     pub use wow_script::lifecycle::{
         LifecycleDispatchSummaryLikeCpp, LifecycleHookKindLikeCpp, ShutdownHookLikeCpp,

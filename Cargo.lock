@@ -3437,6 +3437,7 @@ dependencies = [
  "wow-network",
  "wow-packet",
  "wow-recastdetour",
+ "wow-script",
 ]
 
 [[package]]
