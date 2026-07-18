@@ -23908,6 +23908,10 @@ impl WorldSession {
             self.send_represented_resting_player_flag_update_like_cpp();
         }
         if self.is_ffa_pvp_realm_like_cpp {
+            // C++ `MiscHandler.cpp::HandleAreaTriggerOpcode` toggles FFA
+            // directly from `packet.Entered`, independently of RestMgr's
+            // aggregate mask. Leaving an inn can therefore restore FFA while
+            // a city/faction rest flag still keeps PLAYER_FLAGS_RESTING set.
             self.set_represented_ffa_pvp_flag_like_cpp(!entered);
         }
         true
@@ -107739,6 +107743,73 @@ mod tests {
                 .count(),
             2,
             "leaving sends PlayerFlags::RESTING and UnitData::PvpFlags deltas"
+        );
+    }
+
+    #[test]
+    fn ffa_realm_tavern_leave_restores_ffa_while_city_rest_remains_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let guid = ObjectGuid::create_player(1, 0xFFA6);
+        let canonical = shared_canonical_map_manager();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.ensure_login_player_controller_like_cpp(
+            guid,
+            "FfaCityInn".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            1,
+            1,
+            8,
+            10,
+            0,
+        );
+        insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
+        session.set_ffa_pvp_realm_like_cpp(true);
+        let outcome = wow_data::TavernAreaTriggerStoreLikeCpp::from_ids_like_cpp([42], |_| true);
+        session.set_tavern_area_trigger_store(Arc::new(outcome.store));
+        session.set_state(SessionState::LoggedIn);
+        assert!(session.set_represented_rest_flag_like_cpp(REST_FLAG_IN_CITY_LIKE_CPP, 0));
+        let _ = drain_server_packet_bytes(&send_rx);
+
+        assert!(session.handle_represented_tavern_area_trigger_like_cpp(42, true));
+        assert!(session.represented_is_resting_like_cpp());
+        assert!(
+            !session
+                .canonical_player_pvp_flags_like_cpp(guid)
+                .is_some_and(|flags| flags.contains(UnitPvpFlags::FFA_PVP))
+        );
+        assert_eq!(
+            drain_server_packet_bytes(&send_rx)
+                .iter()
+                .filter(|packet| {
+                    WorldPacket::from_bytes(packet).server_opcode()
+                        == Some(ServerOpcodes::UpdateObject)
+                })
+                .count(),
+            1,
+            "overlapping city rest means only the FFA delta is visible on enter"
+        );
+
+        assert!(session.handle_represented_tavern_area_trigger_like_cpp(42, false));
+        assert!(
+            session.represented_is_resting_like_cpp(),
+            "C++ RestMgr keeps PLAYER_FLAGS_RESTING while the city bit remains"
+        );
+        assert!(
+            session
+                .canonical_player_pvp_flags_like_cpp(guid)
+                .is_some_and(|flags| flags.contains(UnitPvpFlags::FFA_PVP)),
+            "C++ tavern handling restores FFA from Entered=false without consulting RestMgr"
+        );
+        assert_eq!(
+            drain_server_packet_bytes(&send_rx)
+                .iter()
+                .filter(|packet| {
+                    WorldPacket::from_bytes(packet).server_opcode()
+                        == Some(ServerOpcodes::UpdateObject)
+                })
+                .count(),
+            1,
+            "overlapping city rest means only the FFA delta is visible on leave"
         );
     }
 

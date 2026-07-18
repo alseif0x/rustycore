@@ -156,6 +156,16 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
   `handlers/character.rs::handle_logout_request` and
   `session.rs::complete_logout`. Functional relog succeeds because both bot
   sockets remain open, but wire routing is not parity-clean.
+- [ ] **D-M13 Base `AreaTable.db2` loader reads four physical fields one
+  position late.** `AreaTableMeta` uses an external ID (`IndexField = -1`), so
+  the WDC4 indices for `ContinentID`, `ParentAreaID`, `AreaBit`, and
+  `ExplorationLevel` are respectively `2`, `3`, `4`, and `11`; Rust currently
+  reads `3`, `4`, `5`, and `12`. Hotfix rows use the C++ `DB2LoadInfo`/SQL
+  column ordinals including ID and are not affected. The issue #81 review
+  verified that the newly used `FactionGroupMask` index `14` is already
+  correct (hotfix column `15`), as are `MountFlags` `16` and `Flags1` `21`.
+  C++ `DB2Metadata.h::AreaTableMeta` / `DB2LoadInfo.h::AreaTableLoadInfo`;
+  Rust `wow-data/src/area.rs::AreaTableStore::load`.
 
 ## LOW — non-issues in practice / cosmetic (recorded for completeness)
 

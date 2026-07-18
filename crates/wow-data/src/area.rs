@@ -107,6 +107,10 @@ impl AreaTableStore {
         let mut entries = HashMap::with_capacity(reader.total_count());
         let mut faction_group_masks = HashMap::with_capacity(reader.total_count());
         for (id, idx) in reader.iter_records() {
+            // `AreaTableMeta` has an external ID (`IndexField = -1`), so its
+            // 23 physical WDC4 fields are zero-based without `ID`:
+            // `FactionGroupMask` is field 14. The hotfix SELECT below includes
+            // `ID` as column 0 and therefore reads the same value at column 15.
             faction_group_masks.insert(id, reader.get_field_u8(idx, 14));
             entries.insert(
                 id,
@@ -332,6 +336,93 @@ impl FishingBaseSkillStoreLikeCpp {
 mod tests {
     use super::*;
 
+    fn push_u16_le(bytes: &mut Vec<u8>, value: u16) {
+        bytes.extend_from_slice(&value.to_le_bytes());
+    }
+
+    fn push_u32_le(bytes: &mut Vec<u8>, value: u32) {
+        bytes.extend_from_slice(&value.to_le_bytes());
+    }
+
+    fn push_u64_le(bytes: &mut Vec<u8>, value: u64) {
+        bytes.extend_from_slice(&value.to_le_bytes());
+    }
+
+    /// One fixed-size AreaTable WDC4 row with an external ID. The adjacent
+    /// field 15 deliberately has low byte 0x9A so reading AmbientMultiplier
+    /// instead of physical field 14 cannot accidentally produce mask 6.
+    fn minimal_area_table_wdc4() -> Vec<u8> {
+        const FIELD_COUNT: u32 = 23;
+        const RECORD_SIZE: u32 = FIELD_COUNT * 4;
+        const HEADER_SIZE: u32 = 72;
+        const SECTION_HEADER_SIZE: u32 = 40;
+        const FIELD_META_SIZE: u32 = 4;
+        const FIELD_STORAGE_INFO_SIZE: u32 = 24;
+        const RECORD_OFFSET: u32 = HEADER_SIZE
+            + SECTION_HEADER_SIZE
+            + FIELD_COUNT * FIELD_META_SIZE
+            + FIELD_COUNT * FIELD_STORAGE_INFO_SIZE;
+
+        let mut bytes = Vec::new();
+        // WDC4 header.
+        push_u32_le(&mut bytes, 0x3443_4457);
+        push_u32_le(&mut bytes, 1); // record_count
+        push_u32_le(&mut bytes, FIELD_COUNT);
+        push_u32_le(&mut bytes, RECORD_SIZE);
+        push_u32_le(&mut bytes, 0); // string_table_size
+        push_u32_le(&mut bytes, 0); // table_hash (not used by this loader)
+        push_u32_le(&mut bytes, 0x19CA_1DC6); // C++ AreaTableMeta layout
+        push_u32_le(&mut bytes, 4395); // min_id
+        push_u32_le(&mut bytes, 4395); // max_id
+        push_u32_le(&mut bytes, 0); // locale
+        push_u16_le(&mut bytes, 0x04); // external ID list
+        push_u16_le(&mut bytes, u16::MAX); // no inline ID field
+        push_u32_le(&mut bytes, FIELD_COUNT);
+        push_u32_le(&mut bytes, 0); // packed_data_offset
+        push_u32_le(&mut bytes, 0); // lookup_column_count
+        push_u32_le(&mut bytes, FIELD_COUNT * FIELD_STORAGE_INFO_SIZE);
+        push_u32_le(&mut bytes, 0); // common_data_size
+        push_u32_le(&mut bytes, 0); // pallet_data_size
+        push_u32_le(&mut bytes, 1); // section_count
+
+        // One fixed-size section followed by one external record ID.
+        push_u64_le(&mut bytes, 0); // tact_key_hash
+        push_u32_le(&mut bytes, RECORD_OFFSET);
+        push_u32_le(&mut bytes, 1); // record_count
+        push_u32_le(&mut bytes, 0); // string_table_size
+        push_u32_le(&mut bytes, RECORD_OFFSET + RECORD_SIZE);
+        push_u32_le(&mut bytes, 4); // id_list_size
+        push_u32_le(&mut bytes, 0); // relationship_data_size
+        push_u32_le(&mut bytes, 0); // offset_map_id_count
+        push_u32_le(&mut bytes, 0); // copy_table_count
+
+        // Field metadata is intentionally opaque to Wdc4Reader; storage info
+        // below supplies the physical bit offsets and widths.
+        bytes.resize(
+            bytes.len() + FIELD_COUNT as usize * FIELD_META_SIZE as usize,
+            0,
+        );
+        for field in 0..FIELD_COUNT {
+            push_u16_le(&mut bytes, (field * 32) as u16);
+            push_u16_le(&mut bytes, 32);
+            push_u32_le(&mut bytes, 0); // additional_data_size
+            push_u32_le(&mut bytes, 0); // CompressionType::None
+            push_u32_le(&mut bytes, 0);
+            push_u32_le(&mut bytes, 0);
+            push_u32_le(&mut bytes, 0);
+        }
+        assert_eq!(bytes.len(), RECORD_OFFSET as usize);
+
+        let mut fields = [0u32; FIELD_COUNT as usize];
+        fields[14] = 6; // C++ AreaTableEntry::FactionGroupMask
+        fields[15] = 0.3f32.to_bits(); // AmbientMultiplier, low byte 0x9A
+        for field in fields {
+            push_u32_le(&mut bytes, field);
+        }
+        push_u32_le(&mut bytes, 4395); // external Dalaran record ID
+        bytes
+    }
+
     #[test]
     fn area_table_store_indexes_parent_area_like_cpp() {
         let store = AreaTableStore::from_entries([
@@ -533,5 +624,27 @@ mod tests {
 
         let store = AreaTableStore::load(data_dir, locale).expect("failed to load AreaTable.db2");
         assert!(!store.is_empty());
+        assert_eq!(store.faction_group_mask_like_cpp(1519), 2, "Stormwind");
+        assert_eq!(store.faction_group_mask_like_cpp(1637), 4, "Orgrimmar");
+        assert_eq!(store.faction_group_mask_like_cpp(4395), 6, "Dalaran");
+    }
+
+    #[test]
+    fn base_loader_reads_physical_faction_group_mask_field_without_sql_id_column() {
+        let root = std::env::temp_dir().join(format!(
+            "rustycore-area-table-wdc4-field-test-{}",
+            std::process::id()
+        ));
+        let fixture_dir = root.join("dbc").join("enUS");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&fixture_dir).expect("create WDC4 fixture directory");
+        std::fs::write(fixture_dir.join("AreaTable.db2"), minimal_area_table_wdc4())
+            .expect("write minimal AreaTable WDC4 fixture");
+
+        let store = AreaTableStore::load(root.to_str().expect("UTF-8 temp path"), "enUS")
+            .expect("load minimal AreaTable WDC4 fixture");
+        assert_eq!(store.faction_group_mask_like_cpp(4395), 6);
+
+        std::fs::remove_dir_all(root).expect("remove WDC4 fixture directory");
     }
 }

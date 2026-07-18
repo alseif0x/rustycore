@@ -32,16 +32,19 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@1.88.0
+        # This is dtolnay/rust-toolchain's generated 1.88.0 commit: its
+        # action.yml embeds `env.toolchain: 1.88.0` and exposes no toolchain
+        # input. The immutable SHA therefore retains the former @1.88.0 pin.
+        uses: dtolnay/rust-toolchain@39b0b3842c7e8bbf6904c0bfc3d9006fdd4dc4e0 # 1.88.0
 
       - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
           shared-key: qa-world-server-${{ matrix.replica }}
           workspaces: |
@@ -51,11 +54,23 @@ jobs:
       - name: Install protoc
         run: |
           protoc_version="$(tr -d '[:space:]' < .protoc-version)"
+          case "$protoc_version" in
+            28.3)
+              # protoc-28.3-linux-x86_64.zip from the official protobuf v28.3 release.
+              protoc_sha256="0ad949f04a6a174da83cdcbdb36dee0a4925272a5b6d83f79a6bf9852076d53f"
+              ;;
+            *)
+              echo "::error::No trusted linux-x86_64 protoc checksum for version ${protoc_version}"
+              exit 1
+              ;;
+          esac
           curl --fail --show-error --location --retry 3 --retry-all-errors \
             -o /tmp/protoc.zip \
             "https://github.com/protocolbuffers/protobuf/releases/download/v${protoc_version}/protoc-${protoc_version}-linux-x86_64.zip"
+          printf '%s  %s\n' "$protoc_sha256" /tmp/protoc.zip | sha256sum --check --strict
           python3 -m zipfile -e /tmp/protoc.zip "$HOME/.local"
           chmod +x "$HOME/.local/bin/protoc"
+          test "$("$HOME/.local/bin/protoc" --version)" = "libprotoc ${protoc_version}"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Build no-LTO release artifacts
@@ -87,7 +102,7 @@ jobs:
           printf '%s\n' "$REPLICA" > qa-artifact/replica.txt
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: world-server-qa-${{ matrix.replica }}-${{ github.event.pull_request.head.sha }}
           path: qa-artifact/
@@ -104,7 +119,7 @@ jobs:
 
     steps:
       - name: Download replicas
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           pattern: world-server-qa-*-${{ github.event.pull_request.head.sha }}
           path: replicas
@@ -131,7 +146,7 @@ jobs:
           cp "${replica_a}/git-head.txt" verified/git-head.txt
 
       - name: Upload verified artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: world-server-qa-verified-${{ github.event.pull_request.head.sha }}
           path: verified/

@@ -402,6 +402,7 @@ fn baseline_delta_is_count_aware() {
         cpp_body_len: None,
         rust_body_len: None,
         first_diff_offset: Some(off),
+        semantic_mismatch: None,
         cpp_connection_id: None,
         rust_connection_id: None,
     };

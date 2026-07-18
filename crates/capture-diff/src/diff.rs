@@ -180,6 +180,12 @@ pub struct DivergenceSignature {
     pub rust_body_len: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub first_diff_offset: Option<usize>,
+    /// Full stable semantic comparison when raw byte offsets are intentionally
+    /// suppressed. Reviewed semantic bodies exclude only explicitly normalized
+    /// runtime fields, so retaining both decoded/error sides makes the baseline
+    /// distinguish every stable value and both decode failures.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub semantic_mismatch: Option<SemanticBodyDiff>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub cpp_connection_id: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
@@ -276,6 +282,7 @@ impl DiffReport {
                     cpp_body_len: None,
                     rust_body_len: None,
                     first_diff_offset: None,
+                    semantic_mismatch: None,
                     cpp_connection_id: None,
                     rust_connection_id: None,
                 }),
@@ -287,6 +294,7 @@ impl DiffReport {
                     cpp_body_len: None,
                     rust_body_len: None,
                     first_diff_offset: None,
+                    semantic_mismatch: None,
                     cpp_connection_id: None,
                     rust_connection_id: None,
                 }),
@@ -301,6 +309,7 @@ impl DiffReport {
                                 cpp_body_len: None,
                                 rust_body_len: None,
                                 first_diff_offset: None,
+                                semantic_mismatch: None,
                                 cpp_connection_id: Some(connection.cpp_connection_id),
                                 rust_connection_id: Some(connection.rust_connection_id),
                             });
@@ -316,6 +325,7 @@ impl DiffReport {
                                 cpp_body_len: Some(body.cpp_len),
                                 rust_body_len: Some(body.rust_len),
                                 first_diff_offset: body.first_diff_offset,
+                                semantic_mismatch: body.semantic.clone(),
                                 cpp_connection_id: None,
                                 rust_connection_id: None,
                             });

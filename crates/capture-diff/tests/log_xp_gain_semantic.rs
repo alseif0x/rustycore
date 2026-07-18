@@ -4,7 +4,7 @@
 //! C++ and Rust runs. The comparator must ignore exactly those lower 40 bits,
 //! while retaining socket routing, all other GUID fields, and every XP field.
 
-use capture_diff::diff::DiffReport;
+use capture_diff::diff::{DiffReport, baseline_delta};
 use capture_diff::model::{Capture, CapturedPacket, Direction};
 use capture_diff::semantic::{SMSG_LOG_XP_GAIN, decode_log_xp_gain_body};
 
@@ -272,6 +272,95 @@ fn log_xp_gain_compares_all_xp_fields_exactly() {
             .expect("semantic body diff");
         assert!(semantic.mismatch_summary().contains(expected_field));
     }
+}
+
+#[test]
+fn baseline_distinguishes_equal_length_semantic_regressions() {
+    let cpp = XpFields::default();
+    let original_mismatch = report(
+        packet(0, SMSG_LOG_XP_GAIN, log_xp_gain_body(cpp)),
+        packet(
+            0,
+            SMSG_LOG_XP_GAIN,
+            log_xp_gain_body(XpFields {
+                original: cpp.original + 1,
+                ..cpp
+            }),
+        ),
+    )
+    .signatures();
+    let amount_mismatch = report(
+        packet(0, SMSG_LOG_XP_GAIN, log_xp_gain_body(cpp)),
+        packet(
+            0,
+            SMSG_LOG_XP_GAIN,
+            log_xp_gain_body(XpFields {
+                amount: cpp.amount + 1,
+                ..cpp
+            }),
+        ),
+    )
+    .signatures();
+
+    assert_eq!(original_mismatch.len(), 1);
+    assert_eq!(amount_mismatch.len(), 1);
+    assert_eq!(
+        original_mismatch[0].cpp_body_len,
+        amount_mismatch[0].cpp_body_len
+    );
+    assert_eq!(
+        original_mismatch[0].rust_body_len,
+        amount_mismatch[0].rust_body_len
+    );
+    assert_eq!(original_mismatch[0].first_diff_offset, None);
+    assert_eq!(amount_mismatch[0].first_diff_offset, None);
+    assert_ne!(
+        original_mismatch[0].semantic_mismatch,
+        amount_mismatch[0].semantic_mismatch
+    );
+
+    let delta = baseline_delta(&amount_mismatch, &original_mismatch);
+    assert!(!delta.matches());
+    assert_eq!(delta.new.len(), 1);
+    assert_eq!(delta.fixed.len(), 1);
+}
+
+#[test]
+fn baseline_distinguishes_both_decode_errors_at_equal_body_lengths() {
+    let cpp = vec![0x01, 0x00]; // missing low-word byte
+    let rust_high_word_error = vec![0x00, 0x01];
+    let rust_original_error = vec![0x00, 0x00];
+
+    let high_word_mismatch = report(
+        packet(0, SMSG_LOG_XP_GAIN, cpp.clone()),
+        packet(0, SMSG_LOG_XP_GAIN, rust_high_word_error),
+    )
+    .signatures();
+    let original_mismatch = report(
+        packet(0, SMSG_LOG_XP_GAIN, cpp),
+        packet(0, SMSG_LOG_XP_GAIN, rust_original_error),
+    )
+    .signatures();
+
+    assert_eq!(high_word_mismatch.len(), 1);
+    assert_eq!(original_mismatch.len(), 1);
+    assert_eq!(
+        high_word_mismatch[0].cpp_body_len,
+        original_mismatch[0].cpp_body_len
+    );
+    assert_eq!(
+        high_word_mismatch[0].rust_body_len,
+        original_mismatch[0].rust_body_len
+    );
+    assert_ne!(
+        high_word_mismatch[0].semantic_mismatch, original_mismatch[0].semantic_mismatch,
+        "both semantic sides, including both decode errors, belong to the baseline identity"
+    );
+
+    let delta = baseline_delta(&original_mismatch, &high_word_mismatch);
+    assert!(!delta.matches());
+    assert_eq!(delta.new.len(), 1);
+    assert_eq!(delta.fixed.len(), 1);
 }
 
 #[test]

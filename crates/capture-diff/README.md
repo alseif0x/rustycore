@@ -75,7 +75,11 @@ XP with nonzero runtime counters. It normalizes the lower 40-bit runtime
 counter of the victim `ObjectGuid`; socket routing, high type, realm, map,
 entry, subtype, server id, `Original`, `Reason`, `Amount`, and the exact IEEE
 bits of `GroupBonus` remain strict. Malformed bodies and zero counters can
-never compare clean. The one-packet fixture proves the reward wire shape; the
+never compare clean. If a semantic mismatch is ever recorded in a non-clean
+baseline, its signature includes the comparator plus the exact mismatched
+stable values and decode errors from both sides, so an equal-length regression
+in a different field—or in the second malformed body—cannot silently reuse the
+accepted divergence. The one-packet fixture proves the reward wire shape; the
 bot workflow separately proves offline accrual, DB XP/rest consumption, relog
 persistence, fixture restoration, and the natural respawn timer.
 
@@ -140,8 +144,12 @@ world process from a mode-0600 snapshot whose only capture-time difference is
 `RUSTYCORE_PACKET_DUMP_DIR`, verifies the exact PM2 profile and listener ports,
 and rejects a capture if the process PID/restart counter changes. Set
 `RUST_CAPTURE_EXEC` to an absolute canonical path when a feature-branch binary
-must be captured; the snapshot's original executable is still restored on
-normal exit or a caught termination signal. The dump parser also rejects
+must be captured and set `RUST_CAPTURE_EXEC_SHA256` to that file's 64-hex
+SHA-256. The script verifies the source immediately before launch and checks
+that both `/proc/<pid>/exe` and its bytes match the pinned path and digest before
+and after the interactive capture; a provenance mismatch fails closed. The
+snapshot's original executable is still restored on normal exit or a caught
+termination signal. The dump parser also rejects
 duplicate global sequence numbers, which would otherwise make a capture
 spanning an autorestart ambiguous.
 
