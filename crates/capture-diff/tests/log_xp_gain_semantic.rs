@@ -152,7 +152,9 @@ fn log_xp_gain_ignores_only_the_runtime_guid_counter() {
     assert!(report.is_clean(), "{}", report.render_text());
     assert_eq!(report.counts.matched, 1);
     let body = report.ops[0].body.as_ref().expect("matched body diff");
-    assert!(body.semantic.is_some());
+    let semantic = body.semantic.as_ref().expect("semantic comparison");
+    assert_eq!(semantic.cpp.raw_body_sha256, None);
+    assert_eq!(semantic.rust.raw_body_sha256, None);
     assert!(body.is_identical());
     assert_ne!(body.cpp_len, body.rust_len);
 }
@@ -312,6 +314,8 @@ fn baseline_distinguishes_equal_length_semantic_regressions() {
         original_mismatch[0].rust_body_len,
         amount_mismatch[0].rust_body_len
     );
+    assert_eq!(original_mismatch[0].cpp_body_len, None);
+    assert_eq!(original_mismatch[0].rust_body_len, None);
     assert_eq!(original_mismatch[0].first_diff_offset, None);
     assert_eq!(amount_mismatch[0].first_diff_offset, None);
     assert_ne!(
@@ -320,6 +324,152 @@ fn baseline_distinguishes_equal_length_semantic_regressions() {
     );
 
     let delta = baseline_delta(&amount_mismatch, &original_mismatch);
+    assert!(!delta.matches());
+    assert_eq!(delta.new.len(), 1);
+    assert_eq!(delta.fixed.len(), 1);
+}
+
+#[test]
+fn baseline_ignores_only_runtime_counter_dependent_raw_lengths() {
+    let expected_cpp = XpFields::default();
+    let expected_rust = XpFields {
+        counter: 2,
+        amount: expected_cpp.amount + 1,
+        ..expected_cpp
+    };
+    let current_cpp = XpFields {
+        counter: 0x01_02_03_04_05,
+        ..expected_cpp
+    };
+    let current_rust = XpFields {
+        counter: 0x05_04_03_02_01,
+        amount: expected_cpp.amount + 1,
+        ..expected_cpp
+    };
+
+    let expected_report = report(
+        packet(0, SMSG_LOG_XP_GAIN, log_xp_gain_body(expected_cpp)),
+        packet(0, SMSG_LOG_XP_GAIN, log_xp_gain_body(expected_rust)),
+    );
+    let current_report = report(
+        packet(0, SMSG_LOG_XP_GAIN, log_xp_gain_body(current_cpp)),
+        packet(0, SMSG_LOG_XP_GAIN, log_xp_gain_body(current_rust)),
+    );
+    assert_ne!(
+        expected_report.ops[0].body.as_ref().unwrap().cpp_len,
+        current_report.ops[0].body.as_ref().unwrap().cpp_len,
+        "fixture must exercise packed counter lengths that differ between runs"
+    );
+
+    let expected = expected_report.signatures();
+    let current = current_report.signatures();
+    assert_eq!(expected.len(), 1);
+    assert_eq!(current.len(), 1);
+    assert_eq!(expected[0], current[0]);
+    assert_eq!(expected[0].cpp_body_len, None);
+    assert_eq!(expected[0].rust_body_len, None);
+    assert!(baseline_delta(&current, &expected).matches());
+}
+
+#[test]
+fn baseline_distinguishes_same_zero_counter_error_with_stable_field_regression() {
+    let cpp = XpFields::default();
+    let zero_counter = XpFields { counter: 0, ..cpp };
+    let changed_amount = XpFields {
+        amount: cpp.amount + 1,
+        ..zero_counter
+    };
+
+    let expected = report(
+        packet(0, SMSG_LOG_XP_GAIN, log_xp_gain_body(cpp)),
+        packet(0, SMSG_LOG_XP_GAIN, log_xp_gain_body(zero_counter)),
+    )
+    .signatures();
+    let current = report(
+        packet(0, SMSG_LOG_XP_GAIN, log_xp_gain_body(cpp)),
+        packet(0, SMSG_LOG_XP_GAIN, log_xp_gain_body(changed_amount)),
+    )
+    .signatures();
+
+    assert_eq!(expected.len(), 1);
+    assert_eq!(current.len(), 1);
+    let expected_rust = &expected[0].semantic_mismatch.as_ref().unwrap().rust;
+    let current_rust = &current[0].semantic_mismatch.as_ref().unwrap().rust;
+    assert_eq!(expected_rust.decode_error, current_rust.decode_error);
+    assert_ne!(expected_rust.log_xp_gain, current_rust.log_xp_gain);
+    assert_ne!(expected_rust.raw_body_sha256, current_rust.raw_body_sha256);
+
+    let delta = baseline_delta(&current, &expected);
+    assert!(!delta.matches());
+    assert_eq!(delta.new.len(), 1);
+    assert_eq!(delta.fixed.len(), 1);
+}
+
+#[test]
+fn baseline_keeps_counter_strict_on_valid_non_kill_side_of_mixed_comparison() {
+    let cpp = XpFields::default();
+    let rust_a = XpFields {
+        reason: 1,
+        counter: 1,
+        ..cpp
+    };
+    let rust_b = XpFields {
+        counter: 2,
+        ..rust_a
+    };
+
+    let expected = report(
+        packet(0, SMSG_LOG_XP_GAIN, log_xp_gain_body(cpp)),
+        packet(0, SMSG_LOG_XP_GAIN, log_xp_gain_body(rust_a)),
+    )
+    .signatures();
+    let current = report(
+        packet(0, SMSG_LOG_XP_GAIN, log_xp_gain_body(cpp)),
+        packet(0, SMSG_LOG_XP_GAIN, log_xp_gain_body(rust_b)),
+    )
+    .signatures();
+
+    let expected_rust = &expected[0].semantic_mismatch.as_ref().unwrap().rust;
+    let current_rust = &current[0].semantic_mismatch.as_ref().unwrap().rust;
+    assert_eq!(expected_rust.log_xp_gain, current_rust.log_xp_gain);
+    assert_eq!(expected_rust.decode_error, None);
+    assert_ne!(expected_rust.raw_body_sha256, current_rust.raw_body_sha256);
+    let delta = baseline_delta(&current, &expected);
+    assert!(!delta.matches());
+    assert_eq!(delta.new.len(), 1);
+    assert_eq!(delta.fixed.len(), 1);
+}
+
+#[test]
+fn baseline_keeps_counter_strict_on_valid_non_kill_side_against_decode_error() {
+    let cpp_a = XpFields {
+        reason: 1,
+        counter: 1,
+        ..XpFields::default()
+    };
+    let cpp_b = XpFields {
+        counter: 2,
+        ..cpp_a
+    };
+    let malformed = vec![0x01];
+
+    let expected = report(
+        packet(0, SMSG_LOG_XP_GAIN, log_xp_gain_body(cpp_a)),
+        packet(0, SMSG_LOG_XP_GAIN, malformed.clone()),
+    )
+    .signatures();
+    let current = report(
+        packet(0, SMSG_LOG_XP_GAIN, log_xp_gain_body(cpp_b)),
+        packet(0, SMSG_LOG_XP_GAIN, malformed),
+    )
+    .signatures();
+
+    let expected_cpp = &expected[0].semantic_mismatch.as_ref().unwrap().cpp;
+    let current_cpp = &current[0].semantic_mismatch.as_ref().unwrap().cpp;
+    assert_eq!(expected_cpp.log_xp_gain, current_cpp.log_xp_gain);
+    assert_eq!(expected_cpp.decode_error, None);
+    assert_ne!(expected_cpp.raw_body_sha256, current_cpp.raw_body_sha256);
+    let delta = baseline_delta(&current, &expected);
     assert!(!delta.matches());
     assert_eq!(delta.new.len(), 1);
     assert_eq!(delta.fixed.len(), 1);
@@ -358,6 +508,37 @@ fn baseline_distinguishes_both_decode_errors_at_equal_body_lengths() {
     );
 
     let delta = baseline_delta(&original_mismatch, &high_word_mismatch);
+    assert!(!delta.matches());
+    assert_eq!(delta.new.len(), 1);
+    assert_eq!(delta.fixed.len(), 1);
+}
+
+#[test]
+fn baseline_distinguishes_same_decode_error_and_length_with_different_bytes() {
+    let cpp = XpFields::default();
+    let malformed_a = vec![0x00, 0x00, 0xAA];
+    let malformed_b = vec![0x00, 0x00, 0xBB];
+
+    let expected = report(
+        packet(0, SMSG_LOG_XP_GAIN, log_xp_gain_body(cpp)),
+        packet(0, SMSG_LOG_XP_GAIN, malformed_a),
+    )
+    .signatures();
+    let current = report(
+        packet(0, SMSG_LOG_XP_GAIN, log_xp_gain_body(cpp)),
+        packet(0, SMSG_LOG_XP_GAIN, malformed_b),
+    )
+    .signatures();
+
+    assert_eq!(expected.len(), 1);
+    assert_eq!(current.len(), 1);
+    let expected_rust = &expected[0].semantic_mismatch.as_ref().unwrap().rust;
+    let current_rust = &current[0].semantic_mismatch.as_ref().unwrap().rust;
+    assert_eq!(expected_rust.decode_error, current_rust.decode_error);
+    assert_ne!(expected_rust.raw_body_sha256, current_rust.raw_body_sha256);
+    assert_ne!(expected[0], current[0]);
+
+    let delta = baseline_delta(&current, &expected);
     assert!(!delta.matches());
     assert_eq!(delta.new.len(), 1);
     assert_eq!(delta.fixed.len(), 1);

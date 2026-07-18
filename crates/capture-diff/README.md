@@ -77,11 +77,15 @@ entry, subtype, server id, `Original`, `Reason`, `Amount`, and the exact IEEE
 bits of `GroupBonus` remain strict. Malformed bodies and zero counters can
 never compare clean. If a semantic mismatch is ever recorded in a non-clean
 baseline, its signature includes the comparator plus the exact mismatched
-stable values and decode errors from both sides, so an equal-length regression
-in a different field—or in the second malformed body—cannot silently reuse the
-accepted divergence. The one-packet fixture proves the reward wire shape; the
-bot workflow separately proves offline accrual, DB XP/rest consumption, relog
-persistence, fixture restoration, and the natural respawn timer.
+stable values and decode errors from both sides. Invalid bodies additionally
+carry a SHA-256 identity, as does any valid non-kill side that enters a semantic
+mismatch because its peer is malformed or is creature-kill XP. Raw lengths are
+omitted because the normalized packed GUID counter can change them between
+equivalent runs. A regression in a different field—or different bytes producing
+the same decode error—therefore cannot silently reuse the accepted divergence.
+The one-packet fixture proves the reward wire shape; the bot workflow separately
+proves offline accrual, DB XP/rest consumption, relog persistence, fixture
+restoration, and the natural respawn timer.
 
 `--ignore-opcode` is repeatable, direction-required, and applied symmetrically
 after boundary selection. It is fail-closed to the reviewed periodic allowlist

@@ -317,15 +317,31 @@ impl DiffReport {
                     }
                     if let Some(body) = &op.body {
                         if !body.is_identical() {
+                            // A reviewed semantic comparator owns the complete
+                            // stable identity. Raw body lengths can change only
+                            // because the normalized GUID counter packs to a
+                            // different number of bytes between equivalent
+                            // runs, so they must not leak into the baseline.
+                            let semantic_mismatch = body.semantic.clone();
+                            let (cpp_body_len, rust_body_len, first_diff_offset) =
+                                if semantic_mismatch.is_some() {
+                                    (None, None, None)
+                                } else {
+                                    (
+                                        Some(body.cpp_len),
+                                        Some(body.rust_len),
+                                        body.first_diff_offset,
+                                    )
+                                };
                             sigs.push(DivergenceSignature {
                                 kind: DivergenceKind::BodyMismatch,
                                 direction: op.direction,
                                 opcode: format!("0x{:04X}", op.opcode),
                                 name: op.name.clone(),
-                                cpp_body_len: Some(body.cpp_len),
-                                rust_body_len: Some(body.rust_len),
-                                first_diff_offset: body.first_diff_offset,
-                                semantic_mismatch: body.semantic.clone(),
+                                cpp_body_len,
+                                rust_body_len,
+                                first_diff_offset,
+                                semantic_mismatch,
                                 cpp_connection_id: None,
                                 rust_connection_id: None,
                             });

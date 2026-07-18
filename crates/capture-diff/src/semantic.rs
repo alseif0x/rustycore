@@ -6,6 +6,7 @@
 //! and Rust runs; every other decoded bit remains part of the comparison.
 
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 use crate::model::Direction;
 
@@ -57,10 +58,15 @@ pub struct SemanticBodySide {
     pub log_xp_gain: Option<LogXpGainBody>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub decode_error: Option<String>,
+    /// Strict identity for a raw body that is not eligible for runtime-counter
+    /// normalization. Only a valid creature-kill body with a nonzero counter
+    /// omits this digest; invalid and valid non-kill sides retain it.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub raw_body_sha256: Option<String>,
 }
 
 impl SemanticBodySide {
-    fn from_decoded(decoded: Result<DecodedLogXpGainBody, String>) -> Self {
+    fn from_decoded(decoded: Result<DecodedLogXpGainBody, String>, raw_body: &[u8]) -> Self {
         match decoded {
             Ok(decoded)
                 if decoded.body.reason == XP_GAIN_REASON_KILL
@@ -68,22 +74,29 @@ impl SemanticBodySide {
                     && decoded.runtime_counter == 0 =>
             {
                 Self {
-                    log_xp_gain: None,
+                    log_xp_gain: Some(decoded.body),
                     decode_error: Some(
                         "kill XP creature victim has a zero runtime GUID counter".to_string(),
                     ),
+                    raw_body_sha256: Some(raw_body_sha256(raw_body)),
                 }
             }
             Ok(decoded) => Self {
                 log_xp_gain: Some(decoded.body),
                 decode_error: None,
+                raw_body_sha256: (!decoded.is_creature_kill()).then(|| raw_body_sha256(raw_body)),
             },
             Err(error) => Self {
                 log_xp_gain: None,
                 decode_error: Some(error),
+                raw_body_sha256: Some(raw_body_sha256(raw_body)),
             },
         }
     }
+}
+
+fn raw_body_sha256(body: &[u8]) -> String {
+    format!("{:x}", Sha256::digest(body))
 }
 
 /// Detailed semantic comparison attached to a regular body diff.
@@ -102,6 +115,7 @@ impl SemanticBodyDiff {
         self.cpp.decode_error.is_none()
             && self.rust.decode_error.is_none()
             && self.cpp.log_xp_gain == self.rust.log_xp_gain
+            && self.cpp.raw_body_sha256 == self.rust.raw_body_sha256
     }
 
     /// Concise field-level explanation for terminal reports.
@@ -198,8 +212,8 @@ pub fn compare_packet_bodies(
 
     Some(SemanticBodyDiff {
         comparator: "smsg_log_xp_gain_without_runtime_guid_counter".to_string(),
-        cpp: SemanticBodySide::from_decoded(cpp_decoded),
-        rust: SemanticBodySide::from_decoded(rust_decoded),
+        cpp: SemanticBodySide::from_decoded(cpp_decoded, cpp),
+        rust: SemanticBodySide::from_decoded(rust_decoded, rust),
     })
 }
 
