@@ -562,7 +562,7 @@ impl WorldSession {
         if is_first_represented_use {
             let xp = self.represented_gathering_node_xp_like_cpp(source.xp_difficulty);
             if xp != 0 {
-                self.give_xp(xp, ObjectGuid::EMPTY, false).await;
+                self.give_xp(xp, ObjectGuid::EMPTY, 1.0).await;
             }
             self.record_represented_gameobject_use_effects_like_cpp(
                 gameobject_guid,

@@ -694,7 +694,7 @@ mod tests {
     #[test]
     fn packed_guid_creature_roundtrip() {
         let mut pkt = WorldPacket::new_empty();
-        let guid = ObjectGuid::create_creature_like_cpp(530, 1234, 5678);
+        let guid = ObjectGuid::create_creature_like_cpp(1, 530, 1234, 5678);
         pkt.write_packed_guid(&guid);
 
         pkt.reset_read();
@@ -707,8 +707,8 @@ mod tests {
     }
 
     #[test]
-    fn packed_guid_raw_world_objects_do_not_encode_realm_or_server() {
-        let cpp_guid = ObjectGuid::create_vehicle_like_cpp(571, 29929, 0x6A);
+    fn packed_guid_cpp_vehicle_uses_active_realm_and_zero_server() {
+        let cpp_guid = ObjectGuid::create_vehicle_like_cpp(1, 571, 29929, 0x6A);
         let mut cpp_packet = WorldPacket::new_empty();
         cpp_packet.write_packed_guid(&cpp_guid);
 
@@ -724,12 +724,12 @@ mod tests {
         let mut contaminated_packet = WorldPacket::new_empty();
         contaminated_packet.write_packed_guid(&contaminated_guid);
 
-        assert_eq!(cpp_guid.realm_id(), 0);
+        assert_eq!(cpp_guid.realm_id(), 1);
         assert_eq!(cpp_guid.server_id(), 0);
         assert_eq!(
             contaminated_packet.size(),
-            cpp_packet.size() + 2,
-            "non-zero realm/server fields add packed GUID bytes outside the current raw world-object GUID contract"
+            cpp_packet.size() + 1,
+            "a non-zero server field adds one packed GUID byte beyond the C++ active-realm GUID"
         );
 
         cpp_packet.reset_read();

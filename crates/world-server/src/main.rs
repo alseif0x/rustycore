@@ -477,6 +477,7 @@ const WORLD_SESSION_FINALIZE_STEP_TIMEOUT_LIKE_CPP: Duration = Duration::from_se
 const WORLD_SESSION_FORCE_CANCEL_TIMEOUT_LIKE_CPP: Duration = Duration::from_secs(12);
 const REALM_TYPE_NORMAL_LIKE_CPP: u8 = 0;
 const REALM_TYPE_PVP_LIKE_CPP: u8 = 1;
+const REALM_TYPE_RPPVP_LIKE_CPP: u8 = 8;
 const MAX_CLIENT_REALM_TYPE_LIKE_CPP: u8 = 14;
 const REALM_TYPE_FFA_PVP_LIKE_CPP: u8 = 16;
 const SEC_ADMINISTRATOR_LIKE_CPP: u8 = 3;
@@ -1024,6 +1025,7 @@ impl AccountLookup for DbAccountLookup {
             let security: u8 = result.try_read(12).unwrap_or(0);
             let is_banned_bnet: u32 = result.try_read(13).unwrap_or(0);
             let is_banned_account: u32 = result.try_read(14).unwrap_or(0);
+            let is_a_recruiter = result.try_read::<u32>(15).unwrap_or(0) != 0;
 
             if account_id == 0 {
                 tracing::warn!("Account id is 0 for ticket '{ticket}'");
@@ -1050,6 +1052,7 @@ impl AccountLookup for DbAccountLookup {
                 mute_time: mutetime,
                 locale: locale_name,
                 recruiter,
+                is_a_recruiter,
                 os,
                 timezone_offset: i32::from(timezone_offset),
                 battlenet_account_id: bnet_id,
@@ -1505,6 +1508,14 @@ async fn main() -> Result<ExitCode> {
         wow_data::AreaTableStore::load_with_hotfixes(&data_dir, &locale, &hotfix_db)
             .await
             .context("Failed to load AreaTable.db2 / hotfix rows")?,
+    );
+    let area_trigger_db2_store = Arc::new(
+        wow_data::AreaTriggerDb2Store::load(&data_dir, &locale)
+            .context("Failed to load AreaTrigger.db2 — check DataDir and DBC.Locale config")?,
+    );
+    info!(
+        "Loaded {} area trigger DB2 rows from AreaTrigger.db2",
+        area_trigger_db2_store.len()
     );
     let fishing_base_skill_store = Arc::new(
         wow_data::FishingBaseSkillStoreLikeCpp::load(world_db.as_ref(), &area_table_store)
@@ -2680,7 +2691,7 @@ async fn main() -> Result<ExitCode> {
         canonical_spawn_report.gameobject.validation_skipped,
         canonical_spawn_report.area_trigger.validation_skipped,
     );
-    let script_name_interner = Arc::new(script_name_interner);
+    let mut script_name_interner = Arc::new(script_name_interner);
     info!(
         "Built C++ ScriptNameContainer core from loaded template/scene/area-trigger/spawn stores: {} names ({} DB-bound)",
         script_name_interner.len_like_cpp(),
@@ -3333,6 +3344,38 @@ async fn main() -> Result<ExitCode> {
         wow_data::load_area_triggers(&world_db)
             .await
             .context("Failed to load area triggers")?,
+    );
+    let area_trigger_script_outcome = wow_data::AreaTriggerScriptStoreLikeCpp::load_like_cpp(
+        world_db.as_ref(),
+        area_trigger_db2_store.as_ref(),
+        Arc::make_mut(&mut script_name_interner),
+    )
+    .await
+    .context("Failed to load C++ area trigger scripts")?;
+    let area_trigger_script_store = Arc::new(area_trigger_script_outcome.store);
+    info!(
+        "Loaded {} C++ area trigger script bindings ({} skipped missing area trigger)",
+        area_trigger_script_store.len(),
+        area_trigger_script_outcome
+            .report
+            .skipped_missing_area_trigger
+            .len()
+    );
+    let tavern_area_trigger_outcome = wow_data::TavernAreaTriggerStoreLikeCpp::load_like_cpp(
+        world_db.as_ref(),
+        area_trigger_db2_store.as_ref(),
+    )
+    .await
+    .context("Failed to load C++ tavern area triggers")?;
+    let tavern_area_trigger_store = Arc::new(tavern_area_trigger_outcome.store);
+    info!(
+        "Loaded {} C++ tavern area triggers ({} rows seen; {} skipped missing AreaTrigger.db2)",
+        tavern_area_trigger_store.len(),
+        tavern_area_trigger_outcome.report.rows_seen,
+        tavern_area_trigger_outcome
+            .report
+            .skipped_missing_area_trigger
+            .len()
     );
 
     // Load quest store (templates + objectives + NPC relations)
@@ -4415,7 +4458,7 @@ async fn main() -> Result<ExitCode> {
                 map_store: Some(map_store.as_ref()),
                 phase_store: Some(phase_store.as_ref()),
                 quest_store: Some(quest_store.as_ref()),
-                area_trigger_store: Some(area_trigger_store.as_ref()),
+                area_trigger_db2_store: Some(area_trigger_db2_store.as_ref()),
                 graveyard_store: Some(&graveyard_store),
                 spawn_group_store: Some(&spawn_group_store),
                 creature_template_store: Some(creature_template_store.as_ref()),
@@ -4740,6 +4783,7 @@ async fn main() -> Result<ExitCode> {
     );
 
     let loaded_grid_creature_respawn_caches = LoadedGridCreatureRespawnCachesLikeCpp {
+        realm_id,
         template_store: Arc::clone(&creature_template_lifecycle_store),
         sparring_store: Arc::clone(&creature_template_sparring_store),
         difficulty_store: Arc::clone(&creature_difficulty_store),
@@ -5089,7 +5133,10 @@ async fn main() -> Result<ExitCode> {
         gameobject_template_lifecycle_store: Some(Arc::clone(&gameobject_template_lifecycle_store)),
         area_table_store: Some(Arc::clone(&area_table_store)),
         fishing_base_skill_store: Some(Arc::clone(&fishing_base_skill_store)),
+        area_trigger_db2_store: Some(Arc::clone(&area_trigger_db2_store)),
         area_trigger_store: Some(Arc::clone(&area_trigger_store)),
+        area_trigger_script_store: Some(Arc::clone(&area_trigger_script_store)),
+        tavern_area_trigger_store: Some(Arc::clone(&tavern_area_trigger_store)),
         graveyard_store: Some(Arc::clone(&graveyard_store)),
         area_trigger_template_store: Some(Arc::clone(&area_trigger_template_store)),
         chr_specialization_store: Some(Arc::clone(&chr_specialization_store)),
@@ -5143,6 +5190,40 @@ async fn main() -> Result<ExitCode> {
         player_xp_table: Some(Arc::clone(&player_xp_table)),
         exploration_base_xp_store: Some(Arc::clone(&exploration_base_xp_store)),
         exploration_xp_rate: world_config_f32(&world_configs, "RATE_XP_EXPLORE", 1.0),
+        // `WorldConfigSet` resolves the external `MaxPlayerLevel` key and indexes
+        // the validated value by the matching C++ enum name.
+        max_player_level_config: world_config_u32(&world_configs, "CONFIG_MAX_PLAYER_LEVEL", 80),
+        is_pvp_realm: is_pvp_realm_type_like_cpp(world_config_u32(
+            &world_configs,
+            "CONFIG_GAME_TYPE",
+            u32::from(REALM_TYPE_NORMAL_LIKE_CPP),
+        )),
+        is_ffa_pvp_realm: is_ffa_pvp_realm_type_like_cpp(world_config_u32(
+            &world_configs,
+            "CONFIG_GAME_TYPE",
+            u32::from(REALM_TYPE_NORMAL_LIKE_CPP),
+        )),
+        max_recruit_a_friend_bonus_player_level: world_config_u32(
+            &world_configs,
+            "CONFIG_MAX_RECRUIT_A_FRIEND_BONUS_PLAYER_LEVEL",
+            85,
+        ),
+        max_recruit_a_friend_bonus_player_level_difference: world_config_u32(
+            &world_configs,
+            "CONFIG_MAX_RECRUIT_A_FRIEND_BONUS_PLAYER_LEVEL_DIFFERENCE",
+            4,
+        ),
+        rest_offline_wilderness_rate: world_config_f32(
+            &world_configs,
+            "RATE_REST_OFFLINE_IN_WILDERNESS",
+            1.0,
+        ),
+        rest_offline_tavern_or_city_rate: world_config_f32(
+            &world_configs,
+            "RATE_REST_OFFLINE_IN_TAVERN_OR_CITY",
+            1.0,
+        ),
+        rest_ingame_rate: world_config_f32(&world_configs, "RATE_REST_INGAME", 1.0),
         min_quest_scaled_xp_ratio: world_config_u32(
             &world_configs,
             "CONFIG_MIN_QUEST_SCALED_XP_RATIO",
@@ -6029,6 +6110,19 @@ fn normalize_realm_type_like_cpp(icon: u8) -> u8 {
     }
 
     icon
+}
+
+fn is_pvp_realm_type_like_cpp(icon: u32) -> bool {
+    matches!(
+        icon,
+        value if value == u32::from(REALM_TYPE_PVP_LIKE_CPP)
+            || value == u32::from(REALM_TYPE_RPPVP_LIKE_CPP)
+            || value == u32::from(REALM_TYPE_FFA_PVP_LIKE_CPP)
+    )
+}
+
+fn is_ffa_pvp_realm_type_like_cpp(icon: u32) -> bool {
+    icon == u32::from(REALM_TYPE_FFA_PVP_LIKE_CPP)
 }
 
 fn normalize_realm_security_level_like_cpp(level: u8) -> u8 {
@@ -10579,6 +10673,7 @@ async fn execute_game_event_world_event_state_db_bridge_like_cpp(
 
 #[derive(Clone)]
 struct LoadedGridCreatureRespawnCachesLikeCpp {
+    realm_id: u16,
     template_store: Arc<wow_data::CreatureTemplateLifecycleStoreLikeCpp>,
     sparring_store: Arc<wow_data::CreatureTemplateSparringStoreLikeCpp>,
     difficulty_store: Arc<wow_data::CreatureDifficultyStoreLikeCpp>,
@@ -10867,8 +10962,12 @@ fn build_loaded_grid_creature_record_with_respawn_time_like_cpp(
         HighGuid::Creature
     };
     let map_object_guid = match map_object_high {
-        HighGuid::Vehicle => ObjectGuid::create_vehicle_like_cpp(map_id, template.entry, low),
-        HighGuid::Creature => ObjectGuid::create_creature_like_cpp(map_id, template.entry, low),
+        HighGuid::Vehicle => {
+            ObjectGuid::create_vehicle_like_cpp(caches.realm_id, map_id, template.entry, low)
+        }
+        HighGuid::Creature => {
+            ObjectGuid::create_creature_like_cpp(caches.realm_id, map_id, template.entry, low)
+        }
         _ => unreachable!("loaded-grid creature records only create Creature or Vehicle GUIDs"),
     };
     let resolver = creature_loaded_grid::CreatureLoadedGridLifecycleResolverLikeCpp::new(
@@ -12328,6 +12427,7 @@ async fn create_session(
     session.set_remote_address_like_cpp(account.client_address.map(|addr| addr.to_string()));
     session.set_battlenet_account_id(account.battlenet_account_id);
     session.set_recruiter_id_like_cpp(account.recruiter);
+    session.set_is_a_recruiter_like_cpp(account.is_a_recruiter);
     session.set_mute_time_like_cpp(account.mute_time);
     if let Some(ref generator) = resources.guid_generator {
         session.set_guid_generator(Arc::clone(generator));
@@ -12656,8 +12756,17 @@ async fn create_session(
     if let Some(ref store) = resources.fishing_base_skill_store {
         session.set_fishing_base_skill_store(Arc::clone(store));
     }
+    if let Some(ref store) = resources.area_trigger_db2_store {
+        session.set_area_trigger_db2_store(Arc::clone(store));
+    }
     if let Some(ref store) = resources.area_trigger_store {
         session.set_area_trigger_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.area_trigger_script_store {
+        session.set_area_trigger_script_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.tavern_area_trigger_store {
+        session.set_tavern_area_trigger_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.graveyard_store {
         session.set_graveyard_store(Arc::clone(store));
@@ -12813,6 +12922,18 @@ async fn create_session(
         session.set_exploration_base_xp_store_like_cpp(Arc::clone(store));
     }
     session.set_exploration_xp_rate_like_cpp(resources.exploration_xp_rate);
+    session.set_rested_xp_config_like_cpp(
+        resources.max_player_level_config,
+        resources.rest_offline_wilderness_rate,
+        resources.rest_offline_tavern_or_city_rate,
+        resources.rest_ingame_rate,
+    );
+    session.set_pvp_realm_like_cpp(resources.is_pvp_realm);
+    session.set_ffa_pvp_realm_like_cpp(resources.is_ffa_pvp_realm);
+    session.set_recruit_a_friend_xp_config_like_cpp(
+        resources.max_recruit_a_friend_bonus_player_level,
+        resources.max_recruit_a_friend_bonus_player_level_difference,
+    );
     session.set_min_quest_scaled_xp_ratio_like_cpp(resources.min_quest_scaled_xp_ratio);
     session.set_min_discovered_scaled_xp_ratio_like_cpp(resources.min_discovered_scaled_xp_ratio);
     if let Some(ref registry) = resources.player_registry {
@@ -14143,7 +14264,8 @@ mod tests {
         game_event_unspawn_pools_like_cpp, game_event_update_npc_flags_like_cpp,
         game_event_update_npc_vendor_like_cpp, game_event_update_world_states_like_cpp,
         get_address_for_client_with_local_networks, half_max_core_stuck_time_like_cpp,
-        install_canonical_spawn_group_initializer_like_cpp, kick_all_sessions_like_cpp,
+        install_canonical_spawn_group_initializer_like_cpp, is_ffa_pvp_realm_type_like_cpp,
+        is_pvp_realm_type_like_cpp, kick_all_sessions_like_cpp,
         legacy_creature_aggro_config_like_cpp,
         legacy_creature_global_runtime_enabled_from_config_like_cpp,
         load_loaded_grid_area_triggers_like_cpp, load_world_config_from, loot_drop_rates_like_cpp,
@@ -14380,6 +14502,20 @@ mod tests {
         assert_eq!(entry.normalized_name, "Northrend");
         assert_eq!(entry.icon, 1);
         assert_eq!(entry.allowed_security_level, 3);
+    }
+
+    #[test]
+    fn pvp_realm_classification_matches_cpp_realm_types() {
+        assert!(!is_pvp_realm_type_like_cpp(0));
+        assert!(is_pvp_realm_type_like_cpp(1));
+        assert!(!is_pvp_realm_type_like_cpp(6));
+        assert!(is_pvp_realm_type_like_cpp(8));
+        assert!(is_pvp_realm_type_like_cpp(16));
+
+        assert!(!is_ffa_pvp_realm_type_like_cpp(0));
+        assert!(!is_ffa_pvp_realm_type_like_cpp(1));
+        assert!(!is_ffa_pvp_realm_type_like_cpp(8));
+        assert!(is_ffa_pvp_realm_type_like_cpp(16));
     }
 
     #[test]
@@ -15002,6 +15138,7 @@ mod tests {
     fn empty_loaded_grid_creature_respawn_caches_like_cpp() -> LoadedGridCreatureRespawnCachesLikeCpp
     {
         LoadedGridCreatureRespawnCachesLikeCpp {
+            realm_id: 1,
             template_store: Arc::new(wow_data::CreatureTemplateLifecycleStoreLikeCpp::default()),
             sparring_store: Arc::new(wow_data::CreatureTemplateSparringStoreLikeCpp::default()),
             difficulty_store: Arc::new(wow_data::CreatureDifficultyStoreLikeCpp::default()),
@@ -15415,8 +15552,8 @@ mod tests {
 
     fn test_guid_like_cpp(high: HighGuid, counter: i64, entry: u32) -> ObjectGuid {
         match high {
-            HighGuid::Creature => ObjectGuid::create_creature_like_cpp(1, entry, counter),
-            HighGuid::Vehicle => ObjectGuid::create_vehicle_like_cpp(1, entry, counter),
+            HighGuid::Creature => ObjectGuid::create_creature_like_cpp(1, 1, entry, counter),
+            HighGuid::Vehicle => ObjectGuid::create_vehicle_like_cpp(1, 1, entry, counter),
             HighGuid::GameObject => ObjectGuid::create_gameobject_like_cpp(1, entry, counter),
             HighGuid::AreaTrigger => ObjectGuid::create_area_trigger_like_cpp(1, entry, counter),
             _ => ObjectGuid::create_world_object(high, 0, 0, 1, 0, entry, counter),
@@ -22830,7 +22967,8 @@ mmap.enablePathFinding = 0
                 spawn_time_secs: 120,
             },
         )]));
-        let caches = variable_loaded_grid_creature_respawn_caches_like_cpp(entry);
+        let mut caches = variable_loaded_grid_creature_respawn_caches_like_cpp(entry);
+        caches.realm_id = 7;
         let mut map = wow_map::Map::new(571, 0, 2, 60_000);
         map.add_respawn_info_like_cpp(RespawnInfoLikeCpp {
             object_type: SpawnObjectType::Creature,
@@ -22864,6 +23002,7 @@ mmap.enablePathFinding = 0
             creature.guid().high_type(),
             wow_core::guid::HighGuid::Creature
         );
+        assert_eq!(creature.guid().realm_id(), 7);
         assert_eq!(u32::from(creature.guid().map_id()), 571);
         assert_eq!(creature.guid().entry(), entry);
         assert_eq!(creature.guid().counter(), 1);
@@ -23281,10 +23420,11 @@ mmap.enablePathFinding = 0
                     },
                 )])),
         ));
-        let caches =
+        let mut caches =
             variable_loaded_grid_creature_respawn_caches_with_vehicle_id_and_difficulty_like_cpp(
                 entry, 0, 0,
             );
+        caches.realm_id = 7;
         let area_trigger_templates = area_trigger_template_store_for_loaded_grid_like_cpp(1, 1);
         canonical.lock().unwrap().create_world_map(1, 0);
         let map_store = loaded_grid_map_store_like_cpp(1, wow_data::map::MAP_COMMON);
@@ -23315,6 +23455,7 @@ mmap.enablePathFinding = 0
                 .expect("visible adjacent NGrid creature should be materialized")
                 .guid()
         };
+        assert_eq!(guid.realm_id(), 7);
         assert!(
             legacy.read().unwrap().find_creature(1, 0, guid).is_some(),
             "materialized canonical creature must be mirrored into the legacy visible/tick world"
@@ -23700,6 +23841,7 @@ mmap.enablePathFinding = 0
         )]));
         let mut caches =
             variable_loaded_grid_creature_respawn_caches_with_vehicle_id_like_cpp(entry, 101);
+        caches.realm_id = 7;
         let entry_accessory = wow_entities::VehicleAccessory {
             accessory_entry: 7001,
             seat_id: 1,
@@ -23745,6 +23887,7 @@ mmap.enablePathFinding = 0
             creature.guid().high_type(),
             wow_core::guid::HighGuid::Vehicle
         );
+        assert_eq!(creature.guid().realm_id(), 7);
         assert_eq!(creature.guid().counter(), 1);
         assert_ne!(creature.guid().counter(), spawn_id as i64);
         assert_eq!(creature.guid().entry(), entry);
@@ -23878,6 +24021,7 @@ mmap.enablePathFinding = 0
         difficulty_id: u8,
     ) -> LoadedGridCreatureRespawnCachesLikeCpp {
         LoadedGridCreatureRespawnCachesLikeCpp {
+            realm_id: 1,
             template_store: Arc::new(
                 wow_data::CreatureTemplateLifecycleStoreLikeCpp::from_templates([
                     wow_data::CreatureTemplateLifecycleRecordLikeCpp {

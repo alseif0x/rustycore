@@ -482,6 +482,7 @@ pub mod aura_types {
     pub const SPELL_AURA_MOD_BATTLE_PET_XP_PCT: i32 = 420;
     pub const SPELL_AURA_MOD_MINIMUM_SPEED_RATE: i32 = 437;
     pub const SPELL_AURA_MOD_ROOT_2: i32 = 455;
+    pub const SPELL_AURA_MOD_RESTED_XP_CONSUMPTION: i32 = 499;
 }
 
 /// Selected `Targets` ids from C++ `SpellImplicitTargetInfo::_data`.
@@ -7399,6 +7400,7 @@ mod tests {
         assert_eq!(aura_types::SPELL_AURA_MOD_SPEED_NO_CONTROL, 373);
         assert_eq!(aura_types::SPELL_AURA_MOD_BATTLE_PET_XP_PCT, 420);
         assert_eq!(aura_types::SPELL_AURA_MOD_MINIMUM_SPEED_RATE, 437);
+        assert_eq!(aura_types::SPELL_AURA_MOD_RESTED_XP_CONSUMPTION, 499);
 
         // C++ `SharedDefines.h`: selected SpellAttr0 anchors.
         assert_eq!(attributes::SPELL_ATTR0_ONLY_INDOORS, 0x0000_4000);

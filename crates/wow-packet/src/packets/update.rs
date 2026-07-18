@@ -1546,6 +1546,10 @@ pub struct PlayerCreateData {
     pub max_health: i64,
     pub faction_template: i32,
     pub current_area_id: u32,
+    /// PlayerData::PlayerFlags.
+    pub player_flags: u32,
+    /// PlayerData::PlayerFlagsEx.
+    pub player_flags_ex: u32,
     /// Primary stats: [STR, AGI, STA, INT, SPI].
     pub stats: [i32; 5],
     /// Base armor (AGI * 2).
@@ -1605,6 +1609,16 @@ pub struct PlayerCreateData {
     pub party_type: [u8; 2],
     /// Current money in copper (Coinage field in ActivePlayerData).
     pub coinage: u64,
+    /// ActivePlayerData::XP.
+    pub xp: i32,
+    /// ActivePlayerData::NextLevelXP.
+    pub next_level_xp: i32,
+    /// ActivePlayerData::MaxLevel.
+    pub max_level: i32,
+    /// ActivePlayerData::ScalingPlayerLevelDelta.
+    pub scaling_player_level_delta: i32,
+    /// ActivePlayerData::RestInfo[REST_TYPE_XP/HONOR].
+    pub rest_info: [RestInfoValuesUpdate; 2],
     /// ActivePlayerData::WatchedFactionIndex.
     pub watched_faction_index: i32,
     /// ActivePlayerData::Heirlooms.
@@ -2037,8 +2051,8 @@ impl PlayerCreateData {
         write_empty_guid(buf); // LootTargetGUID
 
         // PlayerFlags, PlayerFlagsEx
-        buf.write_uint32(0);
-        buf.write_uint32(0);
+        buf.write_uint32(self.player_flags);
+        buf.write_uint32(self.player_flags_ex);
 
         // GuildRankID, GuildDeleteDate, GuildLevel
         buf.write_int32(0);
@@ -2173,8 +2187,8 @@ impl PlayerCreateData {
 
         // Coinage, XP, NextLevelXP, TrialXP
         buf.write_int64(self.coinage as i64);
-        buf.write_int32(0);
-        buf.write_int32(400); // NextLevelXP for level 1
+        buf.write_int32(self.xp);
+        buf.write_int32(self.next_level_xp);
         buf.write_int32(0);
 
         // SkillInfo.WriteCreate: 256 entries × 7 u16s each
@@ -2261,9 +2275,9 @@ impl PlayerCreateData {
 
         // RestInfo[2] (each: i32 Threshold + u8 StateID)
         // StateID: 1=Rested, 2=Normal, 6=RAFLinked — must NOT be 0 (invalid)
-        for _ in 0..2 {
-            buf.write_int32(0); // Threshold (no rest bonus)
-            buf.write_uint8(2); // StateID = Normal
+        for rest_info in self.rest_info {
+            buf.write_int32(rest_info.threshold as i32);
+            buf.write_uint8(rest_info.state_id);
         }
 
         // ModHealingDonePos, ModHealingPercent, ModHealingDonePercent, ModPeriodicHealingDonePercent
@@ -2341,8 +2355,8 @@ impl PlayerCreateData {
         trace(buf, "combat_ratings");
 
         // MaxLevel, ScalingPlayerLevelDelta, MaxCreatureScalingLevel
-        buf.write_int32(80);
-        buf.write_int32(0);
+        buf.write_int32(self.max_level);
+        buf.write_int32(self.scaling_player_level_delta);
         buf.write_int32(0);
 
         // NoReagentCostMask[4]
@@ -3783,6 +3797,8 @@ impl UpdateObject {
             max_health: combat.max_health,
             faction_template: faction,
             current_area_id: zone_id,
+            player_flags: 0,
+            player_flags_ex: 0,
             stats: combat.stats,
             base_armor: combat.base_armor,
             max_mana: combat.max_mana,
@@ -3810,6 +3826,22 @@ impl UpdateObject {
             action_buttons: [0; MAX_ACTION_BUTTONS],
             skill_info,
             coinage,
+            xp: 0,
+            next_level_xp: 400,
+            max_level: 80,
+            scaling_player_level_delta: 0,
+            rest_info: [
+                RestInfoValuesUpdate {
+                    rest_info_mask: 0x07,
+                    threshold: 0,
+                    state_id: 2,
+                },
+                RestInfoValuesUpdate {
+                    rest_info_mask: 0x07,
+                    threshold: 0,
+                    state_id: 2,
+                },
+            ],
             watched_faction_index: -1,
             party_type,
             heirlooms: Vec::new(),
@@ -3844,6 +3876,26 @@ impl UpdateObject {
                 create_data,
                 is_self,
             }],
+        }
+    }
+
+    /// Populate PlayerData::PlayerFlags and PlayerData::PlayerFlagsEx on the
+    /// self CREATE block.
+    ///
+    /// C++ `Player::LoadFromDB` restores these into `m_playerData` before
+    /// `Map::SendInitSelf` calls `Player::BuildCreateUpdateBlockForPlayer`.
+    pub fn set_player_flags_like_cpp(&mut self, player_flags: u32, player_flags_ex: u32) {
+        for block in &mut self.blocks {
+            if let UpdateBlock::CreateObject {
+                create_data,
+                is_self: true,
+                ..
+            } = block
+            {
+                create_data.player_flags = player_flags;
+                create_data.player_flags_ex = player_flags_ex;
+                return;
+            }
         }
     }
 
@@ -3890,6 +3942,83 @@ impl UpdateObject {
             } = block
             {
                 create_data.current_power0 = current_power0;
+            }
+        }
+    }
+
+    /// Override `ActivePlayerData::XP` for the self player create block.
+    pub fn set_player_xp_like_cpp(&mut self, xp: i32) {
+        for block in &mut self.blocks {
+            if let UpdateBlock::CreateObject {
+                create_data,
+                is_self: true,
+                ..
+            } = block
+            {
+                create_data.xp = xp;
+            }
+        }
+    }
+
+    /// Override `ActivePlayerData::NextLevelXP` for the self player create block.
+    pub fn set_player_next_level_xp_like_cpp(&mut self, next_level_xp: i32) {
+        for block in &mut self.blocks {
+            if let UpdateBlock::CreateObject {
+                create_data,
+                is_self: true,
+                ..
+            } = block
+            {
+                create_data.next_level_xp = next_level_xp;
+            }
+        }
+    }
+
+    /// Override `ActivePlayerData::MaxLevel` for the self player create block.
+    pub fn set_player_max_level_like_cpp(&mut self, max_level: i32) {
+        for block in &mut self.blocks {
+            if let UpdateBlock::CreateObject {
+                create_data,
+                is_self: true,
+                ..
+            } = block
+            {
+                create_data.max_level = max_level;
+            }
+        }
+    }
+
+    /// Override `ActivePlayerData::ScalingPlayerLevelDelta` for the self player create block.
+    pub fn set_player_scaling_level_delta_like_cpp(&mut self, delta: i32) {
+        for block in &mut self.blocks {
+            if let UpdateBlock::CreateObject {
+                create_data,
+                is_self: true,
+                ..
+            } = block
+            {
+                create_data.scaling_player_level_delta = delta;
+            }
+        }
+    }
+
+    /// Override `ActivePlayerData::RestInfo[index]` for the self player create block.
+    pub fn set_player_rest_info_like_cpp(&mut self, index: usize, threshold: u32, state_id: u8) {
+        for block in &mut self.blocks {
+            if let UpdateBlock::CreateObject {
+                create_data,
+                is_self: true,
+                ..
+            } = block
+            {
+                let Some(rest_info) = create_data.rest_info.get_mut(index) else {
+                    return;
+                };
+                *rest_info = RestInfoValuesUpdate {
+                    rest_info_mask: 0x07,
+                    threshold,
+                    state_id,
+                };
             }
         }
     }
@@ -10578,6 +10707,28 @@ mod tests {
     }
 
     #[test]
+    fn active_player_scaling_delta_values_update_matches_cpp_mask_and_value() {
+        let mut data = ActivePlayerDataValuesUpdate::default();
+        data.active_player_data_mask[0] = 1;
+        data.active_player_data_mask[2] = (1 << (70 - 64)) | (1 << (94 - 64));
+        data.scaling_player_level_delta = -1;
+
+        let mut values = WorldPacket::new_empty();
+        write_active_player_data_values_update_section(&mut values, &data);
+
+        assert_eq!(
+            values.into_data(),
+            vec![
+                0x05, 0x00, 0x00, 0x00, // group 0: blocks 0 and 2
+                0x00, 0x00, // group 1: no blocks 32..47
+                0x00, 0x00, 0x00, 0x01, // block 0: root bit 0
+                0x40, 0x00, 0x00, 0x40, // block 2: parent 70 and field 94
+                0xFF, 0xFF, 0xFF, 0xFF, // ScalingPlayerLevelDelta = -1
+            ]
+        );
+    }
+
+    #[test]
     fn active_player_stats_values_update_matches_cpp_common_runtime_masks() {
         let mut combat_ratings = [0; 32];
         combat_ratings[0] = 11;
@@ -11093,6 +11244,8 @@ mod tests {
             max_health: 100,
             faction_template: PlayerCreateData::faction_for_race(1),
             current_area_id: 12,
+            player_flags: 0,
+            player_flags_ex: 0,
             stats: [0; 5],
             base_armor: 0,
             max_mana: 0,
@@ -11117,6 +11270,22 @@ mod tests {
             quest_log: Vec::new(),
             party_type: [0; 2],
             coinage: 0,
+            xp: 0,
+            next_level_xp: 400,
+            max_level: 80,
+            scaling_player_level_delta: 0,
+            rest_info: [
+                RestInfoValuesUpdate {
+                    rest_info_mask: 0x07,
+                    threshold: 0,
+                    state_id: 2,
+                },
+                RestInfoValuesUpdate {
+                    rest_info_mask: 0x07,
+                    threshold: 0,
+                    state_id: 2,
+                },
+            ],
             watched_faction_index: -1,
             heirlooms: Vec::new(),
             heirloom_flags: Vec::new(),
@@ -11140,6 +11309,24 @@ mod tests {
                 .windows(4)
                 .any(|window| window == [17, 23, 0, create.sex]),
             "PlayerData::PartyType[2] must be serialized before NumBankSlots/NativeSex"
+        );
+    }
+
+    #[test]
+    fn player_create_writes_loaded_player_flags_like_cpp() {
+        let mut create = test_player_create_data_with_farsight(ObjectGuid::EMPTY);
+        create.player_flags = 0x22;
+        create.player_flags_ex = 0x04;
+
+        let mut packet = WorldPacket::new_empty();
+        create.write_player_data(&mut packet, 0x03);
+
+        assert!(
+            packet
+                .data()
+                .windows(8)
+                .any(|window| window == [0x22, 0, 0, 0, 0x04, 0, 0, 0]),
+            "C++ PlayerData::WriteCreate serializes loaded PlayerFlags/PlayerFlagsEx"
         );
     }
 
@@ -11471,6 +11658,57 @@ mod tests {
             create_data.base_mana_for_create_like_cpp(),
             1000,
             "mana percentage spell costs still use create/base mana"
+        );
+    }
+
+    #[test]
+    fn create_player_self_xp_can_use_saved_db_value_like_cpp() {
+        let guid = ObjectGuid::create_player(1, 42);
+        let pos = Position::new(0.0, 0.0, 0.0, 0.0);
+        let mut packet = UpdateObject::create_player(
+            guid,
+            1,
+            1,
+            0,
+            10,
+            49,
+            &pos,
+            0,
+            12,
+            true,
+            [(0, 0, 0); 19],
+            [ObjectGuid::EMPTY; 141],
+            PlayerCombatStats::default(),
+            Vec::new(),
+            0,
+            Vec::new(),
+        );
+
+        packet.set_player_xp_like_cpp(1_234);
+        packet.set_player_max_level_like_cpp(70);
+        packet.set_player_scaling_level_delta_like_cpp(-1);
+
+        let UpdateBlock::CreateObject { create_data, .. } = &packet.blocks[0] else {
+            panic!("create_player should emit one CreateObject block");
+        };
+        assert_eq!(create_data.xp, 1_234);
+        assert_eq!(create_data.max_level, 70);
+        assert_eq!(create_data.scaling_player_level_delta, -1);
+
+        let mut active = WorldPacket::new_empty();
+        create_data.write_active_player_data(&mut active);
+        let active = active.into_data();
+        assert_eq!(
+            i32::from_le_bytes(active[298..302].try_into().unwrap()),
+            1_234
+        );
+        assert_eq!(
+            i32::from_le_bytes(active[6_444..6_448].try_into().unwrap()),
+            70
+        );
+        assert_eq!(
+            i32::from_le_bytes(active[6_448..6_452].try_into().unwrap()),
+            -1
         );
     }
 

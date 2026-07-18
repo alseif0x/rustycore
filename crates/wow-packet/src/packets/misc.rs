@@ -13091,12 +13091,12 @@ mod tests {
 // ── SMSG_LOG_XP_GAIN ─────────────────────────────────────────────────────────
 
 /// Floating text "+XP" on screen when player earns experience.
-/// C# ref: LogXPGain
+/// C++ `WorldPackets::Character::LogXPGain::Write`.
 pub struct LogXpGain {
     pub victim: ObjectGuid,
-    pub original: i32, // XP before bonuses
+    pub original: i32, // base XP plus represented bonuses
     pub reason: u8,    // 0=Kill, 1=NoKill(quest/explore)
-    pub amount: i32,   // XP after bonuses (what actually counts)
+    pub amount: i32,   // base XP amount
     pub group_bonus: f32,
 }
 
@@ -13156,7 +13156,8 @@ mod exploration_experience_tests {
 // ── SMSG_LEVELUP_INFO ────────────────────────────────────────────────────────
 
 /// "Ding!" level-up popup with stat deltas.
-/// C# ref: LevelUpInfo — PowerDelta[10] + StatDelta[5]
+/// C++ `WorldPackets::Misc::LevelUpInfo::Write` — `PowerDelta[10]`
+/// followed by `StatDelta[5]` and `NumNewTalents`.
 pub struct LevelUpInfo {
     pub level: i32,
     pub health_delta: i32,

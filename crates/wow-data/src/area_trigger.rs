@@ -17,7 +17,7 @@ use wow_database::{WorldDatabase, WorldStatements};
 use crate::quest::{
     QUEST_FLAGS_COMPLETION_AREA_TRIGGER_LIKE_CPP, QUEST_OBJECTIVE_AREATRIGGER_LIKE_CPP, QuestStore,
 };
-use crate::{ScriptIdLikeCpp, ScriptNameInternerLikeCpp, WorldSafeLocStore};
+use crate::{AreaTriggerDb2Store, ScriptIdLikeCpp, ScriptNameInternerLikeCpp, WorldSafeLocStore};
 
 /// Area trigger shape types (from AreaTriggerShapeType).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -435,11 +435,11 @@ impl AreaTriggerScriptStoreLikeCpp {
     ///
     /// C++ anchors:
     /// - `/home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:6653-6680`
-    /// - validates `entry` against the authoritative `sAreaTriggerStore`
+    /// - validates `entry` against the authoritative DB2 `sAreaTriggerStore`
     /// - stores `entry -> GetScriptId(ScriptName)`
     pub async fn load_like_cpp(
         db: &WorldDatabase,
-        area_trigger_store: &AreaTriggerStore,
+        area_trigger_store: &AreaTriggerDb2Store,
         script_names: &mut ScriptNameInternerLikeCpp,
     ) -> Result<AreaTriggerScriptLoadOutcomeLikeCpp> {
         let mut rows = Vec::new();
@@ -460,7 +460,7 @@ impl AreaTriggerScriptStoreLikeCpp {
 
         Ok(Self::from_rows_like_cpp(
             rows,
-            |entry| area_trigger_store.contains_trigger_like_cpp(entry),
+            |entry| area_trigger_store.get(entry).is_some(),
             script_names,
         ))
     }
@@ -725,7 +725,7 @@ impl TavernAreaTriggerStoreLikeCpp {
     /// - stores a set consumed by `ObjectMgr::IsTavernAreaTrigger`
     pub async fn load_like_cpp(
         db: &WorldDatabase,
-        area_trigger_store: &AreaTriggerStore,
+        area_trigger_db2_store: &AreaTriggerDb2Store,
     ) -> Result<TavernAreaTriggerLoadOutcomeLikeCpp> {
         let mut rows = Vec::new();
         let mut result = db.direct_query("SELECT id FROM areatrigger_tavern").await?;
@@ -739,7 +739,7 @@ impl TavernAreaTriggerStoreLikeCpp {
         }
 
         Ok(Self::from_ids_like_cpp(rows, |trigger_id| {
-            area_trigger_store.contains_trigger_like_cpp(trigger_id)
+            area_trigger_db2_store.get(trigger_id).is_some()
         }))
     }
 
@@ -967,12 +967,32 @@ mod area_trigger_script_tests {
 
     #[test]
     fn tavern_area_trigger_store_validates_ids_like_cpp() {
-        let mut area_triggers = AreaTriggerStore::new();
-        area_triggers.insert(trigger(10));
+        let area_triggers = AreaTriggerDb2Store::from_entries([crate::AreaTriggerDb2Entry {
+            id: 10,
+            message: String::new(),
+            pos: crate::maps_world::Db2Position3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            continent_id: 0,
+            phase_use_flags: 0,
+            phase_id: 0,
+            phase_group_id: 0,
+            radius: 0.0,
+            box_length: 0.0,
+            box_width: 0.0,
+            box_height: 0.0,
+            box_yaw: 0.0,
+            shape_type: 0,
+            shape_id: 0,
+            area_trigger_action_set_id: 0,
+            flags: 0,
+        }]);
 
         let outcome =
             TavernAreaTriggerStoreLikeCpp::from_ids_like_cpp([10, 11, 10], |trigger_id| {
-                area_triggers.contains_trigger_like_cpp(trigger_id)
+                area_triggers.get(trigger_id).is_some()
             });
 
         assert_eq!(outcome.report.rows_seen, 3);

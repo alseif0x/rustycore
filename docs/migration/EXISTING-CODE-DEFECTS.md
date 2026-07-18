@@ -137,6 +137,35 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
 - [ ] **D-M8 Group member DB insert fail logged-only**, runtime kept → reload drops member. `handlers/group.rs:1090`.
 - [ ] **D-M9 Phase not re-checked on movement** → out-of-phase objects linger. `handlers/movement.rs:274`.
 - [ ] **D-M10 Position save binds extra `instance_id`** vs C++ 7-field SavePosition (verify SQL param alignment). `session.rs:21578`.
+- [ ] **D-M11 Loaded-grid GameObject/AreaTrigger GUID helpers hardcode realm 0.**
+  `create_gameobject_like_cpp` and `create_area_trigger_like_cpp` in
+  `wow-core/src/guid.rs` are used by the typed world-server/area-trigger load
+  paths with realm zero. Both C++ trees pass zero at the world-object callsite
+  but `ObjectGuidFactory::CreateWorldObject` replaces it with the active
+  `realm.Id.Realm`; Rust currently skips that substitution. Creature/Vehicle
+  callers were corrected after the issue #81 capture exposed the same defect,
+  but this separate GO/AreaTrigger boundary remains open. C++
+  `ObjectGuid.cpp:590-631`; Rust `world-server/src/main.rs` and
+  `area_trigger_loaded_grid.rs`.
+- [ ] **D-M12 `SMSG_LOGOUT_COMPLETE` uses the instance socket before channels
+  are restored.** Live C++/Rust bot QA for issue #81 observed Rust routing
+  `0x2684` on instance while stock C++ routes it on realm. The immediate logout
+  path calls `send_packet(&LogoutComplete)` before `restore_realm_channels()`;
+  the timed path also sends through the current channel. C++
+  `Opcodes.cpp:1665` (`CONNECTION_TYPE_REALM`); Rust
+  `handlers/character.rs::handle_logout_request` and
+  `session.rs::complete_logout`. Functional relog succeeds because both bot
+  sockets remain open, but wire routing is not parity-clean.
+- [ ] **D-M13 Base `AreaTable.db2` loader reads four physical fields one
+  position late.** `AreaTableMeta` uses an external ID (`IndexField = -1`), so
+  the WDC4 indices for `ContinentID`, `ParentAreaID`, `AreaBit`, and
+  `ExplorationLevel` are respectively `2`, `3`, `4`, and `11`; Rust currently
+  reads `3`, `4`, `5`, and `12`. Hotfix rows use the C++ `DB2LoadInfo`/SQL
+  column ordinals including ID and are not affected. The issue #81 review
+  verified that the newly used `FactionGroupMask` index `14` is already
+  correct (hotfix column `15`), as are `MountFlags` `16` and `Flags1` `21`.
+  C++ `DB2Metadata.h::AreaTableMeta` / `DB2LoadInfo.h::AreaTableLoadInfo`;
+  Rust `wow-data/src/area.rs::AreaTableStore::load`.
 
 ## LOW — non-issues in practice / cosmetic (recorded for completeness)
 
