@@ -1,4 +1,4 @@
-name: QA world-server artifact
+name: QA runtime artifacts
 
 on:
   pull_request:
@@ -22,7 +22,7 @@ jobs:
     name: Build replica ${{ matrix.replica }}
     if: contains(github.event.pull_request.labels.*.name, 'qa-artifact')
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -44,6 +44,9 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           shared-key: qa-world-server-${{ matrix.replica }}
+          workspaces: |
+            . -> target
+            tools/wow-test-bot -> target
 
       - name: Install protoc
         run: |
@@ -55,14 +58,18 @@ jobs:
           chmod +x "$HOME/.local/bin/protoc"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - name: Build no-LTO release artifact
+      - name: Build no-LTO release artifacts
         env:
           CARGO_BUILD_JOBS: "1"
           CARGO_INCREMENTAL: "0"
           CARGO_PROFILE_RELEASE_INCREMENTAL: "false"
           CARGO_PROFILE_RELEASE_LTO: "false"
           CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
-        run: cargo +1.88.0 build --locked --release -p world-server --bin world-server
+        run: |
+          cargo +1.88.0 build --locked --release -p world-server --bin world-server
+          cargo +1.88.0 build --locked --release \
+            --manifest-path tools/wow-test-bot/Cargo.toml \
+            --bin wow-test-bot
 
       - name: Package provenance
         env:
@@ -72,7 +79,9 @@ jobs:
           actual_head="$(git rev-parse HEAD)"
           test "$actual_head" = "$HEAD_SHA"
           install -D -m 0755 target/release/world-server qa-artifact/world-server
+          install -D -m 0755 tools/wow-test-bot/target/release/wow-test-bot qa-artifact/wow-test-bot
           sha256sum qa-artifact/world-server | awk '{print $1}' > qa-artifact/world-server.sha256
+          sha256sum qa-artifact/wow-test-bot | awk '{print $1}' > qa-artifact/wow-test-bot.sha256
           rustc +1.88.0 --version --verbose > qa-artifact/rustc-version.txt
           printf '%s\n' "$actual_head" > qa-artifact/git-head.txt
           printf '%s\n' "$REPLICA" > qa-artifact/replica.txt
@@ -110,9 +119,14 @@ jobs:
           test "$(cat "${replica_b}/git-head.txt")" = "$HEAD_SHA"
           test "$(sha256sum "${replica_a}/world-server" | awk '{print $1}')" = "$(cat "${replica_a}/world-server.sha256")"
           test "$(sha256sum "${replica_b}/world-server" | awk '{print $1}')" = "$(cat "${replica_b}/world-server.sha256")"
+          test "$(sha256sum "${replica_a}/wow-test-bot" | awk '{print $1}')" = "$(cat "${replica_a}/wow-test-bot.sha256")"
+          test "$(sha256sum "${replica_b}/wow-test-bot" | awk '{print $1}')" = "$(cat "${replica_b}/wow-test-bot.sha256")"
           cmp "${replica_a}/world-server" "${replica_b}/world-server"
+          cmp "${replica_a}/wow-test-bot" "${replica_b}/wow-test-bot"
           install -D -m 0755 "${replica_a}/world-server" verified/world-server
+          install -D -m 0755 "${replica_a}/wow-test-bot" verified/wow-test-bot
           cp "${replica_a}/world-server.sha256" verified/world-server.sha256
+          cp "${replica_a}/wow-test-bot.sha256" verified/wow-test-bot.sha256
           cp "${replica_a}/rustc-version.txt" verified/rustc-version.txt
           cp "${replica_a}/git-head.txt" verified/git-head.txt
 

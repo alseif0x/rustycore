@@ -217,14 +217,45 @@ elif ((quest_requested)); then
   fi
 fi
 
-cargo +1.88.0 build --locked --bin wow-test-bot
+bot_exec="${WOW_BOT_EXEC:-}"
+if [[ -n "$bot_exec" ]]; then
+  if [[ "$bot_exec" != /* ]]; then
+    echo "WOW_BOT_EXEC must be an absolute path" >&2
+    exit 2
+  fi
+  canonical_bot_exec="$(realpath --canonicalize-existing -- "$bot_exec")" || {
+    echo "WOW_BOT_EXEC does not resolve to an existing path" >&2
+    exit 2
+  }
+  if [[ "$canonical_bot_exec" != "$bot_exec" || ! -f "$bot_exec" || ! -x "$bot_exec" || -L "$bot_exec" ]]; then
+    echo "WOW_BOT_EXEC must be a canonical, regular, executable file (not a symlink)" >&2
+    exit 2
+  fi
+  expected_bot_sha="${WOW_BOT_EXEC_SHA256:-}"
+  if [[ ! "$expected_bot_sha" =~ ^[[:xdigit:]]{64}$ ]]; then
+    echo "WOW_BOT_EXEC_SHA256 must contain the expected 64-digit SHA-256" >&2
+    exit 2
+  fi
+  expected_bot_sha="${expected_bot_sha,,}"
+  actual_bot_sha="$(sha256sum -- "$bot_exec" | awk '{print $1}')"
+  if [[ "$actual_bot_sha" != "$expected_bot_sha" ]]; then
+    echo "WOW_BOT_EXEC SHA-256 mismatch" >&2
+    exit 2
+  fi
+elif [[ -n "${WOW_BOT_EXEC_SHA256:-}" ]]; then
+  echo "WOW_BOT_EXEC_SHA256 requires WOW_BOT_EXEC" >&2
+  exit 2
+else
+  cargo +1.88.0 build --locked --bin wow-test-bot
+  bot_exec="$PWD/target/debug/wow-test-bot"
+fi
 
 ensure_args=()
 if [[ "$ensure_accounts" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
   ensure_args+=(--ensure-test-accounts)
 fi
 
-./target/debug/wow-test-bot \
+"$bot_exec" \
   --config "${WOW_BOT_CONFIG:-config.example.json}" \
   --single "$account" \
   "${mode_args[@]}" \

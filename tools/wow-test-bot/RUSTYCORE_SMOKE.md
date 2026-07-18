@@ -50,6 +50,22 @@ the corresponding Rust server port is ready.
 The bot crate follows RustyCore's Rust 1.88.0 toolchain. Use `cargo +1.88.0` for
 standalone builds/tests of `tools/wow-test-bot`.
 
+The wrapper normally builds the bot locally. To run a reproducible PR artifact
+without invoking the local compiler, provide both the canonical executable path
+and its verified hash:
+
+```bash
+WOW_BOT_EXEC=/absolute/path/to/wow-test-bot \
+WOW_BOT_EXEC_SHA256=<sha256> \
+./run_rustycore_login_smoke.sh
+```
+
+The wrapper rejects relative paths, symlinks, non-executable files, missing or
+malformed hashes, and hash mismatches before starting the bot.
+GitHub artifact downloads do not preserve executable mode; verify the published
+hash first, then copy each binary into its immutable runtime path with
+`install -m 0755` before invoking the wrapper.
+
 The bot still supports the previous LFG path. Do not use LFG as the RustyCore
 migration gate until the server-side LFG port is explicitly ready.
 
