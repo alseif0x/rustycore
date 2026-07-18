@@ -57,6 +57,28 @@ also refuses to write fixtures or a baseline unless the isolated flow is fully
 clean. This prevents a missing or byte-different Rust response from being
 hidden inside an accepted baseline.
 
+The rested-XP gate isolates the first kill reward packet from the complete bot
+round-trip:
+
+```bash
+cargo +1.88.0 run -q -p capture-diff -- import rested-xp-kill \
+  --cpp target/captures/rested-xp-kill/cpp.pkt \
+  --rust target/captures/rested-xp-kill/rust \
+  --from-opcode s2c:0x26E5 \
+  --until-opcode s2c:0x26E5 \
+  --direction s2c \
+  --strict
+```
+
+`SMSG_LOG_XP_GAIN` uses one narrow semantic comparator only for Creature Kill
+XP with nonzero runtime counters. It normalizes the lower 40-bit runtime
+counter of the victim `ObjectGuid`; socket routing, high type, realm, map,
+entry, subtype, server id, `Original`, `Reason`, `Amount`, and the exact IEEE
+bits of `GroupBonus` remain strict. Malformed bodies and zero counters can
+never compare clean. The one-packet fixture proves the reward wire shape; the
+bot workflow separately proves offline accrual, DB XP/rest consumption, relog
+persistence, fixture restoration, and the natural respawn timer.
+
 `--ignore-opcode` is repeatable, direction-required, and applied symmetrically
 after boundary selection. It is fail-closed to the reviewed periodic allowlist
 (`s2c:0x2DD2 SMSG_TIME_SYNC_REQUEST` and `s2c:0x2DD4

@@ -1,0 +1,6 @@
+{
+  "description": "Rested creature kill: one realm-routed SMSG_LOG_XP_GAIN for Mana Wyrm 15274 on map 530; only the nonzero lower 40-bit runtime ObjectGuid counter is normalized, while routing, stable GUID fields and every XP field remain exact.",
+  "directions": [
+    "s2c"
+  ]
+}
