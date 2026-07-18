@@ -23665,16 +23665,16 @@ impl WorldSession {
         }
 
         let rested_bonus = (self.represented_xp_rest_bonus_like_cpp() as u32).min(xp);
-        if rested_bonus == 0 {
-            return (0, 0);
-        }
-
         let rested_loss = Self::apply_represented_pct_modifier_to_u32_like_cpp(
             rested_bonus,
             self.total_represented_aura_modifier_like_cpp(
                 RepresentedAuraEffectLikeCpp::ModRestedXpConsumption,
             ),
         );
+        // Both C++ RestMgr implementations call SetRestBonus unconditionally,
+        // including when the float bonus truncates to a zero integer award.
+        // That call normalizes a verbatim loaded RestState against the current
+        // bonus even though no rested XP is awarded or consumed.
         let nested_mask = self.set_represented_xp_rest_bonus_like_cpp(
             self.represented_xp_rest_bonus_like_cpp() - rested_loss as f32,
         );
@@ -24035,7 +24035,7 @@ impl WorldSession {
     fn current_player_xp_save_statement_plan_like_cpp(
         &self,
         level_changed: bool,
-        rest_bonus_consumed: bool,
+        rest_info_changed: bool,
         guid_counter: u64,
     ) -> Vec<PreparedStatement> {
         let mut plan = Vec::with_capacity(2);
@@ -24052,7 +24052,7 @@ impl WorldSession {
             plan.push(stmt);
         }
 
-        if rest_bonus_consumed {
+        if rest_info_changed {
             plan.push(
                 Self::build_character_online_rest_state_save_statement_like_cpp(
                     self.represented_xp_rest_state_like_cpp(),
@@ -24063,6 +24063,15 @@ impl WorldSession {
             );
         }
         plan
+    }
+
+    fn represented_xp_rest_info_changed_since_like_cpp(
+        &self,
+        old_rest_bonus: f32,
+        old_rest_state: u8,
+    ) -> bool {
+        self.represented_xp_rest_bonus_like_cpp().to_bits() != old_rest_bonus.to_bits()
+            || self.represented_xp_rest_state_like_cpp() != old_rest_state
     }
 
     fn build_character_health_save_statement_like_cpp(
@@ -26834,6 +26843,7 @@ impl WorldSession {
     pub(crate) async fn give_xp(&mut self, xp: u32, victim: wow_core::ObjectGuid, group_rate: f32) {
         let old_level = self.player_level_like_cpp();
         let old_rest_bonus = self.represented_xp_rest_bonus_like_cpp();
+        let old_rest_state = self.represented_xp_rest_state_like_cpp();
         if !self.give_xp_runtime_like_cpp(xp, victim, group_rate) {
             return;
         }
@@ -26844,7 +26854,7 @@ impl WorldSession {
         };
         let plan = self.current_player_xp_save_statement_plan_like_cpp(
             self.player_level_like_cpp() != old_level,
-            self.represented_xp_rest_bonus_like_cpp() < old_rest_bonus,
+            self.represented_xp_rest_info_changed_since_like_cpp(old_rest_bonus, old_rest_state),
             guid.counter() as u64,
         );
         let mut transaction = SqlTransaction::new();
@@ -107260,6 +107270,84 @@ mod tests {
     }
 
     #[test]
+    fn xp_and_zero_award_rest_state_normalization_share_transaction_plan_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 0xE1C5);
+        session.set_player_guid(Some(guid));
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        session.set_player_next_level_xp_like_cpp(1_000);
+        session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 0.5);
+        let old_rest_bonus = session.represented_xp_rest_bonus_like_cpp();
+        let old_rest_state = session.represented_xp_rest_state_like_cpp();
+        let victim = test_creature_guid(0xE1C5);
+        install_tapped_xp_victim_like_cpp(&mut session, victim);
+
+        assert!(session.give_xp_runtime_like_cpp(50, victim, 1.0));
+        let rest_info_changed =
+            session.represented_xp_rest_info_changed_since_like_cpp(old_rest_bonus, old_rest_state);
+        let plan = session.current_player_xp_save_statement_plan_like_cpp(
+            false,
+            rest_info_changed,
+            guid.counter() as u64,
+        );
+
+        assert!(
+            rest_info_changed,
+            "state-only normalization must be persisted"
+        );
+        assert_eq!(plan.len(), 2);
+        assert_eq!(plan[0].sql(), CharStatements::UPD_CHAR_XP.sql());
+        assert_eq!(
+            plan[1].sql(),
+            CharStatements::UPD_CHAR_ONLINE_REST_STATE.sql()
+        );
+        assert_eq!(
+            plan[1].params()[0],
+            wow_database::SqlParam::U8(REST_STATE_NORMAL_LIKE_CPP)
+        );
+        assert!(matches!(plan[1].params()[2], wow_database::SqlParam::F32(v) if v == 0.5));
+    }
+
+    #[test]
+    fn xp_and_sanitized_negative_rest_bonus_share_transaction_plan_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 0xE1C7);
+        session.set_player_guid(Some(guid));
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        session.set_player_next_level_xp_like_cpp(1_000);
+        session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, -0.5);
+        let old_rest_bonus = session.represented_xp_rest_bonus_like_cpp();
+        let old_rest_state = session.represented_xp_rest_state_like_cpp();
+        let victim = test_creature_guid(0xE1C7);
+        install_tapped_xp_victim_like_cpp(&mut session, victim);
+
+        assert!(session.give_xp_runtime_like_cpp(50, victim, 1.0));
+        assert_eq!(session.represented_xp_rest_bonus_like_cpp(), 0.0);
+        assert_eq!(
+            session.represented_xp_rest_state_like_cpp(),
+            REST_STATE_NORMAL_LIKE_CPP
+        );
+        let rest_info_changed =
+            session.represented_xp_rest_info_changed_since_like_cpp(old_rest_bonus, old_rest_state);
+        let plan = session.current_player_xp_save_statement_plan_like_cpp(
+            false,
+            rest_info_changed,
+            guid.counter() as u64,
+        );
+
+        assert!(
+            rest_info_changed,
+            "sanitizing a corrupt persisted float must not be lost on relog"
+        );
+        assert_eq!(plan.len(), 2);
+        assert_eq!(
+            plan[1].sql(),
+            CharStatements::UPD_CHAR_ONLINE_REST_STATE.sql()
+        );
+        assert!(matches!(plan[1].params()[2], wow_database::SqlParam::F32(v) if v == 0.0));
+    }
+
+    #[test]
     fn rest_state_save_player_flags_preserves_current_bits_like_cpp() {
         let (mut session, _, _) = make_session();
         let guid = ObjectGuid::create_player(1, 0xE1AF);
@@ -107875,6 +107963,53 @@ mod tests {
     }
 
     #[test]
+    fn zero_integer_rest_award_normalizes_raf_state_without_touching_rest_flags_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 0xE1C6);
+        let canonical = shared_canonical_map_manager();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.ensure_login_player_controller_like_cpp(
+            guid,
+            "RestStateVsLocation".to_string(),
+            Position::new(1.0, 2.0, 3.0, 0.0),
+            1,
+            1,
+            8,
+            10,
+            0,
+        );
+        insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
+        session.set_player_next_level_xp_like_cpp(1_000);
+        session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RAF_LINKED_LIKE_CPP, 0.0);
+        assert!(session.set_represented_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP, 42));
+        let rest_time = session.represented_rest_time_secs_like_cpp;
+
+        let (award, nested_mask) = session
+            .take_represented_xp_rest_bonus_for_gain_like_cpp(50, test_creature_guid(0xE1C6));
+
+        assert_eq!(award, 0);
+        assert_eq!(nested_mask, 0x07);
+        assert_eq!(session.represented_xp_rest_bonus_like_cpp(), 0.0);
+        assert_eq!(
+            session.represented_xp_rest_state_like_cpp(),
+            REST_STATE_NORMAL_LIKE_CPP
+        );
+        assert_eq!(
+            session.represented_rest_flag_mask_like_cpp,
+            REST_FLAG_IN_TAVERN_LIKE_CPP
+        );
+        assert_eq!(session.represented_rest_time_secs_like_cpp, rest_time);
+        assert_eq!(session.represented_inn_area_trigger_id_like_cpp, 42);
+        assert!(session.represented_is_resting_like_cpp());
+        assert!(
+            session
+                .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_RESTING_LIKE_CPP)
+                .unwrap_or(false),
+            "RestInfo state and physical PLAYER_FLAGS_RESTING are independent in C++"
+        );
+    }
+
+    #[test]
     fn online_rest_update_adds_rested_xp_after_ten_seconds_like_cpp() {
         let (mut session, _, _) = make_session();
         session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
@@ -108338,6 +108473,99 @@ mod tests {
             expected_packet.as_slice(),
             "the single instance update must contain exactly XP plus RestInfo"
         );
+    }
+
+    #[test]
+    fn give_xp_runtime_normalizes_zero_integer_rested_award_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let victim = test_creature_guid(0xE1C3);
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        session.set_player_next_level_xp_like_cpp(1_000);
+        // C++ LoadRestBonus preserves this inconsistent persisted pair until
+        // GetRestBonusFor unconditionally calls SetRestBonus on the next kill.
+        session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 0.5);
+        install_tapped_xp_victim_like_cpp(&mut session, victim);
+
+        assert!(session.give_xp_runtime_like_cpp(50, victim, 1.0));
+
+        assert_eq!(session.player_xp_like_cpp(), 50);
+        assert_eq!(session.represented_xp_rest_bonus_like_cpp(), 0.5);
+        assert_eq!(session.represented_xp_rest_threshold_like_cpp(), 0);
+        assert_eq!(
+            session.represented_xp_rest_state_like_cpp(),
+            REST_STATE_NORMAL_LIKE_CPP
+        );
+        let packets = drain_server_packet_bytes(&send_rx);
+        let values_packets = packets
+            .iter()
+            .filter(|bytes| {
+                WorldPacket::from_bytes(bytes).server_opcode() == Some(ServerOpcodes::UpdateObject)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(values_packets.len(), 1);
+
+        let mut expected_delta = Player::new(None, false);
+        expected_delta.clear_data_changes();
+        expected_delta.set_xp(50);
+        expected_delta.mark_xp_changed_like_cpp();
+        expected_delta.set_scaling_player_level_delta_like_cpp(-1);
+        expected_delta.mark_scaling_player_level_delta_changed_like_cpp();
+        expected_delta.prepare_rest_info_values_update_like_cpp(
+            0,
+            0,
+            REST_STATE_NORMAL_LIKE_CPP,
+            0x07,
+        );
+        let expected_packet = player_values_update_to_update_object(
+            session.player_guid().expect("loaded test player"),
+            session.player_map_id_like_cpp(),
+            &expected_delta.values_update(true),
+        )
+        .expect("combined XP/rest normalization delta")
+        .to_bytes();
+        assert_eq!(values_packets[0].as_slice(), expected_packet.as_slice());
+    }
+
+    #[test]
+    fn give_xp_runtime_zero_integer_rested_award_keeps_consistent_state_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let victim = test_creature_guid(0xE1C4);
+        session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
+        session.set_player_next_level_xp_like_cpp(1_000);
+        session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.5);
+        install_tapped_xp_victim_like_cpp(&mut session, victim);
+
+        assert!(session.give_xp_runtime_like_cpp(50, victim, 1.0));
+
+        assert_eq!(session.player_xp_like_cpp(), 50);
+        assert_eq!(session.represented_xp_rest_bonus_like_cpp(), 0.5);
+        assert_eq!(
+            session.represented_xp_rest_state_like_cpp(),
+            REST_STATE_NORMAL_LIKE_CPP
+        );
+        let packets = drain_server_packet_bytes(&send_rx);
+        let values_packets = packets
+            .iter()
+            .filter(|bytes| {
+                WorldPacket::from_bytes(bytes).server_opcode() == Some(ServerOpcodes::UpdateObject)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(values_packets.len(), 1);
+
+        let mut expected_delta = Player::new(None, false);
+        expected_delta.clear_data_changes();
+        expected_delta.set_xp(50);
+        expected_delta.mark_xp_changed_like_cpp();
+        expected_delta.set_scaling_player_level_delta_like_cpp(-1);
+        expected_delta.mark_scaling_player_level_delta_changed_like_cpp();
+        let expected_packet = player_values_update_to_update_object(
+            session.player_guid().expect("loaded test player"),
+            session.player_map_id_like_cpp(),
+            &expected_delta.values_update(true),
+        )
+        .expect("XP-only delta")
+        .to_bytes();
+        assert_eq!(values_packets[0].as_slice(), expected_packet.as_slice());
     }
 
     #[test]
