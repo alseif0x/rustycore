@@ -8,14 +8,15 @@
 //!   (`MissingInRust`), or vice versa (`ExtraInRust`);
 //! - **order** — a moved packet falls out of the common subsequence and shows up
 //!   as a `MissingInRust` + `ExtraInRust` pair of the same opcode;
-//! - **value** — an aligned (matched) packet whose body bytes differ
-//!   (`BodyMismatch`);
+//! - **value** — an aligned (matched) packet whose body bytes, or reviewed
+//!   stable semantic fields, differ (`BodyMismatch`);
 //! - **routing** — an aligned packet travelled over a different realm/instance
 //!   connection (`ConnectionMismatch`).
 
 use serde::{Deserialize, Serialize};
 
 use crate::model::{Capture, CapturedPacket, Direction};
+use crate::semantic::{self, SemanticBodyDiff};
 
 /// Number of body bytes shown in hex previews.
 const HEX_PREVIEW_BYTES: usize = 32;
@@ -69,14 +70,21 @@ impl ConnectionDiff {
 pub struct BodyDiff {
     pub cpp_len: usize,
     pub rust_len: usize,
-    /// First differing byte offset, or `None` when the bodies are identical.
+    /// First raw differing byte offset. This is `None` when the bytes match or
+    /// when a reviewed semantic comparator is selected (its field-level
+    /// result supersedes a raw offset that may point into normalized data).
     pub first_diff_offset: Option<usize>,
     pub cpp_hex: String,
     pub rust_hex: String,
+    /// Reviewed field-level comparison for packets with unavoidable runtime
+    /// identifiers. When present, this result (not the raw byte offset)
+    /// determines whether the body is identical.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub semantic: Option<SemanticBodyDiff>,
 }
 
 impl BodyDiff {
-    fn compute(cpp: &[u8], rust: &[u8]) -> BodyDiff {
+    fn compute(direction: Direction, opcode: u16, cpp: &[u8], rust: &[u8]) -> BodyDiff {
         let mut first_diff = None;
         let min = cpp.len().min(rust.len());
         for i in 0..min {
@@ -88,19 +96,31 @@ impl BodyDiff {
         if first_diff.is_none() && cpp.len() != rust.len() {
             first_diff = Some(min);
         }
+        let semantic = semantic::compare_packet_bodies(direction, opcode, cpp, rust);
+        if semantic.is_some() {
+            // A raw offset may point into the normalized counter even when a
+            // later stable field is the real divergence. The semantic report
+            // names the differing field and is stable across capture runs.
+            first_diff = None;
+        }
+
         BodyDiff {
             cpp_len: cpp.len(),
             rust_len: rust.len(),
             first_diff_offset: first_diff,
             cpp_hex: hex_preview(cpp),
             rust_hex: hex_preview(rust),
+            semantic,
         }
     }
 
-    /// True when the two bodies are byte-identical.
+    /// True when the two bodies are identical under the selected comparison.
     #[must_use]
     pub fn is_identical(&self) -> bool {
-        self.first_diff_offset.is_none()
+        self.semantic.as_ref().map_or_else(
+            || self.first_diff_offset.is_none(),
+            SemanticBodyDiff::is_identical,
+        )
     }
 }
 
@@ -182,7 +202,12 @@ impl DiffReport {
             for step in align(&cpp_ops, &rust_ops) {
                 match step {
                     Step::Match(i, j) => {
-                        let body = BodyDiff::compute(&cpp_pkts[i].body, &rust_pkts[j].body);
+                        let body = BodyDiff::compute(
+                            dir,
+                            cpp_pkts[i].opcode,
+                            &cpp_pkts[i].body,
+                            &rust_pkts[j].body,
+                        );
                         let connection = ConnectionDiff {
                             cpp_connection_id: cpp_pkts[i].connection_id,
                             rust_connection_id: rust_pkts[j].connection_id,
@@ -345,6 +370,14 @@ impl DiffReport {
                             );
                             let _ = writeln!(s, "         cpp : {}", body.cpp_hex);
                             let _ = writeln!(s, "         rust: {}", body.rust_hex);
+                            if let Some(semantic) = &body.semantic {
+                                let _ = writeln!(
+                                    s,
+                                    "         semantic ({}): {}",
+                                    semantic.comparator,
+                                    semantic.mismatch_summary(),
+                                );
+                            }
                         }
                     }
                 }

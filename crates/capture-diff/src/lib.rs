@@ -1,7 +1,8 @@
 //! # capture-diff — the port's acceptance gate (issue `[01]` / #66)
 //!
 //! "Done" across the whole port plan means the Rust wire output is byte/opcode
-//! clean versus a C++ capture of the same action (STATE.md §5). This crate is
+//! clean versus a C++ capture of the same action (STATE.md §5), except for a
+//! narrowly reviewed runtime identifier handled by [`semantic`]. This crate is
 //! that harness: it parses a C++ **PKT 3.1** capture ([`pkt`]) and a RustyCore
 //! packet dump ([`rustdump`]), normalizes both to a common model ([`model`]),
 //! and diffs them opcode-by-opcode ([`diff`]). Flows ([`flow`]) pin a golden
@@ -24,6 +25,7 @@ pub mod flow;
 pub mod model;
 pub mod pkt;
 pub mod rustdump;
+pub mod semantic;
 
 pub use diff::{
     AlignedOp, BaselineDelta, BodyDiff, ConnectionDiff, DiffCounts, DiffReport, DivergenceKind,
@@ -31,3 +33,6 @@ pub use diff::{
 };
 pub use flow::{Flow, list_flows, load_flow};
 pub use model::{Capture, CapturedPacket, Direction, PacketBoundary, opcode_name};
+pub use semantic::{
+    LogXpGainBody, SemanticBodyDiff, SemanticBodySide, StableObjectGuid, decode_log_xp_gain_body,
+};

@@ -13,6 +13,8 @@
 #   PM2_CPP_WORLD   pm2 name of the C++ world  (default: cpp-world) — stopped first
 #   RUST_WORLD_PORT realm listener readiness port (default: 8085)
 #   RUST_INSTANCE_PORT instance listener readiness port (default: 8086)
+#   RUST_CAPTURE_EXEC optional absolute canonical executable used only while
+#                     capturing; the original PM2 executable is still restored
 #
 # This restarts the live world server (disconnecting players). Pass --yes to skip
 # the confirmation prompt.
@@ -31,6 +33,31 @@ PM2_RUST_WORLD="${PM2_RUST_WORLD:-rustycore-world}"
 PM2_CPP_WORLD="${PM2_CPP_WORLD:-cpp-world}"
 RUST_WORLD_PORT="${RUST_WORLD_PORT:-8085}"
 RUST_INSTANCE_PORT="${RUST_INSTANCE_PORT:-8086}"
+RUST_CAPTURE_EXEC="${RUST_CAPTURE_EXEC:-}"
+CAPTURE_EXEC=""
+
+if [ -n "$RUST_CAPTURE_EXEC" ]; then
+  command -v realpath >/dev/null 2>&1 || {
+    echo "error: realpath is required when RUST_CAPTURE_EXEC is set" >&2
+    exit 1
+  }
+  [[ "$RUST_CAPTURE_EXEC" = /* ]] || {
+    echo "error: RUST_CAPTURE_EXEC must be an absolute canonical path" >&2
+    exit 1
+  }
+  if ! CAPTURE_EXEC="$(realpath -e -- "$RUST_CAPTURE_EXEC" 2>/dev/null)"; then
+    echo "error: RUST_CAPTURE_EXEC does not exist: ${RUST_CAPTURE_EXEC}" >&2
+    exit 1
+  fi
+  [ "$CAPTURE_EXEC" = "$RUST_CAPTURE_EXEC" ] || {
+    echo "error: RUST_CAPTURE_EXEC must already be canonical: ${CAPTURE_EXEC}" >&2
+    exit 1
+  }
+  [ -f "$CAPTURE_EXEC" ] && [ -x "$CAPTURE_EXEC" ] || {
+    echo "error: RUST_CAPTURE_EXEC is not an executable regular file" >&2
+    exit 1
+  }
+fi
 
 DUMP_DIR="${REPO_ROOT}/target/captures/${FLOW}/rust"
 
@@ -112,7 +139,7 @@ snapshot_process_identity() {
         and ($running[0].pm2_env.pmx != false)
         and ($running[0].pm2_env.autostart != false)
         and ($running[0].pm2_env.increment_var // null) == null
-        and ($running[0].pm2_env.filter_env // null) == null
+        and ($running[0].pm2_env.filter_env // []) == ($wanted.filter_env // [])
         and ($running[0].pm2_env.append_env_to_name // false) == false
         and ($running[0].pm2_env.log_type // null) == null
         and ($running[0].pm2_env.log_date_format // null) == null
@@ -157,6 +184,7 @@ rust_world_ports_ready() {
 cleanup() {
   local capture_status=$?
   trap - EXIT
+  trap '' HUP INT TERM
   if [ "$CAPTURE_MUTATED" -eq 0 ]; then
     rm -f "$RESTORE_FILE" "$CAPTURE_CONFIG_FILE"
     exit "$capture_status"
@@ -213,6 +241,9 @@ cleanup() {
   exit "$capture_status"
 }
 trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # This harness intentionally supports the repository's documented PM2 profile:
 # one online fork-mode process, one instance, no watch mode. Reject a different
@@ -252,7 +283,8 @@ if ! pm2 jlist | jq -e --arg name "$PM2_RUST_WORLD" '
       or (.pm2_env.pmx == false)
       or (.pm2_env.autostart == false)
       or (.pm2_env.increment_var // null) != null
-      or (.pm2_env.filter_env // null) != null
+      or ((.pm2_env.filter_env // []) | type) != "array"
+      or ((.pm2_env.filter_env // []) | length) != 0
       or (.pm2_env.append_env_to_name // false) != false
       or (.pm2_env.log_type // null) != null
       or (.pm2_env.log_date_format // null) != null
@@ -283,6 +315,7 @@ if ! pm2 jlist | jq -e --arg name "$PM2_RUST_WORLD" '
         instances: 1,
         autorestart: .pm2_env.autorestart,
         watch: false,
+        filter_env: (.pm2_env.filter_env // []),
         namespace: (.pm2_env.namespace // "default"),
         out_file: .pm2_env.pm_out_log_path,
         error_file: .pm2_env.pm_err_log_path,
@@ -297,9 +330,14 @@ fi
   echo "error: failed to create PM2 restore snapshot" >&2
   exit 1
 }
-if ! jq --arg dump_dir "$DUMP_DIR" \
-    '.apps[0].env.RUSTYCORE_PACKET_DUMP_DIR = $dump_dir' \
-    "$RESTORE_FILE" >"$CAPTURE_CONFIG_FILE"; then
+if ! jq \
+    --arg dump_dir "$DUMP_DIR" \
+    --arg capture_exec "$CAPTURE_EXEC" '
+      .apps[0].env.RUSTYCORE_PACKET_DUMP_DIR = $dump_dir
+      | if $capture_exec == "" then .
+        else .apps[0].script = $capture_exec
+        end
+    ' "$RESTORE_FILE" >"$CAPTURE_CONFIG_FILE"; then
   echo "error: failed to create PM2 capture snapshot" >&2
   exit 1
 fi

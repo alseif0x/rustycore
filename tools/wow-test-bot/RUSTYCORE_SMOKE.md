@@ -129,11 +129,13 @@ ActivePlayer XP/RestInfo fields inside `SMSG_UPDATE_OBJECT`; their atomic mask
 and values remain covered by focused packet/unit tests, not claimed as a live
 wire assertion here.
 
-Each rested-XP phase closes both the realm and instance sockets and waits for a
-stable offline character row before reading persistence. This exercises the
-normal disconnect-save path without depending on C++'s separate 20-second
-wilderness logout delay, and it does not assume that `Player::GiveXP` writes the
-database before the character save.
+Each rested-XP phase requests a normal logout, handles the stock C++ wilderness
+countdown (including time-sync traffic), then closes both realm and instance
+sockets and waits for a stable offline character row before reading
+persistence. The bounded DB wait also covers C++'s 60-second raw socket-loss
+session expiry if a runtime closes before `SMSG_LOGOUT_COMPLETE`. The workflow
+does not assume that `Player::GiveXP` writes the database before character
+save.
 
 Useful overrides:
 
@@ -181,10 +183,21 @@ for a normal character. Its cleanup restores the explicitly recorded
 logout marker, location, health/powers, kill counters, and played time). Because
 preflight proves they start empty, cleanup also removes only this fixture's
 deterministic login/save rows from `character_glyphs`, `character_reputation`,
-and `battlenet_account_transmog_illusions`. It also snapshots and exactly
+`character_skills`, and `battlenet_account_transmog_illusions`. These rows are
+the bounded defaults materialized by a stock C++ login/save on the disposable
+fixture; an unexpected protected-table mutation is still left visible and
+fails the next preflight. It also snapshots and exactly
 restores `character_achievement` and `character_achievement_progress`, which a
-real C++ kill can mutate. Other character/account/Battle.net tables remain
-outside that bounded restore.
+real C++ kill can mutate, plus `character_trait_config` and
+`character_trait_entry`, where C++ login/save can materialize missing
+specialization defaults. It likewise preserves optional homebind, fishing, and
+battleground rows, all game-account last-played rows, and Battle.net pet slots;
+stock C++ can replace or materialize those during login/save. The smoke fails
+closed unless `PlayerSave.Stats.MinLevel=0`, because enabling that diagnostic
+table makes C++ rewrite `character_stats` on logout, and unless
+`PlayerStart.AllSpells=0`, which prevents configuration-driven spell
+materialization. Other
+character/account/Battle.net tables remain outside that bounded restore.
 
 The precheck therefore requires an `@bot.local` identity whose configured email
 matches the Battle.net owner of the selected game account, with exactly one
@@ -194,7 +207,8 @@ and no active quest/objective/criteria state. It also rejects non-empty
 high-risk state in `character_inventory`, pets, auras, spell cooldowns/charges,
 skills, glyphs, talents, spells/favorites, action bars, reputation,
 equipment/transmog sets, CUF profiles, corpses, tutorials, account instance
-locks, and Battle.net collection tables. The target must have no on-kill
+locks, guild membership, void storage, Battle.net pets, and Battle.net
+collection tables. The target must have no on-kill
 reputation and no pre-existing respawn row. These checks reduce collateral
 mutation; they do not turn the bounded field restore into a complete database
 backup. If the server creates rows in any other protected table during the

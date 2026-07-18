@@ -116,9 +116,12 @@ artifact into `target/captures/<flow>/`. See each script's header for the env
 vars (server paths, pm2 process names) it honors. The Rust script recreates the
 world process from a mode-0600 snapshot whose only capture-time difference is
 `RUSTYCORE_PACKET_DUMP_DIR`, verifies the exact PM2 profile and listener ports,
-and rejects a capture if the process PID/restart counter changes. The dump
-parser also rejects duplicate global sequence numbers, which would otherwise
-make a capture spanning an autorestart ambiguous.
+and rejects a capture if the process PID/restart counter changes. Set
+`RUST_CAPTURE_EXEC` to an absolute canonical path when a feature-branch binary
+must be captured; the snapshot's original executable is still restored on
+normal exit or a caught termination signal. The dump parser also rejects
+duplicate global sequence numbers, which would otherwise make a capture
+spanning an autorestart ambiguous.
 
 ## Flows and the golden fixtures
 

@@ -51,6 +51,8 @@ const SMSG_PLAYER_BOUND: u16 = 0x2FF8;
 const SMSG_SPELL_GO: u16 = 0x2C36;
 const CMSG_LOGOUT_REQUEST: u16 = 0x34D6;
 const SMSG_LOGOUT_COMPLETE: u16 = 0x2684;
+const RESTED_XP_GRACEFUL_LOGOUT_WAIT_SECS: u64 = 30;
+const RESTED_XP_DISCONNECT_SAVE_MAX_WAIT_SECS: u64 = 90;
 const INVENTORY_SLOT_BAG_0: u8 = 255;
 const INVENTORY_SLOT_ITEM_START: u8 = 35;
 const BANK_SLOT_ITEM_START: u8 = 59;
@@ -580,6 +582,8 @@ struct RestedXpCharacterRestorePoint {
     yesterday_kills: u16,
     total_time: u32,
     level_time: u32,
+    latency: u32,
+    last_login_build: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -597,6 +601,13 @@ struct RestedXpSmokeFixture {
     original: RestedXpCharacterRestorePoint,
     original_achievements: Vec<(u32, i64)>,
     original_achievement_progress: Vec<(u32, u64, i64)>,
+    original_trait_configs: Vec<RestedXpTraitConfigSnapshot>,
+    original_trait_entries: Vec<RestedXpTraitEntrySnapshot>,
+    original_homebind: Option<RestedXpHomebindSnapshot>,
+    original_fishing_steps: Option<u8>,
+    original_battleground_data: Option<RestedXpBattlegroundDataSnapshot>,
+    original_last_played_characters: Vec<RestedXpLastPlayedCharacterSnapshot>,
+    original_battle_pet_slots: Vec<RestedXpBattlePetSlotSnapshot>,
     battlenet_account_id: u32,
     target_respawn_secs: u32,
     test_level: u8,
@@ -604,6 +615,41 @@ struct RestedXpSmokeFixture {
     wilderness_rate: f32,
     resting_rate: f32,
 }
+
+type RestedXpTraitConfigSnapshot = (
+    i32,
+    i32,
+    Option<i32>,
+    Option<i32>,
+    Option<i32>,
+    Option<i32>,
+    Option<i32>,
+    String,
+);
+type RestedXpTraitEntrySnapshot = (i32, i32, i32, i32, i32);
+type RestedXpHomebindSnapshot = (u16, u16, f32, f32, f32, f32);
+type RestedXpBattlegroundDataSnapshot = (
+    u32,
+    u16,
+    f32,
+    f32,
+    f32,
+    f32,
+    u16,
+    u32,
+    u32,
+    u32,
+    Option<u64>,
+);
+type RestedXpLastPlayedCharacterSnapshot = (
+    u8,
+    u8,
+    Option<u32>,
+    Option<String>,
+    Option<u64>,
+    Option<u32>,
+);
+type RestedXpBattlePetSlotSnapshot = (i8, i64, i8);
 
 #[derive(Debug, Default, PartialEq, Eq)]
 struct RestedXpFixtureSafetyState {
@@ -3660,13 +3706,25 @@ async fn run_rested_xp_smoke_workflow(
     )
     .await;
 
+    // A successful XP packet proves this workflow killed the selected target.
+    // On earlier protocol/discovery failures no respawn transition is expected;
+    // skipping that wait avoids masking the real error. If an ambiguous failed
+    // attack did create a timer, the next preflight still rejects it safely.
+    let verify_target_respawn = workflow
+        .as_ref()
+        .is_ok_and(|result| result.rested_xp_packet_amount.is_some());
+
     // Cleanup is deliberately outside the workflow result so every login,
     // protocol, assertion, and DB error path attempts the bounded selected-field
     // restore after the server has completed its disconnect save.
     let bot_for_cleanup = bot.clone();
     let fixture_for_cleanup = fixture.clone();
     let cleanup = tokio::task::spawn_blocking(move || {
-        cleanup_rested_xp_smoke_fixture(&bot_for_cleanup, &fixture_for_cleanup)
+        cleanup_rested_xp_smoke_fixture(
+            &bot_for_cleanup,
+            &fixture_for_cleanup,
+            verify_target_respawn,
+        )
     })
     .await
     .map_err(|error| anyhow!("Rested-XP cleanup worker failed: {error}"))?;
@@ -4454,8 +4512,11 @@ async fn run_rested_xp_smoke_phase(
                 bot_index,
                 bot,
                 stream,
+                crypt,
+                server_inflater,
                 realm_connection,
                 options.timeout_secs,
+                result,
             )
             .await?;
             result.rested_xp_smoke_passed = Some(true);
@@ -4481,8 +4542,11 @@ async fn run_rested_xp_smoke_phase(
                 bot_index,
                 bot,
                 stream,
+                crypt,
+                server_inflater,
                 realm_connection,
                 options.timeout_secs,
+                result,
             )
             .await?;
             let after_logout = load_rested_xp_db_state_async(bot.clone()).await?;
@@ -4798,8 +4862,11 @@ async fn run_rested_xp_smoke_phase(
         bot_index,
         bot,
         stream,
+        crypt,
+        server_inflater,
         realm_connection,
         options.timeout_secs,
+        result,
     )
     .await?;
     let persisted = load_rested_xp_db_state_async(bot.clone()).await?;
@@ -4971,9 +5038,186 @@ async fn disconnect_rested_xp_and_wait(
     bot_index: usize,
     bot: &config::BotConfig,
     instance_stream: &mut TcpStream,
+    instance_crypt: &mut WorldCrypt,
+    instance_inflater: &mut ServerPacketInflater,
     realm_connection: &mut Option<EncryptedWorldConnection>,
     timeout_secs: u64,
+    result: &mut BotRunResult,
 ) -> Result<()> {
+    // A bare socket loss keeps a stock C++ WorldSession alive for 60 seconds
+    // (`expireTime` in WorldSession). Exercise the real logout opcode instead:
+    // wilderness logout completes after C++'s 20-second countdown, while Rust
+    // may complete immediately. The DB-stability wait below remains the final
+    // persistence proof for both runtimes.
+    send_encrypted_packet(instance_stream, instance_crypt, CMSG_LOGOUT_REQUEST, &[0])
+        .await
+        .context("send rested-XP CMSG_LOGOUT_REQUEST")?;
+    info!("[Bot {}] ✅ rested-XP CMSG_LOGOUT_REQUEST sent", bot_index);
+    let logout_wait_secs = timeout_secs.min(RESTED_XP_GRACEFUL_LOGOUT_WAIT_SECS);
+    let logout_deadline = tokio::time::Instant::now() + Duration::from_secs(logout_wait_secs);
+    let client_clock_origin = tokio::time::Instant::now();
+    let mut logout_complete = false;
+    let mut instance_open = true;
+    let mut realm_open = realm_connection.is_some();
+    enum RestedXpLogoutReady {
+        Instance,
+        Realm,
+        InstanceClosed,
+        RealmClosed,
+    }
+    while tokio::time::Instant::now() < logout_deadline {
+        let remaining = logout_deadline.saturating_duration_since(tokio::time::Instant::now());
+        if !instance_open && !realm_open {
+            break;
+        }
+        let ready = match (instance_open, realm_open) {
+            (true, true) => {
+                let realm = realm_connection
+                    .as_mut()
+                    .context("rested-XP logout lost its realm connection")?;
+                tokio::time::timeout(remaining, async {
+                    let mut instance_peek = [0u8; 1];
+                    let mut realm_peek = [0u8; 1];
+                    tokio::select! {
+                        ready = instance_stream.peek(&mut instance_peek) => {
+                            if ready.context("rested-XP logout instance peek failed")? == 0 {
+                                Ok(RestedXpLogoutReady::InstanceClosed)
+                            } else {
+                                Ok(RestedXpLogoutReady::Instance)
+                            }
+                        }
+                        ready = realm.stream.peek(&mut realm_peek) => {
+                            if ready.context("rested-XP logout realm peek failed")? == 0 {
+                                Ok(RestedXpLogoutReady::RealmClosed)
+                            } else {
+                                Ok(RestedXpLogoutReady::Realm)
+                            }
+                        }
+                    }
+                })
+                .await
+            }
+            (true, false) => {
+                tokio::time::timeout(remaining, async {
+                    let mut peek = [0u8; 1];
+                    if instance_stream
+                        .peek(&mut peek)
+                        .await
+                        .context("rested-XP logout instance peek failed")?
+                        == 0
+                    {
+                        Ok(RestedXpLogoutReady::InstanceClosed)
+                    } else {
+                        Ok(RestedXpLogoutReady::Instance)
+                    }
+                })
+                .await
+            }
+            (false, true) => {
+                let realm = realm_connection
+                    .as_mut()
+                    .context("rested-XP logout lost its realm connection")?;
+                tokio::time::timeout(remaining, async {
+                    let mut peek = [0u8; 1];
+                    if realm
+                        .stream
+                        .peek(&mut peek)
+                        .await
+                        .context("rested-XP logout realm peek failed")?
+                        == 0
+                    {
+                        Ok(RestedXpLogoutReady::RealmClosed)
+                    } else {
+                        Ok(RestedXpLogoutReady::Realm)
+                    }
+                })
+                .await
+            }
+            (false, false) => unreachable!(),
+        };
+        let ready = match ready {
+            Ok(Ok(ready)) => ready,
+            Ok(Err(error)) => return Err(error),
+            Err(_) => break,
+        };
+        match ready {
+            RestedXpLogoutReady::InstanceClosed => {
+                instance_open = false;
+                continue;
+            }
+            RestedXpLogoutReady::RealmClosed => {
+                realm_open = false;
+                continue;
+            }
+            RestedXpLogoutReady::Instance | RestedXpLogoutReady::Realm => {}
+        }
+        let (connection, opcode, payload) = match ready {
+            RestedXpLogoutReady::Instance => {
+                let (opcode, payload) = tokio::time::timeout(
+                    logout_deadline.saturating_duration_since(tokio::time::Instant::now()),
+                    read_encrypted_packet(instance_stream, instance_crypt, instance_inflater),
+                )
+                .await
+                .map_err(|_| anyhow!("rested-XP logout instance packet read timed out"))??;
+                ("instance", opcode, payload)
+            }
+            RestedXpLogoutReady::Realm => {
+                let realm = realm_connection
+                    .as_mut()
+                    .context("rested-XP logout lost its realm connection")?;
+                let (opcode, payload) = tokio::time::timeout(
+                    logout_deadline.saturating_duration_since(tokio::time::Instant::now()),
+                    read_encrypted_packet(&mut realm.stream, &mut realm.crypt, &mut realm.inflater),
+                )
+                .await
+                .map_err(|_| anyhow!("rested-XP logout realm packet read timed out"))??;
+                ("realm", opcode, payload)
+            }
+            RestedXpLogoutReady::InstanceClosed | RestedXpLogoutReady::RealmClosed => {
+                unreachable!()
+            }
+        };
+        result.seen_opcodes.push(format!("0x{opcode:04X}"));
+        info!(
+            "[Bot {}] 📦 {} rested-XP logout {}",
+            bot_index,
+            connection,
+            parse_packet(opcode, &payload)
+        );
+        if opcode == SMSG_TIME_SYNC_REQUEST {
+            if connection != "instance" {
+                bail!("SMSG_TIME_SYNC_REQUEST arrived on realm during rested-XP logout");
+            }
+            let sequence_index = parse_time_sync_request_sequence(&payload)?;
+            let client_time = client_clock_origin.elapsed().as_millis() as u32;
+            let response = build_time_sync_response_payload(sequence_index, client_time);
+            send_encrypted_packet(
+                instance_stream,
+                instance_crypt,
+                CMSG_TIME_SYNC_RESPONSE,
+                &response,
+            )
+            .await?;
+            continue;
+        }
+        if opcode == SMSG_LOGOUT_COMPLETE {
+            if connection != "realm" {
+                warn!(
+                    "[Bot {}] SMSG_LOGOUT_COMPLETE arrived on instance; stock C++ routes it on realm",
+                    bot_index
+                );
+            }
+            logout_complete = true;
+            break;
+        }
+    }
+    if !logout_complete {
+        warn!(
+            "[Bot {}] rested-XP graceful logout did not emit SMSG_LOGOUT_COMPLETE within {}s; closing both sockets and relying on the bounded DB-state proof",
+            bot_index, logout_wait_secs
+        );
+    }
+
     instance_stream
         .shutdown()
         .await
@@ -6024,7 +6268,38 @@ const RESTED_XP_RESTORE_CHARACTER_SQL: &str =
      position_x = ?, position_y = ?, position_z = ?, orientation = ?, health = ?, \
      power1 = ?, power2 = ?, power3 = ?, power4 = ?, power5 = ?, power6 = ?, power7 = ?, \
      power8 = ?, power9 = ?, power10 = ?, totalKills = ?, todayKills = ?, yesterdayKills = ?, \
-     totaltime = ?, leveltime = ? WHERE guid = ? AND online = 0";
+     totaltime = ?, leveltime = ?, latency = ?, lastLoginBuild = ? \
+     WHERE guid = ? AND online = 0";
+
+const RESTED_XP_SELECT_TRAIT_CONFIGS_SQL: &str =
+    "SELECT traitConfigId, type, chrSpecializationId, combatConfigFlags, localIdentifier, \
+     skillLineId, traitSystemId, name FROM character_trait_config \
+     WHERE guid = ? ORDER BY traitConfigId";
+const RESTED_XP_SELECT_TRAIT_ENTRIES_SQL: &str =
+    "SELECT traitConfigId, traitNodeId, traitNodeEntryId, rank, grantedRanks \
+     FROM character_trait_entry WHERE guid = ? \
+     ORDER BY traitConfigId, traitNodeId, traitNodeEntryId";
+
+// Stock C++ login/save materializes these defaults for an otherwise clean
+// character. The rested-XP fixture requires them empty before the smoke, so
+// cleanup must remove the same bounded, character-owned rows afterwards.
+const RESTED_XP_CPP_GENERATED_CHARACTER_ROWS: &[(&str, &str, &str)] = &[
+    (
+        "character_glyphs",
+        "DELETE FROM character_glyphs WHERE guid = ?",
+        "SELECT COUNT(*) FROM character_glyphs WHERE guid = ?",
+    ),
+    (
+        "character_reputation",
+        "DELETE FROM character_reputation WHERE guid = ?",
+        "SELECT COUNT(*) FROM character_reputation WHERE guid = ?",
+    ),
+    (
+        "character_skills",
+        "DELETE FROM character_skills WHERE guid = ?",
+        "SELECT COUNT(*) FROM character_skills WHERE guid = ?",
+    ),
+];
 
 fn prepare_rested_xp_smoke_fixture(
     bot: &config::BotConfig,
@@ -6049,6 +6324,18 @@ fn prepare_rested_xp_smoke_fixture(
             );
         }
     }
+    let stat_save_min_level = worldserver_config_u32("PlayerSave.Stats.MinLevel", 0)?;
+    if stat_save_min_level != 0 {
+        bail!(
+            "rested-XP fixture requires PlayerSave.Stats.MinLevel=0, got {stat_save_min_level}; stock C++ otherwise destructively rewrites character_stats on logout"
+        );
+    }
+    let start_all_spells = worldserver_config_u32("PlayerStart.AllSpells", 0)?;
+    if start_all_spells != 0 {
+        bail!(
+            "rested-XP fixture requires PlayerStart.AllSpells=0, got {start_all_spells}; otherwise stock C++ can populate character_spell during login"
+        );
+    }
 
     let characters_url = characters_db_url()?;
     let character_opts = mysql::Opts::from_url(&characters_url)
@@ -6060,7 +6347,8 @@ fn prepare_rested_xp_smoke_fixture(
             "SELECT account, online, at_login, level, xp, restState, playerFlags, rest_bonus, logout_time, \
              is_logout_resting, map, zone, instance_id, position_x, position_y, position_z, \
              orientation, health, power1, power2, power3, power4, power5, power6, power7, power8, \
-             power9, power10, totalKills, todayKills, yesterdayKills, totaltime, leveltime \
+             power9, power10, totalKills, todayKills, yesterdayKills, totaltime, leveltime, \
+             latency, lastLoginBuild \
              FROM characters WHERE guid = ?",
             (bot.character_guid,),
         )
@@ -6159,6 +6447,14 @@ fn prepare_rested_xp_smoke_fixture(
             "character_cuf_profiles",
             "SELECT COUNT(*) FROM character_cuf_profiles WHERE guid = ?",
         ),
+        (
+            "character_void_storage",
+            "SELECT COUNT(*) FROM character_void_storage WHERE playerGuid = ?",
+        ),
+        (
+            "guild_member",
+            "SELECT COUNT(*) FROM guild_member WHERE guid = ?",
+        ),
         ("corpse", "SELECT COUNT(*) FROM corpse WHERE guid = ?"),
     ] {
         let rows = rested_xp_count_rows(&mut characters, sql, bot.character_guid, table)?;
@@ -6203,6 +6499,36 @@ fn prepare_rested_xp_smoke_fixture(
             (bot.character_guid,),
         )
         .map_err(|error| anyhow!("Snapshot rested-XP character achievement progress: {error}"))?;
+    // Stock C++ can materialize missing specialization trait configs during
+    // login/save. Preserve these tables exactly instead of assuming the
+    // disposable fixture started with no trait state.
+    let original_trait_configs: Vec<RestedXpTraitConfigSnapshot> = characters
+        .exec(RESTED_XP_SELECT_TRAIT_CONFIGS_SQL, (bot.character_guid,))
+        .map_err(|error| anyhow!("Snapshot rested-XP character trait configs: {error}"))?;
+    let original_trait_entries: Vec<RestedXpTraitEntrySnapshot> = characters
+        .exec(RESTED_XP_SELECT_TRAIT_ENTRIES_SQL, (bot.character_guid,))
+        .map_err(|error| anyhow!("Snapshot rested-XP character trait entries: {error}"))?;
+    let original_homebind: Option<RestedXpHomebindSnapshot> = characters
+        .exec_first(
+            "SELECT mapId, zoneId, posX, posY, posZ, orientation \
+             FROM character_homebind WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Snapshot rested-XP character homebind: {error}"))?;
+    let original_fishing_steps: Option<u8> = characters
+        .exec_first(
+            "SELECT fishingSteps FROM character_fishingsteps WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Snapshot rested-XP character fishing steps: {error}"))?;
+    let original_battleground_data: Option<RestedXpBattlegroundDataSnapshot> = characters
+        .exec_first(
+            "SELECT instanceId, team, joinX, joinY, joinZ, joinO, joinMapId, \
+                    taxiStart, taxiEnd, mountSpell, queueId \
+             FROM character_battleground_data WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Snapshot rested-XP character battleground data: {error}"))?;
 
     let active_quests: u64 = characters
         .exec_first(
@@ -6279,6 +6605,21 @@ fn prepare_rested_xp_smoke_fixture(
             bot.account_id
         )
     })?;
+    let original_last_played_characters: Vec<RestedXpLastPlayedCharacterSnapshot> = auth
+        .exec(
+            "SELECT region, battlegroup, realmId, characterName, characterGUID, lastPlayedTime \
+             FROM account_last_played_character WHERE accountId = ? \
+             ORDER BY region, battlegroup",
+            (bot.account_id,),
+        )
+        .map_err(|error| anyhow!("Snapshot rested-XP last-played character rows: {error}"))?;
+    let original_battle_pet_slots: Vec<RestedXpBattlePetSlotSnapshot> = auth
+        .exec(
+            "SELECT id, battlePetGuid, locked FROM battle_pet_slots \
+             WHERE battlenetAccountId = ? ORDER BY id",
+            (battlenet_account_id,),
+        )
+        .map_err(|error| anyhow!("Snapshot rested-XP Battle.net pet slots: {error}"))?;
     safety_state.game_account_online = game_account_online;
     safety_state.bnet_email_matches_configured_account = battlenet_email
         .as_deref()
@@ -6313,6 +6654,10 @@ fn prepare_rested_xp_smoke_fixture(
         (
             "battlenet_account_transmog_illusions",
             "SELECT COUNT(*) FROM battlenet_account_transmog_illusions WHERE battlenetAccountId = ?",
+        ),
+        (
+            "battle_pets",
+            "SELECT COUNT(*) FROM battle_pets WHERE battlenetAccountId = ?",
         ),
     ] {
         let rows = rested_xp_count_rows(
@@ -6541,6 +6886,13 @@ fn prepare_rested_xp_smoke_fixture(
         original,
         original_achievements,
         original_achievement_progress,
+        original_trait_configs,
+        original_trait_entries,
+        original_homebind,
+        original_fishing_steps,
+        original_battleground_data,
+        original_last_played_characters,
+        original_battle_pet_slots,
         battlenet_account_id,
         target_respawn_secs,
         test_level,
@@ -6602,6 +6954,8 @@ fn rested_xp_character_restore_point_from_row(
         yesterday_kills: required_row_value(row, "yesterdayKills")?,
         total_time: required_row_value(row, "totaltime")?,
         level_time: required_row_value(row, "leveltime")?,
+        latency: required_row_value(row, "latency")?,
+        last_login_build: required_row_value(row, "lastLoginBuild")?,
     })
 }
 
@@ -6752,6 +7106,8 @@ fn rested_xp_restore_params(
         restore_point.yesterday_kills.into(),
         restore_point.total_time.into(),
         restore_point.level_time.into(),
+        restore_point.latency.into(),
+        restore_point.last_login_build.into(),
         character_guid.into(),
     ]);
     values
@@ -6768,7 +7124,8 @@ fn wait_for_rested_xp_character_offline_and_stable(
         .map_err(|error| anyhow!("Bad characters DB URL: {error}"))?;
     let mut conn = mysql::Conn::new(opts)
         .map_err(|error| anyhow!("Connect to characters DB failed: {error}"))?;
-    let deadline = std::time::Instant::now() + Duration::from_secs(timeout_secs.clamp(10, 60));
+    let deadline = std::time::Instant::now()
+        + Duration::from_secs(timeout_secs.clamp(10, RESTED_XP_DISCONNECT_SAVE_MAX_WAIT_SECS));
     let mut previous_offline_marker: Option<(u32, u32, u64, u8)> = None;
     loop {
         let row: Option<(u8, u32, f32, u64, u8)> = conn
@@ -6809,8 +7166,13 @@ fn wait_for_rested_xp_game_account_offline(
         mysql::Opts::from_url(&auth_url).map_err(|error| anyhow!("Bad auth DB URL: {error}"))?;
     let mut conn =
         mysql::Conn::new(opts).map_err(|error| anyhow!("Connect to auth DB failed: {error}"))?;
-    let deadline =
-        std::time::Instant::now() + Duration::from_secs(fixture.options.timeout_secs.clamp(10, 60));
+    let deadline = std::time::Instant::now()
+        + Duration::from_secs(
+            fixture
+                .options
+                .timeout_secs
+                .clamp(10, RESTED_XP_DISCONNECT_SAVE_MAX_WAIT_SECS),
+        );
     loop {
         let row: Option<(Option<u32>, u8, Option<String>)> = conn
             .exec_first(
@@ -6931,6 +7293,7 @@ fn rested_xp_respawn_cleanup_wait_secs(protocol_timeout_secs: u64, respawn_secs:
 fn cleanup_rested_xp_smoke_fixture(
     bot: &config::BotConfig,
     fixture: &RestedXpSmokeFixture,
+    verify_target_respawn: bool,
 ) -> Result<()> {
     use mysql::prelude::Queryable;
 
@@ -7058,32 +7421,154 @@ fn cleanup_rested_xp_smoke_fixture(
             )
             .map_err(|error| anyhow!("Restore rested-XP achievement progress: {error}"))?;
     }
+    // C++ Player::_LoadTraits may create missing per-specialization configs,
+    // and SaveToDB persists them. Restore the exact pre-smoke snapshot so both
+    // pre-existing builds and newly materialized defaults are handled safely.
+    character_tx
+        .exec_drop(
+            "DELETE FROM character_trait_entry WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Clear rested-XP character trait entries: {error}"))?;
+    character_tx
+        .exec_drop(
+            "DELETE FROM character_trait_config WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Clear rested-XP character trait configs: {error}"))?;
+    for (
+        trait_config_id,
+        config_type,
+        chr_specialization_id,
+        combat_config_flags,
+        local_identifier,
+        skill_line_id,
+        trait_system_id,
+        name,
+    ) in &fixture.original_trait_configs
+    {
+        character_tx
+            .exec_drop(
+                "INSERT INTO character_trait_config \
+                 (guid, traitConfigId, type, chrSpecializationId, combatConfigFlags, \
+                  localIdentifier, skillLineId, traitSystemId, name) \
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    bot.character_guid,
+                    trait_config_id,
+                    config_type,
+                    chr_specialization_id,
+                    combat_config_flags,
+                    local_identifier,
+                    skill_line_id,
+                    trait_system_id,
+                    name,
+                ),
+            )
+            .map_err(|error| anyhow!("Restore rested-XP character trait config: {error}"))?;
+    }
+    for (trait_config_id, trait_node_id, trait_node_entry_id, rank, granted_ranks) in
+        &fixture.original_trait_entries
+    {
+        character_tx
+            .exec_drop(
+                "INSERT INTO character_trait_entry \
+                 (guid, traitConfigId, traitNodeId, traitNodeEntryId, rank, grantedRanks) \
+                 VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    bot.character_guid,
+                    trait_config_id,
+                    trait_node_id,
+                    trait_node_entry_id,
+                    rank,
+                    granted_ranks,
+                ),
+            )
+            .map_err(|error| anyhow!("Restore rested-XP character trait entry: {error}"))?;
+    }
+    character_tx
+        .exec_drop(
+            "DELETE FROM character_homebind WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Clear rested-XP character homebind: {error}"))?;
+    if let Some((map_id, zone_id, x, y, z, orientation)) = fixture.original_homebind {
+        character_tx
+            .exec_drop(
+                "INSERT INTO character_homebind \
+                 (guid, mapId, zoneId, posX, posY, posZ, orientation) \
+                 VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (bot.character_guid, map_id, zone_id, x, y, z, orientation),
+            )
+            .map_err(|error| anyhow!("Restore rested-XP character homebind: {error}"))?;
+    }
+    character_tx
+        .exec_drop(
+            "DELETE FROM character_fishingsteps WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Clear rested-XP character fishing steps: {error}"))?;
+    if let Some(fishing_steps) = fixture.original_fishing_steps {
+        character_tx
+            .exec_drop(
+                "INSERT INTO character_fishingsteps (guid, fishingSteps) VALUES (?, ?)",
+                (bot.character_guid, fishing_steps),
+            )
+            .map_err(|error| anyhow!("Restore rested-XP character fishing steps: {error}"))?;
+    }
+    character_tx
+        .exec_drop(
+            "DELETE FROM character_battleground_data WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Clear rested-XP character battleground data: {error}"))?;
+    if let Some((
+        instance_id,
+        team,
+        join_x,
+        join_y,
+        join_z,
+        join_o,
+        join_map_id,
+        taxi_start,
+        taxi_end,
+        mount_spell,
+        queue_id,
+    )) = fixture.original_battleground_data
+    {
+        character_tx
+            .exec_drop(
+                "INSERT INTO character_battleground_data \
+                 (guid, instanceId, team, joinX, joinY, joinZ, joinO, joinMapId, \
+                  taxiStart, taxiEnd, mountSpell, queueId) \
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    bot.character_guid,
+                    instance_id,
+                    team,
+                    join_x,
+                    join_y,
+                    join_z,
+                    join_o,
+                    join_map_id,
+                    taxi_start,
+                    taxi_end,
+                    mount_spell,
+                    queue_id,
+                ),
+            )
+            .map_err(|error| anyhow!("Restore rested-XP character battleground data: {error}"))?;
+    }
     // Preflight proved these tables were empty. C++ login/save deterministically
     // creates them, so remove only the rows scoped to this disposable fixture.
-    character_tx
-        .exec_drop(
-            "DELETE FROM character_glyphs WHERE guid = ?",
-            (bot.character_guid,),
-        )
-        .map_err(|error| anyhow!("Remove rested-XP fixture glyph rows: {error}"))?;
-    character_tx
-        .exec_drop(
-            "DELETE FROM character_reputation WHERE guid = ?",
-            (bot.character_guid,),
-        )
-        .map_err(|error| anyhow!("Remove rested-XP fixture reputation rows: {error}"))?;
-    for (label, sql) in [
-        (
-            "character_glyphs",
-            "SELECT COUNT(*) FROM character_glyphs WHERE guid = ?",
-        ),
-        (
-            "character_reputation",
-            "SELECT COUNT(*) FROM character_reputation WHERE guid = ?",
-        ),
-    ] {
+    for (label, delete_sql, _) in RESTED_XP_CPP_GENERATED_CHARACTER_ROWS {
+        character_tx
+            .exec_drop(*delete_sql, (bot.character_guid,))
+            .map_err(|error| anyhow!("Remove rested-XP fixture {label} rows: {error}"))?;
+    }
+    for (label, _, count_sql) in RESTED_XP_CPP_GENERATED_CHARACTER_ROWS {
         let rows: u64 = character_tx
-            .exec_first(sql, (bot.character_guid,))
+            .exec_first(*count_sql, (bot.character_guid,))
             .map_err(|error| anyhow!("Verify rested-XP cleanup {label}: {error}"))?
             .unwrap_or(0);
         if rows != 0 {
@@ -7095,7 +7580,7 @@ fn cleanup_rested_xp_smoke_fixture(
             "SELECT level, xp, restState, playerFlags, rest_bonus, logout_time, is_logout_resting, \
              map, zone, instance_id, position_x, position_y, position_z, orientation, health, \
              power1, power2, power3, power4, power5, power6, power7, power8, power9, power10, \
-             totalKills, todayKills, yesterdayKills, totaltime, leveltime \
+             totalKills, todayKills, yesterdayKills, totaltime, leveltime, latency, lastLoginBuild \
              FROM characters WHERE guid = ?",
             (bot.character_guid,),
         )
@@ -7123,7 +7608,95 @@ fn cleanup_rested_xp_smoke_fixture(
     if restored_achievement_progress != fixture.original_achievement_progress {
         bail!("rested-XP cleanup verification did not restore achievement progress");
     }
+    let restored_trait_configs: Vec<RestedXpTraitConfigSnapshot> = character_tx
+        .exec(RESTED_XP_SELECT_TRAIT_CONFIGS_SQL, (bot.character_guid,))
+        .map_err(|error| anyhow!("Verify rested-XP character trait configs: {error}"))?;
+    if restored_trait_configs != fixture.original_trait_configs {
+        bail!("rested-XP cleanup verification did not restore character trait configs");
+    }
+    let restored_trait_entries: Vec<RestedXpTraitEntrySnapshot> = character_tx
+        .exec(RESTED_XP_SELECT_TRAIT_ENTRIES_SQL, (bot.character_guid,))
+        .map_err(|error| anyhow!("Verify rested-XP character trait entries: {error}"))?;
+    if restored_trait_entries != fixture.original_trait_entries {
+        bail!("rested-XP cleanup verification did not restore character trait entries");
+    }
+    let restored_homebind: Option<RestedXpHomebindSnapshot> = character_tx
+        .exec_first(
+            "SELECT mapId, zoneId, posX, posY, posZ, orientation \
+             FROM character_homebind WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Verify rested-XP character homebind: {error}"))?;
+    if restored_homebind != fixture.original_homebind {
+        bail!("rested-XP cleanup verification did not restore character homebind");
+    }
+    let restored_fishing_steps: Option<u8> = character_tx
+        .exec_first(
+            "SELECT fishingSteps FROM character_fishingsteps WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Verify rested-XP character fishing steps: {error}"))?;
+    if restored_fishing_steps != fixture.original_fishing_steps {
+        bail!("rested-XP cleanup verification did not restore character fishing steps");
+    }
+    let restored_battleground_data: Option<RestedXpBattlegroundDataSnapshot> = character_tx
+        .exec_first(
+            "SELECT instanceId, team, joinX, joinY, joinZ, joinO, joinMapId, \
+                    taxiStart, taxiEnd, mountSpell, queueId \
+             FROM character_battleground_data WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Verify rested-XP character battleground data: {error}"))?;
+    if restored_battleground_data != fixture.original_battleground_data {
+        bail!("rested-XP cleanup verification did not restore character battleground data");
+    }
 
+    auth_tx
+        .exec_drop(
+            "DELETE FROM account_last_played_character WHERE accountId = ?",
+            (bot.account_id,),
+        )
+        .map_err(|error| anyhow!("Clear rested-XP last-played character rows: {error}"))?;
+    for (region, battlegroup, realm_id, name, character_guid, last_played_time) in
+        &fixture.original_last_played_characters
+    {
+        auth_tx
+            .exec_drop(
+                "INSERT INTO account_last_played_character \
+                 (accountId, region, battlegroup, realmId, characterName, characterGUID, lastPlayedTime) \
+                 VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    bot.account_id,
+                    region,
+                    battlegroup,
+                    realm_id,
+                    name,
+                    character_guid,
+                    last_played_time,
+                ),
+            )
+            .map_err(|error| anyhow!("Restore rested-XP last-played character row: {error}"))?;
+    }
+    auth_tx
+        .exec_drop(
+            "DELETE FROM battle_pet_slots WHERE battlenetAccountId = ?",
+            (fixture.battlenet_account_id,),
+        )
+        .map_err(|error| anyhow!("Clear rested-XP Battle.net pet slots: {error}"))?;
+    for (slot_id, battle_pet_guid, locked) in &fixture.original_battle_pet_slots {
+        auth_tx
+            .exec_drop(
+                "INSERT INTO battle_pet_slots \
+                 (id, battlenetAccountId, battlePetGuid, locked) VALUES (?, ?, ?, ?)",
+                (
+                    slot_id,
+                    fixture.battlenet_account_id,
+                    battle_pet_guid,
+                    locked,
+                ),
+            )
+            .map_err(|error| anyhow!("Restore rested-XP Battle.net pet slot: {error}"))?;
+    }
     auth_tx
         .exec_drop(
             "DELETE FROM battlenet_account_transmog_illusions WHERE battlenetAccountId = ?",
@@ -7140,6 +7713,27 @@ fn cleanup_rested_xp_smoke_fixture(
     if illusion_rows != 0 {
         bail!("rested-XP cleanup left {illusion_rows} transmog illusion rows");
     }
+    let restored_last_played_characters: Vec<RestedXpLastPlayedCharacterSnapshot> = auth_tx
+        .exec(
+            "SELECT region, battlegroup, realmId, characterName, characterGUID, lastPlayedTime \
+             FROM account_last_played_character WHERE accountId = ? \
+             ORDER BY region, battlegroup",
+            (bot.account_id,),
+        )
+        .map_err(|error| anyhow!("Verify rested-XP last-played character rows: {error}"))?;
+    if restored_last_played_characters != fixture.original_last_played_characters {
+        bail!("rested-XP cleanup verification did not restore last-played character rows");
+    }
+    let restored_battle_pet_slots: Vec<RestedXpBattlePetSlotSnapshot> = auth_tx
+        .exec(
+            "SELECT id, battlePetGuid, locked FROM battle_pet_slots \
+             WHERE battlenetAccountId = ? ORDER BY id",
+            (fixture.battlenet_account_id,),
+        )
+        .map_err(|error| anyhow!("Verify rested-XP Battle.net pet slots: {error}"))?;
+    if restored_battle_pet_slots != fixture.original_battle_pet_slots {
+        bail!("rested-XP cleanup verification did not restore Battle.net pet slots");
+    }
 
     character_tx
         .commit()
@@ -7148,10 +7742,16 @@ fn cleanup_rested_xp_smoke_fixture(
         .commit()
         .map_err(|error| anyhow!("Commit rested-XP auth cleanup: {error}"))?;
     info!(
-        "Rested-XP fixture restored character {} and its deterministic glyph/reputation/illusion save rows",
+        "Rested-XP fixture restored character/account snapshots and deterministic glyph/reputation/skill/illusion save rows for character {}",
         bot.character_guid,
     );
-    wait_for_rested_xp_target_respawn_cleanup(&mut conn, fixture)?;
+    if verify_target_respawn {
+        wait_for_rested_xp_target_respawn_cleanup(&mut conn, fixture)?;
+    } else {
+        info!(
+            "Rested-XP workflow did not prove a target kill; skipped the inapplicable respawn-transition wait"
+        );
+    }
     Ok(())
 }
 
@@ -8148,6 +8748,35 @@ fn worldserver_config_f32(key: &str, default: f32) -> Result<f32> {
         std::fs::read_to_string(&path).map_err(|error| anyhow!("Read {path} failed: {error}"))?;
     worldserver_config_f32_from_contents(&contents, key, default)
         .with_context(|| format!("Read {key} from {path}"))
+}
+
+fn worldserver_config_u32(key: &str, default: u32) -> Result<u32> {
+    let path = std::env::var("WOW_BOT_DB_CONF")
+        .unwrap_or_else(|_| "/home/server/trinity-legacy-install/etc/worldserver.conf".to_string());
+    let contents =
+        std::fs::read_to_string(&path).map_err(|error| anyhow!("Read {path} failed: {error}"))?;
+    worldserver_config_u32_from_contents(&contents, key, default)
+        .with_context(|| format!("Read {key} from {path}"))
+}
+
+fn worldserver_config_u32_from_contents(contents: &str, key: &str, default: u32) -> Result<u32> {
+    let mut effective = None;
+    for line in contents.lines() {
+        let line = line.split('#').next().unwrap_or_default().trim();
+        let Some((candidate_key, raw_value)) = line.split_once('=') else {
+            continue;
+        };
+        if !candidate_key.trim().eq_ignore_ascii_case(key) {
+            continue;
+        }
+        effective = Some(raw_value.trim().trim_matches('"'));
+    }
+    let Some(value) = effective else {
+        return Ok(default);
+    };
+    value
+        .parse::<u32>()
+        .map_err(|error| anyhow!("invalid {key} value `{value}`: {error}"))
 }
 
 fn worldserver_config_f32_from_contents(contents: &str, key: &str, default: f32) -> Result<f32> {
@@ -9483,6 +10112,59 @@ mod tests {
     }
 
     #[test]
+    fn rested_xp_cleanup_covers_cpp_generated_character_rows() {
+        let labels: Vec<_> = RESTED_XP_CPP_GENERATED_CHARACTER_ROWS
+            .iter()
+            .map(|(label, _, _)| *label)
+            .collect();
+        assert_eq!(
+            labels,
+            [
+                "character_glyphs",
+                "character_reputation",
+                "character_skills"
+            ]
+        );
+
+        for (label, delete_sql, count_sql) in RESTED_XP_CPP_GENERATED_CHARACTER_ROWS {
+            assert!(
+                delete_sql.starts_with(&format!("DELETE FROM {label} ")),
+                "cleanup for {label} must delete only from its own table"
+            );
+            assert!(
+                delete_sql.ends_with("WHERE guid = ?"),
+                "cleanup for {label} must remain scoped to the fixture character"
+            );
+            assert!(
+                count_sql.starts_with(&format!("SELECT COUNT(*) FROM {label} ")),
+                "verification for {label} must query the same table"
+            );
+            assert!(
+                count_sql.ends_with("WHERE guid = ?"),
+                "verification for {label} must remain scoped to the fixture character"
+            );
+        }
+
+        assert!(
+            RESTED_XP_SELECT_TRAIT_CONFIGS_SQL.contains("WHERE guid = ?"),
+            "trait config snapshot must remain scoped to the fixture character"
+        );
+        assert!(
+            RESTED_XP_SELECT_TRAIT_CONFIGS_SQL.ends_with("ORDER BY traitConfigId"),
+            "trait config snapshot order must be deterministic"
+        );
+        assert!(
+            RESTED_XP_SELECT_TRAIT_ENTRIES_SQL.contains("WHERE guid = ?"),
+            "trait entry snapshot must remain scoped to the fixture character"
+        );
+        assert!(
+            RESTED_XP_SELECT_TRAIT_ENTRIES_SQL
+                .ends_with("ORDER BY traitConfigId, traitNodeId, traitNodeEntryId"),
+            "trait entry snapshot order must be deterministic"
+        );
+    }
+
+    #[test]
     fn rested_xp_respawn_cleanup_wait_covers_the_selected_spawn_timer() {
         assert_eq!(rested_xp_respawn_cleanup_wait_secs(120, 300), 315);
         assert_eq!(rested_xp_respawn_cleanup_wait_secs(180, 30), 180);
@@ -9658,6 +10340,28 @@ mod tests {
         let error = worldserver_config_f32_from_contents("Rate.Rest = nope", "Rate.Rest", 1.0)
             .expect_err("malformed configured rate must not fall back silently");
         assert!(error.to_string().contains("invalid Rate.Rest value"));
+
+        let stats = r#"
+            PlayerSave.Stats.MinLevel = 80
+            playersave.stats.minlevel = "0" # effective value
+        "#;
+        assert_eq!(
+            worldserver_config_u32_from_contents(stats, "PlayerSave.Stats.MinLevel", 1).unwrap(),
+            0
+        );
+        assert_eq!(
+            worldserver_config_u32_from_contents(stats, "Missing.Integer", 7).unwrap(),
+            7
+        );
+        let error = worldserver_config_u32_from_contents(
+            "PlayerSave.Stats.MinLevel = nope",
+            "PlayerSave.Stats.MinLevel",
+            0,
+        )
+        .expect_err("malformed stats gate must not fall back silently");
+        assert!(error
+            .to_string()
+            .contains("invalid PlayerSave.Stats.MinLevel value"));
     }
 }
 
