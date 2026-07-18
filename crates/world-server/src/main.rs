@@ -4783,6 +4783,7 @@ async fn main() -> Result<ExitCode> {
     );
 
     let loaded_grid_creature_respawn_caches = LoadedGridCreatureRespawnCachesLikeCpp {
+        realm_id,
         template_store: Arc::clone(&creature_template_lifecycle_store),
         sparring_store: Arc::clone(&creature_template_sparring_store),
         difficulty_store: Arc::clone(&creature_difficulty_store),
@@ -10672,6 +10673,7 @@ async fn execute_game_event_world_event_state_db_bridge_like_cpp(
 
 #[derive(Clone)]
 struct LoadedGridCreatureRespawnCachesLikeCpp {
+    realm_id: u16,
     template_store: Arc<wow_data::CreatureTemplateLifecycleStoreLikeCpp>,
     sparring_store: Arc<wow_data::CreatureTemplateSparringStoreLikeCpp>,
     difficulty_store: Arc<wow_data::CreatureDifficultyStoreLikeCpp>,
@@ -10960,8 +10962,12 @@ fn build_loaded_grid_creature_record_with_respawn_time_like_cpp(
         HighGuid::Creature
     };
     let map_object_guid = match map_object_high {
-        HighGuid::Vehicle => ObjectGuid::create_vehicle_like_cpp(map_id, template.entry, low),
-        HighGuid::Creature => ObjectGuid::create_creature_like_cpp(map_id, template.entry, low),
+        HighGuid::Vehicle => {
+            ObjectGuid::create_vehicle_like_cpp(caches.realm_id, map_id, template.entry, low)
+        }
+        HighGuid::Creature => {
+            ObjectGuid::create_creature_like_cpp(caches.realm_id, map_id, template.entry, low)
+        }
         _ => unreachable!("loaded-grid creature records only create Creature or Vehicle GUIDs"),
     };
     let resolver = creature_loaded_grid::CreatureLoadedGridLifecycleResolverLikeCpp::new(
@@ -15132,6 +15138,7 @@ mod tests {
     fn empty_loaded_grid_creature_respawn_caches_like_cpp() -> LoadedGridCreatureRespawnCachesLikeCpp
     {
         LoadedGridCreatureRespawnCachesLikeCpp {
+            realm_id: 1,
             template_store: Arc::new(wow_data::CreatureTemplateLifecycleStoreLikeCpp::default()),
             sparring_store: Arc::new(wow_data::CreatureTemplateSparringStoreLikeCpp::default()),
             difficulty_store: Arc::new(wow_data::CreatureDifficultyStoreLikeCpp::default()),
@@ -15545,8 +15552,8 @@ mod tests {
 
     fn test_guid_like_cpp(high: HighGuid, counter: i64, entry: u32) -> ObjectGuid {
         match high {
-            HighGuid::Creature => ObjectGuid::create_creature_like_cpp(1, entry, counter),
-            HighGuid::Vehicle => ObjectGuid::create_vehicle_like_cpp(1, entry, counter),
+            HighGuid::Creature => ObjectGuid::create_creature_like_cpp(1, 1, entry, counter),
+            HighGuid::Vehicle => ObjectGuid::create_vehicle_like_cpp(1, 1, entry, counter),
             HighGuid::GameObject => ObjectGuid::create_gameobject_like_cpp(1, entry, counter),
             HighGuid::AreaTrigger => ObjectGuid::create_area_trigger_like_cpp(1, entry, counter),
             _ => ObjectGuid::create_world_object(high, 0, 0, 1, 0, entry, counter),
@@ -22960,7 +22967,8 @@ mmap.enablePathFinding = 0
                 spawn_time_secs: 120,
             },
         )]));
-        let caches = variable_loaded_grid_creature_respawn_caches_like_cpp(entry);
+        let mut caches = variable_loaded_grid_creature_respawn_caches_like_cpp(entry);
+        caches.realm_id = 7;
         let mut map = wow_map::Map::new(571, 0, 2, 60_000);
         map.add_respawn_info_like_cpp(RespawnInfoLikeCpp {
             object_type: SpawnObjectType::Creature,
@@ -22994,6 +23002,7 @@ mmap.enablePathFinding = 0
             creature.guid().high_type(),
             wow_core::guid::HighGuid::Creature
         );
+        assert_eq!(creature.guid().realm_id(), 7);
         assert_eq!(u32::from(creature.guid().map_id()), 571);
         assert_eq!(creature.guid().entry(), entry);
         assert_eq!(creature.guid().counter(), 1);
@@ -23411,10 +23420,11 @@ mmap.enablePathFinding = 0
                     },
                 )])),
         ));
-        let caches =
+        let mut caches =
             variable_loaded_grid_creature_respawn_caches_with_vehicle_id_and_difficulty_like_cpp(
                 entry, 0, 0,
             );
+        caches.realm_id = 7;
         let area_trigger_templates = area_trigger_template_store_for_loaded_grid_like_cpp(1, 1);
         canonical.lock().unwrap().create_world_map(1, 0);
         let map_store = loaded_grid_map_store_like_cpp(1, wow_data::map::MAP_COMMON);
@@ -23445,6 +23455,7 @@ mmap.enablePathFinding = 0
                 .expect("visible adjacent NGrid creature should be materialized")
                 .guid()
         };
+        assert_eq!(guid.realm_id(), 7);
         assert!(
             legacy.read().unwrap().find_creature(1, 0, guid).is_some(),
             "materialized canonical creature must be mirrored into the legacy visible/tick world"
@@ -23830,6 +23841,7 @@ mmap.enablePathFinding = 0
         )]));
         let mut caches =
             variable_loaded_grid_creature_respawn_caches_with_vehicle_id_like_cpp(entry, 101);
+        caches.realm_id = 7;
         let entry_accessory = wow_entities::VehicleAccessory {
             accessory_entry: 7001,
             seat_id: 1,
@@ -23875,6 +23887,7 @@ mmap.enablePathFinding = 0
             creature.guid().high_type(),
             wow_core::guid::HighGuid::Vehicle
         );
+        assert_eq!(creature.guid().realm_id(), 7);
         assert_eq!(creature.guid().counter(), 1);
         assert_ne!(creature.guid().counter(), spawn_id as i64);
         assert_eq!(creature.guid().entry(), entry);
@@ -24008,6 +24021,7 @@ mmap.enablePathFinding = 0
         difficulty_id: u8,
     ) -> LoadedGridCreatureRespawnCachesLikeCpp {
         LoadedGridCreatureRespawnCachesLikeCpp {
+            realm_id: 1,
             template_store: Arc::new(
                 wow_data::CreatureTemplateLifecycleStoreLikeCpp::from_templates([
                     wow_data::CreatureTemplateLifecycleRecordLikeCpp {

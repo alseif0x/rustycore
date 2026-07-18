@@ -7358,17 +7358,9 @@ impl WorldSession {
         let equipment_fields = self.creature_virtual_items_from_row_like_cpp(entry, row);
 
         let guid = if vehicle_id != 0 {
-            ObjectGuid::create_world_object(
-                HighGuid::Vehicle,
-                0,
-                0,
-                map_id,
-                0,
-                entry,
-                spawn_guid as i64,
-            )
+            ObjectGuid::create_vehicle_like_cpp(self.realm_id(), map_id, entry, spawn_guid as i64)
         } else {
-            ObjectGuid::create_creature_like_cpp(map_id, entry, spawn_guid as i64)
+            ObjectGuid::create_creature_like_cpp(self.realm_id(), map_id, entry, spawn_guid as i64)
         };
         let movement_flags = creature_create_movement_flags_like_cpp(ground_movement_type, rooted);
         let position = creature_create_position_after_hover_offset_like_cpp(
