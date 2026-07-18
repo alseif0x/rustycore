@@ -1,0 +1,126 @@
+name: QA world-server artifact
+
+on:
+  pull_request:
+    branches:
+      - "3.4.3"
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - labeled
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build replica ${{ matrix.replica }}
+    if: contains(github.event.pull_request.labels.*.name, 'qa-artifact')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        replica:
+          - a
+          - b
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.88.0
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: qa-world-server-${{ matrix.replica }}
+
+      - name: Install protoc
+        run: |
+          protoc_version="$(tr -d '[:space:]' < .protoc-version)"
+          curl --fail --show-error --location --retry 3 --retry-all-errors \
+            -o /tmp/protoc.zip \
+            "https://github.com/protocolbuffers/protobuf/releases/download/v${protoc_version}/protoc-${protoc_version}-linux-x86_64.zip"
+          python3 -m zipfile -e /tmp/protoc.zip "$HOME/.local"
+          chmod +x "$HOME/.local/bin/protoc"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Build no-LTO release artifact
+        env:
+          CARGO_BUILD_JOBS: "1"
+          CARGO_INCREMENTAL: "0"
+          CARGO_PROFILE_RELEASE_INCREMENTAL: "false"
+          CARGO_PROFILE_RELEASE_LTO: "false"
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
+        run: cargo +1.88.0 build --locked --release -p world-server --bin world-server
+
+      - name: Package provenance
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REPLICA: ${{ matrix.replica }}
+        run: |
+          actual_head="$(git rev-parse HEAD)"
+          test "$actual_head" = "$HEAD_SHA"
+          install -D -m 0755 target/release/world-server qa-artifact/world-server
+          sha256sum qa-artifact/world-server | awk '{print $1}' > qa-artifact/world-server.sha256
+          rustc +1.88.0 --version --verbose > qa-artifact/rustc-version.txt
+          printf '%s\n' "$actual_head" > qa-artifact/git-head.txt
+          printf '%s\n' "$REPLICA" > qa-artifact/replica.txt
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: world-server-qa-${{ matrix.replica }}-${{ github.event.pull_request.head.sha }}
+          path: qa-artifact/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3
+
+  verify:
+    name: Verify replica hashes
+    if: contains(github.event.pull_request.labels.*.name, 'qa-artifact')
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Download replicas
+        uses: actions/download-artifact@v4
+        with:
+          pattern: world-server-qa-*-${{ github.event.pull_request.head.sha }}
+          path: replicas
+
+      - name: Require identical artifacts and provenance
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          replica_a="replicas/world-server-qa-a-${HEAD_SHA}"
+          replica_b="replicas/world-server-qa-b-${HEAD_SHA}"
+          test "$(cat "${replica_a}/git-head.txt")" = "$HEAD_SHA"
+          test "$(cat "${replica_b}/git-head.txt")" = "$HEAD_SHA"
+          test "$(sha256sum "${replica_a}/world-server" | awk '{print $1}')" = "$(cat "${replica_a}/world-server.sha256")"
+          test "$(sha256sum "${replica_b}/world-server" | awk '{print $1}')" = "$(cat "${replica_b}/world-server.sha256")"
+          cmp "${replica_a}/world-server" "${replica_b}/world-server"
+          install -D -m 0755 "${replica_a}/world-server" verified/world-server
+          cp "${replica_a}/world-server.sha256" verified/world-server.sha256
+          cp "${replica_a}/rustc-version.txt" verified/rustc-version.txt
+          cp "${replica_a}/git-head.txt" verified/git-head.txt
+
+      - name: Upload verified artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: world-server-qa-verified-${{ github.event.pull_request.head.sha }}
+          path: verified/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3
