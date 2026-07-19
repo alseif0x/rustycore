@@ -347,7 +347,9 @@ cargo_cmd() {
   local channel
   ((DRY_RUN)) || require_command cargo
   channel="$(toolchain_channel)"
-  run_cmd cargo "+$channel" "$@"
+  # Rust 1.88 can ICE while reloading a stale incremental dep graph. Keep the
+  # compile/test gate deterministic without leaking this setting into live QA.
+  run_cmd env CARGO_INCREMENTAL=0 cargo "+$channel" "$@"
 }
 
 project_protoc_version() {
@@ -933,7 +935,7 @@ run_self_test() {
   for dependency in awk dirname env git head realpath sed sha256sum tr; do
     ln -s "$(command -v "$dependency")" "$artifacts/bin/$dependency"
   done
-  printf '#!/bin/sh\n[ "${RUST_MIN_STACK:-0}" -ge %s ] || exit 70\nexit 0\n' \
+  printf '#!/bin/sh\n[ "${RUST_MIN_STACK:-0}" -ge %s ] || exit 70\n[ "${CARGO_INCREMENTAL:-}" = 0 ] || exit 71\nexit 0\n' \
     "$DEFAULT_RUST_MIN_STACK" >"$artifacts/bin/cargo"
   expected_protoc_version="$(project_protoc_version)"
   printf '#!/bin/sh\nprintf "libprotoc %s\\n"\n' \
@@ -971,6 +973,8 @@ run_self_test() {
     "CI profile did not print the wow-network tests"
   [[ "$ci_dry_run_output" == *"--manifest-path tools/wow-test-bot/Cargo.toml loot_race::tests"* ]] || die \
     "CI profile did not print the focused loot-race harness tests"
+  [[ "$ci_dry_run_output" == *"+ env CARGO_INCREMENTAL=0 cargo +1.88.0 test --locked -p wow-world --lib"* ]] || die \
+    "local CI profile did not disable Rust 1.88 incremental compilation"
   require_exact_occurrences "$ci_dry_run_output" \
     "test --locked -p capture-diff" 1 \
     "local CI capture-diff test command"
@@ -981,6 +985,9 @@ run_self_test() {
     "normal CI profile must never activate destructive live loot-race QA"
 
   github_workflow_text="$(<"$REPO_ROOT/.github/workflows/rust-ci.yml")"
+  require_exact_occurrences "$github_workflow_text" \
+    'CARGO_INCREMENTAL: "0"' 2 \
+    "GitHub workflow non-incremental Rust 1.88 contract"
   require_exact_occurrences "$github_workflow_text" \
     "cargo +1.88.0 test --locked -p capture-diff" 1 \
     "GitHub workflow capture-diff test command"
@@ -1002,6 +1009,8 @@ run_self_test() {
     "acknowledged qa-loot-race dry-run failed"
   [[ "$qa_loot_race_dry_run_output" == *"WOW_BOT_LOOT_RACE_SMOKE=1"* ]] || die \
     "qa-loot-race did not select the loot-race bot mode"
+  [[ "$qa_loot_race_dry_run_output" != *"CARGO_INCREMENTAL=0"* ]] || die \
+    "qa-loot-race must not inherit compile-only incremental settings"
   [[ "$qa_loot_race_dry_run_output" == *"WOW_BOT_EXEC="* \
     && "$qa_loot_race_dry_run_output" == *"WOW_BOT_EXEC_SHA256="* ]] || die \
     "qa-loot-race dry-run did not disclose the pinned bot provenance"
