@@ -7130,13 +7130,20 @@ async fn load_loot_template_rows_like_cpp(
     }
 
     loop {
+        // Trinity's QuestRequired column is a signed TINYINT(1). Reading it
+        // as u8 makes sqlx reject the signed MySQL type; defaulting that
+        // decode failure to zero turns every quest-only drop into normal
+        // loot. Fail startup instead of silently disabling the quest gate.
+        let quest_required = result
+            .try_read::<i8>(4)
+            .with_context(|| format!("failed to decode {kind:?} loot QuestRequired as TINYINT"))?;
         rows.push(LootTemplateRow {
             entry: result.try_read::<u32>(0).unwrap_or(0),
             item: wow_loot::LootStoreItem {
                 item_id: result.try_read::<u32>(1).unwrap_or(0),
                 reference: result.try_read::<u32>(2).unwrap_or(0),
                 chance: result.try_read::<f32>(3).unwrap_or(0.0),
-                needs_quest: result.try_read::<u8>(4).unwrap_or(0) != 0,
+                needs_quest: loot_quest_required_from_signed_db_like_cpp(quest_required),
                 loot_mode: result.try_read::<u16>(5).unwrap_or(0),
                 group_id: result.try_read::<u8>(6).unwrap_or(0),
                 min_count: result.try_read::<u8>(7).unwrap_or(0),
@@ -7150,6 +7157,10 @@ async fn load_loot_template_rows_like_cpp(
     }
 
     Ok(rows)
+}
+
+const fn loot_quest_required_from_signed_db_like_cpp(value: i8) -> bool {
+    value != 0
 }
 
 fn loot_store_all_rows_statement_like_cpp(kind: LootStoreKind) -> WorldStatements {
@@ -14374,6 +14385,7 @@ mod tests {
         legacy_creature_aggro_config_like_cpp,
         legacy_creature_global_runtime_enabled_from_config_like_cpp,
         load_loaded_grid_area_triggers_like_cpp, load_world_config_from, loot_drop_rates_like_cpp,
+        loot_quest_required_from_signed_db_like_cpp,
         materialize_game_event_quest_complete_db_bridge_like_cpp,
         materialize_game_event_world_event_state_db_bridge_like_cpp,
         max_core_stuck_time_ms_like_cpp, max_core_stuck_time_secs_like_cpp,
@@ -14428,6 +14440,13 @@ mod tests {
         ServerPacket,
         packets::chat::{ChatMsg, ChatPkt},
     };
+
+    #[test]
+    fn signed_tinyint_quest_required_preserves_cpp_boolean_semantics() {
+        assert!(!loot_quest_required_from_signed_db_like_cpp(0));
+        assert!(loot_quest_required_from_signed_db_like_cpp(1));
+        assert!(loot_quest_required_from_signed_db_like_cpp(-1));
+    }
 
     fn legacy_runtime_world_map_store_like_cpp() -> wow_data::MapStore {
         wow_data::MapStore::from_entries([wow_data::MapEntry {
