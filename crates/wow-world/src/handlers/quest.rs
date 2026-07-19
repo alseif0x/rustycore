@@ -13123,8 +13123,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn quest_confirm_accept_source_item_multiple_bound_objectives_still_creates_item_like_cpp()
-     {
+    async fn quest_confirm_accept_source_item_multiple_bound_objectives_stops_after_first_like_cpp()
+    {
         let (mut session, send_rx) = make_session();
         let receiver_guid = session.player_guid().unwrap();
         let sender_guid = ObjectGuid::create_player(1, 192);
@@ -13174,7 +13174,7 @@ mod tests {
             .player_quests
             .get(&quest_id)
             .expect("source-item quest should add local quest state");
-        assert_eq!(status.objective_counts, vec![2, 2]);
+        assert_eq!(status.objective_counts, vec![2, 0]);
         let stored_source_item_count: u32 = session
             .inventory_items_like_cpp()
             .values()
@@ -13182,7 +13182,7 @@ mod tests {
             .filter_map(|item| session.inventory_item_objects_like_cpp().get(&item.guid))
             .map(|item| item.count())
             .sum();
-        assert_eq!(stored_source_item_count, 2);
+        assert_eq!(stored_source_item_count, 0);
         assert_eq!(
             session.represented_quest_confirm_accepts_like_cpp(),
             &[RepresentedQuestConfirmAcceptLikeCpp {
@@ -13190,7 +13190,7 @@ mod tests {
                 sender_guid_before_clear: sender_guid,
                 quest_id,
                 raw_quest_id: quest_id as i32,
-                reason: RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp::ReceiverGiveQuestSourceItemStoredNewItem,
+                reason: RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp::ReceiverGiveQuestSourceItemBoundObjectiveNoGrant,
                 object_accessor_unrepresented: true,
                 party_runtime_unrepresented: true,
                 can_add_source_item_unrepresented: false,
@@ -13208,7 +13208,7 @@ mod tests {
                 packet.read_uint16().ok()
                     == Some(wow_constants::ServerOpcodes::ItemPushResult as u16)
             }),
-            "multiple bound objectives do not trigger C++ no-grant path, so SendNewItem still runs"
+            "C++ sends the bound-objective ItemPushResult without materializing an inventory Item"
         );
         assert!(sender_rx.try_recv().is_err());
     }
