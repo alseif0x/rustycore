@@ -1685,6 +1685,14 @@ impl WorldCreature {
         object.force_dynamic_flags_update_like_cpp();
     }
 
+    pub fn force_dynamic_flags_update_like_cpp(&mut self) {
+        self.creature
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .force_dynamic_flags_update_like_cpp();
+    }
+
     pub fn has_lootable_dynamic_flag_like_cpp(&self) -> bool {
         self.creature
             .unit()
@@ -7913,6 +7921,10 @@ mod tests {
             static_flags: [0; 8],
             creature_type: 7,
             type_flags: 0,
+            loot_id: 21_779,
+            skin_loot_id: 21_780,
+            gold_min: 13,
+            gold_max: 31,
             movement_type: wow_entities::MovementGeneratorType::Idle,
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
@@ -8000,6 +8012,10 @@ mod tests {
         );
         assert_eq!(bridged.create_data.speed_walk_rate, 1.0);
         assert_eq!(bridged.create_data.speed_run_rate, 1.14286);
+        assert_eq!(bridged.creature.ai_ownership().loot_id, 21_779);
+        assert_eq!(bridged.creature.ai_ownership().skin_loot_id, 21_780);
+        assert_eq!(bridged.creature.ai_ownership().gold_min, 13);
+        assert_eq!(bridged.creature.ai_ownership().gold_max, 31);
     }
 
     #[test]
@@ -8036,6 +8052,10 @@ mod tests {
             static_flags: [0; 8],
             creature_type: 7,
             type_flags: 0,
+            loot_id: 0,
+            skin_loot_id: 0,
+            gold_min: 0,
+            gold_max: 0,
             movement_type: wow_entities::MovementGeneratorType::Idle,
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,

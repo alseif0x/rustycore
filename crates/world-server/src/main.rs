@@ -33,9 +33,9 @@ use wow_core::{
 use wow_database::{
     CharStatements, CharacterDatabase, DATABASE_CHARACTER_LIKE_CPP, DATABASE_HOTFIX_LIKE_CPP,
     DATABASE_LOGIN_LIKE_CPP, DATABASE_MASK_ALL_LIKE_CPP, DATABASE_WORLD_LIKE_CPP, HotfixDatabase,
-    LoginDatabase, LoginStatements, PreparedStatement, SqlParam, SqlResult, SqlTransaction,
-    StatementDef, WorldDatabase, WorldStatements, escape_string_like_cpp,
-    warn_about_sync_queries_scope_like_cpp,
+    ItemGuidAllocatorAdvisoryLockLikeCpp, LoginDatabase, LoginStatements, PreparedStatement,
+    SqlParam, SqlResult, SqlTransaction, StatementDef, WorldDatabase, WorldStatements,
+    escape_string_like_cpp, warn_about_sync_queries_scope_like_cpp,
 };
 use wow_instances::{InstanceLockMgr, MapDb2Entries, ResetSchedule};
 use wow_loot::{
@@ -81,6 +81,42 @@ const WORLD_CONFIG_CANDIDATES: &[&str] = &[
     "WorldServer.conf",
     "WorldServer.conf.dist",
 ];
+
+fn next_item_guid_allocator_start_like_cpp(max_persisted_guid: Option<u64>) -> Result<i64> {
+    let next = max_persisted_guid
+        .unwrap_or(0)
+        .checked_add(1)
+        .context("item_instance GUID counter overflow")?;
+    let next = i64::try_from(next)
+        .context("item_instance GUID counter exceeds the supported integer range")?;
+    let generator_limit = ObjectGuid::max_counter(HighGuid::Item) - 1;
+    if next >= generator_limit {
+        bail!(
+            "item_instance GUID allocator start {next} is outside HighGuid::Item generator range (must be below {generator_limit})"
+        );
+    }
+    Ok(next)
+}
+
+const ITEM_GUID_DANGLING_REFERENCE_CLEANUP_STATEMENTS_LIKE_CPP: [CharStatements; 4] = [
+    CharStatements::DEL_INVALID_CHAR_INVENTORY_ITEM_GUIDS,
+    CharStatements::DEL_INVALID_MAIL_ITEM_GUIDS,
+    CharStatements::DEL_INVALID_AUCTION_ITEM_GUIDS,
+    CharStatements::DEL_INVALID_GUILD_BANK_ITEM_GUIDS,
+];
+
+fn item_guid_reference_cleanup_transaction_like_cpp(
+    char_db: &CharacterDatabase,
+    next_item_guid: u64,
+) -> SqlTransaction {
+    let mut transaction = SqlTransaction::new();
+    for statement_id in ITEM_GUID_DANGLING_REFERENCE_CLEANUP_STATEMENTS_LIKE_CPP {
+        let mut statement = char_db.prepare(statement_id);
+        statement.set_u64(0, next_item_guid);
+        transaction.append(statement);
+    }
+    transaction
+}
 const WORLD_CONFIG_DIR: &str = "worldserver.conf.d";
 const RUSTYCORE_LEGACY_CREATURE_GLOBAL_RUNTIME_CONFIG: &str =
     "RustyCore.LegacyCreatureGlobalRuntime";
@@ -1335,6 +1371,50 @@ async fn main() -> Result<ExitCode> {
 
     let guid_generator = Arc::new(ObjectGuidGenerator::new(HighGuid::Player, max_guid));
     info!("GUID generator initialized, next counter: {max_guid}");
+
+    // A process-local atomic generator is safe only while one world-server can
+    // allocate for this character database. Hold a connection-scoped MySQL
+    // advisory lock for the complete server lifetime, failing startup if a
+    // rolling/duplicate process already owns that allocation domain.
+    let mut item_guid_allocator_advisory_lock =
+        ItemGuidAllocatorAdvisoryLockLikeCpp::acquire_like_cpp(char_db.pool())
+            .await
+            .context("failed to acquire the character DB item GUID allocator lock")?;
+
+    // C++ `ObjectMgr::SetHighestGuids` initializes one process-wide item
+    // generator from `MAX(item_instance.guid) + 1`.  Sharing the atomic Rust
+    // mirror across every session prevents concurrent loot grants from
+    // selecting the same database GUID.
+    let next_item_guid = {
+        let stmt = char_db.prepare(CharStatements::SEL_MAX_ITEM_GUID);
+        match char_db.query(&stmt).await {
+            Ok(result) => {
+                if result.is_empty() || result.is_null(0) {
+                    next_item_guid_allocator_start_like_cpp(None)?
+                } else {
+                    let max_val: u64 = result
+                        .try_read(0)
+                        .context("failed to decode MAX(item_instance.guid)")?;
+                    next_item_guid_allocator_start_like_cpp(Some(max_val))?
+                }
+            }
+            Err(error) => {
+                return Err(error)
+                    .context("failed to initialize item GUID allocator from item_instance");
+            }
+        }
+    };
+    let next_item_guid_u64 = u64::try_from(next_item_guid)
+        .context("item GUID allocator start must be a positive database counter")?;
+    char_db
+        .commit_transaction(item_guid_reference_cleanup_transaction_like_cpp(
+            &char_db,
+            next_item_guid_u64,
+        ))
+        .await
+        .context("failed to clean dangling item GUID references before allocator publication")?;
+    let item_guid_generator = Arc::new(ObjectGuidGenerator::new(HighGuid::Item, next_item_guid));
+    info!("Item GUID generator initialized, next counter: {next_item_guid}");
 
     let char_db = Arc::new(char_db);
 
@@ -5019,6 +5099,7 @@ async fn main() -> Result<ExitCode> {
         login_db: Some(Arc::clone(&login_db)),
         world_db: Some(Arc::clone(&world_db)),
         guid_generator: Some(Arc::clone(&guid_generator)),
+        item_guid_generator: Some(Arc::clone(&item_guid_generator)),
         instance_lock_mgr: Some(Arc::clone(&instance_lock_mgr)),
         bank_bag_slot_prices_store: Some(Arc::clone(&bank_bag_slot_prices_store)),
         currency_types_store: Some(Arc::clone(&currency_types_store)),
@@ -5473,7 +5554,7 @@ async fn main() -> Result<ExitCode> {
                 realm_addr,
                 lookup,
                 resources,
-                move |account, pkt_rx, send_tx, res| {
+                move |account, pkt_rx, send_tx, send_write_fence_like_cpp, res| {
                     let mgr = Arc::clone(&mgr);
                     let smap = Arc::clone(&smap);
                     let canonical_map = Arc::clone(&canonical_map);
@@ -5488,6 +5569,7 @@ async fn main() -> Result<ExitCode> {
                         account,
                         pkt_rx,
                         send_tx,
+                        send_write_fence_like_cpp,
                         res,
                         mgr,
                         smap,
@@ -5723,6 +5805,18 @@ async fn main() -> Result<ExitCode> {
                 }
             }
         }
+        result = item_guid_allocator_advisory_lock.wait_until_lost_like_cpp() => {
+            world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
+            match result {
+                Ok(()) => tracing::error!(
+                    "Item GUID allocator advisory-lock monitor stopped unexpectedly"
+                ),
+                Err(error) => tracing::error!(
+                    %error,
+                    "Item GUID allocator advisory lock was lost; stopping before another GUID allocation"
+                ),
+            }
+        }
     }
 
     // Close registration under the same mutex used by `try_register`. An
@@ -5868,6 +5962,11 @@ async fn main() -> Result<ExitCode> {
 
     if let Err(e) = set_realm_offline(&login_db, realm_id).await {
         tracing::error!("Failed to mark realm {realm_id} offline: {e}");
+    }
+
+    if let Err(error) = item_guid_allocator_advisory_lock.release_like_cpp().await {
+        world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
+        tracing::error!(%error, "Failed to release item GUID allocator advisory lock");
     }
 
     info!(
@@ -12358,6 +12457,7 @@ async fn create_session(
     account: AccountInfo,
     pkt_rx: flume::Receiver<wow_packet::WorldPacket>,
     send_tx: flume::Sender<Vec<u8>>,
+    send_write_fence_like_cpp: wow_network::SocketWriteFenceLikeCpp,
     resources: Arc<SessionResources>,
     session_mgr: Arc<SessionManager>,
     shared_map: SharedMapManager,
@@ -12403,6 +12503,7 @@ async fn create_session(
         pkt_rx,
         send_tx,
     );
+    session.set_send_write_fence_like_cpp(send_write_fence_like_cpp);
     let Some((active_session_id, session_cancellation)) =
         active_session_registry.try_register(account.id, session.session_command_tx())
     else {
@@ -12431,6 +12532,9 @@ async fn create_session(
     session.set_mute_time_like_cpp(account.mute_time);
     if let Some(ref generator) = resources.guid_generator {
         session.set_guid_generator(Arc::clone(generator));
+    }
+    if let Some(ref generator) = resources.item_guid_generator {
+        session.set_item_guid_generator_like_cpp(Arc::clone(generator));
     }
     if let Some(ref mgr) = resources.instance_lock_mgr {
         session.set_instance_lock_mgr(Arc::clone(mgr));
@@ -14226,9 +14330,10 @@ mod tests {
         GameEventLiveUpdateActionLikeCpp, GameEventLiveUpdateSideEffectSummaryLikeCpp,
         GameEventQuestCompleteConditionSaveDbStatementKindLikeCpp,
         GameEventWorldEventStateDbOperationKindLikeCpp, GameEventWorldEventStateDbOperationLikeCpp,
-        GameEventWorldEventStateDbStatementKindLikeCpp, LoadedGridCreatureRespawnCachesLikeCpp,
-        PersistedRespawnLoadReportLikeCpp, PersistedRespawnRowLikeCpp,
-        PersistedRespawnTimesLikeCpp, REQUIRED_TDB_CACHE_ID_LIKE_CPP,
+        GameEventWorldEventStateDbStatementKindLikeCpp,
+        ITEM_GUID_DANGLING_REFERENCE_CLEANUP_STATEMENTS_LIKE_CPP,
+        LoadedGridCreatureRespawnCachesLikeCpp, PersistedRespawnLoadReportLikeCpp,
+        PersistedRespawnRowLikeCpp, PersistedRespawnTimesLikeCpp, REQUIRED_TDB_CACHE_ID_LIKE_CPP,
         REQUIRED_TDB_VERSION_LIKE_CPP, RESTART_EXIT_CODE_LIKE_CPP,
         RespawnDbDeleteQueueOutcomeLikeCpp, RespawnDbRetryQueueLikeCpp,
         RespawnDbSaveQueueOutcomeLikeCpp, RespawnDbSubmitErrorLikeCpp,
@@ -14273,12 +14378,13 @@ mod tests {
         materialize_game_event_world_event_state_db_bridge_like_cpp,
         max_core_stuck_time_ms_like_cpp, max_core_stuck_time_secs_like_cpp,
         min_world_update_time_ms_like_cpp, mmap_runtime_config_like_cpp,
-        normalize_realm_security_level_like_cpp, normalize_realm_type_like_cpp,
-        normalized_realm_name_like_cpp, persisted_respawn_info_from_row_like_cpp,
-        process_exit_code_like_cpp, queue_respawn_db_delete_like_cpp,
-        queue_respawn_db_save_like_cpp, realm_id_like_cpp, realm_list_entry_from_row_like_cpp,
-        repair_cost_rate_like_cpp, reputation_rates_like_cpp, reset_schedule_like_cpp,
-        respawn_db_retry_delay, run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp,
+        next_item_guid_allocator_start_like_cpp, normalize_realm_security_level_like_cpp,
+        normalize_realm_type_like_cpp, normalized_realm_name_like_cpp,
+        persisted_respawn_info_from_row_like_cpp, process_exit_code_like_cpp,
+        queue_respawn_db_delete_like_cpp, queue_respawn_db_save_like_cpp, realm_id_like_cpp,
+        realm_list_entry_from_row_like_cpp, repair_cost_rate_like_cpp, reputation_rates_like_cpp,
+        reset_schedule_like_cpp, respawn_db_retry_delay,
+        run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp,
         run_legacy_creature_melee_tick_and_deliver_once_like_cpp,
         run_legacy_creature_movement_tick_and_deliver_once_like_cpp,
         run_legacy_creature_runtime_tick_and_deliver_once_like_cpp,
@@ -14300,7 +14406,7 @@ mod tests {
     use std::sync::{Arc, Mutex, RwLock};
     use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
     use wow_constants::{ConditionSourceType, ConditionType};
-    use wow_core::{ObjectGuid, Position, guid::HighGuid};
+    use wow_core::{ObjectGuid, ObjectGuidGenerator, Position, guid::HighGuid};
     use wow_data::{Condition, ConditionEntriesByTypeStore};
     use wow_database::{
         CharStatements, DATABASE_CHARACTER_LIKE_CPP, DATABASE_HOTFIX_LIKE_CPP,
@@ -14348,6 +14454,44 @@ mod tests {
     }
 
     #[test]
+    fn item_guid_allocator_start_is_max_plus_one_and_fails_before_generator_panic_like_cpp() {
+        assert_eq!(next_item_guid_allocator_start_like_cpp(None).unwrap(), 1);
+        let start = next_item_guid_allocator_start_like_cpp(Some(41)).unwrap();
+        assert_eq!(start, 42);
+        let generator = ObjectGuidGenerator::new(HighGuid::Item, start);
+        assert_eq!(
+            generator.generate(),
+            42,
+            "fetch_add returns the configured MAX+1 start before advancing"
+        );
+
+        let generator_limit = ObjectGuid::max_counter(HighGuid::Item) - 1;
+        assert_eq!(
+            next_item_guid_allocator_start_like_cpp(Some((generator_limit - 2) as u64)).unwrap(),
+            generator_limit - 1
+        );
+        assert!(
+            next_item_guid_allocator_start_like_cpp(Some((generator_limit - 1) as u64)).is_err(),
+            "startup must reject the value that ObjectGuidGenerator::generate would panic on"
+        );
+        assert!(next_item_guid_allocator_start_like_cpp(Some(u64::MAX)).is_err());
+    }
+
+    #[test]
+    fn item_guid_allocator_cleans_every_cpp_dangling_reference_table_before_publication() {
+        let sql = ITEM_GUID_DANGLING_REFERENCE_CLEANUP_STATEMENTS_LIKE_CPP
+            .map(|statement| statement.sql());
+        assert_eq!(sql.len(), 4);
+        assert!(sql[0].contains("character_inventory"));
+        assert!(sql[1].contains("mail_items"));
+        assert!(sql[2].contains("auctionhouse"));
+        assert!(sql[3].contains("guild_bank_item"));
+        for statement in sql {
+            assert!(statement.contains(">= ?"));
+        }
+    }
+
+    #[test]
     fn target_icon_raw_from_db_bytes_preserves_cpp_binary_guid_shape() {
         assert_eq!(target_icon_raw_from_db_bytes_like_cpp(&[]), [0u8; 16]);
 
@@ -14376,6 +14520,7 @@ mod tests {
             is_in_world: true,
             send_tx,
             command_tx,
+            durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),
             pass_on_group_loot: false,
             enchanting_skill: 0,
@@ -20981,6 +21126,7 @@ mmap.enablePathFinding = 0
                 is_in_world: true,
                 send_tx,
                 command_tx,
+                durable_loot_money_tracker_like_cpp: Default::default(),
                 active_loot_rolls: Vec::new(),
                 pass_on_group_loot: false,
                 enchanting_skill: 0,

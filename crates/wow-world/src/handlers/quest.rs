@@ -2161,42 +2161,27 @@ impl WorldSession {
         let mut last_bag = u8::from(wow_entities::INVENTORY_SLOT_BAG_0);
         let mut last_slot = 0;
         let mut last_count_in_stack = 0;
-        let mut next_item_guid = if dest.iter().any(|dest| {
-            let bag = (dest.pos >> 8) as u8;
-            let slot = (dest.pos & 0x00FF) as u8;
-            self.get_inventory_item_by_pos(bag, slot).is_none()
-        }) {
-            if let Some(char_db) = self.char_db().map(Arc::clone) {
-                let max_guid_stmt = char_db.prepare(CharStatements::SEL_MAX_ITEM_GUID);
-                match char_db.query(&max_guid_stmt).await {
-                    Ok(row) => row.try_read::<u64>(0).unwrap_or(0).saturating_add(1),
-                    Err(error) => {
-                        warn!(
-                            account = self.account_id,
-                            entry_id,
-                            ?error,
-                            "QuestConfirmAccept: failed to allocate DB item guid for source item"
-                        );
-                        self.send_equip_error(InventoryResult::InvFull, None, None, 0, 0);
-                        return None;
-                    }
-                }
-            } else {
-                self.inventory_items_like_cpp()
-                    .values()
-                    .map(|item| item.db_guid)
-                    .chain(
-                        self.inventory_item_objects_like_cpp()
-                            .keys()
-                            .map(|guid| guid.counter() as u64),
-                    )
-                    .max()
-                    .unwrap_or(0)
-                    .saturating_add(1)
-            }
-        } else {
-            0
+        let new_item_count = dest
+            .iter()
+            .filter(|dest| {
+                let bag = (dest.pos >> 8) as u8;
+                let slot = (dest.pos & 0x00FF) as u8;
+                self.get_inventory_item_by_pos(bag, slot).is_none()
+            })
+            .count();
+        let Some(allocated_new_item_guids) =
+            self.allocate_item_instance_guids_like_cpp(new_item_count)
+        else {
+            warn!(
+                account = self.account_id,
+                entry_id,
+                count = new_item_count,
+                "QuestConfirmAccept: process-wide item GUID allocator is unavailable"
+            );
+            self.send_equip_error(InventoryResult::InvFull, None, None, 0, 0);
+            return None;
         };
+        let mut allocated_new_item_guids = allocated_new_item_guids.into_iter();
 
         for dest in dest {
             let bag = (dest.pos >> 8) as u8;
@@ -2263,9 +2248,15 @@ impl WorldSession {
                     return None;
                 };
 
-                let db_guid = next_item_guid;
-                next_item_guid = next_item_guid.saturating_add(1);
-                let item_guid = ObjectGuid::create_item(self.realm_id(), db_guid as i64);
+                let Some((db_guid, item_guid)) = allocated_new_item_guids.next() else {
+                    warn!(
+                        account = self.account_id,
+                        entry_id,
+                        "QuestConfirmAccept: preallocated item GUID count did not match store plan"
+                    );
+                    self.send_equip_error(InventoryResult::InvFull, None, None, 0, 0);
+                    return None;
+                };
                 let max_durability = self.item_template_max_durability(entry_id);
                 let should_bind = source_item_bonding.is_some_and(|bonding| {
                     matches!(bonding, ItemBondingType::OnAcquire | ItemBondingType::Quest)
@@ -2522,42 +2513,27 @@ impl WorldSession {
         let mut last_bag = u8::from(wow_entities::INVENTORY_SLOT_BAG_0);
         let mut last_slot = 0;
         let mut last_count_in_stack = 0;
-        let mut next_item_guid = if dest.iter().any(|dest| {
-            let bag = (dest.pos >> 8) as u8;
-            let slot = (dest.pos & 0x00FF) as u8;
-            self.get_inventory_item_by_pos(bag, slot).is_none()
-        }) {
-            if let Some(char_db) = self.char_db().map(Arc::clone) {
-                let max_guid_stmt = char_db.prepare(CharStatements::SEL_MAX_ITEM_GUID);
-                match char_db.query(&max_guid_stmt).await {
-                    Ok(row) => row.try_read::<u64>(0).unwrap_or(0).saturating_add(1),
-                    Err(error) => {
-                        warn!(
-                            account = self.account_id,
-                            entry_id,
-                            ?error,
-                            "RewardQuest: failed to allocate DB item guid for reward item"
-                        );
-                        self.send_equip_error(InventoryResult::InvFull, None, None, 0, 0);
-                        return false;
-                    }
-                }
-            } else {
-                self.inventory_items_like_cpp()
-                    .values()
-                    .map(|item| item.db_guid)
-                    .chain(
-                        self.inventory_item_objects_like_cpp()
-                            .keys()
-                            .map(|guid| guid.counter() as u64),
-                    )
-                    .max()
-                    .unwrap_or(0)
-                    .saturating_add(1)
-            }
-        } else {
-            0
+        let new_item_count = dest
+            .iter()
+            .filter(|dest| {
+                let bag = (dest.pos >> 8) as u8;
+                let slot = (dest.pos & 0x00FF) as u8;
+                self.get_inventory_item_by_pos(bag, slot).is_none()
+            })
+            .count();
+        let Some(allocated_new_item_guids) =
+            self.allocate_item_instance_guids_like_cpp(new_item_count)
+        else {
+            warn!(
+                account = self.account_id,
+                entry_id,
+                count = new_item_count,
+                "RewardQuest: process-wide item GUID allocator is unavailable"
+            );
+            self.send_equip_error(InventoryResult::InvFull, None, None, 0, 0);
+            return false;
         };
+        let mut allocated_new_item_guids = allocated_new_item_guids.into_iter();
 
         for dest in dest {
             let bag = (dest.pos >> 8) as u8;
@@ -2624,9 +2600,15 @@ impl WorldSession {
                     return false;
                 };
 
-                let db_guid = next_item_guid;
-                next_item_guid = next_item_guid.saturating_add(1);
-                let item_guid = ObjectGuid::create_item(self.realm_id(), db_guid as i64);
+                let Some((db_guid, item_guid)) = allocated_new_item_guids.next() else {
+                    warn!(
+                        account = self.account_id,
+                        entry_id,
+                        "RewardQuest: preallocated item GUID count did not match store plan"
+                    );
+                    self.send_equip_error(InventoryResult::InvFull, None, None, 0, 0);
+                    return false;
+                };
                 let max_durability = self.item_template_max_durability(entry_id);
                 let should_bind = item_bonding.is_some_and(|bonding| {
                     matches!(bonding, ItemBondingType::OnAcquire | ItemBondingType::Quest)
@@ -6121,16 +6103,39 @@ impl WorldSession {
 
         let money = quest.reward_money_difficulty;
         if money > 0 {
-            let old_money = self.player_gold_like_cpp();
-            let new_money = old_money.saturating_add(money as u64);
-            self.enqueue_represented_quest_objective_progress_like_cpp(
-                RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
-                    old_money,
-                    new_money,
-                },
-            );
-            self.set_player_gold_like_cpp(new_money);
-            self.save_player_gold().await;
+            match self
+                .mutate_and_persist_player_gold_exclusive_like_cpp(|old_money| {
+                    crate::session::loot_money_durable_outcome_like_cpp(old_money, money as u64).0
+                })
+                .await
+            {
+                Some((old_money, new_money)) => {
+                    if old_money != new_money {
+                        self.enqueue_represented_quest_objective_progress_like_cpp(
+                            RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
+                                old_money,
+                                new_money,
+                            },
+                        );
+                    }
+                }
+                None => {
+                    // Boundary: the represented reward path persists item and
+                    // currency grants before reaching money and does not yet
+                    // own C++ `Player::RewardQuest` as one durable transaction.
+                    // Aborting here would leave the quest retryable after those
+                    // grants and permit duplicates. Preserve the existing
+                    // completion behavior; an ambiguous money COMMIT has
+                    // already quarantined/kicked the session in the shared
+                    // helper. Atomic quest reward persistence is separate debt.
+                    warn!(
+                        account = self.account_id,
+                        quest_id,
+                        money,
+                        "Quest reward money was not durably established; preserving non-atomic represented reward completion to avoid duplicate retry"
+                    );
+                }
+            }
         }
 
         self.apply_represented_quest_title_and_talent_rewards_like_cpp(quest);
@@ -7724,7 +7729,7 @@ mod tests {
         ItemClass, ItemContext,
     };
     use wow_core::guid::HighGuid;
-    use wow_core::{ObjectGuid, Position};
+    use wow_core::{ObjectGuid, ObjectGuidGenerator, Position};
     use wow_data::quest::{
         QUEST_FLAGS_DAILY_LIKE_CPP, QUEST_FLAGS_WEEKLY_LIKE_CPP, QUEST_ITEM_DROP_COUNT,
         QUEST_REWARD_CHOICES_COUNT, QUEST_REWARD_CURRENCY_COUNT, QUEST_REWARD_DISPLAY_SPELL_COUNT,
@@ -7769,6 +7774,14 @@ mod tests {
         session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
         session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
         session.set_player_position_like_cpp(Position::new(10.0, 0.0, 0.0, 0.0));
+        session.set_item_guid_generator_like_cpp(Arc::new(ObjectGuidGenerator::new(
+            HighGuid::Item,
+            1,
+        )));
+        // Reward tests model a successful CharacterDatabase commit. The
+        // production path is fail-closed when no database is available; unit
+        // fixtures have no pool and must opt into the explicit success seam.
+        session.set_loot_money_persistence_test_result_like_cpp(true);
         (session, send_rx)
     }
 

@@ -11,8 +11,13 @@
 
 use dashmap::DashMap;
 use std::collections::{HashMap, HashSet};
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicBool, AtomicU64},
+};
 use std::time::Instant;
 use wow_core::{ObjectGuid, Position};
+use wow_loot::{LootClaimLease, OwnedLootAuthority};
 use wow_packet::packets::loot::LootEntry;
 use wow_packet::packets::party::{
     PartyMemberAuraState, PartyMemberPetStats, PartyMemberPhaseStates, PartyUpdate,
@@ -24,6 +29,8 @@ pub enum SessionCommand {
     WorldSessionShutdownFlushLikeCpp(WorldSessionShutdownFlushLikeCppCommand),
     ApplyCreatureMeleeDamageLikeCpp(ApplyCreatureMeleeDamageLikeCppCommand),
     CreatureAttackStartLikeCpp(CreatureAttackStartLikeCppCommand),
+    ApplyLootMoneyLikeCpp(ApplyLootMoneyLikeCppCommand),
+    NotifyLootMoneyRemovedLikeCpp(NotifyLootMoneyRemovedLikeCppCommand),
     MasterLootGive(MasterLootGiveCommand),
     LootRollStoreWinner(LootRollStoreWinnerCommand),
     LootRollVote(LootRollVoteCommand),
@@ -41,6 +48,13 @@ pub enum SessionCommand {
     /// Deliver `PartyUpdate` from the receiver's own session so C++
     /// `Player::NextGroupUpdateSequenceNumber` is consumed per player.
     SendPartyUpdateLikeCpp(SendPartyUpdateLikeCppCommand),
+    /// Deliver an already-serialized packet on the receiver's realm socket.
+    ///
+    /// C++ assigns party-control packets such as `SMSG_PARTY_INVITE` to
+    /// `CONNECTION_TYPE_REALM`. The shared player registry intentionally owns
+    /// only the primary (instance after ConnectTo) packet sender, so remote
+    /// realm delivery must be executed by the target session itself.
+    SendRealmPacketLikeCpp(SendRealmPacketLikeCppCommand),
     /// Apply C++ `Group::Disband`/`Group::RemoveMember` session-local cleanup
     /// for a connected remote member.
     ApplyGroupRemovalLikeCpp(ApplyGroupRemovalLikeCppCommand),
@@ -121,8 +135,19 @@ pub struct WorldSessionShutdownFlushResultLikeCpp {
 /// Payload for C++ `Group::SendUpdateToPlayer`.
 #[derive(Clone, Debug)]
 pub struct SendPartyUpdateLikeCppCommand {
+    /// Character that owned the registry entry when the command was queued.
+    /// A `WorldSession` survives character logout, so the receiver must reject
+    /// a delayed update after that session selects another character.
+    pub recipient: ObjectGuid,
     pub party_update: PartyUpdate,
     pub member_full_state_packets: Vec<Vec<u8>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SendRealmPacketLikeCppCommand {
+    /// Character that owned the registry entry when the packet was queued.
+    pub recipient: ObjectGuid,
+    pub packet_bytes: Vec<u8>,
 }
 
 /// Payload for [`SessionCommand::ApplyGroupRemovalLikeCpp`].
@@ -421,6 +446,9 @@ pub struct MasterLootGiveCommand {
     pub loot_list_id: u8,
     pub dungeon_encounter_id: u32,
     pub entry: LootEntry,
+    /// Cloneable claim ownership.  If the requester times out, the command's
+    /// clone keeps the slot reserved until this target commits or drops it.
+    pub claim: Option<LootClaimLease>,
     pub result_tx: flume::Sender<MasterLootGiveResult>,
 }
 
@@ -437,8 +465,386 @@ pub struct LootRollStoreWinnerCommand {
     pub loot_obj: ObjectGuid,
     pub loot_list_id: u8,
     pub dungeon_encounter_id: u32,
-    pub entry: LootEntry,
+    /// One normal roll award or the complete generated disenchant result.
+    ///
+    /// C++ `LootRoll::Finish` generates every disenchant material before it
+    /// starts storing them.  Keeping the generated result in one command lets
+    /// the target session preflight and persist the complete result in one
+    /// transaction instead of acknowledging one material at a time.
+    pub entries: Vec<LootEntry>,
+    pub is_disenchant: bool,
+    /// See [`MasterLootGiveCommand::claim`].
+    pub claim: Option<LootClaimLease>,
     pub result_tx: flume::Sender<MasterLootGiveResult>,
+}
+
+/// Session-local application of one already-durable C++ shared-loot payout.
+///
+/// The source-side detached persistence worker creates this command only after
+/// the complete group transaction and the object-owned money claim have both
+/// committed.  No target acknowledgement participates in the persistence
+/// decision, so two sessions looting concurrently cannot wait on each other's
+/// command loops.
+#[derive(Clone, Debug)]
+pub struct ApplyLootMoneyLikeCppCommand {
+    pub recipient: ObjectGuid,
+    pub loot_owner: ObjectGuid,
+    pub loot_obj: ObjectGuid,
+    /// C++ share advertised by `SMSG_LOOT_MONEY_NOTIFY`.
+    pub amount: u64,
+    /// Delta that the locked character row actually accepted.  This is shared
+    /// with the detached worker so command delivery order cannot make runtime
+    /// gold disagree with the durable cap decision.
+    pub durable_applied_amount: Arc<AtomicU64>,
+    /// Target character's directly shared persistence fence. The detached
+    /// worker registers it before opening SQL; no command acknowledgement is
+    /// part of the transaction decision.
+    pub durable_persistence_tracker: Arc<DurableLootMoneyPersistenceTrackerLikeCpp>,
+    pub sole_looter: bool,
+    /// Exact backing allocation whose scope epoch is recorded below. Epochs
+    /// restart in a newly allocated authority, so the number alone is not an
+    /// object-lifetime identity.
+    pub authority: OwnedLootAuthority,
+    pub authority_generation: u64,
+    /// True only if the object-owned claim committed for the recorded generation.
+    /// SQL may already be durable when lifecycle replacement makes this false;
+    /// the payout still applies, but must not touch the replacement loot pool.
+    pub authority_committed: Arc<AtomicBool>,
+    /// This recipient was also viewing the pool, so its own session emits
+    /// `CoinRemoved` immediately before `LootMoneyNotify`.
+    pub send_coin_removed: Arc<AtomicBool>,
+    /// The source handler may apply its own share immediately after awaiting
+    /// the detached worker while the same command remains queued as the
+    /// cancellation fallback. This gate makes those two paths exact-once.
+    pub applied: Arc<AtomicBool>,
+    /// Packet/criteria publication can occur after a save fence has already
+    /// reconciled the durable delta. Keep its exact-once gate separate from
+    /// the balance mutation gate.
+    pub published: Arc<AtomicBool>,
+}
+
+/// Durable result of one character-row money mutation.
+///
+/// The detached SQL worker records this before publishing its session command.
+/// Both paths share [`Self::applied`], so logout reconciliation and normal
+/// command delivery cannot apply the same durable delta twice.
+#[derive(Clone, Debug)]
+pub struct DurableLootMoneyCompletionLikeCpp {
+    pub durable_money_before: u64,
+    pub durable_money_after: u64,
+    pub durable_applied_amount: u64,
+    pub applied: Arc<AtomicBool>,
+}
+
+#[derive(Debug, Default)]
+struct DurableLootMoneyPersistenceStateLikeCpp {
+    in_flight: usize,
+    completions: Vec<DurableLootMoneyCompletionLikeCpp>,
+    indeterminate: bool,
+    admission_closed: bool,
+    permanently_closed: bool,
+    active_save_fences: usize,
+}
+
+/// Per-character fence for detached loot-money transactions.
+///
+/// A tracker is published in [`PlayerBroadcastInfo`] and registered directly
+/// by a source session before it opens a transaction for every recipient. This
+/// avoids command acknowledgements (and their A↔B deadlocks), while allowing a
+/// target session to wait for and reconcile durable completions before an
+/// absolute `Player::SaveToDB` money write.
+#[derive(Debug)]
+pub struct DurableLootMoneyPersistenceTrackerLikeCpp {
+    state: Mutex<DurableLootMoneyPersistenceStateLikeCpp>,
+    changed: tokio::sync::watch::Sender<u64>,
+    money_mutation_serial: Arc<tokio::sync::Mutex<()>>,
+}
+
+impl Default for DurableLootMoneyPersistenceTrackerLikeCpp {
+    fn default() -> Self {
+        let (changed, _) = tokio::sync::watch::channel(0);
+        Self {
+            state: Mutex::new(DurableLootMoneyPersistenceStateLikeCpp::default()),
+            changed,
+            money_mutation_serial: Arc::new(tokio::sync::Mutex::new(())),
+        }
+    }
+}
+
+impl DurableLootMoneyPersistenceTrackerLikeCpp {
+    /// Serialize DB money mutations for this character across stored-item and
+    /// group payouts. Multi-recipient workers acquire these locks in sorted
+    /// GUID order before taking the matching character-row locks.
+    pub async fn lock_money_mutation_like_cpp(&self) -> tokio::sync::OwnedMutexGuard<()> {
+        Arc::clone(&self.money_mutation_serial).lock_owned().await
+    }
+
+    #[must_use]
+    pub fn begin_like_cpp(
+        self: &Arc<Self>,
+    ) -> Result<DurableLootMoneyPersistenceGuardLikeCpp, DurableLootMoneyAdmissionClosedLikeCpp>
+    {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if state.admission_closed {
+            return Err(DurableLootMoneyAdmissionClosedLikeCpp);
+        }
+        state.in_flight += 1;
+        drop(state);
+        let _ = self.changed.send_modify(|generation| {
+            *generation = generation.wrapping_add(1);
+        });
+        Ok(DurableLootMoneyPersistenceGuardLikeCpp {
+            tracker: Arc::clone(self),
+            resolved: false,
+        })
+    }
+
+    /// Close admission before observing `in_flight` and keep it closed across
+    /// snapshot plus SQL commit. Either a source registers first and the save
+    /// waits, or the save closes first and the source fails before BEGIN.
+    #[must_use]
+    pub fn close_admission_for_save_like_cpp(self: &Arc<Self>) -> DurableLootMoneySaveFenceLikeCpp {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        state.active_save_fences = state.active_save_fences.saturating_add(1);
+        state.admission_closed = true;
+        DurableLootMoneySaveFenceLikeCpp {
+            tracker: Arc::clone(self),
+        }
+    }
+
+    /// Logout closes the old registry-published tracker permanently. A source
+    /// that cloned it before unregister cannot mutate the character after its
+    /// final save.
+    pub fn close_admission_permanently_like_cpp(&self) {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        state.admission_closed = true;
+        state.permanently_closed = true;
+    }
+
+    pub async fn wait_until_idle_like_cpp(&self) {
+        let mut changed = self.changed.subscribe();
+        loop {
+            if self
+                .state
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .in_flight
+                == 0
+            {
+                return;
+            }
+            if changed.changed().await.is_err() {
+                return;
+            }
+        }
+    }
+
+    /// Returns every completion whose shared exact-once gate is still open.
+    /// Applied entries are pruned only after their CAS is observable.
+    #[must_use]
+    pub fn pending_completions_like_cpp(&self) -> Vec<DurableLootMoneyCompletionLikeCpp> {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        state.completions.retain(|completion| {
+            !completion
+                .applied
+                .load(std::sync::atomic::Ordering::Acquire)
+        });
+        state.completions.clone()
+    }
+
+    #[must_use]
+    pub fn is_indeterminate_like_cpp(&self) -> bool {
+        self.state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .indeterminate
+    }
+
+    pub fn mark_indeterminate_like_cpp(&self) {
+        {
+            let mut state = self
+                .state
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            state.indeterminate = true;
+            state.admission_closed = true;
+            state.permanently_closed = true;
+        }
+        let _ = self.changed.send_modify(|generation| {
+            *generation = generation.wrapping_add(1);
+        });
+    }
+
+    fn finish_like_cpp(
+        &self,
+        completion: Option<DurableLootMoneyCompletionLikeCpp>,
+        indeterminate: bool,
+    ) {
+        {
+            let mut state = self
+                .state
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            debug_assert!(state.in_flight != 0);
+            state.in_flight = state.in_flight.saturating_sub(1);
+            if let Some(completion) = completion {
+                state.completions.push(completion);
+            }
+            state.indeterminate |= indeterminate;
+            if indeterminate {
+                state.admission_closed = true;
+                state.permanently_closed = true;
+            }
+        }
+        let _ = self.changed.send_modify(|generation| {
+            *generation = generation.wrapping_add(1);
+        });
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DurableLootMoneyAdmissionClosedLikeCpp;
+
+impl std::fmt::Display for DurableLootMoneyAdmissionClosedLikeCpp {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("character money persistence admission is closed")
+    }
+}
+
+impl std::error::Error for DurableLootMoneyAdmissionClosedLikeCpp {}
+
+#[derive(Debug)]
+pub struct DurableLootMoneySaveFenceLikeCpp {
+    tracker: Arc<DurableLootMoneyPersistenceTrackerLikeCpp>,
+}
+
+impl Drop for DurableLootMoneySaveFenceLikeCpp {
+    fn drop(&mut self) {
+        let mut state = self
+            .tracker
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        debug_assert!(state.active_save_fences != 0);
+        state.active_save_fences = state.active_save_fences.saturating_sub(1);
+        if state.active_save_fences == 0 && !state.permanently_closed {
+            state.admission_closed = false;
+        }
+    }
+}
+
+/// RAII registration for one recipient's durable money mutation.
+#[derive(Debug)]
+pub struct DurableLootMoneyPersistenceGuardLikeCpp {
+    tracker: Arc<DurableLootMoneyPersistenceTrackerLikeCpp>,
+    resolved: bool,
+}
+
+impl DurableLootMoneyPersistenceGuardLikeCpp {
+    pub fn commit_like_cpp(&mut self, completion: DurableLootMoneyCompletionLikeCpp) {
+        if self.resolved {
+            return;
+        }
+        self.resolved = true;
+        self.tracker.finish_like_cpp(Some(completion), false);
+    }
+
+    /// A COMMIT was attempted but its outcome could not be reconciled. The
+    /// target must skip absolute money saves until it disconnects/reloads.
+    pub fn mark_indeterminate_like_cpp(&mut self) {
+        if self.resolved {
+            return;
+        }
+        self.resolved = true;
+        self.tracker.finish_like_cpp(None, true);
+    }
+}
+
+impl Drop for DurableLootMoneyPersistenceGuardLikeCpp {
+    fn drop(&mut self) {
+        if !self.resolved {
+            self.tracker.finish_like_cpp(None, false);
+            self.resolved = true;
+        }
+    }
+}
+
+/// Durable `Loot::NotifyMoneyRemoved` delivery for an active viewer that is
+/// not itself a payout recipient.
+#[derive(Clone, Debug)]
+pub struct NotifyLootMoneyRemovedLikeCppCommand {
+    pub recipient: ObjectGuid,
+    pub loot_owner: ObjectGuid,
+    pub loot_obj: ObjectGuid,
+    pub authority: OwnedLootAuthority,
+    pub authority_generation: u64,
+    pub authority_committed: Arc<AtomicBool>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ApplyLootMoneyResultLikeCpp {
+    Applied,
+    PersistenceFailed,
+    TargetMismatch,
+}
+
+#[derive(Clone, Debug)]
+pub struct LootRollCommandIdentityLikeCpp {
+    loot_obj: ObjectGuid,
+    loot_list_id: u8,
+    authority: OwnedLootAuthority,
+    authority_generation: u64,
+    /// Pointer-identity equivalent of the exact C++ `LootRoll*` registered in
+    /// `Player::m_lootRolls` (`Player.cpp::GetLootRoll` / `RemoveLootRoll` and
+    /// `Loot.cpp::LootRoll::~LootRoll`). A replacement roll may reuse both
+    /// packet key and loot generation, so those values alone cannot reject a
+    /// queued old vote.
+    roll_instance: Arc<()>,
+}
+
+impl LootRollCommandIdentityLikeCpp {
+    #[must_use]
+    pub fn new_like_cpp(
+        loot_obj: ObjectGuid,
+        loot_list_id: u8,
+        authority: OwnedLootAuthority,
+        authority_generation: u64,
+    ) -> Self {
+        Self {
+            loot_obj,
+            loot_list_id,
+            authority,
+            authority_generation,
+            roll_instance: Arc::new(()),
+        }
+    }
+
+    #[must_use]
+    pub fn matches_key_like_cpp(&self, loot_obj: ObjectGuid, loot_list_id: u8) -> bool {
+        self.loot_obj == loot_obj && self.loot_list_id == loot_list_id
+    }
+
+    /// Mirrors the lifetime identity of the C++ `LootRoll*`, while also
+    /// fail-closing if an authority allocation or generation was replaced.
+    #[must_use]
+    pub fn is_exact_roll_like_cpp(&self, other: &Self) -> bool {
+        self.matches_key_like_cpp(other.loot_obj, other.loot_list_id)
+            && self.authority_generation == other.authority_generation
+            && self.authority.shares_storage_like_cpp(&other.authority)
+            && Arc::ptr_eq(&self.roll_instance, &other.roll_instance)
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -448,6 +854,9 @@ pub struct LootRollVoteCommand {
     pub loot_list_id: u8,
     pub roll_type: u8,
     pub pass_on_group_loot: bool,
+    /// Immutable enqueue-time identity of the exact roll instance. C++ queues
+    /// no cross-session surrogate; its player retains the exact `LootRoll*`.
+    pub roll_identity: LootRollCommandIdentityLikeCpp,
 }
 
 /// Information stored for each active player session.
@@ -472,8 +881,12 @@ pub struct PlayerBroadcastInfo {
     pub send_tx: flume::Sender<Vec<u8>>,
     /// Channel used for C++-style cross-session state mutations.
     pub command_tx: flume::Sender<SessionCommand>,
-    /// Represented pending loot-roll keys owned by this session.
-    pub active_loot_rolls: Vec<(ObjectGuid, u8)>,
+    /// Per-character durable loot-money fence used by remote source sessions.
+    pub durable_loot_money_tracker_like_cpp: Arc<DurableLootMoneyPersistenceTrackerLikeCpp>,
+    /// Exact represented pending loot-roll identities owned by this session.
+    /// The packet key may be reused, so cross-session routing must clone this
+    /// identity into the queued command rather than publishing keys alone.
+    pub active_loot_rolls: Vec<LootRollCommandIdentityLikeCpp>,
     /// Current `Player::GetPassOnGroupLoot()` state for group/NBG roll startup.
     pub pass_on_group_loot: bool,
     /// Represented `Player::GetSkillValue(SKILL_ENCHANTING)` used by group-roll disenchant masks.
@@ -631,6 +1044,7 @@ mod tests {
             is_in_world: true,
             send_tx,
             command_tx,
+            durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),
             pass_on_group_loot: false,
             enchanting_skill: 0,
@@ -783,5 +1197,97 @@ mod tests {
         assert_eq!(cmd.victim_guid, victim);
         assert_eq!(cmd.map_id, 571);
         assert_eq!(cmd.instance_id, 4);
+    }
+
+    #[tokio::test]
+    async fn durable_money_save_fence_closes_admission_then_waits_for_prior_worker() {
+        let tracker = Arc::new(DurableLootMoneyPersistenceTrackerLikeCpp::default());
+        let worker = tracker.begin_like_cpp().unwrap();
+        let save_fence = tracker.close_admission_for_save_like_cpp();
+
+        assert!(tracker.begin_like_cpp().is_err());
+        let wait_tracker = Arc::clone(&tracker);
+        let waiter = tokio::spawn(async move {
+            wait_tracker.wait_until_idle_like_cpp().await;
+        });
+        tokio::task::yield_now().await;
+        assert!(!waiter.is_finished());
+
+        drop(worker);
+        tokio::time::timeout(std::time::Duration::from_secs(1), waiter)
+            .await
+            .expect("prior durable worker must release the save wait")
+            .unwrap();
+        assert!(tracker.begin_like_cpp().is_err());
+
+        drop(save_fence);
+        assert!(tracker.begin_like_cpp().is_ok());
+    }
+
+    #[test]
+    fn durable_money_permanent_logout_fence_never_reopens() {
+        let tracker = Arc::new(DurableLootMoneyPersistenceTrackerLikeCpp::default());
+        let save_fence = tracker.close_admission_for_save_like_cpp();
+        tracker.close_admission_permanently_like_cpp();
+        drop(save_fence);
+
+        assert!(tracker.begin_like_cpp().is_err());
+    }
+
+    #[test]
+    fn overlapping_durable_money_save_fences_reopen_only_after_last_drop() {
+        let tracker = Arc::new(DurableLootMoneyPersistenceTrackerLikeCpp::default());
+        let first = tracker.close_admission_for_save_like_cpp();
+        let second = tracker.close_admission_for_save_like_cpp();
+
+        drop(first);
+        assert!(
+            tracker.begin_like_cpp().is_err(),
+            "dropping the first fence must not reopen admission under the second"
+        );
+        drop(second);
+        assert!(tracker.begin_like_cpp().is_ok());
+    }
+
+    #[test]
+    fn durable_money_completion_uses_one_shared_exact_once_gate() {
+        let tracker = Arc::new(DurableLootMoneyPersistenceTrackerLikeCpp::default());
+        let mut worker = tracker.begin_like_cpp().unwrap();
+        let applied = Arc::new(AtomicBool::new(false));
+        worker.commit_like_cpp(DurableLootMoneyCompletionLikeCpp {
+            durable_money_before: 40,
+            durable_money_after: 47,
+            durable_applied_amount: 7,
+            applied: Arc::clone(&applied),
+        });
+
+        let pending = tracker.pending_completions_like_cpp();
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].durable_money_before, 40);
+        assert_eq!(pending[0].durable_money_after, 47);
+        assert_eq!(pending[0].durable_applied_amount, 7);
+        assert!(
+            pending[0]
+                .applied
+                .compare_exchange(
+                    false,
+                    true,
+                    std::sync::atomic::Ordering::AcqRel,
+                    std::sync::atomic::Ordering::Acquire,
+                )
+                .is_ok()
+        );
+        assert!(tracker.pending_completions_like_cpp().is_empty());
+    }
+
+    #[test]
+    fn indeterminate_money_outcome_permanently_closes_admission_until_relogin() {
+        let tracker = Arc::new(DurableLootMoneyPersistenceTrackerLikeCpp::default());
+        let fence = tracker.close_admission_for_save_like_cpp();
+        tracker.mark_indeterminate_like_cpp();
+        drop(fence);
+
+        assert!(tracker.is_indeterminate_like_cpp());
+        assert!(tracker.begin_like_cpp().is_err());
     }
 }

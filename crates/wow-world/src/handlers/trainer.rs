@@ -29,6 +29,7 @@ use tracing::{info, warn};
 
 use wow_constants::ClientOpcodes;
 use wow_constants::unit::NPCFlags1;
+use wow_database::SqlTransaction;
 use wow_database::statements::character::CharStatements;
 use wow_database::statements::world::WorldStatements;
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
@@ -38,7 +39,7 @@ use wow_packet::packets::trainer::{
 };
 
 use crate::conditions;
-use crate::session::{RepresentedQuestObjectiveProgressEventLikeCpp, WorldSession};
+use crate::session::WorldSession;
 
 const TRAINER_LIST_NPC_FLAGS_LIKE_CPP: u32 = NPCFlags1::TRAINER.bits();
 const TRAINER_BUY_NPC_FLAGS_LIKE_CPP: u32 = NPCFlags1::TRAINER.bits()
@@ -550,41 +551,60 @@ impl WorldSession {
             None => return,
         };
 
+        let Some(money_persistence) = self
+            .begin_exclusive_player_money_persistence_like_cpp()
+            .await
+        else {
+            return;
+        };
+
         // ── Deduct gold ────────────────────────────────────────────────────
         let old_money = self.player_gold_like_cpp();
         let new_money = old_money.saturating_sub(money_cost as u64);
-        self.enqueue_represented_quest_objective_progress_like_cpp(
-            RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
-                old_money,
-                new_money,
-            },
-        );
-        self.set_player_gold_like_cpp(new_money);
+        let mut tx = SqlTransaction::new();
         let mut upd_money = char_db.prepare(CharStatements::UPD_CHAR_MONEY);
-        upd_money.set_u64(0, self.player_gold_like_cpp());
+        upd_money.set_u64(0, new_money);
         upd_money.set_u64(1, player_guid.counter() as u64);
-        if let Err(e) = char_db.execute(&upd_money).await {
-            warn!(
-                account = self.account_id,
-                "TrainerBuySpell: update money failed: {e}"
-            );
-        }
+        tx.append(upd_money);
 
         // ── Persist spell to character_spell ───────────────────────────────
         let mut ins_spell = char_db.prepare(CharStatements::INS_CHARACTER_SPELL);
         ins_spell.set_u64(0, player_guid.counter() as u64);
         ins_spell.set_i32(1, spell_id);
-        if let Err(e) = char_db.execute(&ins_spell).await {
+        tx.append(ins_spell);
+        let Some(money_persistence) = self
+            .commit_exclusive_player_money_transaction_like_cpp(
+                money_persistence,
+                char_db.as_ref(),
+                tx,
+                old_money,
+                new_money,
+                "trainer spell purchase",
+            )
+            .await
+        else {
             warn!(
                 account = self.account_id,
                 spell_id = spell_id,
-                "TrainerBuySpell: insert character_spell failed: {e}"
+                "TrainerBuySpell: atomic money/spell transaction did not commit"
             );
-        }
+            self.send_packet(&TrainerBuyFailed {
+                trainer_guid,
+                spell_id,
+                reason: 0,
+            });
+            return;
+        };
+        // Publish every runtime field represented by the committed money/spell
+        // transaction before reopening money-payout admission. There must be
+        // no cancellation point between COMMIT and this publication.
+        self.stage_player_money_change_like_cpp(old_money, new_money);
+        self.learn_known_spell_like_cpp(spell_id);
+        self.sync_object_accessor_player();
+        self.sync_player_registry_state_like_cpp();
+        drop(money_persistence);
 
         // ── Update in-memory state ─────────────────────────────────────────
-        self.learn_known_spell_like_cpp(spell_id);
-        self.sync_player_registry_state_like_cpp();
         self.drain_represented_quest_objective_progress_like_cpp()
             .await;
 

@@ -2,6 +2,10 @@ use std::collections::{HashMap, HashSet};
 
 use wow_constants::{TypeId, TypeMask};
 use wow_core::{ObjectGuid, Position};
+use wow_loot::{
+    CreatureLoot, LootInstallOutcome, OwnedLootAuthority, OwnedLootAuthorityLifecycle,
+    OwnedLootAuthorityStamp, OwnedLootSnapshot,
+};
 
 use crate::{
     CreateObjectFlags, MapBindingError, ObjectChangedFields, ObjectDataUpdate, UpdateMask,
@@ -212,6 +216,10 @@ impl GameObjectOwnedLoot {
     }
 }
 
+fn game_object_owned_loot_from_snapshot(snapshot: &OwnedLootSnapshot) -> GameObjectOwnedLoot {
+    GameObjectOwnedLoot::new(snapshot.loot.coins, u32::from(snapshot.loot.unlooted_count))
+}
+
 impl GameObjectLootSource {
     pub const fn is_empty(&self) -> bool {
         self.loot_id == 0 && self.personal_loot_id == 0 && self.push_loot_id == 0
@@ -229,8 +237,16 @@ impl GameObjectLootSource {
         self.open_loot_id_like_cpp() != 0
     }
 
+    /// C++ stores every `chestPersonalLoot` result in `m_personalLoot` when
+    /// there is no shared `GetLootId()` result. `DungeonEncounter` only
+    /// chooses how the personal pools are generated; it does not decide
+    /// whether the loot is personal (`GameObject.cpp:2584-2613`).
+    pub const fn uses_personal_loot_like_cpp(&self) -> bool {
+        self.loot_id == 0 && self.personal_loot_id != 0
+    }
+
     pub const fn is_personal_encounter_loot_like_cpp(&self) -> bool {
-        self.loot_id == 0 && self.personal_loot_id != 0 && self.dungeon_encounter_id != 0
+        self.uses_personal_loot_like_cpp() && self.dungeon_encounter_id != 0
     }
 
     pub const fn should_autostore_push_loot_like_cpp(&self) -> bool {
@@ -1005,6 +1021,12 @@ pub struct GameObject {
     restock_time: i64,
     loot_state: LootState,
     loot_state_unit_guid: ObjectGuid,
+    /// Monotonic identity for one C++ `GameObject::loot` lifetime. `ClearLoot`
+    /// advances it before a restock can generate another pool, so async work
+    /// captured for the previous use cannot install into the next use of the
+    /// same spawn GUID.
+    loot_lifecycle_revision: u64,
+    loot_authority: OwnedLootAuthority,
     shared_loot: Option<GameObjectOwnedLoot>,
     personal_loot: HashMap<ObjectGuid, GameObjectOwnedLoot>,
     unique_users: HashSet<ObjectGuid>,
@@ -1098,6 +1120,8 @@ impl GameObject {
             restock_time: 0,
             loot_state: LootState::NotReady,
             loot_state_unit_guid: ObjectGuid::EMPTY,
+            loot_lifecycle_revision: 0,
+            loot_authority: OwnedLootAuthority::new(),
             shared_loot: None,
             personal_loot: HashMap::new(),
             unique_users: HashSet::new(),
@@ -1493,6 +1517,17 @@ impl GameObject {
         self.loot_state_unit_guid
     }
 
+    pub const fn loot_lifecycle_revision_like_cpp(&self) -> u64 {
+        self.loot_lifecycle_revision
+    }
+
+    fn advance_loot_lifecycle_revision_like_cpp(&mut self) -> u64 {
+        // A restock identity may stop advancing only at exhaustion; it must
+        // never wrap and become equal to a stale async observation.
+        self.loot_lifecycle_revision = self.loot_lifecycle_revision.saturating_add(1).max(1);
+        self.loot_lifecycle_revision
+    }
+
     pub fn set_loot_state(&mut self, state: LootState, unit: Option<ObjectGuid>) {
         self.loot_state = state;
         self.loot_state_unit_guid = unit.unwrap_or(ObjectGuid::EMPTY);
@@ -1612,7 +1647,247 @@ impl GameObject {
         self.use_times = 0;
     }
 
+    pub const fn loot_authority_like_cpp(&self) -> &OwnedLootAuthority {
+        &self.loot_authority
+    }
+
+    pub fn rebind_loot_authority_like_cpp(&mut self, authority: OwnedLootAuthority) -> bool {
+        if self.loot_authority.shares_storage_like_cpp(&authority) {
+            self.sync_loot_summaries_from_authority_like_cpp();
+            return false;
+        }
+
+        self.loot_authority.detach_like_cpp();
+        self.loot_authority = authority;
+        self.sync_loot_summaries_from_authority_like_cpp();
+        true
+    }
+
+    /// Compare/exchange variant for callers that cannot keep the canonical
+    /// map lock between observing and rebinding this object.
+    pub fn rebind_loot_authority_if_current_like_cpp(
+        &mut self,
+        expected: &OwnedLootAuthority,
+        expected_stamp: OwnedLootAuthorityStamp,
+        authority: OwnedLootAuthority,
+    ) -> Option<bool> {
+        if !self.loot_authority.shares_storage_like_cpp(expected) {
+            return None;
+        }
+
+        if self.loot_authority.stamp_like_cpp() != expected_stamp {
+            return None;
+        }
+
+        if self.loot_authority.shares_storage_like_cpp(&authority) {
+            self.sync_loot_summaries_from_authority_like_cpp();
+            return Some(false);
+        }
+
+        if !self.loot_authority.detach_if_stamp_like_cpp(expected_stamp) {
+            return None;
+        }
+
+        self.loot_authority = authority;
+        self.sync_loot_summaries_from_authority_like_cpp();
+        Some(true)
+    }
+
+    /// Non-owning snapshot adoption counterpart to the entity-local CAS.
+    pub fn adopt_loot_authority_for_snapshot_like_cpp(&mut self, authority: OwnedLootAuthority) {
+        self.loot_authority = authority;
+        self.sync_loot_summaries_from_authority_like_cpp();
+    }
+
+    pub fn share_loot_authority_like_cpp(&mut self, authority: OwnedLootAuthority) {
+        self.rebind_loot_authority_like_cpp(authority);
+    }
+
+    pub fn initialize_loot_authority_like_cpp(
+        &mut self,
+        shared: Option<CreatureLoot>,
+        personal: HashMap<ObjectGuid, CreatureLoot>,
+    ) -> LootInstallOutcome {
+        let outcome = self.loot_authority.initialize_like_cpp(shared, personal);
+        self.sync_loot_summaries_from_authority_like_cpp();
+        outcome
+    }
+
+    pub fn initialize_shared_loot_authority_like_cpp(
+        &mut self,
+        loot: CreatureLoot,
+    ) -> LootInstallOutcome {
+        let outcome = self.loot_authority.initialize_shared_like_cpp(loot);
+        self.sync_loot_summaries_from_authority_like_cpp();
+        outcome
+    }
+
+    pub fn upsert_personal_loot_authority_like_cpp(
+        &mut self,
+        player: ObjectGuid,
+        loot: CreatureLoot,
+        replace: bool,
+    ) -> LootInstallOutcome {
+        let outcome = self
+            .loot_authority
+            .upsert_personal_like_cpp(player, loot, replace);
+        self.sync_loot_summaries_from_authority_like_cpp();
+        outcome
+    }
+
+    /// Installs the complete shared/personal pool topology only while this is
+    /// still the exact `ClearLoot`/restock lifetime observed before async
+    /// template generation.
+    ///
+    /// C++ creates chest loot synchronously from `GameObject::Use`, on the map
+    /// thread (`GameObject.cpp:2559-2575`). Rust releases the map lock for DB
+    /// work, so identity, object generation, and the entity-local lifecycle
+    /// revision form the equivalent compare/exchange boundary. If another
+    /// opener already installed this same lifecycle, its first-writer result is
+    /// accepted without replacing it.
+    pub fn install_loot_authority_if_lifecycle_like_cpp(
+        &mut self,
+        expected_authority: &OwnedLootAuthority,
+        expected_object_generation: u64,
+        expected_lifecycle_revision: u64,
+        shared: Option<CreatureLoot>,
+        personal: HashMap<ObjectGuid, CreatureLoot>,
+    ) -> bool {
+        if self.loot_lifecycle_revision != expected_lifecycle_revision
+            || self.loot_state == LootState::JustDeactivated
+            || !self
+                .loot_authority
+                .shares_storage_like_cpp(expected_authority)
+        {
+            return false;
+        }
+
+        let stamp = self.loot_authority.stamp_like_cpp();
+        let installed = match stamp.lifecycle {
+            OwnedLootAuthorityLifecycle::Pristine
+                if expected_object_generation == 0 && stamp.object_generation == 0 =>
+            {
+                self.loot_authority
+                    .initialize_pristine_like_cpp(shared, personal)
+                    .installed()
+            }
+            OwnedLootAuthorityLifecycle::Retired
+                if stamp.object_generation == expected_object_generation =>
+            {
+                self.loot_authority
+                    .replace_retired_generation_like_cpp(
+                        expected_object_generation,
+                        shared,
+                        personal,
+                    )
+                    .is_some()
+            }
+            OwnedLootAuthorityLifecycle::Active
+                if stamp.object_generation == expected_object_generation.wrapping_add(1).max(1) =>
+            {
+                // A concurrent opener won the same map-object lifecycle. C++
+                // keeps the first `m_loot`; do not replace its generated pools.
+                true
+            }
+            _ => false,
+        };
+
+        if installed {
+            self.sync_loot_summaries_from_authority_like_cpp();
+        }
+        installed
+    }
+
+    /// Installs one personal pool only while the object is still in the exact
+    /// `ClearLoot`/restock lifetime observed before async template generation.
+    ///
+    /// A retired non-pristine authority is a valid new generation only when
+    /// its object generation still matches the tombstone captured by the
+    /// caller. Once another player has started that same lifecycle, additional
+    /// personal pools may join the active authority without replacing it.
+    pub fn install_personal_loot_if_lifecycle_like_cpp(
+        &mut self,
+        expected_authority: &OwnedLootAuthority,
+        expected_object_generation: u64,
+        expected_lifecycle_revision: u64,
+        player: ObjectGuid,
+        loot: CreatureLoot,
+        replace: bool,
+    ) -> bool {
+        if self.loot_lifecycle_revision != expected_lifecycle_revision
+            || self.loot_state == LootState::JustDeactivated
+            || !self
+                .loot_authority
+                .shares_storage_like_cpp(expected_authority)
+        {
+            return false;
+        }
+
+        let current_generation = self.loot_authority.generation_like_cpp();
+        let installed = if self.loot_authority.is_retired_like_cpp() && current_generation != 0 {
+            if current_generation != expected_object_generation {
+                return false;
+            }
+            self.loot_authority
+                .replace_retired_generation_like_cpp(
+                    expected_object_generation,
+                    None,
+                    HashMap::from([(player, loot)]),
+                )
+                .is_some()
+        } else {
+            if current_generation < expected_object_generation {
+                return false;
+            }
+            let outcome = self
+                .loot_authority
+                .upsert_personal_like_cpp(player, loot, replace);
+            outcome.installed()
+                || self
+                    .loot_authority
+                    .snapshot_for_player_like_cpp(player)
+                    .is_some()
+        };
+
+        self.sync_loot_summaries_from_authority_like_cpp();
+        installed
+    }
+
+    pub fn replace_loot_authority_like_cpp(
+        &mut self,
+        shared: Option<CreatureLoot>,
+        personal: HashMap<ObjectGuid, CreatureLoot>,
+    ) -> u64 {
+        let generation = self.loot_authority.replace_like_cpp(shared, personal);
+        self.sync_loot_summaries_from_authority_like_cpp();
+        generation
+    }
+
+    pub fn sync_loot_summaries_from_authority_like_cpp(&mut self) {
+        self.shared_loot = self
+            .loot_authority
+            .shared_snapshot_like_cpp()
+            .map(|snapshot| game_object_owned_loot_from_snapshot(&snapshot));
+        self.personal_loot = self
+            .loot_authority
+            .personal_snapshots_like_cpp()
+            .into_iter()
+            .map(|(player, snapshot)| (player, game_object_owned_loot_from_snapshot(&snapshot)))
+            .collect();
+    }
+
+    /// Invalidates every outstanding async claim without eagerly applying
+    /// `ClearLoot` side effects to the still map-resident object. C++
+    /// `GameObject::Delete` queues physical removal after setting
+    /// `GO_NOT_READY`; its loot members remain observable until destruction.
+    pub fn retire_loot_authority_like_cpp(&mut self) {
+        self.advance_loot_lifecycle_revision_like_cpp();
+        self.loot_authority.retire_like_cpp();
+    }
+
     pub fn clear_loot_like_cpp(&mut self) {
+        self.advance_loot_lifecycle_revision_like_cpp();
+        self.loot_authority.retire_like_cpp();
         self.shared_loot = None;
         self.personal_loot.clear();
         self.unique_users.clear();
@@ -1620,6 +1895,10 @@ impl GameObject {
     }
 
     pub fn is_fully_looted_like_cpp(&self) -> bool {
+        if !self.loot_authority.is_pristine_like_cpp() {
+            return self.loot_authority.is_fully_looted_like_cpp();
+        }
+
         if self
             .shared_loot
             .as_ref()
@@ -2008,6 +2287,24 @@ impl Default for GameObject {
 mod tests {
     use super::*;
     use wow_core::guid::HighGuid;
+
+    fn owned_loot_fixture_like_cpp(coins: u32, unlooted_count: u8) -> CreatureLoot {
+        CreatureLoot {
+            loot_guid: ObjectGuid::EMPTY,
+            coins,
+            unlooted_count,
+            loot_type: 1,
+            dungeon_encounter_id: 0,
+            loot_method: 0,
+            loot_master: ObjectGuid::EMPTY,
+            round_robin_player: ObjectGuid::EMPTY,
+            player_ffa_items: Vec::new(),
+            players_looting: Vec::new(),
+            allowed_looters: Vec::new(),
+            items: Vec::new(),
+            looted_by_player: false,
+        }
+    }
 
     #[test]
     fn gameobject_constructor_matches_cpp_base_state() {
@@ -3312,6 +3609,7 @@ mod tests {
         assert!(!source.is_empty());
         assert_eq!(source.open_loot_id_like_cpp(), 10);
         assert!(source.has_open_loot_like_cpp());
+        assert!(!source.uses_personal_loot_like_cpp());
         assert!(!source.is_personal_encounter_loot_like_cpp());
         assert!(!source.should_autostore_push_loot_like_cpp());
 
@@ -3329,6 +3627,7 @@ mod tests {
             .expect("chest templates expose a chest loot source");
         assert!(!push_source.is_empty());
         assert!(!push_source.has_open_loot_like_cpp());
+        assert!(!push_source.uses_personal_loot_like_cpp());
         assert!(!push_source.is_personal_encounter_loot_like_cpp());
         assert!(push_source.should_autostore_push_loot_like_cpp());
 
@@ -3338,7 +3637,16 @@ mod tests {
             .expect("chest templates expose a chest loot source");
         assert_eq!(personal_encounter_source.open_loot_id_like_cpp(), 25);
         assert!(personal_encounter_source.has_open_loot_like_cpp());
+        assert!(personal_encounter_source.uses_personal_loot_like_cpp());
         assert!(personal_encounter_source.is_personal_encounter_loot_like_cpp());
+
+        data[GAMEOBJECT_DATA_CHEST_DUNGEON_ENCOUNTER] = 0;
+        let personal_non_encounter_source =
+            GameObjectTemplateData::new(GAMEOBJECT_TYPE_CHEST, data)
+                .chest_loot_source_like_cpp()
+                .expect("chest templates expose a chest loot source");
+        assert!(personal_non_encounter_source.uses_personal_loot_like_cpp());
+        assert!(!personal_non_encounter_source.is_personal_encounter_loot_like_cpp());
         assert_eq!(
             GameObjectTemplateData::new(GAMEOBJECT_TYPE_FISHING_HOLE, data)
                 .chest_loot_source_like_cpp(),
@@ -3476,6 +3784,252 @@ mod tests {
         assert!(!items_only.is_looted_like_cpp());
 
         assert!(!GameObjectOwnedLoot::new(1, 1).is_looted_like_cpp());
+    }
+
+    #[test]
+    fn gameobject_personal_authority_updates_summary_and_clear_retires_it() {
+        let player = ObjectGuid::create_player(1, 77);
+        let mut gameobject = GameObject::new();
+        let full_loot = CreatureLoot {
+            loot_guid: ObjectGuid::EMPTY,
+            coins: 23,
+            unlooted_count: 1,
+            loot_type: 9,
+            dungeon_encounter_id: 0,
+            loot_method: 5,
+            loot_master: ObjectGuid::EMPTY,
+            round_robin_player: ObjectGuid::EMPTY,
+            player_ffa_items: Vec::new(),
+            players_looting: Vec::new(),
+            allowed_looters: vec![player],
+            items: Vec::new(),
+            looted_by_player: false,
+        };
+        gameobject.upsert_personal_loot_authority_like_cpp(player, full_loot, false);
+
+        assert_eq!(
+            gameobject.personal_loot_like_cpp(player),
+            Some(&GameObjectOwnedLoot::new(23, 1))
+        );
+        assert!(
+            gameobject
+                .loot_authority_like_cpp()
+                .snapshot_for_player_like_cpp(player)
+                .is_some()
+        );
+        gameobject.clear_loot_like_cpp();
+        assert!(gameobject.loot_authority_like_cpp().is_retired_like_cpp());
+        assert_eq!(gameobject.personal_loot_count_like_cpp(), 0);
+    }
+
+    #[test]
+    fn clear_loot_restock_starts_second_personal_generation_for_same_gameobject() {
+        let player = ObjectGuid::create_player(1, 78);
+        let mut gameobject = GameObject::new();
+        gameobject.set_loot_state(LootState::Activated, Some(player));
+        gameobject.upsert_personal_loot_authority_like_cpp(
+            player,
+            owned_loot_fixture_like_cpp(7, 0),
+            false,
+        );
+        let first_generation = gameobject.loot_authority_like_cpp().generation_like_cpp();
+
+        gameobject.clear_loot_like_cpp();
+        gameobject.set_loot_state(LootState::Ready, None);
+        let authority = gameobject.loot_authority_like_cpp().clone();
+        let tombstone_generation = authority.generation_like_cpp();
+        let lifecycle_revision = gameobject.loot_lifecycle_revision_like_cpp();
+
+        assert!(gameobject.install_personal_loot_if_lifecycle_like_cpp(
+            &authority,
+            tombstone_generation,
+            lifecycle_revision,
+            player,
+            owned_loot_fixture_like_cpp(19, 0),
+            false,
+        ));
+        let second = gameobject
+            .loot_authority_like_cpp()
+            .snapshot_for_player_like_cpp(player)
+            .expect("restocked personal pool");
+        assert_eq!(second.loot.coins, 19);
+        assert!(gameobject.loot_authority_like_cpp().generation_like_cpp() > first_generation);
+        assert!(!gameobject.loot_authority_like_cpp().is_retired_like_cpp());
+    }
+
+    #[test]
+    fn stale_personal_generator_cannot_cross_gameobject_clear_loot_lifecycle() {
+        let player = ObjectGuid::create_player(1, 79);
+        let mut gameobject = GameObject::new();
+        gameobject.set_loot_state(LootState::Activated, Some(player));
+        gameobject.upsert_personal_loot_authority_like_cpp(
+            player,
+            owned_loot_fixture_like_cpp(3, 0),
+            false,
+        );
+        let stale_authority = gameobject.loot_authority_like_cpp().clone();
+        let stale_generation = stale_authority.generation_like_cpp();
+        let stale_lifecycle_revision = gameobject.loot_lifecycle_revision_like_cpp();
+
+        gameobject.clear_loot_like_cpp();
+        gameobject.set_loot_state(LootState::Ready, None);
+
+        assert!(!gameobject.install_personal_loot_if_lifecycle_like_cpp(
+            &stale_authority,
+            stale_generation,
+            stale_lifecycle_revision,
+            player,
+            owned_loot_fixture_like_cpp(99, 0),
+            false,
+        ));
+        assert!(gameobject.loot_authority_like_cpp().is_retired_like_cpp());
+        assert!(
+            gameobject
+                .loot_authority_like_cpp()
+                .snapshot_for_player_like_cpp(player)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn clear_loot_restock_installs_shared_generation_once_for_same_lifecycle() {
+        let player = ObjectGuid::create_player(1, 80);
+        let mut gameobject = GameObject::new();
+        gameobject.set_loot_state(LootState::Activated, Some(player));
+        gameobject.initialize_shared_loot_authority_like_cpp(owned_loot_fixture_like_cpp(7, 0));
+
+        gameobject.clear_loot_like_cpp();
+        gameobject.set_loot_state(LootState::Ready, None);
+        let authority = gameobject.loot_authority_like_cpp().clone();
+        let tombstone_generation = authority.generation_like_cpp();
+        let lifecycle_revision = gameobject.loot_lifecycle_revision_like_cpp();
+
+        assert!(gameobject.install_loot_authority_if_lifecycle_like_cpp(
+            &authority,
+            tombstone_generation,
+            lifecycle_revision,
+            Some(owned_loot_fixture_like_cpp(19, 0)),
+            HashMap::new(),
+        ));
+        let installed_generation = authority.generation_like_cpp();
+        assert_eq!(
+            authority
+                .shared_snapshot_like_cpp()
+                .expect("restocked shared pool")
+                .loot
+                .coins,
+            19
+        );
+
+        assert!(gameobject.install_loot_authority_if_lifecycle_like_cpp(
+            &authority,
+            tombstone_generation,
+            lifecycle_revision,
+            Some(owned_loot_fixture_like_cpp(99, 0)),
+            HashMap::new(),
+        ));
+        assert_eq!(authority.generation_like_cpp(), installed_generation);
+        assert_eq!(
+            authority
+                .shared_snapshot_like_cpp()
+                .expect("the first shared install remains authoritative")
+                .loot
+                .coins,
+            19,
+            "a concurrent generator for the same lifecycle must not replace the first pool"
+        );
+    }
+
+    #[test]
+    fn stale_shared_generator_cannot_cross_second_clear_of_retired_gameobject_lifecycle() {
+        let player = ObjectGuid::create_player(1, 81);
+        let mut gameobject = GameObject::new();
+        gameobject.set_loot_state(LootState::Activated, Some(player));
+        gameobject.initialize_shared_loot_authority_like_cpp(owned_loot_fixture_like_cpp(3, 0));
+
+        gameobject.clear_loot_like_cpp();
+        gameobject.set_loot_state(LootState::Ready, None);
+        let stale_authority = gameobject.loot_authority_like_cpp().clone();
+        let stale_generation = stale_authority.generation_like_cpp();
+        let stale_lifecycle_revision = gameobject.loot_lifecycle_revision_like_cpp();
+
+        // `OwnedLootAuthority::retire_like_cpp` is intentionally idempotent for
+        // an existing tombstone. The GameObject revision must still reject the
+        // async generator captured before this second C++ `ClearLoot`.
+        gameobject.clear_loot_like_cpp();
+        gameobject.set_loot_state(LootState::Ready, None);
+        assert_eq!(stale_authority.generation_like_cpp(), stale_generation);
+        assert!(
+            gameobject.loot_lifecycle_revision_like_cpp() > stale_lifecycle_revision,
+            "the entity-local lifetime advances even when the authority tombstone does not"
+        );
+
+        assert!(!gameobject.install_loot_authority_if_lifecycle_like_cpp(
+            &stale_authority,
+            stale_generation,
+            stale_lifecycle_revision,
+            Some(owned_loot_fixture_like_cpp(99, 0)),
+            HashMap::new(),
+        ));
+        assert!(gameobject.loot_authority_like_cpp().is_retired_like_cpp());
+        assert!(
+            gameobject
+                .loot_authority_like_cpp()
+                .shared_snapshot_like_cpp()
+                .is_none()
+        );
+        assert_eq!(gameobject.shared_loot_like_cpp(), None);
+    }
+
+    #[test]
+    fn shared_generator_cannot_install_after_gameobject_authority_rebind() {
+        let player = ObjectGuid::create_player(1, 82);
+        let mut gameobject = GameObject::new();
+        gameobject.set_loot_state(LootState::Activated, Some(player));
+        gameobject.initialize_shared_loot_authority_like_cpp(owned_loot_fixture_like_cpp(5, 0));
+        gameobject.clear_loot_like_cpp();
+        gameobject.set_loot_state(LootState::Ready, None);
+
+        let stale_authority = gameobject.loot_authority_like_cpp().clone();
+        let stale_generation = stale_authority.generation_like_cpp();
+        let lifecycle_revision = gameobject.loot_lifecycle_revision_like_cpp();
+        let replacement = OwnedLootAuthority::new();
+        assert!(gameobject.rebind_loot_authority_like_cpp(replacement.clone()));
+
+        assert!(!gameobject.install_loot_authority_if_lifecycle_like_cpp(
+            &stale_authority,
+            stale_generation,
+            lifecycle_revision,
+            Some(owned_loot_fixture_like_cpp(77, 0)),
+            HashMap::new(),
+        ));
+        assert!(replacement.is_pristine_like_cpp());
+        assert!(replacement.shared_snapshot_like_cpp().is_none());
+    }
+
+    #[test]
+    fn gameobject_fully_looted_reads_active_authority_without_summary_refresh() {
+        let authority = OwnedLootAuthority::new();
+        authority.replace_like_cpp(Some(owned_loot_fixture_like_cpp(31, 0)), HashMap::new());
+        let mut gameobject = GameObject::new();
+        gameobject.rebind_loot_authority_like_cpp(authority.clone());
+        assert_eq!(
+            gameobject.shared_loot_like_cpp(),
+            Some(&GameObjectOwnedLoot::new(31, 0))
+        );
+        assert!(!gameobject.is_fully_looted_like_cpp());
+
+        authority.replace_like_cpp(Some(owned_loot_fixture_like_cpp(0, 0)), HashMap::new());
+
+        assert_eq!(
+            gameobject.shared_loot_like_cpp(),
+            Some(&GameObjectOwnedLoot::new(31, 0)),
+            "the compatibility summary remains deliberately stale"
+        );
+        assert!(
+            gameobject.is_fully_looted_like_cpp(),
+            "lifecycle decisions must read the active object-owned authority"
+        );
     }
 
     #[test]

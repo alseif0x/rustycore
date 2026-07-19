@@ -922,7 +922,8 @@ impl WorldSession {
 
         let loot_guid = loot.loot_guid;
         let coins = loot.coins;
-        self.set_active_loot_guid(item.guid);
+        self.open_active_item_loot_view_like_cpp(player_guid, item.guid)
+            .await;
         self.send_packet(&LootResponse {
             owner: item.guid,
             loot_obj: loot_guid,
@@ -936,6 +937,17 @@ impl WorldSession {
             acquired: true,
             ae_looting: false,
         });
+    }
+
+    pub(crate) async fn open_active_item_loot_view_like_cpp(
+        &mut self,
+        player_guid: ObjectGuid,
+        item_guid: ObjectGuid,
+    ) {
+        if self.has_active_non_item_loot_views_like_cpp() {
+            self.do_loot_release_all_like_cpp(player_guid).await;
+        }
+        self.add_active_loot_view_owner_like_cpp(item_guid);
     }
 
     async fn open_wrapped_gift_like_cpp(&mut self, bag: u8, slot: u8, item_guid: ObjectGuid) {

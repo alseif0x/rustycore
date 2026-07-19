@@ -15,6 +15,16 @@ use std::collections::{HashMap, HashSet};
 use rand::Rng;
 use wow_core::ObjectGuid;
 
+mod authority;
+
+pub use authority::{
+    CreatureLoot, LootClaimCommitError, LootClaimError, LootClaimLease, LootClaimPayload,
+    LootClaimPersistenceGuard, LootEntry, LootEntryFlags, LootInstallOutcome, LootItemClaimKey,
+    LootRoundRobinReleaseOutcome, LootViewerCloseOutcome, LootViewerOpenOutcome, NotNormalLootItem,
+    OwnedLootAuthority, OwnedLootAuthorityLifecycle, OwnedLootAuthorityStamp, OwnedLootScope,
+    OwnedLootSnapshot,
+};
+
 const MIN_NON_ZERO_LOOT_CHANCE_LIKE_CPP: f32 = 0.000001;
 pub const MAX_NR_LOOT_ITEMS_LIKE_CPP: usize = 18;
 pub const LOOT_METHOD_FREE_FOR_ALL_LIKE_CPP: u8 = 0;
@@ -93,7 +103,7 @@ pub struct LootStoreItemContext {
     pub item: LootStoreItem,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GeneratedLootItem {
     pub item_id: u32,
     pub count: u32,
@@ -101,6 +111,7 @@ pub struct GeneratedLootItem {
     pub random_properties_id: i32,
     pub random_properties_seed: i32,
     pub context: u8,
+    pub store_item_context: LootStoreItemContext,
     pub free_for_all: bool,
     pub follow_loot_rules: bool,
     pub needs_quest: bool,
@@ -110,7 +121,7 @@ pub struct GeneratedLootItem {
     pub is_counted: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GeneratedPersonalLootItem {
     pub looter: ObjectGuid,
     pub item: GeneratedLootItem,
@@ -1468,14 +1479,18 @@ impl LootTemplate {
                         return;
                     }
                 }
-            } else if item_allowed(LootStoreItemContext {
-                store_kind,
-                entry,
-                item: *item,
-            }) {
+            } else {
+                let store_item_context = LootStoreItemContext {
+                    store_kind,
+                    entry,
+                    item: *item,
+                };
+                if !item_allowed(store_item_context) {
+                    continue;
+                }
                 add_generated_loot_item_like_cpp(
                     generated,
-                    *item,
+                    store_item_context,
                     options.item_context,
                     rng,
                     item_template,
@@ -1617,7 +1632,11 @@ impl LootTemplate {
                 add_generated_personal_loot_item_like_cpp(
                     generated,
                     chosen_looter,
-                    *item,
+                    LootStoreItemContext {
+                        store_kind,
+                        entry,
+                        item: *item,
+                    },
                     options.item_context,
                     rng,
                     item_template,
@@ -1656,6 +1675,8 @@ impl LootTemplate {
                 random_properties,
                 options.item_context,
                 chosen_looter,
+                store_kind,
+                entry,
             );
         }
     }
@@ -1969,7 +1990,11 @@ impl LootGroup {
         {
             add_generated_loot_item_like_cpp(
                 generated,
-                item,
+                LootStoreItemContext {
+                    store_kind,
+                    entry,
+                    item,
+                },
                 item_context,
                 rng,
                 item_template,
@@ -2012,18 +2037,24 @@ impl LootGroup {
         random_properties: &mut FRandom,
         item_context: u8,
         looter: ObjectGuid,
+        store_kind: LootStoreKind,
+        entry: u32,
     ) where
         R: Rng + ?Sized,
         FTemplate: FnMut(u32) -> Option<LootItemTemplateMetadata>,
         FRandom: FnMut(u32, &mut R) -> LootItemRandomProperties,
     {
         if let Some(item) =
-            self.roll_with_context_like_cpp(loot_mode, rng, |_| true, LootStoreKind::Creature, 0)
+            self.roll_with_context_like_cpp(loot_mode, rng, |_| true, store_kind, entry)
         {
             add_generated_personal_loot_item_like_cpp(
                 generated,
                 looter,
-                item,
+                LootStoreItemContext {
+                    store_kind,
+                    entry,
+                    item,
+                },
                 item_context,
                 rng,
                 item_template,
@@ -2035,7 +2066,7 @@ impl LootGroup {
 
 fn add_generated_loot_item_like_cpp<R, FTemplate, FRandom>(
     generated: &mut Vec<GeneratedLootItem>,
-    item: LootStoreItem,
+    store_item_context: LootStoreItemContext,
     item_context: u8,
     rng: &mut R,
     item_template: &mut FTemplate,
@@ -2045,6 +2076,7 @@ fn add_generated_loot_item_like_cpp<R, FTemplate, FRandom>(
     FTemplate: FnMut(u32) -> Option<LootItemTemplateMetadata>,
     FRandom: FnMut(u32, &mut R) -> LootItemRandomProperties,
 {
+    let item = store_item_context.item;
     let Some(metadata) = item_template(item.item_id) else {
         return;
     };
@@ -2070,6 +2102,7 @@ fn add_generated_loot_item_like_cpp<R, FTemplate, FRandom>(
             random_properties_id: random_properties.id,
             random_properties_seed: random_properties.seed,
             context: item_context,
+            store_item_context,
             free_for_all: metadata.has_multi_drop_flag,
             follow_loot_rules: !item.needs_quest || metadata.has_follow_loot_rules_flag,
             needs_quest: item.needs_quest,
@@ -2085,7 +2118,7 @@ fn add_generated_loot_item_like_cpp<R, FTemplate, FRandom>(
 fn add_generated_personal_loot_item_like_cpp<R, FTemplate, FRandom>(
     generated: &mut Vec<GeneratedPersonalLootItem>,
     looter: ObjectGuid,
-    item: LootStoreItem,
+    store_item_context: LootStoreItemContext,
     item_context: u8,
     rng: &mut R,
     item_template: &mut FTemplate,
@@ -2095,6 +2128,7 @@ fn add_generated_personal_loot_item_like_cpp<R, FTemplate, FRandom>(
     FTemplate: FnMut(u32) -> Option<LootItemTemplateMetadata>,
     FRandom: FnMut(u32, &mut R) -> LootItemRandomProperties,
 {
+    let item = store_item_context.item;
     let Some(metadata) = item_template(item.item_id) else {
         return;
     };
@@ -2122,6 +2156,7 @@ fn add_generated_personal_loot_item_like_cpp<R, FTemplate, FRandom>(
                 random_properties_id: random_properties.id,
                 random_properties_seed: random_properties.seed,
                 context: item_context,
+                store_item_context,
                 free_for_all: metadata.has_multi_drop_flag,
                 follow_loot_rules: !item.needs_quest || metadata.has_follow_loot_rules_flag,
                 needs_quest: item.needs_quest,
@@ -2175,13 +2210,13 @@ mod tests {
         LOOT_SLOT_TYPE_ROLL_ONGOING_LIKE_CPP, LootConditionId, LootConditionLinkReport,
         LootConditionReferenceUseLikeCpp, LootConditionRowLikeCpp, LootFillError, LootFillOptions,
         LootItemRandomProperties, LootItemTemplateMetadata, LootReferenceCheckReport,
-        LootReferenceUse, LootStore, LootStoreItem, LootStoreKind, LootStoreLoadError, LootStores,
-        LootTemplate, LootTemplateRow, MissingLootConditionItemTemplate,
-        MissingLootConditionTemplate, MissingLootConditionTemplateItem,
-        check_loot_condition_links_like_cpp, check_loot_condition_references_like_cpp,
-        check_loot_references_like_cpp, condition_compare_values_like_cpp,
-        generate_money_loot_with_rate_like_cpp, loot_condition_reference_ids_like_cpp,
-        loot_condition_reference_self_references_like_cpp,
+        LootReferenceUse, LootStore, LootStoreItem, LootStoreItemContext, LootStoreKind,
+        LootStoreLoadError, LootStores, LootTemplate, LootTemplateRow,
+        MissingLootConditionItemTemplate, MissingLootConditionTemplate,
+        MissingLootConditionTemplateItem, check_loot_condition_links_like_cpp,
+        check_loot_condition_references_like_cpp, check_loot_references_like_cpp,
+        condition_compare_values_like_cpp, generate_money_loot_with_rate_like_cpp,
+        loot_condition_reference_ids_like_cpp, loot_condition_reference_self_references_like_cpp,
         loot_condition_row_is_loadable_without_external_stores_like_cpp,
         loot_condition_row_normalize_without_external_stores_like_cpp,
         loot_conditions_allow_player_like_cpp_representable,
@@ -2253,7 +2288,14 @@ mod tests {
         )
     }
 
-    fn generated_item(item_id: u32, count: u32, loot_list_id: u32) -> GeneratedLootItem {
+    fn generated_item(
+        store_item: LootStoreItem,
+        count: u32,
+        loot_list_id: u32,
+        store_kind: LootStoreKind,
+        entry: u32,
+    ) -> GeneratedLootItem {
+        let item_id = store_item.item_id;
         GeneratedLootItem {
             item_id,
             count,
@@ -2261,6 +2303,11 @@ mod tests {
             random_properties_id: item_id as i32 + 1000,
             random_properties_seed: item_id as i32 + 2000,
             context: 0,
+            store_item_context: LootStoreItemContext {
+                store_kind,
+                entry,
+                item: store_item,
+            },
             free_for_all: false,
             follow_loot_rules: true,
             needs_quest: false,
@@ -3001,9 +3048,9 @@ mod tests {
         assert_eq!(
             generated,
             vec![
-                generated_item(25, 1, 0),
-                generated_item(27, 1, 1),
-                generated_item(26, 1, 2),
+                generated_item(item(25, 0, 100.0, 0), 1, 0, LootStoreKind::Creature, 100,),
+                generated_item(item(27, 0, 100.0, 0), 1, 1, LootStoreKind::Reference, 700,),
+                generated_item(item(26, 0, 0.0, 1), 1, 2, LootStoreKind::Creature, 100,),
             ]
         );
     }
@@ -3176,7 +3223,16 @@ mod tests {
             )
             .unwrap();
 
-        assert_eq!(generated, vec![generated_item(27, 1, 0)]);
+        assert_eq!(
+            generated,
+            vec![generated_item(
+                item(27, 0, 100.0, 0),
+                1,
+                0,
+                LootStoreKind::Reference,
+                900
+            )]
+        );
         assert_eq!(seen, vec![(LootStoreKind::Reference, 900, 27)]);
         assert_eq!(
             stores[&LootStoreKind::Creature].condition_ids_for_fill_like_cpp(
@@ -3292,6 +3348,14 @@ mod tests {
                 random_properties_id: 4242,
                 random_properties_seed: 2424,
                 context: 4,
+                store_item_context: LootStoreItemContext {
+                    store_kind: LootStoreKind::Item,
+                    entry: 600,
+                    item: LootStoreItem {
+                        needs_quest: true,
+                        ..item(25, 0, 100.0, 0)
+                    },
+                },
                 free_for_all: true,
                 follow_loot_rules: true,
                 needs_quest: true,

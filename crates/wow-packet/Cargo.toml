@@ -13,4 +13,5 @@ tracing = { workspace = true }
 wow-core = { workspace = true }
 wow-constants = { workspace = true }
 wow-movement = { workspace = true }
+wow-loot = { workspace = true }
 thiserror = { workspace = true }

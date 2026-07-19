@@ -7,14 +7,17 @@
 //! [`WorldSocket`](wow_network::WorldSocket) and dispatches them to handlers.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
+#[cfg(test)]
+use std::sync::atomic::AtomicUsize;
 use std::sync::{
     Arc, Mutex, OnceLock,
-    atomic::{AtomicI64, Ordering},
+    atomic::{AtomicBool, AtomicI64, Ordering},
 };
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use parking_lot::RwLock;
 use rand::{Rng, RngCore, SeedableRng, rngs::StdRng, seq::SliceRandom};
+use sqlx::Row;
 use tracing::{debug, info, trace, warn};
 
 use crate::entity_update_bridge::{
@@ -126,8 +129,9 @@ use wow_data::{
     spell_duration_ms_like_cpp, spell_effect_radius_like_cpp,
 };
 use wow_database::{
-    CharStatements, CharacterDatabase, LoginDatabase, LoginStatements, PreparedStatement,
-    SqlTransaction, StatementDef, WorldDatabase,
+    CharStatements, CharacterDatabase, DatabaseError, LoginDatabase, LoginStatements,
+    PreparedStatement, SqlTransaction, SqlTransactionCommitError, StatementDef, WorldDatabase,
+    is_database_deadlock_like_cpp, retry_deadlocked_operation_like_cpp,
 };
 use wow_entities::{
     AccessorObjectKind, ActiveState, ApplyEnchantmentArgs, ApplyEnchantmentDurationAction,
@@ -171,17 +175,23 @@ use wow_entities::{
     CONTAINER_DATA_SLOTS_PARENT_BIT, ContainerDataUpdate, ContainerDataValues,
 };
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus, build_dispatch_table};
-use wow_loot::{LootStoreKind, LootStores};
+use wow_loot::{
+    LootClaimLease, LootStoreKind, LootStores, OwnedLootAuthority, OwnedLootAuthorityLifecycle,
+    OwnedLootAuthorityStamp, OwnedLootScope, OwnedLootSnapshot,
+};
 use wow_map::coords::SIZE_OF_GRID_CELL;
 use wow_network::player_registry::SendIfVisibleLikeCppCommand;
 use wow_network::session_mgr::{InstanceLink, SessionManager};
 use wow_network::{
     ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
+    DurableLootMoneyCompletionLikeCpp, DurableLootMoneyPersistenceGuardLikeCpp,
+    DurableLootMoneyPersistenceTrackerLikeCpp, DurableLootMoneySaveFenceLikeCpp,
     GameEventQuestCompleteClientOutcomeLikeCpp, GameEventQuestCompleteCommandLikeCpp, GroupInfo,
     GroupInstanceResetMethodLikeCpp, GroupInstanceResetResultLikeCpp, GroupRegistry,
-    KickLikeCppCommand, LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, PendingInvites,
+    KickLikeCppCommand, LootDropRatesLikeCpp, LootRollCommandIdentityLikeCpp,
+    NotifyLootMoneyRemovedLikeCppCommand, PacketSpoofConfigLikeCpp, PendingInvites,
     PlayerBroadcastInfo, PlayerRegistry, ReputationRatesLikeCpp, SessionCommand,
-    SocketTimeoutsLikeCpp, group_guid_by_db_store_id_like_cpp,
+    SocketTimeoutsLikeCpp, SocketWriteFenceLikeCpp, group_guid_by_db_store_id_like_cpp,
 };
 use wow_packet::packets::chat::{ChatMsg, ChatPkt, PrintNotification};
 use wow_packet::packets::gossip::ClientGossipText;
@@ -235,6 +245,487 @@ const PLAYER_FLAGS_NO_XP_GAIN_LIKE_CPP: u32 = 0x0200_0000;
 pub(crate) const REST_STATE_RESTED_LIKE_CPP: u8 = 1;
 pub(crate) const REST_STATE_NORMAL_LIKE_CPP: u8 = 2;
 pub(crate) const REST_STATE_RAF_LINKED_LIKE_CPP: u8 = 6;
+
+#[derive(Debug)]
+pub(crate) enum LootMoneyPersistenceErrorLikeCpp {
+    MissingPlayer,
+    MissingCharacterDatabase,
+    WorkerTerminated,
+    Claim(wow_loot::LootClaimCommitError),
+    Database(DatabaseError),
+    CommitOutcomeUnknown(DatabaseError),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct DurableLootMoneyDbOutcomeLikeCpp {
+    before: u64,
+    after: u64,
+    applied_delta: u64,
+}
+
+/// Owned exclusion held while an absolute character-money mutation derives
+/// and persists its new value. Admission stays closed and the same
+/// per-character serial lock used by group/stored loot remains held through
+/// the caller's COMMIT.
+#[must_use]
+pub(crate) struct ExclusivePlayerMoneyPersistenceLikeCpp {
+    _save_fence: DurableLootMoneySaveFenceLikeCpp,
+    _mutation_lock: tokio::sync::OwnedMutexGuard<()>,
+}
+
+/// Pure post-reset snapshot used to make the durable talent reset and its
+/// runtime publication describe the same state.
+///
+/// C++ `Player::ResetTalents` calls `RemoveTalent` for the active group, then
+/// `_SaveTalents` rewrites every group. `RemoveTalent` calls
+/// `RemoveSpell(..., disabled=true)`, and the complete C++ `_SaveSpells` path
+/// rewrites those rows with their exact active/disabled/favorite state. Rust
+/// does not retain the full `PlayerSpellMap` active/disabled/temporary state,
+/// so this deliberately leaves `character_spell` and
+/// `character_spell_favorite` untouched. A known non-dependent spell proves a
+/// normal persisted row exists; it does not prove that the talent is its only
+/// source. Deleting that row would lose normal ownership where C++ instead
+/// preserves a disabled row. Recursive `RemoveSpell` persistence and exact
+/// disabled/favorite preservation therefore remain a represented boundary,
+/// while active `character_talent` rows can no longer survive a committed fee.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RepresentedTalentResetStatePlanLikeCpp {
+    active_group: u8,
+    active_talents: BTreeMap<u32, u8>,
+    post_talents: [BTreeMap<u32, u8>; MAX_SPECIALIZATIONS_LIKE_CPP],
+}
+
+/// A successfully committed reset whose covered runtime state still has to be
+/// published synchronously before the money exclusion is released.
+#[must_use]
+pub(crate) struct CommittedRepresentedTalentResetLikeCpp {
+    money_persistence: ExclusivePlayerMoneyPersistenceLikeCpp,
+    old_money: u64,
+    new_money: u64,
+    cost: u32,
+    reset_time_secs: u64,
+    state_plan: RepresentedTalentResetStatePlanLikeCpp,
+}
+
+/// Once a SQL transaction containing an absolute money write starts awaiting
+/// COMMIT, cancellation is itself an unknown outcome. This synchronous drop
+/// fence prevents a cancelled packet/shutdown future from reopening payout
+/// admission and then letting disconnect-save overwrite a transaction whose
+/// COMMIT reply was never observed.
+struct PlayerMoneyCommitCancellationFenceLikeCpp {
+    tracker: Arc<DurableLootMoneyPersistenceTrackerLikeCpp>,
+    armed: bool,
+}
+
+impl PlayerMoneyCommitCancellationFenceLikeCpp {
+    fn new(tracker: Arc<DurableLootMoneyPersistenceTrackerLikeCpp>) -> Self {
+        Self {
+            tracker,
+            armed: true,
+        }
+    }
+
+    fn disarm_like_cpp(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for PlayerMoneyCommitCancellationFenceLikeCpp {
+    fn drop(&mut self) {
+        if self.armed {
+            self.tracker.mark_indeterminate_like_cpp();
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum AbsolutePlayerMoneyCommitReconciliationLikeCpp {
+    Committed,
+    RolledBack,
+    Indeterminate,
+}
+
+/// Reconcile an ambiguous COMMIT using a money row whose value changed in the
+/// transaction. Equal before/after values are deliberately not evidence: a
+/// caller may have bundled other durable mutations whose outcome cannot be
+/// inferred from an unchanged money column.
+fn reconcile_absolute_player_money_commit_like_cpp(
+    money_before: u64,
+    money_after: u64,
+    observed_money: Option<u64>,
+) -> AbsolutePlayerMoneyCommitReconciliationLikeCpp {
+    if money_before == money_after {
+        return AbsolutePlayerMoneyCommitReconciliationLikeCpp::Indeterminate;
+    }
+
+    match observed_money {
+        Some(observed) if observed == money_after => {
+            AbsolutePlayerMoneyCommitReconciliationLikeCpp::Committed
+        }
+        Some(observed) if observed == money_before => {
+            AbsolutePlayerMoneyCommitReconciliationLikeCpp::RolledBack
+        }
+        Some(_) | None => AbsolutePlayerMoneyCommitReconciliationLikeCpp::Indeterminate,
+    }
+}
+
+/// Routing data retained by the detached durable worker so viewers that open
+/// the same C++ `Loot` while SQL is in flight are not missed. The worker
+/// samples the authority only after the money claim commits; an opener before
+/// that point saw the non-zero pool and receives `CoinRemoved`, while a later
+/// opener observes zero directly in its `LootResponse`.
+pub(crate) struct LootMoneyViewerFanoutLikeCpp {
+    pub scope_player: ObjectGuid,
+    pub source_player: ObjectGuid,
+    pub source_command_tx: flume::Sender<SessionCommand>,
+    pub player_registry: Option<Arc<PlayerRegistry>>,
+    pub map_id: u16,
+    pub instance_id: u32,
+    pub loot_owner: ObjectGuid,
+    pub loot_obj: ObjectGuid,
+    pub authority: OwnedLootAuthority,
+    pub authority_generation: u64,
+    pub payout_recipients: HashSet<ObjectGuid>,
+}
+
+/// Routing state for one durable item claim. The completion owns this
+/// independently of the packet waiter, so a timeout, cancellation, or later
+/// `CMSG_LOOT_RELEASE` cannot suppress the result of an already ordered claim.
+/// C++ serializes these handlers and notifies synchronously; Rust's SQL wait is
+/// an implementation detail, so the pre-COMMIT cohort is retained and the
+/// exact COMMIT snapshot adds viewers that opened during that wait. `published`
+/// is shared with the normal handler path and provides the single publication
+/// CAS.
+#[derive(Clone)]
+pub(crate) struct DurableLootItemFanoutLikeCpp {
+    pub owner_guid: ObjectGuid,
+    pub loot_obj: ObjectGuid,
+    pub loot_list_id: u8,
+    pub player_guid: ObjectGuid,
+    pub free_for_all: bool,
+    pub authority: OwnedLootAuthority,
+    pub authority_generation: u64,
+    pub precommit_snapshot: OwnedLootSnapshot,
+    /// Exact post-mutation pool captured by the claim commit while the
+    /// authority mutex is still held. A viewer opening after that point has
+    /// already observed the removed item and must not receive a stale
+    /// `LootRemoved` fanout.
+    pub committed_snapshot: Arc<std::sync::OnceLock<OwnedLootSnapshot>>,
+    pub source_send_tx: flume::Sender<Vec<u8>>,
+    pub player_registry: Option<Arc<PlayerRegistry>>,
+    pub map_id: u16,
+    pub instance_id: u32,
+    pub published: Arc<AtomicBool>,
+}
+
+impl std::fmt::Debug for DurableLootItemFanoutLikeCpp {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("DurableLootItemFanoutLikeCpp")
+            .field("owner_guid", &self.owner_guid)
+            .field("loot_obj", &self.loot_obj)
+            .field("loot_list_id", &self.loot_list_id)
+            .field("player_guid", &self.player_guid)
+            .field("free_for_all", &self.free_for_all)
+            .field("authority_generation", &self.authority_generation)
+            .field("map_id", &self.map_id)
+            .field("instance_id", &self.instance_id)
+            .field("published", &self.published.load(Ordering::Acquire))
+            .finish_non_exhaustive()
+    }
+}
+
+/// Runtime publication retained by a detached durable-loot worker after its
+/// SQL transaction commits. Every detached item grant is tracked until the
+/// live Player inventory is synchronized; Item owners additionally use the
+/// completion to publish stored-container removal/release state. The same
+/// tracker also prevents a committed stored-container money payout from being
+/// overwritten by a stale disconnect save.
+#[derive(Debug, Clone)]
+pub(crate) struct DurableItemLootCompletionLikeCpp {
+    pub owner_guid: ObjectGuid,
+    pub loot_list_id: u8,
+    pub player_guid: ObjectGuid,
+    pub item_owner_auto_release: bool,
+    /// Delta accepted from the character row locked in the same transaction
+    /// that deletes an Item owner's stored-money row. Keeping a delta preserves
+    /// intervening local/group changes; `None` identifies an item grant.
+    pub durable_item_money_applied_amount: Option<u64>,
+    /// Original C++ loot-money notification amount. This is retained instead
+    /// of reconstructing it from runtime balances, and is emitted even when it
+    /// is zero.
+    pub durable_item_money_notified_amount: Option<u64>,
+    /// Exact-once gate shared with the per-character durable money tracker.
+    /// A save fence may apply the balance delta before this completion gets a
+    /// chance to publish source removal and client notification.
+    pub durable_item_money_balance_applied: Option<Arc<AtomicBool>>,
+    /// Retained only for object-owned item claims. Stored-container money has
+    /// its own durable fanout route.
+    pub item_fanout: Option<DurableLootItemFanoutLikeCpp>,
+    /// Exact-once gate for item/source publication and lifecycle. This is
+    /// intentionally separate from `durable_item_money_balance_applied`.
+    /// Item-grant completions observed false require a relog; stored-money
+    /// completions can publish source removal after a save applied the balance.
+    pub runtime_inventory_applied: Arc<AtomicBool>,
+}
+
+#[derive(Debug, Default)]
+struct DurableItemLootPersistenceStateLikeCpp {
+    in_flight: usize,
+    completions: Vec<DurableItemLootCompletionLikeCpp>,
+}
+
+/// Session-local counterpart to an authority persistence guard for durable
+/// loot grants. It lets logout/disconnect wait for detached item/money
+/// transactions, publish their committed runtime state, and only then run C++
+/// `DoLootReleaseAll` and save the Player.
+#[derive(Debug, Clone)]
+pub(crate) struct DurableItemLootPersistenceTrackerLikeCpp {
+    state: Arc<Mutex<DurableItemLootPersistenceStateLikeCpp>>,
+    changed: tokio::sync::watch::Sender<u64>,
+}
+
+impl Default for DurableItemLootPersistenceTrackerLikeCpp {
+    fn default() -> Self {
+        let (changed, _) = tokio::sync::watch::channel(0);
+        Self {
+            state: Arc::new(Mutex::new(DurableItemLootPersistenceStateLikeCpp::default())),
+            changed,
+        }
+    }
+}
+
+impl DurableItemLootPersistenceTrackerLikeCpp {
+    pub(crate) fn begin_like_cpp(&self) -> DurableItemLootPersistenceGuardLikeCpp {
+        self.state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .in_flight += 1;
+        DurableItemLootPersistenceGuardLikeCpp {
+            tracker: self.clone(),
+            completion: None,
+        }
+    }
+
+    pub(crate) async fn wait_until_idle_like_cpp(&self) {
+        let mut changed = self.changed.subscribe();
+        loop {
+            if self
+                .state
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .in_flight
+                == 0
+            {
+                return;
+            }
+            if changed.changed().await.is_err() {
+                return;
+            }
+        }
+    }
+
+    pub(crate) fn take_completions_like_cpp(&self) -> Vec<DurableItemLootCompletionLikeCpp> {
+        std::mem::take(
+            &mut self
+                .state
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .completions,
+        )
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct DurableItemLootPersistenceGuardLikeCpp {
+    tracker: DurableItemLootPersistenceTrackerLikeCpp,
+    completion: Option<DurableItemLootCompletionLikeCpp>,
+}
+
+impl DurableItemLootPersistenceGuardLikeCpp {
+    pub(crate) fn mark_committed_like_cpp(&mut self, completion: DurableItemLootCompletionLikeCpp) {
+        self.completion = Some(completion);
+    }
+}
+
+impl Drop for DurableItemLootPersistenceGuardLikeCpp {
+    fn drop(&mut self) {
+        let mut state = self
+            .tracker
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(completion) = self.completion.take() {
+            state.completions.push(completion);
+        }
+        state.in_flight = state.in_flight.saturating_sub(1);
+        drop(state);
+        self.tracker
+            .changed
+            .send_modify(|version| *version = version.wrapping_add(1));
+    }
+}
+
+#[cfg(test)]
+mod durable_item_loot_persistence_tracker_tests {
+    use std::time::Duration;
+
+    use super::DurableItemLootPersistenceTrackerLikeCpp;
+
+    #[tokio::test]
+    async fn completion_between_idle_check_and_wait_poll_is_not_lost_like_cpp() {
+        let tracker = DurableItemLootPersistenceTrackerLikeCpp::default();
+        let guard = tracker.begin_like_cpp();
+        let mut changed = tracker.changed.subscribe();
+        assert_eq!(
+            tracker
+                .state
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .in_flight,
+            1
+        );
+
+        // Deliberately publish after the locked busy observation but before
+        // `changed()` is first polled. watch retains the version transition.
+        drop(guard);
+        tokio::time::timeout(Duration::from_secs(1), changed.changed())
+            .await
+            .expect("durable item persistence wake must not be lost")
+            .unwrap();
+        tracker.wait_until_idle_like_cpp().await;
+    }
+}
+
+impl std::fmt::Display for LootMoneyPersistenceErrorLikeCpp {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::MissingPlayer => formatter.write_str("loot-money player is missing"),
+            Self::MissingCharacterDatabase => {
+                formatter.write_str("loot-money character database is missing")
+            }
+            Self::WorkerTerminated => formatter.write_str("loot-money persistence worker stopped"),
+            Self::Claim(error) => write!(formatter, "loot-money claim failure: {error:?}"),
+            Self::Database(error) => write!(formatter, "loot-money database failure: {error}"),
+            Self::CommitOutcomeUnknown(error) => {
+                write!(formatter, "loot-money COMMIT outcome is unknown: {error}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for LootMoneyPersistenceErrorLikeCpp {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Database(error) | Self::CommitOutcomeUnknown(error) => Some(error),
+            Self::MissingPlayer
+            | Self::MissingCharacterDatabase
+            | Self::WorkerTerminated
+            | Self::Claim(_) => None,
+        }
+    }
+}
+
+/// C++ `Player::ModifyMoney` accepts the whole positive delta or leaves the
+/// balance unchanged when it would cross `MAX_MONEY_AMOUNT`.
+pub(crate) fn loot_money_durable_outcome_like_cpp(
+    current_money: u64,
+    requested_delta: u64,
+) -> (u64, u64) {
+    current_money
+        .checked_add(requested_delta)
+        .filter(|new_money| *new_money <= MAX_MONEY_AMOUNT)
+        .map_or((current_money, 0), |new_money| (new_money, requested_delta))
+}
+
+#[derive(Debug)]
+enum GroupLootMoneyAttemptErrorLikeCpp {
+    DefinitelyRolledBack(LootMoneyPersistenceErrorLikeCpp),
+    CommitOutcomeUnknown {
+        error: DatabaseError,
+        outcomes: HashMap<ObjectGuid, DurableLootMoneyDbOutcomeLikeCpp>,
+    },
+}
+
+fn group_loot_money_attempt_is_deadlock_like_cpp(
+    error: &GroupLootMoneyAttemptErrorLikeCpp,
+) -> bool {
+    matches!(
+        error,
+        GroupLootMoneyAttemptErrorLikeCpp::DefinitelyRolledBack(
+            LootMoneyPersistenceErrorLikeCpp::Database(error)
+        ) if is_database_deadlock_like_cpp(error)
+    )
+}
+
+async fn attempt_group_loot_money_transaction_like_cpp(
+    char_db: &CharacterDatabase,
+    payouts: &[(ObjectGuid, u64)],
+) -> Result<HashMap<ObjectGuid, DurableLootMoneyDbOutcomeLikeCpp>, GroupLootMoneyAttemptErrorLikeCpp>
+{
+    let definitely = |error| {
+        GroupLootMoneyAttemptErrorLikeCpp::DefinitelyRolledBack(
+            LootMoneyPersistenceErrorLikeCpp::Database(DatabaseError::from(error)),
+        )
+    };
+    let mut transaction = char_db.pool().begin().await.map_err(definitely)?;
+    let mut outcomes = HashMap::with_capacity(payouts.len());
+    for (recipient, amount) in payouts {
+        let row = sqlx::query(CharStatements::SEL_CHAR_MONEY_FOR_UPDATE.sql())
+            .bind(recipient.counter() as u64)
+            .fetch_optional(&mut *transaction)
+            .await
+            .map_err(definitely)?
+            .ok_or_else(|| {
+                GroupLootMoneyAttemptErrorLikeCpp::DefinitelyRolledBack(
+                    LootMoneyPersistenceErrorLikeCpp::MissingPlayer,
+                )
+            })?;
+        let current_money = row.try_get::<u64, _>("money").map_err(definitely)?;
+        let (new_money, applied_delta) =
+            loot_money_durable_outcome_like_cpp(current_money, *amount);
+        if applied_delta != 0 {
+            let update_result = sqlx::query("UPDATE characters SET money = ? WHERE guid = ?")
+                .bind(new_money)
+                .bind(recipient.counter() as u64)
+                .execute(&mut *transaction)
+                .await
+                .map_err(definitely)?;
+            if update_result.rows_affected() != 1 {
+                return Err(GroupLootMoneyAttemptErrorLikeCpp::DefinitelyRolledBack(
+                    LootMoneyPersistenceErrorLikeCpp::Database(DatabaseError::Transaction(
+                        format!(
+                            "loot-money update for character {} affected {} rows; expected exactly 1",
+                            recipient.counter(),
+                            update_result.rows_affected()
+                        ),
+                    )),
+                ));
+            }
+        }
+        outcomes.insert(
+            *recipient,
+            DurableLootMoneyDbOutcomeLikeCpp {
+                before: current_money,
+                after: new_money,
+                applied_delta,
+            },
+        );
+    }
+    match transaction.commit().await {
+        Ok(()) => Ok(outcomes),
+        Err(error) => {
+            let error = DatabaseError::from(error);
+            if is_database_deadlock_like_cpp(&error) {
+                Err(GroupLootMoneyAttemptErrorLikeCpp::DefinitelyRolledBack(
+                    LootMoneyPersistenceErrorLikeCpp::Database(error),
+                ))
+            } else {
+                Err(GroupLootMoneyAttemptErrorLikeCpp::CommitOutcomeUnknown { error, outcomes })
+            }
+        }
+    }
+}
 
 /// Live seam for C++ `ScriptMgr::OnAreaTrigger`.
 ///
@@ -1174,8 +1665,16 @@ pub(crate) struct RepresentedLootRollVote {
 
 #[derive(Debug, Clone)]
 pub(crate) struct RepresentedLootRollState {
+    pub owner_guid: ObjectGuid,
     pub loot_obj: ObjectGuid,
     pub loot_list_id: u8,
+    pub authority: OwnedLootAuthority,
+    pub authority_generation: u64,
+    pub authority_scope: OwnedLootScope,
+    /// Exact C++ `LootRoll*` lifetime surrogate published to remote sessions.
+    /// This must change even if a replacement reuses the same packet key,
+    /// authority allocation, and authority generation.
+    pub command_identity: LootRollCommandIdentityLikeCpp,
     pub end_time: Instant,
     pub voters: HashMap<ObjectGuid, RepresentedLootRollVote>,
 }
@@ -3013,22 +3512,96 @@ pub(crate) fn sync_canonical_creature_entity_on_map_like_cpp(
     map_id: u32,
     instance_id: u32,
     mut creature: wow_entities::Creature,
-) {
+) -> Option<OwnedLootAuthority> {
     let guid = creature.unit().world().object().guid();
     let Ok(mut manager) = manager.lock() else {
-        return;
+        return None;
     };
     let Some(map) = manager.find_map_mut(map_id, instance_id) else {
-        return;
+        return None;
     };
     if map.map().get_creature(guid).is_none() {
-        return;
+        return None;
+    }
+
+    if let Some(current_authority) = map
+        .map()
+        .get_typed_creature(guid)
+        .map(|current| current.loot_authority_like_cpp().clone())
+    {
+        let incoming_authority = creature.loot_authority_like_cpp().clone();
+        let current_stamp = current_authority.stamp_like_cpp();
+        let incoming_stamp = incoming_authority.stamp_like_cpp();
+        let authority = reconcile_creature_loot_authority_mirrors_like_cpp(
+            &current_authority,
+            current_stamp,
+            &incoming_authority,
+            incoming_stamp,
+        );
+        map.map_mut()
+            .get_typed_creature_mut(guid)?
+            .rebind_loot_authority_if_current_like_cpp(
+                &current_authority,
+                current_stamp,
+                authority.clone(),
+            )?;
+        // `creature` is a cloned transport snapshot whose old authority is
+        // still owned by the live legacy entity. Do not detach it here; the
+        // caller performs the expected-stamp CAS on that actual entity.
+        creature.adopt_loot_authority_for_snapshot_like_cpp(authority);
     }
     creature.unit_mut().world_mut().object_mut().add_to_world();
     let Ok(record) = wow_entities::MapObjectRecord::new_creature(creature) else {
-        return;
+        return None;
     };
-    let _ = map.map_mut().insert_map_object_record(record);
+    let authority = record
+        .creature()
+        .map(|creature| creature.loot_authority_like_cpp().clone())?;
+    map.map_mut().insert_map_object_record(record).ok()?;
+    Some(authority)
+}
+
+/// Selects one backing authority for two mirrors without ever merging two
+/// independently claimable active states. Distinct non-pristine authorities
+/// are quarantined as one retired canonical tombstone.
+pub(crate) fn reconcile_creature_loot_authority_mirrors_like_cpp(
+    canonical: &OwnedLootAuthority,
+    canonical_stamp: OwnedLootAuthorityStamp,
+    incoming: &OwnedLootAuthority,
+    incoming_stamp: OwnedLootAuthorityStamp,
+) -> OwnedLootAuthority {
+    if canonical.shares_storage_like_cpp(incoming) {
+        return canonical.clone();
+    }
+
+    use OwnedLootAuthorityLifecycle::{Active, Detached, Pristine, Quarantined, Retired};
+
+    match (canonical_stamp.lifecycle, incoming_stamp.lifecycle) {
+        // Once divergent live pools were observed, keep the attached terminal
+        // tombstone until object destruction. It must not be reopened merely
+        // because another stale mirror still looks active.
+        (Quarantined, _) => canonical.clone(),
+        (_, Quarantined) => incoming.clone(),
+        // Two independently claimable live pools, or a live pool conflicting
+        // with an attached destruction tombstone, are ambiguous without a
+        // shared incarnation id. Converge on a terminal fail-closed authority.
+        (Active, Active) | (Active, Retired) | (Retired, Active) => {
+            return OwnedLootAuthority::new_retired_tombstone_like_cpp();
+        }
+        // A live authority can safely fill a never-used placeholder. A
+        // detached allocation has already lost entity ownership.
+        (Active, Pristine | Detached) => canonical.clone(),
+        (Pristine | Detached, Active) => incoming.clone(),
+        // A still-attached retired authority is the lifetime tombstone shared
+        // across respawn/restock. A displaced authority is classified as
+        // `Detached`, so it cannot win this branch or be resurrected.
+        (Retired, Pristine) => canonical.clone(),
+        (Pristine, Retired) => incoming.clone(),
+        (Pristine, Pristine) | (Retired, Retired) => canonical.clone(),
+        (Detached, Detached) => OwnedLootAuthority::new_retired_tombstone_like_cpp(),
+        (Detached, _) => incoming.clone(),
+        (_, Detached) => canonical.clone(),
+    }
 }
 
 pub(crate) fn insert_canonical_creature_map_object_on_map_like_cpp(
@@ -3036,16 +3609,39 @@ pub(crate) fn insert_canonical_creature_map_object_on_map_like_cpp(
     map_id: u32,
     instance_id: u32,
     mut creature: wow_entities::Creature,
-) {
+) -> Option<OwnedLootAuthority> {
     let guid = creature.unit().world().object().guid();
     let Ok(mut manager) = manager.lock() else {
-        return;
+        return None;
     };
     let Some(map) = manager.find_map_mut(map_id, instance_id) else {
-        return;
+        return None;
     };
     if map.map().get_creature(guid).is_some() {
-        return;
+        let current = map.map_mut().get_typed_creature_mut(guid)?;
+        let current_authority = current.loot_authority_like_cpp().clone();
+        let incoming_authority = creature.loot_authority_like_cpp().clone();
+        let current_stamp = current_authority.stamp_like_cpp();
+        let incoming_stamp = incoming_authority.stamp_like_cpp();
+        let authority = reconcile_creature_loot_authority_mirrors_like_cpp(
+            &current_authority,
+            current_stamp,
+            &incoming_authority,
+            incoming_stamp,
+        );
+        current.rebind_loot_authority_if_current_like_cpp(
+            &current_authority,
+            current_stamp,
+            authority.clone(),
+        )?;
+        creature.adopt_loot_authority_for_snapshot_like_cpp(authority.clone());
+        return Some(authority);
+    }
+
+    if creature.loot_authority_like_cpp().lifecycle_like_cpp()
+        == OwnedLootAuthorityLifecycle::Detached
+    {
+        return None;
     }
 
     let object = creature.unit().world().clone();
@@ -3053,10 +3649,12 @@ pub(crate) fn insert_canonical_creature_map_object_on_map_like_cpp(
         .map_mut()
         .add_to_map_like_cpp(AccessorObjectKind::Creature, object);
     creature.unit_mut().world_mut().object_mut().add_to_world();
+    let authority = creature.loot_authority_like_cpp().clone();
     let Ok(record) = wow_entities::MapObjectRecord::new_creature(creature) else {
-        return;
+        return None;
     };
-    let _ = map.map_mut().insert_map_object_record(record);
+    map.map_mut().insert_map_object_record(record).ok()?;
+    Some(authority)
 }
 
 pub(crate) fn remove_canonical_creature_map_object_on_map_like_cpp(
@@ -3922,6 +4520,8 @@ pub struct WorldSession {
 
     // Outbound channel (serialized bytes back to WorldSocket)
     send_tx: flume::Sender<Vec<u8>>,
+    // FIFO completion fence paired with the current physical send channel.
+    send_write_fence_like_cpp: Option<SocketWriteFenceLikeCpp>,
 
     // Cross-session commands executed by this session's own update loop.
     session_command_tx: flume::Sender<SessionCommand>,
@@ -4214,6 +4814,8 @@ pub struct WorldSession {
 
     // GUID generator for new characters
     guid_generator: Option<Arc<ObjectGuidGenerator>>,
+    // Process-wide C++ ObjectMgr generator for new item instances.
+    item_guid_generator_like_cpp: Option<Arc<ObjectGuidGenerator>>,
 
     // Characters confirmed for this account
     legit_characters: Vec<ObjectGuid>,
@@ -4482,6 +5084,8 @@ pub struct WorldSession {
     realm_packet_rx: Option<flume::Receiver<WorldPacket>>,
     /// Realm send channel — kept alive so the realm writer task persists.
     realm_send_tx: Option<flume::Sender<Vec<u8>>>,
+    /// FIFO completion fence paired with `realm_send_tx` after ConnectTo.
+    realm_send_write_fence_like_cpp: Option<SocketWriteFenceLikeCpp>,
 
     // ── Movement & World position ─────────────────────────────────
     /// Server-side position of the player (updated from CMSG_MOVE_*).
@@ -5052,13 +5656,47 @@ pub struct WorldSession {
     /// Active loot windows keyed by creature GUID.
     pub(crate) loot_table:
         std::collections::HashMap<wow_core::ObjectGuid, wow_packet::packets::loot::CreatureLoot>,
+    /// Object-owned loot generation represented by each session-local packet cache.
+    pub(crate) represented_loot_cache_generations_like_cpp:
+        std::collections::HashMap<wow_core::ObjectGuid, u64>,
     /// Mirrors C++ PlayerData::LootTargetGUID for guards that compare active loot by GUID.
     pub(crate) active_loot_guid: wow_core::ObjectGuid,
     /// Represented owner GUIDs currently visible through C++ `Player::m_AELootView`.
     pub(crate) active_loot_view_owners: std::collections::HashSet<wow_core::ObjectGuid>,
+    /// Object-owned generation that was actually opened for each active loot view.
+    ///
+    /// GUIDs are reused across creature respawns and gameobject restocks.  A delayed
+    /// packet from an older window must therefore not be authorized merely because
+    /// the replacement lifetime has the same owner/loot GUID and player eligibility.
+    pub(crate) active_loot_view_generations_like_cpp:
+        std::collections::HashMap<wow_core::ObjectGuid, u64>,
+    /// Exact backing allocation opened for each view. Scope epochs restart at
+    /// one in a newly allocated authority, so the generation map alone cannot
+    /// prevent ABA when a creature GUID is recreated.
+    pub(crate) active_loot_view_authorities_like_cpp:
+        std::collections::HashMap<wow_core::ObjectGuid, OwnedLootAuthority>,
+    /// Detached durable loot grants and their post-commit runtime
+    /// publications. This covers claimed world-owner items plus Item-owner
+    /// items/money; Item owners have no map-owned loot authority.
+    durable_item_loot_persistence_like_cpp: DurableItemLootPersistenceTrackerLikeCpp,
+    /// Per-character fence published to remote loot sources before they begin
+    /// mutating this character's durable balance.
+    durable_loot_money_persistence_like_cpp: Arc<DurableLootMoneyPersistenceTrackerLikeCpp>,
     /// Represented pending group/NBG loot rolls keyed by `(LootObj, LootListID)`.
     pub(crate) represented_loot_rolls:
         std::collections::HashMap<(wow_core::ObjectGuid, u8), RepresentedLootRollState>,
+    /// Explicit test seam for persistence-sensitive loot-money paths. Production
+    /// never bypasses the character database.
+    #[cfg(test)]
+    loot_money_persistence_test_result_like_cpp: Option<bool>,
+    #[cfg(test)]
+    pub(crate) loot_item_store_test_grants_like_cpp: Option<Arc<AtomicUsize>>,
+    #[cfg(test)]
+    pub(crate) loot_item_store_test_success_like_cpp: bool,
+    /// Optional test-only COMMIT gate for exercising remote command timeout
+    /// and release while the authority claim is already persistence-owned.
+    #[cfg(test)]
+    pub(crate) loot_item_store_test_commit_gate_like_cpp: Option<Arc<tokio::sync::Notify>>,
     #[cfg(test)]
     pub(crate) represented_loot_roll_criteria_events: Vec<RepresentedLootRollCriteriaEvent>,
     #[cfg(test)]
@@ -6020,6 +6658,7 @@ impl WorldSession {
             mute_time_like_cpp: 0,
             packet_rx,
             send_tx,
+            send_write_fence_like_cpp: None,
             session_command_tx,
             session_command_rx,
             state: SessionState::Authed,
@@ -6180,6 +6819,7 @@ impl WorldSession {
                 ("RustyCore".to_string(), "RustyCore".to_string()),
             )]),
             guid_generator: None,
+            item_guid_generator_like_cpp: None,
             legit_characters: Vec::new(),
             pending_packets: Vec::new(),
             player_loading: None,
@@ -6331,6 +6971,7 @@ impl WorldSession {
             cuf_profiles_loaded_like_cpp: false,
             realm_packet_rx: None,
             realm_send_tx: None,
+            realm_send_write_fence_like_cpp: None,
             player_position: None,
             player_movement_flags_like_cpp: MovementFlag::NONE,
             represented_can_swim_to_fly_transition_like_cpp: false,
@@ -6619,9 +7260,25 @@ impl WorldSession {
                 MAX_SPECIALIZATIONS_LIKE_CPP],
             represented_glyphs_loaded_like_cpp: false,
             loot_table: std::collections::HashMap::new(),
+            represented_loot_cache_generations_like_cpp: std::collections::HashMap::new(),
             active_loot_guid: ObjectGuid::EMPTY,
             active_loot_view_owners: std::collections::HashSet::new(),
+            active_loot_view_generations_like_cpp: std::collections::HashMap::new(),
+            active_loot_view_authorities_like_cpp: std::collections::HashMap::new(),
+            durable_item_loot_persistence_like_cpp:
+                DurableItemLootPersistenceTrackerLikeCpp::default(),
+            durable_loot_money_persistence_like_cpp: Arc::new(
+                DurableLootMoneyPersistenceTrackerLikeCpp::default(),
+            ),
             represented_loot_rolls: std::collections::HashMap::new(),
+            #[cfg(test)]
+            loot_money_persistence_test_result_like_cpp: None,
+            #[cfg(test)]
+            loot_item_store_test_grants_like_cpp: None,
+            #[cfg(test)]
+            loot_item_store_test_success_like_cpp: true,
+            #[cfg(test)]
+            loot_item_store_test_commit_gate_like_cpp: None,
             #[cfg(test)]
             represented_loot_roll_criteria_events: Vec::new(),
             #[cfg(test)]
@@ -8624,10 +9281,11 @@ impl WorldSession {
         guid: ObjectGuid,
         f: impl FnOnce(&mut wow_entities::Creature) -> R,
     ) -> Option<R> {
-        let map_id = u32::from(self.player_map_id_like_cpp());
+        let map_key = self
+            .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
         let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
         let mut manager = manager.lock().ok()?;
-        let managed = manager.find_map_mut(map_id, 0)?;
+        let managed = manager.find_map_mut(map_key.map_id, map_key.instance_id)?;
         let creature = managed.map_mut().get_typed_creature_mut(guid)?;
         Some(f(creature))
     }
@@ -8637,10 +9295,11 @@ impl WorldSession {
         guid: ObjectGuid,
         f: impl FnOnce(&mut wow_entities::GameObject) -> R,
     ) -> Option<R> {
-        let map_id = u32::from(self.player_map_id_like_cpp());
+        let map_key = self
+            .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
         let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
         let mut manager = manager.lock().ok()?;
-        let managed = manager.find_map_mut(map_id, 0)?;
+        let managed = manager.find_map_mut(map_key.map_id, map_key.instance_id)?;
         let gameobject = managed.map_mut().get_typed_game_object_mut(guid)?;
         Some(f(gameobject))
     }
@@ -8652,11 +9311,13 @@ impl WorldSession {
         if guid.is_empty() || !guid.is_game_object() {
             return None;
         }
+        let map_key = self
+            .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
         let manager = self.canonical_map_manager.as_ref()?;
         let Ok(manager) = manager.lock() else {
             return None;
         };
-        let map = manager.find_map(u32::from(self.player_map_id_like_cpp()), 0)?;
+        let map = manager.find_map(map_key.map_id, map_key.instance_id)?;
         let gameobject = map.map().get_typed_game_object(guid)?;
         let linked_trap_guid = gameobject.linked_trap_guid_like_cpp();
         (!linked_trap_guid.is_empty()).then_some(linked_trap_guid)
@@ -8679,11 +9340,12 @@ impl WorldSession {
         chest_restock_time_secs: u32,
         shared_loot_is_changed_like_cpp: bool,
     ) -> Option<wow_map::map::GameObjectSetLootStateOutcomeLikeCpp> {
-        let map_id = u32::from(self.player_map_id_like_cpp());
+        let map_key = self
+            .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
         let game_time_secs = i64::try_from(wow_core::GameTime::now().as_secs()).unwrap_or(i64::MAX);
         let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
         let mut manager = manager.lock().ok()?;
-        let managed = manager.find_map_mut(map_id, 0)?;
+        let managed = manager.find_map_mut(map_key.map_id, map_key.instance_id)?;
         Some(managed.map_mut().set_gameobject_loot_state_like_cpp(
             guid,
             state,
@@ -8692,6 +9354,93 @@ impl WorldSession {
             chest_restock_time_secs,
             shared_loot_is_changed_like_cpp,
         ))
+    }
+
+    /// Applies the global fully-looted transition only if the exact authority
+    /// generation and pool topology observed by `DoLootRelease` are still
+    /// current. The canonical map lock is acquired before the authority lock,
+    /// matching personal-loot upsert order and making check+state mutation one
+    /// C++-serialized operation.
+    pub(crate) fn set_canonical_gameobject_loot_state_if_fully_looted_observation_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+        authority: &OwnedLootAuthority,
+        object_generation: u64,
+        lifecycle_revision: u64,
+        state: wow_entities::LootState,
+        unit_guid: Option<ObjectGuid>,
+        chest_restock_time_secs: u32,
+        shared_loot_is_changed_like_cpp: bool,
+    ) -> Option<wow_map::map::GameObjectSetLootStateOutcomeLikeCpp> {
+        let map_key = self
+            .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
+        let game_time_secs = i64::try_from(wow_core::GameTime::now().as_secs()).unwrap_or(i64::MAX);
+        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
+        let mut manager = manager.lock().ok()?;
+        let managed = manager.find_map_mut(map_key.map_id, map_key.instance_id)?;
+        let object_authority = managed
+            .map()
+            .get_typed_game_object(guid)?
+            .loot_authority_like_cpp()
+            .clone();
+        if !object_authority.shares_storage_like_cpp(authority) {
+            return None;
+        }
+
+        authority.with_fully_looted_lifecycle_observation_like_cpp(
+            object_generation,
+            lifecycle_revision,
+            || {
+                managed.map_mut().set_gameobject_loot_state_like_cpp(
+                    guid,
+                    state,
+                    unit_guid,
+                    game_time_secs,
+                    chest_restock_time_secs,
+                    shared_loot_is_changed_like_cpp,
+                )
+            },
+        )
+    }
+
+    /// C++ fishing-hole release performs AddUse, MaxOpens comparison, and
+    /// SetLootState on one world thread. Keep all three under one map lock so
+    /// two concurrent personal releases cannot finish in `Ready` after max.
+    pub(crate) fn release_canonical_fishing_hole_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+        max_opens: Option<u32>,
+    ) -> Option<(
+        u32,
+        wow_entities::LootState,
+        wow_map::map::GameObjectSetLootStateOutcomeLikeCpp,
+    )> {
+        let map_key = self
+            .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
+        let game_time_secs = i64::try_from(wow_core::GameTime::now().as_secs()).unwrap_or(i64::MAX);
+        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
+        let mut manager = manager.lock().ok()?;
+        let managed = manager.find_map_mut(map_key.map_id, map_key.instance_id)?;
+        let map = managed.map_mut();
+        let use_count = {
+            let gameobject = map.get_typed_game_object_mut(guid)?;
+            gameobject.add_use_like_cpp();
+            gameobject.use_times()
+        };
+        let loot_state = if max_opens.is_some_and(|max_opens| use_count >= max_opens) {
+            wow_entities::LootState::JustDeactivated
+        } else {
+            wow_entities::LootState::Ready
+        };
+        let outcome = map.set_gameobject_loot_state_like_cpp(
+            guid,
+            loot_state,
+            None,
+            game_time_secs,
+            0,
+            false,
+        );
+        Some((use_count, loot_state, outcome))
     }
 
     pub(crate) fn add_use_and_get_canonical_gameobject_use_count_like_cpp(
@@ -10844,7 +11593,11 @@ impl WorldSession {
             creature
         };
         canonical_creature.clear_data_changes();
-        self.insert_canonical_creature_map_object_like_cpp(map_id, canonical_creature.clone());
+        if let Some(authority) =
+            self.insert_canonical_creature_map_object_like_cpp(map_id, canonical_creature.clone())
+        {
+            canonical_creature.rebind_loot_authority_like_cpp(authority);
+        }
 
         if let Some(manager) = &self.map_manager {
             let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(position.x, position.y);
@@ -10877,28 +11630,32 @@ impl WorldSession {
         &mut self,
         map_id: u16,
         creature: wow_entities::Creature,
-    ) {
+    ) -> Option<OwnedLootAuthority> {
         let Some(manager) = self.canonical_map_manager.as_ref() else {
-            return;
+            return None;
         };
         insert_canonical_creature_map_object_on_map_like_cpp(
             manager,
             u32::from(map_id),
             0,
             creature,
-        );
+        )
     }
 
     pub(crate) fn remove_world_creature(
         &mut self,
         guid: ObjectGuid,
     ) -> Option<crate::map_manager::WorldCreature> {
+        let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
         let manager = self.map_manager.as_ref().cloned()?;
         let removed = {
             let mut manager = manager
                 .write()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
-            manager.remove_creature_any(self.player_map_id_like_cpp(), 0, guid)
+            if let Some(creature) = manager.find_creature_mut(map_id, instance_id, guid) {
+                creature.creature.clear_loot_like_cpp();
+            }
+            manager.remove_creature_any(map_id, instance_id, guid)
         };
         if removed.is_some() {
             self.remove_canonical_creature_map_object_like_cpp(guid);
@@ -10907,13 +11664,14 @@ impl WorldSession {
     }
 
     fn remove_canonical_creature_map_object_like_cpp(&mut self, guid: ObjectGuid) {
+        let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
         let Some(manager) = self.canonical_map_manager.as_ref() else {
             return;
         };
         remove_canonical_creature_map_object_on_map_like_cpp(
             manager,
-            u32::from(self.player_map_id_like_cpp()),
-            0,
+            u32::from(map_id),
+            instance_id,
             guid,
         );
     }
@@ -10923,28 +11681,41 @@ impl WorldSession {
         guid: ObjectGuid,
         position: wow_core::Position,
     ) {
+        let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
         let Some(manager) = self.canonical_map_manager.as_ref() else {
             return;
         };
         relocate_canonical_creature_map_object_on_map_like_cpp(
             manager,
-            u32::from(self.player_map_id_like_cpp()),
-            0,
+            u32::from(map_id),
+            instance_id,
             guid,
             position,
         );
     }
 
     fn sync_canonical_creature_entity_like_cpp(&mut self, creature: wow_entities::Creature) {
+        let guid = creature.guid();
+        let expected_legacy_authority = creature.loot_authority_like_cpp().clone();
+        let expected_legacy_stamp = expected_legacy_authority.stamp_like_cpp();
+        let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
         let Some(manager) = self.canonical_map_manager.as_ref() else {
             return;
         };
-        sync_canonical_creature_entity_on_map_like_cpp(
+        let authority = sync_canonical_creature_entity_on_map_like_cpp(
             manager,
-            u32::from(self.player_map_id_like_cpp()),
-            0,
+            u32::from(map_id),
+            instance_id,
             creature,
         );
+        if let Some(authority) = authority {
+            let _ = self.rebind_legacy_creature_loot_authority_like_cpp(
+                guid,
+                &expected_legacy_authority,
+                expected_legacy_stamp,
+                authority,
+            );
+        }
     }
 
     pub(crate) fn record_represented_gameobject_runtime_state_like_cpp(
@@ -11080,11 +11851,13 @@ impl WorldSession {
         if guid.is_empty() || !guid.is_game_object() {
             return None;
         }
+        let map_key = self
+            .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
         let manager = self.canonical_map_manager.as_ref()?;
         let Ok(manager) = manager.lock() else {
             return None;
         };
-        let map = manager.find_map(u32::from(self.player_map_id_like_cpp()), 0)?;
+        let map = manager.find_map(map_key.map_id, map_key.instance_id)?;
         let game_object = map.map().get_typed_game_object(guid)?;
         Some(RepresentedGameObjectAccessLikeCpp {
             entry: game_object.world().object().entry(),
@@ -11200,11 +11973,13 @@ impl WorldSession {
         if guid.is_empty() || !guid.is_any_type_creature() {
             return None;
         }
+        let map_key = self
+            .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
         let manager = self.canonical_map_manager.as_ref()?;
         let Ok(manager) = manager.lock() else {
             return None;
         };
-        let map = manager.find_map(u32::from(self.player_map_id_like_cpp()), 0)?;
+        let map = manager.find_map(map_key.map_id, map_key.instance_id)?;
         let record = map.map().map_object_record(guid)?;
         let creature = if guid.is_pet() {
             record.pet()?.creature()
@@ -12735,13 +13510,18 @@ impl WorldSession {
         let Some(owner_guid) = owner_guid else {
             return;
         };
+        let Some(map_key) =
+            self.canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))
+        else {
+            return;
+        };
         let Some(manager) = self.canonical_map_manager.as_ref() else {
             return;
         };
         let Ok(mut manager) = manager.lock() else {
             return;
         };
-        let Some(map) = manager.find_map_mut(u32::from(self.player_map_id_like_cpp()), 0) else {
+        let Some(map) = manager.find_map_mut(map_key.map_id, map_key.instance_id) else {
             return;
         };
         if let Some(game_object) = map.map_mut().get_typed_game_object_mut(guid) {
@@ -12750,13 +13530,18 @@ impl WorldSession {
     }
 
     fn set_canonical_gameobject_spell_id_like_cpp(&mut self, guid: ObjectGuid, spell_id: u32) {
+        let Some(map_key) =
+            self.canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))
+        else {
+            return;
+        };
         let Some(manager) = self.canonical_map_manager.as_ref() else {
             return;
         };
         let Ok(mut manager) = manager.lock() else {
             return;
         };
-        let Some(map) = manager.find_map_mut(u32::from(self.player_map_id_like_cpp()), 0) else {
+        let Some(map) = manager.find_map_mut(map_key.map_id, map_key.instance_id) else {
             return;
         };
         if let Some(game_object) = map.map_mut().get_typed_game_object_mut(guid) {
@@ -12768,15 +13553,19 @@ impl WorldSession {
         &self,
         guid: ObjectGuid,
     ) -> Option<ObjectGuid> {
-        let canonical_owner = self
-            .canonical_map_manager
-            .as_ref()
-            .and_then(|manager| manager.lock().ok())
-            .and_then(|manager| {
-                manager
-                    .find_map(u32::from(self.player_map_id_like_cpp()), 0)
-                    .and_then(|map| map.map().get_typed_game_object(guid))
-                    .map(|game_object| game_object.owner_guid())
+        let map_key =
+            self.canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()));
+        let canonical_owner = map_key
+            .and_then(|map_key| {
+                self.canonical_map_manager
+                    .as_ref()
+                    .and_then(|manager| manager.lock().ok())
+                    .and_then(|manager| {
+                        manager
+                            .find_map(map_key.map_id, map_key.instance_id)
+                            .and_then(|map| map.map().get_typed_game_object(guid))
+                            .map(|game_object| game_object.owner_guid())
+                    })
             })
             .filter(|owner_guid| !owner_guid.is_empty());
         canonical_owner.or_else(|| {
@@ -12828,13 +13617,21 @@ impl WorldSession {
             .represented_gameobject_use_states
             .get(&guid)
             .and_then(|state| state.owner_guid);
+        let Some(map_key) = self.canonical_object_lookup_map_key_like_cpp(u32::from(map_id)) else {
+            return;
+        };
+        // A represented object from a stale client/map context must never be
+        // materialized beside the player in a different map.
+        if map_key.map_id != u32::from(map_id) {
+            return;
+        }
         let Some(manager) = self.canonical_map_manager.as_ref() else {
             return;
         };
         let Ok(mut manager) = manager.lock() else {
             return;
         };
-        let Some(map) = manager.find_map_mut(u32::from(map_id), 0) else {
+        let Some(map) = manager.find_map_mut(map_key.map_id, map_key.instance_id) else {
             return;
         };
         if map.map().get_game_object(guid).is_some() {
@@ -12855,7 +13652,7 @@ impl WorldSession {
         }
         if game_object
             .world_mut()
-            .set_map(u32::from(map_id), 0)
+            .set_map(map_key.map_id, map_key.instance_id)
             .is_err()
         {
             return;
@@ -12871,19 +13668,192 @@ impl WorldSession {
         let _ = map.map_mut().insert_map_object_record(record);
     }
 
+    pub(crate) fn read_legacy_creature_loot_authority_like_cpp(
+        &self,
+        guid: ObjectGuid,
+    ) -> Option<OwnedLootAuthority> {
+        let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
+        self.read_legacy_creature_loot_authority_on_map_like_cpp(
+            guid,
+            wow_map::MapKey::new(u32::from(map_id), instance_id),
+        )
+    }
+
+    pub(crate) fn read_legacy_creature_loot_authority_on_map_like_cpp(
+        &self,
+        guid: ObjectGuid,
+        map_key: wow_map::MapKey,
+    ) -> Option<OwnedLootAuthority> {
+        let map_id = u16::try_from(map_key.map_id).ok()?;
+        let manager = self.map_manager.as_ref()?;
+        manager
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .find_creature(map_id, map_key.instance_id, guid)
+            .map(|world_creature| world_creature.creature.loot_authority_like_cpp().clone())
+    }
+
+    pub(crate) fn rebind_legacy_creature_loot_authority_like_cpp(
+        &self,
+        guid: ObjectGuid,
+        expected: &OwnedLootAuthority,
+        expected_stamp: OwnedLootAuthorityStamp,
+        authority: OwnedLootAuthority,
+    ) -> Option<bool> {
+        let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
+        self.rebind_legacy_creature_loot_authority_on_map_like_cpp(
+            guid,
+            wow_map::MapKey::new(u32::from(map_id), instance_id),
+            expected,
+            expected_stamp,
+            authority,
+        )
+    }
+
+    pub(crate) fn rebind_legacy_creature_loot_authority_on_map_like_cpp(
+        &self,
+        guid: ObjectGuid,
+        map_key: wow_map::MapKey,
+        expected: &OwnedLootAuthority,
+        expected_stamp: OwnedLootAuthorityStamp,
+        authority: OwnedLootAuthority,
+    ) -> Option<bool> {
+        let map_id = u16::try_from(map_key.map_id).ok()?;
+        let manager = self.map_manager.as_ref()?;
+        manager
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .find_creature_mut(map_id, map_key.instance_id, guid)
+            .and_then(|world_creature| {
+                world_creature
+                    .creature
+                    .rebind_loot_authority_if_current_like_cpp(expected, expected_stamp, authority)
+            })
+    }
+
+    pub(crate) fn read_canonical_creature_loot_authority_like_cpp(
+        &self,
+        guid: ObjectGuid,
+    ) -> Option<OwnedLootAuthority> {
+        let map_key = self
+            .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
+        self.read_canonical_creature_loot_authority_on_map_like_cpp(guid, map_key)
+    }
+
+    pub(crate) fn read_canonical_creature_loot_authority_on_map_like_cpp(
+        &self,
+        guid: ObjectGuid,
+        map_key: wow_map::MapKey,
+    ) -> Option<OwnedLootAuthority> {
+        let manager = self.canonical_map_manager.as_ref()?;
+        let manager = manager.lock().ok()?;
+        manager
+            .find_map(map_key.map_id, map_key.instance_id)?
+            .map()
+            .get_typed_creature(guid)
+            .map(|creature| creature.loot_authority_like_cpp().clone())
+    }
+
+    pub(crate) fn rebind_canonical_creature_loot_authority_like_cpp(
+        &self,
+        guid: ObjectGuid,
+        expected: &OwnedLootAuthority,
+        expected_stamp: OwnedLootAuthorityStamp,
+        authority: OwnedLootAuthority,
+    ) -> Option<bool> {
+        let map_key = self
+            .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
+        self.rebind_canonical_creature_loot_authority_on_map_like_cpp(
+            guid,
+            map_key,
+            expected,
+            expected_stamp,
+            authority,
+        )
+    }
+
+    pub(crate) fn rebind_canonical_creature_loot_authority_on_map_like_cpp(
+        &self,
+        guid: ObjectGuid,
+        map_key: wow_map::MapKey,
+        expected: &OwnedLootAuthority,
+        expected_stamp: OwnedLootAuthorityStamp,
+        authority: OwnedLootAuthority,
+    ) -> Option<bool> {
+        let manager = self.canonical_map_manager.as_ref()?;
+        let mut manager = manager.lock().ok()?;
+        manager
+            .find_map_mut(map_key.map_id, map_key.instance_id)?
+            .map_mut()
+            .get_typed_creature_mut(guid)
+            .and_then(|creature| {
+                creature.rebind_loot_authority_if_current_like_cpp(
+                    expected,
+                    expected_stamp,
+                    authority,
+                )
+            })
+    }
+
+    pub(crate) fn read_canonical_gameobject_loot_authority_like_cpp(
+        &self,
+        guid: ObjectGuid,
+    ) -> Option<OwnedLootAuthority> {
+        let map_key = self
+            .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
+        self.read_canonical_gameobject_loot_authority_on_map_like_cpp(guid, map_key)
+    }
+
+    pub(crate) fn read_canonical_gameobject_loot_authority_on_map_like_cpp(
+        &self,
+        guid: ObjectGuid,
+        map_key: wow_map::MapKey,
+    ) -> Option<OwnedLootAuthority> {
+        let manager = self.canonical_map_manager.as_ref()?;
+        let manager = manager.lock().ok()?;
+        manager
+            .find_map(map_key.map_id, map_key.instance_id)?
+            .map()
+            .get_typed_game_object(guid)
+            .map(|gameobject| gameobject.loot_authority_like_cpp().clone())
+    }
+
+    pub(crate) fn rebind_canonical_gameobject_loot_authority_like_cpp(
+        &self,
+        guid: ObjectGuid,
+        expected: &OwnedLootAuthority,
+        expected_stamp: OwnedLootAuthorityStamp,
+        authority: OwnedLootAuthority,
+    ) -> Option<bool> {
+        let map_key = self
+            .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
+        let manager = self.canonical_map_manager.as_ref()?;
+        let mut manager = manager.lock().ok()?;
+        manager
+            .find_map_mut(map_key.map_id, map_key.instance_id)?
+            .map_mut()
+            .get_typed_game_object_mut(guid)
+            .and_then(|gameobject| {
+                gameobject.rebind_loot_authority_if_current_like_cpp(
+                    expected,
+                    expected_stamp,
+                    authority,
+                )
+            })
+    }
+
     pub(crate) fn mutate_world_creature<F, R>(&mut self, guid: ObjectGuid, f: F) -> Option<R>
     where
         F: FnOnce(&mut crate::map_manager::WorldCreature) -> R,
     {
+        let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
         let mut f = Some(f);
         if let Some(manager) = self.map_manager.as_ref().cloned() {
             let result = {
                 let mut manager = manager
                     .write()
                     .unwrap_or_else(|poisoned| poisoned.into_inner());
-                if let Some(creature) =
-                    manager.find_creature_mut(self.player_map_id_like_cpp(), 0, guid)
-                {
+                if let Some(creature) = manager.find_creature_mut(map_id, instance_id, guid) {
                     let result = f.take().expect("creature mutator is called once")(creature);
                     Some((result, creature.position(), creature.creature.clone()))
                 } else {
@@ -12900,6 +13870,46 @@ impl WorldSession {
         None
     }
 
+    pub(crate) fn mutate_world_creature_if_fully_looted_observation_like_cpp<F, R>(
+        &mut self,
+        guid: ObjectGuid,
+        authority: &OwnedLootAuthority,
+        object_generation: u64,
+        lifecycle_revision: u64,
+        f: F,
+    ) -> Option<R>
+    where
+        F: FnOnce(&mut crate::map_manager::WorldCreature) -> R,
+    {
+        let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
+        let manager = self.map_manager.as_ref().cloned()?;
+        let guarded_result = {
+            let mut manager = manager
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let creature = manager.find_creature_mut(map_id, instance_id, guid)?;
+            if !creature
+                .creature
+                .loot_authority_like_cpp()
+                .shares_storage_like_cpp(authority)
+            {
+                return None;
+            }
+            authority.with_fully_looted_lifecycle_observation_like_cpp(
+                object_generation,
+                lifecycle_revision,
+                || {
+                    let result = f(creature);
+                    (result, creature.position(), creature.creature.clone())
+                },
+            )
+        }?;
+        let (result, position, creature) = guarded_result;
+        self.relocate_canonical_creature_map_object_like_cpp(guid, position);
+        self.sync_canonical_creature_entity_like_cpp(creature);
+        Some(result)
+    }
+
     pub(crate) fn pause_interacted_creature_movement_like_cpp(&mut self, guid: ObjectGuid) -> bool {
         self.mutate_world_creature(guid, |creature| {
             creature.pause_interaction_movement_like_cpp()
@@ -12908,11 +13918,12 @@ impl WorldSession {
     }
 
     pub(crate) fn world_creature_guids(&self) -> Vec<ObjectGuid> {
+        let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
         if let Some(manager) = &self.map_manager {
             return manager
                 .read()
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
-                .creature_guids(self.player_map_id_like_cpp(), 0);
+                .creature_guids(map_id, instance_id);
         }
 
         Vec::new()
@@ -12925,12 +13936,13 @@ impl WorldSession {
         let Some(manager) = &self.map_manager else {
             return Vec::new();
         };
+        let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
         manager
             .read()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .active_creature_guids_for_player_update_like_cpp(
-                self.player_map_id_like_cpp(),
-                0,
+                map_id,
+                instance_id,
                 player_position,
                 self.represented_player_phase_shift_like_cpp(),
             )
@@ -12942,9 +13954,9 @@ impl WorldSession {
 
     /// Push a `PendingRespawn` into the shared map's respawn queue.
     ///
-    /// instance_id=0: legacy path limitation — consistent with `register_world_creature`,
-    /// `remove_world_creature`, and `mutate_world_creature` which all hardcode 0.
-    /// The canonical respawn store (wow_map `RespawnStoreLikeCpp`) is a separate step.
+    /// The registration bootstrap still defaults to instance `0`; live removal/mutation
+    /// follows the canonical Player instance. The canonical respawn store
+    /// (`wow_map::RespawnStoreLikeCpp`) is a separate step.
     /// Lock is acquired, respawn is pushed, then lock is released before returning.
     /// No `.await` is performed under lock.
     pub(crate) fn push_map_respawn_like_cpp(
@@ -12997,6 +14009,7 @@ impl WorldSession {
         let mut seen = std::collections::HashSet::new();
 
         if let Some(manager) = &self.map_manager {
+            let (_, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
             let visibility_range = self.player_map_visibility_range_like_cpp(map_id);
             creatures.extend(
                 manager
@@ -13004,7 +14017,7 @@ impl WorldSession {
                     .unwrap_or_else(|poisoned| poisoned.into_inner())
                     .get_visible_creatures_in_phase(
                         map_id,
-                        0,
+                        instance_id,
                         position.x,
                         position.y,
                         position.z,
@@ -13715,6 +14728,17 @@ impl WorldSession {
     /// Set the GUID generator for new characters.
     pub fn set_guid_generator(&mut self, generator: Arc<ObjectGuidGenerator>) {
         self.guid_generator = Some(generator);
+    }
+
+    /// Install the process-wide C++
+    /// `sObjectMgr->GetGenerator<HighGuid::Item>()` mirror.
+    pub fn set_item_guid_generator_like_cpp(&mut self, generator: Arc<ObjectGuidGenerator>) {
+        assert_eq!(
+            generator.high_guid(),
+            HighGuid::Item,
+            "item GUID allocator must use HighGuid::Item"
+        );
+        self.item_guid_generator_like_cpp = Some(generator);
     }
 
     /// Set the login database for this session.
@@ -18677,7 +19701,6 @@ impl WorldSession {
             return false;
         };
 
-        let top_level_slot = top_level_inventory_item.as_ref().map(|(slot, _)| *slot);
         let top_level_inventory_item = top_level_inventory_item.map(|(_, item)| item);
         let item_entry_id = top_level_inventory_item
             .as_ref()
@@ -18689,9 +19712,6 @@ impl WorldSession {
             .unwrap_or_else(|| item_guid.counter() as u64);
         let current_durability = item_object.data().durability;
         let max_durability = item_object.data().max_durability;
-        let was_broken = item_object.is_broken();
-        let equipped_slot = top_level_slot
-            .filter(|slot| is_equipment_packed_pos(make_item_pos(INVENTORY_SLOT_BAG_0, *slot)));
         let cost = self.item_durability_repair_cost_like_cpp(
             item_entry_id,
             current_durability,
@@ -18700,18 +19720,64 @@ impl WorldSession {
             repair_cost_rate,
         );
 
-        if take_cost {
+        if take_cost && cost != 0 {
+            let Some(money_persistence) = self
+                .begin_exclusive_player_money_persistence_like_cpp()
+                .await
+            else {
+                return false;
+            };
             let old_money = self.player_gold_like_cpp();
             if old_money < cost {
                 return false;
             }
-            if cost != 0 {
-                self.apply_player_money_change_like_cpp(old_money, old_money - cost)
-                    .await;
-            }
-        }
+            let new_money = old_money - cost;
 
-        if let Some(char_db) = self.char_db.as_ref() {
+            let money_persistence = if let Some(char_db) = self.char_db.as_ref().map(Arc::clone) {
+                let Some(player_guid) = self.player_guid() else {
+                    return false;
+                };
+                let mut transaction = SqlTransaction::new();
+                transaction.append(Self::build_character_gold_save_statement_like_cpp(
+                    new_money,
+                    player_guid.counter() as u64,
+                ));
+                let mut durability = char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_DURABILITY);
+                durability.set_u32(0, max_durability);
+                durability.set_u64(1, item_db_guid);
+                transaction.append(durability);
+                let Some(money_persistence) = self
+                    .commit_exclusive_player_money_transaction_like_cpp(
+                        money_persistence,
+                        char_db.as_ref(),
+                        transaction,
+                        old_money,
+                        new_money,
+                        "single item durability repair",
+                    )
+                    .await
+                else {
+                    return false;
+                };
+                money_persistence
+            } else {
+                // Unit fixtures do not install a CharacterDatabase. A live
+                // session always has one; without it no detached SQL payout
+                // can originate from this session either.
+                money_persistence
+            };
+
+            // The committed transaction repaired the item and charged money.
+            // Publish both runtime fields before the guard opens; otherwise a
+            // cancelled criteria drain can leave durable durability repaired
+            // while the live item remains broken.
+            self.stage_player_money_change_like_cpp(old_money, new_money);
+            let repaired = self.apply_inventory_item_durability_repair_runtime_like_cpp(item_guid);
+            drop(money_persistence);
+            self.drain_represented_quest_objective_progress_like_cpp()
+                .await;
+            return repaired;
+        } else if let Some(char_db) = self.char_db.as_ref() {
             let mut stmt = char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_DURABILITY);
             stmt.set_u32(0, max_durability);
             stmt.set_u64(1, item_db_guid);
@@ -18725,6 +19791,24 @@ impl WorldSession {
             }
         }
 
+        self.apply_inventory_item_durability_repair_runtime_like_cpp(item_guid)
+    }
+
+    fn apply_inventory_item_durability_repair_runtime_like_cpp(
+        &mut self,
+        item_guid: ObjectGuid,
+    ) -> bool {
+        let top_level_slot = self
+            .inventory_items_like_cpp()
+            .iter()
+            .find_map(|(&slot, item)| (item.guid == item_guid).then_some(slot));
+        let Some(item_object) = self.inventory_item_objects_like_cpp().get(&item_guid) else {
+            return false;
+        };
+        let max_durability = item_object.data().max_durability;
+        let was_broken = item_object.is_broken();
+        let equipped_slot = top_level_slot
+            .filter(|slot| is_equipment_packed_pos(make_item_pos(INVENTORY_SLOT_BAG_0, *slot)));
         let updated = self.update_inventory_item_object_like_cpp(item_guid, |item| {
             item.set_durability(max_durability);
         });
@@ -18767,27 +19851,86 @@ impl WorldSession {
     ) -> bool {
         let repair_items =
             self.repairable_inventory_item_costs_like_cpp(discount, repair_cost_rate);
+        if repair_items.is_empty() {
+            return true;
+        }
         let total_cost = repair_items
             .iter()
             .fold(0u64, |total, (_, cost)| total.saturating_add(*cost));
-
-        if self.player_gold_like_cpp() < total_cost {
+        let planned_repairs = repair_items
+            .iter()
+            .filter_map(|(item_guid, _)| {
+                let item = self.inventory_item_objects_like_cpp().get(item_guid)?;
+                let db_guid = self
+                    .inventory_items_like_cpp()
+                    .values()
+                    .find(|inventory_item| inventory_item.guid == *item_guid)
+                    .map(|inventory_item| inventory_item.db_guid)
+                    .unwrap_or_else(|| item_guid.counter() as u64);
+                Some((*item_guid, db_guid, item.data().max_durability))
+            })
+            .collect::<Vec<_>>();
+        if planned_repairs.len() != repair_items.len() {
             return false;
         }
 
-        if total_cost != 0 {
-            let old_money = self.player_gold_like_cpp();
-            self.apply_player_money_change_like_cpp(old_money, old_money - total_cost)
-                .await;
+        let Some(money_persistence) = self
+            .begin_exclusive_player_money_persistence_like_cpp()
+            .await
+        else {
+            return false;
+        };
+        let old_money = self.player_gold_like_cpp();
+        if old_money < total_cost {
+            return false;
         }
+        let new_money = old_money - total_cost;
 
+        let money_persistence = if let Some(char_db) = self.char_db.as_ref().map(Arc::clone) {
+            let Some(player_guid) = self.player_guid() else {
+                return false;
+            };
+            let mut transaction = SqlTransaction::new();
+            transaction.append(Self::build_character_gold_save_statement_like_cpp(
+                new_money,
+                player_guid.counter() as u64,
+            ));
+            for &(_, db_guid, max_durability) in &planned_repairs {
+                let mut durability = char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_DURABILITY);
+                durability.set_u32(0, max_durability);
+                durability.set_u64(1, db_guid);
+                transaction.append(durability);
+            }
+            let Some(money_persistence) = self
+                .commit_exclusive_player_money_transaction_like_cpp(
+                    money_persistence,
+                    char_db.as_ref(),
+                    transaction,
+                    old_money,
+                    new_money,
+                    "all-items durability repair",
+                )
+                .await
+            else {
+                return false;
+            };
+            money_persistence
+        } else {
+            money_persistence
+        };
+
+        // Money and every durability row share one COMMIT. Mirror all of those
+        // rows in runtime while admission is still fenced and before the first
+        // cancellation point.
+        self.stage_player_money_change_like_cpp(old_money, new_money);
         let mut repaired_any = false;
-        for (item_guid, _) in repair_items {
-            repaired_any |= self
-                .repair_inventory_item_durability_like_cpp(item_guid, false, 0.0, repair_cost_rate)
-                .await;
+        for (item_guid, _, _) in planned_repairs {
+            repaired_any |= self.apply_inventory_item_durability_repair_runtime_like_cpp(item_guid);
         }
-        repaired_any || total_cost == 0
+        drop(money_persistence);
+        self.drain_represented_quest_objective_progress_like_cpp()
+            .await;
+        repaired_any
     }
 
     /// C++ `Player::DurabilityRepairAll(takeCost=true, guildBank=true)` for represented items.
@@ -20078,7 +21221,21 @@ impl WorldSession {
     pub(crate) fn set_active_loot_guid(&mut self, guid: ObjectGuid) {
         self.active_loot_guid = ObjectGuid::EMPTY;
         self.active_loot_view_owners.clear();
+        self.active_loot_view_generations_like_cpp.clear();
+        self.active_loot_view_authorities_like_cpp.clear();
         self.add_active_loot_view_owner_like_cpp(guid);
+    }
+
+    pub(crate) fn has_active_loot_views_like_cpp(&self) -> bool {
+        !self.active_loot_guid.is_empty() || !self.active_loot_view_owners.is_empty()
+    }
+
+    pub(crate) fn has_active_non_item_loot_views_like_cpp(&self) -> bool {
+        (!self.active_loot_guid.is_empty() && !self.active_loot_guid.is_item())
+            || self
+                .active_loot_view_owners
+                .iter()
+                .any(|guid| !guid.is_item())
     }
 
     pub(crate) fn add_active_loot_view_owner_like_cpp(&mut self, guid: ObjectGuid) {
@@ -20091,10 +21248,20 @@ impl WorldSession {
         }
 
         self.active_loot_view_owners.insert(guid);
+        if let Some(generation) = self
+            .represented_loot_cache_generations_like_cpp
+            .get(&guid)
+            .copied()
+        {
+            self.active_loot_view_generations_like_cpp
+                .insert(guid, generation);
+        }
     }
 
     pub(crate) fn clear_active_loot_guid_if(&mut self, guid: ObjectGuid) {
         self.active_loot_view_owners.remove(&guid);
+        self.active_loot_view_generations_like_cpp.remove(&guid);
+        self.active_loot_view_authorities_like_cpp.remove(&guid);
         if self.active_loot_guid == guid {
             self.active_loot_guid = ObjectGuid::EMPTY;
         }
@@ -23330,8 +24497,228 @@ impl WorldSession {
         self.quest_faction_reward_store = Some(store);
     }
 
+    async fn reconcile_durable_loot_money_before_save_like_cpp(&mut self) -> bool {
+        let tracker = Arc::clone(&self.durable_loot_money_persistence_like_cpp);
+        tracker.wait_until_idle_like_cpp().await;
+        let completions = tracker.pending_completions_like_cpp();
+        for completion in completions {
+            if completion
+                .applied
+                .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+                .is_err()
+            {
+                continue;
+            }
+            let old_money = self.player_gold_like_cpp();
+            let new_money = old_money
+                .checked_add(completion.durable_applied_amount)
+                .filter(|money| *money <= MAX_MONEY_AMOUNT)
+                .unwrap_or(old_money);
+            self.set_player_gold_like_cpp(new_money);
+            if old_money != new_money {
+                self.enqueue_represented_quest_objective_progress_like_cpp(
+                    RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
+                        old_money,
+                        new_money,
+                    },
+                );
+            }
+        }
+
+        // Do not drain money criteria while the save fence is held. That path
+        // can reward a quest and re-enter `save_player_gold`, which would wait
+        // on this same fence. Queue the exact transition here; normal command
+        // publication or the save caller drains it only after releasing the
+        // fence. This keeps a save-first completion from losing MoneyChanged.
+
+        if tracker.is_indeterminate_like_cpp() {
+            self.kick("loot-money COMMIT outcome is unknown; skipping absolute money save");
+            return false;
+        }
+        true
+    }
+
+    /// Close detached-payout admission, wait for every previously admitted
+    /// worker, apply its exact-once durable deltas, then acquire the character
+    /// money mutation lock. Callers must derive old/new runtime values only
+    /// after this returns and retain the guard through their DB COMMIT.
+    pub(crate) async fn begin_exclusive_player_money_persistence_like_cpp(
+        &mut self,
+    ) -> Option<ExclusivePlayerMoneyPersistenceLikeCpp> {
+        let tracker = Arc::clone(&self.durable_loot_money_persistence_like_cpp);
+        let save_fence = tracker.close_admission_for_save_like_cpp();
+        tracker.wait_until_idle_like_cpp().await;
+        if !self
+            .reconcile_durable_loot_money_before_save_like_cpp()
+            .await
+        {
+            return None;
+        }
+        let mutation_lock = tracker.lock_money_mutation_like_cpp().await;
+        Some(ExclusivePlayerMoneyPersistenceLikeCpp {
+            _save_fence: save_fence,
+            _mutation_lock: mutation_lock,
+        })
+    }
+
+    /// Derive one runtime money change only after the shared payout barrier,
+    /// persist it while admission and the mutation mutex remain held, then
+    /// publish the runtime value. Criteria must be queued/drained by the caller
+    /// after this returns so reward callbacks cannot re-enter under the fence.
+    pub(crate) async fn mutate_and_persist_player_gold_exclusive_like_cpp<F>(
+        &mut self,
+        mutation: F,
+    ) -> Option<(u64, u64)>
+    where
+        F: FnOnce(u64) -> u64,
+    {
+        let money_persistence = self
+            .begin_exclusive_player_money_persistence_like_cpp()
+            .await?;
+        let guid = self.player_guid()?.counter() as u64;
+        let old_money = self.player_gold_like_cpp();
+        let new_money = mutation(old_money);
+
+        #[cfg(test)]
+        if let Some(success) = self.loot_money_persistence_test_result_like_cpp {
+            if !success {
+                return None;
+            }
+            self.set_player_gold_like_cpp(new_money);
+            drop(money_persistence);
+            return Some((old_money, new_money));
+        }
+
+        if old_money == new_money {
+            drop(money_persistence);
+            return Some((old_money, new_money));
+        }
+
+        let char_db = self.char_db().map(Arc::clone)?;
+        let mut transaction = SqlTransaction::new();
+        transaction.append(Self::build_character_gold_save_statement_like_cpp(
+            new_money, guid,
+        ));
+        let money_persistence = self
+            .commit_exclusive_player_money_transaction_like_cpp(
+                money_persistence,
+                char_db.as_ref(),
+                transaction,
+                old_money,
+                new_money,
+                "exclusive player-money mutation",
+            )
+            .await?;
+        self.set_player_gold_like_cpp(new_money);
+        drop(money_persistence);
+        Some((old_money, new_money))
+    }
+
+    /// Commit a transaction whose money change can act as its reconciliation
+    /// marker. On a definite rollback, dropping the returned `None` reopens
+    /// normal payout admission. On an ambiguous COMMIT, the current durable
+    /// money row is compared with the exact pre/post values while the shared
+    /// per-character mutation lock remains held.
+    ///
+    /// Callers must publish every runtime mutation covered by `transaction`
+    /// before dropping the returned guard. If `money_before == money_after`,
+    /// an ambiguous COMMIT is necessarily quarantined because an unchanged
+    /// money row cannot prove whether other statements committed.
+    pub(crate) async fn commit_exclusive_player_money_transaction_like_cpp(
+        &mut self,
+        money_persistence: ExclusivePlayerMoneyPersistenceLikeCpp,
+        char_db: &CharacterDatabase,
+        transaction: SqlTransaction,
+        money_before: u64,
+        money_after: u64,
+        operation: &'static str,
+    ) -> Option<ExclusivePlayerMoneyPersistenceLikeCpp> {
+        let mut cancellation_fence = PlayerMoneyCommitCancellationFenceLikeCpp::new(Arc::clone(
+            &self.durable_loot_money_persistence_like_cpp,
+        ));
+        let commit_result = transaction
+            .commit_with_outcome_like_cpp(char_db.pool())
+            .await;
+        match commit_result {
+            Ok(()) => {
+                cancellation_fence.disarm_like_cpp();
+                Some(money_persistence)
+            }
+            Err(SqlTransactionCommitError::DefinitelyRolledBack(error)) => {
+                cancellation_fence.disarm_like_cpp();
+                warn!(%error, operation, "player-money transaction definitely rolled back");
+                None
+            }
+            Err(SqlTransactionCommitError::CommitOutcomeUnknown(error)) => {
+                let observed_money = match self.player_guid() {
+                    Some(player_guid) => {
+                        sqlx::query_scalar::<_, u64>("SELECT money FROM characters WHERE guid = ?")
+                            .bind(player_guid.counter() as u64)
+                            .fetch_optional(char_db.pool())
+                            .await
+                            .ok()
+                            .flatten()
+                    }
+                    None => None,
+                };
+
+                match reconcile_absolute_player_money_commit_like_cpp(
+                    money_before,
+                    money_after,
+                    observed_money,
+                ) {
+                    AbsolutePlayerMoneyCommitReconciliationLikeCpp::Committed => {
+                        cancellation_fence.disarm_like_cpp();
+                        warn!(
+                            %error,
+                            operation,
+                            money_before,
+                            money_after,
+                            "player-money COMMIT reply was lost but durable money proves the transaction committed"
+                        );
+                        Some(money_persistence)
+                    }
+                    AbsolutePlayerMoneyCommitReconciliationLikeCpp::RolledBack => {
+                        cancellation_fence.disarm_like_cpp();
+                        warn!(
+                            %error,
+                            operation,
+                            money_before,
+                            money_after,
+                            "player-money COMMIT reply was lost but durable money proves the transaction rolled back"
+                        );
+                        None
+                    }
+                    AbsolutePlayerMoneyCommitReconciliationLikeCpp::Indeterminate => {
+                        self.durable_loot_money_persistence_like_cpp
+                            .mark_indeterminate_like_cpp();
+                        cancellation_fence.disarm_like_cpp();
+                        self.kick(
+                            "player-money COMMIT outcome is unknown; relog required before another money mutation",
+                        );
+                        warn!(
+                            %error,
+                            operation,
+                            money_before,
+                            money_after,
+                            ?observed_money,
+                            "player-money COMMIT outcome remains indeterminate; quarantined the session"
+                        );
+                        None
+                    }
+                }
+            }
+        }
+    }
+
     /// Save current player gold to the characters DB.
-    pub(crate) async fn save_player_gold(&self) {
+    pub(crate) async fn save_player_gold(&mut self) {
+        let Some(money_persistence) = self
+            .begin_exclusive_player_money_persistence_like_cpp()
+            .await
+        else {
+            return;
+        };
         let guid = match self.player_guid() {
             Some(g) => g.counter() as u64,
             None => return,
@@ -23340,9 +24727,446 @@ impl WorldSession {
             Some(db) => Arc::clone(db),
             None => return,
         };
-        let stmt =
-            Self::build_character_gold_save_statement_like_cpp(self.player_gold_like_cpp(), guid);
-        let _ = char_db.execute(&stmt).await;
+        let money = self.player_gold_like_cpp();
+        let mut transaction = SqlTransaction::new();
+        transaction.append(Self::build_character_gold_save_statement_like_cpp(
+            money, guid,
+        ));
+        // For an absolute one-column save the pre-transaction durable value is
+        // unknown. Pass equal sentinels so any lost COMMIT reply is quarantined
+        // instead of guessing from a coincidentally equal row.
+        let money_persistence = self
+            .commit_exclusive_player_money_transaction_like_cpp(
+                money_persistence,
+                char_db.as_ref(),
+                transaction,
+                money,
+                money,
+                "absolute player-money save",
+            )
+            .await;
+        drop(money_persistence);
+        self.drain_represented_quest_objective_progress_like_cpp()
+            .await;
+    }
+
+    /// Persist an explicit player-money value and surface database failures to
+    /// callers that must not expose a loot payout before it is durable.
+    ///
+    /// Unlike [`Self::save_player_gold`], this helper fails closed when there is
+    /// no selected player or character database. Focused tests must opt into an
+    /// explicit persistence result through the test seam below.
+    pub(crate) async fn persist_player_gold_checked_like_cpp(
+        &self,
+        money: u64,
+    ) -> Result<(), LootMoneyPersistenceErrorLikeCpp> {
+        #[cfg(test)]
+        if let Some(success) = self.loot_money_persistence_test_result_like_cpp {
+            return success
+                .then_some(())
+                .ok_or(LootMoneyPersistenceErrorLikeCpp::MissingCharacterDatabase);
+        }
+
+        let guid = self
+            .player_guid()
+            .ok_or(LootMoneyPersistenceErrorLikeCpp::MissingPlayer)?;
+        let char_db = self
+            .char_db()
+            .map(Arc::clone)
+            .ok_or(LootMoneyPersistenceErrorLikeCpp::MissingCharacterDatabase)?;
+        let stmt = Self::build_character_gold_save_statement_like_cpp(money, guid.counter() as u64);
+        char_db
+            .execute(&stmt)
+            .await
+            .map(|_| ())
+            .map_err(LootMoneyPersistenceErrorLikeCpp::Database)
+    }
+
+    /// Start the complete durable half of one shared money claim in a detached
+    /// task.  The task owns the lease across `COMMIT`, commits the authority in
+    /// the same task immediately after SQL success, then schedules the
+    /// already-durable session-local applications.
+    ///
+    /// Dropping or aborting the packet-handler future only drops its
+    /// `JoinHandle`; Tokio keeps this worker alive.  This closes the duplicate
+    /// window where SQL could commit after the handler was cancelled while the
+    /// lease's `Drop` reopened the object pool.
+    ///
+    /// Boundary: this is an in-process guarantee, not a durable claim journal.
+    /// Aborting this detached task (including runtime/process shutdown) at the
+    /// database commit await boundary can still lose the continuation between
+    /// durable SQL and the synchronous authority commit. Recovery across that
+    /// boundary requires persisting claim identity in the same transaction and
+    /// replaying it at startup; #106 does not yet provide such a journal.
+    /// Delivery tasks may likewise outlive a target session, but they carry
+    /// only runtime publication: durable player money reloads from SQL and the
+    /// already-committed authority prevents a second in-process payout.
+    pub(crate) fn spawn_group_loot_money_persistence_like_cpp(
+        &self,
+        mut payouts: Vec<(ObjectGuid, u64)>,
+        claim: LootClaimLease,
+        mut deliveries: Vec<(flume::Sender<SessionCommand>, SessionCommand)>,
+        authority_committed: Arc<AtomicBool>,
+        viewer_fanout: LootMoneyViewerFanoutLikeCpp,
+    ) -> Result<
+        tokio::task::JoinHandle<Result<(), LootMoneyPersistenceErrorLikeCpp>>,
+        LootMoneyPersistenceErrorLikeCpp,
+    > {
+        if payouts.is_empty() {
+            return Err(LootMoneyPersistenceErrorLikeCpp::MissingPlayer);
+        }
+        if self.player_guid().is_none() {
+            return Err(LootMoneyPersistenceErrorLikeCpp::MissingPlayer);
+        }
+
+        #[cfg(test)]
+        let test_result = self.loot_money_persistence_test_result_like_cpp;
+        #[cfg(not(test))]
+        let test_result: Option<bool> = None;
+
+        payouts
+            .sort_unstable_by_key(|(recipient, _)| (recipient.high_value(), recipient.low_value()));
+        payouts.dedup_by_key(|(recipient, _)| *recipient);
+
+        // Register every recipient directly before any SQL begins. Commands
+        // are publication-only; waiting for target acknowledgements here would
+        // create self/A↔B deadlocks between concurrent group looters.
+        let payout_recipients = payouts
+            .iter()
+            .map(|(recipient, _)| *recipient)
+            .collect::<HashSet<_>>();
+        let mut money_persistence_guards = HashMap::<
+            ObjectGuid,
+            DurableLootMoneyPersistenceGuardLikeCpp,
+        >::with_capacity(payouts.len());
+        let mut money_mutation_trackers = HashMap::<
+            ObjectGuid,
+            Arc<DurableLootMoneyPersistenceTrackerLikeCpp>,
+        >::with_capacity(payouts.len());
+        for (_, command) in &deliveries {
+            let SessionCommand::ApplyLootMoneyLikeCpp(command) = command else {
+                continue;
+            };
+            if payout_recipients.contains(&command.recipient)
+                && !money_persistence_guards.contains_key(&command.recipient)
+            {
+                let guard = command
+                    .durable_persistence_tracker
+                    .begin_like_cpp()
+                    .map_err(|_| LootMoneyPersistenceErrorLikeCpp::MissingPlayer)?;
+                money_persistence_guards.insert(command.recipient, guard);
+                money_mutation_trackers.insert(
+                    command.recipient,
+                    Arc::clone(&command.durable_persistence_tracker),
+                );
+            }
+        }
+        if money_persistence_guards.len() != payouts.len() {
+            return Err(LootMoneyPersistenceErrorLikeCpp::MissingPlayer);
+        }
+
+        let char_db = if test_result.is_some() {
+            None
+        } else {
+            Some(
+                self.char_db()
+                    .map(Arc::clone)
+                    .ok_or(LootMoneyPersistenceErrorLikeCpp::MissingCharacterDatabase)?,
+            )
+        };
+
+        let mut persistence_guard = claim
+            .begin_persistence_guard_like_cpp()
+            .map_err(LootMoneyPersistenceErrorLikeCpp::Claim)?;
+        drop(claim);
+
+        Ok(tokio::spawn(async move {
+            // Match the sorted character-row lock order below. Stored-item
+            // money uses the same per-character lock before it takes the row,
+            // so COMMIT reconciliation cannot be confused by a later local
+            // payout interleaving between the failed reply and our reads.
+            let mut _money_mutation_locks = Vec::with_capacity(payouts.len());
+            for (recipient, _) in &payouts {
+                _money_mutation_locks.push(
+                    money_mutation_trackers
+                        .get(recipient)
+                        .expect("every payout retained its target mutation lock")
+                        .lock_money_mutation_like_cpp()
+                        .await,
+                );
+            }
+
+            let durable_outcomes = if let Some(success) = test_result {
+                // Give cancellation regressions a deterministic opportunity to
+                // drop the outer waiter while this detached task owns `claim`.
+                tokio::task::yield_now().await;
+                if !success {
+                    return Err(LootMoneyPersistenceErrorLikeCpp::MissingCharacterDatabase);
+                }
+                payouts
+                    .iter()
+                    .map(|(recipient, amount)| {
+                        (
+                            *recipient,
+                            DurableLootMoneyDbOutcomeLikeCpp {
+                                before: 0,
+                                after: *amount,
+                                applied_delta: *amount,
+                            },
+                        )
+                    })
+                    .collect::<HashMap<_, _>>()
+            } else {
+                let char_db =
+                    char_db.expect("production loot-money worker must own a character database");
+                let attempt = retry_deadlocked_operation_like_cpp(
+                    || attempt_group_loot_money_transaction_like_cpp(char_db.as_ref(), &payouts),
+                    group_loot_money_attempt_is_deadlock_like_cpp,
+                )
+                .await;
+                let durable_outcomes = match attempt {
+                    Ok(outcomes) => outcomes,
+                    Err(GroupLootMoneyAttemptErrorLikeCpp::DefinitelyRolledBack(error)) => {
+                        return Err(error);
+                    }
+                    Err(GroupLootMoneyAttemptErrorLikeCpp::CommitOutcomeUnknown {
+                        error: commit_error,
+                        outcomes: durable_outcomes,
+                    }) => {
+                        // A transport failure at COMMIT is ambiguous. While every
+                        // recipient fence remains registered, compare only rows
+                        // whose value changed. A cap-only no-op has no durable
+                        // mutation to distinguish: either COMMIT outcome permits
+                        // the same safe authority consumption with zero delta.
+                        let changed = durable_outcomes
+                            .iter()
+                            .filter(|(_, outcome)| outcome.before != outcome.after)
+                            .collect::<Vec<_>>();
+                        let cap_only_noop = changed.is_empty();
+                        let mut all_before = !cap_only_noop;
+                        let mut all_after = !cap_only_noop;
+                        let mut reconciliation_failed = false;
+                        for (recipient, outcome) in changed {
+                            match sqlx::query_scalar::<_, u64>(
+                                "SELECT money FROM characters WHERE guid = ?",
+                            )
+                            .bind(recipient.counter() as u64)
+                            .fetch_optional(char_db.pool())
+                            .await
+                            {
+                                Ok(Some(current)) => {
+                                    all_before &= current == outcome.before;
+                                    all_after &= current == outcome.after;
+                                }
+                                Ok(None) | Err(_) => {
+                                    reconciliation_failed = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if all_before && !all_after && !reconciliation_failed {
+                            return Err(LootMoneyPersistenceErrorLikeCpp::Database(
+                                DatabaseError::Transaction(
+                                    "loot-money COMMIT was reconciled as rolled back".to_string(),
+                                ),
+                            ));
+                        }
+                        if !cap_only_noop && (!all_after || all_before || reconciliation_failed) {
+                            for guard in money_persistence_guards.values_mut() {
+                                guard.mark_indeterminate_like_cpp();
+                            }
+                            let _ = persistence_guard.quarantine_commit_unknown_like_cpp();
+                            for (command_tx, _) in &deliveries {
+                                let kick = SessionCommand::KickLikeCpp(KickLikeCppCommand {
+                                    reason: "loot-money COMMIT outcome is unknown; relog required"
+                                        .to_string(),
+                                });
+                                if let Err(error) = command_tx.try_send(kick) {
+                                    let command_tx = command_tx.clone();
+                                    let kick = error.into_inner();
+                                    tokio::spawn(async move {
+                                        let _ = command_tx.send_async(kick).await;
+                                    });
+                                }
+                            }
+                            return Err(LootMoneyPersistenceErrorLikeCpp::CommitOutcomeUnknown(
+                                commit_error,
+                            ));
+                        }
+                        durable_outcomes
+                    }
+                };
+                durable_outcomes
+            };
+
+            for (_, command) in &mut deliveries {
+                if let SessionCommand::ApplyLootMoneyLikeCpp(command) = command {
+                    let outcome = durable_outcomes
+                        .get(&command.recipient)
+                        .copied()
+                        .expect("every admitted payout retains its locked DB outcome");
+                    command
+                        .durable_applied_amount
+                        .store(outcome.applied_delta, Ordering::Release);
+                    money_persistence_guards
+                        .get_mut(&command.recipient)
+                        .expect("every payout registered its target money fence")
+                        .commit_like_cpp(DurableLootMoneyCompletionLikeCpp {
+                            durable_money_before: outcome.before,
+                            durable_money_after: outcome.after,
+                            durable_applied_amount: outcome.applied_delta,
+                            applied: Arc::clone(&command.applied),
+                        });
+                }
+            }
+
+            let committed_snapshot = match persistence_guard.commit_with_snapshot_like_cpp() {
+                Ok((_, committed_snapshot)) => {
+                    authority_committed.store(true, Ordering::Release);
+                    committed_snapshot
+                }
+                Err(error) => {
+                    // SQL is already durable. Never let a lifecycle race reopen
+                    // this old allocation; payout publication still proceeds,
+                    // but replacement loot is not touched.
+                    warn!(?error, "durable loot-money authority commit failed closed");
+                    let _ = persistence_guard.quarantine_commit_unknown_like_cpp();
+                    None
+                }
+            };
+
+            // `Loot::PlayersLooting` can grow while the detached SQL task is
+            // running. The snapshot above was captured by the commit while
+            // holding the same authority mutex: every included opener saw
+            // non-zero money, and every later opener sees zero directly.
+            let mut viewers = committed_snapshot
+                .filter(|snapshot| {
+                    snapshot.generation == viewer_fanout.authority_generation
+                        && snapshot.loot.loot_guid == viewer_fanout.loot_obj
+                })
+                .map(|snapshot| {
+                    snapshot
+                        .loot
+                        .players_looting
+                        .into_iter()
+                        .collect::<HashSet<_>>()
+                })
+                .unwrap_or_default();
+
+            for (_, command) in &mut deliveries {
+                if let SessionCommand::ApplyLootMoneyLikeCpp(command) = command {
+                    command
+                        .send_coin_removed
+                        .store(viewers.remove(&command.recipient), Ordering::Release);
+                }
+            }
+
+            for viewer in viewers {
+                if viewer_fanout.payout_recipients.contains(&viewer) {
+                    continue;
+                }
+                let command_tx = if viewer == viewer_fanout.source_player {
+                    Some(viewer_fanout.source_command_tx.clone())
+                } else {
+                    viewer_fanout.player_registry.as_ref().and_then(|registry| {
+                        let target = registry.get(&viewer)?;
+                        (target.is_in_world
+                            && target.map_id == viewer_fanout.map_id
+                            && target.instance_id == viewer_fanout.instance_id)
+                            .then(|| target.command_tx.clone())
+                    })
+                };
+                let Some(command_tx) = command_tx else {
+                    continue;
+                };
+                deliveries.push((
+                    command_tx,
+                    SessionCommand::NotifyLootMoneyRemovedLikeCpp(
+                        NotifyLootMoneyRemovedLikeCppCommand {
+                            recipient: viewer,
+                            loot_owner: viewer_fanout.loot_owner,
+                            loot_obj: viewer_fanout.loot_obj,
+                            authority: viewer_fanout.authority.clone(),
+                            authority_generation: viewer_fanout.authority_generation,
+                            authority_committed: Arc::clone(&authority_committed),
+                        },
+                    ),
+                ));
+            }
+
+            // Do not make persistence wait for another session's bounded
+            // command queue. Each delivery task owns its command until the
+            // target drains capacity or disconnects.
+            for (command_tx, command) in deliveries {
+                if let Err(error) = command_tx.try_send(command) {
+                    let command = error.into_inner();
+                    tokio::spawn(async move {
+                        let _ = command_tx.send_async(command).await;
+                    });
+                }
+            }
+            Ok(())
+        }))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_loot_money_persistence_test_result_like_cpp(&mut self, success: bool) {
+        self.loot_money_persistence_test_result_like_cpp = Some(success);
+    }
+
+    pub(crate) fn loot_money_persistence_test_result_for_worker_like_cpp(&self) -> Option<bool> {
+        #[cfg(test)]
+        {
+            self.loot_money_persistence_test_result_like_cpp
+        }
+        #[cfg(not(test))]
+        {
+            None
+        }
+    }
+
+    pub(crate) fn begin_durable_item_loot_persistence_like_cpp(
+        &self,
+    ) -> DurableItemLootPersistenceGuardLikeCpp {
+        self.durable_item_loot_persistence_like_cpp.begin_like_cpp()
+    }
+
+    pub(crate) async fn wait_for_durable_item_loot_persistence_like_cpp(&self) {
+        self.durable_item_loot_persistence_like_cpp
+            .wait_until_idle_like_cpp()
+            .await;
+    }
+
+    pub(crate) fn durable_loot_money_persistence_tracker_like_cpp(
+        &self,
+    ) -> Arc<DurableLootMoneyPersistenceTrackerLikeCpp> {
+        Arc::clone(&self.durable_loot_money_persistence_like_cpp)
+    }
+
+    pub(crate) fn take_durable_item_loot_completions_like_cpp(
+        &self,
+    ) -> Vec<DurableItemLootCompletionLikeCpp> {
+        self.durable_item_loot_persistence_like_cpp
+            .take_completions_like_cpp()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_loot_item_store_test_seam_like_cpp(
+        &mut self,
+        grants: Arc<AtomicUsize>,
+        success: bool,
+    ) {
+        self.loot_item_store_test_grants_like_cpp = Some(grants);
+        self.loot_item_store_test_success_like_cpp = success;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_loot_item_store_test_commit_gate_like_cpp(
+        &mut self,
+        gate: Arc<tokio::sync::Notify>,
+    ) {
+        self.loot_item_store_test_commit_gate_like_cpp = Some(gate);
     }
 
     fn build_character_gold_save_statement_like_cpp(
@@ -24390,7 +26214,18 @@ impl WorldSession {
         &mut self,
         snapshot: &PlayerSaveToDbSnapshotLikeCpp,
         now_unix_secs: i64,
-    ) -> PlayerSaveToDbStatementPlanLikeCpp {
+    ) -> Option<PlayerSaveToDbStatementPlanLikeCpp> {
+        // A cancelled/ambiguous transaction can contain money plus other
+        // absolute replacements (for example a talent reset). Building a
+        // partial full-save plan from the pre-COMMIT runtime snapshot would
+        // overwrite those non-money rows even if the earlier COMMIT succeeded.
+        if self
+            .durable_loot_money_persistence_like_cpp
+            .is_indeterminate_like_cpp()
+        {
+            return None;
+        }
+
         let guid_counter = snapshot.guid.counter() as u64;
         let mut plan = PlayerSaveToDbStatementPlanLikeCpp::default();
 
@@ -24578,7 +26413,7 @@ impl WorldSession {
             );
         }
 
-        plan
+        Some(plan)
     }
 
     fn mark_current_player_save_to_db_committed_like_cpp(
@@ -24605,6 +26440,35 @@ impl WorldSession {
         // autosave callers before it appends statements.
         self.reset_player_save_timer_like_cpp();
 
+        let money_tracker = Arc::clone(&self.durable_loot_money_persistence_like_cpp);
+        let money_save_fence = money_tracker.close_admission_for_save_like_cpp();
+        self.wait_for_durable_item_loot_persistence_like_cpp().await;
+        self.apply_pending_durable_item_loot_completions_with_objective_drain_like_cpp(false)
+            .await;
+        let money_state_is_determinate = self
+            .reconcile_durable_loot_money_before_save_like_cpp()
+            .await;
+        if !money_state_is_determinate {
+            // The same unknown transaction may also have committed talents,
+            // reset metadata, inventory, or other absolute state. Do not let a
+            // disconnect/autosave restore any pre-COMMIT runtime snapshot.
+            drop(money_save_fence);
+            self.drain_represented_quest_objective_progress_like_cpp()
+                .await;
+            return;
+        }
+        let money_mutation_lock = money_tracker.lock_money_mutation_like_cpp().await;
+        if money_tracker.is_indeterminate_like_cpp() {
+            self.kick(
+                "player persistence became indeterminate while waiting for the full-save money lock; aborting the entire save",
+            );
+            drop(money_mutation_lock);
+            drop(money_save_fence);
+            self.drain_represented_quest_objective_progress_like_cpp()
+                .await;
+            return;
+        }
+
         let Some(snapshot) = self.sync_session_from_save_to_db_snapshot_like_cpp() else {
             warn!(
                 account = self.account_id,
@@ -24613,6 +26477,10 @@ impl WorldSession {
                 has_canonical_map_manager = self.canonical_map_manager.is_some(),
                 "Skipping Player::SaveToDB represented save because no coherent player snapshot is available"
             );
+            drop(money_mutation_lock);
+            drop(money_save_fence);
+            self.drain_represented_quest_objective_progress_like_cpp()
+                .await;
             return;
         };
         let Some(char_db) = self.char_db().map(Arc::clone) else {
@@ -24621,19 +26489,37 @@ impl WorldSession {
                 player_guid = ?self.player_guid(),
                 "Skipping Player::SaveToDB represented save because character database is unavailable"
             );
+            drop(money_mutation_lock);
+            drop(money_save_fence);
+            self.drain_represented_quest_objective_progress_like_cpp()
+                .await;
             return;
         };
 
-        let mut plan =
-            self.current_player_save_to_db_statement_plan_like_cpp(&snapshot, unix_now());
+        let Some(mut plan) =
+            self.current_player_save_to_db_statement_plan_like_cpp(&snapshot, unix_now())
+        else {
+            self.kick(
+                "player persistence became indeterminate before the full-save statement snapshot; aborting the entire save",
+            );
+            drop(money_mutation_lock);
+            drop(money_save_fence);
+            self.drain_represented_quest_objective_progress_like_cpp()
+                .await;
+            return;
+        };
         let statement_count = plan.statements.len();
         let mut tx = SqlTransaction::new();
         for statement in std::mem::take(&mut plan.statements) {
             tx.append(statement);
         }
 
-        match char_db.commit_transaction(tx).await {
+        let mut cancellation_fence =
+            PlayerMoneyCommitCancellationFenceLikeCpp::new(Arc::clone(&money_tracker));
+        let commit_result = tx.commit_with_outcome_like_cpp(char_db.pool()).await;
+        match commit_result {
             Ok(()) => {
+                cancellation_fence.disarm_like_cpp();
                 self.mark_current_player_save_to_db_committed_like_cpp(&plan);
                 info!(
                     guid = snapshot.guid.counter(),
@@ -24641,11 +26527,35 @@ impl WorldSession {
                     "Player::SaveToDB represented save committed in one CharacterDatabase transaction"
                 );
             }
-            Err(err) => warn!(
-                guid = snapshot.guid.counter(),
-                statement_count, "Failed to commit Player::SaveToDB represented transaction: {err}"
-            ),
+            Err(SqlTransactionCommitError::DefinitelyRolledBack(err)) => {
+                cancellation_fence.disarm_like_cpp();
+                warn!(
+                    guid = snapshot.guid.counter(),
+                    statement_count,
+                    "Failed to commit Player::SaveToDB represented transaction: {err}"
+                );
+            }
+            Err(SqlTransactionCommitError::CommitOutcomeUnknown(err)) => {
+                // The full save includes many absolute replacements. A money
+                // row alone cannot establish whether that whole transaction
+                // committed, so preserve dirty flags and force a reload before
+                // any further money mutation can race an unknown durable base.
+                money_tracker.mark_indeterminate_like_cpp();
+                cancellation_fence.disarm_like_cpp();
+                self.kick(
+                    "Player::SaveToDB COMMIT outcome is unknown; relog required before another money mutation",
+                );
+                warn!(
+                    guid = snapshot.guid.counter(),
+                    statement_count,
+                    "Player::SaveToDB represented transaction COMMIT outcome is unknown: {err}"
+                );
+            }
         }
+        drop(money_mutation_lock);
+        drop(money_save_fence);
+        self.drain_represented_quest_objective_progress_like_cpp()
+            .await;
     }
 
     async fn process_pending_periodic_player_save_like_cpp(&mut self) {
@@ -25759,6 +27669,77 @@ impl WorldSession {
                     .collect()
             })
             .unwrap_or_default()
+    }
+
+    fn represented_talent_reset_state_plan_like_cpp(
+        &self,
+    ) -> Option<RepresentedTalentResetStatePlanLikeCpp> {
+        if !self.represented_talents_loaded_like_cpp {
+            return None;
+        }
+
+        let active_group = self.represented_active_talent_group_like_cpp;
+        let active_group_index = usize::from(active_group);
+        let active_talents = self
+            .represented_talents_like_cpp
+            .get(active_group_index)?
+            .clone();
+        let mut post_talents = self.represented_talents_like_cpp.clone();
+        post_talents[active_group_index].clear();
+
+        Some(RepresentedTalentResetStatePlanLikeCpp {
+            active_group,
+            active_talents,
+            post_talents,
+        })
+    }
+
+    /// Build the represented durable money/reset-metadata/talent transaction
+    /// without mutating the session. The absolute money write is retained even
+    /// for a zero-cost reset so a lost COMMIT reply cannot be mistaken for proof
+    /// that the talent statements rolled back. `character_spell` is deliberately
+    /// untouched until Rust retains the complete C++ `PlayerSpellMap` row state.
+    fn represented_talent_reset_transaction_statement_plan_like_cpp(
+        &self,
+        guid_counter: u64,
+        old_money: u64,
+        new_money: u64,
+        cost: u32,
+        reset_time_secs: u64,
+    ) -> Option<(
+        RepresentedTalentResetStatePlanLikeCpp,
+        Vec<PreparedStatement>,
+    )> {
+        let state_plan = self.represented_talent_reset_state_plan_like_cpp()?;
+        let mut statements = vec![
+            Self::build_character_gold_save_statement_like_cpp(new_money, guid_counter),
+            Self::build_character_talent_reset_state_save_statement_like_cpp(
+                cost,
+                reset_time_secs,
+                guid_counter,
+            ),
+            Self::build_character_talent_delete_statement_like_cpp(guid_counter),
+        ];
+
+        for (talent_group, talents) in state_plan.post_talents.iter().enumerate() {
+            for (talent_id, rank) in talents {
+                if self
+                    .represented_talent_info_like_cpp(*talent_id, *rank)
+                    .is_none()
+                {
+                    continue;
+                }
+                statements.push(Self::build_character_talent_insert_statement_like_cpp(
+                    guid_counter,
+                    *talent_id,
+                    *rank,
+                    talent_group as u8,
+                ));
+            }
+        }
+
+        debug_assert_eq!(old_money.saturating_sub(new_money), u64::from(cost));
+        Some((state_plan, statements))
     }
 
     pub(crate) fn build_character_talent_delete_statement_like_cpp(
@@ -28243,6 +30224,16 @@ impl WorldSession {
         old_money: u64,
         new_money: u64,
     ) {
+        self.stage_player_money_change_like_cpp(old_money, new_money);
+        self.drain_represented_quest_objective_progress_like_cpp()
+            .await;
+    }
+
+    /// Publish an already-durable absolute money mutation without awaiting.
+    /// Transactional callers use this while their exclusive money guard is
+    /// still held, then drop the guard before draining criteria (which can
+    /// re-enter money persistence through a quest reward).
+    pub(crate) fn stage_player_money_change_like_cpp(&mut self, old_money: u64, new_money: u64) {
         if old_money != new_money {
             self.enqueue_represented_quest_objective_progress_like_cpp(
                 RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
@@ -28252,8 +30243,6 @@ impl WorldSession {
             );
         }
         self.set_player_gold_like_cpp(new_money);
-        self.drain_represented_quest_objective_progress_like_cpp()
-            .await;
     }
 
     pub(crate) fn represented_next_reset_talents_cost_like_cpp(&self, now_secs: u64) -> u32 {
@@ -28264,36 +30253,142 @@ impl WorldSession {
         )
     }
 
-    pub(crate) async fn apply_represented_talent_reset_cost_like_cpp(&mut self) -> bool {
+    pub(crate) async fn commit_represented_talent_reset_like_cpp(
+        &mut self,
+    ) -> Option<CommittedRepresentedTalentResetLikeCpp> {
         let now_secs = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-        self.apply_represented_talent_reset_cost_at_like_cpp(now_secs)
+        self.commit_represented_talent_reset_at_like_cpp(now_secs)
             .await
     }
 
-    pub(crate) async fn apply_represented_talent_reset_cost_at_like_cpp(
+    async fn commit_represented_talent_reset_at_like_cpp(
         &mut self,
         now_secs: u64,
-    ) -> bool {
+    ) -> Option<CommittedRepresentedTalentResetLikeCpp> {
         let cost = if self.no_reset_talent_cost_like_cpp {
             0
         } else {
             u64::from(self.represented_next_reset_talents_cost_like_cpp(now_secs))
         };
+
+        let money_persistence = self
+            .begin_exclusive_player_money_persistence_like_cpp()
+            .await?;
         let old_money = self.player_gold_like_cpp();
-        if !self.no_reset_talent_cost_like_cpp && old_money < cost {
+        if old_money < cost {
             self.send_buy_error(BuyResult::NotEnoughtMoney, None, 0);
-            return false;
+            return None;
+        }
+        let new_money = old_money - cost;
+        let player_guid = self.player_guid()?;
+        let (state_plan, statements) = self
+            .represented_talent_reset_transaction_statement_plan_like_cpp(
+                player_guid.counter() as u64,
+                old_money,
+                new_money,
+                cost as u32,
+                now_secs,
+            )?;
+        let mut transaction = SqlTransaction::new();
+        for statement in statements {
+            transaction.append(statement);
         }
 
-        self.apply_player_money_change_like_cpp(old_money, old_money - cost)
+        // Unit fixtures without a CharacterDatabase explicitly model a
+        // successful COMMIT. The failure seam proves that no covered runtime
+        // state is published on a definite rollback.
+        #[cfg(test)]
+        if self.loot_money_persistence_test_result_like_cpp == Some(false) {
+            return None;
+        }
+        #[cfg(test)]
+        let bypass_database_like_cpp = self.loot_money_persistence_test_result_like_cpp
+            == Some(true)
+            || self.char_db.is_none();
+        #[cfg(not(test))]
+        let bypass_database_like_cpp = false;
+
+        let money_persistence = if bypass_database_like_cpp {
+            money_persistence
+        } else {
+            let char_db = self.char_db.as_ref().map(Arc::clone)?;
+            self.commit_exclusive_player_money_transaction_like_cpp(
+                money_persistence,
+                char_db.as_ref(),
+                transaction,
+                old_money,
+                new_money,
+                "talent reset",
+            )
+            .await?
+        };
+
+        Some(CommittedRepresentedTalentResetLikeCpp {
+            money_persistence,
+            old_money,
+            new_money,
+            cost: cost as u32,
+            reset_time_secs: now_secs,
+            state_plan,
+        })
+    }
+
+    /// Publish every runtime effect covered by the committed reset before the
+    /// shared money guard is released. There is deliberately no `.await`
+    /// between entry and `drop(money_persistence)`: cancellation cannot expose
+    /// a durable fee/talent reset with the old session state still live.
+    pub(crate) async fn publish_committed_represented_talent_reset_like_cpp(
+        &mut self,
+        committed: CommittedRepresentedTalentResetLikeCpp,
+        request: RepresentedConfirmRespecWipeLikeCpp,
+        visual_spell_id: u32,
+    ) {
+        let CommittedRepresentedTalentResetLikeCpp {
+            money_persistence,
+            old_money,
+            new_money,
+            cost,
+            reset_time_secs,
+            state_plan,
+        } = committed;
+
+        self.remove_represented_pet_not_in_slot_like_cpp();
+        self.record_represented_confirm_respec_wipe_like_cpp(request);
+
+        debug_assert_eq!(
+            self.represented_active_talent_group_like_cpp,
+            state_plan.active_group
+        );
+        for (talent_id, rank) in &state_plan.active_talents {
+            self.remove_represented_active_talent_side_effects_like_cpp(*talent_id, *rank);
+        }
+        self.represented_talents_like_cpp = state_plan.post_talents;
+        self.refresh_represented_talent_points_like_cpp();
+
+        self.stage_player_money_change_like_cpp(old_money, new_money);
+        self.represented_talent_reset_cost_like_cpp = cost;
+        self.represented_talent_reset_time_secs_like_cpp = reset_time_secs;
+        self.record_represented_talent_respec_criteria_like_cpp(cost);
+
+        self.send_packet(&self.represented_update_talent_data_packet_like_cpp());
+        if let Some(player_guid) = self.player_guid() {
+            self.record_represented_talent_respec_visual_spell_cast_like_cpp(
+                RepresentedTalentRespecVisualSpellCastLikeCpp {
+                    caster_guid: request.respec_master,
+                    target_guid: player_guid,
+                    spell_id: visual_spell_id,
+                    triggered: true,
+                    spell_runtime_unrepresented: true,
+                },
+            );
+        }
+
+        drop(money_persistence);
+        self.drain_represented_quest_objective_progress_like_cpp()
             .await;
-        self.record_represented_talent_respec_criteria_like_cpp(cost as u32);
-        self.represented_talent_reset_cost_like_cpp = cost as u32;
-        self.represented_talent_reset_time_secs_like_cpp = now_secs;
-        true
     }
 
     fn record_represented_talent_respec_criteria_like_cpp(&mut self, cost: u32) {
@@ -29083,10 +31178,13 @@ impl WorldSession {
                 is_in_world: self.player_is_in_world_for_registry_like_cpp(),
                 send_tx: self.send_tx.clone(),
                 command_tx: self.session_command_tx.clone(),
+                durable_loot_money_tracker_like_cpp: Arc::clone(
+                    &self.durable_loot_money_persistence_like_cpp,
+                ),
                 active_loot_rolls: self
                     .represented_loot_rolls
-                    .keys()
-                    .map(|key| (key.0, key.1))
+                    .values()
+                    .map(|state| state.command_identity.clone())
                     .collect(),
                 pass_on_group_loot: self.pass_on_group_loot,
                 enchanting_skill: self.represented_enchanting_skill,
@@ -29190,8 +31288,8 @@ impl WorldSession {
             info.liquid_status = self.player_liquid_status_like_cpp();
             info.active_loot_rolls = self
                 .represented_loot_rolls
-                .keys()
-                .map(|key| (key.0, key.1))
+                .values()
+                .map(|state| state.command_identity.clone())
                 .collect();
             info.pass_on_group_loot = self.pass_on_group_loot;
             info.enchanting_skill = self.represented_enchanting_skill;
@@ -29391,10 +31489,11 @@ impl WorldSession {
     }
 
     pub async fn cleanup_shared_runtime_state_on_disconnect_like_cpp(&mut self) {
+        self.wait_for_active_loot_persistence_like_cpp().await;
         if let Some(player_guid) = self.player_guid()
-            && !self.active_loot_guid.is_empty()
+            && self.has_active_loot_views_like_cpp()
         {
-            self.close_active_loot_windows_like_cpp(player_guid);
+            self.do_loot_release_all_like_cpp(player_guid).await;
         }
         self.cleanup_shared_runtime_state();
     }
@@ -29412,6 +31511,10 @@ impl WorldSession {
             "Saving player on disconnect"
         );
         self.set_player_logout_like_cpp(true);
+        self.wait_for_active_loot_persistence_like_cpp().await;
+        if self.has_active_loot_views_like_cpp() {
+            self.do_loot_release_all_like_cpp(player_guid).await;
+        }
         self.clear_buyback_on_logout().await;
         self.save_current_player_to_db_like_cpp().await;
         self.save_account_mounts_like_cpp().await;
@@ -29480,6 +31583,35 @@ impl WorldSession {
         self.guid_generator.as_ref()
     }
 
+    /// Allocate item database/object GUIDs from the process-wide generator.
+    ///
+    /// C++ initializes this generator once from `MAX(item_instance.guid) + 1`
+    /// in `ObjectMgr::SetHighestGuids`, and every `Item::CreateItem` consumes
+    /// the next value.  Rust sessions execute concurrently, so the shared
+    /// `ObjectGuidGenerator` uses an atomic fetch-add.  Allocations are never
+    /// returned after a later persistence failure, matching C++ Item creation.
+    pub(crate) fn allocate_item_instance_guids_like_cpp(
+        &self,
+        count: usize,
+    ) -> Option<Vec<(u64, ObjectGuid)>> {
+        if count == 0 {
+            return Some(Vec::new());
+        }
+        let generator = self.item_guid_generator_like_cpp.as_ref()?;
+        if generator.high_guid() != HighGuid::Item {
+            return None;
+        }
+
+        let realm_id = self.realm_id();
+        (0..count)
+            .map(|_| {
+                let counter = generator.generate();
+                let db_guid = u64::try_from(counter).ok()?;
+                Some((db_guid, ObjectGuid::create_item(realm_id, counter)))
+            })
+            .collect()
+    }
+
     /// Set the session manager for ConnectTo flow.
     pub fn set_session_mgr(&mut self, mgr: Arc<SessionManager>) {
         self.session_mgr = Some(mgr);
@@ -29519,6 +31651,10 @@ impl WorldSession {
 
     pub(crate) fn set_player_logout_like_cpp(&mut self, player_logout: bool) {
         self.player_logout_like_cpp = player_logout;
+        if player_logout {
+            self.durable_loot_money_persistence_like_cpp
+                .close_admission_permanently_like_cpp();
+        }
         self.sync_current_player_session_visibility_detection_like_cpp();
     }
 
@@ -29550,6 +31686,13 @@ impl WorldSession {
     /// Get a clone of the send channel.
     pub fn send_tx(&self) -> &flume::Sender<Vec<u8>> {
         &self.send_tx
+    }
+
+    /// Install the FIFO completion fence paired with the session's initial
+    /// realm socket. Runtime does this immediately after constructing the
+    /// session; unit sessions that never own a physical writer leave it empty.
+    pub fn set_send_write_fence_like_cpp(&mut self, fence: SocketWriteFenceLikeCpp) {
+        self.send_write_fence_like_cpp = Some(fence);
     }
 
     /// Clone the C++-style cross-session command channel for this active
@@ -31599,6 +33742,9 @@ impl WorldSession {
         // ── Spell casting tick ─────────────────────────────────────────
         // Check if an active spell cast has completed and execute it.
         if self.state == SessionState::LoggedIn {
+            if let Some(player_guid) = self.player_guid() {
+                self.close_retired_active_loot_windows_like_cpp(player_guid);
+            }
             self.tick_represented_loot_rolls_like_cpp().await;
             self.tick_represented_gameobject_update_like_cpp();
             self.send_represented_gameobject_visibility_on_destroy_from_last_update_like_cpp();
@@ -31728,6 +33874,12 @@ impl WorldSession {
                 // realm socket from closing.
                 let old_send_tx = std::mem::replace(&mut self.send_tx, link.send_tx);
                 self.realm_send_tx = Some(old_send_tx);
+                let next_write_fence = link
+                    .send_write_fence_like_cpp
+                    .or_else(|| self.send_write_fence_like_cpp.clone());
+                let old_write_fence =
+                    std::mem::replace(&mut self.send_write_fence_like_cpp, next_write_fence);
+                self.realm_send_write_fence_like_cpp = old_write_fence;
 
                 if let Some(pkt_rx) = link.pkt_rx {
                     let old_packet_rx = std::mem::replace(&mut self.packet_rx, pkt_rx);
@@ -34293,6 +36445,38 @@ impl WorldSession {
         }
     }
 
+    /// Attempts to enqueue one instance-channel packet without waiting for
+    /// socket-writer capacity.
+    ///
+    /// This is deliberately narrow rather than a replacement for the normal
+    /// packet API. Object-owned loot uses it while holding its short authority
+    /// mutex so a stalled client cannot block every concurrent claim/release.
+    pub(crate) fn try_send_packet<P: wow_packet::ServerPacket>(&self, pkt: &P) -> bool {
+        let data = pkt.to_bytes();
+        if std::env::var_os("RUSTYCORE_LOGIN_TRACE").is_some() {
+            info!(
+                account = self.account_id,
+                opcode = ?P::OPCODE,
+                bytes = data.len(),
+                "RUST_LOGIN_TRACE try_send_packet"
+            );
+        }
+        match self.send_tx.try_send(data) {
+            Ok(()) => true,
+            Err(flume::TrySendError::Full(_)) => {
+                warn!(
+                    "Send channel full for account {}; packet rejected without blocking",
+                    self.account_id
+                );
+                false
+            }
+            Err(flume::TrySendError::Disconnected(_)) => {
+                warn!("Send channel closed for account {}", self.account_id);
+                false
+            }
+        }
+    }
+
     fn send_system_message_like_cpp(&self, text: &str) {
         for line in text.split('\n') {
             self.send_packet(&ChatPkt {
@@ -34376,9 +36560,76 @@ impl WorldSession {
         }
     }
 
+    /// Wait for current-instance packets to reach their physical socket before
+    /// emitting a later realm packet. C++ performs both `SendDirectMessage`
+    /// calls synchronously; Rust's two independent writer tasks need this FIFO
+    /// completion fence to retain the same cross-connection order.
+    pub(crate) async fn wait_for_instance_send_before_realm_send_like_cpp(&self) -> bool {
+        let Some(realm_send_tx) = self.realm_send_tx.as_ref() else {
+            return true;
+        };
+        if realm_send_tx.same_channel(&self.send_tx) {
+            return true;
+        }
+        let Some(write_fence) = self.send_write_fence_like_cpp.as_ref() else {
+            warn!(
+                account = self.account_id,
+                "instance/realm ordering fence unavailable for separate sockets"
+            );
+            return false;
+        };
+        let acknowledged = write_fence
+            .wait_for_prior_packets_written_like_cpp(&self.send_tx, Duration::from_millis(250))
+            .await;
+        if !acknowledged {
+            warn!(
+                account = self.account_id,
+                "instance writer did not acknowledge the bounded ordering fence"
+            );
+        }
+        acknowledged
+    }
+
+    /// Wait for realm packets to reach their physical socket before emitting a
+    /// later instance update. This mirrors `Player::SendNewItem` preceding the
+    /// deferred `Map::SendObjectUpdates` player-field flush in C++.
+    pub(crate) async fn wait_for_realm_send_before_instance_update_like_cpp(&self) -> bool {
+        let Some(realm_send_tx) = self.realm_send_tx.as_ref() else {
+            return true;
+        };
+        if realm_send_tx.same_channel(&self.send_tx) {
+            return true;
+        }
+        let Some(write_fence) = self.realm_send_write_fence_like_cpp.as_ref() else {
+            warn!(
+                account = self.account_id,
+                "realm/instance ordering fence unavailable for separate sockets"
+            );
+            return false;
+        };
+        let acknowledged = write_fence
+            .wait_for_prior_packets_written_like_cpp(realm_send_tx, Duration::from_millis(250))
+            .await;
+        if !acknowledged {
+            warn!(
+                account = self.account_id,
+                "realm writer did not acknowledge the bounded ordering fence"
+            );
+        }
+        acknowledged
+    }
+
     #[cfg(test)]
     pub(crate) fn install_realm_send_channel_for_test(&mut self, tx: flume::Sender<Vec<u8>>) {
         self.realm_send_tx = Some(tx);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn install_realm_send_write_fence_for_test(
+        &mut self,
+        fence: SocketWriteFenceLikeCpp,
+    ) {
+        self.realm_send_write_fence_like_cpp = Some(fence);
     }
 
     /// Send pre-serialized packet bytes to the client.
@@ -34400,6 +36651,19 @@ impl WorldSession {
         }
         if self.send_tx.send(data.to_vec()).is_err() {
             warn!("Send channel closed for account {}", self.account_id);
+        }
+    }
+
+    /// Send pre-serialized packet bytes on the realm connection.
+    ///
+    /// This is the cross-session counterpart of [`Self::send_packet_realm`]:
+    /// registry commands already carry serialized bytes, but C++ opcode
+    /// routing still requires packets such as `SMSG_PARTY_INVITE` and
+    /// `SMSG_PARTY_MEMBER_FULL_STATE` to use `CONNECTION_TYPE_REALM`.
+    pub(crate) fn send_raw_packet_realm(&self, data: &[u8]) {
+        let tx = self.realm_send_tx.as_ref().unwrap_or(&self.send_tx);
+        if tx.send(data.to_vec()).is_err() {
+            warn!("Realm send channel closed for account {}", self.account_id);
         }
     }
 
@@ -34694,6 +36958,10 @@ impl WorldSession {
         if guid.is_none() {
             self.player_controller = None;
             self.represented_seer_guid_like_cpp = None;
+            // Old registry clones remain permanently closed; a later character
+            // selected on this authenticated session receives a fresh fence.
+            self.durable_loot_money_persistence_like_cpp =
+                Arc::new(DurableLootMoneyPersistenceTrackerLikeCpp::default());
         }
     }
 
@@ -49352,15 +51620,102 @@ impl WorldSession {
         let manager = self.canonical_map_manager.as_ref()?;
         let manager = manager.lock().ok()?;
         let mut key = None;
+        let mut ambiguous = false;
         manager.do_for_all_maps(|managed| {
-            if key.is_none() && managed.map().get_typed_player(guid).is_some() {
+            if managed.map().get_typed_player(guid).is_none() {
+                return;
+            }
+            if key.is_some() {
+                ambiguous = true;
+            } else {
                 key = Some(wow_map::MapKey::new(
                     managed.map_id(),
                     managed.instance_id(),
                 ));
             }
         });
-        key
+        (!ambiguous).then_some(key).flatten()
+    }
+
+    /// Resolve object access through the player's exact canonical `Map`, as
+    /// C++ `ObjectAccessor::GetCreature/GetGameObject(WorldObject const&, ...)`
+    /// does through `world_object.GetMap()`. During pre-player bootstrap and
+    /// focused represented tests, accept a sole map for the expected map id;
+    /// multiple instances without a canonical Player fail closed.
+    pub(crate) fn canonical_object_lookup_map_key_like_cpp(
+        &self,
+        fallback_map_id: u32,
+    ) -> Option<wow_map::MapKey> {
+        if let Some(map_key) = self.current_canonical_player_map_key_like_cpp() {
+            return Some(map_key);
+        }
+
+        let manager = self.canonical_map_manager.as_ref()?;
+        let manager = manager.lock().ok()?;
+        if let Some(player_guid) = self.player_guid() {
+            let mut player_map_count = 0usize;
+            manager.do_for_all_maps(|managed| {
+                if managed.map().get_typed_player(player_guid).is_some() {
+                    player_map_count = player_map_count.saturating_add(1);
+                }
+            });
+            // A player temporarily visible in two canonical maps is a
+            // transfer boundary, not permission to choose one by iteration
+            // order. Object-owned mutations fail closed until ownership is
+            // unambiguous.
+            if player_map_count != 0 || self.state == SessionState::LoggedIn {
+                return None;
+            }
+        }
+        let mut fallback_key = None;
+        let mut ambiguous = false;
+        manager.do_for_all_maps(|managed| {
+            if managed.map_id() != fallback_map_id {
+                return;
+            }
+            if fallback_key.is_some() {
+                ambiguous = true;
+            } else {
+                fallback_key = Some(wow_map::MapKey::new(
+                    managed.map_id(),
+                    managed.instance_id(),
+                ));
+            }
+        });
+        (!ambiguous).then_some(fallback_key).flatten()
+    }
+
+    /// Revalidates the exact map ownership captured before a multi-lock loot
+    /// authority reconciliation. If a canonical Player existed at capture
+    /// time, fallback lookup is forbidden: disappearing or moving during the
+    /// attempt must fail closed rather than mutate the old map.
+    pub(crate) fn loot_reconciliation_map_key_still_valid_like_cpp(
+        &self,
+        map_key: wow_map::MapKey,
+        canonical_player_was_present: bool,
+    ) -> bool {
+        if canonical_player_was_present {
+            return self.current_canonical_player_map_key_like_cpp() == Some(map_key);
+        }
+        if self.canonical_map_manager.is_some() {
+            return self.canonical_object_lookup_map_key_like_cpp(map_key.map_id) == Some(map_key);
+        }
+        let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
+        u32::from(map_id) == map_key.map_id && instance_id == map_key.instance_id
+    }
+
+    /// The legacy map facade must follow the same map instance that owns the
+    /// canonical Player. Instance `0` remains only the bootstrap fallback for
+    /// tests/runtime phases where no canonical Player has been materialized.
+    pub(crate) fn current_legacy_runtime_map_key_like_cpp(&self) -> (u16, u32) {
+        let fallback_map_id = self.player_map_id_like_cpp();
+        let Some(map_key) = self.current_canonical_player_map_key_like_cpp() else {
+            return (fallback_map_id, 0);
+        };
+        let Ok(map_id) = u16::try_from(map_key.map_id) else {
+            return (fallback_map_id, 0);
+        };
+        (map_id, map_key.instance_id)
     }
 
     fn represented_dynamic_object_values_update_delivery_fingerprint_like_cpp(
@@ -50222,6 +52577,9 @@ impl WorldSession {
             );
             self.send_tx = realm_tx;
         }
+        if let Some(realm_write_fence) = self.realm_send_write_fence_like_cpp.take() {
+            self.send_write_fence_like_cpp = Some(realm_write_fence);
+        }
         if let Some(realm_rx) = self.realm_packet_rx.take() {
             info!(
                 "Restoring realm packet channel as primary for account {}",
@@ -50573,12 +52931,30 @@ pub fn run_legacy_creature_movement_tick_once_like_cpp(
                 guid,
                 position,
             );
-            sync_canonical_creature_entity_on_map_like_cpp(
+            let expected_legacy_authority = creature.loot_authority_like_cpp().clone();
+            let expected_legacy_stamp = expected_legacy_authority.stamp_like_cpp();
+            let authority = sync_canonical_creature_entity_on_map_like_cpp(
                 canonical_map_manager,
                 map_id,
                 instance_id,
                 creature,
             );
+            if let Some(authority) = authority {
+                let mut legacy = legacy_map_manager
+                    .write()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                if let Some(world_creature) =
+                    legacy.find_creature_mut(map_id as u16, instance_id, guid)
+                {
+                    let _ = world_creature
+                        .creature
+                        .rebind_loot_authority_if_current_like_cpp(
+                            &expected_legacy_authority,
+                            expected_legacy_stamp,
+                            authority,
+                        );
+                }
+            }
             outcome.canonical_syncs += 1;
         }
     }
@@ -50714,6 +53090,9 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                 .collect();
 
             for guid in despawn_guids {
+                if let Some(creature) = manager.find_creature_mut(map_id, instance_id, guid) {
+                    creature.creature.clear_loot_like_cpp();
+                }
                 let Some(creature) = manager.remove_creature_any(map_id, instance_id, guid) else {
                     continue;
                 };
@@ -50890,12 +53269,31 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
             }
         }
         for (map_id, instance_id, creature) in canonical_inserts {
-            insert_canonical_creature_map_object_on_map_like_cpp(
+            let guid = creature.guid();
+            let expected_legacy_authority = creature.loot_authority_like_cpp().clone();
+            let expected_legacy_stamp = expected_legacy_authority.stamp_like_cpp();
+            let authority = insert_canonical_creature_map_object_on_map_like_cpp(
                 canonical_map_manager,
                 map_id,
                 instance_id,
                 creature,
             );
+            if let Some(authority) = authority {
+                let mut legacy = legacy_map_manager
+                    .write()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                if let Some(world_creature) =
+                    legacy.find_creature_mut(map_id as u16, instance_id, guid)
+                {
+                    let _ = world_creature
+                        .creature
+                        .rebind_loot_authority_if_current_like_cpp(
+                            &expected_legacy_authority,
+                            expected_legacy_stamp,
+                            authority,
+                        );
+                }
+            }
             outcome.canonical_inserts += 1;
         }
     }
@@ -57228,11 +59626,17 @@ impl WorldSession {
         restored.max(represented_restored)
     }
 
-    fn current_map_is_dungeon_like_cpp(&self) -> bool {
+    pub(crate) fn current_map_is_dungeon_like_cpp(&self) -> bool {
+        self.current_map_dungeon_state_like_cpp().unwrap_or(false)
+    }
+
+    /// Resolve the current map's C++ `MapEntry::IsDungeon` classification
+    /// without conflating missing Map.db2 metadata with an overworld map.
+    pub(crate) fn current_map_dungeon_state_like_cpp(&self) -> Option<bool> {
         self.map_store
             .as_ref()
             .and_then(|store| store.get(u32::from(self.player_map_id_like_cpp())))
-            .is_some_and(|entry| entry.is_dungeon())
+            .map(|entry| entry.is_dungeon())
     }
 
     fn canonical_threatened_by_me_owner_guids_like_cpp(
@@ -58137,7 +60541,7 @@ fn default_available_classes() -> Vec<wow_packet::packets::auth::RaceClassAvaila
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
+    use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering as AtomicOrdering};
     use wow_constants::ItemModType;
     use wow_constants::{
         BagFamilyMask, ConditionSourceType, ConditionType, EnchantmentSlot, InventoryResult,
@@ -58191,12 +60595,13 @@ mod tests {
         ApplyGroupRemovalLikeCppCommand, ApplyGroupSubgroupLikeCppCommand,
     };
     use wow_network::{
-        ApplyCreatureMeleeDamageLikeCppCommand, CreatureAttackStartLikeCppCommand,
-        GameEventQuestCompleteClientOutcomeLikeCpp, GameEventQuestCompleteResponseLikeCpp,
-        GroupInfo, GroupInstanceResetMethodLikeCpp, GroupInstanceResetResultLikeCpp, GroupRegistry,
-        KickLikeCppCommand, PendingInviteLikeCpp, PendingInvites, PlayerBroadcastInfo,
-        RefreshVisibleWorldCreaturesLikeCppCommand, ResetSeasonalQuestStatusCommand,
-        SendIfVisibleLikeCppCommand, SendPartyUpdateLikeCppCommand,
+        ApplyCreatureMeleeDamageLikeCppCommand, ApplyLootMoneyLikeCppCommand,
+        CreatureAttackStartLikeCppCommand, GameEventQuestCompleteClientOutcomeLikeCpp,
+        GameEventQuestCompleteResponseLikeCpp, GroupInfo, GroupInstanceResetMethodLikeCpp,
+        GroupInstanceResetResultLikeCpp, GroupRegistry, KickLikeCppCommand, PendingInviteLikeCpp,
+        PendingInvites, PlayerBroadcastInfo, RefreshVisibleWorldCreaturesLikeCppCommand,
+        ResetSeasonalQuestStatusCommand, SendIfVisibleLikeCppCommand,
+        SendPartyUpdateLikeCppCommand, SendRealmPacketLikeCppCommand,
         SendVisibleObjectValuesUpdateCommand, SessionCommand,
         WorldSessionShutdownFlushLikeCppCommand, register_group_db_store_id_like_cpp,
     };
@@ -58274,6 +60679,126 @@ mod tests {
         );
 
         (session, pkt_tx, send_rx)
+    }
+
+    #[test]
+    fn logout_closes_old_money_tracker_and_character_select_rotates_fresh_tracker() {
+        let (mut session, _, _) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 70_001)));
+        let old_tracker = session.durable_loot_money_persistence_tracker_like_cpp();
+
+        session.set_player_logout_like_cpp(true);
+        assert!(old_tracker.begin_like_cpp().is_err());
+        session.set_player_guid(None);
+        let fresh_tracker = session.durable_loot_money_persistence_tracker_like_cpp();
+
+        assert!(!Arc::ptr_eq(&old_tracker, &fresh_tracker));
+        assert!(old_tracker.begin_like_cpp().is_err());
+        assert!(fresh_tracker.begin_like_cpp().is_ok());
+    }
+
+    #[tokio::test]
+    async fn exclusive_money_barrier_waits_and_reconciles_prior_payout_before_derivation() {
+        let (mut session, _, _) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 70_002)));
+        session.set_player_gold_like_cpp(100);
+        let tracker = session.durable_loot_money_persistence_tracker_like_cpp();
+        let mut worker = tracker.begin_like_cpp().expect("payout admitted first");
+        let applied = Arc::new(AtomicBool::new(false));
+
+        let mut barrier = Box::pin(session.begin_exclusive_player_money_persistence_like_cpp());
+        assert!(
+            tokio::time::timeout(Duration::from_millis(10), &mut barrier)
+                .await
+                .is_err(),
+            "the local mutation must wait for a previously admitted payout"
+        );
+        assert!(
+            tracker.begin_like_cpp().is_err(),
+            "once the local barrier starts, later payouts must fail admission"
+        );
+
+        worker.commit_like_cpp(DurableLootMoneyCompletionLikeCpp {
+            durable_money_before: 100,
+            durable_money_after: 107,
+            durable_applied_amount: 7,
+            applied: Arc::clone(&applied),
+        });
+        let guard = tokio::time::timeout(Duration::from_secs(1), barrier)
+            .await
+            .expect("barrier must resume after the payout resolves")
+            .expect("known payout outcome keeps the session writable");
+
+        assert_eq!(session.player_gold_like_cpp(), 107);
+        assert!(applied.load(AtomicOrdering::Acquire));
+        assert!(tracker.begin_like_cpp().is_err());
+        drop(guard);
+        assert!(tracker.begin_like_cpp().is_ok());
+    }
+
+    #[tokio::test]
+    async fn save_first_durable_money_completion_preserves_and_drains_money_event() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 70_003);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_gold_like_cpp(100);
+        let tracker = session.durable_loot_money_persistence_tracker_like_cpp();
+        let mut worker = tracker.begin_like_cpp().expect("payout admitted first");
+        let applied = Arc::new(AtomicBool::new(false));
+        let published = Arc::new(AtomicBool::new(false));
+
+        worker.commit_like_cpp(DurableLootMoneyCompletionLikeCpp {
+            durable_money_before: 100,
+            durable_money_after: 107,
+            durable_applied_amount: 7,
+            applied: Arc::clone(&applied),
+        });
+        let guard = session
+            .begin_exclusive_player_money_persistence_like_cpp()
+            .await
+            .expect("known payout remains writable");
+        drop(guard);
+
+        assert_eq!(session.player_gold_like_cpp(), 107);
+        assert!(applied.load(Ordering::Acquire));
+        assert_eq!(
+            session
+                .represented_quest_objective_progress_events_like_cpp
+                .len(),
+            1,
+            "save reconciliation must retain the exact MoneyChanged transition"
+        );
+
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::ApplyLootMoneyLikeCpp(
+                ApplyLootMoneyLikeCppCommand {
+                    recipient: player_guid,
+                    loot_owner: ObjectGuid::EMPTY,
+                    loot_obj: ObjectGuid::EMPTY,
+                    amount: 7,
+                    durable_applied_amount: Arc::new(AtomicU64::new(7)),
+                    durable_persistence_tracker: Arc::clone(&tracker),
+                    sole_looter: true,
+                    authority: OwnedLootAuthority::new(),
+                    authority_generation: 0,
+                    authority_committed: Arc::new(AtomicBool::new(false)),
+                    send_coin_removed: Arc::new(AtomicBool::new(false)),
+                    applied,
+                    published,
+                },
+            ))
+            .expect("completion command queues");
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        assert!(
+            session
+                .represented_quest_objective_progress_events_like_cpp
+                .is_empty(),
+            "packet publication must drain the save-first MoneyChanged event"
+        );
     }
 
     #[test]
@@ -65521,6 +68046,7 @@ mod tests {
         group_registry.insert(group_guid, group);
         session.group_guid = Some(group_guid);
         session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+        session.set_player_guid(Some(player_guid));
         session.state = SessionState::LoggedIn;
 
         assert!(session.reset_group_update_sequence_if_needed_like_cpp());
@@ -65530,6 +68056,7 @@ mod tests {
                 .session_command_tx()
                 .try_send(SessionCommand::SendPartyUpdateLikeCpp(
                     SendPartyUpdateLikeCppCommand {
+                        recipient: player_guid,
                         party_update: wow_packet::packets::party::PartyUpdate {
                             party_flags: 0,
                             party_index: wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP,
@@ -65561,8 +68088,136 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn realm_only_party_commands_never_use_instance_after_connect_to_like_cpp() {
+        let (mut session, _, instance_rx) = make_session();
+        let (realm_tx, realm_rx) = flume::unbounded();
+        session.install_realm_send_channel_for_test(realm_tx);
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let group = GroupInfo::new(player_guid);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+        session.group_guid = Some(group_guid);
+        session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
+        session.set_player_guid(Some(player_guid));
+        session.state = SessionState::LoggedIn;
+
+        let member_full_state = vec![0x59, 0x27, 0xAA];
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::SendPartyUpdateLikeCpp(
+                SendPartyUpdateLikeCppCommand {
+                    recipient: player_guid,
+                    party_update: wow_packet::packets::party::PartyUpdate {
+                        party_flags: 0,
+                        party_index: wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP,
+                        party_type: wow_network::group_registry::GROUP_TYPE_NORMAL_LIKE_CPP,
+                        my_index: 0,
+                        party_guid: group_guid,
+                        sequence_num: 999,
+                        leader_guid: player_guid,
+                        leader_faction_group: 0,
+                        player_list: Vec::new(),
+                        loot_settings: None,
+                        difficulty_settings: None,
+                    },
+                    member_full_state_packets: vec![member_full_state.clone()],
+                },
+            ))
+            .unwrap();
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        let update = realm_rx.try_recv().expect("realm PartyUpdate");
+        assert_eq!(
+            u16::from_le_bytes([update[0], update[1]]),
+            ServerOpcodes::PartyUpdate as u16
+        );
+        assert_eq!(realm_rx.try_recv().unwrap(), member_full_state);
+        assert!(instance_rx.try_recv().is_err());
+
+        let invite = vec![0xBD, 0x25, 0xCC];
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::SendRealmPacketLikeCpp(
+                SendRealmPacketLikeCppCommand {
+                    recipient: player_guid,
+                    packet_bytes: invite.clone(),
+                },
+            ))
+            .unwrap();
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        assert_eq!(realm_rx.try_recv().unwrap(), invite);
+        assert!(instance_rx.try_recv().is_err());
+
+        let wrong_recipient = ObjectGuid::create_player(1, 43);
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::SendRealmPacketLikeCpp(
+                SendRealmPacketLikeCppCommand {
+                    recipient: wrong_recipient,
+                    packet_bytes: invite.clone(),
+                },
+            ))
+            .unwrap();
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+        assert!(realm_rx.try_recv().is_err());
+
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::SendPartyUpdateLikeCpp(
+                SendPartyUpdateLikeCppCommand {
+                    recipient: wrong_recipient,
+                    party_update: wow_packet::packets::party::PartyUpdate {
+                        party_flags: 0,
+                        party_index: wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP,
+                        party_type: wow_network::group_registry::GROUP_TYPE_NORMAL_LIKE_CPP,
+                        my_index: 0,
+                        party_guid: group_guid,
+                        sequence_num: 0,
+                        leader_guid: player_guid,
+                        leader_faction_group: 0,
+                        player_list: Vec::new(),
+                        loot_settings: None,
+                        difficulty_settings: None,
+                    },
+                    member_full_state_packets: Vec::new(),
+                },
+            ))
+            .unwrap();
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+        assert!(realm_rx.try_recv().is_err());
+
+        session.state = SessionState::Authed;
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::SendRealmPacketLikeCpp(
+                SendRealmPacketLikeCppCommand {
+                    recipient: player_guid,
+                    packet_bytes: invite,
+                },
+            ))
+            .unwrap();
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+        assert!(realm_rx.try_recv().is_err());
+        assert!(instance_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
     async fn group_removal_command_clears_remote_party_type_like_cpp() {
-        let (mut session, _, send_rx) = make_session();
+        let (mut session, _, instance_rx) = make_session();
+        let (realm_tx, realm_rx) = flume::bounded(8);
+        session.install_realm_send_channel_for_test(realm_tx);
         let player_guid = ObjectGuid::create_player(1, 42);
         let group_guid = 0xABCDEF;
         let player_registry = Arc::new(wow_network::PlayerRegistry::default());
@@ -65628,20 +68283,27 @@ mod tests {
         );
         drop(after);
 
-        let packets = drain_server_packet_bytes(&send_rx);
+        let packets = drain_server_packet_bytes(&instance_rx);
         assert!(packets.iter().any(|bytes| {
             wow_packet::WorldPacket::from_bytes(bytes).server_opcode()
                 == Some(ServerOpcodes::UpdateObject)
         }));
-        assert!(packets.iter().any(|bytes| {
+        assert!(!packets.iter().any(|bytes| {
             wow_packet::WorldPacket::from_bytes(bytes).server_opcode()
                 == Some(ServerOpcodes::GroupDestroyed)
         }));
+        let destroyed = realm_rx.try_recv().expect("realm GroupDestroyed");
+        assert_eq!(
+            wow_packet::WorldPacket::from_bytes(&destroyed).server_opcode(),
+            Some(ServerOpcodes::GroupDestroyed)
+        );
     }
 
     #[tokio::test]
     async fn group_removal_command_can_send_group_uninvite_like_cpp() {
-        let (mut session, _, send_rx) = make_session();
+        let (mut session, _, instance_rx) = make_session();
+        let (realm_tx, realm_rx) = flume::bounded(8);
+        session.install_realm_send_channel_for_test(realm_tx);
         let player_guid = ObjectGuid::create_player(1, 42);
         let group_guid = 0xBCDEF0;
         let player_registry = Arc::new(wow_network::PlayerRegistry::default());
@@ -65689,12 +68351,12 @@ mod tests {
             .process_represented_session_commands_like_cpp()
             .await;
 
-        let packets = drain_server_packet_bytes(&send_rx);
+        let packets = drain_server_packet_bytes(&instance_rx);
         assert!(packets.iter().any(|bytes| {
             wow_packet::WorldPacket::from_bytes(bytes).server_opcode()
                 == Some(ServerOpcodes::UpdateObject)
         }));
-        assert!(packets.iter().any(|bytes| {
+        assert!(!packets.iter().any(|bytes| {
             wow_packet::WorldPacket::from_bytes(bytes).server_opcode()
                 == Some(ServerOpcodes::GroupUninvite)
         }));
@@ -65702,6 +68364,11 @@ mod tests {
             wow_packet::WorldPacket::from_bytes(bytes).server_opcode()
                 == Some(ServerOpcodes::GroupDestroyed)
         }));
+        let uninvite = realm_rx.try_recv().expect("realm GroupUninvite");
+        assert_eq!(
+            wow_packet::WorldPacket::from_bytes(&uninvite).server_opcode(),
+            Some(ServerOpcodes::GroupUninvite)
+        );
     }
 
     #[test]
@@ -68934,8 +71601,16 @@ mod tests {
         let player_registry = Arc::new(wow_network::PlayerRegistry::default());
         let (inviter_tx, _inviter_rx) = flume::bounded(8);
         let (player_tx, _player_rx) = flume::bounded(8);
-        player_registry.insert(inviter_guid, broadcast_info(inviter_guid, inviter_tx));
-        player_registry.insert(player_guid, broadcast_info(player_guid, player_tx));
+        let (inviter_command_tx, _inviter_command_rx) = flume::unbounded();
+        let (player_command_tx, _player_command_rx) = flume::unbounded();
+        player_registry.insert(
+            inviter_guid,
+            broadcast_info_with_command(inviter_guid, inviter_tx, inviter_command_tx),
+        );
+        player_registry.insert(
+            player_guid,
+            broadcast_info_with_command(player_guid, player_tx, player_command_tx),
+        );
         let pending_invites = Arc::new(PendingInvites::default());
         pending_invites.insert(
             player_guid,
@@ -69839,6 +72514,7 @@ mod tests {
     #[tokio::test]
     async fn tracking_event_reward_money_drains_money_objective_queue_like_cpp() {
         let (mut session, _pkt_tx, send_rx) = make_session();
+        session.set_loot_money_persistence_test_result_like_cpp(true);
         let player_guid = ObjectGuid::create_player(1, 42);
         let reward_quest_id = 12_508;
         let money_objective_quest_id = 12_509;
@@ -90618,6 +93294,16 @@ mod tests {
                 .expect("creature remains in explicit map instance");
             assert_eq!(creature.position(), relocated);
         }
+        let authority_before = canonical
+            .lock()
+            .unwrap()
+            .find_map(609, 7)
+            .unwrap()
+            .map()
+            .get_typed_creature(guid)
+            .unwrap()
+            .loot_authority_like_cpp()
+            .clone();
 
         let synced = Position::new(17.0, 27.0, 37.0, 3.0);
         let mut creature = wow_entities::Creature::new(false);
@@ -90630,7 +93316,10 @@ mod tests {
         creature.unit_mut().set_health(100);
         creature.set_ai_identity_runtime(1, 35, 0, 0);
 
-        sync_canonical_creature_entity_on_map_like_cpp(&canonical, 609, 7, creature);
+        let selected_authority =
+            sync_canonical_creature_entity_on_map_like_cpp(&canonical, 609, 7, creature)
+                .expect("canonical sync keeps a typed creature authority");
+        assert!(authority_before.shares_storage_like_cpp(&selected_authority));
 
         let guard = canonical.lock().unwrap();
         let typed = guard
@@ -90641,6 +93330,485 @@ mod tests {
             .expect("typed creature remains in explicit map instance");
         assert_eq!(typed.position(), synced);
         assert_eq!(typed.level(), 33);
+        assert!(
+            authority_before.shares_storage_like_cpp(typed.loot_authority_like_cpp()),
+            "a whole-entity sync must not replace the canonical loot authority"
+        );
+    }
+
+    #[test]
+    fn canonical_creature_sync_quarantines_distinct_active_loot_authorities_like_cpp() {
+        let canonical = shared_canonical_map_manager();
+        let guid = test_creature_guid(61_399);
+        let player_guid = ObjectGuid::create_player(1, 61_398);
+        let position = Position::new(1.0, 2.0, 3.0, 0.5);
+        add_canonical_test_creature_on_map(&canonical, guid, 9_399, position, 0, 609, 7);
+
+        let loot = |coins| CreatureLoot {
+            loot_guid: ObjectGuid::create_world_object(
+                HighGuid::LootObject,
+                0,
+                0,
+                609,
+                0,
+                0,
+                i64::from(coins),
+            ),
+            coins,
+            unlooted_count: 0,
+            loot_type: LOOT_TYPE_CORPSE_LIKE_CPP,
+            dungeon_encounter_id: 0,
+            loot_method: 0,
+            loot_master: ObjectGuid::EMPTY,
+            round_robin_player: ObjectGuid::EMPTY,
+            player_ffa_items: Vec::new(),
+            players_looting: Vec::new(),
+            allowed_looters: vec![player_guid],
+            items: Vec::new(),
+            looted_by_player: false,
+        };
+
+        let canonical_authority = {
+            let mut manager = canonical.lock().unwrap();
+            let creature = manager
+                .find_map_mut(609, 7)
+                .unwrap()
+                .map_mut()
+                .get_typed_creature_mut(guid)
+                .unwrap();
+            creature.initialize_shared_loot_authority_like_cpp(loot(10));
+            creature.loot_authority_like_cpp().clone()
+        };
+
+        let mut incoming = wow_entities::Creature::new(false);
+        incoming.unit_mut().world_mut().object_mut().create(guid);
+        incoming
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .set_entry(9_399);
+        incoming.unit_mut().world_mut().set_map(609, 7).unwrap();
+        incoming.unit_mut().world_mut().relocate(position);
+        incoming.initialize_shared_loot_authority_like_cpp(loot(20));
+        let incoming_authority = incoming.loot_authority_like_cpp().clone();
+        assert!(!canonical_authority.shares_storage_like_cpp(&incoming_authority));
+
+        let selected = sync_canonical_creature_entity_on_map_like_cpp(&canonical, 609, 7, incoming)
+            .expect("conflicting mirrors collapse onto a canonical tombstone");
+        assert_eq!(
+            canonical_authority.lifecycle_like_cpp(),
+            OwnedLootAuthorityLifecycle::Detached,
+            "the displaced canonical allocation is terminally invalidated"
+        );
+        assert_eq!(
+            incoming_authority.lifecycle_like_cpp(),
+            OwnedLootAuthorityLifecycle::Active,
+            "the incoming value is only a transport snapshot; its live legacy owner performs its own CAS"
+        );
+        assert_eq!(
+            selected.lifecycle_like_cpp(),
+            OwnedLootAuthorityLifecycle::Quarantined
+        );
+        assert!(!canonical_authority.shares_storage_like_cpp(&selected));
+        assert!(!incoming_authority.shares_storage_like_cpp(&selected));
+        let manager = canonical.lock().unwrap();
+        let stored = manager
+            .find_map(609, 7)
+            .unwrap()
+            .map()
+            .get_typed_creature(guid)
+            .unwrap();
+        assert!(selected.shares_storage_like_cpp(stored.loot_authority_like_cpp()));
+    }
+
+    #[test]
+    fn canonical_loot_object_lookups_and_mutations_use_player_instance_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 61_700);
+        let creature_guid = test_creature_guid(61_701);
+        let gameobject_guid = test_gameobject_guid(61_702, 61_702);
+        let position = Position::new(10.0, 20.0, 30.0, 1.0);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "InstanceOwner".to_string(),
+            position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 7);
+        add_canonical_test_creature_on_map(&canonical, creature_guid, 9_100, position, 0, 571, 0);
+        add_canonical_test_creature_on_map(&canonical, creature_guid, 9_107, position, 0, 571, 7);
+        add_canonical_test_gameobject_on_map(&canonical, gameobject_guid, 9_200, position, 571, 0);
+        add_canonical_test_gameobject_on_map(&canonical, gameobject_guid, 9_207, position, 571, 7);
+
+        assert_eq!(
+            session
+                .canonical_creature_access_like_cpp(creature_guid)
+                .map(|access| access.entry),
+            Some(9_107)
+        );
+        assert_eq!(
+            session
+                .canonical_gameobject_access_like_cpp(gameobject_guid)
+                .map(|access| access.entry),
+            Some(9_207)
+        );
+        assert_eq!(
+            session.mutate_canonical_creature_by_guid_like_cpp(creature_guid, |creature| {
+                creature.unit_mut().set_health(37);
+                creature.current_health()
+            }),
+            Some(37)
+        );
+        assert!(
+            session
+                .mutate_canonical_gameobject_by_guid_like_cpp(gameobject_guid, |gameobject| {
+                    gameobject.set_created_by(player_guid)
+                },)
+                .is_some()
+        );
+
+        let guard = canonical.lock().unwrap();
+        let default_map = guard.find_map(571, 0).unwrap().map();
+        assert_eq!(
+            default_map
+                .get_typed_creature(creature_guid)
+                .unwrap()
+                .current_health(),
+            100
+        );
+        assert!(
+            default_map
+                .get_typed_game_object(gameobject_guid)
+                .unwrap()
+                .owner_guid()
+                .is_empty()
+        );
+        let player_map = guard.find_map(571, 7).unwrap().map();
+        assert_eq!(
+            player_map
+                .get_typed_creature(creature_guid)
+                .unwrap()
+                .current_health(),
+            37
+        );
+        assert_eq!(
+            player_map
+                .get_typed_game_object(gameobject_guid)
+                .unwrap()
+                .owner_guid(),
+            player_guid
+        );
+    }
+
+    #[test]
+    fn canonical_loot_lookup_fails_closed_while_player_is_in_two_maps_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 61_703);
+        let creature_guid = test_creature_guid(61_704);
+        let gameobject_guid = test_gameobject_guid(61_705, 61_705);
+        let position = Position::new(10.0, 20.0, 30.0, 1.0);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TransferringOwner".to_string(),
+            position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 7);
+        add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 8);
+        add_canonical_test_creature_on_map(&canonical, creature_guid, 9_107, position, 0, 571, 7);
+        add_canonical_test_gameobject_on_map(&canonical, gameobject_guid, 9_207, position, 571, 7);
+
+        assert_eq!(session.current_canonical_player_map_key_like_cpp(), None);
+        assert_eq!(session.canonical_object_lookup_map_key_like_cpp(571), None);
+        assert!(
+            session
+                .read_canonical_creature_loot_authority_like_cpp(creature_guid)
+                .is_none()
+        );
+        assert!(
+            session
+                .read_canonical_gameobject_loot_authority_like_cpp(gameobject_guid)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn loot_reconciliation_rejects_map_key_after_player_transfer_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 61_706);
+        let position = Position::new(10.0, 20.0, 30.0, 1.0);
+
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "TransferredOwner".to_string(),
+            position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 7);
+        let captured = session
+            .current_canonical_player_map_key_like_cpp()
+            .expect("the first instance owns the player at capture time");
+        assert!(session.loot_reconciliation_map_key_still_valid_like_cpp(captured, true));
+
+        canonical
+            .lock()
+            .unwrap()
+            .find_map_mut(571, 7)
+            .unwrap()
+            .map_mut()
+            .remove_from_map_like_cpp(player_guid, true)
+            .unwrap();
+        add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 8);
+
+        assert_eq!(
+            session.current_canonical_player_map_key_like_cpp(),
+            Some(wow_map::MapKey::new(571, 8))
+        );
+        assert!(
+            !session.loot_reconciliation_map_key_still_valid_like_cpp(captured, true),
+            "a reconciliation started in instance 7 cannot finish against instance 8"
+        );
+    }
+
+    #[test]
+    fn logged_in_loot_lookup_does_not_fallback_when_canonical_player_is_absent_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 61_707);
+        let creature_guid = test_creature_guid(61_708);
+        let position = Position::new(10.0, 20.0, 30.0, 1.0);
+
+        session.set_state(SessionState::LoggedIn);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "PlayerBetweenMaps".to_string(),
+            position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_creature_on_map(&canonical, creature_guid, 9_108, position, 0, 571, 7);
+
+        assert_eq!(session.current_canonical_player_map_key_like_cpp(), None);
+        assert_eq!(session.canonical_object_lookup_map_key_like_cpp(571), None);
+        assert!(
+            session
+                .read_canonical_creature_loot_authority_like_cpp(creature_guid)
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn legacy_loot_authority_lookup_uses_player_instance_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let legacy = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 61_705);
+        let creature_guid = test_creature_guid(61_706);
+        let position = Position::new(15.0, 25.0, 35.0, 1.5);
+
+        session.set_map_manager(Arc::clone(&legacy));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "InstanceOwner".to_string(),
+            position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 7);
+        let canonical_position = Position::new(115.0, 125.0, 135.0, 2.5);
+        add_canonical_test_creature_indexed_on_map_with_level(
+            &canonical,
+            creature_guid,
+            9_257,
+            canonical_position,
+            571,
+            7,
+            33,
+        );
+
+        let make_loot = |coins| CreatureLoot {
+            loot_guid: creature_guid,
+            coins,
+            unlooted_count: 0,
+            loot_type: LOOT_TYPE_CORPSE_LIKE_CPP,
+            dungeon_encounter_id: 0,
+            loot_method: 0,
+            loot_master: ObjectGuid::EMPTY,
+            round_robin_player: ObjectGuid::EMPTY,
+            player_ffa_items: Vec::new(),
+            players_looting: Vec::new(),
+            allowed_looters: vec![player_guid],
+            items: Vec::new(),
+            looted_by_player: false,
+        };
+        let make_creature = |instance_id, coins| {
+            let mut creature = crate::map_manager::WorldCreature::new(
+                creature_guid,
+                9_250,
+                position,
+                100,
+                80,
+                1,
+                2,
+                0.0,
+                1,
+                35,
+                0,
+                0,
+            );
+            creature
+                .creature
+                .unit_mut()
+                .world_mut()
+                .set_map(571, instance_id)
+                .unwrap();
+            creature
+                .creature
+                .initialize_shared_loot_authority_like_cpp(make_loot(coins));
+            creature
+        };
+        let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(position.x, position.y);
+        {
+            let mut manager = legacy.write().unwrap();
+            assert!(manager.add_creature(571, 0, grid_x, grid_y, make_creature(0, 100)));
+            assert!(manager.add_creature(571, 7, grid_x, grid_y, make_creature(7, 700)));
+        }
+
+        let selected_authority = session
+            .read_legacy_creature_loot_authority_like_cpp(creature_guid)
+            .expect("the current instance owns a legacy creature runtime");
+        assert_eq!(
+            selected_authority
+                .shared_snapshot_like_cpp()
+                .unwrap()
+                .loot
+                .coins,
+            700
+        );
+
+        let claim = selected_authority
+            .reserve_money_like_cpp(player_guid)
+            .await
+            .expect("instance 7 money pool is claimable");
+        assert!(claim.commit_like_cpp().unwrap());
+
+        {
+            let manager = canonical.lock().unwrap();
+            let creature = manager
+                .find_map(571, 7)
+                .unwrap()
+                .map()
+                .get_typed_creature(creature_guid)
+                .unwrap();
+            assert_eq!(creature.entry(), 9_257);
+            assert_eq!(creature.level(), 33);
+            assert_eq!(creature.position(), canonical_position);
+        }
+
+        let manager = legacy.read().unwrap();
+        assert_eq!(
+            manager
+                .find_creature(571, 0, creature_guid)
+                .unwrap()
+                .creature
+                .loot_authority_like_cpp()
+                .shared_snapshot_like_cpp()
+                .unwrap()
+                .loot
+                .coins,
+            100,
+            "claiming instance 7 must not steal from the same spawn in instance 0"
+        );
+        assert_eq!(
+            manager
+                .find_creature(571, 7, creature_guid)
+                .unwrap()
+                .creature
+                .loot_authority_like_cpp()
+                .shared_snapshot_like_cpp()
+                .unwrap()
+                .loot
+                .coins,
+            0
+        );
+    }
+
+    #[test]
+    fn represented_gameobject_runtime_state_upserts_into_player_instance_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let player_guid = ObjectGuid::create_player(1, 61_710);
+        let gameobject_guid = test_gameobject_guid(61_711, 61_711);
+        let position = Position::new(40.0, 50.0, 60.0, 2.0);
+
+        canonical.lock().unwrap().create_world_map(571, 0);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            player_guid,
+            "InstanceOwner".to_string(),
+            position,
+            571,
+            1,
+            1,
+            80,
+            0,
+        ));
+        add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 7);
+
+        session.record_represented_gameobject_runtime_state_like_cpp(
+            571,
+            gameobject_guid,
+            9_301,
+            position,
+            wow_entities::GAMEOBJECT_TYPE_CHEST as u8,
+        );
+
+        let guard = canonical.lock().unwrap();
+        assert!(
+            guard
+                .find_map(571, 0)
+                .unwrap()
+                .map()
+                .get_typed_game_object(gameobject_guid)
+                .is_none()
+        );
+        let gameobject = guard
+            .find_map(571, 7)
+            .unwrap()
+            .map()
+            .get_typed_game_object(gameobject_guid)
+            .expect("represented client-visible GO is materialized in the player's instance");
+        assert_eq!(gameobject.world().map_id(), 571);
+        assert_eq!(gameobject.world().instance_id(), 7);
+        assert_eq!(gameobject.world().position(), position);
     }
 
     #[test]
@@ -91157,6 +94325,7 @@ mod tests {
             is_in_world: true,
             send_tx,
             command_tx,
+            durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),
             pass_on_group_loot: false,
             enchanting_skill: 0,
@@ -92831,11 +96000,20 @@ mod tests {
             !target_dies_tappers.contains(&far_member),
             "C++ Player::IsAtGroupRewardDistance suppresses TARGET_DIES proc for far tappers"
         );
-        let loot = session
+        let authority = session
+            .mutate_world_creature(guid, |creature| {
+                creature.creature.loot_authority_like_cpp().clone()
+            })
+            .expect("dead creature retains its object-owned loot authority");
+        assert!(
+            authority.personal_snapshot_like_cpp(far_member).is_some(),
+            "C++ overworld loot still creates an independent pool for every connected tapper, regardless of group reward distance"
+        );
+        let selected_loot = session
             .loot_table
             .get(&guid)
-            .expect("loot still uses the original tap list");
-        assert!(loot.allowed_looters.contains(&far_member));
+            .expect("the handling session retains only its personal loot view");
+        assert_eq!(selected_loot.allowed_looters, vec![player]);
     }
 
     #[tokio::test]
@@ -106751,7 +109929,9 @@ mod tests {
             },
         );
 
-        let plan = session.current_player_save_to_db_statement_plan_like_cpp(&snapshot, 1_000);
+        let plan = session
+            .current_player_save_to_db_statement_plan_like_cpp(&snapshot, 1_000)
+            .expect("determinate tracker should allow a full-save plan");
         let sqls: Vec<&str> = plan.statements.iter().map(PreparedStatement::sql).collect();
 
         assert_eq!(
@@ -106783,6 +109963,107 @@ mod tests {
             }),
             "C++ _SaveQuestStatus only writes m_QuestStatusSave dirty entries; represented full-save must preserve unchanged objective rows until Rust owns that dirty set"
         );
+    }
+
+    #[test]
+    fn ambiguous_absolute_money_commit_requires_exact_changed_row_evidence_like_cpp() {
+        assert_eq!(
+            reconcile_absolute_player_money_commit_like_cpp(100, 75, Some(75)),
+            AbsolutePlayerMoneyCommitReconciliationLikeCpp::Committed
+        );
+        assert_eq!(
+            reconcile_absolute_player_money_commit_like_cpp(100, 75, Some(100)),
+            AbsolutePlayerMoneyCommitReconciliationLikeCpp::RolledBack
+        );
+        assert_eq!(
+            reconcile_absolute_player_money_commit_like_cpp(100, 75, Some(90)),
+            AbsolutePlayerMoneyCommitReconciliationLikeCpp::Indeterminate
+        );
+        assert_eq!(
+            reconcile_absolute_player_money_commit_like_cpp(100, 75, None),
+            AbsolutePlayerMoneyCommitReconciliationLikeCpp::Indeterminate
+        );
+        assert_eq!(
+            reconcile_absolute_player_money_commit_like_cpp(100, 100, Some(100)),
+            AbsolutePlayerMoneyCommitReconciliationLikeCpp::Indeterminate,
+            "an unchanged money row cannot prove whether bundled non-money statements committed"
+        );
+    }
+
+    #[tokio::test]
+    async fn failed_exclusive_money_persistence_never_publishes_runtime_and_reopens_admission() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 5_012);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_gold_like_cpp(100);
+        session.set_loot_money_persistence_test_result_like_cpp(false);
+        let tracker = session.durable_loot_money_persistence_tracker_like_cpp();
+
+        assert_eq!(
+            session
+                .mutate_and_persist_player_gold_exclusive_like_cpp(|money| money + 25)
+                .await,
+            None
+        );
+        assert_eq!(session.player_gold_like_cpp(), 100);
+        assert!(
+            tracker.begin_like_cpp().is_ok(),
+            "a definite persistence failure must drop the save fence and reopen payout admission"
+        );
+    }
+
+    #[tokio::test]
+    async fn indeterminate_money_state_blocks_full_save_reconciliation_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let tracker = session.durable_loot_money_persistence_tracker_like_cpp();
+        tracker.mark_indeterminate_like_cpp();
+
+        assert!(
+            !session
+                .reconcile_durable_loot_money_before_save_like_cpp()
+                .await
+        );
+        assert!(tracker.is_indeterminate_like_cpp());
+        assert!(
+            session
+                .current_player_save_to_db_statement_plan_like_cpp(
+                    &PlayerSaveToDbSnapshotLikeCpp {
+                        guid: ObjectGuid::create_player(1, 50_013),
+                        map_id: 0,
+                        instance_id: 0,
+                        position: Position::default(),
+                        level: 1,
+                        xp: 0,
+                        money: 0,
+                        health: 1,
+                        max_health: 1,
+                        powers: empty_character_power_snapshot_like_cpp(),
+                    },
+                    0,
+                )
+                .is_none(),
+            "an indeterminate money transaction must prevent every partial full-save plan"
+        );
+    }
+
+    #[test]
+    fn cancelled_money_commit_fence_permanently_closes_admission_before_disconnect_save() {
+        let tracker = Arc::new(DurableLootMoneyPersistenceTrackerLikeCpp::default());
+        {
+            let _armed = PlayerMoneyCommitCancellationFenceLikeCpp::new(Arc::clone(&tracker));
+        }
+
+        assert!(tracker.is_indeterminate_like_cpp());
+        assert!(tracker.begin_like_cpp().is_err());
+
+        let safe_tracker = Arc::new(DurableLootMoneyPersistenceTrackerLikeCpp::default());
+        {
+            let mut known_outcome =
+                PlayerMoneyCommitCancellationFenceLikeCpp::new(Arc::clone(&safe_tracker));
+            known_outcome.disarm_like_cpp();
+        }
+        assert!(!safe_tracker.is_indeterminate_like_cpp());
+        assert!(safe_tracker.begin_like_cpp().is_ok());
     }
 
     #[test]
@@ -106856,7 +110137,9 @@ mod tests {
                 )
             });
 
-        let plan = session.current_player_save_to_db_statement_plan_like_cpp(&snapshot, 1_000);
+        let plan = session
+            .current_player_save_to_db_statement_plan_like_cpp(&snapshot, 1_000)
+            .expect("determinate tracker should allow a full-save plan");
 
         assert!(plan.tutorials_changed_committed_like_cpp);
         assert!(plan.equipment_sets_committed_like_cpp);
@@ -110927,6 +114210,138 @@ mod tests {
             ],
             "C++ _SaveTalents writes every non-removed talent with its talent group"
         );
+    }
+
+    #[test]
+    fn talent_reset_transaction_plan_clears_active_preserves_inactive_and_persists_zero_cost() {
+        let (mut session, _, _) = make_session();
+        session.set_talent_store(Arc::new(wow_data::TalentStore::from_entries([
+            test_talent_entry_like_cpp(101, 0, 50_101),
+            test_talent_entry_like_cpp(202, 1, 50_202),
+        ])));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            50_101,
+            wow_data::SpellInfo {
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_SPELL,
+                    effect_trigger_spell: 60_101,
+                    ..Default::default()
+                }],
+                ..test_spell_info_like_cpp(50_101)
+            },
+        );
+        spell_store.insert(60_101, test_spell_info_like_cpp(60_101));
+        spell_store.insert(50_202, test_spell_info_like_cpp(50_202));
+        session.set_spell_store(Arc::new(spell_store));
+        install_test_talent_tab_store_like_cpp(&mut session);
+
+        session.set_represented_active_talent_group_like_cpp(0);
+        assert!(session.load_represented_talent_row_like_cpp(101, 0, 0));
+        assert!(session.load_represented_talent_row_like_cpp(202, 1, 1));
+        session.mark_represented_talents_loaded_like_cpp();
+        session.set_known_spells_like_cpp(vec![50_101, 60_101, 50_202]);
+
+        let (state_plan, statements) = session
+            .represented_talent_reset_transaction_statement_plan_like_cpp(42, 777, 777, 0, 123)
+            .expect("coherent talent state should produce an atomic reset plan");
+
+        assert_eq!(state_plan.active_group, 0);
+        assert_eq!(state_plan.active_talents, BTreeMap::from([(101, 0)]));
+        assert!(state_plan.post_talents[0].is_empty());
+        assert_eq!(state_plan.post_talents[1], BTreeMap::from([(202, 1)]));
+        assert_eq!(statements.len(), 4);
+        assert_eq!(statements[0].sql(), CharStatements::UPD_CHAR_MONEY.sql());
+        assert_eq!(
+            statements[0].params(),
+            &[
+                wow_database::SqlParam::U64(777),
+                wow_database::SqlParam::U64(42),
+            ],
+            "zero-cost reset still carries an absolute money marker in the same transaction"
+        );
+        assert_eq!(
+            statements[1].sql(),
+            CharStatements::UPD_CHAR_TALENT_RESET_STATE.sql()
+        );
+        assert_eq!(
+            statements[1].params(),
+            &[
+                wow_database::SqlParam::U32(0),
+                wow_database::SqlParam::U64(123),
+                wow_database::SqlParam::U64(42),
+            ]
+        );
+        assert_eq!(statements[2].sql(), CharStatements::DEL_CHAR_TALENT.sql());
+        assert_eq!(statements[3].sql(), CharStatements::INS_CHAR_TALENT.sql());
+        assert_eq!(
+            statements[3].params(),
+            &[
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U32(202),
+                wow_database::SqlParam::U8(1),
+                wow_database::SqlParam::U8(1),
+            ],
+            "the inactive talent group is reinserted after the delete-all"
+        );
+        assert!(
+            statements.iter().all(|statement| {
+                !matches!(
+                    statement.sql(),
+                    sql if sql == CharStatements::DEL_CHAR_SPELL_BY_SPELL.sql()
+                        || sql == CharStatements::INS_CHAR_SPELL.sql()
+                        || sql == CharStatements::DEL_CHAR_SPELL_FAVORITE.sql()
+                        || sql == CharStatements::INS_CHAR_SPELL_FAVORITE.sql()
+                )
+            }),
+            "talent reset leaves character_spell ownership untouched until PlayerSpellMap is represented"
+        );
+
+        assert_eq!(session.player_gold_like_cpp(), 0);
+        assert_eq!(
+            session
+                .represented_update_talent_data_packet_like_cpp()
+                .groups[0]
+                .talents
+                .len(),
+            1,
+            "building the transaction plan is pure and does not publish the reset"
+        );
+    }
+
+    #[test]
+    fn talent_reset_transaction_plan_persists_capped_fee_with_talent_delete() {
+        let (mut session, _, _) = make_session();
+        session.mark_represented_talents_loaded_like_cpp();
+        let month = TALENT_RESET_MONTH_SECS_LIKE_CPP;
+        let now = 10 * month;
+        session.set_represented_talent_reset_state_like_cpp(500_000, now);
+        let cost = session.represented_next_reset_talents_cost_like_cpp(now);
+        assert_eq!(cost, 500_000);
+
+        let (_, statements) = session
+            .represented_talent_reset_transaction_statement_plan_like_cpp(
+                42, 1_000_000, 500_000, cost, now,
+            )
+            .expect("loaded empty active group should still persist its reset");
+
+        assert_eq!(statements.len(), 3);
+        assert_eq!(
+            statements[0].params(),
+            &[
+                wow_database::SqlParam::U64(500_000),
+                wow_database::SqlParam::U64(42),
+            ]
+        );
+        assert_eq!(
+            statements[1].params(),
+            &[
+                wow_database::SqlParam::U32(500_000),
+                wow_database::SqlParam::U64(now),
+                wow_database::SqlParam::U64(42),
+            ]
+        );
+        assert_eq!(statements[2].sql(), CharStatements::DEL_CHAR_TALENT.sql());
     }
 
     #[test]
@@ -124236,6 +127651,7 @@ mod tests {
     #[tokio::test]
     async fn loot_money_consumes_only_current_active_loot_like_cpp() {
         let (mut session, _, send_rx) = make_session();
+        session.set_loot_money_persistence_test_result_like_cpp(true);
         let player_guid = ObjectGuid::create_player(1, 42);
         let active_guid = test_creature_guid(19_001);
         let inactive_guid = test_creature_guid(19_002);
@@ -125603,7 +129019,10 @@ mod tests {
         assert_eq!(sent.read_packed_guid().unwrap(), loot_guid);
         assert_eq!(sent.read_packed_guid().unwrap(), player_guid);
         assert!(!session.is_active_loot_guid(loot_guid));
-        assert!(session.loot_table.contains_key(&loot_guid));
+        assert!(
+            !session.loot_table.contains_key(&loot_guid),
+            "full disconnect release retires the session packet-cache copy like C++"
+        );
     }
 
     #[test]
@@ -131869,6 +135288,7 @@ mod tests {
             ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 792, 40);
         let position = Position::new(1.0, 2.0, 3.0, 0.0);
         session.set_player_guid(Some(player_guid));
+        session.set_loot_money_persistence_test_result_like_cpp(true);
         session.set_player_map_position_like_cpp(571, position);
         session.set_canonical_map_manager(Arc::clone(&canonical));
         add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
@@ -131918,6 +135338,59 @@ mod tests {
                 ServerOpcodes::QuestUpdateComplete,
             ]
         );
+    }
+
+    #[tokio::test]
+    async fn quest_reward_money_crossing_cap_leaves_balance_unchanged_like_cpp() {
+        let (mut session, _pkt_tx, _send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 99);
+        let source_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 792, 40);
+        let position = Position::new(1.0, 2.0, 3.0, 0.0);
+        session.set_player_guid(Some(player_guid));
+        session.set_player_map_position_like_cpp(571, position);
+        let canonical = shared_canonical_map_manager();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
+        add_canonical_test_creature(
+            &canonical,
+            source_guid,
+            792,
+            position,
+            wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
+        );
+
+        let quest_id = 9_233;
+        let mut quest = test_quest_template(quest_id);
+        quest.reward_money_difficulty = 2;
+        let mut quest_store = wow_data::quest::QuestStore::from_quests_like_cpp([quest]);
+        quest_store.ender_quests.insert(792, vec![quest_id]);
+        session.quest_store = Some(Arc::new(quest_store));
+        session.set_player_gold_like_cpp(MAX_MONEY_AMOUNT - 1);
+        session.player_quests.insert(
+            quest_id,
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: Vec::new(),
+                slot: 0,
+            },
+        );
+
+        session
+            .handle_quest_giver_choose_reward(quest_giver_choose_reward_packet_like_cpp(
+                source_guid,
+                quest_id,
+                0,
+                0,
+            ))
+            .await;
+
+        assert_eq!(session.player_gold_like_cpp(), MAX_MONEY_AMOUNT - 1);
+        assert!(session.rewarded_quests.contains(&quest_id));
     }
 
     #[tokio::test]
@@ -132023,6 +135496,7 @@ mod tests {
         let (mut session, _pkt_tx, send_rx) = make_session();
         let player_guid = ObjectGuid::create_player(1, 99);
         session.set_player_guid(Some(player_guid));
+        session.set_loot_money_persistence_test_result_like_cpp(true);
         session.set_player_gold_like_cpp(5);
         let mut quest = test_quest_template(9_226);
         quest.flags = crate::handlers::quest::QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP;
@@ -134896,6 +138370,14 @@ mod tests {
                 wow_entities::CreatureAiState::WalkingRandom
             );
         }
+        let legacy_authority = manager
+            .read()
+            .unwrap()
+            .find_creature(0, 0, guid)
+            .unwrap()
+            .creature
+            .loot_authority_like_cpp()
+            .clone();
         {
             let guard = canonical.lock().unwrap();
             let typed = guard
@@ -134908,6 +138390,7 @@ mod tests {
                 typed.ai_state(),
                 wow_entities::CreatureAiState::WalkingRandom
             );
+            assert!(legacy_authority.shares_storage_like_cpp(typed.loot_authority_like_cpp()));
         }
     }
 
@@ -135500,6 +138983,10 @@ mod tests {
                     static_flags: [0; 8],
                     creature_type: 0,
                     type_flags: 0,
+                    loot_id: 0,
+                    skin_loot_id: 0,
+                    gold_min: 0,
+                    gold_max: 0,
                     movement_type: MovementGeneratorType::Idle,
                     ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
                     swim_allowed: true,

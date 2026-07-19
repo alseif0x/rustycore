@@ -30,6 +30,33 @@ fn c2s(opcode: u16, body: &[u8]) -> CapturedPacket {
 
 const ALL: &[Direction] = &[Direction::S2C, Direction::C2S];
 
+#[allow(clippy::too_many_arguments)]
+fn write_dump_record(
+    dir: &Path,
+    direction: &str,
+    seq: u64,
+    counter: u64,
+    connection_id: &str,
+    opcode: u16,
+    name: &str,
+    body: &[u8],
+) -> String {
+    std::fs::create_dir_all(dir).unwrap();
+    let len = body.len() + 2;
+    let stem = format!("rust-{direction}-{seq:08}-counter{counter}-0x{opcode:04X}-{name}-len{len}");
+    let mut bin = opcode.to_le_bytes().to_vec();
+    bin.extend_from_slice(body);
+    std::fs::write(dir.join(format!("{stem}.bin")), bin).unwrap();
+    std::fs::write(
+        dir.join(format!("{stem}.meta")),
+        format!(
+            "direction={direction}\nconnection_id={connection_id}\naddr=127.0.0.1:0\nseq={seq}\ncounter={counter}\nopcode=0x{opcode:04X}\nname={name}\nlen={len}\n"
+        ),
+    )
+    .unwrap();
+    stem
+}
+
 #[test]
 fn identical_captures_are_clean() {
     let pkts = vec![s2c(0x0001, &[1, 2, 3]), s2c(0x0002, &[4, 5])];
@@ -274,6 +301,16 @@ fn pkt_rejects_wrong_version() {
 }
 
 #[test]
+fn pkt_rejects_opcode_wider_than_world_opcode() {
+    let cap = Capture::new("wide", vec![s2c(0x1234, &[])]);
+    let mut bytes = pkt::write_pkt_bytes(&cap);
+    // PKT 3.1 log header (66) + packet header (20) + optional address (20).
+    bytes[106..110].copy_from_slice(&0x0001_0000_u32.to_le_bytes());
+    let error = pkt::parse_pkt_bytes(&bytes).expect_err("wide opcode must fail closed");
+    assert!(error.to_string().contains("16-bit world opcode space"));
+}
+
+#[test]
 fn rust_dump_round_trips() {
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("rust_dump_round_trips");
     let _ = std::fs::remove_dir_all(&dir);
@@ -328,18 +365,17 @@ fn rust_dump_accepts_unencrypted_handshake_tags() {
     // parser MUST accept them — a real login dump always contains them.
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("unencrypted_tags");
     let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
     // SMSG_AUTH_CHALLENGE-ish: opcode 0x256D, body [9], dumped pre-encryption.
-    std::fs::write(
-        dir.join("rust-s2c-unencrypted-00000000-counter0-0x256D-x-len3.bin"),
-        [0x6D, 0x25, 0x09],
-    )
-    .unwrap();
-    std::fs::write(
-        dir.join("rust-s2c-unencrypted-00000000-counter0-0x256D-x-len3.meta"),
-        "direction=s2c-unencrypted\nseq=0\nopcode=0x256D\nlen=3\n",
-    )
-    .unwrap();
+    write_dump_record(
+        &dir,
+        "s2c-unencrypted",
+        0,
+        0,
+        "0",
+        0x256D,
+        "AuthResponse",
+        &[9],
+    );
     let cap = rustdump::parse_rust_dump(&dir).expect("must parse -unencrypted tags");
     assert_eq!(cap.packets.len(), 1);
     assert_eq!(cap.packets[0].direction, Direction::S2C);
@@ -352,17 +388,7 @@ fn rust_dump_accepts_unencrypted_handshake_tags() {
 fn rust_dump_rejects_invalid_explicit_connection_id() {
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("invalid_connection_id");
     let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(
-        dir.join("rust-s2c-00000000-counter0-0x256D-x-len3.bin"),
-        [0x6D, 0x25, 0x09],
-    )
-    .unwrap();
-    std::fs::write(
-        dir.join("rust-s2c-00000000-counter0-0x256D-x-len3.meta"),
-        "direction=s2c\nconnection_id=instance\nseq=0\nopcode=0x256D\nlen=3\n",
-    )
-    .unwrap();
+    write_dump_record(&dir, "s2c", 0, 0, "instance", 0x256D, "AuthResponse", &[9]);
 
     let error = rustdump::parse_rust_dump(&dir).unwrap_err();
     assert!(error.to_string().contains("invalid connection_id"));
@@ -372,23 +398,132 @@ fn rust_dump_rejects_invalid_explicit_connection_id() {
 fn rust_dump_rejects_duplicate_global_sequence_after_process_restart() {
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("duplicate_global_sequence");
     let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-
-    for (name, opcode) in [("first", 0x271C_u16), ("second", 0x27CB_u16)] {
-        let stem = format!("rust-s2c-{name}-0x{opcode:04X}");
-        let mut bin = opcode.to_le_bytes().to_vec();
-        bin.push(0);
-        std::fs::write(dir.join(format!("{stem}.bin")), bin).unwrap();
-        std::fs::write(
-            dir.join(format!("{stem}.meta")),
-            format!("direction=s2c\nconnection_id=1\nseq=7\nopcode=0x{opcode:04X}\nlen=3\n"),
-        )
-        .unwrap();
-    }
+    write_dump_record(&dir, "s2c", 7, 0, "1", 0x271C, "StandStateUpdate", &[0]);
+    write_dump_record(&dir, "s2c", 7, 1, "1", 0x27CB, "UpdateObject", &[0]);
 
     let error = rustdump::parse_rust_dump(&dir).expect_err("duplicate seq must fail closed");
-    assert!(error.to_string().contains("duplicate packet dump seq 7"));
+    assert!(
+        error
+            .to_string()
+            .contains("non-contiguous packet dump seq 7 then 7")
+    );
     assert!(error.to_string().contains("may have restarted"));
+}
+
+#[test]
+fn rust_dump_requires_contiguous_sequence_but_not_zero_origin() {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("sequence_contract");
+    let _ = std::fs::remove_dir_all(&dir);
+    write_dump_record(&dir, "c2s", 41, 5, "1", 0x3211, "LootItem", &[0]);
+    write_dump_record(&dir, "s2c", 42, 9, "0", 0x2615, "LootRemoved", &[0]);
+    assert_eq!(rustdump::parse_rust_dump(&dir).unwrap().packets.len(), 2);
+
+    let stem = write_dump_record(&dir, "s2c", 44, 10, "1", 0x27CB, "UpdateObject", &[0]);
+    let error = rustdump::parse_rust_dump(&dir).expect_err("sequence gap must fail");
+    assert!(error.to_string().contains("seq 42 then 44"));
+    std::fs::remove_file(dir.join(format!("{stem}.meta"))).unwrap();
+    std::fs::remove_file(dir.join(format!("{stem}.bin"))).unwrap();
+}
+
+#[test]
+fn rust_dump_rejects_orphans_extras_subdirectories_and_symlinks() {
+    let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join("flat_inventory_contract");
+    let reset = || {
+        let _ = std::fs::remove_dir_all(&root);
+        write_dump_record(&root, "c2s", 0, 0, "1", 0x3211, "LootItem", &[0])
+    };
+
+    let stem = reset();
+    std::fs::remove_file(root.join(format!("{stem}.bin"))).unwrap();
+    assert!(
+        rustdump::parse_rust_dump(&root)
+            .unwrap_err()
+            .to_string()
+            .contains("orphan .meta")
+    );
+
+    reset();
+    std::fs::write(root.join("notes.txt"), b"not evidence").unwrap();
+    assert!(
+        rustdump::parse_rust_dump(&root)
+            .unwrap_err()
+            .to_string()
+            .contains("unexpected file")
+    );
+
+    reset();
+    std::fs::create_dir(root.join("nested")).unwrap();
+    assert!(
+        rustdump::parse_rust_dump(&root)
+            .unwrap_err()
+            .to_string()
+            .contains("not a regular")
+    );
+
+    reset();
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(root.join(format!("{stem}.bin")), root.join("linked.bin"))
+            .unwrap();
+        assert!(
+            rustdump::parse_rust_dump(&root)
+                .unwrap_err()
+                .to_string()
+                .contains("non-symlink")
+        );
+    }
+}
+
+#[test]
+fn rust_dump_binds_metadata_filename_and_binary_length() {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("metadata_binding_contract");
+    let _ = std::fs::remove_dir_all(&dir);
+    let stem = write_dump_record(&dir, "c2s", 0, 0, "1", 0x3211, "LootItem", &[1, 2]);
+    let meta = dir.join(format!("{stem}.meta"));
+    let original = std::fs::read_to_string(&meta).unwrap();
+
+    std::fs::write(&meta, original.replace("len=4", "len=5")).unwrap();
+    let error = rustdump::parse_rust_dump(&dir).expect_err("filename/meta mismatch must fail");
+    assert!(error.to_string().contains("filename stem disagrees"));
+
+    std::fs::write(&meta, &original).unwrap();
+    let bin = dir.join(format!("{stem}.bin"));
+    std::fs::write(&bin, [0x11, 0x32, 1]).unwrap();
+    let error = rustdump::parse_rust_dump(&dir).expect_err("body length mismatch must fail");
+    assert!(error.to_string().contains("metadata declares 4"));
+
+    std::fs::write(&bin, [0x11, 0x32, 1, 2]).unwrap();
+    std::fs::write(&meta, format!("{original}unknown=value\n")).unwrap();
+    assert!(
+        rustdump::parse_rust_dump(&dir)
+            .unwrap_err()
+            .to_string()
+            .contains("unknown field")
+    );
+
+    std::fs::write(
+        &meta,
+        original.replace("addr=127.0.0.1:0", "addr=not-a-socket"),
+    )
+    .unwrap();
+    assert!(
+        rustdump::parse_rust_dump(&dir)
+            .unwrap_err()
+            .to_string()
+            .contains("invalid socket address")
+    );
+
+    std::fs::write(
+        &meta,
+        original.replace("direction=c2s", "direction=c2s-unencrypted-unencrypted"),
+    )
+    .unwrap();
+    assert!(
+        rustdump::parse_rust_dump(&dir)
+            .unwrap_err()
+            .to_string()
+            .contains("invalid direction")
+    );
 }
 
 #[test]

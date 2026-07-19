@@ -26,29 +26,126 @@ Printing `review` or `full` with `--dry-run` does not require Codex or its execu
 | `diff [BASE]` | Whitespace-check committed, staged, and unstaged changes | No |
 | `format` | Run harness self-tests and both formatting checks from CI | No |
 | `check` | Run locked core checks, bot check, and server builds from CI | No |
-| `test` | Run the four focused library suites from CI | No |
+| `test` | Run focused suites, loot-race tests, and the required capture gate from CI | No |
 | `ci` | Run `format`, `check`, and `test` | No |
 | `quick [BASE]` | Run `diff`, `format`, and `check` during iteration | No |
-| `capture` | Test the committed C++↔Rust capture-diff fixtures without `protoc` | No |
+| `capture` | Test committed captures and enforce required capture contracts without `protoc` | No |
 | `review [BASE]` | Review a clean committed diff with Codex in read-only mode | No |
 | `review-uncommitted` | Review staged, unstaged, and untracked work during iteration | No |
-| `full [BASE]` | Run `diff`, `ci`, `capture`, and `review` | No |
+| `full [BASE]` | Run `diff`, CI (including the capture gate), and `review` | No |
 | `stable` | Check/build server binaries with latest stable Rust | No |
 | `qa-login` | Run the integrated live login bot | **Yes** |
+| `qa-loot-race` | Run the destructive two-session atomic-loot bot | **Yes** |
 
 `BASE` defaults to `origin/3.4.3`. Use `--dry-run` before a command to print its underlying
 commands without executing them or provisioning optional review tools.
 
-`qa-login` is intentionally outside `full`. It requires running services and may create/update
-local QA accounts and session data, so it refuses to run without explicit acknowledgement:
+`qa-login` is intentionally outside `full`. It requires running services, may create missing
+local QA auth rows, and writes normal login/session data, so it refuses to run without explicit
+acknowledgement. Existing BNet/game identities and character ownership are validation-only: a
+credential, numeric-ID, ownership, ban, online-state, or realm-count mismatch fails closed rather
+than being rewritten.
 
 ```bash
 ./tools/pr-preflight.sh --allow-runtime-qa qa-login
 ```
 
+`qa-loot-race` additionally refuses to trust whichever process happens to be
+listening or whichever bot an ignored `.env.local` happens to select. Pin both
+the feature-branch `world-server` and `wow-test-bot` files plus their SHA-256
+digests. The
+gate snapshots and accredits the current normal PM2 executable, drives the
+repository's guarded `capture-rust.sh loot-two-session-atomic-race --yes`
+through a FIFO, then accredits the replacement capture PID/path/hash and both
+distinct listeners against that same PID before running the bot. The capture
+identity must remain unchanged;
+after the bot, the gate signals completion and waits for fixture cleanup plus
+exact restoration of the original PM2 executable/profile.
+The bot writes its report to a fresh private path; exit status zero is accepted
+only when that report proves the exact two accounts, two successful logins,
+party/target/loot observations, exactly one item winner, both removal fanouts,
+money notifications of `10` and `0`, one persisted item, an exact persisted
+money delta of `10`, and relog verification.
+
+The preflight creates a private `WOW_BOT_FIXTURE_JOURNAL` path and forces
+`WOW_BOT_ENSURE_TEST_ACCOUNTS=0`; loot QA therefore requires pre-provisioned
+disposable accounts and never runs the generic account/character bootstrap.
+The bot must durably journal before its first mutation, remove the pending
+journal only after bounded restoration, and atomically create the mode-0600
+JSON marker `${WOW_BOT_FIXTURE_JOURNAL}.cleanup-complete`. The marker pins the
+journal SHA-256 and cleanup PID. A pending journal, unsafe/malformed marker, or
+digest mismatch prevents the normal PM2 world from restarting. Cleanup/restoration
+failure takes precedence over the original bot/signal exit status, and the
+recovery directory is retained for inspection. The preflight tracks the bot PID,
+terminates and waits for it before capture cleanup on signals, and the wrapper
+executes the bot with Linux parent-death protection so no detached child can
+continue mutating the fixture.
+
+The bot is forced to loopback ports `8085`/`8086` (override the accredited
+ports with `RUST_WORLD_PORT`/`RUST_INSTANCE_PORT`) and rejects a different
+instance port advertised by `SMSG_CONNECT_TO`. Run this only on an isolated
+host/network namespace whose firewall restricts the BNet/world/instance ports
+to loopback, because the server process itself may use wildcard listeners:
+
+```bash
+test -z "$(git status --porcelain=v1 --untracked-files=normal)"
+TARGET_EXEC="$(realpath /absolute/path/to/feature-branch/world-server)"
+TARGET_SHA="$(sha256sum "$TARGET_EXEC" | awk '{print $1}')"
+BOT_EXEC="$(realpath tools/wow-test-bot/target/debug/wow-test-bot)"
+BOT_SHA="$(sha256sum "$BOT_EXEC" | awk '{print $1}')"
+RUST_CAPTURE_DB_CONF=/home/server/trinity-legacy-install/bin/worldserver.conf \
+RUST_CAPTURE_EFFECTIVE_CONFIG=/home/server/trinity-legacy-install/etc/worldserver.conf \
+WOW_BOT_DB_CONF=/home/server/trinity-legacy-install/bin/worldserver.conf \
+WOW_BOT_WORLD_EXEC="$TARGET_EXEC" \
+WOW_BOT_WORLD_EXEC_SHA256="$TARGET_SHA" \
+WOW_BOT_EXEC="$BOT_EXEC" \
+WOW_BOT_EXEC_SHA256="$BOT_SHA" \
+./tools/pr-preflight.sh --allow-runtime-qa \
+  --ack-disposable-overworld-loot-race qa-loot-race
+```
+
+`RUST_CAPTURE_DB_CONF` is the credential source used by the bounded fixture
+guard; `RUST_CAPTURE_EFFECTIVE_CONFIG` is independently pinned to the exact
+config selected by the PM2 cwd/argv profile. They are intentionally different
+on the current host, and the capture wrapper fails closed if the latter does
+not match PM2.
+
+`RUST_WORLD_PORT` and `RUST_INSTANCE_PORT` must be different. The fixture guard
+also rejects orphan `gameobject_addon`, `gameobject_overrides`, `spawn_group`,
+pool, event, or linked-respawn rows before claiming spawn `9106001`. Cleanup
+checks the complete pinned spawn (including persisted `state`) and addon row
+before its first write; it never resets state merely to make deletion pass.
+
+For a no-build QA run, also provide the independently pinned
+`WOW_BOT_EXEC`/`WOW_BOT_EXEC_SHA256`. Caller-supplied runtime and bot variables
+take precedence over ignored `.env.local` defaults.
+
 Fresh C++ or Rust packet recording is also intentionally excluded: the capture scripts can
-restart services and require an interactive client flow. The safe `capture` profile only tests
-the fixtures already committed to the repository and does not invoke protobuf tooling.
+restart services and require an interactive client flow. The `capture` profile does not invoke
+protobuf tooling. It tests committed fixtures and runs `verify-required` for milestone contracts.
+A required contract whose matched real C++/Rust artifacts have not been installed fails closed.
+Issue #106's pre-lineage one-client loot claim still compares CLEAN at the strict six-packet
+semantic layer, but it is intentionally `awaiting-real-captures`: it lacks the mandatory completed
+RAW manifests and process/config lineage. A fresh import must validate those manifests, retain exact
+copies, hash the exact reviewed selection and all installed outputs, and publish the complete flow
+generation atomically before `verify-required` can pass. The separate two-client race remains
+runtime evidence rather than a golden, because global packet logs merge concurrent sessions.
+RAW capture-manifest schema v3 distinguishes PM2's configured entry
+PID/start-time/path/hash/profile from the unique PID/start-time owning both
+listeners: they may be identical for a direct Rust binary, while the legacy
+non-`exec` shell wrapper requires a verified descendant listener. It also
+attests that the capture runtime/process tree is absent, fixture cleanup was
+verified, and the normal runtime is healthy before no-overwrite publication.
+For `loot-single-item-claim`, guard, canonical TESTBOT2/TESTBOT3 fixture
+identity, pinned bot executable, and a semantically validated successful bot
+report are mandatory on both sides. C++ derives its effective config from the
+PM2 argv/wrapper and requires an exact canonical `CPP_CONF` match. Required
+recording also needs a clean committed RustyCore harness/source. The known-dirty
+legacy C++ checkout is identified by HEAD plus an explicit dirty flag and
+deterministic worktree-state digest; its pinned live listener-binary SHA-256
+remains primary. The shared private mode-0700 orchestration lock, output paths,
+and raw packet inventory reject symlinks; DB password loading and both mysql
+calls suppress `bash -x` so credentials and `MYSQL_PWD` cannot enter logs.
 
 ## Recommended maintainer flow
 

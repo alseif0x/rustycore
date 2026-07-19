@@ -20,6 +20,7 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
+  RUST_MIN_STACK: "268435456"
 
 jobs:
   fmt:
@@ -53,6 +54,8 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@1.88.0
+        with:
+          components: clippy
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
@@ -73,10 +76,16 @@ jobs:
           cargo +1.88.0 check --locked --manifest-path tools/wow-test-bot/Cargo.toml
           cargo +1.88.0 build --locked -p bnet-server -p world-server
 
+      - name: Clippy loot authority boundary
+        run: cargo +1.88.0 clippy --locked --no-deps --message-format short -p wow-loot -p wow-entities -p wow-map -p wow-network --lib
+
+      - name: Clippy world target with inherited debt capped
+        run: cargo +1.88.0 clippy --locked --no-deps --message-format short -p wow-world --lib -- --cap-lints warn
+
   tests:
     name: Focused library tests
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -97,12 +106,18 @@ jobs:
           chmod +x "$HOME/.local/bin/protoc"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - name: Run packet/data/world tests
+      - name: Run focused library and loot-race harness tests
         run: |
           cargo +1.88.0 test --locked -p wow-data --lib
           cargo +1.88.0 test --locked -p wow-packet --lib
+          cargo +1.88.0 test --locked -p wow-loot --lib
+          cargo +1.88.0 test --locked -p wow-entities --lib
           cargo +1.88.0 test --locked -p wow-map --lib
+          cargo +1.88.0 test --locked -p wow-network --lib
           cargo +1.88.0 test --locked -p wow-world --lib
+          cargo +1.88.0 test --locked --manifest-path tools/wow-test-bot/Cargo.toml loot_race::tests
+          cargo +1.88.0 test --locked -p capture-diff
+          cargo +1.88.0 run --locked -p capture-diff -- verify-required loot-single-item-claim
 
   latest-stable:
     name: Latest stable compatibility
