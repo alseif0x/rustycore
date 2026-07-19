@@ -194,8 +194,12 @@ After its ready marker, it accredits the new capture PID against the pinned
 target path/hash and world/instance listeners. That identity must not restart or
 change during the bot run. The preflight then signals completion, waits for the
 capture wrapper to stop the QA world and restore the fixture plus original PM2
-profile, and accredits the restored original executable again. Bot failure,
-capture drift, or wrapper cleanup failure all remain failures.
+profile, and accredits the restored original executable again. The wrapper gets
+the same fresh `WOW_BOT_REPORT` path and pinned bot path/hash and independently
+requires the exact successful two-session report before it can publish a
+completed capture. A failed report therefore still drives fixture/runtime
+cleanup but leaves no completed race artifact. Bot failure, capture drift, or
+wrapper cleanup failure all remain failures.
 
 The bot endpoints are forced to `WORLD_HOST=127.0.0.1`, the accredited world
 port, `INSTANCE_HOST=127.0.0.1`, and an expected `INSTANCE_PORT`; the bot rejects

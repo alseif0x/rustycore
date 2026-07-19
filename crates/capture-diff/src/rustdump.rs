@@ -21,6 +21,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
+use sha2::{Digest, Sha256};
 
 use crate::model::{Capture, CapturedPacket, Direction};
 
@@ -44,6 +45,59 @@ const META_KEYS: [&str; 8] = [
     "name",
     "len",
 ];
+const RUST_CAPTURE_MANIFEST_FILE: &str = "rust.capture-manifest.json";
+const RACE_BOT_REPORT_FILE: &str = "race.bot-report.json";
+
+fn validate_race_bot_report_sidecar(dir: &Path, report_path: &Path) -> Result<()> {
+    let manifest_path = dir.join(RUST_CAPTURE_MANIFEST_FILE);
+    let manifest_metadata = std::fs::symlink_metadata(&manifest_path).with_context(|| {
+        format!(
+            "race bot report requires capture manifest {}",
+            manifest_path.display()
+        )
+    })?;
+    if manifest_metadata.file_type().is_symlink() || !manifest_metadata.file_type().is_file() {
+        bail!(
+            "race bot report capture manifest is not a regular non-symlink file: {}",
+            manifest_path.display()
+        );
+    }
+    let manifest: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(&manifest_path)
+            .with_context(|| format!("reading capture manifest {}", manifest_path.display()))?,
+    )
+    .with_context(|| format!("parsing capture manifest {}", manifest_path.display()))?;
+    let evidence = manifest
+        .get("bot_report")
+        .and_then(serde_json::Value::as_object)
+        .context("race capture manifest is missing bot_report evidence")?;
+    let expected_sha = evidence
+        .get("report_sha256")
+        .and_then(serde_json::Value::as_str)
+        .context("race capture manifest bot_report SHA-256 is missing")?;
+    let declared_path = evidence
+        .get("report_path")
+        .and_then(serde_json::Value::as_str)
+        .context("race capture manifest bot_report path is missing")?;
+    if manifest.get("flow").and_then(serde_json::Value::as_str)
+        != Some("loot-two-session-atomic-race")
+        || evidence.get("contract").and_then(serde_json::Value::as_str)
+            != Some("wow-test-bot-loot-two-session-atomic-race-report-v1")
+        || Path::new(declared_path)
+            .file_name()
+            .and_then(|name| name.to_str())
+            != Some(RACE_BOT_REPORT_FILE)
+    {
+        bail!("race bot report sidecar is not declared by the matching race manifest contract");
+    }
+    let report = std::fs::read(report_path)
+        .with_context(|| format!("reading race bot report {}", report_path.display()))?;
+    let actual_sha = format!("{:x}", Sha256::digest(&report));
+    if actual_sha != expected_sha {
+        bail!("race bot report SHA-256 does not match its capture manifest");
+    }
+    Ok(())
+}
 
 fn parse_decimal<T>(path: &Path, key: &str, value: &str) -> Result<T>
 where
@@ -173,6 +227,7 @@ pub fn parse_rust_dump(dir: &Path) -> Result<Capture> {
 
     let mut meta_paths = BTreeMap::<String, PathBuf>::new();
     let mut bin_paths = BTreeMap::<String, PathBuf>::new();
+    let mut race_bot_report_path = None;
     for entry in
         std::fs::read_dir(dir).with_context(|| format!("reading dump dir {}", dir.display()))?
     {
@@ -190,7 +245,11 @@ pub fn parse_rust_dump(dir: &Path) -> Result<Capture> {
             .file_name()
             .into_string()
             .map_err(|_| anyhow::anyhow!("rust dump contains a non-UTF-8 filename"))?;
-        if file_name == "rust.capture-manifest.json" {
+        if file_name == RUST_CAPTURE_MANIFEST_FILE {
+            continue;
+        }
+        if file_name == RACE_BOT_REPORT_FILE {
+            race_bot_report_path = Some(path);
             continue;
         }
         let (stem, paths) = if let Some(stem) = file_name.strip_suffix(".meta") {
@@ -203,6 +262,10 @@ pub fn parse_rust_dump(dir: &Path) -> Result<Capture> {
         if stem.is_empty() || paths.insert(stem.to_string(), path.clone()).is_some() {
             bail!("duplicate or empty packet stem in rust dump: {file_name}");
         }
+    }
+
+    if let Some(report_path) = race_bot_report_path {
+        validate_race_bot_report_sidecar(dir, &report_path)?;
     }
 
     if meta_paths.is_empty() {

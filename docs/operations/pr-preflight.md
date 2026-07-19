@@ -65,7 +65,16 @@ The bot writes its report to a fresh private path; exit status zero is accepted
 only when that report proves the exact two accounts, two successful logins,
 party/target/loot observations, exactly one item winner, both removal fanouts,
 money notifications of `10` and `0`, one persisted item, an exact persisted
-money delta of `10`, and relog verification.
+money delta of `10`, and relog verification. The preflight passes that same
+fresh path plus the pinned bot executable/hash to the guarded capture wrapper.
+After stopping the capture world and restoring the fixture and normal PM2
+profile, the wrapper independently revalidates the complete report contract;
+missing, symlinked, malformed, failed, wrong-identity, split-runtime-target, or
+wrong-bot evidence prevents atomic dump/manifest publication even though
+cleanup and normal-runtime restoration still complete. A successful race
+artifact retains a mode-0600 copy as `rust/race.bot-report.json`; the manifest
+records its SHA-256 and final absolute path together with non-null race fixture
+and bot-evidence contracts.
 
 The preflight creates a private `WOW_BOT_FIXTURE_JOURNAL` path and forces
 `WOW_BOT_ENSURE_TEST_ACCOUNTS=0`; loot QA therefore requires pre-provisioned

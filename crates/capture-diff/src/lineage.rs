@@ -67,8 +67,14 @@ struct FixtureGuardEvidence {
     peer_account: String,
     peer_account_id: u32,
     peer_character_guid: u64,
-    creature_entry: u32,
-    creature_spawn_guid: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    creature_entry: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    creature_spawn_guid: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    gameobject_entry: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    gameobject_spawn_guid: Option<u64>,
     item_entry: u32,
     cleanup_verified: bool,
 }
@@ -461,8 +467,12 @@ fn validate_raw_manifest_schema(
             "required evidence must set executable_pin_enforced=true"
         );
     }
-    if flow == "loot-single-item-claim" {
-        validate_canonical_loot_identity(manifest)?;
+    match flow {
+        "loot-single-item-claim" => validate_canonical_loot_identity(manifest)?,
+        "loot-two-session-atomic-race" => {
+            validate_canonical_loot_race_identity(manifest)?;
+        }
+        _ => {}
     }
 
     match side {
@@ -536,8 +546,10 @@ fn validate_canonical_loot_identity(manifest: &RawCaptureManifest) -> Result<()>
         "fixture_guard bot identity is not the canonical TESTBOT2/TESTBOT3 fixture"
     );
     ensure!(
-        fixture.creature_entry == 21_779
-            && fixture.creature_spawn_guid == 1_117
+        fixture.creature_entry == Some(21_779)
+            && fixture.creature_spawn_guid == Some(1_117)
+            && fixture.gameobject_entry.is_none()
+            && fixture.gameobject_spawn_guid.is_none()
             && fixture.item_entry == 30_712,
         "fixture_guard world/item identity is not the canonical Doctor Maleficus fixture"
     );
@@ -552,6 +564,56 @@ fn validate_canonical_loot_identity(manifest: &RawCaptureManifest) -> Result<()>
         .context("loot-single-item-claim requires bot_report evidence")?;
     ensure!(
         bot.contract == "wow-test-bot-loot-item-capture-report-v1",
+        "unexpected bot_report contract"
+    );
+    ensure!(bot.report_validated, "bot_report was not validated");
+    ensure!(
+        bot.account == fixture.account
+            && bot.account_id == fixture.account_id
+            && bot.character_guid == fixture.character_guid,
+        "bot_report identity does not match fixture_guard identity"
+    );
+    Ok(())
+}
+
+fn validate_canonical_loot_race_identity(manifest: &RawCaptureManifest) -> Result<()> {
+    let fixture = manifest
+        .fixture_guard
+        .as_ref()
+        .context("loot-two-session-atomic-race requires fixture_guard evidence")?;
+    ensure!(fixture.enabled, "fixture_guard.enabled must be true");
+    ensure!(
+        fixture.contract == "loot-two-session-atomic-race-fixture-v1",
+        "unexpected fixture_guard contract"
+    );
+    ensure!(
+        fixture.account == "TESTBOT2@bot.local"
+            && fixture.account_id == 9
+            && fixture.character_guid == 15
+            && fixture.peer_account == "TESTBOT3@bot.local"
+            && fixture.peer_account_id == 10
+            && fixture.peer_character_guid == 16,
+        "fixture_guard bot identity is not the canonical TESTBOT2/TESTBOT3 fixture"
+    );
+    ensure!(
+        fixture.creature_entry.is_none()
+            && fixture.creature_spawn_guid.is_none()
+            && fixture.gameobject_entry == Some(2_846)
+            && fixture.gameobject_spawn_guid == Some(9_106_001)
+            && fixture.item_entry == 38,
+        "fixture_guard world/item identity is not the canonical shared-chest race fixture"
+    );
+    ensure!(
+        fixture.cleanup_verified,
+        "fixture_guard cleanup was not verified"
+    );
+
+    let bot = manifest
+        .bot_report
+        .as_ref()
+        .context("loot-two-session-atomic-race requires bot_report evidence")?;
+    ensure!(
+        bot.contract == "wow-test-bot-loot-two-session-atomic-race-report-v1",
         "unexpected bot_report contract"
     );
     ensure!(bot.report_validated, "bot_report was not validated");
@@ -581,10 +643,13 @@ fn validate_cross_side_identity(
         cpp.worktree_state_algorithm == rust.worktree_state_algorithm,
         "C++ and Rust harness digest algorithms differ"
     );
-    if flow == "loot-single-item-claim" {
+    if matches!(
+        flow,
+        "loot-single-item-claim" | "loot-two-session-atomic-race"
+    ) {
         ensure!(
             cpp.fixture_guard == rust.fixture_guard,
-            "C++ and Rust fixture_guard identities differ"
+            "C++ and Rust guarded-loot fixture identities differ"
         );
         let cpp_bot = cpp.bot_report.as_ref().context("C++ bot report missing")?;
         let rust_bot = rust
@@ -621,6 +686,21 @@ fn validate_bot_report_artifact(manifest: &RawCaptureManifest) -> Result<Option<
 fn validate_bot_report_json(bytes: &[u8], evidence: &BotReportEvidence) -> Result<()> {
     let report: serde_json::Value =
         serde_json::from_slice(bytes).context("parsing bot report evidence")?;
+    match evidence.contract.as_str() {
+        "wow-test-bot-loot-item-capture-report-v1" => {
+            validate_loot_item_bot_report_json(&report, evidence)
+        }
+        "wow-test-bot-loot-two-session-atomic-race-report-v1" => {
+            validate_loot_race_bot_report_json(&report, evidence)
+        }
+        contract => bail!("unsupported bot report contract {contract:?}"),
+    }
+}
+
+fn validate_loot_item_bot_report_json(
+    report: &serde_json::Value,
+    evidence: &BotReportEvidence,
+) -> Result<()> {
     let results = report
         .get("results")
         .and_then(serde_json::Value::as_array)
@@ -668,6 +748,114 @@ fn validate_bot_report_json(bytes: &[u8], evidence: &BotReportEvidence) -> Resul
                 .get("loot_race_failure")
                 .is_some_and(serde_json::Value::is_null),
         "bot report does not prove the canonical successful loot-item flow"
+    );
+    Ok(())
+}
+
+fn validate_loot_race_bot_report_json(
+    report: &serde_json::Value,
+    evidence: &BotReportEvidence,
+) -> Result<()> {
+    let results = report
+        .get("results")
+        .and_then(serde_json::Value::as_array)
+        .context("bot report results must be an array")?;
+    ensure!(
+        report
+            .get("loot_item_capture")
+            .and_then(serde_json::Value::as_bool)
+            == Some(false)
+            && report
+                .get("loot_race_smoke")
+                .and_then(serde_json::Value::as_bool)
+                == Some(true)
+            && results.len() == 2,
+        "bot report is not a two-session loot race capture"
+    );
+    ensure!(
+        evidence.account == "TESTBOT2@bot.local"
+            && evidence.account_id == 9
+            && evidence.character_guid == 15,
+        "race bot report manifest identity is not canonical TESTBOT2"
+    );
+
+    let mut by_account = BTreeMap::new();
+    let mut runtime_counters = Vec::with_capacity(2);
+    let mut loot_list_ids = Vec::with_capacity(2);
+    let mut item_pushes = Vec::with_capacity(2);
+    let mut money_notifications = Vec::with_capacity(2);
+    for result in results {
+        let string = |key: &str| result.get(key).and_then(serde_json::Value::as_str);
+        let u64_value = |key: &str| result.get(key).and_then(serde_json::Value::as_u64);
+        let boolean = |key: &str| result.get(key).and_then(serde_json::Value::as_bool);
+        let account = string("account").context("race result account must be a string")?;
+        ensure!(
+            by_account.insert(account, result).is_none(),
+            "race bot report contains a duplicate account"
+        );
+        let (account_id, character_guid) = match account {
+            "TESTBOT2@bot.local" => (9, 15),
+            "TESTBOT3@bot.local" => (10, 16),
+            _ => bail!("race bot report contains unexpected account {account:?}"),
+        };
+        ensure!(
+            u64_value("account_id") == Some(account_id)
+                && u64_value("character_guid") == Some(character_guid),
+            "race bot report account identity does not match the canonical fixture"
+        );
+        ensure!(
+            boolean("world_auth") == Some(true)
+                && boolean("enum_characters") == Some(true)
+                && boolean("player_login_verified") == Some(true)
+                && boolean("loot_race_smoke") == Some(true)
+                && boolean("loot_race_smoke_passed") == Some(true)
+                && result
+                    .get("loot_race_failure")
+                    .is_some_and(serde_json::Value::is_null)
+                && u64_value("loot_race_target_entry") == Some(2_846)
+                && u64_value("loot_race_target_spawn_guid") == Some(9_106_001)
+                && u64_value("loot_race_target_runtime_counter").is_some_and(|value| value > 0)
+                && boolean("loot_race_party_confirmed") == Some(true)
+                && boolean("loot_race_target_discovered") == Some(true)
+                && boolean("loot_race_loot_opened") == Some(true)
+                && u64_value("loot_race_loot_list_id").is_some_and(|value| value <= 255)
+                && u64_value("loot_race_loot_coins") == Some(10)
+                && boolean("loot_race_loot_removed_seen") == Some(true)
+                && boolean("loot_race_coin_removed_seen") == Some(true)
+                && u64_value("loot_race_db_item_total") == Some(1)
+                && u64_value("loot_race_db_money_delta") == Some(10)
+                && boolean("loot_race_relog_verified") == Some(true),
+            "bot report does not prove the exact successful two-session loot race"
+        );
+        runtime_counters.push(u64_value("loot_race_target_runtime_counter").unwrap());
+        loot_list_ids.push(u64_value("loot_race_loot_list_id").unwrap());
+        item_pushes.push(
+            boolean("loot_race_item_push_seen")
+                .context("race result item-push observation must be boolean")?,
+        );
+        money_notifications.push(
+            u64_value("loot_race_money_notify_amount")
+                .context("race result money notification must be unsigned")?,
+        );
+    }
+    ensure!(
+        by_account.len() == 2
+            && by_account.contains_key("TESTBOT2@bot.local")
+            && by_account.contains_key("TESTBOT3@bot.local"),
+        "race bot report does not contain the exact two canonical accounts"
+    );
+    runtime_counters.sort_unstable();
+    runtime_counters.dedup();
+    loot_list_ids.sort_unstable();
+    loot_list_ids.dedup();
+    item_pushes.sort_unstable();
+    money_notifications.sort_unstable();
+    ensure!(
+        runtime_counters.len() == 1
+            && loot_list_ids.len() == 1
+            && item_pushes == [false, true]
+            && money_notifications == [0, 10],
+        "race bot report does not prove one shared target/list, one item winner, and 0/10 money fanout"
     );
     Ok(())
 }
@@ -891,10 +1079,13 @@ pub fn verify_required_lineage(
                 == lineage.sources.rust.worktree_state_algorithm,
         "required lineage C++/Rust harness identities differ"
     );
-    if flow == "loot-single-item-claim" {
+    if matches!(
+        flow,
+        "loot-single-item-claim" | "loot-two-session-atomic-race"
+    ) {
         ensure!(
             lineage.sources.cpp.fixture_guard == lineage.sources.rust.fixture_guard,
-            "required lineage C++/Rust fixture identities differ"
+            "required lineage C++/Rust guarded-loot fixture identities differ"
         );
         let cpp_bot = lineage
             .sources
@@ -1817,6 +2008,86 @@ mod tests {
                 });
                 fs::write(manifest_path, serde_json::to_vec_pretty(&manifest).unwrap()).unwrap();
             }
+        } else if flow == "loot-two-session-atomic-race" {
+            let fixture = serde_json::json!({
+                "enabled": true,
+                "contract": "loot-two-session-atomic-race-fixture-v1",
+                "account": "TESTBOT2@bot.local",
+                "account_id": 9,
+                "character_guid": 15,
+                "peer_account": "TESTBOT3@bot.local",
+                "peer_account_id": 10,
+                "peer_character_guid": 16,
+                "gameobject_entry": 2846,
+                "gameobject_spawn_guid": 9106001,
+                "item_entry": 38,
+                "cleanup_verified": true
+            });
+            let result = |account: &str,
+                          account_id: u32,
+                          character_guid: u64,
+                          item_push: bool,
+                          money: u64| {
+                serde_json::json!({
+                    "account": account,
+                    "account_id": account_id,
+                    "character_guid": character_guid,
+                    "world_auth": true,
+                    "enum_characters": true,
+                    "player_login_verified": true,
+                    "loot_race_smoke": true,
+                    "loot_race_smoke_passed": true,
+                    "loot_race_failure": null,
+                    "loot_race_target_entry": 2846,
+                    "loot_race_target_spawn_guid": 9106001,
+                    "loot_race_target_runtime_counter": 40,
+                    "loot_race_party_confirmed": true,
+                    "loot_race_target_discovered": true,
+                    "loot_race_loot_opened": true,
+                    "loot_race_loot_list_id": 0,
+                    "loot_race_loot_coins": 10,
+                    "loot_race_item_push_seen": item_push,
+                    "loot_race_loot_removed_seen": true,
+                    "loot_race_money_notify_amount": money,
+                    "loot_race_coin_removed_seen": true,
+                    "loot_race_db_item_total": 1,
+                    "loot_race_db_money_delta": 10,
+                    "loot_race_relog_verified": true
+                })
+            };
+            let report_json = serde_json::json!({
+                "loot_item_capture": false,
+                "loot_race_smoke": true,
+                "results": [
+                    result("TESTBOT2@bot.local", 9, 15, true, 10),
+                    result("TESTBOT3@bot.local", 10, 16, false, 0)
+                ]
+            });
+            let report_bytes = serde_json::to_vec_pretty(&report_json).unwrap();
+            let cpp_report = raw.join("cpp-race-report.json");
+            let rust_report = raw.join("rust-race-report.json");
+            fs::write(&cpp_report, &report_bytes).unwrap();
+            fs::write(&rust_report, &report_bytes).unwrap();
+
+            for (manifest_path, report_path) in
+                [(&cpp_manifest, cpp_report), (&rust_manifest, rust_report)]
+            {
+                let mut manifest: serde_json::Value =
+                    serde_json::from_slice(&fs::read(manifest_path).unwrap()).unwrap();
+                manifest["fixture_guard"] = fixture.clone();
+                manifest["bot_report"] = serde_json::json!({
+                    "contract": "wow-test-bot-loot-two-session-atomic-race-report-v1",
+                    "exec_path": "/opt/rustycore/wow-test-bot",
+                    "exec_sha256": "7".repeat(64),
+                    "report_path": report_path.to_string_lossy(),
+                    "report_sha256": sha256_bytes(&report_bytes),
+                    "account": "TESTBOT2@bot.local",
+                    "account_id": 9,
+                    "character_guid": 15,
+                    "report_validated": true
+                });
+                fs::write(manifest_path, serde_json::to_vec_pretty(&manifest).unwrap()).unwrap();
+            }
         }
         (cpp, cpp_manifest, rust, rust_manifest)
     }
@@ -2136,6 +2407,38 @@ mod tests {
         let error = validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true)
             .expect_err("bot report tamper must fail");
         assert!(format!("{error:#}").contains("bot report SHA-256"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn loot_race_raw_pair_accepts_gameobject_guard_and_rejects_split_runtime_target() {
+        let root = test_root("loot-race-identity");
+        let flow = "loot-two-session-atomic-race";
+        let (cpp, cpp_manifest, rust, rust_manifest) = make_raw_pair(&root, flow);
+        validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true).unwrap();
+
+        let mut manifest: serde_json::Value =
+            serde_json::from_slice(&fs::read(&rust_manifest).unwrap()).unwrap();
+        let report_path = PathBuf::from(manifest["bot_report"]["report_path"].as_str().unwrap());
+        let mut report: serde_json::Value =
+            serde_json::from_slice(&fs::read(&report_path).unwrap()).unwrap();
+        report["results"][1]["loot_race_target_runtime_counter"] = serde_json::Value::from(41);
+        let report_bytes = serde_json::to_vec_pretty(&report).unwrap();
+        fs::write(&report_path, &report_bytes).unwrap();
+        manifest["bot_report"]["report_sha256"] =
+            serde_json::Value::String(sha256_bytes(&report_bytes));
+        fs::write(
+            &rust_manifest,
+            serde_json::to_vec_pretty(&manifest).unwrap(),
+        )
+        .unwrap();
+
+        let error = validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true)
+            .expect_err("split live target counter must fail");
+        assert!(
+            format!("{error:#}").contains("one shared target/list"),
+            "unexpected error: {error:#}"
+        );
         fs::remove_dir_all(root).unwrap();
     }
 

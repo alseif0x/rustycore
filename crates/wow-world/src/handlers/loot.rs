@@ -7569,9 +7569,16 @@ impl WorldSession {
 
         match world_db.query(&stmt).await {
             Ok(result) if !result.is_empty() => {
-                let min_money = result.try_read::<u32>(0).unwrap_or(0);
-                let max_money = result.try_read::<u32>(1).unwrap_or(0);
-                (min_money, max_money)
+                match (result.try_read::<u32>(0), result.try_read::<u32>(1)) {
+                    (Some(min_money), Some(max_money)) => (min_money, max_money),
+                    _ => {
+                        warn!(
+                            gameobject_entry,
+                            "failed to decode gameobject_template_addon money loot as C++ uint32 columns"
+                        );
+                        (0, 0)
+                    }
+                }
             }
             Ok(_) => (0, 0),
             Err(err) => {

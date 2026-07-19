@@ -299,6 +299,21 @@ unchanged fixture-owned values—including its exact generated respawn row—bef
 restarting the original PM2 profile. Any external drift fails visibly and
 leaves the normal world stopped for manual inspection.
 
+Both guarded Rust flows also require a pinned `WOW_BOT_EXEC`/SHA-256 and a
+fresh absolute `WOW_BOT_REPORT` path before any service mutation. For
+`loot-two-session-atomic-race`, the outer preflight runs the two clients and
+writes that report while the wrapper is waiting at its prompt. Publication is
+fail-closed: only the exact TESTBOT2/TESTBOT3 success contract (same live target
+counter/list ID, one item winner, `10`/`0` money notifications, exact database
+deltas, and relog proof) can produce a completed race dump. Cleanup and normal
+PM2 restoration still run when the report is absent or invalid. A direct/manual
+invocation must arrange the same pinned bot report; pressing ENTER without that
+evidence intentionally restores the runtime without publishing.
+A successful race generation retains `race.bot-report.json` inside the atomic
+Rust artifact and records its final path/SHA-256 plus non-null fixture/bot
+contracts in the manifest; the preflight may then remove its private source
+copy without orphaning the provenance record.
+
 The bot writes a mode-0600 recovery journal before its first character/fixture
 mutation, removes it only after verified restoration, and atomically creates
 `${WOW_BOT_FIXTURE_JOURNAL}.cleanup-complete`. The capture wrapper removes that

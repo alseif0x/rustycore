@@ -782,6 +782,7 @@ run_self_test() {
   local qa_fake_bot_marker
   local qa_fake_bot_sha
   local qa_fake_capture
+  local qa_fake_capture_publish_marker
   local qa_fake_world
   local qa_fake_world_other
   local qa_identity
@@ -818,6 +819,7 @@ run_self_test() {
   local range_summary_inspection_result
   local rust_capture_text
   local rust_missing_pin_output
+  local rust_race_missing_bot_output
   local review_dry_run_output
   local staged_alias_inspection_result
   local -a qa_common_env=()
@@ -1013,6 +1015,7 @@ run_self_test() {
   [[ "$qa_loot_race_dry_run_output" == *"capture-rust.sh loot-two-session-atomic-race --yes"* \
     && "$qa_loot_race_dry_run_output" == *"RUST_CAPTURE_LOOT_FIXTURE_GUARD=1"* \
     && "$qa_loot_race_dry_run_output" == *"RUST_CAPTURE_ACK_LOOT_FIXTURE_MUTATION=1"* \
+    && "$qa_loot_race_dry_run_output" == *"WOW_BOT_REPORT=/tmp/rustycore-loot-race-qa/bot-report.json"* \
     && "$qa_loot_race_dry_run_output" == *"RUST_CAPTURE_DB_CONF=/home/server/trinity-legacy-install/bin/worldserver.conf"* \
     && "$qa_loot_race_dry_run_output" == *"RUST_CAPTURE_EFFECTIVE_CONFIG=/home/server/trinity-legacy-install/etc/worldserver.conf"* \
     && "$qa_loot_race_dry_run_output" == *"wait for guarded capture READY marker"* \
@@ -1880,6 +1883,115 @@ run_self_test() {
   ) || die "redacted effective-config hash self-test failed"
 
   (
+    # A race dump may publish only when a regular report from the exact pinned
+    # bot proves the complete two-session result. This is intentionally
+    # independent of the outer preflight's own report check.
+    # shellcheck source=crates/capture-diff/scripts/capture-service-common.sh
+    source "$REPO_ROOT/crates/capture-diff/scripts/capture-service-common.sh"
+    race_bot="$artifacts/race-evidence-bot"
+    race_report="$artifacts/race-evidence-valid.json"
+    race_invalid="$artifacts/race-evidence-invalid.json"
+    race_split_counter="$artifacts/race-evidence-split-counter.json"
+    race_report_link="$artifacts/race-evidence-link.json"
+    printf '#!/bin/sh\nexit 0\n' >"$race_bot"
+    chmod 700 "$race_bot"
+    jq -n '
+      def result($account; $account_id; $character_guid; $item_push; $money): {
+        account: $account,
+        account_id: $account_id,
+        character_guid: $character_guid,
+        world_auth: true,
+        enum_characters: true,
+        player_login_verified: true,
+        loot_race_smoke: true,
+        loot_race_smoke_passed: true,
+        loot_race_failure: null,
+        loot_race_target_entry: 2846,
+        loot_race_target_spawn_guid: 9106001,
+        loot_race_target_runtime_counter: 40,
+        loot_race_party_confirmed: true,
+        loot_race_target_discovered: true,
+        loot_race_loot_opened: true,
+        loot_race_loot_list_id: 0,
+        loot_race_loot_coins: 10,
+        loot_race_item_push_seen: $item_push,
+        loot_race_loot_removed_seen: true,
+        loot_race_money_notify_amount: $money,
+        loot_race_coin_removed_seen: true,
+        loot_race_db_item_total: 1,
+        loot_race_db_money_delta: 10,
+        loot_race_relog_verified: true
+      };
+      {
+        loot_race_smoke: true,
+        loot_item_capture: false,
+        results: [
+          result("TESTBOT2@bot.local"; 9; 15; true; 10),
+          result("TESTBOT3@bot.local"; 10; 16; false; 0)
+        ]
+      }
+    ' >"$race_report"
+    race_bot_sha="$(capture_sha256_of_file "$race_bot")" || exit 179
+    race_report_sha="$(capture_sha256_of_file "$race_report")" || exit 180
+    race_evidence="$(capture_loot_race_bot_evidence \
+      "$race_report" "$race_bot" "$race_bot_sha")" || exit 181
+    [ "$race_evidence" \
+      = "$race_bot"$'\t'"$race_bot_sha"$'\t'"$race_report"$'\t'"$race_report_sha" ] \
+      || exit 182
+    race_manifest_evidence="$(capture_bot_manifest_evidence \
+      loot-two-session-atomic-race "$race_bot" "$race_bot_sha" \
+      /target/captures/loot-two-session-atomic-race/rust/race.bot-report.json \
+      "$race_report_sha")" || exit 186
+    jq -e \
+      --arg bot "$race_bot" \
+      --arg bot_sha "$race_bot_sha" \
+      --arg report_sha "$race_report_sha" '
+        .fixture_guard != null
+        and .fixture_guard.enabled == true
+        and .fixture_guard.contract == "loot-two-session-atomic-race-fixture-v1"
+        and .fixture_guard.account == "TESTBOT2@bot.local"
+        and .fixture_guard.peer_account == "TESTBOT3@bot.local"
+        and .fixture_guard.gameobject_entry == 2846
+        and .fixture_guard.gameobject_spawn_guid == 9106001
+        and .fixture_guard.item_entry == 38
+        and .fixture_guard.cleanup_verified == true
+        and .bot_report != null
+        and .bot_report.contract
+          == "wow-test-bot-loot-two-session-atomic-race-report-v1"
+        and .bot_report.exec_path == $bot
+        and .bot_report.exec_sha256 == $bot_sha
+        and .bot_report.report_path
+          == "/target/captures/loot-two-session-atomic-race/rust/race.bot-report.json"
+        and .bot_report.report_sha256 == $report_sha
+        and .bot_report.report_validated == true
+      ' <<<"$race_manifest_evidence" >/dev/null || exit 187
+    jq -e '.fixture_guard == null and .bot_report == null' \
+      <<<"$(capture_bot_manifest_evidence login '' '' '' '')" >/dev/null \
+      || exit 188
+
+    jq '.results[0].loot_race_smoke_passed = false
+      | .results[0].loot_race_failure = "failure=17"' \
+      "$race_report" >"$race_invalid"
+    if capture_loot_race_bot_evidence \
+        "$race_invalid" "$race_bot" "$race_bot_sha" >/dev/null; then
+      exit 183
+    fi
+    jq '.results[1].loot_race_target_runtime_counter = 41' \
+      "$race_report" >"$race_split_counter"
+    if capture_loot_race_bot_evidence \
+        "$race_split_counter" "$race_bot" "$race_bot_sha" >/dev/null; then
+      exit 184
+    fi
+    ln -s "$race_report" "$race_report_link"
+    if capture_loot_race_bot_evidence \
+        "$race_report_link" "$race_bot" "$race_bot_sha" >/dev/null \
+        || capture_loot_race_bot_evidence \
+          "$race_report" "$race_bot" "$(printf '0%.0s' {1..64})" >/dev/null; then
+      exit 185
+    fi
+  ) || die "two-session race publication evidence self-test failed"
+
+  (
     # C++ provenance must be derived from the PM2 profile/entrypoint, and a
     # profile selecting config B must never accredit caller-declared config A.
     # Environment values are secret and intentionally do not affect the
@@ -2059,6 +2171,7 @@ run_self_test() {
     && "$rust_capture_text" == *"capture_validate_world_timeouts"* \
     && "$rust_capture_text" == *'CAPTURE_STABLE_SAMPLES" -ge 4'* \
     && "$rust_capture_text" == *"CAPTURE_BOT_READY=1"* \
+    && "$rust_capture_text" == *"capture_loot_race_bot_evidence"* \
     && "$rust_capture_text" == *"loot_fixture_bot_cleanup_safe_for_capture_state"* \
     && "$rust_capture_text" == *"source_repo_head"* \
     && "$rust_capture_text" == *"effective_config_redacted_sha256"* \
@@ -2077,6 +2190,20 @@ run_self_test() {
   fi
   [[ "$rust_missing_pin_output" == *"requires RUST_CAPTURE_EXEC and RUST_CAPTURE_EXEC_SHA256"* ]] || die \
     "required Rust loot capture missing-pin error was not explicit"
+  if rust_race_missing_bot_output="$(
+    RUST_CAPTURE_LOOT_FIXTURE_GUARD=1 \
+      RUST_CAPTURE_ACK_LOOT_FIXTURE_MUTATION=1 \
+      RUST_CAPTURE_EXEC=/not-used-before-bot-validation \
+      RUST_CAPTURE_EXEC_SHA256="$(printf '0%.0s' {1..64})" \
+      RUST_CAPTURE_EFFECTIVE_CONFIG=/dev/null \
+      "$BASH" "$REPO_ROOT/crates/capture-diff/scripts/capture-rust.sh" \
+        loot-two-session-atomic-race --yes 2>&1
+  )"; then
+    die "guarded Rust race capture accepted missing pinned bot report evidence"
+  fi
+  [[ "$rust_race_missing_bot_output" \
+    == *"requires WOW_BOT_EXEC, WOW_BOT_EXEC_SHA256, and WOW_BOT_REPORT"* ]] || die \
+    "guarded Rust race capture missing-bot-report error was not explicit"
   qa_fake_bin="$artifacts/qa-bin"
   qa_fake_world="$artifacts/fake-world-server"
   qa_fake_world_other="$artifacts/not-the-live-world-server"
@@ -2156,9 +2283,9 @@ run_self_test() {
     'esac' \
     'if [ -e "${QA_FAKE_PM2_JSON_FILE:-}.tmp" ]; then mv "${QA_FAKE_PM2_JSON_FILE}.tmp" "$QA_FAKE_PM2_JSON_FILE"; fi' \
     'if [ "${QA_FAKE_BOT_REPORT_MODE:-full}" = summary ]; then' \
-    '  printf "%s\n" '\''{"loot_race_smoke":true,"loot_item_capture":false,"results":[{"account":"TESTBOT2@bot.local","world_auth":true,"enum_characters":true,"player_login_verified":true,"loot_race_smoke":true,"loot_race_smoke_passed":true,"loot_race_failure":null,"loot_race_party_confirmed":true,"loot_race_target_discovered":true,"loot_race_loot_opened":true,"loot_race_relog_verified":true},{"account":"TESTBOT3@bot.local","world_auth":true,"enum_characters":true,"player_login_verified":true,"loot_race_smoke":true,"loot_race_smoke_passed":true,"loot_race_failure":null,"loot_race_party_confirmed":true,"loot_race_target_discovered":true,"loot_race_loot_opened":true,"loot_race_relog_verified":true}]}'\'' >"$report"' \
+    '  printf "%s\n" '\''{"loot_race_smoke":true,"loot_item_capture":false,"results":[{"account":"TESTBOT2@bot.local","account_id":9,"character_guid":15,"world_auth":true,"enum_characters":true,"player_login_verified":true,"loot_race_smoke":true,"loot_race_smoke_passed":true,"loot_race_failure":null,"loot_race_party_confirmed":true,"loot_race_target_discovered":true,"loot_race_loot_opened":true,"loot_race_relog_verified":true},{"account":"TESTBOT3@bot.local","account_id":10,"character_guid":16,"world_auth":true,"enum_characters":true,"player_login_verified":true,"loot_race_smoke":true,"loot_race_smoke_passed":true,"loot_race_failure":null,"loot_race_party_confirmed":true,"loot_race_target_discovered":true,"loot_race_loot_opened":true,"loot_race_relog_verified":true}]}'\'' >"$report"' \
     'else' \
-    '  printf "%s\n" '\''{"loot_race_smoke":true,"loot_item_capture":false,"results":[{"account":"TESTBOT2@bot.local","world_auth":true,"enum_characters":true,"player_login_verified":true,"loot_race_smoke":true,"loot_race_smoke_passed":true,"loot_race_failure":null,"loot_race_target_entry":2846,"loot_race_target_spawn_guid":9106001,"loot_race_target_runtime_counter":12345,"loot_race_party_confirmed":true,"loot_race_target_discovered":true,"loot_race_loot_opened":true,"loot_race_loot_list_id":0,"loot_race_loot_coins":10,"loot_race_item_push_seen":true,"loot_race_loot_removed_seen":true,"loot_race_money_notify_amount":10,"loot_race_coin_removed_seen":true,"loot_race_db_item_total":1,"loot_race_db_money_delta":10,"loot_race_relog_verified":true},{"account":"TESTBOT3@bot.local","world_auth":true,"enum_characters":true,"player_login_verified":true,"loot_race_smoke":true,"loot_race_smoke_passed":true,"loot_race_failure":null,"loot_race_target_entry":2846,"loot_race_target_spawn_guid":9106001,"loot_race_target_runtime_counter":12345,"loot_race_party_confirmed":true,"loot_race_target_discovered":true,"loot_race_loot_opened":true,"loot_race_loot_list_id":0,"loot_race_loot_coins":10,"loot_race_item_push_seen":false,"loot_race_loot_removed_seen":true,"loot_race_money_notify_amount":0,"loot_race_coin_removed_seen":true,"loot_race_db_item_total":1,"loot_race_db_money_delta":10,"loot_race_relog_verified":true}]}'\'' >"$report"' \
+    '  printf "%s\n" '\''{"loot_race_smoke":true,"loot_item_capture":false,"results":[{"account":"TESTBOT2@bot.local","account_id":9,"character_guid":15,"world_auth":true,"enum_characters":true,"player_login_verified":true,"loot_race_smoke":true,"loot_race_smoke_passed":true,"loot_race_failure":null,"loot_race_target_entry":2846,"loot_race_target_spawn_guid":9106001,"loot_race_target_runtime_counter":12345,"loot_race_party_confirmed":true,"loot_race_target_discovered":true,"loot_race_loot_opened":true,"loot_race_loot_list_id":0,"loot_race_loot_coins":10,"loot_race_item_push_seen":true,"loot_race_loot_removed_seen":true,"loot_race_money_notify_amount":10,"loot_race_coin_removed_seen":true,"loot_race_db_item_total":1,"loot_race_db_money_delta":10,"loot_race_relog_verified":true},{"account":"TESTBOT3@bot.local","account_id":10,"character_guid":16,"world_auth":true,"enum_characters":true,"player_login_verified":true,"loot_race_smoke":true,"loot_race_smoke_passed":true,"loot_race_failure":null,"loot_race_target_entry":2846,"loot_race_target_spawn_guid":9106001,"loot_race_target_runtime_counter":12345,"loot_race_party_confirmed":true,"loot_race_target_discovered":true,"loot_race_loot_opened":true,"loot_race_loot_list_id":0,"loot_race_loot_coins":10,"loot_race_item_push_seen":false,"loot_race_loot_removed_seen":true,"loot_race_money_notify_amount":0,"loot_race_coin_removed_seen":true,"loot_race_db_item_total":1,"loot_race_db_money_delta":10,"loot_race_relog_verified":true}]}'\'' >"$report"' \
     'fi' \
     'printf "%s\n" fake-bot-only >"${QA_FAKE_BOT_MARKER:?}"' \
     'if [ "${QA_FAKE_BOT_MUTATION:-}" != drift ]; then' \
@@ -2167,8 +2294,8 @@ run_self_test() {
     'fi' \
     >"$qa_fake_bot"
   printf '%s\n' \
-    '#!/bin/sh' \
-    'set -eu' \
+    '#!/usr/bin/env bash' \
+    'set -euo pipefail' \
     '[ "${1:-}" = loot-two-session-atomic-race ] && [ "${2:-}" = --yes ]' \
     '[ "${RUST_CAPTURE_LOOT_FIXTURE_GUARD:-}" = 1 ]' \
     '[ "${RUST_CAPTURE_ACK_LOOT_FIXTURE_MUTATION:-}" = 1 ]' \
@@ -2178,6 +2305,11 @@ run_self_test() {
     '[ "${PM2_RUST_WORLD:?}" = "${QA_FAKE_PROCESS_NAME:?}" ]' \
     '[ "${RUST_WORLD_PORT:?}" = "${QA_FAKE_WORLD_PORT:?}" ]' \
     '[ "${RUST_INSTANCE_PORT:?}" = "${QA_FAKE_INSTANCE_PORT:?}" ]' \
+    'report="${WOW_BOT_REPORT:?}"' \
+    '[[ "$report" = /* && "$report" != *$'\''\n'\''* ]]' \
+    '[ -d "$(dirname -- "$report")" ] && [ ! -L "$(dirname -- "$report")" ]' \
+    '[ ! -e "$report" ] && [ ! -L "$report" ]' \
+    'source "${QA_FAKE_CAPTURE_COMMON:?}"' \
     'journal="${WOW_BOT_FIXTURE_JOURNAL:?}"' \
     'capture_pid=""' \
     'capture_bot_ready=0' \
@@ -2213,6 +2345,11 @@ run_self_test() {
     'capture_bot_ready=1' \
     'printf "%s\n" ">>> Perform the '\''loot-two-session-atomic-race'\'' flow with the client now."' \
     'IFS= read -r _' \
+    'if ! capture_loot_race_bot_evidence "$report" "$WOW_BOT_EXEC" "$WOW_BOT_EXEC_SHA256" >/dev/null; then' \
+    '  printf "%s\n" "fake guarded capture refused publication without exact pinned race report" >&2' \
+    '  exit 75' \
+    'fi' \
+    'printf "%s\n" published >"${QA_FAKE_CAPTURE_PUBLISH_MARKER:?}"' \
     'exit "${QA_FAKE_CAPTURE_EXIT_STATUS:-0}"' \
     >"$qa_fake_capture"
   chmod +x "$qa_fake_bin/mysql" "$qa_fake_bin/pm2" "$qa_fake_bin/ss" \
@@ -2231,6 +2368,7 @@ run_self_test() {
     "cannot hash temporary target-world self-test fixture"
   qa_fake_bot_sha="$(sha256_of_file "$qa_fake_bot")" || die \
     "cannot hash fake loot-race bot"
+  qa_fake_capture_publish_marker="$artifacts/fake-loot-race-capture-published"
 
   qa_pm2_online="$(jq -cn \
     --arg name self-test-world \
@@ -2365,9 +2503,11 @@ run_self_test() {
     "WOW_BOT_REPORT=$artifacts/fake-loot-race-report.json"
     "WOW_BOT_LOG=$artifacts/fake-loot-race.log"
     "QA_FAKE_BOT_MARKER=$qa_fake_bot_marker"
+    "QA_FAKE_CAPTURE_COMMON=$REPO_ROOT/crates/capture-diff/scripts/capture-service-common.sh"
+    "QA_FAKE_CAPTURE_PUBLISH_MARKER=$qa_fake_capture_publish_marker"
   )
 
-  rm -f "$qa_fake_bot_marker" "$qa_pm2_state_file"
+  rm -f "$qa_fake_bot_marker" "$qa_fake_capture_publish_marker" "$qa_pm2_state_file"
   printf '%s\n' "$qa_pm2_online" >"$qa_pm2_json_file"
   qa_early_output="$(
     (
@@ -2383,7 +2523,7 @@ run_self_test() {
     && "$qa_early_output" == *"fake guarded capture restored normal PM2 profile"* ]] || die \
     "pre-ready wrapper failure did not restore safely and preserve its status"
 
-  rm -f "$qa_fake_bot_marker" "$qa_pm2_state_file"
+  rm -f "$qa_fake_bot_marker" "$qa_fake_capture_publish_marker" "$qa_pm2_state_file"
   printf '%s\n' "$qa_pm2_online" >"$qa_pm2_json_file"
   qa_positive_output="$(
     (
@@ -2399,10 +2539,11 @@ run_self_test() {
   }
   [[ "$(<"$qa_fake_bot_marker")" == fake-bot-only ]] || die \
     "guarded capture QA self-test did not execute only the fake bot"
-  [[ "$qa_positive_output" == *"fake guarded capture restored normal PM2 profile"* ]] || die \
-    "guarded capture QA self-test did not run the bot and wait for restoration"
+  [[ "$(<"$qa_fake_capture_publish_marker")" == published \
+    && "$qa_positive_output" == *"fake guarded capture restored normal PM2 profile"* ]] || die \
+    "guarded capture QA self-test did not gate publication on the exact report and restore"
 
-  rm -f "$qa_fake_bot_marker" "$qa_pm2_state_file"
+  rm -f "$qa_fake_bot_marker" "$qa_fake_capture_publish_marker" "$qa_pm2_state_file"
   printf '%s\n' "$qa_pm2_online" >"$qa_pm2_json_file"
   if qa_summary_output="$(
     (
@@ -2415,10 +2556,11 @@ run_self_test() {
   )"; then
     die "guarded capture QA accepted a summary-only bot report"
   fi
-  [[ -f "$qa_fake_bot_marker" \
+  [[ -f "$qa_fake_bot_marker" && ! -e "$qa_fake_capture_publish_marker" \
     && "$qa_summary_output" == *"report did not prove the exact successful two-session contract"* \
+    && "$qa_summary_output" == *"refused publication without exact pinned race report"* \
     && "$qa_summary_output" == *"fake guarded capture restored normal PM2 profile"* ]] || die \
-    "summary-only bot report self-test did not fail closed and restore PM2"
+    "summary-only bot report self-test did not block publication and restore PM2"
 
   rm -f "$qa_fake_bot_marker" "$qa_pm2_state_file"
   printf '%s\n' "$qa_pm2_online" >"$qa_pm2_json_file"
@@ -2710,6 +2852,7 @@ run_qa_loot_race() {
 
   if ((DRY_RUN)); then
     fixture_journal="/tmp/rustycore-loot-race-qa/fixture.journal"
+    bot_report="/tmp/rustycore-loot-race-qa/bot-report.json"
     printf '+ snapshot the pinned PM2 world, then start the guarded capture world via FIFO/background\n'
     run_cmd env \
       PM2_RUST_WORLD="$process_name" \
@@ -2724,6 +2867,7 @@ run_qa_loot_race() {
       RUST_CAPTURE_EFFECTIVE_CONFIG="$effective_config" \
       WOW_BOT_EXEC="$bot_exec" \
       WOW_BOT_EXEC_SHA256="$bot_expected_sha" \
+      WOW_BOT_REPORT="$bot_report" \
       WOW_BOT_FIXTURE_JOURNAL="$fixture_journal" \
       "$capture_script" loot-two-session-atomic-race --yes
     printf '+ wait for guarded capture READY marker and accredit its exact PID/executable/listeners\n'
@@ -2843,6 +2987,7 @@ run_qa_loot_race() {
     RUST_CAPTURE_EFFECTIVE_CONFIG="$effective_config" \
     WOW_BOT_EXEC="$bot_exec" \
     WOW_BOT_EXEC_SHA256="$bot_expected_sha" \
+    WOW_BOT_REPORT="$bot_report" \
     WOW_BOT_FIXTURE_JOURNAL="$fixture_journal" \
     "$capture_script" loot-two-session-atomic-race --yes \
     <&"$QA_LOOT_RACE_CAPTURE_FD" >"$QA_LOOT_RACE_CAPTURE_LOG" 2>&1 &
@@ -2894,8 +3039,9 @@ run_qa_loot_race() {
     elif ! jq -e '
       .loot_race_smoke == true
       and .loot_item_capture == false
-      and (.results | length == 2)
-      and ([.results[].account] | sort == ["TESTBOT2@bot.local", "TESTBOT3@bot.local"])
+      and (.results | type == "array" and length == 2)
+      and ([.results[] | [.account, .account_id, .character_guid]] | sort
+        == [["TESTBOT2@bot.local", 9, 15], ["TESTBOT3@bot.local", 10, 16]])
       and all(.results[];
         .world_auth == true
         and .enum_characters == true
@@ -2916,6 +3062,7 @@ run_qa_loot_race() {
         and .loot_race_db_item_total == 1
         and .loot_race_db_money_delta == 10
         and .loot_race_relog_verified == true)
+      and ([.results[].loot_race_target_runtime_counter] | unique | length == 1)
       and ([.results[].loot_race_loot_list_id] | unique | length == 1)
       and ([.results[] | select(.loot_race_item_push_seen == true)] | length == 1)
       and ([.results[] | select(.loot_race_item_push_seen == false)] | length == 1)

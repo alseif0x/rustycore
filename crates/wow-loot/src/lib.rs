@@ -3444,6 +3444,10 @@ mod tests {
             100
         );
         assert_eq!(
+            generate_money_loot_with_rate_like_cpp(10, 10, 1.0, &mut rng),
+            10
+        );
+        assert_eq!(
             generate_money_loot_with_rate_like_cpp(120, 100, 2.5, &mut rng),
             250
         );

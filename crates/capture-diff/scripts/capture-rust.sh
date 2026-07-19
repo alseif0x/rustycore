@@ -7,7 +7,8 @@
 #
 # Usage:   crates/capture-diff/scripts/capture-rust.sh <flow> [--yes]
 # Output:  target/captures/<flow>/rust/   (gitignored; .bin/.meta per packet,
-#          including rust.capture-manifest.json)
+#          rust.capture-manifest.json, plus the retained race bot report for
+#          loot-two-session-atomic-race)
 #
 # Honored env vars:
 #   PM2_RUST_WORLD  pm2 name of the Rust world (default: rustycore-world)
@@ -41,9 +42,11 @@
 #                            with capture-cpp.sh (default: /tmp, keyed by uid+ports)
 #   CAPTURE_WORLD_READY_TIMEOUT_SECONDS bounded wait for a stable ready world
 #                            (default: 180, range: 3 through 3600)
-#   WOW_BOT_EXEC / WOW_BOT_EXEC_SHA256 pinned bot executable used for required
-#                            loot-single-item-claim evidence
-#   WOW_BOT_REPORT           fresh absolute bot JSON report path for that flow
+#   WOW_BOT_EXEC / WOW_BOT_EXEC_SHA256 pinned bot executable used for both
+#                            guarded #106 loot evidence flows
+#   WOW_BOT_REPORT           fresh absolute bot JSON report path. The guarded
+#                            wrapper independently validates the exact selected
+#                            single-item or two-session contract before publish
 #
 # This restarts the live world server (disconnecting players). Pass --yes to skip
 # the confirmation prompt.
@@ -194,33 +197,6 @@ case "$RUST_CAPTURE_LOOT_FIXTURE_GUARD" in
         LOOT_FIXTURE_KIND=creature-health
         LOOT_FIXTURE_ENTRY=21779
         LOOT_FIXTURE_EXPECTED_HEALTH_MODIFIER=1
-        [ -n "$WOW_BOT_EXEC" ] && [ -n "$WOW_BOT_EXEC_SHA256" ] \
-          && [ -n "$WOW_BOT_REPORT" ] || {
-          echo "error: guarded #106 evidence requires WOW_BOT_EXEC, WOW_BOT_EXEC_SHA256, and WOW_BOT_REPORT" >&2
-          exit 2
-        }
-        [[ "$WOW_BOT_EXEC_SHA256" =~ ^[0-9A-Fa-f]{64}$ ]] || {
-          echo "error: WOW_BOT_EXEC_SHA256 must contain exactly 64 hexadecimal characters" >&2
-          exit 2
-        }
-        WOW_BOT_EXEC_SHA256="${WOW_BOT_EXEC_SHA256,,}"
-        [[ "$WOW_BOT_REPORT" = /* && "$WOW_BOT_REPORT" != *$'\n'* ]] \
-          && [ -d "$(dirname -- "$WOW_BOT_REPORT")" ] \
-          && [ ! -e "$WOW_BOT_REPORT" ] && [ ! -L "$WOW_BOT_REPORT" ] || {
-          echo "error: WOW_BOT_REPORT must be a fresh absolute path with an existing parent" >&2
-          exit 2
-        }
-        WOW_BOT_REPORT_PARENT="$(dirname -- "$WOW_BOT_REPORT")"
-        [ "$(realpath -e -- "$WOW_BOT_REPORT_PARENT" 2>/dev/null)" \
-          = "$WOW_BOT_REPORT_PARENT" ] \
-          && [ ! -L "$WOW_BOT_REPORT_PARENT" ] || {
-          echo "error: WOW_BOT_REPORT parent must be canonical and non-symlink" >&2
-          exit 2
-        }
-        capture_exec_source_matches "$WOW_BOT_EXEC" "$WOW_BOT_EXEC_SHA256" || {
-          echo "error: WOW_BOT_EXEC is not a canonical pinned executable" >&2
-          exit 2
-        }
         ;;
       loot-two-session-atomic-race)
         LOOT_FIXTURE_KIND=shared-chest
@@ -230,6 +206,33 @@ case "$RUST_CAPTURE_LOOT_FIXTURE_GUARD" in
         exit 2
         ;;
     esac
+    [ -n "$WOW_BOT_EXEC" ] && [ -n "$WOW_BOT_EXEC_SHA256" ] \
+      && [ -n "$WOW_BOT_REPORT" ] || {
+      echo "error: guarded #106 evidence requires WOW_BOT_EXEC, WOW_BOT_EXEC_SHA256, and WOW_BOT_REPORT" >&2
+      exit 2
+    }
+    [[ "$WOW_BOT_EXEC_SHA256" =~ ^[0-9A-Fa-f]{64}$ ]] || {
+      echo "error: WOW_BOT_EXEC_SHA256 must contain exactly 64 hexadecimal characters" >&2
+      exit 2
+    }
+    WOW_BOT_EXEC_SHA256="${WOW_BOT_EXEC_SHA256,,}"
+    [[ "$WOW_BOT_REPORT" = /* && "$WOW_BOT_REPORT" != *$'\n'* ]] \
+      && [ -d "$(dirname -- "$WOW_BOT_REPORT")" ] \
+      && [ ! -e "$WOW_BOT_REPORT" ] && [ ! -L "$WOW_BOT_REPORT" ] || {
+      echo "error: WOW_BOT_REPORT must be a fresh absolute path with an existing parent" >&2
+      exit 2
+    }
+    WOW_BOT_REPORT_PARENT="$(dirname -- "$WOW_BOT_REPORT")"
+    [ "$(realpath -e -- "$WOW_BOT_REPORT_PARENT" 2>/dev/null)" \
+      = "$WOW_BOT_REPORT_PARENT" ] \
+      && [ ! -L "$WOW_BOT_REPORT_PARENT" ] || {
+      echo "error: WOW_BOT_REPORT parent must be canonical and non-symlink" >&2
+      exit 2
+    }
+    capture_exec_source_matches "$WOW_BOT_EXEC" "$WOW_BOT_EXEC_SHA256" || {
+      echo "error: WOW_BOT_EXEC is not a canonical pinned executable" >&2
+      exit 2
+    }
     validate_fresh_loot_fixture_journal || exit 2
     ;;
   *)
@@ -867,6 +870,9 @@ rust_capture_flat_tree_is_safe() {
     base="${path##*/}"
     case "$base" in
       *.bin|*.meta|rust.capture-manifest.json) ;;
+      race.bot-report.json)
+        [ "$FLOW" = "loot-two-session-atomic-race" ] || return 1
+        ;;
       *) return 1 ;;
     esac
   done < <(find "$directory" -mindepth 1 -maxdepth 1 -print0)
@@ -878,18 +884,41 @@ finalize_rust_capture_artifact() {
     && [ -n "$CAPTURE_LIVE_EXEC" ] \
     && [ -n "$CAPTURE_LIVE_SHA256" ] || return 1
 
-  local created_at manifest packet_count tree_sha bot_evidence path
+  local bot_evidence="" capture_evidence created_at manifest packet_count
+  local retained_bot_report path tree_sha
   [ "$CAPTURE_RUNTIME_CLEANUP_VERIFIED" -eq 1 ] \
     && [ "$CAPTURE_NORMAL_RUNTIME_RESTORED" -eq 1 ] || return 1
   capture_fixture_cleanup_verified_for_publication \
     "$RUST_CAPTURE_LOOT_FIXTURE_GUARD" \
     "$CAPTURE_FIXTURE_CLEANUP_VERIFIED" || return 1
-  if [ "$FLOW" = "loot-single-item-claim" ]; then
-    bot_evidence="$(capture_loot_item_bot_evidence \
-      "$WOW_BOT_REPORT" "$WOW_BOT_EXEC" "$WOW_BOT_EXEC_SHA256")" || return 1
+  case "$FLOW" in
+    loot-single-item-claim)
+      bot_evidence="$(capture_loot_item_bot_evidence \
+        "$WOW_BOT_REPORT" "$WOW_BOT_EXEC" "$WOW_BOT_EXEC_SHA256")" || return 1
+      ;;
+    loot-two-session-atomic-race)
+      bot_evidence="$(capture_loot_race_bot_evidence \
+        "$WOW_BOT_REPORT" "$WOW_BOT_EXEC" "$WOW_BOT_EXEC_SHA256")" || return 1
+      ;;
+  esac
+  if [ -n "$bot_evidence" ]; then
     IFS=$'\t' read -r CAPTURE_BOT_EXEC CAPTURE_BOT_EXEC_SHA256 \
       CAPTURE_BOT_REPORT CAPTURE_BOT_REPORT_SHA256 <<<"$bot_evidence"
   fi
+  if [ "$FLOW" = "loot-two-session-atomic-race" ]; then
+    retained_bot_report="$DUMP_STAGE_DIR/race.bot-report.json"
+    [ ! -e "$retained_bot_report" ] && [ ! -L "$retained_bot_report" ] \
+      && cp --no-clobber -- "$CAPTURE_BOT_REPORT" "$retained_bot_report" \
+      && chmod 600 "$retained_bot_report" \
+      && [ "$(sha256_of_file "$retained_bot_report")" \
+        = "$CAPTURE_BOT_REPORT_SHA256" ] \
+      && [ "$(sha256_of_file "$CAPTURE_BOT_REPORT")" \
+        = "$CAPTURE_BOT_REPORT_SHA256" ] || return 1
+    CAPTURE_BOT_REPORT="$DUMP_DIR/race.bot-report.json"
+  fi
+  capture_evidence="$(capture_bot_manifest_evidence \
+    "$FLOW" "$CAPTURE_BOT_EXEC" "$CAPTURE_BOT_EXEC_SHA256" \
+    "$CAPTURE_BOT_REPORT" "$CAPTURE_BOT_REPORT_SHA256")" || return 1
   tree_sha="$(rust_capture_tree_digest "$DUMP_STAGE_DIR")" || return 1
   packet_count="$(find "$DUMP_STAGE_DIR" -mindepth 1 -maxdepth 1 \
     -type f -name '*.meta' -print | wc -l)" \
@@ -917,11 +946,8 @@ finalize_rust_capture_artifact() {
       --arg pm2_profile_sha256 "$CAPTURE_PM2_PROFILE_SHA256" \
       --arg effective_config_path "$CAPTURE_EFFECTIVE_CONFIG_PATH" \
       --arg effective_config_sha256 "$CAPTURE_EFFECTIVE_CONFIG_SHA256" \
-      --arg bot_exec_path "$CAPTURE_BOT_EXEC" \
-      --arg bot_exec_sha256 "$CAPTURE_BOT_EXEC_SHA256" \
-      --arg bot_report_path "$CAPTURE_BOT_REPORT" \
-      --arg bot_report_sha256 "$CAPTURE_BOT_REPORT_SHA256" \
       --arg tree_sha256 "$tree_sha" \
+      --argjson capture_evidence "$capture_evidence" \
       --argjson pm2_entry_pid "$CAPTURE_PM2_ENTRY_PID" \
       --argjson pm2_entry_starttime "$CAPTURE_PM2_ENTRY_STARTTIME" \
       --argjson listener_runtime_pid "$CAPTURE_PROCESS_PID" \
@@ -929,7 +955,6 @@ finalize_rust_capture_artifact() {
       --argjson restart_count "$CAPTURE_RESTART_COUNT" \
       --argjson packet_count "$packet_count" \
       --argjson pinned "$([ -n "$CAPTURE_EXEC" ] && printf true || printf false)" \
-      --argjson guarded "$([ "$FLOW" = "loot-single-item-claim" ] && printf true || printf false)" \
       '{
         version: 3,
         flow: $flow,
@@ -964,31 +989,8 @@ finalize_rust_capture_artifact() {
         effective_config_algorithm: "capture-relevant-redacted-v1",
         runtime_cleanup_verified: true,
         normal_runtime_restored: true,
-        fixture_guard: (if $guarded then {
-          enabled: true,
-          contract: "loot-single-item-claim-fixture-v1",
-          account: "TESTBOT2@bot.local",
-          account_id: 9,
-          character_guid: 15,
-          peer_account: "TESTBOT3@bot.local",
-          peer_account_id: 10,
-          peer_character_guid: 16,
-          creature_entry: 21779,
-          creature_spawn_guid: 1117,
-          item_entry: 30712,
-          cleanup_verified: true
-        } else null end),
-        bot_report: (if $guarded then {
-          contract: "wow-test-bot-loot-item-capture-report-v1",
-          exec_path: $bot_exec_path,
-          exec_sha256: $bot_exec_sha256,
-          report_path: $bot_report_path,
-          report_sha256: $bot_report_sha256,
-          account: "TESTBOT2@bot.local",
-          account_id: 9,
-          character_guid: 15,
-          report_validated: true
-        } else null end),
+        fixture_guard: $capture_evidence.fixture_guard,
+        bot_report: $capture_evidence.bot_report,
         artifact: {
           path: "rust",
           packet_count: $packet_count,

@@ -9,6 +9,7 @@ use std::path::Path;
 use capture_diff::diff::{DiffReport, DivergenceKind, baseline_delta};
 use capture_diff::model::{Capture, CapturedPacket, Direction, PacketBoundary};
 use capture_diff::{pkt, rustdump};
+use sha2::{Digest, Sha256};
 
 fn s2c(opcode: u16, body: &[u8]) -> CapturedPacket {
     CapturedPacket {
@@ -472,6 +473,54 @@ fn rust_dump_rejects_orphans_extras_subdirectories_and_symlinks() {
                 .contains("non-symlink")
         );
     }
+}
+
+#[test]
+fn rust_dump_accepts_only_manifest_bound_race_bot_report_sidecar() {
+    let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join("race_report_sidecar_contract");
+    let _ = std::fs::remove_dir_all(&root);
+    write_dump_record(&root, "c2s", 0, 0, "1", 0x3211, "LootItem", &[0]);
+    let report_path = root.join("race.bot-report.json");
+    let report = br#"{"loot_race_smoke":true}"#;
+    std::fs::write(&report_path, report).unwrap();
+    let report_sha = format!("{:x}", Sha256::digest(report));
+    let manifest = serde_json::json!({
+        "flow": "loot-two-session-atomic-race",
+        "bot_report": {
+            "contract": "wow-test-bot-loot-two-session-atomic-race-report-v1",
+            "report_path": report_path.to_string_lossy(),
+            "report_sha256": report_sha
+        }
+    });
+    std::fs::write(
+        root.join("rust.capture-manifest.json"),
+        serde_json::to_vec_pretty(&manifest).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(rustdump::parse_rust_dump(&root).unwrap().packets.len(), 1);
+
+    std::fs::write(&report_path, b"{}").unwrap();
+    assert!(
+        rustdump::parse_rust_dump(&root)
+            .unwrap_err()
+            .to_string()
+            .contains("SHA-256")
+    );
+
+    std::fs::write(&report_path, report).unwrap();
+    let mut wrong_flow = manifest;
+    wrong_flow["flow"] = serde_json::Value::String("login".to_string());
+    std::fs::write(
+        root.join("rust.capture-manifest.json"),
+        serde_json::to_vec_pretty(&wrong_flow).unwrap(),
+    )
+    .unwrap();
+    assert!(
+        rustdump::parse_rust_dump(&root)
+            .unwrap_err()
+            .to_string()
+            .contains("matching race manifest contract")
+    );
 }
 
 #[test]

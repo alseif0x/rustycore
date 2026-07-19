@@ -922,13 +922,11 @@ impl StatementDef for WorldStatements {
                 "SELECT COALESCE(SellPrice, 0) FROM hotfixes.item_sparse WHERE ID = ? LIMIT 1"
             }
             Self::SEL_ITEM_TEMPLATE_ADDON_MONEY_LOOT => concat!(
-                "SELECT LEAST(COALESCE(MinMoneyLoot, 0), COALESCE(MaxMoneyLoot, 0)), ",
-                "GREATEST(COALESCE(MinMoneyLoot, 0), COALESCE(MaxMoneyLoot, 0)) ",
+                "SELECT MinMoneyLoot, MaxMoneyLoot ",
                 "FROM item_template_addon WHERE Id = ? LIMIT 1",
             ),
             Self::SEL_GAMEOBJECT_TEMPLATE_ADDON_MONEY_LOOT => concat!(
-                "SELECT LEAST(COALESCE(mingold, 0), COALESCE(maxgold, 0)), ",
-                "GREATEST(COALESCE(mingold, 0), COALESCE(maxgold, 0)) ",
+                "SELECT mingold, maxgold ",
                 "FROM gameobject_template_addon WHERE entry = ? LIMIT 1",
             ),
             Self::SEL_ITEM_TEMPLATE_ADDON_LOOT_METADATA => concat!(

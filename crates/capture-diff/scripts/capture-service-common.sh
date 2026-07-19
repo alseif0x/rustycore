@@ -586,6 +586,150 @@ capture_loot_item_bot_evidence() {
     "$canonical_exec" "$bot_sha" "$canonical_report" "$report_sha"
 }
 
+capture_loot_race_report_proves_exact_success() {
+  local report_path="$1"
+
+  jq -e '
+    .loot_race_smoke == true
+    and .loot_item_capture == false
+    and (.results | type == "array" and length == 2)
+    and ([.results[] | [.account, .account_id, .character_guid]] | sort
+      == [["TESTBOT2@bot.local", 9, 15], ["TESTBOT3@bot.local", 10, 16]])
+    and all(.results[];
+      .world_auth == true
+      and .enum_characters == true
+      and .player_login_verified == true
+      and .loot_race_smoke == true
+      and .loot_race_smoke_passed == true
+      and .loot_race_failure == null
+      and .loot_race_target_entry == 2846
+      and .loot_race_target_spawn_guid == 9106001
+      and (.loot_race_target_runtime_counter | type == "number" and . > 0)
+      and .loot_race_party_confirmed == true
+      and .loot_race_target_discovered == true
+      and .loot_race_loot_opened == true
+      and (.loot_race_loot_list_id | type == "number" and . >= 0 and . <= 255)
+      and .loot_race_loot_coins == 10
+      and .loot_race_loot_removed_seen == true
+      and .loot_race_coin_removed_seen == true
+      and .loot_race_db_item_total == 1
+      and .loot_race_db_money_delta == 10
+      and .loot_race_relog_verified == true)
+    and ([.results[].loot_race_target_runtime_counter] | unique | length == 1)
+    and ([.results[].loot_race_loot_list_id] | unique | length == 1)
+    and ([.results[] | select(.loot_race_item_push_seen == true)] | length == 1)
+    and ([.results[] | select(.loot_race_item_push_seen == false)] | length == 1)
+    and ([.results[].loot_race_money_notify_amount] | sort == [0, 10])
+  ' "$report_path" >/dev/null
+}
+
+capture_loot_race_bot_evidence() {
+  local report_path="$1"
+  local bot_exec="$2"
+  local expected_bot_sha="$3"
+  local canonical_report canonical_exec report_sha bot_sha
+
+  [[ "$report_path" = /* && "$bot_exec" = /* \
+    && "$expected_bot_sha" =~ ^[0-9a-f]{64}$ ]] || return 1
+  canonical_report="$(realpath -e -- "$report_path" 2>/dev/null)" || return 1
+  canonical_exec="$(realpath -e -- "$bot_exec" 2>/dev/null)" || return 1
+  [ "$canonical_report" = "$report_path" ] \
+    && [ -f "$report_path" ] && [ ! -L "$report_path" ] \
+    && [ "$canonical_exec" = "$bot_exec" ] \
+    && [ -f "$bot_exec" ] && [ -x "$bot_exec" ] && [ ! -L "$bot_exec" ] \
+    || return 1
+  bot_sha="$(capture_sha256_of_file "$bot_exec")" || return 1
+  [ "$bot_sha" = "$expected_bot_sha" ] || return 1
+  capture_loot_race_report_proves_exact_success "$report_path" || return 1
+  report_sha="$(capture_sha256_of_file "$report_path")" || return 1
+  printf '%s\t%s\t%s\t%s\n' \
+    "$canonical_exec" "$bot_sha" "$canonical_report" "$report_sha"
+}
+
+capture_bot_manifest_evidence() {
+  local flow="$1"
+  local bot_exec="$2"
+  local bot_exec_sha256="$3"
+  local bot_report="$4"
+  local bot_report_sha256="$5"
+
+  case "$flow" in
+    loot-single-item-claim)
+      jq -n \
+        --arg exec_path "$bot_exec" \
+        --arg exec_sha256 "$bot_exec_sha256" \
+        --arg report_path "$bot_report" \
+        --arg report_sha256 "$bot_report_sha256" '
+          {
+            fixture_guard: {
+              enabled: true,
+              contract: "loot-single-item-claim-fixture-v1",
+              account: "TESTBOT2@bot.local",
+              account_id: 9,
+              character_guid: 15,
+              peer_account: "TESTBOT3@bot.local",
+              peer_account_id: 10,
+              peer_character_guid: 16,
+              creature_entry: 21779,
+              creature_spawn_guid: 1117,
+              item_entry: 30712,
+              cleanup_verified: true
+            },
+            bot_report: {
+              contract: "wow-test-bot-loot-item-capture-report-v1",
+              exec_path: $exec_path,
+              exec_sha256: $exec_sha256,
+              report_path: $report_path,
+              report_sha256: $report_sha256,
+              account: "TESTBOT2@bot.local",
+              account_id: 9,
+              character_guid: 15,
+              report_validated: true
+            }
+          }
+        '
+      ;;
+    loot-two-session-atomic-race)
+      jq -n \
+        --arg exec_path "$bot_exec" \
+        --arg exec_sha256 "$bot_exec_sha256" \
+        --arg report_path "$bot_report" \
+        --arg report_sha256 "$bot_report_sha256" '
+          {
+            fixture_guard: {
+              enabled: true,
+              contract: "loot-two-session-atomic-race-fixture-v1",
+              account: "TESTBOT2@bot.local",
+              account_id: 9,
+              character_guid: 15,
+              peer_account: "TESTBOT3@bot.local",
+              peer_account_id: 10,
+              peer_character_guid: 16,
+              gameobject_entry: 2846,
+              gameobject_spawn_guid: 9106001,
+              item_entry: 38,
+              cleanup_verified: true
+            },
+            bot_report: {
+              contract: "wow-test-bot-loot-two-session-atomic-race-report-v1",
+              exec_path: $exec_path,
+              exec_sha256: $exec_sha256,
+              report_path: $report_path,
+              report_sha256: $report_sha256,
+              account: "TESTBOT2@bot.local",
+              account_id: 9,
+              character_guid: 15,
+              report_validated: true
+            }
+          }
+        '
+      ;;
+    *)
+      printf '%s\n' '{"fixture_guard":null,"bot_report":null}'
+      ;;
+  esac
+}
+
 capture_release_orchestration_lock() {
   if [[ "${CAPTURE_ORCHESTRATION_LOCK_FD:-}" =~ ^[0-9]+$ ]]; then
     flock -u "$CAPTURE_ORCHESTRATION_LOCK_FD" 2>/dev/null || true
