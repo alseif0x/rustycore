@@ -159,9 +159,17 @@ enum QuestSourceItemStoreOutcomeLikeCpp {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct QuestSourceItemBoundPreflightLikeCpp {
-    no_grant: bool,
-    changed_quest_ids: Vec<u32>,
+pub(crate) struct QuestSourceItemBoundPreflightLikeCpp {
+    pub(crate) no_grant: bool,
+    pub(crate) changed_quest_ids: Vec<u32>,
+}
+
+/// Durable snapshot of C++ `StoreNewItem`'s first, quest-bound
+/// `ItemAddedQuestCheck` pass. A single matching bound objective consumes the
+/// loot award as quest credit without materialising an inventory Item.
+#[derive(Debug, Clone)]
+pub(crate) struct QuestSourceItemBoundPersistencePlanLikeCpp {
+    pub(crate) statuses: Vec<PlayerQuestStatus>,
 }
 
 fn reputation_rank_from_standing_like_cpp(standing: i32) -> u8 {
@@ -1571,6 +1579,93 @@ impl WorldSession {
         }
     }
 
+    /// Pure form of the first C++ `Player::StoreNewItem` quest pass:
+    /// `ItemAddedQuestCheck(itemId, count, true, &hadBoundItemObjective)`.
+    ///
+    /// `UpdateQuestObjectiveProgress` stops after the first matching
+    /// `QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM` objective. When it changes
+    /// one objective, `StoreNewItem` returns `nullptr` and no physical Item is
+    /// created. Keeping this as a snapshot lets loot persist the objective and
+    /// consume its object-owned claim in one SQL/authority transaction.
+    pub(crate) fn plan_quest_source_item_bound_objective_persistence_like_cpp(
+        &self,
+        entry_id: u32,
+        quest_log_item_id: u32,
+        count: u32,
+    ) -> Option<QuestSourceItemBoundPersistencePlanLikeCpp> {
+        let quest_store = self.quest_store.as_ref()?;
+        let count_i32 = i32::try_from(count).unwrap_or(i32::MAX);
+        let entry_object_id = i32::try_from(entry_id).unwrap_or(i32::MAX);
+        let quest_log_object_id = i32::try_from(quest_log_item_id).unwrap_or(i32::MAX);
+
+        for object_id in [entry_object_id, quest_log_object_id] {
+            if object_id == quest_log_object_id && quest_log_item_id == 0 {
+                continue;
+            }
+
+            for current_status in self.player_quests.values() {
+                if current_status.status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
+                    continue;
+                }
+                let Some(quest) = quest_store.get(current_status.quest_id) else {
+                    continue;
+                };
+
+                for (objective_index, objective) in quest.objectives.iter().enumerate() {
+                    if objective.obj_type != QUEST_OBJECTIVE_ITEM_LIKE_CPP_LOCAL
+                        || (objective.flags2
+                            & QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP_LOCAL)
+                            == 0
+                        || objective.object_id != object_id
+                        || !Self::represented_quest_objective_completable_like_cpp(
+                            current_status,
+                            quest,
+                            objective_index,
+                        )
+                    {
+                        continue;
+                    }
+
+                    let Ok(storage_index) = usize::try_from(objective.storage_index) else {
+                        continue;
+                    };
+                    let current = current_status
+                        .objective_counts
+                        .get(storage_index)
+                        .copied()
+                        .unwrap_or(0);
+                    if current >= objective.amount {
+                        continue;
+                    }
+
+                    let mut planned_status = current_status.clone();
+                    if planned_status.objective_counts.len() <= storage_index {
+                        planned_status.objective_counts.resize(storage_index + 1, 0);
+                    }
+                    let new_count = current.saturating_add(count_i32).clamp(0, objective.amount);
+                    planned_status.objective_counts[storage_index] = new_count;
+                    let quest_already_rewarded = self.rewarded_quests.contains(&quest.id);
+                    if new_count >= objective.amount
+                        && Self::represented_can_complete_quest_after_objective_like_cpp(
+                            &planned_status,
+                            quest,
+                            objective.id,
+                            quest_already_rewarded,
+                        )
+                    {
+                        planned_status.status = QUEST_STATUS_COMPLETE_LIKE_CPP;
+                    }
+
+                    return Some(QuestSourceItemBoundPersistencePlanLikeCpp {
+                        statuses: vec![planned_status],
+                    });
+                }
+            }
+        }
+
+        None
+    }
+
     async fn apply_quest_source_item_bound_objective_progress_for_object_like_cpp(
         &mut self,
         quest_store: &QuestStore,
@@ -1580,7 +1675,7 @@ impl WorldSession {
         let mut updated_counts = Vec::new();
         let mut quests_to_complete = Vec::new();
 
-        for status in self.player_quests.values_mut() {
+        'quests: for status in self.player_quests.values_mut() {
             if status.status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
                 continue;
             }
@@ -1632,6 +1727,9 @@ impl WorldSession {
                 {
                     quests_to_complete.push(status.quest_id);
                 }
+                // C++ `UpdateQuestObjectiveProgress` stops after the first
+                // credited quest-bound Item objective.
+                break 'quests;
             }
         }
 
@@ -1645,7 +1743,7 @@ impl WorldSession {
         updated_counts
     }
 
-    async fn apply_quest_source_item_bound_objective_preflight_like_cpp(
+    pub(crate) async fn apply_quest_source_item_bound_objective_preflight_like_cpp(
         &mut self,
         entry_id: u32,
         quest_log_item_id: u32,

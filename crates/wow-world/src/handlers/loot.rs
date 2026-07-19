@@ -10833,10 +10833,36 @@ impl WorldSession {
             (None, None) => None,
             _ => return false,
         };
+        // C++ Loot::AutoStore validates CanStoreNewItem before StoreNewItem.
+        // That ordering still applies when StoreNewItem later converts a
+        // quest-bound Item into objective credit and returns nullptr.
+        let Some((store_result, mut store_dest, _)) =
+            self.plan_store_new_direct_inventory_item(item_id, count)
+        else {
+            self.send_equip_error(InventoryResult::ItemNotFound, None, None, 0, 0);
+            return false;
+        };
+        if store_result != InventoryResult::Ok {
+            self.send_equip_error(store_result, None, None, 0, 0);
+            return false;
+        }
+        let quest_log_item_id = self
+            .load_creature_item_template_addon_loot_metadata_like_cpp(item_id)
+            .await
+            .quest_log_item_id
+            .try_into()
+            .unwrap_or(0);
+        let bound_objective_plan = self
+            .plan_quest_source_item_bound_objective_persistence_like_cpp(
+                item_id,
+                quest_log_item_id,
+                count,
+            );
         #[cfg(test)]
         if let Some(grants) = self.loot_item_store_test_grants_like_cpp.clone() {
             let success = self.loot_item_store_test_success_like_cpp;
             let commit_gate = self.loot_item_store_test_commit_gate_like_cpp.clone();
+            let materializes_inventory_item = bound_objective_plan.is_none();
             let durable_completion_context = stored_item_loot_source
                 .map(|owner_guid| (owner_guid, loot_entry.loot_list_id, player_guid, true))
                 .or_else(|| {
@@ -10883,7 +10909,9 @@ impl WorldSession {
                     if !success {
                         return Err(());
                     }
-                    grants.fetch_add(1, Ordering::SeqCst);
+                    if materializes_inventory_item {
+                        grants.fetch_add(1, Ordering::SeqCst);
+                    }
                     Ok(())
                 },
                 claim.cloned(),
@@ -10894,6 +10922,24 @@ impl WorldSession {
             if !matches!(worker.await, Ok(Ok(()))) {
                 return false;
             }
+            if let Some(plan) = bound_objective_plan.as_ref() {
+                let applied = self
+                    .apply_quest_source_item_bound_objective_preflight_like_cpp(
+                        item_id,
+                        quest_log_item_id,
+                        count,
+                    )
+                    .await;
+                debug_assert!(applied.as_ref().is_some_and(|result| result.no_grant));
+                debug_assert!(plan.statuses.iter().all(|planned| {
+                    self.player_quests
+                        .get(&planned.quest_id)
+                        .is_some_and(|actual| {
+                            actual.status == planned.status
+                                && actual.objective_counts == planned.objective_counts
+                        })
+                }));
+            }
             if !self.publish_persisted_loot_item_removal_like_cpp(
                 claim,
                 claim_commit_context,
@@ -10901,18 +10947,20 @@ impl WorldSession {
             ) {
                 return false;
             }
-            self.send_loot_item_push_result(
-                player_guid,
-                ObjectGuid::EMPTY,
-                loot_entry,
-                0,
-                0,
-                0,
-                count,
-                count,
-                false,
-                dungeon_encounter_id,
-            );
+            if bound_objective_plan.is_none() {
+                self.send_loot_item_push_result(
+                    player_guid,
+                    ObjectGuid::EMPTY,
+                    loot_entry,
+                    0,
+                    0,
+                    0,
+                    count,
+                    count,
+                    false,
+                    dungeon_encounter_id,
+                );
+            }
             if let Some(runtime_inventory_applied) = runtime_inventory_applied {
                 runtime_inventory_applied.store(true, Ordering::Release);
             }
@@ -10921,17 +10969,130 @@ impl WorldSession {
         let Some(char_db) = self.char_db().map(Arc::clone) else {
             return false;
         };
-        let Some((store_result, mut store_dest, _)) =
-            self.plan_store_new_direct_inventory_item(item_id, count)
-        else {
-            self.send_equip_error(InventoryResult::ItemNotFound, None, None, 0, 0);
-            return false;
-        };
-        if store_result != InventoryResult::Ok {
-            self.send_equip_error(store_result, None, None, 0, 0);
-            return false;
-        }
+        if let Some(bound_objective_plan) = bound_objective_plan {
+            let mut tx = SqlTransaction::new();
+            self.append_planned_quest_statuses_to_transaction_like_cpp(
+                &mut tx,
+                char_db.as_ref(),
+                player_guid.counter() as u64,
+                &bound_objective_plan.statuses,
+            );
+            if let Some(item_guid) = stored_item_loot_source {
+                let mut delete_source = char_db.prepare(CharStatements::DEL_ITEMCONTAINER_ITEM);
+                delete_source.set_u64(0, item_guid.counter() as u64);
+                delete_source.set_u32(1, item_id);
+                delete_source.set_u32(2, count);
+                delete_source.set_u32(3, u32::from(loot_entry.loot_list_id));
+                tx.append_expect_rows_affected(delete_source, 1);
+            }
 
+            let durable_completion_context = stored_item_loot_source
+                .map(|owner_guid| (owner_guid, loot_entry.loot_list_id, player_guid, true))
+                .or_else(|| {
+                    claim_commit_context.map(|context| {
+                        (
+                            context.owner_guid,
+                            context.loot_list_id,
+                            context.player_guid,
+                            false,
+                        )
+                    })
+                });
+            let runtime_inventory_applied =
+                durable_completion_context.map(|_| Arc::new(AtomicBool::new(false)));
+            let durable_item_completion = durable_completion_context
+                .zip(runtime_inventory_applied.as_ref().map(Arc::clone))
+                .map(
+                    |(
+                        (owner_guid, loot_list_id, player_guid, item_owner_auto_release),
+                        runtime_inventory_applied,
+                    )| {
+                        (
+                            self.begin_durable_item_loot_persistence_like_cpp(),
+                            DurableItemLootCompletionLikeCpp {
+                                owner_guid,
+                                loot_list_id,
+                                player_guid,
+                                item_owner_auto_release,
+                                durable_item_money_applied_amount: None,
+                                durable_item_money_notified_amount: None,
+                                durable_item_money_balance_applied: None,
+                                item_fanout: durable_item_fanout.clone(),
+                                runtime_inventory_applied,
+                            },
+                        )
+                    },
+                );
+            let persistence_char_db = Arc::clone(&char_db);
+            let persistence = match spawn_sql_loot_claim_persistence_worker_like_cpp(
+                async move {
+                    tx.commit_with_outcome_like_cpp(persistence_char_db.pool())
+                        .await
+                },
+                claim.cloned(),
+                durable_item_completion,
+                self.session_command_tx(),
+            ) {
+                Ok(persistence) => persistence,
+                Err(error) => {
+                    warn!(
+                        ?error,
+                        "LootItem: quest-bound claim closed before persistence started"
+                    );
+                    self.send_equip_error(InventoryResult::InvFull, None, None, 0, 0);
+                    return false;
+                }
+            };
+            match persistence.await {
+                Ok(Ok(())) => {}
+                Ok(Err(error)) => {
+                    warn!(?error, "LootItem: quest-bound objective transaction failed");
+                    self.send_equip_error(InventoryResult::InvFull, None, None, 0, 0);
+                    return false;
+                }
+                Err(error) => {
+                    warn!(
+                        ?error,
+                        "LootItem: detached quest-bound transaction worker terminated"
+                    );
+                    self.send_equip_error(InventoryResult::InvFull, None, None, 0, 0);
+                    return false;
+                }
+            }
+
+            let applied = self
+                .apply_quest_source_item_bound_objective_preflight_like_cpp(
+                    item_id,
+                    quest_log_item_id,
+                    count,
+                )
+                .await;
+            if !applied.as_ref().is_some_and(|result| result.no_grant)
+                || !bound_objective_plan.statuses.iter().all(|planned| {
+                    self.player_quests
+                        .get(&planned.quest_id)
+                        .is_some_and(|actual| {
+                            actual.status == planned.status
+                                && actual.objective_counts == planned.objective_counts
+                        })
+                })
+            {
+                self.kick("durable quest-bound loot state diverged; relog required");
+                return true;
+            }
+            if let Some(runtime_inventory_applied) = runtime_inventory_applied {
+                runtime_inventory_applied.store(true, Ordering::Release);
+            }
+            if !self.publish_persisted_loot_item_removal_like_cpp(
+                claim,
+                claim_commit_context,
+                durable_item_fanout.as_ref(),
+            ) {
+                return false;
+            }
+            self.sync_player_registry_state_like_cpp();
+            return true;
+        }
         let store_random_properties = {
             let mut rng = self.represented_runtime_subrng_like_cpp();
             self.generate_loot_store_random_properties_with_rng_like_cpp(item_id, &mut rng)
@@ -11241,12 +11402,6 @@ impl WorldSession {
             runtime_inventory_applied.store(true, Ordering::Release);
         }
 
-        let quest_log_item_id = self
-            .load_creature_item_template_addon_loot_metadata_like_cpp(item_id)
-            .await
-            .quest_log_item_id
-            .try_into()
-            .unwrap_or(0);
         let mut changed_quest_ids = self
             .apply_quest_source_item_added_non_bound_objective_progress_like_cpp(
                 item_id,
@@ -14615,6 +14770,8 @@ mod tests {
 
         first.set_player_guid(Some(first_guid));
         second.set_player_guid(Some(second_guid));
+        install_limited_test_item_template(&mut first, 25, 0);
+        install_limited_test_item_template(&mut second, 25, 0);
         first.set_player_position_like_cpp(Position::ZERO);
         second.set_player_position_like_cpp(Position::ZERO);
         first.set_map_manager(Arc::clone(&shared_map));
@@ -14963,6 +15120,188 @@ mod tests {
             ],
             "C++ Player::StoreLootItem notifies removal before SendNewItem"
         );
+    }
+
+    fn install_quest_bound_loot_objective_like_cpp(
+        session: &mut WorldSession,
+        quest_id: u32,
+        item_id: u32,
+        current_count: i32,
+        required_count: i32,
+    ) {
+        let mut quest = test_quest_template(quest_id);
+        quest.objectives.push(QuestObjective {
+            id: quest_id * 10,
+            quest_id,
+            obj_type: 1,
+            order: 0,
+            storage_index: 0,
+            object_id: item_id as i32,
+            amount: required_count,
+            flags: 0,
+            flags2: 1,
+            progress_bar_weight: 0.0,
+            description: String::new(),
+        });
+        session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
+        session.player_quests.insert(
+            quest_id,
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![current_count],
+                slot: 0,
+            },
+        );
+    }
+
+    #[tokio::test]
+    async fn quest_bound_loot_credits_objective_without_physical_item_like_cpp() {
+        let (mut first, first_rx, _second, _second_rx, owner, first_guid, _) =
+            two_sessions_with_authoritative_creature_loot_like_cpp(
+                authoritative_test_loot_like_cpp(0, true),
+            );
+        let _ = drain_server_opcodes_like_cpp(&first_rx);
+        let quest_id = 8_336;
+        let item_id = 25;
+        install_quest_bound_loot_objective_like_cpp(&mut first, quest_id, item_id, 5, 6);
+        let grants = Arc::new(AtomicUsize::new(0));
+        first.set_loot_item_store_test_seam_like_cpp(Arc::clone(&grants), true);
+
+        first
+            .handle_loot_item(loot_item_packet(
+                represented_loot_object_guid_like_cpp(owner),
+                0,
+            ))
+            .await;
+
+        assert_eq!(
+            grants.load(Ordering::SeqCst),
+            0,
+            "C++ StoreNewItem returns nullptr for quest-bound objective credit"
+        );
+        let status = first.player_quests.get(&quest_id).expect("active quest");
+        assert_eq!(status.objective_counts, vec![6]);
+        assert_eq!(
+            status.status,
+            crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
+        );
+        assert!(!first.item_loot_quest_status_allows_like_cpp(
+            item_id,
+            true,
+            ItemTemplateAddonLootMetadataLikeCpp::default(),
+        ));
+
+        let authority = first
+            .represented_owned_loot_authority_like_cpp(owner)
+            .unwrap();
+        let snapshot = authority.snapshot_for_player_like_cpp(first_guid).unwrap();
+        assert!(snapshot.loot.items[0].taken);
+        assert_eq!(snapshot.loot.unlooted_count, 0);
+
+        let opcodes = drain_server_opcodes_like_cpp(&first_rx);
+        let bound_credit = wow_constants::ServerOpcodes::ItemPushResult as u16;
+        let loot_removed = wow_constants::ServerOpcodes::LootRemoved as u16;
+        assert!(opcodes.contains(&bound_credit), "{opcodes:?}");
+        assert!(opcodes.contains(&loot_removed), "{opcodes:?}");
+        assert!(
+            opcodes.iter().position(|opcode| *opcode == bound_credit)
+                < opcodes.iter().position(|opcode| *opcode == loot_removed),
+            "C++ bound objective notification precedes the committed loot removal: {opcodes:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn failed_quest_bound_loot_persistence_rolls_back_credit_and_claim_like_cpp() {
+        let (mut first, first_rx, _second, _second_rx, owner, first_guid, _) =
+            two_sessions_with_authoritative_creature_loot_like_cpp(
+                authoritative_test_loot_like_cpp(0, true),
+            );
+        let _ = drain_server_opcodes_like_cpp(&first_rx);
+        let quest_id = 8_336;
+        install_quest_bound_loot_objective_like_cpp(&mut first, quest_id, 25, 5, 6);
+        let grants = Arc::new(AtomicUsize::new(0));
+        first.set_loot_item_store_test_seam_like_cpp(Arc::clone(&grants), false);
+
+        first
+            .handle_loot_item(loot_item_packet(
+                represented_loot_object_guid_like_cpp(owner),
+                0,
+            ))
+            .await;
+
+        assert_eq!(grants.load(Ordering::SeqCst), 0);
+        let status = first.player_quests.get(&quest_id).expect("active quest");
+        assert_eq!(status.objective_counts, vec![5]);
+        assert_eq!(
+            status.status,
+            crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP
+        );
+        let authority = first
+            .represented_owned_loot_authority_like_cpp(owner)
+            .unwrap();
+        let snapshot = authority.snapshot_for_player_like_cpp(first_guid).unwrap();
+        assert!(!snapshot.loot.items[0].taken);
+        assert_eq!(snapshot.loot.unlooted_count, 1);
+    }
+
+    #[tokio::test]
+    async fn quest_bound_loot_still_requires_can_store_new_item_like_cpp() {
+        let (mut first, first_rx, _second, _second_rx, owner, first_guid, _) =
+            two_sessions_with_authoritative_creature_loot_like_cpp(
+                authoritative_test_loot_like_cpp(0, true),
+            );
+        let _ = drain_server_opcodes_like_cpp(&first_rx);
+        let quest_id = 8_336;
+        let item_id = 25;
+        install_quest_bound_loot_objective_like_cpp(&mut first, quest_id, item_id, 5, 6);
+        install_limited_test_item_template(&mut first, item_id, 1);
+        let existing_guid = ObjectGuid::create_item(1, 83_360);
+        first.insert_inventory_item_like_cpp(
+            INVENTORY_SLOT_ITEM_START,
+            InventoryItem {
+                guid: existing_guid,
+                entry_id: item_id,
+                db_guid: existing_guid.counter() as u64,
+                inventory_type: None,
+            },
+        );
+        let existing_item = first.make_inventory_item_object(
+            existing_guid,
+            item_id,
+            first_guid,
+            1,
+            0,
+            ItemContext::None,
+            INVENTORY_SLOT_ITEM_START,
+        );
+        first.insert_inventory_item_object(existing_item);
+        let grants = Arc::new(AtomicUsize::new(0));
+        first.set_loot_item_store_test_seam_like_cpp(Arc::clone(&grants), true);
+
+        first
+            .handle_loot_item(loot_item_packet(
+                represented_loot_object_guid_like_cpp(owner),
+                0,
+            ))
+            .await;
+
+        assert_eq!(grants.load(Ordering::SeqCst), 0);
+        let status = first.player_quests.get(&quest_id).expect("active quest");
+        assert_eq!(status.objective_counts, vec![5]);
+        assert_eq!(
+            status.status,
+            crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP
+        );
+        let authority = first
+            .represented_owned_loot_authority_like_cpp(owner)
+            .unwrap();
+        let snapshot = authority.snapshot_for_player_like_cpp(first_guid).unwrap();
+        assert!(!snapshot.loot.items[0].taken);
+        assert_eq!(snapshot.loot.unlooted_count, 1);
     }
 
     #[tokio::test]
