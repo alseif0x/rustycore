@@ -250,7 +250,15 @@ and after the interactive capture; a provenance mismatch fails closed. The
 snapshot's original executable is still restored on normal exit or a caught
 termination signal, but readiness requires both distinct world/instance
 listeners to belong to one accredited PID that is the PM2 entry itself or its
-verified descendant. Before any fixture restoration, cleanup removes the PM2
+verified descendant. The stopped-world accreditation used during C++ swaps
+waits at most 30 seconds and stable startup waits at most 180 seconds by
+default; operators may override the bounded
+`CAPTURE_WORLD_STOP_TIMEOUT_SECONDS` and
+`CAPTURE_WORLD_READY_TIMEOUT_SECONDS` values from 1 and 3, respectively,
+through 3600 seconds. The automated two-session QA gives the wrapper both
+budgets plus a separate 120-second pre-readiness margin for offline-character,
+tree-termination, SQL, PM2, and accreditation work.
+Before any fixture restoration, cleanup removes the PM2
 entry and verifies the recorded entry, listener, and descendant process-tree
 identities plus both listeners are absent; a stubborn tree is terminated and
 rechecked. The dump parser accepts only a flat set of regular, non-symlink
@@ -294,12 +302,14 @@ leaves the normal world stopped for manual inspection.
 The bot writes a mode-0600 recovery journal before its first character/fixture
 mutation, removes it only after verified restoration, and atomically creates
 `${WOW_BOT_FIXTURE_JOURNAL}.cleanup-complete`. The capture wrapper removes that
-marker only after the original PM2 profile is healthy again. A pending journal,
-missing marker, caught TERM, state/metadata drift, or cleanup error leaves the
-normal world stopped and retains recovery evidence; cleanup failure is the
-reported exit status even when the capture already failed. `SIGKILL` cannot be
-trapped, so an operator must recover a retained journal before restarting the
-normal world.
+marker only after the original PM2 profile is healthy again. If the wrapper
+fails before it exposes the flow prompt, both journal and marker must still be
+absent and the original world can be restored without inventing a cleanup
+receipt. Once the prompt is exposed, a pending journal, missing marker, caught
+TERM, state/metadata drift, or cleanup error leaves the normal world stopped
+and retains recovery evidence; cleanup failure is the reported exit status even
+when the capture already failed. `SIGKILL` cannot be trapped, so an operator
+must recover a retained journal before restarting the normal world.
 
 The shared-chest preflight claims no spawn that has pool, event,
 linked-respawn, `gameobject_addon`, `gameobject_overrides`, or `spawn_group`

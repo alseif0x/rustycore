@@ -21,6 +21,7 @@ QA_LOOT_RACE_CAPTURE_LOG=""
 QA_LOOT_RACE_FIXTURE_JOURNAL=""
 QA_LOOT_RACE_CAPTURE_WAIT_STATUS=0
 QA_LOOT_RACE_BOT_PID=""
+QA_LOOT_RACE_PRE_READY_MARGIN_SECONDS=120
 
 usage() {
   cat <<'EOF'
@@ -254,13 +255,36 @@ qa_loot_race_capture_cleanup() {
   exit "$status"
 }
 
+qa_loot_capture_ready_timeout_seconds() {
+  local world_ready_timeout="${1:-${CAPTURE_WORLD_READY_TIMEOUT_SECONDS:-180}}"
+  local world_stop_timeout="${2:-${CAPTURE_WORLD_STOP_TIMEOUT_SECONDS:-30}}"
+
+  [[ "$world_ready_timeout" =~ ^[1-9][0-9]*$ ]] \
+    && ((${#world_ready_timeout} <= 4)) \
+    && ((10#$world_ready_timeout >= 3)) \
+    && ((10#$world_ready_timeout <= 3600)) || {
+    echo "CAPTURE_WORLD_READY_TIMEOUT_SECONDS must be an integer from 3 through 3600" >&2
+    return 1
+  }
+  [[ "$world_stop_timeout" =~ ^[1-9][0-9]*$ ]] \
+    && ((${#world_stop_timeout} <= 4)) \
+    && ((10#$world_stop_timeout <= 3600)) || {
+    echo "CAPTURE_WORLD_STOP_TIMEOUT_SECONDS must be an integer from 1 through 3600" >&2
+    return 1
+  }
+  printf '%s\n' "$((world_ready_timeout + world_stop_timeout + QA_LOOT_RACE_PRE_READY_MARGIN_SECONDS))"
+}
+
 qa_wait_for_loot_capture_ready() {
   local capture_pid="$1"
   local capture_log="$2"
   local marker=">>> Perform the 'loot-two-session-atomic-race' flow with the client now."
   local wrapper_status=0
+  local timeout_seconds deadline
 
-  for _ in $(seq 1 240); do
+  timeout_seconds="$(qa_loot_capture_ready_timeout_seconds)" || return 1
+  deadline=$((SECONDS + timeout_seconds))
+  while ((SECONDS < deadline)); do
     if [[ -f "$capture_log" ]] && rg -Fq -- "$marker" "$capture_log"; then
       return 0
     fi
@@ -273,7 +297,7 @@ qa_wait_for_loot_capture_ready() {
     fi
     sleep 0.25
   done
-  echo "timed out waiting 60 seconds for the guarded capture ready marker" >&2
+  echo "timed out waiting ${timeout_seconds} seconds for the guarded capture ready marker" >&2
   return 1
 }
 
@@ -807,6 +831,12 @@ run_self_test() {
   fi
 
   require_command python3
+  [[ "$(qa_loot_capture_ready_timeout_seconds 180 30)" == 330 ]] || die \
+    "loot-race pre-ready timeout does not dominate explicit wrapper budgets"
+  if qa_loot_capture_ready_timeout_seconds 2 30 >/dev/null 2>&1 \
+      || qa_loot_capture_ready_timeout_seconds 180 3601 >/dev/null 2>&1; then
+    die "loot-race pre-ready timeout accepted an invalid inner timeout"
+  fi
   project_protoc_version >/dev/null
   python3 -m json.tool "$SCHEMA_FILE" >/dev/null || die "invalid Codex review JSON schema"
 
@@ -1134,11 +1164,34 @@ run_self_test() {
     fi
     chmod 700 "$fixture_guard_dir"
     validate_fresh_loot_fixture_journal
+    loot_fixture_bot_cleanup_safe_for_capture_state 0
+    if loot_fixture_bot_cleanup_safe_for_capture_state 2 >/dev/null 2>&1; then
+      exit 147
+    fi
+    ln -s "$fixture_guard_dir/missing-journal" "$WOW_BOT_FIXTURE_JOURNAL"
+    if loot_fixture_bot_cleanup_safe_for_capture_state 0 >/dev/null 2>&1; then
+      exit 148
+    fi
+    rm -f "$WOW_BOT_FIXTURE_JOURNAL"
+    : >"$WOW_BOT_FIXTURE_JOURNAL"
+    if loot_fixture_bot_cleanup_safe_for_capture_state 0 >/dev/null 2>&1; then
+      exit 152
+    fi
+    rm -f "$WOW_BOT_FIXTURE_JOURNAL"
+    ln -s "$fixture_guard_dir/missing-marker" "$LOOT_FIXTURE_CLEANUP_MARKER"
+    if loot_fixture_bot_cleanup_safe_for_capture_state 0 >/dev/null 2>&1; then
+      exit 149
+    fi
+    rm -f "$LOOT_FIXTURE_CLEANUP_MARKER"
 
     printf '%s\n' \
       '{"version":1,"journal_sha256":"0000000000000000000000000000000000000000000000000000000000000000","cleanup_pid":123}' \
       >"$LOOT_FIXTURE_CLEANUP_MARKER"
     chmod 600 "$LOOT_FIXTURE_CLEANUP_MARKER"
+    if loot_fixture_bot_cleanup_safe_for_capture_state 0 >/dev/null 2>&1; then
+      exit 150
+    fi
+    loot_fixture_bot_cleanup_safe_for_capture_state 1
     loot_fixture_bot_cleanup_complete
     chmod 644 "$LOOT_FIXTURE_CLEANUP_MARKER"
     if loot_fixture_bot_cleanup_complete >/dev/null 2>&1; then
@@ -1150,6 +1203,12 @@ run_self_test() {
       exit 82
     fi
     rm -f "$WOW_BOT_FIXTURE_JOURNAL" "$LOOT_FIXTURE_CLEANUP_MARKER"
+    if loot_fixture_bot_cleanup_safe_for_capture_state 1 >/dev/null 2>&1; then
+      exit 151
+    fi
+    LOOT_FIXTURE_GUARD_ENABLED=0
+    loot_fixture_bot_cleanup_safe_for_capture_state invalid
+    LOOT_FIXTURE_GUARD_ENABLED=1
 
     printf '%s\n' 1 >"$fixture_health_state"
     loot_fixture_character_mysql() {
@@ -1202,12 +1261,401 @@ run_self_test() {
   ) || die "shared C++/Rust loot-fixture guard self-test failed"
 
   (
+    # Exercise the exact shared-chest cleanup implementation without sourcing
+    # capture-rust.sh's executable entrypoint or touching a real database.
+    capture_rust_script="$REPO_ROOT/crates/capture-diff/scripts/capture-rust.sh"
+    shared_chest_functions="$artifacts/shared-chest-restore-functions.sh"
+    shared_chest_state_dir="$artifacts/shared-chest-restore-state"
+    mkdir -m 700 "$shared_chest_state_dir"
+
+    extract_capture_function() {
+      local function_name="$1"
+      awk -v signature="${function_name}() {" '
+        $0 == signature { copying = 1 }
+        copying { print }
+        copying && $0 == "}" { found = 1; exit }
+        END { if (!found) exit 1 }
+      ' "$capture_rust_script"
+    }
+
+    : >"$shared_chest_functions"
+    for function_name in \
+      restore_loot_fixture_guard \
+      shared_chest_spawn_exact_count \
+      shared_chest_spawn_cleanup_counts \
+      shared_chest_addon_exact_count \
+      shared_chest_spawn_metadata_counts \
+      restore_shared_chest_fixture_guard; do
+      extract_capture_function "$function_name" \
+        >>"$shared_chest_functions" || exit 157
+    done
+    # shellcheck disable=SC1090
+    source "$shared_chest_functions"
+
+    LOOT_FIXTURE_KIND=shared-chest
+    LOOT_FIXTURE_CHEST_GUID=9106001
+    LOOT_FIXTURE_CHEST_TEMPLATE_ENTRY=2846
+    LOOT_FIXTURE_CHEST_ADDON_FACTION=101
+    shared_chest_spawn_state="$shared_chest_state_dir/spawn"
+    shared_chest_addon_state="$shared_chest_state_dir/addon"
+    shared_chest_respawn_state="$shared_chest_state_dir/respawn"
+    shared_chest_metadata_state="$shared_chest_state_dir/metadata"
+    shared_chest_write_log="$shared_chest_state_dir/writes"
+    shared_chest_failure_file="$shared_chest_state_dir/failure"
+
+    reset_shared_chest_restore_state() {
+      local spawn="$1"
+      local addon="$2"
+      local respawn="$3"
+      local metadata="$4"
+      printf '%s\n' "$spawn" >"$shared_chest_spawn_state"
+      printf '%s\n' "$addon" >"$shared_chest_addon_state"
+      printf '%s\n' "$respawn" >"$shared_chest_respawn_state"
+      printf '%s\n' "$metadata" >"$shared_chest_metadata_state"
+      : >"$shared_chest_write_log"
+      : >"$shared_chest_failure_file"
+      LOOT_FIXTURE_CHEST_RESPAWN_DELETE_READY=1
+      LOOT_FIXTURE_CHEST_SPAWN_DELETE_READY=1
+      LOOT_FIXTURE_CHEST_ADDON_RESTORE_READY=1
+    }
+
+    loot_fixture_world_mysql() {
+      local query="${2:-}"
+      local expected state
+      if [[ "$query" == *"DELETE FROM gameobject"* ]]; then
+        printf '%s\n' delete-spawn >>"$shared_chest_write_log"
+        for expected in \
+          "WHERE guid = 9106001" \
+          "AND id = 2846" \
+          "AND map = 0" \
+          "AND zoneId = 0" \
+          "AND areaId = 0" \
+          "AND spawnDifficulties = '0'" \
+          "AND phaseUseFlags = 0" \
+          "AND PhaseId = 0" \
+          "AND PhaseGroup = 0" \
+          "AND terrainSwapMap = -1" \
+          "AND position_x = CAST(-8946.95 AS FLOAT)" \
+          "AND position_y = CAST(-132.493 AS FLOAT)" \
+          "AND position_z = CAST(83.5312 AS FLOAT)" \
+          "AND orientation = 0" \
+          "AND rotation0 = 0" \
+          "AND rotation1 = 0" \
+          "AND rotation2 = 0" \
+          "AND rotation3 = 0" \
+          "AND spawntimesecs = 300" \
+          "AND animprogress = 255" \
+          "AND state = 1" \
+          "AND ScriptName = ''" \
+          "AND StringId IS NULL" \
+          "AND VerifiedBuild = 0"; do
+          [[ "$query" == *"$expected"* ]] || return 169
+        done
+        state="$(<"$shared_chest_spawn_state")"
+        if [[ "$state" == exact || "$state" == exact-verify-fails ]]; then
+          if [[ "$state" == exact-verify-fails ]]; then
+            printf '%s\n' absent-fail-once >"$shared_chest_spawn_state"
+          else
+            printf '%s\n' absent >"$shared_chest_spawn_state"
+          fi
+          printf '%s\n' 1
+        else
+          printf '%s\n' 0
+        fi
+      elif [[ "$query" == *"UPDATE gameobject_template_addon"* ]]; then
+        printf '%s\n' restore-addon >>"$shared_chest_write_log"
+        for expected in \
+          "SET mingold = 0, maxgold = 0" \
+          "WHERE entry = 2846" \
+          "AND faction = 101" \
+          "AND flags = 0" \
+          "AND mingold = 10" \
+          "AND maxgold = 10" \
+          "AND artkit0 = 0" \
+          "AND artkit1 = 0" \
+          "AND artkit2 = 0" \
+          "AND artkit3 = 0" \
+          "AND artkit4 = 0" \
+          "AND WorldEffectID = 0" \
+          "AND AIAnimKitID = 0"; do
+          [[ "$query" == *"$expected"* ]] || return 170
+        done
+        state="$(<"$shared_chest_addon_state")"
+        if [[ "$state" == 10 ]]; then
+          printf '%s\n' 0 >"$shared_chest_addon_state"
+          printf '%s\n' 1
+        else
+          printf '%s\n' 0
+        fi
+      elif [[ "$query" == *"COALESCE(SUM("* \
+          && "$query" == *"FROM gameobject"* ]]; then
+        for expected in \
+          "id = 2846" \
+          "AND map = 0" \
+          "AND zoneId = 0" \
+          "AND areaId = 0" \
+          "AND spawnDifficulties = '0'" \
+          "AND phaseUseFlags = 0" \
+          "AND PhaseId = 0" \
+          "AND PhaseGroup = 0" \
+          "AND terrainSwapMap = -1" \
+          "AND position_x = CAST(-8946.95 AS FLOAT)" \
+          "AND position_y = CAST(-132.493 AS FLOAT)" \
+          "AND position_z = CAST(83.5312 AS FLOAT)" \
+          "AND orientation = 0" \
+          "AND rotation0 = 0" \
+          "AND rotation1 = 0" \
+          "AND rotation2 = 0" \
+          "AND rotation3 = 0" \
+          "AND spawntimesecs = 300" \
+          "AND animprogress = 255" \
+          "AND state = 1" \
+          "AND ScriptName = ''" \
+          "AND StringId IS NULL" \
+          "AND VerifiedBuild = 0" \
+          "FROM pool_members
+         WHERE type = 1 AND spawnId = 9106001" \
+          "FROM game_event_gameobject
+         WHERE guid = 9106001" \
+          "FROM linked_respawn
+         WHERE guid = 9106001
+            OR linkedGuid = 9106001" \
+          "FROM gameobject_addon
+         WHERE guid = 9106001" \
+          "FROM gameobject_overrides
+         WHERE spawnId = 9106001" \
+          "FROM spawn_group
+         WHERE spawnType = 1 AND spawnId = 9106001" \
+          "FROM gameobject
+     WHERE guid = 9106001"; do
+          [[ "$query" == *"$expected"* ]] || return 179
+        done
+        state="$(<"$shared_chest_spawn_state")"
+        case "$state" in
+          exact|exact-verify-fails)
+            printf '1\t1\t%s\n' "$(<"$shared_chest_metadata_state")"
+            ;;
+          absent)
+            printf '0\t0\t%s\n' "$(<"$shared_chest_metadata_state")"
+            ;;
+          absent-fail-once)
+            printf '%s\n' absent >"$shared_chest_spawn_state"
+            return 171
+            ;;
+          *)
+            printf '1\t0\t%s\n' "$(<"$shared_chest_metadata_state")"
+            ;;
+        esac
+      elif [[ "$query" == *"FROM pool_members"* ]]; then
+        for expected in \
+          "FROM pool_members
+         WHERE type = 1 AND spawnId = 9106001" \
+          "FROM game_event_gameobject
+         WHERE guid = 9106001" \
+          "FROM linked_respawn
+         WHERE guid = 9106001
+            OR linkedGuid = 9106001" \
+          "FROM gameobject_addon
+         WHERE guid = 9106001" \
+          "FROM gameobject_overrides
+         WHERE spawnId = 9106001" \
+          "FROM spawn_group
+         WHERE spawnType = 1 AND spawnId = 9106001"; do
+          [[ "$query" == *"$expected"* ]] || return 179
+        done
+        cat "$shared_chest_metadata_state"
+      elif [[ "$query" == *"FROM gameobject_template_addon"* ]]; then
+        for expected in \
+          "WHERE entry = 2846" \
+          "AND faction = 101" \
+          "AND flags = 0" \
+          "AND artkit0 = 0" \
+          "AND artkit1 = 0" \
+          "AND artkit2 = 0" \
+          "AND artkit3 = 0" \
+          "AND artkit4 = 0" \
+          "AND WorldEffectID = 0" \
+          "AND AIAnimKitID = 0"; do
+          [[ "$query" == *"$expected"* ]] || return 180
+        done
+        state="$(<"$shared_chest_addon_state")"
+        if [[ "$state" == 0 \
+            && "$query" == *"mingold = 0"* \
+            && "$query" == *"maxgold = 0"* ]] \
+            || [[ "$state" == 10 \
+              && "$query" == *"mingold = 10"* \
+              && "$query" == *"maxgold = 10"* ]]; then
+          printf '%s\n' 1
+        else
+          printf '%s\n' 0
+        fi
+      elif [[ "$query" == *"SELECT COUNT(*) FROM gameobject"* \
+          && "$query" == *"AND id ="* ]]; then
+        state="$(<"$shared_chest_spawn_state")"
+        [[ "$state" == exact || "$state" == exact-verify-fails ]] \
+          && printf '%s\n' 1 || printf '%s\n' 0
+      elif [[ "$query" == *"SELECT COUNT(*) FROM gameobject"* ]]; then
+        state="$(<"$shared_chest_spawn_state")"
+        case "$state" in
+          absent) printf '%s\n' 0 ;;
+          absent-fail-once)
+            printf '%s\n' absent >"$shared_chest_spawn_state"
+            return 171
+            ;;
+          *) printf '%s\n' 1 ;;
+        esac
+      else
+        return 158
+      fi
+    }
+
+    loot_fixture_character_mysql() {
+      local query="${2:-}"
+      local state
+      state="$(<"$shared_chest_respawn_state")"
+      if [[ "$query" == *"DELETE FROM respawn"* ]]; then
+        printf '%s\n' delete-respawn >>"$shared_chest_write_log"
+        if [[ "$state" == generated \
+            && "$query" == *"WHERE type = 1"* \
+            && "$query" == *"spawnId = 9106001"* \
+            && "$query" == *"respawnTime = 123456"* \
+            && "$query" == *"mapId = 0"* \
+            && "$query" == *"instanceId = 0"* ]]; then
+          printf '%s\n' none >"$shared_chest_respawn_state"
+          printf '%s\n' 1
+        else
+          printf '%s\n' 0
+        fi
+      elif [[ "$query" == *"SELECT respawnTime FROM respawn"* ]]; then
+        [[ "$state" == generated \
+          && "$query" == *"WHERE type = 1"* \
+          && "$query" == *"spawnId = 9106001"* \
+          && "$query" == *"mapId = 0"* \
+          && "$query" == *"instanceId = 0"* ]] \
+          && printf '%s\n' 123456
+      elif [[ "$query" == *"SELECT COUNT(*) FROM respawn"* ]]; then
+        [[ "$query" == *"WHERE type = 1"* \
+          && "$query" == *"spawnId = 9106001"* ]] || return 172
+        case "$state" in
+          none) printf '%s\n' 0 ;;
+          generated) printf '%s\n' 1 ;;
+          drift) printf '%s\n' 2 ;;
+          *) return 159 ;;
+        esac
+      else
+        return 160
+      fi
+    }
+
+    reset_shared_chest_restore_state exact 10 none $'0\t0\t0\t0\t0\t0'
+    restore_loot_fixture_guard >/dev/null
+    [[ "$(<"$shared_chest_spawn_state")" == absent \
+      && "$(<"$shared_chest_addon_state")" == 0 \
+      && "$(<"$shared_chest_respawn_state")" == none \
+      && "$(<"$shared_chest_write_log")" == $'delete-spawn\nrestore-addon' \
+      && "$LOOT_FIXTURE_CHEST_RESPAWN_DELETE_READY" == 0 \
+      && "$LOOT_FIXTURE_CHEST_SPAWN_DELETE_READY" == 0 \
+      && "$LOOT_FIXTURE_CHEST_ADDON_RESTORE_READY" == 0 ]] || exit 161
+
+    reset_shared_chest_restore_state exact 10 generated $'0\t0\t0\t0\t0\t0'
+    restore_loot_fixture_guard >/dev/null
+    [[ "$(<"$shared_chest_spawn_state")" == absent \
+      && "$(<"$shared_chest_addon_state")" == 0 \
+      && "$(<"$shared_chest_respawn_state")" == none \
+      && "$(<"$shared_chest_write_log")" == $'delete-respawn\ndelete-spawn\nrestore-addon' \
+      && "$LOOT_FIXTURE_CHEST_RESPAWN_DELETE_READY" == 0 \
+      && "$LOOT_FIXTURE_CHEST_SPAWN_DELETE_READY" == 0 \
+      && "$LOOT_FIXTURE_CHEST_ADDON_RESTORE_READY" == 0 ]] || exit 162
+
+    # The spawn flag is armed before INSERT. Absence is already the exact
+    # postcondition and must not block restoration of the addon mutation.
+    reset_shared_chest_restore_state absent 10 none $'0\t0\t0\t0\t0\t0'
+    restore_loot_fixture_guard >/dev/null
+    [[ "$(<"$shared_chest_spawn_state")" == absent \
+      && "$(<"$shared_chest_addon_state")" == 0 \
+      && "$(<"$shared_chest_write_log")" == restore-addon \
+      && "$LOOT_FIXTURE_CHEST_RESPAWN_DELETE_READY" == 0 \
+      && "$LOOT_FIXTURE_CHEST_SPAWN_DELETE_READY" == 0 \
+      && "$LOOT_FIXTURE_CHEST_ADDON_RESTORE_READY" == 0 ]] || exit 173
+
+    # Simulate DELETE committing while its immediate COUNT verification fails.
+    # A fresh final reconciliation must observe absence and disarm cleanup.
+    reset_shared_chest_restore_state exact-verify-fails 10 none $'0\t0\t0\t0\t0\t0'
+    restore_loot_fixture_guard >/dev/null 2>&1
+    [[ "$(<"$shared_chest_spawn_state")" == absent \
+      && "$(<"$shared_chest_addon_state")" == 0 \
+      && "$(<"$shared_chest_write_log")" == $'delete-spawn\nrestore-addon' \
+      && "$LOOT_FIXTURE_CHEST_RESPAWN_DELETE_READY" == 0 \
+      && "$LOOT_FIXTURE_CHEST_SPAWN_DELETE_READY" == 0 \
+      && "$LOOT_FIXTURE_CHEST_ADDON_RESTORE_READY" == 0 ]] || exit 174
+
+    reset_shared_chest_restore_state exact 10 none $'1\t0\t0\t0\t0\t0'
+    if restore_loot_fixture_guard > /dev/null 2>"$shared_chest_failure_file"; then
+      exit 163
+    fi
+    shared_chest_failure="$(<"$shared_chest_failure_file")"
+    [[ ! -s "$shared_chest_write_log" \
+      && "$(<"$shared_chest_spawn_state")" == exact \
+      && "$shared_chest_failure" == *"spawn/state/metadata drifted"* ]] || exit 164
+
+    reset_shared_chest_restore_state exact drift none $'0\t0\t0\t0\t0\t0'
+    LOOT_FIXTURE_CHEST_RESPAWN_DELETE_READY=0
+    LOOT_FIXTURE_CHEST_SPAWN_DELETE_READY=0
+    if restore_loot_fixture_guard > /dev/null 2>"$shared_chest_failure_file"; then
+      exit 165
+    fi
+    shared_chest_failure="$(<"$shared_chest_failure_file")"
+    [[ ! -s "$shared_chest_write_log" \
+      && "$(<"$shared_chest_addon_state")" == drift \
+      && "$shared_chest_failure" == *"template addon drifted"* ]] || exit 166
+
+    reset_shared_chest_restore_state absent 0 drift $'0\t0\t0\t0\t0\t0'
+    LOOT_FIXTURE_CHEST_SPAWN_DELETE_READY=0
+    LOOT_FIXTURE_CHEST_ADDON_RESTORE_READY=0
+    if restore_loot_fixture_guard > /dev/null 2>"$shared_chest_failure_file"; then
+      exit 167
+    fi
+    shared_chest_failure="$(<"$shared_chest_failure_file")"
+    [[ ! -s "$shared_chest_write_log" \
+      && "$(<"$shared_chest_respawn_state")" == drift \
+      && "$LOOT_FIXTURE_CHEST_RESPAWN_DELETE_READY" == 1 \
+      && "$shared_chest_failure" == *"unexpected respawn ownership"* ]] || exit 168
+  ) || die "shared-chest exact restore self-test failed"
+
+  (
     # Prove both supported topologies: a direct Rust PM2 entry/listener and a
     # non-exec C++ shell wrapper with one descendant owning both listeners.
     # Reject changed ancestry, changed/foreign listeners, duplicate PM2
     # identity, and incomplete stopped state before DB restoration.
     # shellcheck source=crates/capture-diff/scripts/capture-service-common.sh
+    unset CAPTURE_WORLD_STOP_TIMEOUT_SECONDS CAPTURE_WORLD_READY_TIMEOUT_SECONDS
     source "$REPO_ROOT/crates/capture-diff/scripts/capture-service-common.sh"
+    [[ "$CAPTURE_WORLD_STOP_TIMEOUT_SECONDS" == 30 \
+      && "$CAPTURE_WORLD_READY_TIMEOUT_SECONDS" == 180 ]] || exit 153
+    capture_validate_world_timeouts
+    CAPTURE_WORLD_STOP_TIMEOUT_SECONDS=0
+    if capture_validate_world_timeouts >/dev/null 2>&1; then
+      exit 154
+    fi
+    CAPTURE_WORLD_STOP_TIMEOUT_SECONDS=30
+    CAPTURE_WORLD_READY_TIMEOUT_SECONDS=2
+    if capture_validate_world_timeouts >/dev/null 2>&1; then
+      exit 156
+    fi
+    CAPTURE_WORLD_READY_TIMEOUT_SECONDS=3601
+    if capture_validate_world_timeouts >/dev/null 2>&1; then
+      exit 155
+    fi
+    CAPTURE_WORLD_READY_TIMEOUT_SECONDS=180
+    capture_validate_world_timeouts
+    capture_fixture_cleanup_verified_for_publication 0 0 || exit 175
+    capture_fixture_cleanup_verified_for_publication 0 1 || exit 176
+    capture_fixture_cleanup_verified_for_publication 1 1 || exit 177
+    if capture_fixture_cleanup_verified_for_publication 1 0 \
+        || capture_fixture_cleanup_verified_for_publication invalid 1 \
+        || capture_fixture_cleanup_verified_for_publication 1 invalid; then
+      exit 178
+    fi
     CAPTURE_WORLD_PORT=45123
     CAPTURE_INSTANCE_PORT=45124
     CAPTURE_PROC_ROOT="$artifacts/fake-capture-proc"
@@ -1571,7 +2019,9 @@ run_self_test() {
     && "$cpp_capture_text" == *"capture-service-common.sh"* \
     && "$cpp_capture_text" == *"capture_wait_for_world_stopped"* \
     && "$cpp_capture_text" == *"apply_creature_health_fixture_guard"* \
-    && "$cpp_capture_text" == *"loot_fixture_bot_cleanup_complete"* ]] || die \
+    && "$cpp_capture_text" == *"capture_validate_world_timeouts"* \
+    && "$cpp_capture_text" == *"CPP_CAPTURE_BOT_READY=1"* \
+    && "$cpp_capture_text" == *"loot_fixture_bot_cleanup_safe_for_capture_state"* ]] || die \
     "C++ capture wrapper is not wired to the shared fail-closed loot guard"
   [[ "$cpp_capture_text" == *"CPP_CAPTURE_EXEC_SHA256"* \
     && "$cpp_capture_text" == *"cpp.capture-manifest.json"* \
@@ -1606,6 +2056,10 @@ run_self_test() {
     && "$rust_capture_text" == *"pm2_entry_starttime"* \
     && "$rust_capture_text" == *"pm2_profile_redacted_sha256"* \
     && "$rust_capture_text" == *"capture_pm2_process_stopped"* \
+    && "$rust_capture_text" == *"capture_validate_world_timeouts"* \
+    && "$rust_capture_text" == *'CAPTURE_STABLE_SAMPLES" -ge 4'* \
+    && "$rust_capture_text" == *"CAPTURE_BOT_READY=1"* \
+    && "$rust_capture_text" == *"loot_fixture_bot_cleanup_safe_for_capture_state"* \
     && "$rust_capture_text" == *"source_repo_head"* \
     && "$rust_capture_text" == *"effective_config_redacted_sha256"* \
     && "$rust_capture_text" == *"pm2_entry_pid"* \
@@ -1726,6 +2180,7 @@ run_self_test() {
     '[ "${RUST_INSTANCE_PORT:?}" = "${QA_FAKE_INSTANCE_PORT:?}" ]' \
     'journal="${WOW_BOT_FIXTURE_JOURNAL:?}"' \
     'capture_pid=""' \
+    'capture_bot_ready=0' \
     'restore() {' \
     '  status=$?' \
     '  trap - EXIT HUP INT TERM' \
@@ -1733,7 +2188,12 @@ run_self_test() {
     '  if [ -n "$capture_pid" ]; then kill "$capture_pid" 2>/dev/null; wait "$capture_pid" 2>/dev/null; fi' \
     '  marker="${journal}.cleanup-complete"' \
     '  marker_mode="$(stat -c %a -- "$marker" 2>/dev/null || true)"' \
-    '  if [ -e "$journal" ] || [ -L "$journal" ] || [ ! -f "$marker" ] || [ -L "$marker" ] || [ "$marker_mode" != 600 ] || ! jq -e ".version == 1 and (.journal_sha256 | type == \"string\" and length == 64) and (.cleanup_pid | type == \"number\" and . > 0)" "$marker" >/dev/null 2>&1; then' \
+    '  if [ "$capture_bot_ready" = 0 ]; then' \
+    '    cleanup_safe=$([ ! -e "$journal" ] && [ ! -L "$journal" ] && [ ! -e "$marker" ] && [ ! -L "$marker" ]; echo $?)' \
+    '  else' \
+    '    cleanup_safe=$([ ! -e "$journal" ] && [ ! -L "$journal" ] && [ -f "$marker" ] && [ ! -L "$marker" ] && [ "$marker_mode" = 600 ] && jq -e ".version == 1 and (.journal_sha256 | type == \"string\" and length == 64) and (.cleanup_pid | type == \"number\" and . > 0)" "$marker" >/dev/null 2>&1; echo $?)' \
+    '  fi' \
+    '  if [ "$cleanup_safe" != 0 ]; then' \
     '    printf "%s\n" "fake guarded capture refused normal PM2 restore: pending journal or missing cleanup-complete" >&2' \
     '    exit 74' \
     '  fi' \
@@ -1750,6 +2210,7 @@ run_self_test() {
     '"$QA_FAKE_TARGET_EXEC" 300 &' \
     'capture_pid=$!' \
     'jq -cn --arg name "$QA_FAKE_PROCESS_NAME" --arg exec "$QA_FAKE_TARGET_EXEC" --argjson pid "$capture_pid" '\''[{name:$name,pid:$pid,pm2_env:{status:"online",pm_exec_path:$exec,restart_time:8,RUSTYCORE_PACKET_DUMP_DIR:"/tmp/fake-dump",env:{RUSTYCORE_PACKET_DUMP_DIR:"/tmp/fake-dump"}}}]'\'' >"$QA_FAKE_PM2_JSON_FILE"' \
+    'capture_bot_ready=1' \
     'printf "%s\n" ">>> Perform the '\''loot-two-session-atomic-race'\'' flow with the client now."' \
     'IFS= read -r _' \
     'exit "${QA_FAKE_CAPTURE_EXIT_STATUS:-0}"' \
@@ -1917,9 +2378,10 @@ run_self_test() {
       run_qa_loot_race
     ) 2>&1
   )" || qa_early_status=$?
-  [[ "$qa_early_status" == 74 \
-    && "$qa_early_output" == *"exited before its ready marker (status 74)"* ]] || die \
-    "pre-ready cleanup failure was masked instead of taking exit-status priority"
+  [[ "$qa_early_status" == 73 \
+    && "$qa_early_output" == *"exited before its ready marker (status 73)"* \
+    && "$qa_early_output" == *"fake guarded capture restored normal PM2 profile"* ]] || die \
+    "pre-ready wrapper failure did not restore safely and preserve its status"
 
   rm -f "$qa_fake_bot_marker" "$qa_pm2_state_file"
   printf '%s\n' "$qa_pm2_online" >"$qa_pm2_json_file"

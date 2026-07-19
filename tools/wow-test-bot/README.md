@@ -136,8 +136,9 @@ pre-existing spawn or GameObject respawn, loot conditions, or pool/event/linked,
 spawn-group, addon, or override ownership. Its full template-addon fields are
 pinned as well. The group must report C++ `PERSONAL_LOOT` (`5`). The default runtime
 counter is `0` (auto): each client discovers and preserves the complete live
-GameObject ObjectGuid from `SMSG_UPDATE_OBJECT`, while the low counter must
-still equal exact SQL spawn `9106001`. A nonzero
+GameObject ObjectGuid from `SMSG_UPDATE_OBJECT`. The SQL spawn id remains
+`9106001`, but, as in C++, the live low counter is generated independently by
+the map and is not assumed to equal that spawn id. A nonzero
 `WOW_BOT_LOOT_RACE_RUNTIME_COUNTER` is only a strict override; it never replaces
 live discovery.
 

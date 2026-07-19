@@ -30,6 +30,10 @@
 #                   is recorded (default: /home/server/woltk-trinity-legacy)
 #   CAPTURE_ORCHESTRATION_LOCK optional absolute private lock directory shared
 #                   with capture-rust.sh (default: /tmp, keyed by uid+ports)
+#   CAPTURE_WORLD_STOP_TIMEOUT_SECONDS bounded wait for a stopped world/ports
+#                   (default: 30, range: 1 through 3600)
+#   CAPTURE_WORLD_READY_TIMEOUT_SECONDS bounded wait for a stable ready world
+#                   (default: 180, range: 3 through 3600)
 #   CPP_CAPTURE_LOOT_FIXTURE_GUARD set to 1 only for the versioned
 #                   loot-single-item-claim fixture. It CAS-lowers Doctor
 #                   Maleficus 21779 HealthModifier while both worlds are
@@ -95,6 +99,7 @@ LOOT_FIXTURE_CHARACTER_USER=""
 LOOT_FIXTURE_CHARACTER_PASSWORD=""
 LOOT_FIXTURE_CHARACTER_DATABASE=""
 CAPTURE_SWAPPED=0
+CPP_CAPTURE_BOT_READY=0
 CAPTURE_RESTORE_FAILURE_STATUS=74
 RUST_ORIGINAL_IDENTITY=""
 CPP_CAPTURE_IDENTITY=""
@@ -136,6 +141,7 @@ CPP_CONF_BACKUP_SHA256=""
 source "$(dirname "${BASH_SOURCE[0]}")/loot-fixture-common.sh"
 # shellcheck source=capture-service-common.sh
 source "$(dirname "${BASH_SOURCE[0]}")/capture-service-common.sh"
+capture_validate_world_timeouts || exit 2
 
 [[ "$CPP_WORLD_PORT" =~ ^[1-9][0-9]*$ ]] \
   && ((CPP_WORLD_PORT <= 65535)) || {
@@ -228,7 +234,7 @@ elif [ -n "$CPP_CAPTURE_EXEC_SHA256" ]; then
 fi
 
 for dependency in awk chmod cp date dirname flock git grep id jq mkdir mktemp mv \
-  pm2 realpath rg sed sha256sum ss stat sync tail; do
+  pm2 realpath rg sed sha256sum sleep ss stat sync tail; do
   command -v "$dependency" >/dev/null 2>&1 || {
     echo "error: required command not found: $dependency" >&2
     exit 2
@@ -418,9 +424,10 @@ finalize_cpp_capture_artifact() {
   [ "$CAPTURE_ARTIFACT_READY" -eq 1 ] && [ -f "$OUT_PKT_STAGE" ] || return 1
 
   local created_at manifest_stage packet_sha packet_size bot_evidence
-  [ "$CPP_CAPTURE_NORMAL_RUNTIME_RESTORED" -eq 1 ] \
-    && [ "$CPP_CAPTURE_FIXTURE_CLEANUP_VERIFIED" -eq 1 \
-      || "$FLOW" != "loot-single-item-claim" ] || return 1
+  [ "$CPP_CAPTURE_NORMAL_RUNTIME_RESTORED" -eq 1 ] || return 1
+  capture_fixture_cleanup_verified_for_publication \
+    "$CPP_CAPTURE_LOOT_FIXTURE_GUARD" \
+    "$CPP_CAPTURE_FIXTURE_CLEANUP_VERIFIED" || return 1
   if [ "$FLOW" = "loot-single-item-claim" ]; then
     bot_evidence="$(capture_loot_item_bot_evidence \
       "$WOW_BOT_REPORT" "$WOW_BOT_EXEC" "$WOW_BOT_EXEC_SHA256")" || return 1
@@ -663,7 +670,8 @@ restore() {
       restore_status=1
     fi
     if [ "$restore_status" -eq 0 ] \
-        && ! loot_fixture_bot_cleanup_complete; then
+        && ! loot_fixture_bot_cleanup_safe_for_capture_state \
+          "$CPP_CAPTURE_BOT_READY"; then
       echo "WARNING: bot fixture cleanup is unproven; the normal Rust world will remain stopped" >&2
       restore_status=1
     fi
@@ -789,6 +797,7 @@ accredit_cpp_capture_executable || {
   exit 1
 }
 
+CPP_CAPTURE_BOT_READY=1
 echo
 echo ">>> Perform the '${FLOW}' flow with the client now."
 read -r -p ">>> Press ENTER when the flow is complete to collect the capture... " _

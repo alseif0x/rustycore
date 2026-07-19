@@ -293,3 +293,39 @@ loot_fixture_bot_cleanup_complete() {
     return 1
   fi
 }
+
+# Before the flow is exposed to the client/bot, absence of both recovery files
+# proves that no bot-side mutation needs recovery. Once exposed, require the
+# durable cleanup marker contract above. Ambiguous state always fails closed.
+loot_fixture_bot_cleanup_safe_for_capture_state() {
+  local capture_bot_ready="${1:-}"
+
+  [ "${LOOT_FIXTURE_GUARD_ENABLED:-0}" = "1" ] || return 0
+
+  [ -n "${WOW_BOT_FIXTURE_JOURNAL:-}" ] \
+    && [ -n "${LOOT_FIXTURE_CLEANUP_MARKER:-}" ] \
+    && [ "$LOOT_FIXTURE_CLEANUP_MARKER" \
+      = "${WOW_BOT_FIXTURE_JOURNAL}.cleanup-complete" ] || {
+    echo "WARNING: bot fixture cleanup paths are missing or inconsistent; refusing to start the normal PM2 world" >&2
+    return 1
+  }
+
+  case "$capture_bot_ready" in
+    0)
+      if [ -e "$WOW_BOT_FIXTURE_JOURNAL" ] \
+          || [ -L "$WOW_BOT_FIXTURE_JOURNAL" ] \
+          || [ -e "$LOOT_FIXTURE_CLEANUP_MARKER" ] \
+          || [ -L "$LOOT_FIXTURE_CLEANUP_MARKER" ]; then
+        echo "WARNING: bot fixture recovery state appeared before capture readiness; refusing to start the normal PM2 world" >&2
+        return 1
+      fi
+      ;;
+    1)
+      loot_fixture_bot_cleanup_complete
+      ;;
+    *)
+      echo "WARNING: invalid capture bot-readiness state; refusing to start the normal PM2 world" >&2
+      return 1
+      ;;
+  esac
+}

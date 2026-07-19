@@ -2,6 +2,38 @@
 # Source-only PM2/PID/listener accreditation shared by capture wrapper tests.
 # Callers define distinct CAPTURE_WORLD_PORT and CAPTURE_INSTANCE_PORT.
 
+CAPTURE_WORLD_STOP_TIMEOUT_SECONDS="${CAPTURE_WORLD_STOP_TIMEOUT_SECONDS:-30}"
+CAPTURE_WORLD_READY_TIMEOUT_SECONDS="${CAPTURE_WORLD_READY_TIMEOUT_SECONDS:-180}"
+CAPTURE_WORLD_TIMEOUT_MAX_SECONDS=3600
+
+capture_validate_world_timeouts() {
+  local name value minimum
+  for name in \
+    CAPTURE_WORLD_STOP_TIMEOUT_SECONDS \
+    CAPTURE_WORLD_READY_TIMEOUT_SECONDS; do
+    value="${!name:-}"
+    minimum=1
+    [ "$name" != CAPTURE_WORLD_READY_TIMEOUT_SECONDS ] || minimum=3
+    if [[ ! "$value" =~ ^[1-9][0-9]*$ ]] \
+        || ((${#value} > 4)) \
+        || ((10#$value < minimum)) \
+        || ((10#$value > CAPTURE_WORLD_TIMEOUT_MAX_SECONDS)); then
+      echo "error: ${name} must be an integer from ${minimum} through ${CAPTURE_WORLD_TIMEOUT_MAX_SECONDS}" >&2
+      return 1
+    fi
+  done
+}
+
+capture_fixture_cleanup_verified_for_publication() {
+  local guard_enabled="$1"
+  local cleanup_verified="$2"
+
+  case "$guard_enabled:$cleanup_verified" in
+    0:0|0:1|1:1) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 capture_pm2_online_pid() {
   local process_name="$1"
   pm2 jlist | jq -er --arg name "$process_name" '
@@ -716,8 +748,8 @@ capture_world_ready_once() {
 capture_wait_for_world_stopped() {
   local process_name="$1"
   local saved_pid="$2"
-  local attempt
-  for ((attempt = 0; attempt < 40; attempt++)); do
+  local deadline=$((SECONDS + CAPTURE_WORLD_STOP_TIMEOUT_SECONDS))
+  while ((SECONDS < deadline)); do
     capture_world_stopped_once "$process_name" "$saved_pid" && return 0
     sleep 0.5
   done
@@ -726,8 +758,9 @@ capture_wait_for_world_stopped() {
 
 capture_wait_for_world_ready() {
   local process_name="$1"
-  local attempt identity="" last_identity="" stable_samples=0
-  for ((attempt = 0; attempt < 40; attempt++)); do
+  local identity="" last_identity="" stable_samples=0
+  local deadline=$((SECONDS + CAPTURE_WORLD_READY_TIMEOUT_SECONDS))
+  while ((SECONDS < deadline)); do
     if identity="$(capture_world_ready_once "$process_name")"; then
       if [ "$identity" = "$last_identity" ]; then
         stable_samples=$((stable_samples + 1))

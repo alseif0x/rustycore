@@ -39,6 +39,8 @@
 #                            the normal PM2 world may be restored
 #   CAPTURE_ORCHESTRATION_LOCK optional absolute private lock directory shared
 #                            with capture-cpp.sh (default: /tmp, keyed by uid+ports)
+#   CAPTURE_WORLD_READY_TIMEOUT_SECONDS bounded wait for a stable ready world
+#                            (default: 180, range: 3 through 3600)
 #   WOW_BOT_EXEC / WOW_BOT_EXEC_SHA256 pinned bot executable used for required
 #                            loot-single-item-claim evidence
 #   WOW_BOT_REPORT           fresh absolute bot JSON report path for that flow
@@ -138,6 +140,7 @@ CAPTURE_BOT_EXEC=""
 CAPTURE_BOT_EXEC_SHA256=""
 CAPTURE_BOT_REPORT=""
 CAPTURE_BOT_REPORT_SHA256=""
+CAPTURE_BOT_READY=0
 RESTORE_FILE_SHA256=""
 CAPTURE_CONFIG_FILE_SHA256=""
 
@@ -147,6 +150,7 @@ CAPTURE_CONFIG_FILE_SHA256=""
 source "$(dirname "${BASH_SOURCE[0]}")/loot-fixture-common.sh"
 # shellcheck source=capture-service-common.sh
 source "$(dirname "${BASH_SOURCE[0]}")/capture-service-common.sh"
+capture_validate_world_timeouts || exit 2
 
 [[ "$RUST_WORLD_PORT" =~ ^[1-9][0-9]*$ ]] \
   && ((RUST_WORLD_PORT <= 65535)) || {
@@ -290,6 +294,52 @@ shared_chest_spawn_exact_count() {
         AND ScriptName = ''
         AND StringId IS NULL
         AND VerifiedBuild = 0"
+}
+
+shared_chest_spawn_cleanup_counts() {
+  loot_fixture_world_mysql -e \
+    "SELECT
+       COUNT(*),
+       COALESCE(SUM(
+         id = ${LOOT_FIXTURE_CHEST_TEMPLATE_ENTRY}
+         AND map = 0
+         AND zoneId = 0
+         AND areaId = 0
+         AND spawnDifficulties = '0'
+         AND phaseUseFlags = 0
+         AND PhaseId = 0
+         AND PhaseGroup = 0
+         AND terrainSwapMap = -1
+         AND position_x = CAST(-8946.95 AS FLOAT)
+         AND position_y = CAST(-132.493 AS FLOAT)
+         AND position_z = CAST(83.5312 AS FLOAT)
+         AND orientation = 0
+         AND rotation0 = 0
+         AND rotation1 = 0
+         AND rotation2 = 0
+         AND rotation3 = 0
+         AND spawntimesecs = 300
+         AND animprogress = 255
+         AND state = 1
+         AND ScriptName = ''
+         AND StringId IS NULL
+         AND VerifiedBuild = 0
+       ), 0),
+       (SELECT COUNT(*) FROM pool_members
+         WHERE type = 1 AND spawnId = ${LOOT_FIXTURE_CHEST_GUID}),
+       (SELECT COUNT(*) FROM game_event_gameobject
+         WHERE guid = ${LOOT_FIXTURE_CHEST_GUID}),
+       (SELECT COUNT(*) FROM linked_respawn
+         WHERE guid = ${LOOT_FIXTURE_CHEST_GUID}
+            OR linkedGuid = ${LOOT_FIXTURE_CHEST_GUID}),
+       (SELECT COUNT(*) FROM gameobject_addon
+         WHERE guid = ${LOOT_FIXTURE_CHEST_GUID}),
+       (SELECT COUNT(*) FROM gameobject_overrides
+         WHERE spawnId = ${LOOT_FIXTURE_CHEST_GUID}),
+       (SELECT COUNT(*) FROM spawn_group
+         WHERE spawnType = 1 AND spawnId = ${LOOT_FIXTURE_CHEST_GUID})
+     FROM gameobject
+     WHERE guid = ${LOOT_FIXTURE_CHEST_GUID}"
 }
 
 shared_chest_addon_exact_count() {
@@ -467,19 +517,20 @@ apply_shared_chest_fixture_guard() {
 }
 
 restore_shared_chest_fixture_guard() {
-  local restore_status=0 total matching respawn_time ownership deleted
+  local total matching respawn_time ownership deleted spawn_counts
 
   # Preflight every wrapper-owned surface before the first cleanup write. In
   # particular, do not erase a generated respawn and only afterwards discover
   # that the world spawn's persisted `state` or spawn metadata drifted.
   if [ "$LOOT_FIXTURE_CHEST_SPAWN_DELETE_READY" -eq 1 ]; then
-    total="$(loot_fixture_world_mysql -e \
-      "SELECT COUNT(*) FROM gameobject WHERE guid = ${LOOT_FIXTURE_CHEST_GUID}")" || total=""
-    matching="$(shared_chest_spawn_exact_count)" || matching=""
-    ownership="$(shared_chest_spawn_metadata_counts)" || ownership=""
-    if [ "$total" != "1" ] || [ "$matching" != "1" ] \
-        || [ "$ownership" != $'0\t0\t0\t0\t0\t0' ]; then
-      echo "WARNING: shared chest spawn/state/metadata drifted; refusing every cleanup write (${total:-query-failed}/${matching:-query-failed}/${ownership:-query-failed})" >&2
+    spawn_counts="$(shared_chest_spawn_cleanup_counts)" || spawn_counts=""
+    if [ "$spawn_counts" = $'0\t0\t0\t0\t0\t0\t0\t0' ]; then
+      # The flag is armed before INSERT. A failure between those operations,
+      # or a successful prior DELETE whose verification query failed, already
+      # satisfies the exact owned-spawn cleanup postcondition.
+      LOOT_FIXTURE_CHEST_SPAWN_DELETE_READY=0
+    elif [ "$spawn_counts" != $'1\t1\t0\t0\t0\t0\t0\t0' ]; then
+      echo "WARNING: shared chest spawn/state/metadata drifted; refusing every cleanup write (${spawn_counts:-query-failed})" >&2
       return 1
     fi
   fi
@@ -525,25 +576,17 @@ restore_shared_chest_fixture_guard() {
         echo "loot fixture: removed generated respawn for shared chest guid ${LOOT_FIXTURE_CHEST_GUID}"
       else
         echo "WARNING: shared chest respawn ${LOOT_FIXTURE_CHEST_GUID} changed externally; refusing a non-exact delete" >&2
-        restore_status=1
       fi
     else
       echo "WARNING: shared chest guid ${LOOT_FIXTURE_CHEST_GUID} has unexpected respawn ownership (${total:-query-failed}); refusing to delete it" >&2
-      restore_status=1
     fi
   fi
 
   if [ "$LOOT_FIXTURE_CHEST_SPAWN_DELETE_READY" -eq 1 ]; then
-    total="$(loot_fixture_world_mysql -e \
-      "SELECT COUNT(*) FROM gameobject WHERE guid = ${LOOT_FIXTURE_CHEST_GUID}")" || total=""
-    matching="$(shared_chest_spawn_exact_count)" || matching=""
-    ownership="$(shared_chest_spawn_metadata_counts)" || ownership=""
-    if [ "$ownership" != $'0\t0\t0\t0\t0\t0' ]; then
-      echo "WARNING: shared chest guid ${LOOT_FIXTURE_CHEST_GUID} gained spawn-scoped metadata; refusing to hide or delete the drift (${ownership:-query-failed})" >&2
-      restore_status=1
-    elif [ "$total" = "0" ]; then
+    spawn_counts="$(shared_chest_spawn_cleanup_counts)" || spawn_counts=""
+    if [ "$spawn_counts" = $'0\t0\t0\t0\t0\t0\t0\t0' ]; then
       LOOT_FIXTURE_CHEST_SPAWN_DELETE_READY=0
-    elif [ "$total" = "1" ] && [ "$matching" = "1" ]; then
+    elif [ "$spawn_counts" = $'1\t1\t0\t0\t0\t0\t0\t0' ]; then
       deleted="$(loot_fixture_world_mysql -e \
           "DELETE FROM gameobject
             WHERE guid = ${LOOT_FIXTURE_CHEST_GUID}
@@ -573,17 +616,15 @@ restore_shared_chest_fixture_guard() {
             SELECT ROW_COUNT();")" \
         || deleted=""
       if [ "$deleted" = "1" ] \
-          && [ "$(loot_fixture_world_mysql -e \
-            "SELECT COUNT(*) FROM gameobject WHERE guid = ${LOOT_FIXTURE_CHEST_GUID}")" = "0" ]; then
+          && [ "$(shared_chest_spawn_cleanup_counts)" \
+            = $'0\t0\t0\t0\t0\t0\t0\t0' ]; then
         LOOT_FIXTURE_CHEST_SPAWN_DELETE_READY=0
         echo "loot fixture: removed shared chest guid ${LOOT_FIXTURE_CHEST_GUID}"
       else
         echo "WARNING: failed to remove shared chest guid ${LOOT_FIXTURE_CHEST_GUID}" >&2
-        restore_status=1
       fi
     else
       echo "WARNING: shared chest guid ${LOOT_FIXTURE_CHEST_GUID} changed externally; refusing to delete it" >&2
-      restore_status=1
     fi
   fi
 
@@ -595,7 +636,6 @@ restore_shared_chest_fixture_guard() {
       matching="$(shared_chest_addon_exact_count 10 10)" || matching=""
       if [ "$matching" != "1" ]; then
         echo "WARNING: shared chest addon ${LOOT_FIXTURE_CHEST_TEMPLATE_ENTRY} changed externally; refusing to overwrite it" >&2
-        restore_status=1
       else
         deleted="$(loot_fixture_world_mysql -e \
           "UPDATE gameobject_template_addon
@@ -619,13 +659,45 @@ restore_shared_chest_fixture_guard() {
           echo "loot fixture: restored chest addon ${LOOT_FIXTURE_CHEST_TEMPLATE_ENTRY} mingold/maxgold 0/0"
         else
           echo "WARNING: failed to restore shared chest addon ${LOOT_FIXTURE_CHEST_TEMPLATE_ENTRY}" >&2
-          restore_status=1
         fi
       fi
     fi
   fi
 
-  return "$restore_status"
+  # Reconcile each still-armed surface from fresh DB postconditions. This
+  # self-heals a cleanup write that committed successfully when only its first
+  # verification query failed, without ever treating a present/drifted row as
+  # clean.
+  if [ "$LOOT_FIXTURE_CHEST_RESPAWN_DELETE_READY" -eq 1 ] \
+      && [ "$(loot_fixture_character_mysql -e \
+        "SELECT COUNT(*) FROM respawn
+          WHERE type = 1
+            AND spawnId = ${LOOT_FIXTURE_CHEST_GUID}" 2>/dev/null || true)" = "0" ]; then
+    LOOT_FIXTURE_CHEST_RESPAWN_DELETE_READY=0
+  fi
+  if [ "$LOOT_FIXTURE_CHEST_SPAWN_DELETE_READY" -eq 1 ]; then
+    spawn_counts="$(shared_chest_spawn_cleanup_counts 2>/dev/null || true)"
+    if [ "$spawn_counts" = $'0\t0\t0\t0\t0\t0\t0\t0' ]; then
+      LOOT_FIXTURE_CHEST_SPAWN_DELETE_READY=0
+    fi
+  fi
+  if [ "$LOOT_FIXTURE_CHEST_ADDON_RESTORE_READY" -eq 1 ] \
+      && [ "$(shared_chest_addon_exact_count 0 0 2>/dev/null || true)" = "1" ]; then
+    LOOT_FIXTURE_CHEST_ADDON_RESTORE_READY=0
+  fi
+
+  # The armed flags are the durable cleanup invariants: each one is cleared
+  # only after its owned row is absent or its exact original value is restored.
+  # Derive success from those postconditions instead of a parallel accumulator,
+  # so the wrapper cannot report failure after every owned surface is clean.
+  if [ "$LOOT_FIXTURE_CHEST_RESPAWN_DELETE_READY" -eq 0 ] \
+      && [ "$LOOT_FIXTURE_CHEST_SPAWN_DELETE_READY" -eq 0 ] \
+      && [ "$LOOT_FIXTURE_CHEST_ADDON_RESTORE_READY" -eq 0 ]; then
+    return 0
+  fi
+
+  echo "WARNING: shared chest cleanup remains armed (respawn=${LOOT_FIXTURE_CHEST_RESPAWN_DELETE_READY}, spawn=${LOOT_FIXTURE_CHEST_SPAWN_DELETE_READY}, addon=${LOOT_FIXTURE_CHEST_ADDON_RESTORE_READY})" >&2
+  return 1
 }
 
 capture_exec_source_matches() {
@@ -808,9 +880,10 @@ finalize_rust_capture_artifact() {
 
   local created_at manifest packet_count tree_sha bot_evidence path
   [ "$CAPTURE_RUNTIME_CLEANUP_VERIFIED" -eq 1 ] \
-    && [ "$CAPTURE_NORMAL_RUNTIME_RESTORED" -eq 1 ] \
-    && [ "$CAPTURE_FIXTURE_CLEANUP_VERIFIED" -eq 1 \
-      || "$FLOW" != "loot-single-item-claim" ] || return 1
+    && [ "$CAPTURE_NORMAL_RUNTIME_RESTORED" -eq 1 ] || return 1
+  capture_fixture_cleanup_verified_for_publication \
+    "$RUST_CAPTURE_LOOT_FIXTURE_GUARD" \
+    "$CAPTURE_FIXTURE_CLEANUP_VERIFIED" || return 1
   if [ "$FLOW" = "loot-single-item-claim" ]; then
     bot_evidence="$(capture_loot_item_bot_evidence \
       "$WOW_BOT_REPORT" "$WOW_BOT_EXEC" "$WOW_BOT_EXEC_SHA256")" || return 1
@@ -960,7 +1033,7 @@ command -v rg >/dev/null 2>&1 || {
   exit 1
 }
 for dependency in awk chmod date dirname find flock git id mkdir mktemp mv \
-  realpath sed seq sha256sum sleep sort stat sync wc; do
+  realpath sed sha256sum sleep sort stat sync wc; do
   command -v "$dependency" >/dev/null 2>&1 || {
     echo "error: required command not found: $dependency" >&2
     exit 1
@@ -1264,12 +1337,14 @@ cleanup() {
     echo "WARNING: failed to restore the loot fixture; the normal world will remain stopped" >&2
     restore_status=1
   fi
-  if [ "$restore_status" -eq 0 ] && ! loot_fixture_bot_cleanup_complete; then
+  if [ "$restore_status" -eq 0 ] \
+      && ! loot_fixture_bot_cleanup_safe_for_capture_state \
+        "$CAPTURE_BOT_READY"; then
     echo "WARNING: bot fixture cleanup is unproven; the normal world will remain stopped" >&2
     restore_status=1
   fi
   if [ "$restore_status" -eq 0 ] \
-      && [ "$FLOW" = "loot-single-item-claim" ]; then
+      && [ "$RUST_CAPTURE_LOOT_FIXTURE_GUARD" = "1" ]; then
     CAPTURE_FIXTURE_CLEANUP_VERIFIED=1
   fi
   if [ "$restore_status" -eq 0 ] \
@@ -1290,7 +1365,8 @@ cleanup() {
     local last_identity=""
     local stable_samples=0
     local identity=""
-    for _ in $(seq 1 40); do
+    local restore_deadline=$((SECONDS + CAPTURE_WORLD_READY_TIMEOUT_SECONDS))
+    while ((SECONDS < restore_deadline)); do
       if identity="$(snapshot_process_identity "$RESTORE_FILE" 2>/dev/null)" \
           && rust_world_ports_ready "$identity"; then
         if [ "$identity" = "$last_identity" ]; then
@@ -1555,14 +1631,28 @@ env -i \
 
 CAPTURE_READY=0
 CAPTURE_IDENTITY=""
-for _ in $(seq 1 40); do
+CAPTURE_LAST_IDENTITY=""
+CAPTURE_STABLE_SAMPLES=0
+CAPTURE_START_DEADLINE=$((SECONDS + CAPTURE_WORLD_READY_TIMEOUT_SECONDS))
+while ((SECONDS < CAPTURE_START_DEADLINE)); do
   if CAPTURE_IDENTITY="$(snapshot_process_identity "$CAPTURE_CONFIG_FILE" 2>/dev/null)" \
       && rust_world_ports_ready "$CAPTURE_IDENTITY" \
       && capture_process_exec_matches "$CAPTURE_IDENTITY"; then
-    CAPTURE_READY=1
-    break
+    if [ "$CAPTURE_IDENTITY" = "$CAPTURE_LAST_IDENTITY" ]; then
+      CAPTURE_STABLE_SAMPLES=$((CAPTURE_STABLE_SAMPLES + 1))
+    else
+      CAPTURE_LAST_IDENTITY="$CAPTURE_IDENTITY"
+      CAPTURE_STABLE_SAMPLES=1
+    fi
+    if [ "$CAPTURE_STABLE_SAMPLES" -ge 4 ]; then
+      CAPTURE_READY=1
+      break
+    fi
+  else
+    CAPTURE_LAST_IDENTITY=""
+    CAPTURE_STABLE_SAMPLES=0
   fi
-  sleep 0.25
+  sleep 0.5
 done
 [ "$CAPTURE_READY" -eq 1 ] || {
   echo "error: ${PM2_RUST_WORLD} did not start online with the pinned capture executable and packet dumping enabled" >&2
@@ -1641,6 +1731,7 @@ if [ -z "$CAPTURE_EXEC" ]; then
   CAPTURE_SOURCE_SHA256="$CAPTURE_LIVE_SHA256"
 fi
 
+CAPTURE_BOT_READY=1
 echo
 echo ">>> Perform the '${FLOW}' flow with the client now."
 read -r -p ">>> Press ENTER when the flow is complete to finish the capture... " _

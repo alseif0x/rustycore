@@ -1345,13 +1345,6 @@ fn record_discovered_runtime_guid(options: &LootRaceOptions, candidate: (u64, u6
             options.target.map_id
         );
     }
-    if options.target.kind == LootRaceTargetKind::GameObject && counter != options.target.spawn_guid
-    {
-        bail!(
-            "loot-race GameObject counter {counter} did not match exact SQL spawn {}",
-            options.target.spawn_guid
-        );
-    }
     let configured = options.target.runtime_counter_override;
     if configured != 0 && counter != configured {
         bail!(
@@ -1389,10 +1382,13 @@ pub(super) fn target_seen_in_update(
         return Ok(None);
     }
     // Keep the complete GUID seen on the wire: C++ includes realm/server bits
-    // that must not be reconstructed from the SQL spawn id. The GameObject
-    // fixture additionally requires its exact spawn counter because its entry
-    // need not be globally unique.
-    let Some(candidate) = find_loot_target_guid_in_update_object(payload, &options.target) else {
+    // that must not be reconstructed from the SQL spawn id. C++
+    // `GameObject::LoadFromDB` stores the SQL spawn id in `m_spawnId`, while
+    // `GameObject::Create` builds the live ObjectGuid with the map-local
+    // `GenerateLowGuid<HighGuid::GameObject>()` counter. The guarded DB
+    // preflight therefore proves entry/map uniqueness and wire discovery owns
+    // the independent runtime counter.
+    let Some(candidate) = find_loot_target_guid_in_update_object(payload, &options.target)? else {
         return Ok(None);
     };
     record_discovered_runtime_guid(options, candidate).map(Some)
@@ -1401,11 +1397,12 @@ pub(super) fn target_seen_in_update(
 fn find_loot_target_guid_in_update_object(
     payload: &[u8],
     target: &LootRaceTarget,
-) -> Option<(u64, u64)> {
+) -> Result<Option<(u64, u64)>> {
     let expected_high_type = match target.kind {
         LootRaceTargetKind::Creature => HIGH_GUID_CREATURE,
         LootRaceTargetKind::GameObject => HIGH_GUID_GAMEOBJECT,
     };
+    let mut candidates = std::collections::BTreeSet::new();
     for offset in 0..payload.len().saturating_sub(2) {
         if !matches!(payload[offset], 1 | 2) {
             continue;
@@ -1419,13 +1416,19 @@ fn find_loot_target_guid_in_update_object(
         {
             continue;
         }
-        let counter = low & OBJECT_GUID_COUNTER_MASK;
-        if target.kind == LootRaceTargetKind::GameObject && counter != target.spawn_guid {
-            continue;
-        }
-        return Some((low, high));
+        candidates.insert((low, high));
     }
-    None
+
+    if candidates.len() > 1 {
+        bail!(
+            "loot-race update contained {} distinct live ObjectGuid candidates for {:?} entry {} map {}: {candidates:?}",
+            candidates.len(),
+            target.kind,
+            target.entry,
+            target.map_id
+        );
+    }
+    Ok(candidates.into_iter().next())
 }
 
 pub(super) async fn run_phase(
@@ -3540,14 +3543,6 @@ fn prepare_gameobject_race_fixture(
     {
         bail!("GameObject race fixture did not match the pinned wrapper-owned contract");
     }
-    if cli.runtime_counter != 0 && cli.runtime_counter != cli.spawn_guid {
-        bail!(
-            "GameObject runtime counter override {} must be zero (wire discovery) or exact spawn {}",
-            cli.runtime_counter,
-            cli.spawn_guid
-        );
-    }
-
     let world_url = world_db_url()?;
     let world_opts = loot_db_opts(&world_url, "world")?;
     let mut world = mysql::Conn::new(world_opts)
@@ -3623,6 +3618,14 @@ fn prepare_gameobject_race_fixture(
             "wrapper-owned GameObject spawn drifted from the exact QA contract: guid={spawn_guid} entry={entry} map={map_id} zone={zone_id} area={area_id} difficulties={difficulties:?} phase={phase_flags}/{phase_id}/{phase_group} terrain={terrain_swap_map} pos=({x},{y},{z}) orientation={orientation} rotations={rotations:?} respawn={spawntime} anim={anim_progress} state={state} script={spawn_script:?} string_id={string_id:?} build={verified_build}"
         );
     }
+    let same_entry_map_spawns: Vec<u64> = world
+        .exec_map(
+            "SELECT guid FROM gameobject WHERE id = ? AND map = ? ORDER BY guid",
+            (entry, map_id),
+            |guid: u64| guid,
+        )
+        .map_err(|error| anyhow!("Check GameObject race map/entry spawn uniqueness: {error}"))?;
+    validate_unique_sql_spawn(&same_entry_map_spawns, spawn_guid, entry, map_id)?;
 
     let template: mysql::Row = world
         .exec_first(
@@ -5620,6 +5623,10 @@ mod tests {
         }
     }
 
+    fn gameobject_runtime_high(map_id: u16, entry: u32) -> u64 {
+        (HIGH_GUID_GAMEOBJECT << 58) | (u64::from(map_id) << 29) | (u64::from(entry) << 6)
+    }
+
     fn update_object_with_guid(low: u64, high: u64) -> Vec<u8> {
         let mut payload = vec![1];
         payload.extend_from_slice(&build_packed_guid(low, high));
@@ -5669,7 +5676,7 @@ mod tests {
     }
 
     #[test]
-    fn sql_spawn_uniqueness_is_required_for_runtime_auto_discovery() {
+    fn sql_spawn_uniqueness_is_required_for_entry_map_runtime_auto_discovery() {
         validate_unique_sql_spawn(&[1_117], 1_117, 21_779, 530).unwrap();
 
         let missing = validate_unique_sql_spawn(&[], 1_117, 21_779, 530)
@@ -5760,45 +5767,141 @@ mod tests {
     }
 
     #[test]
-    fn gameobject_discovery_requires_exact_high_type_entry_map_and_spawn_counter() {
+    fn gameobject_discovery_keeps_sql_spawn_and_runtime_counter_distinct_like_cpp() {
+        const LIVE_COUNTER: u64 = 40;
         let options = gameobject_discovery_options(0);
-        let high = (HIGH_GUID_GAMEOBJECT << 58)
-            | (u64::from(RACE_GAMEOBJECT_MAP_ID) << 29)
-            | (u64::from(DEFAULT_CREATURE_ENTRY) << 6);
-        let exact = update_object_with_guid(DEFAULT_CREATURE_SPAWN_GUID, high);
+        let high = gameobject_runtime_high(RACE_GAMEOBJECT_MAP_ID, DEFAULT_CREATURE_ENTRY);
+        let exact = update_object_with_guid(LIVE_COUNTER, high);
         assert_eq!(
             target_seen_in_update(&options, SMSG_UPDATE_OBJECT, &exact).unwrap(),
-            Some(DEFAULT_CREATURE_SPAWN_GUID)
+            Some(LIVE_COUNTER)
         );
         assert_eq!(
             options.resolved_runtime_guid().unwrap(),
-            (DEFAULT_CREATURE_SPAWN_GUID, high)
+            (LIVE_COUNTER, high)
         );
+        assert_ne!(LIVE_COUNTER, DEFAULT_CREATURE_SPAWN_GUID);
+    }
 
-        let wrong_spawn = gameobject_discovery_options(0);
-        assert_eq!(
-            target_seen_in_update(
-                &wrong_spawn,
-                SMSG_UPDATE_OBJECT,
-                &update_object_with_guid(DEFAULT_CREATURE_SPAWN_GUID + 1, high),
-            )
-            .unwrap(),
-            None
-        );
-
+    #[test]
+    fn gameobject_discovery_requires_exact_high_type_entry_and_map() {
+        const LIVE_COUNTER: u64 = 40;
+        let high = gameobject_runtime_high(RACE_GAMEOBJECT_MAP_ID, DEFAULT_CREATURE_ENTRY);
         let creature_high = (HIGH_GUID_CREATURE << 58)
             | (u64::from(RACE_GAMEOBJECT_MAP_ID) << 29)
             | (u64::from(DEFAULT_CREATURE_ENTRY) << 6);
-        let wrong_type = gameobject_discovery_options(0);
+        let wrong_entry_high =
+            gameobject_runtime_high(RACE_GAMEOBJECT_MAP_ID, DEFAULT_CREATURE_ENTRY + 1);
+        let wrong_map_high =
+            gameobject_runtime_high(RACE_GAMEOBJECT_MAP_ID + 1, DEFAULT_CREATURE_ENTRY);
+
+        for wrong_high in [creature_high, wrong_entry_high, wrong_map_high] {
+            let options = gameobject_discovery_options(0);
+            assert_eq!(
+                target_seen_in_update(
+                    &options,
+                    SMSG_UPDATE_OBJECT,
+                    &update_object_with_guid(LIVE_COUNTER, wrong_high),
+                )
+                .unwrap(),
+                None
+            );
+        }
+
+        let wrong_opcode = gameobject_discovery_options(0);
         assert_eq!(
             target_seen_in_update(
-                &wrong_type,
-                SMSG_UPDATE_OBJECT,
-                &update_object_with_guid(DEFAULT_CREATURE_SPAWN_GUID, creature_high),
+                &wrong_opcode,
+                SMSG_LOOT_RESPONSE,
+                &update_object_with_guid(LIVE_COUNTER, high),
             )
             .unwrap(),
             None
         );
+    }
+
+    #[test]
+    fn gameobject_runtime_override_checks_the_live_counter_not_the_sql_spawn() {
+        const LIVE_COUNTER: u64 = 40;
+        let high = gameobject_runtime_high(RACE_GAMEOBJECT_MAP_ID, DEFAULT_CREATURE_ENTRY);
+        let exact = gameobject_discovery_options(LIVE_COUNTER);
+        assert_eq!(
+            target_seen_in_update(
+                &exact,
+                SMSG_UPDATE_OBJECT,
+                &update_object_with_guid(LIVE_COUNTER, high),
+            )
+            .unwrap(),
+            Some(LIVE_COUNTER)
+        );
+
+        let stale = gameobject_discovery_options(LIVE_COUNTER + 1);
+        let error = target_seen_in_update(
+            &stale,
+            SMSG_UPDATE_OBJECT,
+            &update_object_with_guid(LIVE_COUNTER, high),
+        )
+        .expect_err("a mismatching live GameObject counter override must fail closed");
+        assert!(error
+            .to_string()
+            .contains("did not match discovered counter 40"));
+    }
+
+    #[test]
+    fn gameobject_discovery_deduplicates_one_guid_and_rejects_packet_ambiguity() {
+        const LIVE_COUNTER: u64 = 40;
+        let high = gameobject_runtime_high(RACE_GAMEOBJECT_MAP_ID, DEFAULT_CREATURE_ENTRY);
+
+        let mut duplicate = update_object_with_guid(LIVE_COUNTER, high);
+        duplicate.extend_from_slice(&update_object_with_guid(LIVE_COUNTER, high));
+        let options = gameobject_discovery_options(0);
+        assert_eq!(
+            target_seen_in_update(&options, SMSG_UPDATE_OBJECT, &duplicate).unwrap(),
+            Some(LIVE_COUNTER)
+        );
+
+        let mut ambiguous = update_object_with_guid(LIVE_COUNTER, high);
+        ambiguous.extend_from_slice(&update_object_with_guid(LIVE_COUNTER + 1, high));
+        let options = gameobject_discovery_options(0);
+        let error = target_seen_in_update(&options, SMSG_UPDATE_OBJECT, &ambiguous)
+            .expect_err("two distinct matching GameObjects in one update must fail closed");
+        assert!(error.to_string().contains("2 distinct live ObjectGuid"));
+    }
+
+    #[test]
+    fn gameobject_discovery_requires_two_bots_to_converge_on_one_full_guid() {
+        const LIVE_COUNTER: u64 = 40;
+        let high = gameobject_runtime_high(RACE_GAMEOBJECT_MAP_ID, DEFAULT_CREATURE_ENTRY);
+        let first = gameobject_discovery_options(0);
+        let mut second = first.clone();
+        second.participant = 1;
+
+        assert_eq!(
+            target_seen_in_update(
+                &first,
+                SMSG_UPDATE_OBJECT,
+                &update_object_with_guid(LIVE_COUNTER, high),
+            )
+            .unwrap(),
+            Some(LIVE_COUNTER)
+        );
+        assert_eq!(
+            target_seen_in_update(
+                &second,
+                SMSG_UPDATE_OBJECT,
+                &update_object_with_guid(LIVE_COUNTER, high),
+            )
+            .unwrap(),
+            Some(LIVE_COUNTER)
+        );
+
+        let error = target_seen_in_update(
+            &second,
+            SMSG_UPDATE_OBJECT,
+            &update_object_with_guid(LIVE_COUNTER + 1, high),
+        )
+        .expect_err("two bots must not bind different live GameObject GUIDs");
+        assert!(error.to_string().contains("different live ObjectGuids"));
     }
 
     #[tokio::test]
