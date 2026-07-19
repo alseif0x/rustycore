@@ -266,6 +266,7 @@ struct CliOptions {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(test, derive(Default))]
 struct BotRunResult {
     account: String,
     account_id: u32,
@@ -436,7 +437,8 @@ impl BotRunResult {
             return self.world_auth
                 && self.enum_characters
                 && self.player_login_verified
-                && self.loot_race_smoke_passed.unwrap_or(false);
+                && self.loot_race_smoke_passed.unwrap_or(false)
+                && self.loot_race_relog_verified;
         }
         if login_only {
             return self.world_auth && self.enum_characters && self.player_login_verified;
@@ -10361,6 +10363,23 @@ fn build_packed_guid(low: u64, high: u64) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn loot_result_requires_verified_relog_for_success() {
+        let mut result = BotRunResult {
+            world_auth: true,
+            enum_characters: true,
+            player_login_verified: true,
+            loot_race_smoke: true,
+            loot_race_smoke_passed: Some(true),
+            ..BotRunResult::default()
+        };
+
+        assert!(!result.success(false, false, false));
+
+        result.loot_race_relog_verified = true;
+        assert!(result.success(false, false, false));
+    }
 
     #[test]
     fn login_verify_budget_is_time_based_not_packet_count() {

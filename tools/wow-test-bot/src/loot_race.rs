@@ -1225,7 +1225,7 @@ pub(super) async fn run_single_item_capture_workflow(
         killer_character_guid: fixture.characters[0].bot.character_guid,
         target: fixture.target.clone(),
         timeout_secs: cli.timeout_secs,
-        sync,
+        sync: Arc::clone(&sync),
     };
     let run = tokio::select! {
         _ = shutdown.cancelled() => Err(anyhow!("loot-item capture received SIGINT/SIGTERM")),
@@ -1306,12 +1306,128 @@ pub(super) async fn run_single_item_capture_workflow(
         }
     }
 
+    if result
+        .as_ref()
+        .is_some_and(|result| result.loot_race_smoke_passed == Some(true))
+    {
+        let relog_options = LootRaceOptions {
+            phase: LootRacePhase::VerifyRelog,
+            participant: 0,
+            character_guid: fixture.characters[0].bot.character_guid,
+            peer_name: fixture.characters[1].name.clone(),
+            peer_character_guid: fixture.characters[1].bot.character_guid,
+            killer_character_guid: fixture.characters[0].bot.character_guid,
+            target: fixture.target.clone(),
+            timeout_secs: cli.timeout_secs,
+            sync,
+        };
+        let relog = tokio::select! {
+            _ = shutdown.cancelled() => {
+                Err(anyhow!("loot-item capture relog cancelled by SIGINT/SIGTERM"))
+            }
+            relog = tokio::time::timeout_at(workflow_deadline, run_bot(
+                bots[0].clone(),
+                dungeon_id,
+                lfg_secs,
+                auto_teleport,
+                false,
+                None,
+                None,
+                None,
+                None,
+                None,
+                Some(relog_options),
+                None,
+            )) => match relog {
+                Ok(relog) => relog,
+                Err(_) => Err(anyhow!(
+                    "loot-item capture relog exceeded the {}s end-to-end deadline",
+                    cli.workflow_deadline_secs
+                )),
+            },
+        };
+        match relog {
+            Ok(relog) if relog.loot_race_relog_verified => {
+                let fixture_for_verification = fixture.clone();
+                let persisted_after_relog = tokio::task::spawn_blocking(move || {
+                    verify_single_item_capture_persistence(&fixture_for_verification)
+                })
+                .await;
+                let result = result
+                    .as_mut()
+                    .expect("successful capture result remains available for relog merge");
+                result.world_auth &= relog.world_auth;
+                result.enum_characters &= relog.enum_characters;
+                result.player_login_verified &= relog.player_login_verified;
+                result.seen_opcodes.extend(relog.seen_opcodes);
+                match persisted_after_relog {
+                    Ok(Ok(item_total)) if Some(item_total) == result.loot_race_db_item_total => {
+                        result.loot_race_relog_verified = true;
+                    }
+                    Ok(Ok(item_total)) => {
+                        result.loot_race_smoke_passed = Some(false);
+                        result.loot_race_failure = Some(format!(
+                            "loot-item capture persisted item total changed across relog: before {:?}, after {item_total}",
+                            result.loot_race_db_item_total
+                        ));
+                    }
+                    Ok(Err(error)) => {
+                        result.loot_race_smoke_passed = Some(false);
+                        result.loot_race_failure = Some(format!(
+                            "loot-item capture post-relog persistence verification failed: {error}"
+                        ));
+                    }
+                    Err(error) => {
+                        result.loot_race_smoke_passed = Some(false);
+                        result.loot_race_failure = Some(format!(
+                            "loot-item capture post-relog DB worker join failed: {error}"
+                        ));
+                    }
+                }
+            }
+            Ok(_) => {
+                let result = result
+                    .as_mut()
+                    .expect("successful capture result remains available for relog failure");
+                result.loot_race_smoke_passed = Some(false);
+                result.loot_race_failure = Some(
+                    "loot-item capture relog did not verify a clean logout/login cycle".into(),
+                );
+            }
+            Err(error) => {
+                let result = result
+                    .as_mut()
+                    .expect("successful capture result remains available for relog error");
+                result.loot_race_smoke_passed = Some(false);
+                result.loot_race_failure = Some(error.to_string());
+            }
+        }
+    }
+
+    let deadline_exceeded_before_cleanup = tokio::time::Instant::now() >= workflow_deadline;
     let fixture_for_cleanup = fixture.clone();
     let cleanup = tokio::task::spawn_blocking(move || cleanup_fixture(&fixture_for_cleanup))
         .await
         .map_err(|error| anyhow!("loot-item capture cleanup DB worker join failed: {error}"))?;
     if let Err(error) = cleanup {
         bail!("loot-item capture fixture cleanup failed: {error:#}");
+    }
+
+    let workflow_failure = if shutdown.is_cancelled() {
+        Some("loot-item capture was cancelled before end-to-end verification completed")
+    } else if deadline_exceeded_before_cleanup {
+        Some("loot-item capture exceeded its end-to-end deadline during final verification")
+    } else {
+        None
+    };
+    if let Some(failure) = workflow_failure {
+        let result = result
+            .as_mut()
+            .expect("successful bot run remains available after cleanup");
+        result.loot_race_smoke_passed = Some(false);
+        result
+            .loot_race_failure
+            .get_or_insert_with(|| failure.to_owned());
     }
 
     Ok(vec![result.expect("successful bot run remains available")])
