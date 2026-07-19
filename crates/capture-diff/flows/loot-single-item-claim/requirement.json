@@ -1,7 +1,6 @@
 {
   "issue": "#106",
-  "status": "awaiting-real-captures",
-  "blocked_reason": "The existing CLEAN six-packet C++/Rust pair predates mandatory completed RAW manifests, so executable/process/config provenance and RAW-to-derived lineage cannot be verified. Re-record and strictly import both sides with the guarded wrappers.",
+  "status": "ready",
   "description": "One solo character claims one deterministic creature-loot item; the isolated wire window starts at CMSG_LOOT_ITEM and ends at a fixed instance CMSG_PING fence.",
   "directions": [
     "s2c",
