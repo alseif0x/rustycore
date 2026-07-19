@@ -36,6 +36,9 @@ jobs:
         with:
           components: rustfmt
 
+      - name: Install preflight dependencies
+        run: sudo apt-get update && sudo apt-get install --yes ripgrep
+
       - name: Validate local preflight harness
         run: ./tools/pr-preflight.sh self-test
 
