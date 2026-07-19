@@ -25,7 +25,7 @@ use tracing::{debug, info, warn};
 
 use wow_constants::{
     ClientOpcodes, InventoryResult, InventoryType, ItemContext, ItemFieldFlags, ItemFlags,
-    ItemFlags2, ItemQuality,
+    ItemFlags2, ItemQuality, UnitDynFlags,
 };
 use wow_core::{ObjectGuid, guid::HighGuid};
 use wow_data::{ItemRandomEnchantmentTemplateEntry, ItemRandomPropertyTemplateEntry};
@@ -63,11 +63,11 @@ use wow_network::player_registry::{
     ApplyCreatureMeleeDamageLikeCppCommand, ApplyGroupJoinLikeCppCommand,
     ApplyGroupRemovalLikeCppCommand, CancelRepresentedTradeLikeCppCommand,
     CreatureAttackStartLikeCppCommand, RefreshVisibleWorldCreaturesLikeCppCommand,
-    SendAddonIfRegisteredLikeCppCommand, SendIfVisibleLikeCppCommand,
-    SendPartyUpdateLikeCppCommand, SendRepeatableTurnInRequestItemsLikeCppCommand,
-    SendRepresentedDuelCountdownLikeCppCommand, SendRepresentedDuelRequestedLikeCppCommand,
-    SendRepresentedTradeStatusLikeCppCommand, SetQuestSharingInfoAndSendDetailsCommand,
-    SyncChestGameobjectStateAndRefreshLikeCppCommand,
+    SendAddonIfRegisteredLikeCppCommand, SendCreatureLootReleaseValuesUpdateLikeCppCommand,
+    SendIfVisibleLikeCppCommand, SendPartyUpdateLikeCppCommand,
+    SendRepeatableTurnInRequestItemsLikeCppCommand, SendRepresentedDuelCountdownLikeCppCommand,
+    SendRepresentedDuelRequestedLikeCppCommand, SendRepresentedTradeStatusLikeCppCommand,
+    SetQuestSharingInfoAndSendDetailsCommand, SyncChestGameobjectStateAndRefreshLikeCppCommand,
     SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
     SyncGooberGameobjectStateAndRefreshLikeCppCommand, UnacceptRepresentedTradeLikeCppCommand,
     WorldSessionShutdownFlushResultLikeCpp,
@@ -111,9 +111,12 @@ use crate::session::{
     loot_money_durable_outcome_like_cpp,
 };
 
+const LOOT_METHOD_FREE_FOR_ALL_LIKE_CPP: u8 = 0;
+const LOOT_METHOD_ROUND_ROBIN_LIKE_CPP: u8 = 1;
 const LOOT_METHOD_MASTER_LIKE_CPP: u8 = 2;
 const LOOT_METHOD_GROUP_LIKE_CPP: u8 = 3;
 const LOOT_METHOD_NEED_BEFORE_GREED_LIKE_CPP: u8 = 4;
+const LOOT_METHOD_PERSONAL_LIKE_CPP: u8 = 5;
 const MAX_NR_LOOT_ITEMS_LIKE_CPP: usize = 18;
 const LOOT_ROLL_TIMEOUT_MS_LIKE_CPP: u32 = 60_000;
 #[cfg(test)]
@@ -874,6 +877,224 @@ impl WorldSession {
         }
 
         queued
+    }
+
+    fn represented_creature_is_dead_for_loot_visibility_like_cpp(
+        &self,
+        creature_guid: ObjectGuid,
+    ) -> bool {
+        let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
+        if let Some(manager) = self.map_manager.as_ref()
+            && let Some(creature) = manager
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .find_creature(map_id, instance_id, creature_guid)
+        {
+            return !creature.is_alive();
+        }
+
+        let Some(map_key) =
+            self.canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))
+        else {
+            return false;
+        };
+        let Some(manager) = self.canonical_map_manager.as_ref() else {
+            return false;
+        };
+        let Ok(manager) = manager.lock() else {
+            return false;
+        };
+        manager
+            .find_map(map_key.map_id, map_key.instance_id)
+            .and_then(|map| map.map().get_typed_creature(creature_guid))
+            .is_some_and(|creature| !creature.is_alive())
+    }
+
+    fn creature_loot_release_values_for_viewer_like_cpp(
+        &self,
+        creature_guid: ObjectGuid,
+        viewer_guid: ObjectGuid,
+        viewer_has_pending_bind: bool,
+        authority: Option<&OwnedLootAuthority>,
+        mut update: wow_packet::packets::update::UnitDataValuesDeltaUpdate,
+    ) -> wow_packet::packets::update::UnitDataValuesDeltaUpdate {
+        let Some(object_data) = update.object_data.as_mut() else {
+            return update;
+        };
+        if object_data.dynamic_flags & UnitDynFlags::Lootable as u32 == 0 {
+            return update;
+        }
+        let Some(authority) = authority else {
+            // The authority-less path exists only for bounded unit fixtures.
+            // Preserve the canonical flag rather than inventing per-viewer
+            // ownership without `Creature::GetLootForPlayer` evidence.
+            return update;
+        };
+
+        // C++ `ViewerDependentValue<ObjectData::DynamicFlags>` removes
+        // UNIT_DYNFLAG_LOOTABLE when the complete `Player::isAllowedToLoot`
+        // predicate is false. The object-owned authority is the Rust
+        // equivalent of `Creature::GetLootForPlayer`; one exhausted personal
+        // pool must not hide a different player's still-live pool.
+        let creature_is_dead =
+            self.represented_creature_is_dead_for_loot_visibility_like_cpp(creature_guid);
+        let viewer_can_still_loot = authority
+            .snapshot_for_player_like_cpp(viewer_guid)
+            .is_some_and(|snapshot| {
+                creature_loot_is_allowed_to_player_like_cpp(
+                    creature_is_dead,
+                    viewer_has_pending_bind,
+                    &snapshot.loot,
+                    viewer_guid,
+                )
+            });
+        if !viewer_can_still_loot {
+            object_data.dynamic_flags &= !(UnitDynFlags::Lootable as u32);
+        }
+        update
+    }
+
+    /// Publishes the dirty DynamicFlags field created by C++
+    /// `WorldSession::DoLootRelease` to every same-map session that currently
+    /// has the creature at the client. The canonical object mutation alone is
+    /// insufficient until the global `Map::SendObjectUpdates` bridge owns
+    /// normal VALUES fanout.
+    fn send_creature_loot_release_dynamic_flags_update_like_cpp(
+        &self,
+        creature_guid: ObjectGuid,
+        values_update: &wow_entities::UnitValuesUpdate,
+        authority: Option<&OwnedLootAuthority>,
+    ) -> usize {
+        let Some(player_guid) = self.player_guid() else {
+            return 0;
+        };
+        let Some(packet_update) =
+            crate::entity_update_bridge::unit_values_update_to_packet(values_update)
+        else {
+            return 0;
+        };
+        let map_id = self.player_map_id_like_cpp();
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let mut sent = 0;
+
+        if self.client_visible_guids_like_cpp.contains(&creature_guid) {
+            let source_update = self.creature_loot_release_values_for_viewer_like_cpp(
+                creature_guid,
+                player_guid,
+                self.pending_bind.is_some(),
+                authority,
+                packet_update.clone(),
+            );
+            self.send_packet(&UpdateObject::unit_values_update(
+                creature_guid,
+                map_id,
+                source_update,
+            ));
+            sent += 1;
+        }
+
+        let Some(registry) = self.player_registry() else {
+            return sent;
+        };
+        let remote_command_txs = registry
+            .iter()
+            .filter_map(|entry| {
+                let (candidate_guid, candidate) = entry.pair();
+                (*candidate_guid != player_guid
+                    && candidate.is_in_world
+                    && candidate.map_id == map_id
+                    && candidate.instance_id == instance_id)
+                    .then(|| candidate.command_tx.clone())
+            })
+            .collect::<Vec<_>>();
+        for command_tx in remote_command_txs {
+            // C++'s dirty-field pass cannot silently lose this forced update.
+            // Do not retain a DashMap guard (or any map/authority lock) while
+            // queueing the bounded target-session command rail.
+            if queue_creature_loot_release_command_reliably_like_cpp(
+                &command_tx,
+                SessionCommand::SendCreatureLootReleaseValuesUpdateLikeCpp(
+                    SendCreatureLootReleaseValuesUpdateLikeCppCommand {
+                        creature_guid,
+                        map_id,
+                        instance_id,
+                        unit_values_update: packet_update.clone(),
+                        authority: authority.cloned(),
+                    },
+                ),
+            ) != CreatureLootReleaseCommandQueueOutcomeLikeCpp::Disconnected
+            {
+                sent += 1;
+            }
+        }
+
+        sent
+    }
+
+    /// Receiver-owned half of the loot-release VALUES fanout. Applying
+    /// `Player::isAllowedToLoot` here preserves session-local pending-bind
+    /// state and avoids serialising one player's dynamic flags for another.
+    fn handle_send_creature_loot_release_values_update_command_like_cpp(
+        &mut self,
+        command: SendCreatureLootReleaseValuesUpdateLikeCppCommand,
+    ) {
+        if self.state() != crate::session::SessionState::LoggedIn
+            || self.player_map_id_like_cpp() != command.map_id
+        {
+            return;
+        }
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        if instance_id != command.instance_id
+            || !self
+                .client_visible_guids_like_cpp
+                .contains(&command.creature_guid)
+        {
+            return;
+        }
+        if self.represented_can_receive_creature_message_to_set_by_guid_like_cpp(
+            command.creature_guid,
+            command.map_id,
+            command.instance_id,
+            false,
+        ) != Some(true)
+        {
+            return;
+        }
+        let Some(expected_authority) = command.authority.as_ref() else {
+            return;
+        };
+        let Some(current_authority) =
+            self.represented_owned_loot_authority_like_cpp(command.creature_guid)
+        else {
+            return;
+        };
+        if !current_authority.shares_storage_like_cpp(expected_authority) {
+            // The queued update belongs to an older corpse generation. C++
+            // publishes synchronously before respawn; Rust must not apply the
+            // delayed VALUES delta to a replacement creature with the same GUID.
+            return;
+        }
+        let Some(viewer_guid) = self.player_guid() else {
+            return;
+        };
+        let viewer_update = self.creature_loot_release_values_for_viewer_like_cpp(
+            command.creature_guid,
+            viewer_guid,
+            self.pending_bind.is_some(),
+            Some(expected_authority),
+            command.unit_values_update,
+        );
+        self.send_packet(&UpdateObject::unit_values_update(
+            command.creature_guid,
+            command.map_id,
+            viewer_update,
+        ));
     }
 
     fn queue_gathering_node_gameobject_state_refresh_for_same_map_like_cpp(
@@ -4132,6 +4353,9 @@ impl WorldSession {
                     self.handle_refresh_visible_world_creatures_like_cpp_command_like_cpp(command)
                         .await;
                 }
+                SessionCommand::SendCreatureLootReleaseValuesUpdateLikeCpp(command) => {
+                    self.handle_send_creature_loot_release_values_update_command_like_cpp(command);
+                }
                 SessionCommand::RefreshVisibleGameobjectsOrSpellClicksLikeCpp => {
                     let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
                 }
@@ -5420,18 +5644,17 @@ impl WorldSession {
 
         let corpse_decay_looted_rate = self.loot_drop_rates_like_cpp().corpse_decay_looted;
         let whole_object_fully_skinned = observation.whole_object_fully_skinned;
-        let marked = self
-            .mutate_world_creature_if_fully_looted_observation_like_cpp(
-                route.owner_guid,
-                &route.authority,
-                observation.object_generation,
-                observation.lifecycle_revision,
-                |creature| {
-                    creature.force_dynamic_flags_update_like_cpp();
-                    creature.remove_lootable_dynamic_flag_like_cpp();
-                    if creature.is_alive() {
-                        return None;
-                    }
+        let lifecycle_update = self.mutate_world_creature_if_fully_looted_observation_like_cpp(
+            route.owner_guid,
+            &route.authority,
+            observation.object_generation,
+            observation.lifecycle_revision,
+            |creature| {
+                creature.force_dynamic_flags_update_like_cpp();
+                creature.remove_lootable_dynamic_flag_like_cpp();
+                let marked = if creature.is_alive() {
+                    None
+                } else {
                     let corpse_decay_secs = looted_corpse_decay_secs_like_cpp(
                         whole_object_fully_skinned,
                         creature.corpse_delay_secs_like_cpp(),
@@ -5444,10 +5667,19 @@ impl WorldSession {
                             whole_object_fully_skinned,
                         )
                         .then_some((creature.entry(), corpse_decay_secs))
-                },
-            )
-            .flatten();
+                };
+                (marked, creature.creature.unit().values_update())
+            },
+        );
         self.loot_table.remove(&route.owner_guid);
+        if let Some((_, values_update)) = lifecycle_update.as_ref() {
+            self.send_creature_loot_release_dynamic_flags_update_like_cpp(
+                route.owner_guid,
+                values_update,
+                Some(&route.authority),
+            );
+        }
+        let marked = lifecycle_update.and_then(|(marked, _)| marked);
         if let Some((entry, corpse_decay_secs)) = marked {
             info!(
                 "Creature {:?} (entry {}) fully looted after durable claim — despawning in {}s",
@@ -9583,9 +9815,19 @@ impl WorldSession {
                 self.represented_notify_loot_list_like_cpp(owner_guid);
             }
             if owner_guid.is_creature_or_vehicle() {
-                let _ = self.mutate_world_creature(owner_guid, |creature| {
+                let values_update = self.mutate_world_creature(owner_guid, |creature| {
                     creature.force_dynamic_flags_update_like_cpp();
+                    creature.creature.unit().values_update()
                 });
+                if let Some(values_update) = values_update.as_ref() {
+                    self.send_creature_loot_release_dynamic_flags_update_like_cpp(
+                        owner_guid,
+                        values_update,
+                        authoritative_release
+                            .as_ref()
+                            .map(|release| &release.authority),
+                    );
+                }
             }
             if authoritative_release.is_some() {
                 self.discard_represented_personal_loot_cache_for_player_like_cpp(
@@ -9612,11 +9854,21 @@ impl WorldSession {
         // C++ forces the viewer-dependent DynamicFlags field after every
         // creature release, including a selected personal pool that completed
         // while another pool remains.
-        let _ = self.mutate_world_creature(owner_guid, |creature| {
+        let forced_values_update = self.mutate_world_creature(owner_guid, |creature| {
             creature.force_dynamic_flags_update_like_cpp();
+            creature.creature.unit().values_update()
         });
 
         if !whole_object_fully_looted {
+            if let Some(values_update) = forced_values_update.as_ref() {
+                self.send_creature_loot_release_dynamic_flags_update_like_cpp(
+                    owner_guid,
+                    values_update,
+                    authoritative_release
+                        .as_ref()
+                        .map(|release| &release.authority),
+                );
+            }
             if authoritative_release.is_some() {
                 self.discard_represented_personal_loot_cache_for_player_like_cpp(
                     owner_guid,
@@ -9635,7 +9887,7 @@ impl WorldSession {
         );
         let apply_lifecycle = |creature: &mut crate::map_manager::WorldCreature| {
             creature.remove_lootable_dynamic_flag_like_cpp();
-            if !creature.is_alive() {
+            let marked = if !creature.is_alive() {
                 let corpse_decay_secs = looted_corpse_decay_secs_like_cpp(
                     whole_object_fully_skinned,
                     creature.corpse_delay_secs_like_cpp(),
@@ -9648,14 +9900,16 @@ impl WorldSession {
                 ) {
                     // C++ returns without resetting an already-expired
                     // corpse. The lifecycle mirror must remain expired too.
-                    return None;
+                    None
+                } else {
+                    Some((creature.entry(), corpse_decay_secs))
                 }
-                Some((creature.entry(), corpse_decay_secs))
             } else {
                 None
-            }
+            };
+            (marked, creature.creature.unit().values_update())
         };
-        let marked = if let Some(release) = authoritative_release.as_ref() {
+        let lifecycle_update = if let Some(release) = authoritative_release.as_ref() {
             self.mutate_world_creature_if_fully_looted_observation_like_cpp(
                 owner_guid,
                 &release.authority,
@@ -9665,8 +9919,18 @@ impl WorldSession {
             )
         } else {
             self.mutate_world_creature(owner_guid, apply_lifecycle)
+        };
+
+        if let Some((_, values_update)) = lifecycle_update.as_ref() {
+            self.send_creature_loot_release_dynamic_flags_update_like_cpp(
+                owner_guid,
+                values_update,
+                authoritative_release
+                    .as_ref()
+                    .map(|release| &release.authority),
+            );
         }
-        .flatten();
+        let marked = lifecycle_update.and_then(|(marked, _)| marked);
 
         if let Some((entry, corpse_decay_secs)) = marked {
             info!(
@@ -11965,6 +12229,78 @@ fn loot_can_be_opened_by_player_like_cpp(loot: &CreatureLoot, player_guid: Objec
         || loot_has_item_for_player_like_cpp(loot, player_guid)
 }
 
+/// Exact represented branch order of C++ `Player::isAllowedToLoot` for a
+/// creature and the pool selected by `Creature::GetLootForPlayer`.
+fn creature_loot_is_allowed_to_player_like_cpp(
+    creature_is_dead: bool,
+    player_has_pending_bind: bool,
+    loot: &CreatureLoot,
+    player_guid: ObjectGuid,
+) -> bool {
+    if !creature_is_dead || player_has_pending_bind || loot_is_looted_like_cpp(loot) {
+        return false;
+    }
+    if !loot.allowed_looters.contains(&player_guid)
+        || (!loot_has_item_for_all_like_cpp(loot, player_guid)
+            && !loot_has_item_for_player_like_cpp(loot, player_guid))
+    {
+        return false;
+    }
+
+    match loot.loot_method {
+        LOOT_METHOD_FREE_FOR_ALL_LIKE_CPP | LOOT_METHOD_PERSONAL_LIKE_CPP => true,
+        LOOT_METHOD_ROUND_ROBIN_LIKE_CPP => {
+            loot.round_robin_player.is_empty()
+                || loot.round_robin_player == player_guid
+                || loot_has_item_for_player_like_cpp(loot, player_guid)
+        }
+        LOOT_METHOD_MASTER_LIKE_CPP
+        | LOOT_METHOD_GROUP_LIKE_CPP
+        | LOOT_METHOD_NEED_BEFORE_GREED_LIKE_CPP => {
+            loot.round_robin_player.is_empty()
+                || loot.round_robin_player == player_guid
+                || loot_has_over_threshold_item_like_cpp(loot)
+                || loot_has_item_for_player_like_cpp(loot, player_guid)
+        }
+        _ => false,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CreatureLootReleaseCommandQueueOutcomeLikeCpp {
+    Queued,
+    Retrying,
+    Disconnected,
+}
+
+fn queue_creature_loot_release_command_reliably_like_cpp(
+    command_tx: &flume::Sender<SessionCommand>,
+    command: SessionCommand,
+) -> CreatureLootReleaseCommandQueueOutcomeLikeCpp {
+    match command_tx.try_send(command) {
+        Ok(()) => CreatureLootReleaseCommandQueueOutcomeLikeCpp::Queued,
+        Err(flume::TrySendError::Disconnected(_)) => {
+            CreatureLootReleaseCommandQueueOutcomeLikeCpp::Disconnected
+        }
+        Err(flume::TrySendError::Full(command)) => {
+            let command_tx = command_tx.clone();
+            // Never await another session from the source session loop: two
+            // full queues could otherwise wait on each other forever. The
+            // detached retry retains the exact command until capacity opens;
+            // receiver-side authority/lifecycle gates coalesce its meaning to
+            // the current corpse generation and reject stale respawn reuse.
+            tokio::spawn(async move {
+                if command_tx.send_async(command).await.is_err() {
+                    tracing::debug!(
+                        "loot-release DynamicFlags retry ended after target session disconnected"
+                    );
+                }
+            });
+            CreatureLootReleaseCommandQueueOutcomeLikeCpp::Retrying
+        }
+    }
+}
+
 fn loot_has_over_threshold_item_like_cpp(loot: &CreatureLoot) -> bool {
     loot.items
         .iter()
@@ -12825,30 +13161,32 @@ where
 #[cfg(test)]
 mod tests {
     use super::{
-        GAMEOBJECT_TYPE_AREADAMAGE, GAMEOBJECT_TYPE_BINDER, GAMEOBJECT_TYPE_CHAIR,
-        GAMEOBJECT_TYPE_DOOR, GAMEOBJECT_TYPE_GUILD_BANK, GAMEOBJECT_TYPE_QUESTGIVER,
-        INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START, ITEM_FLAGS_CU_FOLLOW_LOOT_RULES_LIKE_CPP,
+        CreatureLootReleaseCommandQueueOutcomeLikeCpp, GAMEOBJECT_TYPE_AREADAMAGE,
+        GAMEOBJECT_TYPE_BINDER, GAMEOBJECT_TYPE_CHAIR, GAMEOBJECT_TYPE_DOOR,
+        GAMEOBJECT_TYPE_GUILD_BANK, GAMEOBJECT_TYPE_QUESTGIVER, INVENTORY_SLOT_BAG_0,
+        INVENTORY_SLOT_ITEM_START, ITEM_FLAGS_CU_FOLLOW_LOOT_RULES_LIKE_CPP,
         ItemTemplateAddonLootMetadataLikeCpp, LOCK_KEY_SKILL_LIKE_CPP, LOCK_KEY_SPELL_LIKE_CPP,
-        LOOT_METHOD_GROUP_LIKE_CPP, LOOT_METHOD_MASTER_LIKE_CPP, LOOT_MODE_DEFAULT_LIKE_CPP,
-        LOOT_MODE_JUNK_FISH_LIKE_CPP, LOOT_SLOT_TYPE_ALLOW_LOOT_LIKE_CPP,
-        LOOT_SLOT_TYPE_ROLL_ONGOING_LIKE_CPP, LootItemClaimCommitContextLikeCpp,
-        LootStoreRandomProperties, ROLL_ALL_TYPE_NO_DISENCHANT_LIKE_CPP,
-        ROLL_FLAG_TYPE_NEED_LIKE_CPP, ROLL_VOTE_GREED_LIKE_CPP, ROLL_VOTE_NEED_LIKE_CPP,
-        ROLL_VOTE_NOT_EMITTED_YET_LIKE_CPP, ROLL_VOTE_NOT_VALID_LIKE_CPP, ROLL_VOTE_PASS_LIKE_CPP,
-        RepresentedLootPlayerContext, SPELL_EFFECT_OPEN_LOCK_LIKE_CPP,
-        StoredItemMoneyCommitReconciliationLikeCpp, StoredItemMoneyDbOutcomeLikeCpp,
-        SyncChestGameobjectStateAndRefreshLikeCppCommand,
+        LOOT_METHOD_GROUP_LIKE_CPP, LOOT_METHOD_MASTER_LIKE_CPP, LOOT_METHOD_ROUND_ROBIN_LIKE_CPP,
+        LOOT_MODE_DEFAULT_LIKE_CPP, LOOT_MODE_JUNK_FISH_LIKE_CPP,
+        LOOT_SLOT_TYPE_ALLOW_LOOT_LIKE_CPP, LOOT_SLOT_TYPE_ROLL_ONGOING_LIKE_CPP,
+        LootItemClaimCommitContextLikeCpp, LootStoreRandomProperties,
+        ROLL_ALL_TYPE_NO_DISENCHANT_LIKE_CPP, ROLL_FLAG_TYPE_NEED_LIKE_CPP,
+        ROLL_VOTE_GREED_LIKE_CPP, ROLL_VOTE_NEED_LIKE_CPP, ROLL_VOTE_NOT_EMITTED_YET_LIKE_CPP,
+        ROLL_VOTE_NOT_VALID_LIKE_CPP, ROLL_VOTE_PASS_LIKE_CPP, RepresentedLootPlayerContext,
+        SPELL_EFFECT_OPEN_LOCK_LIKE_CPP, StoredItemMoneyCommitReconciliationLikeCpp,
+        StoredItemMoneyDbOutcomeLikeCpp, SyncChestGameobjectStateAndRefreshLikeCppCommand,
         SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
         SyncGooberGameobjectStateAndRefreshLikeCppCommand,
         assign_represented_personal_loot_items_like_cpp,
         classify_stored_item_money_commit_reconciliation_like_cpp,
-        direct_item_count_after_loot_release_like_cpp,
+        creature_loot_is_allowed_to_player_like_cpp, direct_item_count_after_loot_release_like_cpp,
         generated_creature_loot_item_to_entry_like_cpp,
         generated_shared_gameobject_loot_item_to_entry_like_cpp, loot_is_looted_like_cpp,
         loot_item_context, loot_store_data_can_stack_with_item, loot_type_for_client_like_cpp,
         looted_corpse_decay_secs_like_cpp, mark_loot_allowed_for_player_like_cpp,
         mark_loot_item_looted_for_player_like_cpp,
         prepare_represented_shared_loot_generation_like_cpp,
+        queue_creature_loot_release_command_reliably_like_cpp,
         represented_gameobject_display_box_contains_like_cpp,
         represented_gameobject_interaction_distance_like_cpp,
         represented_loot_object_guid_like_cpp, represented_loot_response_items_like_cpp,
@@ -12873,7 +13211,7 @@ mod tests {
     use wow_ai::CreatureAI;
     use wow_constants::{
         InventoryResult, InventoryType, ItemBondingType, ItemClass, ItemContext, ItemFieldFlags,
-        ItemFlags2, ItemQuality, TypeId, TypeMask,
+        ItemFlags2, ItemQuality, TypeId, TypeMask, UnitDynFlags,
     };
     use wow_core::{ObjectGuid, ObjectGuidGenerator, Position, guid::HighGuid};
     use wow_data::quest::{
@@ -12920,7 +13258,9 @@ mod tests {
         LOOT_TYPE_PROSPECTING_LIKE_CPP, LOOT_TYPE_SKINNING_LIKE_CPP, LootEntry, LootEntryFlags,
         LootResponse, LootRoll, MasterLootItem, SetLootSpecialization,
     };
-    use wow_packet::packets::update::CreatureCreateData;
+    use wow_packet::packets::update::{
+        CreatureCreateData, ObjectDataValuesUpdate, UnitDataValuesDeltaUpdate,
+    };
     use wow_packet::{ServerPacket, WorldPacket};
 
     use crate::session::{
@@ -26108,6 +26448,151 @@ mod tests {
         assert!((55..=60).contains(&remaining.as_secs()));
     }
 
+    #[test]
+    fn creature_loot_release_dynamic_flags_are_viewer_dependent_like_cpp() {
+        let mut session = make_session();
+        let first_player = ObjectGuid::create_player(1, 61);
+        let second_player = ObjectGuid::create_player(1, 62);
+        let unrelated_player = ObjectGuid::create_player(1, 63);
+        let owner_guid = test_creature_guid(19_120);
+        let mut creature = make_canonical_creature_for_session(&session, owner_guid);
+
+        let mut consumed_pool = authoritative_test_loot_like_cpp(0, false);
+        consumed_pool.loot_guid = represented_loot_object_guid_like_cpp(owner_guid);
+        consumed_pool.allowed_looters = vec![first_player];
+        let mut live_pool = authoritative_test_loot_like_cpp(0, true);
+        live_pool.loot_guid = ObjectGuid::create_world_object(
+            HighGuid::LootObject,
+            0,
+            owner_guid.realm_id(),
+            owner_guid.map_id(),
+            0,
+            0,
+            owner_guid.counter() + 1,
+        );
+        live_pool.allowed_looters = vec![second_player];
+        live_pool.items[0].allowed_looters = vec![second_player];
+        assert!(
+            creature
+                .initialize_loot_authority_like_cpp(
+                    None,
+                    HashMap::from([(first_player, consumed_pool), (second_player, live_pool),]),
+                )
+                .installed()
+        );
+        let authority = creature.loot_authority_like_cpp().clone();
+        attach_canonical_creature(&mut session, creature);
+        register_test_creature_like_cpp(&mut session, test_creature(owner_guid, false));
+        session.set_player_guid(Some(first_player));
+
+        let update = UnitDataValuesDeltaUpdate {
+            object_data: Some(ObjectDataValuesUpdate {
+                changed_object_type_mask: 1,
+                object_data_mask: 1 << 2,
+                entry_id: 0,
+                dynamic_flags: UnitDynFlags::Lootable as u32,
+                scale: 1.0,
+            }),
+            ..UnitDataValuesDeltaUpdate::default()
+        };
+        let dynamic_flags_for = |viewer_guid| {
+            session
+                .creature_loot_release_values_for_viewer_like_cpp(
+                    owner_guid,
+                    viewer_guid,
+                    false,
+                    Some(&authority),
+                    update.clone(),
+                )
+                .object_data
+                .unwrap()
+                .dynamic_flags
+        };
+
+        assert_eq!(dynamic_flags_for(first_player), 0);
+        assert_eq!(
+            dynamic_flags_for(second_player),
+            UnitDynFlags::Lootable as u32,
+            "one exhausted personal pool must not hide another player's live loot"
+        );
+        assert_eq!(dynamic_flags_for(unrelated_player), 0);
+    }
+
+    #[test]
+    fn creature_loot_visibility_applies_full_cpp_allowed_to_loot_gate() {
+        let round_robin_owner = ObjectGuid::create_player(1, 64);
+        let other_player = ObjectGuid::create_player(1, 65);
+        let mut loot = authoritative_test_loot_like_cpp(0, true);
+        loot.loot_method = LOOT_METHOD_ROUND_ROBIN_LIKE_CPP;
+        loot.round_robin_player = round_robin_owner;
+        loot.allowed_looters = vec![round_robin_owner, other_player];
+        loot.items[0].allowed_looters = vec![round_robin_owner, other_player];
+        loot.items[0].flags.follow_loot_rules = true;
+
+        assert!(creature_loot_is_allowed_to_player_like_cpp(
+            true,
+            false,
+            &loot,
+            round_robin_owner,
+        ));
+        assert!(
+            !creature_loot_is_allowed_to_player_like_cpp(true, false, &loot, other_player),
+            "ordinary shared round-robin loot belongs only to the selected player"
+        );
+        assert!(
+            !creature_loot_is_allowed_to_player_like_cpp(false, false, &loot, round_robin_owner,),
+            "C++ rejects loot visibility for a living creature"
+        );
+        assert!(
+            !creature_loot_is_allowed_to_player_like_cpp(true, true, &loot, round_robin_owner,),
+            "C++ HasPendingBind suppresses loot visibility"
+        );
+
+        loot.items[0].flags.follow_loot_rules = false;
+        assert!(
+            creature_loot_is_allowed_to_player_like_cpp(true, false, &loot, other_player),
+            "quest/conditional/free-for-player loot remains visible outside round robin"
+        );
+    }
+
+    #[tokio::test]
+    async fn creature_loot_release_command_retries_without_blocking_source_like_cpp() {
+        let (command_tx, command_rx) = flume::bounded(1);
+        command_tx
+            .send(SessionCommand::RefreshVisibleGameobjectsOrSpellClicksLikeCpp)
+            .unwrap();
+        let creature_guid = test_creature_guid(19_121);
+        assert_eq!(
+            queue_creature_loot_release_command_reliably_like_cpp(
+                &command_tx,
+                SessionCommand::SendCreatureLootReleaseValuesUpdateLikeCpp(
+                    wow_network::SendCreatureLootReleaseValuesUpdateLikeCppCommand {
+                        creature_guid,
+                        map_id: 0,
+                        instance_id: 0,
+                        unit_values_update: UnitDataValuesDeltaUpdate::default(),
+                        authority: None,
+                    },
+                ),
+            ),
+            CreatureLootReleaseCommandQueueOutcomeLikeCpp::Retrying,
+            "a full peer queue must schedule retry without blocking this session"
+        );
+        assert!(matches!(
+            command_rx.recv().unwrap(),
+            SessionCommand::RefreshVisibleGameobjectsOrSpellClicksLikeCpp
+        ));
+        let queued = tokio::time::timeout(Duration::from_secs(1), command_rx.recv_async())
+            .await
+            .expect("detached retry should enqueue after capacity opens")
+            .unwrap();
+        assert!(matches!(
+            queued,
+            SessionCommand::SendCreatureLootReleaseValuesUpdateLikeCpp(command)
+                if command.creature_guid == creature_guid
+        ));
+    }
+
     #[tokio::test]
     async fn creature_owned_loot_release_does_not_extend_expired_corpse_like_cpp() {
         let (mut session, send_rx) = make_session_with_send();
@@ -26171,13 +26656,14 @@ mod tests {
 
     #[tokio::test]
     async fn creature_owned_loot_release_fully_consumed_removes_lootable_dynflag_like_cpp() {
-        let (mut session, send_rx) = make_session_with_send();
+        let (mut session, send_rx) = make_session_with_send_capacity(4);
         let player_guid = ObjectGuid::create_player(1, 42);
         let loot_guid = test_creature_guid(19_116);
         let creature = make_canonical_creature_for_session(&session, loot_guid);
         attach_canonical_creature(&mut session, creature);
         session.set_player_guid(Some(player_guid));
         session.set_active_loot_guid(loot_guid);
+        session.client_visible_guids_like_cpp.insert(loot_guid);
         register_test_creature_like_cpp(&mut session, test_creature(loot_guid, false));
         let _ = session.mutate_world_creature(loot_guid, |creature| {
             creature.apply_corpse_loot_flags_after_death_state_like_cpp(true, false);
@@ -26211,7 +26697,14 @@ mod tests {
             .handle_loot_release(loot_release_packet(loot_guid))
             .await;
 
-        assert!(send_rx.try_recv().is_ok());
+        assert_eq!(
+            drain_server_opcodes_like_cpp(&send_rx),
+            vec![
+                wow_constants::ServerOpcodes::LootRelease as u16,
+                wow_constants::ServerOpcodes::UpdateObject as u16,
+            ],
+            "C++ ForceUpdateFieldChange must become a visible VALUES update so the client removes the loot cursor"
+        );
         assert!(
             !session
                 .mutate_world_creature(loot_guid, |creature| creature

@@ -44,8 +44,8 @@ pub use player_registry::{
     LootRollVoteCommand, MasterLootGiveCommand, MasterLootGiveResult,
     NotifyLootMoneyRemovedLikeCppCommand, PlayerBroadcastInfo, PlayerRegistry,
     RefreshVisibleWorldCreaturesLikeCppCommand, ResetSeasonalQuestStatusCommand,
-    SendAddonIfRegisteredLikeCppCommand, SendIfVisibleLikeCppCommand,
-    SendPartyUpdateLikeCppCommand, SendRealmPacketLikeCppCommand,
+    SendAddonIfRegisteredLikeCppCommand, SendCreatureLootReleaseValuesUpdateLikeCppCommand,
+    SendIfVisibleLikeCppCommand, SendPartyUpdateLikeCppCommand, SendRealmPacketLikeCppCommand,
     SendVisibleObjectValuesUpdateCommand, SessionCommand, WorldSessionShutdownFlushLikeCppCommand,
     WorldSessionShutdownFlushResultLikeCpp,
 };

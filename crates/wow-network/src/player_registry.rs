@@ -37,6 +37,7 @@ pub enum SessionCommand {
     ResetSeasonalQuestStatus(ResetSeasonalQuestStatusCommand),
     SendVisibleObjectValuesUpdate(SendVisibleObjectValuesUpdateCommand),
     RefreshVisibleWorldCreaturesLikeCpp(RefreshVisibleWorldCreaturesLikeCppCommand),
+    SendCreatureLootReleaseValuesUpdateLikeCpp(SendCreatureLootReleaseValuesUpdateLikeCppCommand),
     RefreshVisibleGameobjectsOrSpellClicksLikeCpp,
     SyncGatheringNodeGameobjectStateAndRefreshLikeCpp(
         SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
@@ -242,6 +243,20 @@ pub struct SendIfVisibleLikeCppCommand {
     pub instance_id: u32,
     /// Already-serialised wire payload ready to write to the socket.
     pub packet_bytes: Vec<u8>,
+}
+
+/// Carries C++ `WorldSession::DoLootRelease`'s forced creature DynamicFlags
+/// update to the receiving session. The receiver must apply its own
+/// `Player::isAllowedToLoot` view before serialising the VALUES packet; the
+/// source session cannot safely predict session-local state such as a pending
+/// instance bind.
+#[derive(Clone, Debug)]
+pub struct SendCreatureLootReleaseValuesUpdateLikeCppCommand {
+    pub creature_guid: ObjectGuid,
+    pub map_id: u16,
+    pub instance_id: u32,
+    pub unit_values_update: wow_packet::packets::update::UnitDataValuesDeltaUpdate,
+    pub authority: Option<OwnedLootAuthority>,
 }
 
 /// Payload for [`SessionCommand::SendAddonIfRegisteredLikeCpp`].
