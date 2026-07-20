@@ -879,6 +879,37 @@ async fn send_realm_packet_to_player_like_cpp(
     }
 }
 
+/// Queue the actual invite dialog without treating bounded-channel pressure as
+/// an offline player.
+///
+/// C++ `HandlePartyInviteOpcode` stores the `GroupInvite` and then calls
+/// `invitedPlayer->SendDirectMessage`; it does not turn a busy socket queue into
+/// `ERR_BAD_PLAYER_NAME_S`. Rust therefore waits until the owning session drains
+/// capacity or disconnects. Other existing group notifications keep their
+/// finite timeout in [`send_realm_packet_to_player_like_cpp`]; this stronger
+/// delivery rule is intentionally scoped to the invite state transition.
+async fn send_realm_party_invite_to_player_like_cpp(
+    recipient: ObjectGuid,
+    command_tx: &flume::Sender<SessionCommand>,
+    packet_bytes: Vec<u8>,
+) -> bool {
+    let command = SessionCommand::SendRealmPacketLikeCpp(SendRealmPacketLikeCppCommand {
+        recipient,
+        packet_bytes,
+    });
+    match command_tx.send_async(command).await {
+        Ok(()) => {
+            #[cfg(test)]
+            tokio::task::yield_now().await;
+            true
+        }
+        Err(error) => {
+            warn!(recipient = %recipient, %error, "realm-routed party invite channel closed");
+            false
+        }
+    }
+}
+
 fn role_changed_inform_like_cpp(
     party_index: u8,
     from: ObjectGuid,
@@ -1347,7 +1378,7 @@ impl WorldSession {
             realm_name,
             realm_name_normalized,
         };
-        if !send_realm_packet_to_player_like_cpp(
+        if !send_realm_party_invite_to_player_like_cpp(
             real_target_guid,
             &target_snapshot.command_tx,
             invite_packet.to_bytes(),
@@ -3268,7 +3299,8 @@ impl WorldSession {
 #[cfg(test)]
 mod tests {
     use super::{
-        SOCIAL_FLAG_FRIEND_LIKE_CPP, SOCIAL_FLAG_IGNORED_LIKE_CPP, current_group_guid_like_cpp,
+        PARTY_REALM_COMMAND_TIMEOUT_LIKE_CPP, SOCIAL_FLAG_FRIEND_LIKE_CPP,
+        SOCIAL_FLAG_IGNORED_LIKE_CPP, current_group_guid_like_cpp,
         first_connected_group_member_like_cpp, group_delete_statement_like_cpp,
         group_insert_statement_like_cpp, group_leader_update_statement_like_cpp,
         group_lfg_data_delete_statement_like_cpp, group_member_delete_all_statement_like_cpp,
@@ -3289,7 +3321,7 @@ mod tests {
     use wow_network::{
         GroupInfo, GroupMemberCharacterLikeCpp, GroupRegistry, PendingInviteLikeCpp,
         PendingInvites, PlayerBroadcastInfo, PlayerRegistry, ReadyCheckEventLikeCpp,
-        SessionCommand,
+        SendRealmPacketLikeCppCommand, SessionCommand,
     };
     use wow_packet::{ServerPacket, WorldPacket, packets::party::party_result};
 
@@ -4212,7 +4244,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn party_invite_queue_timeout_rolls_back_pending_and_never_reports_ok_like_cpp() {
+    async fn party_invite_waits_through_command_backpressure_like_cpp() {
         let (mut session, send_rx) = make_session_with_send();
         let inviter = ObjectGuid::create_player(1, 42);
         let target = ObjectGuid::create_player(1, 77);
@@ -4222,10 +4254,87 @@ mod tests {
 
         let player_registry = Arc::new(PlayerRegistry::default());
         let (target_send_tx, target_send_rx) = bounded(8);
-        // Keep the zero-capacity receiver alive without polling it. The
-        // production helper must time out rather than drop the command or use
-        // the target's primary/INSTANCE sender.
-        let (target_command_tx, _target_command_rx) = bounded(0);
+        let (target_command_tx, target_command_rx) = bounded(1);
+        target_command_tx
+            .try_send(SessionCommand::SendRealmPacketLikeCpp(
+                SendRealmPacketLikeCppCommand {
+                    recipient: target,
+                    packet_bytes: vec![0xAA],
+                },
+            ))
+            .expect("fill target command queue");
+        player_registry.insert(
+            target,
+            broadcast_info_with_command_tx(target, target_send_tx, target_command_tx.clone()),
+        );
+        let pending = Arc::new(PendingInvites::default());
+        session.set_player_registry(player_registry);
+        session.set_group_registry(Arc::new(GroupRegistry::default()), Arc::clone(&pending));
+
+        let invite =
+            session.handle_party_invite(party_invite_packet(target, &target_name, None, 0));
+        tokio::pin!(invite);
+
+        assert!(
+            tokio::time::timeout(
+                PARTY_REALM_COMMAND_TIMEOUT_LIKE_CPP + Duration::from_millis(50),
+                &mut invite,
+            )
+            .await
+            .is_err(),
+            "temporary command backpressure must not be converted into a failed invite"
+        );
+        assert!(pending.get(&target).is_some());
+        assert!(pending.get(&inviter).is_some());
+        assert!(send_rx.try_recv().is_err());
+        assert!(target_send_rx.try_recv().is_err());
+
+        let SessionCommand::SendRealmPacketLikeCpp(blocker) = target_command_rx
+            .try_recv()
+            .expect("release target command capacity")
+        else {
+            panic!("expected command queue blocker");
+        };
+        assert_eq!(blocker.packet_bytes, vec![0xAA]);
+
+        tokio::time::timeout(Duration::from_secs(1), &mut invite)
+            .await
+            .expect("invite resumes when the target command queue drains");
+
+        let SessionCommand::SendRealmPacketLikeCpp(command) = target_command_rx
+            .try_recv()
+            .expect("queued party invite after backpressure")
+        else {
+            panic!("expected remote realm packet command");
+        };
+        assert_eq!(command.recipient, target);
+        assert_eq!(
+            u16::from_le_bytes([command.packet_bytes[0], command.packet_bytes[1]]),
+            ServerOpcodes::PartyInvite as u16
+        );
+
+        assert_eq!(
+            party_command_result_code(&send_rx.try_recv().expect("successful invite result")),
+            party_result::OK
+        );
+        assert!(pending.get(&target).is_some());
+        assert!(pending.get(&inviter).is_some());
+        assert!(target_send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn party_invite_closed_command_channel_rolls_back_pending_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let inviter = ObjectGuid::create_player(1, 42);
+        let target = ObjectGuid::create_player(1, 77);
+        let target_name = format!("Player{}", target.low_value());
+        session.set_player_guid(Some(inviter));
+        session.set_loaded_player_name_like_cpp("Leader".to_string());
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (target_send_tx, target_send_rx) = bounded(8);
+        let (target_command_tx, target_command_rx) = bounded(1);
+        drop(target_command_rx);
         player_registry.insert(
             target,
             broadcast_info_with_command_tx(target, target_send_tx, target_command_tx),

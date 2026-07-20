@@ -1215,6 +1215,11 @@ pub enum CharStatements {
     DEL_INVALID_MAIL_ITEM_GUIDS,
     DEL_INVALID_AUCTION_ITEM_GUIDS,
     DEL_INVALID_GUILD_BANK_ITEM_GUIDS,
+    /// Rust safety extension to C++ `ObjectMgr::SetHighestGuids`: stored loot
+    /// has no foreign key to `item_instance`, so orphan rows at or above the
+    /// next allocator value must not be inherited by a reused item GUID.
+    DEL_INVALID_ITEM_LOOT_ITEMS_GUIDS,
+    DEL_INVALID_ITEM_LOOT_MONEY_GUIDS,
 
     /// INSERT INTO item_instance (guid, itemEntry, owner_guid, count, durability, enchantments, charges)
     /// VALUES (?, ?, ?, ?, ?, '', '')
@@ -2819,6 +2824,12 @@ impl StatementDef for CharStatements {
             }
             Self::DEL_INVALID_GUILD_BANK_ITEM_GUIDS => {
                 "DELETE FROM guild_bank_item WHERE item_guid >= ?"
+            }
+            Self::DEL_INVALID_ITEM_LOOT_ITEMS_GUIDS => {
+                "DELETE FROM item_loot_items WHERE container_id >= ?"
+            }
+            Self::DEL_INVALID_ITEM_LOOT_MONEY_GUIDS => {
+                "DELETE FROM item_loot_money WHERE container_id >= ?"
             }
             Self::INS_ITEM_INSTANCE => {
                 "INSERT INTO item_instance \
@@ -6234,6 +6245,20 @@ mod tests {
         );
         assert_eq!(
             CharStatements::DEL_ITEMCONTAINER_MONEY
+                .sql()
+                .matches('?')
+                .count(),
+            1
+        );
+        assert_eq!(
+            CharStatements::DEL_INVALID_ITEM_LOOT_MONEY_GUIDS
+                .sql()
+                .matches('?')
+                .count(),
+            1
+        );
+        assert_eq!(
+            CharStatements::DEL_INVALID_ITEM_LOOT_ITEMS_GUIDS
                 .sql()
                 .matches('?')
                 .count(),

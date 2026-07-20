@@ -98,11 +98,17 @@ fn next_item_guid_allocator_start_like_cpp(max_persisted_guid: Option<u64>) -> R
     Ok(next)
 }
 
-const ITEM_GUID_DANGLING_REFERENCE_CLEANUP_STATEMENTS_LIKE_CPP: [CharStatements; 4] = [
+// The first four statements mirror C++ `ObjectMgr::SetHighestGuids`. C++ does
+// not clean orphaned stored-loot rows, but Rust loads those rows by item GUID on
+// demand; clean them before publishing the allocator so a future item cannot
+// inherit loot left behind by a deleted container.
+const ITEM_GUID_DANGLING_REFERENCE_CLEANUP_STATEMENTS_LIKE_CPP: [CharStatements; 6] = [
     CharStatements::DEL_INVALID_CHAR_INVENTORY_ITEM_GUIDS,
     CharStatements::DEL_INVALID_MAIL_ITEM_GUIDS,
     CharStatements::DEL_INVALID_AUCTION_ITEM_GUIDS,
     CharStatements::DEL_INVALID_GUILD_BANK_ITEM_GUIDS,
+    CharStatements::DEL_INVALID_ITEM_LOOT_ITEMS_GUIDS,
+    CharStatements::DEL_INVALID_ITEM_LOOT_MONEY_GUIDS,
 ];
 
 fn item_guid_reference_cleanup_transaction_like_cpp(
@@ -14497,14 +14503,22 @@ mod tests {
     }
 
     #[test]
-    fn item_guid_allocator_cleans_every_cpp_dangling_reference_table_before_publication() {
+    fn item_guid_allocator_cleans_every_dangling_reference_before_publication() {
         let sql = ITEM_GUID_DANGLING_REFERENCE_CLEANUP_STATEMENTS_LIKE_CPP
             .map(|statement| statement.sql());
-        assert_eq!(sql.len(), 4);
+        assert_eq!(sql.len(), 6);
         assert!(sql[0].contains("character_inventory"));
         assert!(sql[1].contains("mail_items"));
         assert!(sql[2].contains("auctionhouse"));
         assert!(sql[3].contains("guild_bank_item"));
+        assert_eq!(
+            sql[4],
+            "DELETE FROM item_loot_items WHERE container_id >= ?"
+        );
+        assert_eq!(
+            sql[5],
+            "DELETE FROM item_loot_money WHERE container_id >= ?"
+        );
         for statement in sql {
             assert!(statement.contains(">= ?"));
         }
