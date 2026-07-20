@@ -11,6 +11,10 @@ use wow_constants::{
     UnitPvpFlags, UnitStandStateType, UnitState, WeaponAttackType, movement::MovementFlag,
 };
 use wow_core::{ObjectGuid, Position};
+use wow_loot::{
+    CreatureLoot, LootInstallOutcome, OwnedLootAuthority, OwnedLootAuthorityStamp,
+    OwnedLootSnapshot,
+};
 
 use crate::{
     BASE_MAXDAMAGE, BASE_MINDAMAGE, MoveFallPlan, MovementGeneratorKind,
@@ -274,6 +278,10 @@ pub struct CreatureTemplateLifecycleRecord {
     pub static_flags: [u32; 8],
     pub creature_type: u32,
     pub type_flags: u32,
+    pub loot_id: u32,
+    pub skin_loot_id: u32,
+    pub gold_min: u32,
+    pub gold_max: u32,
     pub movement_type: MovementGeneratorType,
     pub ground_movement_type: u8,
     pub swim_allowed: bool,
@@ -870,6 +878,10 @@ impl CreatureOwnedLoot {
     }
 }
 
+fn creature_owned_loot_from_snapshot(snapshot: &OwnedLootSnapshot) -> CreatureOwnedLoot {
+    CreatureOwnedLoot::new(snapshot.loot.coins, u32::from(snapshot.loot.unlooted_count))
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Creature {
     unit: Unit,
@@ -926,6 +938,13 @@ pub struct Creature {
     attack_reputation_faction_id: Option<u32>,
     is_contested_guard_faction: bool,
     spell_focus: CreatureSpellFocusStateLikeCpp,
+    /// Monotonic identity for the creature loot-producing lifetime. Async
+    /// `Unit::Kill` generation captures this value and may install its pools
+    /// only while the same death lifetime is still current. Corpse removal
+    /// and respawn advance it, preventing an old generator from winning an
+    /// ABA race against a later incarnation of the same spawn GUID.
+    loot_lifecycle_revision: u64,
+    loot_authority: OwnedLootAuthority,
     shared_loot: Option<CreatureOwnedLoot>,
     personal_loot: HashMap<ObjectGuid, CreatureOwnedLoot>,
 }
@@ -995,6 +1014,8 @@ impl Creature {
             attack_reputation_faction_id: None,
             is_contested_guard_faction: false,
             spell_focus: CreatureSpellFocusStateLikeCpp::default(),
+            loot_lifecycle_revision: 0,
+            loot_authority: OwnedLootAuthority::new(),
             shared_loot: None,
             personal_loot: HashMap::new(),
         }
@@ -1156,6 +1177,15 @@ impl Creature {
         self.ai_ownership.unit_flags3 = template.unit_flags3;
         self.ai_ownership.min_damage = record.stats.min_damage.max(0.0) as u32;
         self.ai_ownership.max_damage = record.stats.max_damage.max(0.0) as u32;
+        // C++ `Creature::GetLootId` first honors an object-local `m_lootId` override and then
+        // reads the selected `CreatureDifficulty::LootID`; death/skinning generation reads
+        // GoldMin/GoldMax/SkinLootID from that same difficulty (`Creature.cpp:1317-1323`,
+        // `Unit.cpp:10545-10575,10675`). Keep those values on the runtime creature instead of
+        // falling back to `CreatureAiOwnershipState`'s zero defaults.
+        self.ai_ownership.loot_id = template.loot_id;
+        self.ai_ownership.skin_loot_id = template.skin_loot_id;
+        self.ai_ownership.gold_min = template.gold_min;
+        self.ai_ownership.gold_max = template.gold_max;
         self.unit
             .set_npc_flags_like_cpp(self.ai_ownership.npc_flags);
         self.unit
@@ -1805,6 +1835,12 @@ impl Creature {
     }
 
     pub fn reset_ai_combat(&mut self, now_ms: u64) {
+        if self.ai_ownership.state == CreatureAiState::Dead
+            || self.unit.is_dead()
+            || self.unit.data().health == 0
+        {
+            self.advance_loot_lifecycle_revision_like_cpp();
+        }
         self.ai_ownership.state = CreatureAiState::Returning;
         self.ai_ownership.combat_target = None;
         self.ai_ownership.move_target = Some(self.ai_ownership.home_position);
@@ -1878,6 +1914,7 @@ impl Creature {
                 game_time_secs.saturating_add(MAX_AGGRO_RESET_TIME_SECS_LIKE_CPP);
         }
         if remaining == 0 {
+            self.advance_loot_lifecycle_revision_like_cpp();
             self.ai_ownership.state = CreatureAiState::Dead;
             self.ai_ownership.combat_target = None;
             self.ai_ownership.move_target = None;
@@ -1895,6 +1932,9 @@ impl Creature {
     }
 
     pub fn mark_ai_dead_at_game_time_like_cpp(&mut self, now_ms: u64, game_time_secs: i64) {
+        if self.ai_ownership.state != CreatureAiState::Dead {
+            self.advance_loot_lifecycle_revision_like_cpp();
+        }
         self.ai_ownership.state = CreatureAiState::Dead;
         self.ai_ownership.combat_target = None;
         self.ai_ownership.move_target = None;
@@ -2788,6 +2828,17 @@ impl Creature {
         &self.runtime_state
     }
 
+    pub const fn loot_lifecycle_revision_like_cpp(&self) -> u64 {
+        self.loot_lifecycle_revision
+    }
+
+    fn advance_loot_lifecycle_revision_like_cpp(&mut self) -> u64 {
+        // Never wrap to an earlier lifetime: even an unreachable counter
+        // exhaustion must remain fail-closed for async generation tokens.
+        self.loot_lifecycle_revision = self.loot_lifecycle_revision.saturating_add(1).max(1);
+        self.loot_lifecycle_revision
+    }
+
     pub fn runtime_state_mut(&mut self) -> &mut CreatureRuntimeState {
         &mut self.runtime_state
     }
@@ -2798,6 +2849,128 @@ impl Creature {
 
     pub fn has_loot_recipient(&self) -> bool {
         self.runtime_state.has_loot_recipient
+    }
+
+    pub const fn loot_authority_like_cpp(&self) -> &OwnedLootAuthority {
+        &self.loot_authority
+    }
+
+    /// Bind this runtime mirror to the same C++ `Creature::loot` authority as
+    /// another coexisting map model.
+    pub fn rebind_loot_authority_like_cpp(&mut self, authority: OwnedLootAuthority) -> bool {
+        if self.loot_authority.shares_storage_like_cpp(&authority) {
+            self.sync_loot_summaries_from_authority_like_cpp();
+            return false;
+        }
+
+        // Invalidate leases retained against a displaced mirror before the
+        // replacement authority can serve another claim for the same C++
+        // object.
+        self.loot_authority.detach_like_cpp();
+        self.loot_authority = authority;
+        self.sync_loot_summaries_from_authority_like_cpp();
+        true
+    }
+
+    /// Rebinds only if this mirror still owns the authority observed by the
+    /// caller. This is the object-local compare/exchange boundary used when
+    /// the legacy and canonical map models are reconciled without holding
+    /// both map locks at once.
+    pub fn rebind_loot_authority_if_current_like_cpp(
+        &mut self,
+        expected: &OwnedLootAuthority,
+        expected_stamp: OwnedLootAuthorityStamp,
+        authority: OwnedLootAuthority,
+    ) -> Option<bool> {
+        if !self.loot_authority.shares_storage_like_cpp(expected) {
+            return None;
+        }
+
+        if self.loot_authority.stamp_like_cpp() != expected_stamp {
+            return None;
+        }
+
+        if self.loot_authority.shares_storage_like_cpp(&authority) {
+            self.sync_loot_summaries_from_authority_like_cpp();
+            return Some(false);
+        }
+
+        if !self.loot_authority.detach_if_stamp_like_cpp(expected_stamp) {
+            return None;
+        }
+
+        self.loot_authority = authority;
+        self.sync_loot_summaries_from_authority_like_cpp();
+        Some(true)
+    }
+
+    /// Assigns authority identity to a temporary whole-entity snapshot.
+    ///
+    /// The snapshot may share its old `Arc` with a live legacy entity, so it
+    /// must not detach that allocation. Only the later CAS against the actual
+    /// owning entity is allowed to invalidate a displaced authority.
+    pub fn adopt_loot_authority_for_snapshot_like_cpp(&mut self, authority: OwnedLootAuthority) {
+        self.loot_authority = authority;
+        self.sync_loot_summaries_from_authority_like_cpp();
+    }
+
+    pub fn share_loot_authority_like_cpp(&mut self, authority: OwnedLootAuthority) {
+        self.rebind_loot_authority_like_cpp(authority);
+    }
+
+    pub fn initialize_loot_authority_like_cpp(
+        &mut self,
+        shared: Option<CreatureLoot>,
+        personal: HashMap<ObjectGuid, CreatureLoot>,
+    ) -> LootInstallOutcome {
+        let outcome = self.loot_authority.initialize_like_cpp(shared, personal);
+        self.sync_loot_summaries_from_authority_like_cpp();
+        outcome
+    }
+
+    pub fn initialize_shared_loot_authority_like_cpp(
+        &mut self,
+        loot: CreatureLoot,
+    ) -> LootInstallOutcome {
+        let outcome = self.loot_authority.initialize_shared_like_cpp(loot);
+        self.sync_loot_summaries_from_authority_like_cpp();
+        outcome
+    }
+
+    pub fn upsert_personal_loot_authority_like_cpp(
+        &mut self,
+        player: ObjectGuid,
+        loot: CreatureLoot,
+        replace: bool,
+    ) -> LootInstallOutcome {
+        let outcome = self
+            .loot_authority
+            .upsert_personal_like_cpp(player, loot, replace);
+        self.sync_loot_summaries_from_authority_like_cpp();
+        outcome
+    }
+
+    pub fn replace_loot_authority_like_cpp(
+        &mut self,
+        shared: Option<CreatureLoot>,
+        personal: HashMap<ObjectGuid, CreatureLoot>,
+    ) -> u64 {
+        let generation = self.loot_authority.replace_like_cpp(shared, personal);
+        self.sync_loot_summaries_from_authority_like_cpp();
+        generation
+    }
+
+    pub fn sync_loot_summaries_from_authority_like_cpp(&mut self) {
+        self.shared_loot = self
+            .loot_authority
+            .shared_snapshot_like_cpp()
+            .map(|snapshot| creature_owned_loot_from_snapshot(&snapshot));
+        self.personal_loot = self
+            .loot_authority
+            .personal_snapshots_like_cpp()
+            .into_iter()
+            .map(|(player, snapshot)| (player, creature_owned_loot_from_snapshot(&snapshot)))
+            .collect();
     }
 
     pub const fn shared_loot_like_cpp(&self) -> Option<&CreatureOwnedLoot> {
@@ -2837,11 +3010,17 @@ impl Creature {
     }
 
     pub fn clear_loot_like_cpp(&mut self) {
+        self.advance_loot_lifecycle_revision_like_cpp();
+        self.loot_authority.retire_like_cpp();
         self.shared_loot = None;
         self.personal_loot.clear();
     }
 
     pub fn is_fully_looted_like_cpp(&self) -> bool {
+        if !self.loot_authority.is_pristine_like_cpp() {
+            return self.loot_authority.is_fully_looted_like_cpp();
+        }
+
         if self
             .shared_loot
             .as_ref()
@@ -2947,6 +3126,9 @@ impl Creature {
 
         match state {
             DeathState::JustDied => {
+                if self.ai_ownership.state != CreatureAiState::Dead {
+                    self.advance_loot_lifecycle_revision_like_cpp();
+                }
                 let needs_falling = death_fall.filter(|context| {
                     (self.is_flying_like_cpp() || self.is_hovering_like_cpp())
                         && !context.is_underwater
@@ -3046,6 +3228,7 @@ impl Creature {
                 self.unit.set_death_state(DeathState::Corpse);
             }
             DeathState::JustRespawned => {
+                self.advance_loot_lifecycle_revision_like_cpp();
                 let motion_initialize_outcome = self.aim_initialize_like_cpp();
                 let is_pet = self.unit.world().object().guid().is_pet();
                 if is_pet {
@@ -3203,6 +3386,11 @@ impl Creature {
             return plan;
         }
 
+        // C++ drops the corpse's object-owned Loot during removal (directly
+        // in compatibility mode and via object destruction otherwise). Rust
+        // leases can outlive the map reference, so retire it at the lifecycle
+        // boundary before an in-flight async claim can commit.
+        self.clear_loot_like_cpp();
         self.runtime_state.remove_corpse_requested = true;
         self.runtime_state.corpse_removed_count =
             self.runtime_state.corpse_removed_count.saturating_add(1);
@@ -3543,6 +3731,44 @@ mod tests {
             follow_angle_radians: 1.25,
             group_ai: 3,
             leader_waypoint_ids: [11, 12],
+        }
+    }
+
+    fn owned_loot_fixture_like_cpp(
+        coins: u32,
+        unlooted_count: u8,
+        allowed_looters: Vec<ObjectGuid>,
+    ) -> CreatureLoot {
+        CreatureLoot {
+            loot_guid: ObjectGuid::EMPTY,
+            coins,
+            unlooted_count,
+            loot_type: 1,
+            dungeon_encounter_id: 0,
+            loot_method: 0,
+            loot_master: ObjectGuid::EMPTY,
+            round_robin_player: ObjectGuid::EMPTY,
+            player_ffa_items: Vec::new(),
+            players_looting: Vec::new(),
+            allowed_looters,
+            items: Vec::new(),
+            looted_by_player: false,
+        }
+    }
+
+    fn poll_immediately_ready<F: std::future::Future>(future: F) -> F::Output {
+        struct NoopWake;
+
+        impl std::task::Wake for NoopWake {
+            fn wake(self: std::sync::Arc<Self>) {}
+        }
+
+        let waker = std::task::Waker::from(std::sync::Arc::new(NoopWake));
+        let mut context = std::task::Context::from_waker(&waker);
+        let mut future = std::pin::pin!(future);
+        match future.as_mut().poll(&mut context) {
+            std::task::Poll::Ready(output) => output,
+            std::task::Poll::Pending => panic!("expected the uncontended claim to be ready"),
         }
     }
 
@@ -4490,6 +4716,10 @@ mod tests {
             static_flags: [0; 8],
             creature_type: 9,
             type_flags: 0x20,
+            loot_id: 7_001,
+            skin_loot_id: 7_002,
+            gold_min: 17,
+            gold_max: 29,
             movement_type: MovementGeneratorType::Idle,
             ground_movement_type: CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
@@ -5896,6 +6126,109 @@ mod tests {
     }
 
     #[test]
+    fn creature_owns_full_loot_authority_and_clear_retires_it() {
+        let mut creature = Creature::new(false);
+        let full_loot = CreatureLoot {
+            loot_guid: ObjectGuid::EMPTY,
+            coins: 17,
+            unlooted_count: 2,
+            loot_type: 1,
+            dungeon_encounter_id: 0,
+            loot_method: 0,
+            loot_master: ObjectGuid::EMPTY,
+            round_robin_player: ObjectGuid::EMPTY,
+            player_ffa_items: Vec::new(),
+            players_looting: Vec::new(),
+            allowed_looters: Vec::new(),
+            items: Vec::new(),
+            looted_by_player: false,
+        };
+        creature.initialize_shared_loot_authority_like_cpp(full_loot);
+
+        assert_eq!(
+            creature.shared_loot_like_cpp(),
+            Some(&CreatureOwnedLoot::new(17, 2))
+        );
+        assert!(!creature.loot_authority_like_cpp().is_retired_like_cpp());
+        creature.clear_loot_like_cpp();
+        assert!(creature.loot_authority_like_cpp().is_retired_like_cpp());
+        assert!(
+            creature
+                .loot_authority_like_cpp()
+                .shared_snapshot_like_cpp()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn creature_rebind_retires_displaced_authority_and_its_lease() {
+        let player = ObjectGuid::create_player(1, 77);
+        let displaced = OwnedLootAuthority::new();
+        displaced.replace_like_cpp(
+            Some(owned_loot_fixture_like_cpp(17, 0, vec![player])),
+            HashMap::new(),
+        );
+        let mut creature = Creature::new(false);
+        assert!(creature.rebind_loot_authority_like_cpp(displaced.clone()));
+        let lease = poll_immediately_ready(displaced.reserve_money_like_cpp(player))
+            .expect("the allowed player reserves the displaced authority");
+
+        let replacement = OwnedLootAuthority::new();
+        replacement.replace_like_cpp(
+            Some(owned_loot_fixture_like_cpp(23, 0, vec![player])),
+            HashMap::new(),
+        );
+        assert!(creature.rebind_loot_authority_like_cpp(replacement.clone()));
+
+        assert!(displaced.is_retired_like_cpp());
+        assert!(
+            creature
+                .loot_authority_like_cpp()
+                .shares_storage_like_cpp(&replacement)
+        );
+        assert_eq!(
+            lease.commit_like_cpp(),
+            Err(wow_loot::LootClaimCommitError::StaleGeneration),
+            "a lease against the displaced Arc must not commit after rebind"
+        );
+        assert_eq!(
+            replacement.shared_snapshot_like_cpp().unwrap().loot.coins,
+            23
+        );
+    }
+
+    #[test]
+    fn creature_fully_looted_reads_active_authority_without_summary_refresh() {
+        let authority = OwnedLootAuthority::new();
+        authority.replace_like_cpp(
+            Some(owned_loot_fixture_like_cpp(17, 0, Vec::new())),
+            HashMap::new(),
+        );
+        let mut creature = Creature::new(false);
+        creature.rebind_loot_authority_like_cpp(authority.clone());
+        assert_eq!(
+            creature.shared_loot_like_cpp(),
+            Some(&CreatureOwnedLoot::new(17, 0))
+        );
+        assert!(!creature.is_fully_looted_like_cpp());
+
+        authority.replace_like_cpp(
+            Some(owned_loot_fixture_like_cpp(0, 0, Vec::new())),
+            HashMap::new(),
+        );
+
+        assert_eq!(
+            creature.shared_loot_like_cpp(),
+            Some(&CreatureOwnedLoot::new(17, 0)),
+            "the compatibility summary remains deliberately stale"
+        );
+        assert!(
+            creature.is_fully_looted_like_cpp(),
+            "lifecycle decisions must read the active object-owned authority"
+        );
+    }
+
+    #[test]
     fn creature_is_fully_looted_checks_shared_and_personal_loot_like_cpp() {
         let looted_player = ObjectGuid::create_player(1, 7);
         let unlooted_player = ObjectGuid::create_player(1, 8);
@@ -6165,6 +6498,23 @@ mod tests {
         assert!(non_compat.runtime_state().object_remove_requested);
         assert!(non_compat_plan.contains(CreatureRuntimeAction::SaveRespawnTime));
         assert!(non_compat_plan.contains(CreatureRuntimeAction::RequestObjectRemove));
+    }
+
+    #[test]
+    fn creature_corpse_removal_retires_arc_held_loot_authority() {
+        let mut creature = Creature::new(false);
+        creature.replace_loot_authority_like_cpp(None, HashMap::new());
+        let authority = creature.loot_authority_like_cpp().clone();
+        creature.unit_mut().set_death_state(DeathState::Corpse);
+        assert!(!authority.is_retired_like_cpp());
+
+        let plan = creature.remove_corpse_runtime(20_000, true, false);
+
+        assert!(plan.contains(CreatureRuntimeAction::RemoveLoot));
+        assert!(
+            authority.is_retired_like_cpp(),
+            "corpse removal must invalidate claims that outlive the map object"
+        );
     }
 
     #[test]

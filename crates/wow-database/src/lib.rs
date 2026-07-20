@@ -65,7 +65,10 @@ pub use statements::{
     CharStatements, HOTFIX_STATEMENT_STRATEGY_LIKE_CPP, HotfixStatementStrategyLikeCpp,
     HotfixStatements, LoginStatements, StatementDef, WorldStatements,
 };
-pub use transaction::SqlTransaction;
+pub use transaction::{
+    ItemGuidAllocatorAdvisoryLockLikeCpp, SqlTransaction, SqlTransactionCommitError,
+    is_database_deadlock_like_cpp, retry_deadlocked_operation_like_cpp,
+};
 
 /// Type aliases for each database connection.
 pub type LoginDatabase = Database<LoginStatements>;

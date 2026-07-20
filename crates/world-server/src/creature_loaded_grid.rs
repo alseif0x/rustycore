@@ -74,6 +74,10 @@ pub struct ResolvedCreatureTemplateLikeCpp {
     pub static_flags: [u32; 8],
     pub creature_type: u32,
     pub type_flags: u32,
+    pub loot_id: u32,
+    pub skin_loot_id: u32,
+    pub gold_min: u32,
+    pub gold_max: u32,
     pub movement_type: MovementGeneratorType,
     pub ground_movement_type: u8,
     pub swim_allowed: bool,
@@ -421,6 +425,10 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
         static_flags: difficulty.static_flags,
         creature_type: template.creature_type,
         type_flags: difficulty.type_flags,
+        loot_id: difficulty.loot_id,
+        skin_loot_id: difficulty.skin_loot_id,
+        gold_min: difficulty.gold_min,
+        gold_max: difficulty.gold_max,
         movement_type,
         ground_movement_type: runtime_row.ground_movement_type,
         swim_allowed: runtime_row.swim_allowed,
@@ -583,6 +591,10 @@ fn template_lifecycle_record(
         static_flags: template.static_flags,
         creature_type: template.creature_type,
         type_flags: template.type_flags,
+        loot_id: template.loot_id,
+        skin_loot_id: template.skin_loot_id,
+        gold_min: template.gold_min,
+        gold_max: template.gold_max,
         movement_type: template.movement_type,
         ground_movement_type: template.ground_movement_type,
         swim_allowed: template.swim_allowed,
@@ -694,6 +706,10 @@ mod tests {
             static_flags: [0; 8],
             creature_type: 0,
             type_flags: 0x20,
+            loot_id: 7_001,
+            skin_loot_id: 7_002,
+            gold_min: 17,
+            gold_max: 29,
             movement_type: MovementGeneratorType::Idle,
             ground_movement_type: wow_constants::CreatureGroundMovementType::Run as u8,
             swim_allowed: true,
@@ -905,6 +921,17 @@ mod tests {
         entry: u32,
         static_flags: [u32; 8],
     ) -> CreatureDifficultyStoreLikeCpp {
+        db_backed_difficulty_store_with_static_flags_and_loot(entry, static_flags, 0, 0, 0, 0)
+    }
+
+    fn db_backed_difficulty_store_with_static_flags_and_loot(
+        entry: u32,
+        static_flags: [u32; 8],
+        loot_id: u32,
+        skin_loot_id: u32,
+        gold_min: u32,
+        gold_max: u32,
+    ) -> CreatureDifficultyStoreLikeCpp {
         CreatureDifficultyStoreLikeCpp::from_records(
             [wow_data::CreatureDifficultyRecordLikeCpp {
                 entry,
@@ -919,14 +946,48 @@ mod tests {
                 creature_difficulty_id: 0,
                 type_flags: 0x55,
                 type_flags2: 0,
-                loot_id: 0,
+                loot_id,
                 pickpocket_loot_id: 0,
-                skin_loot_id: 0,
-                gold_min: 0,
-                gold_max: 0,
+                skin_loot_id,
+                gold_min,
+                gold_max,
                 static_flags,
             }],
             |_| 1.0,
+        )
+    }
+
+    fn db_backed_fallback_difficulty_store_with_loot(
+        entry: u32,
+        static_flags: [u32; 8],
+        loot_id: u32,
+        skin_loot_id: u32,
+        gold_min: u32,
+        gold_max: u32,
+    ) -> CreatureDifficultyStoreLikeCpp {
+        CreatureDifficultyStoreLikeCpp::from_records_with_difficulty_fallbacks(
+            [wow_data::CreatureDifficultyRecordLikeCpp {
+                entry,
+                difficulty_id: 0,
+                min_level: 18,
+                max_level: 20,
+                health_scaling_expansion: -1,
+                health_modifier: 2.0,
+                mana_modifier: 3.0,
+                armor_modifier: 1.0,
+                damage_modifier: 4.0,
+                creature_difficulty_id: 0,
+                type_flags: 0x55,
+                type_flags2: 0,
+                loot_id,
+                pickpocket_loot_id: 0,
+                skin_loot_id,
+                gold_min,
+                gold_max,
+                static_flags,
+            }],
+            |_| 1.0,
+            [(2, 0)],
         )
     }
 
@@ -1042,7 +1103,14 @@ mod tests {
                 &spawn,
                 &runtime_row,
                 &db_backed_template_store(entry),
-                &db_backed_difficulty_store_with_static_flags(entry, static_flags),
+                &db_backed_fallback_difficulty_store_with_loot(
+                    entry,
+                    static_flags,
+                    21_779,
+                    21_780,
+                    13,
+                    31,
+                ),
                 &db_backed_base_stats_store(),
                 &CreatureClassificationHealthRatesLikeCpp::default(),
                 &display_store,
@@ -1080,6 +1148,10 @@ mod tests {
             "C++ ObjectMgr strips disallowed creature `unit_flags3` SQL bits before UpdateEntry"
         );
         assert_eq!(template.static_flags[0], static_flags[0]);
+        assert_eq!(template.loot_id, 21_779);
+        assert_eq!(template.skin_loot_id, 21_780);
+        assert_eq!((template.gold_min, template.gold_max), (13, 31));
+        assert_eq!(template.difficulty_id, 2);
         assert_eq!(template.display_id, 999);
         assert_eq!(
             template.flight_movement_type,
@@ -1122,6 +1194,31 @@ mod tests {
         assert_eq!(runtime.stats.mana, 150);
         assert_eq!(runtime.stats.min_damage, 20.0);
         assert_eq!(runtime.stats.max_damage, 30.0);
+
+        let (default_loot_template, _, _) = build_loaded_grid_creature_inputs_from_db_like_cpp(
+            &spawn,
+            &runtime_row,
+            &db_backed_template_store(entry),
+            &CreatureDifficultyStoreLikeCpp::default(),
+            &db_backed_base_stats_store(),
+            &CreatureClassificationHealthRatesLikeCpp::default(),
+            &display_store,
+            &model_store,
+            &model_info_store,
+            None,
+            &CreatureAddonStoreLikeCpp::default(),
+            2,
+            9,
+            123,
+            true,
+            None,
+            &mut random,
+        )
+        .expect("missing difficulty rows should use C++'s zero-valued fallback record");
+        assert_eq!(default_loot_template.loot_id, 0);
+        assert_eq!(default_loot_template.skin_loot_id, 0);
+        assert_eq!(default_loot_template.gold_min, 0);
+        assert_eq!(default_loot_template.gold_max, 0);
     }
 
     #[test]
@@ -2112,6 +2209,66 @@ mod tests {
                 .and_then(MapObjectRecord::creature)
                 .is_some()
         );
+    }
+
+    #[test]
+    fn loaded_grid_creature_lifecycle_resolver_applies_difficulty_loot_metadata_like_cpp() {
+        let entry = 12_345;
+        let resolver = CreatureLoadedGridLifecycleResolverLikeCpp::new(
+            [template(entry)],
+            [spawn(55, entry, true)],
+            [selection(entry)],
+        );
+
+        let resolved = resolver
+            .resolve_loaded_grid_creature_like_cpp(55, map_creature_guid(entry, 571, 55))
+            .expect("resolver should carry selected difficulty loot metadata");
+
+        assert_eq!(resolved.lifecycle_record.create.template.loot_id, 7_001);
+        assert_eq!(
+            resolved.lifecycle_record.create.template.skin_loot_id,
+            7_002
+        );
+        assert_eq!(
+            (
+                resolved.lifecycle_record.create.template.gold_min,
+                resolved.lifecycle_record.create.template.gold_max,
+            ),
+            (17, 29)
+        );
+        assert_eq!(resolved.creature.ai_ownership().loot_id, 7_001);
+        assert_eq!(resolved.creature.ai_ownership().skin_loot_id, 7_002);
+        assert_eq!(
+            (
+                resolved.creature.ai_ownership().gold_min,
+                resolved.creature.ai_ownership().gold_max,
+            ),
+            (17, 29)
+        );
+    }
+
+    #[test]
+    fn loaded_grid_creature_lifecycle_resolver_preserves_absent_loot_metadata_like_cpp() {
+        let entry = 12_345;
+        let mut no_loot_template = template(entry);
+        no_loot_template.loot_id = 0;
+        no_loot_template.skin_loot_id = 0;
+        no_loot_template.gold_min = 0;
+        no_loot_template.gold_max = 0;
+        let resolver = CreatureLoadedGridLifecycleResolverLikeCpp::new(
+            [no_loot_template],
+            [spawn(55, entry, true)],
+            [selection(entry)],
+        );
+
+        let resolved = resolver
+            .resolve_loaded_grid_creature_like_cpp(55, map_creature_guid(entry, 571, 55))
+            .expect("zero difficulty loot metadata remains a valid no-loot creature");
+
+        assert_eq!(resolved.creature.ai_ownership().loot_id, 0);
+        assert_eq!(resolved.creature.ai_ownership().skin_loot_id, 0);
+        assert_eq!(resolved.creature.ai_ownership().gold_min, 0);
+        assert_eq!(resolved.creature.ai_ownership().gold_max, 0);
     }
 
     #[test]

@@ -20,7 +20,8 @@ use crate::group_registry::{GroupRegistry, PendingInvites};
 use crate::player_registry::{GameEventQuestCompleteCommandLikeCpp, PlayerRegistry};
 use crate::session_mgr::{InstanceLink, SessionManager};
 use crate::world_socket::{
-    AccountInfo, AccountLookup, WorldSocket, WorldSocketError, sign_enable_encryption,
+    AccountInfo, AccountLookup, SocketWriteFenceLikeCpp, WorldSocket, WorldSocketError,
+    sign_enable_encryption,
 };
 
 /// C++ `World::rate_values` subset used by loot generation.
@@ -191,6 +192,10 @@ pub struct SessionResources {
     pub login_db: Option<Arc<wow_database::LoginDatabase>>,
     pub world_db: Option<Arc<wow_database::WorldDatabase>>,
     pub guid_generator: Option<Arc<wow_core::ObjectGuidGenerator>>,
+    /// Process-wide C++ `sObjectMgr->GetGenerator<HighGuid::Item>()` mirror.
+    /// Every session must share this allocator so concurrent item creation
+    /// cannot select the same `item_instance.guid`.
+    pub item_guid_generator: Option<Arc<wow_core::ObjectGuidGenerator>>,
     pub instance_lock_mgr: Option<Arc<std::sync::RwLock<wow_instances::InstanceLockMgr>>>,
     pub bank_bag_slot_prices_store: Option<Arc<wow_data::BankBagSlotPricesStore>>,
     pub currency_types_store: Option<Arc<wow_data::CurrencyTypesStore>>,
@@ -488,6 +493,7 @@ pub struct SessionResources {
 /// - `AccountInfo` from the auth handshake
 /// - `packet_rx` — channel to receive packets from the socket
 /// - `send_tx` — channel to send responses back through the socket
+/// - `send_write_fence` — FIFO completion fence paired with `send_tx`
 /// - `SessionResources` — shared resources for the session
 ///
 /// The callback should create a WorldSession and return a future that runs
@@ -505,6 +511,7 @@ where
             AccountInfo,
             flume::Receiver<wow_packet::WorldPacket>,
             flume::Sender<Vec<u8>>,
+            SocketWriteFenceLikeCpp,
             Arc<SessionResources>,
         ) -> Fut
         + Send
@@ -573,7 +580,7 @@ where
             };
 
             // Phase 3: Create session channels
-            let (pkt_rx, send_tx) = socket.create_session_channels();
+            let (pkt_rx, send_tx, send_write_fence_like_cpp) = socket.create_session_channels();
 
             // Phase 4: Split socket into read/write halves
             let pong_tx = send_tx.clone();
@@ -590,7 +597,13 @@ where
             });
 
             // Phase 6: Spawn session update loop
-            let session_future = callback(account_info, pkt_rx, send_tx, res);
+            let session_future = callback(
+                account_info,
+                pkt_rx,
+                send_tx,
+                send_write_fence_like_cpp,
+                res,
+            );
             tokio::spawn(session_future);
 
             // Phase 7: Run the encrypted read loop (blocks until disconnect)
@@ -834,6 +847,7 @@ async fn handle_instance_connection(
     // send_rx_for_socket → instance writer reads from here
     let instance_link = InstanceLink {
         send_tx: send_tx.clone(),
+        send_write_fence_like_cpp: Some(socket.send_write_fence_like_cpp()),
         pkt_rx: Some(pkt_rx),
     };
 

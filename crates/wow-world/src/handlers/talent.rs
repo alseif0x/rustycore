@@ -15,10 +15,9 @@ use wow_packet::packets::talent::{
 };
 use wow_packet::{ClientPacket, WorldPacket};
 
-use crate::session::{
-    RepresentedConfirmRespecWipeLikeCpp, RepresentedTalentRespecVisualSpellCastLikeCpp,
-    WorldSession,
-};
+#[cfg(test)]
+use crate::session::RepresentedTalentRespecVisualSpellCastLikeCpp;
+use crate::session::{RepresentedConfirmRespecWipeLikeCpp, WorldSession};
 
 const CONFIRM_RESPEC_WIPE_NPC_FLAGS_LIKE_CPP: u32 = NPCFlags1::TRAINER.bits();
 const MIN_TALENT_RESET_LEVEL_LIKE_CPP: u8 = 15;
@@ -126,33 +125,27 @@ impl WorldSession {
             return;
         }
 
+        // Preserve C++ ResetTalents ordering for these precondition-side
+        // effects. The durable transaction covers money, reset metadata, and
+        // talent topology. Pet/spell runtime removal, criteria, and packets are
+        // published synchronously after COMMIT; exact `_SaveSpells` persistence
+        // remains bounded until Rust retains the complete PlayerSpellMap state.
         self.record_represented_talent_reset_script_hook_like_cpp(false);
         self.remove_represented_at_login_flag_like_cpp(AT_LOGIN_RESET_TALENTS_LIKE_CPP, true);
 
-        if !self.apply_represented_talent_reset_cost_like_cpp().await {
+        let Some(committed) = self.commit_represented_talent_reset_like_cpp().await else {
             return;
-        }
+        };
 
-        self.remove_represented_pet_not_in_slot_like_cpp();
-
-        self.record_represented_confirm_respec_wipe_like_cpp(RepresentedConfirmRespecWipeLikeCpp {
-            respec_master: request.respec_master,
-            respec_type: request.respec_type,
-        });
-        if self.reset_represented_active_talents_like_cpp() {
-            self.send_packet(&self.represented_update_talent_data_packet_like_cpp());
-            if let Some(player_guid) = self.player_guid() {
-                self.record_represented_talent_respec_visual_spell_cast_like_cpp(
-                    RepresentedTalentRespecVisualSpellCastLikeCpp {
-                        caster_guid: request.respec_master,
-                        target_guid: player_guid,
-                        spell_id: UNTALENT_VISUAL_EFFECT_SPELL_ID_LIKE_CPP,
-                        triggered: true,
-                        spell_runtime_unrepresented: true,
-                    },
-                );
-            }
-        }
+        self.publish_committed_represented_talent_reset_like_cpp(
+            committed,
+            RepresentedConfirmRespecWipeLikeCpp {
+                respec_master: request.respec_master,
+                respec_type: request.respec_type,
+            },
+            UNTALENT_VISUAL_EFFECT_SPELL_ID_LIKE_CPP,
+        )
+        .await;
     }
 
     fn represented_can_confirm_respec_wipe_like_cpp(
@@ -1879,6 +1872,92 @@ mod tests {
                 .get(&60_101)
                 .is_some_and(|overrides| overrides.contains(&70_101)),
             "C++ keeps override spells when ResetTalents returns false"
+        );
+    }
+
+    #[tokio::test]
+    async fn confirm_respec_wipe_definite_rollback_publishes_no_covered_runtime_or_packets() {
+        let (mut session, send_rx) = make_session_with_send_capacity(4);
+        let trainer = test_creature_guid(189);
+        let pet_guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 0, 0, 500, 143);
+        let mut talent = test_talent_entry_like_cpp(101, 0, 50_101);
+        talent.spell_id = 70_101;
+        talent.overrides_spell_id = 60_101;
+        register_test_trainer(&mut session, trainer, NPCFlags1::TRAINER.bits());
+        install_test_talent_entries_with_tab_class_mask(&mut session, vec![talent], 1);
+        session.mark_represented_talents_loaded_like_cpp();
+
+        session
+            .handle_learn_talent(learn_talent_packet(101, 0))
+            .await;
+        let _ = drain_sent_packets(&send_rx);
+        session.set_represented_pet_mode_state_like_cpp(
+            Some(pet_guid),
+            wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
+            wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP,
+        );
+        session.set_represented_pet_stable_like_cpp(represented_current_pet_stable_like_cpp(143));
+        session.set_player_gold_like_cpp(20_000);
+        session.set_represented_at_login_flags_like_cpp(
+            AT_LOGIN_RENAME_LIKE_CPP | AT_LOGIN_RESET_TALENTS_LIKE_CPP,
+        );
+        session.set_loot_money_persistence_test_result_like_cpp(false);
+
+        session
+            .handle_confirm_respec_wipe(confirm_respec_wipe_packet(
+                trainer,
+                SPEC_RESET_TALENTS_LIKE_CPP,
+            ))
+            .await;
+
+        assert!(
+            send_rx.try_recv().is_err(),
+            "a definite SQL rollback must not publish talent, spell, money, or visual packets"
+        );
+        assert_eq!(session.player_gold_like_cpp(), 20_000);
+        assert_eq!(session.represented_talent_reset_cost_like_cpp(), 0);
+        assert_eq!(session.represented_talent_reset_time_secs_like_cpp(), 0);
+        assert!(session.known_spells_like_cpp().contains(&50_101));
+        assert_eq!(
+            session
+                .represented_update_talent_data_packet_like_cpp()
+                .groups[0]
+                .talents,
+            vec![wow_packet::packets::misc::TalentInfoLikeCpp {
+                talent_id: 101,
+                rank: 0,
+            }]
+        );
+        assert_eq!(session.represented_pet_guid_like_cpp(), Some(pet_guid));
+        assert_eq!(
+            session.represented_pet_stable_current_index_like_cpp(),
+            Some(0)
+        );
+        assert!(
+            session
+                .represented_talent_respec_criteria_events_like_cpp()
+                .is_empty()
+        );
+        assert!(
+            session
+                .represented_confirm_respec_wipe_requests_like_cpp()
+                .is_empty()
+        );
+        assert!(
+            session
+                .represented_talent_respec_visual_spell_casts_like_cpp()
+                .is_empty()
+        );
+
+        assert_eq!(
+            session.represented_talent_reset_script_hooks_like_cpp(),
+            &[RepresentedTalentResetScriptHookLikeCpp { no_cost: false }],
+            "C++ fires the script hook before the reset's money/transaction gate"
+        );
+        assert_eq!(
+            session.represented_at_login_flags_like_cpp(),
+            AT_LOGIN_RENAME_LIKE_CPP,
+            "C++ removes AT_LOGIN_RESET_TALENTS before entering the fallible save"
         );
     }
 

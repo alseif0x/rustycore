@@ -84,6 +84,14 @@ fn spell_power_trace_enabled_like_cpp() -> bool {
     })
 }
 
+fn normalize_item_money_loot_bounds_like_cpp(min_money: u32, max_money: u32) -> (u32, u32) {
+    if min_money > max_money {
+        (max_money, min_money)
+    } else {
+        (min_money, max_money)
+    }
+}
+
 // ── Handler registrations ─────────────────────────────────────────
 
 inventory::submit! {
@@ -922,7 +930,8 @@ impl WorldSession {
 
         let loot_guid = loot.loot_guid;
         let coins = loot.coins;
-        self.set_active_loot_guid(item.guid);
+        self.open_active_item_loot_view_like_cpp(player_guid, item.guid)
+            .await;
         self.send_packet(&LootResponse {
             owner: item.guid,
             loot_obj: loot_guid,
@@ -936,6 +945,17 @@ impl WorldSession {
             acquired: true,
             ae_looting: false,
         });
+    }
+
+    pub(crate) async fn open_active_item_loot_view_like_cpp(
+        &mut self,
+        player_guid: ObjectGuid,
+        item_guid: ObjectGuid,
+    ) {
+        if self.has_active_non_item_loot_views_like_cpp() {
+            self.do_loot_release_all_like_cpp(player_guid).await;
+        }
+        self.add_active_loot_view_owner_like_cpp(item_guid);
     }
 
     async fn open_wrapped_gift_like_cpp(&mut self, bag: u8, slot: u8, item_guid: ObjectGuid) {
@@ -1140,9 +1160,29 @@ impl WorldSession {
 
         match world_db.query(&stmt).await {
             Ok(result) if !result.is_empty() => {
-                let min_money = result.try_read::<u32>(0).unwrap_or(0);
-                let max_money = result.try_read::<u32>(1).unwrap_or(0);
-                (min_money, max_money)
+                match (result.try_read::<u32>(0), result.try_read::<u32>(1)) {
+                    (Some(min_money), Some(max_money)) => {
+                        if min_money > max_money {
+                            // ObjectMgr::LoadItemTemplateAddon swaps invalid item
+                            // bounds before storing the template. GameObject addon
+                            // money deliberately does not share this normalization.
+                            warn!(
+                                item_entry,
+                                min_money,
+                                max_money,
+                                "minimum item money loot exceeded maximum; swapping like C++"
+                            );
+                        }
+                        normalize_item_money_loot_bounds_like_cpp(min_money, max_money)
+                    }
+                    _ => {
+                        warn!(
+                            item_entry,
+                            "failed to decode item_template_addon money loot as C++ uint32 columns"
+                        );
+                        (0, 0)
+                    }
+                }
             }
             Ok(_) => (0, 0),
             Err(err) => {
@@ -2745,7 +2785,8 @@ mod tests {
         apply_wrapped_gift_transform_like_cpp, item_loot_quest_status_allows_like_cpp,
         loot_entry_flags_for_row_metadata_like_cpp, loot_template_group_row_can_roll_like_cpp,
         loot_template_plain_row_can_roll_like_cpp, loot_template_reference_row_can_roll_like_cpp,
-        player_class_mask_like_cpp, player_quest_status_mask_like_cpp, player_race_mask_like_cpp,
+        normalize_item_money_loot_bounds_like_cpp, player_class_mask_like_cpp,
+        player_quest_status_mask_like_cpp, player_race_mask_like_cpp,
         referenced_loot_max_count_like_cpp, roll_chance_with_rate_like_cpp,
         roll_group_loot_row_like_cpp, stored_item_row_can_load_like_cpp_representable,
         stored_loot_item_should_persist_like_cpp,
@@ -5922,18 +5963,18 @@ mod tests {
             wow_loot::generate_money_loot_with_rate_like_cpp(0, 0, 1.0, &mut rng),
             0
         );
-        assert_eq!(
-            wow_loot::generate_money_loot_with_rate_like_cpp(120, 100, 1.0, &mut rng),
-            100
-        );
+        let swapped = normalize_item_money_loot_bounds_like_cpp(120, 100);
+        assert_eq!(swapped, (100, 120));
+        let swapped_roll =
+            wow_loot::generate_money_loot_with_rate_like_cpp(swapped.0, swapped.1, 1.0, &mut rng);
+        assert!((100..=120).contains(&swapped_roll));
         assert_eq!(
             wow_loot::generate_money_loot_with_rate_like_cpp(100, 100, 1.0, &mut rng),
             100
         );
-        assert_eq!(
-            wow_loot::generate_money_loot_with_rate_like_cpp(120, 100, 2.5, &mut rng),
-            250
-        );
+        let swapped_rate_roll =
+            wow_loot::generate_money_loot_with_rate_like_cpp(swapped.0, swapped.1, 2.5, &mut rng);
+        assert!((250..=300).contains(&swapped_rate_roll));
 
         let small_range = wow_loot::generate_money_loot_with_rate_like_cpp(100, 200, 1.0, &mut rng);
         assert!((100..=200).contains(&small_range));

@@ -68,10 +68,27 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
     rejected after a stack overflow and replaced with the verified release artifact before these
     passes. Kept open only until the PR current-HEAD gates pass.
 - [ ] **D-C5 Loot item TOCTOU → duplication.** Slot marked looted *after* the async inventory
-  store; two concurrent looters both store it. `handlers/loot.rs:1143-1219`. C++ blocks the
-  slot *before* store.
+  store; two concurrent looters both store it. `handlers/loot.rs`. C++ instead gets safety from
+  object-owned `Loot` plus globally serialized `PROCESS_THREADUNSAFE` session work; it validates
+  storage before mutating the shared slot.
+  - 2026-07-18 issue #106 local slice: creatures/gameobjects now own a generation-tagged shared
+    loot authority; item/master/roll/disenchant paths use cancellation-safe leases whose detached
+    persistence worker owns the claim across SQL `COMMIT`. Session loot tables are packet caches,
+    and stale corpse/GO generations and stale group rolls fail closed. Kept open until the live
+    two-bot race, single-session capture, manual original-client QA, CI, and current-HEAD review
+    gates pass.
 - [ ] **D-C6 Loot money TOCTOU → duplication.** `loot.coins` zeroed *after* distribute; two
-  concurrent `handle_loot_money` both pay out. `handlers/loot.rs:1293-1356`.
+  concurrent `handle_loot_money` both pay out. `handlers/loot.rs`.
+  - 2026-07-18 issue #106 local slice: one detached worker atomically persists every connected,
+    allowed, in-range group share, commits the object-owned money claim, and then schedules one
+    exact-once runtime application per session without cross-session acknowledgement waits. A
+    cancelled packet future cannot reopen a successful DB transaction. Kept open for the same
+    runtime/review gates as D-C5.
+  - **Open crash boundary (not acceptance credit for #106):** these detached workers and their
+    completion trackers are in-process only. A runtime/process abort exactly after SQL `COMMIT`
+    but before the synchronous authority/completion continuation can still lose that continuation.
+    Closing `kill -9` recovery requires a durable claim journal written in the same transaction
+    and replayed at startup; neither the current authority nor the session tracker is that journal.
 - [ ] **D-C7 Player save has incomplete transaction coverage.** Issue #17 wraps the
   Rust-covered represented `Player::SaveToDB` character statements in one `SqlTransaction`, but
   full C++ save parity, login/account transaction coupling, capture diff, and manual live-client
@@ -128,7 +145,9 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
 ## MED — wrong values / loose checks / minor loss
 
 - [ ] **D-M1 Silent gold-save error.** `let _ = char_db.execute(stmt).await` swallows failures. `session.rs:21495`.
-- [ ] **D-M2 Money split rounding loss.** Integer division discards remainder copper (C++ gives it to first recipient). `handlers/loot.rs:1323`.
+- [x] **D-M2 was not a defect: C++ also discards group-money division remainder.**
+  `LootHandler.cpp::HandleLootMoneyOpcode` computes `loot->gold / playersNear.size()` and credits
+  that same truncated amount to every recipient; there is no first-recipient remainder branch.
 - [ ] **D-M3 Off-hand dual-wield damage has no penalty** (~25% too high). `session.rs:7923`.
 - [ ] **D-M4 Haste has no attack-speed cap** → scales unbounded. `session.rs:1358`.
 - [ ] **D-M5 Threat = raw damage**, no ability/role threat modifiers. `session.rs:47875`.

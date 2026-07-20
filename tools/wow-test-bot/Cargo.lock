@@ -3067,6 +3067,7 @@ dependencies = [
  "flate2",
  "hex",
  "hmac",
+ "libc",
  "mysql",
  "num-bigint",
  "num-traits",
@@ -3077,6 +3078,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "tokio",
+ "tokio-util",
  "tracing",
  "tracing-subscriber",
 ]

@@ -179,6 +179,20 @@ mod tests {
                 .count(),
             1
         );
+        // C++ ObjectMgr loads these unsigned columns directly. MariaDB
+        // promotes LEAST/GREATEST over them to NEWDECIMAL, which sqlx cannot
+        // decode as the u32 expected by the loot handlers and would silently
+        // turn deterministic money into zero through `try_read(...).unwrap_or(0)`.
+        // The item loader performs C++'s post-read min/max swap separately;
+        // gameobject addon bounds intentionally remain unnormalized.
+        let item_money_sql = WorldStatements::SEL_ITEM_TEMPLATE_ADDON_MONEY_LOOT.sql();
+        assert!(item_money_sql.starts_with("SELECT MinMoneyLoot, MaxMoneyLoot "));
+        assert!(!item_money_sql.contains("LEAST"));
+        assert!(!item_money_sql.contains("GREATEST"));
+        let gameobject_money_sql = WorldStatements::SEL_GAMEOBJECT_TEMPLATE_ADDON_MONEY_LOOT.sql();
+        assert!(gameobject_money_sql.starts_with("SELECT mingold, maxgold "));
+        assert!(!gameobject_money_sql.contains("LEAST"));
+        assert!(!gameobject_money_sql.contains("GREATEST"));
         assert_eq!(
             WorldStatements::SEL_ITEM_TEMPLATE_ADDON_LOOT_METADATA
                 .sql()

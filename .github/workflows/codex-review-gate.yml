@@ -62,9 +62,21 @@ jobs:
               "p3 badge",
           )
 
+          class TransientGitHubApiError(RuntimeError):
+              pass
+
           def gh_json(path):
-              output = subprocess.check_output(["gh", "api", path], text=True)
-              return json.loads(output)
+              result = subprocess.run(
+                  ["gh", "api", path],
+                  text=True,
+                  capture_output=True,
+              )
+              if result.returncode:
+                  error = result.stderr.strip() or result.stdout.strip()
+                  if re.search(r"\(HTTP 5\d\d\)", error):
+                      raise TransientGitHubApiError(error)
+                  raise RuntimeError(f"gh api {path} failed: {error}")
+              return json.loads(result.stdout)
 
           def gh_json_pages(path):
               page = 1
@@ -157,7 +169,25 @@ jobs:
           deadline = time.time() + timeout_seconds
 
           while True:
-              state, items = verdict()
+              try:
+                  state, items = verdict()
+              except TransientGitHubApiError as error:
+                  remaining = int(deadline - time.time())
+                  if remaining <= 0:
+                      print(
+                          "Timed out waiting for GitHub API recovery while checking "
+                          f"the Codex verdict: {error}"
+                      )
+                      sys.exit(1)
+
+                  retry_seconds = min(poll_seconds, remaining)
+                  print(
+                      "Transient GitHub API failure while checking the Codex verdict; "
+                      f"retrying in {retry_seconds}s ({remaining}s left): {error}"
+                  )
+                  time.sleep(retry_seconds)
+                  continue
+
               if state == "pass":
                   print("Found clean Codex review for current HEAD:")
                   for kind, url in items:

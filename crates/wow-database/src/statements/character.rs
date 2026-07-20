@@ -1179,6 +1179,8 @@ pub enum CharStatements {
 
     /// UPDATE characters SET money = ? WHERE guid = ?
     UPD_CHAR_MONEY,
+    /// SELECT money FROM characters WHERE guid = ? FOR UPDATE
+    SEL_CHAR_MONEY_FOR_UPDATE,
     /// C++ `CHAR_UPD_CHARACTER` persists this field immediately before powers.
     /// UPDATE characters SET health = ? WHERE guid = ?
     UPD_CHAR_HEALTH,
@@ -1208,12 +1210,22 @@ pub enum CharStatements {
 
     /// SELECT MAX(guid) FROM item_instance
     SEL_MAX_ITEM_GUID,
+    /// C++ ObjectMgr::SetHighestGuids startup cleanup.
+    DEL_INVALID_CHAR_INVENTORY_ITEM_GUIDS,
+    DEL_INVALID_MAIL_ITEM_GUIDS,
+    DEL_INVALID_AUCTION_ITEM_GUIDS,
+    DEL_INVALID_GUILD_BANK_ITEM_GUIDS,
+    /// Rust safety extension to C++ `ObjectMgr::SetHighestGuids`: stored loot
+    /// has no foreign key to `item_instance`, so orphan rows at or above the
+    /// next allocator value must not be inherited by a reused item GUID.
+    DEL_INVALID_ITEM_LOOT_ITEMS_GUIDS,
+    DEL_INVALID_ITEM_LOOT_MONEY_GUIDS,
 
     /// INSERT INTO item_instance (guid, itemEntry, owner_guid, count, durability, enchantments, charges)
     /// VALUES (?, ?, ?, ?, ?, '', '')
     INS_ITEM_INSTANCE,
 
-    /// INSERT INTO item_instance preserving generated loot random property/context metadata.
+    /// INSERT INTO item_instance preserving generated loot flags/random/context metadata.
     INS_ITEM_INSTANCE_WITH_RANDOM_CONTEXT,
 
     /// INSERT INTO item_instance with the C++ Item::CloneItem persisted field subset.
@@ -1671,6 +1683,8 @@ pub enum CharStatements {
 
     /// SELECT money FROM item_loot_money WHERE container_id = ?
     SEL_ITEMCONTAINER_MONEY,
+    /// SELECT money FROM item_loot_money WHERE container_id = ? FOR UPDATE
+    SEL_ITEMCONTAINER_MONEY_FOR_UPDATE,
 
     /// INSERT INTO item_loot_money (container_id, money) VALUES (?, ?)
     INS_ITEMCONTAINER_MONEY,
@@ -2778,6 +2792,9 @@ impl StatementDef for CharStatements {
             Self::UPD_CHAR_XP => "UPDATE characters SET xp = ? WHERE guid = ?",
             Self::UPD_CHAR_LEVEL => "UPDATE characters SET level = ?, xp = ? WHERE guid = ?",
             Self::UPD_CHAR_MONEY => "UPDATE characters SET money = ? WHERE guid = ?",
+            Self::SEL_CHAR_MONEY_FOR_UPDATE => {
+                "SELECT money FROM characters WHERE guid = ? FOR UPDATE"
+            }
             Self::UPD_CHAR_HEALTH => "UPDATE characters SET health = ? WHERE guid = ?",
             Self::UPD_CHAR_POWERS => {
                 "UPDATE characters SET power1 = ?, power2 = ?, power3 = ?, power4 = ?, power5 = ?, power6 = ?, power7 = ?, power8 = ?, power9 = ?, power10 = ? WHERE guid = ?"
@@ -2798,6 +2815,22 @@ impl StatementDef for CharStatements {
                 "UPDATE characters SET exploredZones = ? WHERE guid = ?"
             }
             Self::SEL_MAX_ITEM_GUID => "SELECT MAX(guid) FROM item_instance",
+            Self::DEL_INVALID_CHAR_INVENTORY_ITEM_GUIDS => {
+                "DELETE FROM character_inventory WHERE item >= ?"
+            }
+            Self::DEL_INVALID_MAIL_ITEM_GUIDS => "DELETE FROM mail_items WHERE item_guid >= ?",
+            Self::DEL_INVALID_AUCTION_ITEM_GUIDS => {
+                "DELETE a, ab, ai FROM auctionhouse a LEFT JOIN auction_bidders ab ON ab.auctionId = a.id LEFT JOIN auction_items ai ON ai.auctionId = a.id WHERE ai.itemGuid >= ?"
+            }
+            Self::DEL_INVALID_GUILD_BANK_ITEM_GUIDS => {
+                "DELETE FROM guild_bank_item WHERE item_guid >= ?"
+            }
+            Self::DEL_INVALID_ITEM_LOOT_ITEMS_GUIDS => {
+                "DELETE FROM item_loot_items WHERE container_id >= ?"
+            }
+            Self::DEL_INVALID_ITEM_LOOT_MONEY_GUIDS => {
+                "DELETE FROM item_loot_money WHERE container_id >= ?"
+            }
             Self::INS_ITEM_INSTANCE => {
                 "INSERT INTO item_instance \
                  (guid, itemEntry, owner_guid, creatorGuid, giftCreatorGuid, count, \
@@ -2810,7 +2843,7 @@ impl StatementDef for CharStatements {
                  (guid, itemEntry, owner_guid, creatorGuid, giftCreatorGuid, count, \
                   durability, enchantments, charges, flags, randomPropertiesId, \
                   randomPropertiesSeed, context) \
-                 VALUES (?, ?, ?, 0, 0, ?, ?, '', '', 0, ?, ?, ?)"
+                 VALUES (?, ?, ?, 0, 0, ?, ?, '', '', ?, ?, ?, ?)"
             }
             Self::INS_ITEM_INSTANCE_CLONE => {
                 "INSERT INTO item_instance \
@@ -3176,6 +3209,9 @@ impl StatementDef for CharStatements {
             }
             Self::SEL_ITEMCONTAINER_MONEY => {
                 "SELECT money FROM item_loot_money WHERE container_id = ? LIMIT 1"
+            }
+            Self::SEL_ITEMCONTAINER_MONEY_FOR_UPDATE => {
+                "SELECT money FROM item_loot_money WHERE container_id = ? FOR UPDATE"
             }
             Self::INS_ITEMCONTAINER_MONEY => {
                 "INSERT INTO item_loot_money (container_id, money) VALUES (?, ?)"
@@ -6114,7 +6150,7 @@ mod tests {
                 .sql()
                 .matches('?')
                 .count(),
-            8
+            9
         );
         assert_eq!(
             CharStatements::INS_ITEM_INSTANCE_CLONE
@@ -6209,6 +6245,20 @@ mod tests {
         );
         assert_eq!(
             CharStatements::DEL_ITEMCONTAINER_MONEY
+                .sql()
+                .matches('?')
+                .count(),
+            1
+        );
+        assert_eq!(
+            CharStatements::DEL_INVALID_ITEM_LOOT_MONEY_GUIDS
+                .sql()
+                .matches('?')
+                .count(),
+            1
+        );
+        assert_eq!(
+            CharStatements::DEL_INVALID_ITEM_LOOT_ITEMS_GUIDS
                 .sql()
                 .matches('?')
                 .count(),

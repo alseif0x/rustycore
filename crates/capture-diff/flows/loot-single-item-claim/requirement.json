@@ -1,0 +1,73 @@
+{
+  "issue": "#106",
+  "status": "ready",
+  "description": "One solo character claims one deterministic creature-loot item; the isolated wire window starts at CMSG_LOOT_ITEM and ends at a fixed instance CMSG_PING fence.",
+  "directions": [
+    "s2c",
+    "c2s"
+  ],
+  "import_selection": {
+    "from_opcode": {
+      "direction": "c2s",
+      "opcode": 12817
+    },
+    "until_opcode": {
+      "direction": "c2s",
+      "opcode": 14184
+    },
+    "ignored_opcodes": [
+      {
+        "direction": "s2c",
+        "opcode": 11730
+      },
+      {
+        "direction": "c2s",
+        "opcode": 14909
+      },
+      {
+        "direction": "s2c",
+        "opcode": 11732
+      }
+    ]
+  },
+  "require_each_anchor_exactly_once": true,
+  "semantic_contract": "loot-single-item-claim-v1",
+  "required_order": [
+    {
+      "direction": "c2s",
+      "connection_id": 1,
+      "opcode": 12817,
+      "label": "CMSG_LOOT_ITEM"
+    },
+    {
+      "direction": "s2c",
+      "connection_id": 1,
+      "opcode": 10187,
+      "label": "SMSG_UPDATE_OBJECT item CreateObject"
+    },
+    {
+      "direction": "s2c",
+      "connection_id": 1,
+      "opcode": 9749,
+      "label": "SMSG_LOOT_REMOVED"
+    },
+    {
+      "direction": "s2c",
+      "connection_id": 0,
+      "opcode": 9763,
+      "label": "SMSG_ITEM_PUSH_RESULT"
+    },
+    {
+      "direction": "s2c",
+      "connection_id": 1,
+      "opcode": 10187,
+      "label": "SMSG_UPDATE_OBJECT InvSlots VALUES"
+    },
+    {
+      "direction": "c2s",
+      "connection_id": 1,
+      "opcode": 14184,
+      "label": "CMSG_PING"
+    }
+  ]
+}

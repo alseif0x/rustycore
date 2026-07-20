@@ -17,6 +17,10 @@ use rand::{thread_rng, RngCore};
 use reqwest::Client;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
+use std::time::Duration;
+
+const HTTP_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const HTTP_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 const BOT_SRP_N_HEX: &str = "894B645E89E1535BBDAD5B8B290650530801B18EBFBF5E8FAB3C82872A3E9BB7";
 const BNET_SRP_V1_N_HEX: &str = concat!(
@@ -58,19 +62,31 @@ pub fn bnet_v1_registration_material_like_cpp(
     email: &str,
     password: &str,
 ) -> (String, [u8; 32], Vec<u8>) {
+    let mut salt = [0u8; 32];
+    thread_rng().fill_bytes(&mut salt);
+    let (normalized_email, verifier) = bnet_v1_verifier_for_salt_like_cpp(email, password, &salt);
+    (normalized_email, salt, verifier)
+}
+
+/// Recompute the Battle.net SRP v1 verifier for an existing salt without
+/// mutating account state. The loot QA preflight uses this to prove that the
+/// configured credentials already belong to the exact disposable fixture.
+pub fn bnet_v1_verifier_for_salt_like_cpp(
+    email: &str,
+    password: &str,
+    salt: &[u8],
+) -> (String, Vec<u8>) {
     let normalized_email = utf8_to_upper_only_latin_like_cpp(email);
     let username = bnet_srp_username_like_cpp(&normalized_email);
     let password = utf8_to_upper_only_latin_like_cpp(password);
-    let mut salt = [0u8; 32];
-    thread_rng().fill_bytes(&mut salt);
     let inner = sha256_concat(&[username.as_bytes(), b":", password.as_bytes()]);
-    let outer = sha256_concat(&[&salt, &inner]);
+    let outer = sha256_concat(&[salt, &inner]);
     let x = BigUint::from_bytes_le(&outer);
     let n = BigUint::parse_bytes(BNET_SRP_V1_N_HEX.as_bytes(), 16)
         .expect("failed to parse BNet SRP v1 modulus");
     let g = BigUint::from(BOT_SRP_G);
     let verifier = g.modpow(&x, &n).to_bytes_le();
-    (normalized_email, salt, verifier)
+    (normalized_email, verifier)
 }
 
 fn decode_server_hex(value: &str) -> Result<Vec<u8>, hex::FromHexError> {
@@ -223,6 +239,8 @@ pub async fn authenticate_bot(
         Client::builder()
             .danger_accept_invalid_certs(true)
             .http1_only()
+            .connect_timeout(HTTP_CONNECT_TIMEOUT)
+            .timeout(HTTP_REQUEST_TIMEOUT)
             .redirect(reqwest::redirect::Policy::none())
             .build()
     };
@@ -396,6 +414,8 @@ async fn authenticate_direct_login_fallback(
     let client = Client::builder()
         .danger_accept_invalid_certs(true)
         .http1_only()
+        .connect_timeout(HTTP_CONNECT_TIMEOUT)
+        .timeout(HTTP_REQUEST_TIMEOUT)
         .pool_max_idle_per_host(0)
         .redirect(reqwest::redirect::Policy::none())
         .build()?;
@@ -436,6 +456,20 @@ async fn authenticate_direct_login_fallback(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stored_salt_verifier_preflight_is_deterministic() {
+        let (email, salt, verifier) =
+            bnet_v1_registration_material_like_cpp("testbot@bot.local", "fixture-password");
+        let (recomputed_email, recomputed) =
+            bnet_v1_verifier_for_salt_like_cpp("testbot@bot.local", "fixture-password", &salt);
+        assert_eq!(email, recomputed_email);
+        assert_eq!(verifier, recomputed);
+        assert_ne!(
+            verifier,
+            bnet_v1_verifier_for_salt_like_cpp("testbot@bot.local", "different-password", &salt).1
+        );
+    }
 
     #[test]
     fn test_bot_srp6_calculations() {
