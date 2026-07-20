@@ -2058,6 +2058,13 @@ fn vendor_buy_quantity_and_price(buy_price: u64, buy_count: u32, quantity: u32) 
     (quantity, price)
 }
 
+fn vendor_buy_coinage_update_like_cpp(buy_price: u64, remaining_gold: u64) -> Option<u64> {
+    // C++ `_StoreOrEquipNewItem` calls `ModifyMoney(-price)`, whose first
+    // branch returns without dirtying `ActivePlayerData::Coinage` when the
+    // amount is zero (`Player.cpp::ModifyMoney`).
+    (buy_price != 0).then_some(remaining_gold)
+}
+
 fn player_money_gain_like_cpp(current_money: u64, amount: u64) -> Option<u64> {
     if amount == 0 {
         return Some(current_money);
@@ -12592,7 +12599,7 @@ impl WorldSession {
                     container_item_guids: [ObjectGuid::EMPTY; 36],
                 })
                 .collect();
-            self.send_packet(&UpdateObject::create_items(item_creates, map_id));
+            self.send_packet(&UpdateObject::create_stored_items(item_creates, map_id));
         }
 
         for &(_, item_guid, new_count) in &existing_updates {
@@ -12633,7 +12640,7 @@ impl WorldSession {
             &[],
             &[],
             &[],
-            Some(self.player_gold_like_cpp()),
+            vendor_buy_coinage_update_like_cpp(buy_price, self.player_gold_like_cpp()),
         );
         for update in &collection_updates {
             self.send_player_values_update_like_cpp(update);
@@ -23001,6 +23008,12 @@ mod tests {
             vendor_buy_quantity_and_price(unit_price, 1, 3),
             (1, unit_price)
         );
+    }
+
+    #[test]
+    fn vendor_buy_zero_gold_price_does_not_dirty_coinage_like_cpp() {
+        assert_eq!(vendor_buy_coinage_update_like_cpp(0, 12_345), None);
+        assert_eq!(vendor_buy_coinage_update_like_cpp(1, 12_344), Some(12_344));
     }
 
     #[test]
