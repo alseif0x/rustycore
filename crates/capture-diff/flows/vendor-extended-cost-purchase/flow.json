@@ -1,0 +1,7 @@
+{
+  "description": "One extended-cost item purchase from the real vendor list: CMSG_BUY_ITEM, currency debit, BuySucceeded, inventory update and a fixed CMSG_PING fence; the bot separately proves logout/relogin persistence and bounded fixture restoration.",
+  "directions": [
+    "s2c",
+    "c2s"
+  ]
+}

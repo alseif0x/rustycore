@@ -931,6 +931,7 @@ pub(super) async fn run_workflow(
                 None,
                 None,
                 None,
+                None,
                 Some(options),
                 None,
             )
@@ -1090,6 +1091,7 @@ pub(super) async fn run_workflow(
                             None,
                             None,
                             None,
+                            None,
                             Some(options),
                             None,
                         )) => match result {
@@ -1240,6 +1242,7 @@ pub(super) async fn run_single_item_capture_workflow(
             None,
             None,
             None,
+            None,
             Some(options),
             None,
         )) => match result {
@@ -1331,6 +1334,7 @@ pub(super) async fn run_single_item_capture_workflow(
                 lfg_secs,
                 auto_teleport,
                 false,
+                None,
                 None,
                 None,
                 None,
