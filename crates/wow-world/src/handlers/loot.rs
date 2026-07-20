@@ -157,6 +157,7 @@ struct AuthoritativeLootReleaseLikeCpp {
     whole_object_fully_skinned: bool,
     object_generation: u64,
     lifecycle_revision: u64,
+    require_no_viewers: bool,
 }
 
 // ── Handler registrations ─────────────────────────────────────────
@@ -5578,7 +5579,7 @@ impl WorldSession {
         }
         let Some(observation) = route
             .authority
-            .fully_looted_lifecycle_observation_like_cpp()
+            .fully_looted_unviewed_lifecycle_observation_like_cpp()
         else {
             return;
         };
@@ -5604,6 +5605,7 @@ impl WorldSession {
                 whole_object_fully_skinned: observation.whole_object_fully_skinned,
                 object_generation: observation.object_generation,
                 lifecycle_revision: observation.lifecycle_revision,
+                require_no_viewers: true,
             };
             self.apply_represented_gameobject_loot_release_like_cpp(
                 route.owner_guid,
@@ -5633,7 +5635,12 @@ impl WorldSession {
         }
 
         if route.owner_guid.is_corpse() {
-            self.remove_canonical_corpse_lootable_dynamic_flag_like_cpp(route.owner_guid);
+            self.remove_canonical_corpse_lootable_dynamic_flag_if_unviewed_fully_looted_observation_like_cpp(
+                route.owner_guid,
+                &route.authority,
+                observation.object_generation,
+                observation.lifecycle_revision,
+            );
             self.loot_table.remove(&route.owner_guid);
             return;
         }
@@ -5644,33 +5651,34 @@ impl WorldSession {
 
         let corpse_decay_looted_rate = self.loot_drop_rates_like_cpp().corpse_decay_looted;
         let whole_object_fully_skinned = observation.whole_object_fully_skinned;
-        let lifecycle_update = self.mutate_world_creature_if_fully_looted_observation_like_cpp(
-            route.owner_guid,
-            &route.authority,
-            observation.object_generation,
-            observation.lifecycle_revision,
-            |creature| {
-                creature.force_dynamic_flags_update_like_cpp();
-                creature.remove_lootable_dynamic_flag_like_cpp();
-                let marked = if creature.is_alive() {
-                    None
-                } else {
-                    let corpse_decay_secs = looted_corpse_decay_secs_like_cpp(
-                        whole_object_fully_skinned,
-                        creature.corpse_delay_secs_like_cpp(),
-                        creature.ignore_corpse_decay_ratio_like_cpp(),
-                        corpse_decay_looted_rate,
-                    );
-                    creature
-                        .all_loot_removed_from_corpse_like_cpp(
-                            corpse_decay_looted_rate,
+        let lifecycle_update = self
+            .mutate_world_creature_if_unviewed_fully_looted_observation_like_cpp(
+                route.owner_guid,
+                &route.authority,
+                observation.object_generation,
+                observation.lifecycle_revision,
+                |creature| {
+                    creature.force_dynamic_flags_update_like_cpp();
+                    creature.remove_lootable_dynamic_flag_like_cpp();
+                    let marked = if creature.is_alive() {
+                        None
+                    } else {
+                        let corpse_decay_secs = looted_corpse_decay_secs_like_cpp(
                             whole_object_fully_skinned,
-                        )
-                        .then_some((creature.entry(), corpse_decay_secs))
-                };
-                (marked, creature.creature.unit().values_update())
-            },
-        );
+                            creature.corpse_delay_secs_like_cpp(),
+                            creature.ignore_corpse_decay_ratio_like_cpp(),
+                            corpse_decay_looted_rate,
+                        );
+                        creature
+                            .all_loot_removed_from_corpse_like_cpp(
+                                corpse_decay_looted_rate,
+                                whole_object_fully_skinned,
+                            )
+                            .then_some((creature.entry(), corpse_decay_secs))
+                    };
+                    (marked, creature.creature.unit().values_update())
+                },
+            );
         self.loot_table.remove(&route.owner_guid);
         if let Some((_, values_update)) = lifecycle_update.as_ref() {
             self.send_creature_loot_release_dynamic_flags_update_like_cpp(
@@ -8865,6 +8873,40 @@ impl WorldSession {
         true
     }
 
+    fn remove_canonical_corpse_lootable_dynamic_flag_if_unviewed_fully_looted_observation_like_cpp(
+        &mut self,
+        corpse_guid: ObjectGuid,
+        authority: &OwnedLootAuthority,
+        object_generation: u64,
+        lifecycle_revision: u64,
+    ) -> bool {
+        let Some(map_key) =
+            self.canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))
+        else {
+            return false;
+        };
+        let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
+            return false;
+        };
+        let Ok(mut manager) = manager.lock() else {
+            return false;
+        };
+        let Some(map) = manager.find_map_mut(map_key.map_id, map_key.instance_id) else {
+            return false;
+        };
+        let Some(corpse) = map.map_mut().get_typed_corpse_mut(corpse_guid) else {
+            return false;
+        };
+
+        authority
+            .with_unviewed_fully_looted_lifecycle_observation_like_cpp(
+                object_generation,
+                lifecycle_revision,
+                || corpse.remove_corpse_dynamic_flag(CORPSE_DYNFLAG_LOOTABLE),
+            )
+            .is_some()
+    }
+
     fn represented_creature_loot_state_like_cpp(
         &mut self,
         guid: ObjectGuid,
@@ -9099,16 +9141,29 @@ impl WorldSession {
         let guarded_global_transition = authoritative_release
             .filter(|_| guarded_global_transition_attempted)
             .and_then(|release| {
-                self.set_canonical_gameobject_loot_state_if_fully_looted_observation_like_cpp(
-                    guid,
-                    &release.authority,
-                    release.object_generation,
-                    release.lifecycle_revision,
-                    LootState::JustDeactivated,
-                    None,
-                    represented_chest_restock_time_secs,
-                    false,
-                )
+                if release.require_no_viewers {
+                    self.set_canonical_gameobject_loot_state_if_unviewed_fully_looted_observation_like_cpp(
+                        guid,
+                        &release.authority,
+                        release.object_generation,
+                        release.lifecycle_revision,
+                        LootState::JustDeactivated,
+                        None,
+                        represented_chest_restock_time_secs,
+                        false,
+                    )
+                } else {
+                    self.set_canonical_gameobject_loot_state_if_fully_looted_observation_like_cpp(
+                        guid,
+                        &release.authority,
+                        release.object_generation,
+                        release.lifecycle_revision,
+                        LootState::JustDeactivated,
+                        None,
+                        represented_chest_restock_time_secs,
+                        false,
+                    )
+                }
             });
         if guarded_global_transition_attempted && guarded_global_transition.is_none() {
             // An upsert/install/replacement won the serialization point after
@@ -9645,6 +9700,7 @@ impl WorldSession {
                 whole_object_fully_skinned: close.whole_object_fully_skinned,
                 object_generation: close.object_generation,
                 lifecycle_revision: close.lifecycle_revision,
+                require_no_viewers: false,
             })
         } else {
             None
@@ -17282,6 +17338,104 @@ mod tests {
                 .loot
                 .items[0]
                 .taken
+        );
+    }
+
+    #[tokio::test]
+    async fn detached_remote_claim_waits_for_every_authority_viewer_before_corpse_lifecycle_like_cpp()
+     {
+        let (mut first, first_rx, mut second, second_rx, owner, first_guid, second_guid) =
+            two_sessions_with_authoritative_creature_loot_like_cpp(
+                authoritative_test_loot_like_cpp(0, true),
+            );
+        let _ = drain_server_opcodes_like_cpp(&first_rx);
+        let _ = drain_server_opcodes_like_cpp(&second_rx);
+        first
+            .mutate_world_creature(owner, |creature| {
+                creature.apply_corpse_loot_flags_after_death_state_like_cpp(true, false);
+            })
+            .unwrap();
+
+        let authority = first
+            .represented_owned_loot_authority_like_cpp(owner)
+            .unwrap();
+        let generation = authority
+            .snapshot_for_player_like_cpp(second_guid)
+            .unwrap()
+            .generation;
+        authority
+            .finish_item_roll_like_cpp(second_guid, generation, 0, false, Some(second_guid))
+            .unwrap();
+        let claim = authority
+            .reserve_item_for_award_like_cpp(second_guid, 0)
+            .await
+            .unwrap();
+        let entry = match claim.payload_like_cpp() {
+            LootClaimPayload::Item(entry) => entry.clone(),
+            LootClaimPayload::Money(_) => panic!("expected item claim"),
+        };
+
+        // The remote winner closes, while the original looter deliberately
+        // keeps the same authoritative Loot window open.
+        second.handle_loot_release(loot_release_packet(owner)).await;
+        let _ = drain_server_opcodes_like_cpp(&second_rx);
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let mut first_info = broadcast_info(first_guid, first.send_tx().clone());
+        first_info.command_tx = first.session_command_tx();
+        player_registry.insert(first_guid, first_info);
+        let mut second_info = broadcast_info(second_guid, second.send_tx().clone());
+        second_info.command_tx = second.session_command_tx();
+        player_registry.insert(second_guid, second_info);
+        first.set_player_registry(Arc::clone(&player_registry));
+        second.set_player_registry(player_registry);
+        let grants = Arc::new(AtomicUsize::new(0));
+        install_limited_test_item_template(&mut second, entry.item_id, 0);
+        second.set_loot_item_store_test_seam_like_cpp(Arc::clone(&grants), true);
+
+        let request = first.request_represented_remote_loot_roll_winner_store_like_cpp(
+            second_guid,
+            owner,
+            represented_loot_object_guid_like_cpp(owner),
+            0,
+            0,
+            vec![entry],
+            false,
+            Some(claim),
+        );
+        let target = async {
+            tokio::task::yield_now().await;
+            second.process_represented_session_commands_like_cpp().await;
+        };
+        let (result, ()) = tokio::join!(request, target);
+
+        assert_eq!(result, MasterLootGiveResult::Stored);
+        assert_eq!(grants.load(Ordering::SeqCst), 1);
+        assert!(
+            first
+                .mutate_world_creature(owner, |creature| {
+                    creature.has_lootable_dynamic_flag_like_cpp()
+                })
+                .unwrap(),
+            "the detached winner cannot finish lifecycle while the original viewer remains open"
+        );
+        assert_eq!(
+            authority
+                .snapshot_for_player_like_cpp(first_guid)
+                .unwrap()
+                .loot
+                .players_looting,
+            vec![first_guid]
+        );
+
+        first.handle_loot_release(loot_release_packet(owner)).await;
+        assert!(
+            !first
+                .mutate_world_creature(owner, |creature| {
+                    creature.has_lootable_dynamic_flag_like_cpp()
+                })
+                .unwrap(),
+            "the final real viewer release performs the ordinary C++ corpse transition"
         );
     }
 

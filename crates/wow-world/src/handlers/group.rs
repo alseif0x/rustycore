@@ -2025,7 +2025,10 @@ impl WorldSession {
             }
         }
 
-        if let Some(group) = group_reg.get(&group_guid) {
+        // `queue_visible...` may wait on a full member command channel. Clone
+        // the value and release DashMap's read guard before the first await so
+        // unrelated group mutations are never stalled behind that backpressure.
+        if let Some(group) = group_reg.get(&group_guid).map(|group| group.clone()) {
             send_party_update(&group, &registry, vra);
             queue_visible_gameobjects_or_spellclicks_refresh_like_cpp(&group, &registry, my_guid)
                 .await;
@@ -6047,6 +6050,59 @@ mod tests {
             u16::from_le_bytes([party_update[2], party_update[3]]),
             wow_network::GROUP_FLAG_RAID_LIKE_CPP
         );
+    }
+
+    #[tokio::test]
+    async fn convert_raid_releases_group_guard_before_refresh_backpressure_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 142);
+        let member = ObjectGuid::create_player(1, 143);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (leader_tx, _leader_rx) = bounded(8);
+        player_registry.insert(leader, broadcast_info(leader, leader_tx));
+        let (member_tx, _member_rx) = bounded(8);
+        // PartyUpdate fills this single slot; the following async refresh then
+        // waits for its timeout and exposes any DashMap guard held across it.
+        let (member_command_tx, _member_command_rx) = flume::bounded(1);
+        player_registry.insert(
+            member,
+            broadcast_info_with_command_tx(member, member_tx, member_command_tx),
+        );
+
+        session.set_player_guid(Some(leader));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(player_registry);
+        session.set_group_registry(
+            Arc::clone(&group_registry),
+            Arc::new(PendingInvites::default()),
+        );
+
+        let mut conversion = Box::pin(session.handle_convert_raid(convert_raid_packet(true)));
+        tokio::select! {
+            () = &mut conversion => panic!("refresh should be waiting on the full command channel"),
+            () = tokio::time::sleep(Duration::from_millis(20)) => {}
+        }
+
+        let writer_registry = Arc::clone(&group_registry);
+        let writer = tokio::task::spawn_blocking(move || {
+            writer_registry
+                .get_mut(&group_guid)
+                .map(|group| group.group_flags)
+        });
+        let observed_flags = tokio::time::timeout(Duration::from_secs(1), writer)
+            .await
+            .expect("the group write must not wait for refresh channel backpressure")
+            .expect("group writer task should not panic")
+            .expect("converted group should remain registered");
+        assert_ne!(observed_flags & wow_network::GROUP_FLAG_RAID_LIKE_CPP, 0);
+
+        conversion.await;
     }
 
     #[tokio::test]

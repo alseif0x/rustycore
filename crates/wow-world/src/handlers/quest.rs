@@ -1579,6 +1579,21 @@ impl WorldSession {
         }
     }
 
+    /// C++ walks one objective-status index and stops at the first quest-bound
+    /// item objective. Rust stores statuses in a `HashMap`, so two independent
+    /// scans could select different quests. Use the explicit quest-log slot
+    /// (then quest id as a deterministic duplicate-slot fallback) for both the
+    /// durable plan and its post-commit application.
+    fn quest_bound_item_objective_quest_order_like_cpp(&self) -> Vec<u32> {
+        let mut quests = self
+            .player_quests
+            .values()
+            .map(|status| (status.slot, status.quest_id))
+            .collect::<Vec<_>>();
+        quests.sort_unstable();
+        quests.into_iter().map(|(_, quest_id)| quest_id).collect()
+    }
+
     /// Pure form of the first C++ `Player::StoreNewItem` quest pass:
     /// `ItemAddedQuestCheck(itemId, count, true, &hadBoundItemObjective)`.
     ///
@@ -1597,13 +1612,17 @@ impl WorldSession {
         let count_i32 = i32::try_from(count).unwrap_or(i32::MAX);
         let entry_object_id = i32::try_from(entry_id).unwrap_or(i32::MAX);
         let quest_log_object_id = i32::try_from(quest_log_item_id).unwrap_or(i32::MAX);
+        let ordered_quest_ids = self.quest_bound_item_objective_quest_order_like_cpp();
 
         for object_id in [entry_object_id, quest_log_object_id] {
             if object_id == quest_log_object_id && quest_log_item_id == 0 {
                 continue;
             }
 
-            for current_status in self.player_quests.values() {
+            for quest_id in &ordered_quest_ids {
+                let Some(current_status) = self.player_quests.get(quest_id) else {
+                    continue;
+                };
                 if current_status.status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
                     continue;
                 }
@@ -1674,8 +1693,12 @@ impl WorldSession {
     ) -> Vec<(u32, i32)> {
         let mut updated_counts = Vec::new();
         let mut quests_to_complete = Vec::new();
+        let ordered_quest_ids = self.quest_bound_item_objective_quest_order_like_cpp();
 
-        'quests: for status in self.player_quests.values_mut() {
+        'quests: for quest_id in ordered_quest_ids {
+            let Some(status) = self.player_quests.get_mut(&quest_id) else {
+                continue;
+            };
             if status.status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
                 continue;
             }
@@ -8780,6 +8803,65 @@ mod tests {
         assert_eq!(packet.read_int32().unwrap(), 1);
         assert_eq!(packet.read_int32().unwrap(), 1);
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn bound_item_durable_plan_and_apply_use_the_same_quest_log_order_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        let item_id = 19_950;
+        let early_slot_quest_id = 7_452;
+        let late_slot_quest_id = 7_451;
+        let bound_quest = |quest_id: u32| {
+            let mut quest = quest_template(quest_id);
+            quest.objectives = vec![QuestObjective {
+                id: quest_id * 10,
+                quest_id,
+                obj_type: QUEST_OBJECTIVE_ITEM_LIKE_CPP_LOCAL,
+                order: 0,
+                storage_index: 0,
+                object_id: item_id,
+                amount: 2,
+                flags: 0,
+                flags2: QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP_LOCAL,
+                progress_bar_weight: 0.0,
+                description: String::new(),
+            }];
+            quest
+        };
+        let quest_store = Arc::new(QuestStore::from_quests_like_cpp([
+            bound_quest(late_slot_quest_id),
+            bound_quest(early_slot_quest_id),
+        ]));
+        session.set_quest_store(Arc::clone(&quest_store));
+        // Insert the numerically smaller quest first, but give it the later
+        // quest-log slot. HashMap bucket/insertion order must affect neither
+        // the pre-SQL plan nor the post-COMMIT mutation.
+        add_active_quest_in_slot(&mut session, late_slot_quest_id, 9);
+        add_active_quest_in_slot(&mut session, early_slot_quest_id, 2);
+
+        let planned = session
+            .plan_quest_source_item_bound_objective_persistence_like_cpp(item_id as u32, 0, 1)
+            .expect("one bound objective should be planned");
+        assert_eq!(planned.statuses.len(), 1);
+        assert_eq!(planned.statuses[0].quest_id, early_slot_quest_id);
+
+        let applied = session
+            .apply_quest_source_item_bound_objective_progress_for_object_like_cpp(
+                quest_store.as_ref(),
+                item_id,
+                1,
+            )
+            .await;
+        assert_eq!(applied, vec![(early_slot_quest_id, 1)]);
+        assert_eq!(
+            session.player_quests[&early_slot_quest_id].objective_counts,
+            vec![1]
+        );
+        assert!(
+            session.player_quests[&late_slot_quest_id]
+                .objective_counts
+                .is_empty()
+        );
     }
 
     #[tokio::test]

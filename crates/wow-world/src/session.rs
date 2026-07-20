@@ -9403,6 +9403,51 @@ impl WorldSession {
         )
     }
 
+    /// Detached durable-claim completion may transition the object only when
+    /// no client still has any shared or personal loot pool open. The final
+    /// viewer check and map mutation are serialized under the authority lock.
+    pub(crate) fn set_canonical_gameobject_loot_state_if_unviewed_fully_looted_observation_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+        authority: &OwnedLootAuthority,
+        object_generation: u64,
+        lifecycle_revision: u64,
+        state: wow_entities::LootState,
+        unit_guid: Option<ObjectGuid>,
+        chest_restock_time_secs: u32,
+        shared_loot_is_changed_like_cpp: bool,
+    ) -> Option<wow_map::map::GameObjectSetLootStateOutcomeLikeCpp> {
+        let map_key = self
+            .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
+        let game_time_secs = i64::try_from(wow_core::GameTime::now().as_secs()).unwrap_or(i64::MAX);
+        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
+        let mut manager = manager.lock().ok()?;
+        let managed = manager.find_map_mut(map_key.map_id, map_key.instance_id)?;
+        let object_authority = managed
+            .map()
+            .get_typed_game_object(guid)?
+            .loot_authority_like_cpp()
+            .clone();
+        if !object_authority.shares_storage_like_cpp(authority) {
+            return None;
+        }
+
+        authority.with_unviewed_fully_looted_lifecycle_observation_like_cpp(
+            object_generation,
+            lifecycle_revision,
+            || {
+                managed.map_mut().set_gameobject_loot_state_like_cpp(
+                    guid,
+                    state,
+                    unit_guid,
+                    game_time_secs,
+                    chest_restock_time_secs,
+                    shared_loot_is_changed_like_cpp,
+                )
+            },
+        )
+    }
+
     /// C++ fishing-hole release performs AddUse, MaxOpens comparison, and
     /// SetLootState on one world thread. Keep all three under one map lock so
     /// two concurrent personal releases cannot finish in `Ready` after max.
@@ -13896,6 +13941,49 @@ impl WorldSession {
                 return None;
             }
             authority.with_fully_looted_lifecycle_observation_like_cpp(
+                object_generation,
+                lifecycle_revision,
+                || {
+                    let result = f(creature);
+                    (result, creature.position(), creature.creature.clone())
+                },
+            )
+        }?;
+        let (result, position, creature) = guarded_result;
+        self.relocate_canonical_creature_map_object_like_cpp(guid, position);
+        self.sync_canonical_creature_entity_like_cpp(creature);
+        Some(result)
+    }
+
+    /// Detached durable-claim completion variant of the guarded creature
+    /// mutation. It additionally requires every authoritative loot viewer set
+    /// to remain empty through the map mutation.
+    pub(crate) fn mutate_world_creature_if_unviewed_fully_looted_observation_like_cpp<F, R>(
+        &mut self,
+        guid: ObjectGuid,
+        authority: &OwnedLootAuthority,
+        object_generation: u64,
+        lifecycle_revision: u64,
+        f: F,
+    ) -> Option<R>
+    where
+        F: FnOnce(&mut crate::map_manager::WorldCreature) -> R,
+    {
+        let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
+        let manager = self.map_manager.as_ref().cloned()?;
+        let guarded_result = {
+            let mut manager = manager
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let creature = manager.find_creature_mut(map_id, instance_id, guid)?;
+            if !creature
+                .creature
+                .loot_authority_like_cpp()
+                .shares_storage_like_cpp(authority)
+            {
+                return None;
+            }
+            authority.with_unviewed_fully_looted_lifecycle_observation_like_cpp(
                 object_generation,
                 lifecycle_revision,
                 || {

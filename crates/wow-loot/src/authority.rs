@@ -639,16 +639,43 @@ impl OwnedLootAuthority {
         Some(apply_before_unlock())
     }
 
-    /// Captures the exact fully-looted generation for lifecycle work that is
-    /// triggered after a detached durable claim commits. Unlike
-    /// `close_viewer_if_generation_like_cpp`, this does not require or mutate
-    /// `players_looting`.
+    /// Runs lifecycle work for a detached durable claim only while every
+    /// authoritative `Loot::PlayersLooting` set is empty.  Unlike the normal
+    /// `DoLootRelease` path, the worker is not itself closing a client view;
+    /// it must therefore leave the object active for any other open viewer.
+    /// The no-viewer check belongs in the same critical section as the map
+    /// mutation so a concurrent open cannot slip between observation and use.
+    pub fn with_unviewed_fully_looted_lifecycle_observation_like_cpp<R>(
+        &self,
+        expected_object_generation: u64,
+        expected_lifecycle_revision: u64,
+        apply_before_unlock: impl FnOnce() -> R,
+    ) -> Option<R> {
+        let state = self.lock_state();
+        if state.retired
+            || state.generation != expected_object_generation
+            || state.lifecycle_revision != expected_lifecycle_revision
+            || !active_loot_pools_fully_looted_like_cpp(&state)
+            || !active_loot_pools_have_no_viewers_like_cpp(&state)
+        {
+            return None;
+        }
+        Some(apply_before_unlock())
+    }
+
+    /// Captures the exact fully-looted, globally unviewed generation for
+    /// lifecycle work triggered after a detached durable claim commits.
+    /// Unlike `close_viewer_if_generation_like_cpp`, this does not mutate
+    /// `players_looting`; any open shared or personal view rejects the work.
     #[must_use]
-    pub fn fully_looted_lifecycle_observation_like_cpp(
+    pub fn fully_looted_unviewed_lifecycle_observation_like_cpp(
         &self,
     ) -> Option<LootFullyLootedLifecycleObservation> {
         let state = self.lock_state();
-        if state.retired || !active_loot_pools_fully_looted_like_cpp(&state) {
+        if state.retired
+            || !active_loot_pools_fully_looted_like_cpp(&state)
+            || !active_loot_pools_have_no_viewers_like_cpp(&state)
+        {
             return None;
         }
         Some(LootFullyLootedLifecycleObservation {
@@ -1890,6 +1917,17 @@ fn active_loot_pools_fully_looted_like_cpp(state: &AuthorityState) -> bool {
             .personal
             .values()
             .all(CreatureLoot::is_looted_like_cpp)
+}
+
+fn active_loot_pools_have_no_viewers_like_cpp(state: &AuthorityState) -> bool {
+    state
+        .shared
+        .as_ref()
+        .is_none_or(|loot| loot.players_looting.is_empty())
+        && state
+            .personal
+            .values()
+            .all(|loot| loot.players_looting.is_empty())
 }
 
 fn active_loot_pools_fully_skinned_like_cpp(state: &AuthorityState) -> bool {
@@ -3261,6 +3299,58 @@ mod tests {
                 )
                 .is_none(),
             "an upsert after close must invalidate the pre-upsert lifecycle observation"
+        );
+        assert_eq!(applications.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn detached_lifecycle_observation_requires_every_loot_view_to_be_closed_like_cpp() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let authority = OwnedLootAuthority::new();
+        let first = player(1);
+        let second = player(2);
+        authority.replace_like_cpp(Some(loot(owner(1), 0, vec![])), HashMap::new());
+        let first_open = authority.add_viewer_like_cpp(first).unwrap();
+        let second_open = authority.add_viewer_like_cpp(second).unwrap();
+
+        authority
+            .close_viewer_if_generation_like_cpp(second_open.generation, second)
+            .unwrap();
+        assert!(
+            authority
+                .fully_looted_unviewed_lifecycle_observation_like_cpp()
+                .is_none(),
+            "the remaining viewer belongs to the global authority, not the detached worker session"
+        );
+
+        authority
+            .close_viewer_if_generation_like_cpp(first_open.generation, first)
+            .unwrap();
+        let observation = authority
+            .fully_looted_unviewed_lifecycle_observation_like_cpp()
+            .expect("the fully-looted owner is unviewed after both releases");
+        let applications = AtomicUsize::new(0);
+        assert!(
+            authority
+                .with_unviewed_fully_looted_lifecycle_observation_like_cpp(
+                    observation.object_generation,
+                    observation.lifecycle_revision,
+                    || applications.fetch_add(1, Ordering::SeqCst),
+                )
+                .is_some()
+        );
+
+        authority.add_viewer_like_cpp(first).unwrap();
+        assert!(
+            authority
+                .with_unviewed_fully_looted_lifecycle_observation_like_cpp(
+                    observation.object_generation,
+                    observation.lifecycle_revision,
+                    || applications.fetch_add(1, Ordering::SeqCst),
+                )
+                .is_none(),
+            "a view opened after the snapshot must still veto the serialized lifecycle mutation"
         );
         assert_eq!(applications.load(Ordering::SeqCst), 1);
     }
