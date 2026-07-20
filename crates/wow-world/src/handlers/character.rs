@@ -3101,6 +3101,25 @@ impl WorldSession {
         vendor_slot: u32,
         expected_item_id: u32,
     ) -> Option<VendorBuyItem> {
+        #[cfg(test)]
+        if let Some(item) = self.vendor_buy_item_test_override_like_cpp() {
+            if vendor_slot != 0 || item.item_id != expected_item_id {
+                return None;
+            }
+            return Some(VendorBuyItem {
+                item_id: item.item_id,
+                item_type: item.item_type,
+                max_count: item.max_count,
+                incr_time: item.incr_time,
+                player_condition_id: item.player_condition_id,
+                has_vendor_conditions: item.has_vendor_conditions,
+                extended_cost: item.extended_cost,
+                buy_price: item.buy_price,
+                max_durability: item.max_durability,
+                buy_count: item.buy_count,
+            });
+        }
+
         let mut raw_slot = 0u32;
         let mut expanded = std::collections::HashSet::<u32>::new();
         let mut queue = std::collections::VecDeque::new();
@@ -11753,7 +11772,6 @@ impl WorldSession {
     ///
     /// C++ refs: `HandleBuyItemOpcode` (`Handlers/ItemHandler.cpp:530-564`)
     /// delegates to `Player::BuyItemFromVendorSlot` (`Player.cpp:22362+`).
-    /// Simplified: no reputation discount, no extended cost, no stack logic.
     pub async fn handle_buy_item(&mut self, buy: BuyItem) {
         use wow_packet::packets::update::{ItemCreateData, UpdateObject};
 
@@ -11923,18 +11941,26 @@ impl WorldSession {
                 };
                 item_turnin_changes.append(&mut changes);
             }
-            let currency_snapshot = self.player_currencies_like_cpp().clone();
-            let currency_gain = match self.add_currency_vendor(buy.item_id as u32, quantity) {
+            let mut planned_currencies = self.player_currencies_like_cpp().clone();
+            let currency_gain = match self.plan_add_currency_vendor_like_cpp(
+                &mut planned_currencies,
+                buy.item_id as u32,
+                quantity,
+            ) {
                 Ok(delta) => delta,
                 Err(()) => {
-                    self.set_player_currencies_like_cpp(currency_snapshot);
                     self.send_equip_error(InventoryResult::VendorMissingTurnins, None, None, 0, 0);
                     return;
                 }
             };
             for &(currency_id, amount) in &extended_cost_currency_costs {
-                if i32::try_from(amount).is_err() || !self.remove_currency(currency_id, amount) {
-                    self.set_player_currencies_like_cpp(currency_snapshot);
+                if i32::try_from(amount).is_err()
+                    || !Self::plan_remove_currency_like_cpp(
+                        &mut planned_currencies,
+                        currency_id,
+                        amount,
+                    )
+                {
                     self.send_equip_error(InventoryResult::VendorMissingTurnins, None, None, 0, 0);
                     return;
                 }
@@ -11947,17 +11973,50 @@ impl WorldSession {
                 player_guid,
                 &item_turnin_changes,
             );
-            self.append_player_currency_save_statements(&mut tx, player_guid.counter() as u64);
-            if let Err(e) = char_db.commit_transaction(tx).await {
-                self.set_player_currencies_like_cpp(currency_snapshot);
-                warn!("BuyItem: currency vendor transaction failed: {e}");
+            self.append_planned_player_currency_save_statements_like_cpp(
+                &mut tx,
+                player_guid.counter() as u64,
+                &mut planned_currencies,
+            );
+
+            // C++ mutates currency plus extended-cost turn-ins in one
+            // serialized Player turn. Rust crosses SQL here, so retain the
+            // same cancellation/unknown-COMMIT quarantine used by purchases
+            // that also change money. Equal money sentinels deliberately make
+            // an ambiguous result indeterminate: the money row cannot prove
+            // whether these currency/item statements committed.
+            let Some(money_persistence) = self
+                .begin_exclusive_player_money_persistence_like_cpp()
+                .await
+            else {
+                return;
+            };
+            let money_marker = self.player_gold_like_cpp();
+            let Some(money_persistence) = self
+                .commit_exclusive_player_money_transaction_like_cpp(
+                    money_persistence,
+                    char_db.as_ref(),
+                    tx,
+                    money_marker,
+                    money_marker,
+                    "vendor currency purchase",
+                )
+                .await
+            else {
+                warn!("BuyItem: currency vendor transaction did not commit");
                 self.send_buy_error(
                     BuyResult::CantFindItem,
                     Some(buy.vendor_guid),
                     buy.item_id as u32,
                 );
                 return;
-            }
+            };
+
+            // Publish the entire committed state before reopening payout/save
+            // admission. No await may split durable success from runtime.
+            self.set_player_currencies_like_cpp(planned_currencies);
+            self.apply_item_turnin_changes(player_guid, map_id, &item_turnin_changes);
+            drop(money_persistence);
 
             if let Some(delta) = currency_gain {
                 let (Some(quantity), Some(amount)) = (
@@ -11980,7 +12039,6 @@ impl WorldSession {
                 packet.suppress_chat_log = delta.suppress_chat_log;
                 self.send_packet(&packet);
             }
-            self.apply_item_turnin_changes(player_guid, map_id, &item_turnin_changes);
             for &(currency_id, amount) in &extended_cost_currency_costs {
                 let Some(quantity) = i32::try_from(self.player_currency_quantity(currency_id)).ok()
                 else {
@@ -12321,15 +12379,24 @@ impl WorldSession {
             &item_turnin_changes,
         );
 
-        let currency_snapshot = self.player_currencies_like_cpp().clone();
+        let mut planned_currencies = self.player_currencies_like_cpp().clone();
         for &(currency_id, amount) in &extended_cost_currency_costs {
-            if i32::try_from(amount).is_err() || !self.remove_currency(currency_id, amount) {
-                self.set_player_currencies_like_cpp(currency_snapshot);
+            if i32::try_from(amount).is_err()
+                || !Self::plan_remove_currency_like_cpp(
+                    &mut planned_currencies,
+                    currency_id,
+                    amount,
+                )
+            {
                 self.send_equip_error(InventoryResult::VendorMissingTurnins, None, None, 0, 0);
                 return;
             }
         }
-        self.append_player_currency_save_statements(&mut tx, player_guid.counter() as u64);
+        self.append_planned_player_currency_save_statements_like_cpp(
+            &mut tx,
+            player_guid.counter() as u64,
+            &mut planned_currencies,
+        );
 
         let Some(money_persistence) = self
             .commit_exclusive_player_money_transaction_like_cpp(
@@ -12342,7 +12409,6 @@ impl WorldSession {
             )
             .await
         else {
-            self.set_player_currencies_like_cpp(currency_snapshot);
             warn!("BuyItem: store transaction did not commit");
             self.send_buy_error(
                 BuyResult::CantFindItem,
@@ -12358,6 +12424,7 @@ impl WorldSession {
         // the handler after COMMIT must not leave runtime at the pre-buy state.
         self.stage_player_money_change_like_cpp(old_gold, new_gold);
         self.apply_item_turnin_changes(player_guid, map_id, &item_turnin_changes);
+        self.set_player_currencies_like_cpp(planned_currencies);
         for &(_, item_guid, new_count) in &existing_updates {
             self.update_inventory_item_object_like_cpp(item_guid, |item| {
                 item.set_count(new_count);
@@ -16537,6 +16604,10 @@ impl WorldSession {
 }
 
 #[cfg(test)]
+#[path = "character_vendor_atomicity_tests.rs"]
+mod vendor_atomicity_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::session::{
@@ -20410,10 +20481,17 @@ mod tests {
             "self.stage_player_money_change_like_cpp",
             &[
                 "self.apply_item_turnin_changes",
+                "self.set_player_currencies_like_cpp(planned_currencies);",
                 "self.insert_inventory_item_like_cpp",
                 "self.update_vendor_item_current_count",
                 "self.sync_object_accessor_player();",
             ],
+        );
+        assert_publication_segment(
+            character,
+            "vendor currency purchase",
+            "self.set_player_currencies_like_cpp(planned_currencies);",
+            &["self.apply_item_turnin_changes"],
         );
         assert_publication_segment(
             character,

@@ -1,3 +1,26 @@
+# `#NEXT.R8.ENTITIES.1202` — atomic vendor-purchase currency publication (issue #108).
+
+Source-of-truth C++ was checked before implementation:
+`Handlers/ItemHandler.cpp:530-564` and `Player.cpp:22207-22590`. C++ performs
+`BuyCurrencyFromVendorSlot` and `BuyItemFromVendorSlot` currency/item-cost mutations in one
+serialized Player turn. Rust additionally crosses CharacterDB, so both `handle_buy_item`
+branches now build currency gains/costs on a detached plan, append them with the same transaction
+as item turn-ins plus applicable inventory/gold rows, and publish the plan only after durable
+success. A definite rollback exposes no runtime currency/turn-in mutation. Currency-only
+purchases use the existing cancellation fence with equal money markers, making a lost COMMIT
+reply indeterminate and forcing relog rather than permitting a stale full save to overwrite an
+unknown durable result. Item purchases publish their committed currency plan synchronously with
+money, inventory, and turn-ins before reopening payout/save admission.
+
+Focused tests cover detached pre-COMMIT isolation, a real failed-connection rollback through
+`handle_buy_item`, successful publication, generated currency save statements, and the
+unknown-COMMIT equal-marker rule. Full `wow-world --lib` is 2,996/0 and `world-server` checks
+cleanly with the pinned protoc and incremental compilation disabled; the committed capture-diff
+gate is 123/0 with its required loot flow CLEAN, and local Codex review is CLEAN. Boundary:
+represented-partial until a representative vendor bot/client capture, manual client QA, CI, and
+current-HEAD reviewer verdict. Finite-stock oversell (D-H11), buyback/refund, and wider vendor
+validation are separate work.
+
 # `#NEXT.R8.ENTITIES.1201` — atomic personal-bank item moves (issue #102).
 
 Source-of-truth C++ was checked before and throughout implementation:

@@ -99,6 +99,16 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
   `session.rs`.
 - [ ] **D-C8 Vendor buy not atomic.** Gold/currency applied to runtime before item DB commit;
   commit fail = paid, no item. `handlers/character.rs:10177-10292`.
+  - 2026-07-20 issue #108 local slice: ordinary item purchases already gained a combined
+    gold/item/turn-in transaction in #107, but item extended-cost currencies and the entire
+    currency-vendor branch still changed session currency before awaiting COMMIT. Both paths now
+    build detached currency plans and publish them only after the purchase transaction commits.
+    Currency-only purchases reuse the cancellation/unknown-COMMIT quarantine with equal money
+    markers, so definite rollback leaves runtime untouched and an ambiguous result requires relog
+    without allowing a stale full save. A failed-connection handler regression exercises the real
+    rollback branch and proves that it emits only `BuyFailed`, preserves runtime currency, and
+    reopens payout/save admission. Kept open until capture-diff, bot/client QA, CI, and the
+    current-HEAD reviewer verdict complete.
 - [ ] **D-C9 Group full-check race.** Size checked then join without re-check → 6+ member
   groups under concurrent accepts. `handlers/group.rs:928-1044`.
 

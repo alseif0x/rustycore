@@ -5115,6 +5115,10 @@ pub struct WorldSession {
     /// Per-session finite vendor stock state, mirroring Creature::m_vendorItemCounts
     /// until vendor ownership moves into the shared creature model.
     pub(crate) vendor_item_counts: HashMap<(wow_core::ObjectGuid, u32), VendorItemCount>,
+    /// Test-only replacement for one resolved `VendorItem` row. Production
+    /// always resolves the row through CharacterHandler's WorldDB query.
+    #[cfg(test)]
+    vendor_buy_item_test_override_like_cpp: Option<VendorBuyItemTestOverrideLikeCpp>,
 
     /// Shared, server-wide map state. When `Some`, creature reads/writes can
     /// route through here so all sessions on the same map see the same world.
@@ -6033,6 +6037,21 @@ pub(crate) struct RepresentedEquipmentSetSavedLikeCpp {
 pub(crate) struct VendorItemCount {
     pub count: u32,
     pub last_increment_time: u64,
+}
+
+#[cfg(test)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct VendorBuyItemTestOverrideLikeCpp {
+    pub(crate) item_id: u32,
+    pub(crate) item_type: i32,
+    pub(crate) max_count: u32,
+    pub(crate) incr_time: u32,
+    pub(crate) player_condition_id: u32,
+    pub(crate) has_vendor_conditions: bool,
+    pub(crate) extended_cost: u32,
+    pub(crate) buy_price: u64,
+    pub(crate) max_durability: u32,
+    pub(crate) buy_count: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -6983,6 +7002,8 @@ impl WorldSession {
             filter_addon_messages: false,
             creature_tick: 0,
             vendor_item_counts: HashMap::new(),
+            #[cfg(test)]
+            vendor_buy_item_test_override_like_cpp: None,
             map_manager: None,
             canonical_map_manager: None,
             mmap_pathfinder_like_cpp: None,
@@ -8104,6 +8125,21 @@ impl WorldSession {
 
     pub fn set_canonical_map_manager(&mut self, mgr: SharedCanonicalMapManager) {
         self.canonical_map_manager = Some(mgr);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_vendor_buy_item_test_override_like_cpp(
+        &mut self,
+        item: VendorBuyItemTestOverrideLikeCpp,
+    ) {
+        self.vendor_buy_item_test_override_like_cpp = Some(item);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn vendor_buy_item_test_override_like_cpp(
+        &self,
+    ) -> Option<VendorBuyItemTestOverrideLikeCpp> {
+        self.vendor_buy_item_test_override_like_cpp
     }
 
     pub(crate) fn auto_reply_msg_like_cpp(&self) -> &str {
@@ -15375,8 +15411,9 @@ impl WorldSession {
     }
 
     /// C++ `Player::AddCurrency(..., CurrencyGainSource::Vendor)` without aura gain bonuses.
-    pub(crate) fn add_currency_vendor(
-        &mut self,
+    pub(crate) fn plan_add_currency_vendor_like_cpp(
+        &self,
+        currencies: &mut HashMap<u32, PlayerCurrency>,
         currency_id: u32,
         amount: u32,
     ) -> Result<Option<PlayerCurrencyDelta>, ()> {
@@ -15407,7 +15444,6 @@ impl WorldSession {
             return Err(());
         }
 
-        let mut currencies = self.player_currencies_like_cpp().clone();
         let currency = currencies.entry(currency_id).or_insert(PlayerCurrency {
             state: PlayerCurrencyState::New,
             quantity: 0,
@@ -15458,8 +15494,22 @@ impl WorldSession {
             total_earned: entry.has_total_earned().then_some(currency.earned_quantity),
             suppress_chat_log: entry.is_suppressing_chat_log(false),
         };
-        self.set_player_currencies_like_cpp(currencies);
         Ok(Some(delta))
+    }
+
+    /// Publish the C++ vendor gain immediately for callers that do not own a
+    /// wider durable transaction. Persistence-sensitive vendor handlers use
+    /// [`Self::plan_add_currency_vendor_like_cpp`] and publish only after
+    /// their combined item/currency transaction commits.
+    pub(crate) fn add_currency_vendor(
+        &mut self,
+        currency_id: u32,
+        amount: u32,
+    ) -> Result<Option<PlayerCurrencyDelta>, ()> {
+        let mut currencies = self.player_currencies_like_cpp().clone();
+        let delta = self.plan_add_currency_vendor_like_cpp(&mut currencies, currency_id, amount)?;
+        self.set_player_currencies_like_cpp(currencies);
+        Ok(delta)
     }
 
     /// C++ `Player::AddCurrency(..., CurrencyGainSource::ItemRefund)`.
@@ -15630,12 +15680,15 @@ impl WorldSession {
     }
 
     /// C++ `Player::RemoveCurrency` underflow guard for vendor costs.
-    pub(crate) fn remove_currency(&mut self, currency_id: u32, amount: u32) -> bool {
+    pub(crate) fn plan_remove_currency_like_cpp(
+        currencies: &mut HashMap<u32, PlayerCurrency>,
+        currency_id: u32,
+        amount: u32,
+    ) -> bool {
         if amount == 0 {
             return true;
         }
 
-        let mut currencies = self.player_currencies_like_cpp().clone();
         let Some(currency) = currencies.get_mut(&currency_id) else {
             return false;
         };
@@ -15648,21 +15701,29 @@ impl WorldSession {
         if currency.state != PlayerCurrencyState::New {
             currency.state = PlayerCurrencyState::Changed;
         }
+        true
+    }
+
+    pub(crate) fn remove_currency(&mut self, currency_id: u32, amount: u32) -> bool {
+        let mut currencies = self.player_currencies_like_cpp().clone();
+        if !Self::plan_remove_currency_like_cpp(&mut currencies, currency_id, amount) {
+            return false;
+        }
         self.set_player_currencies_like_cpp(currencies);
         true
     }
 
     /// C++ `Player::_SaveCurrency` for changed/new currency rows.
-    pub(crate) fn append_player_currency_save_statements(
-        &mut self,
+    pub(crate) fn append_planned_player_currency_save_statements_like_cpp(
+        &self,
         tx: &mut SqlTransaction,
         character_guid: u64,
+        currencies: &mut HashMap<u32, PlayerCurrency>,
     ) {
         let Some(store) = self.currency_types_store.as_ref() else {
             return;
         };
-        let mut currencies = self.player_currencies_like_cpp().clone();
-        for (&currency_id, currency) in &mut currencies {
+        for (&currency_id, currency) in currencies.iter_mut() {
             if !store.has_record(currency_id) {
                 continue;
             }
@@ -15702,6 +15763,19 @@ impl WorldSession {
                 PlayerCurrencyState::Unchanged | PlayerCurrencyState::Removed => {}
             }
         }
+    }
+
+    pub(crate) fn append_player_currency_save_statements(
+        &mut self,
+        tx: &mut SqlTransaction,
+        character_guid: u64,
+    ) {
+        let mut currencies = self.player_currencies_like_cpp().clone();
+        self.append_planned_player_currency_save_statements_like_cpp(
+            tx,
+            character_guid,
+            &mut currencies,
+        );
         self.set_player_currencies_like_cpp(currencies);
     }
 
@@ -116694,6 +116768,117 @@ mod tests {
                 .get(&396)
                 .map(|currency| currency.state),
             Some(PlayerCurrencyState::New)
+        );
+    }
+
+    #[test]
+    fn vendor_currency_purchase_plan_does_not_publish_before_commit_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.player_race = 1;
+        session.set_currency_types_store(Arc::new(wow_data::CurrencyTypesStore::from_entries([
+            currency_entry(395),
+            currency_entry(396),
+        ])));
+        session.player_currencies.insert(
+            396,
+            PlayerCurrency {
+                state: PlayerCurrencyState::Unchanged,
+                quantity: 10,
+                weekly_quantity: 0,
+                tracked_quantity: 0,
+                increased_cap_quantity: 0,
+                earned_quantity: 0,
+                flags: 0,
+            },
+        );
+        let runtime_before = session.player_currencies_like_cpp().clone();
+        let mut planned = runtime_before.clone();
+
+        let gain = session
+            .plan_add_currency_vendor_like_cpp(&mut planned, 395, 3)
+            .expect("represented vendor currency should be plannable")
+            .expect("the uncapped gain should be nonzero");
+        assert!(WorldSession::plan_remove_currency_like_cpp(
+            &mut planned,
+            396,
+            4
+        ));
+
+        let mut tx = SqlTransaction::new();
+        session.append_planned_player_currency_save_statements_like_cpp(&mut tx, 42, &mut planned);
+
+        assert_eq!(gain.quantity, 3);
+        assert_eq!(planned.get(&395).map(|currency| currency.quantity), Some(3));
+        assert_eq!(planned.get(&396).map(|currency| currency.quantity), Some(6));
+        assert_eq!(
+            planned.get(&395).map(|currency| currency.state),
+            Some(PlayerCurrencyState::Unchanged)
+        );
+        assert_eq!(
+            planned.get(&396).map(|currency| currency.state),
+            Some(PlayerCurrencyState::Unchanged)
+        );
+        assert_eq!(tx.len(), 2);
+        assert_eq!(
+            session.player_currencies_like_cpp(),
+            &runtime_before,
+            "a definite rollback or cancellation before COMMIT must leave runtime unchanged"
+        );
+    }
+
+    #[test]
+    fn vendor_currency_purchase_publishes_only_committed_plan_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.player_race = 1;
+        session.set_currency_types_store(Arc::new(wow_data::CurrencyTypesStore::from_entries([
+            currency_entry(395),
+            currency_entry(396),
+        ])));
+        session.player_currencies.insert(
+            396,
+            PlayerCurrency {
+                state: PlayerCurrencyState::Unchanged,
+                quantity: 10,
+                weekly_quantity: 0,
+                tracked_quantity: 0,
+                increased_cap_quantity: 0,
+                earned_quantity: 0,
+                flags: 0,
+            },
+        );
+        let mut planned = session.player_currencies_like_cpp().clone();
+        session
+            .plan_add_currency_vendor_like_cpp(&mut planned, 395, 3)
+            .unwrap();
+        assert!(WorldSession::plan_remove_currency_like_cpp(
+            &mut planned,
+            396,
+            4
+        ));
+        let mut tx = SqlTransaction::new();
+        session.append_planned_player_currency_save_statements_like_cpp(&mut tx, 42, &mut planned);
+
+        // This synchronous publication is the post-COMMIT half used by
+        // `handle_buy_item`; no fallible/async operation separates it from the
+        // durable success branch.
+        session.set_player_currencies_like_cpp(planned);
+
+        assert_eq!(session.player_currency_quantity(395), 3);
+        assert_eq!(session.player_currency_quantity(396), 6);
+        assert!(
+            session
+                .player_currencies_like_cpp()
+                .values()
+                .all(|currency| currency.state == PlayerCurrencyState::Unchanged)
+        );
+    }
+
+    #[test]
+    fn vendor_currency_unknown_commit_is_quarantined_without_money_evidence_like_cpp() {
+        assert_eq!(
+            reconcile_absolute_player_money_commit_like_cpp(100, 100, Some(100)),
+            AbsolutePlayerMoneyCommitReconciliationLikeCpp::Indeterminate,
+            "currency-only vendor transactions use equal money markers, so a lost COMMIT reply must require relog instead of guessing"
         );
     }
 

@@ -1,3 +1,28 @@
+- `#NEXT.R8.ENTITIES.1202` — issue #108 closes the remaining D-C8 vendor-purchase
+  publication gap. C++ anchors:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/ItemHandler.cpp:530-564` and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:22207-22590`.
+  C++ applies a currency purchase or item purchase with extended costs in one serialized
+  `Player` turn. Rust must also cross CharacterDB, so `handle_buy_item` now computes currency
+  gains/costs on a detached plan, appends that plan with the purchase item/gold/turn-in rows,
+  and publishes neither currencies nor inventory turn-ins until the combined transaction has
+  committed. Currency-only purchases now use the existing per-character money/save fence with
+  equal money markers: a definite rollback leaves runtime untouched, while cancellation or a
+  lost COMMIT reply cannot be guessed from an unchanged money row and quarantines the session
+  for relog instead of allowing a stale full save. Ordinary item purchases use the same detached
+  currency plan and publish it synchronously with money, inventory, and turn-ins before reopening
+  payout/save admission. Focused tests cover detached planning, a real failed-connection rollback
+  through `handle_buy_item` with no runtime publication, post-COMMIT publication, and the
+  equal-marker indeterminate decision. Checks so far: `cargo +1.88.0 fmt --all -- --check`;
+  focused `wow-world --lib` vendor-buy 12/0, vendor-currency 3/0, handler rollback 1/0, and
+  post-COMMIT structural guard 1/0; full `wow-world --lib` 2,996/0;
+  `PROTOC=... CARGO_INCREMENTAL=0 cargo +1.88.0 check -p world-server`; committed capture-diff
+  regression gate 123/0 plus required loot flow CLEAN; `git diff --check`; local Codex review
+  CLEAN after adding the real handler rollback test. Boundary remains represented-partial until a
+  representative vendor bot/client capture, manual client QA, CI, and current-HEAD GitHub Codex
+  verdict; finite vendor-stock oversell (D-H11), buyback/refund, and broader vendor validation are
+  outside D-C8.
+
 - `#NEXT.R8.ENTITIES.1201` — issue #102 implements atomic personal-bank item moves for
   `CMSG_AUTOBANK_ITEM` and `CMSG_AUTOSTORE_BANK_ITEM`. C++ anchors:
   `/home/server/woltk-trinity-legacy/src/server/game/Handlers/BankHandler.cpp:25-121`,
