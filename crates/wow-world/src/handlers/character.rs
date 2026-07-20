@@ -2065,6 +2065,24 @@ fn vendor_buy_coinage_update_like_cpp(buy_price: u64, remaining_gold: u64) -> Op
     (buy_price != 0).then_some(remaining_gold)
 }
 
+fn vendor_stored_new_item_flags_like_cpp(
+    template: Option<&wow_entities::ItemStorageTemplate>,
+    bag: u8,
+    slot: u8,
+) -> u32 {
+    // C++ `StoreNewItem` marks the object new before `_StoreItem`, then the
+    // store path applies the template bonding rule at its destination.
+    let mut item = wow_entities::Item::new(0);
+    if let Some(template) = template {
+        item.set_bonding(template.bonding);
+    }
+    item.set_item_flag(ItemFieldFlags::NEW_ITEM);
+    item.bind_if_stored(wow_entities::is_bag_pos(wow_entities::make_item_pos(
+        bag, slot,
+    )));
+    item.item_flags_bits()
+}
+
 fn player_money_gain_like_cpp(current_money: u64, amount: u64) -> Option<u64> {
     if amount == 0 {
         return Some(current_money);
@@ -12339,12 +12357,19 @@ impl WorldSession {
                     return;
                 };
 
-                let mut ins_item = char_db.prepare(CharStatements::INS_ITEM_INSTANCE);
+                let item_flags =
+                    vendor_stored_new_item_flags_like_cpp(refund_template.as_ref(), bag, slot);
+                let mut ins_item =
+                    char_db.prepare(CharStatements::INS_ITEM_INSTANCE_WITH_RANDOM_CONTEXT);
                 ins_item.set_u64(0, db_guid);
                 ins_item.set_u32(1, buy.item_id as u32);
                 ins_item.set_u64(2, player_guid.counter() as u64);
                 ins_item.set_u32(3, dest.count);
                 ins_item.set_u32(4, max_durability);
+                ins_item.set_u32(5, item_flags);
+                ins_item.set_i32(6, 0);
+                ins_item.set_i32(7, 0);
+                ins_item.set_u8(8, ItemContext::Vendor as u8);
                 tx.append(ins_item);
 
                 let mut ins_inv = char_db.prepare(CharStatements::INS_CHAR_INVENTORY);
@@ -12353,15 +12378,20 @@ impl WorldSession {
                 ins_inv.set_u64(2, db_guid);
                 tx.append(ins_inv);
 
-                new_stacks.push((slot, db_guid, item_guid, dest.count));
+                new_stacks.push((slot, db_guid, item_guid, dest.count, item_flags));
             }
         }
         let refund_item_db_guid = creates_refund_metadata
-            .then(|| new_stacks.last().map(|&(_, db_guid, _, _)| db_guid))
+            .then(|| {
+                new_stacks.last_mut().map(|stack| {
+                    stack.4 |= ItemFieldFlags::REFUNDABLE.bits();
+                    (stack.1, stack.4)
+                })
+            })
             .flatten();
-        if let Some(refund_item_db_guid) = refund_item_db_guid {
+        if let Some((refund_item_db_guid, refund_item_flags)) = refund_item_db_guid {
             let mut upd_flags = char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_FLAGS);
-            upd_flags.set_u32(0, ItemFieldFlags::REFUNDABLE.bits());
+            upd_flags.set_u32(0, refund_item_flags);
             upd_flags.set_u64(1, refund_item_db_guid);
             tx.append(upd_flags);
             append_item_refund_insert_statements(
@@ -12444,7 +12474,7 @@ impl WorldSession {
 
         let inv_type = self.item_template_inventory_type(buy.item_id as u32);
         let mut collection_updates = Vec::new();
-        for &(slot, db_guid, item_guid, stack_count) in &new_stacks {
+        for &(slot, db_guid, item_guid, stack_count, item_flags) in &new_stacks {
             self.insert_inventory_item_like_cpp(
                 slot,
                 crate::session::InventoryItem {
@@ -12463,8 +12493,8 @@ impl WorldSession {
                 ItemContext::Vendor,
                 slot,
             );
-            if refund_item_db_guid == Some(db_guid) {
-                item_object.set_item_flag(ItemFieldFlags::REFUNDABLE);
+            item_object.replace_all_item_flags(ItemFieldFlags::from_bits_retain(item_flags));
+            if refund_item_db_guid.is_some_and(|(refund_db_guid, _)| refund_db_guid == db_guid) {
                 item_object.set_refund_recipient(player_guid);
                 item_object.set_paid_money(buy_price);
                 item_object.set_paid_extended_cost(vendor_item.extended_cost as u32);
@@ -12476,7 +12506,7 @@ impl WorldSession {
 
         let changed_slots: Vec<_> = new_stacks
             .iter()
-            .map(|&(slot, _, item_guid, _)| (slot, item_guid))
+            .map(|&(slot, _, item_guid, _, _)| (slot, item_guid))
             .collect();
         let quantity_in_inventory =
             self.represented_non_bank_item_count_like_cpp(buy.item_id as u32);
@@ -12581,23 +12611,25 @@ impl WorldSession {
         if !new_stacks.is_empty() {
             let item_creates = new_stacks
                 .iter()
-                .map(|&(_, _, item_guid, stack_count)| ItemCreateData {
-                    item_guid,
-                    entry_id: buy.item_id,
-                    owner_guid: player_guid,
-                    contained_in: player_guid,
-                    stack_count,
-                    dynamic_flags: 0,
-                    durability: max_durability,
-                    max_durability,
-                    random_properties_seed: 0,
-                    random_properties_id: 0,
-                    enchantments: [ItemEnchantmentValuesUpdate::default(); 13],
-                    gems: Vec::new(),
-                    context: 0,
-                    container_slots: 0,
-                    container_item_guids: [ObjectGuid::EMPTY; 36],
-                })
+                .map(
+                    |&(_, _, item_guid, stack_count, item_flags)| ItemCreateData {
+                        item_guid,
+                        entry_id: buy.item_id,
+                        owner_guid: player_guid,
+                        contained_in: player_guid,
+                        stack_count,
+                        dynamic_flags: item_flags,
+                        durability: max_durability,
+                        max_durability,
+                        random_properties_seed: 0,
+                        random_properties_id: 0,
+                        enchantments: [ItemEnchantmentValuesUpdate::default(); 13],
+                        gems: Vec::new(),
+                        context: ItemContext::Vendor as u8,
+                        container_slots: 0,
+                        container_item_guids: [ObjectGuid::EMPTY; 36],
+                    },
+                )
                 .collect();
             self.send_packet(&UpdateObject::create_stored_items(item_creates, map_id));
         }
@@ -23014,6 +23046,21 @@ mod tests {
     fn vendor_buy_zero_gold_price_does_not_dirty_coinage_like_cpp() {
         assert_eq!(vendor_buy_coinage_update_like_cpp(0, 12_345), None);
         assert_eq!(vendor_buy_coinage_update_like_cpp(1, 12_344), Some(12_344));
+    }
+
+    #[test]
+    fn vendor_stored_new_item_keeps_cpp_new_and_bonding_flags() {
+        assert_eq!(
+            vendor_stored_new_item_flags_like_cpp(None, INVENTORY_SLOT_BAG_0, 23),
+            ItemFieldFlags::NEW_ITEM.bits()
+        );
+
+        let mut template = wow_entities::ItemStorageTemplate::regular_item(700, 1);
+        template.bonding = ItemBondingType::OnAcquire;
+        assert_eq!(
+            vendor_stored_new_item_flags_like_cpp(Some(&template), INVENTORY_SLOT_BAG_0, 23),
+            (ItemFieldFlags::NEW_ITEM | ItemFieldFlags::SOULBOUND).bits()
+        );
     }
 
     #[test]
