@@ -3253,6 +3253,7 @@ async fn run_bot(
         || rested_xp_options.is_some()
         || loot_race_options.is_some();
     let mut loot_race_target_seen = false;
+    let mut vendor_target_seen: Option<DiscoveredCreatureGuid> = None;
     let login_budget = LoginVerifyBudget::new(LOGIN_VERIFY_TIMEOUT);
     while let Some(read_timeout) = login_budget.next_read_timeout() {
         match tokio::time::timeout(
@@ -3268,6 +3269,38 @@ async fn run_bot(
                     {
                         loot_race_target_seen = true;
                         result.loot_race_target_runtime_counter = Some(counter);
+                    }
+                }
+                if let Some(options) = vendor_options.as_ref() {
+                    let candidate = (op == SMSG_UPDATE_OBJECT)
+                        .then(|| {
+                            find_creature_guid_near_position_in_update_object(
+                                &payload,
+                                options.vendor.map_id,
+                                options.vendor.entry,
+                                options.vendor.x as f32,
+                                options.vendor.y as f32,
+                                options.vendor.z as f32,
+                                options.target_match_radius,
+                                (options.vendor.guid_counter != 0).then_some(
+                                    options.vendor.guid_counter & OBJECT_GUID_COUNTER_MASK,
+                                ),
+                            )
+                        })
+                        .flatten();
+                    if let Some(candidate) = candidate {
+                        match vendor_target_seen {
+                            Some(previous)
+                                if (previous.low, previous.high)
+                                    != (candidate.low, candidate.high) =>
+                            {
+                                bail!(
+                                    "vendor login discovery produced two different live candidates near SQL spawn {}",
+                                    options.vendor.spawn_guid
+                                );
+                            }
+                            _ => vendor_target_seen = Some(candidate),
+                        }
                     }
                 }
                 if let Some(options) = quest_options.as_ref() {
@@ -3449,11 +3482,26 @@ async fn run_bot(
             &mut crypt,
             &mut server_inflater,
             &vendor_options,
+            vendor_target_seen,
             &mut result,
         )
         .await
         {
-            result.vendor_failure = Some(error.to_string());
+            let mut failure = error.to_string();
+            if let Err(logout_error) = logout_and_wait(
+                bot_index,
+                &mut stream,
+                &mut crypt,
+                &mut server_inflater,
+                &mut result,
+            )
+            .await
+            {
+                failure.push_str(&format!(
+                    "; graceful logout after failure also failed: {logout_error}"
+                ));
+            }
+            result.vendor_failure = Some(failure);
             result.vendor_smoke_passed = Some(false);
         }
         return Ok(result);
@@ -6672,7 +6720,11 @@ async fn run_vendor_smoke_workflow(
     .await
     .map_err(|error| anyhow!("Vendor smoke cleanup DB worker join failed: {error}"))?;
     if let Err(error) = cleanup {
-        combined.vendor_failure = Some(format!("Vendor fixture cleanup failed: {error}"));
+        let cleanup_failure = format!("Vendor fixture cleanup failed: {error}");
+        combined.vendor_failure = Some(match combined.vendor_failure.take() {
+            Some(previous) => format!("{previous}; {cleanup_failure}"),
+            None => cleanup_failure,
+        });
         combined.vendor_smoke_passed = Some(false);
     }
 
@@ -6686,6 +6738,7 @@ async fn run_vendor_smoke_phase(
     crypt: &mut WorldCrypt,
     server_inflater: &mut ServerPacketInflater,
     options: &VendorSmokeOptions,
+    login_discovered_target: Option<DiscoveredCreatureGuid>,
     result: &mut BotRunResult,
 ) -> Result<()> {
     let expected_currency_after = options
@@ -6733,7 +6786,7 @@ async fn run_vendor_smoke_phase(
 
     let expected_runtime_counter = (options.vendor.guid_counter != 0)
         .then_some(options.vendor.guid_counter & OBJECT_GUID_COUNTER_MASK);
-    let mut discovered = None;
+    let mut discovered = login_discovered_target;
     let discovery_deadline = tokio::time::Instant::now() + Duration::from_secs(5);
     while discovered.is_none() && tokio::time::Instant::now() < discovery_deadline {
         let remaining = discovery_deadline.saturating_duration_since(tokio::time::Instant::now());
@@ -10015,7 +10068,10 @@ fn cleanup_vendor_smoke_fixture(
         .map_err(|error| anyhow!("Bad characters DB URL: {error}"))?;
     let mut conn = mysql::Conn::new(opts)
         .map_err(|error| anyhow!("Connect to characters DB failed: {error}"))?;
-    let deadline = std::time::Instant::now() + Duration::from_secs(35);
+    // Stock C++ may defer its disconnected-session save/offline transition
+    // substantially longer than Rust. A failed phase already attempts a
+    // graceful logout, but retain a bounded disconnect fallback as well.
+    let deadline = std::time::Instant::now() + Duration::from_secs(90);
     loop {
         let online: Option<u8> = conn
             .exec_first(
