@@ -8701,8 +8701,11 @@ where
     ) -> Result<Option<MapObjectRecord>, MapObjectStoreError> {
         self.validate_map_object(record.object())?;
         let guid = record.object().guid();
-        let previous = self.map_objects.remove(&guid);
-        if let Some(previous_record) = previous.as_ref() {
+        let mut previous = self.map_objects.remove(&guid);
+        if let Some(previous_record) = previous.as_mut() {
+            if !typed_loot_authorities_share_storage_like_cpp(previous_record, &record) {
+                detach_typed_loot_authority_like_cpp(previous_record);
+            }
             self.unindex_map_object_record_by_spawn_id_like_cpp(previous_record);
         }
         self.index_map_object_record_by_spawn_id_like_cpp(&record);
@@ -10721,6 +10724,12 @@ where
             .get_mut(&guid)
             .and_then(MapObjectRecord::game_object_mut)
         {
+            // `GameObject::Delete` queues physical removal without calling
+            // `ClearLoot`. Terminally detach only the async authority here:
+            // this prevents both Arc-held claims and an async generator from
+            // reactivating the deleted lifetime while preserving C++'s
+            // interim object fields until remove-list drain.
+            game_object.loot_authority_like_cpp().detach_like_cpp();
             game_object.set_loot_state(LootState::NotReady, None);
         }
         let remove_from_owner = self.gameobject_remove_from_owner_like_cpp(guid);
@@ -10883,6 +10892,7 @@ where
             .get_mut(&guid)
             .and_then(MapObjectRecord::game_object_mut)
         {
+            game_object.loot_authority_like_cpp().detach_like_cpp();
             game_object.set_loot_state(LootState::NotReady, None);
         }
         let remove_from_owner = self.gameobject_remove_from_owner_like_cpp(guid);
@@ -11337,9 +11347,17 @@ where
                 })
                 .ok_or(RemoveFromMapError::ObjectNotFound { guid })?;
             let remove_from_active = was_active.then(|| self.remove_from_active_like_cpp(guid));
-            let record = self
+            let mut record = self
                 .remove_map_object(guid)
                 .ok_or(RemoveFromMapError::ObjectNotFound { guid })?;
+            // Rust's non-delete outcome retains only the erased
+            // `WorldObject`; `MapObjectRecord::into_object` still destroys the
+            // typed Creature/GameObject that owns its Loot. Until this API can
+            // return the full typed record like C++ retains the object pointer,
+            // both paths must terminally detach that otherwise orphaned
+            // authority. A stale lease may finish only if it already crossed
+            // the protected durable boundary.
+            detach_typed_loot_authority_like_cpp(&mut record);
             let was_world_object_like_cpp = map_record_is_world_object_like_cpp(&record);
             let mut object = record.into_object();
             let was_in_world = remove_from_map_was_in_world;
@@ -14781,6 +14799,55 @@ where
     }
 }
 
+/// Invalidates async claims before a terminal typed object lifetime is dropped.
+///
+/// C++ destroys `Creature::loot` / `GameObject::loot` together with the typed
+/// object. Rust leases can retain the shared authority after that drop, so the
+/// backing allocation must become permanently detached first.
+fn detach_typed_loot_authority_like_cpp(record: &mut MapObjectRecord) {
+    match record.kind() {
+        AccessorObjectKind::Creature => {
+            if let Some(creature) = record.creature_mut() {
+                creature.loot_authority_like_cpp().detach_like_cpp();
+            }
+        }
+        AccessorObjectKind::GameObject => {
+            if let Some(game_object) = record.game_object_mut() {
+                game_object.loot_authority_like_cpp().detach_like_cpp();
+            }
+        }
+        _ => {}
+    }
+}
+
+/// A same-GUID whole-entity refresh may replace the record while deliberately
+/// retaining the exact object lifetime. Do not detach the shared authority in
+/// that case; only a distinct backing allocation is displaced terminally.
+fn typed_loot_authorities_share_storage_like_cpp(
+    previous: &MapObjectRecord,
+    replacement: &MapObjectRecord,
+) -> bool {
+    match (previous.kind(), replacement.kind()) {
+        (AccessorObjectKind::Creature, AccessorObjectKind::Creature) => previous
+            .creature()
+            .zip(replacement.creature())
+            .is_some_and(|(previous, replacement)| {
+                previous
+                    .loot_authority_like_cpp()
+                    .shares_storage_like_cpp(replacement.loot_authority_like_cpp())
+            }),
+        (AccessorObjectKind::GameObject, AccessorObjectKind::GameObject) => previous
+            .game_object()
+            .zip(replacement.game_object())
+            .is_some_and(|(previous, replacement)| {
+                previous
+                    .loot_authority_like_cpp()
+                    .shares_storage_like_cpp(replacement.loot_authority_like_cpp())
+            }),
+        _ => false,
+    }
+}
+
 impl<Terrain, Lifecycle> GridUnloadEntityStore for Map<Terrain, Lifecycle> {
     fn creature_mut(&mut self, guid: ObjectGuid) -> Option<&mut Creature> {
         self.map_objects
@@ -15012,6 +15079,7 @@ mod tests {
         VehicleAccessory, VehicleSeatAddon, VehicleSeatInfo, VehicleSpellImmunity,
         VehicleSpellImmunityKind,
     };
+    use wow_loot::{CreatureLoot, LootClaimCommitError, OwnedLootAuthorityLifecycle};
 
     const GO_FLAG_MAP_OBJECT: u32 = 0x0010_0000;
 
@@ -18879,6 +18947,44 @@ mod tests {
         gameobject.world_mut().object_mut().add_to_world();
         gameobject.set_spawn_id(spawn_id);
         gameobject
+    }
+
+    fn money_loot_for_player_like_cpp(
+        loot_guid: ObjectGuid,
+        coins: u32,
+        player: ObjectGuid,
+    ) -> CreatureLoot {
+        CreatureLoot {
+            loot_guid,
+            coins,
+            unlooted_count: 0,
+            loot_type: 1,
+            dungeon_encounter_id: 0,
+            loot_method: 0,
+            loot_master: ObjectGuid::EMPTY,
+            round_robin_player: ObjectGuid::EMPTY,
+            player_ffa_items: Vec::new(),
+            players_looting: Vec::new(),
+            allowed_looters: vec![player],
+            items: Vec::new(),
+            looted_by_player: false,
+        }
+    }
+
+    fn poll_immediately_ready<F: std::future::Future>(future: F) -> F::Output {
+        struct NoopWake;
+
+        impl std::task::Wake for NoopWake {
+            fn wake(self: std::sync::Arc<Self>) {}
+        }
+
+        let waker = std::task::Waker::from(std::sync::Arc::new(NoopWake));
+        let mut context = std::task::Context::from_waker(&waker);
+        let mut future = std::pin::pin!(future);
+        match future.as_mut().poll(&mut context) {
+            std::task::Poll::Ready(output) => output,
+            std::task::Poll::Pending => panic!("expected the uncontended claim to be ready"),
+        }
     }
 
     fn summon_gameobject_template_like_cpp(
@@ -25351,6 +25457,360 @@ mod tests {
     }
 
     #[test]
+    fn remove_from_map_delete_detaches_creature_loot_authority_before_typed_drop() {
+        let mut map = test_map();
+        let player = ObjectGuid::create_player(1, 484_101);
+        let mut creature = test_creature_for_spawn(484_101, 4_841_010, true);
+        let guid = creature.guid();
+        assert!(
+            creature
+                .initialize_shared_loot_authority_like_cpp(money_loot_for_player_like_cpp(
+                    guid, 17, player,
+                ))
+                .installed()
+        );
+        let retained_authority = creature.loot_authority_like_cpp().clone();
+        let lease = poll_immediately_ready(retained_authority.reserve_money_like_cpp(player))
+            .expect("the live Creature authority must grant the uncontended lease");
+        creature
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .remove_from_world();
+        map.add_map_object_record_to_map_like_cpp(MapObjectRecord::new_creature(creature).unwrap())
+            .unwrap();
+
+        let removed = map.remove_from_map_like_cpp(guid, true).unwrap();
+
+        assert!(removed.object.is_none());
+        assert_eq!(
+            retained_authority.lifecycle_like_cpp(),
+            OwnedLootAuthorityLifecycle::Detached
+        );
+        assert!(matches!(
+            lease.commit_like_cpp(),
+            Err(LootClaimCommitError::StaleGeneration | LootClaimCommitError::RolledBack)
+        ));
+    }
+
+    #[test]
+    fn remove_from_map_nondelete_detaches_orphaned_typed_loot_authority() {
+        let mut map = test_map();
+        let player = ObjectGuid::create_player(1, 484_109);
+        let mut creature = test_creature_for_spawn(484_109, 4_841_090, true);
+        let guid = creature.guid();
+        assert!(
+            creature
+                .initialize_shared_loot_authority_like_cpp(money_loot_for_player_like_cpp(
+                    guid, 17, player,
+                ))
+                .installed()
+        );
+        let retained_authority = creature.loot_authority_like_cpp().clone();
+        let lease = poll_immediately_ready(retained_authority.reserve_money_like_cpp(player))
+            .expect("the live typed Creature owns the reservation");
+        creature
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .remove_from_world();
+        map.add_map_object_record_to_map_like_cpp(MapObjectRecord::new_creature(creature).unwrap())
+            .unwrap();
+
+        let removed = map.remove_from_map_like_cpp(guid, false).unwrap();
+
+        assert!(
+            removed.object.is_some(),
+            "the erased WorldObject remains available to the non-delete caller"
+        );
+        assert_eq!(
+            retained_authority.lifecycle_like_cpp(),
+            OwnedLootAuthorityLifecycle::Detached,
+            "the returned erased object cannot preserve the destroyed typed loot owner"
+        );
+        assert!(matches!(
+            lease.commit_like_cpp(),
+            Err(LootClaimCommitError::StaleGeneration | LootClaimCommitError::RolledBack)
+        ));
+    }
+
+    #[test]
+    fn remove_from_map_delete_detaches_gameobject_loot_authority_before_typed_drop() {
+        let mut map = test_map();
+        let player = ObjectGuid::create_player(1, 484_102);
+        let mut gameobject = test_gameobject_for_spawn(484_102, 4_841_020);
+        let guid = gameobject.world().guid();
+        assert!(
+            gameobject
+                .initialize_shared_loot_authority_like_cpp(money_loot_for_player_like_cpp(
+                    guid, 19, player,
+                ))
+                .installed()
+        );
+        let retained_authority = gameobject.loot_authority_like_cpp().clone();
+        let lease = poll_immediately_ready(retained_authority.reserve_money_like_cpp(player))
+            .expect("the live GameObject authority must grant the uncontended lease");
+        gameobject.world_mut().object_mut().remove_from_world();
+        map.add_map_object_record_to_map_like_cpp(
+            MapObjectRecord::new_game_object(gameobject).unwrap(),
+        )
+        .unwrap();
+
+        let removed = map.remove_from_map_like_cpp(guid, true).unwrap();
+
+        assert!(removed.object.is_none());
+        assert_eq!(
+            retained_authority.lifecycle_like_cpp(),
+            OwnedLootAuthorityLifecycle::Detached
+        );
+        assert!(matches!(
+            lease.commit_like_cpp(),
+            Err(LootClaimCommitError::StaleGeneration | LootClaimCommitError::RolledBack)
+        ));
+    }
+
+    #[test]
+    fn insert_map_object_record_detaches_displaced_creature_authority_for_same_guid() {
+        let mut map = test_map();
+        let player = ObjectGuid::create_player(1, 484_103);
+        let mut displaced_creature = test_creature_for_spawn(484_103, 4_841_030, true);
+        let guid = displaced_creature.guid();
+        assert!(
+            displaced_creature
+                .initialize_shared_loot_authority_like_cpp(money_loot_for_player_like_cpp(
+                    guid, 23, player,
+                ))
+                .installed()
+        );
+        let displaced_authority = displaced_creature.loot_authority_like_cpp().clone();
+        map.insert_map_object_record(MapObjectRecord::new_creature(displaced_creature).unwrap())
+            .unwrap();
+        let lease = poll_immediately_ready(displaced_authority.reserve_money_like_cpp(player))
+            .expect("the displaced Creature authority must grant the uncontended lease");
+
+        let mut replacement = test_creature_for_spawn(484_104, 4_841_030, true);
+        assert!(
+            replacement
+                .initialize_shared_loot_authority_like_cpp(money_loot_for_player_like_cpp(
+                    guid, 29, player,
+                ))
+                .installed()
+        );
+        let replacement_authority = replacement.loot_authority_like_cpp().clone();
+        let displaced = map
+            .insert_map_object_record(MapObjectRecord::new_creature(replacement).unwrap())
+            .unwrap()
+            .expect("same-GUID insert must return the displaced Creature record");
+
+        assert_eq!(
+            displaced_authority.lifecycle_like_cpp(),
+            OwnedLootAuthorityLifecycle::Detached
+        );
+        assert!(
+            displaced
+                .creature()
+                .unwrap()
+                .loot_authority_like_cpp()
+                .shares_storage_like_cpp(&displaced_authority)
+        );
+        assert!(
+            map.map_object_record(guid)
+                .and_then(MapObjectRecord::creature)
+                .unwrap()
+                .loot_authority_like_cpp()
+                .shares_storage_like_cpp(&replacement_authority)
+        );
+        assert_eq!(
+            replacement_authority.lifecycle_like_cpp(),
+            OwnedLootAuthorityLifecycle::Active
+        );
+        assert!(matches!(
+            lease.commit_like_cpp(),
+            Err(LootClaimCommitError::StaleGeneration | LootClaimCommitError::RolledBack)
+        ));
+    }
+
+    #[test]
+    fn insert_map_object_record_detaches_displaced_gameobject_authority_for_same_guid() {
+        let mut map = test_map();
+        let player = ObjectGuid::create_player(1, 484_104);
+        let mut displaced_gameobject = test_gameobject_for_spawn(484_105, 4_841_040);
+        let guid = displaced_gameobject.world().guid();
+        assert!(
+            displaced_gameobject
+                .initialize_shared_loot_authority_like_cpp(money_loot_for_player_like_cpp(
+                    guid, 31, player,
+                ))
+                .installed()
+        );
+        let displaced_authority = displaced_gameobject.loot_authority_like_cpp().clone();
+        map.insert_map_object_record(
+            MapObjectRecord::new_game_object(displaced_gameobject).unwrap(),
+        )
+        .unwrap();
+        let lease = poll_immediately_ready(displaced_authority.reserve_money_like_cpp(player))
+            .expect("the displaced GameObject authority must grant the uncontended lease");
+
+        let mut replacement = test_gameobject_for_spawn(484_106, 4_841_040);
+        assert!(
+            replacement
+                .initialize_shared_loot_authority_like_cpp(money_loot_for_player_like_cpp(
+                    guid, 37, player,
+                ))
+                .installed()
+        );
+        let replacement_authority = replacement.loot_authority_like_cpp().clone();
+        let displaced = map
+            .insert_map_object_record(MapObjectRecord::new_game_object(replacement).unwrap())
+            .unwrap()
+            .expect("same-GUID insert must return the displaced GameObject record");
+
+        assert_eq!(
+            displaced_authority.lifecycle_like_cpp(),
+            OwnedLootAuthorityLifecycle::Detached
+        );
+        assert!(
+            displaced
+                .game_object()
+                .unwrap()
+                .loot_authority_like_cpp()
+                .shares_storage_like_cpp(&displaced_authority)
+        );
+        assert!(
+            map.map_object_record(guid)
+                .and_then(MapObjectRecord::game_object)
+                .unwrap()
+                .loot_authority_like_cpp()
+                .shares_storage_like_cpp(&replacement_authority)
+        );
+        assert_eq!(
+            replacement_authority.lifecycle_like_cpp(),
+            OwnedLootAuthorityLifecycle::Active
+        );
+        assert!(matches!(
+            lease.commit_like_cpp(),
+            Err(LootClaimCommitError::StaleGeneration | LootClaimCommitError::RolledBack)
+        ));
+    }
+
+    #[test]
+    fn insert_map_object_record_preserves_shared_typed_authority_for_same_guid_refresh() {
+        let player = ObjectGuid::create_player(1, 484_105);
+
+        let mut creature_map = test_map();
+        let mut creature = test_creature_for_spawn(484_107, 4_841_050, true);
+        let creature_guid = creature.guid();
+        assert!(
+            creature
+                .initialize_shared_loot_authority_like_cpp(money_loot_for_player_like_cpp(
+                    creature_guid,
+                    41,
+                    player,
+                ))
+                .installed()
+        );
+        let creature_record = MapObjectRecord::new_creature(creature).unwrap();
+        let creature_refresh = creature_record.clone();
+        let creature_authority = creature_record
+            .creature()
+            .unwrap()
+            .loot_authority_like_cpp()
+            .clone();
+        creature_map
+            .insert_map_object_record(creature_record)
+            .unwrap();
+        let creature_lease =
+            poll_immediately_ready(creature_authority.reserve_money_like_cpp(player))
+                .expect("the shared Creature authority must grant the uncontended lease");
+
+        let displaced_creature = creature_map
+            .insert_map_object_record(creature_refresh)
+            .unwrap()
+            .expect("same-GUID refresh must return the prior Creature record");
+
+        assert!(
+            displaced_creature
+                .creature()
+                .unwrap()
+                .loot_authority_like_cpp()
+                .shares_storage_like_cpp(&creature_authority)
+        );
+        assert_eq!(
+            creature_authority.lifecycle_like_cpp(),
+            OwnedLootAuthorityLifecycle::Active
+        );
+        assert_eq!(creature_lease.commit_like_cpp(), Ok(true));
+        assert_eq!(
+            creature_map
+                .map_object_record(creature_guid)
+                .and_then(MapObjectRecord::creature)
+                .unwrap()
+                .loot_authority_like_cpp()
+                .shared_snapshot_like_cpp()
+                .unwrap()
+                .loot
+                .coins,
+            0
+        );
+
+        let mut gameobject_map = test_map();
+        let mut gameobject = test_gameobject_for_spawn(484_108, 4_841_060);
+        let gameobject_guid = gameobject.world().guid();
+        assert!(
+            gameobject
+                .initialize_shared_loot_authority_like_cpp(money_loot_for_player_like_cpp(
+                    gameobject_guid,
+                    43,
+                    player,
+                ))
+                .installed()
+        );
+        let gameobject_record = MapObjectRecord::new_game_object(gameobject).unwrap();
+        let gameobject_refresh = gameobject_record.clone();
+        let gameobject_authority = gameobject_record
+            .game_object()
+            .unwrap()
+            .loot_authority_like_cpp()
+            .clone();
+        gameobject_map
+            .insert_map_object_record(gameobject_record)
+            .unwrap();
+        let gameobject_lease =
+            poll_immediately_ready(gameobject_authority.reserve_money_like_cpp(player))
+                .expect("the shared GameObject authority must grant the uncontended lease");
+
+        let displaced_gameobject = gameobject_map
+            .insert_map_object_record(gameobject_refresh)
+            .unwrap()
+            .expect("same-GUID refresh must return the prior GameObject record");
+
+        assert!(
+            displaced_gameobject
+                .game_object()
+                .unwrap()
+                .loot_authority_like_cpp()
+                .shares_storage_like_cpp(&gameobject_authority)
+        );
+        assert_eq!(
+            gameobject_authority.lifecycle_like_cpp(),
+            OwnedLootAuthorityLifecycle::Active
+        );
+        assert_eq!(gameobject_lease.commit_like_cpp(), Ok(true));
+        assert_eq!(
+            gameobject_map
+                .map_object_record(gameobject_guid)
+                .and_then(MapObjectRecord::game_object)
+                .unwrap()
+                .loot_authority_like_cpp()
+                .shared_snapshot_like_cpp()
+                .unwrap()
+                .loot
+                .coins,
+            0
+        );
+    }
+
+    #[test]
     fn remove_from_map_like_cpp_unregisters_personal_phase_tracker_from_object_owner_like_cpp() {
         let mut map = test_map();
         let owner = ObjectGuid::create_player(1, 48401);
@@ -30885,6 +31345,7 @@ mod tests {
             guid(HighGuid::Player, 4590291),
             GameObjectOwnedLoot::new(6, 1),
         );
+        let loot_authority = owner.loot_authority_like_cpp().clone();
         assert!(owner.add_unique_use_like_cpp(guid(HighGuid::Player, 4590292)));
         assert!(owner.schedule_despawn_or_unsummon_like_cpp(1, 0));
 
@@ -30913,6 +31374,7 @@ mod tests {
         assert_eq!(owner_after.personal_loot_count_like_cpp(), 1);
         assert_eq!(owner_after.unique_user_count_like_cpp(), 1);
         assert_eq!(owner_after.use_times(), 1);
+        assert!(loot_authority.is_retired_like_cpp());
         assert!(map.map_object_record(trap_guid).is_some());
     }
 
@@ -31210,6 +31672,9 @@ mod tests {
         let guid = gameobject.world().guid();
         gameobject.set_respawn_compatibility_mode(false);
         gameobject.set_represented_gameobject_data_present_like_cpp(true);
+        gameobject.replace_loot_authority_like_cpp(None, HashMap::new());
+        let loot_authority = gameobject.loot_authority_like_cpp().clone();
+        assert!(!loot_authority.is_retired_like_cpp());
         map.add_map_object_record_to_map_like_cpp(
             MapObjectRecord::new_game_object(gameobject).unwrap(),
         )
@@ -31236,6 +31701,10 @@ mod tests {
         );
         assert_eq!(map.objects_to_remove_count_like_cpp(), 1);
         assert_eq!(map.pool_data_like_cpp().get_spawned_objects_like_cpp(56), 0);
+        assert!(
+            loot_authority.is_retired_like_cpp(),
+            "queued GameObject deletion must invalidate Arc-held loot claims"
+        );
     }
 
     #[test]

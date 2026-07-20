@@ -1,0 +1,176 @@
+{
+  "version": 3,
+  "flow": "loot-single-item-claim",
+  "completed": true,
+  "sources": {
+    "cpp": {
+      "manifest_path": "capture-provenance/cpp.capture-manifest.json",
+      "manifest_sha256": "8bd4e2e5afa0969a50852f21d01cdd5f9e48508ddabc01c3ea77031aa377ff8c",
+      "raw_artifact_sha256": "a25f2c2bbf60de6cda7e32f305d732733017e711eb474dd5dbf6e007690143a8",
+      "raw_artifact_size": 111420,
+      "raw_packet_count": null,
+      "harness_repo_head": "72c5967dad248f869b2d740b55e885ce51db1a56",
+      "source_repo_head": "5100ce3d8fc6150feedf902e62512760ec03ea92",
+      "harness_worktree_clean": true,
+      "harness_worktree_state_sha256": "7f1df5ac739db5b1f58a4a49a9950d9e88c7fbcf5d6efdac91368ed5da32d052",
+      "source_worktree_dirty": true,
+      "source_worktree_state_sha256": "3eeb18895c18215d381c7dc13cab516bb06e0441be2901e92c05d1845107afb1",
+      "worktree_state_algorithm": "git-head-path-mode-content-sha256-v1",
+      "expected_exec_path": "/home/server/trinity-legacy-install/bin/worldserver",
+      "expected_exec_sha256": "189ac0ef6a5fef0fe3033a9844e2251523a442b746734cbcfd667277bdf99603",
+      "source_exec_path": "/home/server/trinity-legacy-install/bin/worldserver",
+      "source_exec_sha256": "189ac0ef6a5fef0fe3033a9844e2251523a442b746734cbcfd667277bdf99603",
+      "live_exec_path": "/home/server/trinity-legacy-install/bin/worldserver",
+      "live_exec_sha256": "189ac0ef6a5fef0fe3033a9844e2251523a442b746734cbcfd667277bdf99603",
+      "executable_pin_enforced": true,
+      "pm2_entry_pid": 881529,
+      "pm2_entry_starttime": 70890932,
+      "pm2_exec_path": "/home/server/trinity-legacy-install/bin/worldserver-wrapper.sh",
+      "pm2_exec_sha256": "41c0e84f282bf5711a2d4b433a054426d28de9875cfce1b3f7fcfe6c576df213",
+      "pm2_profile_redacted_sha256": "5de156ef078858c9d979e6bcc274d5d06e4d44588c273357fbf3f34dc235aca0",
+      "listener_runtime_pid": 881531,
+      "listener_runtime_starttime": 70890933,
+      "listener_relationship_verified": true,
+      "restart_count": 0,
+      "effective_config_path": "/home/server/trinity-legacy-install/bin/worldserver.conf",
+      "effective_config_redacted_sha256": "8d55b563745586a1d0014a1ee19704ec018e2097fd566116fec99090434c2242",
+      "effective_config_algorithm": "capture-relevant-redacted-v1",
+      "runtime_cleanup_verified": true,
+      "normal_runtime_restored": true,
+      "fixture_guard": {
+        "enabled": true,
+        "contract": "loot-single-item-claim-fixture-v1",
+        "account": "TESTBOT2@bot.local",
+        "account_id": 9,
+        "character_guid": 15,
+        "peer_account": "TESTBOT3@bot.local",
+        "peer_account_id": 10,
+        "peer_character_guid": 16,
+        "creature_entry": 21779,
+        "creature_spawn_guid": 1117,
+        "item_entry": 30712,
+        "cleanup_verified": true
+      },
+      "bot_report": {
+        "contract": "wow-test-bot-loot-item-capture-report-v1",
+        "exec_path": "/home/server/rustycore-issue-106/tools/wow-test-bot/target/debug/wow-test-bot",
+        "exec_sha256": "da98cd7f0a884fdbc1cd7f971d567c50143984d0430d7aba1b14a00d84a900ad",
+        "report_path": "/tmp/rustycore-loot-item-cpp.rlOxSn/bot-report.json",
+        "report_sha256": "e546d8019eaec3ce2850a8f58f837ee0335b0fb8e1bc2f28283c0d9953a34784",
+        "account": "TESTBOT2@bot.local",
+        "account_id": 9,
+        "character_guid": 15,
+        "report_validated": true
+      },
+      "retained_bot_report_path": "capture-provenance/cpp.bot-report.json"
+    },
+    "rust": {
+      "manifest_path": "capture-provenance/rust.capture-manifest.json",
+      "manifest_sha256": "95f5dce92ad6ecf67268a7e8b7db3526dea6f9a8d7c2a3dda2a292a80cc0ca31",
+      "raw_artifact_sha256": "5fe815b89f622bddd862232d7e00d288c569655872d02b4760220fd8a2eef818",
+      "raw_artifact_size": null,
+      "raw_packet_count": 191,
+      "harness_repo_head": "72c5967dad248f869b2d740b55e885ce51db1a56",
+      "source_repo_head": "72c5967dad248f869b2d740b55e885ce51db1a56",
+      "harness_worktree_clean": true,
+      "harness_worktree_state_sha256": "7f1df5ac739db5b1f58a4a49a9950d9e88c7fbcf5d6efdac91368ed5da32d052",
+      "source_worktree_dirty": false,
+      "source_worktree_state_sha256": "7f1df5ac739db5b1f58a4a49a9950d9e88c7fbcf5d6efdac91368ed5da32d052",
+      "worktree_state_algorithm": "git-head-path-mode-content-sha256-v1",
+      "expected_exec_path": "/home/server/rustycore-issue-106/target/issue106-release/release/world-server",
+      "expected_exec_sha256": "6234630546446b115a74014b3ced1d99d1c9d9946a136e5171f1a3dd01a2cba5",
+      "source_exec_path": "/home/server/rustycore-issue-106/target/issue106-release/release/world-server",
+      "source_exec_sha256": "6234630546446b115a74014b3ced1d99d1c9d9946a136e5171f1a3dd01a2cba5",
+      "live_exec_path": "/home/server/rustycore-issue-106/target/issue106-release/release/world-server",
+      "live_exec_sha256": "6234630546446b115a74014b3ced1d99d1c9d9946a136e5171f1a3dd01a2cba5",
+      "executable_pin_enforced": true,
+      "pm2_entry_pid": 885094,
+      "pm2_entry_starttime": 70907497,
+      "pm2_exec_path": "/home/server/rustycore-issue-106/target/issue106-release/release/world-server",
+      "pm2_exec_sha256": "6234630546446b115a74014b3ced1d99d1c9d9946a136e5171f1a3dd01a2cba5",
+      "pm2_profile_redacted_sha256": "546d60f16e924203996a1a738cd9013d152eda7fb67e7bbb107d64792716e195",
+      "listener_runtime_pid": 885094,
+      "listener_runtime_starttime": 70907497,
+      "listener_relationship_verified": true,
+      "restart_count": 0,
+      "effective_config_path": "/home/server/trinity-legacy-install/etc/worldserver.conf",
+      "effective_config_redacted_sha256": "5e3f4e1ff0b296932b6d620f5a71ce03d13137f494e4812db8b9623dde0f5606",
+      "effective_config_algorithm": "capture-relevant-redacted-v1",
+      "runtime_cleanup_verified": true,
+      "normal_runtime_restored": true,
+      "fixture_guard": {
+        "enabled": true,
+        "contract": "loot-single-item-claim-fixture-v1",
+        "account": "TESTBOT2@bot.local",
+        "account_id": 9,
+        "character_guid": 15,
+        "peer_account": "TESTBOT3@bot.local",
+        "peer_account_id": 10,
+        "peer_character_guid": 16,
+        "creature_entry": 21779,
+        "creature_spawn_guid": 1117,
+        "item_entry": 30712,
+        "cleanup_verified": true
+      },
+      "bot_report": {
+        "contract": "wow-test-bot-loot-item-capture-report-v1",
+        "exec_path": "/home/server/rustycore-issue-106/tools/wow-test-bot/target/debug/wow-test-bot",
+        "exec_sha256": "da98cd7f0a884fdbc1cd7f971d567c50143984d0430d7aba1b14a00d84a900ad",
+        "report_path": "/tmp/rustycore-loot-item-rust.CA4pL6/bot-report.json",
+        "report_sha256": "7c93aac0aebde59248716a6e593ee9a80c055411e256a9c63b4a249d953c7f40",
+        "account": "TESTBOT2@bot.local",
+        "account_id": 9,
+        "character_guid": 15,
+        "report_validated": true
+      },
+      "retained_bot_report_path": "capture-provenance/rust.bot-report.json"
+    }
+  },
+  "selection": {
+    "directions": [
+      "s2c",
+      "c2s"
+    ],
+    "from_opcode": {
+      "direction": "c2s",
+      "opcode": 12817
+    },
+    "until_opcode": {
+      "direction": "c2s",
+      "opcode": 14184
+    },
+    "ignored_opcodes": [
+      {
+        "direction": "s2c",
+        "opcode": 11730
+      },
+      {
+        "direction": "c2s",
+        "opcode": 14909
+      },
+      {
+        "direction": "s2c",
+        "opcode": 11732
+      }
+    ],
+    "strict": true
+  },
+  "outputs": {
+    "cpp_pkt": {
+      "path": "cpp.pkt",
+      "size": 795,
+      "sha256": "a84abf8f1d067fc68a9fdbe1608243479b0740a703b07444097ab5af0aebf487"
+    },
+    "rust": {
+      "path": "rust",
+      "file_count": 12,
+      "packet_count": 6,
+      "tree_sha256": "afb4de111efb401703c4828a73018f9e878d1c52e6e2544868241435c705f795"
+    },
+    "expected_divergences": {
+      "path": "expected-divergences.json",
+      "size": 2,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    }
+  }
+}

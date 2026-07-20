@@ -6,6 +6,7 @@ rust-version = "1.88"
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
+tokio-util = "0.7"
 anyhow = "1"
 tracing = "0.1"
 tracing-subscriber = "0.3"
@@ -23,6 +24,7 @@ aes-gcm = "0.10"
 openssl = "0.10"
 mysql = "25.0"
 flate2 = "1"
+libc = "0.2"
 
 [[bin]]
 name = "wow-test-bot"

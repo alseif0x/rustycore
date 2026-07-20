@@ -71,7 +71,8 @@ use crate::session::{
     CharacterPetSpellRowLikeCpp, CharacterPetStableRowLikeCpp, REST_STATE_NORMAL_LIKE_CPP,
     REST_STATE_RAF_LINKED_LIKE_CPP, RepresentedAlterAppearanceLikeCpp,
     RepresentedBankItemMoveLikeCpp, RepresentedConfirmBarbersChoiceLikeCpp,
-    RepresentedGameObjectUseState, RepresentedHomebindLikeCpp, SpellCastMetadata,
+    RepresentedGameObjectUseState, RepresentedHomebindLikeCpp,
+    RepresentedQuestObjectiveProgressEventLikeCpp, SpellCastMetadata,
 };
 
 // ── Handler registration ────────────────────────────────────────────
@@ -2067,6 +2068,21 @@ fn player_money_gain_like_cpp(current_money: u64, amount: u64) -> Option<u64> {
     } else {
         None
     }
+}
+
+const UPD_CHARACTER_MONEY_AND_BANK_SLOTS_LIKE_CPP: &str =
+    "UPDATE characters SET money = ?, bankSlots = ? WHERE guid = ?";
+
+fn bank_slot_purchase_update_statement_like_cpp(
+    player_guid: ObjectGuid,
+    new_money: u64,
+    new_bank_slot_count: u8,
+) -> PreparedStatement {
+    let mut statement = PreparedStatement::new(UPD_CHARACTER_MONEY_AND_BANK_SLOTS_LIKE_CPP);
+    statement.set_u64(0, new_money);
+    statement.set_u8(1, new_bank_slot_count);
+    statement.set_u64(2, player_guid.counter() as u64);
+    statement
 }
 
 fn active_known_spell_for_send_like_cpp(spell_id: u32, active: u8, disabled: u8) -> Option<i32> {
@@ -4373,6 +4389,11 @@ impl WorldSession {
         // Complete logout immediately
         self.logout_time = None;
 
+        if let Some(player_guid) = self.player_guid() {
+            self.wait_for_active_loot_persistence_like_cpp().await;
+            self.do_loot_release_all_like_cpp(player_guid).await;
+        }
+
         // Trinity clears buyback slots before SaveToDB; persisted buyback items must not survive logout.
         self.clear_buyback_on_logout().await;
         self.save_current_player_to_db_like_cpp().await;
@@ -4381,10 +4402,6 @@ impl WorldSession {
         self.save_account_heirlooms_like_cpp().await;
         self.save_account_item_appearances_like_cpp().await;
         self.save_account_transmog_illusions_like_cpp().await;
-
-        if let Some(player_guid) = self.player_guid() {
-            self.close_active_loot_windows_like_cpp(player_guid);
-        }
 
         // Mark character offline in DB
         self.mark_character_offline().await;
@@ -6848,6 +6865,7 @@ impl WorldSession {
         let (tx, rx) = tokio::sync::oneshot::channel();
         let link = wow_network::session_mgr::InstanceLink {
             send_tx: self.send_tx().clone(),
+            send_write_fence_like_cpp: None,
             pkt_rx: None, // None = keep using realm socket's packet_rx
         };
         let _ = tx.send(link);
@@ -10691,9 +10709,14 @@ impl WorldSession {
 
     /// CMSG_BUY_BANK_SLOT — player buys the next personal bank bag slot.
     ///
-    /// C++ ref: `WorldSession::HandleBuyBankSlotOpcode`.
+    /// C++ ref: `WorldSession::HandleBuyBankSlotOpcode`. C++ mutates the bank
+    /// slot count and money in one serialized session turn; its later
+    /// `Player::SaveToDB`/`SaveInventoryAndGoldToDB` persists both values from
+    /// that coherent state. Rust must cross SQL here because detached group
+    /// payouts use the character money row as their durable cap authority, so
+    /// persist both fields atomically before publishing either runtime field.
     pub async fn handle_buy_bank_slot(&mut self, buy: BuyBankSlot) {
-        let Some(_player_guid) = self.player_guid() else {
+        let Some(player_guid) = self.player_guid() else {
             return;
         };
         let Some(_banker) =
@@ -10717,6 +10740,30 @@ impl WorldSession {
             return;
         };
 
+        #[cfg(test)]
+        let test_commit_result = self.loot_money_persistence_test_result_for_worker_like_cpp();
+        #[cfg(not(test))]
+        let test_commit_result: Option<bool> = None;
+
+        let char_db = if test_commit_result.is_some() {
+            None
+        } else {
+            let Some(char_db) = self.char_db().map(Arc::clone) else {
+                return;
+            };
+            Some(char_db)
+        };
+
+        // Close payout admission before reading money. A previously admitted
+        // payout either completes and is reconciled first, or this purchase
+        // closes first and the payout retries its still-available pool.
+        let Some(money_persistence) = self
+            .begin_exclusive_player_money_persistence_like_cpp()
+            .await
+        else {
+            return;
+        };
+
         let old_money = self.player_gold_like_cpp();
         if old_money < u64::from(price) {
             debug!(
@@ -10731,20 +10778,64 @@ impl WorldSession {
 
         let new_count = u8::try_from(next_slot).unwrap_or(u8::MAX);
         let new_money = old_money - u64::from(price);
+
+        let mut transaction = SqlTransaction::new();
+        transaction.append_expect_rows_affected(
+            bank_slot_purchase_update_statement_like_cpp(player_guid, new_money, new_count),
+            1,
+        );
+        let money_persistence = if let Some(success) = test_commit_result {
+            if !success {
+                return;
+            }
+            money_persistence
+        } else {
+            let Some(money_persistence) = self
+                .commit_exclusive_player_money_transaction_like_cpp(
+                    money_persistence,
+                    char_db
+                        .as_ref()
+                        .expect("production bank-slot purchase retains its database"),
+                    transaction,
+                    old_money,
+                    new_money,
+                    "bank-slot purchase",
+                )
+                .await
+            else {
+                return;
+            };
+            money_persistence
+        };
+
+        // Publish both runtime fields only after the combined SQL COMMIT. Set
+        // the values synchronously while admission is still closed, then drop
+        // the fence before criteria processing can re-enter persistence.
+        self.set_player_gold_like_cpp(new_money);
+        // This helper builds a clean snapshot from current runtime and then
+        // marks the requested count dirty. Emit it while runtime still holds
+        // the old count, after the durable COMMIT but before storing the new
+        // count locally.
         self.send_player_bank_bag_slots_update_like_cpp(new_count);
-        if let Some(player_guid) = self.player_guid() {
-            self.send_packet(&UpdateObject::player_money_update(
-                player_guid,
-                self.player_map_id_like_cpp(),
-                new_money,
-                None,
-            ));
-        }
         self.set_player_bank_bag_slot_count_like_cpp(new_count);
-        self.apply_player_money_change_like_cpp(old_money, new_money)
-            .await;
+        self.enqueue_represented_quest_objective_progress_like_cpp(
+            RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
+                old_money,
+                new_money,
+            },
+        );
         self.sync_object_accessor_player();
         self.sync_player_registry_state_like_cpp();
+        drop(money_persistence);
+
+        self.send_packet(&UpdateObject::player_money_update(
+            player_guid,
+            self.player_map_id_like_cpp(),
+            new_money,
+            None,
+        ));
+        self.drain_represented_quest_objective_progress_like_cpp()
+            .await;
     }
 
     /// CMSG_CHANGE_BANK_BAG_SLOT_FLAG — player toggles an ActivePlayer bank bag flag.
@@ -11675,7 +11766,6 @@ impl WorldSession {
             Some(g) => g,
             None => return,
         };
-        let realm_id = self.realm_id();
         let map_id = self.player_map_id_like_cpp();
         let vendor_slot = match vendor_buy_muid_to_cpp_slot(buy.muid) {
             Some(slot) => slot,
@@ -12100,20 +12190,35 @@ impl WorldSession {
             return;
         }
 
-        let needs_new_items = store_dest.iter().any(|dest| {
-            let slot = (dest.pos & 0x00FF) as u8;
-            !self.inventory_items_like_cpp().contains_key(&slot)
-        });
-        let mut next_item_guid = if needs_new_items {
-            let max_guid_stmt = char_db.prepare(CharStatements::SEL_MAX_ITEM_GUID);
-            match char_db.query(&max_guid_stmt).await {
-                Ok(r) => r.try_read::<u64>(0).unwrap_or(0) + 1,
-                Err(_) => 1,
-            }
-        } else {
-            0
+        let new_item_count = store_dest
+            .iter()
+            .filter(|dest| {
+                let slot = (dest.pos & 0x00FF) as u8;
+                !self.inventory_items_like_cpp().contains_key(&slot)
+            })
+            .count();
+        let Some(allocated_new_item_guids) =
+            self.allocate_item_instance_guids_like_cpp(new_item_count)
+        else {
+            warn!(
+                count = new_item_count,
+                "BuyItem: process-wide item GUID allocator is unavailable"
+            );
+            self.send_buy_error(
+                BuyResult::CantFindItem,
+                Some(buy.vendor_guid),
+                buy.muid as u32,
+            );
+            return;
         };
+        let mut allocated_new_item_guids = allocated_new_item_guids.into_iter();
 
+        let Some(money_persistence) = self
+            .begin_exclusive_player_money_persistence_like_cpp()
+            .await
+        else {
+            return;
+        };
         let mut tx = SqlTransaction::new();
         let old_gold = self.player_gold_like_cpp();
         let new_gold = old_gold.saturating_sub(buy_price);
@@ -12155,9 +12260,15 @@ impl WorldSession {
                 tx.append(upd_count);
                 existing_updates.push((slot, inv_item.guid, new_count));
             } else {
-                let db_guid = next_item_guid;
-                next_item_guid += 1;
-                let item_guid = ObjectGuid::create_item(realm_id, db_guid as i64);
+                let Some((db_guid, item_guid)) = allocated_new_item_guids.next() else {
+                    warn!("BuyItem: preallocated item GUID count did not match store plan");
+                    self.send_buy_error(
+                        BuyResult::CantFindItem,
+                        Some(buy.vendor_guid),
+                        buy.muid as u32,
+                    );
+                    return;
+                };
 
                 let mut ins_item = char_db.prepare(CharStatements::INS_ITEM_INSTANCE);
                 ins_item.set_u64(0, db_guid);
@@ -12220,35 +12331,33 @@ impl WorldSession {
         }
         self.append_player_currency_save_statements(&mut tx, player_guid.counter() as u64);
 
-        if let Err(e) = char_db.commit_transaction(tx).await {
+        let Some(money_persistence) = self
+            .commit_exclusive_player_money_transaction_like_cpp(
+                money_persistence,
+                char_db.as_ref(),
+                tx,
+                old_gold,
+                new_gold,
+                "vendor item purchase",
+            )
+            .await
+        else {
             self.set_player_currencies_like_cpp(currency_snapshot);
-            warn!("BuyItem: store transaction failed: {e}");
+            warn!("BuyItem: store transaction did not commit");
             self.send_buy_error(
                 BuyResult::CantFindItem,
                 Some(buy.vendor_guid),
                 buy.muid as u32,
             );
             return;
-        }
+        };
 
-        self.apply_player_money_change_like_cpp(old_gold, new_gold)
-            .await;
+        // The SQL transaction also owns the turn-ins, returned inventory
+        // stacks, currencies and refund metadata. Publish all of that runtime
+        // state synchronously before reopening payout admission; cancelling
+        // the handler after COMMIT must not leave runtime at the pre-buy state.
+        self.stage_player_money_change_like_cpp(old_gold, new_gold);
         self.apply_item_turnin_changes(player_guid, map_id, &item_turnin_changes);
-        for &(currency_id, amount) in &extended_cost_currency_costs {
-            let Some(quantity) = i32::try_from(self.player_currency_quantity(currency_id)).ok()
-            else {
-                continue;
-            };
-            let Some(amount) = i32::try_from(amount).ok() else {
-                continue;
-            };
-            self.send_packet(&SetCurrency::vendor_loss(
-                currency_id as i32,
-                quantity,
-                amount,
-            ));
-        }
-
         for &(_, item_guid, new_count) in &existing_updates {
             self.update_inventory_item_object_like_cpp(item_guid, |item| {
                 item.set_count(new_count);
@@ -12291,15 +12400,6 @@ impl WorldSession {
             .iter()
             .map(|&(slot, _, item_guid, _)| (slot, item_guid))
             .collect();
-
-        info!(
-            "BuyItem: player {:?} bought item {} across {} destination(s) for {} copper (remaining: {})",
-            player_guid,
-            buy.item_id,
-            store_dest.len(),
-            buy_price,
-            self.player_gold_like_cpp()
-        );
         let new_quantity = if vendor_item.max_count == 0 {
             -1
         } else {
@@ -12312,7 +12412,33 @@ impl WorldSession {
                 quantity,
             ) as i32
         };
+        drop(money_persistence);
 
+        self.drain_represented_quest_objective_progress_like_cpp()
+            .await;
+        for &(currency_id, amount) in &extended_cost_currency_costs {
+            let Some(quantity) = i32::try_from(self.player_currency_quantity(currency_id)).ok()
+            else {
+                continue;
+            };
+            let Some(amount) = i32::try_from(amount).ok() else {
+                continue;
+            };
+            self.send_packet(&SetCurrency::vendor_loss(
+                currency_id as i32,
+                quantity,
+                amount,
+            ));
+        }
+
+        info!(
+            "BuyItem: player {:?} bought item {} across {} destination(s) for {} copper (remaining: {})",
+            player_guid,
+            buy.item_id,
+            store_dest.len(),
+            buy_price,
+            self.player_gold_like_cpp()
+        );
         // ── Send BuySucceeded ──
         self.send_packet(&BuySucceeded {
             vendor_guid: buy.vendor_guid,
@@ -12444,6 +12570,12 @@ impl WorldSession {
             Some(db) => Arc::clone(db),
             None => return,
         };
+        let Some(money_persistence) = self
+            .begin_exclusive_player_money_persistence_like_cpp()
+            .await
+        else {
+            return;
+        };
         let mut tx = SqlTransaction::new();
         let old_gold = self.player_gold_like_cpp();
         let new_gold = old_gold.saturating_sub(price);
@@ -12520,14 +12652,26 @@ impl WorldSession {
             tx.append(del_item);
         }
 
-        if let Err(e) = char_db.commit_transaction(tx).await {
-            warn!("BuyBackItem: transaction failed: {e}");
+        let Some(money_persistence) = self
+            .commit_exclusive_player_money_transaction_like_cpp(
+                money_persistence,
+                char_db.as_ref(),
+                tx,
+                old_gold,
+                new_gold,
+                "vendor buyback purchase",
+            )
+            .await
+        else {
+            warn!("BuyBackItem: transaction did not commit");
             self.send_buy_error(BuyResult::CantFindItem, Some(buyback.vendor_guid), 0);
             return;
-        }
+        };
 
-        self.apply_player_money_change_like_cpp(old_gold, new_gold)
-            .await;
+        // The same COMMIT moved the buyback item (or merged/deleted it) and
+        // charged the player. Mirror that entire durable state before the
+        // guard can reopen admission or this future can be cancelled.
+        self.stage_player_money_change_like_cpp(old_gold, new_gold);
         self.remove_buyback_item_like_cpp(buyback_slot);
         self.clear_buyback_slot_metadata_like_cpp(buyback_slot);
         if self
@@ -12563,6 +12707,10 @@ impl WorldSession {
             self.remove_inventory_item_object(buyback_item.guid);
         }
         self.sync_object_accessor_player();
+        drop(money_persistence);
+
+        self.drain_represented_quest_objective_progress_like_cpp()
+            .await;
 
         for &(_, item_guid, new_count) in &existing_updates {
             self.send_packet(&UpdateObject::item_stack_count_update(
@@ -12713,6 +12861,12 @@ impl WorldSession {
         }
 
         let money = sell_price.saturating_mul(u64::from(sold_count));
+        let Some(money_persistence) = self
+            .begin_exclusive_player_money_persistence_like_cpp()
+            .await
+        else {
+            return;
+        };
         let old_gold = self.player_gold_like_cpp();
         let Some(new_gold) = player_money_gain_like_cpp(old_gold, money) else {
             self.send_sell_error(
@@ -12761,12 +12915,18 @@ impl WorldSession {
                 upd_count.set_u64(1, item.db_guid);
                 tx.append(upd_count);
 
-                let max_guid_stmt = char_db.prepare(CharStatements::SEL_MAX_ITEM_GUID);
-                let new_db_guid = match char_db.query(&max_guid_stmt).await {
-                    Ok(r) => r.try_read::<u64>(0).unwrap_or(0) + 1,
-                    Err(_) => 1,
+                let Some((new_db_guid, new_item_guid)) = self
+                    .allocate_item_instance_guids_like_cpp(1)
+                    .and_then(|mut allocated| allocated.pop())
+                else {
+                    warn!("SellItem: process-wide item GUID allocator is unavailable");
+                    self.send_sell_error(
+                        SellResult::CantSellItem,
+                        Some(sell.vendor_guid),
+                        sell.item_guid,
+                    );
+                    return;
                 };
-                let new_item_guid = ObjectGuid::create_item(self.realm_id(), new_db_guid as i64);
                 let cloned_item =
                     runtime_item.clone_item_for_store(new_item_guid, Some(player_guid), amount);
                 let cloned_data = cloned_item.data();
@@ -12809,18 +12969,30 @@ impl WorldSession {
         upd_money.set_u64(1, player_guid.counter() as u64);
         tx.append(upd_money);
 
-        if let Err(e) = char_db.commit_transaction(tx).await {
-            warn!("SellItem: transaction failed: {e}");
+        let Some(money_persistence) = self
+            .commit_exclusive_player_money_transaction_like_cpp(
+                money_persistence,
+                char_db.as_ref(),
+                tx,
+                old_gold,
+                new_gold,
+                "vendor item sale",
+            )
+            .await
+        else {
+            warn!("SellItem: transaction did not commit");
             self.send_sell_error(
                 SellResult::CantSellItem,
                 Some(sell.vendor_guid),
                 sell.item_guid,
             );
             return;
-        }
+        };
 
-        self.apply_player_money_change_like_cpp(old_gold, new_gold)
-            .await;
+        // C++ mutates money, inventory and buyback state as one in-memory
+        // operation. Our durable-first adaptation must publish the same whole
+        // state before reopening admission or reaching a cancellation point.
+        self.stage_player_money_change_like_cpp(old_gold, new_gold);
         if let Some(old_buyback) = old_buyback {
             self.remove_buyback_item_like_cpp(buyback_slot);
             self.remove_inventory_item_object(old_buyback.guid);
@@ -12865,6 +13037,10 @@ impl WorldSession {
             self.set_inventory_item_object_slot(item.guid, buyback_slot);
         }
         self.sync_object_accessor_player();
+        drop(money_persistence);
+
+        self.drain_represented_quest_objective_progress_like_cpp()
+            .await;
 
         info!(
             "SellItem: player {:?} sold {}x item {} from slot {} for {} copper (total: {})",
@@ -13211,6 +13387,12 @@ impl WorldSession {
             }
         }
 
+        let Some(money_persistence) = self
+            .begin_exclusive_player_money_persistence_like_cpp()
+            .await
+        else {
+            return;
+        };
         let mut tx = SqlTransaction::new();
         let mut del_refund = char_db.prepare(CharStatements::DEL_ITEM_REFUND_INSTANCE);
         del_refund.set_u64(0, refund_inv_item.db_guid);
@@ -13241,20 +13423,24 @@ impl WorldSession {
             tx.append(upd_count);
         }
 
-        let realm_id = self.realm_id();
         let mut created_new_stacks = Vec::new();
         if !planned_new_stacks.is_empty() {
-            let max_guid_stmt = char_db.prepare(CharStatements::SEL_MAX_ITEM_GUID);
-            let mut next_item_guid = match char_db.query(&max_guid_stmt).await {
-                Ok(r) => r.try_read::<u64>(0).unwrap_or(0) + 1,
-                Err(_) => 1,
+            let Some(allocated_guids) =
+                self.allocate_item_instance_guids_like_cpp(planned_new_stacks.len())
+            else {
+                warn!(
+                    count = planned_new_stacks.len(),
+                    "ItemPurchaseRefund: process-wide item GUID allocator is unavailable"
+                );
+                self.send_packet(&ItemPurchaseRefundResult {
+                    item_guid: refund.item_guid,
+                    result: REFUND_RESULT_ERR_GENERIC,
+                    contents: Some(contents),
+                });
+                return;
             };
 
-            for stack in &planned_new_stacks {
-                let db_guid = next_item_guid;
-                next_item_guid += 1;
-                let item_guid = ObjectGuid::create_item(realm_id, db_guid as i64);
-
+            for (stack, (db_guid, item_guid)) in planned_new_stacks.iter().zip(allocated_guids) {
                 let mut ins_item = char_db.prepare(CharStatements::INS_ITEM_INSTANCE);
                 ins_item.set_u64(0, db_guid);
                 ins_item.set_u32(1, stack.entry_id);
@@ -13292,22 +13478,31 @@ impl WorldSession {
         }
         self.append_player_currency_save_statements(&mut tx, player_guid.counter() as u64);
 
-        if let Err(e) = char_db.commit_transaction(tx).await {
+        let Some(money_persistence) = self
+            .commit_exclusive_player_money_transaction_like_cpp(
+                money_persistence,
+                char_db.as_ref(),
+                tx,
+                old_money,
+                new_gold,
+                "vendor item purchase refund",
+            )
+            .await
+        else {
             self.set_player_currencies_like_cpp(currency_snapshot);
-            warn!("ItemPurchaseRefund: refund transaction failed: {e}");
+            warn!("ItemPurchaseRefund: refund transaction did not commit");
             self.send_packet(&ItemPurchaseRefundResult {
                 item_guid: refund.item_guid,
                 result: REFUND_RESULT_ERR_GENERIC,
                 contents: Some(contents),
             });
             return;
-        }
+        };
 
-        self.apply_player_money_change_like_cpp(old_money, new_gold)
-            .await;
-        if money_overflow {
-            self.send_equip_error(InventoryResult::TooMuchGold, None, None, 0, 0);
-        }
+        // Refund COMMIT covers money, currencies, destruction of the refunded
+        // item, and every restored stack. Publish the corresponding runtime
+        // inventory before the guard opens or an await permits cancellation.
+        self.stage_player_money_change_like_cpp(old_money, new_gold);
         self.remove_inventory_item_like_cpp(refund_slot);
         self.remove_inventory_item_object(refund.item_guid);
 
@@ -13339,6 +13534,13 @@ impl WorldSession {
             self.insert_inventory_item_object(item_object);
         }
         self.sync_object_accessor_player();
+        drop(money_persistence);
+
+        self.drain_represented_quest_objective_progress_like_cpp()
+            .await;
+        if money_overflow {
+            self.send_equip_error(InventoryResult::TooMuchGold, None, None, 0, 0);
+        }
 
         self.send_packet(&ItemPurchaseRefundResult {
             item_guid: refund.item_guid,
@@ -16342,6 +16544,7 @@ mod tests {
         RepresentedTaxiFlightNodeLikeCpp,
     };
     use wow_constants::{ItemClass, ServerOpcodes};
+    use wow_core::ObjectGuidGenerator;
     use wow_data::character_progression::{
         ChrClassesEntry, ChrClassesStore, ChrRacesEntry, ChrRacesStore,
     };
@@ -16957,21 +17160,23 @@ mod tests {
     ) -> (WorldSession, flume::Receiver<Vec<u8>>) {
         let (_pkt_tx, pkt_rx) = flume::bounded::<WorldPacket>(1);
         let (send_tx, send_rx) = flume::bounded::<Vec<u8>>(capacity);
-        (
-            WorldSession::new(
-                1,
-                "TestAccount".into(),
-                0,
-                2,
-                9,
-                54261,
-                vec![0u8; 40],
-                "esES".into(),
-                pkt_rx,
-                send_tx,
-            ),
-            send_rx,
-        )
+        let mut session = WorldSession::new(
+            1,
+            "TestAccount".into(),
+            0,
+            2,
+            9,
+            54261,
+            vec![0u8; 40],
+            "esES".into(),
+            pkt_rx,
+            send_tx,
+        );
+        session.set_item_guid_generator_like_cpp(Arc::new(ObjectGuidGenerator::new(
+            HighGuid::Item,
+            1,
+        )));
+        (session, send_rx)
     }
 
     fn run_login_grid_cleanup_test(test: impl FnOnce() + Send + 'static) {
@@ -20141,11 +20346,125 @@ mod tests {
         assert!(send_rx.try_recv().is_err());
     }
 
+    #[test]
+    fn committed_money_callers_publish_all_runtime_state_before_reopening_admission() {
+        fn assert_publication_segment(
+            source: &str,
+            operation: &str,
+            publication_start: &str,
+            required_runtime_publications: &[&str],
+        ) {
+            let operation_marker = format!("\"{operation}\"");
+            let operation_offset = source
+                .find(&operation_marker)
+                .unwrap_or_else(|| panic!("missing operation marker {operation_marker}"));
+            let after_operation = &source[operation_offset..];
+            let publication_offset = after_operation.find(publication_start).unwrap_or_else(|| {
+                panic!("{operation}: missing publication start {publication_start}")
+            });
+            let after_publication = &after_operation[publication_offset..];
+            let drop_offset = after_publication
+                .find("drop(money_persistence);")
+                .unwrap_or_else(|| panic!("{operation}: missing money guard drop"));
+            let publication = &after_publication[..drop_offset];
+
+            assert!(
+                !publication.contains(".await"),
+                "{operation}: an await reintroduced a post-COMMIT cancellation point before runtime publication"
+            );
+            for required in required_runtime_publications {
+                assert!(
+                    publication.contains(required),
+                    "{operation}: runtime publication `{required}` must precede the money guard drop"
+                );
+            }
+        }
+
+        let character = include_str!("character.rs");
+        let trainer = include_str!("trainer.rs");
+        let session = include_str!("../session.rs");
+
+        assert_publication_segment(
+            trainer,
+            "trainer spell purchase",
+            "self.stage_player_money_change_like_cpp",
+            &[
+                "self.learn_known_spell_like_cpp(spell_id);",
+                "self.sync_object_accessor_player();",
+                "self.sync_player_registry_state_like_cpp();",
+            ],
+        );
+        assert_publication_segment(
+            character,
+            "bank-slot purchase",
+            "self.set_player_gold_like_cpp(new_money);",
+            &[
+                "self.set_player_bank_bag_slot_count_like_cpp(new_count);",
+                "self.sync_object_accessor_player();",
+                "self.sync_player_registry_state_like_cpp();",
+            ],
+        );
+        assert_publication_segment(
+            character,
+            "vendor item purchase",
+            "self.stage_player_money_change_like_cpp",
+            &[
+                "self.apply_item_turnin_changes",
+                "self.insert_inventory_item_like_cpp",
+                "self.update_vendor_item_current_count",
+                "self.sync_object_accessor_player();",
+            ],
+        );
+        assert_publication_segment(
+            character,
+            "vendor buyback purchase",
+            "self.stage_player_money_change_like_cpp",
+            &[
+                "self.remove_buyback_item_like_cpp",
+                "self.insert_inventory_item_like_cpp",
+                "self.sync_object_accessor_player();",
+            ],
+        );
+        assert_publication_segment(
+            character,
+            "vendor item sale",
+            "self.stage_player_money_change_like_cpp",
+            &[
+                "self.set_buyback_slot_metadata_like_cpp",
+                "self.insert_buyback_item_like_cpp",
+                "self.sync_object_accessor_player();",
+            ],
+        );
+        assert_publication_segment(
+            character,
+            "vendor item purchase refund",
+            "self.stage_player_money_change_like_cpp",
+            &[
+                "self.remove_inventory_item_like_cpp(refund_slot);",
+                "self.insert_inventory_item_like_cpp",
+                "self.sync_object_accessor_player();",
+            ],
+        );
+        assert_publication_segment(
+            session,
+            "single item durability repair",
+            "self.stage_player_money_change_like_cpp",
+            &["self.apply_inventory_item_durability_repair_runtime_like_cpp(item_guid)"],
+        );
+        assert_publication_segment(
+            session,
+            "all-items durability repair",
+            "self.stage_player_money_change_like_cpp",
+            &["self.apply_inventory_item_durability_repair_runtime_like_cpp(item_guid)"],
+        );
+    }
+
     #[tokio::test]
     async fn buy_bank_slot_buys_next_slot_and_spends_money_like_cpp() {
         let (mut session, send_rx, canonical) = make_bank_slot_session(4);
         let banker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 1);
         insert_banker_creature(&canonical, banker, NPCFlags1::BANKER.bits());
+        session.set_loot_money_persistence_test_result_like_cpp(true);
 
         session
             .handle_buy_bank_slot(BuyBankSlot { guid: banker })
@@ -20159,6 +20478,52 @@ mod tests {
         );
         assert!(send_rx.try_recv().is_ok(), "money update should be sent");
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn buy_bank_slot_definite_rollback_keeps_runtime_and_packets_unchanged_like_cpp() {
+        let (mut session, send_rx, canonical) = make_bank_slot_session(4);
+        let banker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 4);
+        insert_banker_creature(&canonical, banker, NPCFlags1::BANKER.bits());
+        session.set_loot_money_persistence_test_result_like_cpp(false);
+
+        session
+            .handle_buy_bank_slot(BuyBankSlot { guid: banker })
+            .await;
+
+        assert_eq!(session.player_bank_bag_slot_count_like_cpp(), 0);
+        assert_eq!(session.player_gold_like_cpp(), 150);
+        assert!(send_rx.try_recv().is_err());
+        assert!(
+            session
+                .durable_loot_money_persistence_tracker_like_cpp()
+                .begin_like_cpp()
+                .is_ok(),
+            "a definite rollback must reopen payout admission"
+        );
+    }
+
+    #[test]
+    fn bank_slot_purchase_persists_money_and_slot_in_one_checked_statement_like_cpp() {
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let statement = bank_slot_purchase_update_statement_like_cpp(player_guid, 12_345, 3);
+
+        assert_eq!(
+            statement.sql(),
+            "UPDATE characters SET money = ?, bankSlots = ? WHERE guid = ?"
+        );
+        assert!(matches!(
+            statement.params()[0],
+            wow_database::SqlParam::U64(12_345)
+        ));
+        assert!(matches!(
+            statement.params()[1],
+            wow_database::SqlParam::U8(3)
+        ));
+        assert!(matches!(
+            statement.params()[2],
+            wow_database::SqlParam::U64(42)
+        ));
     }
 
     #[tokio::test]
@@ -22434,7 +22799,10 @@ mod tests {
             wow_constants::ServerOpcodes::LogoutComplete as u16
         );
         assert!(!session.is_active_loot_guid(loot_guid));
-        assert!(session.loot_table.contains_key(&loot_guid));
+        assert!(
+            !session.loot_table.contains_key(&loot_guid),
+            "full logout release retires the session packet-cache copy like C++"
+        );
     }
 
     #[test]

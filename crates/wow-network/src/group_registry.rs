@@ -282,7 +282,8 @@ pub struct GroupInfo {
     pub members: Vec<ObjectGuid>,
     /// C++ `Group::m_memberSlots` represented metadata.
     pub member_slots: Vec<GroupMemberSlotLikeCpp>,
-    /// 0=FreeForAll, 1=RoundRobin, 2=MasterLoot, 3=GroupLoot, 4=NeedBeforeGreed
+    /// C++ `LootMethod` (`Loot.h`): 0=FreeForAll, 1=RoundRobin,
+    /// 2=MasterLoot, 3=GroupLoot, 4=NeedBeforeGreed, 5=PersonalLoot.
     pub loot_method: u8,
     pub looter_guid: ObjectGuid,
     pub loot_threshold: u8,

@@ -3120,8 +3120,13 @@ pub enum UpdateBlock {
         guid: ObjectGuid,
         create_data: ItemCreateData,
     },
-    /// VALUES update for an item: currently only StackCount is needed by direct inventory stores.
-    ItemValuesUpdate { guid: ObjectGuid, stack_count: u32 },
+    /// VALUES update for an item store. `dynamic_flags` is present when the
+    /// same C++ `_StoreItem` call both grows a stack and binds it.
+    ItemValuesUpdate {
+        guid: ObjectGuid,
+        stack_count: u32,
+        dynamic_flags: Option<u32>,
+    },
     /// VALUES update for a player: only changed InvSlots, VisibleItems, VirtualItems.
     PlayerValuesUpdate {
         guid: ObjectGuid,
@@ -3532,9 +3537,13 @@ impl UpdateObject {
                         create_data.bounds_radius_2d
                     ));
                 }
-                UpdateBlock::ItemValuesUpdate { guid, stack_count } => {
+                UpdateBlock::ItemValuesUpdate {
+                    guid,
+                    stack_count,
+                    dynamic_flags,
+                } => {
                     lines.push(format!(
-                        "#{index:03} item_values guid={guid:?} stack_count={stack_count}"
+                        "#{index:03} item_values guid={guid:?} stack_count={stack_count} dynamic_flags={dynamic_flags:?}"
                     ));
                 }
                 UpdateBlock::PlayerValuesUpdate {
@@ -4373,13 +4382,31 @@ impl UpdateObject {
     /// Each item gets its own block. Sent BEFORE the player CREATE packet
     /// so the client has item objects when it processes InvSlots.
     pub fn create_items(items: Vec<ItemCreateData>, map_id: u16) -> Self {
+        Self::create_items_with_update_type(items, map_id, UpdateType::CreateObject2)
+    }
+
+    /// Create inventory item blocks from C++ `Player::_StoreItem`.
+    ///
+    /// `_StoreItem` calls `Item::AddToWorld` directly and then
+    /// `SendUpdateToPlayer`; unlike `Map::AddToMap`, that path never raises
+    /// `Object::m_isNewObject`, so `BuildCreateUpdateBlockForPlayer` writes
+    /// `CreateObject` rather than `CreateObject2`.
+    pub fn create_stored_items(items: Vec<ItemCreateData>, map_id: u16) -> Self {
+        Self::create_items_with_update_type(items, map_id, UpdateType::CreateObject)
+    }
+
+    fn create_items_with_update_type(
+        items: Vec<ItemCreateData>,
+        map_id: u16,
+        update_type: UpdateType,
+    ) -> Self {
         let num = items.len() as u32;
         let blocks = items
             .into_iter()
             .map(|data| {
                 let guid = data.item_guid;
                 UpdateBlock::CreateItem {
-                    update_type: UpdateType::CreateObject2,
+                    update_type,
                     guid,
                     create_data: data,
                 }
@@ -4402,7 +4429,32 @@ impl UpdateObject {
             num_updates: 1,
             destroy_guids: Vec::new(),
             out_of_range_guids: Vec::new(),
-            blocks: vec![UpdateBlock::ItemValuesUpdate { guid, stack_count }],
+            blocks: vec![UpdateBlock::ItemValuesUpdate {
+                guid,
+                stack_count,
+                dynamic_flags: None,
+            }],
+        }
+    }
+
+    /// Create the single ItemData VALUES update emitted by C++ `_StoreItem`
+    /// when an existing stack changes both count and binding flags.
+    pub fn item_stack_count_and_flags_update(
+        guid: ObjectGuid,
+        map_id: u16,
+        stack_count: u32,
+        dynamic_flags: u32,
+    ) -> Self {
+        Self {
+            map_id,
+            num_updates: 1,
+            destroy_guids: Vec::new(),
+            out_of_range_guids: Vec::new(),
+            blocks: vec![UpdateBlock::ItemValuesUpdate {
+                guid,
+                stack_count,
+                dynamic_flags: Some(dynamic_flags),
+            }],
         }
     }
 }
@@ -4550,8 +4602,17 @@ impl ServerPacket for UpdateObject {
                 } => {
                     write_item_create_block(&mut blocks_buf, *update_type, guid, create_data);
                 }
-                UpdateBlock::ItemValuesUpdate { guid, stack_count } => {
-                    write_item_values_update_block(&mut blocks_buf, guid, *stack_count);
+                UpdateBlock::ItemValuesUpdate {
+                    guid,
+                    stack_count,
+                    dynamic_flags,
+                } => {
+                    write_item_values_update_block(
+                        &mut blocks_buf,
+                        guid,
+                        *stack_count,
+                        *dynamic_flags,
+                    );
                 }
                 UpdateBlock::PlayerValuesUpdate {
                     guid,
@@ -5537,13 +5598,19 @@ fn write_item_create_block(
 
 // ── VALUES update (UpdateType::Values) ─────────────────────────────
 
-/// Write an ItemData VALUES update containing StackCount only.
+/// Write an ItemData VALUES update containing StackCount and, when the store
+/// binds an existing stack, DynamicFlags in the same update block.
 ///
 /// C++ refs:
 /// - `Item::SetCount`
 /// - `Object::BuildValuesUpdate`
 /// - `UF::ItemData::WriteUpdate`
-fn write_item_values_update_block(buf: &mut WorldPacket, guid: &ObjectGuid, stack_count: u32) {
+fn write_item_values_update_block(
+    buf: &mut WorldPacket,
+    guid: &ObjectGuid,
+    stack_count: u32,
+    dynamic_flags: Option<u32>,
+) {
     buf.write_uint8(UpdateType::Values as u8);
     buf.write_packed_guid(guid);
 
@@ -5551,11 +5618,19 @@ fn write_item_values_update_block(buf: &mut WorldPacket, guid: &ObjectGuid, stac
     val_buf.write_uint32(1 << 1); // TypeId::Item
 
     // ItemData has 43 bits: two 32-bit field blocks and a 2-bit blocks mask.
-    // Parent bit 0 and StackCount bit 7 are set for a count-only update.
+    // Parent bit 0 and StackCount bit 7 are always set. DynamicFlags bit 9
+    // joins the same mask when `_StoreItem` binds the destination stack.
     val_buf.write_bits(0x01, 2);
-    val_buf.write_bits((1 << 0) | (1 << 7), 32);
+    let mut item_mask = (1 << 0) | (1 << 7);
+    if dynamic_flags.is_some() {
+        item_mask |= 1 << 9;
+    }
+    val_buf.write_bits(item_mask, 32);
     val_buf.flush_bits();
     val_buf.write_int32(stack_count as i32);
+    if let Some(dynamic_flags) = dynamic_flags {
+        val_buf.write_uint32(dynamic_flags);
+    }
 
     let val_data = val_buf.into_data();
     buf.write_uint32(val_data.len() as u32);
@@ -9800,6 +9875,37 @@ mod tests {
     }
 
     #[test]
+    fn stored_item_create_uses_cpp_non_map_create_type() {
+        let item_guid = ObjectGuid::create_item(1, 900);
+        let owner_guid = ObjectGuid::create_player(1, 42);
+        let packet = UpdateObject::create_stored_items(
+            vec![ItemCreateData {
+                item_guid,
+                entry_id: 700,
+                owner_guid,
+                contained_in: owner_guid,
+                stack_count: 1,
+                dynamic_flags: 0,
+                durability: 0,
+                max_durability: 0,
+                random_properties_seed: 0,
+                random_properties_id: 0,
+                enchantments: [ItemEnchantmentValuesUpdate::default(); 13],
+                gems: Vec::new(),
+                context: 0,
+                container_slots: 0,
+                container_item_guids: [ObjectGuid::EMPTY; 36],
+            }],
+            0,
+        );
+
+        let UpdateBlock::CreateItem { update_type, .. } = packet.blocks[0] else {
+            panic!("stored item packet must contain an item create block");
+        };
+        assert_eq!(update_type, UpdateType::CreateObject);
+    }
+
+    #[test]
     fn container_create_serializes_cpp_container_data_after_item_data() {
         let item_guid = ObjectGuid::create_item(1, 900);
         let owner_guid = ObjectGuid::create_player(1, 42);
@@ -9850,6 +9956,32 @@ mod tests {
 
         assert!(bytes.len() > 20);
         assert!(bytes.windows(4).any(|window| window == 19i32.to_le_bytes()));
+    }
+
+    #[test]
+    fn bound_existing_stack_serializes_count_and_flags_in_one_values_update() {
+        let item_guid = ObjectGuid::create_item(1, 901);
+        let dynamic_flags = 0x0000_0001;
+        let pkt = UpdateObject::item_stack_count_and_flags_update(item_guid, 0, 19, dynamic_flags);
+
+        assert_eq!(pkt.num_updates, 1);
+        assert_eq!(pkt.blocks.len(), 1);
+        assert!(matches!(
+            pkt.blocks.as_slice(),
+            [UpdateBlock::ItemValuesUpdate {
+                guid,
+                stack_count: 19,
+                dynamic_flags: Some(flags),
+            }] if *guid == item_guid && *flags == dynamic_flags
+        ));
+
+        let bytes = pkt.to_bytes();
+        assert!(bytes.windows(4).any(|window| window == 19i32.to_le_bytes()));
+        assert!(
+            bytes
+                .windows(4)
+                .any(|window| window == dynamic_flags.to_le_bytes())
+        );
     }
 
     #[test]

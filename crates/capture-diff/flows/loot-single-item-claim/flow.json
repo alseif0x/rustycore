@@ -1,0 +1,7 @@
+{
+  "description": "Single-session deterministic item claim: CMSG_LOOT_ITEM on instance, C++ LootRemoved on instance before ItemPushResult on realm, bounded by a fixed instance CMSG_PING fence.",
+  "directions": [
+    "s2c",
+    "c2s"
+  ]
+}

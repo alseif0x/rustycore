@@ -27,6 +27,9 @@ struct PendingEntry {
 pub struct InstanceLink {
     /// New send channel — session writes to this, instance socket reads from it.
     pub send_tx: flume::Sender<Vec<u8>>,
+    /// Write fence paired with `send_tx`. `None` is accepted only by local
+    /// fallback/tests that keep using the already-installed physical socket.
+    pub send_write_fence_like_cpp: Option<crate::SocketWriteFenceLikeCpp>,
     /// Packet receiver — session reads decoded packets from the instance socket here.
     /// `None` in fallback mode (direct login on realm socket — keep existing packet_rx).
     pub pkt_rx: Option<flume::Receiver<wow_packet::WorldPacket>>,

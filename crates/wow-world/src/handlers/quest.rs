@@ -159,9 +159,17 @@ enum QuestSourceItemStoreOutcomeLikeCpp {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct QuestSourceItemBoundPreflightLikeCpp {
-    no_grant: bool,
-    changed_quest_ids: Vec<u32>,
+pub(crate) struct QuestSourceItemBoundPreflightLikeCpp {
+    pub(crate) no_grant: bool,
+    pub(crate) changed_quest_ids: Vec<u32>,
+}
+
+/// Durable snapshot of C++ `StoreNewItem`'s first, quest-bound
+/// `ItemAddedQuestCheck` pass. A single matching bound objective consumes the
+/// loot award as quest credit without materialising an inventory Item.
+#[derive(Debug, Clone)]
+pub(crate) struct QuestSourceItemBoundPersistencePlanLikeCpp {
+    pub(crate) statuses: Vec<PlayerQuestStatus>,
 }
 
 fn reputation_rank_from_standing_like_cpp(standing: i32) -> u8 {
@@ -1571,6 +1579,112 @@ impl WorldSession {
         }
     }
 
+    /// C++ walks one objective-status index and stops at the first quest-bound
+    /// item objective. Rust stores statuses in a `HashMap`, so two independent
+    /// scans could select different quests. Use the explicit quest-log slot
+    /// (then quest id as a deterministic duplicate-slot fallback) for both the
+    /// durable plan and its post-commit application.
+    fn quest_bound_item_objective_quest_order_like_cpp(&self) -> Vec<u32> {
+        let mut quests = self
+            .player_quests
+            .values()
+            .map(|status| (status.slot, status.quest_id))
+            .collect::<Vec<_>>();
+        quests.sort_unstable();
+        quests.into_iter().map(|(_, quest_id)| quest_id).collect()
+    }
+
+    /// Pure form of the first C++ `Player::StoreNewItem` quest pass:
+    /// `ItemAddedQuestCheck(itemId, count, true, &hadBoundItemObjective)`.
+    ///
+    /// `UpdateQuestObjectiveProgress` stops after the first matching
+    /// `QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM` objective. When it changes
+    /// one objective, `StoreNewItem` returns `nullptr` and no physical Item is
+    /// created. Keeping this as a snapshot lets loot persist the objective and
+    /// consume its object-owned claim in one SQL/authority transaction.
+    pub(crate) fn plan_quest_source_item_bound_objective_persistence_like_cpp(
+        &self,
+        entry_id: u32,
+        quest_log_item_id: u32,
+        count: u32,
+    ) -> Option<QuestSourceItemBoundPersistencePlanLikeCpp> {
+        let quest_store = self.quest_store.as_ref()?;
+        let count_i32 = i32::try_from(count).unwrap_or(i32::MAX);
+        let entry_object_id = i32::try_from(entry_id).unwrap_or(i32::MAX);
+        let quest_log_object_id = i32::try_from(quest_log_item_id).unwrap_or(i32::MAX);
+        let ordered_quest_ids = self.quest_bound_item_objective_quest_order_like_cpp();
+
+        for object_id in [entry_object_id, quest_log_object_id] {
+            if object_id == quest_log_object_id && quest_log_item_id == 0 {
+                continue;
+            }
+
+            for quest_id in &ordered_quest_ids {
+                let Some(current_status) = self.player_quests.get(quest_id) else {
+                    continue;
+                };
+                if current_status.status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
+                    continue;
+                }
+                let Some(quest) = quest_store.get(current_status.quest_id) else {
+                    continue;
+                };
+
+                for (objective_index, objective) in quest.objectives.iter().enumerate() {
+                    if objective.obj_type != QUEST_OBJECTIVE_ITEM_LIKE_CPP_LOCAL
+                        || (objective.flags2
+                            & QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP_LOCAL)
+                            == 0
+                        || objective.object_id != object_id
+                        || !Self::represented_quest_objective_completable_like_cpp(
+                            current_status,
+                            quest,
+                            objective_index,
+                        )
+                    {
+                        continue;
+                    }
+
+                    let Ok(storage_index) = usize::try_from(objective.storage_index) else {
+                        continue;
+                    };
+                    let current = current_status
+                        .objective_counts
+                        .get(storage_index)
+                        .copied()
+                        .unwrap_or(0);
+                    if current >= objective.amount {
+                        continue;
+                    }
+
+                    let mut planned_status = current_status.clone();
+                    if planned_status.objective_counts.len() <= storage_index {
+                        planned_status.objective_counts.resize(storage_index + 1, 0);
+                    }
+                    let new_count = current.saturating_add(count_i32).clamp(0, objective.amount);
+                    planned_status.objective_counts[storage_index] = new_count;
+                    let quest_already_rewarded = self.rewarded_quests.contains(&quest.id);
+                    if new_count >= objective.amount
+                        && Self::represented_can_complete_quest_after_objective_like_cpp(
+                            &planned_status,
+                            quest,
+                            objective.id,
+                            quest_already_rewarded,
+                        )
+                    {
+                        planned_status.status = QUEST_STATUS_COMPLETE_LIKE_CPP;
+                    }
+
+                    return Some(QuestSourceItemBoundPersistencePlanLikeCpp {
+                        statuses: vec![planned_status],
+                    });
+                }
+            }
+        }
+
+        None
+    }
+
     async fn apply_quest_source_item_bound_objective_progress_for_object_like_cpp(
         &mut self,
         quest_store: &QuestStore,
@@ -1579,8 +1693,12 @@ impl WorldSession {
     ) -> Vec<(u32, i32)> {
         let mut updated_counts = Vec::new();
         let mut quests_to_complete = Vec::new();
+        let ordered_quest_ids = self.quest_bound_item_objective_quest_order_like_cpp();
 
-        for status in self.player_quests.values_mut() {
+        'quests: for quest_id in ordered_quest_ids {
+            let Some(status) = self.player_quests.get_mut(&quest_id) else {
+                continue;
+            };
             if status.status != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
                 continue;
             }
@@ -1632,6 +1750,9 @@ impl WorldSession {
                 {
                     quests_to_complete.push(status.quest_id);
                 }
+                // C++ `UpdateQuestObjectiveProgress` stops after the first
+                // credited quest-bound Item objective.
+                break 'quests;
             }
         }
 
@@ -1645,7 +1766,7 @@ impl WorldSession {
         updated_counts
     }
 
-    async fn apply_quest_source_item_bound_objective_preflight_like_cpp(
+    pub(crate) async fn apply_quest_source_item_bound_objective_preflight_like_cpp(
         &mut self,
         entry_id: u32,
         quest_log_item_id: u32,
@@ -2161,42 +2282,27 @@ impl WorldSession {
         let mut last_bag = u8::from(wow_entities::INVENTORY_SLOT_BAG_0);
         let mut last_slot = 0;
         let mut last_count_in_stack = 0;
-        let mut next_item_guid = if dest.iter().any(|dest| {
-            let bag = (dest.pos >> 8) as u8;
-            let slot = (dest.pos & 0x00FF) as u8;
-            self.get_inventory_item_by_pos(bag, slot).is_none()
-        }) {
-            if let Some(char_db) = self.char_db().map(Arc::clone) {
-                let max_guid_stmt = char_db.prepare(CharStatements::SEL_MAX_ITEM_GUID);
-                match char_db.query(&max_guid_stmt).await {
-                    Ok(row) => row.try_read::<u64>(0).unwrap_or(0).saturating_add(1),
-                    Err(error) => {
-                        warn!(
-                            account = self.account_id,
-                            entry_id,
-                            ?error,
-                            "QuestConfirmAccept: failed to allocate DB item guid for source item"
-                        );
-                        self.send_equip_error(InventoryResult::InvFull, None, None, 0, 0);
-                        return None;
-                    }
-                }
-            } else {
-                self.inventory_items_like_cpp()
-                    .values()
-                    .map(|item| item.db_guid)
-                    .chain(
-                        self.inventory_item_objects_like_cpp()
-                            .keys()
-                            .map(|guid| guid.counter() as u64),
-                    )
-                    .max()
-                    .unwrap_or(0)
-                    .saturating_add(1)
-            }
-        } else {
-            0
+        let new_item_count = dest
+            .iter()
+            .filter(|dest| {
+                let bag = (dest.pos >> 8) as u8;
+                let slot = (dest.pos & 0x00FF) as u8;
+                self.get_inventory_item_by_pos(bag, slot).is_none()
+            })
+            .count();
+        let Some(allocated_new_item_guids) =
+            self.allocate_item_instance_guids_like_cpp(new_item_count)
+        else {
+            warn!(
+                account = self.account_id,
+                entry_id,
+                count = new_item_count,
+                "QuestConfirmAccept: process-wide item GUID allocator is unavailable"
+            );
+            self.send_equip_error(InventoryResult::InvFull, None, None, 0, 0);
+            return None;
         };
+        let mut allocated_new_item_guids = allocated_new_item_guids.into_iter();
 
         for dest in dest {
             let bag = (dest.pos >> 8) as u8;
@@ -2263,9 +2369,15 @@ impl WorldSession {
                     return None;
                 };
 
-                let db_guid = next_item_guid;
-                next_item_guid = next_item_guid.saturating_add(1);
-                let item_guid = ObjectGuid::create_item(self.realm_id(), db_guid as i64);
+                let Some((db_guid, item_guid)) = allocated_new_item_guids.next() else {
+                    warn!(
+                        account = self.account_id,
+                        entry_id,
+                        "QuestConfirmAccept: preallocated item GUID count did not match store plan"
+                    );
+                    self.send_equip_error(InventoryResult::InvFull, None, None, 0, 0);
+                    return None;
+                };
                 let max_durability = self.item_template_max_durability(entry_id);
                 let should_bind = source_item_bonding.is_some_and(|bonding| {
                     matches!(bonding, ItemBondingType::OnAcquire | ItemBondingType::Quest)
@@ -2522,42 +2634,27 @@ impl WorldSession {
         let mut last_bag = u8::from(wow_entities::INVENTORY_SLOT_BAG_0);
         let mut last_slot = 0;
         let mut last_count_in_stack = 0;
-        let mut next_item_guid = if dest.iter().any(|dest| {
-            let bag = (dest.pos >> 8) as u8;
-            let slot = (dest.pos & 0x00FF) as u8;
-            self.get_inventory_item_by_pos(bag, slot).is_none()
-        }) {
-            if let Some(char_db) = self.char_db().map(Arc::clone) {
-                let max_guid_stmt = char_db.prepare(CharStatements::SEL_MAX_ITEM_GUID);
-                match char_db.query(&max_guid_stmt).await {
-                    Ok(row) => row.try_read::<u64>(0).unwrap_or(0).saturating_add(1),
-                    Err(error) => {
-                        warn!(
-                            account = self.account_id,
-                            entry_id,
-                            ?error,
-                            "RewardQuest: failed to allocate DB item guid for reward item"
-                        );
-                        self.send_equip_error(InventoryResult::InvFull, None, None, 0, 0);
-                        return false;
-                    }
-                }
-            } else {
-                self.inventory_items_like_cpp()
-                    .values()
-                    .map(|item| item.db_guid)
-                    .chain(
-                        self.inventory_item_objects_like_cpp()
-                            .keys()
-                            .map(|guid| guid.counter() as u64),
-                    )
-                    .max()
-                    .unwrap_or(0)
-                    .saturating_add(1)
-            }
-        } else {
-            0
+        let new_item_count = dest
+            .iter()
+            .filter(|dest| {
+                let bag = (dest.pos >> 8) as u8;
+                let slot = (dest.pos & 0x00FF) as u8;
+                self.get_inventory_item_by_pos(bag, slot).is_none()
+            })
+            .count();
+        let Some(allocated_new_item_guids) =
+            self.allocate_item_instance_guids_like_cpp(new_item_count)
+        else {
+            warn!(
+                account = self.account_id,
+                entry_id,
+                count = new_item_count,
+                "RewardQuest: process-wide item GUID allocator is unavailable"
+            );
+            self.send_equip_error(InventoryResult::InvFull, None, None, 0, 0);
+            return false;
         };
+        let mut allocated_new_item_guids = allocated_new_item_guids.into_iter();
 
         for dest in dest {
             let bag = (dest.pos >> 8) as u8;
@@ -2624,9 +2721,15 @@ impl WorldSession {
                     return false;
                 };
 
-                let db_guid = next_item_guid;
-                next_item_guid = next_item_guid.saturating_add(1);
-                let item_guid = ObjectGuid::create_item(self.realm_id(), db_guid as i64);
+                let Some((db_guid, item_guid)) = allocated_new_item_guids.next() else {
+                    warn!(
+                        account = self.account_id,
+                        entry_id,
+                        "RewardQuest: preallocated item GUID count did not match store plan"
+                    );
+                    self.send_equip_error(InventoryResult::InvFull, None, None, 0, 0);
+                    return false;
+                };
                 let max_durability = self.item_template_max_durability(entry_id);
                 let should_bind = item_bonding.is_some_and(|bonding| {
                     matches!(bonding, ItemBondingType::OnAcquire | ItemBondingType::Quest)
@@ -6121,16 +6224,39 @@ impl WorldSession {
 
         let money = quest.reward_money_difficulty;
         if money > 0 {
-            let old_money = self.player_gold_like_cpp();
-            let new_money = old_money.saturating_add(money as u64);
-            self.enqueue_represented_quest_objective_progress_like_cpp(
-                RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
-                    old_money,
-                    new_money,
-                },
-            );
-            self.set_player_gold_like_cpp(new_money);
-            self.save_player_gold().await;
+            match self
+                .mutate_and_persist_player_gold_exclusive_like_cpp(|old_money| {
+                    crate::session::loot_money_durable_outcome_like_cpp(old_money, money as u64).0
+                })
+                .await
+            {
+                Some((old_money, new_money)) => {
+                    if old_money != new_money {
+                        self.enqueue_represented_quest_objective_progress_like_cpp(
+                            RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
+                                old_money,
+                                new_money,
+                            },
+                        );
+                    }
+                }
+                None => {
+                    // Boundary: the represented reward path persists item and
+                    // currency grants before reaching money and does not yet
+                    // own C++ `Player::RewardQuest` as one durable transaction.
+                    // Aborting here would leave the quest retryable after those
+                    // grants and permit duplicates. Preserve the existing
+                    // completion behavior; an ambiguous money COMMIT has
+                    // already quarantined/kicked the session in the shared
+                    // helper. Atomic quest reward persistence is separate debt.
+                    warn!(
+                        account = self.account_id,
+                        quest_id,
+                        money,
+                        "Quest reward money was not durably established; preserving non-atomic represented reward completion to avoid duplicate retry"
+                    );
+                }
+            }
         }
 
         self.apply_represented_quest_title_and_talent_rewards_like_cpp(quest);
@@ -7724,7 +7850,7 @@ mod tests {
         ItemClass, ItemContext,
     };
     use wow_core::guid::HighGuid;
-    use wow_core::{ObjectGuid, Position};
+    use wow_core::{ObjectGuid, ObjectGuidGenerator, Position};
     use wow_data::quest::{
         QUEST_FLAGS_DAILY_LIKE_CPP, QUEST_FLAGS_WEEKLY_LIKE_CPP, QUEST_ITEM_DROP_COUNT,
         QUEST_REWARD_CHOICES_COUNT, QUEST_REWARD_CURRENCY_COUNT, QUEST_REWARD_DISPLAY_SPELL_COUNT,
@@ -7769,6 +7895,14 @@ mod tests {
         session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
         session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
         session.set_player_position_like_cpp(Position::new(10.0, 0.0, 0.0, 0.0));
+        session.set_item_guid_generator_like_cpp(Arc::new(ObjectGuidGenerator::new(
+            HighGuid::Item,
+            1,
+        )));
+        // Reward tests model a successful CharacterDatabase commit. The
+        // production path is fail-closed when no database is available; unit
+        // fixtures have no pool and must opt into the explicit success seam.
+        session.set_loot_money_persistence_test_result_like_cpp(true);
         (session, send_rx)
     }
 
@@ -8669,6 +8803,65 @@ mod tests {
         assert_eq!(packet.read_int32().unwrap(), 1);
         assert_eq!(packet.read_int32().unwrap(), 1);
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn bound_item_durable_plan_and_apply_use_the_same_quest_log_order_like_cpp() {
+        let (mut session, _send_rx) = make_session();
+        let item_id = 19_950;
+        let early_slot_quest_id = 7_452;
+        let late_slot_quest_id = 7_451;
+        let bound_quest = |quest_id: u32| {
+            let mut quest = quest_template(quest_id);
+            quest.objectives = vec![QuestObjective {
+                id: quest_id * 10,
+                quest_id,
+                obj_type: QUEST_OBJECTIVE_ITEM_LIKE_CPP_LOCAL,
+                order: 0,
+                storage_index: 0,
+                object_id: item_id,
+                amount: 2,
+                flags: 0,
+                flags2: QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP_LOCAL,
+                progress_bar_weight: 0.0,
+                description: String::new(),
+            }];
+            quest
+        };
+        let quest_store = Arc::new(QuestStore::from_quests_like_cpp([
+            bound_quest(late_slot_quest_id),
+            bound_quest(early_slot_quest_id),
+        ]));
+        session.set_quest_store(Arc::clone(&quest_store));
+        // Insert the numerically smaller quest first, but give it the later
+        // quest-log slot. HashMap bucket/insertion order must affect neither
+        // the pre-SQL plan nor the post-COMMIT mutation.
+        add_active_quest_in_slot(&mut session, late_slot_quest_id, 9);
+        add_active_quest_in_slot(&mut session, early_slot_quest_id, 2);
+
+        let planned = session
+            .plan_quest_source_item_bound_objective_persistence_like_cpp(item_id as u32, 0, 1)
+            .expect("one bound objective should be planned");
+        assert_eq!(planned.statuses.len(), 1);
+        assert_eq!(planned.statuses[0].quest_id, early_slot_quest_id);
+
+        let applied = session
+            .apply_quest_source_item_bound_objective_progress_for_object_like_cpp(
+                quest_store.as_ref(),
+                item_id,
+                1,
+            )
+            .await;
+        assert_eq!(applied, vec![(early_slot_quest_id, 1)]);
+        assert_eq!(
+            session.player_quests[&early_slot_quest_id].objective_counts,
+            vec![1]
+        );
+        assert!(
+            session.player_quests[&late_slot_quest_id]
+                .objective_counts
+                .is_empty()
+        );
     }
 
     #[tokio::test]
@@ -13012,8 +13205,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn quest_confirm_accept_source_item_multiple_bound_objectives_still_creates_item_like_cpp()
-     {
+    async fn quest_confirm_accept_source_item_multiple_bound_objectives_stops_after_first_like_cpp()
+    {
         let (mut session, send_rx) = make_session();
         let receiver_guid = session.player_guid().unwrap();
         let sender_guid = ObjectGuid::create_player(1, 192);
@@ -13063,7 +13256,7 @@ mod tests {
             .player_quests
             .get(&quest_id)
             .expect("source-item quest should add local quest state");
-        assert_eq!(status.objective_counts, vec![2, 2]);
+        assert_eq!(status.objective_counts, vec![2, 0]);
         let stored_source_item_count: u32 = session
             .inventory_items_like_cpp()
             .values()
@@ -13071,7 +13264,7 @@ mod tests {
             .filter_map(|item| session.inventory_item_objects_like_cpp().get(&item.guid))
             .map(|item| item.count())
             .sum();
-        assert_eq!(stored_source_item_count, 2);
+        assert_eq!(stored_source_item_count, 0);
         assert_eq!(
             session.represented_quest_confirm_accepts_like_cpp(),
             &[RepresentedQuestConfirmAcceptLikeCpp {
@@ -13079,7 +13272,7 @@ mod tests {
                 sender_guid_before_clear: sender_guid,
                 quest_id,
                 raw_quest_id: quest_id as i32,
-                reason: RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp::ReceiverGiveQuestSourceItemStoredNewItem,
+                reason: RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp::ReceiverGiveQuestSourceItemBoundObjectiveNoGrant,
                 object_accessor_unrepresented: true,
                 party_runtime_unrepresented: true,
                 can_add_source_item_unrepresented: false,
@@ -13097,7 +13290,7 @@ mod tests {
                 packet.read_uint16().ok()
                     == Some(wow_constants::ServerOpcodes::ItemPushResult as u16)
             }),
-            "multiple bound objectives do not trigger C++ no-grant path, so SendNewItem still runs"
+            "C++ sends the bound-objective ItemPushResult without materializing an inventory Item"
         );
         assert!(sender_rx.try_recv().is_err());
     }

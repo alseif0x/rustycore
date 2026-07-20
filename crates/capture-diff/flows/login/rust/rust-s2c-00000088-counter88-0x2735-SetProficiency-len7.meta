@@ -1,4 +1,5 @@
 direction=s2c
+connection_id=0
 addr=127.0.0.1:0
 seq=88
 counter=88

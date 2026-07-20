@@ -1,0 +1,8 @@
+direction=c2s
+connection_id=1
+addr=127.0.0.1:0
+seq=0
+counter=0
+opcode=0x3211
+name=LootItem
+len=15

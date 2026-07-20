@@ -139,11 +139,17 @@ pub fn parse_pkt_bytes(bytes: &[u8]) -> Result<Capture> {
             bail!("PKT packet Length {length} < 4 (no room for opcode)");
         }
         let opcode = cur.u32()?;
+        let opcode = u16::try_from(opcode).with_context(|| {
+            format!(
+                "PKT opcode 0x{opcode:08X} exceeds the 16-bit world opcode space at offset {}",
+                cur.pos.saturating_sub(4)
+            )
+        })?;
         let body = cur.take(length - 4)?.to_vec();
         packets.push(CapturedPacket {
             direction,
             connection_id,
-            opcode: opcode as u16,
+            opcode,
             body,
         });
     }

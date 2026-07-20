@@ -77,6 +77,7 @@ jobs:
         env:
           CARGO_BUILD_JOBS: "1"
           CARGO_INCREMENTAL: "0"
+          RUST_MIN_STACK: "268435456"
           CARGO_PROFILE_RELEASE_INCREMENTAL: "false"
           CARGO_PROFILE_RELEASE_LTO: "false"
           CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"

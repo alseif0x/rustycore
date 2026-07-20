@@ -293,6 +293,7 @@ name = "capture-diff"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "libc",
  "num-traits",
  "serde",
  "serde_json",
@@ -3231,6 +3232,7 @@ dependencies = [
  "bitflags",
  "wow-constants",
  "wow-core",
+ "wow-loot",
 ]
 
 [[package]]
@@ -3267,6 +3269,7 @@ name = "wow-loot"
 version = "0.1.0"
 dependencies = [
  "rand",
+ "tokio",
  "wow-constants",
  "wow-core",
 ]
@@ -3283,6 +3286,7 @@ dependencies = [
  "wow-core",
  "wow-ecs",
  "wow-entities",
+ "wow-loot",
  "wow-math",
 ]
 
@@ -3337,6 +3341,7 @@ dependencies = [
  "tracing",
  "wow-constants",
  "wow-core",
+ "wow-loot",
  "wow-movement",
 ]
 

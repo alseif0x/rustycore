@@ -1930,6 +1930,7 @@ mod tests {
             is_in_world: true,
             send_tx,
             command_tx,
+            durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),
             pass_on_group_loot: false,
             enchanting_skill: 0,

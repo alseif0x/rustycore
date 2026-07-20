@@ -9,10 +9,12 @@ use std::net::IpAddr;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
 
 mod bot_srp6;
 mod config;
+mod loot_race;
 mod packet_parser;
 mod protocol;
 mod srp6_auth;
@@ -51,7 +53,17 @@ const SMSG_PLAYER_BOUND: u16 = 0x2FF8;
 const SMSG_SPELL_GO: u16 = 0x2C36;
 const CMSG_LOGOUT_REQUEST: u16 = 0x34D6;
 const SMSG_LOGOUT_COMPLETE: u16 = 0x2684;
-const RESTED_XP_GRACEFUL_LOGOUT_WAIT_SECS: u64 = 30;
+// Login can legitimately contain more than 30 packets before
+// SMSG_LOGIN_VERIFY_WORLD when another player is already on the map and its
+// CREATE/broadcast traffic is interleaved. Keep the guard wall-clock based so
+// a busy but healthy login cannot exhaust an arbitrary packet budget.
+const LOGIN_VERIFY_TIMEOUT: Duration = Duration::from_secs(30);
+const LOGIN_VERIFY_READ_SLICE: Duration = Duration::from_secs(5);
+const INITIAL_NETWORK_IO_TIMEOUT: Duration = Duration::from_secs(15);
+// C++ WorldSession::ShouldLogOut waits 20 wall-clock seconds after a normal
+// logout request (`WorldSession.h`) before it can send SMSG_LOGOUT_COMPLETE.
+// Keep a bounded margin for the world update that observes the expired timer.
+const NORMAL_LOGOUT_COMPLETE_WAIT_SECS: u64 = 30;
 const RESTED_XP_DISCONNECT_SAVE_MAX_WAIT_SECS: u64 = 90;
 const INVENTORY_SLOT_BAG_0: u8 = 255;
 const INVENTORY_SLOT_ITEM_START: u8 = 35;
@@ -100,6 +112,26 @@ const STAND_STATE_CAPTURE_FENCE_SERIAL: u32 = 0x5354_414E;
 #[derive(Debug)]
 struct ServerPacketInflater {
     decompressor: Decompress,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct LoginVerifyBudget {
+    deadline: tokio::time::Instant,
+}
+
+impl LoginVerifyBudget {
+    fn new(timeout: Duration) -> Self {
+        Self {
+            deadline: tokio::time::Instant::now() + timeout,
+        }
+    }
+
+    fn next_read_timeout(self) -> Option<Duration> {
+        let remaining = self
+            .deadline
+            .saturating_duration_since(tokio::time::Instant::now());
+        (!remaining.is_zero()).then(|| remaining.min(LOGIN_VERIFY_READ_SLICE))
+    }
 }
 
 impl Default for ServerPacketInflater {
@@ -196,6 +228,18 @@ struct CliOptions {
     rested_xp_runtime_counter: Option<u64>,
     rested_xp_offline_secs: u64,
     rested_xp_timeout_secs: u64,
+    loot_race_smoke: bool,
+    loot_item_capture: bool,
+    ack_disposable_overworld_loot_race: bool,
+    loot_race_account_a: String,
+    loot_race_account_b: String,
+    loot_race_creature_entry: u32,
+    loot_race_creature_spawn_guid: u64,
+    loot_race_runtime_counter: u64,
+    loot_race_item_entry: u32,
+    loot_race_timeout_secs: u64,
+    loot_workflow_deadline_secs: u64,
+    recover_loot_fixture: bool,
     quest_smoke: bool,
     quest_creature_entry: Option<u32>,
     quest_creature_guid: Option<u64>,
@@ -222,6 +266,7 @@ struct CliOptions {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(test, derive(Default))]
 struct BotRunResult {
     account: String,
     account_id: u32,
@@ -298,6 +343,24 @@ struct BotRunResult {
     rested_xp_db_rest_after: Option<f32>,
     rested_xp_relog_verified: bool,
     rested_xp_failure: Option<String>,
+    loot_race_smoke: bool,
+    loot_race_smoke_passed: Option<bool>,
+    loot_race_target_entry: Option<u32>,
+    loot_race_target_spawn_guid: Option<u64>,
+    loot_race_target_runtime_counter: Option<u64>,
+    loot_race_party_confirmed: bool,
+    loot_race_target_discovered: bool,
+    loot_race_loot_opened: bool,
+    loot_race_loot_list_id: Option<u8>,
+    loot_race_loot_coins: Option<u32>,
+    loot_race_item_push_seen: bool,
+    loot_race_loot_removed_seen: bool,
+    loot_race_money_notify_amount: Option<u64>,
+    loot_race_coin_removed_seen: bool,
+    loot_race_db_item_total: Option<u64>,
+    loot_race_db_money_delta: Option<u64>,
+    loot_race_relog_verified: bool,
+    loot_race_failure: Option<String>,
     quest_smoke: bool,
     quest_smoke_passed: Option<bool>,
     quest_target_entry: Option<u32>,
@@ -370,6 +433,13 @@ impl BotRunResult {
                 && self.player_login_verified
                 && self.rested_xp_smoke_passed.unwrap_or(false);
         }
+        if self.loot_race_smoke {
+            return self.world_auth
+                && self.enum_characters
+                && self.player_login_verified
+                && self.loot_race_smoke_passed.unwrap_or(false)
+                && self.loot_race_relog_verified;
+        }
         if login_only {
             return self.world_auth && self.enum_characters && self.player_login_verified;
         }
@@ -392,6 +462,8 @@ struct RunReport {
     homebind_smoke: bool,
     inventory_swap_smoke: bool,
     rested_xp_smoke: bool,
+    loot_race_smoke: bool,
+    loot_item_capture: bool,
     quest_smoke: bool,
     results: Vec<BotRunResult>,
 }
@@ -466,7 +538,7 @@ struct BankSmokeOptions {
     timeout_secs: u64,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, serde::Deserialize)]
 struct CharacterPositionSnapshot {
     map_id: u32,
     zone_id: u32,
@@ -823,6 +895,52 @@ fn parse_cli() -> Result<CliOptions> {
             .map(|value| value.parse::<u64>())
             .transpose()?
             .unwrap_or(DEFAULT_RESTED_XP_TIMEOUT_SECS),
+        loot_race_smoke: std::env::var("WOW_BOT_LOOT_RACE_SMOKE")
+            .ok()
+            .is_some_and(|value| is_truthy(&value)),
+        loot_item_capture: std::env::var("WOW_BOT_LOOT_ITEM_CAPTURE")
+            .ok()
+            .is_some_and(|value| is_truthy(&value)),
+        // Deliberately CLI-only: inherited environment cannot acknowledge
+        // disposable loot-fixture mutation on the caller's behalf.
+        ack_disposable_overworld_loot_race: false,
+        loot_race_account_a: std::env::var("WOW_BOT_LOOT_RACE_ACCOUNT_A")
+            .unwrap_or_else(|_| loot_race::DEFAULT_ACCOUNT_A.to_string()),
+        loot_race_account_b: std::env::var("WOW_BOT_LOOT_RACE_ACCOUNT_B")
+            .unwrap_or_else(|_| loot_race::DEFAULT_ACCOUNT_B.to_string()),
+        loot_race_creature_entry: std::env::var("WOW_BOT_LOOT_RACE_GAMEOBJECT_ENTRY")
+            .or_else(|_| std::env::var("WOW_BOT_LOOT_RACE_CREATURE_ENTRY"))
+            .ok()
+            .map(|value| value.parse::<u32>())
+            .transpose()?
+            .unwrap_or(loot_race::DEFAULT_CREATURE_ENTRY),
+        loot_race_creature_spawn_guid: std::env::var("WOW_BOT_LOOT_RACE_GAMEOBJECT_SPAWN_GUID")
+            .or_else(|_| std::env::var("WOW_BOT_LOOT_RACE_CREATURE_SPAWN_GUID"))
+            .ok()
+            .map(|value| value.parse::<u64>())
+            .transpose()?
+            .unwrap_or(loot_race::DEFAULT_CREATURE_SPAWN_GUID),
+        loot_race_runtime_counter: std::env::var("WOW_BOT_LOOT_RACE_RUNTIME_COUNTER")
+            .ok()
+            .map(|value| value.parse::<u64>())
+            .transpose()?
+            .unwrap_or(loot_race::DEFAULT_RUNTIME_COUNTER),
+        loot_race_item_entry: std::env::var("WOW_BOT_LOOT_RACE_ITEM_ENTRY")
+            .ok()
+            .map(|value| value.parse::<u32>())
+            .transpose()?
+            .unwrap_or(loot_race::DEFAULT_ITEM_ENTRY),
+        loot_race_timeout_secs: std::env::var("WOW_BOT_LOOT_RACE_TIMEOUT_SECS")
+            .ok()
+            .map(|value| value.parse::<u64>())
+            .transpose()?
+            .unwrap_or(loot_race::DEFAULT_TIMEOUT_SECS),
+        loot_workflow_deadline_secs: std::env::var("WOW_BOT_LOOT_WORKFLOW_DEADLINE_SECS")
+            .ok()
+            .map(|value| value.parse::<u64>())
+            .transpose()?
+            .unwrap_or(loot_race::DEFAULT_WORKFLOW_DEADLINE_SECS),
+        recover_loot_fixture: false,
         quest_smoke: std::env::var("WOW_BOT_QUEST_SMOKE")
             .ok()
             .map(|v| is_truthy(&v))
@@ -987,6 +1105,38 @@ fn parse_cli() -> Result<CliOptions> {
                 opts.rested_xp_timeout_secs =
                     next_arg(&mut args, "--rested-xp-timeout")?.parse()?;
             }
+            "--loot-race-smoke" => opts.loot_race_smoke = true,
+            "--loot-item-capture" => opts.loot_item_capture = true,
+            arg if arg == loot_race::ACK_FLAG => opts.ack_disposable_overworld_loot_race = true,
+            "--loot-race-account-a" => {
+                opts.loot_race_account_a = next_arg(&mut args, "--loot-race-account-a")?;
+            }
+            "--loot-race-account-b" => {
+                opts.loot_race_account_b = next_arg(&mut args, "--loot-race-account-b")?;
+            }
+            flag @ ("--loot-race-gameobject-entry" | "--loot-race-creature-entry") => {
+                opts.loot_race_creature_entry = next_arg(&mut args, flag)?.parse()?;
+            }
+            flag @ ("--loot-race-gameobject-spawn-guid" | "--loot-race-creature-spawn-guid") => {
+                opts.loot_race_creature_spawn_guid = next_arg(&mut args, flag)?.parse()?;
+            }
+            "--loot-race-runtime-counter" => {
+                opts.loot_race_runtime_counter =
+                    next_arg(&mut args, "--loot-race-runtime-counter")?.parse()?;
+            }
+            "--loot-race-item-entry" => {
+                opts.loot_race_item_entry =
+                    next_arg(&mut args, "--loot-race-item-entry")?.parse()?;
+            }
+            "--loot-race-timeout" => {
+                opts.loot_race_timeout_secs =
+                    next_arg(&mut args, "--loot-race-timeout")?.parse()?;
+            }
+            "--loot-workflow-deadline" => {
+                opts.loot_workflow_deadline_secs =
+                    next_arg(&mut args, "--loot-workflow-deadline")?.parse()?;
+            }
+            "--recover-loot-fixture" => opts.recover_loot_fixture = true,
             "--quest-smoke" => opts.quest_smoke = true,
             "--quest-creature-entry" => {
                 opts.quest_creature_entry =
@@ -1057,6 +1207,17 @@ fn parse_cli() -> Result<CliOptions> {
             _ => bail!("Unknown argument `{}`. Use --help.", arg),
         }
     }
+    if opts.loot_item_capture
+        && opts.loot_race_creature_entry == loot_race::DEFAULT_CREATURE_ENTRY
+        && opts.loot_race_creature_spawn_guid == loot_race::DEFAULT_CREATURE_SPAWN_GUID
+        && opts.loot_race_runtime_counter == loot_race::DEFAULT_RUNTIME_COUNTER
+        && opts.loot_race_item_entry == loot_race::DEFAULT_ITEM_ENTRY
+    {
+        opts.loot_race_creature_entry = loot_race::DEFAULT_CAPTURE_CREATURE_ENTRY;
+        opts.loot_race_creature_spawn_guid = loot_race::DEFAULT_CAPTURE_CREATURE_SPAWN_GUID;
+        opts.loot_race_runtime_counter = loot_race::DEFAULT_CAPTURE_RUNTIME_COUNTER;
+        opts.loot_race_item_entry = loot_race::DEFAULT_CAPTURE_ITEM_ENTRY;
+    }
     Ok(opts)
 }
 
@@ -1078,6 +1239,84 @@ fn is_truthy(value: &str) -> bool {
         value.to_ascii_lowercase().as_str(),
         "1" | "true" | "yes" | "y" | "on"
     )
+}
+
+fn validate_provisioning_mode(loot_mode: bool, ensure_test_accounts: bool) -> Result<()> {
+    if loot_mode && ensure_test_accounts {
+        bail!(
+            "loot workflows forbid --ensure-test-accounts/WOW_BOT_ENSURE_TEST_ACCOUNTS; provision fixtures separately, then run the read-only identity preflight"
+        );
+    }
+    Ok(())
+}
+
+fn install_loot_termination_token() -> Result<CancellationToken> {
+    let token = CancellationToken::new();
+    let signal_token = token.clone();
+    #[cfg(unix)]
+    let mut interrupt = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::interrupt())
+        .context("Install loot-fixture SIGINT handler before mutation")?;
+    #[cfg(unix)]
+    let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+        .context("Install loot-fixture SIGTERM handler before mutation")?;
+    if std::env::var("WOW_BOT_REQUIRE_PARENT_DEATH_GUARD").is_ok_and(|value| is_truthy(&value)) {
+        #[cfg(target_os = "linux")]
+        {
+            // SAFETY: getppid takes no pointers and has no preconditions.
+            let parent_before = unsafe { libc::getppid() };
+            if parent_before <= 1 {
+                bail!("loot parent-death guard has no live supervising parent");
+            }
+            // SAFETY: PR_SET_PDEATHSIG accepts an integer signal number. SIGTERM
+            // is handled by the streams registered synchronously above.
+            let result = unsafe { libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM) };
+            if result != 0 {
+                return Err(std::io::Error::last_os_error())
+                    .context("Arm Linux parent-death SIGTERM before fixture mutation");
+            }
+            // Close the documented prctl race: if the supervisor disappeared
+            // before PR_SET_PDEATHSIG was armed, refuse to enter the fixture.
+            // SAFETY: getppid takes no pointers and has no preconditions.
+            let parent_after = unsafe { libc::getppid() };
+            if parent_after != parent_before {
+                bail!("loot supervisor changed while arming parent-death guard");
+            }
+        }
+        #[cfg(not(target_os = "linux"))]
+        bail!("WOW_BOT_REQUIRE_PARENT_DEATH_GUARD is supported only on Linux");
+    }
+    tokio::spawn(async move {
+        #[cfg(unix)]
+        {
+            tokio::select! {
+                _ = interrupt.recv() => {}
+                _ = terminate.recv() => {}
+            }
+        }
+        #[cfg(not(unix))]
+        if let Err(error) = tokio::signal::ctrl_c().await {
+            error!("Termination handler failed: {error}");
+        }
+        signal_token.cancel();
+    });
+    Ok(token)
+}
+
+async fn finish_guarded_loot_result(
+    result: Result<Vec<BotRunResult>>,
+) -> Result<Vec<BotRunResult>> {
+    match result {
+        Ok(results) => Ok(results),
+        Err(primary) => match loot_race::recover_pending_fixture_if_present().await {
+            Ok(true) => Err(primary.context(
+                "loot workflow failed; the durable fixture journal was recovered before exit",
+            )),
+            Ok(false) => Err(primary),
+            Err(recovery) => bail!(
+                "loot workflow failed ({primary:#}) and durable fixture recovery also failed ({recovery:#}); leave the normal world stopped and run --recover-loot-fixture"
+            ),
+        },
+    }
 }
 
 fn validate_rested_xp_cli_values(
@@ -1209,7 +1448,7 @@ fn print_help() {
         "  --cleanup-groups         Delete stale group rows for configured bot GUIDs before run"
     );
     println!("  --require-group          Treat missing party info/group formation as failure");
-    println!("  --ensure-test-accounts   Upsert local TESTBOT auth rows before login");
+    println!("  --ensure-test-accounts   Create missing local TESTBOT auth rows; validate existing rows without rewriting them");
     println!("  --login-only             Stop after SMSG_LOGIN_VERIFY_WORLD; do not run LFG");
     println!("  --stand-state-smoke      After login, verify Sit then Stand state round-trips");
     println!(
@@ -1253,6 +1492,38 @@ fn print_help() {
     println!("  --rested-xp-timeout <secs> Combat/DB response timeout (default: 120)");
     println!(
         "                           Env: WOW_BOT_RESTED_XP_SMOKE, WOW_BOT_RESTED_XP_CREATURE_ENTRY, WOW_BOT_RESTED_XP_CREATURE_GUID, WOW_BOT_RESTED_XP_RUNTIME_COUNTER, WOW_BOT_RESTED_XP_OFFLINE_SECS, WOW_BOT_RESTED_XP_TIMEOUT_SECS"
+    );
+    println!(
+        "  --loot-race-smoke       Race ITEM and MONEY claims on one shared chest from two real sessions"
+    );
+    println!(
+        "  --loot-item-capture     One real session kills/opens/claims only the item and emits a fixed capture fence"
+    );
+    println!(
+        "  {}  REQUIRED acknowledgement: mutates disposable loot fixtures (capture also kills its creature)",
+        loot_race::ACK_FLAG
+    );
+    println!(
+        "  --loot-race-account-a <account>  First disposable contender/capture killer (default TESTBOT2@bot.local)"
+    );
+    println!(
+        "  --loot-race-account-b <account>  Second disposable bot (default TESTBOT3@bot.local)"
+    );
+    println!("  --loot-race-gameobject-entry <id> Exact chest entry (default 2846 Tattered Chest)");
+    println!(
+        "  --loot-race-gameobject-spawn-guid <id> Exact wrapper-owned world.gameobject spawn (default 9106001)"
+    );
+    println!("                           Legacy aliases: --loot-race-creature-entry / --loot-race-creature-spawn-guid");
+    println!("  --loot-race-runtime-counter <n>  Optional strict live counter override (default 0=auto-discover full GUID)");
+    println!("  --loot-race-item-entry <id>      Exact shared-chest loot item (default 38)");
+    println!("  --loot-race-timeout <secs>       Per coordination/loot timeout (capture also uses it for combat; default 30)");
+    println!("  --loot-workflow-deadline <secs>  Hard end-to-end loot deadline before guarded cleanup (default 900)");
+    println!("  --recover-loot-fixture           Restore one pending WOW_BOT_FIXTURE_JOURNAL; no login/service actions");
+    println!(
+        "                           Race uses a guarded temporary chest; capture keeps its separate Doctor creature fixture"
+    );
+    println!(
+        "                           Env capture mode: WOW_BOT_LOOT_ITEM_CAPTURE=1 (uses account A; account B remains offline as a guarded fixture snapshot)"
     );
     println!("  --quest-smoke            After login, right-click/query one questgiver NPC");
     println!("  --quest-creature-entry <id>  Creature entry to resolve from world.creature");
@@ -1316,26 +1587,51 @@ fn password_env_name(account: &str) -> String {
 }
 
 fn ensure_test_accounts(bots: &[config::BotConfig]) -> Result<()> {
+    use mysql::prelude::Queryable;
+
     let auth_db = auth_db_url()?;
     let char_db = characters_db_url()?;
-    let auth_opts = mysql::Opts::from_url(&auth_db).map_err(|e| anyhow!("Bad auth DB URL: {e}"))?;
-    let char_opts =
-        mysql::Opts::from_url(&char_db).map_err(|e| anyhow!("Bad character DB URL: {e}"))?;
+    let auth_opts = qa_mysql_opts(&auth_db, "auth")?;
+    let char_opts = qa_mysql_opts(&char_db, "characters")?;
     let mut auth_conn =
         mysql::Conn::new(auth_opts).map_err(|e| anyhow!("Connect to auth DB failed: {e}"))?;
     let mut char_conn =
         mysql::Conn::new(char_opts).map_err(|e| anyhow!("Connect to characters DB failed: {e}"))?;
 
+    // Validate every existing character before the first auth write. Account
+    // provisioning is intentionally create-only: an ID collision must never
+    // become authority to rewrite credentials or character ownership.
     for bot in bots {
-        ensure_local_bot_account(&mut auth_conn, bot)?;
-        ensure_local_bot_character_owner(&mut char_conn, bot)?;
-        sync_realm_character_count(&mut auth_conn, &mut char_conn, bot)?;
+        validate_local_bot_character_owner(&mut char_conn, bot)?;
+    }
+    for bot in bots {
+        let character_count: u64 = char_conn
+            .exec_first(
+                "SELECT COUNT(*) FROM characters WHERE account = ?",
+                (bot.account_id,),
+            )
+            .map_err(|e| anyhow!("Count characters for account {}: {e}", bot.account_id))?
+            .unwrap_or(0);
+        provision_local_bot_account_create_only(&mut auth_conn, bot, character_count)?;
     }
 
     Ok(())
 }
 
-fn ensure_local_bot_account(conn: &mut mysql::Conn, bot: &config::BotConfig) -> Result<()> {
+fn qa_mysql_opts(url: &str, label: &str) -> Result<mysql::Opts> {
+    let opts = mysql::Opts::from_url(url).map_err(|e| anyhow!("Bad {label} DB URL: {e}"))?;
+    Ok(mysql::OptsBuilder::from_opts(opts)
+        .tcp_connect_timeout(Some(Duration::from_secs(10)))
+        .read_timeout(Some(Duration::from_secs(30)))
+        .write_timeout(Some(Duration::from_secs(30)))
+        .into())
+}
+
+fn provision_local_bot_account_create_only(
+    conn: &mut mysql::Conn,
+    bot: &config::BotConfig,
+    character_count: u64,
+) -> Result<()> {
     use mysql::prelude::Queryable;
 
     let (email, bnet_salt, bnet_verifier) =
@@ -1347,69 +1643,86 @@ fn ensure_local_bot_account(conn: &mut mysql::Conn, bot: &config::BotConfig) -> 
             "Refusing to bootstrap non-local bot account {email}; set WOW_BOT_ALLOW_NONLOCAL_ACCOUNT_BOOTSTRAP=1 if this is intentional"
         );
     }
-
-    let bnet_id = if let Some(id) = conn
-        .exec_first::<u32, _, _>(
-            "SELECT id FROM battlenet_accounts WHERE email = ?",
+    let game_username = game_account_username(&bot.account)?;
+    let bnet_rows: Vec<(u32, String)> = conn
+        .exec(
+            "SELECT id, email FROM battlenet_accounts WHERE email = ? ORDER BY id",
             (&email,),
         )
-        .map_err(|e| anyhow!("Lookup BNet account {email}: {e}"))?
-    {
-        conn.exec_drop(
-            "UPDATE battlenet_accounts \
-             SET srp_version = 1, salt = ?, verifier = ?, failed_logins = 0, locked = 0, lock_country = '00' \
-             WHERE id = ?",
-            (bnet_salt.to_vec(), bnet_verifier, id),
-        )
-        .map_err(|e| anyhow!("Update BNet account {email}: {e}"))?;
-        id
-    } else {
-        conn.exec_drop(
-            "INSERT INTO battlenet_accounts (email, srp_version, salt, verifier) VALUES (?, 1, ?, ?)",
-            (&email, bnet_salt.to_vec(), bnet_verifier),
-        )
-        .map_err(|e| anyhow!("Insert BNet account {email}: {e}"))?;
-        u32::try_from(conn.last_insert_id()).map_err(|_| anyhow!("BNet account id overflow"))?
-    };
-
-    let game_username = game_account_username(&bot.account)?;
-    // The 3.4.3 world login path below authenticates through
-    // account.session_key_bnet. These legacy Grunt fields are still NOT NULL in
-    // the auth schema, so keep them initialized for local bot rows.
-    let account_salt = random_32();
-    let account_verifier = fixed_le_32(Vec::new());
-    let account_exists = conn
+        .map_err(|e| anyhow!("Lookup BNet account {email}: {e}"))?;
+    if bnet_rows.len() > 1 {
+        bail!(
+            "Refusing account provisioning: BNet email {email} has {} rows",
+            bnet_rows.len()
+        );
+    }
+    let game_account_exists = conn
         .exec_first::<u32, _, _>("SELECT id FROM account WHERE id = ?", (bot.account_id,))
         .map_err(|e| anyhow!("Lookup game account id {}: {e}", bot.account_id))?
         .is_some();
 
-    if account_exists {
-        conn.exec_drop(
-            "UPDATE account \
-             SET username = ?, salt = ?, verifier = ?, reg_mail = ?, email = ?, battlenet_account = ?, \
-                 battlenet_index = 1, expansion = 9, failed_logins = 0, locked = 0, lock_country = '00', online = 0 \
-             WHERE id = ?",
-            (
-                &game_username,
-                account_salt.to_vec(),
-                account_verifier,
-                &email,
-                &email,
-                bnet_id,
-                bot.account_id,
-            ),
+    // Existing identities are validation-only. This makes repeated
+    // provisioning idempotent while forbidding credential rewrites.
+    match create_only_provisioning_plan(!bnet_rows.is_empty(), game_account_exists)? {
+        CreateOnlyProvisioningPlan::ValidateExisting => {
+            validate_exact_bot_identity(conn, None, bot)?;
+            validate_realm_character_count(conn, bot, character_count)?;
+            info!(
+                "[Bot {}] existing local auth fixture validated without mutation",
+                bot.account_id
+            );
+            return Ok(());
+        }
+        CreateOnlyProvisioningPlan::CreateBoth => {}
+    }
+
+    let colliding_accounts: u64 = conn
+        .exec_first(
+            "SELECT COUNT(*) FROM account WHERE username = ? OR email = ? OR reg_mail = ?",
+            (&game_username, &email, &email),
         )
-        .map_err(|e| anyhow!("Update game account {}: {e}", bot.account_id))?;
+        .map_err(|e| anyhow!("Check game-account identity collisions: {e}"))?
+        .unwrap_or(0);
+    if !game_account_exists && colliding_accounts != 0 {
+        bail!(
+            "Refusing account provisioning: username/email for {} already belongs to another game account",
+            bot.account
+        );
+    }
+
+    let expected_numchars = u8::try_from(character_count).map_err(|_| {
+        anyhow!("Character count {character_count} exceeds realmcharacters capacity")
+    })?;
+    let mut tx = conn
+        .start_transaction(mysql::TxOpts::default())
+        .map_err(|e| anyhow!("Start create-only account transaction: {e}"))?;
+    let bnet_id = if let Some((id, _)) = bnet_rows.first() {
+        *id
     } else {
-        conn.exec_drop(
+        tx.exec_drop(
+            "INSERT INTO battlenet_accounts (email, srp_version, salt, verifier) VALUES (?, 1, ?, ?)",
+            (&email, bnet_salt.to_vec(), bnet_verifier),
+        )
+        .map_err(|e| anyhow!("Insert BNet account {email}: {e}"))?;
+        u32::try_from(
+            tx.last_insert_id()
+                .ok_or_else(|| anyhow!("BNet account insert returned no id"))?,
+        )
+        .map_err(|_| anyhow!("BNet account id overflow"))?
+    };
+
+    if !game_account_exists {
+        // The 3.4.3 world login path authenticates through
+        // account.session_key_bnet. Legacy Grunt fields remain NOT NULL.
+        tx.exec_drop(
             "INSERT INTO account \
              (id, username, salt, verifier, reg_mail, email, joindate, battlenet_account, battlenet_index, expansion) \
              VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, 1, 9)",
             (
                 bot.account_id,
                 &game_username,
-                account_salt.to_vec(),
-                account_verifier,
+                random_32().to_vec(),
+                fixed_le_32(Vec::new()),
                 &email,
                 &email,
                 bnet_id,
@@ -1418,22 +1731,84 @@ fn ensure_local_bot_account(conn: &mut mysql::Conn, bot: &config::BotConfig) -> 
         .map_err(|e| anyhow!("Insert game account {}: {e}", bot.account_id))?;
     }
 
-    conn.exec_drop(
-        "DELETE FROM battlenet_account_bans WHERE id = ?",
-        (bnet_id,),
-    )
-    .map_err(|e| anyhow!("Clear BNet bans for {email}: {e}"))?;
-    conn.exec_drop(
-        "UPDATE account_banned SET active = 0 WHERE id = ?",
-        (bot.account_id,),
-    )
-    .map_err(|e| anyhow!("Clear game account bans for {}: {e}", bot.account_id))?;
-
+    let existing_realm_count: Option<u8> = tx
+        .exec_first(
+            "SELECT numchars FROM realmcharacters WHERE acctid = ? AND realmid = ?",
+            (bot.account_id, realm_id()),
+        )
+        .map_err(|e| anyhow!("Load realmcharacters for account {}: {e}", bot.account_id))?;
+    match existing_realm_count {
+        Some(actual) if actual != expected_numchars => bail!(
+            "Refusing to rewrite realmcharacters for account {}: expected {}, found {}",
+            bot.account_id,
+            expected_numchars,
+            actual
+        ),
+        Some(_) => {}
+        None => tx
+            .exec_drop(
+                "INSERT INTO realmcharacters (numchars, acctid, realmid) VALUES (?, ?, ?)",
+                (expected_numchars, bot.account_id, realm_id()),
+            )
+            .map_err(|e| anyhow!("Insert realmcharacters for account {}: {e}", bot.account_id))?,
+    }
+    tx.commit()
+        .map_err(|e| anyhow!("Commit create-only account transaction: {e}"))?;
+    validate_exact_bot_identity(conn, None, bot)?;
+    validate_realm_character_count(conn, bot, character_count)?;
     info!(
-        "[Bot {}] ensured local auth account {} / character GUID {}",
-        bot.account_id, email, bot.character_guid
+        "[Bot {}] created missing local auth rows without rewriting existing identities",
+        bot.account_id
     );
     Ok(())
+}
+
+fn validate_realm_character_count(
+    auth_conn: &mut mysql::Conn,
+    bot: &config::BotConfig,
+    character_count: u64,
+) -> Result<()> {
+    use mysql::prelude::Queryable;
+
+    let expected = u8::try_from(character_count).map_err(|_| {
+        anyhow!("Character count {character_count} exceeds realmcharacters capacity")
+    })?;
+    let actual: Option<u8> = auth_conn
+        .exec_first(
+            "SELECT numchars FROM realmcharacters WHERE acctid = ? AND realmid = ?",
+            (bot.account_id, realm_id()),
+        )
+        .map_err(|e| anyhow!("Load realmcharacters for account {}: {e}", bot.account_id))?;
+    if actual != Some(expected) {
+        bail!(
+            "realmcharacters for account {} must remain {}, found {actual:?}; create-only provisioning will not rewrite it",
+            bot.account_id,
+            expected
+        );
+    }
+    Ok(())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CreateOnlyProvisioningPlan {
+    ValidateExisting,
+    CreateBoth,
+}
+
+fn create_only_provisioning_plan(
+    bnet_exists: bool,
+    game_account_exists: bool,
+) -> Result<CreateOnlyProvisioningPlan> {
+    match (bnet_exists, game_account_exists) {
+        (true, true) => Ok(CreateOnlyProvisioningPlan::ValidateExisting),
+        (false, false) => Ok(CreateOnlyProvisioningPlan::CreateBoth),
+        (true, false) => bail!(
+            "Refusing create-only provisioning: a BNet identity already exists without the configured game account"
+        ),
+        (false, true) => bail!(
+            "Refusing create-only provisioning: the numeric game-account ID already exists without the configured BNet identity"
+        ),
+    }
 }
 
 fn game_account_username(account: &str) -> Result<String> {
@@ -1461,52 +1836,186 @@ fn random_32() -> [u8; 32] {
     bytes
 }
 
-fn ensure_local_bot_character_owner(conn: &mut mysql::Conn, bot: &config::BotConfig) -> Result<()> {
+fn validate_local_bot_character_owner(
+    conn: &mut mysql::Conn,
+    bot: &config::BotConfig,
+) -> Result<()> {
     use mysql::prelude::Queryable;
 
-    let owner = conn
-        .exec_first::<u32, _, _>(
-            "SELECT account FROM characters WHERE guid = ?",
+    let (owner, online, at_login) = conn
+        .exec_first::<(u32, u8, u16), _, _>(
+            "SELECT account, online, at_login FROM characters WHERE guid = ?",
             (bot.character_guid,),
         )
         .map_err(|e| anyhow!("Lookup character {}: {e}", bot.character_guid))?
         .ok_or_else(|| anyhow!("No characters row for guid {}", bot.character_guid))?;
 
     if owner != bot.account_id {
-        warn!(
-            "[Bot {}] character GUID {} belonged to account {}; reassigning to test account",
-            bot.account_id, bot.character_guid, owner
+        bail!(
+            "Refusing to reassign character GUID {} from account {} to configured test account {}",
+            bot.character_guid,
+            owner,
+            bot.account_id
         );
-        conn.exec_drop(
-            "UPDATE characters SET account = ? WHERE guid = ?",
-            (bot.account_id, bot.character_guid),
-        )
-        .map_err(|e| anyhow!("Update owner for character {}: {e}", bot.character_guid))?;
+    }
+    if online != 0 || at_login != 0 {
+        bail!(
+            "Character GUID {} is not an offline clean fixture (online={online}, at_login={at_login})",
+            bot.character_guid
+        );
     }
 
     Ok(())
 }
 
-fn sync_realm_character_count(
+fn validate_exact_bot_identity(
     auth_conn: &mut mysql::Conn,
-    char_conn: &mut mysql::Conn,
+    mut character_conn: Option<&mut mysql::Conn>,
     bot: &config::BotConfig,
 ) -> Result<()> {
     use mysql::prelude::Queryable;
 
-    let count = char_conn
-        .exec_first::<u32, _, _>(
-            "SELECT COUNT(*) FROM characters WHERE account = ?",
+    let expected_email = bot_srp6::utf8_to_upper_only_latin_like_cpp(&bot.account);
+    let expected_username = game_account_username(&bot.account)?;
+    let bnet_rows: Vec<(u32, String, i8, Vec<u8>, Vec<u8>, u32, u8, u8)> = auth_conn
+        .exec(
+            "SELECT id, email, srp_version, salt, verifier, failed_logins, locked, online \
+             FROM battlenet_accounts WHERE email = ? ORDER BY id",
+            (&expected_email,),
+        )
+        .map_err(|e| anyhow!("Load exact BNet fixture {}: {e}", bot.account))?;
+    if bnet_rows.len() != 1 {
+        bail!(
+            "Expected exactly one BNet row for {}, found {}",
+            bot.account,
+            bnet_rows.len()
+        );
+    }
+    let (bnet_id, email, srp_version, salt, verifier, failed_logins, locked, bnet_online) =
+        &bnet_rows[0];
+    let (_, expected_verifier) =
+        bot_srp6::bnet_v1_verifier_for_salt_like_cpp(&bot.account, &bot.password, salt);
+    if !email.eq_ignore_ascii_case(&expected_email)
+        || *srp_version != 1
+        || salt.len() != 32
+        || *verifier != expected_verifier
+        || *failed_logins != 0
+        || *locked != 0
+        || *bnet_online != 0
+    {
+        bail!(
+            "BNet fixture {} does not exactly match configured credentials/offline state",
+            bot.account
+        );
+    }
+
+    let account = auth_conn
+        .exec_first::<(
+            String,
+            String,
+            String,
+            Option<u32>,
+            Option<u8>,
+            u8,
+            u32,
+            u8,
+            u8,
+        ), _, _>(
+            "SELECT username, reg_mail, email, battlenet_account, battlenet_index, expansion, \
+                    failed_logins, locked, online FROM account WHERE id = ?",
             (bot.account_id,),
         )
-        .map_err(|e| anyhow!("Count characters for account {}: {e}", bot.account_id))?
-        .unwrap_or(0);
-    auth_conn
-        .exec_drop(
-            "REPLACE INTO realmcharacters (numchars, acctid, realmid) VALUES (?, ?, ?)",
-            (count, bot.account_id, realm_id()),
+        .map_err(|e| anyhow!("Load exact game-account fixture {}: {e}", bot.account_id))?
+        .ok_or_else(|| anyhow!("No game-account row for id {}", bot.account_id))?;
+    if !account.0.eq_ignore_ascii_case(&expected_username)
+        || !account.1.eq_ignore_ascii_case(&expected_email)
+        || !account.2.eq_ignore_ascii_case(&expected_email)
+        || account.3 != Some(*bnet_id)
+        || account.4 != Some(1)
+        || account.5 != 9
+        || account.6 != 0
+        || account.7 != 0
+        || account.8 != 0
+    {
+        bail!(
+            "Game account {} does not exactly match username/email/BNet/offline fixture contract",
+            bot.account_id
+        );
+    }
+    let game_accounts_on_bnet: u64 = auth_conn
+        .exec_first(
+            "SELECT COUNT(*) FROM account WHERE battlenet_account = ?",
+            (*bnet_id,),
         )
-        .map_err(|e| anyhow!("Sync realmcharacters for account {}: {e}", bot.account_id))?;
+        .map_err(|e| anyhow!("Count game accounts on BNet fixture: {e}"))?
+        .unwrap_or(0);
+    if game_accounts_on_bnet != 1 {
+        bail!(
+            "BNet fixture {} must own exactly one game account, found {game_accounts_on_bnet}",
+            bot.account
+        );
+    }
+    let bnet_bans: u64 = auth_conn
+        .exec_first(
+            "SELECT COUNT(*) FROM battlenet_account_bans WHERE id = ?",
+            (*bnet_id,),
+        )
+        .map_err(|e| anyhow!("Check BNet fixture bans: {e}"))?
+        .unwrap_or(0);
+    let game_bans: u64 = auth_conn
+        .exec_first(
+            "SELECT COUNT(*) FROM account_banned WHERE id = ? AND active <> 0",
+            (bot.account_id,),
+        )
+        .map_err(|e| anyhow!("Check game-account fixture bans: {e}"))?
+        .unwrap_or(0);
+    if bnet_bans != 0 || game_bans != 0 {
+        bail!(
+            "Configured bot fixture is banned (bnet rows={bnet_bans}, active game rows={game_bans}); provisioning will not clear bans"
+        );
+    }
+
+    if let Some(char_conn) = character_conn.as_mut() {
+        validate_local_bot_character_owner(char_conn, bot)?;
+        let count: u64 = char_conn
+            .exec_first(
+                "SELECT COUNT(*) FROM characters WHERE account = ?",
+                (bot.account_id,),
+            )
+            .map_err(|e| anyhow!("Count dedicated fixture characters: {e}"))?
+            .unwrap_or(0);
+        if count != 1 {
+            bail!(
+                "Loot fixture account {} must own exactly one character, found {count}",
+                bot.account_id
+            );
+        }
+        let realm_count: Option<u8> = auth_conn
+            .exec_first(
+                "SELECT numchars FROM realmcharacters WHERE acctid = ? AND realmid = ?",
+                (bot.account_id, realm_id()),
+            )
+            .map_err(|e| anyhow!("Load realmcharacters fixture count: {e}"))?;
+        if realm_count != Some(1) {
+            bail!(
+                "realmcharacters fixture count for account {} must be exactly 1, found {realm_count:?}",
+                bot.account_id
+            );
+        }
+    }
+    Ok(())
+}
+
+fn validate_exact_loot_bot_identities(bots: &[config::BotConfig]) -> Result<()> {
+    let auth_opts = qa_mysql_opts(&auth_db_url()?, "auth")?;
+    let char_opts = qa_mysql_opts(&characters_db_url()?, "characters")?;
+    let mut auth_conn =
+        mysql::Conn::new(auth_opts).map_err(|e| anyhow!("Connect to auth DB failed: {e}"))?;
+    let mut character_conn =
+        mysql::Conn::new(char_opts).map_err(|e| anyhow!("Connect to characters DB failed: {e}"))?;
+    for bot in bots {
+        validate_exact_bot_identity(&mut auth_conn, Some(&mut character_conn), bot)?;
+    }
     Ok(())
 }
 
@@ -1518,12 +2027,42 @@ async fn main() -> Result<()> {
     info!("═══════════════════════════════════════════════════");
 
     let cli = parse_cli()?;
+    if cli.recover_loot_fixture {
+        let conflicting_mode = cli.ensure_test_accounts
+            || cli.login_only
+            || cli.stand_state_smoke
+            || cli.bank_smoke
+            || cli.homebind_smoke
+            || cli.inventory_swap_smoke
+            || cli.rested_xp_smoke
+            || cli.loot_race_smoke
+            || cli.loot_item_capture
+            || cli.quest_smoke
+            || cli.single_account.is_some();
+        if conflicting_mode {
+            bail!("--recover-loot-fixture must be used alone");
+        }
+        loot_race::recover_pending_fixture().await?;
+        info!("Pending loot fixture recovered and cleanup marker written");
+        return Ok(());
+    }
     let app_config = config::AppConfig::load_or_create(&cli.config_path)?;
     let mut bots: Vec<config::BotConfig> =
         app_config.get_enabled_bots().into_iter().cloned().collect();
 
     if let Some(account) = &cli.single_account {
         bots.retain(|bot| bot.account.eq_ignore_ascii_case(account));
+    }
+    if cli.loot_race_smoke || cli.loot_item_capture {
+        if cli.single_account.is_some() {
+            bail!(
+                "--single is incompatible with the loot workflows; select the guarded fixture with the loot account flags"
+            );
+        }
+        bots.retain(|bot| {
+            bot.account.eq_ignore_ascii_case(&cli.loot_race_account_a)
+                || bot.account.eq_ignore_ascii_case(&cli.loot_race_account_b)
+        });
     }
     apply_password_overrides(&mut bots);
 
@@ -1542,26 +2081,23 @@ async fn main() -> Result<()> {
             password_env_name(missing_passwords[0])
         );
     }
-    if cli.ensure_test_accounts {
-        let bots_for_db = bots.clone();
-        tokio::task::spawn_blocking(move || ensure_test_accounts(&bots_for_db))
-            .await
-            .map_err(|e| anyhow!("DB worker join failed while ensuring test accounts: {}", e))?
-            .map_err(|e| anyhow!("Failed to ensure test accounts: {}", e))?;
-    }
+    let loot_mode = cli.loot_race_smoke || cli.loot_item_capture;
+    validate_provisioning_mode(loot_mode, cli.ensure_test_accounts)?;
     let post_login_mode_count = [
         cli.stand_state_smoke,
         cli.bank_smoke,
         cli.homebind_smoke,
         cli.inventory_swap_smoke,
         cli.rested_xp_smoke,
+        cli.loot_race_smoke,
+        cli.loot_item_capture,
         cli.quest_smoke,
     ]
     .into_iter()
     .filter(|enabled| *enabled)
     .count();
     if post_login_mode_count > 1 {
-        bail!("stand-state, bank, homebind, inventory-swap, rested-xp, and quest smoke are separate post-login modes");
+        bail!("stand-state, bank, homebind, inventory-swap, rested-xp, loot-race, loot-item-capture, and quest smoke are separate post-login modes");
     }
     if cli.bank_smoke && bots.len() != 1 {
         bail!("--bank-smoke requires exactly one bot; select it with --single");
@@ -1600,6 +2136,38 @@ async fn main() -> Result<()> {
         cli.rested_xp_timeout_secs,
         current_epoch_secs(),
     )?;
+    let loot_race_cli = loot_race::LootRaceCli {
+        account_a: cli.loot_race_account_a.clone(),
+        account_b: cli.loot_race_account_b.clone(),
+        entry: cli.loot_race_creature_entry,
+        spawn_guid: cli.loot_race_creature_spawn_guid,
+        runtime_counter: cli.loot_race_runtime_counter,
+        item_entry: cli.loot_race_item_entry,
+        timeout_secs: cli.loot_race_timeout_secs,
+        workflow_deadline_secs: cli.loot_workflow_deadline_secs,
+    };
+    loot_race::validate_cli(
+        cli.loot_race_smoke,
+        cli.loot_item_capture,
+        cli.ack_disposable_overworld_loot_race,
+        &bots,
+        &loot_race_cli,
+    )?;
+    if loot_mode {
+        loot_race::validate_journal_contract()?;
+        let bots_for_validation = bots.clone();
+        tokio::task::spawn_blocking(move || {
+            validate_exact_loot_bot_identities(&bots_for_validation)
+        })
+        .await
+        .map_err(|e| anyhow!("Loot identity-preflight DB worker join failed: {e}"))??;
+    } else if cli.ensure_test_accounts {
+        let bots_for_db = bots.clone();
+        tokio::task::spawn_blocking(move || ensure_test_accounts(&bots_for_db))
+            .await
+            .map_err(|e| anyhow!("DB worker join failed while provisioning test accounts: {e}"))?
+            .map_err(|e| anyhow!("Failed to provision test accounts: {e}"))?;
+    }
     let stand_state_options = if cli.stand_state_smoke {
         Some(stand_state_smoke_options_from_cli(&cli)?)
     } else {
@@ -1646,6 +2214,10 @@ async fn main() -> Result<()> {
             "inventory-swap-smoke"
         } else if cli.rested_xp_smoke {
             "rested-xp-smoke"
+        } else if cli.loot_race_smoke {
+            "loot-race-smoke"
+        } else if cli.loot_item_capture {
+            "loot-item-capture"
         } else if cli.quest_smoke {
             "quest-smoke"
         } else if cli.login_only {
@@ -1667,13 +2239,49 @@ async fn main() -> Result<()> {
         && !cli.homebind_smoke
         && !cli.inventory_swap_smoke
         && !cli.rested_xp_smoke
+        && !cli.loot_race_smoke
+        && !cli.loot_item_capture
     {
         cleanup_bot_group_state(&bots)?;
     }
 
-    let expected_bot_count = bots.len();
+    let expected_bot_count = if cli.loot_item_capture { 1 } else { bots.len() };
     let mut results = Vec::new();
-    if cli.sequential || bots.len() == 1 {
+    if cli.loot_item_capture {
+        let shutdown = install_loot_termination_token()?;
+        results = finish_guarded_loot_result(
+            loot_race::run_single_item_capture_workflow(
+                bots,
+                loot_race_cli,
+                dungeon_id,
+                timeout_secs,
+                auto_teleport,
+                shutdown,
+            )
+            .await,
+        )
+        .await?;
+        for result in &results {
+            log_bot_summary(result, require_proposal, require_group, cli.login_only);
+        }
+    } else if cli.loot_race_smoke {
+        let shutdown = install_loot_termination_token()?;
+        results = finish_guarded_loot_result(
+            loot_race::run_workflow(
+                bots,
+                loot_race_cli,
+                dungeon_id,
+                timeout_secs,
+                auto_teleport,
+                shutdown,
+            )
+            .await,
+        )
+        .await?;
+        for result in &results {
+            log_bot_summary(result, require_proposal, require_group, cli.login_only);
+        }
+    } else if cli.sequential || bots.len() == 1 {
         for bot in bots {
             info!("\n[Bot {}] Starting...", bot.account);
             let run = if cli.bank_smoke {
@@ -1733,6 +2341,7 @@ async fn main() -> Result<()> {
                     None,
                     None,
                     None,
+                    None,
                     quest_options.clone(),
                 )
                 .await
@@ -1770,6 +2379,7 @@ async fn main() -> Result<()> {
                     None,
                     None,
                     None,
+                    None,
                     quest_options_for_bot,
                 )
                 .await;
@@ -1803,6 +2413,8 @@ async fn main() -> Result<()> {
         cli.homebind_smoke,
         cli.inventory_swap_smoke,
         cli.rested_xp_smoke,
+        cli.loot_race_smoke,
+        cli.loot_item_capture,
         cli.quest_smoke,
         &results,
     )?;
@@ -1928,6 +2540,7 @@ async fn run_bot(
     homebind_options: Option<HomebindSmokeOptions>,
     inventory_swap_options: Option<InventorySwapSmokeOptions>,
     rested_xp_options: Option<RestedXpSmokeOptions>,
+    loot_race_options: Option<loot_race::LootRaceOptions>,
     quest_options: Option<QuestSmokeOptions>,
 ) -> Result<BotRunResult> {
     let bot_index = bot.account_id as usize;
@@ -2038,6 +2651,30 @@ async fn run_bot(
         rested_xp_db_rest_after: None,
         rested_xp_relog_verified: false,
         rested_xp_failure: None,
+        loot_race_smoke: loot_race_options.is_some(),
+        loot_race_smoke_passed: None,
+        loot_race_target_entry: loot_race_options
+            .as_ref()
+            .map(|options| options.target.entry),
+        loot_race_target_spawn_guid: loot_race_options
+            .as_ref()
+            .map(|options| options.target.spawn_guid),
+        loot_race_target_runtime_counter: loot_race_options
+            .as_ref()
+            .and_then(|options| options.resolved_runtime_counter().ok()),
+        loot_race_party_confirmed: false,
+        loot_race_target_discovered: false,
+        loot_race_loot_opened: false,
+        loot_race_loot_list_id: None,
+        loot_race_loot_coins: None,
+        loot_race_item_push_seen: false,
+        loot_race_loot_removed_seen: false,
+        loot_race_money_notify_amount: None,
+        loot_race_coin_removed_seen: false,
+        loot_race_db_item_total: None,
+        loot_race_db_money_delta: None,
+        loot_race_relog_verified: false,
+        loot_race_failure: None,
         quest_smoke: quest_options.is_some(),
         quest_smoke_passed: None,
         quest_target_entry: None,
@@ -2157,15 +2794,19 @@ async fn run_bot(
         world_port()
     );
     let world_addr = format!("{}:{}", world_host(), world_port());
-    let mut stream = TcpStream::connect(&world_addr)
-        .await
-        .map_err(|e| anyhow!("Failed to connect to world server: {}", e))?;
+    let mut stream =
+        tokio::time::timeout(INITIAL_NETWORK_IO_TIMEOUT, TcpStream::connect(&world_addr))
+            .await
+            .map_err(|_| anyhow!("Timed out connecting to world server {world_addr}"))?
+            .map_err(|e| anyhow!("Failed to connect to world server: {}", e))?;
     info!("[Bot {}] ✅ TCP connected", bot_index);
 
     // ── Step 3: World Server Handshake ──────────────────────────────────────
     info!("[Bot {}] Step 3: Handshake...", bot_index);
     let mut init_buf = vec![0u8; 256];
-    let n = stream.read(&mut init_buf).await?;
+    let n = tokio::time::timeout(INITIAL_NETWORK_IO_TIMEOUT, stream.read(&mut init_buf))
+        .await
+        .map_err(|_| anyhow!("Timed out reading SERVER_INIT"))??;
     if !init_buf[..n].starts_with(&SERVER_INIT[..SERVER_INIT.len().min(n)]) {
         bail!(
             "Unexpected server init: {:?}",
@@ -2174,13 +2815,22 @@ async fn run_bot(
     }
     info!("[Bot {}] ✅ SERVER_INIT received", bot_index);
 
-    stream.write_all(CLIENT_INIT).await?;
-    stream.flush().await?;
+    tokio::time::timeout(INITIAL_NETWORK_IO_TIMEOUT, async {
+        stream.write_all(CLIENT_INIT).await?;
+        stream.flush().await
+    })
+    .await
+    .map_err(|_| anyhow!("Timed out writing CLIENT_INIT"))??;
     info!("[Bot {}] ✅ CLIENT_INIT sent", bot_index);
 
     // ── Step 4: Read SMSG_AUTH_CHALLENGE ────────────────────────────────────
     info!("[Bot {}] Step 4: Reading SMSG_AUTH_CHALLENGE...", bot_index);
-    let (opcode, challenge_data) = read_unencrypted_packet(&mut stream).await?;
+    let (opcode, challenge_data) = tokio::time::timeout(
+        INITIAL_NETWORK_IO_TIMEOUT,
+        read_unencrypted_packet(&mut stream),
+    )
+    .await
+    .map_err(|_| anyhow!("Timed out reading SMSG_AUTH_CHALLENGE"))??;
     if opcode != 0x3048 {
         bail!(
             "Expected SMSG_AUTH_CHALLENGE (0x3048), got 0x{:04X}",
@@ -2341,17 +2991,28 @@ async fn run_bot(
     info!("[Bot {}] ✅ CMSG_PLAYER_LOGIN sent", bot_index);
 
     let mut login_ok = false;
-    let preserve_realm_connection =
-        stand_state_options.is_some() || homebind_options.is_some() || rested_xp_options.is_some();
-    for _ in 0..30 {
+    let preserve_realm_connection = stand_state_options.is_some()
+        || homebind_options.is_some()
+        || rested_xp_options.is_some()
+        || loot_race_options.is_some();
+    let mut loot_race_target_seen = false;
+    let login_budget = LoginVerifyBudget::new(LOGIN_VERIFY_TIMEOUT);
+    while let Some(read_timeout) = login_budget.next_read_timeout() {
         match tokio::time::timeout(
-            Duration::from_secs(5),
+            read_timeout,
             read_encrypted_packet(&mut stream, &mut crypt, &mut server_inflater),
         )
         .await
         {
             Ok(Ok((op, payload))) => {
                 result.seen_opcodes.push(format!("0x{:04X}", op));
+                if let Some(options) = loot_race_options.as_ref() {
+                    if let Some(counter) = loot_race::target_seen_in_update(options, op, &payload)?
+                    {
+                        loot_race_target_seen = true;
+                        result.loot_race_target_runtime_counter = Some(counter);
+                    }
+                }
                 if let Some(options) = quest_options.as_ref() {
                     record_quest_objective_login_signal(op, &payload, options, &mut result);
                 }
@@ -2412,7 +3073,9 @@ async fn run_bot(
                 warn!("[Bot {}] Login read error: {}", bot_index, e);
                 break;
             }
-            Err(_) => break,
+            // A quiet five-second slice does not invalidate an otherwise
+            // healthy login. The absolute deadline above remains the guard.
+            Err(_) => continue,
         }
     }
     if !login_ok {
@@ -2536,6 +3199,35 @@ async fn run_bot(
         {
             result.rested_xp_failure = Some(error.to_string());
             result.rested_xp_smoke_passed = Some(false);
+        }
+        return Ok(result);
+    }
+
+    if let Some(loot_race_options) = loot_race_options {
+        if let Err(error) = loot_race::run_phase(
+            bot_index,
+            &mut stream,
+            &mut crypt,
+            &mut server_inflater,
+            &mut realm_connection,
+            &loot_race_options,
+            loot_race_target_seen,
+            &mut result,
+        )
+        .await
+        {
+            result.loot_race_failure = Some(error.to_string());
+            result.loot_race_smoke_passed = Some(false);
+            loot_race::best_effort_close(
+                bot_index,
+                &mut stream,
+                &mut crypt,
+                &mut server_inflater,
+                &mut realm_connection,
+                loot_race_options.character_guid,
+                &mut result,
+            )
+            .await;
         }
         return Ok(result);
     }
@@ -2817,6 +3509,29 @@ fn log_bot_summary(
             );
             return;
         }
+        if result.loot_race_smoke {
+            info!(
+                "✅ Bot {}: SUCCESS loot_race target={:?}/{:?}/counter={:?} party={} discovered={} opened={} list={:?} coins={:?} item_push={} removed={} money_notify={:?} coin_removed={} db_item={:?} db_money_delta={:?} relog={} failure={:?}",
+                result.account,
+                result.loot_race_target_entry,
+                result.loot_race_target_spawn_guid,
+                result.loot_race_target_runtime_counter,
+                result.loot_race_party_confirmed,
+                result.loot_race_target_discovered,
+                result.loot_race_loot_opened,
+                result.loot_race_loot_list_id,
+                result.loot_race_loot_coins,
+                result.loot_race_item_push_seen,
+                result.loot_race_loot_removed_seen,
+                result.loot_race_money_notify_amount,
+                result.loot_race_coin_removed_seen,
+                result.loot_race_db_item_total,
+                result.loot_race_db_money_delta,
+                result.loot_race_relog_verified,
+                result.loot_race_failure,
+            );
+            return;
+        }
         info!(
             "✅ Bot {}: SUCCESS login={{auth:{}, enum:{}, player:{}}} join={:?}/{:?} proposal={} group={} teleport_denied={:?}",
             result.account,
@@ -2930,6 +3645,29 @@ fn log_bot_summary(
             );
             return;
         }
+        if result.loot_race_smoke {
+            error!(
+                "❌ Bot {}: FAILED loot_race target={:?}/{:?}/counter={:?} party={} discovered={} opened={} list={:?} coins={:?} item_push={} removed={} money_notify={:?} coin_removed={} db_item={:?} db_money_delta={:?} relog={} failure={:?}",
+                result.account,
+                result.loot_race_target_entry,
+                result.loot_race_target_spawn_guid,
+                result.loot_race_target_runtime_counter,
+                result.loot_race_party_confirmed,
+                result.loot_race_target_discovered,
+                result.loot_race_loot_opened,
+                result.loot_race_loot_list_id,
+                result.loot_race_loot_coins,
+                result.loot_race_item_push_seen,
+                result.loot_race_loot_removed_seen,
+                result.loot_race_money_notify_amount,
+                result.loot_race_coin_removed_seen,
+                result.loot_race_db_item_total,
+                result.loot_race_db_money_delta,
+                result.loot_race_relog_verified,
+                result.loot_race_failure,
+            );
+            return;
+        }
         error!(
             "❌ Bot {}: FAILED login={{auth:{}, enum:{}, player:{}}} join={:?}/{:?} proposal={} group={} teleport_denied={:?}",
             result.account,
@@ -2958,6 +3696,8 @@ fn write_report_if_requested(
     homebind_smoke: bool,
     inventory_swap_smoke: bool,
     rested_xp_smoke: bool,
+    loot_race_smoke: bool,
+    loot_item_capture: bool,
     quest_smoke: bool,
     results: &[BotRunResult],
 ) -> Result<()> {
@@ -2979,6 +3719,8 @@ fn write_report_if_requested(
         homebind_smoke,
         inventory_swap_smoke,
         rested_xp_smoke,
+        loot_race_smoke,
+        loot_item_capture,
         quest_smoke,
         results: results.to_vec(),
     };
@@ -3770,6 +4512,7 @@ async fn run_rested_xp_smoke_workflow_inner(
         None,
         Some(wilderness_options),
         None,
+        None,
     )
     .await?;
     if !combined.rested_xp_smoke_passed.unwrap_or(false) {
@@ -3830,6 +4573,7 @@ async fn run_rested_xp_smoke_workflow_inner(
         None,
         None,
         Some(resting_options),
+        None,
         None,
     )
     .await?;
@@ -3903,6 +4647,7 @@ async fn run_rested_xp_smoke_workflow_inner(
         None,
         Some(consume_options),
         None,
+        None,
     )
     .await?;
     merge_rested_xp_results(&mut combined, consume_result);
@@ -3931,6 +4676,7 @@ async fn run_rested_xp_smoke_workflow_inner(
         None,
         None,
         Some(verify_options),
+        None,
         None,
     )
     .await?;
@@ -4040,6 +4786,7 @@ async fn run_bank_smoke_workflow(
         None,
         None,
         None,
+        None,
     )
     .await;
 
@@ -4067,6 +4814,7 @@ async fn run_bank_smoke_workflow(
             false,
             None,
             Some(withdraw_options),
+            None,
             None,
             None,
             None,
@@ -4139,6 +4887,7 @@ async fn run_homebind_smoke_workflow(
         None,
         None,
         None,
+        None,
     )
     .await;
 
@@ -4201,6 +4950,7 @@ async fn run_homebind_smoke_workflow(
                 None,
                 None,
                 Some(relog_options),
+                None,
                 None,
                 None,
                 None,
@@ -5053,7 +5803,7 @@ async fn disconnect_rested_xp_and_wait(
         .await
         .context("send rested-XP CMSG_LOGOUT_REQUEST")?;
     info!("[Bot {}] ✅ rested-XP CMSG_LOGOUT_REQUEST sent", bot_index);
-    let logout_wait_secs = timeout_secs.min(RESTED_XP_GRACEFUL_LOGOUT_WAIT_SECS);
+    let logout_wait_secs = timeout_secs.min(NORMAL_LOGOUT_COMPLETE_WAIT_SECS);
     let logout_deadline = tokio::time::Instant::now() + Duration::from_secs(logout_wait_secs);
     let client_clock_origin = tokio::time::Instant::now();
     let mut logout_complete = false;
@@ -5391,6 +6141,7 @@ async fn run_inventory_swap_smoke_workflow(
         Some(forward_options),
         None,
         None,
+        None,
     )
     .await;
 
@@ -5420,6 +6171,7 @@ async fn run_inventory_swap_smoke_workflow(
             None,
             None,
             Some(reverse_options),
+            None,
             None,
             None,
         )
@@ -5660,7 +6412,8 @@ async fn logout_and_wait(
 ) -> Result<()> {
     send_encrypted_packet(stream, crypt, CMSG_LOGOUT_REQUEST, &[0]).await?;
     info!("[Bot {}] ✅ CMSG_LOGOUT_REQUEST sent", bot_index);
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(8);
+    let deadline =
+        tokio::time::Instant::now() + Duration::from_secs(NORMAL_LOGOUT_COMPLETE_WAIT_SECS);
     while tokio::time::Instant::now() < deadline {
         let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
         match tokio::time::timeout(
@@ -9227,7 +9980,7 @@ fn build_player_login(guid: u64, realm_id: u32, far_clip: f32) -> Vec<u8> {
 
 fn create_player_guid_raw(guid: u64, realm_id: u32) -> (u64, u64) {
     // C++ ObjectGuid::Create<HighGuid::Player>(realmId, guid).
-    let high = (2u64 << 58) | ((u64::from(realm_id) & 0x1FFF) << 42);
+    let high = (2u64 << 58) | ((u64::from(realm_id) & 0xFFFF) << 42);
     (guid, high)
 }
 
@@ -9611,6 +10364,40 @@ fn build_packed_guid(low: u64, high: u64) -> Vec<u8> {
 mod tests {
     use super::*;
 
+    #[test]
+    fn loot_result_requires_verified_relog_for_success() {
+        let mut result = BotRunResult {
+            world_auth: true,
+            enum_characters: true,
+            player_login_verified: true,
+            loot_race_smoke: true,
+            loot_race_smoke_passed: Some(true),
+            ..BotRunResult::default()
+        };
+
+        assert!(!result.success(false, false, false));
+
+        result.loot_race_relog_verified = true;
+        assert!(result.success(false, false, false));
+    }
+
+    #[test]
+    fn login_verify_budget_is_time_based_not_packet_count() {
+        let budget = LoginVerifyBudget::new(Duration::from_secs(1));
+
+        // The former `for _ in 0..30` guard disconnected a second concurrent
+        // client after 30 fast CREATE/broadcast packets. Observing packets must
+        // not consume the wall-clock budget.
+        for _ in 0..64 {
+            assert!(budget.next_read_timeout().is_some());
+        }
+
+        assert_eq!(
+            LoginVerifyBudget::new(Duration::ZERO).next_read_timeout(),
+            None
+        );
+    }
+
     fn pack_msb_fields(fields: &[(u32, usize)]) -> Vec<u8> {
         let mut bytes = Vec::new();
         let mut current = 0u8;
@@ -9819,7 +10606,7 @@ mod tests {
     }
 
     #[test]
-    fn creature_guid_uses_runtime_counter_and_zero_realm_like_cpp() {
+    fn legacy_creature_guid_constructor_keeps_counter_map_and_entry_fields() {
         let (low, high) = create_creature_guid_raw(571, 15_513, 77_001);
 
         assert_eq!(low, 77_001);
@@ -10363,6 +11150,44 @@ mod tests {
             .to_string()
             .contains("invalid PlayerSave.Stats.MinLevel value"));
     }
+
+    #[test]
+    fn pinned_instance_port_rejects_invalid_or_different_connect_to_target() {
+        assert!(validate_pinned_instance_port(8086, None).is_ok());
+        assert!(validate_pinned_instance_port(8086, Some("8086")).is_ok());
+
+        let different = validate_pinned_instance_port(9000, Some("8086"))
+            .expect_err("a different advertised instance port must fail closed");
+        assert!(different
+            .to_string()
+            .contains("advertised instance port 9000"));
+        assert!(validate_pinned_instance_port(8086, Some("0")).is_err());
+        assert!(validate_pinned_instance_port(8086, Some("not-a-port")).is_err());
+    }
+
+    #[test]
+    fn loot_mode_rejects_generic_account_provisioning() {
+        assert!(validate_provisioning_mode(false, false).is_ok());
+        assert!(validate_provisioning_mode(false, true).is_ok());
+        assert!(validate_provisioning_mode(true, false).is_ok());
+        let error = validate_provisioning_mode(true, true)
+            .expect_err("loot mode must reject provisioning before any DB mutation");
+        assert!(error.to_string().contains("forbid --ensure-test-accounts"));
+    }
+
+    #[test]
+    fn create_only_provisioning_rejects_partial_identity_collisions() {
+        assert_eq!(
+            create_only_provisioning_plan(false, false).unwrap(),
+            CreateOnlyProvisioningPlan::CreateBoth
+        );
+        assert_eq!(
+            create_only_provisioning_plan(true, true).unwrap(),
+            CreateOnlyProvisioningPlan::ValidateExisting
+        );
+        assert!(create_only_provisioning_plan(true, false).is_err());
+        assert!(create_only_provisioning_plan(false, true).is_err());
+    }
 }
 
 fn build_quest_giver_query_quest(packed_guid: &[u8], quest_id: u32) -> Vec<u8> {
@@ -10452,6 +11277,9 @@ async fn connect_to_instance(
         );
     }
 
+    let expected_port = std::env::var("INSTANCE_PORT").ok();
+    validate_pinned_instance_port(connect_to.port, expected_port.as_deref())?;
+
     let target_host =
         std::env::var("INSTANCE_HOST").unwrap_or_else(|_| connect_to.address.to_string());
     let addr = format!("{}:{}", target_host, connect_to.port);
@@ -10459,12 +11287,15 @@ async fn connect_to_instance(
         "[Bot {}] Connecting to instance socket {}...",
         bot_index, addr
     );
-    let mut stream = TcpStream::connect(&addr)
+    let mut stream = tokio::time::timeout(INITIAL_NETWORK_IO_TIMEOUT, TcpStream::connect(&addr))
         .await
+        .map_err(|_| anyhow!("Timed out connecting to instance socket {addr}"))?
         .map_err(|e| anyhow!("Failed to connect to instance socket {}: {}", addr, e))?;
 
     let mut init_buf = vec![0u8; 256];
-    let n = stream.read(&mut init_buf).await?;
+    let n = tokio::time::timeout(INITIAL_NETWORK_IO_TIMEOUT, stream.read(&mut init_buf))
+        .await
+        .map_err(|_| anyhow!("Timed out reading instance SERVER_INIT"))??;
     if !init_buf[..n].starts_with(&SERVER_INIT[..SERVER_INIT.len().min(n)]) {
         bail!(
             "Unexpected instance server init: {:?}",
@@ -10472,10 +11303,19 @@ async fn connect_to_instance(
         );
     }
 
-    stream.write_all(CLIENT_INIT).await?;
-    stream.flush().await?;
+    tokio::time::timeout(INITIAL_NETWORK_IO_TIMEOUT, async {
+        stream.write_all(CLIENT_INIT).await?;
+        stream.flush().await
+    })
+    .await
+    .map_err(|_| anyhow!("Timed out writing instance CLIENT_INIT"))??;
 
-    let (opcode, challenge_data) = read_unencrypted_packet(&mut stream).await?;
+    let (opcode, challenge_data) = tokio::time::timeout(
+        INITIAL_NETWORK_IO_TIMEOUT,
+        read_unencrypted_packet(&mut stream),
+    )
+    .await
+    .map_err(|_| anyhow!("Timed out reading instance SMSG_AUTH_CHALLENGE"))??;
     if opcode != 0x3048 {
         bail!(
             "Expected instance SMSG_AUTH_CHALLENGE (0x3048), got 0x{:04X}",
@@ -10526,6 +11366,26 @@ async fn connect_to_instance(
     send_unencrypted_packet(&mut stream, 0x3767, &[]).await?;
 
     Ok((stream, WorldCrypt::new_with_counters(&enc_key, 2, 2)))
+}
+
+fn validate_pinned_instance_port(advertised_port: u16, expected_port: Option<&str>) -> Result<()> {
+    let Some(expected_port) = expected_port else {
+        return Ok(());
+    };
+    let expected_port = expected_port
+        .parse::<u16>()
+        .with_context(|| "INSTANCE_PORT must be a valid nonzero TCP port")?;
+    if expected_port == 0 {
+        bail!("INSTANCE_PORT must be a valid nonzero TCP port");
+    }
+    if advertised_port != expected_port {
+        bail!(
+            "SMSG_CONNECT_TO advertised instance port {}, expected pinned INSTANCE_PORT {}",
+            advertised_port,
+            expected_port
+        );
+    }
+    Ok(())
 }
 
 /// Pack u64 into WoW's packed format (mask + non-zero bytes)

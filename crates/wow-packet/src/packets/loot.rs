@@ -7,6 +7,7 @@
 
 use wow_constants::{ClientOpcodes, ServerOpcodes};
 use wow_core::ObjectGuid;
+pub use wow_loot::{CreatureLoot, LootEntry, LootEntryFlags, NotNormalLootItem};
 
 use crate::packets::item::ItemInstance;
 use crate::world_packet::{PacketError, WorldPacket};
@@ -25,6 +26,7 @@ pub const LOOT_RESPONSE_DEFAULT_FAILURE_REASON_LIKE_CPP: u8 = LOOT_ERROR_NO_LOOT
 
 pub const LOOT_TYPE_NONE_LIKE_CPP: u8 = 0;
 pub const LOOT_TYPE_CORPSE_LIKE_CPP: u8 = 1;
+pub const LOOT_TYPE_PICKPOCKETING_LIKE_CPP: u8 = 2;
 pub const LOOT_TYPE_FISHING_LIKE_CPP: u8 = 3;
 pub const LOOT_TYPE_DISENCHANTING_LIKE_CPP: u8 = 4;
 pub const LOOT_TYPE_ITEM_LIKE_CPP: u8 = 5;
@@ -582,114 +584,7 @@ impl ServerPacket for MasterLootCandidateList {
 
 // ── In-memory loot tracking ──────────────────────────────────────
 
-/// Server-side loot state for one dead creature.
-#[derive(Debug, Clone)]
-pub struct CreatureLoot {
-    pub loot_guid: ObjectGuid,
-    pub coins: u32,
-    pub unlooted_count: u8,
-    pub loot_type: u8,
-    pub dungeon_encounter_id: u32,
-    pub loot_method: u8,
-    pub loot_master: ObjectGuid,
-    pub round_robin_player: ObjectGuid,
-    pub player_ffa_items: Vec<(ObjectGuid, Vec<NotNormalLootItem>)>,
-    pub players_looting: Vec<ObjectGuid>,
-    pub allowed_looters: Vec<ObjectGuid>,
-    pub items: Vec<LootEntry>,
-    pub looted_by_player: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NotNormalLootItem {
-    pub loot_list_id: u8,
-    pub is_looted: bool,
-}
-
-#[derive(Debug, Clone)]
-pub struct LootEntry {
-    pub loot_list_id: u8,
-    pub item_id: u32,
-    pub quantity: u32,
-    pub random_properties_id: i32,
-    pub random_properties_seed: i32,
-    pub item_context: u8,
-    pub flags: LootEntryFlags,
-    pub allowed_looters: Vec<ObjectGuid>,
-    pub roll_winner: ObjectGuid,
-    pub ffa_looted_by: Vec<ObjectGuid>,
-    pub taken: bool,
-}
-
 pub const LOOT_SLOT_TYPE_OWNER_LIKE_CPP: u8 = 4;
-
-impl LootEntry {
-    pub fn free_for_all_ui_type_like_cpp(&self) -> u8 {
-        LOOT_SLOT_TYPE_OWNER_LIKE_CPP
-    }
-
-    pub fn is_over_threshold_like_cpp(&self) -> bool {
-        !self.flags.under_threshold && !self.flags.freeforall
-    }
-
-    pub fn visible_in_represented_free_for_all_view_like_cpp(&self, player: ObjectGuid) -> bool {
-        !self.is_looted_for_player_like_cpp(player) && self.has_allowed_looter_like_cpp(player)
-    }
-
-    pub fn add_allowed_looter_like_cpp(&mut self, player: ObjectGuid) {
-        if !player.is_empty() && !self.allowed_looters.contains(&player) {
-            self.allowed_looters.push(player);
-        }
-    }
-
-    pub fn has_allowed_looter_like_cpp(&self, player: ObjectGuid) -> bool {
-        self.allowed_looters.contains(&player)
-    }
-
-    pub fn roll_winner_allows_like_cpp(&self, player: ObjectGuid) -> bool {
-        self.roll_winner.is_empty() || self.roll_winner == player
-    }
-
-    pub fn is_looted_for_player_like_cpp(&self, player: ObjectGuid) -> bool {
-        if self.flags.freeforall {
-            self.ffa_looted_by.contains(&player)
-        } else {
-            self.taken
-        }
-    }
-
-    pub fn mark_looted_for_player_like_cpp(&mut self, player: ObjectGuid) {
-        if self.flags.freeforall {
-            if !player.is_empty() && !self.ffa_looted_by.contains(&player) {
-                self.ffa_looted_by.push(player);
-            }
-        } else {
-            self.taken = true;
-        }
-    }
-
-    pub fn fully_looted_like_cpp(&self) -> bool {
-        if self.flags.freeforall {
-            !self.allowed_looters.is_empty()
-                && self
-                    .allowed_looters
-                    .iter()
-                    .all(|player| self.ffa_looted_by.contains(player))
-        } else {
-            self.taken
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct LootEntryFlags {
-    pub follow_loot_rules: bool,
-    pub freeforall: bool,
-    pub blocked: bool,
-    pub counted: bool,
-    pub under_threshold: bool,
-    pub needs_quest: bool,
-}
 
 #[cfg(test)]
 mod tests {

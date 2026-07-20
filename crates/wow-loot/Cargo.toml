@@ -9,3 +9,4 @@ license.workspace = true
 wow-core = { workspace = true }
 wow-constants = { workspace = true }
 rand = { workspace = true }
+tokio = { workspace = true }

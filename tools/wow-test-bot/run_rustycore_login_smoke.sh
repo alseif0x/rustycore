@@ -1,13 +1,55 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# The ignored defaults file is data owned by the local operator. Keep xtrace
+# off while snapshotting/restoring exported values so neither caller secrets
+# nor values from that file can be echoed accidentally.
+RC_CALLER_XTRACE=0
+if [[ "$-" == *x* ]]; then
+  RC_CALLER_XTRACE=1
+  set +x
+fi
+readonly RC_CALLER_XTRACE
+
 cd "$(dirname "$0")"
 
-if [[ -f .env.local ]]; then
+# Local defaults must never replace values explicitly pinned by the caller.
+# This is especially important for runtime QA provenance (`WOW_BOT_EXEC*`) and
+# for the selected destructive mode. Preserve every exported bot/runtime input,
+# source the ignored defaults, then restore the caller-owned values verbatim.
+declare -A caller_runtime_env=()
+while IFS='=' read -r -d '' env_name env_value; do
+  case "$env_name" in
+    WOW_BOT_* | BNET_HOST | BNET_PORT | WORLD_HOST | WORLD_PORT | INSTANCE_HOST | INSTANCE_PORT | REALM_ID)
+      caller_runtime_env["$env_name"]="$env_value"
+      ;;
+  esac
+done < <(env -0)
+readonly -A caller_runtime_env
+
+RC_ENV_FILE="${WOW_BOT_ENV_FILE:-.env.local}"
+readonly RC_ENV_FILE
+RC_ENV_STATUS=0
+if [[ -f "$RC_ENV_FILE" ]]; then
+  set +e
   set -a
-  . ./.env.local
+  . "$RC_ENV_FILE" 2>/dev/null
+  RC_ENV_STATUS=$?
   set +a
+  set -e
+  set +x
 fi
+if ((RC_ENV_STATUS != 0)); then
+  echo "Failed to load WOW_BOT_ENV_FILE" >&2
+  exit 2
+fi
+for env_name in "${!caller_runtime_env[@]}"; do
+  export "$env_name=${caller_runtime_env[$env_name]}"
+done
+unset env_name env_value
+# Keep xtrace disabled while credentials and caller-owned runtime values are
+# inspected. It is restored only after the complete argv has been assembled;
+# the bot password is inherited through the environment, never argv.
 
 password_env_name() {
   local account="$1"
@@ -62,6 +104,7 @@ homebind_timeout_secs="${WOW_BOT_HOMEBIND_TIMEOUT_SECS:-8}"
 inventory_swap_timeout_secs="${WOW_BOT_INVENTORY_SWAP_TIMEOUT_SECS:-8}"
 rested_xp_timeout_secs="${WOW_BOT_RESTED_XP_TIMEOUT_SECS:-120}"
 rested_xp_offline_secs="${WOW_BOT_RESTED_XP_OFFLINE_SECS:-86400}"
+loot_race_timeout_secs="${WOW_BOT_LOOT_RACE_TIMEOUT_SECS:-30}"
 ensure_accounts="${WOW_BOT_ENSURE_TEST_ACCOUNTS:-1}"
 
 export BNET_HOST="${BNET_HOST:-127.0.0.1}"
@@ -102,16 +145,99 @@ rested_xp_acknowledged=0
 if [[ "${WOW_BOT_ACK_DISPOSABLE_RESTED_XP:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
   rested_xp_acknowledged=1
 fi
+loot_race_requested=0
+if [[ "${WOW_BOT_LOOT_RACE_SMOKE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  loot_race_requested=1
+fi
+loot_item_capture_requested=0
+if [[ "${WOW_BOT_LOOT_ITEM_CAPTURE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  loot_item_capture_requested=1
+fi
+loot_race_acknowledged=0
+if [[ "${WOW_BOT_ACK_DISPOSABLE_OVERWORLD_LOOT_RACE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  loot_race_acknowledged=1
+fi
 if ((rested_xp_acknowledged && !rested_xp_requested)); then
   echo "WOW_BOT_ACK_DISPOSABLE_RESTED_XP is only valid with WOW_BOT_RESTED_XP_SMOKE" >&2
   exit 2
 fi
-if ((stand_state_requested + quest_requested + bank_requested + homebind_requested + inventory_swap_requested + rested_xp_requested > 1)); then
-  echo "Stand-state, quest, bank, homebind, inventory-swap, and rested-XP smoke are separate modes" >&2
+if ((loot_race_acknowledged && !loot_race_requested && !loot_item_capture_requested)); then
+  echo "WOW_BOT_ACK_DISPOSABLE_OVERWORLD_LOOT_RACE is only valid with WOW_BOT_LOOT_RACE_SMOKE or WOW_BOT_LOOT_ITEM_CAPTURE" >&2
+  exit 2
+fi
+if ((stand_state_requested + quest_requested + bank_requested + homebind_requested + inventory_swap_requested + rested_xp_requested + loot_race_requested + loot_item_capture_requested > 1)); then
+  echo "Stand-state, quest, bank, homebind, inventory-swap, rested-XP, loot-race, and loot-item-capture are separate modes" >&2
+  exit 2
+fi
+if ((loot_race_requested || loot_item_capture_requested)) \
+    && ((!loot_race_acknowledged)); then
+  echo "Loot fixture modes require WOW_BOT_ACK_DISPOSABLE_OVERWORLD_LOOT_RACE=1" >&2
   exit 2
 fi
 
-if ((rested_xp_requested)); then
+if ((loot_race_requested || loot_item_capture_requested)); then
+  # Loot fixtures require pre-provisioned, already-owned disposable identities.
+  # Never let the generic local bootstrap overwrite an existing numeric account
+  # id or reassign a configured character before the fixture contract validates.
+  ensure_accounts=0
+  export WOW_BOT_ENSURE_TEST_ACCOUNTS=0
+  fixture_journal="${WOW_BOT_FIXTURE_JOURNAL:-}"
+  if [[ -z "$fixture_journal" || "$fixture_journal" != /* \
+      || "$fixture_journal" == *$'\n'* ]]; then
+    echo "Loot fixture modes require an absolute WOW_BOT_FIXTURE_JOURNAL path" >&2
+    exit 2
+  fi
+  if [[ ! -d "$(dirname -- "$fixture_journal")" ]]; then
+    echo "WOW_BOT_FIXTURE_JOURNAL parent directory does not exist" >&2
+    exit 2
+  fi
+  fixture_cleanup_marker="${fixture_journal}.cleanup-complete"
+  if [[ -e "$fixture_journal" || -L "$fixture_journal" \
+      || -e "$fixture_cleanup_marker" || -L "$fixture_cleanup_marker" ]]; then
+    echo "Fixture journal/cleanup marker already exists; recover or remove it explicitly before running" >&2
+    exit 2
+  fi
+  export WOW_BOT_FIXTURE_JOURNAL="$fixture_journal"
+  export WOW_BOT_REQUIRE_PARENT_DEATH_GUARD=1
+fi
+
+if ((loot_item_capture_requested)); then
+  if ((!loot_race_acknowledged)); then
+    echo "Loot-item capture kills an exact overworld fixture and requires WOW_BOT_ACK_DISPOSABLE_OVERWORLD_LOOT_RACE=1" >&2
+    exit 2
+  fi
+  report_path="${WOW_BOT_REPORT:-/tmp/rustycore-bot-loot-item-capture-report.json}"
+  log_path="${WOW_BOT_LOG:-/tmp/rustycore-bot-loot-item-capture.log}"
+  mode_args=(
+    --loot-item-capture
+    --ack-disposable-overworld-loot-race
+    --loot-race-account-a "TESTBOT2@bot.local"
+    --loot-race-account-b "TESTBOT3@bot.local"
+    --loot-race-creature-entry "21779"
+    --loot-race-creature-spawn-guid "1117"
+    --loot-race-runtime-counter "0"
+    --loot-race-item-entry "30712"
+    --loot-race-timeout "$loot_race_timeout_secs"
+  )
+elif ((loot_race_requested)); then
+  if ((!loot_race_acknowledged)); then
+    echo "Loot-race smoke mutates an exact shared-chest fixture and requires WOW_BOT_ACK_DISPOSABLE_OVERWORLD_LOOT_RACE=1" >&2
+    exit 2
+  fi
+  report_path="${WOW_BOT_REPORT:-/tmp/rustycore-bot-loot-race-smoke-report.json}"
+  log_path="${WOW_BOT_LOG:-/tmp/rustycore-bot-loot-race-smoke.log}"
+  mode_args=(
+    --loot-race-smoke
+    --ack-disposable-overworld-loot-race
+    --loot-race-account-a "TESTBOT2@bot.local"
+    --loot-race-account-b "TESTBOT3@bot.local"
+    --loot-race-gameobject-entry "2846"
+    --loot-race-gameobject-spawn-guid "9106001"
+    --loot-race-runtime-counter "0"
+    --loot-race-item-entry "38"
+    --loot-race-timeout "$loot_race_timeout_secs"
+  )
+elif ((rested_xp_requested)); then
   if ((!rested_xp_acknowledged)); then
     echo "Rested-XP smoke is destructive and requires WOW_BOT_ACK_DISPOSABLE_RESTED_XP=1" >&2
     exit 2
@@ -255,20 +381,45 @@ if [[ "$ensure_accounts" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
   ensure_args+=(--ensure-test-accounts)
 fi
 
-"$bot_exec" \
-  --config "${WOW_BOT_CONFIG:-config.example.json}" \
-  --single "$account" \
-  "${mode_args[@]}" \
-  "${ensure_args[@]}" \
-  --no-cleanup-groups \
-  --no-auto-teleport \
-  --report "$report_path" \
-  >"$log_path" 2>&1
+selection_args=(--single "$account")
+smoke_subject="$account"
+if ((loot_race_requested || loot_item_capture_requested)); then
+  selection_args=()
+  if ((loot_item_capture_requested)); then
+    smoke_subject="TESTBOT2@bot.local (single-session item capture)"
+  else
+    smoke_subject="TESTBOT2@bot.local and TESTBOT3@bot.local"
+  fi
+fi
 
-echo "RustyCore smoke passed for $account"
+bot_command=(
+  "$bot_exec"
+  --config "${WOW_BOT_CONFIG:-config.example.json}"
+  "${selection_args[@]}"
+  "${mode_args[@]}"
+  "${ensure_args[@]}"
+  --no-cleanup-groups
+  --no-auto-teleport
+  --report "$report_path"
+)
+
+if ((RC_CALLER_XTRACE)); then
+  set -x
+fi
+
+if ((loot_race_requested || loot_item_capture_requested)); then
+  # Preserve PID ownership across the shell boundary. TERM/INT reaches the
+  # Rust handler installed before fixture mutation, and SIGKILL cannot leave a
+  # detached bot child continuing to mutate the durable fixture.
+  exec "${bot_command[@]}" >"$log_path" 2>&1
+fi
+
+"${bot_command[@]}" >"$log_path" 2>&1
+
+echo "RustyCore smoke passed for $smoke_subject"
 echo "log: $log_path"
 echo "report: $report_path"
 
 if command -v jq >/dev/null 2>&1; then
-  jq '{login_only, quest_smoke, stand_state_smoke, bank_smoke, homebind_smoke, inventory_swap_smoke, rested_xp_smoke, results: [.results[] | {account, world_auth, enum_characters, player_login_verified, stand_state_smoke, stand_state_smoke_passed, stand_states_requested, stand_states_confirmed, stand_state_failure, bank_smoke, bank_smoke_passed, bank_banker_entry, bank_banker_spawn_guid, bank_banker_guid_counter, bank_item_guid, bank_item_entry, bank_inventory_slot, bank_bank_slot, bank_open_confirmed, bank_deposit_persisted, bank_relogin_after_deposit, bank_withdraw_persisted, bank_failure, homebind_smoke, homebind_smoke_passed, homebind_innkeeper_entry, homebind_innkeeper_spawn_guid, homebind_innkeeper_guid_counter, homebind_spell_go_seen, homebind_bind_point_update_seen, homebind_player_bound_seen, homebind_gossip_complete_seen, homebind_db_persisted, homebind_relogin_verified, homebind_failure, inventory_swap_smoke, inventory_swap_smoke_passed, inventory_swap_item_guid_a, inventory_swap_item_guid_b, inventory_swap_item_entry_a, inventory_swap_item_entry_b, inventory_swap_slot_a, inventory_swap_slot_b, inventory_swap_forward_persisted, inventory_swap_relogin_after_forward, inventory_swap_reverse_persisted, inventory_swap_failure, rested_xp_smoke, rested_xp_smoke_passed, rested_xp_offline_wilderness_bonus, rested_xp_offline_resting_bonus, rested_xp_target_entry, rested_xp_target_spawn_guid, rested_xp_target_guid_counter, rested_xp_packet_amount, rested_xp_packet_original, rested_xp_db_xp_before, rested_xp_db_xp_after, rested_xp_db_rest_before, rested_xp_db_rest_after, rested_xp_relog_verified, rested_xp_failure, quest_smoke_passed, quest_target_entry, quest_target_spawn_guid, quest_target_guid_counter, quest_ids_seen, quest_titles_seen, quest_accept_sent, quest_accept_confirm_seen, quest_db_verified, quest_db_status, quest_failure, join_result}]}' "$report_path"
+  jq '{login_only, quest_smoke, stand_state_smoke, bank_smoke, homebind_smoke, inventory_swap_smoke, rested_xp_smoke, loot_race_smoke, results: [.results[] | {account, world_auth, enum_characters, player_login_verified, stand_state_smoke, stand_state_smoke_passed, stand_states_requested, stand_states_confirmed, stand_state_failure, bank_smoke, bank_smoke_passed, bank_banker_entry, bank_banker_spawn_guid, bank_banker_guid_counter, bank_item_guid, bank_item_entry, bank_inventory_slot, bank_bank_slot, bank_open_confirmed, bank_deposit_persisted, bank_relogin_after_deposit, bank_withdraw_persisted, bank_failure, homebind_smoke, homebind_smoke_passed, homebind_innkeeper_entry, homebind_innkeeper_spawn_guid, homebind_innkeeper_guid_counter, homebind_spell_go_seen, homebind_bind_point_update_seen, homebind_player_bound_seen, homebind_gossip_complete_seen, homebind_db_persisted, homebind_relogin_verified, homebind_failure, inventory_swap_smoke, inventory_swap_smoke_passed, inventory_swap_item_guid_a, inventory_swap_item_guid_b, inventory_swap_item_entry_a, inventory_swap_item_entry_b, inventory_swap_slot_a, inventory_swap_slot_b, inventory_swap_forward_persisted, inventory_swap_relogin_after_forward, inventory_swap_reverse_persisted, inventory_swap_failure, rested_xp_smoke, rested_xp_smoke_passed, rested_xp_offline_wilderness_bonus, rested_xp_offline_resting_bonus, rested_xp_target_entry, rested_xp_target_spawn_guid, rested_xp_target_guid_counter, rested_xp_packet_amount, rested_xp_packet_original, rested_xp_db_xp_before, rested_xp_db_xp_after, rested_xp_db_rest_before, rested_xp_db_rest_after, rested_xp_relog_verified, rested_xp_failure, loot_race_smoke, loot_race_smoke_passed, loot_race_target_entry, loot_race_target_spawn_guid, loot_race_target_runtime_counter, loot_race_party_confirmed, loot_race_target_discovered, loot_race_loot_opened, loot_race_loot_list_id, loot_race_loot_coins, loot_race_item_push_seen, loot_race_loot_removed_seen, loot_race_money_notify_amount, loot_race_coin_removed_seen, loot_race_db_item_total, loot_race_db_money_delta, loot_race_relog_verified, loot_race_failure, quest_smoke_passed, quest_target_entry, quest_target_spawn_guid, quest_target_guid_counter, quest_ids_seen, quest_titles_seen, quest_accept_sent, quest_accept_confirm_seen, quest_db_verified, quest_db_status, quest_failure, join_result}]}' "$report_path"
 fi

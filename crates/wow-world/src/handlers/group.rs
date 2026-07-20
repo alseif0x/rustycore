@@ -6,6 +6,7 @@
 //! Handlers for Group/Party opcodes: PartyInvite, PartyInviteResponse, LeaveGroup.
 
 use rand::Rng;
+use std::time::Duration;
 use tracing::{info, warn};
 use wow_constants::ClientOpcodes;
 use wow_core::{ObjectGuid, guid::HighGuid};
@@ -19,7 +20,8 @@ use wow_network::{
     GROUP_ASSIGN_MAINASSIST_LIKE_CPP, GROUP_ASSIGN_MAINTANK_LIKE_CPP, GroupInfo, GroupRegistry,
     MEMBER_FLAG_ASSISTANT_LIKE_CPP, MEMBER_FLAG_MAINASSIST_LIKE_CPP, MEMBER_FLAG_MAINTANK_LIKE_CPP,
     PendingInvites, PlayerRegistry, ReadyCheckEventLikeCpp, SendPartyUpdateLikeCppCommand,
-    SessionCommand, free_group_db_store_id_like_cpp, register_group_db_store_id_like_cpp,
+    SendRealmPacketLikeCppCommand, SessionCommand, free_group_db_store_id_like_cpp,
+    register_group_db_store_id_like_cpp,
 };
 use wow_packet::packets::misc::{RandomRoll, RandomRollClient};
 use wow_packet::packets::party::{
@@ -39,6 +41,7 @@ use crate::session::{WorldSession, player_team_for_race_cpp};
 
 const SOCIAL_FLAG_FRIEND_LIKE_CPP: u32 = 0x01;
 const SOCIAL_FLAG_IGNORED_LIKE_CPP: u32 = 0x02;
+const PARTY_REALM_COMMAND_TIMEOUT_LIKE_CPP: Duration = Duration::from_millis(250);
 
 // ── canonical group lookup ────────────────────────────────────────────────────
 
@@ -551,28 +554,32 @@ fn send_party_update(group: &GroupInfo, registry: &PlayerRegistry, _vra: u32) {
         }
 
         let command = SendPartyUpdateLikeCppCommand {
+            recipient: member_guid,
             party_update: update,
             member_full_state_packets,
         };
+        #[cfg(not(test))]
         if member_entry
             .command_tx
-            .try_send(SessionCommand::SendPartyUpdateLikeCpp(command.clone()))
+            .try_send(SessionCommand::SendPartyUpdateLikeCpp(command))
             .is_err()
         {
-            #[cfg(test)]
-            {
-                let mut update = command.party_update;
-                update.sequence_num = group.sequence_num as i32;
-                let _ = member_entry.send_tx.try_send(update.to_bytes());
-                for packet in command.member_full_state_packets {
-                    let _ = member_entry.send_tx.try_send(packet);
-                }
-            }
+            warn!(member = %member_guid, "failed to queue party update for remote session");
+        }
+        #[cfg(test)]
+        {
+            member_entry
+                .command_tx
+                .send_timeout(
+                    SessionCommand::SendPartyUpdateLikeCpp(command),
+                    Duration::from_secs(1),
+                )
+                .expect("test session dispatcher accepts PartyUpdate command");
         }
     }
 }
 
-fn send_group_new_leader_like_cpp(
+async fn send_group_new_leader_like_cpp(
     group: &GroupInfo,
     registry: &PlayerRegistry,
     new_leader_name: &str,
@@ -583,11 +590,18 @@ fn send_group_new_leader_like_cpp(
     }
     .to_bytes();
 
-    for &member_guid in &group.members {
-        let Some(member_entry) = registry.get(&member_guid) else {
-            continue;
-        };
-        let _ = member_entry.send_tx.try_send(packet.clone());
+    let recipients: Vec<_> = group
+        .members
+        .iter()
+        .filter_map(|member_guid| {
+            registry
+                .get(member_guid)
+                .map(|entry| (*member_guid, entry.command_tx.clone()))
+        })
+        .collect();
+    for (member_guid, command_tx) in recipients {
+        let _ =
+            send_realm_packet_to_player_like_cpp(member_guid, &command_tx, packet.clone()).await;
     }
 }
 
@@ -815,13 +829,85 @@ fn send_party_uninvite_result_like_cpp(
     result: u8,
     result_guid: ObjectGuid,
 ) {
-    session.send_packet(&PartyCommandResult {
+    session.send_packet_realm(&PartyCommandResult {
         name: String::new(),
         command: 1, // C++ PARTY_OP_UNINVITE
         result,
         result_data: 0,
         result_guid,
     });
+}
+
+/// Queue a realm-routed packet on the target's owning session.
+///
+/// The registry's `send_tx` is the primary socket and becomes INSTANCE after
+/// ConnectTo. Legacy C++ routes party-control packets through REALM
+/// (`Opcodes.cpp:1826-1832`), so cross-session delivery must not use that
+/// primary sender directly.
+async fn send_realm_packet_to_player_like_cpp(
+    recipient: ObjectGuid,
+    command_tx: &flume::Sender<SessionCommand>,
+    packet_bytes: Vec<u8>,
+) -> bool {
+    let command = SessionCommand::SendRealmPacketLikeCpp(SendRealmPacketLikeCppCommand {
+        recipient,
+        packet_bytes,
+    });
+    match tokio::time::timeout(
+        PARTY_REALM_COMMAND_TIMEOUT_LIKE_CPP,
+        command_tx.send_async(command),
+    )
+    .await
+    {
+        Ok(Ok(())) => {
+            // Test fixtures run a real command dispatcher on another task/thread.
+            // Yielding here lets that receiver perform the same session-local
+            // routing before packet assertions without adding a wrong-socket
+            // production fallback.
+            #[cfg(test)]
+            tokio::task::yield_now().await;
+            true
+        }
+        Ok(Err(error)) => {
+            warn!(recipient = %recipient, %error, "realm-routed party command channel closed");
+            false
+        }
+        Err(_) => {
+            warn!(recipient = %recipient, "timed out queueing realm-routed party packet");
+            false
+        }
+    }
+}
+
+/// Queue the actual invite dialog without treating bounded-channel pressure as
+/// an offline player.
+///
+/// C++ `HandlePartyInviteOpcode` stores the `GroupInvite` and then calls
+/// `invitedPlayer->SendDirectMessage`; it does not turn a busy socket queue into
+/// `ERR_BAD_PLAYER_NAME_S`. Rust therefore waits until the owning session drains
+/// capacity or disconnects. Other existing group notifications keep their
+/// finite timeout in [`send_realm_packet_to_player_like_cpp`]; this stronger
+/// delivery rule is intentionally scoped to the invite state transition.
+async fn send_realm_party_invite_to_player_like_cpp(
+    recipient: ObjectGuid,
+    command_tx: &flume::Sender<SessionCommand>,
+    packet_bytes: Vec<u8>,
+) -> bool {
+    let command = SessionCommand::SendRealmPacketLikeCpp(SendRealmPacketLikeCppCommand {
+        recipient,
+        packet_bytes,
+    });
+    match command_tx.send_async(command).await {
+        Ok(()) => {
+            #[cfg(test)]
+            tokio::task::yield_now().await;
+            true
+        }
+        Err(error) => {
+            warn!(recipient = %recipient, %error, "realm-routed party invite channel closed");
+            false
+        }
+    }
 }
 
 fn role_changed_inform_like_cpp(
@@ -885,19 +971,42 @@ fn raid_markers_changed_like_cpp(group: &GroupInfo) -> Vec<u8> {
     .to_bytes()
 }
 
-fn queue_visible_gameobjects_or_spellclicks_refresh_like_cpp(
+async fn queue_visible_gameobjects_or_spellclicks_refresh_like_cpp(
     group: &GroupInfo,
     registry: &PlayerRegistry,
     local_guid: ObjectGuid,
 ) {
-    for &member_guid in &group.members {
-        if member_guid == local_guid {
-            continue;
-        }
-        if let Some(member) = registry.get(&member_guid) {
-            let _ = member.command_tx.try_send(
+    let recipients: Vec<_> = group
+        .members
+        .iter()
+        .copied()
+        .filter(|member_guid| *member_guid != local_guid)
+        .filter_map(|member_guid| {
+            registry
+                .get(&member_guid)
+                .map(|member| (member_guid, member.command_tx.clone()))
+        })
+        .collect();
+
+    for (member_guid, command_tx) in recipients {
+        match tokio::time::timeout(
+            PARTY_REALM_COMMAND_TIMEOUT_LIKE_CPP,
+            command_tx.send_async(
                 wow_network::SessionCommand::RefreshVisibleGameobjectsOrSpellClicksLikeCpp,
-            );
+            ),
+        )
+        .await
+        {
+            Ok(Ok(())) => {}
+            Ok(Err(error)) => warn!(
+                member = %member_guid,
+                %error,
+                "visible gameobject refresh command channel closed"
+            ),
+            Err(_) => warn!(
+                member = %member_guid,
+                "timed out queueing visible gameobject refresh command"
+            ),
         }
     }
 }
@@ -1005,7 +1114,8 @@ fn group_lfg_data_delete_statement_like_cpp(db_store_id: u32) -> PreparedStateme
 impl WorldSession {
     /// CMSG_PARTY_INVITE (0x3604)
     ///
-    /// Parse layout (C# reference):
+    /// Parse layout from C++ `WorldPackets::Party::PartyInviteClient::Read`
+    /// (`PartyPackets.cpp`):
     ///   HasBit() → has_party_index
     ///   ResetBitPos()
     ///   ReadBits(9) → name_len
@@ -1068,7 +1178,7 @@ impl WorldSession {
 
         macro_rules! send_result {
             ($result:expr) => {
-                self.send_packet(&PartyCommandResult {
+                self.send_packet_realm(&PartyCommandResult {
                     name: target_name.clone(),
                     command: 0, // Invite
                     result: $result,
@@ -1192,7 +1302,10 @@ impl WorldSession {
 
         if current_group_guid_like_cpp(group_reg, None, real_target_guid, party_index).is_some() {
             send_result!(party_result::ALREADY_IN_GROUP);
-            if let Some(target_entry) = registry.get(&real_target_guid) {
+            if let Some(target_command_tx) = registry
+                .get(&real_target_guid)
+                .map(|entry| entry.command_tx.clone())
+            {
                 let invite = PartyInviteServer {
                     can_accept: false,
                     proposed_roles: proposed_roles as u8,
@@ -1207,7 +1320,12 @@ impl WorldSession {
                     realm_name: realm_name.clone(),
                     realm_name_normalized: realm_name_normalized.clone(),
                 };
-                let _ = target_entry.send_tx.send(invite.to_bytes());
+                let _ = send_realm_packet_to_player_like_cpp(
+                    real_target_guid,
+                    &target_command_tx,
+                    invite.to_bytes(),
+                )
+                .await;
             }
             return;
         }
@@ -1246,26 +1364,34 @@ impl WorldSession {
         pending.insert(real_target_guid, invite);
 
         // 7. Send invite dialog to the target.
-        if let Some(target_entry) = registry.get(&real_target_guid) {
-            let invite = PartyInviteServer {
-                can_accept: true,
-                proposed_roles: proposed_roles as u8,
-                inviter_name: inviter_name.clone(),
-                inviter_guid: my_guid,
-                inviter_bnet_account_guid: ObjectGuid::create_global(
-                    HighGuid::WowAccount,
-                    0,
-                    self.account_id as i64,
-                ),
-                virtual_realm_address: vra,
-                realm_name,
-                realm_name_normalized,
-            };
-            let _ = target_entry.send_tx.send(invite.to_bytes());
+        let invite_packet = PartyInviteServer {
+            can_accept: true,
+            proposed_roles: proposed_roles as u8,
+            inviter_name: inviter_name.clone(),
+            inviter_guid: my_guid,
+            inviter_bnet_account_guid: ObjectGuid::create_global(
+                HighGuid::WowAccount,
+                0,
+                self.account_id as i64,
+            ),
+            virtual_realm_address: vra,
+            realm_name,
+            realm_name_normalized,
+        };
+        if !send_realm_party_invite_to_player_like_cpp(
+            real_target_guid,
+            &target_snapshot.command_tx,
+            invite_packet.to_bytes(),
+        )
+        .await
+        {
+            remove_pending_invite_like_cpp(pending, real_target_guid, invite);
+            send_result!(party_result::BAD_PLAYER_NAME);
+            return;
         }
 
         // 7. Confirm back to self.
-        self.send_packet(&PartyCommandResult {
+        self.send_packet_realm(&PartyCommandResult {
             name: target_name,
             command: 0,
             result: party_result::OK,
@@ -1331,13 +1457,18 @@ impl WorldSession {
 
         // 2. Declined?
         if !accept {
-            let leader_send_tx = registry
+            let leader_command_tx = registry
                 .get(&invite.leader_guid)
-                .map(|leader| leader.send_tx.clone());
+                .map(|leader| leader.command_tx.clone());
             remove_pending_invite_like_cpp(&pending, my_guid, invite);
-            if let Some(leader_send_tx) = leader_send_tx {
+            if let Some(leader_command_tx) = leader_command_tx {
                 let decline = GroupDecline { name: my_name };
-                let _ = leader_send_tx.send(decline.to_bytes());
+                let _ = send_realm_packet_to_player_like_cpp(
+                    invite.leader_guid,
+                    &leader_command_tx,
+                    decline.to_bytes(),
+                )
+                .await;
             }
             return;
         }
@@ -1361,7 +1492,7 @@ impl WorldSession {
         let group_guid = if let Some(gid) = invite.group_guid {
             if let Some(mut g) = group_reg.get_mut(&gid) {
                 if g.is_full_like_cpp() {
-                    self.send_packet(&PartyCommandResult {
+                    self.send_packet_realm(&PartyCommandResult {
                         name: String::new(),
                         command: 0,
                         result: party_result::GROUP_FULL,
@@ -1643,7 +1774,7 @@ impl WorldSession {
             );
             self.sync_player_registry_state_like_cpp();
             let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
-            self.send_packet(&wow_packet::packets::party::GroupDestroyed);
+            self.send_packet_realm(&wow_packet::packets::party::GroupDestroyed);
             return;
         }
 
@@ -1696,7 +1827,7 @@ impl WorldSession {
         };
 
         if self.player_in_represented_battleground_like_cpp() {
-            self.send_packet(&PartyCommandResult {
+            self.send_packet_realm(&PartyCommandResult {
                 name: String::new(),
                 command: 0,
                 result: party_result::INVITE_RESTRICTED,
@@ -1713,7 +1844,7 @@ impl WorldSession {
                 (pending_invites.as_ref(), pending_invite)
             {
                 if invite.leader_guid == my_guid {
-                    self.send_packet(&PartyCommandResult {
+                    self.send_packet_realm(&PartyCommandResult {
                         name: player_name,
                         command: 2,
                         result: party_result::OK,
@@ -1727,7 +1858,7 @@ impl WorldSession {
         }
         let gid = real_group_guid.expect("checked above");
 
-        self.send_packet(&PartyCommandResult {
+        self.send_packet_realm(&PartyCommandResult {
             name: player_name,
             command: 2,
             result: party_result::OK,
@@ -1823,7 +1954,7 @@ impl WorldSession {
             );
             self.sync_player_registry_state_like_cpp();
             let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
-            self.send_packet(&GroupUninvite);
+            self.send_packet_realm(&GroupUninvite);
             return;
         }
 
@@ -1841,7 +1972,7 @@ impl WorldSession {
         );
         self.sync_player_registry_state_like_cpp();
         let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
-        self.send_packet(&GroupUninvite);
+        self.send_packet_realm(&GroupUninvite);
     }
 
     /// CMSG_CONVERT_RAID.
@@ -1885,7 +2016,7 @@ impl WorldSession {
                 return;
             }
 
-            self.send_packet(&PartyCommandResult {
+            self.send_packet_realm(&PartyCommandResult {
                 name: String::new(),
                 command: 0,
                 result: party_result::OK,
@@ -1925,9 +2056,13 @@ impl WorldSession {
             }
         }
 
-        if let Some(group) = group_reg.get(&group_guid) {
+        // `queue_visible...` may wait on a full member command channel. Clone
+        // the value and release DashMap's read guard before the first await so
+        // unrelated group mutations are never stalled behind that backpressure.
+        if let Some(group) = group_reg.get(&group_guid).map(|group| group.clone()) {
             send_party_update(&group, &registry, vra);
-            queue_visible_gameobjects_or_spellclicks_refresh_like_cpp(&group, &registry, my_guid);
+            queue_visible_gameobjects_or_spellclicks_refresh_like_cpp(&group, &registry, my_guid)
+                .await;
         }
         let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
     }
@@ -2209,8 +2344,8 @@ impl WorldSession {
             }
         }
 
-        if let Some(group) = group_reg.get(&group_guid) {
-            send_group_new_leader_like_cpp(&group, &registry, &target_name);
+        if let Some(group) = group_reg.get(&group_guid).map(|group| group.clone()) {
+            send_group_new_leader_like_cpp(&group, &registry, &target_name).await;
             send_party_update(&group, &registry, vra);
         }
     }
@@ -2903,7 +3038,7 @@ impl WorldSession {
 
         let registry = self.player_registry().map(std::sync::Arc::clone);
         let state = party_member_full_state_like_cpp(request.target_guid, registry.as_deref());
-        self.send_packet(&state);
+        self.send_packet_realm(&state);
     }
 
     /// CMSG_INITIATE_ROLE_POLL.
@@ -3164,18 +3299,20 @@ impl WorldSession {
 #[cfg(test)]
 mod tests {
     use super::{
-        SOCIAL_FLAG_FRIEND_LIKE_CPP, SOCIAL_FLAG_IGNORED_LIKE_CPP, current_group_guid_like_cpp,
+        PARTY_REALM_COMMAND_TIMEOUT_LIKE_CPP, SOCIAL_FLAG_FRIEND_LIKE_CPP,
+        SOCIAL_FLAG_IGNORED_LIKE_CPP, current_group_guid_like_cpp,
         first_connected_group_member_like_cpp, group_delete_statement_like_cpp,
         group_insert_statement_like_cpp, group_leader_update_statement_like_cpp,
         group_lfg_data_delete_statement_like_cpp, group_member_delete_all_statement_like_cpp,
         group_member_delete_statement_like_cpp, group_member_flag_update_statement_like_cpp,
         group_member_insert_statement_like_cpp, group_member_subgroup_update_statement_like_cpp,
         group_type_update_statement_like_cpp, party_invite_social_friend_match_like_cpp,
-        party_invite_social_ignore_match_like_cpp, party_player_info_like_cpp, send_party_update,
-        send_ready_check_events_like_cpp, sender_can_start_ready_check_like_cpp,
+        party_invite_social_ignore_match_like_cpp, party_player_info_like_cpp,
+        send_group_new_leader_like_cpp, send_party_update, send_ready_check_events_like_cpp,
+        sender_can_start_ready_check_like_cpp,
     };
     use flume::bounded;
-    use std::sync::Arc;
+    use std::{sync::Arc, time::Duration};
     use wow_constants::{ClientOpcodes, ServerOpcodes};
     use wow_core::{ObjectGuid, Position, guid::HighGuid};
     use wow_database::{CharStatements, SqlParam, StatementDef};
@@ -3184,15 +3321,60 @@ mod tests {
     use wow_network::{
         GroupInfo, GroupMemberCharacterLikeCpp, GroupRegistry, PendingInviteLikeCpp,
         PendingInvites, PlayerBroadcastInfo, PlayerRegistry, ReadyCheckEventLikeCpp,
-        SessionCommand,
+        SendRealmPacketLikeCppCommand, SessionCommand,
     };
-    use wow_packet::{WorldPacket, packets::party::party_result};
+    use wow_packet::{ServerPacket, WorldPacket, packets::party::party_result};
 
     use crate::session::WorldSession;
 
+    fn test_session_command_dispatcher(
+        guid: ObjectGuid,
+        send_tx: flume::Sender<Vec<u8>>,
+    ) -> (
+        flume::Sender<SessionCommand>,
+        flume::Receiver<SessionCommand>,
+    ) {
+        let (command_tx, command_rx) = flume::bounded(0);
+        let (observed_tx, observed_rx) = flume::unbounded();
+        std::thread::spawn(move || {
+            let mut party_sequences = std::collections::HashMap::<u8, i32>::new();
+            while let Ok(command) = command_rx.recv() {
+                match command {
+                    SessionCommand::SendRealmPacketLikeCpp(command)
+                        if command.recipient == guid =>
+                    {
+                        let _ = send_tx.send(command.packet_bytes);
+                    }
+                    SessionCommand::SendPartyUpdateLikeCpp(mut command)
+                        if command.recipient == guid =>
+                    {
+                        let sequence = party_sequences
+                            .entry(command.party_update.party_index)
+                            .or_default();
+                        *sequence += 1;
+                        command.party_update.sequence_num = *sequence;
+                        let _ = send_tx.send(command.party_update.to_bytes());
+                        for packet in command.member_full_state_packets {
+                            let _ = send_tx.send(packet);
+                        }
+                    }
+                    command => {
+                        let _ = observed_tx.send(command);
+                    }
+                }
+            }
+        });
+        (command_tx, observed_rx)
+    }
+
     fn broadcast_info(guid: ObjectGuid, send_tx: flume::Sender<Vec<u8>>) -> PlayerBroadcastInfo {
-        let (command_tx, _command_rx) = flume::bounded(0);
+        let (command_tx, _observed_rx) = test_session_command_dispatcher(guid, send_tx.clone());
         broadcast_info_with_command_tx(guid, send_tx, command_tx)
+    }
+
+    fn recv_dispatched_packet(rx: &flume::Receiver<Vec<u8>>, label: &str) -> Vec<u8> {
+        rx.recv_timeout(std::time::Duration::from_secs(1))
+            .unwrap_or_else(|error| panic!("{label}: {error}"))
     }
 
     fn broadcast_info_with_command_tx(
@@ -3209,6 +3391,7 @@ mod tests {
             is_in_world: true,
             send_tx,
             command_tx,
+            durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),
             pass_on_group_loot: false,
             enchanting_skill: 0,
@@ -3666,7 +3849,7 @@ mod tests {
 
         send_party_update(&group, &registry, 0);
 
-        let sent = rx.try_recv().unwrap();
+        let sent = recv_dispatched_packet(&rx, "raid PartyUpdate");
         let mut pkt = WorldPacket::from_bytes(&sent);
         assert_eq!(
             pkt.read_uint16().unwrap(),
@@ -3684,7 +3867,7 @@ mod tests {
 
         send_party_update(&group, &registry, 0);
 
-        let sent = rx.try_recv().unwrap();
+        let sent = recv_dispatched_packet(&rx, "non-master-loot PartyUpdate");
         assert!(
             !sent
                 .windows(master_bytes.len())
@@ -3703,7 +3886,7 @@ mod tests {
 
         send_party_update(&group, &registry, 0);
 
-        let sent = rx.try_recv().unwrap();
+        let sent = recv_dispatched_packet(&rx, "raid-group PartyUpdate");
         let mut pkt = WorldPacket::from_bytes(&sent);
         assert_eq!(
             pkt.read_uint16().unwrap(),
@@ -3931,7 +4114,7 @@ mod tests {
             pending_invites.get(&target).is_some(),
             "PartyIndex INSTANCE must not treat the full HOME group as the invite group"
         );
-        let invite = target_rx.try_recv().expect("target invite packet");
+        let invite = recv_dispatched_packet(&target_rx, "target invite packet");
         assert_eq!(
             u16::from_le_bytes([invite[0], invite[1]]),
             ServerOpcodes::PartyInvite as u16
@@ -3968,7 +4151,7 @@ mod tests {
             .handle_party_invite(party_invite_packet(target, &target_name, None, 0x12))
             .await;
 
-        let invite = target_rx.try_recv().expect("target invite packet");
+        let invite = recv_dispatched_packet(&target_rx, "target invite packet");
         let mut packet = WorldPacket::from_bytes(&invite);
         assert_eq!(
             packet.read_uint16().expect("opcode"),
@@ -4010,6 +4193,205 @@ mod tests {
             inviter_name
         );
         assert!(packet.is_empty());
+    }
+
+    #[tokio::test]
+    async fn party_invite_and_result_route_through_realm_like_cpp() {
+        let (mut session, instance_rx) = make_session_with_send();
+        let (realm_tx, realm_rx) = bounded(8);
+        session.install_realm_send_channel_for_test(realm_tx);
+        let inviter = ObjectGuid::create_player(1, 42);
+        let target = ObjectGuid::create_player(1, 77);
+        let target_name = format!("Player{}", target.low_value());
+        session.set_player_guid(Some(inviter));
+        session.set_loaded_player_name_like_cpp("Leader".to_string());
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (target_instance_tx, target_instance_rx) = bounded(8);
+        let (target_command_tx, target_command_rx) = bounded(8);
+        player_registry.insert(
+            target,
+            broadcast_info_with_command_tx(target, target_instance_tx, target_command_tx),
+        );
+        session.set_player_registry(player_registry);
+        session.set_group_registry(
+            Arc::new(GroupRegistry::default()),
+            Arc::new(PendingInvites::default()),
+        );
+
+        session
+            .handle_party_invite(party_invite_packet(target, &target_name, None, 0))
+            .await;
+
+        let SessionCommand::SendRealmPacketLikeCpp(command) =
+            target_command_rx.try_recv().expect("remote realm command")
+        else {
+            panic!("expected remote realm packet command");
+        };
+        assert_eq!(command.recipient, target);
+        assert_eq!(
+            u16::from_le_bytes([command.packet_bytes[0], command.packet_bytes[1]]),
+            ServerOpcodes::PartyInvite as u16
+        );
+        assert!(target_instance_rx.try_recv().is_err());
+
+        let result = realm_rx.try_recv().expect("realm PartyCommandResult");
+        assert_eq!(
+            u16::from_le_bytes([result[0], result[1]]),
+            ServerOpcodes::PartyCommandResult as u16
+        );
+        assert!(instance_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn party_invite_waits_through_command_backpressure_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let inviter = ObjectGuid::create_player(1, 42);
+        let target = ObjectGuid::create_player(1, 77);
+        let target_name = format!("Player{}", target.low_value());
+        session.set_player_guid(Some(inviter));
+        session.set_loaded_player_name_like_cpp("Leader".to_string());
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (target_send_tx, target_send_rx) = bounded(8);
+        let (target_command_tx, target_command_rx) = bounded(1);
+        target_command_tx
+            .try_send(SessionCommand::SendRealmPacketLikeCpp(
+                SendRealmPacketLikeCppCommand {
+                    recipient: target,
+                    packet_bytes: vec![0xAA],
+                },
+            ))
+            .expect("fill target command queue");
+        player_registry.insert(
+            target,
+            broadcast_info_with_command_tx(target, target_send_tx, target_command_tx.clone()),
+        );
+        let pending = Arc::new(PendingInvites::default());
+        session.set_player_registry(player_registry);
+        session.set_group_registry(Arc::new(GroupRegistry::default()), Arc::clone(&pending));
+
+        let invite =
+            session.handle_party_invite(party_invite_packet(target, &target_name, None, 0));
+        tokio::pin!(invite);
+
+        assert!(
+            tokio::time::timeout(
+                PARTY_REALM_COMMAND_TIMEOUT_LIKE_CPP + Duration::from_millis(50),
+                &mut invite,
+            )
+            .await
+            .is_err(),
+            "temporary command backpressure must not be converted into a failed invite"
+        );
+        assert!(pending.get(&target).is_some());
+        assert!(pending.get(&inviter).is_some());
+        assert!(send_rx.try_recv().is_err());
+        assert!(target_send_rx.try_recv().is_err());
+
+        let SessionCommand::SendRealmPacketLikeCpp(blocker) = target_command_rx
+            .try_recv()
+            .expect("release target command capacity")
+        else {
+            panic!("expected command queue blocker");
+        };
+        assert_eq!(blocker.packet_bytes, vec![0xAA]);
+
+        tokio::time::timeout(Duration::from_secs(1), &mut invite)
+            .await
+            .expect("invite resumes when the target command queue drains");
+
+        let SessionCommand::SendRealmPacketLikeCpp(command) = target_command_rx
+            .try_recv()
+            .expect("queued party invite after backpressure")
+        else {
+            panic!("expected remote realm packet command");
+        };
+        assert_eq!(command.recipient, target);
+        assert_eq!(
+            u16::from_le_bytes([command.packet_bytes[0], command.packet_bytes[1]]),
+            ServerOpcodes::PartyInvite as u16
+        );
+
+        assert_eq!(
+            party_command_result_code(&send_rx.try_recv().expect("successful invite result")),
+            party_result::OK
+        );
+        assert!(pending.get(&target).is_some());
+        assert!(pending.get(&inviter).is_some());
+        assert!(target_send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn party_invite_closed_command_channel_rolls_back_pending_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let inviter = ObjectGuid::create_player(1, 42);
+        let target = ObjectGuid::create_player(1, 77);
+        let target_name = format!("Player{}", target.low_value());
+        session.set_player_guid(Some(inviter));
+        session.set_loaded_player_name_like_cpp("Leader".to_string());
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (target_send_tx, target_send_rx) = bounded(8);
+        let (target_command_tx, target_command_rx) = bounded(1);
+        drop(target_command_rx);
+        player_registry.insert(
+            target,
+            broadcast_info_with_command_tx(target, target_send_tx, target_command_tx),
+        );
+        let pending = Arc::new(PendingInvites::default());
+        session.set_player_registry(player_registry);
+        session.set_group_registry(Arc::new(GroupRegistry::default()), Arc::clone(&pending));
+
+        session
+            .handle_party_invite(party_invite_packet(target, &target_name, None, 0))
+            .await;
+
+        assert_eq!(
+            party_command_result_code(&send_rx.try_recv().expect("failed invite result")),
+            party_result::BAD_PLAYER_NAME
+        );
+        assert!(pending.get(&target).is_none());
+        assert!(pending.get(&inviter).is_none());
+        assert!(target_send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn group_new_leader_fanout_queues_realm_commands_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let member = ObjectGuid::create_player(1, 77);
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        let registry = PlayerRegistry::default();
+        let (leader_instance_tx, leader_instance_rx) = bounded(4);
+        let (leader_command_tx, leader_command_rx) = bounded(4);
+        registry.insert(
+            leader,
+            broadcast_info_with_command_tx(leader, leader_instance_tx, leader_command_tx),
+        );
+        let (member_instance_tx, member_instance_rx) = bounded(4);
+        let (member_command_tx, member_command_rx) = bounded(4);
+        registry.insert(
+            member,
+            broadcast_info_with_command_tx(member, member_instance_tx, member_command_tx),
+        );
+
+        send_group_new_leader_like_cpp(&group, &registry, "NewLeader").await;
+
+        for (expected, command_rx) in [(leader, leader_command_rx), (member, member_command_rx)] {
+            let SessionCommand::SendRealmPacketLikeCpp(command) =
+                command_rx.try_recv().expect("realm GroupNewLeader command")
+            else {
+                panic!("expected realm command");
+            };
+            assert_eq!(command.recipient, expected);
+            assert_eq!(
+                u16::from_le_bytes([command.packet_bytes[0], command.packet_bytes[1]]),
+                ServerOpcodes::GroupNewLeader as u16
+            );
+        }
+        assert!(leader_instance_rx.try_recv().is_err());
+        assert!(member_instance_rx.try_recv().is_err());
     }
 
     #[tokio::test]
@@ -4079,9 +4461,10 @@ mod tests {
             party_command_result_code(&send_rx.try_recv().expect("party command result")),
             party_result::ALREADY_IN_GROUP
         );
-        assert!(!party_invite_can_accept(
-            &target_rx.try_recv().expect("target failed invite packet")
-        ));
+        assert!(!party_invite_can_accept(&recv_dispatched_packet(
+            &target_rx,
+            "target failed invite packet"
+        )));
         assert!(pending_invites.get(&target).is_none());
     }
 
@@ -4116,9 +4499,10 @@ mod tests {
             .await;
 
         assert!(pending_invites.get(&target).is_some());
-        assert!(party_invite_can_accept(
-            &target_rx.try_recv().expect("target invite packet")
-        ));
+        assert!(party_invite_can_accept(&recv_dispatched_packet(
+            &target_rx,
+            "target invite packet"
+        )));
     }
 
     #[tokio::test]
@@ -4217,9 +4601,10 @@ mod tests {
             .await;
 
         assert!(pending_invites.get(&target).is_some());
-        assert!(party_invite_can_accept(
-            &target_rx.try_recv().expect("target invite packet")
-        ));
+        assert!(party_invite_can_accept(&recv_dispatched_packet(
+            &target_rx,
+            "target invite packet"
+        )));
     }
 
     #[tokio::test]
@@ -4250,9 +4635,10 @@ mod tests {
             .await;
 
         assert!(pending_invites.get(&target).is_some());
-        assert!(party_invite_can_accept(
-            &target_rx.try_recv().expect("target invite packet")
-        ));
+        assert!(party_invite_can_accept(&recv_dispatched_packet(
+            &target_rx,
+            "target invite packet"
+        )));
     }
 
     #[tokio::test]
@@ -4551,12 +4937,12 @@ mod tests {
         assert!(command.send_group_uninvite);
         assert!(command.refresh_visible_gameobjects_or_spellclicks);
 
-        let leader_update = leader_rx.try_recv().expect("leader party update");
+        let leader_update = recv_dispatched_packet(&leader_rx, "leader party update");
         assert_eq!(
             u16::from_le_bytes([leader_update[0], leader_update[1]]),
             ServerOpcodes::PartyUpdate as u16
         );
-        let remaining_update = remaining_rx.try_recv().expect("remaining party update");
+        let remaining_update = recv_dispatched_packet(&remaining_rx, "remaining party update");
         assert_eq!(
             u16::from_le_bytes([remaining_update[0], remaining_update[1]]),
             ServerOpcodes::PartyUpdate as u16
@@ -4672,8 +5058,8 @@ mod tests {
 
         send_party_update(&group, &registry, 0);
 
-        let _party_update = leader_rx.try_recv().unwrap();
-        let full_state = leader_rx.try_recv().unwrap();
+        let _party_update = recv_dispatched_packet(&leader_rx, "leader PartyUpdate");
+        let full_state = recv_dispatched_packet(&leader_rx, "leader PartyMemberFullState");
         assert_eq!(
             u16::from_le_bytes([full_state[0], full_state[1]]),
             ServerOpcodes::PartyMemberFullState as u16
@@ -5302,6 +5688,26 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn request_party_member_stats_routes_reply_through_realm_like_cpp() {
+        let (mut session, instance_rx) = make_session_with_send();
+        let (realm_tx, realm_rx) = bounded(4);
+        session.install_realm_send_channel_for_test(realm_tx);
+        let target = ObjectGuid::create_player(1, 77);
+        session.set_player_registry(Arc::new(PlayerRegistry::default()));
+
+        session
+            .handle_request_party_member_stats(request_party_member_stats_packet(target, None))
+            .await;
+
+        let packet = realm_rx.try_recv().expect("realm PartyMemberFullState");
+        assert_eq!(
+            u16::from_le_bytes([packet[0], packet[1]]),
+            ServerOpcodes::PartyMemberFullState as u16
+        );
+        assert!(instance_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
     async fn request_party_member_stats_online_replies_snapshot_without_fanout_like_cpp() {
         let (mut session, send_rx) = make_session_with_send();
         let target = ObjectGuid::create_player(1, 78);
@@ -5501,12 +5907,10 @@ mod tests {
         assert_eq!(pkt.read_uint8().unwrap(), 1);
         assert_eq!(pkt.read_uint8().unwrap(), 4);
 
-        let leader_update = leader_rx
-            .try_recv()
-            .expect("leader PartyUpdate after SetLfgRoles");
-        let member_update = member_rx
-            .try_recv()
-            .expect("member PartyUpdate after SetLfgRoles");
+        let leader_update =
+            recv_dispatched_packet(&leader_rx, "leader PartyUpdate after SetLfgRoles");
+        let member_update =
+            recv_dispatched_packet(&member_rx, "member PartyUpdate after SetLfgRoles");
         let mut leader_update_pkt = WorldPacket::from_bytes(&leader_update);
         let mut member_update_pkt = WorldPacket::from_bytes(&member_update);
         assert_eq!(
@@ -5713,11 +6117,13 @@ mod tests {
         let player_registry = Arc::new(PlayerRegistry::default());
         let (leader_tx, leader_rx) = bounded(8);
         let (member_tx, _member_rx) = bounded(8);
-        let (member_command_tx, member_command_rx) = bounded(8);
+        let (member_command_tx, member_command_rx) =
+            test_session_command_dispatcher(member, member_tx.clone());
         player_registry.insert(leader, broadcast_info(leader, leader_tx));
-        let mut member_info = broadcast_info(member, member_tx);
-        member_info.command_tx = member_command_tx;
-        player_registry.insert(member, member_info);
+        player_registry.insert(
+            member,
+            broadcast_info_with_command_tx(member, member_tx, member_command_tx),
+        );
 
         session.set_player_guid(Some(leader));
         session.group_guid = Some(group_guid);
@@ -5731,26 +6137,20 @@ mod tests {
                 .get(&group_guid)
                 .is_some_and(|group| group.is_raid_group())
         );
-        let mut remote_refresh_queued = false;
-        while let Ok(command) = member_command_rx.try_recv() {
-            if matches!(
-                command,
-                SessionCommand::RefreshVisibleGameobjectsOrSpellClicksLikeCpp
-            ) {
-                remote_refresh_queued = true;
-            }
-        }
-        assert!(
-            remote_refresh_queued,
-            "remote member visible refresh command queued"
-        );
+        let remote_refresh = member_command_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("remote member visible refresh command queued");
+        assert!(matches!(
+            remote_refresh,
+            SessionCommand::RefreshVisibleGameobjectsOrSpellClicksLikeCpp
+        ));
         let command_result = send_rx.try_recv().expect("party command result");
         assert_eq!(
             u16::from_le_bytes([command_result[0], command_result[1]]),
             ServerOpcodes::PartyCommandResult as u16
         );
         assert!(send_rx.try_recv().is_err());
-        let party_update = leader_rx.try_recv().expect("leader party update");
+        let party_update = recv_dispatched_packet(&leader_rx, "leader party update");
         assert_eq!(
             u16::from_le_bytes([party_update[0], party_update[1]]),
             ServerOpcodes::PartyUpdate as u16
@@ -5759,6 +6159,59 @@ mod tests {
             u16::from_le_bytes([party_update[2], party_update[3]]),
             wow_network::GROUP_FLAG_RAID_LIKE_CPP
         );
+    }
+
+    #[tokio::test]
+    async fn convert_raid_releases_group_guard_before_refresh_backpressure_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 142);
+        let member = ObjectGuid::create_player(1, 143);
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(member);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (leader_tx, _leader_rx) = bounded(8);
+        player_registry.insert(leader, broadcast_info(leader, leader_tx));
+        let (member_tx, _member_rx) = bounded(8);
+        // PartyUpdate fills this single slot; the following async refresh then
+        // waits for its timeout and exposes any DashMap guard held across it.
+        let (member_command_tx, _member_command_rx) = flume::bounded(1);
+        player_registry.insert(
+            member,
+            broadcast_info_with_command_tx(member, member_tx, member_command_tx),
+        );
+
+        session.set_player_guid(Some(leader));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(player_registry);
+        session.set_group_registry(
+            Arc::clone(&group_registry),
+            Arc::new(PendingInvites::default()),
+        );
+
+        let mut conversion = Box::pin(session.handle_convert_raid(convert_raid_packet(true)));
+        tokio::select! {
+            () = &mut conversion => panic!("refresh should be waiting on the full command channel"),
+            () = tokio::time::sleep(Duration::from_millis(20)) => {}
+        }
+
+        let writer_registry = Arc::clone(&group_registry);
+        let writer = tokio::task::spawn_blocking(move || {
+            writer_registry
+                .get_mut(&group_guid)
+                .map(|group| group.group_flags)
+        });
+        let observed_flags = tokio::time::timeout(Duration::from_secs(1), writer)
+            .await
+            .expect("the group write must not wait for refresh channel backpressure")
+            .expect("group writer task should not panic")
+            .expect("converted group should remain registered");
+        assert_ne!(observed_flags & wow_network::GROUP_FLAG_RAID_LIKE_CPP, 0);
+
+        conversion.await;
     }
 
     #[tokio::test]
@@ -5822,12 +6275,12 @@ mod tests {
         let group = group_registry.get(&group_guid).unwrap();
         assert_eq!(group.member_group_like_cpp(member), 2);
         assert!(group.has_free_slot_sub_group_like_cpp(0));
-        let leader_update = leader_rx.try_recv().expect("leader party update");
+        let leader_update = recv_dispatched_packet(&leader_rx, "leader party update");
         assert_eq!(
             u16::from_le_bytes([leader_update[0], leader_update[1]]),
             ServerOpcodes::PartyUpdate as u16
         );
-        let member_update = member_rx.try_recv().expect("member party update");
+        let member_update = recv_dispatched_packet(&member_rx, "member party update");
         assert_eq!(
             u16::from_le_bytes([member_update[0], member_update[1]]),
             ServerOpcodes::PartyUpdate as u16
@@ -5938,12 +6391,12 @@ mod tests {
                 & wow_network::MEMBER_FLAG_MAINTANK_LIKE_CPP,
             wow_network::MEMBER_FLAG_MAINTANK_LIKE_CPP
         );
-        let leader_update = leader_rx.try_recv().expect("leader party update");
+        let leader_update = recv_dispatched_packet(&leader_rx, "leader party update");
         assert_eq!(
             u16::from_le_bytes([leader_update[0], leader_update[1]]),
             ServerOpcodes::PartyUpdate as u16
         );
-        let member_update = member_rx.try_recv().expect("member party update");
+        let member_update = recv_dispatched_packet(&member_rx, "member party update");
         assert_eq!(
             u16::from_le_bytes([member_update[0], member_update[1]]),
             ServerOpcodes::PartyUpdate as u16
@@ -6003,7 +6456,7 @@ mod tests {
                 & wow_network::MEMBER_FLAG_MAINASSIST_LIKE_CPP,
             wow_network::MEMBER_FLAG_MAINASSIST_LIKE_CPP
         );
-        assert!(leader_rx.try_recv().is_ok());
+        let _ = recv_dispatched_packet(&leader_rx, "leader party update");
     }
 
     #[tokio::test]
@@ -6097,8 +6550,8 @@ mod tests {
                 .flags,
             0
         );
-        assert!(leader_rx.try_recv().is_ok());
-        assert!(member_rx.try_recv().is_ok());
+        let _ = recv_dispatched_packet(&leader_rx, "leader party update");
+        let _ = recv_dispatched_packet(&member_rx, "member party update");
 
         {
             let mut group = group_registry.get_mut(&group_guid).unwrap();
@@ -6129,8 +6582,8 @@ mod tests {
                 & wow_network::MEMBER_FLAG_MAINTANK_LIKE_CPP,
             0
         );
-        assert!(leader_rx.try_recv().is_ok());
-        assert!(member_rx.try_recv().is_ok());
+        let _ = recv_dispatched_packet(&leader_rx, "leader party update");
+        let _ = recv_dispatched_packet(&member_rx, "member party update");
     }
 
     #[tokio::test]
@@ -6164,8 +6617,8 @@ mod tests {
         let group = group_registry.get(&group_guid).unwrap();
         assert_eq!(group.sequence_num, sequence_before);
         assert_eq!(group.member_slot_like_cpp(member).unwrap().flags, 0);
-        assert!(leader_rx.try_recv().is_ok());
-        assert!(member_rx.try_recv().is_ok());
+        let _ = recv_dispatched_packet(&leader_rx, "leader party update");
+        let _ = recv_dispatched_packet(&member_rx, "member party update");
     }
 
     #[tokio::test]
@@ -6207,12 +6660,12 @@ mod tests {
                 wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP
             );
         }
-        let leader_update = leader_rx.try_recv().expect("leader party update");
+        let leader_update = recv_dispatched_packet(&leader_rx, "leader party update");
         assert_eq!(
             u16::from_le_bytes([leader_update[0], leader_update[1]]),
             ServerOpcodes::PartyUpdate as u16
         );
-        let member_update = member_rx.try_recv().expect("member party update");
+        let member_update = recv_dispatched_packet(&member_rx, "member party update");
         assert_eq!(
             u16::from_le_bytes([member_update[0], member_update[1]]),
             ServerOpcodes::PartyUpdate as u16
@@ -6258,8 +6711,8 @@ mod tests {
                 0
             );
         }
-        assert!(leader_rx.try_recv().is_ok());
-        assert!(member_rx.try_recv().is_ok());
+        let _ = recv_dispatched_packet(&leader_rx, "leader party update");
+        let _ = recv_dispatched_packet(&member_rx, "member party update");
     }
 
     #[tokio::test]
@@ -6434,8 +6887,8 @@ mod tests {
             group_registry.get(&group_guid).unwrap().sequence_num,
             sequence_after_apply
         );
-        assert!(leader_rx.try_recv().is_ok());
-        assert!(member_rx.try_recv().is_ok());
+        let _ = recv_dispatched_packet(&leader_rx, "leader party update");
+        let _ = recv_dispatched_packet(&member_rx, "member party update");
     }
 
     #[tokio::test]
@@ -6476,12 +6929,12 @@ mod tests {
                 & wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP,
             wow_network::MEMBER_FLAG_ASSISTANT_LIKE_CPP
         );
-        let leader_update = leader_rx.try_recv().expect("leader party update");
+        let leader_update = recv_dispatched_packet(&leader_rx, "leader party update");
         assert_eq!(
             u16::from_le_bytes([leader_update[0], leader_update[1]]),
             ServerOpcodes::PartyUpdate as u16
         );
-        let member_update = member_rx.try_recv().expect("member party update");
+        let member_update = recv_dispatched_packet(&member_rx, "member party update");
         assert_eq!(
             u16::from_le_bytes([member_update[0], member_update[1]]),
             ServerOpcodes::PartyUpdate as u16
@@ -6543,22 +6996,22 @@ mod tests {
         );
         drop(group);
 
-        let leader_new_leader = leader_rx.try_recv().expect("leader new-leader packet");
+        let leader_new_leader = recv_dispatched_packet(&leader_rx, "leader new-leader packet");
         assert_eq!(
             u16::from_le_bytes([leader_new_leader[0], leader_new_leader[1]]),
             ServerOpcodes::GroupNewLeader as u16
         );
-        let leader_update = leader_rx.try_recv().expect("leader party update");
+        let leader_update = recv_dispatched_packet(&leader_rx, "leader party update");
         assert_eq!(
             u16::from_le_bytes([leader_update[0], leader_update[1]]),
             ServerOpcodes::PartyUpdate as u16
         );
-        let member_new_leader = member_rx.try_recv().expect("member new-leader packet");
+        let member_new_leader = recv_dispatched_packet(&member_rx, "member new-leader packet");
         assert_eq!(
             u16::from_le_bytes([member_new_leader[0], member_new_leader[1]]),
             ServerOpcodes::GroupNewLeader as u16
         );
-        let member_update = member_rx.try_recv().expect("member party update");
+        let member_update = recv_dispatched_packet(&member_rx, "member party update");
         assert_eq!(
             u16::from_le_bytes([member_update[0], member_update[1]]),
             ServerOpcodes::PartyUpdate as u16
@@ -6737,17 +7190,17 @@ mod tests {
         let group = group_registry.get(&group_guid).unwrap();
         assert_eq!(group.member_group_like_cpp(first), 2);
         assert_eq!(group.member_group_like_cpp(second), 0);
-        let leader_update = leader_rx.try_recv().expect("leader party update");
+        let leader_update = recv_dispatched_packet(&leader_rx, "leader party update");
         assert_eq!(
             u16::from_le_bytes([leader_update[0], leader_update[1]]),
             ServerOpcodes::PartyUpdate as u16
         );
-        let first_update = first_rx.try_recv().expect("first member party update");
+        let first_update = recv_dispatched_packet(&first_rx, "first member party update");
         assert_eq!(
             u16::from_le_bytes([first_update[0], first_update[1]]),
             ServerOpcodes::PartyUpdate as u16
         );
-        let second_update = second_rx.try_recv().expect("second member party update");
+        let second_update = recv_dispatched_packet(&second_rx, "second member party update");
         assert_eq!(
             u16::from_le_bytes([second_update[0], second_update[1]]),
             ServerOpcodes::PartyUpdate as u16
@@ -6834,16 +7287,13 @@ mod tests {
                 .member_group_like_cpp(second),
             0
         );
-        let first_update = first_rx
-            .try_recv()
-            .expect("first update after assistant swap");
+        let first_update = recv_dispatched_packet(&first_rx, "first update after assistant swap");
         assert_eq!(
             u16::from_le_bytes([first_update[0], first_update[1]]),
             ServerOpcodes::PartyUpdate as u16
         );
-        let second_update = second_rx
-            .try_recv()
-            .expect("second update after assistant swap");
+        let second_update =
+            recv_dispatched_packet(&second_rx, "second update after assistant swap");
         assert_eq!(
             u16::from_le_bytes([second_update[0], second_update[1]]),
             ServerOpcodes::PartyUpdate as u16
