@@ -31339,6 +31339,7 @@ impl WorldSession {
                 liquid_status: self.player_liquid_status_like_cpp(),
                 is_in_world: self.player_is_in_world_for_registry_like_cpp(),
                 send_tx: self.send_tx.clone(),
+                realm_send_tx: self.realm_send_tx.as_ref().unwrap_or(&self.send_tx).clone(),
                 command_tx: self.session_command_tx.clone(),
                 durable_loot_money_tracker_like_cpp: Arc::clone(
                     &self.durable_loot_money_persistence_like_cpp,
@@ -36934,7 +36935,10 @@ impl WorldSession {
             }
         }
 
-        self.send_packet(&packet);
+        // C++ `Player::SendNewItem` uses `SendDirectMessage`; opcode routing
+        // places `SMSG_ITEM_PUSH_RESULT` on CONNECTION_TYPE_REALM even while
+        // the inventory object updates remain on the instance connection.
+        self.send_packet_realm(&packet);
     }
 
     fn broadcast_item_push_result_to_group(&self, bytes: Vec<u8>) -> bool {
@@ -36951,7 +36955,7 @@ impl WorldSession {
         let mut delivered = false;
         for member_guid in &group.members {
             if let Some(member) = player_registry.get(member_guid) {
-                delivered |= member.send_tx.send(bytes.clone()).is_ok();
+                delivered |= member.realm_send_tx.send(bytes.clone()).is_ok();
             }
         }
 
@@ -94485,6 +94489,7 @@ mod tests {
             combat_reach: 0.0,
             liquid_status: 0,
             is_in_world: true,
+            realm_send_tx: send_tx.clone(),
             send_tx,
             command_tx,
             durable_loot_money_tracker_like_cpp: Default::default(),
@@ -130717,14 +130722,17 @@ mod tests {
     }
 
     #[test]
-    fn send_new_item_plan_direct_sends_item_push_result_to_session() {
-        let (session, _, send_rx) = make_session();
+    fn send_new_item_plan_direct_routes_item_push_result_to_realm_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let (realm_tx, realm_rx) = flume::bounded(1);
+        session.install_realm_send_channel_for_test(realm_tx);
         let plan = send_new_item_plan(SendNewItemDelivery::Direct);
         let expected = WorldSession::item_push_result_from_send_new_item_plan(&plan).to_bytes();
 
         session.send_new_item_plan(&plan);
 
-        assert_eq!(send_rx.try_recv().unwrap(), expected);
+        assert_eq!(realm_rx.try_recv().unwrap(), expected);
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[test]
@@ -130733,10 +130741,16 @@ mod tests {
         let self_guid = ObjectGuid::create_player(1, 42);
         let other_guid = ObjectGuid::create_player(1, 43);
         let (self_tx, self_rx) = flume::bounded(10);
+        let (self_realm_tx, self_realm_rx) = flume::bounded(10);
         let (other_tx, other_rx) = flume::bounded(10);
+        let (other_realm_tx, other_realm_rx) = flume::bounded(10);
         let player_registry = Arc::new(PlayerRegistry::default());
-        player_registry.insert(self_guid, broadcast_info(self_guid, self_tx));
-        player_registry.insert(other_guid, broadcast_info(other_guid, other_tx));
+        let mut self_info = broadcast_info(self_guid, self_tx);
+        self_info.realm_send_tx = self_realm_tx;
+        player_registry.insert(self_guid, self_info);
+        let mut other_info = broadcast_info(other_guid, other_tx);
+        other_info.realm_send_tx = other_realm_tx;
+        player_registry.insert(other_guid, other_info);
         let group_registry = Arc::new(GroupRegistry::default());
         let mut group = GroupInfo::new(self_guid);
         group.add_member(other_guid);
@@ -130751,8 +130765,10 @@ mod tests {
 
         session.send_new_item_plan(&plan);
 
-        assert_eq!(self_rx.try_recv().unwrap(), expected);
-        assert_eq!(other_rx.try_recv().unwrap(), expected);
+        assert_eq!(self_realm_rx.try_recv().unwrap(), expected);
+        assert_eq!(other_realm_rx.try_recv().unwrap(), expected);
+        assert!(self_rx.try_recv().is_err());
+        assert!(other_rx.try_recv().is_err());
         assert!(send_rx.try_recv().is_err());
     }
 

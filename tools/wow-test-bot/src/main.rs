@@ -56,6 +56,7 @@ const SMSG_SPELL_GO: u16 = 0x2C36;
 const CMSG_LOGOUT_REQUEST: u16 = 0x34D6;
 const SMSG_LOGOUT_COMPLETE: u16 = 0x2684;
 const SMSG_VENDOR_INVENTORY: u16 = 0x25B8;
+const SMSG_ITEM_PUSH_RESULT: u16 = 0x2623;
 const SMSG_BUY_SUCCEEDED: u16 = 0x26C6;
 const SMSG_BUY_FAILED: u16 = 0x26C7;
 const SMSG_SET_CURRENCY: u16 = 0x2574;
@@ -366,6 +367,7 @@ struct BotRunResult {
     vendor_inventory_seen: bool,
     vendor_buy_succeeded_seen: bool,
     vendor_set_currency_seen: bool,
+    vendor_item_push_seen: bool,
     vendor_relogin_verified: bool,
     vendor_failure: Option<String>,
     rested_xp_smoke: bool,
@@ -2884,6 +2886,7 @@ async fn run_bot(
         vendor_inventory_seen: false,
         vendor_buy_succeeded_seen: false,
         vendor_set_currency_seen: false,
+        vendor_item_push_seen: false,
         vendor_relogin_verified: false,
         vendor_failure: None,
         rested_xp_smoke: rested_xp_options.is_some(),
@@ -3481,6 +3484,7 @@ async fn run_bot(
             &mut stream,
             &mut crypt,
             &mut server_inflater,
+            &mut realm_connection,
             &vendor_options,
             vendor_target_seen,
             &mut result,
@@ -3488,11 +3492,13 @@ async fn run_bot(
         .await
         {
             let mut failure = error.to_string();
-            if let Err(logout_error) = logout_and_wait(
+            if let Err(logout_error) = loot_race::logout_and_wait_routed_like_cpp(
                 bot_index,
                 &mut stream,
                 &mut crypt,
                 &mut server_inflater,
+                realm_connection.as_mut(),
+                bot.character_guid,
                 &mut result,
             )
             .await
@@ -3816,7 +3822,7 @@ fn log_bot_summary(
         }
         if result.vendor_smoke {
             info!(
-                "✅ Bot {}: SUCCESS vendor_smoke vendor={:?}/{:?}/counter={:?} item={:?}/cost={:?} currency={:?} {:?}->{:?} item_total={:?} list={} buy={} set_currency={} relog={} failure={:?}",
+                "✅ Bot {}: SUCCESS vendor_smoke vendor={:?}/{:?}/counter={:?} item={:?}/cost={:?} currency={:?} {:?}->{:?} item_total={:?} list={} buy={} set_currency={} item_push={} relog={} failure={:?}",
                 result.account,
                 result.vendor_entry,
                 result.vendor_spawn_guid,
@@ -3830,6 +3836,7 @@ fn log_bot_summary(
                 result.vendor_inventory_seen,
                 result.vendor_buy_succeeded_seen,
                 result.vendor_set_currency_seen,
+                result.vendor_item_push_seen,
                 result.vendor_relogin_verified,
                 result.vendor_failure,
             );
@@ -3971,7 +3978,7 @@ fn log_bot_summary(
         }
         if result.vendor_smoke {
             error!(
-                "❌ Bot {}: FAILED vendor_smoke vendor={:?}/{:?}/counter={:?} item={:?}/cost={:?} currency={:?} {:?}->{:?} item_total={:?} list={} buy={} set_currency={} relog={} failure={:?}",
+                "❌ Bot {}: FAILED vendor_smoke vendor={:?}/{:?}/counter={:?} item={:?}/cost={:?} currency={:?} {:?}->{:?} item_total={:?} list={} buy={} set_currency={} item_push={} relog={} failure={:?}",
                 result.account,
                 result.vendor_entry,
                 result.vendor_spawn_guid,
@@ -3985,6 +3992,7 @@ fn log_bot_summary(
                 result.vendor_inventory_seen,
                 result.vendor_buy_succeeded_seen,
                 result.vendor_set_currency_seen,
+                result.vendor_item_push_seen,
                 result.vendor_relogin_verified,
                 result.vendor_failure,
             );
@@ -6700,6 +6708,7 @@ async fn run_vendor_smoke_workflow(
                     combined.vendor_inventory_seen
                         && combined.vendor_buy_succeeded_seen
                         && combined.vendor_set_currency_seen
+                        && combined.vendor_item_push_seen
                         && combined.vendor_relogin_verified
                         && second.vendor_smoke_passed.unwrap_or(false),
                 );
@@ -6737,6 +6746,7 @@ async fn run_vendor_smoke_phase(
     stream: &mut TcpStream,
     crypt: &mut WorldCrypt,
     server_inflater: &mut ServerPacketInflater,
+    realm_connection: &mut Option<EncryptedWorldConnection>,
     options: &VendorSmokeOptions,
     login_discovered_target: Option<DiscoveredCreatureGuid>,
     result: &mut BotRunResult,
@@ -6764,7 +6774,16 @@ async fn run_vendor_smoke_phase(
             );
         }
         result.vendor_relogin_verified = true;
-        logout_and_wait(bot_index, stream, crypt, server_inflater, result).await?;
+        loot_race::logout_and_wait_routed_like_cpp(
+            bot_index,
+            stream,
+            crypt,
+            server_inflater,
+            realm_connection.as_mut(),
+            bot.character_guid,
+            result,
+        )
+        .await?;
         result.vendor_smoke_passed = Some(true);
         return Ok(());
     }
@@ -6783,6 +6802,23 @@ async fn run_vendor_smoke_phase(
             options.currency_before
         );
     }
+
+    // C++ Player::CanNeverSee keeps nearby world objects hidden until the
+    // client acknowledges that its active mover is initialized. Rust may have
+    // queued the vendor CREATE earlier, so send the canonical ACK before the
+    // cross-server discovery window in both cases.
+    let active_mover_complete = build_move_init_active_mover_complete_payload(0);
+    send_encrypted_packet(
+        stream,
+        crypt,
+        CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE,
+        &active_mover_complete,
+    )
+    .await?;
+    info!(
+        "[Bot {}] ✅ CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE sent before vendor discovery",
+        bot_index
+    );
 
     let expected_runtime_counter = (options.vendor.guid_counter != 0)
         .then_some(options.vendor.guid_counter & OBJECT_GUID_COUNTER_MASK);
@@ -6857,6 +6893,7 @@ async fn run_vendor_smoke_phase(
         stream,
         crypt,
         server_inflater,
+        realm_connection,
         &runtime_vendor_guid,
         vendor_item.muid,
         options,
@@ -6865,7 +6902,16 @@ async fn run_vendor_smoke_phase(
     )
     .await?;
 
-    logout_and_wait(bot_index, stream, crypt, server_inflater, result).await?;
+    loot_race::logout_and_wait_routed_like_cpp(
+        bot_index,
+        stream,
+        crypt,
+        server_inflater,
+        realm_connection.as_mut(),
+        bot.character_guid,
+        result,
+    )
+    .await?;
     let bot_for_after = bot.clone();
     let currency_id = options.currency_id;
     let item_entry = options.item_entry;
@@ -7172,39 +7218,72 @@ async fn wait_for_vendor_purchase_result(
     stream: &mut TcpStream,
     crypt: &mut WorldCrypt,
     server_inflater: &mut ServerPacketInflater,
+    realm_connection: &mut Option<EncryptedWorldConnection>,
     expected_vendor_guid: &[u8],
     expected_muid: i32,
     options: &VendorSmokeOptions,
     expected_currency_after: u32,
     result: &mut BotRunResult,
 ) -> Result<()> {
+    let realm = realm_connection
+        .as_mut()
+        .context("vendor purchase requires the preserved realm connection")?;
     let deadline = tokio::time::Instant::now() + Duration::from_secs(options.timeout_secs);
     let mut fence_sent = false;
     loop {
         let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
         if remaining.is_zero() {
             bail!(
-                "timed out waiting for vendor purchase result (buy={}, currency={}, fence={})",
+                "timed out waiting for vendor purchase result (buy={}, currency={}, item_push={}, fence={})",
                 result.vendor_buy_succeeded_seen,
                 result.vendor_set_currency_seen,
+                result.vendor_item_push_seen,
                 fence_sent
             );
         }
-        let (opcode, payload) = tokio::time::timeout(
+        // C++ splits this result across both encrypted connections. Poll for
+        // readiness, then finish one selected frame without cancellation so
+        // a losing `select!` branch cannot consume a partial encrypted frame.
+        let routed_packet = if let Some((opcode, payload)) = read_encrypted_packet_if_ready(
+            &mut realm.stream,
+            &mut realm.crypt,
+            &mut realm.inflater,
+            remaining.min(Duration::from_millis(5)),
             remaining,
-            read_encrypted_packet(stream, crypt, server_inflater),
+            "vendor realm purchase result",
         )
-        .await
-        .map_err(|_| anyhow!("timed out waiting for vendor purchase result"))??;
+        .await?
+        {
+            Some(("realm", true, opcode, payload))
+        } else {
+            let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+            read_encrypted_packet_if_ready(
+                stream,
+                crypt,
+                server_inflater,
+                remaining.min(Duration::from_millis(5)),
+                remaining,
+                "vendor instance purchase result",
+            )
+            .await?
+            .map(|(opcode, payload)| ("instance", false, opcode, payload))
+        };
+        let Some((connection, on_realm, opcode, payload)) = routed_packet else {
+            continue;
+        };
         result.seen_opcodes.push(format!("0x{opcode:04X}"));
         info!(
-            "[Bot {}] 📦 vendor-buy {}",
+            "[Bot {}] 📦 {} vendor-buy {}",
             bot_index,
+            connection,
             parse_packet(opcode, &payload)
         );
 
         match opcode {
             SMSG_TIME_SYNC_REQUEST => {
+                if on_realm {
+                    bail!("SMSG_TIME_SYNC_REQUEST arrived on realm during vendor purchase");
+                }
                 let sequence = parse_time_sync_request_sequence(&payload)?;
                 let response = build_time_sync_response_payload(sequence, 0);
                 send_encrypted_packet(stream, crypt, CMSG_TIME_SYNC_RESPONSE, &response).await?;
@@ -7217,10 +7296,16 @@ async fn wait_for_vendor_purchase_result(
                 bail!("vendor purchase returned SMSG_INVENTORY_CHANGE_FAILURE");
             }
             SMSG_BUY_SUCCEEDED => {
+                if !on_realm {
+                    bail!("SMSG_BUY_SUCCEEDED arrived on instance; C++ routes it on realm");
+                }
                 parse_vendor_buy_succeeded(&payload, expected_vendor_guid, expected_muid, 1, -1)?;
                 result.vendor_buy_succeeded_seen = true;
             }
             SMSG_SET_CURRENCY => {
+                if on_realm {
+                    bail!("SMSG_SET_CURRENCY arrived on realm; C++ routes it on instance");
+                }
                 let (currency_id, quantity) = parse_set_currency_identity(&payload)?;
                 if currency_id == options.currency_id {
                     if quantity != expected_currency_after {
@@ -7234,7 +7319,23 @@ async fn wait_for_vendor_purchase_result(
                     result.vendor_set_currency_seen = true;
                 }
             }
+            SMSG_ITEM_PUSH_RESULT => {
+                if !on_realm {
+                    bail!("SMSG_ITEM_PUSH_RESULT arrived on instance; C++ routes it on realm");
+                }
+                loot_race::validate_vendor_item_push_result_like_cpp(
+                    &payload,
+                    result.character_guid,
+                    options.item_entry,
+                    1,
+                    realm_id(),
+                )?;
+                result.vendor_item_push_seen = true;
+            }
             SMSG_PONG if fence_sent => {
+                if on_realm {
+                    bail!("vendor capture-fence SMSG_PONG arrived on realm");
+                }
                 if payload != VENDOR_CAPTURE_FENCE_SERIAL.to_le_bytes() {
                     bail!(
                         "vendor capture-fence SMSG_PONG mismatch: expected 0x{:08X}, got {:02X?}",
@@ -7247,7 +7348,11 @@ async fn wait_for_vendor_purchase_result(
             _ => {}
         }
 
-        if !fence_sent && result.vendor_buy_succeeded_seen && result.vendor_set_currency_seen {
+        if !fence_sent
+            && result.vendor_buy_succeeded_seen
+            && result.vendor_set_currency_seen
+            && result.vendor_item_push_seen
+        {
             let ping = build_ping_payload(VENDOR_CAPTURE_FENCE_SERIAL);
             send_encrypted_packet(stream, crypt, CMSG_PING, &ping).await?;
             fence_sent = true;
@@ -11976,6 +12081,51 @@ mod tests {
     }
 
     #[test]
+    fn vendor_item_push_validator_requires_exact_cpp_purchase_shape() {
+        let realm = 1;
+        let character_guid = 15;
+        let (player_low, player_high) = create_player_guid_raw(character_guid, realm);
+        let item_high = (3u64 << 58) | (u64::from(realm) << 42);
+        let mut payload = build_packed_guid(player_low, player_high);
+        payload.push(INVENTORY_SLOT_BAG_0);
+        payload.extend_from_slice(&i32::from(INVENTORY_SLOT_ITEM_START).to_le_bytes());
+        payload.extend_from_slice(&0i32.to_le_bytes()); // QuestLogItemID.
+        payload.extend_from_slice(&1i32.to_le_bytes()); // Quantity.
+        payload.extend_from_slice(&1i32.to_le_bytes()); // QuantityInInventory.
+        payload.extend_from_slice(&0i32.to_le_bytes()); // DungeonEncounterID.
+        payload.extend_from_slice(&[0; 16]); // Battle-pet fields.
+        payload.extend(build_packed_guid(500, item_high));
+        payload.push(0x88); // Pushed + normal display, not created.
+        payload.extend_from_slice(&30183i32.to_le_bytes());
+        payload.extend_from_slice(&0i32.to_le_bytes()); // Random seed.
+        payload.extend_from_slice(&0i32.to_le_bytes()); // Random property.
+        payload.push(0); // No ItemBonus.
+        payload.push(0); // No modifiers.
+
+        assert!(
+            loot_race::validate_vendor_item_push_result_like_cpp(
+                &payload,
+                character_guid,
+                30183,
+                1,
+                realm,
+            )
+            .is_ok()
+        );
+        payload.push(0);
+        assert!(
+            loot_race::validate_vendor_item_push_result_like_cpp(
+                &payload,
+                character_guid,
+                30183,
+                1,
+                realm,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
     fn set_currency_parser_rejects_negative_wire_values() {
         let mut payload = Vec::new();
         payload.extend_from_slice(&42i32.to_le_bytes());
@@ -12078,7 +12228,7 @@ mod tests {
         let mut payload = vec![1]; // CreateObject1
         payload.extend(build_packed_guid(low, high));
         payload.push(5); // TypeId::Unit
-        payload.extend_from_slice(&[0; 3]); // CreateObjectBits
+        payload.extend_from_slice(&[0x10, 0, 0]); // MovementUpdate bit 3, MSB-first.
         payload.extend(build_packed_guid(low, high)); // movement MoverGUID
         payload.extend_from_slice(&[0; 12]); // movement flags
         payload.extend_from_slice(&123u32.to_le_bytes()); // MoveTime

@@ -54,8 +54,9 @@ units of currency `42`, selects the unique item/cost row `30183`/`1642`, and
 buys one item for `15` currency. The bot discovers the vendor's live
 map-generated ObjectGuid from `SMSG_UPDATE_OBJECT` near the exact SQL position;
 `WOW_BOT_VENDOR_RUNTIME_COUNTER` is only an optional checked override. It then
-requires the exact C++ `VendorInventory`, `SetCurrency`, and `BuySucceeded`
-wire shapes, fences the capture with a fixed `CMSG_PING`, verifies currency
+requires the exact C++ `VendorInventory`, instance-routed `SetCurrency`, and
+realm-routed `BuySucceeded` plus `ItemPushResult` wire shapes, fences the
+capture with a fixed `CMSG_PING`, verifies currency
 `30→15` plus one persisted item after logout and a fresh authentication, and
 finally removes the purchased item and restores the original currency row and
 position. Optional fixture overrides are `WOW_BOT_VENDOR_ENTRY`,

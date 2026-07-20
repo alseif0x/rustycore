@@ -19,8 +19,8 @@ use wow_constants::unit::{
 use wow_constants::{
     ClientOpcodes, ConditionSourceType, CreatureFlagsExtra, CreatureRandomMovementType,
     EnchantmentSlot, InventoryResult, InventoryType, ItemBondingType, ItemContext,
-    ItemExtendedCostFlags, ItemFieldFlags, ItemFlags, ItemFlags2, ItemUpdateState, ItemVendorType,
-    PowerType, Team, TypeId, TypeMask, UnitStandStateType,
+    ItemExtendedCostFlags, ItemFieldFlags, ItemFlags, ItemFlags2, ItemModifier, ItemUpdateState,
+    ItemVendorType, PowerType, Team, TypeId, TypeMask, UnitStandStateType,
 };
 use wow_core::guid::HighGuid;
 use wow_core::{ObjectGuid, Position};
@@ -43,7 +43,8 @@ use wow_entities::{
     GameObjectTemplateData, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
     INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, MAX_BAG_SIZE, MAX_GAMEOBJECT_DATA,
     MovementGeneratorType, NULL_BAG, NULL_SLOT, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START,
-    SocketedGem, WorldObject, is_bank_pos, is_equipment_pos, is_inventory_pos,
+    SendNewItemDelivery, SendNewItemDisplayText, SendNewItemInstancePlan, SendNewItemModifier,
+    SendNewItemPlan, SocketedGem, WorldObject, is_bank_pos, is_equipment_pos, is_inventory_pos,
     normalize_creature_chase_movement_type_like_cpp,
     normalize_creature_random_movement_type_like_cpp,
 };
@@ -12247,6 +12248,9 @@ impl WorldSession {
             self.send_equip_error(store_result, None, None, 0, 0);
             return;
         }
+        let quest_log_item_id = self
+            .quest_source_item_quest_log_item_id_like_cpp(buy.item_id as u32)
+            .await;
 
         let new_item_count = store_dest
             .iter()
@@ -12467,6 +12471,66 @@ impl WorldSession {
             .iter()
             .map(|&(slot, _, item_guid, _)| (slot, item_guid))
             .collect();
+        let quantity_in_inventory =
+            self.represented_non_bank_item_count_like_cpp(buy.item_id as u32);
+        let purchased_item_plan = store_dest.last().and_then(|dest| {
+            let slot = (dest.pos & 0x00FF) as u8;
+            let item_guid = self.inventory_items_like_cpp().get(&slot)?.guid;
+            let item = self.inventory_item_objects_like_cpp().get(&item_guid)?;
+            let battle_pet_breed_data = item.get_modifier(ItemModifier::BattlePetBreedData);
+            let modifications = item
+                .data()
+                .modifiers
+                .iter()
+                .enumerate()
+                .filter_map(|(modifier_type, &value)| {
+                    (value != 0).then_some(SendNewItemModifier {
+                        value: value as i32,
+                        modifier_type: modifier_type as u8,
+                    })
+                })
+                .collect();
+            Some(SendNewItemPlan {
+                player_guid,
+                item_guid,
+                item_entry: item.object().entry(),
+                item_instance: SendNewItemInstancePlan {
+                    item_id: item.object().entry(),
+                    random_properties_seed: item.data().property_seed,
+                    random_properties_id: item.data().random_properties_id,
+                    modifications,
+                },
+                slot: item.bag_slot(),
+                slot_in_bag: if item.count() == quantity {
+                    i16::from(item.slot())
+                } else {
+                    -1
+                },
+                quest_log_item_id,
+                quantity,
+                quantity_in_inventory,
+                battle_pet_species_id: item.get_modifier(ItemModifier::BattlePetSpeciesId),
+                battle_pet_breed_id: battle_pet_breed_data & 0x00FF_FFFF,
+                battle_pet_breed_quality: ((battle_pet_breed_data >> 24) & 0xFF) as u8,
+                battle_pet_level: item.get_modifier(ItemModifier::BattlePetLevel),
+                pushed: true,
+                created: false,
+                display_text: SendNewItemDisplayText::Normal,
+                dungeon_encounter_id: 0,
+                is_encounter_loot: false,
+                delivery: SendNewItemDelivery::Direct,
+            })
+        });
+        let Some(purchased_item_plan) = purchased_item_plan else {
+            // The durable purchase is already committed. Fail closed at the
+            // packet boundary rather than fabricating an ItemPush GUID or
+            // rolling runtime back out of sync with the database.
+            warn!(
+                item = buy.item_id,
+                "BuyItem: committed item is missing from the published runtime inventory"
+            );
+            return;
+        };
         let new_quantity = if vendor_item.max_count == 0 {
             -1
         } else {
@@ -12506,13 +12570,6 @@ impl WorldSession {
             buy_price,
             self.player_gold_like_cpp()
         );
-        // ── Send BuySucceeded ──
-        self.send_packet(&BuySucceeded {
-            vendor_guid: buy.vendor_guid,
-            muid: buy.muid,
-            new_quantity,
-            quantity_bought: quantity as i32,
-        });
 
         if !new_stacks.is_empty() {
             let item_creates = new_stacks
@@ -12542,6 +12599,33 @@ impl WorldSession {
             self.send_packet(&UpdateObject::item_stack_count_update(
                 item_guid, map_id, new_count,
             ));
+        }
+
+        // C++ `StoreNewItem` publishes item object changes on the instance
+        // socket before `_StoreOrEquipNewItem` emits its two realm-routed
+        // result packets. Preserve that physical cross-socket order.
+        if !self
+            .wait_for_instance_send_before_realm_send_like_cpp()
+            .await
+        {
+            self.sync_player_registry_state_like_cpp();
+            self.kick("vendor socket ordering fence failed after durable item purchase");
+            return;
+        }
+        self.send_packet_realm(&BuySucceeded {
+            vendor_guid: buy.vendor_guid,
+            muid: buy.muid,
+            new_quantity,
+            quantity_bought: quantity as i32,
+        });
+        self.send_new_item_plan(&purchased_item_plan);
+        if !self
+            .wait_for_realm_send_before_instance_update_like_cpp()
+            .await
+        {
+            self.sync_player_registry_state_like_cpp();
+            self.kick("vendor socket ordering fence failed after durable item purchase");
+            return;
         }
 
         self.send_player_values_update_from_entity_bridge(

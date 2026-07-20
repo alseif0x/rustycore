@@ -2110,7 +2110,7 @@ fn wait_for_loot_character_offline(character_guid: u64, timeout: Duration) -> Re
 /// so both sockets are drained safely and the observed route is reported. In
 /// every case, success additionally requires the exact character row to be
 /// offline; a closed socket by itself is never accepted as logout proof.
-async fn logout_and_wait_routed_like_cpp(
+pub(super) async fn logout_and_wait_routed_like_cpp(
     bot_index: usize,
     stream: &mut TcpStream,
     crypt: &mut WorldCrypt,
@@ -3567,6 +3567,70 @@ fn parse_item_push(payload: &[u8]) -> Result<ItemPush> {
         is_encounter_loot,
         item_entry: item_entry as u32,
     })
+}
+
+pub(super) fn validate_vendor_item_push_result_like_cpp(
+    payload: &[u8],
+    expected_character_guid: u64,
+    expected_item_entry: u32,
+    expected_quantity: u32,
+    expected_realm_id: u32,
+) -> Result<()> {
+    let push = parse_item_push(payload)?;
+    let expected_quantity = i32::try_from(expected_quantity)
+        .map_err(|_| anyhow!("vendor item quantity exceeds i32"))?;
+    let expected_player = create_player_guid_raw(expected_character_guid, expected_realm_id);
+    if (push.player_low, push.player_high) != expected_player {
+        bail!(
+            "vendor ItemPush player {:#018X}/{:#018X} did not match character {}",
+            push.player_low,
+            push.player_high,
+            expected_character_guid
+        );
+    }
+    if push.item_entry != expected_item_entry
+        || push.quantity != expected_quantity
+        || push.quantity_in_inventory != expected_quantity
+    {
+        bail!(
+            "vendor ItemPush entry/quantity/inventory {:?} did not match {expected_item_entry}/{expected_quantity}/{expected_quantity}",
+            (push.item_entry, push.quantity, push.quantity_in_inventory)
+        );
+    }
+    if push.slot != INVENTORY_SLOT_BAG_0
+        || !(i32::from(INVENTORY_SLOT_ITEM_START)..i32::from(INVENTORY_SLOT_ITEM_START + 16))
+            .contains(&push.slot_in_bag)
+    {
+        bail!(
+            "vendor ItemPush slot {}/{} was not a base-backpack destination",
+            push.slot,
+            push.slot_in_bag
+        );
+    }
+    if push.quest_log_item_id != 0
+        || !push.pushed
+        || push.created
+        || push.display_text != 1
+        || push.is_bonus_roll
+        || push.is_encounter_loot
+        || push.dungeon_encounter_id != 0
+    {
+        bail!("vendor ItemPush flags were not the ordinary C++ purchase shape: {push:?}");
+    }
+    let expected_item_high =
+        (HIGH_GUID_ITEM << 58) | ((u64::from(expected_realm_id) & GUID_REALM_SPECIFIC_MASK) << 42);
+    if push.item_guid_low == 0
+        || push.item_guid_low & !GUID_COUNTER_MASK != 0
+        || push.item_guid_high != expected_item_high
+    {
+        bail!(
+            "vendor ItemPush GUID {:#018X}/{:#018X} was not a nonempty C++ Item GUID for realm {}",
+            push.item_guid_low,
+            push.item_guid_high,
+            expected_realm_id
+        );
+    }
+    Ok(())
 }
 
 fn parse_inventory_failure(payload: &[u8]) -> Result<InventoryFailure> {
