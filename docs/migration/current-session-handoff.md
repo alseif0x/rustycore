@@ -1,3 +1,35 @@
+- `#NEXT.R8.ENTITIES.1203` — issue #110 makes the existing-group accept capacity decision
+  indivisible. C++ `WorldSession::HandlePartyInviteResponseOpcode`
+  (`/home/server/woltk-trinity-legacy/src/server/game/Handlers/GroupHandler.cpp:187-241`)
+  removes the invite, checks `Group::IsFull`, then calls `Group::AddMember`; the serialized C++
+  session/world execution prevents another accept from entering between those operations. Rust
+  sessions can execute concurrently, so `add_group_member_if_room_like_cpp` now holds one mutable
+  `GroupRegistry` guard across the full check and insertion and returns an explicit Added/Full/
+  AddFailed/AlreadyMember/MissingGroup outcome. `GroupInfo::add_member` now reports whether it actually
+  inserted, preserving the C++ `Group::AddMember` false result when no raid subgroup is available.
+  The live invite-response handler maps the atomic Full outcome to `ERR_GROUP_FULL` and publishes
+  no session/group membership for the rejected invitee; a later `AddMember` failure remains the
+  silent return used by C++. Coverage proves the final party slot, already-full rejection, the
+  separate add-failure branch, the handler packet/invite-removal boundary, and a barrier-synchronized
+  two-thread race in which exactly one candidate joins and the party remains at five members.
+  Checks so far: `cargo fmt --all -- --check`; `wow-network --lib` 103/0; all group-handler tests
+  106/0; full `wow-world --lib` 3001/0; complete local CI preflight including capture gate;
+  group-capacity bot parser/guard tests 7/0. The standalone bot suite has 103 passes and only its
+  two pre-existing unrelated failures (`wow_crypto::test_crypt_roundtrip` OpenSSL finalize and
+  `srp6_auth::test_srp6_calculations` BigUint subtraction). The exact `4adf87e1` release runtime
+  then passed the three-client race four times. The first two passes exercised both
+  interleavings: each candidate won once while the other received exact `Invite/GROUP_FULL`.
+  The two review-hardened follow-ups additionally required the complete C++ loot/difficulty
+  `PartyUpdate` tail and proved the same candidate won on wire and in CharacterDB; the final
+  pass also matched every decoded loot and difficulty value to the preloaded group row. Every
+  pass held exactly the four original members plus that run's winner; all sessions logged out and
+  the fixture was restored to `13,14,17,18` after each pass before restarting the same PM2 profile.
+  The live run also exposed existing defect D-H16:
+  Rust's `PartyUpdate` lists only connected group members while retaining `MyIndex` from the
+  complete member vector, unlike C++.
+  Boundary: represented-partial until CI/current-HEAD GitHub review and merge; no claim is made
+  for D-H16, D-M8 member-DB failure rollback, or the broader #51 group lifecycle issue.
+
 - `#NEXT.R8.ENTITIES.1202` — issue #108 closes the remaining D-C8 vendor-purchase
   publication gap. C++ anchors:
   `/home/server/woltk-trinity-legacy/src/server/game/Handlers/ItemHandler.cpp:530-564` and

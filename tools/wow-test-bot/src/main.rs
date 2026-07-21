@@ -265,6 +265,12 @@ struct CliOptions {
     loot_race_timeout_secs: u64,
     loot_workflow_deadline_secs: u64,
     recover_loot_fixture: bool,
+    group_capacity_race_smoke: bool,
+    group_capacity_leader_account: String,
+    group_capacity_candidate_a_account: String,
+    group_capacity_candidate_b_account: String,
+    group_capacity_group_id: u32,
+    group_capacity_timeout_secs: u64,
     quest_smoke: bool,
     quest_creature_entry: Option<u32>,
     quest_creature_guid: Option<u64>,
@@ -403,6 +409,12 @@ struct BotRunResult {
     loot_race_db_money_delta: Option<u64>,
     loot_race_relog_verified: bool,
     loot_race_failure: Option<String>,
+    group_capacity_race_smoke: bool,
+    group_capacity_race_smoke_passed: Option<bool>,
+    group_capacity_group_id: Option<u32>,
+    group_capacity_outcome: Option<String>,
+    group_capacity_final_member_count: Option<u64>,
+    group_capacity_failure: Option<String>,
     quest_smoke: bool,
     quest_smoke_passed: Option<bool>,
     quest_target_entry: Option<u32>,
@@ -489,6 +501,13 @@ impl BotRunResult {
                 && self.loot_race_smoke_passed.unwrap_or(false)
                 && self.loot_race_relog_verified;
         }
+        if self.group_capacity_race_smoke {
+            return self.world_auth
+                && self.enum_characters
+                && self.player_login_verified
+                && self.group_capacity_race_smoke_passed.unwrap_or(false)
+                && self.group_capacity_final_member_count == Some(5);
+        }
         if login_only {
             return self.world_auth && self.enum_characters && self.player_login_verified;
         }
@@ -514,6 +533,7 @@ struct RunReport {
     rested_xp_smoke: bool,
     loot_race_smoke: bool,
     loot_item_capture: bool,
+    group_capacity_race_smoke: bool,
     quest_smoke: bool,
     results: Vec<BotRunResult>,
 }
@@ -1085,6 +1105,25 @@ fn parse_cli() -> Result<CliOptions> {
             .transpose()?
             .unwrap_or(loot_race::DEFAULT_WORKFLOW_DEADLINE_SECS),
         recover_loot_fixture: false,
+        group_capacity_race_smoke: std::env::var("WOW_BOT_GROUP_CAPACITY_RACE_SMOKE")
+            .ok()
+            .is_some_and(|value| is_truthy(&value)),
+        group_capacity_leader_account: std::env::var("WOW_BOT_GROUP_CAPACITY_LEADER")
+            .unwrap_or_else(|_| loot_race::DEFAULT_GROUP_CAPACITY_LEADER.to_string()),
+        group_capacity_candidate_a_account: std::env::var("WOW_BOT_GROUP_CAPACITY_CANDIDATE_A")
+            .unwrap_or_else(|_| loot_race::DEFAULT_GROUP_CAPACITY_CANDIDATE_A.to_string()),
+        group_capacity_candidate_b_account: std::env::var("WOW_BOT_GROUP_CAPACITY_CANDIDATE_B")
+            .unwrap_or_else(|_| loot_race::DEFAULT_GROUP_CAPACITY_CANDIDATE_B.to_string()),
+        group_capacity_group_id: std::env::var("WOW_BOT_GROUP_CAPACITY_GROUP_ID")
+            .ok()
+            .map(|value| value.parse::<u32>())
+            .transpose()?
+            .unwrap_or(0),
+        group_capacity_timeout_secs: std::env::var("WOW_BOT_GROUP_CAPACITY_TIMEOUT_SECS")
+            .ok()
+            .map(|value| value.parse::<u64>())
+            .transpose()?
+            .unwrap_or(loot_race::DEFAULT_GROUP_CAPACITY_TIMEOUT_SECS),
         quest_smoke: std::env::var("WOW_BOT_QUEST_SMOKE")
             .ok()
             .map(|v| is_truthy(&v))
@@ -1313,6 +1352,27 @@ fn parse_cli() -> Result<CliOptions> {
                     next_arg(&mut args, "--loot-workflow-deadline")?.parse()?;
             }
             "--recover-loot-fixture" => opts.recover_loot_fixture = true,
+            "--group-capacity-race-smoke" => opts.group_capacity_race_smoke = true,
+            "--group-capacity-leader" => {
+                opts.group_capacity_leader_account =
+                    next_arg(&mut args, "--group-capacity-leader")?;
+            }
+            "--group-capacity-candidate-a" => {
+                opts.group_capacity_candidate_a_account =
+                    next_arg(&mut args, "--group-capacity-candidate-a")?;
+            }
+            "--group-capacity-candidate-b" => {
+                opts.group_capacity_candidate_b_account =
+                    next_arg(&mut args, "--group-capacity-candidate-b")?;
+            }
+            "--group-capacity-group-id" => {
+                opts.group_capacity_group_id =
+                    next_arg(&mut args, "--group-capacity-group-id")?.parse()?;
+            }
+            "--group-capacity-timeout" => {
+                opts.group_capacity_timeout_secs =
+                    next_arg(&mut args, "--group-capacity-timeout")?.parse()?;
+            }
             "--quest-smoke" => opts.quest_smoke = true,
             "--quest-creature-entry" => {
                 opts.quest_creature_entry =
@@ -1417,10 +1477,10 @@ fn is_truthy(value: &str) -> bool {
     )
 }
 
-fn validate_provisioning_mode(loot_mode: bool, ensure_test_accounts: bool) -> Result<()> {
-    if loot_mode && ensure_test_accounts {
+fn validate_provisioning_mode(guarded_mode: bool, ensure_test_accounts: bool) -> Result<()> {
+    if guarded_mode && ensure_test_accounts {
         bail!(
-            "loot workflows forbid --ensure-test-accounts/WOW_BOT_ENSURE_TEST_ACCOUNTS; provision fixtures separately, then run the read-only identity preflight"
+            "guarded multi-client workflows forbid --ensure-test-accounts/WOW_BOT_ENSURE_TEST_ACCOUNTS; provision fixtures separately, then run the read-only identity preflight"
         );
     }
     Ok(())
@@ -1718,6 +1778,14 @@ fn print_help() {
     println!(
         "                           Env capture mode: WOW_BOT_LOOT_ITEM_CAPTURE=1 (uses account A; account B remains offline as a guarded fixture snapshot)"
     );
+    println!(
+        "  --group-capacity-race-smoke  Race two invite accepts for the fifth slot of a preloaded four-member party"
+    );
+    println!("  --group-capacity-leader <account>     Preloaded party leader (default TESTBOT1)");
+    println!("  --group-capacity-candidate-a <account> First invitee (default TESTBOT2)");
+    println!("  --group-capacity-candidate-b <account> Second invitee (default TESTBOT3)");
+    println!("  --group-capacity-group-id <id>         Required preloaded CharacterDB group id");
+    println!("  --group-capacity-timeout <secs>        Per barrier/packet timeout (default 30)");
     println!("  --quest-smoke            After login, right-click/query one questgiver NPC");
     println!("  --quest-creature-entry <id>  Creature entry to resolve from world.creature");
     println!("  --quest-creature-guid <guid> Optional world.creature spawn guid override");
@@ -2212,6 +2280,120 @@ fn validate_exact_loot_bot_identities(bots: &[config::BotConfig]) -> Result<()> 
     Ok(())
 }
 
+fn validate_linked_group_capacity_bot_identities(bots: &[config::BotConfig]) -> Result<()> {
+    use mysql::prelude::Queryable;
+
+    let auth_opts = qa_mysql_opts(&auth_db_url()?, "auth")?;
+    let char_opts = qa_mysql_opts(&characters_db_url()?, "characters")?;
+    let mut auth_conn =
+        mysql::Conn::new(auth_opts).map_err(|e| anyhow!("Connect to auth DB failed: {e}"))?;
+    let mut character_conn =
+        mysql::Conn::new(char_opts).map_err(|e| anyhow!("Connect to characters DB failed: {e}"))?;
+
+    for bot in bots {
+        validate_local_bot_character_owner(&mut character_conn, bot)?;
+        let expected_email = bot_srp6::utf8_to_upper_only_latin_like_cpp(&bot.account);
+        let expected_username = game_account_username(&bot.account)?;
+        let game_account = auth_conn
+            .exec_first::<(
+                String,
+                String,
+                String,
+                Option<u32>,
+                Option<u8>,
+                u8,
+                u32,
+                u8,
+                u8,
+            ), _, _>(
+                "SELECT username, reg_mail, email, battlenet_account, battlenet_index, expansion, \
+                        failed_logins, locked, online FROM account WHERE id = ?",
+                (bot.account_id,),
+            )
+            .map_err(|e| {
+                anyhow!(
+                    "Load linked group-capacity game account {}: {e}",
+                    bot.account_id
+                )
+            })?
+            .ok_or_else(|| {
+                anyhow!(
+                    "No linked group-capacity game account for id {}",
+                    bot.account_id
+                )
+            })?;
+        let bnet_id = game_account.3.ok_or_else(|| {
+            anyhow!(
+                "Group-capacity game account {} has no linked BNet identity",
+                bot.account_id
+            )
+        })?;
+        if !game_account.0.eq_ignore_ascii_case(&expected_username)
+            || !game_account.1.eq_ignore_ascii_case(&expected_email)
+            || !game_account.2.eq_ignore_ascii_case(&expected_email)
+            || game_account.4 != Some(1)
+            || game_account.5 != 9
+            || game_account.6 != 0
+            || game_account.7 != 0
+            || game_account.8 != 0
+        {
+            bail!(
+                "Linked group-capacity game account {} does not match configured identity/offline state",
+                bot.account_id
+            );
+        }
+
+        let bnet_account = auth_conn
+            .exec_first::<(String, i8, Vec<u8>, Vec<u8>, u32, u8, u8), _, _>(
+                "SELECT email, srp_version, salt, verifier, failed_logins, locked, online \
+                 FROM battlenet_accounts WHERE id = ?",
+                (bnet_id,),
+            )
+            .map_err(|e| anyhow!("Load linked group-capacity BNet identity {bnet_id}: {e}"))?
+            .ok_or_else(|| anyhow!("No linked group-capacity BNet identity for id {bnet_id}"))?;
+        // These long-lived group fixtures predate the current create-only SRP
+        // provisioning helper, so their stored verifier is not reproducible by
+        // `bnet_v1_verifier_for_salt_like_cpp`. Pin the exact linked identity,
+        // SRP shape, offline state, and bans here. The World authentication that
+        // follows proves possession of either the configured 64-byte fixture
+        // key or a key derived by the live BNet fallback.
+        if !bnet_account.0.eq_ignore_ascii_case(&expected_email)
+            || bnet_account.1 != 1
+            || bnet_account.2.len() != 32
+            || bnet_account.3.len() != 128
+            || bnet_account.4 != 0
+            || bnet_account.5 != 0
+            || bnet_account.6 != 0
+        {
+            bail!(
+                "Linked group-capacity BNet identity {} does not match configured credentials/offline state",
+                bot.account
+            );
+        }
+
+        let bnet_bans: u64 = auth_conn
+            .exec_first(
+                "SELECT COUNT(*) FROM battlenet_account_bans WHERE id = ?",
+                (bnet_id,),
+            )
+            .map_err(|e| anyhow!("Check linked group-capacity BNet bans: {e}"))?
+            .unwrap_or(0);
+        let game_bans: u64 = auth_conn
+            .exec_first(
+                "SELECT COUNT(*) FROM account_banned WHERE id = ? AND active <> 0",
+                (bot.account_id,),
+            )
+            .map_err(|e| anyhow!("Check linked group-capacity game-account bans: {e}"))?
+            .unwrap_or(0);
+        if bnet_bans != 0 || game_bans != 0 {
+            bail!(
+                "Configured group-capacity bot is banned (bnet rows={bnet_bans}, active game rows={game_bans})"
+            );
+        }
+    }
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
@@ -2231,6 +2413,7 @@ async fn main() -> Result<()> {
             || cli.rested_xp_smoke
             || cli.loot_race_smoke
             || cli.loot_item_capture
+            || cli.group_capacity_race_smoke
             || cli.quest_smoke
             || cli.single_account.is_some();
         if conflicting_mode {
@@ -2258,6 +2441,21 @@ async fn main() -> Result<()> {
                 || bot.account.eq_ignore_ascii_case(&cli.loot_race_account_b)
         });
     }
+    if cli.group_capacity_race_smoke {
+        if cli.single_account.is_some() {
+            bail!("--single is incompatible with --group-capacity-race-smoke");
+        }
+        bots.retain(|bot| {
+            bot.account
+                .eq_ignore_ascii_case(&cli.group_capacity_leader_account)
+                || bot
+                    .account
+                    .eq_ignore_ascii_case(&cli.group_capacity_candidate_a_account)
+                || bot
+                    .account
+                    .eq_ignore_ascii_case(&cli.group_capacity_candidate_b_account)
+        });
+    }
     apply_password_overrides(&mut bots);
 
     if bots.is_empty() {
@@ -2265,7 +2463,10 @@ async fn main() -> Result<()> {
     }
     let missing_passwords: Vec<&str> = bots
         .iter()
-        .filter(|bot| bot.password.is_empty())
+        .filter(|bot| {
+            bot.password.is_empty()
+                && !(cli.group_capacity_race_smoke && !bot.session_key_bnet.trim().is_empty())
+        })
         .map(|bot| bot.account.as_str())
         .collect();
     if !missing_passwords.is_empty() {
@@ -2276,7 +2477,8 @@ async fn main() -> Result<()> {
         );
     }
     let loot_mode = cli.loot_race_smoke || cli.loot_item_capture;
-    validate_provisioning_mode(loot_mode, cli.ensure_test_accounts)?;
+    let guarded_identity_mode = loot_mode || cli.group_capacity_race_smoke;
+    validate_provisioning_mode(guarded_identity_mode, cli.ensure_test_accounts)?;
     let post_login_mode_count = [
         cli.stand_state_smoke,
         cli.bank_smoke,
@@ -2286,13 +2488,14 @@ async fn main() -> Result<()> {
         cli.rested_xp_smoke,
         cli.loot_race_smoke,
         cli.loot_item_capture,
+        cli.group_capacity_race_smoke,
         cli.quest_smoke,
     ]
     .into_iter()
     .filter(|enabled| *enabled)
     .count();
     if post_login_mode_count > 1 {
-        bail!("stand-state, bank, homebind, inventory-swap, vendor, rested-xp, loot-race, loot-item-capture, and quest smoke are separate post-login modes");
+        bail!("stand-state, bank, homebind, inventory-swap, vendor, rested-xp, loot-race, loot-item-capture, group-capacity-race, and quest smoke are separate post-login modes");
     }
     if cli.bank_smoke && bots.len() != 1 {
         bail!("--bank-smoke requires exactly one bot; select it with --single");
@@ -2358,6 +2561,13 @@ async fn main() -> Result<()> {
         timeout_secs: cli.loot_race_timeout_secs,
         workflow_deadline_secs: cli.loot_workflow_deadline_secs,
     };
+    let group_capacity_cli = loot_race::GroupCapacityRaceCli {
+        leader_account: cli.group_capacity_leader_account.clone(),
+        candidate_a_account: cli.group_capacity_candidate_a_account.clone(),
+        candidate_b_account: cli.group_capacity_candidate_b_account.clone(),
+        group_db_store_id: cli.group_capacity_group_id,
+        timeout_secs: cli.group_capacity_timeout_secs,
+    };
     loot_race::validate_cli(
         cli.loot_race_smoke,
         cli.loot_item_capture,
@@ -2373,6 +2583,13 @@ async fn main() -> Result<()> {
         })
         .await
         .map_err(|e| anyhow!("Loot identity-preflight DB worker join failed: {e}"))??;
+    } else if cli.group_capacity_race_smoke {
+        let bots_for_validation = bots.clone();
+        tokio::task::spawn_blocking(move || {
+            validate_linked_group_capacity_bot_identities(&bots_for_validation)
+        })
+        .await
+        .map_err(|e| anyhow!("Group-capacity identity preflight DB worker failed: {e}"))??;
     } else if cli.ensure_test_accounts {
         let bots_for_db = bots.clone();
         tokio::task::spawn_blocking(move || ensure_test_accounts(&bots_for_db))
@@ -2432,6 +2649,8 @@ async fn main() -> Result<()> {
             "loot-race-smoke"
         } else if cli.loot_item_capture {
             "loot-item-capture"
+        } else if cli.group_capacity_race_smoke {
+            "group-capacity-race-smoke"
         } else if cli.quest_smoke {
             "quest-smoke"
         } else if cli.login_only {
@@ -2456,6 +2675,7 @@ async fn main() -> Result<()> {
         && !cli.rested_xp_smoke
         && !cli.loot_race_smoke
         && !cli.loot_item_capture
+        && !cli.group_capacity_race_smoke
     {
         cleanup_bot_group_state(&bots)?;
     }
@@ -2491,6 +2711,20 @@ async fn main() -> Result<()> {
                 shutdown,
             )
             .await,
+        )
+        .await?;
+        for result in &results {
+            log_bot_summary(result, require_proposal, require_group, cli.login_only);
+        }
+    } else if cli.group_capacity_race_smoke {
+        let shutdown = install_loot_termination_token()?;
+        results = loot_race::run_group_capacity_workflow(
+            bots,
+            group_capacity_cli,
+            dungeon_id,
+            timeout_secs,
+            auto_teleport,
+            shutdown,
         )
         .await?;
         for result in &results {
@@ -2575,6 +2809,7 @@ async fn main() -> Result<()> {
                     None,
                     None,
                     None,
+                    None,
                     quest_options.clone(),
                 )
                 .await
@@ -2608,6 +2843,7 @@ async fn main() -> Result<()> {
                     auto_teleport,
                     cli.login_only,
                     stand_state_options_for_bot,
+                    None,
                     None,
                     None,
                     None,
@@ -2650,6 +2886,7 @@ async fn main() -> Result<()> {
         cli.rested_xp_smoke,
         cli.loot_race_smoke,
         cli.loot_item_capture,
+        cli.group_capacity_race_smoke,
         cli.quest_smoke,
         &results,
     )?;
@@ -2777,6 +3014,7 @@ async fn run_bot(
     vendor_options: Option<VendorSmokeOptions>,
     rested_xp_options: Option<RestedXpSmokeOptions>,
     loot_race_options: Option<loot_race::LootRaceOptions>,
+    group_capacity_options: Option<loot_race::GroupCapacityRaceOptions>,
     quest_options: Option<QuestSmokeOptions>,
 ) -> Result<BotRunResult> {
     let bot_index = bot.account_id as usize;
@@ -2934,6 +3172,14 @@ async fn run_bot(
         loot_race_db_money_delta: None,
         loot_race_relog_verified: false,
         loot_race_failure: None,
+        group_capacity_race_smoke: group_capacity_options.is_some(),
+        group_capacity_race_smoke_passed: None,
+        group_capacity_group_id: group_capacity_options
+            .as_ref()
+            .map(|options| options.group_db_store_id),
+        group_capacity_outcome: None,
+        group_capacity_final_member_count: None,
+        group_capacity_failure: None,
         quest_smoke: quest_options.is_some(),
         quest_smoke_passed: None,
         quest_target_entry: None,
@@ -2973,30 +3219,65 @@ async fn run_bot(
         seen_opcodes: Vec::new(),
     };
 
-    // ── Step 1: Live SRP6 against bnetserver bot endpoint ────────────────────
-    // Computes (login_ticket, K_32) where K = SHA256(broken_evidence_le(S)).
-    // We expand to 64 bytes (K || SHA256(K)) to match worldserver's expected
-    // session_key_bnet width, then push it into account.session_key_bnet so the
-    // worldserver picks up the live key when validating CMSG_AUTH_SESSION.
+    // ── Step 1: Prepare the World session key ────────────────────────────────
+    // Group-capacity QA may reuse a configured 64-byte fixture key. Otherwise
+    // live BNet SRP6 computes (login_ticket, K_32), where
+    // K = SHA256(broken_evidence_le(S)), and expands it to K || SHA256(K).
+    // Either path writes account.session_key_bnet before CMSG_AUTH_SESSION.
     info!(
-        "[Bot {}] Step 1: Live SRP6 against bnetserver {}:{}",
+        "[Bot {}] Step 1: Preparing World session key (configured group fixture or live SRP6 via {}:{})",
         bot_index,
         bnet_host(),
         bnet_port()
     );
 
-    let bnet_url = format!("https://{}:{}", bnet_host(), bnet_port());
-    let (login_ticket, session_key_32) =
-        bot_srp6::authenticate_bot(&bnet_url, &bot.account, &bot.password)
-            .await
-            .map_err(|e| anyhow!("Bot SRP6 failed: {}", e))?;
-    if session_key_32.len() != 32 {
-        bail!(
-            "Bot SRP6 returned K of unexpected length: {}",
-            session_key_32.len()
-        );
-    }
-    let session_key = expand_session_key(&session_key_32).to_vec();
+    let configured_group_session_key = group_capacity_options
+        .as_ref()
+        .filter(|_| !bot.session_key_bnet.trim().is_empty())
+        .map(|_| {
+            hex::decode(bot.session_key_bnet.trim()).map_err(|error| {
+                anyhow!(
+                    "Configured group-capacity session_key_bnet for {} is not hex: {error}",
+                    bot.account
+                )
+            })
+        })
+        .transpose()?;
+    let (session_key, used_configured_group_session_key) =
+        if let Some(session_key) = configured_group_session_key {
+            if session_key.len() != 64 {
+                bail!(
+                    "Configured group-capacity session_key_bnet for {} has {} bytes, expected 64",
+                    bot.account,
+                    session_key.len()
+                );
+            }
+            (session_key, true)
+        } else {
+            // Rusty's current BNet bot endpoint keeps challenge state that
+            // cannot safely serve multiple fallback logins at once. Serialize
+            // only this authentication exchange; all World connections and
+            // the actual group accept race remain concurrent.
+            let group_capacity_auth_guard = if let Some(options) = group_capacity_options.as_ref() {
+                Some(options.auth_serial.lock().await)
+            } else {
+                None
+            };
+            let bnet_url = format!("https://{}:{}", bnet_host(), bnet_port());
+            let (login_ticket, session_key_32) =
+                bot_srp6::authenticate_bot(&bnet_url, &bot.account, &bot.password)
+                    .await
+                    .map_err(|e| anyhow!("Bot SRP6 failed: {}", e))?;
+            drop(group_capacity_auth_guard);
+            let _ = login_ticket; // BNet proof only; World auth uses the derived key.
+            if session_key_32.len() != 32 {
+                bail!(
+                    "Bot SRP6 returned K of unexpected length: {}",
+                    session_key_32.len()
+                );
+            }
+            (expand_session_key(&session_key_32).to_vec(), false)
+        };
 
     let account_for_db = bot.account.clone();
     let session_key_for_db = session_key.clone();
@@ -3015,8 +3296,15 @@ async fn run_bot(
     })?;
     let wow_username = world_auth_context.username.clone();
 
-    info!("[Bot {}] ✅ LoginTicket received", bot_index);
-    info!("[Bot {}] ✅ K (live, 32B) received", bot_index);
+    if used_configured_group_session_key {
+        info!(
+            "[Bot {}] ✅ configured group-capacity session key accepted (64B)",
+            bot_index
+        );
+    } else {
+        info!("[Bot {}] ✅ LoginTicket received", bot_index);
+        info!("[Bot {}] ✅ K (live, 32B) received", bot_index);
+    }
     info!(
         "[Bot {}] ✅ session_key_bnet (64B) written to account `{}`; realm build {} auth seed loaded",
         bot_index, wow_username, world_auth_context.realm_build
@@ -3122,8 +3410,8 @@ async fn run_bot(
         derive_realm_session_key(&session_key, &local_challenge, &server_challenge);
 
     // RealmJoinTicket on the worldserver side is the WoW account name (account.username),
-    // NOT the bnet login_ticket — sending the bnet ticket here yields "unknown account".
-    let _ = &login_ticket; // ticket only needed for the bnetserver REST proof
+    // World auth uses the game-account username and `session_key_bnet`, not a
+    // BNet login ticket (sending that ticket yields "unknown account").
     let auth_data = build_cmsg_auth_session(realm_id(), &local_challenge, &digest, &wow_username);
     send_unencrypted_packet(&mut stream, 0x3765, &auth_data).await?;
     info!("[Bot {}] ✅ CMSG_AUTH_SESSION sent", bot_index);
@@ -3254,7 +3542,8 @@ async fn run_bot(
         || homebind_options.is_some()
         || vendor_options.is_some()
         || rested_xp_options.is_some()
-        || loot_race_options.is_some();
+        || loot_race_options.is_some()
+        || group_capacity_options.is_some();
     let mut loot_race_target_seen = false;
     let mut vendor_target_seen: Option<DiscoveredCreatureGuid> = None;
     let login_budget = LoginVerifyBudget::new(LOGIN_VERIFY_TIMEOUT);
@@ -3554,6 +3843,34 @@ async fn run_bot(
                 &mut server_inflater,
                 &mut realm_connection,
                 loot_race_options.character_guid,
+                &mut result,
+            )
+            .await;
+        }
+        return Ok(result);
+    }
+
+    if let Some(group_capacity_options) = group_capacity_options {
+        if let Err(error) = loot_race::run_group_capacity_phase(
+            bot_index,
+            &mut stream,
+            &mut crypt,
+            &mut server_inflater,
+            &mut realm_connection,
+            &group_capacity_options,
+            &mut result,
+        )
+        .await
+        {
+            result.group_capacity_failure = Some(error.to_string());
+            result.group_capacity_race_smoke_passed = Some(false);
+            loot_race::best_effort_logout_preserving_group(
+                bot_index,
+                &mut stream,
+                &mut crypt,
+                &mut server_inflater,
+                &mut realm_connection,
+                group_capacity_options.character_guid,
                 &mut result,
             )
             .await;
@@ -3883,6 +4200,17 @@ fn log_bot_summary(
             );
             return;
         }
+        if result.group_capacity_race_smoke {
+            info!(
+                "✅ Bot {}: SUCCESS group_capacity_race group={:?} outcome={:?} final_members={:?} failure={:?}",
+                result.account,
+                result.group_capacity_group_id,
+                result.group_capacity_outcome,
+                result.group_capacity_final_member_count,
+                result.group_capacity_failure,
+            );
+            return;
+        }
         info!(
             "✅ Bot {}: SUCCESS login={{auth:{}, enum:{}, player:{}}} join={:?}/{:?} proposal={} group={} teleport_denied={:?}",
             result.account,
@@ -4041,6 +4369,17 @@ fn log_bot_summary(
             );
             return;
         }
+        if result.group_capacity_race_smoke {
+            error!(
+                "❌ Bot {}: FAILED group_capacity_race group={:?} outcome={:?} final_members={:?} failure={:?}",
+                result.account,
+                result.group_capacity_group_id,
+                result.group_capacity_outcome,
+                result.group_capacity_final_member_count,
+                result.group_capacity_failure,
+            );
+            return;
+        }
         error!(
             "❌ Bot {}: FAILED login={{auth:{}, enum:{}, player:{}}} join={:?}/{:?} proposal={} group={} teleport_denied={:?}",
             result.account,
@@ -4072,6 +4411,7 @@ fn write_report_if_requested(
     rested_xp_smoke: bool,
     loot_race_smoke: bool,
     loot_item_capture: bool,
+    group_capacity_race_smoke: bool,
     quest_smoke: bool,
     results: &[BotRunResult],
 ) -> Result<()> {
@@ -4096,6 +4436,7 @@ fn write_report_if_requested(
         rested_xp_smoke,
         loot_race_smoke,
         loot_item_capture,
+        group_capacity_race_smoke,
         quest_smoke,
         results: results.to_vec(),
     };
@@ -4889,6 +5230,7 @@ async fn run_rested_xp_smoke_workflow_inner(
         Some(wilderness_options),
         None,
         None,
+        None,
     )
     .await?;
     if !combined.rested_xp_smoke_passed.unwrap_or(false) {
@@ -4950,6 +5292,7 @@ async fn run_rested_xp_smoke_workflow_inner(
         None,
         None,
         Some(resting_options),
+        None,
         None,
         None,
     )
@@ -5026,6 +5369,7 @@ async fn run_rested_xp_smoke_workflow_inner(
         Some(consume_options),
         None,
         None,
+        None,
     )
     .await?;
     merge_rested_xp_results(&mut combined, consume_result);
@@ -5055,6 +5399,7 @@ async fn run_rested_xp_smoke_workflow_inner(
         None,
         None,
         Some(verify_options),
+        None,
         None,
         None,
     )
@@ -5167,6 +5512,7 @@ async fn run_bank_smoke_workflow(
         None,
         None,
         None,
+        None,
     )
     .await;
 
@@ -5194,6 +5540,7 @@ async fn run_bank_smoke_workflow(
             false,
             None,
             Some(withdraw_options),
+            None,
             None,
             None,
             None,
@@ -5270,6 +5617,7 @@ async fn run_homebind_smoke_workflow(
         None,
         None,
         None,
+        None,
     )
     .await;
 
@@ -5332,6 +5680,7 @@ async fn run_homebind_smoke_workflow(
                 None,
                 None,
                 Some(relog_options),
+                None,
                 None,
                 None,
                 None,
@@ -6526,6 +6875,7 @@ async fn run_inventory_swap_smoke_workflow(
         None,
         None,
         None,
+        None,
     )
     .await;
 
@@ -6555,6 +6905,7 @@ async fn run_inventory_swap_smoke_workflow(
             None,
             None,
             Some(reverse_options),
+            None,
             None,
             None,
             None,
@@ -6649,6 +7000,7 @@ async fn run_vendor_smoke_workflow(
         None,
         None,
         None,
+        None,
     )
     .await;
 
@@ -6689,6 +7041,7 @@ async fn run_vendor_smoke_workflow(
             None,
             None,
             Some(relog_options),
+            None,
             None,
             None,
             None,

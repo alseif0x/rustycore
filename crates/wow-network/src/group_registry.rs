@@ -541,36 +541,39 @@ impl GroupInfo {
         }
     }
 
-    pub fn add_member(&mut self, guid: ObjectGuid) {
-        if !self.members.contains(&guid) {
-            let subgroup = if let Some(counts) = self.raid_subgroup_counts {
-                let Some((index, _)) = counts
-                    .iter()
-                    .enumerate()
-                    .find(|(_, count)| usize::from(**count) < MAX_GROUP_SIZE_LIKE_CPP)
-                else {
-                    return;
-                };
-                index as u8
-            } else {
-                0
-            };
-            if !self.subgroup_counter_increase_like_cpp(subgroup) {
-                return;
-            }
-            self.members.push(guid);
-            self.member_slots.push(GroupMemberSlotLikeCpp {
-                guid,
-                name: String::new(),
-                race: 0,
-                class: 0,
-                subgroup,
-                flags: 0,
-                roles: 0,
-                ready_checked: false,
-            });
-            self.sequence_num += 1;
+    pub fn add_member(&mut self, guid: ObjectGuid) -> bool {
+        if self.members.contains(&guid) {
+            return false;
         }
+
+        let subgroup = if let Some(counts) = self.raid_subgroup_counts {
+            let Some((index, _)) = counts
+                .iter()
+                .enumerate()
+                .find(|(_, count)| usize::from(**count) < MAX_GROUP_SIZE_LIKE_CPP)
+            else {
+                return false;
+            };
+            index as u8
+        } else {
+            0
+        };
+        if !self.subgroup_counter_increase_like_cpp(subgroup) {
+            return false;
+        }
+        self.members.push(guid);
+        self.member_slots.push(GroupMemberSlotLikeCpp {
+            guid,
+            name: String::new(),
+            race: 0,
+            class: 0,
+            subgroup,
+            flags: 0,
+            roles: 0,
+            ready_checked: false,
+        });
+        self.sequence_num += 1;
+        true
     }
 
     pub fn member_slot_like_cpp(&self, guid: ObjectGuid) -> Option<&GroupMemberSlotLikeCpp> {
@@ -1258,6 +1261,59 @@ impl GroupInfo {
 /// Thread-safe registry of all active groups, keyed by group GUID.
 pub type GroupRegistry = DashMap<u64, GroupInfo>;
 
+/// Result of the existing-group join portion of C++
+/// `WorldSession::HandlePartyInviteResponseOpcode`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AddGroupMemberIfRoomResultLikeCpp {
+    Added {
+        db_store_id: u32,
+        subgroup: u8,
+        is_raid_group: bool,
+    },
+    Full,
+    AddFailed,
+    AlreadyMember,
+    MissingGroup,
+}
+
+/// Atomically perform the C++ `Group::IsFull` then `Group::AddMember` sequence.
+///
+/// TrinityCore runs this sequence on its serialized world/session execution
+/// path (`GroupHandler.cpp`, `HandlePartyInviteResponseOpcode`). Rust sessions
+/// can accept invitations concurrently, so the mutable DashMap guard must span
+/// both operations to retain the same capacity invariant.
+pub fn add_group_member_if_room_like_cpp(
+    registry: &GroupRegistry,
+    group_guid: u64,
+    member_guid: ObjectGuid,
+) -> AddGroupMemberIfRoomResultLikeCpp {
+    let Some(mut group) = registry.get_mut(&group_guid) else {
+        return AddGroupMemberIfRoomResultLikeCpp::MissingGroup;
+    };
+
+    if group.is_full_like_cpp() {
+        return AddGroupMemberIfRoomResultLikeCpp::Full;
+    }
+    if group.members.contains(&member_guid) {
+        return AddGroupMemberIfRoomResultLikeCpp::AlreadyMember;
+    }
+    if !group.add_member(member_guid) {
+        // C++ returns silently when AddMember fails after the distinct IsFull
+        // check, for example when raid subgroup state has no free slot.
+        return AddGroupMemberIfRoomResultLikeCpp::AddFailed;
+    }
+
+    let subgroup = group
+        .member_slot_like_cpp(member_guid)
+        .map(|slot| slot.subgroup)
+        .unwrap_or_default();
+    AddGroupMemberIfRoomResultLikeCpp::Added {
+        db_store_id: group.db_store_id,
+        subgroup,
+        is_raid_group: group.is_raid_group(),
+    }
+}
+
 /// C++ `Group::UpdateReadyCheck` fanout: ticks every active group's
 /// ready-check timer and collects expired `Completed` events without
 /// holding any lock during packet fanout.
@@ -1429,6 +1485,119 @@ mod tests {
             raid.members.push(ObjectGuid::create_player(1, counter));
         }
         assert!(raid.is_full_like_cpp());
+    }
+
+    #[test]
+    fn add_group_member_if_room_accepts_last_party_slot_then_reports_full_like_cpp() {
+        let registry = GroupRegistry::default();
+        let leader = ObjectGuid::create_player(1, 42);
+        let mut party = GroupInfo::new(leader);
+        for counter in 43..46 {
+            assert!(party.add_member(ObjectGuid::create_player(1, counter)));
+        }
+        let group_guid = party.group_guid;
+        let db_store_id = party.db_store_id;
+        registry.insert(group_guid, party);
+
+        let final_member = ObjectGuid::create_player(1, 46);
+        assert_eq!(
+            add_group_member_if_room_like_cpp(&registry, group_guid, final_member),
+            AddGroupMemberIfRoomResultLikeCpp::Added {
+                db_store_id,
+                subgroup: 0,
+                is_raid_group: false,
+            }
+        );
+        assert_eq!(
+            add_group_member_if_room_like_cpp(
+                &registry,
+                group_guid,
+                ObjectGuid::create_player(1, 47),
+            ),
+            AddGroupMemberIfRoomResultLikeCpp::Full
+        );
+
+        let party = registry.get(&group_guid).expect("party remains registered");
+        assert_eq!(party.members.len(), MAX_GROUP_SIZE_LIKE_CPP);
+        assert!(party.members.contains(&final_member));
+    }
+
+    #[test]
+    fn concurrent_final_party_slot_accepts_exactly_one_member_like_cpp() {
+        let registry = std::sync::Arc::new(GroupRegistry::default());
+        let leader = ObjectGuid::create_player(1, 42);
+        let mut party = GroupInfo::new(leader);
+        for counter in 43..46 {
+            assert!(party.add_member(ObjectGuid::create_player(1, counter)));
+        }
+        let group_guid = party.group_guid;
+        registry.insert(group_guid, party);
+
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(3));
+        let candidates = [
+            ObjectGuid::create_player(1, 46),
+            ObjectGuid::create_player(1, 47),
+        ];
+        let handles: Vec<_> = candidates
+            .into_iter()
+            .map(|candidate| {
+                let registry = std::sync::Arc::clone(&registry);
+                let barrier = std::sync::Arc::clone(&barrier);
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    add_group_member_if_room_like_cpp(&registry, group_guid, candidate)
+                })
+            })
+            .collect();
+
+        barrier.wait();
+        let results: Vec<_> = handles
+            .into_iter()
+            .map(|handle| handle.join().expect("join attempt thread"))
+            .collect();
+        assert_eq!(
+            results
+                .iter()
+                .filter(|result| matches!(result, AddGroupMemberIfRoomResultLikeCpp::Added { .. }))
+                .count(),
+            1
+        );
+        assert_eq!(
+            results
+                .iter()
+                .filter(|result| matches!(result, AddGroupMemberIfRoomResultLikeCpp::Full))
+                .count(),
+            1
+        );
+
+        let party = registry.get(&group_guid).expect("party remains registered");
+        assert_eq!(party.members.len(), MAX_GROUP_SIZE_LIKE_CPP);
+        assert_ne!(
+            party.members.contains(&candidates[0]),
+            party.members.contains(&candidates[1]),
+            "only one simultaneous invitee owns the final party slot"
+        );
+    }
+
+    #[test]
+    fn add_group_member_if_room_preserves_distinct_add_failure_like_cpp() {
+        let registry = GroupRegistry::default();
+        let leader = ObjectGuid::create_player(1, 42);
+        let candidate = ObjectGuid::create_player(1, 77);
+        let mut raid = GroupInfo::new(leader);
+        raid.convert_to_raid_like_cpp();
+        raid.raid_subgroup_counts =
+            Some([MAX_GROUP_SIZE_LIKE_CPP as u8; MAX_RAID_SUBGROUPS_LIKE_CPP]);
+        let group_guid = raid.group_guid;
+        registry.insert(group_guid, raid);
+
+        assert_eq!(
+            add_group_member_if_room_like_cpp(&registry, group_guid, candidate),
+            AddGroupMemberIfRoomResultLikeCpp::AddFailed
+        );
+        let raid = registry.get(&group_guid).expect("raid remains registered");
+        assert_eq!(raid.members, vec![leader]);
+        assert!(!raid.members.contains(&candidate));
     }
 
     #[test]

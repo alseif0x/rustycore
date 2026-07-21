@@ -80,6 +80,35 @@ baseline-zero login rows. Any other rows created by the server remain visible,
 which is why the acknowledged disposable identity and clean preflight are
 mandatory.
 
+For the three-session group-capacity race, preload a normal four-member party,
+restart `world-server` so its `GroupRegistry` loads that exact state, and keep
+the configured leader plus both candidates offline and on the same faction.
+The leader must already be a member; neither candidate may be. Provisioning is
+forbidden in this mode, so use an ignored config containing the three existing
+linked identities and either valid 64-byte `session_key_bnet` fixture keys or
+credentials accepted by the live BNet fallback:
+
+```bash
+WOW_BOT_DB_CONF=/absolute/path/to/worldserver.conf \
+tools/wow-test-bot/target/debug/wow-test-bot \
+  --config /absolute/path/to/ignored-config.json \
+  --group-capacity-race-smoke \
+  --group-capacity-group-id <group-db-store-id> \
+  --group-capacity-timeout 30 \
+  --report /tmp/rustycore-group-capacity-race.json
+```
+
+The harness waits for all three World logins, verifies both invite results,
+barriers the two `CMSG_PARTY_INVITE_RESPONSE` sends, requires one `added` and
+one exact `Invite/GROUP_FULL` result, then proves in CharacterDB that the four
+original members plus exactly one candidate remain. Rust currently filters the
+wire `PartyUpdate.PlayerList` through connected `PlayerRegistry` entries even
+though C++ serializes every member slot; the harness pins that known boundary
+to the connected leader/winner pair and uses the final DB assertion for the
+complete five-member roster. A successful run intentionally leaves the winner
+in the party. Remove only that verified row and restart `world-server` before
+reusing the fixture.
+
 For the two-session atomic loot-claim smoke, use the guarded local preflight
 command with the feature-branch world executable pinned. The currently running
 normal PM2 world may be a different build; its executable/profile is snapshotted

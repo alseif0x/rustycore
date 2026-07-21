@@ -1,3 +1,34 @@
+# `#NEXT.R8.ENTITIES.1203` — atomic existing-group capacity check and join (issue #110).
+
+Source-of-truth C++ was checked before implementation:
+`Handlers/GroupHandler.cpp:187-241` and `Groups/Group.cpp:406-486`. C++ removes the accepted
+invite, checks `Group::IsFull`, and immediately calls `Group::AddMember` on its serialized
+session/world execution path. Rust sessions are concurrent, so the equivalent existing-group
+branch now calls `add_group_member_if_room_like_cpp`, which holds one mutable `GroupRegistry`
+guard across both the capacity decision and insertion. The operation reports Added, Full,
+AddFailed, AlreadyMember, or MissingGroup explicitly; `GroupInfo::add_member` also reports a real insertion
+instead of silently swallowing duplicate/no-subgroup failures. The handler sends
+`ERR_GROUP_FULL` without publishing group membership whenever the atomic operation reports Full,
+while preserving C++'s silent return when the later `Group::AddMember` equivalent fails.
+
+Focused coverage proves a successful final party slot, rejection once full, exact handler packet
+and invite-removal behavior, and two barrier-synchronized concurrent joins where exactly one wins
+and the party never exceeds five. `cargo fmt --all -- --check`, all 103 `wow-network` tests, all
+106 group-handler tests, all 3,001 `wow-world` library tests, seven group-capacity bot guard/parser
+tests, and the complete local CI preflight including capture gate pass with Rust 1.88 and
+incremental compilation disabled after the known compiler-cache failure. The standalone bot
+suite has 103 passes plus the same two pre-existing unrelated OpenSSL/BigUint failures. The
+installed `4adf87e1` release then passed the three-client race four times. The first two passes
+exercised both winner interleavings; the two review-hardened follow-ups also required the complete
+C++ loot/difficulty `PartyUpdate` tail and exact wire/CharacterDB winner identity, with the final
+pass matching every decoded loot and difficulty value to the preloaded group row. Every pass
+produced one exact `Invite/GROUP_FULL`, one Added, and an exact five-row final CharacterDB roster.
+All sessions logged out and the four-member fixture was restored before restarting the same PM2
+profile after each pass. Boundary: represented-partial until CI and the current-HEAD GitHub
+reviewer verdict/merge. The live race also recorded D-H16 (`PartyUpdate` filters offline slots in Rust); that
+packet-list parity gap, D-M8 database failure rollback, and the wider issue #51 group lifecycle
+remain separate.
+
 # `#NEXT.R8.ENTITIES.1202` — atomic vendor-purchase currency publication (issue #108).
 
 Source-of-truth C++ was checked before implementation:
