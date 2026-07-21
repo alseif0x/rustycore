@@ -14,14 +14,17 @@
   two-thread race in which exactly one candidate joins and the party remains at five members.
   Checks so far: `cargo fmt --all -- --check`; `wow-network --lib` 103/0; all group-handler tests
   106/0; full `wow-world --lib` 3001/0; complete local CI preflight including capture gate;
-  group-capacity bot parser/guard tests 4/0. The standalone bot suite has 100 passes and only its
+  group-capacity bot parser/guard tests 7/0. The standalone bot suite has 103 passes and only its
   two pre-existing unrelated failures (`wow_crypto::test_crypt_roundtrip` OpenSSL finalize and
   `srp6_auth::test_srp6_calculations` BigUint subtraction). The exact `4adf87e1` release runtime
-  then passed the three-client race twice, exercising
-  both interleavings: each candidate won once while the other received exact
-  `Invite/GROUP_FULL`, and CharacterDB held exactly the four original members plus that run's
-  winner. All sessions logged out and the fixture was restored to `13,14,17,18` after each pass
-  before restarting the same PM2 profile. The live run also exposed existing defect D-H16:
+  then passed the three-client race four times. The first two passes exercised both
+  interleavings: each candidate won once while the other received exact `Invite/GROUP_FULL`.
+  The two review-hardened follow-ups additionally required the complete C++ loot/difficulty
+  `PartyUpdate` tail and proved the same candidate won on wire and in CharacterDB; the final
+  pass also matched every decoded loot and difficulty value to the preloaded group row. Every
+  pass held exactly the four original members plus that run's winner; all sessions logged out and
+  the fixture was restored to `13,14,17,18` after each pass before restarting the same PM2 profile.
+  The live run also exposed existing defect D-H16:
   Rust's `PartyUpdate` lists only connected group members while retaining `MyIndex` from the
   complete member vector, unlike C++.
   Boundary: represented-partial until CI/current-HEAD GitHub review and merge; no claim is made

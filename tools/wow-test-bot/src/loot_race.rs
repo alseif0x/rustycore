@@ -243,6 +243,7 @@ pub(super) struct GroupCapacityRaceOptions {
     candidate_names: [String; 2],
     candidate_guids: [u64; 2],
     initial_member_guids: [u64; 4],
+    party_settings: GroupCapacityPartySettings,
     pub group_db_store_id: u32,
     pub timeout_secs: u64,
     pub(super) auth_serial: Arc<Mutex<()>>,
@@ -5675,12 +5676,38 @@ struct GroupCapacityFixture {
     candidate_names: [String; 2],
     candidate_guids: [u64; 2],
     initial_member_guids: [u64; 4],
+    party_settings: GroupCapacityPartySettings,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct GroupCapacityPartySettings {
+    loot_method: u8,
+    loot_threshold: u8,
+    master_looter_guid: u64,
+    dungeon_difficulty_id: u32,
+    raid_difficulty_id: u32,
+    legacy_raid_difficulty_id: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct GroupCapacityPersistenceEvidence {
+    final_member_count: u64,
+    winning_candidate_guid: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum GroupCapacityOutcome {
     Added,
     Full,
+}
+
+fn validate_group_capacity_initial_member_offline(member_guid: u64, online: u8) -> Result<()> {
+    if online != 0 {
+        bail!(
+            "group-capacity initial member {member_guid} must be offline before the race; online={online}"
+        );
+    }
+    Ok(())
 }
 
 fn load_group_capacity_fixture(
@@ -5721,9 +5748,18 @@ fn load_group_capacity_fixture(
     let opts = qa_mysql_opts(&characters_db_url()?, "characters")?;
     let mut conn = mysql::Conn::new(opts)
         .map_err(|error| anyhow!("Connect to characters DB failed: {error}"))?;
-    let (loaded_leader, group_type): (u64, u16) = conn
+    let (
+        loaded_leader,
+        group_type,
+        loot_method,
+        loot_threshold,
+        dungeon_difficulty_id,
+        raid_difficulty_id,
+        legacy_raid_difficulty_id,
+        master_looter_guid,
+    ): (u64, u16, u8, u8, u32, u32, u32, u64) = conn
         .exec_first(
-            "SELECT leaderGuid, groupType FROM `groups` WHERE guid = ?",
+            "SELECT leaderGuid, groupType, lootMethod, lootThreshold, difficulty, raidDifficulty, legacyRaidDifficulty, masterLooterGuid FROM `groups` WHERE guid = ?",
             (cli.group_db_store_id,),
         )
         .map_err(|error| anyhow!("Load preseeded group-capacity group: {error}"))?
@@ -5771,7 +5807,8 @@ fn load_group_capacity_fixture(
         .ok_or_else(|| anyhow!("group-capacity character {guid} does not exist"))
     };
     for member_guid in initial_member_guids {
-        let _ = load_character(&mut conn, member_guid)?;
+        let (_, _, online) = load_character(&mut conn, member_guid)?;
+        validate_group_capacity_initial_member_offline(member_guid, online)?;
     }
 
     let leader_character = load_character(&mut conn, leader.character_guid)?;
@@ -5797,13 +5834,67 @@ fn load_group_capacity_fixture(
         candidate_names: [candidate_a_character.0, candidate_b_character.0],
         candidate_guids: [candidate_a.character_guid, candidate_b.character_guid],
         initial_member_guids,
+        party_settings: GroupCapacityPartySettings {
+            loot_method,
+            loot_threshold,
+            master_looter_guid,
+            dungeon_difficulty_id,
+            raid_difficulty_id,
+            legacy_raid_difficulty_id,
+        },
     })
+}
+
+fn validate_group_capacity_persisted_members(
+    fixture: &GroupCapacityFixture,
+    final_members: &[u64],
+) -> Result<GroupCapacityPersistenceEvidence> {
+    if final_members.len() != 5
+        || !fixture
+            .initial_member_guids
+            .iter()
+            .all(|guid| final_members.contains(guid))
+    {
+        bail!(
+            "group-capacity race persisted {:?}; expected four initial members plus one candidate",
+            final_members
+        );
+    }
+    let persisted_candidates: Vec<_> = fixture
+        .candidate_guids
+        .iter()
+        .copied()
+        .filter(|guid| final_members.contains(guid))
+        .collect();
+    let [winning_candidate_guid] = persisted_candidates.as_slice() else {
+        bail!(
+            "group-capacity race persisted {} candidates instead of exactly one: {:?}",
+            persisted_candidates.len(),
+            final_members
+        );
+    };
+    Ok(GroupCapacityPersistenceEvidence {
+        final_member_count: final_members.len() as u64,
+        winning_candidate_guid: *winning_candidate_guid,
+    })
+}
+
+fn validate_group_capacity_winner_consistency(
+    wire_winner_guid: u64,
+    persisted_winner_guid: u64,
+) -> Result<()> {
+    if wire_winner_guid != persisted_winner_guid {
+        bail!(
+            "group-capacity winner mismatch: wire added GUID {wire_winner_guid}, CharacterDB persisted GUID {persisted_winner_guid}"
+        );
+    }
+    Ok(())
 }
 
 fn verify_group_capacity_fixture(
     cli: &GroupCapacityRaceCli,
     fixture: &GroupCapacityFixture,
-) -> Result<u64> {
+) -> Result<GroupCapacityPersistenceEvidence> {
     let opts = qa_mysql_opts(&characters_db_url()?, "characters")?;
     let mut conn = mysql::Conn::new(opts)
         .map_err(|error| anyhow!("Connect to characters DB failed: {error}"))?;
@@ -5825,29 +5916,7 @@ fn verify_group_capacity_fixture(
             (cli.group_db_store_id,),
         )
         .map_err(|error| anyhow!("Verify group-capacity member rows: {error}"))?;
-    if final_members.len() != 5
-        || !fixture
-            .initial_member_guids
-            .iter()
-            .all(|guid| final_members.contains(guid))
-    {
-        bail!(
-            "group-capacity race persisted {:?}; expected four initial members plus one candidate",
-            final_members
-        );
-    }
-    let candidate_count = fixture
-        .candidate_guids
-        .iter()
-        .filter(|guid| final_members.contains(guid))
-        .count();
-    if candidate_count != 1 {
-        bail!(
-            "group-capacity race persisted {candidate_count} candidates instead of exactly one: {:?}",
-            final_members
-        );
-    }
-    Ok(final_members.len() as u64)
+    validate_group_capacity_persisted_members(fixture, &final_members)
 }
 
 async fn wait_group_capacity_barrier(
@@ -5971,6 +6040,9 @@ fn validate_group_capacity_party_update(
     let _leader_faction = cursor.read_u8("LeaderFactionGroup")?;
     let member_count = cursor.read_u32("PlayerList.size")?;
     let optional_bits = cursor.read_u8("optional-value bits")?;
+    let has_lfg_info = optional_bits & 0x80 != 0;
+    let has_loot_settings = optional_bits & 0x40 != 0;
+    let has_difficulty_settings = optional_bits & 0x20 != 0;
     if party_flags != 0
         || party_index != 0
         || party_type != 1
@@ -5981,6 +6053,11 @@ fn validate_group_capacity_party_update(
     {
         bail!(
             "group-capacity winner received invalid normal HOME PartyUpdate: flags={party_flags:#06X} index={party_index} type={party_type} leader={leader_guid:?} members={member_count} optional={optional_bits:#04X}"
+        );
+    }
+    if has_lfg_info || !has_loot_settings || !has_difficulty_settings {
+        bail!(
+            "group-capacity PartyUpdate optional values differed from a normal non-LFG group: lfg={has_lfg_info} loot={has_loot_settings} difficulty={has_difficulty_settings}"
         );
     }
 
@@ -6029,7 +6106,7 @@ fn validate_group_capacity_party_update(
     expected.sort_unstable();
     roster.sort_unstable();
 
-    if member_count == EXPECTED_MEMBERS {
+    let evidence = if member_count == EXPECTED_MEMBERS {
         let receiver_index = usize::try_from(my_index)
             .ok()
             .filter(|index| *index < expected.len())
@@ -6042,28 +6119,64 @@ fn validate_group_capacity_party_update(
                 "group-capacity PartyUpdate roster {roster:?} did not match initial members plus winner {expected:?}"
             );
         }
-        return Ok(GroupCapacityPartyUpdateEvidence::CompleteRoster);
-    }
+        GroupCapacityPartyUpdateEvidence::CompleteRoster
+    } else {
+        // C++ Group::SendUpdateToPlayer serializes every MemberSlot, including
+        // offline players. The current Rust send_party_update path filters its
+        // PlayerList through PlayerRegistry, but keeps MyIndex from the complete
+        // group. Keep the #110 runtime race scoped to atomic admission by pinning
+        // that existing divergence exactly; the post-race DB assertion below is
+        // still the authority for the complete five-member persisted roster.
+        let mut expected_connected = vec![
+            create_player_guid_raw(options.leader_guid, realm_id()),
+            receiver,
+        ];
+        expected_connected.sort_unstable();
+        let expected_complete_index = i32::try_from(options.initial_member_guids.len())
+            .expect("normal group fixture length fits i32");
+        if my_index != expected_complete_index || roster != expected_connected {
+            bail!(
+                "group-capacity PartyUpdate connected-only roster {roster:?} with MyIndex {my_index} did not match leader plus winner {expected_connected:?} and complete index {expected_complete_index}"
+            );
+        }
+        GroupCapacityPartyUpdateEvidence::ConnectedOnlyRoster
+    };
 
-    // C++ Group::SendUpdateToPlayer serializes every MemberSlot, including
-    // offline players. The current Rust send_party_update path filters its
-    // PlayerList through PlayerRegistry, but keeps MyIndex from the complete
-    // group. Keep the #110 runtime race scoped to atomic admission by pinning
-    // that existing divergence exactly; the post-race DB assertion below is
-    // still the authority for the complete five-member persisted roster.
-    let mut expected_connected = vec![
-        create_player_guid_raw(options.leader_guid, realm_id()),
-        receiver,
-    ];
-    expected_connected.sort_unstable();
-    let expected_complete_index = i32::try_from(options.initial_member_guids.len())
-        .expect("normal group fixture length fits i32");
-    if my_index != expected_complete_index || roster != expected_connected {
+    let loot_method = cursor.read_u8("PartyLootSettings.Method")?;
+    let loot_master = cursor.read_packed_guid("PartyLootSettings.LootMaster")?;
+    let loot_threshold = cursor.read_u8("PartyLootSettings.Threshold")?;
+    let dungeon_difficulty_id = cursor.read_u32("PartyDifficultySettings.DungeonDifficultyID")?;
+    let raid_difficulty_id = cursor.read_u32("PartyDifficultySettings.RaidDifficultyID")?;
+    let legacy_raid_difficulty_id =
+        cursor.read_u32("PartyDifficultySettings.LegacyRaidDifficultyID")?;
+    let expected_loot_master = if options.party_settings.loot_method == 2 {
+        create_player_guid_raw(options.party_settings.master_looter_guid, realm_id())
+    } else {
+        (0, 0)
+    };
+    if loot_method != options.party_settings.loot_method
+        || loot_master != expected_loot_master
+        || loot_threshold != options.party_settings.loot_threshold
+        || dungeon_difficulty_id != options.party_settings.dungeon_difficulty_id
+        || raid_difficulty_id != options.party_settings.raid_difficulty_id
+        || legacy_raid_difficulty_id != options.party_settings.legacy_raid_difficulty_id
+    {
         bail!(
-            "group-capacity PartyUpdate connected-only roster {roster:?} with MyIndex {my_index} did not match leader plus winner {expected_connected:?} and complete index {expected_complete_index}"
+            "group-capacity PartyUpdate settings differed from the preloaded group: loot={loot_method}/{loot_master:?}/{loot_threshold} difficulty={dungeon_difficulty_id}/{raid_difficulty_id}/{legacy_raid_difficulty_id}; expected loot={}/{expected_loot_master:?}/{} difficulty={}/{}/{}",
+            options.party_settings.loot_method,
+            options.party_settings.loot_threshold,
+            options.party_settings.dungeon_difficulty_id,
+            options.party_settings.raid_difficulty_id,
+            options.party_settings.legacy_raid_difficulty_id,
         );
     }
-    Ok(GroupCapacityPartyUpdateEvidence::ConnectedOnlyRoster)
+    if cursor.offset != payload.len() {
+        bail!(
+            "group-capacity PartyUpdate left {} trailing byte(s)",
+            payload.len() - cursor.offset
+        );
+    }
+    Ok(evidence)
 }
 
 async fn wait_for_group_capacity_realm_opcode(
@@ -6362,6 +6475,7 @@ pub(super) async fn run_group_capacity_workflow(
             candidate_names: fixture.candidate_names.clone(),
             candidate_guids: fixture.candidate_guids,
             initial_member_guids: fixture.initial_member_guids,
+            party_settings: fixture.party_settings,
             group_db_store_id: cli.group_db_store_id,
             timeout_secs: cli.timeout_secs,
             auth_serial: Arc::clone(&auth_serial),
@@ -6467,15 +6581,24 @@ pub(super) async fn run_group_capacity_workflow(
             "group-capacity wire outcomes were {candidate_outcomes:?}; expected one added and one full"
         );
     }
-    let final_member_count = {
+    let wire_winner_guid = results
+        .iter()
+        .find(|result| result.group_capacity_outcome.as_deref() == Some("added"))
+        .map(|result| result.character_guid)
+        .ok_or_else(|| anyhow!("group-capacity race did not identify the wire winner"))?;
+    let persistence = {
         let cli = cli.clone();
         let fixture = fixture.clone();
         tokio::task::spawn_blocking(move || verify_group_capacity_fixture(&cli, &fixture))
             .await
             .map_err(|error| anyhow!("group-capacity DB verification worker failed: {error}"))??
     };
+    validate_group_capacity_winner_consistency(
+        wire_winner_guid,
+        persistence.winning_candidate_guid,
+    )?;
     for result in &mut results {
-        result.group_capacity_final_member_count = Some(final_member_count);
+        result.group_capacity_final_member_count = Some(persistence.final_member_count);
         result.group_capacity_race_smoke_passed = Some(true);
     }
     Ok(results)
@@ -6780,6 +6903,20 @@ mod tests {
         leader_guid: (u64, u64),
         roster: &[(u64, u64)],
     ) -> Vec<u8> {
+        group_capacity_party_update_with_optional_bits_for_test(
+            receiver_index,
+            leader_guid,
+            roster,
+            0x60,
+        )
+    }
+
+    fn group_capacity_party_update_with_optional_bits_for_test(
+        receiver_index: i32,
+        leader_guid: (u64, u64),
+        roster: &[(u64, u64)],
+        optional_bits: u8,
+    ) -> Vec<u8> {
         let mut payload = Vec::new();
         payload.extend_from_slice(&0u16.to_le_bytes());
         payload.push(0);
@@ -6790,11 +6927,39 @@ mod tests {
         payload.extend_from_slice(&build_packed_guid(leader_guid.0, leader_guid.1));
         payload.push(0);
         payload.extend_from_slice(&(roster.len() as u32).to_le_bytes());
-        payload.push(0x60);
+        payload.push(optional_bits);
         for (index, guid) in roster.iter().copied().enumerate() {
             append_party_player_info_for_test(&mut payload, guid, &format!("Member{index}"));
         }
+        let settings = group_capacity_party_settings_for_test();
+        payload.push(settings.loot_method);
+        payload.extend_from_slice(&build_packed_guid(0, 0));
+        payload.push(settings.loot_threshold);
+        payload.extend_from_slice(&settings.dungeon_difficulty_id.to_le_bytes());
+        payload.extend_from_slice(&settings.raid_difficulty_id.to_le_bytes());
+        payload.extend_from_slice(&settings.legacy_raid_difficulty_id.to_le_bytes());
         payload
+    }
+
+    fn group_capacity_party_settings_for_test() -> GroupCapacityPartySettings {
+        GroupCapacityPartySettings {
+            loot_method: 0,
+            loot_threshold: 2,
+            master_looter_guid: 0,
+            dungeon_difficulty_id: 1,
+            raid_difficulty_id: 14,
+            legacy_raid_difficulty_id: 3,
+        }
+    }
+
+    fn group_capacity_fixture_for_test() -> GroupCapacityFixture {
+        GroupCapacityFixture {
+            leader_guid: 14,
+            candidate_names: ["CandidateA".into(), "CandidateB".into()],
+            candidate_guids: [15, 16],
+            initial_member_guids: [13, 14, 17, 18],
+            party_settings: group_capacity_party_settings_for_test(),
+        }
     }
 
     fn group_capacity_options_for_test(candidate_guid: u64) -> GroupCapacityRaceOptions {
@@ -6805,6 +6970,7 @@ mod tests {
             candidate_names: ["CandidateA".into(), "CandidateB".into()],
             candidate_guids: [15, 16],
             initial_member_guids: [13, 14, 17, 18],
+            party_settings: group_capacity_party_settings_for_test(),
             group_db_store_id: 99,
             timeout_secs: 1,
             auth_serial: Arc::new(Mutex::new(())),
@@ -7164,6 +7330,105 @@ mod tests {
         let wrong_peer = create_player_guid_raw(16, realm_id());
         let wrong = group_capacity_party_update_for_test(4, leader, &[leader, wrong_peer]);
         assert!(validate_group_capacity_party_update(&wrong, &options).is_err());
+    }
+
+    #[test]
+    fn group_capacity_fixture_rejects_online_initial_member() {
+        validate_group_capacity_initial_member_offline(17, 0).unwrap();
+        let error = validate_group_capacity_initial_member_offline(17, 1)
+            .expect_err("an online filler would change the connected-only PartyUpdate roster");
+        assert!(error.to_string().contains("initial member 17"));
+        assert!(error.to_string().contains("offline"));
+    }
+
+    #[test]
+    fn group_capacity_persistence_identifies_and_matches_wire_winner() {
+        let fixture = group_capacity_fixture_for_test();
+        let evidence =
+            validate_group_capacity_persisted_members(&fixture, &[13, 14, 15, 17, 18]).unwrap();
+        assert_eq!(
+            evidence,
+            GroupCapacityPersistenceEvidence {
+                final_member_count: 5,
+                winning_candidate_guid: 15,
+            }
+        );
+        validate_group_capacity_winner_consistency(15, evidence.winning_candidate_guid).unwrap();
+        let error = validate_group_capacity_winner_consistency(16, evidence.winning_candidate_guid)
+            .expect_err("wire and CharacterDB winners must be the same candidate");
+        assert!(error.to_string().contains("winner mismatch"));
+        assert!(error.to_string().contains("wire added GUID 16"));
+        assert!(error.to_string().contains("persisted GUID 15"));
+    }
+
+    #[test]
+    fn group_capacity_party_update_requires_cpp_optional_tail_exactly() {
+        let options = group_capacity_options_for_test(15);
+        let leader = create_player_guid_raw(14, realm_id());
+        let candidate = create_player_guid_raw(15, realm_id());
+
+        let no_option_bits = group_capacity_party_update_with_optional_bits_for_test(
+            4,
+            leader,
+            &[leader, candidate],
+            0,
+        );
+        let error = validate_group_capacity_party_update(&no_option_bits, &options)
+            .expect_err("normal party update must advertise loot and difficulty settings");
+        assert!(error.to_string().contains("loot=false"));
+        assert!(error.to_string().contains("difficulty=false"));
+
+        let valid = group_capacity_party_update_for_test(4, leader, &[leader, candidate]);
+        let empty_guid_len = build_packed_guid(0, 0).len();
+        let optional_tail_len = 1 + empty_guid_len + 1 + 12;
+        let tail_start = valid.len() - optional_tail_len;
+
+        let mut wrong_method = valid.clone();
+        wrong_method[tail_start] = 3;
+        assert!(
+            validate_group_capacity_party_update(&wrong_method, &options)
+                .unwrap_err()
+                .to_string()
+                .contains("settings differed")
+        );
+
+        let mut wrong_threshold = valid.clone();
+        wrong_threshold[tail_start + 1 + empty_guid_len] = 4;
+        assert!(
+            validate_group_capacity_party_update(&wrong_threshold, &options)
+                .unwrap_err()
+                .to_string()
+                .contains("settings differed")
+        );
+
+        let difficulty_start = tail_start + 1 + empty_guid_len + 1;
+        let mut swapped_difficulties = valid.clone();
+        swapped_difficulties[difficulty_start..difficulty_start + 4]
+            .copy_from_slice(&14u32.to_le_bytes());
+        swapped_difficulties[difficulty_start + 4..difficulty_start + 8]
+            .copy_from_slice(&1u32.to_le_bytes());
+        assert!(
+            validate_group_capacity_party_update(&swapped_difficulties, &options)
+                .unwrap_err()
+                .to_string()
+                .contains("settings differed")
+        );
+
+        let mut missing_tail = valid.clone();
+        missing_tail.truncate(tail_start);
+        assert!(
+            validate_group_capacity_party_update(&missing_tail, &options)
+                .unwrap_err()
+                .to_string()
+                .contains("PartyLootSettings.Method")
+        );
+
+        let mut trailing = valid;
+        trailing.push(0xFF);
+        assert!(validate_group_capacity_party_update(&trailing, &options)
+            .unwrap_err()
+            .to_string()
+            .contains("trailing byte"));
     }
 
     #[test]
