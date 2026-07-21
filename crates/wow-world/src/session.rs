@@ -191,7 +191,8 @@ use wow_network::{
     KickLikeCppCommand, LootDropRatesLikeCpp, LootRollCommandIdentityLikeCpp,
     NotifyLootMoneyRemovedLikeCppCommand, PacketSpoofConfigLikeCpp, PendingInvites,
     PlayerBroadcastInfo, PlayerRegistry, ReputationRatesLikeCpp, SessionCommand,
-    SocketTimeoutsLikeCpp, SocketWriteFenceLikeCpp, group_guid_by_db_store_id_like_cpp,
+    SocketTimeoutsLikeCpp, SocketWriteFenceLikeCpp, SocketWriteFenceWaitResultLikeCpp,
+    group_guid_by_db_store_id_like_cpp,
 };
 use wow_packet::packets::chat::{ChatMsg, ChatPkt, PrintNotification};
 use wow_packet::packets::gossip::ClientGossipText;
@@ -217,6 +218,10 @@ use wow_packet::packets::quest::{
 use wow_packet::packets::spell::SpellTargetData;
 use wow_recastdetour::PathQueryFilterContext;
 
+// TrinityCore enqueues cross-connection sends without waiting for physical TCP
+// progress. RustyCore waits briefly to retain the order observed in captures,
+// then completes the already-committed gameplay fanout if a writer stalls.
+const CROSS_SOCKET_WRITE_FENCE_TIMEOUT: Duration = Duration::from_millis(250);
 const QUEST_OBJECTIVE_ITEM_LIKE_CPP: u8 = 1;
 const QUEST_OBJECTIVE_CURRENCY_LIKE_CPP: u8 = 4;
 const QUEST_OBJECTIVE_MIN_REPUTATION_LIKE_CPP: u8 = 6;
@@ -5115,6 +5120,10 @@ pub struct WorldSession {
     /// Per-session finite vendor stock state, mirroring Creature::m_vendorItemCounts
     /// until vendor ownership moves into the shared creature model.
     pub(crate) vendor_item_counts: HashMap<(wow_core::ObjectGuid, u32), VendorItemCount>,
+    /// Test-only replacement for one resolved `VendorItem` row. Production
+    /// always resolves the row through CharacterHandler's WorldDB query.
+    #[cfg(test)]
+    vendor_buy_item_test_override_like_cpp: Option<VendorBuyItemTestOverrideLikeCpp>,
 
     /// Shared, server-wide map state. When `Some`, creature reads/writes can
     /// route through here so all sessions on the same map see the same world.
@@ -6033,6 +6042,21 @@ pub(crate) struct RepresentedEquipmentSetSavedLikeCpp {
 pub(crate) struct VendorItemCount {
     pub count: u32,
     pub last_increment_time: u64,
+}
+
+#[cfg(test)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct VendorBuyItemTestOverrideLikeCpp {
+    pub(crate) item_id: u32,
+    pub(crate) item_type: i32,
+    pub(crate) max_count: u32,
+    pub(crate) incr_time: u32,
+    pub(crate) player_condition_id: u32,
+    pub(crate) has_vendor_conditions: bool,
+    pub(crate) extended_cost: u32,
+    pub(crate) buy_price: u64,
+    pub(crate) max_durability: u32,
+    pub(crate) buy_count: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -6983,6 +7007,8 @@ impl WorldSession {
             filter_addon_messages: false,
             creature_tick: 0,
             vendor_item_counts: HashMap::new(),
+            #[cfg(test)]
+            vendor_buy_item_test_override_like_cpp: None,
             map_manager: None,
             canonical_map_manager: None,
             mmap_pathfinder_like_cpp: None,
@@ -8104,6 +8130,21 @@ impl WorldSession {
 
     pub fn set_canonical_map_manager(&mut self, mgr: SharedCanonicalMapManager) {
         self.canonical_map_manager = Some(mgr);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_vendor_buy_item_test_override_like_cpp(
+        &mut self,
+        item: VendorBuyItemTestOverrideLikeCpp,
+    ) {
+        self.vendor_buy_item_test_override_like_cpp = Some(item);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn vendor_buy_item_test_override_like_cpp(
+        &self,
+    ) -> Option<VendorBuyItemTestOverrideLikeCpp> {
+        self.vendor_buy_item_test_override_like_cpp
     }
 
     pub(crate) fn auto_reply_msg_like_cpp(&self) -> &str {
@@ -15375,8 +15416,9 @@ impl WorldSession {
     }
 
     /// C++ `Player::AddCurrency(..., CurrencyGainSource::Vendor)` without aura gain bonuses.
-    pub(crate) fn add_currency_vendor(
-        &mut self,
+    pub(crate) fn plan_add_currency_vendor_like_cpp(
+        &self,
+        currencies: &mut HashMap<u32, PlayerCurrency>,
         currency_id: u32,
         amount: u32,
     ) -> Result<Option<PlayerCurrencyDelta>, ()> {
@@ -15407,7 +15449,6 @@ impl WorldSession {
             return Err(());
         }
 
-        let mut currencies = self.player_currencies_like_cpp().clone();
         let currency = currencies.entry(currency_id).or_insert(PlayerCurrency {
             state: PlayerCurrencyState::New,
             quantity: 0,
@@ -15458,8 +15499,22 @@ impl WorldSession {
             total_earned: entry.has_total_earned().then_some(currency.earned_quantity),
             suppress_chat_log: entry.is_suppressing_chat_log(false),
         };
-        self.set_player_currencies_like_cpp(currencies);
         Ok(Some(delta))
+    }
+
+    /// Publish the C++ vendor gain immediately for callers that do not own a
+    /// wider durable transaction. Persistence-sensitive vendor handlers use
+    /// [`Self::plan_add_currency_vendor_like_cpp`] and publish only after
+    /// their combined item/currency transaction commits.
+    pub(crate) fn add_currency_vendor(
+        &mut self,
+        currency_id: u32,
+        amount: u32,
+    ) -> Result<Option<PlayerCurrencyDelta>, ()> {
+        let mut currencies = self.player_currencies_like_cpp().clone();
+        let delta = self.plan_add_currency_vendor_like_cpp(&mut currencies, currency_id, amount)?;
+        self.set_player_currencies_like_cpp(currencies);
+        Ok(delta)
     }
 
     /// C++ `Player::AddCurrency(..., CurrencyGainSource::ItemRefund)`.
@@ -15630,12 +15685,15 @@ impl WorldSession {
     }
 
     /// C++ `Player::RemoveCurrency` underflow guard for vendor costs.
-    pub(crate) fn remove_currency(&mut self, currency_id: u32, amount: u32) -> bool {
+    pub(crate) fn plan_remove_currency_like_cpp(
+        currencies: &mut HashMap<u32, PlayerCurrency>,
+        currency_id: u32,
+        amount: u32,
+    ) -> bool {
         if amount == 0 {
             return true;
         }
 
-        let mut currencies = self.player_currencies_like_cpp().clone();
         let Some(currency) = currencies.get_mut(&currency_id) else {
             return false;
         };
@@ -15648,21 +15706,29 @@ impl WorldSession {
         if currency.state != PlayerCurrencyState::New {
             currency.state = PlayerCurrencyState::Changed;
         }
+        true
+    }
+
+    pub(crate) fn remove_currency(&mut self, currency_id: u32, amount: u32) -> bool {
+        let mut currencies = self.player_currencies_like_cpp().clone();
+        if !Self::plan_remove_currency_like_cpp(&mut currencies, currency_id, amount) {
+            return false;
+        }
         self.set_player_currencies_like_cpp(currencies);
         true
     }
 
     /// C++ `Player::_SaveCurrency` for changed/new currency rows.
-    pub(crate) fn append_player_currency_save_statements(
-        &mut self,
+    pub(crate) fn append_planned_player_currency_save_statements_like_cpp(
+        &self,
         tx: &mut SqlTransaction,
         character_guid: u64,
+        currencies: &mut HashMap<u32, PlayerCurrency>,
     ) {
         let Some(store) = self.currency_types_store.as_ref() else {
             return;
         };
-        let mut currencies = self.player_currencies_like_cpp().clone();
-        for (&currency_id, currency) in &mut currencies {
+        for (&currency_id, currency) in currencies.iter_mut() {
             if !store.has_record(currency_id) {
                 continue;
             }
@@ -15702,6 +15768,19 @@ impl WorldSession {
                 PlayerCurrencyState::Unchanged | PlayerCurrencyState::Removed => {}
             }
         }
+    }
+
+    pub(crate) fn append_player_currency_save_statements(
+        &mut self,
+        tx: &mut SqlTransaction,
+        character_guid: u64,
+    ) {
+        let mut currencies = self.player_currencies_like_cpp().clone();
+        self.append_planned_player_currency_save_statements_like_cpp(
+            tx,
+            character_guid,
+            &mut currencies,
+        );
         self.set_player_currencies_like_cpp(currencies);
     }
 
@@ -31265,6 +31344,7 @@ impl WorldSession {
                 liquid_status: self.player_liquid_status_like_cpp(),
                 is_in_world: self.player_is_in_world_for_registry_like_cpp(),
                 send_tx: self.send_tx.clone(),
+                realm_send_tx: self.realm_send_tx.as_ref().unwrap_or(&self.send_tx).clone(),
                 command_tx: self.session_command_tx.clone(),
                 durable_loot_money_tracker_like_cpp: Arc::clone(
                     &self.durable_loot_money_persistence_like_cpp,
@@ -36649,9 +36729,10 @@ impl WorldSession {
     }
 
     /// Wait for current-instance packets to reach their physical socket before
-    /// emitting a later realm packet. C++ performs both `SendDirectMessage`
-    /// calls synchronously; Rust's two independent writer tasks need this FIFO
-    /// completion fence to retain the same cross-connection order.
+    /// emitting a later realm packet. C++ enqueues both `SendDirectMessage`
+    /// calls during one session update; Rust's two independent writer tasks
+    /// need this FIFO completion fence to retain observed cross-connection
+    /// order.
     pub(crate) async fn wait_for_instance_send_before_realm_send_like_cpp(&self) -> bool {
         let Some(realm_send_tx) = self.realm_send_tx.as_ref() else {
             return true;
@@ -36666,16 +36747,33 @@ impl WorldSession {
             );
             return false;
         };
-        let acknowledged = write_fence
-            .wait_for_prior_packets_written_like_cpp(&self.send_tx, Duration::from_millis(250))
-            .await;
-        if !acknowledged {
-            warn!(
-                account = self.account_id,
-                "instance writer did not acknowledge the bounded ordering fence"
-            );
+        match write_fence
+            .wait_for_prior_packets_written_like_cpp(
+                &self.send_tx,
+                CROSS_SOCKET_WRITE_FENCE_TIMEOUT,
+            )
+            .await
+        {
+            SocketWriteFenceWaitResultLikeCpp::Written => true,
+            SocketWriteFenceWaitResultLikeCpp::TimedOut => {
+                // C++ queues `SendPacket` without turning transient socket
+                // backpressure into a gameplay failure. Preserve the durable
+                // result and finish enqueuing its remaining fanout.
+                warn!(
+                    account = self.account_id,
+                    timeout_ms = CROSS_SOCKET_WRITE_FENCE_TIMEOUT.as_millis(),
+                    "instance writer ordering fence timed out; continuing committed fanout"
+                );
+                true
+            }
+            SocketWriteFenceWaitResultLikeCpp::WriterClosed => {
+                warn!(
+                    account = self.account_id,
+                    "instance writer closed before acknowledging the ordering fence"
+                );
+                false
+            }
         }
-        acknowledged
     }
 
     /// Wait for realm packets to reach their physical socket before emitting a
@@ -36695,16 +36793,30 @@ impl WorldSession {
             );
             return false;
         };
-        let acknowledged = write_fence
-            .wait_for_prior_packets_written_like_cpp(realm_send_tx, Duration::from_millis(250))
-            .await;
-        if !acknowledged {
-            warn!(
-                account = self.account_id,
-                "realm writer did not acknowledge the bounded ordering fence"
-            );
+        match write_fence
+            .wait_for_prior_packets_written_like_cpp(
+                realm_send_tx,
+                CROSS_SOCKET_WRITE_FENCE_TIMEOUT,
+            )
+            .await
+        {
+            SocketWriteFenceWaitResultLikeCpp::Written => true,
+            SocketWriteFenceWaitResultLikeCpp::TimedOut => {
+                warn!(
+                    account = self.account_id,
+                    timeout_ms = CROSS_SOCKET_WRITE_FENCE_TIMEOUT.as_millis(),
+                    "realm writer ordering fence timed out; continuing committed fanout"
+                );
+                true
+            }
+            SocketWriteFenceWaitResultLikeCpp::WriterClosed => {
+                warn!(
+                    account = self.account_id,
+                    "realm writer closed before acknowledging the ordering fence"
+                );
+                false
+            }
         }
-        acknowledged
     }
 
     #[cfg(test)]
@@ -36860,7 +36972,10 @@ impl WorldSession {
             }
         }
 
-        self.send_packet(&packet);
+        // C++ `Player::SendNewItem` uses `SendDirectMessage`; opcode routing
+        // places `SMSG_ITEM_PUSH_RESULT` on CONNECTION_TYPE_REALM even while
+        // the inventory object updates remain on the instance connection.
+        self.send_packet_realm(&packet);
     }
 
     fn broadcast_item_push_result_to_group(&self, bytes: Vec<u8>) -> bool {
@@ -36877,7 +36992,7 @@ impl WorldSession {
         let mut delivered = false;
         for member_guid in &group.members {
             if let Some(member) = player_registry.get(member_guid) {
-                delivered |= member.send_tx.send(bytes.clone()).is_ok();
+                delivered |= member.realm_send_tx.send(bytes.clone()).is_ok();
             }
         }
 
@@ -94411,6 +94526,7 @@ mod tests {
             combat_reach: 0.0,
             liquid_status: 0,
             is_in_world: true,
+            realm_send_tx: send_tx.clone(),
             send_tx,
             command_tx,
             durable_loot_money_tracker_like_cpp: Default::default(),
@@ -116698,6 +116814,117 @@ mod tests {
     }
 
     #[test]
+    fn vendor_currency_purchase_plan_does_not_publish_before_commit_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.player_race = 1;
+        session.set_currency_types_store(Arc::new(wow_data::CurrencyTypesStore::from_entries([
+            currency_entry(395),
+            currency_entry(396),
+        ])));
+        session.player_currencies.insert(
+            396,
+            PlayerCurrency {
+                state: PlayerCurrencyState::Unchanged,
+                quantity: 10,
+                weekly_quantity: 0,
+                tracked_quantity: 0,
+                increased_cap_quantity: 0,
+                earned_quantity: 0,
+                flags: 0,
+            },
+        );
+        let runtime_before = session.player_currencies_like_cpp().clone();
+        let mut planned = runtime_before.clone();
+
+        let gain = session
+            .plan_add_currency_vendor_like_cpp(&mut planned, 395, 3)
+            .expect("represented vendor currency should be plannable")
+            .expect("the uncapped gain should be nonzero");
+        assert!(WorldSession::plan_remove_currency_like_cpp(
+            &mut planned,
+            396,
+            4
+        ));
+
+        let mut tx = SqlTransaction::new();
+        session.append_planned_player_currency_save_statements_like_cpp(&mut tx, 42, &mut planned);
+
+        assert_eq!(gain.quantity, 3);
+        assert_eq!(planned.get(&395).map(|currency| currency.quantity), Some(3));
+        assert_eq!(planned.get(&396).map(|currency| currency.quantity), Some(6));
+        assert_eq!(
+            planned.get(&395).map(|currency| currency.state),
+            Some(PlayerCurrencyState::Unchanged)
+        );
+        assert_eq!(
+            planned.get(&396).map(|currency| currency.state),
+            Some(PlayerCurrencyState::Unchanged)
+        );
+        assert_eq!(tx.len(), 2);
+        assert_eq!(
+            session.player_currencies_like_cpp(),
+            &runtime_before,
+            "a definite rollback or cancellation before COMMIT must leave runtime unchanged"
+        );
+    }
+
+    #[test]
+    fn vendor_currency_purchase_publishes_only_committed_plan_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.player_race = 1;
+        session.set_currency_types_store(Arc::new(wow_data::CurrencyTypesStore::from_entries([
+            currency_entry(395),
+            currency_entry(396),
+        ])));
+        session.player_currencies.insert(
+            396,
+            PlayerCurrency {
+                state: PlayerCurrencyState::Unchanged,
+                quantity: 10,
+                weekly_quantity: 0,
+                tracked_quantity: 0,
+                increased_cap_quantity: 0,
+                earned_quantity: 0,
+                flags: 0,
+            },
+        );
+        let mut planned = session.player_currencies_like_cpp().clone();
+        session
+            .plan_add_currency_vendor_like_cpp(&mut planned, 395, 3)
+            .unwrap();
+        assert!(WorldSession::plan_remove_currency_like_cpp(
+            &mut planned,
+            396,
+            4
+        ));
+        let mut tx = SqlTransaction::new();
+        session.append_planned_player_currency_save_statements_like_cpp(&mut tx, 42, &mut planned);
+
+        // This synchronous publication is the post-COMMIT half used by
+        // `handle_buy_item`; no fallible/async operation separates it from the
+        // durable success branch.
+        session.set_player_currencies_like_cpp(planned);
+
+        assert_eq!(session.player_currency_quantity(395), 3);
+        assert_eq!(session.player_currency_quantity(396), 6);
+        assert!(
+            session
+                .player_currencies_like_cpp()
+                .values()
+                .all(|currency| currency.state == PlayerCurrencyState::Unchanged)
+        );
+    }
+
+    #[test]
+    fn vendor_currency_unknown_commit_is_quarantined_without_money_evidence_like_cpp() {
+        assert_eq!(
+            reconcile_absolute_player_money_commit_like_cpp(100, 100, Some(100)),
+            AbsolutePlayerMoneyCommitReconciliationLikeCpp::Indeterminate,
+            "currency-only vendor transactions use equal money markers, so a lost COMMIT reply must require relog instead of guessing"
+        );
+    }
+
+    #[test]
     fn player_currency_item_refund_ignores_caps_and_total_counters_like_cpp() {
         let (mut session, _, _) = make_session();
         session.player_race = 1;
@@ -130531,15 +130758,41 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn cross_socket_fence_timeout_continues_committed_fanout_like_cpp() {
+        let (mut session, _, _instance_rx) = make_session();
+        let (realm_tx, _realm_rx) = flume::unbounded();
+        session.install_realm_send_channel_for_test(realm_tx);
+        session.set_send_write_fence_like_cpp(SocketWriteFenceLikeCpp::default());
+        session.install_realm_send_write_fence_for_test(SocketWriteFenceLikeCpp::default());
+
+        assert!(
+            session
+                .wait_for_instance_send_before_realm_send_like_cpp()
+                .await,
+            "a bounded fence timeout must not discard fanout after durable commit"
+        );
+        assert!(
+            session
+                .wait_for_realm_send_before_instance_update_like_cpp()
+                .await,
+            "a bounded fence timeout must not discard later instance updates"
+        );
+        assert_ne!(session.state(), SessionState::Disconnecting);
+    }
+
     #[test]
-    fn send_new_item_plan_direct_sends_item_push_result_to_session() {
-        let (session, _, send_rx) = make_session();
+    fn send_new_item_plan_direct_routes_item_push_result_to_realm_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let (realm_tx, realm_rx) = flume::bounded(1);
+        session.install_realm_send_channel_for_test(realm_tx);
         let plan = send_new_item_plan(SendNewItemDelivery::Direct);
         let expected = WorldSession::item_push_result_from_send_new_item_plan(&plan).to_bytes();
 
         session.send_new_item_plan(&plan);
 
-        assert_eq!(send_rx.try_recv().unwrap(), expected);
+        assert_eq!(realm_rx.try_recv().unwrap(), expected);
+        assert!(send_rx.try_recv().is_err());
     }
 
     #[test]
@@ -130548,10 +130801,16 @@ mod tests {
         let self_guid = ObjectGuid::create_player(1, 42);
         let other_guid = ObjectGuid::create_player(1, 43);
         let (self_tx, self_rx) = flume::bounded(10);
+        let (self_realm_tx, self_realm_rx) = flume::bounded(10);
         let (other_tx, other_rx) = flume::bounded(10);
+        let (other_realm_tx, other_realm_rx) = flume::bounded(10);
         let player_registry = Arc::new(PlayerRegistry::default());
-        player_registry.insert(self_guid, broadcast_info(self_guid, self_tx));
-        player_registry.insert(other_guid, broadcast_info(other_guid, other_tx));
+        let mut self_info = broadcast_info(self_guid, self_tx);
+        self_info.realm_send_tx = self_realm_tx;
+        player_registry.insert(self_guid, self_info);
+        let mut other_info = broadcast_info(other_guid, other_tx);
+        other_info.realm_send_tx = other_realm_tx;
+        player_registry.insert(other_guid, other_info);
         let group_registry = Arc::new(GroupRegistry::default());
         let mut group = GroupInfo::new(self_guid);
         group.add_member(other_guid);
@@ -130566,8 +130825,10 @@ mod tests {
 
         session.send_new_item_plan(&plan);
 
-        assert_eq!(self_rx.try_recv().unwrap(), expected);
-        assert_eq!(other_rx.try_recv().unwrap(), expected);
+        assert_eq!(self_realm_rx.try_recv().unwrap(), expected);
+        assert_eq!(other_realm_rx.try_recv().unwrap(), expected);
+        assert!(self_rx.try_recv().is_err());
+        assert!(other_rx.try_recv().is_err());
         assert!(send_rx.try_recv().is_err());
     }
 

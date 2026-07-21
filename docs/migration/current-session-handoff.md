@@ -1,3 +1,51 @@
+- `#NEXT.R8.ENTITIES.1202` — issue #108 closes the remaining D-C8 vendor-purchase
+  publication gap. C++ anchors:
+  `/home/server/woltk-trinity-legacy/src/server/game/Handlers/ItemHandler.cpp:530-564` and
+  `/home/server/woltk-trinity-legacy/src/server/game/Entities/Player/Player.cpp:22207-22590`.
+  C++ applies a currency purchase or item purchase with extended costs in one serialized
+  `Player` turn. Rust must also cross CharacterDB, so `handle_buy_item` now computes currency
+  gains/costs on a detached plan, appends that plan with the purchase item/gold/turn-in rows,
+  and publishes neither currencies nor inventory turn-ins until the combined transaction has
+  committed. Currency-only purchases now use the existing per-character money/save fence with
+  equal money markers: a definite rollback leaves runtime untouched, while cancellation or a
+  lost COMMIT reply cannot be guessed from an unchanged money row and quarantines the session
+  for relog instead of allowing a stale full save. Ordinary item purchases use the same detached
+  currency plan and publish it synchronously with money, inventory, and turn-ins before reopening
+  payout/save admission. Capture contrast also corrected the purchase wire path: zero-price buys
+  no longer dirty Coinage; a newly stored vendor item uses C++ `CreateObject` (not
+  `CreateObject2`), carries `NEW_ITEM`, destination bonding, and `ItemContext::Vendor` in DB,
+  runtime, and update fields; refundable items retain those flags; item create/values and currency
+  updates use the instance socket, while `BuySucceeded` and `ItemPushResult` use realm.
+  Post-review transport hardening distinguishes a written fence, a real writer close, and the
+  short 250 ms best-effort cross-socket ordering timeout: a timeout now logs and completes the
+  already-committed fanout instead of disconnecting or suppressing packets, while `SocketWriter`
+  drop wakes pending fences immediately.
+  Focused tests cover detached planning, a real failed-connection rollback through
+  `handle_buy_item` with no runtime publication, post-COMMIT publication, the equal-marker
+  indeterminate decision, exact routing, zero-price coinage, and stored-item metadata.
+
+  Paired real C++/Rust bot runs at `7bee9bfe` bought G'eras item `30183`/extended cost `1642`,
+  observed currency `42` move `30→15`, required the exact inventory/currency/success/push packet
+  shapes and C++ socket routing, verified one durable item after fresh authentication, and restored
+  the fixture. The committed strict capture window contains realm-routed `BuySucceeded` followed
+  by `ItemPushResult`: 2/2 packets, empty accepted-divergence baseline, CLEAN. Its semantic
+  comparator omits only the exact G'eras lower 40-bit nonzero runtime counter while pinning all
+  stable GUID and purchase fields. The wider raw action retains one visible pre-existing boundary:
+  C++ emits `SMSG_CRITERIA_UPDATE`, while Rust's achievement subsystem does not yet do so; it is
+  not ignored or accepted by the committed flow. Installed original-client QA on 2026-07-21 also
+  passed against the release binary: offline `Luqedos` was moved beside G'eras and seeded with 30
+  Badge of Justice, bought item `30183` for 15, relogged with the item and remaining currency
+  durable, then bought item `23572` for 10 (durable balance 5). CharacterDB and server logs proved
+  both single item creations and both debits; cleanup removed the two QA items/currency row and
+  restored the exact original character position. The client's misleading `You receive currency
+  ... x15` text did not represent a refund: the captured Rust `SMSG_SET_CURRENCY` body is
+  byte-identical to C++ and carries quantity 15, delta -15, and destroy reason Vendor.
+  Checks include `cargo +1.88.0 fmt --all --
+  --check`, focused `wow-world --lib` vendor tests, the complete `capture-diff` suite, pinned-protoc
+  `world-server` check, `git diff --check`, and repeated local Codex reviews CLEAN. D-C8 remains
+  open only for final validation/CI/current-HEAD GitHub Codex verdict and merge. Finite-stock
+  oversell (D-H11), buyback/refund, achievements, and broader vendor validation are outside D-C8.
+
 - `#NEXT.R8.ENTITIES.1201` — issue #102 implements atomic personal-bank item moves for
   `CMSG_AUTOBANK_ITEM` and `CMSG_AUTOSTORE_BANK_ITEM`. C++ anchors:
   `/home/server/woltk-trinity-legacy/src/server/game/Handlers/BankHandler.cpp:25-121`,

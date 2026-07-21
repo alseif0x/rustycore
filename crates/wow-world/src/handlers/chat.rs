@@ -1928,6 +1928,7 @@ mod tests {
             combat_reach: 0.0,
             liquid_status: 0,
             is_in_world: true,
+            realm_send_tx: send_tx.clone(),
             send_tx,
             command_tx,
             durable_loot_money_tracker_like_cpp: Default::default(),

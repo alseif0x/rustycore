@@ -136,6 +136,23 @@ The one-packet fixture proves the reward wire shape; the bot workflow separately
 proves offline accrual, DB XP/rest consumption, relog persistence, fixture
 restoration, and the natural respawn timer.
 
+The issue-#108 vendor fixture isolates the exact post-COMMIT realm response:
+`SMSG_BUY_SUCCEEDED` followed by `SMSG_ITEM_PUSH_RESULT`. Paired C++ and Rust
+bot runs bought item `30183` from G'eras (entry `18525`, spawn `96654`) for
+extended cost `1642`, proved currency `42` changed `30→15`, verified the item
+after a fresh authentication, and restored the fixture. The strict two-packet
+flow is CLEAN with an empty divergence baseline. Both schema-v3 manifests bind
+the pinned bot executable and exact validated report, and import retains both
+reports under `capture-provenance/` for re-verification. Its narrow
+`SMSG_BUY_SUCCEEDED` comparator omits only G'eras' nonzero lower 40-bit
+map-runtime GUID counter while pinning Creature/realm 1/map 530/entry 18525/
+subtype 0/server 0, MUID 59, `NewQuantity = -1`, `QuantityBought = 1`, S2C
+direction, realm routing, and canonical decoding. `SMSG_ITEM_PUSH_RESULT`
+remains byte-exact. The complete raw action also exposed the independently
+missing Rust `SMSG_CRITERIA_UPDATE`; that achievement-subsystem gap is neither
+ignored nor accepted by this vendor fixture. See the flow's README for the
+precise scope and reproduction command.
+
 The issue-#106 loot gate has an equally narrow comparator for
 `SMSG_LOOT_REMOVED`: paired real captures assigned its one reviewed Doctor
 Maleficus identity (Creature, realm 1, map 530, entry 21779, subtype/server 0)

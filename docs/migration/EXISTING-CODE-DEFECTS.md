@@ -99,6 +99,24 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
   `session.rs`.
 - [ ] **D-C8 Vendor buy not atomic.** Gold/currency applied to runtime before item DB commit;
   commit fail = paid, no item. `handlers/character.rs:10177-10292`.
+  - 2026-07-20 issue #108 local slice: ordinary item purchases already gained a combined
+    gold/item/turn-in transaction in #107, but item extended-cost currencies and the entire
+    currency-vendor branch still changed session currency before awaiting COMMIT. Both paths now
+    build detached currency plans and publish them only after the purchase transaction commits.
+    Currency-only purchases reuse the cancellation/unknown-COMMIT quarantine with equal money
+    markers, so definite rollback leaves runtime untouched and an ambiguous result requires relog
+    without allowing a stale full save. A failed-connection handler regression exercises the real
+    rollback branch and proves that it emits only `BuyFailed`, preserves runtime currency, and
+    reopens payout/save admission. Paired C++/Rust bot QA now proves a real extended-cost purchase,
+    currency debit, item creation, fresh-authentication persistence, packet routing, and cleanup;
+    the committed post-COMMIT realm response is 2/2 CLEAN with no accepted divergences. Capture
+    contrast also fixed zero-price Coinage publication and C++ vendor-item create/context/flag
+    metadata. The wider action still shows the separately scoped missing achievement
+    `SMSG_CRITERIA_UPDATE`. Installed original-client QA on 2026-07-21 bought two extended-cost
+    items across a relog and confirmed exact item/currency persistence in CharacterDB; the fixture
+    was then fully restored. The confusing client `You receive currency` line was backed by the
+    same byte-exact loss packet as C++ (quantity 15, delta -15, Vendor reason), not a refund. Kept
+    open until final CI, current-HEAD reviewer verdict, and merge.
 - [ ] **D-C9 Group full-check race.** Size checked then join without re-check → 6+ member
   groups under concurrent accepts. `handlers/group.rs:928-1044`.
 

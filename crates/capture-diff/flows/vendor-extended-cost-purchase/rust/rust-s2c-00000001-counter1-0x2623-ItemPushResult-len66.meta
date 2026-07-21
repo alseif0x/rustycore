@@ -1,0 +1,8 @@
+direction=s2c
+connection_id=0
+addr=127.0.0.1:0
+seq=1
+counter=1
+opcode=0x2623
+name=ItemPushResult
+len=66

@@ -1,0 +1,6 @@
+{
+  "description": "The exact realm-routed post-COMMIT response window for one extended-cost item purchase: SMSG_BUY_SUCCEEDED followed by SMSG_ITEM_PUSH_RESULT. The paired bot run separately proves the instance-routed currency debit, item creation, logout/relogin persistence and bounded fixture restoration.",
+  "directions": [
+    "s2c"
+  ]
+}

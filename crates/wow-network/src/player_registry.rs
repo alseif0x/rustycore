@@ -52,9 +52,8 @@ pub enum SessionCommand {
     /// Deliver an already-serialized packet on the receiver's realm socket.
     ///
     /// C++ assigns party-control packets such as `SMSG_PARTY_INVITE` to
-    /// `CONNECTION_TYPE_REALM`. The shared player registry intentionally owns
-    /// only the primary (instance after ConnectTo) packet sender, so remote
-    /// realm delivery must be executed by the target session itself.
+    /// `CONNECTION_TYPE_REALM`. Callers that hold only the target session's
+    /// command channel use this command to request session-local routing.
     SendRealmPacketLikeCpp(SendRealmPacketLikeCppCommand),
     /// Apply C++ `Group::Disband`/`Group::RemoveMember` session-local cleanup
     /// for a connected remote member.
@@ -892,8 +891,13 @@ pub struct PlayerBroadcastInfo {
     pub liquid_status: u32,
     /// Represented C++ `Player::IsInWorld()` receiver gate for global-message fanout.
     pub is_in_world: bool,
-    /// Channel used to push serialised packets to this player's socket.
+    /// Channel used to push serialised packets to this player's primary
+    /// (instance after `ConnectTo`) socket.
     pub send_tx: flume::Sender<Vec<u8>>,
+    /// Channel used for opcodes registered on `CONNECTION_TYPE_REALM`.
+    /// Before `ConnectTo`, or in single-socket tests, this may be the same
+    /// channel as [`Self::send_tx`].
+    pub realm_send_tx: flume::Sender<Vec<u8>>,
     /// Channel used for C++-style cross-session state mutations.
     pub command_tx: flume::Sender<SessionCommand>,
     /// Per-character durable loot-money fence used by remote source sessions.
@@ -1057,6 +1061,7 @@ mod tests {
             combat_reach: 0.0,
             liquid_status: 0,
             is_in_world: true,
+            realm_send_tx: send_tx.clone(),
             send_tx,
             command_tx,
             durable_loot_money_tracker_like_cpp: Default::default(),

@@ -19,8 +19,8 @@ use wow_constants::unit::{
 use wow_constants::{
     ClientOpcodes, ConditionSourceType, CreatureFlagsExtra, CreatureRandomMovementType,
     EnchantmentSlot, InventoryResult, InventoryType, ItemBondingType, ItemContext,
-    ItemExtendedCostFlags, ItemFieldFlags, ItemFlags, ItemFlags2, ItemUpdateState, ItemVendorType,
-    PowerType, Team, TypeId, TypeMask, UnitStandStateType,
+    ItemExtendedCostFlags, ItemFieldFlags, ItemFlags, ItemFlags2, ItemModifier, ItemUpdateState,
+    ItemVendorType, PowerType, Team, TypeId, TypeMask, UnitStandStateType,
 };
 use wow_core::guid::HighGuid;
 use wow_core::{ObjectGuid, Position};
@@ -43,7 +43,8 @@ use wow_entities::{
     GameObjectTemplateData, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
     INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, MAX_BAG_SIZE, MAX_GAMEOBJECT_DATA,
     MovementGeneratorType, NULL_BAG, NULL_SLOT, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START,
-    SocketedGem, WorldObject, is_bank_pos, is_equipment_pos, is_inventory_pos,
+    SendNewItemDelivery, SendNewItemDisplayText, SendNewItemInstancePlan, SendNewItemModifier,
+    SendNewItemPlan, SocketedGem, WorldObject, is_bank_pos, is_equipment_pos, is_inventory_pos,
     normalize_creature_chase_movement_type_like_cpp,
     normalize_creature_random_movement_type_like_cpp,
 };
@@ -2057,6 +2058,31 @@ fn vendor_buy_quantity_and_price(buy_price: u64, buy_count: u32, quantity: u32) 
     (quantity, price)
 }
 
+fn vendor_buy_coinage_update_like_cpp(buy_price: u64, remaining_gold: u64) -> Option<u64> {
+    // C++ `_StoreOrEquipNewItem` calls `ModifyMoney(-price)`, whose first
+    // branch returns without dirtying `ActivePlayerData::Coinage` when the
+    // amount is zero (`Player.cpp::ModifyMoney`).
+    (buy_price != 0).then_some(remaining_gold)
+}
+
+fn vendor_stored_new_item_flags_like_cpp(
+    template: Option<&wow_entities::ItemStorageTemplate>,
+    bag: u8,
+    slot: u8,
+) -> u32 {
+    // C++ `StoreNewItem` marks the object new before `_StoreItem`, then the
+    // store path applies the template bonding rule at its destination.
+    let mut item = wow_entities::Item::new(0);
+    if let Some(template) = template {
+        item.set_bonding(template.bonding);
+    }
+    item.set_item_flag(ItemFieldFlags::NEW_ITEM);
+    item.bind_if_stored(wow_entities::is_bag_pos(wow_entities::make_item_pos(
+        bag, slot,
+    )));
+    item.item_flags_bits()
+}
+
 fn player_money_gain_like_cpp(current_money: u64, amount: u64) -> Option<u64> {
     if amount == 0 {
         return Some(current_money);
@@ -3101,6 +3127,25 @@ impl WorldSession {
         vendor_slot: u32,
         expected_item_id: u32,
     ) -> Option<VendorBuyItem> {
+        #[cfg(test)]
+        if let Some(item) = self.vendor_buy_item_test_override_like_cpp() {
+            if vendor_slot != 0 || item.item_id != expected_item_id {
+                return None;
+            }
+            return Some(VendorBuyItem {
+                item_id: item.item_id,
+                item_type: item.item_type,
+                max_count: item.max_count,
+                incr_time: item.incr_time,
+                player_condition_id: item.player_condition_id,
+                has_vendor_conditions: item.has_vendor_conditions,
+                extended_cost: item.extended_cost,
+                buy_price: item.buy_price,
+                max_durability: item.max_durability,
+                buy_count: item.buy_count,
+            });
+        }
+
         let mut raw_slot = 0u32;
         let mut expanded = std::collections::HashSet::<u32>::new();
         let mut queue = std::collections::VecDeque::new();
@@ -11753,7 +11798,6 @@ impl WorldSession {
     ///
     /// C++ refs: `HandleBuyItemOpcode` (`Handlers/ItemHandler.cpp:530-564`)
     /// delegates to `Player::BuyItemFromVendorSlot` (`Player.cpp:22362+`).
-    /// Simplified: no reputation discount, no extended cost, no stack logic.
     pub async fn handle_buy_item(&mut self, buy: BuyItem) {
         use wow_packet::packets::update::{ItemCreateData, UpdateObject};
 
@@ -11923,18 +11967,26 @@ impl WorldSession {
                 };
                 item_turnin_changes.append(&mut changes);
             }
-            let currency_snapshot = self.player_currencies_like_cpp().clone();
-            let currency_gain = match self.add_currency_vendor(buy.item_id as u32, quantity) {
+            let mut planned_currencies = self.player_currencies_like_cpp().clone();
+            let currency_gain = match self.plan_add_currency_vendor_like_cpp(
+                &mut planned_currencies,
+                buy.item_id as u32,
+                quantity,
+            ) {
                 Ok(delta) => delta,
                 Err(()) => {
-                    self.set_player_currencies_like_cpp(currency_snapshot);
                     self.send_equip_error(InventoryResult::VendorMissingTurnins, None, None, 0, 0);
                     return;
                 }
             };
             for &(currency_id, amount) in &extended_cost_currency_costs {
-                if i32::try_from(amount).is_err() || !self.remove_currency(currency_id, amount) {
-                    self.set_player_currencies_like_cpp(currency_snapshot);
+                if i32::try_from(amount).is_err()
+                    || !Self::plan_remove_currency_like_cpp(
+                        &mut planned_currencies,
+                        currency_id,
+                        amount,
+                    )
+                {
                     self.send_equip_error(InventoryResult::VendorMissingTurnins, None, None, 0, 0);
                     return;
                 }
@@ -11947,17 +11999,50 @@ impl WorldSession {
                 player_guid,
                 &item_turnin_changes,
             );
-            self.append_player_currency_save_statements(&mut tx, player_guid.counter() as u64);
-            if let Err(e) = char_db.commit_transaction(tx).await {
-                self.set_player_currencies_like_cpp(currency_snapshot);
-                warn!("BuyItem: currency vendor transaction failed: {e}");
+            self.append_planned_player_currency_save_statements_like_cpp(
+                &mut tx,
+                player_guid.counter() as u64,
+                &mut planned_currencies,
+            );
+
+            // C++ mutates currency plus extended-cost turn-ins in one
+            // serialized Player turn. Rust crosses SQL here, so retain the
+            // same cancellation/unknown-COMMIT quarantine used by purchases
+            // that also change money. Equal money sentinels deliberately make
+            // an ambiguous result indeterminate: the money row cannot prove
+            // whether these currency/item statements committed.
+            let Some(money_persistence) = self
+                .begin_exclusive_player_money_persistence_like_cpp()
+                .await
+            else {
+                return;
+            };
+            let money_marker = self.player_gold_like_cpp();
+            let Some(money_persistence) = self
+                .commit_exclusive_player_money_transaction_like_cpp(
+                    money_persistence,
+                    char_db.as_ref(),
+                    tx,
+                    money_marker,
+                    money_marker,
+                    "vendor currency purchase",
+                )
+                .await
+            else {
+                warn!("BuyItem: currency vendor transaction did not commit");
                 self.send_buy_error(
                     BuyResult::CantFindItem,
                     Some(buy.vendor_guid),
                     buy.item_id as u32,
                 );
                 return;
-            }
+            };
+
+            // Publish the entire committed state before reopening payout/save
+            // admission. No await may split durable success from runtime.
+            self.set_player_currencies_like_cpp(planned_currencies);
+            self.apply_item_turnin_changes(player_guid, map_id, &item_turnin_changes);
+            drop(money_persistence);
 
             if let Some(delta) = currency_gain {
                 let (Some(quantity), Some(amount)) = (
@@ -11980,7 +12065,6 @@ impl WorldSession {
                 packet.suppress_chat_log = delta.suppress_chat_log;
                 self.send_packet(&packet);
             }
-            self.apply_item_turnin_changes(player_guid, map_id, &item_turnin_changes);
             for &(currency_id, amount) in &extended_cost_currency_costs {
                 let Some(quantity) = i32::try_from(self.player_currency_quantity(currency_id)).ok()
                 else {
@@ -12189,6 +12273,9 @@ impl WorldSession {
             self.send_equip_error(store_result, None, None, 0, 0);
             return;
         }
+        let quest_log_item_id = self
+            .quest_source_item_quest_log_item_id_like_cpp(buy.item_id as u32)
+            .await;
 
         let new_item_count = store_dest
             .iter()
@@ -12270,12 +12357,19 @@ impl WorldSession {
                     return;
                 };
 
-                let mut ins_item = char_db.prepare(CharStatements::INS_ITEM_INSTANCE);
+                let item_flags =
+                    vendor_stored_new_item_flags_like_cpp(refund_template.as_ref(), bag, slot);
+                let mut ins_item =
+                    char_db.prepare(CharStatements::INS_ITEM_INSTANCE_WITH_RANDOM_CONTEXT);
                 ins_item.set_u64(0, db_guid);
                 ins_item.set_u32(1, buy.item_id as u32);
                 ins_item.set_u64(2, player_guid.counter() as u64);
                 ins_item.set_u32(3, dest.count);
                 ins_item.set_u32(4, max_durability);
+                ins_item.set_u32(5, item_flags);
+                ins_item.set_i32(6, 0);
+                ins_item.set_i32(7, 0);
+                ins_item.set_u8(8, ItemContext::Vendor as u8);
                 tx.append(ins_item);
 
                 let mut ins_inv = char_db.prepare(CharStatements::INS_CHAR_INVENTORY);
@@ -12284,15 +12378,20 @@ impl WorldSession {
                 ins_inv.set_u64(2, db_guid);
                 tx.append(ins_inv);
 
-                new_stacks.push((slot, db_guid, item_guid, dest.count));
+                new_stacks.push((slot, db_guid, item_guid, dest.count, item_flags));
             }
         }
         let refund_item_db_guid = creates_refund_metadata
-            .then(|| new_stacks.last().map(|&(_, db_guid, _, _)| db_guid))
+            .then(|| {
+                new_stacks.last_mut().map(|stack| {
+                    stack.4 |= ItemFieldFlags::REFUNDABLE.bits();
+                    (stack.1, stack.4)
+                })
+            })
             .flatten();
-        if let Some(refund_item_db_guid) = refund_item_db_guid {
+        if let Some((refund_item_db_guid, refund_item_flags)) = refund_item_db_guid {
             let mut upd_flags = char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_FLAGS);
-            upd_flags.set_u32(0, ItemFieldFlags::REFUNDABLE.bits());
+            upd_flags.set_u32(0, refund_item_flags);
             upd_flags.set_u64(1, refund_item_db_guid);
             tx.append(upd_flags);
             append_item_refund_insert_statements(
@@ -12321,15 +12420,24 @@ impl WorldSession {
             &item_turnin_changes,
         );
 
-        let currency_snapshot = self.player_currencies_like_cpp().clone();
+        let mut planned_currencies = self.player_currencies_like_cpp().clone();
         for &(currency_id, amount) in &extended_cost_currency_costs {
-            if i32::try_from(amount).is_err() || !self.remove_currency(currency_id, amount) {
-                self.set_player_currencies_like_cpp(currency_snapshot);
+            if i32::try_from(amount).is_err()
+                || !Self::plan_remove_currency_like_cpp(
+                    &mut planned_currencies,
+                    currency_id,
+                    amount,
+                )
+            {
                 self.send_equip_error(InventoryResult::VendorMissingTurnins, None, None, 0, 0);
                 return;
             }
         }
-        self.append_player_currency_save_statements(&mut tx, player_guid.counter() as u64);
+        self.append_planned_player_currency_save_statements_like_cpp(
+            &mut tx,
+            player_guid.counter() as u64,
+            &mut planned_currencies,
+        );
 
         let Some(money_persistence) = self
             .commit_exclusive_player_money_transaction_like_cpp(
@@ -12342,7 +12450,6 @@ impl WorldSession {
             )
             .await
         else {
-            self.set_player_currencies_like_cpp(currency_snapshot);
             warn!("BuyItem: store transaction did not commit");
             self.send_buy_error(
                 BuyResult::CantFindItem,
@@ -12358,6 +12465,7 @@ impl WorldSession {
         // the handler after COMMIT must not leave runtime at the pre-buy state.
         self.stage_player_money_change_like_cpp(old_gold, new_gold);
         self.apply_item_turnin_changes(player_guid, map_id, &item_turnin_changes);
+        self.set_player_currencies_like_cpp(planned_currencies);
         for &(_, item_guid, new_count) in &existing_updates {
             self.update_inventory_item_object_like_cpp(item_guid, |item| {
                 item.set_count(new_count);
@@ -12366,7 +12474,7 @@ impl WorldSession {
 
         let inv_type = self.item_template_inventory_type(buy.item_id as u32);
         let mut collection_updates = Vec::new();
-        for &(slot, db_guid, item_guid, stack_count) in &new_stacks {
+        for &(slot, db_guid, item_guid, stack_count, item_flags) in &new_stacks {
             self.insert_inventory_item_like_cpp(
                 slot,
                 crate::session::InventoryItem {
@@ -12385,8 +12493,8 @@ impl WorldSession {
                 ItemContext::Vendor,
                 slot,
             );
-            if refund_item_db_guid == Some(db_guid) {
-                item_object.set_item_flag(ItemFieldFlags::REFUNDABLE);
+            item_object.replace_all_item_flags(ItemFieldFlags::from_bits_retain(item_flags));
+            if refund_item_db_guid.is_some_and(|(refund_db_guid, _)| refund_db_guid == db_guid) {
                 item_object.set_refund_recipient(player_guid);
                 item_object.set_paid_money(buy_price);
                 item_object.set_paid_extended_cost(vendor_item.extended_cost as u32);
@@ -12398,8 +12506,68 @@ impl WorldSession {
 
         let changed_slots: Vec<_> = new_stacks
             .iter()
-            .map(|&(slot, _, item_guid, _)| (slot, item_guid))
+            .map(|&(slot, _, item_guid, _, _)| (slot, item_guid))
             .collect();
+        let quantity_in_inventory =
+            self.represented_non_bank_item_count_like_cpp(buy.item_id as u32);
+        let purchased_item_plan = store_dest.last().and_then(|dest| {
+            let slot = (dest.pos & 0x00FF) as u8;
+            let item_guid = self.inventory_items_like_cpp().get(&slot)?.guid;
+            let item = self.inventory_item_objects_like_cpp().get(&item_guid)?;
+            let battle_pet_breed_data = item.get_modifier(ItemModifier::BattlePetBreedData);
+            let modifications = item
+                .data()
+                .modifiers
+                .iter()
+                .enumerate()
+                .filter_map(|(modifier_type, &value)| {
+                    (value != 0).then_some(SendNewItemModifier {
+                        value: value as i32,
+                        modifier_type: modifier_type as u8,
+                    })
+                })
+                .collect();
+            Some(SendNewItemPlan {
+                player_guid,
+                item_guid,
+                item_entry: item.object().entry(),
+                item_instance: SendNewItemInstancePlan {
+                    item_id: item.object().entry(),
+                    random_properties_seed: item.data().property_seed,
+                    random_properties_id: item.data().random_properties_id,
+                    modifications,
+                },
+                slot: item.bag_slot(),
+                slot_in_bag: if item.count() == quantity {
+                    i16::from(item.slot())
+                } else {
+                    -1
+                },
+                quest_log_item_id,
+                quantity,
+                quantity_in_inventory,
+                battle_pet_species_id: item.get_modifier(ItemModifier::BattlePetSpeciesId),
+                battle_pet_breed_id: battle_pet_breed_data & 0x00FF_FFFF,
+                battle_pet_breed_quality: ((battle_pet_breed_data >> 24) & 0xFF) as u8,
+                battle_pet_level: item.get_modifier(ItemModifier::BattlePetLevel),
+                pushed: true,
+                created: false,
+                display_text: SendNewItemDisplayText::Normal,
+                dungeon_encounter_id: 0,
+                is_encounter_loot: false,
+                delivery: SendNewItemDelivery::Direct,
+            })
+        });
+        let Some(purchased_item_plan) = purchased_item_plan else {
+            // The durable purchase is already committed. Fail closed at the
+            // packet boundary rather than fabricating an ItemPush GUID or
+            // rolling runtime back out of sync with the database.
+            warn!(
+                item = buy.item_id,
+                "BuyItem: committed item is missing from the published runtime inventory"
+            );
+            return;
+        };
         let new_quantity = if vendor_item.max_count == 0 {
             -1
         } else {
@@ -12439,36 +12607,31 @@ impl WorldSession {
             buy_price,
             self.player_gold_like_cpp()
         );
-        // ── Send BuySucceeded ──
-        self.send_packet(&BuySucceeded {
-            vendor_guid: buy.vendor_guid,
-            muid: buy.muid,
-            new_quantity,
-            quantity_bought: quantity as i32,
-        });
 
         if !new_stacks.is_empty() {
             let item_creates = new_stacks
                 .iter()
-                .map(|&(_, _, item_guid, stack_count)| ItemCreateData {
-                    item_guid,
-                    entry_id: buy.item_id,
-                    owner_guid: player_guid,
-                    contained_in: player_guid,
-                    stack_count,
-                    dynamic_flags: 0,
-                    durability: max_durability,
-                    max_durability,
-                    random_properties_seed: 0,
-                    random_properties_id: 0,
-                    enchantments: [ItemEnchantmentValuesUpdate::default(); 13],
-                    gems: Vec::new(),
-                    context: 0,
-                    container_slots: 0,
-                    container_item_guids: [ObjectGuid::EMPTY; 36],
-                })
+                .map(
+                    |&(_, _, item_guid, stack_count, item_flags)| ItemCreateData {
+                        item_guid,
+                        entry_id: buy.item_id,
+                        owner_guid: player_guid,
+                        contained_in: player_guid,
+                        stack_count,
+                        dynamic_flags: item_flags,
+                        durability: max_durability,
+                        max_durability,
+                        random_properties_seed: 0,
+                        random_properties_id: 0,
+                        enchantments: [ItemEnchantmentValuesUpdate::default(); 13],
+                        gems: Vec::new(),
+                        context: ItemContext::Vendor as u8,
+                        container_slots: 0,
+                        container_item_guids: [ObjectGuid::EMPTY; 36],
+                    },
+                )
                 .collect();
-            self.send_packet(&UpdateObject::create_items(item_creates, map_id));
+            self.send_packet(&UpdateObject::create_stored_items(item_creates, map_id));
         }
 
         for &(_, item_guid, new_count) in &existing_updates {
@@ -12477,12 +12640,39 @@ impl WorldSession {
             ));
         }
 
+        // C++ `StoreNewItem` publishes item object changes on the instance
+        // socket before `_StoreOrEquipNewItem` emits its two realm-routed
+        // result packets. Preserve that physical cross-socket order.
+        if !self
+            .wait_for_instance_send_before_realm_send_like_cpp()
+            .await
+        {
+            self.sync_player_registry_state_like_cpp();
+            self.kick("vendor socket ordering fence failed after durable item purchase");
+            return;
+        }
+        self.send_packet_realm(&BuySucceeded {
+            vendor_guid: buy.vendor_guid,
+            muid: buy.muid,
+            new_quantity,
+            quantity_bought: quantity as i32,
+        });
+        self.send_new_item_plan(&purchased_item_plan);
+        if !self
+            .wait_for_realm_send_before_instance_update_like_cpp()
+            .await
+        {
+            self.sync_player_registry_state_like_cpp();
+            self.kick("vendor socket ordering fence failed after durable item purchase");
+            return;
+        }
+
         self.send_player_values_update_from_entity_bridge(
             &changed_slots,
             &[],
             &[],
             &[],
-            Some(self.player_gold_like_cpp()),
+            vendor_buy_coinage_update_like_cpp(buy_price, self.player_gold_like_cpp()),
         );
         for update in &collection_updates {
             self.send_player_values_update_like_cpp(update);
@@ -16537,6 +16727,10 @@ impl WorldSession {
 }
 
 #[cfg(test)]
+#[path = "character_vendor_atomicity_tests.rs"]
+mod vendor_atomicity_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::session::{
@@ -20410,10 +20604,17 @@ mod tests {
             "self.stage_player_money_change_like_cpp",
             &[
                 "self.apply_item_turnin_changes",
+                "self.set_player_currencies_like_cpp(planned_currencies);",
                 "self.insert_inventory_item_like_cpp",
                 "self.update_vendor_item_current_count",
                 "self.sync_object_accessor_player();",
             ],
+        );
+        assert_publication_segment(
+            character,
+            "vendor currency purchase",
+            "self.set_player_currencies_like_cpp(planned_currencies);",
+            &["self.apply_item_turnin_changes"],
         );
         assert_publication_segment(
             character,
@@ -22838,6 +23039,27 @@ mod tests {
         assert_eq!(
             vendor_buy_quantity_and_price(unit_price, 1, 3),
             (1, unit_price)
+        );
+    }
+
+    #[test]
+    fn vendor_buy_zero_gold_price_does_not_dirty_coinage_like_cpp() {
+        assert_eq!(vendor_buy_coinage_update_like_cpp(0, 12_345), None);
+        assert_eq!(vendor_buy_coinage_update_like_cpp(1, 12_344), Some(12_344));
+    }
+
+    #[test]
+    fn vendor_stored_new_item_keeps_cpp_new_and_bonding_flags() {
+        assert_eq!(
+            vendor_stored_new_item_flags_like_cpp(None, INVENTORY_SLOT_BAG_0, 23),
+            ItemFieldFlags::NEW_ITEM.bits()
+        );
+
+        let mut template = wow_entities::ItemStorageTemplate::regular_item(700, 1);
+        template.bonding = ItemBondingType::OnAcquire;
+        assert_eq!(
+            vendor_stored_new_item_flags_like_cpp(Some(&template), INVENTORY_SLOT_BAG_0, 23),
+            (ItemFieldFlags::NEW_ITEM | ItemFieldFlags::SOULBOUND).bits()
         );
     }
 
