@@ -16,19 +16,24 @@
   `CreateObject2`), carries `NEW_ITEM`, destination bonding, and `ItemContext::Vendor` in DB,
   runtime, and update fields; refundable items retain those flags; item create/values and currency
   updates use the instance socket, while `BuySucceeded` and `ItemPushResult` use realm.
+  Post-review transport hardening distinguishes a written fence, a real writer close, and the
+  short 250 ms best-effort cross-socket ordering timeout: a timeout now logs and completes the
+  already-committed fanout instead of disconnecting or suppressing packets, while `SocketWriter`
+  drop wakes pending fences immediately.
   Focused tests cover detached planning, a real failed-connection rollback through
   `handle_buy_item` with no runtime publication, post-COMMIT publication, the equal-marker
   indeterminate decision, exact routing, zero-price coinage, and stored-item metadata.
 
-  Paired real C++/Rust bot runs at `e54aabc6` bought G'eras item `30183`/extended cost `1642`,
+  Paired real C++/Rust bot runs at `3c472dd3` bought G'eras item `30183`/extended cost `1642`,
   observed currency `42` move `30→15`, required the exact inventory/currency/success/push packet
   shapes and C++ socket routing, verified one durable item after fresh authentication, and restored
   the fixture. The committed strict capture window contains realm-routed `BuySucceeded` followed
   by `ItemPushResult`: 2/2 packets, empty accepted-divergence baseline, CLEAN. Its semantic
   comparator omits only the exact G'eras lower 40-bit nonzero runtime counter while pinning all
   stable GUID and purchase fields. The wider raw action retains one visible pre-existing boundary:
-  C++ emits `SMSG_CRITERIA_UPDATE`, while Rust's achievement subsystem does not yet do so; it is
-  not ignored or accepted by the committed flow. Checks include `cargo +1.88.0 fmt --all --
+  C++ emits `SMSG_CRITERIA_UPDATE`, while Rust's achievement subsystem does not yet do so; the
+  latest raw generation also contains unrelated ambient C++ `SMSG_ON_MONSTER_MOVE` packets.
+  Neither is ignored or accepted by the committed flow. Checks include `cargo +1.88.0 fmt --all --
   --check`, focused `wow-world --lib` vendor tests, the complete `capture-diff` suite, pinned-protoc
   `world-server` check, `git diff --check`, and repeated local Codex reviews CLEAN. D-C8 remains
   open only for final validation/CI/current-HEAD GitHub Codex verdict and merge; optional installed
