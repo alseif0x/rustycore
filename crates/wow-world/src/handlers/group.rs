@@ -840,10 +840,9 @@ fn send_party_uninvite_result_like_cpp(
 
 /// Queue a realm-routed packet on the target's owning session.
 ///
-/// The registry's `send_tx` is the primary socket and becomes INSTANCE after
-/// ConnectTo. Legacy C++ routes party-control packets through REALM
-/// (`Opcodes.cpp:1826-1832`), so cross-session delivery must not use that
-/// primary sender directly.
+/// Legacy C++ routes party-control packets through REALM
+/// (`Opcodes.cpp:1826-1832`). This path receives only the target command
+/// sender, so the target session performs the final realm-socket routing.
 async fn send_realm_packet_to_player_like_cpp(
     recipient: ObjectGuid,
     command_tx: &flume::Sender<SessionCommand>,
@@ -3389,6 +3388,7 @@ mod tests {
             combat_reach: 0.0,
             liquid_status: 0,
             is_in_world: true,
+            realm_send_tx: send_tx.clone(),
             send_tx,
             command_tx,
             durable_loot_money_tracker_like_cpp: Default::default(),

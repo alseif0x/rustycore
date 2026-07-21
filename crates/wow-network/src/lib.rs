@@ -51,5 +51,6 @@ pub use player_registry::{
 };
 pub use session_mgr::{InstanceLink, SessionManager};
 pub use world_socket::{
-    AccountInfo, SocketReader, SocketWriteFenceLikeCpp, SocketWriter, WorldSocket, WorldSocketError,
+    AccountInfo, SocketReader, SocketWriteFenceLikeCpp, SocketWriteFenceWaitResultLikeCpp,
+    SocketWriter, WorldSocket, WorldSocketError,
 };

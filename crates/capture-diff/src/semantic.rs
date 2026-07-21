@@ -24,6 +24,9 @@ pub const SMSG_LOOT_REMOVED: u16 = 0x2615;
 /// `SMSG_ITEM_PUSH_RESULT` in the 3.4.3 opcode table.
 pub const SMSG_ITEM_PUSH_RESULT: u16 = 0x2623;
 
+/// `SMSG_BUY_SUCCEEDED` in the 3.4.3 opcode table.
+pub const SMSG_BUY_SUCCEEDED: u16 = 0x26C6;
+
 /// `SMSG_UPDATE_OBJECT` in the 3.4.3 opcode table.
 pub const SMSG_UPDATE_OBJECT: u16 = 0x27CB;
 
@@ -60,6 +63,17 @@ const ISSUE_106_ITEM_SLOT: i32 = 106;
 const ISSUE_106_ITEM_DYNAMIC_FLAGS: u32 = 0x0020_0001;
 const ISSUE_106_ITEM_CREATE_ZERO_TAIL_LEN: usize = 220;
 const ISSUE_106_PING_BODY: [u8; 8] = [b'T', b'O', b'O', b'L', 0, 0, 0, 0];
+const ISSUE_108_VENDOR_IDENTITY: StableObjectGuid = StableObjectGuid {
+    high_type: HIGH_GUID_CREATURE,
+    realm_id: 1,
+    map_id: 530,
+    entry: 18_525,
+    subtype: 0,
+    server_id: 0,
+};
+const ISSUE_108_VENDOR_MUID: u32 = 59;
+const ISSUE_108_VENDOR_NEW_QUANTITY: i32 = -1;
+const ISSUE_108_VENDOR_QUANTITY_BOUGHT: u32 = 1;
 
 /// Stable identity fields of a world-object `ObjectGuid` whose map-runtime
 /// counter has one narrowly reviewed normalization.
@@ -115,6 +129,18 @@ pub struct LootRemovedBody {
     pub loot_list_id: u8,
 }
 
+/// Stable semantic representation of the issue-#108 vendor success ACK.
+///
+/// Only the lower 40-bit map-runtime counter of the reviewed G'eras Creature
+/// GUID is absent. The response fields remain exact.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BuySucceededBody {
+    pub vendor: StableObjectGuid,
+    pub muid: u32,
+    pub new_quantity: i32,
+    pub quantity_bought: u32,
+}
+
 /// One exact `ActivePlayerData::InvSlots` value in a normalized player VALUES
 /// update.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -145,6 +171,8 @@ pub struct SemanticBodySide {
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub loot_removed: Option<LootRemovedBody>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub buy_succeeded: Option<BuySucceededBody>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
     pub update_object_inv_slots: Option<UpdateObjectInvSlotsBody>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub decode_error: Option<String>,
@@ -170,6 +198,7 @@ impl SemanticBodySide {
                 Self {
                     log_xp_gain: Some(decoded.body),
                     loot_removed: None,
+                    buy_succeeded: None,
                     update_object_inv_slots: None,
                     decode_error: Some(
                         "kill XP creature victim has a zero runtime GUID counter".to_string(),
@@ -180,6 +209,7 @@ impl SemanticBodySide {
             Ok(decoded) => Self {
                 log_xp_gain: Some(decoded.body),
                 loot_removed: None,
+                buy_succeeded: None,
                 update_object_inv_slots: None,
                 decode_error: None,
                 raw_body_sha256: (!decoded.is_creature_kill()).then(|| raw_body_sha256(raw_body)),
@@ -187,6 +217,7 @@ impl SemanticBodySide {
             Err(error) => Self {
                 log_xp_gain: None,
                 loot_removed: None,
+                buy_succeeded: None,
                 update_object_inv_slots: None,
                 decode_error: Some(error),
                 raw_body_sha256: Some(raw_body_sha256(raw_body)),
@@ -205,6 +236,7 @@ impl SemanticBodySide {
                 Self {
                     log_xp_gain: None,
                     loot_removed: Some(decoded.body),
+                    buy_succeeded: None,
                     update_object_inv_slots: None,
                     decode_error: shape_error,
                     // Only the exact issue-#106 Doctor/LootObject/list shape may
@@ -217,6 +249,35 @@ impl SemanticBodySide {
             Err(error) => Self {
                 log_xp_gain: None,
                 loot_removed: None,
+                buy_succeeded: None,
+                update_object_inv_slots: None,
+                decode_error: Some(error),
+                raw_body_sha256: Some(raw_body_sha256(raw_body)),
+            },
+        }
+    }
+
+    fn from_decoded_buy_succeeded(
+        decoded: Result<DecodedBuySucceededBody, String>,
+        raw_body: &[u8],
+    ) -> Self {
+        match decoded {
+            Ok(decoded) => {
+                let shape_error = decoded.issue_108_shape_error();
+                let reviewed_shape = decoded.is_issue_108_reviewed_shape();
+                Self {
+                    log_xp_gain: None,
+                    loot_removed: None,
+                    buy_succeeded: Some(decoded.body),
+                    update_object_inv_slots: None,
+                    decode_error: shape_error,
+                    raw_body_sha256: (!reviewed_shape).then(|| raw_body_sha256(raw_body)),
+                }
+            }
+            Err(error) => Self {
+                log_xp_gain: None,
+                loot_removed: None,
+                buy_succeeded: None,
                 update_object_inv_slots: None,
                 decode_error: Some(error),
                 raw_body_sha256: Some(raw_body_sha256(raw_body)),
@@ -232,6 +293,7 @@ impl SemanticBodySide {
             UpdateObjectInvSlotsDecode::Candidate(decoded) => Self {
                 log_xp_gain: None,
                 loot_removed: None,
+                buy_succeeded: None,
                 update_object_inv_slots: Some(decoded.body),
                 decode_error: None,
                 raw_body_sha256: None,
@@ -239,6 +301,7 @@ impl SemanticBodySide {
             UpdateObjectInvSlotsDecode::NotEligible(reason) => Self {
                 log_xp_gain: None,
                 loot_removed: None,
+                buy_succeeded: None,
                 update_object_inv_slots: None,
                 decode_error: Some(format!(
                     "not the reviewed single-player InvSlots VALUES shape: {reason}"
@@ -248,6 +311,7 @@ impl SemanticBodySide {
             UpdateObjectInvSlotsDecode::Malformed(error) => Self {
                 log_xp_gain: None,
                 loot_removed: None,
+                buy_succeeded: None,
                 update_object_inv_slots: None,
                 decode_error: Some(error),
                 raw_body_sha256: Some(raw_body_sha256(raw_body)),
@@ -277,6 +341,7 @@ impl SemanticBodyDiff {
             && self.rust.decode_error.is_none()
             && self.cpp.log_xp_gain == self.rust.log_xp_gain
             && self.cpp.loot_removed == self.rust.loot_removed
+            && self.cpp.buy_succeeded == self.rust.buy_succeeded
             && self.cpp.update_object_inv_slots == self.rust.update_object_inv_slots
             && self.cpp.raw_body_sha256 == self.rust.raw_body_sha256
     }
@@ -297,6 +362,10 @@ impl SemanticBodyDiff {
 
         if let (Some(cpp), Some(rust)) = (self.cpp.loot_removed, self.rust.loot_removed) {
             return mismatch_loot_removed(cpp, rust, &self.cpp, &self.rust);
+        }
+
+        if let (Some(cpp), Some(rust)) = (self.cpp.buy_succeeded, self.rust.buy_succeeded) {
+            return mismatch_buy_succeeded(cpp, rust, &self.cpp, &self.rust);
         }
 
         if let (Some(cpp), Some(rust)) = (
@@ -429,6 +498,52 @@ fn mismatch_update_object_inv_slots(
     }
 }
 
+fn mismatch_buy_succeeded(
+    cpp: BuySucceededBody,
+    rust: BuySucceededBody,
+    cpp_side: &SemanticBodySide,
+    rust_side: &SemanticBodySide,
+) -> String {
+    let mut fields = Vec::new();
+    if cpp.vendor.high_type != rust.vendor.high_type {
+        fields.push("vendor.high_type");
+    }
+    if cpp.vendor.realm_id != rust.vendor.realm_id {
+        fields.push("vendor.realm_id");
+    }
+    if cpp.vendor.map_id != rust.vendor.map_id {
+        fields.push("vendor.map_id");
+    }
+    if cpp.vendor.entry != rust.vendor.entry {
+        fields.push("vendor.entry");
+    }
+    if cpp.vendor.subtype != rust.vendor.subtype {
+        fields.push("vendor.subtype");
+    }
+    if cpp.vendor.server_id != rust.vendor.server_id {
+        fields.push("vendor.server_id");
+    }
+    if cpp.muid != rust.muid {
+        fields.push("muid");
+    }
+    if cpp.new_quantity != rust.new_quantity {
+        fields.push("new_quantity");
+    }
+    if cpp.quantity_bought != rust.quantity_bought {
+        fields.push("quantity_bought");
+    }
+
+    if fields.is_empty() {
+        if cpp_side.raw_body_sha256 == rust_side.raw_body_sha256 {
+            "semantic values are equal".to_string()
+        } else {
+            "raw body identity differs outside the reviewed vendor-success shape".to_string()
+        }
+    } else {
+        format!("mismatched field(s): {}", fields.join(", "))
+    }
+}
+
 /// Compare packet bodies semantically when a reviewed narrow comparator exists.
 ///
 /// Routing is not normalized here: [`crate::diff::DiffReport`] still compares
@@ -449,9 +564,38 @@ pub fn compare_packet_bodies(
     match opcode {
         SMSG_LOG_XP_GAIN => compare_log_xp_gain_bodies(cpp, rust),
         SMSG_LOOT_REMOVED => compare_loot_removed_bodies(cpp, rust),
+        SMSG_BUY_SUCCEEDED => compare_buy_succeeded_bodies(cpp, rust),
         SMSG_UPDATE_OBJECT => compare_update_object_inv_slots_bodies(cpp, rust),
         _ => None,
     }
+}
+
+fn compare_buy_succeeded_bodies(cpp: &[u8], rust: &[u8]) -> Option<SemanticBodyDiff> {
+    let cpp_decoded = decode_buy_succeeded_body_with_counter(cpp);
+    let rust_decoded = decode_buy_succeeded_body_with_counter(rust);
+
+    // Normalize only the exact G'eras fixture identity. The bot preflight
+    // pins SQL spawn 96654 and rejects an overlapping same-entry spawn before
+    // it performs the purchase.
+    let cpp_has_reviewed_vendor = cpp_decoded
+        .as_ref()
+        .is_ok_and(DecodedBuySucceededBody::has_issue_108_vendor_identity);
+    let rust_has_reviewed_vendor = rust_decoded
+        .as_ref()
+        .is_ok_and(DecodedBuySucceededBody::has_issue_108_vendor_identity);
+    if cpp_decoded.is_ok()
+        && rust_decoded.is_ok()
+        && !cpp_has_reviewed_vendor
+        && !rust_has_reviewed_vendor
+    {
+        return None;
+    }
+
+    Some(SemanticBodyDiff {
+        comparator: "smsg_buy_succeeded_without_vendor_runtime_guid_counter".to_string(),
+        cpp: SemanticBodySide::from_decoded_buy_succeeded(cpp_decoded, cpp),
+        rust: SemanticBodySide::from_decoded_buy_succeeded(rust_decoded, rust),
+    })
 }
 
 fn compare_log_xp_gain_bodies(cpp: &[u8], rust: &[u8]) -> Option<SemanticBodyDiff> {
@@ -591,6 +735,12 @@ struct DecodedLootRemovedBody {
     owner_runtime_counter: u64,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct DecodedBuySucceededBody {
+    body: BuySucceededBody,
+    vendor_runtime_counter: u64,
+}
+
 #[derive(Debug, Clone)]
 struct DecodedUpdateObjectInvSlotsBody {
     body: UpdateObjectInvSlotsBody,
@@ -645,6 +795,44 @@ impl DecodedLootRemovedBody {
 
     fn is_issue_106_reviewed_shape(&self) -> bool {
         self.has_issue_106_owner_identity() && self.issue_106_shape_error().is_none()
+    }
+}
+
+impl DecodedBuySucceededBody {
+    fn has_issue_108_vendor_identity(&self) -> bool {
+        self.body.vendor == ISSUE_108_VENDOR_IDENTITY
+    }
+
+    fn issue_108_shape_error(&self) -> Option<String> {
+        if !self.has_issue_108_vendor_identity() {
+            return None;
+        }
+        if self.vendor_runtime_counter == 0 {
+            return Some("issue-#108 vendor has a zero runtime GUID counter".to_string());
+        }
+        if self.body.muid != ISSUE_108_VENDOR_MUID {
+            return Some(format!(
+                "issue-#108 vendor MUID is {}, expected {}",
+                self.body.muid, ISSUE_108_VENDOR_MUID
+            ));
+        }
+        if self.body.new_quantity != ISSUE_108_VENDOR_NEW_QUANTITY {
+            return Some(format!(
+                "issue-#108 vendor NewQuantity is {}, expected {}",
+                self.body.new_quantity, ISSUE_108_VENDOR_NEW_QUANTITY
+            ));
+        }
+        if self.body.quantity_bought != ISSUE_108_VENDOR_QUANTITY_BOUGHT {
+            return Some(format!(
+                "issue-#108 vendor QuantityBought is {}, expected {}",
+                self.body.quantity_bought, ISSUE_108_VENDOR_QUANTITY_BOUGHT
+            ));
+        }
+        None
+    }
+
+    fn is_issue_108_reviewed_shape(&self) -> bool {
+        self.has_issue_108_vendor_identity() && self.issue_108_shape_error().is_none()
     }
 }
 
@@ -1436,6 +1624,36 @@ pub fn decode_log_xp_gain_body(body: &[u8]) -> Result<LogXpGainBody, String> {
 ///   map-runtime counter.
 pub fn decode_loot_removed_body(body: &[u8]) -> Result<LootRemovedBody, String> {
     decode_loot_removed_body_with_counter(body).map(|decoded| decoded.body)
+}
+
+/// Decode the opcode-less body emitted by C++
+/// `WorldPackets::Item::BuySucceeded::Write`.
+pub fn decode_buy_succeeded_body(body: &[u8]) -> Result<BuySucceededBody, String> {
+    decode_buy_succeeded_body_with_counter(body).map(|decoded| decoded.body)
+}
+
+fn decode_buy_succeeded_body_with_counter(body: &[u8]) -> Result<DecodedBuySucceededBody, String> {
+    let mut cursor = 0usize;
+    let (vendor_low, vendor_high) = read_packed_guid(body, &mut cursor, "VendorGUID")?;
+    let muid = read_u32(body, &mut cursor, "Muid")?;
+    let new_quantity = read_i32(body, &mut cursor, "NewQuantity")?;
+    let quantity_bought = read_u32(body, &mut cursor, "QuantityBought")?;
+    if cursor != body.len() {
+        return Err(format!(
+            "trailing bytes after QuantityBought: decoded {cursor} of {} bytes",
+            body.len()
+        ));
+    }
+
+    Ok(DecodedBuySucceededBody {
+        body: BuySucceededBody {
+            vendor: stable_object_guid(vendor_low, vendor_high),
+            muid,
+            new_quantity,
+            quantity_bought,
+        },
+        vendor_runtime_counter: vendor_low & OBJECT_GUID_COUNTER_MASK,
+    })
 }
 
 fn decode_loot_removed_body_with_counter(body: &[u8]) -> Result<DecodedLootRemovedBody, String> {

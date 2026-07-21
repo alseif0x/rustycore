@@ -47,6 +47,23 @@ authenticates again, swaps them back, verifies both items after both commits,
 and removes the fixture. Optional entry overrides are
 `WOW_BOT_INVENTORY_SWAP_ITEM_ENTRY_A/B` (defaults `2589`/`2592`).
 
+For an atomic extended-cost vendor round-trip, set `WOW_BOT_VENDOR_SMOKE=1`
+and select exactly one local bot account. The default fixture relocates that
+offline character beside G'eras (entry `18525`, SQL spawn `96654`), seeds `30`
+units of currency `42`, selects the unique item/cost row `30183`/`1642`, and
+buys one item for `15` currency. The bot discovers the vendor's live
+map-generated ObjectGuid from `SMSG_UPDATE_OBJECT` near the exact SQL position;
+`WOW_BOT_VENDOR_RUNTIME_COUNTER` is only an optional checked override. It then
+requires the exact C++ `VendorInventory`, instance-routed `SetCurrency`, and
+realm-routed `BuySucceeded` plus `ItemPushResult` wire shapes, fences the
+capture with a fixed `CMSG_PING`, verifies currency
+`30→15` plus one persisted item after logout and a fresh authentication, and
+finally removes the purchased item and restores the original currency row and
+position. Optional fixture overrides are `WOW_BOT_VENDOR_ENTRY`,
+`WOW_BOT_VENDOR_SPAWN_GUID`, `WOW_BOT_VENDOR_ITEM_ENTRY`,
+`WOW_BOT_VENDOR_EXTENDED_COST`, `WOW_BOT_VENDOR_CURRENCY_ID`,
+`WOW_BOT_VENDOR_CURRENCY_COST`, and `WOW_BOT_VENDOR_CURRENCY_QUANTITY`.
+
 For a complete rested-XP calculation and consumption round-trip, set both
 `WOW_BOT_RESTED_XP_SMOKE=1` and `WOW_BOT_ACK_DISPOSABLE_RESTED_XP=1` when using
 the wrapper. The bot records and later restores only the selected character

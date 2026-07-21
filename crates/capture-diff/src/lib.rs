@@ -39,7 +39,8 @@ pub use flow::{
 };
 pub use model::{Capture, CapturedPacket, Direction, PacketBoundary, opcode_name};
 pub use semantic::{
-    ExactObjectGuid, InvSlotValue, LogXpGainBody, LootRemovedBody, SemanticBodyDiff,
-    SemanticBodySide, StableObjectGuid, UpdateObjectInvSlotsBody, decode_log_xp_gain_body,
-    decode_loot_removed_body, validate_loot_single_item_claim_capture,
+    BuySucceededBody, ExactObjectGuid, InvSlotValue, LogXpGainBody, LootRemovedBody,
+    SemanticBodyDiff, SemanticBodySide, StableObjectGuid, UpdateObjectInvSlotsBody,
+    decode_buy_succeeded_body, decode_log_xp_gain_body, decode_loot_removed_body,
+    validate_loot_single_item_claim_capture,
 };

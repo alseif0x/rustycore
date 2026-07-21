@@ -45,8 +45,9 @@
 #                   capture will not restart normal Rust until the journal is
 #                   gone and its mode-0600 cleanup marker validates
 #   WOW_BOT_EXEC / WOW_BOT_EXEC_SHA256 pinned bot executable used for required
-#                   loot-single-item-claim evidence
-#   WOW_BOT_REPORT  fresh absolute bot JSON report path for that exact flow
+#                   loot-single-item-claim and vendor evidence
+#   WOW_BOT_REPORT  fresh absolute bot JSON report path for that exact flow;
+#                   mandatory for vendor-extended-cost-purchase
 #
 # This stops the live RustyCore world server (disconnecting players). It refuses
 # to run without confirmation; pass --yes to skip the prompt.
@@ -220,6 +221,28 @@ case "$CPP_CAPTURE_LOOT_FIXTURE_GUARD" in
     exit 2
     ;;
 esac
+
+if [ "$FLOW" = "vendor-extended-cost-purchase" ]; then
+  [ -n "$CPP_CAPTURE_EXEC" ] && [ -n "$CPP_CAPTURE_EXEC_SHA256" ] || {
+    echo "error: vendor evidence requires CPP_CAPTURE_EXEC and CPP_CAPTURE_EXEC_SHA256" >&2
+    exit 2
+  }
+  [ -n "$WOW_BOT_EXEC" ] && [ -n "$WOW_BOT_EXEC_SHA256" ] \
+    && [ -n "$WOW_BOT_REPORT" ] || {
+    echo "error: vendor evidence requires WOW_BOT_EXEC, WOW_BOT_EXEC_SHA256, and WOW_BOT_REPORT" >&2
+    exit 2
+  }
+  [[ "$WOW_BOT_EXEC_SHA256" =~ ^[0-9A-Fa-f]{64}$ ]] || {
+    echo "error: WOW_BOT_EXEC_SHA256 must contain exactly 64 hexadecimal characters" >&2
+    exit 2
+  }
+  WOW_BOT_EXEC_SHA256="${WOW_BOT_EXEC_SHA256,,}"
+  capture_validate_fresh_bot_inputs \
+    "$WOW_BOT_EXEC" "$WOW_BOT_EXEC_SHA256" "$WOW_BOT_REPORT" || {
+    echo "error: vendor bot executable/report inputs are not fresh, canonical, and pinned" >&2
+    exit 2
+  }
+fi
 
 if [ -n "$CPP_CAPTURE_EXEC" ]; then
   [[ "$CPP_CAPTURE_EXEC_SHA256" =~ ^[0-9A-Fa-f]{64}$ ]] || {
@@ -423,17 +446,28 @@ cpp_capture_executable_unchanged() {
 finalize_cpp_capture_artifact() {
   [ "$CAPTURE_ARTIFACT_READY" -eq 1 ] && [ -f "$OUT_PKT_STAGE" ] || return 1
 
-  local created_at manifest_stage packet_sha packet_size bot_evidence
+  local capture_evidence created_at manifest_stage packet_sha packet_size bot_evidence
   [ "$CPP_CAPTURE_NORMAL_RUNTIME_RESTORED" -eq 1 ] || return 1
   capture_fixture_cleanup_verified_for_publication \
     "$CPP_CAPTURE_LOOT_FIXTURE_GUARD" \
     "$CPP_CAPTURE_FIXTURE_CLEANUP_VERIFIED" || return 1
-  if [ "$FLOW" = "loot-single-item-claim" ]; then
-    bot_evidence="$(capture_loot_item_bot_evidence \
-      "$WOW_BOT_REPORT" "$WOW_BOT_EXEC" "$WOW_BOT_EXEC_SHA256")" || return 1
+  case "$FLOW" in
+    loot-single-item-claim)
+      bot_evidence="$(capture_loot_item_bot_evidence \
+        "$WOW_BOT_REPORT" "$WOW_BOT_EXEC" "$WOW_BOT_EXEC_SHA256")" || return 1
+      ;;
+    vendor-extended-cost-purchase)
+      bot_evidence="$(capture_vendor_bot_evidence \
+        "$WOW_BOT_REPORT" "$WOW_BOT_EXEC" "$WOW_BOT_EXEC_SHA256")" || return 1
+      ;;
+  esac
+  if [ -n "$bot_evidence" ]; then
     IFS=$'\t' read -r CPP_CAPTURE_BOT_EXEC CPP_CAPTURE_BOT_EXEC_SHA256 \
       CPP_CAPTURE_BOT_REPORT CPP_CAPTURE_BOT_REPORT_SHA256 <<<"$bot_evidence"
   fi
+  capture_evidence="$(capture_bot_manifest_evidence \
+    "$FLOW" "$CPP_CAPTURE_BOT_EXEC" "$CPP_CAPTURE_BOT_EXEC_SHA256" \
+    "$CPP_CAPTURE_BOT_REPORT" "$CPP_CAPTURE_BOT_REPORT_SHA256")" || return 1
   packet_sha="$(capture_sha256_of_file "$OUT_PKT_STAGE")" || return 1
   packet_size="$(stat -c '%s' -- "$OUT_PKT_STAGE")" || return 1
   created_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" || return 1
@@ -472,13 +506,13 @@ finalize_cpp_capture_artifact() {
       --arg bot_report_path "$CPP_CAPTURE_BOT_REPORT" \
       --arg bot_report_sha256 "$CPP_CAPTURE_BOT_REPORT_SHA256" \
       --arg packet_sha256 "$packet_sha" \
+      --argjson capture_evidence "$capture_evidence" \
       --argjson pm2_entry_pid "$CPP_CAPTURE_PM2_ENTRY_PID" \
       --argjson pm2_entry_starttime "$CPP_CAPTURE_PM2_ENTRY_STARTTIME" \
       --argjson listener_runtime_pid "$CPP_CAPTURE_PID" \
       --argjson listener_runtime_starttime "$CPP_CAPTURE_LISTENER_STARTTIME" \
       --argjson restart_count "$CPP_CAPTURE_RESTART_COUNT" \
       --argjson packet_size "$packet_size" \
-      --argjson guarded "$([ "$FLOW" = "loot-single-item-claim" ] && printf true || printf false)" \
       --argjson pinned "$([ "$CPP_CAPTURE_PINNED" -eq 1 ] && printf true || printf false)" \
       --argjson source_worktree_dirty \
         "$([ "$CPP_CAPTURE_SOURCE_WORKTREE_DIRTY" -eq 1 ] && printf true || printf false)" \
@@ -516,31 +550,8 @@ finalize_cpp_capture_artifact() {
         effective_config_algorithm: "capture-relevant-redacted-v1",
         runtime_cleanup_verified: true,
         normal_runtime_restored: true,
-        fixture_guard: (if $guarded then {
-          enabled: true,
-          contract: "loot-single-item-claim-fixture-v1",
-          account: "TESTBOT2@bot.local",
-          account_id: 9,
-          character_guid: 15,
-          peer_account: "TESTBOT3@bot.local",
-          peer_account_id: 10,
-          peer_character_guid: 16,
-          creature_entry: 21779,
-          creature_spawn_guid: 1117,
-          item_entry: 30712,
-          cleanup_verified: true
-        } else null end),
-        bot_report: (if $guarded then {
-          contract: "wow-test-bot-loot-item-capture-report-v1",
-          exec_path: $bot_exec_path,
-          exec_sha256: $bot_exec_sha256,
-          report_path: $bot_report_path,
-          report_sha256: $bot_report_sha256,
-          account: "TESTBOT2@bot.local",
-          account_id: 9,
-          character_guid: 15,
-          report_validated: true
-        } else null end),
+        fixture_guard: $capture_evidence.fixture_guard,
+        bot_report: $capture_evidence.bot_report,
         artifact: {
           path: "cpp.pkt",
           size: $packet_size,

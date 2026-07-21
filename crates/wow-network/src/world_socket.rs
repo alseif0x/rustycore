@@ -23,7 +23,7 @@ use std::future::Future;
 use std::net::SocketAddr;
 use std::path::Path;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -86,14 +86,15 @@ const WRITE_FENCE_PREFIX_LIKE_CPP: [u8; 8] = [0, 0, b'R', b'C', b'F', b'E', b'N'
 #[derive(Default)]
 struct SocketWriteFenceStateLikeCpp {
     next_id: AtomicU64,
+    writer_closed: AtomicBool,
     pending: Mutex<HashMap<u64, tokio::sync::oneshot::Sender<()>>>,
 }
 
 /// Cancellation guard for one pending marker acknowledgement.
 ///
-/// A session handler can be dropped while `send_async` is waiting for bounded
-/// channel capacity.  In that case no marker will ever reach the writer, so
-/// the pending sender must be removed by `Drop` rather than by an async tail.
+/// A session handler can be dropped while `send_async` is waiting for channel
+/// capacity. In that case no marker will ever reach the writer, so the pending
+/// sender must be removed by `Drop` rather than by an async tail.
 struct PendingSocketWriteFenceLikeCpp {
     state: Arc<SocketWriteFenceStateLikeCpp>,
     id: u64,
@@ -111,14 +112,22 @@ impl Drop for PendingSocketWriteFenceLikeCpp {
 
 /// FIFO write fence for one physical world socket.
 ///
-/// TrinityCore records/sends `SendDirectMessage` synchronously, while RustyCore
-/// has independent realm and instance writer tasks. A fence marker is queued
-/// after a realm packet and acknowledged by that socket's writer only after it
-/// has fully written every earlier packet. This lets a caller defer an instance
-/// update without relying on scheduler timing or `flume::Sender::is_empty()`.
+/// TrinityCore enqueues each `SendDirectMessage` during one session update,
+/// while RustyCore has independent realm and instance writer tasks. A fence
+/// marker is queued after a packet and acknowledged by that socket's writer
+/// only after it has fully written every earlier packet. This lets a caller
+/// retain observed cross-connection order without relying on scheduler timing
+/// or `flume::Sender::is_empty()`.
 #[derive(Clone, Default)]
 pub struct SocketWriteFenceLikeCpp {
     state: Arc<SocketWriteFenceStateLikeCpp>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SocketWriteFenceWaitResultLikeCpp {
+    Written,
+    TimedOut,
+    WriterClosed,
 }
 
 impl SocketWriteFenceLikeCpp {
@@ -152,36 +161,54 @@ impl SocketWriteFenceLikeCpp {
         true
     }
 
-    /// Wait until this socket's writer has written every packet queued before
-    /// the fence. Returns false if the channel or writer cannot acknowledge the
-    /// bounded fence; callers must keep durable gameplay state committed.
-    pub async fn wait_for_prior_packets_written_like_cpp(
-        &self,
-        send_tx: &flume::Sender<Vec<u8>>,
-        timeout: Duration,
-    ) -> bool {
-        let id = self.state.next_id.fetch_add(1, Ordering::Relaxed);
-        let (acknowledgement_tx, acknowledgement_rx) = tokio::sync::oneshot::channel();
+    fn close_writer_like_cpp(&self) {
+        self.state.writer_closed.store(true, Ordering::Release);
         self.state
             .pending
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .insert(id, acknowledgement_tx);
+            .clear();
+    }
+
+    /// Wait until this socket's writer has written every packet queued before
+    /// the fence. A slow but live writer is allowed to apply normal socket
+    /// backpressure up to the caller's configured socket-liveness bound.
+    /// Callers must keep durable gameplay state committed for every outcome.
+    pub async fn wait_for_prior_packets_written_like_cpp(
+        &self,
+        send_tx: &flume::Sender<Vec<u8>>,
+        timeout: Duration,
+    ) -> SocketWriteFenceWaitResultLikeCpp {
+        let id = self.state.next_id.fetch_add(1, Ordering::Relaxed);
+        let (acknowledgement_tx, acknowledgement_rx) = tokio::sync::oneshot::channel();
+        {
+            let mut pending = self
+                .state
+                .pending
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            if self.state.writer_closed.load(Ordering::Acquire) {
+                return SocketWriteFenceWaitResultLikeCpp::WriterClosed;
+            }
+            pending.insert(id, acknowledgement_tx);
+        }
         let _pending = PendingSocketWriteFenceLikeCpp {
             state: self.state.clone(),
             id,
         };
 
-        if !matches!(
-            tokio::time::timeout(timeout, send_tx.send_async(Self::marker_like_cpp(id))).await,
-            Ok(Ok(()))
-        ) {
-            return false;
-        }
-
-        match tokio::time::timeout(timeout, acknowledgement_rx).await {
-            Ok(Ok(())) => true,
-            Ok(Err(_)) | Err(_) => false,
+        match tokio::time::timeout(timeout, async {
+            send_tx
+                .send_async(Self::marker_like_cpp(id))
+                .await
+                .map_err(|_| ())?;
+            acknowledgement_rx.await.map_err(|_| ())
+        })
+        .await
+        {
+            Ok(Ok(())) => SocketWriteFenceWaitResultLikeCpp::Written,
+            Ok(Err(())) => SocketWriteFenceWaitResultLikeCpp::WriterClosed,
+            Err(_) => SocketWriteFenceWaitResultLikeCpp::TimedOut,
         }
     }
 }
@@ -1284,6 +1311,15 @@ pub struct SocketWriter {
     compressor: compression::PacketCompressor,
 }
 
+impl Drop for SocketWriter {
+    fn drop(&mut self) {
+        // Wake any cross-socket ordering wait immediately when this physical
+        // writer ends. Transient backpressure must not masquerade as failure,
+        // but a dead socket can never acknowledge an already queued marker.
+        self.send_write_fence_like_cpp.close_writer_like_cpp();
+    }
+}
+
 impl SocketWriter {
     /// Run the write loop: receive serialized packets from session, encrypt, write to TCP.
     ///
@@ -1530,7 +1566,93 @@ mod tests {
         assert!(SocketWriteFenceLikeCpp::marker_id_like_cpp(&marker).is_some());
         assert!(!wait_fence.is_finished());
         assert!(fence.acknowledge_marker_like_cpp(&marker));
-        assert!(wait_fence.await.unwrap());
+        assert_eq!(
+            wait_fence.await.unwrap(),
+            SocketWriteFenceWaitResultLikeCpp::Written
+        );
+    }
+
+    #[tokio::test]
+    async fn write_fence_waits_for_acknowledgement_within_caller_bound_like_cpp() {
+        let fence = SocketWriteFenceLikeCpp::default();
+        let (send_tx, send_rx) = flume::bounded::<Vec<u8>>(2);
+        let wait_fence = {
+            let fence = fence.clone();
+            tokio::spawn(async move {
+                fence
+                    .wait_for_prior_packets_written_like_cpp(&send_tx, Duration::from_secs(1))
+                    .await
+            })
+        };
+
+        let marker = send_rx.recv_async().await.unwrap();
+        assert!(SocketWriteFenceLikeCpp::marker_id_like_cpp(&marker).is_some());
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        assert!(!wait_fence.is_finished());
+        assert!(fence.acknowledge_marker_like_cpp(&marker));
+        assert_eq!(
+            wait_fence.await.unwrap(),
+            SocketWriteFenceWaitResultLikeCpp::Written
+        );
+    }
+
+    #[tokio::test]
+    async fn write_fence_fails_when_physical_writer_closes_like_cpp() {
+        let fence = SocketWriteFenceLikeCpp::default();
+        let (send_tx, send_rx) = flume::bounded::<Vec<u8>>(1);
+        let wait_fence = {
+            let fence = fence.clone();
+            let send_tx = send_tx.clone();
+            tokio::spawn(async move {
+                fence
+                    .wait_for_prior_packets_written_like_cpp(&send_tx, Duration::from_secs(1))
+                    .await
+            })
+        };
+
+        let marker = send_rx.recv_async().await.unwrap();
+        assert!(SocketWriteFenceLikeCpp::marker_id_like_cpp(&marker).is_some());
+        fence.close_writer_like_cpp();
+        assert_eq!(
+            wait_fence.await.unwrap(),
+            SocketWriteFenceWaitResultLikeCpp::WriterClosed
+        );
+        assert!(
+            fence
+                .state
+                .pending
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .is_empty()
+        );
+
+        assert_eq!(
+            fence
+                .wait_for_prior_packets_written_like_cpp(&send_tx, Duration::from_secs(1))
+                .await,
+            SocketWriteFenceWaitResultLikeCpp::WriterClosed
+        );
+    }
+
+    #[tokio::test]
+    async fn write_fence_reports_configured_stalled_writer_timeout_like_cpp() {
+        let fence = SocketWriteFenceLikeCpp::default();
+        let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(1);
+
+        assert_eq!(
+            fence
+                .wait_for_prior_packets_written_like_cpp(&send_tx, Duration::from_millis(20),)
+                .await,
+            SocketWriteFenceWaitResultLikeCpp::TimedOut
+        );
+        assert!(
+            fence
+                .state
+                .pending
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .is_empty()
+        );
     }
 
     #[tokio::test]

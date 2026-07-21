@@ -532,6 +532,82 @@ capture_publish_noreplace() {
   [ "$target_identity" = "$source_identity" ]
 }
 
+capture_vendor_report_proves_exact_success() {
+  local report_path="$1"
+
+  jq -e '
+    .vendor_smoke == true
+    and .loot_item_capture == false
+    and .loot_race_smoke == false
+    and (.results | type == "array" and length == 1)
+    and (.results[0]
+      | .account == "TESTBOT2@bot.local"
+      and .account_id == 9
+      and .character_guid == 15
+      and .world_auth == true
+      and .enum_characters == true
+      and .player_login_verified == true
+      and .vendor_smoke == true
+      and .vendor_smoke_passed == true
+      and .vendor_entry == 18525
+      and .vendor_spawn_guid == 96654
+      and (.vendor_runtime_counter | type == "number" and . > 0)
+      and .vendor_item_entry == 30183
+      and .vendor_extended_cost == 1642
+      and .vendor_currency_id == 42
+      and .vendor_currency_before == 30
+      and .vendor_currency_after == 15
+      and .vendor_item_total_after == 1
+      and .vendor_inventory_seen == true
+      and .vendor_buy_succeeded_seen == true
+      and .vendor_set_currency_seen == true
+      and .vendor_item_push_seen == true
+      and .vendor_relogin_verified == true
+      and .vendor_failure == null)
+  ' "$report_path" >/dev/null
+}
+
+capture_vendor_bot_evidence() {
+  local report_path="$1"
+  local bot_exec="$2"
+  local expected_bot_sha="$3"
+  local canonical_report canonical_exec report_sha bot_sha
+
+  [[ "$report_path" = /* && "$bot_exec" = /* \
+    && "$expected_bot_sha" =~ ^[0-9a-f]{64}$ ]] || return 1
+  canonical_report="$(realpath -e -- "$report_path" 2>/dev/null)" || return 1
+  canonical_exec="$(realpath -e -- "$bot_exec" 2>/dev/null)" || return 1
+  [ "$canonical_report" = "$report_path" ] \
+    && [ -f "$report_path" ] && [ ! -L "$report_path" ] \
+    && [ "$canonical_exec" = "$bot_exec" ] \
+    && [ -f "$bot_exec" ] && [ -x "$bot_exec" ] && [ ! -L "$bot_exec" ] \
+    || return 1
+  bot_sha="$(capture_sha256_of_file "$bot_exec")" || return 1
+  [ "$bot_sha" = "$expected_bot_sha" ] || return 1
+  capture_vendor_report_proves_exact_success "$report_path" || return 1
+  report_sha="$(capture_sha256_of_file "$report_path")" || return 1
+  printf '%s\t%s\t%s\t%s\n' \
+    "$canonical_exec" "$bot_sha" "$canonical_report" "$report_sha"
+}
+
+capture_validate_fresh_bot_inputs() {
+  local bot_exec="$1"
+  local expected_bot_sha="$2"
+  local report_path="$3"
+  local report_parent
+
+  [ -n "$bot_exec" ] && [ -n "$expected_bot_sha" ] \
+    && [ -n "$report_path" ] || return 1
+  [[ "$expected_bot_sha" =~ ^[0-9a-f]{64}$ ]] || return 1
+  [[ "$report_path" = /* && "$report_path" != *$'\n'* ]] \
+    && [ -d "$(dirname -- "$report_path")" ] \
+    && [ ! -e "$report_path" ] && [ ! -L "$report_path" ] || return 1
+  report_parent="$(dirname -- "$report_path")"
+  [ "$(realpath -e -- "$report_parent" 2>/dev/null)" = "$report_parent" ] \
+    && [ ! -L "$report_parent" ] || return 1
+  capture_exec_source_matches "$bot_exec" "$expected_bot_sha"
+}
+
 capture_loot_item_bot_evidence() {
   local report_path="$1"
   local bot_exec="$2"
@@ -712,6 +788,28 @@ capture_bot_manifest_evidence() {
             },
             bot_report: {
               contract: "wow-test-bot-loot-two-session-atomic-race-report-v1",
+              exec_path: $exec_path,
+              exec_sha256: $exec_sha256,
+              report_path: $report_path,
+              report_sha256: $report_sha256,
+              account: "TESTBOT2@bot.local",
+              account_id: 9,
+              character_guid: 15,
+              report_validated: true
+            }
+          }
+        '
+      ;;
+    vendor-extended-cost-purchase)
+      jq -n \
+        --arg exec_path "$bot_exec" \
+        --arg exec_sha256 "$bot_exec_sha256" \
+        --arg report_path "$bot_report" \
+        --arg report_sha256 "$bot_report_sha256" '
+          {
+            fixture_guard: null,
+            bot_report: {
+              contract: "wow-test-bot-vendor-extended-cost-purchase-report-v1",
               exec_path: $exec_path,
               exec_sha256: $exec_sha256,
               report_path: $report_path,

@@ -42,11 +42,11 @@
 #                            with capture-cpp.sh (default: /tmp, keyed by uid+ports)
 #   CAPTURE_WORLD_READY_TIMEOUT_SECONDS bounded wait for a stable ready world
 #                            (default: 180, range: 3 through 3600)
-#   WOW_BOT_EXEC / WOW_BOT_EXEC_SHA256 pinned bot executable used for both
-#                            guarded #106 loot evidence flows
+#   WOW_BOT_EXEC / WOW_BOT_EXEC_SHA256 pinned bot executable used for guarded
+#                            #106 loot and vendor-extended-cost-purchase evidence
 #   WOW_BOT_REPORT           fresh absolute bot JSON report path. The guarded
 #                            wrapper independently validates the exact selected
-#                            single-item or two-session contract before publish
+#                            loot or vendor contract before publish
 #
 # This restarts the live world server (disconnecting players). Pass --yes to skip
 # the confirmation prompt.
@@ -240,6 +240,33 @@ case "$RUST_CAPTURE_LOOT_FIXTURE_GUARD" in
     exit 2
     ;;
 esac
+
+if [ "$FLOW" = "vendor-extended-cost-purchase" ]; then
+  [ -n "$RUST_CAPTURE_EXEC" ] && [ -n "$RUST_CAPTURE_EXEC_SHA256" ] || {
+    echo "error: vendor evidence requires RUST_CAPTURE_EXEC and RUST_CAPTURE_EXEC_SHA256" >&2
+    exit 2
+  }
+  [ "$RUST_CAPTURE_EFFECTIVE_CONFIG_WAS_SET" = "x" ] \
+    && [ -n "$RUST_CAPTURE_EFFECTIVE_CONFIG" ] || {
+    echo "error: vendor evidence requires RUST_CAPTURE_EFFECTIVE_CONFIG" >&2
+    exit 2
+  }
+  [ -n "$WOW_BOT_EXEC" ] && [ -n "$WOW_BOT_EXEC_SHA256" ] \
+    && [ -n "$WOW_BOT_REPORT" ] || {
+    echo "error: vendor evidence requires WOW_BOT_EXEC, WOW_BOT_EXEC_SHA256, and WOW_BOT_REPORT" >&2
+    exit 2
+  }
+  [[ "$WOW_BOT_EXEC_SHA256" =~ ^[0-9A-Fa-f]{64}$ ]] || {
+    echo "error: WOW_BOT_EXEC_SHA256 must contain exactly 64 hexadecimal characters" >&2
+    exit 2
+  }
+  WOW_BOT_EXEC_SHA256="${WOW_BOT_EXEC_SHA256,,}"
+  capture_validate_fresh_bot_inputs \
+    "$WOW_BOT_EXEC" "$WOW_BOT_EXEC_SHA256" "$WOW_BOT_REPORT" || {
+    echo "error: vendor bot executable/report inputs are not fresh, canonical, and pinned" >&2
+    exit 2
+  }
+fi
 
 sha256_of_file() {
   local output digest
@@ -898,6 +925,10 @@ finalize_rust_capture_artifact() {
       ;;
     loot-two-session-atomic-race)
       bot_evidence="$(capture_loot_race_bot_evidence \
+        "$WOW_BOT_REPORT" "$WOW_BOT_EXEC" "$WOW_BOT_EXEC_SHA256")" || return 1
+      ;;
+    vendor-extended-cost-purchase)
+      bot_evidence="$(capture_vendor_bot_evidence \
         "$WOW_BOT_REPORT" "$WOW_BOT_EXEC" "$WOW_BOT_EXEC_SHA256")" || return 1
       ;;
   esac
