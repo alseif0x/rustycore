@@ -112,7 +112,11 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
     the committed post-COMMIT realm response is 2/2 CLEAN with no accepted divergences. Capture
     contrast also fixed zero-price Coinage publication and C++ vendor-item create/context/flag
     metadata. The wider action still shows the separately scoped missing achievement
-    `SMSG_CRITERIA_UPDATE`. Kept open until final CI, current-HEAD reviewer verdict, and merge.
+    `SMSG_CRITERIA_UPDATE`. Installed original-client QA on 2026-07-21 bought two extended-cost
+    items across a relog and confirmed exact item/currency persistence in CharacterDB; the fixture
+    was then fully restored. The confusing client `You receive currency` line was backed by the
+    same byte-exact loss packet as C++ (quantity 15, delta -15, Vendor reason), not a refund. Kept
+    open until final CI, current-HEAD reviewer verdict, and merge.
 - [ ] **D-C9 Group full-check race.** Size checked then join without re-check → 6+ member
   groups under concurrent accepts. `handlers/group.rs:928-1044`.
 

@@ -32,12 +32,19 @@
   comparator omits only the exact G'eras lower 40-bit nonzero runtime counter while pinning all
   stable GUID and purchase fields. The wider raw action retains one visible pre-existing boundary:
   C++ emits `SMSG_CRITERIA_UPDATE`, while Rust's achievement subsystem does not yet do so; it is
-  not ignored or accepted by the committed flow. Checks include `cargo +1.88.0 fmt --all --
+  not ignored or accepted by the committed flow. Installed original-client QA on 2026-07-21 also
+  passed against the release binary: offline `Luqedos` was moved beside G'eras and seeded with 30
+  Badge of Justice, bought item `30183` for 15, relogged with the item and remaining currency
+  durable, then bought item `23572` for 10 (durable balance 5). CharacterDB and server logs proved
+  both single item creations and both debits; cleanup removed the two QA items/currency row and
+  restored the exact original character position. The client's misleading `You receive currency
+  ... x15` text did not represent a refund: the captured Rust `SMSG_SET_CURRENCY` body is
+  byte-identical to C++ and carries quantity 15, delta -15, and destroy reason Vendor.
+  Checks include `cargo +1.88.0 fmt --all --
   --check`, focused `wow-world --lib` vendor tests, the complete `capture-diff` suite, pinned-protoc
   `world-server` check, `git diff --check`, and repeated local Codex reviews CLEAN. D-C8 remains
-  open only for final validation/CI/current-HEAD GitHub Codex verdict and merge; optional installed
-  original-client QA is still pending. Finite-stock oversell (D-H11), buyback/refund, achievements,
-  and broader vendor validation are outside D-C8.
+  open only for final validation/CI/current-HEAD GitHub Codex verdict and merge. Finite-stock
+  oversell (D-H11), buyback/refund, achievements, and broader vendor validation are outside D-C8.
 
 - `#NEXT.R8.ENTITIES.1201` — issue #102 implements atomic personal-bank item moves for
   `CMSG_AUTOBANK_ITEM` and `CMSG_AUTOSTORE_BANK_ITEM`. C++ anchors:

@@ -26,7 +26,12 @@ vendor tests, the complete `capture-diff` suite, pinned-protoc `world-server` ch
 diff checks, and repeated local Codex reviews are clean. Boundary: represented-partial because
 finite-stock oversell (D-H11), buyback/refund, achievements, and wider vendor validation remain
 separate; D-C8 itself still needs final CI, current-HEAD GitHub reviewer verdict, and merge.
-Optional installed original-client QA has not yet been run for this HEAD.
+Installed original-client QA passed on 2026-07-21: `Luqedos` bought item `30183` for 15 Badge of
+Justice, relogged with the item and remaining currency persisted, then bought item `23572` for 10;
+CharacterDB retained exactly one of each item and balance 5. The apparent `You receive currency
+... x15` client text was not a refund: Rust and C++ captured byte-identical `SMSG_SET_CURRENCY`
+bodies with quantity 15, delta -15 and Vendor loss reason. Cleanup restored the character's exact
+pre-QA position and removed both test items plus the previously absent currency row.
 
 # `#NEXT.R8.ENTITIES.1201` — atomic personal-bank item moves (issue #102).
 
