@@ -14,12 +14,19 @@ money, inventory, and turn-ins before reopening payout/save admission.
 
 Focused tests cover detached pre-COMMIT isolation, a real failed-connection rollback through
 `handle_buy_item`, successful publication, generated currency save statements, and the
-unknown-COMMIT equal-marker rule. Full `wow-world --lib` is 2,996/0 and `world-server` checks
-cleanly with the pinned protoc and incremental compilation disabled; the committed capture-diff
-gate is 123/0 with its required loot flow CLEAN, and local Codex review is CLEAN. Boundary:
-represented-partial until a representative vendor bot/client capture, manual client QA, CI, and
-current-HEAD reviewer verdict. Finite-stock oversell (D-H11), buyback/refund, and wider vendor
-validation are separate work.
+unknown-COMMIT equal-marker rule. Capture contrast additionally corrected zero-price Coinage
+publication; C++ `CreateObject` storage shape; `NEW_ITEM`, bonding, refundable-flag composition,
+and `ItemContext::Vendor` persistence/wire metadata; and realm-vs-instance response routing.
+Paired real C++/Rust bot runs bought G'eras item `30183` for currency `42` (`30→15`), required the
+exact C++ packet routes/shapes, verified one item after fresh authentication, and restored the
+fixture. The committed strict realm-response window is 2/2 CLEAN with no accepted divergences;
+its comparator normalizes only G'eras' nonzero lower 40-bit runtime counter. The wider raw action
+also exposes an out-of-scope missing Rust `SMSG_CRITERIA_UPDATE` instead of hiding it. Focused
+vendor tests, the complete `capture-diff` suite, pinned-protoc `world-server` check, formatting,
+diff checks, and repeated local Codex reviews are clean. Boundary: represented-partial because
+finite-stock oversell (D-H11), buyback/refund, achievements, and wider vendor validation remain
+separate; D-C8 itself still needs final CI, current-HEAD GitHub reviewer verdict, and merge.
+Optional installed original-client QA has not yet been run for this HEAD.
 
 # `#NEXT.R8.ENTITIES.1201` — atomic personal-bank item moves (issue #102).
 

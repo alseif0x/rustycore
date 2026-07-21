@@ -472,6 +472,7 @@ fn validate_raw_manifest_schema(
         "loot-two-session-atomic-race" => {
             validate_canonical_loot_race_identity(manifest)?;
         }
+        "vendor-extended-cost-purchase" => validate_canonical_vendor_identity(manifest)?,
         _ => {}
     }
 
@@ -626,6 +627,27 @@ fn validate_canonical_loot_race_identity(manifest: &RawCaptureManifest) -> Resul
     Ok(())
 }
 
+fn validate_canonical_vendor_identity(manifest: &RawCaptureManifest) -> Result<()> {
+    ensure!(
+        manifest.fixture_guard.is_none(),
+        "vendor-extended-cost-purchase uses the bot-owned fixture and must not claim a wrapper fixture_guard"
+    );
+    let bot = manifest
+        .bot_report
+        .as_ref()
+        .context("vendor-extended-cost-purchase requires bot_report evidence")?;
+    ensure!(
+        bot.contract == "wow-test-bot-vendor-extended-cost-purchase-report-v1",
+        "unexpected bot_report contract"
+    );
+    ensure!(bot.report_validated, "bot_report was not validated");
+    ensure!(
+        bot.account == "TESTBOT2@bot.local" && bot.account_id == 9 && bot.character_guid == 15,
+        "vendor bot report manifest identity is not canonical TESTBOT2"
+    );
+    Ok(())
+}
+
 fn validate_cross_side_identity(
     flow: &str,
     cpp: &RawCaptureManifest,
@@ -645,12 +667,14 @@ fn validate_cross_side_identity(
     );
     if matches!(
         flow,
-        "loot-single-item-claim" | "loot-two-session-atomic-race"
+        "loot-single-item-claim" | "loot-two-session-atomic-race" | "vendor-extended-cost-purchase"
     ) {
-        ensure!(
-            cpp.fixture_guard == rust.fixture_guard,
-            "C++ and Rust guarded-loot fixture identities differ"
-        );
+        if flow != "vendor-extended-cost-purchase" {
+            ensure!(
+                cpp.fixture_guard == rust.fixture_guard,
+                "C++ and Rust guarded-loot fixture identities differ"
+            );
+        }
         let cpp_bot = cpp.bot_report.as_ref().context("C++ bot report missing")?;
         let rust_bot = rust
             .bot_report
@@ -693,8 +717,73 @@ fn validate_bot_report_json(bytes: &[u8], evidence: &BotReportEvidence) -> Resul
         "wow-test-bot-loot-two-session-atomic-race-report-v1" => {
             validate_loot_race_bot_report_json(&report, evidence)
         }
+        "wow-test-bot-vendor-extended-cost-purchase-report-v1" => {
+            validate_vendor_bot_report_json(&report, evidence)
+        }
         contract => bail!("unsupported bot report contract {contract:?}"),
     }
+}
+
+fn validate_vendor_bot_report_json(
+    report: &serde_json::Value,
+    evidence: &BotReportEvidence,
+) -> Result<()> {
+    let results = report
+        .get("results")
+        .and_then(serde_json::Value::as_array)
+        .context("bot report results must be an array")?;
+    ensure!(
+        report
+            .get("vendor_smoke")
+            .and_then(serde_json::Value::as_bool)
+            == Some(true)
+            && report
+                .get("loot_item_capture")
+                .and_then(serde_json::Value::as_bool)
+                == Some(false)
+            && report
+                .get("loot_race_smoke")
+                .and_then(serde_json::Value::as_bool)
+                == Some(false)
+            && results.len() == 1,
+        "bot report is not a single-session vendor capture"
+    );
+    let result = &results[0];
+    let string = |key: &str| result.get(key).and_then(serde_json::Value::as_str);
+    let u64_value = |key: &str| result.get(key).and_then(serde_json::Value::as_u64);
+    let boolean = |key: &str| result.get(key).and_then(serde_json::Value::as_bool);
+    ensure!(
+        string("account") == Some(evidence.account.as_str())
+            && u64_value("account_id") == Some(u64::from(evidence.account_id))
+            && u64_value("character_guid") == Some(evidence.character_guid),
+        "bot report subject does not match manifest identity"
+    );
+    ensure!(
+        boolean("world_auth") == Some(true)
+            && boolean("enum_characters") == Some(true)
+            && boolean("player_login_verified") == Some(true)
+            && boolean("vendor_smoke") == Some(true)
+            && boolean("vendor_smoke_passed") == Some(true)
+            && u64_value("vendor_entry") == Some(18_525)
+            && u64_value("vendor_spawn_guid") == Some(96_654)
+            && u64_value("vendor_runtime_counter").is_some_and(|counter| counter > 0)
+            && u64_value("vendor_item_entry") == Some(30_183)
+            && u64_value("vendor_extended_cost") == Some(1_642)
+            && u64_value("vendor_currency_id") == Some(42)
+            && u64_value("vendor_currency_before") == Some(30)
+            && u64_value("vendor_currency_after") == Some(15)
+            && u64_value("vendor_item_total_after") == Some(1)
+            && boolean("vendor_inventory_seen") == Some(true)
+            && boolean("vendor_buy_succeeded_seen") == Some(true)
+            && boolean("vendor_set_currency_seen") == Some(true)
+            && boolean("vendor_item_push_seen") == Some(true)
+            && boolean("vendor_relogin_verified") == Some(true)
+            && result
+                .get("vendor_failure")
+                .is_some_and(serde_json::Value::is_null),
+        "bot report does not prove the canonical successful vendor flow"
+    );
+    Ok(())
 }
 
 fn validate_loot_item_bot_report_json(
@@ -2088,6 +2177,61 @@ mod tests {
                 });
                 fs::write(manifest_path, serde_json::to_vec_pretty(&manifest).unwrap()).unwrap();
             }
+        } else if flow == "vendor-extended-cost-purchase" {
+            let report_json = serde_json::json!({
+                "vendor_smoke": true,
+                "loot_item_capture": false,
+                "loot_race_smoke": false,
+                "results": [{
+                    "account": "TESTBOT2@bot.local",
+                    "account_id": 9,
+                    "character_guid": 15,
+                    "world_auth": true,
+                    "enum_characters": true,
+                    "player_login_verified": true,
+                    "vendor_smoke": true,
+                    "vendor_smoke_passed": true,
+                    "vendor_entry": 18525,
+                    "vendor_spawn_guid": 96654,
+                    "vendor_runtime_counter": 111,
+                    "vendor_item_entry": 30183,
+                    "vendor_extended_cost": 1642,
+                    "vendor_currency_id": 42,
+                    "vendor_currency_before": 30,
+                    "vendor_currency_after": 15,
+                    "vendor_item_total_after": 1,
+                    "vendor_inventory_seen": true,
+                    "vendor_buy_succeeded_seen": true,
+                    "vendor_set_currency_seen": true,
+                    "vendor_item_push_seen": true,
+                    "vendor_relogin_verified": true,
+                    "vendor_failure": null
+                }]
+            });
+            let report_bytes = serde_json::to_vec_pretty(&report_json).unwrap();
+            let cpp_report = raw.join("cpp-vendor-report.json");
+            let rust_report = raw.join("rust-vendor-report.json");
+            fs::write(&cpp_report, &report_bytes).unwrap();
+            fs::write(&rust_report, &report_bytes).unwrap();
+
+            for (manifest_path, report_path) in
+                [(&cpp_manifest, cpp_report), (&rust_manifest, rust_report)]
+            {
+                let mut manifest: serde_json::Value =
+                    serde_json::from_slice(&fs::read(manifest_path).unwrap()).unwrap();
+                manifest["bot_report"] = serde_json::json!({
+                    "contract": "wow-test-bot-vendor-extended-cost-purchase-report-v1",
+                    "exec_path": "/opt/rustycore/wow-test-bot",
+                    "exec_sha256": "7".repeat(64),
+                    "report_path": report_path.to_string_lossy(),
+                    "report_sha256": sha256_bytes(&report_bytes),
+                    "account": "TESTBOT2@bot.local",
+                    "account_id": 9,
+                    "character_guid": 15,
+                    "report_validated": true
+                });
+                fs::write(manifest_path, serde_json::to_vec_pretty(&manifest).unwrap()).unwrap();
+            }
         }
         (cpp, cpp_manifest, rust, rust_manifest)
     }
@@ -2439,6 +2583,49 @@ mod tests {
             format!("{error:#}").contains("one shared target/list"),
             "unexpected error: {error:#}"
         );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn vendor_raw_pair_requires_exact_bot_report_and_retains_both_reports() {
+        let root = test_root("vendor-report");
+        let flow = "vendor-extended-cost-purchase";
+        let (cpp, cpp_manifest, rust, rust_manifest) = make_raw_pair(&root, flow);
+        let raw =
+            validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true).unwrap();
+        let flow_dir = make_derived_flow(&root, flow, &raw);
+        assert!(
+            flow_dir
+                .join(RAW_PROVENANCE_DIR)
+                .join(CPP_BOT_REPORT_FILE)
+                .is_file()
+        );
+        assert!(
+            flow_dir
+                .join(RAW_PROVENANCE_DIR)
+                .join(RUST_BOT_REPORT_FILE)
+                .is_file()
+        );
+
+        let mut manifest: serde_json::Value =
+            serde_json::from_slice(&fs::read(&rust_manifest).unwrap()).unwrap();
+        let report_path = PathBuf::from(manifest["bot_report"]["report_path"].as_str().unwrap());
+        let mut report: serde_json::Value =
+            serde_json::from_slice(&fs::read(&report_path).unwrap()).unwrap();
+        report["results"][0]["vendor_relogin_verified"] = serde_json::Value::Bool(false);
+        let report_bytes = serde_json::to_vec_pretty(&report).unwrap();
+        fs::write(&report_path, &report_bytes).unwrap();
+        manifest["bot_report"]["report_sha256"] =
+            serde_json::Value::String(sha256_bytes(&report_bytes));
+        fs::write(
+            &rust_manifest,
+            serde_json::to_vec_pretty(&manifest).unwrap(),
+        )
+        .unwrap();
+
+        let error = validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true)
+            .expect_err("vendor report without relog proof must fail");
+        assert!(format!("{error:#}").contains("canonical successful vendor flow"));
         fs::remove_dir_all(root).unwrap();
     }
 

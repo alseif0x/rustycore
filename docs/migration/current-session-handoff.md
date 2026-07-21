@@ -11,17 +11,29 @@
   lost COMMIT reply cannot be guessed from an unchanged money row and quarantines the session
   for relog instead of allowing a stale full save. Ordinary item purchases use the same detached
   currency plan and publish it synchronously with money, inventory, and turn-ins before reopening
-  payout/save admission. Focused tests cover detached planning, a real failed-connection rollback
-  through `handle_buy_item` with no runtime publication, post-COMMIT publication, and the
-  equal-marker indeterminate decision. Checks so far: `cargo +1.88.0 fmt --all -- --check`;
-  focused `wow-world --lib` vendor-buy 12/0, vendor-currency 3/0, handler rollback 1/0, and
-  post-COMMIT structural guard 1/0; full `wow-world --lib` 2,996/0;
-  `PROTOC=... CARGO_INCREMENTAL=0 cargo +1.88.0 check -p world-server`; committed capture-diff
-  regression gate 123/0 plus required loot flow CLEAN; `git diff --check`; local Codex review
-  CLEAN after adding the real handler rollback test. Boundary remains represented-partial until a
-  representative vendor bot/client capture, manual client QA, CI, and current-HEAD GitHub Codex
-  verdict; finite vendor-stock oversell (D-H11), buyback/refund, and broader vendor validation are
-  outside D-C8.
+  payout/save admission. Capture contrast also corrected the purchase wire path: zero-price buys
+  no longer dirty Coinage; a newly stored vendor item uses C++ `CreateObject` (not
+  `CreateObject2`), carries `NEW_ITEM`, destination bonding, and `ItemContext::Vendor` in DB,
+  runtime, and update fields; refundable items retain those flags; item create/values and currency
+  updates use the instance socket, while `BuySucceeded` and `ItemPushResult` use realm.
+  Focused tests cover detached planning, a real failed-connection rollback through
+  `handle_buy_item` with no runtime publication, post-COMMIT publication, the equal-marker
+  indeterminate decision, exact routing, zero-price coinage, and stored-item metadata.
+
+  Paired real C++/Rust bot runs at `57b319da` bought G'eras item `30183`/extended cost `1642`,
+  observed currency `42` move `30→15`, required the exact inventory/currency/success/push packet
+  shapes and C++ socket routing, verified one durable item after fresh authentication, and restored
+  the fixture. The committed strict capture window contains realm-routed `BuySucceeded` followed
+  by `ItemPushResult`: 2/2 packets, empty accepted-divergence baseline, CLEAN. Its semantic
+  comparator omits only the exact G'eras lower 40-bit nonzero runtime counter while pinning all
+  stable GUID and purchase fields. The wider raw action retains one visible pre-existing boundary:
+  C++ emits `SMSG_CRITERIA_UPDATE`, while Rust's achievement subsystem does not yet do so; it is
+  not ignored or accepted by the committed flow. Checks include `cargo +1.88.0 fmt --all --
+  --check`, focused `wow-world --lib` vendor tests, the complete `capture-diff` suite, pinned-protoc
+  `world-server` check, `git diff --check`, and repeated local Codex reviews CLEAN. D-C8 remains
+  open only for final validation/CI/current-HEAD GitHub Codex verdict and merge; optional installed
+  original-client QA is still pending. Finite-stock oversell (D-H11), buyback/refund, achievements,
+  and broader vendor validation are outside D-C8.
 
 - `#NEXT.R8.ENTITIES.1201` — issue #102 implements atomic personal-bank item moves for
   `CMSG_AUTOBANK_ITEM` and `CMSG_AUTOSTORE_BANK_ITEM`. C++ anchors:

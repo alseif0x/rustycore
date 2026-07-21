@@ -107,8 +107,12 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
     markers, so definite rollback leaves runtime untouched and an ambiguous result requires relog
     without allowing a stale full save. A failed-connection handler regression exercises the real
     rollback branch and proves that it emits only `BuyFailed`, preserves runtime currency, and
-    reopens payout/save admission. Kept open until capture-diff, bot/client QA, CI, and the
-    current-HEAD reviewer verdict complete.
+    reopens payout/save admission. Paired C++/Rust bot QA now proves a real extended-cost purchase,
+    currency debit, item creation, fresh-authentication persistence, packet routing, and cleanup;
+    the committed post-COMMIT realm response is 2/2 CLEAN with no accepted divergences. Capture
+    contrast also fixed zero-price Coinage publication and C++ vendor-item create/context/flag
+    metadata. The wider action still shows the separately scoped missing achievement
+    `SMSG_CRITERIA_UPDATE`. Kept open until final CI, current-HEAD reviewer verdict, and merge.
 - [ ] **D-C9 Group full-check race.** Size checked then join without re-check → 6+ member
   groups under concurrent accepts. `handlers/group.rs:928-1044`.
 
