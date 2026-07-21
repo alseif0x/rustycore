@@ -191,7 +191,8 @@ use wow_network::{
     KickLikeCppCommand, LootDropRatesLikeCpp, LootRollCommandIdentityLikeCpp,
     NotifyLootMoneyRemovedLikeCppCommand, PacketSpoofConfigLikeCpp, PendingInvites,
     PlayerBroadcastInfo, PlayerRegistry, ReputationRatesLikeCpp, SessionCommand,
-    SocketTimeoutsLikeCpp, SocketWriteFenceLikeCpp, group_guid_by_db_store_id_like_cpp,
+    SocketTimeoutsLikeCpp, SocketWriteFenceLikeCpp, SocketWriteFenceWaitResultLikeCpp,
+    group_guid_by_db_store_id_like_cpp,
 };
 use wow_packet::packets::chat::{ChatMsg, ChatPkt, PrintNotification};
 use wow_packet::packets::gossip::ClientGossipText;
@@ -217,6 +218,10 @@ use wow_packet::packets::quest::{
 use wow_packet::packets::spell::SpellTargetData;
 use wow_recastdetour::PathQueryFilterContext;
 
+// TrinityCore enqueues cross-connection sends without waiting for physical TCP
+// progress. RustyCore waits briefly to retain the order observed in captures,
+// then completes the already-committed gameplay fanout if a writer stalls.
+const CROSS_SOCKET_WRITE_FENCE_TIMEOUT: Duration = Duration::from_millis(250);
 const QUEST_OBJECTIVE_ITEM_LIKE_CPP: u8 = 1;
 const QUEST_OBJECTIVE_CURRENCY_LIKE_CPP: u8 = 4;
 const QUEST_OBJECTIVE_MIN_REPUTATION_LIKE_CPP: u8 = 6;
@@ -36724,9 +36729,10 @@ impl WorldSession {
     }
 
     /// Wait for current-instance packets to reach their physical socket before
-    /// emitting a later realm packet. C++ performs both `SendDirectMessage`
-    /// calls synchronously; Rust's two independent writer tasks need this FIFO
-    /// completion fence to retain the same cross-connection order.
+    /// emitting a later realm packet. C++ enqueues both `SendDirectMessage`
+    /// calls during one session update; Rust's two independent writer tasks
+    /// need this FIFO completion fence to retain observed cross-connection
+    /// order.
     pub(crate) async fn wait_for_instance_send_before_realm_send_like_cpp(&self) -> bool {
         let Some(realm_send_tx) = self.realm_send_tx.as_ref() else {
             return true;
@@ -36741,16 +36747,33 @@ impl WorldSession {
             );
             return false;
         };
-        let acknowledged = write_fence
-            .wait_for_prior_packets_written_like_cpp(&self.send_tx, Duration::from_millis(250))
-            .await;
-        if !acknowledged {
-            warn!(
-                account = self.account_id,
-                "instance writer did not acknowledge the bounded ordering fence"
-            );
+        match write_fence
+            .wait_for_prior_packets_written_like_cpp(
+                &self.send_tx,
+                CROSS_SOCKET_WRITE_FENCE_TIMEOUT,
+            )
+            .await
+        {
+            SocketWriteFenceWaitResultLikeCpp::Written => true,
+            SocketWriteFenceWaitResultLikeCpp::TimedOut => {
+                // C++ queues `SendPacket` without turning transient socket
+                // backpressure into a gameplay failure. Preserve the durable
+                // result and finish enqueuing its remaining fanout.
+                warn!(
+                    account = self.account_id,
+                    timeout_ms = CROSS_SOCKET_WRITE_FENCE_TIMEOUT.as_millis(),
+                    "instance writer ordering fence timed out; continuing committed fanout"
+                );
+                true
+            }
+            SocketWriteFenceWaitResultLikeCpp::WriterClosed => {
+                warn!(
+                    account = self.account_id,
+                    "instance writer closed before acknowledging the ordering fence"
+                );
+                false
+            }
         }
-        acknowledged
     }
 
     /// Wait for realm packets to reach their physical socket before emitting a
@@ -36770,16 +36793,30 @@ impl WorldSession {
             );
             return false;
         };
-        let acknowledged = write_fence
-            .wait_for_prior_packets_written_like_cpp(realm_send_tx, Duration::from_millis(250))
-            .await;
-        if !acknowledged {
-            warn!(
-                account = self.account_id,
-                "realm writer did not acknowledge the bounded ordering fence"
-            );
+        match write_fence
+            .wait_for_prior_packets_written_like_cpp(
+                realm_send_tx,
+                CROSS_SOCKET_WRITE_FENCE_TIMEOUT,
+            )
+            .await
+        {
+            SocketWriteFenceWaitResultLikeCpp::Written => true,
+            SocketWriteFenceWaitResultLikeCpp::TimedOut => {
+                warn!(
+                    account = self.account_id,
+                    timeout_ms = CROSS_SOCKET_WRITE_FENCE_TIMEOUT.as_millis(),
+                    "realm writer ordering fence timed out; continuing committed fanout"
+                );
+                true
+            }
+            SocketWriteFenceWaitResultLikeCpp::WriterClosed => {
+                warn!(
+                    account = self.account_id,
+                    "realm writer closed before acknowledging the ordering fence"
+                );
+                false
+            }
         }
-        acknowledged
     }
 
     #[cfg(test)]
@@ -130719,6 +130756,29 @@ mod tests {
             packet.item.modifications.values,
             vec![ItemMod::new(123, 3), ItemMod::new(25, 5)]
         );
+    }
+
+    #[tokio::test]
+    async fn cross_socket_fence_timeout_continues_committed_fanout_like_cpp() {
+        let (mut session, _, _instance_rx) = make_session();
+        let (realm_tx, _realm_rx) = flume::unbounded();
+        session.install_realm_send_channel_for_test(realm_tx);
+        session.set_send_write_fence_like_cpp(SocketWriteFenceLikeCpp::default());
+        session.install_realm_send_write_fence_for_test(SocketWriteFenceLikeCpp::default());
+
+        assert!(
+            session
+                .wait_for_instance_send_before_realm_send_like_cpp()
+                .await,
+            "a bounded fence timeout must not discard fanout after durable commit"
+        );
+        assert!(
+            session
+                .wait_for_realm_send_before_instance_update_like_cpp()
+                .await,
+            "a bounded fence timeout must not discard later instance updates"
+        );
+        assert_ne!(session.state(), SessionState::Disconnecting);
     }
 
     #[test]
