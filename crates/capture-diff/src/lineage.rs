@@ -1170,12 +1170,14 @@ pub fn verify_required_lineage(
     );
     if matches!(
         flow,
-        "loot-single-item-claim" | "loot-two-session-atomic-race"
+        "loot-single-item-claim" | "loot-two-session-atomic-race" | "vendor-extended-cost-purchase"
     ) {
-        ensure!(
-            lineage.sources.cpp.fixture_guard == lineage.sources.rust.fixture_guard,
-            "required lineage C++/Rust guarded-loot fixture identities differ"
-        );
+        if flow != "vendor-extended-cost-purchase" {
+            ensure!(
+                lineage.sources.cpp.fixture_guard == lineage.sources.rust.fixture_guard,
+                "required lineage C++/Rust guarded-loot fixture identities differ"
+            );
+        }
         let cpp_bot = lineage
             .sources
             .cpp

@@ -8,7 +8,7 @@ the realm socket:
 2. `SMSG_ITEM_PUSH_RESULT` (`0x2623`)
 
 It was imported strictly from paired C++ and Rust captures made at Rust
-`57b319da3017199f0ac7aec87157a3c9062e341d`. The retained schema-v3 manifests
+`e54aabc60eb78837328824a2b6d8491255c093d9`. The retained schema-v3 manifests
 pin the raw capture, executable, source, process/listener, configuration and
 cleanup identities; `capture-lineage.json` pins the derived two-packet
 artifacts. Each manifest also pins its exact bot executable and validated JSON

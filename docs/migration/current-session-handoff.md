@@ -20,7 +20,7 @@
   `handle_buy_item` with no runtime publication, post-COMMIT publication, the equal-marker
   indeterminate decision, exact routing, zero-price coinage, and stored-item metadata.
 
-  Paired real C++/Rust bot runs at `57b319da` bought G'eras item `30183`/extended cost `1642`,
+  Paired real C++/Rust bot runs at `e54aabc6` bought G'eras item `30183`/extended cost `1642`,
   observed currency `42` move `30→15`, required the exact inventory/currency/success/push packet
   shapes and C++ socket routing, verified one durable item after fresh authentication, and restored
   the fixture. The committed strict capture window contains realm-routed `BuySucceeded` followed
