@@ -8,7 +8,7 @@ the realm socket:
 2. `SMSG_ITEM_PUSH_RESULT` (`0x2623`)
 
 It was imported strictly from paired C++ and Rust captures made at Rust
-`3c472dd3b164d8973f9481b2eede0d38d1c4fc3b`. The retained schema-v3 manifests
+`7bee9bfe71940048c721c14845dc0a0ad0811c5d`. The retained schema-v3 manifests
 pin the raw capture, executable, source, process/listener, configuration and
 cleanup identities; `capture-lineage.json` pins the derived two-packet
 artifacts. Each manifest also pins its exact bot executable and validated JSON
@@ -41,12 +41,10 @@ The complete raw bot action ran from `CMSG_BUY_ITEM` through the fixed
 `CMSG_PING` fence. Its purchase-owned responses and final inventory state
 matched after the reviewed runtime-GUID normalization. C++ also emitted
 `SMSG_CRITERIA_UPDATE`; Rust does not yet implement the corresponding
-achievement subsystem. This particular raw generation also contains ambient
-C++ `SMSG_ON_MONSTER_MOVE` packets unrelated to the purchase. Neither
-the achievement gap nor ambient movement is ignored or accepted in this
-fixture. Consequently this committed flow claims only the clean post-COMMIT
-realm-response window, while the bot proves the complete currency, inventory,
-persistence and restoration behavior.
+achievement subsystem. That pre-existing out-of-scope gap is deliberately
+not ignored or accepted in this fixture. Consequently this committed flow
+claims only the clean post-COMMIT realm-response window, while the bot proves
+the complete currency, inventory, persistence and restoration behavior.
 
 Recheck the committed evidence with:
 
