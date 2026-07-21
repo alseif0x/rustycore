@@ -12102,27 +12102,23 @@ mod tests {
         payload.push(0); // No ItemBonus.
         payload.push(0); // No modifiers.
 
-        assert!(
-            loot_race::validate_vendor_item_push_result_like_cpp(
-                &payload,
-                character_guid,
-                30183,
-                1,
-                realm,
-            )
-            .is_ok()
-        );
+        assert!(loot_race::validate_vendor_item_push_result_like_cpp(
+            &payload,
+            character_guid,
+            30183,
+            1,
+            realm,
+        )
+        .is_ok());
         payload.push(0);
-        assert!(
-            loot_race::validate_vendor_item_push_result_like_cpp(
-                &payload,
-                character_guid,
-                30183,
-                1,
-                realm,
-            )
-            .is_err()
-        );
+        assert!(loot_race::validate_vendor_item_push_result_like_cpp(
+            &payload,
+            character_guid,
+            30183,
+            1,
+            realm,
+        )
+        .is_err());
     }
 
     #[test]
