@@ -153,6 +153,17 @@ missing Rust `SMSG_CRITERIA_UPDATE`; that achievement-subsystem gap is neither
 ignored nor accepted by this vendor fixture. See the flow's README for the
 precise scope and reproduction command.
 
+The issue-#112 equipment-set fixture isolates one new-set
+`SMSG_EQUIPMENT_SET_ID`. Paired real C++/Rust captures both produced the exact
+16-byte `guid=1`, transmog `type=1`, `set_id=8` body on the instance connection,
+so the one-packet committed flow is CLEAN with an empty divergence baseline and
+no semantic normalization. The separate two-client Rust bot run concurrently
+saved an ordinary equipment set and a transmog outfit, required distinct GUIDs
+from their shared process-wide namespace, verified both CharacterDB tables after
+logout and again through `SMSG_LOAD_EQUIPMENT_SET` after fresh authentication,
+and proved cleanup returned both fixture owners to zero rows. See the flow README
+for the narrower capture claim and the installed C++ runtime boundary.
+
 The issue-#106 loot gate has an equally narrow comparator for
 `SMSG_LOOT_REMOVED`: paired real captures assigned its one reviewed Doctor
 Maleficus identity (Creature, realm 1, map 530, entry 21779, subtype/server 0)

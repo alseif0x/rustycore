@@ -1,3 +1,32 @@
+- `#NEXT.R8.ENTITIES.1204` — issue #112 makes equipment-set and transmog-outfit
+  GUID allocation process-wide and relog-clean. C++ `ObjectMgr::SetHighestGuids`
+  (`ObjectMgr.cpp:7357-7360,7401-7410`) initializes one raw `uint64` generator from the
+  maximum across `character_equipmentsets` and `character_transmog_outfits`; C++
+  `WorldSession::HandleEquipmentSetSave` and `Player::_SaveEquipmentSets`
+  (`CharacterHandler.cpp:1922-2008`, `Player.cpp:26385-26535`) allocate from that shared
+  namespace and persist dirty rows with the player-save transaction. Rust now initializes one
+  `Arc<EquipmentSetGuidGeneratorLikeCpp>` after acquiring the CharacterDB lifetime allocator
+  lock, fails startup closed on query/decode/range errors, injects the same atomic sequence into
+  every session, and publishes new IDs only after a valid in-memory save. Login now decodes the
+  canonical signed transmog `BIGINT`/`INT` columns without silently replacing nonnegative values
+  by zero. Unit coverage proves concurrent uniqueness, exhaustion, combined-max SQL, missing
+  allocator rejection, ordinary/transmog shared namespace, persistence statement state, and the
+  signed-schema relog regression. The guarded two-client runtime QA saved equipment set 7 and
+  transmog outfit 8 simultaneously, received distinct GUIDs 2 and 1, verified their exact rows
+  after logout, authenticated both accounts again with fresh World keys, observed one exact
+  loaded set per character, and cleaned both owners back to zero rows. The pinned debug runtime
+  SHA-256 was `beef1a47ab21f3968716004afa5d9b6c3873a735ce9923e3bb629031f4d038e0`;
+  capture-only `RUST_MIN_STACK=33554432` avoided the known debug-build login stack limit and the
+  wrapper restored the prior #110 release profile afterward. A paired real C++/Rust strict
+  `equipment-set-save` capture isolates the first instance-routed `SMSG_EQUIPMENT_SET_ID`:
+  1/1 exact packets, no normalization, no accepted divergences, CLEAN. The installed C++ runtime
+  reached both ACKs but did not satisfy the bot's post-logout row verifier, so the committed flow
+  claims only ACK parity; Rust persistence/relog is proven by the full runtime QA and contrasted
+  against the audited C++ save/load source. Checks so far: formatting/diff checks; generator 2/0;
+  max-SQL 1/0; equipment-set handler/session 19/0; signed transmog 1/0; bot 4/0; live two-client
+  QA; strict capture-diff. Boundary: represented-partial until full preflight, CI, current-HEAD
+  GitHub Codex verdict, and merge; void-storage persistence remains the open D-C3 child.
+
 - `#NEXT.R8.ENTITIES.1203` — issue #110 makes the existing-group accept capacity decision
   indivisible. C++ `WorldSession::HandlePartyInviteResponseOpcode`
   (`/home/server/woltk-trinity-legacy/src/server/game/Handlers/GroupHandler.cpp:187-241`)

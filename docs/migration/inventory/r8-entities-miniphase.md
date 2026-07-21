@@ -1,3 +1,29 @@
+# `#NEXT.R8.ENTITIES.1204` — globally collision-safe equipment-set persistence (issue #112).
+
+Source-of-truth C++ was checked before implementation:
+`ObjectMgr.cpp:7357-7360,7401-7410`, `CharacterHandler.cpp:1922-2008`, and
+`Player.cpp:26385-26535`. One process-wide atomic raw-`uint64` generator is now initialized
+fail-closed from the exact maximum across `character_equipmentsets` and
+`character_transmog_outfits` after the CharacterDB lifetime allocator lock is held, then shared
+by every session. New equipment/transmog sets cannot allocate without that shared generator;
+dirty/new/deleted state remains part of the existing full player-save transaction. The login
+loader also handles the canonical signed transmog `setguid` and `ignore_mask` schema like C++
+`Field::GetUInt64/GetUInt32`, fixing a live relog that previously decoded them as zero.
+
+Focused tests prove concurrent uniqueness and the C++ exhaustion boundary, combined-maximum SQL,
+startup range checks, missing-allocator rejection, one namespace across two sessions and both set
+types, save-state persistence, and signed-schema load. The guarded runtime bot concurrently saved
+set 7 and transmog 8 for two exact disposable characters, received distinct GUIDs 2/1, verified
+both CharacterDB rows after logout, performed two fresh World authentications, matched exactly one
+loaded set per character, logged out, and proved cleanup. The accredited debug executable was
+`beef1a47ab21f3968716004afa5d9b6c3873a735ce9923e3bb629031f4d038e0`; the capture wrapper used a
+temporary 32 MiB Rust worker stack and restored the prior PM2 profile. Paired real C++/Rust RAW
+captures import a one-packet, instance-routed `SMSG_EQUIPMENT_SET_ID` flow CLEAN with no accepted
+divergence or normalization. The installed C++ reference emitted both expected ACKs but did not
+pass the bot's later database-row verifier, so that flow intentionally proves only the action ACK;
+Rust durability/relog is the separate live QA plus source contrast. Boundary: represented-partial
+until preflight/CI/current-HEAD review/merge, and D-C3 remains open for void storage only.
+
 # `#NEXT.R8.ENTITIES.1203` — atomic existing-group capacity check and join (issue #110).
 
 Source-of-truth C++ was checked before implementation:
