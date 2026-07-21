@@ -14,11 +14,18 @@ while preserving C++'s silent return when the later `Group::AddMember` equivalen
 Focused coverage proves a successful final party slot, rejection once full, exact handler packet
 and invite-removal behavior, and two barrier-synchronized concurrent joins where exactly one wins
 and the party never exceeds five. `cargo fmt --all -- --check`, all 103 `wow-network` tests, all
-106 group-handler tests, and the complete local CI preflight including capture gate pass with Rust
-1.88 and incremental compilation disabled after the known compiler-cache failure. Boundary:
-represented-partial until build/install plus a live
-multi-client or bot race, CI, and the current-HEAD GitHub reviewer verdict. D-M8 database failure
-rollback and the wider issue #51 group lifecycle remain separate.
+106 group-handler tests, all 3,001 `wow-world` library tests, four group-capacity bot guard/parser
+tests, and the complete local CI preflight including capture gate pass with Rust 1.88 and
+incremental compilation disabled after the known compiler-cache failure. The standalone bot
+suite has 100 passes plus the same two pre-existing unrelated OpenSSL/BigUint failures. The
+installed `4adf87e1` release then passed the three-client
+race twice and exercised both winner interleavings: each pass produced one exact
+`Invite/GROUP_FULL`, one Added, and an exact five-row final CharacterDB roster. All sessions
+logged out and the four-member fixture was restored before restarting the same PM2 profile after
+each pass. Boundary: represented-partial until CI and the current-HEAD GitHub reviewer verdict/
+merge. The live race also recorded D-H16 (`PartyUpdate` filters offline slots in Rust); that
+packet-list parity gap, D-M8 database failure rollback, and the wider issue #51 group lifecycle
+remain separate.
 
 # `#NEXT.R8.ENTITIES.1202` — atomic vendor-purchase currency publication (issue #108).
 

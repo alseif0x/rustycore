@@ -13,9 +13,19 @@
   separate add-failure branch, the handler packet/invite-removal boundary, and a barrier-synchronized
   two-thread race in which exactly one candidate joins and the party remains at five members.
   Checks so far: `cargo fmt --all -- --check`; `wow-network --lib` 103/0; all group-handler tests
-  106/0; complete local CI preflight including capture gate. Boundary: represented-partial until the exact branch is built/installed and the live
-  multi-client or bot accept race plus CI/current-HEAD GitHub review pass; no claim is made for
-  D-M8 member-DB failure rollback or the broader #51 group lifecycle issue.
+  106/0; full `wow-world --lib` 3001/0; complete local CI preflight including capture gate;
+  group-capacity bot parser/guard tests 4/0. The standalone bot suite has 100 passes and only its
+  two pre-existing unrelated failures (`wow_crypto::test_crypt_roundtrip` OpenSSL finalize and
+  `srp6_auth::test_srp6_calculations` BigUint subtraction). The exact `4adf87e1` release runtime
+  then passed the three-client race twice, exercising
+  both interleavings: each candidate won once while the other received exact
+  `Invite/GROUP_FULL`, and CharacterDB held exactly the four original members plus that run's
+  winner. All sessions logged out and the fixture was restored to `13,14,17,18` after each pass
+  before restarting the same PM2 profile. The live run also exposed existing defect D-H16:
+  Rust's `PartyUpdate` lists only connected group members while retaining `MyIndex` from the
+  complete member vector, unlike C++.
+  Boundary: represented-partial until CI/current-HEAD GitHub review and merge; no claim is made
+  for D-H16, D-M8 member-DB failure rollback, or the broader #51 group lifecycle issue.
 
 - `#NEXT.R8.ENTITIES.1202` — issue #108 closes the remaining D-C8 vendor-purchase
   publication gap. C++ anchors:
