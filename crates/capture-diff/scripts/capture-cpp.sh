@@ -446,7 +446,7 @@ cpp_capture_executable_unchanged() {
 finalize_cpp_capture_artifact() {
   [ "$CAPTURE_ARTIFACT_READY" -eq 1 ] && [ -f "$OUT_PKT_STAGE" ] || return 1
 
-  local capture_evidence created_at manifest_stage packet_sha packet_size bot_evidence
+  local bot_evidence="" capture_evidence created_at manifest_stage packet_sha packet_size
   [ "$CPP_CAPTURE_NORMAL_RUNTIME_RESTORED" -eq 1 ] || return 1
   capture_fixture_cleanup_verified_for_publication \
     "$CPP_CAPTURE_LOOT_FIXTURE_GUARD" \
