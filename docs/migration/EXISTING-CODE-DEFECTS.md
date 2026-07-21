@@ -119,6 +119,17 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
     open until final CI, current-HEAD reviewer verdict, and merge.
 - [ ] **D-C9 Group full-check race.** Size checked then join without re-check → 6+ member
   groups under concurrent accepts. `handlers/group.rs:928-1044`.
+  - 2026-07-21 issue #110 local slice: C++ checks `Group::IsFull` immediately before
+    `Group::AddMember` on its serialized execution path. Rust now performs that pair under one
+    mutable `GroupRegistry` guard and returns explicit Full versus AddFailed results to the live
+    handler; `ERR_GROUP_FULL` leaves the rejected session and group unchanged, while AddFailed
+    retains C++'s silent return. A barrier-synchronized
+    regression starts two simultaneous joins for the fifth party slot, proves exactly one Added
+    plus one Full result, and verifies the final member count remains five. The installed
+    `4adf87e1` runtime and three-client bot race passed locally on 2026-07-21: one candidate
+    received exact `Invite/GROUP_FULL`, the other joined, CharacterDB contained exactly the four
+    initial members plus that winner, all sessions logged out, and the fixture was restored.
+    Kept open until CI, current-HEAD reviewer verdict, and merge.
 
 ## HIGH — broken mechanics / silent failure / exploit
 
@@ -159,6 +170,12 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
   crash). `handlers/character.rs:6485-6488,7713-7716`.
 - [ ] **D-H15 Creature DESTROY_OBJECT deferred to player movement.** Creature that walks away
   stays a phantom (targetable, not rendered) until the player moves. `handlers/movement.rs:274`.
+- [ ] **D-H16 PartyUpdate omits offline group members.** C++
+  `Group::SendUpdateToPlayer` serializes every `m_memberSlots` entry and marks disconnected
+  members through `PartyPlayerInfo.Connected`; Rust builds `PlayerList` with
+  `filter_map(PlayerRegistry::get)` but computes `MyIndex` from the complete member vector. The
+  issue #110 live race observed a two-entry leader/winner list and complete-list `MyIndex=4` for
+  a five-member persisted party. `handlers/group.rs:505-512`; C++ `Group.cpp:820-873`.
 
 ## MED — wrong values / loose checks / minor loss
 
