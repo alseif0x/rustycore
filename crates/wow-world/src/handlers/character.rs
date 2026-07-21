@@ -1156,6 +1156,14 @@ fn optional_u32_column_like_cpp(row: &SqlResult, column: usize) -> Option<u32> {
         .or_else(|| row.try_read::<i64>(column).map(|value| value.max(0) as u32))
 }
 
+fn nonnegative_i64_to_u64_like_cpp(value: i64) -> Option<u64> {
+    u64::try_from(value).ok()
+}
+
+fn nonnegative_i32_to_u32_like_cpp(value: i32) -> Option<u32> {
+    u32::try_from(value).ok()
+}
+
 fn spawn_difficulties_contains_spawn_mode_like_cpp(
     spawn_difficulties: &str,
     spawn_mode: u8,
@@ -4183,9 +4191,9 @@ impl WorldSession {
     /// Handle CMSG_SAVE_EQUIPMENT_SET.
     ///
     /// C++ validates the equipment/transmog payload, normalizes ignored slots,
-    /// then calls `Player::SetEquipmentSet`. Rust mirrors the represented
-    /// in-memory state and the new-set `SMSG_EQUIPMENT_SET_ID` response, while
-    /// DB persistence remains a later equipment-set save/load slice.
+    /// then calls `Player::SetEquipmentSet`. Rust mirrors the in-memory dirty
+    /// state and new-set `SMSG_EQUIPMENT_SET_ID`; the next full player save
+    /// appends `_SaveEquipmentSets`-shaped statements to its transaction.
     pub async fn handle_save_equipment_set(&mut self, mut pkt: WorldPacket) {
         let request = match SaveEquipmentSet::read(&mut pkt) {
             Ok(request) => request,
@@ -4213,7 +4221,7 @@ impl WorldSession {
     /// C++ `Player::AssignEquipmentSetToSpec` only mutates the first equipment
     /// set whose client SetID matches and does not send an immediate response.
     /// The represented container keeps the same in-memory assignment/state
-    /// semantics until full equipment-set save/load persistence is wired.
+    /// semantics before the next full player-save transaction persists them.
     pub async fn handle_assign_equipment_set_spec(&mut self, mut pkt: WorldPacket) {
         let request = match AssignEquipmentSetSpec::read(&mut pkt) {
             Ok(request) => request,
@@ -5970,12 +5978,25 @@ impl WorldSession {
                 Ok(mut transmog_result) => {
                     if !transmog_result.is_empty() {
                         loop {
-                            let set_guid: u64 = transmog_result.try_read(0).unwrap_or(0);
+                            // The canonical CharacterDB schema keeps transmog
+                            // `setguid`/`ignore_mask` signed, unlike the
+                            // equipment-set table. C++ Field::GetUInt* accepts
+                            // their nonnegative values; mirror that conversion
+                            // instead of silently defaulting signed rows to 0.
+                            let set_guid = transmog_result
+                                .try_read::<i64>(0)
+                                .and_then(nonnegative_i64_to_u64_like_cpp)
+                                .or_else(|| transmog_result.try_read::<u64>(0))
+                                .unwrap_or(0);
                             let set_id: u32 =
                                 u32::from(transmog_result.try_read::<u8>(1).unwrap_or(0));
                             let set_name: String = transmog_result.try_read(2).unwrap_or_default();
                             let set_icon: String = transmog_result.try_read(3).unwrap_or_default();
-                            let ignore_mask: u32 = transmog_result.try_read(4).unwrap_or(0);
+                            let ignore_mask = transmog_result
+                                .try_read::<i32>(4)
+                                .and_then(nonnegative_i32_to_u32_like_cpp)
+                                .or_else(|| transmog_result.try_read::<u32>(4))
+                                .unwrap_or(0);
                             let mut appearances =
                                 [0; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP];
                             for (slot, appearance) in appearances.iter_mut().enumerate() {
@@ -16738,7 +16759,7 @@ mod tests {
         RepresentedTaxiFlightNodeLikeCpp,
     };
     use wow_constants::{ItemClass, ServerOpcodes};
-    use wow_core::ObjectGuidGenerator;
+    use wow_core::{EquipmentSetGuidGeneratorLikeCpp, ObjectGuidGenerator};
     use wow_data::character_progression::{
         ChrClassesEntry, ChrClassesStore, ChrRacesEntry, ChrRacesStore,
     };
@@ -17370,6 +17391,9 @@ mod tests {
             HighGuid::Item,
             1,
         )));
+        session.set_equipment_set_guid_generator_like_cpp(Arc::new(
+            EquipmentSetGuidGeneratorLikeCpp::new(1),
+        ));
         (session, send_rx)
     }
 
@@ -18913,6 +18937,14 @@ mod tests {
         assert!(send_rx.try_recv().is_err());
     }
 
+    #[test]
+    fn transmog_signed_schema_values_load_as_cpp_unsigned_fields() {
+        assert_eq!(nonnegative_i64_to_u64_like_cpp(3), Some(3));
+        assert_eq!(nonnegative_i32_to_u32_like_cpp(0x7_FFFF), Some(0x7_FFFF));
+        assert_eq!(nonnegative_i64_to_u64_like_cpp(-1), None);
+        assert_eq!(nonnegative_i32_to_u32_like_cpp(-1), None);
+    }
+
     #[tokio::test]
     async fn save_equipment_set_new_equipment_normalizes_and_sends_id_like_cpp() {
         let (mut session, send_rx) = make_session_with_send_capacity(1);
@@ -18965,6 +18997,89 @@ mod tests {
             crate::session::RepresentedEquipmentSetUpdateStateLikeCpp::New
         );
         assert_ne!(saved.ignore_mask & (1 << 1), 0);
+    }
+
+    #[tokio::test]
+    async fn save_equipment_set_requires_process_wide_guid_allocator() {
+        let (_pkt_tx, pkt_rx) = flume::bounded::<WorldPacket>(1);
+        let (send_tx, send_rx) = flume::bounded::<Vec<u8>>(1);
+        let mut session = WorldSession::new(
+            1,
+            "TestAccount".into(),
+            0,
+            2,
+            9,
+            54261,
+            vec![0u8; 40],
+            "esES".into(),
+            pkt_rx,
+            send_tx,
+        );
+        let ignore_mask = (1_u32 << wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP) - 1;
+
+        session
+            .handle_save_equipment_set(save_equipment_set_packet(
+                0,
+                0,
+                7,
+                ignore_mask,
+                [ObjectGuid::EMPTY; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
+                [0; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
+                [0, 0],
+                None,
+                "No allocator",
+                "INV_Misc_QuestionMark",
+            ))
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        assert!(session.represented_equipment_set_like_cpp(1).is_none());
+    }
+
+    #[tokio::test]
+    async fn concurrent_sessions_share_equipment_and_transmog_set_guid_namespace_like_cpp() {
+        let (mut equipment_session, equipment_rx) = make_session_with_send_capacity(1);
+        let (mut transmog_session, transmog_rx) = make_session_with_send_capacity(1);
+        let generator = Arc::new(EquipmentSetGuidGeneratorLikeCpp::new(400));
+        equipment_session.set_equipment_set_guid_generator_like_cpp(Arc::clone(&generator));
+        transmog_session.set_equipment_set_guid_generator_like_cpp(Arc::clone(&generator));
+        let ignore_mask = (1_u32 << wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP) - 1;
+
+        tokio::join!(
+            equipment_session.handle_save_equipment_set(save_equipment_set_packet(
+                0,
+                0,
+                7,
+                ignore_mask,
+                [ObjectGuid::EMPTY; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
+                [0; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
+                [0, 0],
+                None,
+                "Equipment",
+                "INV_Sword_01",
+            )),
+            transmog_session.handle_save_equipment_set(save_equipment_set_packet(
+                1,
+                0,
+                8,
+                ignore_mask,
+                [ObjectGuid::EMPTY; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
+                [0; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
+                [0, 0],
+                None,
+                "Transmog",
+                "INV_Chest_Cloth_01",
+            )),
+        );
+
+        let equipment = read_equipment_set_id(equipment_rx.try_recv().unwrap());
+        let transmog = read_equipment_set_id(transmog_rx.try_recv().unwrap());
+        let mut guids = [equipment.0, transmog.0];
+        guids.sort_unstable();
+        assert_eq!(guids, [400, 401]);
+        assert_eq!(equipment.1, 0);
+        assert_eq!(transmog.1, 1);
+        assert_eq!(generator.next_after_max_used(), 402);
     }
 
     #[tokio::test]

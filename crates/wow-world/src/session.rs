@@ -58,7 +58,9 @@ use wow_constants::{
     ItemQuality, ItemSpelltriggerType, ItemSubClassArmor, ItemSubClassWeapon, SellResult,
     ServerOpcodes, SpellCastResult, SpellItemEnchantmentFlags, Stats, TypeId, UnitState,
 };
-use wow_core::{ObjectGuid, ObjectGuidGenerator, Position, guid::HighGuid};
+use wow_core::{
+    EquipmentSetGuidGeneratorLikeCpp, ObjectGuid, ObjectGuidGenerator, Position, guid::HighGuid,
+};
 use wow_data::character_progression::{ChrClassesStore, ChrRacesStore};
 use wow_data::trait_tree::TraitDefinitionStore;
 use wow_data::{
@@ -4821,6 +4823,8 @@ pub struct WorldSession {
     guid_generator: Option<Arc<ObjectGuidGenerator>>,
     // Process-wide C++ ObjectMgr generator for new item instances.
     item_guid_generator_like_cpp: Option<Arc<ObjectGuidGenerator>>,
+    // Process-wide C++ ObjectMgr generator shared by equipment and transmog sets.
+    equipment_set_guid_generator_like_cpp: Option<Arc<EquipmentSetGuidGeneratorLikeCpp>>,
 
     // Characters confirmed for this account
     legit_characters: Vec<ObjectGuid>,
@@ -5234,8 +5238,6 @@ pub struct WorldSession {
     /// C++ `Player::_equipmentSets`, represented until DB-backed save/load is canonical.
     represented_equipment_sets_like_cpp: BTreeMap<u64, RepresentedEquipmentSetLikeCpp>,
     represented_equipment_sets_loaded_like_cpp: bool,
-    /// Represented stand-in for `ObjectMgr::GenerateEquipmentSetGuid`.
-    represented_next_equipment_set_guid_like_cpp: u64,
     /// Represented accepted Adventure Map quest starts until AddQuestAndCheckCompletion is canonical.
     represented_adventure_map_start_quest_requests_like_cpp:
         Vec<RepresentedAdventureMapStartQuestLikeCpp>,
@@ -6844,6 +6846,7 @@ impl WorldSession {
             )]),
             guid_generator: None,
             item_guid_generator_like_cpp: None,
+            equipment_set_guid_generator_like_cpp: None,
             legit_characters: Vec::new(),
             pending_packets: Vec::new(),
             player_loading: None,
@@ -7058,7 +7061,6 @@ impl WorldSession {
             represented_talent_respec_criteria_events_like_cpp: Vec::new(),
             represented_equipment_sets_like_cpp: BTreeMap::new(),
             represented_equipment_sets_loaded_like_cpp: false,
-            represented_next_equipment_set_guid_like_cpp: 1,
             represented_adventure_map_start_quest_requests_like_cpp: Vec::new(),
             taxi_node_map_ids_like_cpp: HashMap::new(),
             taxi_flight_state_like_cpp: None,
@@ -7395,7 +7397,6 @@ impl WorldSession {
     pub(crate) fn clear_represented_equipment_sets_like_cpp(&mut self) {
         self.represented_equipment_sets_like_cpp.clear();
         self.represented_equipment_sets_loaded_like_cpp = false;
-        self.represented_next_equipment_set_guid_like_cpp = 1;
     }
 
     pub(crate) fn mark_represented_equipment_sets_loaded_like_cpp(&mut self) {
@@ -7434,9 +7435,6 @@ impl WorldSession {
             set_icon,
             state: RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged,
         };
-        self.represented_next_equipment_set_guid_like_cpp = self
-            .represented_next_equipment_set_guid_like_cpp
-            .max(guid.saturating_add(1));
         self.represented_equipment_sets_like_cpp
             .insert(guid, equipment_set);
         true
@@ -7474,9 +7472,6 @@ impl WorldSession {
             set_icon,
             state: RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged,
         };
-        self.represented_next_equipment_set_guid_like_cpp = self
-            .represented_next_equipment_set_guid_like_cpp
-            .max(guid.saturating_add(1));
         self.represented_equipment_sets_like_cpp
             .insert(guid, equipment_set);
         true
@@ -7522,21 +7517,10 @@ impl WorldSession {
         self.represented_equipment_sets_like_cpp.get(&guid).cloned()
     }
 
-    fn next_represented_equipment_set_guid_like_cpp(&mut self) -> u64 {
-        while self
-            .represented_equipment_sets_like_cpp
-            .contains_key(&self.represented_next_equipment_set_guid_like_cpp)
-        {
-            self.represented_next_equipment_set_guid_like_cpp = self
-                .represented_next_equipment_set_guid_like_cpp
-                .saturating_add(1);
-        }
-
-        let guid = self.represented_next_equipment_set_guid_like_cpp;
-        self.represented_next_equipment_set_guid_like_cpp = self
-            .represented_next_equipment_set_guid_like_cpp
-            .saturating_add(1);
-        guid
+    fn next_represented_equipment_set_guid_like_cpp(&self) -> Option<u64> {
+        self.equipment_set_guid_generator_like_cpp
+            .as_ref()
+            .map(|generator| generator.generate())
     }
 
     pub(crate) fn save_represented_equipment_set_like_cpp(
@@ -7622,7 +7606,7 @@ impl WorldSession {
 
         let generated_new_guid = set.guid == 0;
         let guid = if generated_new_guid {
-            self.next_represented_equipment_set_guid_like_cpp()
+            self.next_represented_equipment_set_guid_like_cpp()?
         } else {
             set.guid
         };
@@ -14868,6 +14852,15 @@ impl WorldSession {
             "item GUID allocator must use HighGuid::Item"
         );
         self.item_guid_generator_like_cpp = Some(generator);
+    }
+
+    /// Install the process-wide C++ `sObjectMgr->GenerateEquipmentSetGuid()`
+    /// mirror shared by equipment sets and transmog outfits for every player.
+    pub fn set_equipment_set_guid_generator_like_cpp(
+        &mut self,
+        generator: Arc<EquipmentSetGuidGeneratorLikeCpp>,
+    ) {
+        self.equipment_set_guid_generator_like_cpp = Some(generator);
     }
 
     /// Set the login database for this session.

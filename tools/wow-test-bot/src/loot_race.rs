@@ -1015,6 +1015,7 @@ pub(super) async fn run_workflow(
                 Some(options),
                 None,
                 None,
+                None,
             )
             .await;
             match &run {
@@ -1176,6 +1177,7 @@ pub(super) async fn run_workflow(
                             Some(options),
                             None,
                             None,
+                            None,
                         )) => match result {
                             Ok(run) => run,
                             Err(_) => Err(anyhow!(
@@ -1328,6 +1330,7 @@ pub(super) async fn run_single_item_capture_workflow(
             Some(options),
             None,
             None,
+            None,
         )) => match result {
             Ok(run) => run,
             Err(_) => Err(anyhow!(
@@ -1424,6 +1427,7 @@ pub(super) async fn run_single_item_capture_workflow(
                 None,
                 None,
                 Some(relog_options),
+                None,
                 None,
                 None,
             )) => match relog {
@@ -6497,6 +6501,7 @@ pub(super) async fn run_group_capacity_workflow(
                 None,
                 None,
                 Some(options),
+                None,
                 None,
             )
             .await;

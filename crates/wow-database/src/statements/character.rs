@@ -1210,6 +1210,8 @@ pub enum CharStatements {
 
     /// SELECT MAX(guid) FROM item_instance
     SEL_MAX_ITEM_GUID,
+    /// C++ `ObjectMgr::SetHighestGuids` shared equipment/transmog set GUID maximum.
+    SEL_MAX_EQUIPMENT_SET_GUID,
     /// C++ ObjectMgr::SetHighestGuids startup cleanup.
     DEL_INVALID_CHAR_INVENTORY_ITEM_GUIDS,
     DEL_INVALID_MAIL_ITEM_GUIDS,
@@ -2815,6 +2817,9 @@ impl StatementDef for CharStatements {
                 "UPDATE characters SET exploredZones = ? WHERE guid = ?"
             }
             Self::SEL_MAX_ITEM_GUID => "SELECT MAX(guid) FROM item_instance",
+            Self::SEL_MAX_EQUIPMENT_SET_GUID => {
+                "SELECT MAX(maxguid) FROM ((SELECT MAX(setguid) AS maxguid FROM character_equipmentsets) UNION (SELECT MAX(setguid) AS maxguid FROM character_transmog_outfits)) allsets"
+            }
             Self::DEL_INVALID_CHAR_INVENTORY_ITEM_GUIDS => {
                 "DELETE FROM character_inventory WHERE item >= ?"
             }
@@ -5857,6 +5862,14 @@ mod tests {
         assert_eq!(
             CharStatements::UPD_ARENA_TEAM_NAME.sql(),
             "UPDATE arena_team SET name = ? WHERE arenaTeamId = ?"
+        );
+    }
+
+    #[test]
+    fn equipment_set_guid_max_query_matches_cpp_shared_namespace() {
+        assert_eq!(
+            CharStatements::SEL_MAX_EQUIPMENT_SET_GUID.sql(),
+            "SELECT MAX(maxguid) FROM ((SELECT MAX(setguid) AS maxguid FROM character_equipmentsets) UNION (SELECT MAX(setguid) AS maxguid FROM character_transmog_outfits)) allsets"
         );
     }
 

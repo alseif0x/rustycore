@@ -60,6 +60,12 @@ const SMSG_ITEM_PUSH_RESULT: u16 = 0x2623;
 const SMSG_BUY_SUCCEEDED: u16 = 0x26C6;
 const SMSG_BUY_FAILED: u16 = 0x26C7;
 const SMSG_SET_CURRENCY: u16 = 0x2574;
+const CMSG_SAVE_EQUIPMENT_SET: u16 = 0x3509;
+const SMSG_EQUIPMENT_SET_ID: u16 = 0x26B2;
+const SMSG_LOAD_EQUIPMENT_SET: u16 = 0x270E;
+const EQUIPMENT_SET_SLOTS_LIKE_CPP: usize = 19;
+const MAX_EQUIPMENT_SET_INDEX_LIKE_CPP: u32 = 20;
+const EQUIPMENT_SET_IGNORE_ALL_SLOTS_LIKE_CPP: u32 = (1 << EQUIPMENT_SET_SLOTS_LIKE_CPP) - 1;
 // Login can legitimately contain more than 30 packets before
 // SMSG_LOGIN_VERIFY_WORLD when another player is already on the map and its
 // CREATE/broadcast traffic is interleaved. Keep the guard wall-clock based so
@@ -246,6 +252,10 @@ struct CliOptions {
     vendor_currency_cost: u32,
     vendor_currency_quantity: u32,
     vendor_timeout_secs: u64,
+    equipment_set_race_smoke: bool,
+    equipment_set_account_a: String,
+    equipment_set_account_b: String,
+    equipment_set_timeout_secs: u64,
     rested_xp_smoke: bool,
     ack_disposable_rested_xp: bool,
     rested_xp_creature_entry: u32,
@@ -376,6 +386,16 @@ struct BotRunResult {
     vendor_item_push_seen: bool,
     vendor_relogin_verified: bool,
     vendor_failure: Option<String>,
+    equipment_set_smoke: bool,
+    equipment_set_smoke_passed: Option<bool>,
+    equipment_set_type: Option<i32>,
+    equipment_set_id: Option<u32>,
+    equipment_set_generated_guid: Option<u64>,
+    equipment_set_login_count: Option<u32>,
+    equipment_set_load_seen: bool,
+    equipment_set_db_persisted: bool,
+    equipment_set_relogin_verified: bool,
+    equipment_set_failure: Option<String>,
     rested_xp_smoke: bool,
     rested_xp_smoke_passed: Option<bool>,
     rested_xp_offline_wilderness_bonus: Option<f32>,
@@ -488,6 +508,14 @@ impl BotRunResult {
                 && self.vendor_smoke_passed.unwrap_or(false)
                 && self.vendor_relogin_verified;
         }
+        if self.equipment_set_smoke {
+            return self.world_auth
+                && self.enum_characters
+                && self.player_login_verified
+                && self.equipment_set_smoke_passed.unwrap_or(false)
+                && self.equipment_set_db_persisted
+                && self.equipment_set_relogin_verified;
+        }
         if self.rested_xp_smoke {
             return self.world_auth
                 && self.enum_characters
@@ -530,6 +558,7 @@ struct RunReport {
     homebind_smoke: bool,
     inventory_swap_smoke: bool,
     vendor_smoke: bool,
+    equipment_set_race_smoke: bool,
     rested_xp_smoke: bool,
     loot_race_smoke: bool,
     loot_item_capture: bool,
@@ -715,6 +744,40 @@ struct VendorSmokeFixture {
     options: VendorSmokeOptions,
     original_position: CharacterPositionSnapshot,
     original_currency: Option<VendorCurrencyRowSnapshot>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EquipmentSetSmokePhase {
+    Save,
+    VerifyRelog,
+}
+
+#[derive(Debug, Clone)]
+struct EquipmentSetSmokeOptions {
+    phase: EquipmentSetSmokePhase,
+    set_type: i32,
+    set_id: u32,
+    set_name: String,
+    set_icon: String,
+    expected_guid: Option<u64>,
+    save_barrier: Option<std::sync::Arc<tokio::sync::Barrier>>,
+    timeout_secs: u64,
+}
+
+#[derive(Debug, Clone)]
+struct EquipmentSetSmokeFixture {
+    initial_max_guid: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct EquipmentSetWire {
+    set_type: i32,
+    guid: u64,
+    set_id: u32,
+    ignore_mask: u32,
+    assigned_spec_index: i32,
+    set_name: String,
+    set_icon: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1029,6 +1092,18 @@ fn parse_cli() -> Result<CliOptions> {
             .map(|value| value.parse::<u64>())
             .transpose()?
             .unwrap_or(8),
+        equipment_set_race_smoke: std::env::var("WOW_BOT_EQUIPMENT_SET_RACE_SMOKE")
+            .ok()
+            .is_some_and(|value| is_truthy(&value)),
+        equipment_set_account_a: std::env::var("WOW_BOT_EQUIPMENT_SET_ACCOUNT_A")
+            .unwrap_or_else(|_| loot_race::DEFAULT_ACCOUNT_A.to_string()),
+        equipment_set_account_b: std::env::var("WOW_BOT_EQUIPMENT_SET_ACCOUNT_B")
+            .unwrap_or_else(|_| loot_race::DEFAULT_ACCOUNT_B.to_string()),
+        equipment_set_timeout_secs: std::env::var("WOW_BOT_EQUIPMENT_SET_TIMEOUT_SECS")
+            .ok()
+            .map(|value| value.parse::<u64>())
+            .transpose()?
+            .unwrap_or(10),
         rested_xp_smoke: std::env::var("WOW_BOT_RESTED_XP_SMOKE")
             .ok()
             .map(|value| is_truthy(&value))
@@ -1297,6 +1372,17 @@ fn parse_cli() -> Result<CliOptions> {
             }
             "--vendor-timeout" => {
                 opts.vendor_timeout_secs = next_arg(&mut args, "--vendor-timeout")?.parse()?;
+            }
+            "--equipment-set-race-smoke" => opts.equipment_set_race_smoke = true,
+            "--equipment-set-account-a" => {
+                opts.equipment_set_account_a = next_arg(&mut args, "--equipment-set-account-a")?;
+            }
+            "--equipment-set-account-b" => {
+                opts.equipment_set_account_b = next_arg(&mut args, "--equipment-set-account-b")?;
+            }
+            "--equipment-set-timeout" => {
+                opts.equipment_set_timeout_secs =
+                    next_arg(&mut args, "--equipment-set-timeout")?.parse()?;
             }
             "--rested-xp-smoke" => opts.rested_xp_smoke = true,
             arg if parse_ack_disposable_rested_xp_arg(arg, &mut opts.ack_disposable_rested_xp) => {}
@@ -1719,6 +1805,19 @@ fn print_help() {
     println!("  --vendor-timeout <secs>  Vendor response timeout (default: 8)");
     println!(
         "                           Env: WOW_BOT_VENDOR_SMOKE, WOW_BOT_VENDOR_ENTRY, WOW_BOT_VENDOR_SPAWN_GUID, WOW_BOT_VENDOR_RUNTIME_COUNTER, WOW_BOT_VENDOR_ITEM_ENTRY, WOW_BOT_VENDOR_EXTENDED_COST, WOW_BOT_VENDOR_CURRENCY_ID, WOW_BOT_VENDOR_CURRENCY_COST, WOW_BOT_VENDOR_CURRENCY_QUANTITY, WOW_BOT_VENDOR_TIMEOUT_SECS"
+    );
+    println!(
+        "  --equipment-set-race-smoke  Concurrently save equipment/transmog sets, logout, relog, and verify shared GUID persistence"
+    );
+    println!(
+        "  --equipment-set-account-a <account>  Equipment-set bot (default TESTBOT2@bot.local)"
+    );
+    println!(
+        "  --equipment-set-account-b <account>  Transmog-set bot (default TESTBOT3@bot.local)"
+    );
+    println!("  --equipment-set-timeout <secs>  Per response/barrier timeout (default: 10)");
+    println!(
+        "                           Env: WOW_BOT_EQUIPMENT_SET_RACE_SMOKE, WOW_BOT_EQUIPMENT_SET_ACCOUNT_A, WOW_BOT_EQUIPMENT_SET_ACCOUNT_B, WOW_BOT_EQUIPMENT_SET_TIMEOUT_SECS"
     );
     println!(
         "  --homebind-smoke         Bind at an innkeeper, relog, and verify response packets plus DB persistence"
@@ -2410,6 +2509,7 @@ async fn main() -> Result<()> {
             || cli.homebind_smoke
             || cli.inventory_swap_smoke
             || cli.vendor_smoke
+            || cli.equipment_set_race_smoke
             || cli.rested_xp_smoke
             || cli.loot_race_smoke
             || cli.loot_item_capture
@@ -2456,6 +2556,18 @@ async fn main() -> Result<()> {
                     .eq_ignore_ascii_case(&cli.group_capacity_candidate_b_account)
         });
     }
+    if cli.equipment_set_race_smoke {
+        if cli.single_account.is_some() {
+            bail!("--single is incompatible with --equipment-set-race-smoke");
+        }
+        bots.retain(|bot| {
+            bot.account
+                .eq_ignore_ascii_case(&cli.equipment_set_account_a)
+                || bot
+                    .account
+                    .eq_ignore_ascii_case(&cli.equipment_set_account_b)
+        });
+    }
     apply_password_overrides(&mut bots);
 
     if bots.is_empty() {
@@ -2466,6 +2578,7 @@ async fn main() -> Result<()> {
         .filter(|bot| {
             bot.password.is_empty()
                 && !(cli.group_capacity_race_smoke && !bot.session_key_bnet.trim().is_empty())
+                && !cli.equipment_set_race_smoke
         })
         .map(|bot| bot.account.as_str())
         .collect();
@@ -2477,7 +2590,8 @@ async fn main() -> Result<()> {
         );
     }
     let loot_mode = cli.loot_race_smoke || cli.loot_item_capture;
-    let guarded_identity_mode = loot_mode || cli.group_capacity_race_smoke;
+    let guarded_identity_mode =
+        loot_mode || cli.group_capacity_race_smoke || cli.equipment_set_race_smoke;
     validate_provisioning_mode(guarded_identity_mode, cli.ensure_test_accounts)?;
     let post_login_mode_count = [
         cli.stand_state_smoke,
@@ -2485,6 +2599,7 @@ async fn main() -> Result<()> {
         cli.homebind_smoke,
         cli.inventory_swap_smoke,
         cli.vendor_smoke,
+        cli.equipment_set_race_smoke,
         cli.rested_xp_smoke,
         cli.loot_race_smoke,
         cli.loot_item_capture,
@@ -2495,7 +2610,7 @@ async fn main() -> Result<()> {
     .filter(|enabled| *enabled)
     .count();
     if post_login_mode_count > 1 {
-        bail!("stand-state, bank, homebind, inventory-swap, vendor, rested-xp, loot-race, loot-item-capture, group-capacity-race, and quest smoke are separate post-login modes");
+        bail!("stand-state, bank, homebind, inventory-swap, vendor, equipment-set-race, rested-xp, loot-race, loot-item-capture, group-capacity-race, and quest smoke are separate post-login modes");
     }
     if cli.bank_smoke && bots.len() != 1 {
         bail!("--bank-smoke requires exactly one bot; select it with --single");
@@ -2541,6 +2656,20 @@ async fn main() -> Result<()> {
             || cli.vendor_currency_quantity <= cli.vendor_currency_cost)
     {
         bail!("vendor smoke requires nonzero fixture identifiers/cost and a seeded currency quantity greater than one purchase cost");
+    }
+    if cli.equipment_set_race_smoke {
+        if bots.len() != 2 {
+            bail!("--equipment-set-race-smoke requires exactly its two configured bots");
+        }
+        if cli.equipment_set_timeout_secs == 0 {
+            bail!("--equipment-set-timeout must be greater than zero");
+        }
+        if cli
+            .equipment_set_account_a
+            .eq_ignore_ascii_case(&cli.equipment_set_account_b)
+        {
+            bail!("equipment-set race accounts must be distinct");
+        }
     }
     validate_rested_xp_cli_values(
         cli.rested_xp_smoke,
@@ -2643,6 +2772,8 @@ async fn main() -> Result<()> {
             "inventory-swap-smoke"
         } else if cli.vendor_smoke {
             "vendor-smoke"
+        } else if cli.equipment_set_race_smoke {
+            "equipment-set-race-smoke"
         } else if cli.rested_xp_smoke {
             "rested-xp-smoke"
         } else if cli.loot_race_smoke {
@@ -2672,6 +2803,7 @@ async fn main() -> Result<()> {
         && !cli.homebind_smoke
         && !cli.inventory_swap_smoke
         && !cli.vendor_smoke
+        && !cli.equipment_set_race_smoke
         && !cli.rested_xp_smoke
         && !cli.loot_race_smoke
         && !cli.loot_item_capture
@@ -2725,6 +2857,20 @@ async fn main() -> Result<()> {
             timeout_secs,
             auto_teleport,
             shutdown,
+        )
+        .await?;
+        for result in &results {
+            log_bot_summary(result, require_proposal, require_group, cli.login_only);
+        }
+    } else if cli.equipment_set_race_smoke {
+        results = run_equipment_set_race_workflow(
+            bots,
+            dungeon_id,
+            timeout_secs,
+            auto_teleport,
+            cli.equipment_set_account_a.clone(),
+            cli.equipment_set_account_b.clone(),
+            cli.equipment_set_timeout_secs,
         )
         .await?;
         for result in &results {
@@ -2810,6 +2956,7 @@ async fn main() -> Result<()> {
                     None,
                     None,
                     None,
+                    None,
                     quest_options.clone(),
                 )
                 .await
@@ -2850,6 +2997,7 @@ async fn main() -> Result<()> {
                     None,
                     None,
                     None,
+                    None,
                     quest_options_for_bot,
                 )
                 .await;
@@ -2883,6 +3031,7 @@ async fn main() -> Result<()> {
         cli.homebind_smoke,
         cli.inventory_swap_smoke,
         cli.vendor_smoke,
+        cli.equipment_set_race_smoke,
         cli.rested_xp_smoke,
         cli.loot_race_smoke,
         cli.loot_item_capture,
@@ -3015,6 +3164,7 @@ async fn run_bot(
     rested_xp_options: Option<RestedXpSmokeOptions>,
     loot_race_options: Option<loot_race::LootRaceOptions>,
     group_capacity_options: Option<loot_race::GroupCapacityRaceOptions>,
+    equipment_set_options: Option<EquipmentSetSmokeOptions>,
     quest_options: Option<QuestSmokeOptions>,
 ) -> Result<BotRunResult> {
     let bot_index = bot.account_id as usize;
@@ -3127,6 +3277,20 @@ async fn run_bot(
         vendor_item_push_seen: false,
         vendor_relogin_verified: false,
         vendor_failure: None,
+        equipment_set_smoke: equipment_set_options.is_some(),
+        equipment_set_smoke_passed: None,
+        equipment_set_type: equipment_set_options
+            .as_ref()
+            .map(|options| options.set_type),
+        equipment_set_id: equipment_set_options.as_ref().map(|options| options.set_id),
+        equipment_set_generated_guid: equipment_set_options
+            .as_ref()
+            .and_then(|options| options.expected_guid),
+        equipment_set_login_count: None,
+        equipment_set_load_seen: false,
+        equipment_set_db_persisted: false,
+        equipment_set_relogin_verified: false,
+        equipment_set_failure: None,
         rested_xp_smoke: rested_xp_options.is_some(),
         rested_xp_smoke_passed: None,
         rested_xp_offline_wilderness_bonus: None,
@@ -3220,8 +3384,10 @@ async fn run_bot(
     };
 
     // ── Step 1: Prepare the World session key ────────────────────────────────
-    // Group-capacity QA may reuse a configured 64-byte fixture key. Otherwise
-    // live BNet SRP6 computes (login_ticket, K_32), where
+    // The guarded equipment-set QA writes a fresh 64-byte fixture key for each
+    // verified disposable account. Group-capacity QA may instead reuse a
+    // configured 64-byte fixture key. Otherwise live BNet SRP6 computes
+    // (login_ticket, K_32), where
     // K = SHA256(broken_evidence_le(S)), and expands it to K || SHA256(K).
     // Either path writes account.session_key_bnet before CMSG_AUTH_SESSION.
     info!(
@@ -3243,8 +3409,15 @@ async fn run_bot(
             })
         })
         .transpose()?;
-    let (session_key, used_configured_group_session_key) =
-        if let Some(session_key) = configured_group_session_key {
+    let generated_equipment_session_key = equipment_set_options.as_ref().map(|_| {
+        let mut session_key = vec![0u8; 64];
+        rand::thread_rng().fill_bytes(&mut session_key);
+        session_key
+    });
+    let (session_key, used_fixture_session_key) =
+        if let Some(session_key) = generated_equipment_session_key {
+            (session_key, true)
+        } else if let Some(session_key) = configured_group_session_key {
             if session_key.len() != 64 {
                 bail!(
                     "Configured group-capacity session_key_bnet for {} has {} bytes, expected 64",
@@ -3296,9 +3469,9 @@ async fn run_bot(
     })?;
     let wow_username = world_auth_context.username.clone();
 
-    if used_configured_group_session_key {
+    if used_fixture_session_key {
         info!(
-            "[Bot {}] ✅ configured group-capacity session key accepted (64B)",
+            "[Bot {}] ✅ guarded fixture session key prepared (64B)",
             bot_index
         );
     } else {
@@ -3543,7 +3716,8 @@ async fn run_bot(
         || vendor_options.is_some()
         || rested_xp_options.is_some()
         || loot_race_options.is_some()
-        || group_capacity_options.is_some();
+        || group_capacity_options.is_some()
+        || equipment_set_options.is_some();
     let mut loot_race_target_seen = false;
     let mut vendor_target_seen: Option<DiscoveredCreatureGuid> = None;
     let login_budget = LoginVerifyBudget::new(LOGIN_VERIFY_TIMEOUT);
@@ -3598,11 +3772,19 @@ async fn run_bot(
                 if let Some(options) = quest_options.as_ref() {
                     record_quest_objective_login_signal(op, &payload, options, &mut result);
                 }
+                if let Some(options) = equipment_set_options.as_ref() {
+                    record_equipment_set_login_signal(op, &payload, options, &mut result)?;
+                }
                 if op == 0x2597 {
                     // SMSG_LOGIN_VERIFY_WORLD
                     info!("[Bot {}] ✅ SMSG_LOGIN_VERIFY_WORLD received", bot_index);
                     login_ok = true;
-                    if !preserve_realm_connection || realm_connection.is_some() {
+                    let equipment_set_login_ready = equipment_set_options
+                        .as_ref()
+                        .is_none_or(|_| result.equipment_set_load_seen);
+                    if (!preserve_realm_connection || realm_connection.is_some())
+                        && equipment_set_login_ready
+                    {
                         break;
                     }
                     // Routing-sensitive captures validate both connections, so
@@ -3649,6 +3831,13 @@ async fn run_bot(
                 } else if op == 0x304B {
                     // SMSG_RESUME_COMMS
                     info!("[Bot {}] ✅ SMSG_RESUME_COMMS received", bot_index);
+                }
+                if equipment_set_options.is_some()
+                    && login_ok
+                    && result.equipment_set_load_seen
+                    && (!preserve_realm_connection || realm_connection.is_some())
+                {
+                    break;
                 }
             }
             Ok(Err(e)) => {
@@ -3874,6 +4063,25 @@ async fn run_bot(
                 &mut result,
             )
             .await;
+        }
+        return Ok(result);
+    }
+
+    if let Some(equipment_set_options) = equipment_set_options {
+        if let Err(error) = run_equipment_set_smoke_phase(
+            bot_index,
+            &bot,
+            &mut stream,
+            &mut crypt,
+            &mut server_inflater,
+            realm_connection.as_mut(),
+            &equipment_set_options,
+            &mut result,
+        )
+        .await
+        {
+            result.equipment_set_failure = Some(error.to_string());
+            result.equipment_set_smoke_passed = Some(false);
         }
         return Ok(result);
     }
@@ -4159,6 +4367,21 @@ fn log_bot_summary(
             );
             return;
         }
+        if result.equipment_set_smoke {
+            info!(
+                "✅ Bot {}: SUCCESS equipment_set_smoke type={:?} set_id={:?} guid={:?} login_count={:?} load={} db={} relog={} failure={:?}",
+                result.account,
+                result.equipment_set_type,
+                result.equipment_set_id,
+                result.equipment_set_generated_guid,
+                result.equipment_set_login_count,
+                result.equipment_set_load_seen,
+                result.equipment_set_db_persisted,
+                result.equipment_set_relogin_verified,
+                result.equipment_set_failure,
+            );
+            return;
+        }
         if result.rested_xp_smoke {
             info!(
                 "✅ Bot {}: SUCCESS rested_xp_smoke offline={:?}/{:?} target={:?}/{:?}/counter={:?} xp={:?}+{:?} rest={:?}->{:?} relog={} failure={:?}",
@@ -4326,6 +4549,21 @@ fn log_bot_summary(
             );
             return;
         }
+        if result.equipment_set_smoke {
+            error!(
+                "❌ Bot {}: FAILED equipment_set_smoke type={:?} set_id={:?} guid={:?} login_count={:?} load={} db={} relog={} failure={:?}",
+                result.account,
+                result.equipment_set_type,
+                result.equipment_set_id,
+                result.equipment_set_generated_guid,
+                result.equipment_set_login_count,
+                result.equipment_set_load_seen,
+                result.equipment_set_db_persisted,
+                result.equipment_set_relogin_verified,
+                result.equipment_set_failure,
+            );
+            return;
+        }
         if result.rested_xp_smoke {
             error!(
                 "❌ Bot {}: FAILED rested_xp_smoke offline={:?}/{:?} target={:?}/{:?}/counter={:?} packet={:?}/{:?} db_xp={:?}->{:?} db_rest={:?}->{:?} relog={} failure={:?}",
@@ -4408,6 +4646,7 @@ fn write_report_if_requested(
     homebind_smoke: bool,
     inventory_swap_smoke: bool,
     vendor_smoke: bool,
+    equipment_set_race_smoke: bool,
     rested_xp_smoke: bool,
     loot_race_smoke: bool,
     loot_item_capture: bool,
@@ -4433,6 +4672,7 @@ fn write_report_if_requested(
         homebind_smoke,
         inventory_swap_smoke,
         vendor_smoke,
+        equipment_set_race_smoke,
         rested_xp_smoke,
         loot_race_smoke,
         loot_item_capture,
@@ -5231,6 +5471,7 @@ async fn run_rested_xp_smoke_workflow_inner(
         None,
         None,
         None,
+        None,
     )
     .await?;
     if !combined.rested_xp_smoke_passed.unwrap_or(false) {
@@ -5292,6 +5533,7 @@ async fn run_rested_xp_smoke_workflow_inner(
         None,
         None,
         Some(resting_options),
+        None,
         None,
         None,
         None,
@@ -5370,6 +5612,7 @@ async fn run_rested_xp_smoke_workflow_inner(
         None,
         None,
         None,
+        None,
     )
     .await?;
     merge_rested_xp_results(&mut combined, consume_result);
@@ -5399,6 +5642,7 @@ async fn run_rested_xp_smoke_workflow_inner(
         None,
         None,
         Some(verify_options),
+        None,
         None,
         None,
         None,
@@ -5480,6 +5724,758 @@ fn offline_rest_bonus_matches_like_cpp(
     (actual - expected).abs() <= timing_slop.max(0.05)
 }
 
+fn prepare_equipment_set_smoke_fixture(
+    bots: &[config::BotConfig],
+) -> Result<EquipmentSetSmokeFixture> {
+    use mysql::prelude::Queryable;
+
+    if bots.len() != 2 {
+        bail!("equipment-set fixture requires exactly two bots");
+    }
+    let characters_url = characters_db_url()?;
+    let opts = mysql::Opts::from_url(&characters_url)
+        .map_err(|error| anyhow!("Bad characters DB URL: {error}"))?;
+    let mut conn = mysql::Conn::new(opts)
+        .map_err(|error| anyhow!("Connect to characters DB failed: {error}"))?;
+
+    for bot in bots {
+        if !bot.account.to_ascii_uppercase().ends_with("@BOT.LOCAL") {
+            bail!(
+                "refusing equipment-set fixture setup for non-local account {}",
+                bot.account
+            );
+        }
+        let row: Option<(u32, u8)> = conn
+            .exec_first(
+                "SELECT account, online FROM characters WHERE guid = ?",
+                (bot.character_guid,),
+            )
+            .map_err(|error| anyhow!("Load equipment-set bot character: {error}"))?;
+        let (owner, online) = row.ok_or_else(|| {
+            anyhow!(
+                "No characters row for equipment-set bot guid {}",
+                bot.character_guid
+            )
+        })?;
+        if owner != bot.account_id || online != 0 {
+            bail!(
+                "equipment-set bot {} ownership/online mismatch: owner={owner}, expected={}, online={online}",
+                bot.character_guid,
+                bot.account_id
+            );
+        }
+        let equipment_rows: u64 = conn
+            .exec_first(
+                "SELECT COUNT(*) FROM character_equipmentsets WHERE guid = ?",
+                (bot.character_guid,),
+            )
+            .map_err(|error| anyhow!("Count equipment-set fixture rows: {error}"))?
+            .unwrap_or(0);
+        let transmog_rows: u64 = conn
+            .exec_first(
+                "SELECT COUNT(*) FROM character_transmog_outfits WHERE guid = ?",
+                (bot.character_guid,),
+            )
+            .map_err(|error| anyhow!("Count transmog-set fixture rows: {error}"))?
+            .unwrap_or(0);
+        if equipment_rows != 0 || transmog_rows != 0 {
+            bail!(
+                "equipment-set bot {} is not an empty disposable fixture (equipment={equipment_rows}, transmog={transmog_rows})",
+                bot.character_guid
+            );
+        }
+    }
+
+    let initial_max_guid: Option<Option<u64>> = conn
+        .query_first(
+            "SELECT MAX(maxguid) FROM ((SELECT MAX(setguid) AS maxguid FROM character_equipmentsets) UNION (SELECT MAX(setguid) AS maxguid FROM character_transmog_outfits)) allsets",
+        )
+        .map_err(|error| anyhow!("Load shared equipment/transmog maximum: {error}"))?;
+    Ok(EquipmentSetSmokeFixture {
+        initial_max_guid: initial_max_guid.flatten().unwrap_or(0),
+    })
+}
+
+fn verify_equipment_set_db_row(
+    bot: &config::BotConfig,
+    options: &EquipmentSetSmokeOptions,
+    expected_guid: u64,
+) -> Result<bool> {
+    use mysql::prelude::Queryable;
+
+    let opts = mysql::Opts::from_url(&characters_db_url()?)
+        .map_err(|error| anyhow!("Bad characters DB URL: {error}"))?;
+    let mut conn = mysql::Conn::new(opts)
+        .map_err(|error| anyhow!("Connect to characters DB failed: {error}"))?;
+    if options.set_type == 0 {
+        let row: Option<(u64, u32, String, String, u32, i32)> = conn
+            .exec_first(
+                "SELECT setguid, setindex, name, iconname, ignore_mask, AssignedSpecIndex FROM character_equipmentsets WHERE guid = ?",
+                (bot.character_guid,),
+            )
+            .map_err(|error| anyhow!("Load persisted equipment set: {error}"))?;
+        Ok(row
+            == Some((
+                expected_guid,
+                options.set_id,
+                options.set_name.clone(),
+                options.set_icon.clone(),
+                EQUIPMENT_SET_IGNORE_ALL_SLOTS_LIKE_CPP,
+                -1,
+            )))
+    } else {
+        let row: Option<(u64, u32, String, String, u32)> = conn
+            .exec_first(
+                "SELECT setguid, setindex, name, iconname, ignore_mask FROM character_transmog_outfits WHERE guid = ?",
+                (bot.character_guid,),
+            )
+            .map_err(|error| anyhow!("Load persisted transmog outfit: {error}"))?;
+        Ok(row
+            == Some((
+                expected_guid,
+                options.set_id,
+                options.set_name.clone(),
+                options.set_icon.clone(),
+                EQUIPMENT_SET_IGNORE_ALL_SLOTS_LIKE_CPP,
+            )))
+    }
+}
+
+fn cleanup_equipment_set_smoke_fixture(bots: &[config::BotConfig]) -> Result<()> {
+    use mysql::prelude::Queryable;
+
+    let opts = mysql::Opts::from_url(&characters_db_url()?)
+        .map_err(|error| anyhow!("Bad characters DB URL: {error}"))?;
+    let mut conn = mysql::Conn::new(opts)
+        .map_err(|error| anyhow!("Connect to characters DB failed: {error}"))?;
+    for bot in bots {
+        let offline_deadline = std::time::Instant::now() + Duration::from_secs(30);
+        loop {
+            let online: u8 = conn
+                .exec_first(
+                    "SELECT online FROM characters WHERE guid = ?",
+                    (bot.character_guid,),
+                )
+                .map_err(|error| anyhow!("Check equipment-set bot offline state: {error}"))?
+                .ok_or_else(|| anyhow!("Equipment-set bot character disappeared"))?;
+            if online == 0 {
+                break;
+            }
+            if std::time::Instant::now() >= offline_deadline {
+                bail!(
+                    "equipment-set bot {} remained online before cleanup",
+                    bot.character_guid
+                );
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        conn.exec_drop(
+            "DELETE FROM character_equipmentsets WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Clean equipment-set fixture rows: {error}"))?;
+        conn.exec_drop(
+            "DELETE FROM character_transmog_outfits WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Clean transmog-set fixture rows: {error}"))?;
+        let remaining: u64 = conn
+            .exec_first(
+                "SELECT (SELECT COUNT(*) FROM character_equipmentsets WHERE guid = ?) + (SELECT COUNT(*) FROM character_transmog_outfits WHERE guid = ?)",
+                (bot.character_guid, bot.character_guid),
+            )
+            .map_err(|error| anyhow!("Verify equipment-set fixture cleanup: {error}"))?
+            .unwrap_or(u64::MAX);
+        if remaining != 0 {
+            bail!(
+                "equipment-set fixture cleanup left {remaining} rows for character {}",
+                bot.character_guid
+            );
+        }
+    }
+    Ok(())
+}
+
+fn push_msb_bits(data: &mut Vec<u8>, bit_offset: &mut usize, value: u32, count: usize) {
+    for shift in (0..count).rev() {
+        if *bit_offset % 8 == 0 {
+            data.push(0);
+        }
+        if (value >> shift) & 1 != 0 {
+            let byte = data.len() - 1;
+            data[byte] |= 1 << (7 - (*bit_offset % 8));
+        }
+        *bit_offset += 1;
+    }
+}
+
+fn build_save_equipment_set_payload(options: &EquipmentSetSmokeOptions) -> Result<Vec<u8>> {
+    let name_len = u32::try_from(options.set_name.len())?;
+    let icon_len = u32::try_from(options.set_icon.len())?;
+    if name_len > u8::MAX.into() || icon_len >= (1 << 9) {
+        bail!("equipment-set fixture name/icon exceeds the packet bit width");
+    }
+    let mut data = Vec::with_capacity(512);
+    data.extend_from_slice(&options.set_type.to_le_bytes());
+    data.extend_from_slice(&0_u64.to_le_bytes());
+    data.extend_from_slice(&options.set_id.to_le_bytes());
+    data.extend_from_slice(&EQUIPMENT_SET_IGNORE_ALL_SLOTS_LIKE_CPP.to_le_bytes());
+    for _ in 0..EQUIPMENT_SET_SLOTS_LIKE_CPP {
+        data.extend_from_slice(&[0; 16]);
+        data.extend_from_slice(&0_i32.to_le_bytes());
+    }
+    for _ in 0..6 {
+        data.extend_from_slice(&0_i32.to_le_bytes());
+    }
+    let mut bit_offset = 0;
+    push_msb_bits(&mut data, &mut bit_offset, 0, 1);
+    push_msb_bits(&mut data, &mut bit_offset, name_len, 8);
+    push_msb_bits(&mut data, &mut bit_offset, icon_len, 9);
+    data.extend_from_slice(options.set_name.as_bytes());
+    data.extend_from_slice(options.set_icon.as_bytes());
+    Ok(data)
+}
+
+fn take_equipment_bytes<'a>(
+    payload: &'a [u8],
+    offset: &mut usize,
+    count: usize,
+) -> Result<&'a [u8]> {
+    let end = offset
+        .checked_add(count)
+        .ok_or_else(|| anyhow!("equipment-set packet offset overflow"))?;
+    let bytes = payload
+        .get(*offset..end)
+        .ok_or_else(|| anyhow!("equipment-set packet truncated at byte {}", *offset))?;
+    *offset = end;
+    Ok(bytes)
+}
+
+fn read_equipment_u32(payload: &[u8], offset: &mut usize) -> Result<u32> {
+    Ok(u32::from_le_bytes(
+        take_equipment_bytes(payload, offset, 4)?.try_into()?,
+    ))
+}
+
+fn read_equipment_i32(payload: &[u8], offset: &mut usize) -> Result<i32> {
+    Ok(i32::from_le_bytes(
+        take_equipment_bytes(payload, offset, 4)?.try_into()?,
+    ))
+}
+
+fn read_equipment_u64(payload: &[u8], offset: &mut usize) -> Result<u64> {
+    Ok(u64::from_le_bytes(
+        take_equipment_bytes(payload, offset, 8)?.try_into()?,
+    ))
+}
+
+fn read_equipment_msb_bits(payload: &[u8], bit_offset: &mut usize, count: usize) -> Result<u32> {
+    let mut value = 0_u32;
+    for _ in 0..count {
+        let byte = *payload
+            .get(*bit_offset / 8)
+            .ok_or_else(|| anyhow!("equipment-set bit section truncated"))?;
+        value = (value << 1) | u32::from((byte >> (7 - (*bit_offset % 8))) & 1);
+        *bit_offset += 1;
+    }
+    Ok(value)
+}
+
+fn parse_load_equipment_sets(payload: &[u8]) -> Result<Vec<EquipmentSetWire>> {
+    let mut offset = 0;
+    let count = read_equipment_u32(payload, &mut offset)?;
+    let mut sets = Vec::with_capacity(count as usize);
+    for _ in 0..count {
+        let set_type = read_equipment_i32(payload, &mut offset)?;
+        let guid = read_equipment_u64(payload, &mut offset)?;
+        let set_id = read_equipment_u32(payload, &mut offset)?;
+        let ignore_mask = read_equipment_u32(payload, &mut offset)?;
+        take_equipment_bytes(
+            payload,
+            &mut offset,
+            EQUIPMENT_SET_SLOTS_LIKE_CPP * (16 + 4),
+        )?;
+        take_equipment_bytes(payload, &mut offset, 6 * 4)?;
+        let mut bit_offset = offset * 8;
+        let has_spec = read_equipment_msb_bits(payload, &mut bit_offset, 1)? != 0;
+        let name_len = read_equipment_msb_bits(payload, &mut bit_offset, 8)? as usize;
+        let icon_len = read_equipment_msb_bits(payload, &mut bit_offset, 9)? as usize;
+        offset = bit_offset.div_ceil(8);
+        let assigned_spec_index = if has_spec {
+            read_equipment_i32(payload, &mut offset)?
+        } else {
+            -1
+        };
+        let set_name =
+            std::str::from_utf8(take_equipment_bytes(payload, &mut offset, name_len)?)?.to_string();
+        let set_icon =
+            std::str::from_utf8(take_equipment_bytes(payload, &mut offset, icon_len)?)?.to_string();
+        sets.push(EquipmentSetWire {
+            set_type,
+            guid,
+            set_id,
+            ignore_mask,
+            assigned_spec_index,
+            set_name,
+            set_icon,
+        });
+    }
+    if offset != payload.len() {
+        bail!(
+            "SMSG_LOAD_EQUIPMENT_SET left {} trailing bytes",
+            payload.len() - offset
+        );
+    }
+    Ok(sets)
+}
+
+fn parse_equipment_set_id(payload: &[u8]) -> Result<(u64, i32, u32)> {
+    if payload.len() != 16 {
+        bail!(
+            "SMSG_EQUIPMENT_SET_ID payload length mismatch: expected 16, got {}",
+            payload.len()
+        );
+    }
+    let mut offset = 0;
+    Ok((
+        read_equipment_u64(payload, &mut offset)?,
+        read_equipment_i32(payload, &mut offset)?,
+        read_equipment_u32(payload, &mut offset)?,
+    ))
+}
+
+fn record_equipment_set_login_signal(
+    opcode: u16,
+    payload: &[u8],
+    options: &EquipmentSetSmokeOptions,
+    result: &mut BotRunResult,
+) -> Result<()> {
+    if opcode != SMSG_LOAD_EQUIPMENT_SET {
+        return Ok(());
+    }
+    if result.equipment_set_login_count.is_some() {
+        bail!("received duplicate SMSG_LOAD_EQUIPMENT_SET during one login");
+    }
+    let sets = parse_load_equipment_sets(payload)?;
+    result.equipment_set_login_count = Some(u32::try_from(sets.len())?);
+    result.equipment_set_load_seen = true;
+    if options.phase == EquipmentSetSmokePhase::VerifyRelog {
+        let expected_guid = options
+            .expected_guid
+            .context("equipment-set relog phase missing expected GUID")?;
+        let expected = EquipmentSetWire {
+            set_type: options.set_type,
+            guid: expected_guid,
+            set_id: options.set_id,
+            ignore_mask: EQUIPMENT_SET_IGNORE_ALL_SLOTS_LIKE_CPP,
+            assigned_spec_index: -1,
+            set_name: options.set_name.clone(),
+            set_icon: options.set_icon.clone(),
+        };
+        result.equipment_set_relogin_verified = sets.as_slice() == std::slice::from_ref(&expected);
+        if !result.equipment_set_relogin_verified {
+            warn!(
+                "Equipment-set relog mismatch for {}: expected {:?}, loaded {:?}",
+                result.account, expected, sets
+            );
+        }
+    }
+    Ok(())
+}
+
+async fn wait_for_equipment_set_id_routed(
+    bot_index: usize,
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    inflater: &mut ServerPacketInflater,
+    mut realm: Option<&mut EncryptedWorldConnection>,
+    options: &EquipmentSetSmokeOptions,
+    result: &mut BotRunResult,
+) -> Result<u64> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(options.timeout_secs);
+    loop {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if remaining.is_zero() {
+            bail!("timed out waiting for SMSG_EQUIPMENT_SET_ID");
+        }
+        let routed = if let Some(realm_connection) = realm.as_deref_mut() {
+            read_encrypted_packet_if_ready(
+                &mut realm_connection.stream,
+                &mut realm_connection.crypt,
+                &mut realm_connection.inflater,
+                remaining.min(Duration::from_millis(5)),
+                remaining,
+                "equipment-set realm response",
+            )
+            .await?
+            .map(|(opcode, payload)| (true, opcode, payload))
+        } else {
+            None
+        };
+        let routed = if routed.is_some() {
+            routed
+        } else {
+            let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+            read_encrypted_packet_if_ready(
+                stream,
+                crypt,
+                inflater,
+                remaining.min(Duration::from_millis(5)),
+                remaining,
+                "equipment-set instance response",
+            )
+            .await?
+            .map(|(opcode, payload)| (false, opcode, payload))
+        };
+        let Some((on_realm, opcode, payload)) = routed else {
+            continue;
+        };
+        result.seen_opcodes.push(format!("0x{opcode:04X}"));
+        if opcode == SMSG_TIME_SYNC_REQUEST {
+            if on_realm {
+                bail!("SMSG_TIME_SYNC_REQUEST arrived on realm during equipment-set save");
+            }
+            let sequence = parse_time_sync_request_sequence(&payload)?;
+            let response = build_time_sync_response_payload(sequence, 0);
+            send_encrypted_packet(stream, crypt, CMSG_TIME_SYNC_RESPONSE, &response).await?;
+            continue;
+        }
+        if opcode != SMSG_EQUIPMENT_SET_ID {
+            continue;
+        }
+        let (guid, set_type, set_id) = parse_equipment_set_id(&payload)?;
+        if guid == 0 || set_type != options.set_type || set_id != options.set_id {
+            bail!(
+                "SMSG_EQUIPMENT_SET_ID mismatch: got {guid}/{set_type}/{set_id}, expected nonzero/{}/{}",
+                options.set_type,
+                options.set_id
+            );
+        }
+        info!(
+            "[Bot {}] ✅ SMSG_EQUIPMENT_SET_ID guid={} type={} set_id={} route={}",
+            bot_index,
+            guid,
+            set_type,
+            set_id,
+            if on_realm { "realm" } else { "instance" }
+        );
+        return Ok(guid);
+    }
+}
+
+async fn run_equipment_set_smoke_phase(
+    bot_index: usize,
+    bot: &config::BotConfig,
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    inflater: &mut ServerPacketInflater,
+    mut realm: Option<&mut EncryptedWorldConnection>,
+    options: &EquipmentSetSmokeOptions,
+    result: &mut BotRunResult,
+) -> Result<()> {
+    if !result.equipment_set_load_seen {
+        bail!("login omitted SMSG_LOAD_EQUIPMENT_SET");
+    }
+    match options.phase {
+        EquipmentSetSmokePhase::Save => {
+            if result.equipment_set_login_count != Some(0) {
+                bail!(
+                    "disposable equipment-set fixture loaded {:?} pre-existing sets",
+                    result.equipment_set_login_count
+                );
+            }
+            let barrier = options
+                .save_barrier
+                .as_ref()
+                .context("equipment-set save phase missing race barrier")?;
+            tokio::time::timeout(Duration::from_secs(options.timeout_secs), barrier.wait())
+                .await
+                .map_err(|_| anyhow!("timed out at equipment-set concurrent save barrier"))?;
+            let payload = build_save_equipment_set_payload(options)?;
+            send_encrypted_packet(stream, crypt, CMSG_SAVE_EQUIPMENT_SET, &payload).await?;
+            info!(
+                "[Bot {}] ✅ CMSG_SAVE_EQUIPMENT_SET sent type={} set_id={}",
+                bot_index, options.set_type, options.set_id
+            );
+            let guid = wait_for_equipment_set_id_routed(
+                bot_index,
+                stream,
+                crypt,
+                inflater,
+                realm.as_deref_mut(),
+                options,
+                result,
+            )
+            .await?;
+            result.equipment_set_generated_guid = Some(guid);
+            loot_race::logout_and_wait_routed_like_cpp(
+                bot_index,
+                stream,
+                crypt,
+                inflater,
+                realm.as_deref_mut(),
+                bot.character_guid,
+                result,
+            )
+            .await?;
+            let bot_for_db = bot.clone();
+            let options_for_db = options.clone();
+            result.equipment_set_db_persisted = tokio::task::spawn_blocking(move || {
+                verify_equipment_set_db_row(&bot_for_db, &options_for_db, guid)
+            })
+            .await
+            .map_err(|error| anyhow!("Equipment-set persistence worker failed: {error}"))??;
+            if !result.equipment_set_db_persisted {
+                bail!("equipment/transmog set did not persist exactly after logout");
+            }
+            result.equipment_set_smoke_passed = Some(true);
+        }
+        EquipmentSetSmokePhase::VerifyRelog => {
+            if result.equipment_set_login_count != Some(1) || !result.equipment_set_relogin_verified
+            {
+                bail!(
+                    "fresh relog did not load exactly the expected set (count={:?}, matched={})",
+                    result.equipment_set_login_count,
+                    result.equipment_set_relogin_verified
+                );
+            }
+            let guid = options
+                .expected_guid
+                .context("equipment-set relog phase missing expected GUID")?;
+            loot_race::logout_and_wait_routed_like_cpp(
+                bot_index,
+                stream,
+                crypt,
+                inflater,
+                realm.as_deref_mut(),
+                bot.character_guid,
+                result,
+            )
+            .await?;
+            let bot_for_db = bot.clone();
+            let options_for_db = options.clone();
+            result.equipment_set_db_persisted = tokio::task::spawn_blocking(move || {
+                verify_equipment_set_db_row(&bot_for_db, &options_for_db, guid)
+            })
+            .await
+            .map_err(|error| anyhow!("Equipment-set relog DB worker failed: {error}"))??;
+            result.equipment_set_smoke_passed = Some(result.equipment_set_db_persisted);
+        }
+    }
+    Ok(())
+}
+
+async fn run_equipment_set_race_workflow(
+    mut bots: Vec<config::BotConfig>,
+    dungeon_id: u32,
+    lfg_secs: u64,
+    auto_teleport: bool,
+    account_a: String,
+    account_b: String,
+    timeout_secs: u64,
+) -> Result<Vec<BotRunResult>> {
+    bots.sort_by_key(|bot| {
+        if bot.account.eq_ignore_ascii_case(&account_a) {
+            0
+        } else if bot.account.eq_ignore_ascii_case(&account_b) {
+            1
+        } else {
+            2
+        }
+    });
+    if bots.len() != 2
+        || !bots[0].account.eq_ignore_ascii_case(&account_a)
+        || !bots[1].account.eq_ignore_ascii_case(&account_b)
+    {
+        bail!("configured equipment-set race accounts were not both found exactly once");
+    }
+    let bots_for_setup = bots.clone();
+    let fixture =
+        tokio::task::spawn_blocking(move || prepare_equipment_set_smoke_fixture(&bots_for_setup))
+            .await
+            .map_err(|error| anyhow!("Equipment-set fixture setup worker failed: {error}"))??;
+
+    let barrier = std::sync::Arc::new(tokio::sync::Barrier::new(2));
+    let base = [
+        EquipmentSetSmokeOptions {
+            phase: EquipmentSetSmokePhase::Save,
+            set_type: 0,
+            set_id: 7,
+            set_name: "QA Equipment".to_string(),
+            set_icon: "INV_Sword_01".to_string(),
+            expected_guid: None,
+            save_barrier: Some(std::sync::Arc::clone(&barrier)),
+            timeout_secs,
+        },
+        EquipmentSetSmokeOptions {
+            phase: EquipmentSetSmokePhase::Save,
+            set_type: 1,
+            set_id: 8,
+            set_name: "QA Transmog".to_string(),
+            set_icon: "INV_Chest_Cloth_01".to_string(),
+            expected_guid: None,
+            save_barrier: Some(barrier),
+            timeout_secs,
+        },
+    ];
+
+    let first = tokio::join!(
+        run_bot(
+            bots[0].clone(),
+            dungeon_id,
+            lfg_secs,
+            auto_teleport,
+            false,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(base[0].clone()),
+            None,
+        ),
+        run_bot(
+            bots[1].clone(),
+            dungeon_id,
+            lfg_secs,
+            auto_teleport,
+            false,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(base[1].clone()),
+            None,
+        )
+    );
+
+    let workflow = async {
+        let mut saved = vec![first.0?, first.1?];
+        if saved
+            .iter()
+            .any(|result| !result.equipment_set_smoke_passed.unwrap_or(false))
+        {
+            let failures = saved
+                .iter()
+                .filter_map(|result| {
+                    (!result.equipment_set_smoke_passed.unwrap_or(false)).then(|| {
+                        format!(
+                            "{}: {}",
+                            result.account,
+                            result
+                                .equipment_set_failure
+                                .as_deref()
+                                .unwrap_or("missing success verdict")
+                        )
+                    })
+                })
+                .collect::<Vec<_>>()
+                .join("; ");
+            bail!("concurrent equipment-set save phase failed: {failures}");
+        }
+        let guids = [
+            saved[0]
+                .equipment_set_generated_guid
+                .context("equipment-set bot omitted generated GUID")?,
+            saved[1]
+                .equipment_set_generated_guid
+                .context("transmog-set bot omitted generated GUID")?,
+        ];
+        if guids[0] == guids[1] || guids.iter().any(|guid| *guid <= fixture.initial_max_guid) {
+            bail!(
+                "shared allocator proof failed: initial max={}, generated={guids:?}",
+                fixture.initial_max_guid
+            );
+        }
+
+        let mut verify = base.clone();
+        for index in 0..2 {
+            verify[index].phase = EquipmentSetSmokePhase::VerifyRelog;
+            verify[index].expected_guid = Some(guids[index]);
+            verify[index].save_barrier = None;
+        }
+        let relog = tokio::join!(
+            run_bot(
+                bots[0].clone(),
+                dungeon_id,
+                lfg_secs,
+                auto_teleport,
+                false,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                Some(verify[0].clone()),
+                None,
+            ),
+            run_bot(
+                bots[1].clone(),
+                dungeon_id,
+                lfg_secs,
+                auto_teleport,
+                false,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                Some(verify[1].clone()),
+                None,
+            )
+        );
+        let reloaded = [relog.0?, relog.1?];
+        for index in 0..2 {
+            saved[index].world_auth &= reloaded[index].world_auth;
+            saved[index].enum_characters &= reloaded[index].enum_characters;
+            saved[index].player_login_verified &= reloaded[index].player_login_verified;
+            saved[index].equipment_set_login_count = reloaded[index].equipment_set_login_count;
+            saved[index].equipment_set_load_seen = reloaded[index].equipment_set_load_seen;
+            saved[index].equipment_set_relogin_verified =
+                reloaded[index].equipment_set_relogin_verified;
+            saved[index].equipment_set_db_persisted &= reloaded[index].equipment_set_db_persisted;
+            saved[index]
+                .seen_opcodes
+                .extend(reloaded[index].seen_opcodes.clone());
+            saved[index].equipment_set_failure = reloaded[index].equipment_set_failure.clone();
+            saved[index].equipment_set_smoke_passed = Some(
+                saved[index].equipment_set_db_persisted
+                    && saved[index].equipment_set_relogin_verified
+                    && reloaded[index].equipment_set_smoke_passed.unwrap_or(false),
+            );
+        }
+        Ok::<_, anyhow::Error>(saved)
+    }
+    .await;
+
+    let bots_for_cleanup = bots.clone();
+    let cleanup =
+        tokio::task::spawn_blocking(move || cleanup_equipment_set_smoke_fixture(&bots_for_cleanup))
+            .await
+            .map_err(|error| anyhow!("Equipment-set cleanup worker failed: {error}"))?;
+    match (workflow, cleanup) {
+        (Ok(results), Ok(())) => Ok(results),
+        (Ok(_), Err(cleanup_error)) => Err(cleanup_error),
+        (Err(workflow_error), Ok(())) => Err(workflow_error),
+        (Err(workflow_error), Err(cleanup_error)) => Err(anyhow!(
+            "equipment-set workflow failed: {workflow_error}; cleanup failed: {cleanup_error}"
+        )),
+    }
+}
+
 async fn run_bank_smoke_workflow(
     bot: config::BotConfig,
     dungeon_id: u32,
@@ -5506,6 +6502,7 @@ async fn run_bank_smoke_workflow(
         false,
         None,
         Some(deposit_options),
+        None,
         None,
         None,
         None,
@@ -5540,6 +6537,7 @@ async fn run_bank_smoke_workflow(
             false,
             None,
             Some(withdraw_options),
+            None,
             None,
             None,
             None,
@@ -5618,6 +6616,7 @@ async fn run_homebind_smoke_workflow(
         None,
         None,
         None,
+        None,
     )
     .await;
 
@@ -5680,6 +6679,7 @@ async fn run_homebind_smoke_workflow(
                 None,
                 None,
                 Some(relog_options),
+                None,
                 None,
                 None,
                 None,
@@ -6876,6 +7876,7 @@ async fn run_inventory_swap_smoke_workflow(
         None,
         None,
         None,
+        None,
     )
     .await;
 
@@ -6905,6 +7906,7 @@ async fn run_inventory_swap_smoke_workflow(
             None,
             None,
             Some(reverse_options),
+            None,
             None,
             None,
             None,
@@ -7001,6 +8003,7 @@ async fn run_vendor_smoke_workflow(
         None,
         None,
         None,
+        None,
     )
     .await;
 
@@ -7041,6 +8044,7 @@ async fn run_vendor_smoke_workflow(
             None,
             None,
             Some(relog_options),
+            None,
             None,
             None,
             None,
@@ -12339,6 +13343,80 @@ mod tests {
         assert!(!result.success(false, false, false));
         result.vendor_relogin_verified = true;
         assert!(result.success(false, false, false));
+    }
+
+    fn equipment_set_test_options() -> EquipmentSetSmokeOptions {
+        EquipmentSetSmokeOptions {
+            phase: EquipmentSetSmokePhase::Save,
+            set_type: 0,
+            set_id: 7,
+            set_name: "QA Equipment".to_string(),
+            set_icon: "INV_Sword_01".to_string(),
+            expected_guid: None,
+            save_barrier: None,
+            timeout_secs: 10,
+        }
+    }
+
+    #[test]
+    fn equipment_set_result_requires_db_and_fresh_relog_proof() {
+        let mut result = BotRunResult {
+            world_auth: true,
+            enum_characters: true,
+            player_login_verified: true,
+            equipment_set_smoke: true,
+            equipment_set_smoke_passed: Some(true),
+            ..BotRunResult::default()
+        };
+
+        assert!(!result.success(false, false, false));
+        result.equipment_set_db_persisted = true;
+        assert!(!result.success(false, false, false));
+        result.equipment_set_relogin_verified = true;
+        assert!(result.success(false, false, false));
+    }
+
+    #[test]
+    fn equipment_set_smoke_indices_stay_within_cpp_client_limit() {
+        assert!(7 < MAX_EQUIPMENT_SET_INDEX_LIKE_CPP);
+        assert!(8 < MAX_EQUIPMENT_SET_INDEX_LIKE_CPP);
+    }
+
+    #[test]
+    fn equipment_set_save_builder_and_load_parser_share_cpp_shape() {
+        let options = equipment_set_test_options();
+        let save = build_save_equipment_set_payload(&options).unwrap();
+        let mut load = Vec::with_capacity(4 + save.len());
+        load.extend_from_slice(&1_u32.to_le_bytes());
+        load.extend_from_slice(&save);
+        let guid = 0x0102_0304_0506_0708_u64;
+        load[8..16].copy_from_slice(&guid.to_le_bytes());
+
+        assert_eq!(
+            parse_load_equipment_sets(&load).unwrap(),
+            vec![EquipmentSetWire {
+                set_type: 0,
+                guid,
+                set_id: 7,
+                ignore_mask: EQUIPMENT_SET_IGNORE_ALL_SLOTS_LIKE_CPP,
+                assigned_spec_index: -1,
+                set_name: "QA Equipment".to_string(),
+                set_icon: "INV_Sword_01".to_string(),
+            }]
+        );
+        load.push(0);
+        assert!(parse_load_equipment_sets(&load).is_err());
+    }
+
+    #[test]
+    fn equipment_set_id_parser_requires_exact_cpp_payload() {
+        let mut payload = Vec::new();
+        payload.extend_from_slice(&42_u64.to_le_bytes());
+        payload.extend_from_slice(&1_i32.to_le_bytes());
+        payload.extend_from_slice(&72_u32.to_le_bytes());
+        assert_eq!(parse_equipment_set_id(&payload).unwrap(), (42, 1, 72));
+        payload.push(0);
+        assert!(parse_equipment_set_id(&payload).is_err());
     }
 
     fn vendor_inventory_fixture(has_bonus: u8, modifier_count: u8) -> (Vec<u8>, Vec<u8>) {
