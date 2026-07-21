@@ -24,8 +24,10 @@
   claims only ACK parity; Rust persistence/relog is proven by the full runtime QA and contrasted
   against the audited C++ save/load source. Checks so far: formatting/diff checks; generator 2/0;
   max-SQL 1/0; equipment-set handler/session 19/0; signed transmog 1/0; bot 4/0; live two-client
-  QA; strict capture-diff. Boundary: represented-partial until full preflight, CI, current-HEAD
-  GitHub Codex verdict, and merge; void-storage persistence remains the open D-C3 child.
+  QA; strict capture-diff; complete local PR preflight (format, checks/builds, clippy, focused
+  suites and capture gate); local Codex review CLEAN. Boundary: represented-partial until CI,
+  current-HEAD GitHub Codex verdict, and merge; void-storage persistence remains the open D-C3
+  child.
 
 - `#NEXT.R8.ENTITIES.1203` — issue #110 makes the existing-group accept capacity decision
   indivisible. C++ `WorldSession::HandlePartyInviteResponseOpcode`

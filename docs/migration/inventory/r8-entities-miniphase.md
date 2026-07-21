@@ -22,7 +22,8 @@ captures import a one-packet, instance-routed `SMSG_EQUIPMENT_SET_ID` flow CLEAN
 divergence or normalization. The installed C++ reference emitted both expected ACKs but did not
 pass the bot's later database-row verifier, so that flow intentionally proves only the action ACK;
 Rust durability/relog is the separate live QA plus source contrast. Boundary: represented-partial
-until preflight/CI/current-HEAD review/merge, and D-C3 remains open for void storage only.
+after the complete local preflight and CLEAN local Codex review; CI/current-HEAD GitHub
+review/merge remain, and D-C3 stays open for void storage only.
 
 # `#NEXT.R8.ENTITIES.1203` — atomic existing-group capacity check and join (issue #110).
 
