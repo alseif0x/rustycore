@@ -119,6 +119,14 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
     open until final CI, current-HEAD reviewer verdict, and merge.
 - [ ] **D-C9 Group full-check race.** Size checked then join without re-check → 6+ member
   groups under concurrent accepts. `handlers/group.rs:928-1044`.
+  - 2026-07-21 issue #110 local slice: C++ checks `Group::IsFull` immediately before
+    `Group::AddMember` on its serialized execution path. Rust now performs that pair under one
+    mutable `GroupRegistry` guard and returns explicit Full versus AddFailed results to the live
+    handler; `ERR_GROUP_FULL` leaves the rejected session and group unchanged, while AddFailed
+    retains C++'s silent return. A barrier-synchronized
+    regression starts two simultaneous joins for the fifth party slot, proves exactly one Added
+    plus one Full result, and verifies the final member count remains five. Kept open until the
+    installed multi-client/bot runtime race, CI, current-HEAD reviewer verdict, and merge.
 
 ## HIGH — broken mechanics / silent failure / exploit
 

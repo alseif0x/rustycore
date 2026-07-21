@@ -17,10 +17,11 @@ use wow_network::group_registry::{
 };
 use wow_network::player_registry::{ApplyGroupJoinLikeCppCommand, ApplyGroupRemovalLikeCppCommand};
 use wow_network::{
-    GROUP_ASSIGN_MAINASSIST_LIKE_CPP, GROUP_ASSIGN_MAINTANK_LIKE_CPP, GroupInfo, GroupRegistry,
-    MEMBER_FLAG_ASSISTANT_LIKE_CPP, MEMBER_FLAG_MAINASSIST_LIKE_CPP, MEMBER_FLAG_MAINTANK_LIKE_CPP,
-    PendingInvites, PlayerRegistry, ReadyCheckEventLikeCpp, SendPartyUpdateLikeCppCommand,
-    SendRealmPacketLikeCppCommand, SessionCommand, free_group_db_store_id_like_cpp,
+    AddGroupMemberIfRoomResultLikeCpp, GROUP_ASSIGN_MAINASSIST_LIKE_CPP,
+    GROUP_ASSIGN_MAINTANK_LIKE_CPP, GroupInfo, GroupRegistry, MEMBER_FLAG_ASSISTANT_LIKE_CPP,
+    MEMBER_FLAG_MAINASSIST_LIKE_CPP, MEMBER_FLAG_MAINTANK_LIKE_CPP, PendingInvites, PlayerRegistry,
+    ReadyCheckEventLikeCpp, SendPartyUpdateLikeCppCommand, SendRealmPacketLikeCppCommand,
+    SessionCommand, add_group_member_if_room_like_cpp, free_group_db_store_id_like_cpp,
     register_group_db_store_id_like_cpp,
 };
 use wow_packet::packets::misc::{RandomRoll, RandomRollClient};
@@ -1489,8 +1490,17 @@ impl WorldSession {
         let mut existing_db_store_id: Option<u32> = None;
         let mut added_member_subgroup: u8 = 0;
         let group_guid = if let Some(gid) = invite.group_guid {
-            if let Some(mut g) = group_reg.get_mut(&gid) {
-                if g.is_full_like_cpp() {
+            match add_group_member_if_room_like_cpp(&group_reg, gid, my_guid) {
+                AddGroupMemberIfRoomResultLikeCpp::Added {
+                    db_store_id,
+                    subgroup,
+                    is_raid_group,
+                } => {
+                    added_member_subgroup = subgroup;
+                    existing_db_store_id = Some(db_store_id);
+                    refresh_visible_gameobjects_or_spellclicks = is_raid_group;
+                }
+                AddGroupMemberIfRoomResultLikeCpp::Full => {
                     self.send_packet_realm(&PartyCommandResult {
                         name: String::new(),
                         command: 0,
@@ -1500,15 +1510,9 @@ impl WorldSession {
                     });
                     return;
                 }
-                g.add_member(my_guid);
-                added_member_subgroup = g
-                    .member_slot_like_cpp(my_guid)
-                    .map(|slot| slot.subgroup)
-                    .unwrap_or_default();
-                existing_db_store_id = Some(g.db_store_id);
-                refresh_visible_gameobjects_or_spellclicks = g.is_raid_group();
-            } else {
-                return;
+                AddGroupMemberIfRoomResultLikeCpp::AddFailed
+                | AddGroupMemberIfRoomResultLikeCpp::AlreadyMember
+                | AddGroupMemberIfRoomResultLikeCpp::MissingGroup => return,
             }
             gid
         } else {
@@ -3617,6 +3621,7 @@ mod tests {
         if let Some(roles) = roles {
             pkt.write_uint8(roles);
         }
+        pkt.flush_bits();
         pkt.reset_read();
         pkt
     }
@@ -4842,6 +4847,100 @@ mod tests {
             "PartyIndex INSTANCE must not add the invitee to the HOME group"
         );
         assert!(send_rx.try_recv().is_err());
+        assert!(session.group_guid.is_none());
+    }
+
+    #[tokio::test]
+    async fn party_invite_response_reports_group_full_without_adding_member_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let target = ObjectGuid::create_player(1, 77);
+
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        for counter in 43..47 {
+            assert!(group.add_member(ObjectGuid::create_player(1, counter)));
+        }
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        let pending_invites = Arc::new(PendingInvites::default());
+        pending_invites.insert(
+            target,
+            PendingInviteLikeCpp::new_existing_group(
+                leader,
+                group_guid,
+                GROUP_CATEGORY_HOME_LIKE_CPP,
+            ),
+        );
+
+        session.set_player_guid(Some(target));
+        session.set_player_registry(Arc::new(PlayerRegistry::default()));
+        session.set_group_registry(Arc::clone(&group_registry), Arc::clone(&pending_invites));
+
+        session
+            .handle_party_invite_response(party_invite_response_packet(true, None, None))
+            .await;
+
+        assert!(
+            pending_invites.get(&target).is_none(),
+            "C++ removes the invite before its full-group check"
+        );
+        assert_eq!(
+            party_command_result_code(&send_rx.try_recv().expect("party command result")),
+            party_result::GROUP_FULL
+        );
+        let group = group_registry
+            .get(&group_guid)
+            .expect("group remains registered");
+        assert_eq!(group.members.len(), wow_network::MAX_GROUP_SIZE_LIKE_CPP);
+        assert!(!group.members.contains(&target));
+        assert!(session.group_guid.is_none());
+    }
+
+    #[tokio::test]
+    async fn party_invite_response_add_member_failure_returns_silently_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let target = ObjectGuid::create_player(1, 77);
+
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.convert_to_raid_like_cpp();
+        group.raid_subgroup_counts = Some(
+            [wow_network::MAX_GROUP_SIZE_LIKE_CPP as u8; wow_network::MAX_RAID_SUBGROUPS_LIKE_CPP],
+        );
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        let pending_invites = Arc::new(PendingInvites::default());
+        pending_invites.insert(
+            target,
+            PendingInviteLikeCpp::new_existing_group(
+                leader,
+                group_guid,
+                GROUP_CATEGORY_HOME_LIKE_CPP,
+            ),
+        );
+
+        session.set_player_guid(Some(target));
+        session.set_player_registry(Arc::new(PlayerRegistry::default()));
+        session.set_group_registry(Arc::clone(&group_registry), Arc::clone(&pending_invites));
+
+        session
+            .handle_party_invite_response(party_invite_response_packet(true, None, None))
+            .await;
+
+        assert!(pending_invites.get(&target).is_none());
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ sends no GROUP_FULL packet when AddMember itself returns false"
+        );
+        let group = group_registry
+            .get(&group_guid)
+            .expect("group remains registered");
+        assert_eq!(group.members, vec![leader]);
+        assert!(!group.members.contains(&target));
         assert!(session.group_guid.is_none());
     }
 
