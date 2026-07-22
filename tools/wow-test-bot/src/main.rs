@@ -4268,6 +4268,7 @@ async fn run_bot_with_void_storage(
             &mut stream,
             &mut crypt,
             &mut server_inflater,
+            &mut realm_connection,
             &void_storage_options,
             &mut result,
         )
@@ -8788,6 +8789,7 @@ async fn run_void_storage_smoke_phase(
     stream: &mut TcpStream,
     crypt: &mut WorldCrypt,
     server_inflater: &mut ServerPacketInflater,
+    realm_connection: &mut Option<EncryptedWorldConnection>,
     options: &VoidStorageSmokeOptions,
     result: &mut BotRunResult,
 ) -> Result<()> {
@@ -9049,7 +9051,16 @@ async fn run_void_storage_smoke_phase(
             result.void_storage_query_capture_passed = Some(true);
         }
     }
-    logout_and_wait(bot_index, stream, crypt, server_inflater, result).await?;
+    loot_race::logout_and_wait_routed_like_cpp(
+        bot_index,
+        stream,
+        crypt,
+        server_inflater,
+        realm_connection.as_mut(),
+        bot.character_guid,
+        result,
+    )
+    .await?;
     if options.phase != VoidStorageSmokePhase::QueryCapture {
         result.void_storage_smoke_passed = Some(true);
     }
