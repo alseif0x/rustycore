@@ -73,7 +73,8 @@ item: the 27-byte body is exact, 1/1 packets match, and the committed flow has n
 accepted divergence. Capture-only `RUST_CAPTURE_MIN_STACK_BYTES=16777216` avoids the known debug
 worker stack limit, and every wrapper restoration returned the original PM2 runtime online.
 Focused packet/allocator/handler/bot tests, the full Rust lifecycle QA, strict capture-diff, diff
-checks, complete local PR preflight and local Codex review are clean. Boundary:
+checks, and the repeated complete local PR preflight plus local Codex review are clean on the
+GitHub-review corrections (`83cee501`). Boundary:
 represented-partial until CI, current-HEAD GitHub Codex verdict and merge. Broader inventory
 validation remains in #52; #20 still owns aggregate D-C1-D-C9 reconciliation.
 

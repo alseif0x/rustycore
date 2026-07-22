@@ -41,9 +41,8 @@
   states and full character/item/vaultkeeper cleanup. The
   committed `void-storage-query` flow imports one real instance-routed C++/Rust
   `SMSG_VOID_STORAGE_CONTENTS`: 1/1 exact packets, no normalization or accepted divergence.
-  The earlier complete local PR preflight (format, checks/builds, clippy, focused suites and
-  capture gate) and local Codex review were CLEAN; the GitHub-review corrections have focused
-  packet/core/startup/world coverage clean and still require the repeated full preflight. Boundary:
+  The repeated complete local PR preflight (format, checks/builds, clippy, focused suites and
+  capture gate) and local Codex review are CLEAN on the GitHub-review corrections (`83cee501`). Boundary:
   represented-partial pending CI, current-HEAD GitHub review and merge; full inventory validation remains #52 and
   aggregate D-C1-D-C9 reconciliation remains #20.
 
