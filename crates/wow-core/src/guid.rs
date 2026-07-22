@@ -622,6 +622,51 @@ impl EquipmentSetGuidGeneratorLikeCpp {
     }
 }
 
+/// Process-wide C++ `ObjectMgr::_voidItemId` mirror, bounded by the packet GUID.
+///
+/// Void-storage rows use a raw `uint64` namespace independent from
+/// `item_instance.guid`. Allocations are intentionally not returned after a
+/// failed persistence attempt, matching `ObjectMgr::GenerateVoidStorageItemId`.
+/// The audited C++ generator accepts a wider raw range even though
+/// `ObjectGuid::GetCounter` exposes only 40 bits. Rust fails closed before an
+/// ID could be truncated into another vault row on the wire or during lookup.
+pub const VOID_STORAGE_ITEM_ID_LIMIT_LIKE_PACKET_GUID: u64 = 0x100_0000_0000;
+
+pub struct VoidStorageItemIdGeneratorLikeCpp {
+    next_id: AtomicU64,
+}
+
+impl VoidStorageItemIdGeneratorLikeCpp {
+    pub fn new(next_id: u64) -> Self {
+        assert!(
+            next_id < VOID_STORAGE_ITEM_ID_LIMIT_LIKE_PACKET_GUID,
+            "void-storage item ID allocator start is outside the packet GUID counter range"
+        );
+        Self {
+            next_id: AtomicU64::new(next_id),
+        }
+    }
+
+    pub fn generate(&self) -> u64 {
+        self.try_generate().unwrap_or_else(|| {
+            eprintln!("Void-storage item ID overflow! Cannot continue.");
+            std::process::abort();
+        })
+    }
+
+    fn try_generate(&self) -> Option<u64> {
+        self.next_id
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+                (current < VOID_STORAGE_ITEM_ID_LIMIT_LIKE_PACKET_GUID).then_some(current + 1)
+            })
+            .ok()
+    }
+
+    pub fn next_after_max_used(&self) -> u64 {
+        self.next_id.load(Ordering::Relaxed)
+    }
+}
+
 impl ObjectGuidGenerator {
     pub fn new(high_guid: HighGuid, start: i64) -> Self {
         Self {
@@ -990,6 +1035,42 @@ mod tests {
             generator.next_after_max_used(),
             EQUIPMENT_SET_GUID_LIMIT_LIKE_CPP
         );
+    }
+
+    #[test]
+    fn void_storage_item_id_generator_is_process_wide_and_concurrent() {
+        let generator = std::sync::Arc::new(VoidStorageItemIdGeneratorLikeCpp::new(700));
+        let handles: Vec<_> = (0..8)
+            .map(|_| {
+                let generator = std::sync::Arc::clone(&generator);
+                std::thread::spawn(move || {
+                    (0..64).map(|_| generator.generate()).collect::<Vec<_>>()
+                })
+            })
+            .collect();
+        let mut generated: Vec<_> = handles
+            .into_iter()
+            .flat_map(|handle| handle.join().expect("allocator worker"))
+            .collect();
+        generated.sort_unstable();
+
+        assert_eq!(generated, (700..700 + 8 * 64).collect::<Vec<_>>());
+        assert_eq!(generator.next_after_max_used(), 700 + 8 * 64);
+    }
+
+    #[test]
+    fn void_storage_item_id_generator_stops_at_packet_guid_limit() {
+        assert_eq!(
+            VOID_STORAGE_ITEM_ID_LIMIT_LIKE_PACKET_GUID,
+            ObjectGuid::max_counter(HighGuid::Item) as u64 + 1
+        );
+        let generator =
+            VoidStorageItemIdGeneratorLikeCpp::new(VOID_STORAGE_ITEM_ID_LIMIT_LIKE_PACKET_GUID - 1);
+        assert_eq!(
+            generator.try_generate(),
+            Some(VOID_STORAGE_ITEM_ID_LIMIT_LIKE_PACKET_GUID - 1)
+        );
+        assert_eq!(generator.try_generate(), None);
     }
 
     #[test]
