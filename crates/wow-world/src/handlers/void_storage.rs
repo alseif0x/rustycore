@@ -606,6 +606,11 @@ impl WorldSession {
         let mut used_withdrawal_ids = HashSet::new();
         let mut storage_overlays = Vec::new();
         let mut destination_states = HashMap::<(u8, u8), PlannedVoidDestinationStateLikeCpp>::new();
+        let vacated_inventory_positions = planned_deposits
+            .iter()
+            .flat_map(|deposit| deposit.destroyed_items.iter())
+            .map(|destroyed| (destroyed.bag, destroyed.slot))
+            .collect::<Vec<_>>();
         for withdrawal_guid in transfer.withdrawals {
             let void_item_id = withdrawal_guid.counter() as u64;
             if !used_withdrawal_ids.insert(void_item_id) {
@@ -621,6 +626,7 @@ impl WorldSession {
                     void_item.item_entry,
                     1,
                     &storage_overlays,
+                    &vacated_inventory_positions,
                 )
             else {
                 self.send_void_storage_transfer_result_like_cpp(
@@ -651,7 +657,9 @@ impl WorldSession {
                 void_item.random_properties_id,
                 void_item.random_properties_seed,
             );
-            let existing_inventory_item = self.get_inventory_item_by_pos(bag, slot);
+            let existing_inventory_item = (!vacated_inventory_positions.contains(&(bag, slot)))
+                .then(|| self.get_inventory_item_by_pos(bag, slot))
+                .flatten();
             let previous_state = destination_states.get(&(bag, slot)).cloned();
             let (target, mut item_object, base_enchantments) = if let Some(state) = previous_state {
                 (state.target, state.item_object, state.enchantments)

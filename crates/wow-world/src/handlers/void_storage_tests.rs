@@ -619,7 +619,7 @@ async fn withdrawal_store_plan_merges_before_empty_slots_with_atomic_overlays_li
     );
 
     let (result, destinations, _) = session
-        .plan_store_new_direct_inventory_item_with_overlays_like_cpp(19019, 1, &[])
+        .plan_store_new_direct_inventory_item_with_overlays_like_cpp(19019, 1, &[], &[])
         .expect("represented inventory planner");
     assert_eq!(result, wow_constants::InventoryResult::Ok);
     assert_eq!(
@@ -645,7 +645,7 @@ async fn withdrawal_store_plan_merges_before_empty_slots_with_atomic_overlays_li
         },
     ];
     let (result, destinations, _) = session
-        .plan_store_new_direct_inventory_item_with_overlays_like_cpp(19019, 1, &overlays)
+        .plan_store_new_direct_inventory_item_with_overlays_like_cpp(19019, 1, &overlays, &[])
         .expect("represented inventory planner with detached reservations");
     assert_eq!(result, wow_constants::InventoryResult::Ok);
     assert_eq!(
@@ -687,6 +687,28 @@ async fn withdrawal_store_plan_merges_before_empty_slots_with_atomic_overlays_li
         wow_database::SqlParam::String(enchantments)
     );
     assert_eq!(statement.params()[19], wow_database::SqlParam::U64(501));
+
+    session.update_inventory_item_object_like_cpp(existing_guid, |item| item.set_count(20));
+    let (_, destinations, _) = session
+        .plan_store_new_direct_inventory_item_with_overlays_like_cpp(19019, 1, &[], &[])
+        .expect("full stack must force the next empty slot");
+    assert_eq!(
+        destinations[0].pos,
+        (u16::from(INVENTORY_SLOT_BAG_0) << 8) | u16::from(INVENTORY_SLOT_ITEM_START + 1)
+    );
+    let (_, destinations, _) = session
+        .plan_store_new_direct_inventory_item_with_overlays_like_cpp(
+            19019,
+            1,
+            &[],
+            &[(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)],
+        )
+        .expect("a stack planned for deposit must be absent from withdrawal planning");
+    assert_eq!(
+        destinations[0].pos,
+        (u16::from(INVENTORY_SLOT_BAG_0) << 8) | u16::from(INVENTORY_SLOT_ITEM_START),
+        "C++ destroys deposits before CanStoreNewItem scans withdrawal destinations"
+    );
 }
 
 #[tokio::test]

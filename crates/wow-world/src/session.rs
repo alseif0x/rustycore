@@ -21811,7 +21811,7 @@ impl WorldSession {
         bag: u8,
         slot: u8,
     ) -> Option<(InventoryResult, Vec<ItemPosCount>, Option<u32>)> {
-        self.plan_store_direct_inventory_item_like_cpp(entry_id, count, bag, slot, None, &[])
+        self.plan_store_direct_inventory_item_like_cpp(entry_id, count, bag, slot, None, &[], &[])
     }
 
     pub(crate) fn plan_store_new_direct_inventory_item_with_overlays_like_cpp(
@@ -21819,9 +21819,16 @@ impl WorldSession {
         entry_id: u32,
         count: u32,
         overlays: &[DirectInventoryStorageOverlayLikeCpp],
+        vacated_positions: &[(u8, u8)],
     ) -> Option<(InventoryResult, Vec<ItemPosCount>, Option<u32>)> {
         self.plan_store_direct_inventory_item_like_cpp(
-            entry_id, count, NULL_BAG, NULL_SLOT, None, overlays,
+            entry_id,
+            count,
+            NULL_BAG,
+            NULL_SLOT,
+            None,
+            overlays,
+            vacated_positions,
         )
     }
 
@@ -21847,6 +21854,7 @@ impl WorldSession {
             NULL_BAG,
             NULL_SLOT,
             Some(source_item),
+            &[],
             &[],
         )
     }
@@ -21967,8 +21975,20 @@ impl WorldSession {
         slot: u8,
         source_item: Option<&Item>,
         overlays: &[DirectInventoryStorageOverlayLikeCpp],
+        vacated_positions: &[(u8, u8)],
     ) -> Option<(InventoryResult, Vec<ItemPosCount>, Option<u32>)> {
         let mut player = self.direct_inventory_player_snapshot()?;
+        // C++ processes every valid deposit (including recursive bag
+        // contents) before it calls CanStoreNewItem for withdrawals. Remove
+        // those detached positions from this planning snapshot in the same
+        // child-before-parent order.
+        for &(vacated_bag, vacated_slot) in vacated_positions {
+            if vacated_bag == INVENTORY_SLOT_BAG_0 {
+                let _ = player.remove_top_level_item(vacated_slot);
+            } else {
+                let _ = player.remove_bag_item(vacated_bag, vacated_slot);
+            }
+        }
         let proto = self.item_storage_template(entry_id);
         let inventory_items = self.inventory_items_like_cpp();
         let item_objects = self.inventory_item_objects_like_cpp();
@@ -21988,6 +22008,10 @@ impl WorldSession {
                     item.object_mut().set_entry(overlay.entry_id);
                     item
                 });
+            // An overlay can reuse a slot vacated by an earlier deposit, so
+            // its planned entry is authoritative over the stale runtime item
+            // that still occupies the slot until the transaction commits.
+            item.object_mut().set_entry(overlay.entry_id);
             item.set_count(overlay.count);
             item.set_slot(overlay.slot);
             overlay_items.push((overlay.bag, overlay.slot, item));
@@ -22017,6 +22041,9 @@ impl WorldSession {
             if Self::is_buyback_slot(slot) {
                 continue;
             }
+            if vacated_positions.contains(&(INVENTORY_SLOT_BAG_0, slot)) {
+                continue;
+            }
             if is_represented_bag_slot(slot) && item_objects.contains_key(&item.guid) {
                 represented_bag_slots_by_guid.insert(item.guid, slot);
                 if let Some(template) = template_cache.get(&item.entry_id)
@@ -22036,7 +22063,9 @@ impl WorldSession {
             if template.container_slots == 0 {
                 continue;
             }
-            if self.get_inventory_item_by_pos(*bag, *slot).is_none() {
+            if vacated_positions.contains(&(*bag, *slot))
+                || self.get_inventory_item_by_pos(*bag, *slot).is_none()
+            {
                 let placeholder_counter = i64::MAX.saturating_sub(index as i64);
                 let placeholder_guid =
                     ObjectGuid::create_item(self.realm_id(), placeholder_counter);
@@ -22058,6 +22087,7 @@ impl WorldSession {
             if overlays
                 .iter()
                 .any(|overlay| overlay.bag == INVENTORY_SLOT_BAG_0 && overlay.slot == slot)
+                || vacated_positions.contains(&(INVENTORY_SLOT_BAG_0, slot))
             {
                 continue;
             }
@@ -22083,6 +22113,7 @@ impl WorldSession {
             if overlays
                 .iter()
                 .any(|overlay| overlay.bag == bag_slot && overlay.slot == item.slot())
+                || vacated_positions.contains(&(bag_slot, item.slot()))
             {
                 continue;
             }

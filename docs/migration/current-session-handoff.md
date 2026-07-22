@@ -23,8 +23,11 @@
   the money/flag update, closing the pre-full-save restart window.
   Later review hardening restores full `CanStoreNewItem(NULL_BAG, NULL_SLOT)` withdrawal
   destinations, including existing-stack merges and detached overlays across multiple planned
-  withdrawals; merged item state is persisted atomically. Accepted login rows now also replay the
-  represented default-modifier collection appearance hook used by C++ `_LoadVoidStorage`. Swap
+  withdrawals; merged item state is persisted atomically. Mixed requests remove every planned
+  deposit/contained-child position from that detached snapshot before withdrawal placement, so a
+  withdrawal cannot merge into a stack the same transaction destroys. Accepted login rows now
+  also replay the represented default-modifier collection appearance hook used by C++
+  `_LoadVoidStorage`. Swap
   destinations preserve C++'s implicit packet-`uint32` to helper-`uint8` truncation before the
   160-slot range check.
   Installed QA completed unlock, deposit/relog, swap/relog and withdrawal/relog with exact durable

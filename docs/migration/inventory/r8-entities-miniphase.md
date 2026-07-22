@@ -44,7 +44,10 @@ the money and player flag, so a restart cannot resurrect them before the next fu
 Withdrawal planning now consumes the full C++ `CanStoreNewItem(NULL_BAG, NULL_SLOT)` destination:
 compatible partial stacks are merged before empty slots, detached overlays make multiple
 withdrawals see earlier planned counts/slots, and the transaction either updates the complete
-existing item instance or creates one combined destination. Login also runs the represented
+existing item instance or creates one combined destination. Positions destroyed by deposits in
+the same request, including contained bag items, are removed from the detached storage snapshot
+before withdrawal planning, matching C++'s deposit-before-withdrawal order and preventing a merge
+into a deleted row. Login also runs the represented
 `CollectionMgr::AddItemAppearance(itemEntry, 0)` side effect for every accepted void row. Swap
 destination values also truncate from packet `uint32` to helper `uint8` before range validation,
 matching the implicit C++ call conversion even for malformed values above 255.
