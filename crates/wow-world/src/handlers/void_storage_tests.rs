@@ -6,7 +6,10 @@ use std::time::Duration;
 use crate::session::{PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP, SessionPlayerController};
 use wow_constants::{InventoryType, ItemBondingType, ItemClass, ItemFieldFlags, ServerOpcodes};
 use wow_core::{ObjectGuid, Position, VoidStorageItemIdGeneratorLikeCpp, guid::HighGuid};
-use wow_data::{ItemRecord, ItemSparseTemplateEntry, ItemStatsStore, ItemStore};
+use wow_data::{
+    ItemRandomPropertiesEntry, ItemRandomPropertiesStore, ItemRandomSuffixEntry,
+    ItemRandomSuffixStore, ItemRecord, ItemSparseTemplateEntry, ItemStatsStore, ItemStore,
+};
 use wow_database::StatementDef;
 use wow_entities::{INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_ITEM_START};
 
@@ -264,10 +267,70 @@ fn full_save_rewrites_all_160_void_slots_like_cpp() {
 }
 
 #[test]
-fn withdrawal_insert_persists_required_enchantments_column() {
+fn withdrawal_restores_and_persists_effective_random_property_enchantments_like_cpp() {
+    let (mut session, _, _) = make_void_storage_session();
+    session.set_item_random_properties_store(Arc::new(ItemRandomPropertiesStore::from_entries([
+        ItemRandomPropertiesEntry {
+            id: 17,
+            enchantments: [101, 102, 103, 104, 105],
+        },
+    ])));
+    session.set_item_random_suffix_store(Arc::new(ItemRandomSuffixStore::from_entries([
+        ItemRandomSuffixEntry {
+            id: 13,
+            enchantments: [201, 202, 203, 204, 205],
+            allocation_pct: [0; 5],
+        },
+    ])));
+
+    let positive = session.effective_void_storage_random_properties_like_cpp(17, 29);
+    assert_eq!(positive.id, 17);
+    assert_eq!(positive.seed, 0);
+    assert_eq!(
+        positive.enchantment_ids[EnchantmentSlot::Property2 as usize],
+        101
+    );
+    assert_eq!(
+        positive.enchantment_ids[EnchantmentSlot::Property3 as usize],
+        102
+    );
+    assert_eq!(
+        positive.enchantment_ids[EnchantmentSlot::Property4 as usize],
+        103
+    );
+
+    let suffix = session.effective_void_storage_random_properties_like_cpp(-13, 29);
+    assert_eq!(suffix.id, -13);
+    assert_eq!(suffix.seed, 29);
+    assert_eq!(
+        suffix.enchantment_ids[EnchantmentSlot::Property0 as usize],
+        201
+    );
+    assert_eq!(
+        suffix.enchantment_ids[EnchantmentSlot::Property1 as usize],
+        202
+    );
+    assert_eq!(
+        suffix.enchantment_ids[EnchantmentSlot::Property2 as usize],
+        203
+    );
+    assert_eq!(
+        session.effective_void_storage_random_properties_like_cpp(-999, 29),
+        EffectiveVoidStorageRandomPropertiesLikeCpp::default()
+    );
+
+    let enchantments =
+        WorldSession::void_storage_enchantments_db_string_like_cpp(&suffix.enchantment_ids);
     let item = represented_void_item(77, 19019);
     let statement = WorldSession::build_void_storage_withdrawal_item_insert_statement_like_cpp(
-        501, 42, &item, 83, 900,
+        501,
+        42,
+        &item,
+        83,
+        900,
+        suffix.id,
+        suffix.seed,
+        &enchantments,
     );
     assert_eq!(
         statement.sql(),
@@ -285,7 +348,7 @@ fn withdrawal_insert_persists_required_enchantments_column() {
             wow_database::SqlParam::U32(1),
             wow_database::SqlParam::U32(0),
             wow_database::SqlParam::String(String::new()),
-            wow_database::SqlParam::String(String::new()),
+            wow_database::SqlParam::String(enchantments),
             wow_database::SqlParam::U32(ItemFieldFlags::SOULBOUND.bits()),
             wow_database::SqlParam::U32(83),
             wow_database::SqlParam::U32(900),
@@ -293,6 +356,26 @@ fn withdrawal_insert_persists_required_enchantments_column() {
             wow_database::SqlParam::I32(29),
             wow_database::SqlParam::U8(ItemContext::Timewalking as u8),
         ]
+    );
+
+    let mut runtime_item = wow_entities::Item::default();
+    WorldSession::apply_effective_void_storage_random_properties_like_cpp(
+        &mut runtime_item,
+        &suffix,
+    );
+    assert_eq!(runtime_item.data().random_properties_id, -13);
+    assert_eq!(runtime_item.data().property_seed, 29);
+    assert_eq!(
+        runtime_item.data().enchantments[EnchantmentSlot::Property0 as usize].id,
+        201
+    );
+    assert_eq!(
+        runtime_item.data().enchantments[EnchantmentSlot::Property1 as usize].id,
+        202
+    );
+    assert_eq!(
+        runtime_item.data().enchantments[EnchantmentSlot::Property2 as usize].id,
+        203
     );
 }
 

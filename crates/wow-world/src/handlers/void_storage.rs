@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 use num_traits::FromPrimitive;
 use wow_constants::unit::NPCFlags1;
-use wow_constants::{ClientOpcodes, ItemContext, ItemModifier};
+use wow_constants::{ClientOpcodes, EnchantmentSlot, ItemContext, ItemModifier};
 use wow_database::{CharStatements, SqlTransaction};
 use wow_entities::INVENTORY_SLOT_BAG_0;
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
@@ -84,13 +84,98 @@ struct PlannedVoidDestroyedInventoryItemLikeCpp {
 struct PlannedVoidWithdrawalLikeCpp {
     old_void_slot: u8,
     void_item: RepresentedVoidStorageItemLikeCpp,
+    random_properties: EffectiveVoidStorageRandomPropertiesLikeCpp,
     bag: u8,
     slot: u8,
     db_guid: u64,
     item_guid: wow_core::ObjectGuid,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct EffectiveVoidStorageRandomPropertiesLikeCpp {
+    id: i32,
+    seed: i32,
+    enchantment_ids: [i32; wow_entities::MAX_ENCHANTMENT_SLOT],
+}
+
+impl Default for EffectiveVoidStorageRandomPropertiesLikeCpp {
+    fn default() -> Self {
+        Self {
+            id: 0,
+            seed: 0,
+            enchantment_ids: [0; wow_entities::MAX_ENCHANTMENT_SLOT],
+        }
+    }
+}
+
 impl WorldSession {
+    /// Resolve the state installed by C++ `Item::SetItemRandomProperties`.
+    fn effective_void_storage_random_properties_like_cpp(
+        &self,
+        random_properties_id: i32,
+        random_properties_seed: i32,
+    ) -> EffectiveVoidStorageRandomPropertiesLikeCpp {
+        let mut result = EffectiveVoidStorageRandomPropertiesLikeCpp::default();
+        if random_properties_id > 0 {
+            let Some(entry) = self
+                .item_random_properties_store()
+                .and_then(|store| store.get(random_properties_id as u32))
+            else {
+                return result;
+            };
+            result.id = random_properties_id;
+            // C++ only installs PropertySeed for a suffix; positive random
+            // properties keep the newly created item's zero seed.
+            for (offset, enchantment_id) in entry.enchantments.iter().take(3).enumerate() {
+                result.enchantment_ids[EnchantmentSlot::Property2 as usize + offset] =
+                    i32::from(*enchantment_id);
+            }
+        } else if random_properties_id < 0 {
+            let Some(entry) = self
+                .item_random_suffix_store()
+                .and_then(|store| store.get(random_properties_id.unsigned_abs()))
+            else {
+                return result;
+            };
+            result.id = random_properties_id;
+            result.seed = random_properties_seed;
+            for (offset, enchantment_id) in entry.enchantments.iter().take(3).enumerate() {
+                result.enchantment_ids[EnchantmentSlot::Property0 as usize + offset] =
+                    i32::from(*enchantment_id);
+            }
+        }
+        result
+    }
+
+    fn void_storage_enchantments_db_string_like_cpp(
+        enchantment_ids: &[i32; wow_entities::MAX_ENCHANTMENT_SLOT],
+    ) -> String {
+        enchantment_ids
+            .iter()
+            .flat_map(|id| [id.to_string(), "0".to_string(), "0".to_string()])
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    fn apply_effective_void_storage_random_properties_like_cpp(
+        item: &mut wow_entities::Item,
+        random_properties: &EffectiveVoidStorageRandomPropertiesLikeCpp,
+    ) {
+        item.set_random_properties_id(random_properties.id);
+        item.set_property_seed(random_properties.seed);
+        for (slot_index, enchantment_id) in random_properties
+            .enchantment_ids
+            .iter()
+            .copied()
+            .enumerate()
+        {
+            let Some(slot) = EnchantmentSlot::from_usize(slot_index) else {
+                continue;
+            };
+            item.set_enchantment(slot, enchantment_id, 0, 0);
+        }
+    }
+
     fn plan_void_storage_destroyed_items_like_cpp(
         &self,
         bag: u8,
@@ -442,9 +527,14 @@ impl WorldSession {
                 );
                 return;
             };
+            let random_properties = self.effective_void_storage_random_properties_like_cpp(
+                void_item.random_properties_id,
+                void_item.random_properties_seed,
+            );
             planned_withdrawals.push(PlannedVoidWithdrawalLikeCpp {
                 old_void_slot,
                 void_item,
+                random_properties,
                 bag,
                 slot,
                 db_guid,
@@ -496,6 +586,11 @@ impl WorldSession {
                     item,
                     max_durability,
                     total_played_time,
+                    withdrawal.random_properties.id,
+                    withdrawal.random_properties.seed,
+                    &Self::void_storage_enchantments_db_string_like_cpp(
+                        &withdrawal.random_properties.enchantment_ids,
+                    ),
                 ),
             );
 
@@ -575,8 +670,10 @@ impl WorldSession {
                 withdrawal.slot,
             );
             item_object.set_creator(withdrawal.void_item.creator_guid);
-            item_object.set_random_properties_id(withdrawal.void_item.random_properties_id);
-            item_object.set_property_seed(withdrawal.void_item.random_properties_seed);
+            Self::apply_effective_void_storage_random_properties_like_cpp(
+                &mut item_object,
+                &withdrawal.random_properties,
+            );
             item_object.set_context_value(i32::from(withdrawal.void_item.context));
             item_object.set_binding(true);
             let collection_item = item_object.clone();

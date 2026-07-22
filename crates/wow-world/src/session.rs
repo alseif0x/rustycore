@@ -28808,6 +28808,9 @@ impl WorldSession {
         item: &RepresentedVoidStorageItemLikeCpp,
         max_durability: u32,
         total_played_time: u32,
+        random_properties_id: i32,
+        random_properties_seed: i32,
+        enchantments: &str,
     ) -> PreparedStatement {
         let mut stmt = PreparedStatement::new(CharStatements::INS_ITEM_INSTANCE_CLONE.sql());
         stmt.set_u64(0, db_guid);
@@ -28818,15 +28821,12 @@ impl WorldSession {
         stmt.set_u32(5, 1);
         stmt.set_u32(6, 0);
         stmt.set_string(7, "");
-        // Void storage deliberately does not preserve item enchantments. An
-        // empty persisted value lets the login loader synthesize any random-
-        // property enchantments from the preserved random property id.
-        stmt.set_string(8, "");
+        stmt.set_string(8, enchantments);
         stmt.set_u32(9, ItemFieldFlags::SOULBOUND.bits());
         stmt.set_u32(10, max_durability);
         stmt.set_u32(11, total_played_time);
-        stmt.set_i32(12, item.random_properties_id);
-        stmt.set_i32(13, item.random_properties_seed);
+        stmt.set_i32(12, random_properties_id);
+        stmt.set_i32(13, random_properties_seed);
         stmt.set_u8(14, item.context);
         stmt
     }

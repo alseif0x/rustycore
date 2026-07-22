@@ -13,6 +13,10 @@
   A second review fix recursively plans non-empty bag contents deepest-first and deletes every
   child/parent inventory, item and auxiliary row in the same transaction before removing the same
   runtime objects; request-order reservation prevents bag/child double deposits.
+  A third review fix mirrors C++ `Item::SetItemRandomProperties` during withdrawal: positive
+  properties restore `Property2..4` with seed zero, suffixes restore `Property0..2` with the
+  preserved seed, and the same effective enchantments are installed in runtime and persisted in
+  `item_instance.enchantments`, preventing an affix loss on save/relog.
   Installed QA completed unlock, deposit/relog, swap/relog and withdrawal/relog with exact durable
   states and full character/item/vaultkeeper cleanup. The
   committed `void-storage-query` flow imports one real instance-routed C++/Rust

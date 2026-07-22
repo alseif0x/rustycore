@@ -3,7 +3,7 @@
 Source-of-truth C++ was checked before implementation:
 `VoidStorageHandler.cpp:28-249`, `Player.cpp:18358-18403,20026-20055,28066-28140`,
 `ObjectMgr.cpp:7369-7371,7431-7440`, `VoidStoragePackets.cpp:20-106`,
-`ItemPacketsCommon.cpp:78-94`, and `ObjectGuid.cpp:758-785`. Rust now loads a validated fixed
+`ItemPacketsCommon.cpp:78-94`, `Item.cpp:806-843`, and `ObjectGuid.cpp:758-785`. Rust now loads a validated fixed
 160-slot authority, rejecting invalid IDs, entries, slots and collisions; initializes one
 process-wide void-item ID allocator fail-closed from `MAX(itemId)`; and registers the unlock,
 query, transfer and swap handlers with the C++ interaction, unlock, capacity, money and inventory
@@ -32,6 +32,11 @@ Depositing a non-empty bag now also mirrors C++ `Player::DestroyItem`: contained
 deepest-first, each inventory/item/auxiliary row is deleted in the same transaction, and every
 child plus the parent is removed from runtime only after commit. Request-order reservation keeps
 an explicitly listed child from being destroyed or deposited twice when its bag is listed too.
+Withdrawal now also mirrors `Item::SetItemRandomProperties`: positive properties install their
+three enchantments in `Property2..4` with a zero seed, suffixes install `Property0..2` with the
+preserved seed, and the exact effective enchantment array is applied to the live item and written
+to `item_instance.enchantments` in the atomic transaction. Missing DB2 entries leave the new item
+unmodified like C++; focused coverage prevents affixes from disappearing on the next save/relog.
 The accredited server binary SHA-256 was
 `fe8058f7986d84e1cd444709d24e19af9c711c917ee9b00183acfc4cef63e8ec`; the QA bot SHA-256 was
 `95f4b45c75a8fdd687f2ba6fa97303e0a240fd80e33d597bc4093548d9981d85`.
