@@ -15446,6 +15446,7 @@ mod tests {
         let corpse_before = first
             .mutate_world_creature(owner, |creature| {
                 creature.creature.set_corpse_delay(120, false);
+                creature.set_corpse_despawn_at(Some(Instant::now() + Duration::from_secs(120)));
                 creature.apply_corpse_loot_flags_after_death_state_like_cpp(true, false);
                 creature.corpse_despawn_at()
             })
