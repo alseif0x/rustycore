@@ -31,6 +31,21 @@ test item for the local bot character, opens a neutral banker, deposits the
 item, logs out and authenticates again, withdraws it, logs out again, verifies
 both DB transitions, then deletes the item and restores the original position.
 
+For the void-storage atomic persistence round-trip, set
+`WOW_BOT_VOID_STORAGE_SMOKE=1` for one disposable local bot. The harness
+requires an empty pre-existing void store and an isolated item
+entry. Across four fresh World authentications it unlocks storage, deposits the
+item, verifies the generated void-item ID after relog, swaps slot `0` to `5`,
+verifies the swap after another relog, withdraws the item, and finally verifies
+an empty void store plus the bound inventory item after a fourth login. Every
+phase checks both the exact response packets and committed CharacterDB state;
+cleanup removes only the isolated item/void rows and restores money, player
+flags, and position. Optional overrides are
+`WOW_BOT_VOID_STORAGE_ITEM_ENTRY` (default `2589`) and
+`WOW_BOT_VOID_STORAGE_TIMEOUT_SECS` (default `8`). It normally discovers the
+vault keeper's map-owned ObjectGuid from the login update stream;
+`WOW_BOT_VOID_STORAGE_RUNTIME_COUNTER` is an optional checked override.
+
 For an innkeeper bind round-trip, set `WOW_BOT_HOMEBIND_SMOKE=1`. The bot relocates one local
 test character beside a faction-friendly continent innkeeper, sends
 `CMSG_BINDER_ACTIVATE`, requires `SMSG_SPELL_GO`, `SMSG_BIND_POINT_UPDATE`,

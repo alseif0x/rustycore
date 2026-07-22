@@ -1,3 +1,63 @@
+- `#NEXT.R8.ENTITIES.1205` — issue #114 implements the remaining D-C3 void-storage slice.
+  C++ `VoidStorageHandler.cpp:28-249`, `Player.cpp:18358-18403,20026-20055,28066-28140`,
+  `ObjectMgr.cpp:7369-7371,7431-7440`, the packet writers and `ObjectGuid.cpp:758-785` anchor the
+  implementation. Rust now owns a validated fixed 160-slot player authority and one shared,
+  startup-initialized, fail-closed void-item allocator; unlock/query/transfer/swap are live, and
+  deposit, withdrawal and swaps atomically persist flags/money, inventory/item rows and every
+  affected void row before publishing runtime or packets. Definite rollback stays invisible and
+  indeterminate COMMIT is fenced from stale saves. Issue #114 explicitly accepts the failure-only
+  divergence from C++ intermediate deposit publication: a later withdrawal validation failure
+  rolls back the whole request by its one-transaction/no-runtime-change Done contract. Successful
+  ordering remains C++-anchored. C++ comparison corrected every void-storage
+  GUID from the old fixed 16-byte Rust/bot representation to the real two-mask `PackedGuid` wire
+  format. Post-review fixes load and propagate `characters.inventorySlots`, prove both default
+  16-slot and expanded 24-slot withdrawal placement, and pin the issue's atomic contract with a
+  mixed-request validation regression that publishes no partial deposit. Focused tests are clean.
+  A second review fix recursively plans non-empty bag contents deepest-first and deletes every
+  child/parent inventory, item and auxiliary row in the same transaction before removing the same
+  runtime objects; request-order reservation prevents bag/child double deposits.
+  A third review fix mirrors C++ `Item::SetItemRandomProperties` during withdrawal: positive
+  properties restore `Property2..4` with seed zero, suffixes restore `Property0..2` with the
+  preserved seed, and the same effective enchantments are installed in runtime and persisted in
+  `item_instance.enchantments`, preventing an affix loss on save/relog.
+  A fourth review fix gates login row consumption on the already-loaded unlock flag like C++:
+  locked characters initialize coherent empty storage and cannot expose residual rows by
+  unlocking later in the same session. The unlock transaction deletes those skipped rows with
+  the money/flag update, closing the pre-full-save restart window.
+  Later review hardening restores full `CanStoreNewItem(NULL_BAG, NULL_SLOT)` withdrawal
+  destinations, including existing-stack merges and detached overlays across multiple planned
+  withdrawals; merged item state is persisted atomically. Mixed requests remove every planned
+  deposit/contained-child position from that detached snapshot before withdrawal placement, so a
+  withdrawal cannot merge into a stack the same transaction destroys. Accepted login rows now
+  also replay the represented default-modifier collection appearance hook used by C++
+  `_LoadVoidStorage`. Swap
+  destinations preserve C++'s implicit packet-`uint32` to helper-`uint8` truncation before the
+  160-slot range check.
+  Current-HEAD GitHub review additionally corrected two concrete seams: a new withdrawal publishes
+  the pre-random/pre-handler item `CREATE_OBJECT` plus the subsequent post-store random-property,
+  creator and binding VALUES update before the inventory slot update, and allocation stops at the 40-bit
+  packet-GUID counter limit so no raw ID can truncate into another vault identity. Three review
+  suggestions remain intentionally absent after exact C++ re-contrast: void item packets leave
+  random-property ID/seed zero, login context comes from fields[5], and withdrawal does not pass
+  stored fixed scaling to `StoreNewItem`; those are the observable audited C++ behaviors.
+  The next current-HEAD review also adds an explicit older-Rust compatibility repair that
+  normalizes legacy `inventorySlots = 0` rows to the C++ schema's 16-slot default (C++ itself loads
+  the saved field directly), plans and persists represented `ItemRemovedQuestCheck` results for
+  every deposited item including bag children in the same destruction transaction, publishes
+  each recursive removal/check in C++ order, applies later withdrawal quest credit to the same
+  durable plan, and preserves `StoreNewItem`'s quest-bound no-physical-item branch. New and merged
+  physical withdrawals also send their live collection player-values updates.
+  Installed QA completed unlock, deposit/relog, swap/relog and withdrawal/relog with exact durable
+  states and full character/item/vaultkeeper cleanup. The
+  committed `void-storage-query` flow imports one real instance-routed C++/Rust
+  `SMSG_VOID_STORAGE_CONTENTS`: 1/1 exact packets, no normalization or accepted divergence.
+  The latest review corrections pass the 13 void-storage tests plus focused legacy-capacity,
+  recursive quest-removal, mixed-transfer, quest-bound-withdrawal and live-collection tests. The
+  complete local PR preflight (whitespace, self-test, formats, locked checks/builds, clippy,
+  focused suites, bot/capture gate and local Codex review) completed CLEAN on `2143334b` in 471.8
+  seconds. Boundary: represented-partial pending CI, current-HEAD GitHub review and merge; full
+  inventory validation remains #52 and aggregate D-C1-D-C9 reconciliation remains #20.
+
 - `#NEXT.R8.ENTITIES.1204` — issue #112 makes equipment-set and transmog-outfit
   GUID allocation process-wide and relog-clean. C++ `ObjectMgr::SetHighestGuids`
   (`ObjectMgr.cpp:7357-7360,7401-7410`) initializes one raw `uint64` generator from the
@@ -25,9 +85,8 @@
   against the audited C++ save/load source. Checks so far: formatting/diff checks; generator 2/0;
   max-SQL 1/0; equipment-set handler/session 19/0; signed transmog 1/0; bot 4/0; live two-client
   QA; strict capture-diff; complete local PR preflight (format, checks/builds, clippy, focused
-  suites and capture gate); local Codex review CLEAN. Boundary: represented-partial until CI,
-  current-HEAD GitHub Codex verdict, and merge; void-storage persistence remains the open D-C3
-  child.
+  suites and capture gate); local/current-HEAD GitHub Codex reviews CLEAN; PR #113 merged.
+  Boundary: represented-partial; issue #114 owns the final D-C3 void-storage child.
 
 - `#NEXT.R8.ENTITIES.1203` — issue #110 makes the existing-group accept capacity decision
   indivisible. C++ `WorldSession::HandlePartyInviteResponseOpcode`

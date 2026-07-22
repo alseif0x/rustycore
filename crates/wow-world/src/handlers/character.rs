@@ -73,7 +73,8 @@ use crate::session::{
     REST_STATE_RAF_LINKED_LIKE_CPP, RepresentedAlterAppearanceLikeCpp,
     RepresentedBankItemMoveLikeCpp, RepresentedConfirmBarbersChoiceLikeCpp,
     RepresentedGameObjectUseState, RepresentedHomebindLikeCpp,
-    RepresentedQuestObjectiveProgressEventLikeCpp, SpellCastMetadata,
+    RepresentedQuestObjectiveProgressEventLikeCpp, RepresentedVoidStorageItemLikeCpp,
+    SpellCastMetadata,
 };
 
 // ── Handler registration ────────────────────────────────────────────
@@ -113,6 +114,17 @@ const GOSSIP_OPTION_ID_AUTO_TRAINER_LIKE_CPP: i32 = -1;
 const GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP: u8 = 3;
 const GOSSIP_OPTION_TRAINER_TEXT_LIKE_CPP: &str = "I would like to train.";
 const ITEM_ENCHANTMENT_DB_FIELDS: usize = 3;
+
+fn void_storage_login_context_like_cpp(
+    random_properties_id: i32,
+    _selected_context_column: u8,
+) -> u8 {
+    // Audited 3.4.3 `Player::_LoadVoidStorage` constructs ItemContext from
+    // fields[5] even though CHAR_SEL_CHAR_VOID_STORAGE selects `context` as
+    // fields[7]. Keep that executable C++ behavior; the unused argument makes
+    // the query/implementation mismatch explicit instead of hiding column 7.
+    random_properties_id as u8
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct DirectInventoryPositionUpdateLikeCpp {
@@ -207,6 +219,18 @@ fn primary_max_power_for_class_like_cpp(class_id: u8, max_mana: i64) -> i32 {
         1 | 6 => 1_000,
         4 => 100,
         _ => max_mana.max(0).min(i64::from(i32::MAX)) as i32,
+    }
+}
+
+fn loaded_inventory_slot_count_with_legacy_rust_compat(saved_slots: u8) -> u8 {
+    // C++ loads the saved value directly, but TrinityCore's schema defaults
+    // inventorySlots to the base backpack size. Older RustyCore builds
+    // explicitly inserted zero before this field was wired; keep those
+    // already-created characters playable without an out-of-band migration.
+    if saved_slots == 0 {
+        INVENTORY_DEFAULT_SIZE
+    } else {
+        saved_slots
     }
 }
 
@@ -3521,7 +3545,7 @@ impl WorldSession {
         ins_stmt.set_u8(6, 1); // level
         ins_stmt.set_u64(7, 0); // xp
         ins_stmt.set_u64(8, 0); // money
-        ins_stmt.set_u32(9, 0); // inventorySlots
+        ins_stmt.set_u32(9, u32::from(INVENTORY_DEFAULT_SIZE)); // inventorySlots
         ins_stmt.set_u32(10, 0); // bankSlots
         ins_stmt.set_u8(
             11,
@@ -5002,6 +5026,11 @@ impl WorldSession {
         self.total_played_time = result.try_read::<u32>(23).unwrap_or(0);
         self.level_played_time = result.try_read::<u32>(24).unwrap_or(0);
         self.set_player_gold_like_cpp(result.try_read::<u64>(8).unwrap_or(0));
+        self.set_player_inventory_slot_count_like_cpp(
+            loaded_inventory_slot_count_with_legacy_rust_compat(
+                result.try_read::<u8>(9).unwrap_or(INVENTORY_DEFAULT_SIZE),
+            ),
+        );
         self.set_player_bank_bag_slot_count_like_cpp(result.try_read::<u8>(10).unwrap_or(0));
         self.set_player_xp_like_cpp(result.try_read::<u32>(7).unwrap_or(0));
         self.set_represented_talent_reset_state_like_cpp(
@@ -5916,6 +5945,69 @@ impl WorldSession {
                 &loaded_inventory_item_guids,
                 &loaded_equipped_item_guids,
             );
+
+        // ── Load void storage ──
+        // C++ `Player::LoadFromDB` calls `_LoadVoidStorage` only when the
+        // already-loaded player flags say the vault is unlocked. A locked
+        // character starts with coherent empty storage even if stale rows
+        // exist in CharacterDB.
+        if self.prepare_represented_void_storage_login_load_like_cpp() {
+            let mut void_stmt = char_db.prepare(CharStatements::SEL_CHAR_VOID_STORAGE);
+            void_stmt.set_u64(0, guid.counter() as u64);
+            match char_db.query(&void_stmt).await {
+                Ok(mut void_result) => {
+                    if !void_result.is_empty() {
+                        loop {
+                            let item_id: u64 = void_result.try_read(0).unwrap_or(0);
+                            let item_entry: u32 = void_result.try_read(1).unwrap_or(0);
+                            let slot: u8 = void_result.try_read(2).unwrap_or(u8::MAX);
+                            let creator_counter: u64 = void_result.try_read(3).unwrap_or(0);
+                            let fixed_scaling_level: u32 = void_result.try_read(4).unwrap_or(0);
+                            let random_properties_id: i32 = void_result.try_read(5).unwrap_or(0);
+                            let random_properties_seed: i32 = void_result.try_read(6).unwrap_or(0);
+                            let selected_context_column: u8 = void_result.try_read(7).unwrap_or(0);
+                            let context = void_storage_login_context_like_cpp(
+                                random_properties_id,
+                                selected_context_column,
+                            );
+                            let creator_guid = if creator_counter == 0 {
+                                ObjectGuid::EMPTY
+                            } else {
+                                ObjectGuid::create_player(realm_id, creator_counter as i64)
+                            };
+                            let loaded = self.load_represented_void_storage_row_like_cpp(
+                                slot,
+                                RepresentedVoidStorageItemLikeCpp {
+                                    item_id,
+                                    item_entry,
+                                    creator_guid,
+                                    fixed_scaling_level,
+                                    random_properties_id,
+                                    random_properties_seed,
+                                    context,
+                                },
+                            );
+                            if !loaded {
+                                warn!(
+                                    player_guid = guid.counter(),
+                                    item_id,
+                                    item_entry,
+                                    slot,
+                                    "Player::_LoadVoidStorage skipped an invalid row like C++"
+                                );
+                            }
+                            if !void_result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    self.mark_represented_void_storage_loaded_like_cpp();
+                }
+                Err(e) => {
+                    warn!("Failed to load void storage for {:?}: {}", guid, e);
+                }
+            }
+        }
 
         // ── Load equipment sets / transmog outfits ──
         // C++ `Player::_LoadEquipmentSets` and `_LoadTransmogOutfits` rebuild
@@ -10248,7 +10340,7 @@ impl WorldSession {
         }))
     }
 
-    fn inventory_container_db_guid_like_cpp(&self, bag: u8) -> Option<u64> {
+    pub(crate) fn inventory_container_db_guid_like_cpp(&self, bag: u8) -> Option<u64> {
         if bag == INVENTORY_SLOT_BAG_0 {
             Some(0)
         } else {
@@ -13145,6 +13237,16 @@ impl WorldSession {
                     &cloned_data.spell_charges,
                     self.item_effect_count_like_cpp(item.entry_id),
                 );
+                let Some((enchantments, _)) =
+                    self.inventory_remove_enchantment_persistence_like_cpp(item.guid, false)
+                else {
+                    self.send_sell_error(
+                        SellResult::CantSellItem,
+                        Some(sell.vendor_guid),
+                        sell.item_guid,
+                    );
+                    return;
+                };
 
                 let mut ins_item = char_db.prepare(CharStatements::INS_ITEM_INSTANCE_CLONE);
                 ins_item.set_u64(0, new_db_guid);
@@ -13155,12 +13257,13 @@ impl WorldSession {
                 ins_item.set_u32(5, cloned_item.count());
                 ins_item.set_u32(6, cloned_data.expiration);
                 ins_item.set_string(7, charges);
-                ins_item.set_u32(8, cloned_data.dynamic_flags);
-                ins_item.set_u32(9, cloned_data.durability);
-                ins_item.set_u32(10, cloned_data.create_played_time);
-                ins_item.set_i32(11, cloned_data.random_properties_id);
-                ins_item.set_i32(12, cloned_data.property_seed);
-                ins_item.set_u8(13, u8::try_from(cloned_data.context).unwrap_or(0));
+                ins_item.set_string(8, enchantments);
+                ins_item.set_u32(9, cloned_data.dynamic_flags);
+                ins_item.set_u32(10, cloned_data.durability);
+                ins_item.set_u32(11, cloned_data.create_played_time);
+                ins_item.set_i32(12, cloned_data.random_properties_id);
+                ins_item.set_i32(13, cloned_data.property_seed);
+                ins_item.set_u8(14, u8::try_from(cloned_data.context).unwrap_or(0));
                 tx.append(ins_item);
 
                 let mut ins_inv = char_db.prepare(CharStatements::INS_CHAR_INVENTORY);
@@ -16789,6 +16892,17 @@ mod tests {
             fields[base + 2] = charges.to_string();
         }
         fields.join(" ")
+    }
+
+    #[test]
+    fn void_storage_login_context_preserves_cpp_field_five_bug() {
+        let selected_context_column = ItemContext::Timewalking as u8;
+
+        assert_eq!(
+            void_storage_login_context_like_cpp(29, selected_context_column),
+            29
+        );
+        assert_ne!(29, selected_context_column);
     }
 
     #[test]
@@ -21078,6 +21192,15 @@ mod tests {
             !bank_move_runs_item_removed_quest_check_like_cpp(false),
             "C++ AutoStore inventory-to-bank does not call ItemRemovedQuestCheck"
         );
+    }
+
+    #[test]
+    fn legacy_zero_inventory_slots_loads_base_backpack_capacity() {
+        assert_eq!(
+            loaded_inventory_slot_count_with_legacy_rust_compat(0),
+            INVENTORY_DEFAULT_SIZE
+        );
+        assert_eq!(loaded_inventory_slot_count_with_legacy_rust_compat(24), 24);
     }
 
     #[test]

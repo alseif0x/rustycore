@@ -1,0 +1,6 @@
+{
+  "description": "One instance-routed SMSG_VOID_STORAGE_CONTENTS for a seeded, unlocked one-item void store. The paired live C++ and Rust packets are byte-identical and prove the C++ PackedGuid layout used by the issue-#114 codecs.",
+  "directions": [
+    "s2c"
+  ]
+}

@@ -23,6 +23,9 @@ the corresponding Rust server port is ready.
 - `--bank-smoke`: runs a real `CMSG_BANKER_ACTIVATE` → `CMSG_AUTOBANK_ITEM` →
   logout/relogin → `CMSG_AUTOSTORE_BANK_ITEM` → logout persistence round-trip
   using an isolated local fixture item.
+- `--void-storage-smoke`: runs unlock/deposit, fresh-login slot swap,
+  fresh-login withdrawal, and a final empty-store relog proof against both the
+  response packets and CharacterDB.
 - `--inventory-swap-smoke`: creates two distinct occupied backpack slots, sends
   `CMSG_SWAP_INV_ITEM`, logs out/re-authenticates, swaps them back, and verifies
   both atomic DB transitions before cleaning the isolated local fixture.
@@ -87,6 +90,28 @@ backpack, and the second logout completed. Setup is restricted to `@bot.local`
 accounts; cleanup removes only the generated item and restores the original
 character position. `WOW_BOT_BANK_ITEM_ENTRY` (default `2589`) and
 `WOW_BOT_BANK_TIMEOUT_SECS` are optional overrides.
+
+## Void-storage atomic persistence smoke
+
+The harness normally discovers the selected neutral vault keeper's live low
+counter from the login object stream:
+
+```bash
+WOW_BOT_VOID_STORAGE_SMOKE=1 \
+./run_rustycore_login_smoke.sh
+```
+
+The pass uses four complete authentications to prove unlock plus money/flag
+persistence, deposit plus its new void-item identity, slot `0→5` persistence,
+withdrawal into a bound inventory item, and a final empty void-store query.
+Setup is restricted to an offline `@bot.local` character with empty void
+storage and no matching fixture item. Cleanup removes the isolated item and
+restores the original money, player flags, and position.
+`WOW_BOT_VOID_STORAGE_ITEM_ENTRY` (default `2589`) and
+`WOW_BOT_VOID_STORAGE_TIMEOUT_SECS` are optional overrides.
+`WOW_BOT_VOID_STORAGE_RUNTIME_COUNTER` can pin the live counter for capture
+work, but it is verified against the discovered ObjectGuid and cannot bypass
+the SQL-position match.
 
 ## Innkeeper homebind persistence smoke
 

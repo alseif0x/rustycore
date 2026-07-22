@@ -1,0 +1,116 @@
+{
+  "version": 3,
+  "flow": "void-storage-query",
+  "completed": true,
+  "sources": {
+    "cpp": {
+      "manifest_path": "capture-provenance/cpp.capture-manifest.json",
+      "manifest_sha256": "21362785197e06de5fda589190dc52a20c9f7f44a9ca3a70f95cfcc8a942bded",
+      "raw_artifact_sha256": "d20c744caea0ec9c423a6362a59010b510adce5614d6842270b0051295f05c17",
+      "raw_artifact_size": 37018,
+      "raw_packet_count": null,
+      "harness_repo_head": "fc4c5b9b72a9ed020a97eb821bba6e1f5c40a2a8",
+      "source_repo_head": "5100ce3d8fc6150feedf902e62512760ec03ea92",
+      "harness_worktree_clean": true,
+      "harness_worktree_state_sha256": "e2f5a15b9ab3c5c0c6ac8be6087c5761d7c07d5408a9d583c8966a1969bcc5b1",
+      "source_worktree_dirty": true,
+      "source_worktree_state_sha256": "3eeb18895c18215d381c7dc13cab516bb06e0441be2901e92c05d1845107afb1",
+      "worktree_state_algorithm": "git-head-path-mode-content-sha256-v1",
+      "expected_exec_path": "/home/server/trinity-legacy-install/bin/worldserver",
+      "expected_exec_sha256": "189ac0ef6a5fef0fe3033a9844e2251523a442b746734cbcfd667277bdf99603",
+      "source_exec_path": "/home/server/trinity-legacy-install/bin/worldserver",
+      "source_exec_sha256": "189ac0ef6a5fef0fe3033a9844e2251523a442b746734cbcfd667277bdf99603",
+      "live_exec_path": "/home/server/trinity-legacy-install/bin/worldserver",
+      "live_exec_sha256": "189ac0ef6a5fef0fe3033a9844e2251523a442b746734cbcfd667277bdf99603",
+      "executable_pin_enforced": true,
+      "pm2_entry_pid": 2728463,
+      "pm2_entry_starttime": 95314469,
+      "pm2_exec_path": "/home/server/trinity-legacy-install/bin/worldserver-wrapper.sh",
+      "pm2_exec_sha256": "41c0e84f282bf5711a2d4b433a054426d28de9875cfce1b3f7fcfe6c576df213",
+      "pm2_profile_redacted_sha256": "5de156ef078858c9d979e6bcc274d5d06e4d44588c273357fbf3f34dc235aca0",
+      "listener_runtime_pid": 2728465,
+      "listener_runtime_starttime": 95314469,
+      "listener_relationship_verified": true,
+      "restart_count": 1,
+      "effective_config_path": "/home/server/trinity-legacy-install/bin/worldserver.conf",
+      "effective_config_redacted_sha256": "e5119e3f01d2c2d79d56028beaf4bf94e526213fc40509b03086d534faaa088b",
+      "effective_config_algorithm": "capture-relevant-redacted-v1",
+      "runtime_cleanup_verified": true,
+      "normal_runtime_restored": true,
+      "fixture_guard": null,
+      "bot_report": null,
+      "retained_bot_report_path": null
+    },
+    "rust": {
+      "manifest_path": "capture-provenance/rust.capture-manifest.json",
+      "manifest_sha256": "5b34ea9bafc2b2c60f3de7c71b89c3f495d584c1c555512b56cd5b09d2d9e74d",
+      "raw_artifact_sha256": "27ec83dc2c033baf353185d926659ab3bbda963e1beec39a91c53a71fcee12c3",
+      "raw_artifact_size": null,
+      "raw_packet_count": 94,
+      "harness_repo_head": "fc4c5b9b72a9ed020a97eb821bba6e1f5c40a2a8",
+      "source_repo_head": "fc4c5b9b72a9ed020a97eb821bba6e1f5c40a2a8",
+      "harness_worktree_clean": true,
+      "harness_worktree_state_sha256": "e2f5a15b9ab3c5c0c6ac8be6087c5761d7c07d5408a9d583c8966a1969bcc5b1",
+      "source_worktree_dirty": false,
+      "source_worktree_state_sha256": "e2f5a15b9ab3c5c0c6ac8be6087c5761d7c07d5408a9d583c8966a1969bcc5b1",
+      "worktree_state_algorithm": "git-head-path-mode-content-sha256-v1",
+      "expected_exec_path": "/home/server/rustycore-issue-114/target/deploy/issue114-local-debug/world-server-v6",
+      "expected_exec_sha256": "fe8058f7986d84e1cd444709d24e19af9c711c917ee9b00183acfc4cef63e8ec",
+      "source_exec_path": "/home/server/rustycore-issue-114/target/deploy/issue114-local-debug/world-server-v6",
+      "source_exec_sha256": "fe8058f7986d84e1cd444709d24e19af9c711c917ee9b00183acfc4cef63e8ec",
+      "live_exec_path": "/home/server/rustycore-issue-114/target/deploy/issue114-local-debug/world-server-v6",
+      "live_exec_sha256": "fe8058f7986d84e1cd444709d24e19af9c711c917ee9b00183acfc4cef63e8ec",
+      "executable_pin_enforced": true,
+      "pm2_entry_pid": 2739552,
+      "pm2_entry_starttime": 95351444,
+      "pm2_exec_path": "/home/server/rustycore-issue-114/target/deploy/issue114-local-debug/world-server-v6",
+      "pm2_exec_sha256": "fe8058f7986d84e1cd444709d24e19af9c711c917ee9b00183acfc4cef63e8ec",
+      "pm2_profile_redacted_sha256": "0d86a80763b6f766295aa597bd669fc923e64e3a0155edfd0cb8c76d6ba1f468",
+      "listener_runtime_pid": 2739552,
+      "listener_runtime_starttime": 95351444,
+      "listener_relationship_verified": true,
+      "restart_count": 0,
+      "effective_config_path": "/home/server/trinity-legacy-install/etc/worldserver.conf",
+      "effective_config_redacted_sha256": "5e3f4e1ff0b296932b6d620f5a71ce03d13137f494e4812db8b9623dde0f5606",
+      "effective_config_algorithm": "capture-relevant-redacted-v1",
+      "runtime_cleanup_verified": true,
+      "normal_runtime_restored": true,
+      "fixture_guard": null,
+      "bot_report": null,
+      "retained_bot_report_path": null
+    }
+  },
+  "selection": {
+    "directions": [
+      "s2c"
+    ],
+    "from_opcode": {
+      "direction": "s2c",
+      "opcode": 11681
+    },
+    "until_opcode": {
+      "direction": "s2c",
+      "opcode": 11681
+    },
+    "ignored_opcodes": [],
+    "strict": true
+  },
+  "outputs": {
+    "cpp_pkt": {
+      "path": "cpp.pkt",
+      "size": 137,
+      "sha256": "f235a5e640f9af406bc7b1380f51530aa3d19055d7e71c224141cc0e6f7c13c8"
+    },
+    "rust": {
+      "path": "rust",
+      "file_count": 2,
+      "packet_count": 1,
+      "tree_sha256": "0aba3b1e8661c052a398fdce9c5c1c3e7869447543118c88c8907d03a7e8dbcf"
+    },
+    "expected_divergences": {
+      "path": "expected-divergences.json",
+      "size": 2,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    }
+  }
+}

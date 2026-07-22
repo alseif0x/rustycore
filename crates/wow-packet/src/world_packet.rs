@@ -28,6 +28,9 @@ pub enum PacketError {
     #[error("packet too large: {size} bytes (max {MAX_PACKET_SIZE})")]
     TooLarge { size: usize },
 
+    #[error("packet array requested {requested} elements (max {max})")]
+    InvalidArrayCapacity { requested: usize, max: usize },
+
     #[error("decompression error: {0}")]
     DecompressionError(String),
 

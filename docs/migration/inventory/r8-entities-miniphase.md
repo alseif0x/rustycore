@@ -1,3 +1,101 @@
+# `#NEXT.R8.ENTITIES.1205` — atomic void-storage persistence (issue #114).
+
+Source-of-truth C++ was checked before implementation:
+`VoidStorageHandler.cpp:28-249`, `Player.cpp:11190-11230,17774-17775,18358-18403,20026-20055,28066-28140`,
+`ObjectMgr.cpp:7369-7371,7431-7440`, `VoidStoragePackets.cpp:20-106`,
+`ItemPacketsCommon.cpp:78-94`, `Item.cpp:806-843`, and `ObjectGuid.cpp:758-785`. Rust now loads a validated fixed
+160-slot authority, rejecting invalid IDs, entries, slots and collisions; initializes one
+process-wide void-item ID allocator fail-closed from `MAX(itemId)`; and registers the unlock,
+query, transfer and swap handlers with the C++ interaction, unlock, capacity, money and inventory
+gates. Deposit, withdrawal and swap are planned without changing visible session state. One
+CharacterDB transaction then persists player flags/money, destroys or creates every inventory
+row, and replaces/deletes all affected void rows; only a durable commit publishes runtime state
+and success packets. Definite rollback leaves runtime untouched, while an indeterminate commit is
+fenced from stale saves. Vault packets preserve the stored creator, scaling, random-property and
+context metadata; withdrawal restores creator, random-property and context state, creates the
+required item-instance fields, and binds the new inventory item. The stored scaling value is not
+reapplied on withdrawal because audited C++ calls `StoreNewItem` without passing it and then uses
+the ordinary `Item::SetFixedLevel` path instead.
+
+Packet contrast exposed a shared false positive in the previous Rust server and QA bot: C++
+`ByteBuffer << ObjectGuid` uses two mask bytes followed by only the nonzero bytes, so every
+void-storage GUID is `PackedGuid`, not a fixed 16-byte high/low pair. The production codecs, bot
+builders/parsers and focused round-trip tests now use that exact representation. Allocator,
+packet and handler coverage proves concurrent uniqueness, overflow/query failures, validation
+errors, rollback isolation, post-commit publication and the persistence plan. The installed Rust
+runtime then completed unlock, deposit, logout/fresh-auth query, occupied-slot swap, another
+logout/fresh-auth query, withdrawal and a final relog. Every flags/money/void/inventory transition
+was durable and the character, item and vaultkeeper fixtures were restored exactly afterward.
+Post-review coverage also proves withdrawal capacity and placement use the loaded C++
+`GetInventorySlotCount` value for both 16-slot and expanded 24-slot backpacks. A mixed request
+whose withdrawal cannot pass item-specific storage validation leaves its planned deposit, money
+and void state unpublished, preserving this issue's explicit all-or-nothing durability contract
+instead of exposing C++'s intermediate in-memory mutation order. This is an accepted failure-only
+divergence mandated by issue #114's Done criterion (one transaction plus no runtime change on
+definite failure), not an accidental parity claim; successful transfer ordering remains grounded
+in C++ and the capture/runtime evidence.
+Depositing a non-empty bag now also mirrors C++ `Player::DestroyItem`: contained items are planned
+deepest-first, each inventory/item/auxiliary row is deleted in the same transaction, and every
+child plus the parent is removed from runtime only after commit. Request-order reservation keeps
+an explicitly listed child from being destroyed or deposited twice when its bag is listed too.
+Withdrawal now also mirrors `Item::SetItemRandomProperties`: positive properties install their
+three enchantments in `Property2..4` with a zero seed, suffixes install `Property0..2` with the
+preserved seed, and the exact effective enchantment array is applied to the live item and written
+to `item_instance.enchantments` in the atomic transaction. Missing DB2 entries leave the new item
+unmodified like C++; focused coverage prevents affixes from disappearing on the next save/relog.
+Login now also honors C++ `Player::LoadFromDB`'s unlock gate: locked characters do not consume
+persisted void rows, but initialize a coherent empty vault that remains empty if unlocked in the
+same session. Unlock persists deletion of any skipped residual rows in the same transaction as
+the money and player flag, so a restart cannot resurrect them before the next full save.
+Withdrawal planning now consumes the full C++ `CanStoreNewItem(NULL_BAG, NULL_SLOT)` destination:
+compatible partial stacks are merged before empty slots, detached overlays make multiple
+withdrawals see earlier planned counts/slots, and the transaction either updates the complete
+existing item instance or creates one combined destination. Positions destroyed by deposits in
+the same request, including contained bag items, are removed from the detached storage snapshot
+before withdrawal planning, matching C++'s deposit-before-withdrawal order and preventing a merge
+into a deleted row. Login also runs the represented
+`CollectionMgr::AddItemAppearance(itemEntry, 0)` side effect for every accepted void row. Swap
+destination values also truncate from packet `uint32` to helper `uint8` before range validation,
+matching the implicit C++ call conversion even for malformed values above 255.
+GitHub review then exposed two real publication/identity holes: every newly withdrawn inventory
+object now emits the C++ `_StoreItem`-style pre-random/pre-handler `CREATE_OBJECT`, followed by the
+post-store VALUES update carrying random properties/enchantments plus the creator and binding
+changes, before its player/bag slot references the GUID; the shared
+allocator fails closed at the 40-bit packet-GUID counter boundary instead
+of allowing raw IDs that truncate into existing vault identities. Two other comments were rejected
+after exact C++ re-contrast: `ItemInstance::Initialize(VoidStorageItem)` deliberately leaves the
+random-property ID/seed zero on the wire, and `_LoadVoidStorage` deliberately constructs context
+from fields[5]. Rust retains both observable C++ behaviors without inventing unsupported packet or
+relog divergences.
+The next current-HEAD review closed three additional live seams. As an intentional compatibility
+repair for characters created by older Rust builds (not a claim about C++'s direct field load),
+login treats their `inventorySlots = 0` as the C++ schema's 16-slot backpack default. Deposit
+planning now computes the final represented `ItemRemovedQuestCheck` state for every destroyed
+item, including bag children, and persists every changed quest status in the same transaction as
+the item destruction; post-commit runtime publication still interleaves each recursive removal
+with its C++ quest check, preserving intermediate objective updates. The same detached quest plan
+then applies withdrawals in handler order, so a deposit plus withdrawal of the same entry commits
+the restored final objective, while a quest-bound first pass consumes credit without allocating or
+persisting a physical item exactly like `StoreNewItem`. Ordinary withdrawals use the live
+`CollectionMgr::OnItemAdded` bridge for both new and merged destinations and send every resulting
+player-values update, so heirloom/transmog collection state does not wait for a relog.
+The accredited server binary SHA-256 was
+`fe8058f7986d84e1cd444709d24e19af9c711c917ee9b00183acfc4cef63e8ec`; the QA bot SHA-256 was
+`95f4b45c75a8fdd687f2ba6fa97303e0a240fd80e33d597bc4093548d9981d85`.
+
+Paired real C++/Rust captures isolate one instance-routed `SMSG_VOID_STORAGE_CONTENTS` with one
+item: the 27-byte body is exact, 1/1 packets match, and the committed flow has no normalization or
+accepted divergence. Capture-only `RUST_CAPTURE_MIN_STACK_BYTES=16777216` avoids the known debug
+worker stack limit, and every wrapper restoration returned the original PM2 runtime online.
+Focused packet/allocator/handler/bot tests, the full Rust lifecycle QA and strict capture-diff are
+clean. The latest corrections additionally pass the 13 void-storage tests and focused
+legacy-capacity, recursive quest-removal, mixed-transfer, quest-bound-withdrawal and
+live-collection regressions. The complete local PR preflight (whitespace, self-test, formats,
+locked checks/builds, clippy, focused suites, bot/capture gate and local Codex review) completed
+CLEAN on `2143334b` in 471.8 seconds. Boundary: represented-partial until CI, current-HEAD GitHub
+Codex verdict and merge. Broader inventory validation remains in #52; #20 still owns aggregate
+D-C1-D-C9 reconciliation.
+
 # `#NEXT.R8.ENTITIES.1204` — globally collision-safe equipment-set persistence (issue #112).
 
 Source-of-truth C++ was checked before implementation:
@@ -22,8 +120,8 @@ captures import a one-packet, instance-routed `SMSG_EQUIPMENT_SET_ID` flow CLEAN
 divergence or normalization. The installed C++ reference emitted both expected ACKs but did not
 pass the bot's later database-row verifier, so that flow intentionally proves only the action ACK;
 Rust durability/relog is the separate live QA plus source contrast. Boundary: represented-partial
-after the complete local preflight and CLEAN local Codex review; CI/current-HEAD GitHub
-review/merge remain, and D-C3 stays open for void storage only.
+after the complete local preflight, CLEAN local/current-HEAD GitHub Codex reviews and PR #113
+merge; issue #114 owns the final D-C3 void-storage child.
 
 # `#NEXT.R8.ENTITIES.1203` — atomic existing-group capacity check and join (issue #110).
 

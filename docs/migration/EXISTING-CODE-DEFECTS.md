@@ -50,16 +50,49 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
     legacy slot `19` instead of the 3.4.3 backpack start slot `35`.
     PR #103 merged on 2026-07-14 after the full live bot bank deposit/relog/withdraw/relog
     round-trip passed. Personal-bank movement is therefore closed.
-  - 2026-07-21 issue #112 local slice: equipment sets and transmog outfits now share one
+  - 2026-07-21 issue #112, merged as PR #113: equipment sets and transmog outfits now share one
     process-wide, startup-initialized GUID namespace like C++ `ObjectMgr`; initialization uses the
     exact combined CharacterDB maximum and fails closed. The existing player-save transaction
     persists new/changed/deleted rows, and login correctly decodes signed transmog schema values.
     A two-client installed runtime run proved concurrent distinct GUIDs, exact durable rows, two
     fresh-auth relogs with exact loaded sets, and cleanup. The committed one-packet
     `SMSG_EQUIPMENT_SET_ID` action capture is byte-clean against C++ on the instance route with no
-    accepted divergence. Equipment-set persistence is therefore closed locally, subject to the
-    issue #112 CI/current-HEAD review/merge gates. Void-storage persistence is the remaining D-C3
-    child and keeps this aggregate item open.
+    accepted divergence. Equipment-set persistence is therefore closed.
+  - 2026-07-22 issue #114 local slice: void storage now loads into a validated fixed 160-slot
+    authority and uses one process-wide, startup-initialized item-ID generator like C++
+    `ObjectMgr`. Unlock, query, transfer and swap enforce the represented C++ gates. Deposit,
+    withdrawal and swap commit flags/money, inventory/item mutations and all affected void rows
+    in one CharacterDB transaction before publishing runtime or success packets; definite
+    rollback stays invisible and indeterminate COMMIT is fenced from stale saves. This explicitly
+    accepts issue #114's failure-only divergence from C++ intermediate deposit publication when a
+    later withdrawal fails validation; the issue's Done contract requires one transaction and no
+    runtime change on definite failure. C++ packet
+    contrast also corrected every void-storage GUID from a fixed 16-byte Rust/bot encoding to
+    C++ `PackedGuid`. Focused tests, an installed unlock/deposit/relog/swap/relog/withdraw/relog
+    lifecycle with exact cleanup, and a 1/1 byte-clean real C++/Rust query capture have passed.
+    Review hardening also restores C++ random-property/suffix enchantment slots on withdrawal and
+    persists the same effective enchantment array, so a later save/relog cannot strip item affixes.
+    Locked-character login now skips residual void rows like C++ while initializing coherent empty
+    storage; unlock deletes those skipped rows in the same money/flag transaction, so neither a
+    same-session query nor a restart can expose contents C++ never loaded.
+    Withdrawal now honors C++ merge-before-empty `CanStoreNewItem` placement across the entire
+    atomic request while excluding stacks/children already planned for deposit destruction, login
+    replays each valid row's represented collection appearance hook, and swap destination values
+    preserve C++'s `uint32` to `uint8` truncation before range checks.
+    GitHub review also published a withdrawn item's pre-random/pre-handler `CREATE_OBJECT` and its
+    post-store random-property/creator/binding VALUES update before the slot update, and capped
+    allocation at the packet GUID's 40-bit counter so raw IDs cannot alias after truncation.
+    Context-column, void-packet random-affix, and fixed-scaling review suggestions are intentionally
+    not applied because exact C++ contrast confirms the existing Rust behavior in all three cases.
+    A later current-HEAD review also adds an explicit older-Rust compatibility repair that restores
+    the C++ schema default for legacy zero-slot characters, atomically plans and persists
+    item-objective quest state across ordered deposit destruction (including bag children) and
+    withdrawal credit, preserves intermediate recursive removal checks plus quest-bound
+    no-physical-item withdrawals, and sends live collection updates for both new and merged
+    physical withdrawals. These latest fixes pass focused void/capacity/quest/collection tests;
+    the complete local PR preflight and local Codex review completed CLEAN on `2143334b` in 471.8
+    seconds. All three D-C3 children are implemented locally; this aggregate remains open for
+    issue #114 CI, current-HEAD GitHub Codex verdict and merge.
 - [ ] **D-C4 Inventory swap not transactional.** Two separate `execute()` calls; mid-fail
   orphans/dupes items. `handlers/character.rs:11668-11681`. C++ appends both changed positions to
   the character save transaction through `Player::_SaveInventory`.
@@ -195,8 +228,14 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
 - [ ] **D-M3 Off-hand dual-wield damage has no penalty** (~25% too high). `session.rs:7923`.
 - [ ] **D-M4 Haste has no attack-speed cap** → scales unbounded. `session.rs:1358`.
 - [ ] **D-M5 Threat = raw damage**, no ability/role threat modifiers. `session.rs:47875`.
-- [ ] **D-M6 Equipment sets in-memory only** (no DB) → lost on logout. `handlers/character.rs:4798`.
-- [ ] **D-M7 Void storage not saved.** `session.rs:21656`.
+- [x] **D-M6 Equipment sets in-memory only** was closed by issue #112 / PR #113: sets and
+  transmog outfits now persist transactionally and load on fresh authentication with a shared
+  collision-safe GUID namespace.
+- [ ] **D-M7 Void storage not saved.** Issue #114 fixes this locally with one atomic
+  flags/money/inventory/void transaction and fresh-auth lifecycle proof; the GitHub-review fixes
+  also cover legacy backpack capacity, deposit quest-objective removal and live withdrawal
+  collection updates. The latest fixes pass their focused tests and complete local preflight on
+  `2143334b`; CI, current-HEAD GitHub review and merge gates remain.
 - [ ] **D-M8 Group member DB insert fail logged-only**, runtime kept → reload drops member. `handlers/group.rs:1090`.
 - [ ] **D-M9 Phase not re-checked on movement** → out-of-phase objects linger. `handlers/movement.rs:274`.
 - [ ] **D-M10 Position save binds extra `instance_id`** vs C++ 7-field SavePosition (verify SQL param alignment). `session.rs:21578`.
