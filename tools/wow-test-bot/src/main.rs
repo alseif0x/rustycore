@@ -13282,12 +13282,8 @@ fn prepare_void_storage_query_capture_fixture(
 ) -> Result<VoidStorageSmokeFixture> {
     use mysql::prelude::Queryable;
 
-    let mut fixture = prepare_void_storage_smoke_fixture(
-        bot,
-        item_entry,
-        runtime_counter,
-        timeout_secs,
-    )?;
+    let mut fixture =
+        prepare_void_storage_smoke_fixture(bot, item_entry, runtime_counter, timeout_secs)?;
     let setup = (|| {
         let characters_url = characters_db_url()?;
         let opts = mysql::Opts::from_url(&characters_url)
