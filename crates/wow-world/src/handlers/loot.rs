@@ -9656,6 +9656,23 @@ impl WorldSession {
         self.clear_active_loot_guid_if(owner_guid);
     }
 
+    /// Retire the detached Rust representation of Loot owned by an Item that
+    /// a durable transaction has committed to destroy. C++ gets the same
+    /// window teardown from destroying the Item and its owned `Loot`; this is
+    /// deliberately narrower than `DoLootReleaseAll` and cannot consume or
+    /// otherwise mutate an unrelated active loot owner.
+    pub(crate) fn retire_committed_destroyed_item_loot_like_cpp(
+        &mut self,
+        item_guid: ObjectGuid,
+        player_guid: ObjectGuid,
+    ) {
+        if self.active_loot_view_owners.contains(&item_guid) || self.is_active_loot_guid(item_guid)
+        {
+            self.close_stale_active_loot_view_like_cpp(item_guid, player_guid);
+        }
+        self.loot_table.remove(&item_guid);
+    }
+
     async fn do_loot_release_owner_like_cpp(
         &mut self,
         owner_guid: ObjectGuid,

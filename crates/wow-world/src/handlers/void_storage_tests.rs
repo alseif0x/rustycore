@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use crate::session::{PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP, SessionPlayerController};
 use wow_constants::{
-    Gender, InventoryType, ItemBondingType, ItemClass, ItemFieldFlags, ItemQuality,
+    Gender, InventoryType, ItemBondingType, ItemClass, ItemFieldFlags, ItemFlags, ItemQuality,
     ItemSubClassWeapon, ServerOpcodes,
 };
 use wow_core::{ObjectGuid, Position, VoidStorageItemIdGeneratorLikeCpp, guid::HighGuid};
@@ -18,6 +18,7 @@ use wow_data::{
 use wow_database::StatementDef;
 use wow_entities::{INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_ITEM_START};
 use wow_packet::ServerPacket;
+use wow_packet::packets::loot::{CreatureLoot, LOOT_TYPE_ITEM_LIKE_CPP, LootEntry, LootEntryFlags};
 
 fn make_void_storage_session() -> (
     WorldSession,
@@ -127,6 +128,20 @@ fn install_void_test_item_template_with_stack(
     entry: u32,
     max_stack_size: i32,
 ) {
+    install_void_test_item_template_with_stack_and_flags(
+        session,
+        entry,
+        max_stack_size,
+        ItemFlags::empty(),
+    );
+}
+
+fn install_void_test_item_template_with_stack_and_flags(
+    session: &mut WorldSession,
+    entry: u32,
+    max_stack_size: i32,
+    flags: ItemFlags,
+) {
     session.set_item_store(Arc::new(ItemStore::from_records([ItemRecord {
         id: entry,
         class_id: ItemClass::Miscellaneous as u8,
@@ -142,7 +157,7 @@ fn install_void_test_item_template_with_stack(
     session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates([(
         entry,
         ItemSparseTemplateEntry {
-            flags: [0; 4],
+            flags: [flags.bits() as u32, 0, 0, 0],
             bag_family: 0,
             start_quest_id: 0,
             stackable: max_stack_size,
@@ -479,7 +494,7 @@ fn new_void_withdrawal_create_carries_committed_item_state_like_cpp() {
     item.set_enchantment(EnchantmentSlot::Property0, 201, 60_000, 2);
 
     let create_dynamic_flags = ItemFieldFlags::NEW_ITEM.bits();
-    let create = void_withdrawal_item_create_data_like_cpp(&item, create_dynamic_flags);
+    let create = void_withdrawal_item_create_data_like_cpp(&item, create_dynamic_flags, 0);
     assert_eq!(create.item_guid, item_guid);
     assert_eq!(create.entry_id, 19019);
     assert_eq!(create.owner_guid, owner);
@@ -490,6 +505,7 @@ fn new_void_withdrawal_create_carries_committed_item_state_like_cpp() {
     assert_eq!(create.random_properties_seed, 0);
     assert_eq!(create.random_properties_id, 0);
     assert_eq!(create.context, ItemContext::Timewalking as u8);
+    assert_eq!(create.container_slots, 0);
     assert_eq!(
         create.enchantments[EnchantmentSlot::Property0 as usize].id,
         0
@@ -574,6 +590,34 @@ fn new_void_withdrawal_create_carries_committed_item_state_like_cpp() {
 }
 
 #[test]
+fn withdrawn_bag_create_preserves_template_container_slots_like_cpp() {
+    let (mut session, _, _) = make_void_storage_session();
+    let bag_entry = 21841;
+    install_void_test_bag_and_child_templates(&mut session, bag_entry, 19019);
+    let bag = session.make_inventory_item_object(
+        ObjectGuid::create_item(1, 501),
+        bag_entry,
+        ObjectGuid::create_player(1, 42),
+        1,
+        0,
+        ItemContext::None,
+        INVENTORY_SLOT_ITEM_START,
+    );
+    let container_slots = session
+        .item_storage_template(bag_entry)
+        .map_or(0, |template| u32::from(template.container_slots));
+
+    let create = void_withdrawal_item_create_data_like_cpp(
+        &bag,
+        ItemFieldFlags::NEW_ITEM.bits(),
+        container_slots,
+    );
+
+    assert_eq!(create.container_slots, 8);
+    assert!(create.container_item_guids.iter().all(ObjectGuid::is_empty));
+}
+
+#[test]
 fn mixed_transfer_publishes_deposit_destroy_before_withdrawal_create_like_cpp() {
     let (mut session, send_rx, _) = make_void_storage_session();
     install_void_test_item_template(&mut session, 19019);
@@ -600,6 +644,7 @@ fn mixed_transfer_publishes_deposit_destroy_before_withdrawal_create_like_cpp() 
         vec![void_withdrawal_item_create_data_like_cpp(
             &withdrawn_item,
             create_dynamic_flags,
+            0,
         )],
         571,
     )
@@ -615,6 +660,7 @@ fn mixed_transfer_publishes_deposit_destroy_before_withdrawal_create_like_cpp() 
             &withdrawn_item,
             &post_store_item,
             create_dynamic_flags,
+            0,
             571,
         )],
     );
@@ -661,6 +707,7 @@ fn planned_stack_merge_publishes_store_then_post_store_values_like_cpp() {
         vec![void_withdrawal_item_create_data_like_cpp(
             &create_item,
             create_dynamic_flags,
+            0,
         )],
         571,
     )
@@ -679,6 +726,7 @@ fn planned_stack_merge_publishes_store_then_post_store_values_like_cpp() {
         &create_item,
         &first_post_store_item,
         create_dynamic_flags,
+        0,
         571,
     )];
     publications.extend(
@@ -712,19 +760,22 @@ fn planned_stack_merge_publishes_store_then_post_store_values_like_cpp() {
 }
 
 #[test]
-fn nested_withdrawal_resolves_planned_bag_database_guid_like_cpp() {
+fn nested_withdrawal_resolves_planned_bag_database_and_item_guids_like_cpp() {
     let (mut session, _, _) = make_void_storage_session();
     let bag_slot = wow_entities::INVENTORY_SLOT_BAG_START;
+    let runtime_bag_guid = ObjectGuid::create_item(1, 600);
     session.insert_inventory_item_like_cpp(
         bag_slot,
         InventoryItem {
-            guid: ObjectGuid::create_item(1, 600),
+            guid: runtime_bag_guid,
             entry_id: 21841,
             db_guid: 600,
             inventory_type: Some(InventoryType::Bag as u8),
         },
     );
     let planned = std::collections::HashMap::from([(bag_slot, 700)]);
+    let planned_bag_guid = ObjectGuid::create_item(1, 700);
+    let planned_item_guids = std::collections::HashMap::from([(bag_slot, planned_bag_guid)]);
 
     assert_eq!(
         session.void_storage_withdrawal_container_db_guid_like_cpp(INVENTORY_SLOT_BAG_0, &planned,),
@@ -742,6 +793,20 @@ fn nested_withdrawal_resolves_planned_bag_database_guid_like_cpp() {
         ),
         None
     );
+    assert_eq!(
+        session.void_storage_withdrawal_container_item_guid_like_cpp(
+            INVENTORY_SLOT_BAG_0,
+            &planned_item_guids,
+        ),
+        session.player_guid()
+    );
+    assert_eq!(
+        session
+            .void_storage_withdrawal_container_item_guid_like_cpp(bag_slot, &planned_item_guids,),
+        Some(planned_bag_guid),
+        "the planned bag object must beat the stale runtime bag in the same slot"
+    );
+    assert_ne!(planned_bag_guid, runtime_bag_guid);
 }
 
 #[test]
@@ -1361,6 +1426,148 @@ async fn deposit_definite_rollback_keeps_money_inventory_and_void_state_unchange
             .begin_like_cpp()
             .is_ok(),
         "definite rollback must reopen payout/save admission"
+    );
+}
+
+#[tokio::test]
+async fn deposit_definite_rollback_retains_active_item_loot_view_atomically() {
+    let (mut session, send_rx, canonical) = make_void_storage_session();
+    let vault_keeper = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 1918, 43);
+    insert_vault_keeper(&canonical, vault_keeper, 1918);
+    install_void_test_item_template_with_stack_and_flags(
+        &mut session,
+        19019,
+        1,
+        ItemFlags::HAS_LOOT,
+    );
+    session.set_player_gold_like_cpp(500_000);
+    let player_guid = ObjectGuid::create_player(1, 42);
+    let item_guid = ObjectGuid::create_item(1, 501);
+    let item = session.make_inventory_item_object(
+        item_guid,
+        19019,
+        player_guid,
+        1,
+        0,
+        ItemContext::None,
+        35,
+    );
+    session.insert_inventory_item_object(item);
+    session.insert_inventory_item_like_cpp(
+        35,
+        InventoryItem {
+            guid: item_guid,
+            entry_id: 19019,
+            db_guid: 501,
+            inventory_type: Some(InventoryType::NonEquip as u8),
+        },
+    );
+    session.loot_table.insert(
+        item_guid,
+        CreatureLoot {
+            loot_guid: item_guid,
+            coins: 0,
+            unlooted_count: 1,
+            loot_type: LOOT_TYPE_ITEM_LIKE_CPP,
+            dungeon_encounter_id: 0,
+            loot_method: 0,
+            loot_master: ObjectGuid::EMPTY,
+            round_robin_player: ObjectGuid::EMPTY,
+            player_ffa_items: Vec::new(),
+            players_looting: vec![player_guid],
+            allowed_looters: vec![player_guid],
+            items: vec![LootEntry {
+                loot_list_id: 1,
+                item_id: 19019,
+                quantity: 1,
+                random_properties_id: 0,
+                random_properties_seed: 0,
+                item_context: ItemContext::None as u8,
+                flags: LootEntryFlags::default(),
+                allowed_looters: vec![player_guid],
+                roll_winner: ObjectGuid::EMPTY,
+                ffa_looted_by: Vec::new(),
+                taken: false,
+            }],
+            looted_by_player: false,
+        },
+    );
+    session.set_active_loot_guid(item_guid);
+
+    let failing_pool = sqlx::mysql::MySqlPoolOptions::new()
+        .max_connections(1)
+        .acquire_timeout(Duration::from_millis(100))
+        .connect_lazy("mysql://rustycore:rustycore@127.0.0.1:1/characters")
+        .expect("syntactically valid lazy CharacterDB pool");
+    session.set_char_db(Arc::new(wow_database::CharacterDatabase::from_pool(
+        failing_pool,
+    )));
+
+    let mut packet = WorldPacket::new_empty();
+    packet.write_packed_guid(&vault_keeper);
+    packet.write_uint32(1);
+    packet.write_uint32(0);
+    packet.write_packed_guid(&item_guid);
+    session.handle_void_storage_transfer(packet).await;
+
+    assert!(session.has_active_loot_views_like_cpp());
+    assert!(session.loot_table.contains_key(&item_guid));
+    assert!(
+        session
+            .get_inventory_item_by_guid_like_cpp(item_guid)
+            .is_some(),
+        "the release runs before planning, while definite DB rollback still preserves inventory"
+    );
+    assert_eq!(session.represented_void_storage_free_slots_like_cpp(), 160);
+    assert_eq!(
+        send_rx
+            .try_iter()
+            .filter_map(|bytes| WorldPacket::from_bytes(&bytes).server_opcode())
+            .collect::<Vec<_>>(),
+        vec![ServerOpcodes::VoidTransferResult]
+    );
+}
+
+#[test]
+fn committed_void_deposit_retires_only_its_destroyed_item_loot_like_cpp() {
+    let (mut session, send_rx, _) = make_void_storage_session();
+    let player_guid = ObjectGuid::create_player(1, 42);
+    let destroyed_item = ObjectGuid::create_item(1, 501);
+    let unrelated_item = ObjectGuid::create_item(1, 502);
+    for item_guid in [destroyed_item, unrelated_item] {
+        session.loot_table.insert(
+            item_guid,
+            CreatureLoot {
+                loot_guid: item_guid,
+                coins: 0,
+                unlooted_count: 1,
+                loot_type: LOOT_TYPE_ITEM_LIKE_CPP,
+                dungeon_encounter_id: 0,
+                loot_method: 0,
+                loot_master: ObjectGuid::EMPTY,
+                round_robin_player: ObjectGuid::EMPTY,
+                player_ffa_items: Vec::new(),
+                players_looting: vec![player_guid],
+                allowed_looters: vec![player_guid],
+                items: Vec::new(),
+                looted_by_player: false,
+            },
+        );
+        session.add_active_loot_view_owner_like_cpp(item_guid);
+    }
+
+    session.retire_committed_destroyed_item_loot_like_cpp(destroyed_item, player_guid);
+
+    assert!(!session.active_loot_view_owners.contains(&destroyed_item));
+    assert!(!session.loot_table.contains_key(&destroyed_item));
+    assert!(session.active_loot_view_owners.contains(&unrelated_item));
+    assert!(session.loot_table.contains_key(&unrelated_item));
+    assert_eq!(
+        send_rx
+            .try_iter()
+            .filter_map(|bytes| WorldPacket::from_bytes(&bytes).server_opcode())
+            .collect::<Vec<_>>(),
+        vec![ServerOpcodes::LootRelease]
     );
 }
 

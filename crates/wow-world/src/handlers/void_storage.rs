@@ -163,6 +163,7 @@ fn void_withdrawal_initial_item_flags_like_cpp(
 fn void_withdrawal_item_create_data_like_cpp(
     item: &wow_entities::Item,
     create_dynamic_flags: u32,
+    container_slots: u32,
 ) -> ItemCreateData {
     let data = item.data();
 
@@ -184,7 +185,7 @@ fn void_withdrawal_item_create_data_like_cpp(
         // Void storage persists neither gems nor container contents.
         gems: Vec::new(),
         context: u8::try_from(data.context).unwrap_or(ItemContext::None as u8),
-        container_slots: 0,
+        container_slots,
         container_item_guids: [wow_core::ObjectGuid::EMPTY; 36],
     }
 }
@@ -419,10 +420,27 @@ impl WorldSession {
             .or_else(|| self.inventory_container_db_guid_like_cpp(bag))
     }
 
+    fn void_storage_withdrawal_container_item_guid_like_cpp(
+        &self,
+        bag: u8,
+        planned_container_item_guids: &HashMap<u8, wow_core::ObjectGuid>,
+    ) -> Option<wow_core::ObjectGuid> {
+        if bag == INVENTORY_SLOT_BAG_0 {
+            return self.player_guid();
+        }
+
+        planned_container_item_guids.get(&bag).copied().or_else(|| {
+            self.inventory_items_like_cpp()
+                .get(&bag)
+                .map(|item| item.guid)
+        })
+    }
+
     fn new_void_withdrawal_item_publication_like_cpp(
         create_item: &wow_entities::Item,
         post_store_item: &wow_entities::Item,
         create_dynamic_flags: u32,
+        container_slots: u32,
         map_id: u16,
     ) -> VoidWithdrawalItemPublicationLikeCpp {
         let post_store = crate::entity_update_bridge::item_values_update_to_update_object(
@@ -431,7 +449,11 @@ impl WorldSession {
             &post_store_item.values_update(),
         );
         VoidWithdrawalItemPublicationLikeCpp::New {
-            create: void_withdrawal_item_create_data_like_cpp(create_item, create_dynamic_flags),
+            create: void_withdrawal_item_create_data_like_cpp(
+                create_item,
+                create_dynamic_flags,
+                container_slots,
+            ),
             post_store,
         }
     }
@@ -849,6 +871,7 @@ impl WorldSession {
         let mut used_withdrawal_ids = HashSet::new();
         let mut storage_overlays = Vec::new();
         let mut destination_states = HashMap::<(u8, u8), PlannedVoidDestinationStateLikeCpp>::new();
+        let mut planned_container_item_guids = HashMap::<u8, wow_core::ObjectGuid>::new();
         // This includes each equipped bag's top-level `(BAG_0, bag_slot)`
         // position after its child positions. The detached inventory planner
         // removes that parent with `remove_top_level_item`, which unregisters
@@ -954,17 +977,36 @@ impl WorldSession {
                 )
             } else {
                 let context = ItemContext::from_u8(void_item.context).unwrap_or(ItemContext::None);
+                let Some(container_guid) = self
+                    .void_storage_withdrawal_container_item_guid_like_cpp(
+                        bag,
+                        &planned_container_item_guids,
+                    )
+                else {
+                    self.send_void_storage_transfer_result_like_cpp(
+                        VoidTransferErrorLikeCpp::InventoryFull,
+                    );
+                    return;
+                };
+                let mut item_object = self.make_inventory_item_object(
+                    item_guid,
+                    void_item.item_entry,
+                    player_guid,
+                    1,
+                    self.item_template_max_durability(void_item.item_entry),
+                    context,
+                    slot,
+                );
+                if bag != INVENTORY_SLOT_BAG_0 {
+                    // C++ `_StoreItem` calls `Bag::StoreItem` before
+                    // `SendUpdateToPlayer`; the CREATE therefore already
+                    // names the destination bag in ItemData::ContainedIn.
+                    item_object.set_contained_in(container_guid);
+                    item_object.set_container_guid_and_slot(container_guid, bag);
+                }
                 (
                     PlannedVoidDestinationTargetLikeCpp::Planned(planned_withdrawals.len()),
-                    self.make_inventory_item_object(
-                        item_guid,
-                        void_item.item_entry,
-                        player_guid,
-                        1,
-                        self.item_template_max_durability(void_item.item_entry),
-                        context,
-                        slot,
-                    ),
+                    item_object,
                     Self::void_storage_enchantments_db_string_like_cpp(
                         &[0; wow_entities::MAX_ENCHANTMENT_SLOT],
                     ),
@@ -1083,6 +1125,23 @@ impl WorldSession {
                     }
                 }
             };
+
+            if let PlannedVoidWithdrawalDestinationLikeCpp::New {
+                bag,
+                slot,
+                item_guid,
+                item_object,
+                ..
+            } = &destination
+                && *bag == INVENTORY_SLOT_BAG_0
+                && self
+                    .item_storage_template(item_object.object().entry())
+                    .is_some_and(|template| template.container_slots != 0)
+            {
+                // Sequential C++ `StoreNewItem` has already installed a bag
+                // before a later withdrawal is planned inside it.
+                planned_container_item_guids.insert(*slot, *item_guid);
+            }
 
             if let Some(overlay) = storage_overlays
                 .iter_mut()
@@ -1269,6 +1328,18 @@ impl WorldSession {
                 .last()
                 .expect("every void deposit includes its source item");
             let parent_position = (parent.bag, parent.slot);
+            // The CharacterDB transaction is already durable, so retiring an
+            // Item-owned Loot cannot leak a release on validation failure or
+            // rollback. C++ `DestroyItem` destroys the Item and its owned
+            // `Loot`; Rust keeps that represented Loot separately and must
+            // retire only the child/parent objects this committed deposit is
+            // about to remove.
+            for destroyed in &deposit.destroyed_items {
+                self.retire_committed_destroyed_item_loot_like_cpp(
+                    destroyed.inventory_item.guid,
+                    player_guid,
+                );
+            }
             let (destroyed_guids, deposit_changed_quest_ids) = self
                 .apply_committed_void_storage_destroyed_items_like_cpp(&deposit.destroyed_items);
             changed_quest_ids.extend(deposit_changed_quest_ids);
@@ -1321,11 +1392,15 @@ impl WorldSession {
                     debug_assert!(inserted);
                     collection_updates
                         .extend(self.on_item_added_to_collection_like_cpp(item_object));
+                    let container_slots = self
+                        .item_storage_template(item_object.object().entry())
+                        .map_or(0, |template| u32::from(template.container_slots));
                     withdrawal_item_publications.push(
                         Self::new_void_withdrawal_item_publication_like_cpp(
                             create_item_object,
                             post_store_item_object,
                             *create_dynamic_flags,
+                            container_slots,
                             map_id,
                         ),
                     );
