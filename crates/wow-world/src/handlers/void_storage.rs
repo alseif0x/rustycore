@@ -88,11 +88,13 @@ struct PlannedVoidDestroyedInventoryItemLikeCpp {
 struct PlannedVoidWithdrawalLikeCpp {
     old_void_slot: u8,
     void_item: RepresentedVoidStorageItemLikeCpp,
+    quest_log_item_id: u32,
     destination: PlannedVoidWithdrawalDestinationLikeCpp,
 }
 
 #[derive(Debug, Clone)]
 enum PlannedVoidWithdrawalDestinationLikeCpp {
+    QuestBoundNoItem,
     New {
         bag: u8,
         slot: u8,
@@ -391,8 +393,9 @@ impl WorldSession {
     fn apply_committed_void_storage_destroyed_items_like_cpp(
         &mut self,
         destroyed_items: &[PlannedVoidDestroyedInventoryItemLikeCpp],
-    ) -> Vec<wow_core::ObjectGuid> {
+    ) -> (Vec<wow_core::ObjectGuid>, Vec<u32>) {
         let mut destroyed_guids = Vec::with_capacity(destroyed_items.len());
+        let mut changed_quest_ids = Vec::new();
         for destroyed in destroyed_items {
             let _ = self.apply_inventory_item_remove_side_effects_like_cpp(
                 destroyed.bag,
@@ -407,8 +410,14 @@ impl WorldSession {
             );
             debug_assert!(removed);
             destroyed_guids.push(destroyed.inventory_item.guid);
+            // C++ recursive DestroyItem runs ItemRemovedQuestCheck after each
+            // child/parent removal, preserving intermediate objective updates.
+            changed_quest_ids
+                .extend(self.apply_quest_item_removed_like_cpp(destroyed.inventory_item.entry_id));
         }
-        destroyed_guids
+        changed_quest_ids.sort_unstable();
+        changed_quest_ids.dedup();
+        (destroyed_guids, changed_quest_ids)
     }
 
     fn send_void_storage_transfer_result_like_cpp(&self, result: VoidTransferErrorLikeCpp) {
@@ -649,6 +658,44 @@ impl WorldSession {
         // operation. Validate and plan every withdrawal before committing any
         // deposit so a later item-specific storage failure cannot expose a
         // charged/destroyed deposit without the rest of the request.
+        let mut removed_entry_order = Vec::new();
+        let mut removed_non_bank_counts = HashMap::<u32, u32>::new();
+        for destroyed in planned_deposits
+            .iter()
+            .flat_map(|deposit| deposit.destroyed_items.iter())
+        {
+            removed_entry_order.push(destroyed.inventory_item.entry_id);
+            if wow_entities::is_bank_pos(destroyed.bag, destroyed.slot) {
+                continue;
+            }
+            let count = self
+                .inventory_item_objects_like_cpp()
+                .get(&destroyed.inventory_item.guid)
+                .map_or(0, wow_entities::Item::count);
+            removed_non_bank_counts
+                .entry(destroyed.inventory_item.entry_id)
+                .and_modify(|removed| *removed = removed.saturating_add(count))
+                .or_insert(count);
+        }
+        let mut post_removal_non_bank_counts = removed_entry_order
+            .iter()
+            .copied()
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .map(|entry_id| {
+                let removed = removed_non_bank_counts.get(&entry_id).copied().unwrap_or(0);
+                (
+                    entry_id,
+                    self.represented_non_bank_item_count_like_cpp(entry_id)
+                        .saturating_sub(removed),
+                )
+            })
+            .collect::<Vec<_>>();
+        post_removal_non_bank_counts.sort_unstable_by_key(|(entry_id, _)| *entry_id);
+        let mut quest_persistence_plan = self.begin_item_transfer_quest_persistence_like_cpp(
+            &removed_entry_order,
+            &post_removal_non_bank_counts,
+        );
         let mut planned_withdrawals: Vec<PlannedVoidWithdrawalLikeCpp> = Vec::new();
         let mut used_withdrawal_ids = HashSet::new();
         let mut storage_overlays = Vec::new();
@@ -691,6 +738,23 @@ impl WorldSession {
                 return;
             }
             let [bag, slot] = destinations[0].pos.to_be_bytes();
+            let quest_log_item_id = self
+                .quest_source_item_quest_log_item_id_like_cpp(void_item.item_entry)
+                .await;
+            if self.plan_item_transfer_withdrawal_quest_persistence_like_cpp(
+                &mut quest_persistence_plan,
+                void_item.item_entry,
+                quest_log_item_id,
+                1,
+            ) {
+                planned_withdrawals.push(PlannedVoidWithdrawalLikeCpp {
+                    old_void_slot,
+                    void_item,
+                    quest_log_item_id,
+                    destination: PlannedVoidWithdrawalDestinationLikeCpp::QuestBoundNoItem,
+                });
+                continue;
+            }
             let Some((db_guid, item_guid)) = self
                 .allocate_item_instance_guids_like_cpp(1)
                 .and_then(|mut ids| ids.pop())
@@ -865,9 +929,13 @@ impl WorldSession {
             planned_withdrawals.push(PlannedVoidWithdrawalLikeCpp {
                 old_void_slot,
                 void_item,
+                quest_log_item_id,
                 destination,
             });
         }
+
+        let planned_quest_statuses =
+            self.finish_item_transfer_quest_persistence_like_cpp(quest_persistence_plan);
 
         let Some(money_persistence) = self
             .begin_exclusive_player_money_persistence_like_cpp()
@@ -905,6 +973,7 @@ impl WorldSession {
         let (total_played_time, _) = self.current_played_time_values_like_cpp();
         for withdrawal in &planned_withdrawals {
             match &withdrawal.destination {
+                PlannedVoidWithdrawalDestinationLikeCpp::QuestBoundNoItem => {}
                 PlannedVoidWithdrawalDestinationLikeCpp::New {
                     bag,
                     slot,
@@ -962,6 +1031,12 @@ impl WorldSession {
                 withdrawal.old_void_slot,
             ));
         }
+        self.append_planned_quest_statuses_to_transaction_like_cpp(
+            &mut tx,
+            char_db.as_ref(),
+            player_guid.counter() as u64,
+            &planned_quest_statuses,
+        );
 
         let Some(money_persistence) = self
             .commit_exclusive_player_money_transaction_like_cpp(
@@ -987,6 +1062,9 @@ impl WorldSession {
         let mut removed_items = Vec::new();
         let mut destroyed_deposit_items = Vec::new();
         let mut new_withdrawal_item_creates = Vec::new();
+        let mut collection_updates = Vec::new();
+        let mut changed_quest_ids = Vec::new();
+        let mut added_changed_quest_ids = Vec::new();
         let map_id = self.player_map_id_like_cpp();
         for deposit in &planned_deposits {
             let parent = deposit
@@ -994,8 +1072,9 @@ impl WorldSession {
                 .last()
                 .expect("every void deposit includes its source item");
             let parent_position = (parent.bag, parent.slot);
-            let destroyed_guids = self
+            let (destroyed_guids, deposit_changed_quest_ids) = self
                 .apply_committed_void_storage_destroyed_items_like_cpp(&deposit.destroyed_items);
+            changed_quest_ids.extend(deposit_changed_quest_ids);
             destroyed_deposit_items.push((parent_position, destroyed_guids));
             let inserted_slot =
                 self.add_represented_void_storage_item_like_cpp(deposit.void_item.clone());
@@ -1010,6 +1089,15 @@ impl WorldSession {
                 self.delete_represented_void_storage_item_like_cpp(withdrawal.old_void_slot);
             debug_assert_eq!(removed.as_ref(), Some(&withdrawal.void_item));
             match &withdrawal.destination {
+                PlannedVoidWithdrawalDestinationLikeCpp::QuestBoundNoItem => {
+                    added_changed_quest_ids.extend(
+                        self.apply_quest_item_added_bound_state_like_cpp(
+                            withdrawal.void_item.item_entry,
+                            withdrawal.quest_log_item_id,
+                            1,
+                        ),
+                    );
+                }
                 PlannedVoidWithdrawalDestinationLikeCpp::New {
                     bag,
                     slot,
@@ -1032,7 +1120,8 @@ impl WorldSession {
                         item_object.clone(),
                     );
                     debug_assert!(inserted);
-                    self.apply_loaded_inventory_item_collection_hooks_like_cpp(&item_object);
+                    collection_updates
+                        .extend(self.on_item_added_to_collection_like_cpp(item_object));
                     if let Some(committed_item) =
                         self.inventory_item_objects_like_cpp().get(item_guid)
                     {
@@ -1057,7 +1146,8 @@ impl WorldSession {
                             *target = item_object.clone()
                         });
                     debug_assert!(updated);
-                    self.apply_loaded_inventory_item_collection_hooks_like_cpp(&item_object);
+                    collection_updates
+                        .extend(self.on_item_added_to_collection_like_cpp(item_object));
                     self.send_inventory_item_pending_values_update_like_cpp(inventory_item.guid);
                     self.refresh_inventory_item_enchantment_duration_refs_like_cpp(
                         inventory_item.guid,
@@ -1065,11 +1155,33 @@ impl WorldSession {
                 }
                 PlannedVoidWithdrawalDestinationLikeCpp::MergedIntoPlanned => {}
             }
+            if !matches!(
+                &withdrawal.destination,
+                PlannedVoidWithdrawalDestinationLikeCpp::QuestBoundNoItem
+            ) {
+                added_changed_quest_ids.extend(
+                    self.apply_quest_item_added_non_bound_state_like_cpp(
+                        withdrawal.void_item.item_entry,
+                        withdrawal.quest_log_item_id,
+                        1,
+                    ),
+                );
+            }
             removed_items.push(wow_core::ObjectGuid::create_item(
                 self.realm_id(),
                 withdrawal.void_item.item_id as i64,
             ));
         }
+        changed_quest_ids.extend(added_changed_quest_ids.iter().copied());
+        changed_quest_ids.sort_unstable();
+        changed_quest_ids.dedup();
+        added_changed_quest_ids.sort_unstable();
+        added_changed_quest_ids.dedup();
+        let planned_changed_quest_ids = planned_quest_statuses
+            .iter()
+            .map(|status| status.quest_id)
+            .collect::<Vec<_>>();
+        debug_assert_eq!(changed_quest_ids, planned_changed_quest_ids);
         self.sync_object_accessor_player();
         self.sync_player_registry_state_like_cpp();
         drop(money_persistence);
@@ -1101,6 +1213,10 @@ impl WorldSession {
                     create_dynamic_flags,
                 );
             }
+        }
+        self.publish_quest_item_added_status_changes_like_cpp(&added_changed_quest_ids);
+        for update in &collection_updates {
+            self.send_player_values_update_like_cpp(update);
         }
         for ((bag, slot), destroyed_guids) in destroyed_deposit_items {
             self.send_packet(&wow_packet::packets::update::UpdateObject::destroy_objects(

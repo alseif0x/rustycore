@@ -64,6 +64,18 @@ after exact C++ re-contrast: `ItemInstance::Initialize(VoidStorageItem)` deliber
 random-property ID/seed zero on the wire, and `_LoadVoidStorage` deliberately constructs context
 from fields[5]. Rust retains both observable C++ behaviors without inventing unsupported packet or
 relog divergences.
+The next current-HEAD review closed three additional live seams. As an intentional compatibility
+repair for characters created by older Rust builds (not a claim about C++'s direct field load),
+login treats their `inventorySlots = 0` as the C++ schema's 16-slot backpack default. Deposit
+planning now computes the final represented `ItemRemovedQuestCheck` state for every destroyed
+item, including bag children, and persists every changed quest status in the same transaction as
+the item destruction; post-commit runtime publication still interleaves each recursive removal
+with its C++ quest check, preserving intermediate objective updates. The same detached quest plan
+then applies withdrawals in handler order, so a deposit plus withdrawal of the same entry commits
+the restored final objective, while a quest-bound first pass consumes credit without allocating or
+persisting a physical item exactly like `StoreNewItem`. Ordinary withdrawals use the live
+`CollectionMgr::OnItemAdded` bridge for both new and merged destinations and send every resulting
+player-values update, so heirloom/transmog collection state does not wait for a relog.
 The accredited server binary SHA-256 was
 `fe8058f7986d84e1cd444709d24e19af9c711c917ee9b00183acfc4cef63e8ec`; the QA bot SHA-256 was
 `95f4b45c75a8fdd687f2ba6fa97303e0a240fd80e33d597bc4093548d9981d85`.
@@ -72,11 +84,13 @@ Paired real C++/Rust captures isolate one instance-routed `SMSG_VOID_STORAGE_CON
 item: the 27-byte body is exact, 1/1 packets match, and the committed flow has no normalization or
 accepted divergence. Capture-only `RUST_CAPTURE_MIN_STACK_BYTES=16777216` avoids the known debug
 worker stack limit, and every wrapper restoration returned the original PM2 runtime online.
-Focused packet/allocator/handler/bot tests, the full Rust lifecycle QA, strict capture-diff, diff
-checks, and the repeated complete local PR preflight plus local Codex review are clean on the
-GitHub-review corrections (`83cee501`). Boundary:
-represented-partial until CI, current-HEAD GitHub Codex verdict and merge. Broader inventory
-validation remains in #52; #20 still owns aggregate D-C1-D-C9 reconciliation.
+Focused packet/allocator/handler/bot tests, the full Rust lifecycle QA, strict capture-diff and
+earlier repeated complete local PR preflight plus local Codex review are clean; the latest review
+corrections additionally pass the 13 void-storage tests and focused legacy-capacity, recursive
+quest-removal, mixed transfer, quest-bound withdrawal and live-collection regressions; the final
+uncommitted local Codex review is CLEAN. Boundary: represented-partial until the repeated full preflight,
+CI, current-HEAD GitHub Codex verdict and merge. Broader inventory validation remains in #52; #20
+still owns aggregate D-C1-D-C9 reconciliation.
 
 # `#NEXT.R8.ENTITIES.1204` — globally collision-safe equipment-set persistence (issue #112).
 

@@ -925,10 +925,10 @@ async fn nonempty_bag_deposit_plan_destroys_children_before_parent_atomically() 
         ]
     );
 
-    assert_eq!(
-        session.apply_committed_void_storage_destroyed_items_like_cpp(&destroyed),
-        vec![child_guid, bag_guid]
-    );
+    let (destroyed_guids, changed_quest_ids) =
+        session.apply_committed_void_storage_destroyed_items_like_cpp(&destroyed);
+    assert_eq!(destroyed_guids, vec![child_guid, bag_guid]);
+    assert!(changed_quest_ids.is_empty());
     assert!(session.get_inventory_item_by_pos(bag_slot, 5).is_none());
     assert!(
         session

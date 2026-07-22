@@ -211,6 +211,18 @@ fn primary_max_power_for_class_like_cpp(class_id: u8, max_mana: i64) -> i32 {
     }
 }
 
+fn loaded_inventory_slot_count_with_legacy_rust_compat(saved_slots: u8) -> u8 {
+    // C++ loads the saved value directly, but TrinityCore's schema defaults
+    // inventorySlots to the base backpack size. Older RustyCore builds
+    // explicitly inserted zero before this field was wired; keep those
+    // already-created characters playable without an out-of-band migration.
+    if saved_slots == 0 {
+        INVENTORY_DEFAULT_SIZE
+    } else {
+        saved_slots
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct LoadedItemRandomPropertiesLikeCpp {
     id: i32,
@@ -5004,7 +5016,9 @@ impl WorldSession {
         self.level_played_time = result.try_read::<u32>(24).unwrap_or(0);
         self.set_player_gold_like_cpp(result.try_read::<u64>(8).unwrap_or(0));
         self.set_player_inventory_slot_count_like_cpp(
-            result.try_read::<u8>(9).unwrap_or(INVENTORY_DEFAULT_SIZE),
+            loaded_inventory_slot_count_with_legacy_rust_compat(
+                result.try_read::<u8>(9).unwrap_or(INVENTORY_DEFAULT_SIZE),
+            ),
         );
         self.set_player_bank_bag_slot_count_like_cpp(result.try_read::<u8>(10).unwrap_or(0));
         self.set_player_xp_like_cpp(result.try_read::<u32>(7).unwrap_or(0));
@@ -21155,6 +21169,15 @@ mod tests {
             !bank_move_runs_item_removed_quest_check_like_cpp(false),
             "C++ AutoStore inventory-to-bank does not call ItemRemovedQuestCheck"
         );
+    }
+
+    #[test]
+    fn legacy_zero_inventory_slots_loads_base_backpack_capacity() {
+        assert_eq!(
+            loaded_inventory_slot_count_with_legacy_rust_compat(0),
+            INVENTORY_DEFAULT_SIZE
+        );
+        assert_eq!(loaded_inventory_slot_count_with_legacy_rust_compat(24), 24);
     }
 
     #[test]

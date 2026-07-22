@@ -37,14 +37,25 @@
   suggestions remain intentionally absent after exact C++ re-contrast: void item packets leave
   random-property ID/seed zero, login context comes from fields[5], and withdrawal does not pass
   stored fixed scaling to `StoreNewItem`; those are the observable audited C++ behaviors.
+  The next current-HEAD review also adds an explicit older-Rust compatibility repair that
+  normalizes legacy `inventorySlots = 0` rows to the C++ schema's 16-slot default (C++ itself loads
+  the saved field directly), plans and persists represented `ItemRemovedQuestCheck` results for
+  every deposited item including bag children in the same destruction transaction, publishes
+  each recursive removal/check in C++ order, applies later withdrawal quest credit to the same
+  durable plan, and preserves `StoreNewItem`'s quest-bound no-physical-item branch. New and merged
+  physical withdrawals also send their live collection player-values updates.
   Installed QA completed unlock, deposit/relog, swap/relog and withdrawal/relog with exact durable
   states and full character/item/vaultkeeper cleanup. The
   committed `void-storage-query` flow imports one real instance-routed C++/Rust
   `SMSG_VOID_STORAGE_CONTENTS`: 1/1 exact packets, no normalization or accepted divergence.
-  The repeated complete local PR preflight (format, checks/builds, clippy, focused suites and
-  capture gate) and local Codex review are CLEAN on the GitHub-review corrections (`83cee501`). Boundary:
-  represented-partial pending CI, current-HEAD GitHub review and merge; full inventory validation remains #52 and
-  aggregate D-C1-D-C9 reconciliation remains #20.
+  The earlier repeated complete local PR preflight (format, checks/builds, clippy, focused suites
+  and capture gate) and local Codex review are CLEAN; the latest review corrections pass the 13
+  void-storage tests plus focused legacy-capacity, recursive quest-removal, mixed-transfer,
+  quest-bound-withdrawal and live-collection tests; the final uncommitted local Codex review is
+  CLEAN.
+  Boundary: represented-partial pending the repeated full preflight, CI, current-HEAD GitHub review
+  and merge; full inventory validation remains #52 and aggregate D-C1-D-C9 reconciliation remains
+  #20.
 
 - `#NEXT.R8.ENTITIES.1204` — issue #112 makes equipment-set and transmog-outfit
   GUID allocation process-wide and relog-clean. C++ `ObjectMgr::SetHighestGuids`
