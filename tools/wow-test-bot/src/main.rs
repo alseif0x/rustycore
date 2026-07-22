@@ -104,6 +104,16 @@ const VOID_STORAGE_UNLOCK_COST: u64 = 1_000_000;
 const VOID_STORAGE_STORE_ITEM_COST: u64 = 100_000;
 const DEFAULT_INVENTORY_SWAP_ITEM_ENTRY_A: u32 = 2589;
 const DEFAULT_INVENTORY_SWAP_ITEM_ENTRY_B: u32 = 2592;
+// Issue #20 D-C1/D-C2 live fixture. ItemRandomProperties.db2 record 5 maps
+// its first property enchantment to id 79 in the 3.4.3 client data used by
+// both runtimes. The persisted enchantment array is authoritative in C++, so
+// the fixture stores that generated Property2 value alongside one explicit
+// permanent enchantment.
+const ISSUE20_ITEM_PERMANENT_ENCHANT_ID: i32 = 2673;
+const ISSUE20_ITEM_RANDOM_PROPERTY_ID: i32 = 5;
+const ISSUE20_ITEM_RANDOM_PROPERTY_ENCHANT_ID: i32 = 79;
+const ISSUE20_ITEM_RANDOM_PROPERTY_SLOT: usize = 10;
+const ISSUE20_ITEM_ENCHANTMENT_SLOT_COUNT: usize = 13;
 const DEFAULT_VENDOR_ENTRY: u32 = 18_525;
 const DEFAULT_VENDOR_SPAWN_GUID: u64 = 96_654;
 const DEFAULT_VENDOR_ITEM_ENTRY: u32 = 30_183;
@@ -403,6 +413,10 @@ struct BotRunResult {
     inventory_swap_forward_persisted: bool,
     inventory_swap_relogin_after_forward: bool,
     inventory_swap_reverse_persisted: bool,
+    inventory_swap_relogin_after_reverse: bool,
+    inventory_swap_item_create_sha256: Option<String>,
+    inventory_swap_item_create_relogin_verified: bool,
+    inventory_swap_item_metadata_persisted: bool,
     inventory_swap_failure: Option<String>,
     vendor_smoke: bool,
     vendor_smoke_passed: Option<bool>,
@@ -553,7 +567,11 @@ impl BotRunResult {
             return self.world_auth
                 && self.enum_characters
                 && self.player_login_verified
-                && self.inventory_swap_smoke_passed.unwrap_or(false);
+                && self.inventory_swap_smoke_passed.unwrap_or(false)
+                && self.inventory_swap_item_create_sha256.is_some()
+                && self.inventory_swap_item_create_relogin_verified
+                && self.inventory_swap_relogin_after_reverse
+                && self.inventory_swap_item_metadata_persisted;
         }
         if self.vendor_smoke {
             return self.world_auth
@@ -792,6 +810,7 @@ struct HomebindSmokeFixture {
 enum InventorySwapSmokePhase {
     Forward,
     Reverse,
+    VerifyReverseRelog,
 }
 
 #[derive(Debug, Clone)]
@@ -804,6 +823,14 @@ struct InventorySwapSmokeOptions {
     slot_a: u8,
     slot_b: u8,
     timeout_secs: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Issue20ItemCreateEvidence {
+    block_sha256: String,
+    enchantments: [i32; ISSUE20_ITEM_ENCHANTMENT_SLOT_COUNT],
+    random_properties_seed: i32,
+    random_properties_id: i32,
 }
 
 #[derive(Debug, Clone)]
@@ -3535,6 +3562,10 @@ async fn run_bot_with_void_storage(
         inventory_swap_forward_persisted: false,
         inventory_swap_relogin_after_forward: false,
         inventory_swap_reverse_persisted: false,
+        inventory_swap_relogin_after_reverse: false,
+        inventory_swap_item_create_sha256: None,
+        inventory_swap_item_create_relogin_verified: false,
+        inventory_swap_item_metadata_persisted: false,
         inventory_swap_failure: None,
         vendor_smoke: vendor_options.is_some(),
         vendor_smoke_passed: None,
@@ -3995,6 +4026,7 @@ async fn run_bot_with_void_storage(
     let mut login_ok = false;
     let preserve_realm_connection = stand_state_options.is_some()
         || homebind_options.is_some()
+        || inventory_swap_options.is_some()
         || vendor_options.is_some()
         || rested_xp_options.is_some()
         || loot_race_options.is_some()
@@ -4091,6 +4123,16 @@ async fn run_bot_with_void_storage(
                 if let Some(options) = equipment_set_options.as_ref() {
                     record_equipment_set_login_signal(op, &payload, options, &mut result)?;
                 }
+                if let Some(options) = inventory_swap_options.as_ref() {
+                    if op == SMSG_UPDATE_OBJECT {
+                        record_issue20_item_create_evidence(
+                            &payload,
+                            options,
+                            bot.character_guid,
+                            &mut result,
+                        )?;
+                    }
+                }
                 if op == 0x2597 {
                     // SMSG_LOGIN_VERIFY_WORLD
                     info!("[Bot {}] ✅ SMSG_LOGIN_VERIFY_WORLD received", bot_index);
@@ -4105,9 +4147,13 @@ async fn run_bot_with_void_storage(
                                 void_storage_target_seen.is_some(),
                             )
                         });
+                    let inventory_swap_login_ready = inventory_swap_options
+                        .as_ref()
+                        .is_none_or(|_| result.inventory_swap_item_create_sha256.is_some());
                     if (!preserve_realm_connection || realm_connection.is_some())
                         && equipment_set_login_ready
                         && void_storage_login_ready
+                        && inventory_swap_login_ready
                     {
                         break;
                     }
@@ -4156,7 +4202,14 @@ async fn run_bot_with_void_storage(
                                 void_storage_target_seen.is_some(),
                             )
                         });
-                    if login_ok && preserve_realm_connection && void_storage_login_ready {
+                    let inventory_swap_login_ready = inventory_swap_options
+                        .as_ref()
+                        .is_none_or(|_| result.inventory_swap_item_create_sha256.is_some());
+                    if login_ok
+                        && preserve_realm_connection
+                        && void_storage_login_ready
+                        && inventory_swap_login_ready
+                    {
                         break;
                     }
                 } else if op == 0x304B {
@@ -4166,6 +4219,13 @@ async fn run_bot_with_void_storage(
                 if equipment_set_options.is_some()
                     && login_ok
                     && result.equipment_set_load_seen
+                    && (!preserve_realm_connection || realm_connection.is_some())
+                {
+                    break;
+                }
+                if inventory_swap_options.is_some()
+                    && login_ok
+                    && result.inventory_swap_item_create_sha256.is_some()
                     && (!preserve_realm_connection || realm_connection.is_some())
                 {
                     break;
@@ -4182,6 +4242,9 @@ async fn run_bot_with_void_storage(
     }
     if !login_ok {
         bail!("Login verification failed");
+    }
+    if inventory_swap_options.is_some() && result.inventory_swap_item_create_sha256.is_none() {
+        bail!("issue #20 item CREATE_OBJECT was not observed during the login window");
     }
     result.player_login_verified = true;
 
@@ -4310,6 +4373,7 @@ async fn run_bot_with_void_storage(
             &mut stream,
             &mut crypt,
             &mut server_inflater,
+            &mut realm_connection,
             &inventory_swap_options,
             &mut result,
         )
@@ -4719,7 +4783,7 @@ fn log_bot_summary(
         }
         if result.inventory_swap_smoke {
             info!(
-                "✅ Bot {}: SUCCESS inventory_swap_smoke items={:?}/{:?} entries={:?}/{:?} slots={:?}<->{:?} forward={} relog={} reverse={} failure={:?}",
+                "✅ Bot {}: SUCCESS inventory_swap_smoke items={:?}/{:?} entries={:?}/{:?} slots={:?}<->{:?} forward={} relog_forward={} reverse={} relog_reverse={} item_create={:?} item_create_relog={} metadata_persisted={} failure={:?}",
                 result.account,
                 result.inventory_swap_item_guid_a,
                 result.inventory_swap_item_guid_b,
@@ -4730,6 +4794,10 @@ fn log_bot_summary(
                 result.inventory_swap_forward_persisted,
                 result.inventory_swap_relogin_after_forward,
                 result.inventory_swap_reverse_persisted,
+                result.inventory_swap_relogin_after_reverse,
+                result.inventory_swap_item_create_sha256,
+                result.inventory_swap_item_create_relogin_verified,
+                result.inventory_swap_item_metadata_persisted,
                 result.inventory_swap_failure
             );
             return;
@@ -4924,7 +4992,7 @@ fn log_bot_summary(
         }
         if result.inventory_swap_smoke {
             error!(
-                "❌ Bot {}: FAILED inventory_swap_smoke items={:?}/{:?} entries={:?}/{:?} slots={:?}<->{:?} forward={} relog={} reverse={} failure={:?}",
+                "❌ Bot {}: FAILED inventory_swap_smoke items={:?}/{:?} entries={:?}/{:?} slots={:?}<->{:?} forward={} relog_forward={} reverse={} relog_reverse={} item_create={:?} item_create_relog={} metadata_persisted={} failure={:?}",
                 result.account,
                 result.inventory_swap_item_guid_a,
                 result.inventory_swap_item_guid_b,
@@ -4935,6 +5003,10 @@ fn log_bot_summary(
                 result.inventory_swap_forward_persisted,
                 result.inventory_swap_relogin_after_forward,
                 result.inventory_swap_reverse_persisted,
+                result.inventory_swap_relogin_after_reverse,
+                result.inventory_swap_item_create_sha256,
+                result.inventory_swap_item_create_relogin_verified,
+                result.inventory_swap_item_metadata_persisted,
                 result.inventory_swap_failure
             );
             return;
@@ -9258,20 +9330,86 @@ async fn run_inventory_swap_smoke_workflow(
         .await
         {
             Ok(second) => {
+                let expected_item_create_sha256 =
+                    combined.inventory_swap_item_create_sha256.clone();
+                let forward_relogin_hash_verified = expected_item_create_sha256.is_some()
+                    && expected_item_create_sha256 == second.inventory_swap_item_create_sha256;
+                let reverse_phase_passed = second.inventory_swap_smoke_passed.unwrap_or(false);
                 combined.world_auth &= second.world_auth;
                 combined.enum_characters &= second.enum_characters;
                 combined.player_login_verified &= second.player_login_verified;
                 combined.inventory_swap_relogin_after_forward =
                     second.inventory_swap_relogin_after_forward;
                 combined.inventory_swap_reverse_persisted = second.inventory_swap_reverse_persisted;
+                combined.inventory_swap_item_metadata_persisted &=
+                    second.inventory_swap_item_metadata_persisted;
                 combined.seen_opcodes.extend(second.seen_opcodes);
                 combined.inventory_swap_failure = second.inventory_swap_failure;
-                combined.inventory_swap_smoke_passed = Some(
-                    combined.inventory_swap_forward_persisted
-                        && combined.inventory_swap_relogin_after_forward
-                        && combined.inventory_swap_reverse_persisted
-                        && second.inventory_swap_smoke_passed.unwrap_or(false),
-                );
+                combined.inventory_swap_smoke_passed = Some(false);
+
+                if combined.inventory_swap_forward_persisted
+                    && combined.inventory_swap_relogin_after_forward
+                    && combined.inventory_swap_reverse_persisted
+                    && combined.inventory_swap_item_metadata_persisted
+                    && forward_relogin_hash_verified
+                    && reverse_phase_passed
+                {
+                    let mut verify_reverse_options = fixture.options.clone();
+                    verify_reverse_options.phase = InventorySwapSmokePhase::VerifyReverseRelog;
+                    match run_bot(
+                        bot.clone(),
+                        dungeon_id,
+                        lfg_secs,
+                        auto_teleport,
+                        false,
+                        None,
+                        None,
+                        None,
+                        Some(verify_reverse_options),
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                    )
+                    .await
+                    {
+                        Ok(third) => {
+                            let reverse_relogin_hash_verified = expected_item_create_sha256
+                                .is_some()
+                                && expected_item_create_sha256
+                                    == third.inventory_swap_item_create_sha256;
+                            combined.world_auth &= third.world_auth;
+                            combined.enum_characters &= third.enum_characters;
+                            combined.player_login_verified &= third.player_login_verified;
+                            combined.inventory_swap_relogin_after_reverse =
+                                third.inventory_swap_relogin_after_reverse;
+                            combined.inventory_swap_item_create_relogin_verified =
+                                forward_relogin_hash_verified && reverse_relogin_hash_verified;
+                            combined.inventory_swap_item_metadata_persisted &=
+                                third.inventory_swap_item_metadata_persisted;
+                            combined.seen_opcodes.extend(third.seen_opcodes);
+                            combined.inventory_swap_failure = third.inventory_swap_failure;
+                            combined.inventory_swap_smoke_passed = Some(
+                                combined.inventory_swap_relogin_after_reverse
+                                    && combined.inventory_swap_item_create_relogin_verified
+                                    && combined.inventory_swap_item_metadata_persisted
+                                    && third.inventory_swap_smoke_passed.unwrap_or(false),
+                            );
+                        }
+                        Err(error) => {
+                            combined.inventory_swap_failure = Some(format!(
+                                "Inventory swap post-reverse relog verification failed: {error}"
+                            ));
+                        }
+                    }
+                } else if combined.inventory_swap_failure.is_none() {
+                    combined.inventory_swap_failure = Some(
+                        "Inventory swap reverse phase did not satisfy its relog/hash/persistence proof"
+                            .to_string(),
+                    );
+                }
             }
             Err(error) => {
                 combined.inventory_swap_failure = Some(format!(
@@ -9637,6 +9775,7 @@ async fn run_inventory_swap_smoke_phase(
     stream: &mut TcpStream,
     crypt: &mut WorldCrypt,
     server_inflater: &mut ServerPacketInflater,
+    realm_connection: &mut Option<EncryptedWorldConnection>,
     options: &InventorySwapSmokeOptions,
     result: &mut BotRunResult,
 ) -> Result<()> {
@@ -9657,6 +9796,12 @@ async fn run_inventory_swap_smoke_phase(
                     options.slot_b,
                 )
             }
+            InventorySwapSmokePhase::VerifyReverseRelog => (
+                options.slot_a,
+                options.slot_b,
+                options.slot_a,
+                options.slot_b,
+            ),
         };
 
     let bot_for_before = bot.clone();
@@ -9678,6 +9823,28 @@ async fn run_inventory_swap_smoke_phase(
         );
     }
 
+    if options.phase == InventorySwapSmokePhase::VerifyReverseRelog {
+        let logout_complete_seen = loot_race::logout_and_wait_routed_like_cpp(
+            bot_index,
+            stream,
+            crypt,
+            server_inflater,
+            realm_connection.as_mut(),
+            bot.character_guid,
+            result,
+        )
+        .await?;
+        if !logout_complete_seen {
+            bail!(
+                "inventory swap post-reverse relog did not observe SMSG_LOGOUT_COMPLETE on either socket"
+            );
+        }
+        result.inventory_swap_relogin_after_reverse = true;
+        result.inventory_swap_item_metadata_persisted = true;
+        result.inventory_swap_smoke_passed = Some(true);
+        return Ok(());
+    }
+
     let payload = build_swap_inv_item_payload(options.slot_a, options.slot_b);
     send_encrypted_packet(stream, crypt, CMSG_SWAP_INV_ITEM, &payload).await?;
     info!(
@@ -9685,6 +9852,26 @@ async fn run_inventory_swap_smoke_phase(
         bot_index, options.slot_a, options.slot_b, options.phase
     );
 
+    let logout_complete_seen = loot_race::logout_and_wait_routed_like_cpp(
+        bot_index,
+        stream,
+        crypt,
+        server_inflater,
+        realm_connection.as_mut(),
+        bot.character_guid,
+        result,
+    )
+    .await?;
+    if !logout_complete_seen {
+        bail!(
+            "inventory swap {:?} phase did not observe SMSG_LOGOUT_COMPLETE on either socket",
+            options.phase
+        );
+    }
+
+    // C++ marks both items changed in memory and persists them during the
+    // logout save transaction. Polling CharacterDB before logout would test a
+    // Rust-only implementation detail rather than the reference lifecycle.
     wait_for_inventory_swap_locations(
         bot,
         options,
@@ -9693,29 +9880,14 @@ async fn run_inventory_swap_smoke_phase(
         options.timeout_secs,
     )
     .await?;
-    logout_and_wait(bot_index, stream, crypt, server_inflater, result).await?;
-
-    let bot_for_after = bot.clone();
-    let options_for_after = options.clone();
-    let persisted = tokio::task::spawn_blocking(move || {
-        verify_inventory_swap_fixture_locations(
-            &bot_for_after,
-            &options_for_after,
-            expected_after_a,
-            expected_after_b,
-        )
-    })
-    .await
-    .map_err(|e| anyhow!("Inventory swap post-logout DB worker join failed: {e}"))??;
-    if !persisted {
-        bail!(
-            "inventory swap fixture did not persist in expected slots {expected_after_a}/{expected_after_b} after logout"
-        );
-    }
+    result.inventory_swap_item_metadata_persisted = true;
 
     match options.phase {
         InventorySwapSmokePhase::Forward => result.inventory_swap_forward_persisted = true,
         InventorySwapSmokePhase::Reverse => result.inventory_swap_reverse_persisted = true,
+        InventorySwapSmokePhase::VerifyReverseRelog => {
+            unreachable!("post-reverse relog returns before sending a swap")
+        }
     }
     result.inventory_swap_smoke_passed = Some(true);
     Ok(())
@@ -9836,9 +10008,15 @@ async fn logout_and_wait(
         )
         .await
         {
-            Ok(Ok((opcode, _))) => {
+            Ok(Ok((opcode, payload))) => {
                 result.seen_opcodes.push(format!("0x{opcode:04X}"));
                 if opcode == SMSG_LOGOUT_COMPLETE {
+                    if !payload.is_empty() {
+                        bail!(
+                            "SMSG_LOGOUT_COMPLETE carried {} bytes; C++ 3.4.3 writes an empty body",
+                            payload.len()
+                        );
+                    }
                     info!("[Bot {}] ✅ SMSG_LOGOUT_COMPLETE received", bot_index);
                     return Ok(());
                 }
@@ -12310,6 +12488,65 @@ fn cleanup_rested_xp_smoke_fixture(
     Ok(())
 }
 
+fn issue20_expected_enchantment_ids() -> [i32; ISSUE20_ITEM_ENCHANTMENT_SLOT_COUNT] {
+    let mut enchantments = [0; ISSUE20_ITEM_ENCHANTMENT_SLOT_COUNT];
+    enchantments[0] = ISSUE20_ITEM_PERMANENT_ENCHANT_ID;
+    enchantments[ISSUE20_ITEM_RANDOM_PROPERTY_SLOT] = ISSUE20_ITEM_RANDOM_PROPERTY_ENCHANT_ID;
+    enchantments
+}
+
+fn issue20_item_enchantments_db_string() -> String {
+    let mut fields = Vec::with_capacity(ISSUE20_ITEM_ENCHANTMENT_SLOT_COUNT * 3);
+    for id in issue20_expected_enchantment_ids() {
+        fields.extend([id.to_string(), "0".to_string(), "0".to_string()]);
+    }
+    fields.join(" ")
+}
+
+fn issue20_zero_enchantments_db_string() -> String {
+    vec!["0"; ISSUE20_ITEM_ENCHANTMENT_SLOT_COUNT * 3].join(" ")
+}
+
+fn issue20_item_metadata_matches_db_like_cpp(
+    enchantments: &str,
+    random_properties_id: i32,
+    random_properties_seed: i32,
+) -> bool {
+    let parsed = enchantments
+        .split_whitespace()
+        .map(str::parse::<i32>)
+        .collect::<std::result::Result<Vec<_>, _>>();
+    let Ok(parsed) = parsed else {
+        return false;
+    };
+    parsed
+        == issue20_item_enchantments_db_string()
+            .split_whitespace()
+            .map(|value| value.parse::<i32>().expect("static issue #20 enchantment"))
+            .collect::<Vec<_>>()
+        && random_properties_id == ISSUE20_ITEM_RANDOM_PROPERTY_ID
+        && random_properties_seed == 0
+}
+
+fn issue20_item_has_zero_metadata_db_like_cpp(
+    enchantments: &str,
+    random_properties_id: i32,
+    random_properties_seed: i32,
+) -> bool {
+    let parsed = enchantments
+        .split_whitespace()
+        .map(str::parse::<i32>)
+        .collect::<std::result::Result<Vec<_>, _>>();
+    matches!(
+        parsed,
+        Ok(values)
+            if values.len() == ISSUE20_ITEM_ENCHANTMENT_SLOT_COUNT * 3
+                && values.iter().all(|value| *value == 0)
+                && random_properties_id == 0
+                && random_properties_seed == 0
+    )
+}
+
 fn prepare_inventory_swap_smoke_fixture(
     bot: &config::BotConfig,
     item_entry_a: u32,
@@ -12406,13 +12643,27 @@ fn prepare_inventory_swap_smoke_fixture(
         (item_guid_a, item_entry_a, slot_a),
         (item_guid_b, item_entry_b, slot_b),
     ] {
+        let (enchantments, random_properties_id) = if item_guid == item_guid_a {
+            (
+                issue20_item_enchantments_db_string(),
+                ISSUE20_ITEM_RANDOM_PROPERTY_ID,
+            )
+        } else {
+            (issue20_zero_enchantments_db_string(), 0)
+        };
         transaction
             .exec_drop(
                 "INSERT INTO item_instance \
                  (guid, itemEntry, owner_guid, creatorGuid, giftCreatorGuid, count, durability, \
                   enchantments, charges, flags, randomPropertiesId, randomPropertiesSeed, context) \
-                 VALUES (?, ?, ?, 0, 0, 1, 0, '', '', 0, 0, 0, 0)",
-                (item_guid, item_entry, bot.character_guid),
+                 VALUES (?, ?, ?, 0, 0, 1, 0, ?, '', 0, ?, 0, 0)",
+                (
+                    item_guid,
+                    item_entry,
+                    bot.character_guid,
+                    enchantments,
+                    random_properties_id,
+                ),
             )
             .map_err(|e| anyhow!("Insert inventory swap fixture item: {e}"))?;
         transaction
@@ -12458,9 +12709,12 @@ fn verify_inventory_swap_fixture_locations(
     let mut conn =
         mysql::Conn::new(opts).map_err(|e| anyhow!("Connect to characters DB failed: {e}"))?;
 
-    let load = |conn: &mut mysql::Conn, item_guid: u64| -> Result<Option<(u64, u8, u32, u64)>> {
+    let load = |conn: &mut mysql::Conn,
+                item_guid: u64|
+     -> Result<Option<(u64, u8, u32, u64, String, i32, i32)>> {
         conn.exec_first(
-            "SELECT ci.bag, ci.slot, ii.itemEntry, ii.owner_guid \
+            "SELECT ci.bag, ci.slot, ii.itemEntry, ii.owner_guid, ii.enchantments, \
+                    ii.randomPropertiesId, ii.randomPropertiesSeed \
              FROM character_inventory ci JOIN item_instance ii ON ii.guid = ci.item \
              WHERE ci.guid = ? AND ci.item = ? AND ii.count = 1",
             (bot.character_guid, item_guid),
@@ -12471,16 +12725,26 @@ fn verify_inventory_swap_fixture_locations(
     let row_b = load(&mut conn, options.item_guid_b)?;
     Ok(matches!(
         row_a,
-        Some((0, slot, entry, owner))
+        Some((0, slot, entry, owner, ref enchantments, random_properties_id, random_properties_seed))
             if slot == expected_slot_a
                 && entry == options.item_entry_a
                 && owner == bot.character_guid
+                && issue20_item_metadata_matches_db_like_cpp(
+                    enchantments,
+                    random_properties_id,
+                    random_properties_seed,
+                )
     ) && matches!(
         row_b,
-        Some((0, slot, entry, owner))
+        Some((0, slot, entry, owner, ref enchantments, random_properties_id, random_properties_seed))
             if slot == expected_slot_b
                 && entry == options.item_entry_b
                 && owner == bot.character_guid
+                && issue20_item_has_zero_metadata_db_like_cpp(
+                    enchantments,
+                    random_properties_id,
+                    random_properties_seed,
+                )
     ))
 }
 
@@ -14867,6 +15131,252 @@ fn find_creature_guid_in_update_object(
     None
 }
 
+fn issue20_take_u8(data: &[u8], cursor: &mut usize, field: &str) -> Result<u8> {
+    let value = *data
+        .get(*cursor)
+        .ok_or_else(|| anyhow!("truncated issue #20 item CreateObject at {field}"))?;
+    *cursor += 1;
+    Ok(value)
+}
+
+fn issue20_take_u16(data: &[u8], cursor: &mut usize, field: &str) -> Result<u16> {
+    let end = cursor
+        .checked_add(2)
+        .ok_or_else(|| anyhow!("issue #20 item CreateObject {field} offset overflow"))?;
+    let bytes: [u8; 2] = data
+        .get(*cursor..end)
+        .ok_or_else(|| anyhow!("truncated issue #20 item CreateObject at {field}"))?
+        .try_into()?;
+    *cursor = end;
+    Ok(u16::from_le_bytes(bytes))
+}
+
+fn issue20_take_u32(data: &[u8], cursor: &mut usize, field: &str) -> Result<u32> {
+    let end = cursor
+        .checked_add(4)
+        .ok_or_else(|| anyhow!("issue #20 item CreateObject {field} offset overflow"))?;
+    let bytes: [u8; 4] = data
+        .get(*cursor..end)
+        .ok_or_else(|| anyhow!("truncated issue #20 item CreateObject at {field}"))?
+        .try_into()?;
+    *cursor = end;
+    Ok(u32::from_le_bytes(bytes))
+}
+
+fn issue20_take_u64(data: &[u8], cursor: &mut usize, field: &str) -> Result<u64> {
+    let end = cursor
+        .checked_add(8)
+        .ok_or_else(|| anyhow!("issue #20 item CreateObject {field} offset overflow"))?;
+    let bytes: [u8; 8] = data
+        .get(*cursor..end)
+        .ok_or_else(|| anyhow!("truncated issue #20 item CreateObject at {field}"))?
+        .try_into()?;
+    *cursor = end;
+    Ok(u64::from_le_bytes(bytes))
+}
+
+fn issue20_take_i32(data: &[u8], cursor: &mut usize, field: &str) -> Result<i32> {
+    Ok(issue20_take_u32(data, cursor, field)? as i32)
+}
+
+fn issue20_take_packed_guid(data: &[u8], cursor: &mut usize, field: &str) -> Result<(u64, u64)> {
+    let (consumed, low, high) = parse_packed_guid(
+        data.get(*cursor..)
+            .ok_or_else(|| anyhow!("truncated issue #20 item CreateObject at {field}"))?,
+    )
+    .ok_or_else(|| anyhow!("invalid packed GUID in issue #20 item CreateObject at {field}"))?;
+    *cursor = cursor
+        .checked_add(consumed)
+        .ok_or_else(|| anyhow!("issue #20 item CreateObject {field} offset overflow"))?;
+    Ok((low, high))
+}
+
+fn find_issue20_item_create_in_update_object(
+    payload: &[u8],
+    item_db_guid: u64,
+    item_entry: u32,
+    owner_db_guid: u64,
+    runtime_realm_id: u16,
+) -> Result<Option<Issue20ItemCreateEvidence>> {
+    use sha2::{Digest, Sha256};
+
+    let expected_item = item_guid_raw(item_db_guid, runtime_realm_id);
+    let expected_owner = create_player_guid_raw(owner_db_guid, u32::from(runtime_realm_id));
+
+    for block_start in 0..payload.len().saturating_sub(2) {
+        if !matches!(payload[block_start], 1 | 2) {
+            continue;
+        }
+        let mut cursor = block_start + 1;
+        let Some((guid_len, item_low, item_high)) = parse_packed_guid(&payload[cursor..]) else {
+            continue;
+        };
+        if (item_low, item_high) != expected_item {
+            continue;
+        }
+        cursor += guid_len;
+
+        let update_type = payload[block_start];
+        if update_type != 1 {
+            bail!("issue #20 loaded item used CreateObject2 instead of C++ existing-object CreateObject");
+        }
+        if issue20_take_u8(payload, &mut cursor, "TypeID")? != 1 {
+            bail!("issue #20 loaded fixture was not serialized as TYPEID_ITEM");
+        }
+        let create_bits_end = cursor
+            .checked_add(3)
+            .filter(|end| *end <= payload.len())
+            .ok_or_else(|| anyhow!("truncated issue #20 item CreateObject flags"))?;
+        if payload[cursor..create_bits_end] != [0, 0, 0] {
+            bail!("issue #20 loaded item CreateObject carried nonzero movement flags");
+        }
+        cursor = create_bits_end;
+        if issue20_take_i32(payload, &mut cursor, "PauseTimes")? != 0 {
+            bail!("issue #20 loaded item CreateObject carried pause times");
+        }
+
+        let values_len = issue20_take_u32(payload, &mut cursor, "values length")? as usize;
+        let values_end = cursor
+            .checked_add(values_len)
+            .filter(|end| *end <= payload.len())
+            .ok_or_else(|| anyhow!("truncated issue #20 item CreateObject values"))?;
+        if issue20_take_u8(payload, &mut cursor, "UpdateFieldFlags")? != 0x01 {
+            bail!("issue #20 loaded item CreateObject was not owner-visible");
+        }
+        if issue20_take_i32(payload, &mut cursor, "EntryID")? != item_entry as i32
+            || issue20_take_u32(payload, &mut cursor, "ObjectData.DynamicFlags")? != 0
+            || issue20_take_u32(payload, &mut cursor, "ObjectData.Scale")? != 1.0_f32.to_bits()
+        {
+            bail!("issue #20 loaded item ObjectData did not match the isolated fixture");
+        }
+        let owner = issue20_take_packed_guid(payload, &mut cursor, "Owner")?;
+        let contained_in = issue20_take_packed_guid(payload, &mut cursor, "ContainedIn")?;
+        let creator = issue20_take_packed_guid(payload, &mut cursor, "Creator")?;
+        let gift_creator = issue20_take_packed_guid(payload, &mut cursor, "GiftCreator")?;
+        if owner != expected_owner
+            || contained_in != expected_owner
+            || creator != (0, 0)
+            || gift_creator != (0, 0)
+        {
+            bail!("issue #20 loaded item ownership GUIDs did not match the fixture player");
+        }
+        if issue20_take_i32(payload, &mut cursor, "StackCount")? != 1
+            || issue20_take_i32(payload, &mut cursor, "Expiration")? != 0
+        {
+            bail!("issue #20 loaded item count/expiration did not match the fixture");
+        }
+        for _ in 0..5 {
+            if issue20_take_i32(payload, &mut cursor, "SpellCharges")? != 0 {
+                bail!("issue #20 loaded item carried unexpected spell charges");
+            }
+        }
+        let _dynamic_flags = issue20_take_u32(payload, &mut cursor, "ItemData.DynamicFlags")?;
+
+        let mut enchantments = [0; ISSUE20_ITEM_ENCHANTMENT_SLOT_COUNT];
+        for (slot, enchantment) in enchantments.iter_mut().enumerate() {
+            *enchantment = issue20_take_i32(payload, &mut cursor, "Enchantment.ID")?;
+            let duration = issue20_take_u32(payload, &mut cursor, "Enchantment.Duration")?;
+            let charges = issue20_take_u16(payload, &mut cursor, "Enchantment.Charges")?;
+            let field_a = issue20_take_u8(payload, &mut cursor, "Enchantment.FieldA")?;
+            let field_b = issue20_take_u8(payload, &mut cursor, "Enchantment.FieldB")?;
+            if duration != 0 || charges != 0 || field_a != 0 || field_b != 0 {
+                bail!(
+                    "issue #20 loaded item enchantment slot {slot} carried unexpected auxiliary fields: duration={duration} charges={charges} fields={field_a}/{field_b}"
+                );
+            }
+        }
+        let random_properties_seed = issue20_take_i32(payload, &mut cursor, "PropertySeed")?;
+        let random_properties_id = issue20_take_i32(payload, &mut cursor, "RandomPropertiesID")?;
+        if enchantments != issue20_expected_enchantment_ids()
+            || random_properties_seed != 0
+            || random_properties_id != ISSUE20_ITEM_RANDOM_PROPERTY_ID
+        {
+            bail!(
+                "issue #20 loaded item lost enchant/random metadata: enchantments={enchantments:?} random={random_properties_seed}/{random_properties_id}"
+            );
+        }
+
+        let durability = issue20_take_u32(payload, &mut cursor, "Durability")?;
+        let max_durability = issue20_take_u32(payload, &mut cursor, "MaxDurability")?;
+        let create_played_time = issue20_take_u32(payload, &mut cursor, "CreatePlayedTime")?;
+        let context = issue20_take_i32(payload, &mut cursor, "Context")?;
+        let create_time = issue20_take_u64(payload, &mut cursor, "CreateTime")?;
+        let artifact_xp = issue20_take_u64(payload, &mut cursor, "ArtifactXP")?;
+        let item_appearance_mod_id = issue20_take_u8(payload, &mut cursor, "ItemAppearanceModID")?;
+        let artifact_power_count = issue20_take_u32(payload, &mut cursor, "ArtifactPowers.Size")?;
+        let gem_count = issue20_take_u32(payload, &mut cursor, "Gems.Size")?;
+        let dynamic_flags2 = issue20_take_u32(payload, &mut cursor, "DynamicFlags2")?;
+        let bonus_key_item_id = issue20_take_i32(payload, &mut cursor, "ItemBonusKey.ItemID")?;
+        let bonus_list_count =
+            issue20_take_u32(payload, &mut cursor, "ItemBonusKey.BonusListIDs.Size")?;
+        let debug_item_level = issue20_take_u16(payload, &mut cursor, "DEBUGItemLevel")?;
+        let modifier_count_bits = issue20_take_u8(payload, &mut cursor, "ItemModList.Values.Size")?;
+        if durability != 0
+            || max_durability != 0
+            || create_played_time != 0
+            || context != 0
+            || create_time != 0
+            || artifact_xp != 0
+            || item_appearance_mod_id != 0
+            || artifact_power_count != 0
+            || gem_count != 0
+            || dynamic_flags2 != 0
+            || bonus_key_item_id != 0
+            || bonus_list_count != 0
+            || debug_item_level != 0
+            || modifier_count_bits != 0
+        {
+            bail!("issue #20 loaded item CreateObject tail did not match the isolated fixture");
+        }
+        if cursor != values_end {
+            bail!(
+                "issue #20 loaded item CreateObject did not consume its complete values block: parsed={cursor} declared_end={values_end}"
+            );
+        }
+
+        let block_sha256 = hex::encode(Sha256::digest(&payload[block_start..values_end]));
+        return Ok(Some(Issue20ItemCreateEvidence {
+            block_sha256,
+            enchantments,
+            random_properties_seed,
+            random_properties_id,
+        }));
+    }
+    Ok(None)
+}
+
+fn record_issue20_item_create_evidence(
+    payload: &[u8],
+    options: &InventorySwapSmokeOptions,
+    owner_db_guid: u64,
+    result: &mut BotRunResult,
+) -> Result<()> {
+    let runtime_realm_id = u16::try_from(realm_id())
+        .map_err(|_| anyhow!("runtime realm ID does not fit issue #20 item GUID"))?;
+    let Some(evidence) = find_issue20_item_create_in_update_object(
+        payload,
+        options.item_guid_a,
+        options.item_entry_a,
+        owner_db_guid,
+        runtime_realm_id,
+    )?
+    else {
+        return Ok(());
+    };
+    if let Some(previous) = result.inventory_swap_item_create_sha256.as_deref() {
+        if previous != evidence.block_sha256 {
+            bail!("issue #20 login published two different CreateObject blocks for one item");
+        }
+    } else {
+        info!(
+            "Issue #20 loaded item CREATE_OBJECT exact block SHA-256: {}",
+            evidence.block_sha256
+        );
+        result.inventory_swap_item_create_sha256 = Some(evidence.block_sha256);
+    }
+    Ok(())
+}
+
 fn find_creature_guid_near_position_in_update_object(
     payload: &[u8],
     map_id: u16,
@@ -15625,6 +16135,189 @@ mod tests {
             build_swap_inv_item_payload(36, 40),
             [0x80, 255, 40, 255, 36, 40, 36]
         );
+    }
+
+    fn issue20_item_create_fixture(
+        item_guid: u64,
+        item_entry: u32,
+        owner_guid: u64,
+        random_properties_id: i32,
+        extra_enchantment: Option<(usize, i32)>,
+        include_create_tail: bool,
+    ) -> Vec<u8> {
+        let (item_low, item_high) = item_guid_raw(item_guid, 1);
+        let (owner_low, owner_high) = create_player_guid_raw(owner_guid, 1);
+        let mut values = vec![0x01];
+        values.extend_from_slice(&(item_entry as i32).to_le_bytes());
+        values.extend_from_slice(&0u32.to_le_bytes());
+        values.extend_from_slice(&1.0_f32.to_bits().to_le_bytes());
+        values.extend(build_packed_guid(owner_low, owner_high));
+        values.extend(build_packed_guid(owner_low, owner_high));
+        values.extend(build_packed_guid(0, 0));
+        values.extend(build_packed_guid(0, 0));
+        values.extend_from_slice(&1i32.to_le_bytes());
+        values.extend_from_slice(&0i32.to_le_bytes());
+        for _ in 0..5 {
+            values.extend_from_slice(&0i32.to_le_bytes());
+        }
+        values.extend_from_slice(&0u32.to_le_bytes());
+        for slot in 0..ISSUE20_ITEM_ENCHANTMENT_SLOT_COUNT {
+            let enchantment_id = extra_enchantment
+                .filter(|(extra_slot, _)| *extra_slot == slot)
+                .map(|(_, id)| id)
+                .unwrap_or_else(|| issue20_expected_enchantment_ids()[slot]);
+            values.extend_from_slice(&enchantment_id.to_le_bytes());
+            values.extend_from_slice(&0u32.to_le_bytes());
+            values.extend_from_slice(&0u16.to_le_bytes());
+            values.extend_from_slice(&[0, 0]);
+        }
+        values.extend_from_slice(&0i32.to_le_bytes());
+        values.extend_from_slice(&random_properties_id.to_le_bytes());
+        if include_create_tail {
+            values.extend_from_slice(&[0; 56]);
+        }
+
+        let mut block = vec![1];
+        block.extend(build_packed_guid(item_low, item_high));
+        block.push(1);
+        block.extend_from_slice(&[0, 0, 0]);
+        block.extend_from_slice(&0i32.to_le_bytes());
+        block.extend_from_slice(&(values.len() as u32).to_le_bytes());
+        block.extend(values);
+        block
+    }
+
+    #[test]
+    fn issue20_inventory_fixture_pins_full_enchantment_and_random_property_rows() {
+        let enchantments = issue20_item_enchantments_db_string();
+        assert_eq!(
+            enchantments.split_whitespace().count(),
+            ISSUE20_ITEM_ENCHANTMENT_SLOT_COUNT * 3
+        );
+        assert!(issue20_item_metadata_matches_db_like_cpp(
+            &enchantments,
+            ISSUE20_ITEM_RANDOM_PROPERTY_ID,
+            0,
+        ));
+        assert!(!issue20_item_metadata_matches_db_like_cpp(
+            &enchantments,
+            0,
+            0,
+        ));
+        let zero_enchantments = issue20_zero_enchantments_db_string();
+        assert!(issue20_item_has_zero_metadata_db_like_cpp(
+            &zero_enchantments,
+            0,
+            0,
+        ));
+        assert!(!issue20_item_has_zero_metadata_db_like_cpp(
+            &enchantments,
+            0,
+            0,
+        ));
+    }
+
+    #[test]
+    fn issue20_item_create_parser_proves_loaded_metadata_and_exact_block_bytes() {
+        use sha2::{Digest, Sha256};
+
+        let payload = issue20_item_create_fixture(
+            44_001,
+            DEFAULT_INVENTORY_SWAP_ITEM_ENTRY_A,
+            15,
+            ISSUE20_ITEM_RANDOM_PROPERTY_ID,
+            None,
+            true,
+        );
+        let evidence = find_issue20_item_create_in_update_object(
+            &payload,
+            44_001,
+            DEFAULT_INVENTORY_SWAP_ITEM_ENTRY_A,
+            15,
+            1,
+        )
+        .expect("valid issue #20 fixture")
+        .expect("fixture item CreateObject");
+        assert_eq!(evidence.block_sha256, hex::encode(Sha256::digest(&payload)));
+        assert_eq!(evidence.enchantments[0], ISSUE20_ITEM_PERMANENT_ENCHANT_ID);
+        assert_eq!(
+            evidence.enchantments[ISSUE20_ITEM_RANDOM_PROPERTY_SLOT],
+            ISSUE20_ITEM_RANDOM_PROPERTY_ENCHANT_ID
+        );
+        assert_eq!(
+            evidence.random_properties_id,
+            ISSUE20_ITEM_RANDOM_PROPERTY_ID
+        );
+
+        let wrong = issue20_item_create_fixture(
+            44_001,
+            DEFAULT_INVENTORY_SWAP_ITEM_ENTRY_A,
+            15,
+            0,
+            None,
+            true,
+        );
+        assert!(find_issue20_item_create_in_update_object(
+            &wrong,
+            44_001,
+            DEFAULT_INVENTORY_SWAP_ITEM_ENTRY_A,
+            15,
+            1,
+        )
+        .is_err());
+
+        let extra_enchantment = issue20_item_create_fixture(
+            44_001,
+            DEFAULT_INVENTORY_SWAP_ITEM_ENTRY_A,
+            15,
+            ISSUE20_ITEM_RANDOM_PROPERTY_ID,
+            Some((1, 999)),
+            true,
+        );
+        assert!(find_issue20_item_create_in_update_object(
+            &extra_enchantment,
+            44_001,
+            DEFAULT_INVENTORY_SWAP_ITEM_ENTRY_A,
+            15,
+            1,
+        )
+        .is_err());
+
+        let truncated_tail = issue20_item_create_fixture(
+            44_001,
+            DEFAULT_INVENTORY_SWAP_ITEM_ENTRY_A,
+            15,
+            ISSUE20_ITEM_RANDOM_PROPERTY_ID,
+            None,
+            false,
+        );
+        assert!(find_issue20_item_create_in_update_object(
+            &truncated_tail,
+            44_001,
+            DEFAULT_INVENTORY_SWAP_ITEM_ENTRY_A,
+            15,
+            1,
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn inventory_swap_success_requires_issue20_relog_metadata_proof() {
+        let mut result = BotRunResult {
+            inventory_swap_smoke: true,
+            inventory_swap_smoke_passed: Some(true),
+            world_auth: true,
+            enum_characters: true,
+            player_login_verified: true,
+            ..BotRunResult::default()
+        };
+        assert!(!result.success(false, false, false));
+
+        result.inventory_swap_item_create_sha256 = Some("ab".repeat(32));
+        result.inventory_swap_item_create_relogin_verified = true;
+        result.inventory_swap_relogin_after_reverse = true;
+        result.inventory_swap_item_metadata_persisted = true;
+        assert!(result.success(false, false, false));
     }
 
     #[test]

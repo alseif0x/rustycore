@@ -1,6 +1,6 @@
 # RustyCore — Defects in EXISTING (already-developed) code
 
-**Date:** 2026-06-27 · **Base:** `develop` @ `d171117c`.
+**Date:** 2026-07-22 · **Base:** `3.4.3` @ `55719eb4` plus issue #20 closeout QA.
 
 This is the adversarial audit the user asked for: **not what's missing, but what's wrong
 in what already exists.** An 8-agent parallel pass tried to *break* the capabilities STATE.md
@@ -12,26 +12,33 @@ agents (marked ⚠VERIFY). Signedness divergences (i32 vs u32) are rated **LOW**
 only differ for values >2³¹ that never occur in normal play (stack counts, durability) —
 identical bytes otherwise. Severity reflects my judgment after that filter.
 
-Headline: **even the live core loop has correctness/integrity bugs.** "Sends the packet and
-mutates DB" ≠ "computes the right result / can't lose or dupe data."
+Headline: the scoped **D-C1…D-C9 CRIT integrity track is closed**. The HIGH/MED defects below
+remain real; "sends the packet and mutates DB" still does not imply full gameplay parity.
 
 ---
 
 ## CRIT — data loss / duplication / corruption (fix before trusting the server with real chars)
 
-- [ ] **D-C1 Item enchantments not loaded on relog.** `SEL_CHAR_EQUIPMENT`/`SEL_CHAR_BAG_CONTENTS`
+- [x] **D-C1 Item enchantments not loaded on relog.** `SEL_CHAR_EQUIPMENT`/`SEL_CHAR_BAG_CONTENTS`
   select enchantment cols but the load hardcodes 0 → equipped/bagged enchants vanish on
   logout. `handlers/character.rs:4617-4618,4760-4761`. C++ `Player::_LoadInventory`.
   - 2026-07-01 issue #20 local slice: Rust now selects `item_instance.enchantments` for the
     specialized equipment/bag login queries, parses the 13x `(id,duration,charges)` fields like
     C++ `Item::LoadFromDB`, applies them to runtime `Item` objects, and includes them in item
-    `CREATE_OBJECT` blocks. Kept open until capture-diff/live relog QA is run.
-- [ ] **D-C2 Item random properties not loaded on relog.** Same query gap → magical items
+    `CREATE_OBJECT` blocks. PR #89 merged with all required checks green. The issue-#20 closeout
+    then loaded an enchanted/random-property item through both installed C++ and Rust runtimes,
+    preserved the exact CharacterDB metadata around occupied forward/reverse swaps, and produced
+    the same complete item-create block SHA-256 on both sides. Final reviewer hardening requires
+    an observed empty-body logout packet in every phase, the second item's exact all-zero
+    enchantment state, and a third Rust authentication proving the reverse-save reload:
+    `25238a033be693b4969b9412f1666074e5d9be76c6db3b188e021a60b4feb2c8`.
+- [x] **D-C2 Item random properties not loaded on relog.** Same query gap → magical items
   become non-magical. `handlers/character.rs:4617`.
   - 2026-07-01 issue #20 local slice: the same login path now loads `randomPropertiesId` and
     `randomPropertiesSeed` for equipped and bagged items into runtime item state and login create
-    data. Kept open until capture-diff/live relog QA is run.
-- [ ] **D-C3 Bank/equipment-set/void-storage persistence incomplete.** The original audit found
+    data. The same paired C++/Rust logout/relog proof above covers the nonzero property ID, seed,
+    generated property enchantment and exact serialized item block.
+- [x] **D-C3 Bank/equipment-set/void-storage persistence incomplete.** The original audit found
   these storage paths represented only in memory, with loss on logout.
   - 2026-07-13 issue #102 local slice: personal `AUTOBANK` / `AUTOSTORE_BANK_ITEM` now plans
     C++ `CanBankItem` / `CanStoreItem` destinations, commits every stack/location plus the
@@ -58,7 +65,7 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
     fresh-auth relogs with exact loaded sets, and cleanup. The committed one-packet
     `SMSG_EQUIPMENT_SET_ID` action capture is byte-clean against C++ on the instance route with no
     accepted divergence. Equipment-set persistence is therefore closed.
-  - 2026-07-22 issue #114 local slice: void storage now loads into a validated fixed 160-slot
+  - 2026-07-22 issue #114 / PR #115: void storage now loads into a validated fixed 160-slot
     authority and uses one process-wide, startup-initialized item-ID generator like C++
     `ObjectMgr`. Unlock, query, transfer and swap enforce the represented C++ gates. Deposit,
     withdrawal and swap commit flags/money, inventory/item mutations and all affected void rows
@@ -91,9 +98,9 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
     no-physical-item withdrawals, and sends live collection updates for both new and merged
     physical withdrawals. These latest fixes pass focused void/capacity/quest/collection tests;
     the complete local PR preflight and local Codex review completed CLEAN on `2143334b` in 471.8
-    seconds. All three D-C3 children are implemented locally; this aggregate remains open for
-    issue #114 CI, current-HEAD GitHub Codex verdict and merge.
-- [ ] **D-C4 Inventory swap not transactional.** Two separate `execute()` calls; mid-fail
+    seconds. PR #115 merged as `55719eb4` with CI and the current-HEAD Codex verdict green. Bank,
+    equipment/transmog sets and void storage are therefore all closed for the scoped D-C3 paths.
+- [x] **D-C4 Inventory swap not transactional.** Two separate `execute()` calls; mid-fail
   orphans/dupes items. `handlers/character.rs:11668-11681`. C++ appends both changed positions to
   the character save transaction through `Player::_SaveInventory`.
   - 2026-07-14 issue #104 local slice: every represented direct-inventory `SwapItem` route now
@@ -108,38 +115,40 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
     round-trip (occupied swap, logout, full re-auth/relogin, inverse swap, second persistence
     check) and a manual client swap/relogin check. An accidental debug-binary deployment was
     rejected after a stack overflow and replaced with the verified release artifact before these
-    passes. Kept open only until the PR current-HEAD gates pass.
-- [ ] **D-C5 Loot item TOCTOU → duplication.** Slot marked looted *after* the async inventory
+    passes. PR #105 merged with every required check and the current-HEAD Codex verdict green.
+    The issue-#20 closeout reran both occupied swaps through logout/fresh-auth and exact DB checks.
+- [x] **D-C5 Loot item TOCTOU → duplication.** Slot marked looted *after* the async inventory
   store; two concurrent looters both store it. `handlers/loot.rs`. C++ instead gets safety from
   object-owned `Loot` plus globally serialized `PROCESS_THREADUNSAFE` session work; it validates
   storage before mutating the shared slot.
   - 2026-07-18 issue #106 local slice: creatures/gameobjects now own a generation-tagged shared
     loot authority; item/master/roll/disenchant paths use cancellation-safe leases whose detached
     persistence worker owns the claim across SQL `COMMIT`. Session loot tables are packet caches,
-    and stale corpse/GO generations and stale group rolls fail closed. Kept open until the live
-    two-bot race, single-session capture, manual original-client QA, CI, and current-HEAD review
-    gates pass.
-- [ ] **D-C6 Loot money TOCTOU → duplication.** `loot.coins` zeroed *after* distribute; two
+    and stale corpse/GO generations and stale group rolls fail closed. The guarded two-bot race,
+    single-session C++/Rust capture, original-client QA, CI and current-HEAD review all completed;
+    PR #107 merged.
+- [x] **D-C6 Loot money TOCTOU → duplication.** `loot.coins` zeroed *after* distribute; two
   concurrent `handle_loot_money` both pay out. `handlers/loot.rs`.
   - 2026-07-18 issue #106 local slice: one detached worker atomically persists every connected,
     allowed, in-range group share, commits the object-owned money claim, and then schedules one
     exact-once runtime application per session without cross-session acknowledgement waits. A
-    cancelled packet future cannot reopen a successful DB transaction. Kept open for the same
-    runtime/review gates as D-C5.
-  - **Open crash boundary (not acceptance credit for #106):** these detached workers and their
+    cancelled packet future cannot reopen a successful DB transaction. The same required gates
+    completed in merged PR #107.
+  - **Separate crash-recovery boundary (does not reopen D-C5/D-C6):** these detached workers and their
     completion trackers are in-process only. A runtime/process abort exactly after SQL `COMMIT`
     but before the synchronous authority/completion continuation can still lose that continuation.
     Closing `kill -9` recovery requires a durable claim journal written in the same transaction
     and replayed at startup; neither the current authority nor the session tracker is that journal.
-- [ ] **D-C7 Player save has incomplete transaction coverage.** Issue #17 wraps the
-  Rust-covered represented `Player::SaveToDB` character statements in one `SqlTransaction`, but
-  full C++ save parity, login/account transaction coupling, capture diff, and manual live-client
-  QA remain pending. Automated runtime QA now covers login/logout plus preservation of action rows
-  outside the active spec, travel columns, and unchanged quest-objective rows outside this seam's
-  ownership. Previous serial awaits could leave DB inconsistent (gold debited, item not added;
-  level saved, position reverted).
-  `session.rs`.
-- [ ] **D-C8 Vendor buy not atomic.** Gold/currency applied to runtime before item DB commit;
+- [x] **D-C7 Player save had incomplete transaction coverage.** Issue #17 / PR #88 adds the
+  periodic save timer and wraps the Rust-covered represented `Player::SaveToDB` statements in one
+  `SqlTransaction`, clearing dirty state only after commit. Automated runtime QA covers
+  login/logout, inactive action rows, travel columns and unchanged quest-objective rows; manual
+  original-client QA confirmed logout/relog plus action-bar and cooldown persistence. PR #88
+  merged with CI and Codex review green. The issue-#20 paired C++/Rust run additionally verifies
+  the observable logout envelope, including C++'s realm-routed empty
+  `SMSG_LOGOUT_COMPLETE`. Full C++ save breadth and login/account cross-database coupling remain
+  Part-2 parity work, not an open instance of this scoped CRIT transaction defect. `session.rs`.
+- [x] **D-C8 Vendor buy not atomic.** Gold/currency applied to runtime before item DB commit;
   commit fail = paid, no item. `handlers/character.rs:10177-10292`.
   - 2026-07-20 issue #108 local slice: ordinary item purchases already gained a combined
     gold/item/turn-in transaction in #107, but item extended-cost currencies and the entire
@@ -157,9 +166,9 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
     `SMSG_CRITERIA_UPDATE`. Installed original-client QA on 2026-07-21 bought two extended-cost
     items across a relog and confirmed exact item/currency persistence in CharacterDB; the fixture
     was then fully restored. The confusing client `You receive currency` line was backed by the
-    same byte-exact loss packet as C++ (quantity 15, delta -15, Vendor reason), not a refund. Kept
-    open until final CI, current-HEAD reviewer verdict, and merge.
-- [ ] **D-C9 Group full-check race.** Size checked then join without re-check → 6+ member
+    same byte-exact loss packet as C++ (quantity 15, delta -15, Vendor reason), not a refund.
+    PR #109 merged after final CI and the current-HEAD Codex verdict passed.
+- [x] **D-C9 Group full-check race.** Size checked then join without re-check → 6+ member
   groups under concurrent accepts. `handlers/group.rs:928-1044`.
   - 2026-07-21 issue #110 local slice: C++ checks `Group::IsFull` immediately before
     `Group::AddMember` on its serialized execution path. Rust now performs that pair under one
@@ -171,7 +180,7 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
     `4adf87e1` runtime and three-client bot race passed locally on 2026-07-21: one candidate
     received exact `Invite/GROUP_FULL`, the other joined, CharacterDB contained exactly the four
     initial members plus that winner, all sessions logged out, and the fixture was restored.
-    Kept open until CI, current-HEAD reviewer verdict, and merge.
+    PR #111 merged after final CI and the current-HEAD Codex verdict passed.
 
 ## HIGH — broken mechanics / silent failure / exploit
 
@@ -231,11 +240,10 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
 - [x] **D-M6 Equipment sets in-memory only** was closed by issue #112 / PR #113: sets and
   transmog outfits now persist transactionally and load on fresh authentication with a shared
   collision-safe GUID namespace.
-- [ ] **D-M7 Void storage not saved.** Issue #114 fixes this locally with one atomic
-  flags/money/inventory/void transaction and fresh-auth lifecycle proof; the GitHub-review fixes
-  also cover legacy backpack capacity, deposit quest-objective removal and live withdrawal
-  collection updates. The latest fixes pass their focused tests and complete local preflight on
-  `2143334b`; CI, current-HEAD GitHub review and merge gates remain.
+- [x] **D-M7 Void storage not saved** was closed by issue #114 / PR #115 with one atomic
+  flags/money/inventory/void transaction, fresh-auth lifecycle proof, legacy-backpack repair,
+  deposit quest-objective persistence, live withdrawal collection updates, focused tests and a
+  byte-clean C++/Rust query capture. PR #115 merged as `55719eb4` with all required gates green.
 - [ ] **D-M8 Group member DB insert fail logged-only**, runtime kept → reload drops member. `handlers/group.rs:1090`.
 - [ ] **D-M9 Phase not re-checked on movement** → out-of-phase objects linger. `handlers/movement.rs:274`.
 - [ ] **D-M10 Position save binds extra `instance_id`** vs C++ 7-field SavePosition (verify SQL param alignment). `session.rs:21578`.

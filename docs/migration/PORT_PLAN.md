@@ -64,16 +64,21 @@ intent, no mutation — see STATE.md §0). Almost every item below is "convert r
   on the ground.
 - [ ] **M0.3** Implement VMap line-of-sight (replace the `return true` stub) — gates spells,
   aggro, and pathing.
-- [ ] **M0.4** Player persistence safety: add a **periodic save timer** + wrap multi-statement
-  saves in a **transaction** (fix crash-data-loss + partial-save race).
+- [x] **M0.4** Player persistence safety: periodic save timer + one transaction for the
+  represented multi-statement save landed in issue #17 / PR #88, with runtime and manual-client
+  logout/relog persistence QA. Full C++ save breadth remains Part-2 parity work.
 - [ ] **M0.5** Persist respawns to a DB respawn table (survive restart).
 - [ ] **M0.6** Establish the **represented→live bridge** convention (a single place where a
   recorded intent is applied to live state), so M2–M5 convert consistently.
-- [ ] **M0.7 (D-track CRIT: stop data loss/dupe NOW)** — fix before validating gameplay:
+- [x] **M0.7 (D-track CRIT: stop data loss/dupe NOW)** — closed by issue #20 and merged PRs
+  #89, #103, #105, #107, #109, #111, #113 and #115, plus the already-merged #88 save slice:
   load item enchantments + random properties on relog (**D-C1/D-C2**), persist bank/
   equipment-sets/void-storage (**D-C3/M6/M7**), wrap inventory swap + player save in
   transactions (**D-C4/D-C7**), close loot item/money TOCTOU dupe (**D-C5/D-C6**), make vendor
-  buy + group full-check atomic (**D-C8/D-C9**). See EXISTING-CODE-DEFECTS.md.
+  buy + group full-check atomic (**D-C8/D-C9**). Every child merged with its required CI and
+  current-HEAD Codex verdict; installed action-specific QA/captures are recorded in
+  EXISTING-CODE-DEFECTS.md. HIGH/MED mechanics and the separately documented post-COMMIT crash
+  journal boundary remain outside this scoped CRIT closeout.
 
 ### M1 — Clean, crash-free world entry
 - [ ] **M1.1** Fix **#7** (CUF profiles → bags don't open).

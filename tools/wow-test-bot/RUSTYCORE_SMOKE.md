@@ -28,7 +28,8 @@ the corresponding Rust server port is ready.
   response packets and CharacterDB.
 - `--inventory-swap-smoke`: creates two distinct occupied backpack slots, sends
   `CMSG_SWAP_INV_ITEM`, logs out/re-authenticates, swaps them back, and verifies
-  both atomic DB transitions before cleaning the isolated local fixture.
+  both atomic DB transitions plus exact enchanted/random-property item-create
+  metadata before cleaning the isolated local fixture.
 - `--rested-xp-smoke`: records a bounded set of fields from one disposable local
   bot character, verifies offline wilderness/resting accrual, attacks a real
   creature, checks `SMSG_LOG_XP_GAIN` and DB consumption, relogs, restores those
@@ -135,11 +136,19 @@ WOW_BOT_INVENTORY_SWAP_SMOKE=1 \
 ./run_rustycore_login_smoke.sh
 ```
 
-The pass requires two isolated items to exchange occupied backpack slots, a
-full relog to observe the persisted forward state, and the inverse exchange to
-persist after the second logout. Setup and cleanup are restricted to
-`@bot.local` accounts. `WOW_BOT_INVENTORY_SWAP_ITEM_ENTRY_A/B` (defaults
-`2589`/`2592`) and `WOW_BOT_INVENTORY_SWAP_TIMEOUT_SECS` are optional.
+The pass requires two isolated items to exchange occupied backpack slots. Item
+A has a permanent enchantment and a real random property; item B carries an
+explicit all-zero 13-slot enchantment shape. The bot records A's complete
+owner-visible `CREATE_OBJECT`, logs out over the preserved realm/instance
+topology, and only then checks both items' committed locations and metadata,
+matching C++'s logout-save lifecycle. Fresh authentication after the forward
+and reverse exchanges must publish the identical block hash. Every phase must
+observe `SMSG_LOGOUT_COMPLETE`, accepted only with C++'s empty body. The live
+C++ and Rust issue-#20 contrast produced the same block SHA-256:
+`25238a033be693b4969b9412f1666074e5d9be76c6db3b188e021a60b4feb2c8`.
+Setup and cleanup are restricted to `@bot.local` accounts.
+`WOW_BOT_INVENTORY_SWAP_ITEM_ENTRY_A/B` (defaults `2589`/`2592`) and
+`WOW_BOT_INVENTORY_SWAP_TIMEOUT_SECS` are optional.
 
 ## Rested XP accrual and consumption smoke
 
