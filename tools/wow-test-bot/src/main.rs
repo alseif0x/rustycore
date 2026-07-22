@@ -4022,6 +4022,7 @@ async fn run_bot_with_void_storage(
     let mut login_ok = false;
     let preserve_realm_connection = stand_state_options.is_some()
         || homebind_options.is_some()
+        || inventory_swap_options.is_some()
         || vendor_options.is_some()
         || rested_xp_options.is_some()
         || loot_race_options.is_some()
