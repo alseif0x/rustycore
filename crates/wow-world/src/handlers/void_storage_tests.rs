@@ -555,6 +555,58 @@ fn new_void_withdrawal_create_carries_committed_item_state_like_cpp() {
 }
 
 #[test]
+fn mixed_transfer_publishes_deposit_destroy_before_withdrawal_create_like_cpp() {
+    let (mut session, send_rx, _) = make_void_storage_session();
+    install_void_test_item_template(&mut session, 19019);
+    let owner = ObjectGuid::create_player(1, 42);
+    let deposited_guid = ObjectGuid::create_item(1, 500);
+    let withdrawn_guid = ObjectGuid::create_item(1, 501);
+    let mut withdrawn_item = session.make_inventory_item_object(
+        withdrawn_guid,
+        19019,
+        owner,
+        1,
+        37,
+        ItemContext::None,
+        INVENTORY_SLOT_ITEM_START,
+    );
+    withdrawn_item.set_item_flag(ItemFieldFlags::NEW_ITEM);
+    session.insert_inventory_item_object(withdrawn_item.clone());
+
+    let create_dynamic_flags = ItemFieldFlags::NEW_ITEM.bits();
+    let create = void_withdrawal_item_create_data_like_cpp(&withdrawn_item, create_dynamic_flags);
+    let expected_destroy = UpdateObject::destroy_objects(vec![deposited_guid], 571).to_bytes();
+    let expected_create = UpdateObject::create_stored_items(
+        vec![void_withdrawal_item_create_data_like_cpp(
+            &withdrawn_item,
+            create_dynamic_flags,
+        )],
+        571,
+    )
+    .to_bytes();
+
+    session.publish_void_storage_item_lifecycle_like_cpp(
+        571,
+        vec![(
+            (INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START),
+            vec![deposited_guid],
+        )],
+        vec![(create, create_dynamic_flags)],
+    );
+
+    let packets = send_rx.try_iter().collect::<Vec<_>>();
+    assert_eq!(packets.first(), Some(&expected_destroy));
+    let create_index = packets
+        .iter()
+        .position(|packet| packet == &expected_create)
+        .expect("withdrawal CREATE_OBJECT packet");
+    assert!(
+        create_index > 0,
+        "C++ publishes every deposit destroy before withdrawal creates"
+    );
+}
+
+#[test]
 fn withdrawal_restores_and_persists_effective_random_property_enchantments_like_cpp() {
     let (mut session, _, _) = make_void_storage_session();
     session.set_item_random_properties_store(Arc::new(ItemRandomPropertiesStore::from_entries([
@@ -833,6 +885,113 @@ async fn withdrawal_store_plan_merges_before_empty_slots_with_atomic_overlays_li
         (u16::from(INVENTORY_SLOT_BAG_0) << 8) | u16::from(INVENTORY_SLOT_ITEM_START),
         "C++ destroys deposits before CanStoreNewItem scans withdrawal destinations"
     );
+}
+
+#[test]
+fn withdrawal_planner_excludes_slots_from_a_deposited_equipped_bag_like_cpp() {
+    let (mut session, _, _) = make_void_storage_session();
+    let player_guid = ObjectGuid::create_player(1, 42);
+    let bag_entry = 21841;
+    let item_entry = 19019;
+    install_void_test_bag_and_child_templates(&mut session, bag_entry, item_entry);
+
+    for offset in 0..INVENTORY_DEFAULT_SIZE {
+        let slot = INVENTORY_SLOT_ITEM_START + offset;
+        let guid = ObjectGuid::create_item(1, 600 + i64::from(offset));
+        let item = session.make_inventory_item_object(
+            guid,
+            item_entry,
+            player_guid,
+            1,
+            0,
+            ItemContext::None,
+            slot,
+        );
+        session.insert_inventory_item_object(item);
+        session.insert_inventory_item_like_cpp(
+            slot,
+            InventoryItem {
+                guid,
+                entry_id: item_entry,
+                db_guid: guid.counter() as u64,
+                inventory_type: Some(InventoryType::NonEquip as u8),
+            },
+        );
+    }
+
+    let bag_slot = wow_entities::INVENTORY_SLOT_BAG_START;
+    let bag_guid = ObjectGuid::create_item(1, 700);
+    let bag_inventory = InventoryItem {
+        guid: bag_guid,
+        entry_id: bag_entry,
+        db_guid: 700,
+        inventory_type: Some(InventoryType::Bag as u8),
+    };
+    let bag_item = session.make_inventory_item_object(
+        bag_guid,
+        bag_entry,
+        player_guid,
+        1,
+        0,
+        ItemContext::None,
+        bag_slot,
+    );
+    session.insert_inventory_item_object(bag_item);
+    session.insert_inventory_item_like_cpp(bag_slot, bag_inventory.clone());
+
+    let child_guid = ObjectGuid::create_item(1, 701);
+    let mut child_item = session.make_inventory_item_object(
+        child_guid,
+        item_entry,
+        player_guid,
+        1,
+        0,
+        ItemContext::None,
+        5,
+    );
+    child_item.set_container_guid_and_slot(bag_guid, bag_slot);
+    session.insert_inventory_item_object(child_item);
+
+    let (_, child_only_destinations, _) = session
+        .plan_store_new_direct_inventory_item_with_overlays_like_cpp(
+            item_entry,
+            1,
+            &[],
+            &[(bag_slot, 5)],
+        )
+        .expect("child-only snapshot still has the equipped bag");
+    let [child_only_bag, _] = child_only_destinations[0].pos.to_be_bytes();
+    assert_eq!(
+        child_only_bag, bag_slot,
+        "the adversarial fixture must expose the orphan-container risk"
+    );
+
+    let destroyed = session.plan_void_storage_destroyed_items_like_cpp(
+        INVENTORY_SLOT_BAG_0,
+        bag_slot,
+        bag_inventory,
+        Vec::new(),
+    );
+    let vacated_positions = destroyed
+        .iter()
+        .map(|destroyed| (destroyed.bag, destroyed.slot))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        vacated_positions,
+        vec![(bag_slot, 5), (INVENTORY_SLOT_BAG_0, bag_slot)]
+    );
+
+    let (result, destinations, no_space_count) = session
+        .plan_store_new_direct_inventory_item_with_overlays_like_cpp(
+            item_entry,
+            1,
+            &[],
+            &vacated_positions,
+        )
+        .expect("represented inventory planner");
+    assert_ne!(result, wow_constants::InventoryResult::Ok);
+    assert!(destinations.is_empty());
+    assert_eq!(no_space_count, Some(1));
 }
 
 #[tokio::test]

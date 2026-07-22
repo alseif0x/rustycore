@@ -424,6 +424,64 @@ impl WorldSession {
         self.send_packet(&VoidTransferResult { result });
     }
 
+    /// Publish the committed item-object lifecycle in the same order as C++
+    /// `HandleVoidStorageTransfer`: every deposit `DestroyItem(..., true)` and
+    /// its cleared inventory slot precede withdrawal `StoreNewItem(..., true)`
+    /// creates, including when a withdrawal reuses a deposited slot.
+    fn publish_void_storage_item_lifecycle_like_cpp(
+        &self,
+        map_id: u16,
+        destroyed_deposit_items: Vec<((u8, u8), Vec<wow_core::ObjectGuid>)>,
+        new_withdrawal_item_creates: Vec<(ItemCreateData, u32)>,
+    ) {
+        for ((bag, slot), destroyed_guids) in destroyed_deposit_items {
+            self.send_packet(&UpdateObject::destroy_objects(destroyed_guids, map_id));
+            if bag == INVENTORY_SLOT_BAG_0 {
+                let visible = (slot < 19)
+                    .then_some((slot, 0, 0, 0))
+                    .into_iter()
+                    .collect::<Vec<_>>();
+                let virtual_item = ((15..=17).contains(&slot))
+                    .then_some((slot - 15, 0, 0, 0))
+                    .into_iter()
+                    .collect::<Vec<_>>();
+                self.send_player_values_update_from_entity_bridge(
+                    &[(slot, wow_core::ObjectGuid::EMPTY)],
+                    &visible,
+                    &virtual_item,
+                    &[],
+                    None,
+                );
+            } else {
+                self.send_bag_slot_values_update_like_cpp(bag, slot);
+            }
+        }
+
+        if !new_withdrawal_item_creates.is_empty() {
+            // C++ `StoreNewItem(..., true)` publishes each newly withdrawn
+            // object before post-store random properties plus the void
+            // handler's creator/binding changes produce a VALUES update, and
+            // before the player/bag slot starts referencing its GUID.
+            let post_store_updates = new_withdrawal_item_creates
+                .iter()
+                .map(|(create, flags)| (create.item_guid, *flags))
+                .collect::<Vec<_>>();
+            self.send_packet(&UpdateObject::create_stored_items(
+                new_withdrawal_item_creates
+                    .into_iter()
+                    .map(|(create, _)| create)
+                    .collect(),
+                map_id,
+            ));
+            for (item_guid, create_dynamic_flags) in post_store_updates {
+                self.send_void_withdrawal_post_store_item_values_update_like_cpp(
+                    item_guid,
+                    create_dynamic_flags,
+                );
+            }
+        }
+    }
+
     pub async fn handle_void_storage_unlock(&mut self, mut pkt: WorldPacket) {
         let Ok(unlock) = UnlockVoidStorage::read(&mut pkt) else {
             return;
@@ -703,6 +761,11 @@ impl WorldSession {
         let mut used_withdrawal_ids = HashSet::new();
         let mut storage_overlays = Vec::new();
         let mut destination_states = HashMap::<(u8, u8), PlannedVoidDestinationStateLikeCpp>::new();
+        // This includes each equipped bag's top-level `(BAG_0, bag_slot)`
+        // position after its child positions. The detached inventory planner
+        // removes that parent with `remove_top_level_item`, which unregisters
+        // the bag storage, and also omits its `BagTemplateRef`; withdrawals
+        // therefore cannot target any slot in a bag destroyed by this request.
         let vacated_inventory_positions = planned_deposits
             .iter()
             .flat_map(|deposit| deposit.destroyed_items.iter())
@@ -1194,57 +1257,14 @@ impl WorldSession {
         if old_money != new_money {
             self.send_player_values_update_from_entity_bridge(&[], &[], &[], &[], Some(new_money));
         }
-        if !new_withdrawal_item_creates.is_empty() {
-            // C++ `StoreNewItem(..., true)` publishes each newly withdrawn
-            // object before post-store random properties plus the void
-            // handler's creator/binding changes produce a VALUES update, and
-            // before the player/bag slot starts referencing its GUID.
-            let post_store_updates = new_withdrawal_item_creates
-                .iter()
-                .map(|(create, flags)| (create.item_guid, *flags))
-                .collect::<Vec<_>>();
-            self.send_packet(&UpdateObject::create_stored_items(
-                new_withdrawal_item_creates
-                    .into_iter()
-                    .map(|(create, _)| create)
-                    .collect(),
-                map_id,
-            ));
-            for (item_guid, create_dynamic_flags) in post_store_updates {
-                self.send_void_withdrawal_post_store_item_values_update_like_cpp(
-                    item_guid,
-                    create_dynamic_flags,
-                );
-            }
-        }
+        self.publish_void_storage_item_lifecycle_like_cpp(
+            map_id,
+            destroyed_deposit_items,
+            new_withdrawal_item_creates,
+        );
         self.publish_quest_item_added_status_changes_like_cpp(&added_changed_quest_ids);
         for update in &collection_updates {
             self.send_player_values_update_like_cpp(update);
-        }
-        for ((bag, slot), destroyed_guids) in destroyed_deposit_items {
-            self.send_packet(&wow_packet::packets::update::UpdateObject::destroy_objects(
-                destroyed_guids,
-                map_id,
-            ));
-            if bag == INVENTORY_SLOT_BAG_0 {
-                let visible = (slot < 19)
-                    .then_some((slot, 0, 0, 0))
-                    .into_iter()
-                    .collect::<Vec<_>>();
-                let virtual_item = ((15..=17).contains(&slot))
-                    .then_some((slot - 15, 0, 0, 0))
-                    .into_iter()
-                    .collect::<Vec<_>>();
-                self.send_player_values_update_from_entity_bridge(
-                    &[(slot, wow_core::ObjectGuid::EMPTY)],
-                    &visible,
-                    &virtual_item,
-                    &[],
-                    None,
-                );
-            } else {
-                self.send_bag_slot_values_update_like_cpp(bag, slot);
-            }
         }
         for withdrawal in &planned_withdrawals {
             if let PlannedVoidWithdrawalDestinationLikeCpp::New {
