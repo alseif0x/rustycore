@@ -27,8 +27,10 @@ remain real; "sends the packet and mutates DB" still does not imply full gamepla
     C++ `Item::LoadFromDB`, applies them to runtime `Item` objects, and includes them in item
     `CREATE_OBJECT` blocks. PR #89 merged with all required checks green. The issue-#20 closeout
     then loaded an enchanted/random-property item through both installed C++ and Rust runtimes,
-    performed two logout/fresh-auth cycles around occupied swaps, preserved the exact CharacterDB
-    metadata, and produced the same complete item-create block SHA-256 on both sides:
+    preserved the exact CharacterDB metadata around occupied forward/reverse swaps, and produced
+    the same complete item-create block SHA-256 on both sides. Final reviewer hardening requires
+    an observed empty-body logout packet in every phase, the second item's exact all-zero
+    enchantment state, and a third Rust authentication proving the reverse-save reload:
     `25238a033be693b4969b9412f1666074e5d9be76c6db3b188e021a60b4feb2c8`.
 - [x] **D-C2 Item random properties not loaded on relog.** Same query gap → magical items
   become non-magical. `handlers/character.rs:4617`.

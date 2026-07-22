@@ -413,6 +413,7 @@ struct BotRunResult {
     inventory_swap_forward_persisted: bool,
     inventory_swap_relogin_after_forward: bool,
     inventory_swap_reverse_persisted: bool,
+    inventory_swap_relogin_after_reverse: bool,
     inventory_swap_item_create_sha256: Option<String>,
     inventory_swap_item_create_relogin_verified: bool,
     inventory_swap_item_metadata_persisted: bool,
@@ -569,6 +570,7 @@ impl BotRunResult {
                 && self.inventory_swap_smoke_passed.unwrap_or(false)
                 && self.inventory_swap_item_create_sha256.is_some()
                 && self.inventory_swap_item_create_relogin_verified
+                && self.inventory_swap_relogin_after_reverse
                 && self.inventory_swap_item_metadata_persisted;
         }
         if self.vendor_smoke {
@@ -808,6 +810,7 @@ struct HomebindSmokeFixture {
 enum InventorySwapSmokePhase {
     Forward,
     Reverse,
+    VerifyReverseRelog,
 }
 
 #[derive(Debug, Clone)]
@@ -3559,6 +3562,7 @@ async fn run_bot_with_void_storage(
         inventory_swap_forward_persisted: false,
         inventory_swap_relogin_after_forward: false,
         inventory_swap_reverse_persisted: false,
+        inventory_swap_relogin_after_reverse: false,
         inventory_swap_item_create_sha256: None,
         inventory_swap_item_create_relogin_verified: false,
         inventory_swap_item_metadata_persisted: false,
@@ -4779,7 +4783,7 @@ fn log_bot_summary(
         }
         if result.inventory_swap_smoke {
             info!(
-                "✅ Bot {}: SUCCESS inventory_swap_smoke items={:?}/{:?} entries={:?}/{:?} slots={:?}<->{:?} forward={} relog={} reverse={} item_create={:?} item_create_relog={} metadata_persisted={} failure={:?}",
+                "✅ Bot {}: SUCCESS inventory_swap_smoke items={:?}/{:?} entries={:?}/{:?} slots={:?}<->{:?} forward={} relog_forward={} reverse={} relog_reverse={} item_create={:?} item_create_relog={} metadata_persisted={} failure={:?}",
                 result.account,
                 result.inventory_swap_item_guid_a,
                 result.inventory_swap_item_guid_b,
@@ -4790,6 +4794,7 @@ fn log_bot_summary(
                 result.inventory_swap_forward_persisted,
                 result.inventory_swap_relogin_after_forward,
                 result.inventory_swap_reverse_persisted,
+                result.inventory_swap_relogin_after_reverse,
                 result.inventory_swap_item_create_sha256,
                 result.inventory_swap_item_create_relogin_verified,
                 result.inventory_swap_item_metadata_persisted,
@@ -4987,7 +4992,7 @@ fn log_bot_summary(
         }
         if result.inventory_swap_smoke {
             error!(
-                "❌ Bot {}: FAILED inventory_swap_smoke items={:?}/{:?} entries={:?}/{:?} slots={:?}<->{:?} forward={} relog={} reverse={} item_create={:?} item_create_relog={} metadata_persisted={} failure={:?}",
+                "❌ Bot {}: FAILED inventory_swap_smoke items={:?}/{:?} entries={:?}/{:?} slots={:?}<->{:?} forward={} relog_forward={} reverse={} relog_reverse={} item_create={:?} item_create_relog={} metadata_persisted={} failure={:?}",
                 result.account,
                 result.inventory_swap_item_guid_a,
                 result.inventory_swap_item_guid_b,
@@ -4998,6 +5003,7 @@ fn log_bot_summary(
                 result.inventory_swap_forward_persisted,
                 result.inventory_swap_relogin_after_forward,
                 result.inventory_swap_reverse_persisted,
+                result.inventory_swap_relogin_after_reverse,
                 result.inventory_swap_item_create_sha256,
                 result.inventory_swap_item_create_relogin_verified,
                 result.inventory_swap_item_metadata_persisted,
@@ -9324,28 +9330,86 @@ async fn run_inventory_swap_smoke_workflow(
         .await
         {
             Ok(second) => {
-                let item_create_relogin_verified = combined.inventory_swap_item_create_sha256
-                    == second.inventory_swap_item_create_sha256
-                    && combined.inventory_swap_item_create_sha256.is_some();
+                let expected_item_create_sha256 =
+                    combined.inventory_swap_item_create_sha256.clone();
+                let forward_relogin_hash_verified = expected_item_create_sha256.is_some()
+                    && expected_item_create_sha256 == second.inventory_swap_item_create_sha256;
+                let reverse_phase_passed = second.inventory_swap_smoke_passed.unwrap_or(false);
                 combined.world_auth &= second.world_auth;
                 combined.enum_characters &= second.enum_characters;
                 combined.player_login_verified &= second.player_login_verified;
                 combined.inventory_swap_relogin_after_forward =
                     second.inventory_swap_relogin_after_forward;
                 combined.inventory_swap_reverse_persisted = second.inventory_swap_reverse_persisted;
-                combined.inventory_swap_item_create_relogin_verified = item_create_relogin_verified;
                 combined.inventory_swap_item_metadata_persisted &=
                     second.inventory_swap_item_metadata_persisted;
                 combined.seen_opcodes.extend(second.seen_opcodes);
                 combined.inventory_swap_failure = second.inventory_swap_failure;
-                combined.inventory_swap_smoke_passed = Some(
-                    combined.inventory_swap_forward_persisted
-                        && combined.inventory_swap_relogin_after_forward
-                        && combined.inventory_swap_reverse_persisted
-                        && combined.inventory_swap_item_create_relogin_verified
-                        && combined.inventory_swap_item_metadata_persisted
-                        && second.inventory_swap_smoke_passed.unwrap_or(false),
-                );
+                combined.inventory_swap_smoke_passed = Some(false);
+
+                if combined.inventory_swap_forward_persisted
+                    && combined.inventory_swap_relogin_after_forward
+                    && combined.inventory_swap_reverse_persisted
+                    && combined.inventory_swap_item_metadata_persisted
+                    && forward_relogin_hash_verified
+                    && reverse_phase_passed
+                {
+                    let mut verify_reverse_options = fixture.options.clone();
+                    verify_reverse_options.phase = InventorySwapSmokePhase::VerifyReverseRelog;
+                    match run_bot(
+                        bot.clone(),
+                        dungeon_id,
+                        lfg_secs,
+                        auto_teleport,
+                        false,
+                        None,
+                        None,
+                        None,
+                        Some(verify_reverse_options),
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                    )
+                    .await
+                    {
+                        Ok(third) => {
+                            let reverse_relogin_hash_verified = expected_item_create_sha256
+                                .is_some()
+                                && expected_item_create_sha256
+                                    == third.inventory_swap_item_create_sha256;
+                            combined.world_auth &= third.world_auth;
+                            combined.enum_characters &= third.enum_characters;
+                            combined.player_login_verified &= third.player_login_verified;
+                            combined.inventory_swap_relogin_after_reverse =
+                                third.inventory_swap_relogin_after_reverse;
+                            combined.inventory_swap_item_create_relogin_verified =
+                                forward_relogin_hash_verified && reverse_relogin_hash_verified;
+                            combined.inventory_swap_item_metadata_persisted &=
+                                third.inventory_swap_item_metadata_persisted;
+                            combined.seen_opcodes.extend(third.seen_opcodes);
+                            combined.inventory_swap_failure = third.inventory_swap_failure;
+                            combined.inventory_swap_smoke_passed = Some(
+                                combined.inventory_swap_relogin_after_reverse
+                                    && combined.inventory_swap_item_create_relogin_verified
+                                    && combined.inventory_swap_item_metadata_persisted
+                                    && third.inventory_swap_smoke_passed.unwrap_or(false),
+                            );
+                        }
+                        Err(error) => {
+                            combined.inventory_swap_failure = Some(format!(
+                                "Inventory swap post-reverse relog verification failed: {error}"
+                            ));
+                        }
+                    }
+                } else if combined.inventory_swap_failure.is_none() {
+                    combined.inventory_swap_failure = Some(
+                        "Inventory swap reverse phase did not satisfy its relog/hash/persistence proof"
+                            .to_string(),
+                    );
+                }
             }
             Err(error) => {
                 combined.inventory_swap_failure = Some(format!(
@@ -9732,6 +9796,12 @@ async fn run_inventory_swap_smoke_phase(
                     options.slot_b,
                 )
             }
+            InventorySwapSmokePhase::VerifyReverseRelog => (
+                options.slot_a,
+                options.slot_b,
+                options.slot_a,
+                options.slot_b,
+            ),
         };
 
     let bot_for_before = bot.clone();
@@ -9753,6 +9823,28 @@ async fn run_inventory_swap_smoke_phase(
         );
     }
 
+    if options.phase == InventorySwapSmokePhase::VerifyReverseRelog {
+        let logout_complete_seen = loot_race::logout_and_wait_routed_like_cpp(
+            bot_index,
+            stream,
+            crypt,
+            server_inflater,
+            realm_connection.as_mut(),
+            bot.character_guid,
+            result,
+        )
+        .await?;
+        if !logout_complete_seen {
+            bail!(
+                "inventory swap post-reverse relog did not observe SMSG_LOGOUT_COMPLETE on either socket"
+            );
+        }
+        result.inventory_swap_relogin_after_reverse = true;
+        result.inventory_swap_item_metadata_persisted = true;
+        result.inventory_swap_smoke_passed = Some(true);
+        return Ok(());
+    }
+
     let payload = build_swap_inv_item_payload(options.slot_a, options.slot_b);
     send_encrypted_packet(stream, crypt, CMSG_SWAP_INV_ITEM, &payload).await?;
     info!(
@@ -9760,7 +9852,7 @@ async fn run_inventory_swap_smoke_phase(
         bot_index, options.slot_a, options.slot_b, options.phase
     );
 
-    loot_race::logout_and_wait_routed_like_cpp(
+    let logout_complete_seen = loot_race::logout_and_wait_routed_like_cpp(
         bot_index,
         stream,
         crypt,
@@ -9770,6 +9862,12 @@ async fn run_inventory_swap_smoke_phase(
         result,
     )
     .await?;
+    if !logout_complete_seen {
+        bail!(
+            "inventory swap {:?} phase did not observe SMSG_LOGOUT_COMPLETE on either socket",
+            options.phase
+        );
+    }
 
     // C++ marks both items changed in memory and persists them during the
     // logout save transaction. Polling CharacterDB before logout would test a
@@ -9787,6 +9885,9 @@ async fn run_inventory_swap_smoke_phase(
     match options.phase {
         InventorySwapSmokePhase::Forward => result.inventory_swap_forward_persisted = true,
         InventorySwapSmokePhase::Reverse => result.inventory_swap_reverse_persisted = true,
+        InventorySwapSmokePhase::VerifyReverseRelog => {
+            unreachable!("post-reverse relog returns before sending a swap")
+        }
     }
     result.inventory_swap_smoke_passed = Some(true);
     Ok(())
@@ -12402,6 +12503,10 @@ fn issue20_item_enchantments_db_string() -> String {
     fields.join(" ")
 }
 
+fn issue20_zero_enchantments_db_string() -> String {
+    vec!["0"; ISSUE20_ITEM_ENCHANTMENT_SLOT_COUNT * 3].join(" ")
+}
+
 fn issue20_item_metadata_matches_db_like_cpp(
     enchantments: &str,
     random_properties_id: i32,
@@ -12421,6 +12526,25 @@ fn issue20_item_metadata_matches_db_like_cpp(
             .collect::<Vec<_>>()
         && random_properties_id == ISSUE20_ITEM_RANDOM_PROPERTY_ID
         && random_properties_seed == 0
+}
+
+fn issue20_item_has_zero_metadata_db_like_cpp(
+    enchantments: &str,
+    random_properties_id: i32,
+    random_properties_seed: i32,
+) -> bool {
+    let parsed = enchantments
+        .split_whitespace()
+        .map(str::parse::<i32>)
+        .collect::<std::result::Result<Vec<_>, _>>();
+    matches!(
+        parsed,
+        Ok(values)
+            if values.len() == ISSUE20_ITEM_ENCHANTMENT_SLOT_COUNT * 3
+                && values.iter().all(|value| *value == 0)
+                && random_properties_id == 0
+                && random_properties_seed == 0
+    )
 }
 
 fn prepare_inventory_swap_smoke_fixture(
@@ -12525,7 +12649,7 @@ fn prepare_inventory_swap_smoke_fixture(
                 ISSUE20_ITEM_RANDOM_PROPERTY_ID,
             )
         } else {
-            (String::new(), 0)
+            (issue20_zero_enchantments_db_string(), 0)
         };
         transaction
             .exec_drop(
@@ -12612,12 +12736,15 @@ fn verify_inventory_swap_fixture_locations(
                 )
     ) && matches!(
         row_b,
-        Some((0, slot, entry, owner, _, random_properties_id, random_properties_seed))
+        Some((0, slot, entry, owner, ref enchantments, random_properties_id, random_properties_seed))
             if slot == expected_slot_b
                 && entry == options.item_entry_b
                 && owner == bot.character_guid
-                && random_properties_id == 0
-                && random_properties_seed == 0
+                && issue20_item_has_zero_metadata_db_like_cpp(
+                    enchantments,
+                    random_properties_id,
+                    random_properties_seed,
+                )
     ))
 }
 
@@ -16077,6 +16204,17 @@ mod tests {
             0,
             0,
         ));
+        let zero_enchantments = issue20_zero_enchantments_db_string();
+        assert!(issue20_item_has_zero_metadata_db_like_cpp(
+            &zero_enchantments,
+            0,
+            0,
+        ));
+        assert!(!issue20_item_has_zero_metadata_db_like_cpp(
+            &enchantments,
+            0,
+            0,
+        ));
     }
 
     #[test]
@@ -16177,6 +16315,7 @@ mod tests {
 
         result.inventory_swap_item_create_sha256 = Some("ab".repeat(32));
         result.inventory_swap_item_create_relogin_verified = true;
+        result.inventory_swap_relogin_after_reverse = true;
         result.inventory_swap_item_metadata_persisted = true;
         assert!(result.success(false, false, false));
     }

@@ -2216,7 +2216,7 @@ pub(super) async fn logout_and_wait_routed_like_cpp(
     mut realm_connection: Option<&mut EncryptedWorldConnection>,
     character_guid: u64,
     result: &mut BotRunResult,
-) -> Result<()> {
+) -> Result<bool> {
     send_encrypted_packet(stream, crypt, CMSG_LOGOUT_REQUEST, &[0]).await?;
     info!("[Bot {}] ✅ CMSG_LOGOUT_REQUEST sent", bot_index);
 
@@ -2357,7 +2357,7 @@ pub(super) async fn logout_and_wait_routed_like_cpp(
             }
         ),
     }
-    Ok(())
+    Ok(completion_route.is_some())
 }
 
 pub(super) async fn best_effort_close(

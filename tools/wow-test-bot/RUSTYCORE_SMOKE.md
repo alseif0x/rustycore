@@ -137,13 +137,14 @@ WOW_BOT_INVENTORY_SWAP_SMOKE=1 \
 ```
 
 The pass requires two isolated items to exchange occupied backpack slots. Item
-A has a permanent enchantment and a real random property. The bot records its
-complete owner-visible `CREATE_OBJECT`, logs out over the preserved
-realm/instance topology, and only then checks committed locations and metadata,
-matching C++'s logout-save lifecycle. A fresh authentication must publish the
-identical block hash; the inverse exchange repeats the logout/relog proof.
-`SMSG_LOGOUT_COMPLETE` is accepted only with C++'s empty body. The live C++ and
-Rust issue-#20 closeout produced the same block SHA-256:
+A has a permanent enchantment and a real random property; item B carries an
+explicit all-zero 13-slot enchantment shape. The bot records A's complete
+owner-visible `CREATE_OBJECT`, logs out over the preserved realm/instance
+topology, and only then checks both items' committed locations and metadata,
+matching C++'s logout-save lifecycle. Fresh authentication after the forward
+and reverse exchanges must publish the identical block hash. Every phase must
+observe `SMSG_LOGOUT_COMPLETE`, accepted only with C++'s empty body. The live
+C++ and Rust issue-#20 contrast produced the same block SHA-256:
 `25238a033be693b4969b9412f1666074e5d9be76c6db3b188e021a60b4feb2c8`.
 Setup and cleanup are restricted to `@bot.local` accounts.
 `WOW_BOT_INVENTORY_SWAP_ITEM_ENTRY_A/B` (defaults `2589`/`2592`) and

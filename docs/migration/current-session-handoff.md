@@ -7,7 +7,9 @@
   item `CREATE_OBJECT`, preserves the realm socket beside the instance socket, follows C++'s
   in-memory-swap → logout-save lifecycle, verifies exact empty-body `SMSG_LOGOUT_COMPLETE`, and
   requires identical fresh-auth blocks plus exact committed metadata after both forward and
-  reverse swaps. Installed Rust and C++ runs both passed and produced
+  reverse swaps. Reviewer hardening then made every phase require an observed empty-body logout,
+  pinned item B's all-zero enchantment array, and added the final Rust authentication after the
+  reverse save. Installed Rust and C++ contrast produced
   `25238a033be693b4969b9412f1666074e5d9be76c6db3b188e021a60b4feb2c8`; the C++ capture wrapper
   restored the prior Rust runtime. This closes the audited CRIT defects, not the separately
   documented HIGH/MED mechanics, the loot post-COMMIT crash-journal boundary, or broad inventory

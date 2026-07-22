@@ -13,10 +13,13 @@ enchantment 79 occupies `PROP_ENCHANTMENT_SLOT_2`. The bot parses the full owner
 It keeps the realm socket while gameplay uses the instance socket, sends the occupied swap, then
 waits for C++'s routed empty-body `SMSG_LOGOUT_COMPLETE` before checking CharacterDB because C++
 persists `ITEM_CHANGED` positions during `_SaveInventory`, not before logout. A fresh World
-authentication must publish the identical block; the inverse swap repeats the same proof.
+authentication must publish the identical block; a third authentication after the inverse swap
+must repeat the same proof. Every phase requires an observed empty-body logout packet, and the
+second fixture item's full enchantment array must remain zero.
 
-Installed Rust and C++ runs both completed the forward swap, logout, fresh-auth verification,
-reverse swap, second logout and cleanup. Both exact create blocks hashed to
+Installed Rust and C++ contrast completed the forward/reverse persistence lifecycle and produced
+the same exact create-block hash. The final hardened Rust rerun additionally completed the
+post-reverse authentication before cleanup. All observed create blocks hashed to
 `25238a033be693b4969b9412f1666074e5d9be76c6db3b188e021a60b4feb2c8`; every DB metadata/location
 assertion passed, and the capture wrapper restored Rust online. C++ anchors are
 `Item.cpp:585-735,806-843`, `Player.cpp:18207-18445,19336-19718,19892`, `ItemHandler.cpp:69-112`, and

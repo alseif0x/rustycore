@@ -62,9 +62,11 @@ real random-property record and its generated property enchantment. The bot
 requires that item's exact owner-visible `CREATE_OBJECT` block, hashes it,
 sends the real `CMSG_SWAP_INV_ITEM`, and verifies committed DB state only after
 C++'s logout save transaction. It then authenticates again, requires an
-identical create-block hash, swaps the items back, repeats the logout/relog
-proof, and removes the fixture. The realm connection is retained alongside the
-instance connection, and `SMSG_LOGOUT_COMPLETE` must have C++'s empty body.
+identical create-block hash, swaps the items back, and performs a third
+authentication that must publish the same block before removing the fixture.
+Item B's complete 13x `(id,duration,charges)` DB shape must remain zero throughout.
+The realm connection is retained alongside the instance connection, and every
+phase must observe `SMSG_LOGOUT_COMPLETE` with C++'s empty body.
 This covers atomic occupied swaps plus D-C1/D-C2 relog metadata preservation
 without relying on Rust-only pre-logout DB publication. Optional entry overrides are
 `WOW_BOT_INVENTORY_SWAP_ITEM_ENTRY_A/B` (defaults `2589`/`2592`).
