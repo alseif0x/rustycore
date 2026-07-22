@@ -126,7 +126,11 @@ remain real; "sends the packet and mutates DB" still does not imply full gamepla
     proved the invalid container-aware source error on the C++ realm route plus forward/reverse
     occupied swaps and fresh-auth metadata; strict capture-diff matched request and response with
     zero value/routing/count differences. This closes the bounded C#-ITEM.2 behavior, not broader
-    item/gem/durability parity, and remains pending PR CI/current-HEAD review/merge.
+    item/gem/durability parity, and remains pending PR CI/current-HEAD review/merge. GitHub review
+    additionally applied current upstream TrinityCore's missing legacy `AutoUnequipChildItem`
+    pre-step before child redirects and stopped internal inventory relocations from re-crediting
+    quest objectives. Proposed `CanUseBank` guards for auto-equip/auto-store were not applied:
+    both the local 3.4.3 source and current upstream omit them, while the swap handlers retain them.
 - [x] **D-C5 Loot item TOCTOU → duplication.** Slot marked looted *after* the async inventory
   store; two concurrent looters both store it. `handlers/loot.rs`. C++ instead gets safety from
   object-owned `Loot` plus globally serialized `PROCESS_THREADUNSAFE` session work; it validates

@@ -25,6 +25,16 @@ item metadata, and restored the fixture. Strict capture-diff from request `0x399
 create-block hash remains
 `25238a033be693b4969b9412f1666074e5d9be76c6db3b188e021a60b4feb2c8`.
 
+GitHub review found that the local legacy C++ child redirect omitted the
+`AutoUnequipChildItem(parentItem)` call present in current upstream TrinityCore before the recursive
+`SwapItem` steps. Rust now commits that child relocation into reserved slot 138–140 before queuing
+the two parent redirects; a regression proves both later preflights continue instead of re-entering
+the same redirect. The shared storage executor also runs item-added quest checks only for
+bank-to-inventory moves, so this internal child relocation cannot duplicate objective credit. Two
+bank-access suggestions were rejected after exact contrast: local 3.4.3 and current upstream both
+omit `CanUseBank` in `HandleAutoEquipItemOpcode` and `HandleAutoStoreBagItemOpcode`, while retaining
+it in `HandleSwapInvItemOpcode`/`HandleSwapItem`; Rust preserves that observable handler contract.
+
 Boundary: represented session inputs still do not own every C++ current-spell weapon-change or
 combat-state gate; the accredited capture proves the invalid-source branch plus the occupied-swap
 lifecycle rather than every validation result; rare auto-equip/offhand follow-ups use sequential

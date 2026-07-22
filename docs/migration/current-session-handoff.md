@@ -20,6 +20,15 @@
   (`EQUIP_ERR_ITEM_NOT_FOUND`) on realm. The strict action capture is exact: two packets matched,
   with zero value, routing, missing, or extra differences. The full item `CREATE_OBJECT` hash
   remained `25238a033be693b4969b9412f1666074e5d9be76c6db3b188e021a60b4feb2c8`.
+  GitHub review exposed one real child-equipment seam. The legacy 3.4.3 snapshot recursively
+  re-enters `SwapItem` while the same child still occupies the equipment slot; current upstream
+  TrinityCore repairs that omission by calling `AutoUnequipChildItem(parentItem)` first. Rust now
+  durably relocates the child into reserved slot 138–140 before queuing the two redirect steps,
+  and ordinary inventory/child relocations no longer re-credit quest-item objectives as though
+  they came from bank. Two other review suggestions were intentionally rejected after exact
+  local and current-upstream contrast: neither `HandleAutoEquipItemOpcode` nor
+  `HandleAutoStoreBagItemOpcode` calls `CanUseBank`; only the explicit swap handlers do. Adding
+  those guards would be a Rust-only behavioral divergence from both C++ authorities.
   Boundaries remain explicit: the live session still lacks full current-spell weapon-change and
   some combat-state ownership needed to exercise every `CanEquipItem` input; the capture proves
   the invalid-source gate and occupied-swap lifecycle, not every validation branch; rare
