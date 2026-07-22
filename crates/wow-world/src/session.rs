@@ -5951,6 +5951,9 @@ pub(crate) struct RepresentedEquipmentSetLikeCpp {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RepresentedVoidStorageItemLikeCpp {
+    // Exact C++ `VoidStorageItem` durable fields for this 3.4.3 source tree.
+    // Despite stale SQL comments in `Player.cpp`, the struct and prepared
+    // statement contain no bonus-list or artifact-knowledge fields.
     pub(crate) item_id: u64,
     pub(crate) item_entry: u32,
     pub(crate) creator_guid: ObjectGuid,
@@ -7591,6 +7594,10 @@ impl WorldSession {
             slot: u32::from(slot),
             item: wow_packet::packets::item::ItemInstance {
                 item_id: item.item_entry as i32,
+                // C++ `ItemInstance::Initialize(VoidStorageItem const*)`
+                // intentionally initializes only ItemID and the optional
+                // TimewalkerLevel modifier. Random properties and ItemBonus
+                // remain their protocol defaults on void-storage packets.
                 modifications: wow_packet::packets::item::ItemModList {
                     values: modifications,
                 },

@@ -99,6 +99,25 @@ fn represented_void_item(item_id: u64, entry: u32) -> RepresentedVoidStorageItem
     }
 }
 
+#[test]
+fn void_item_packet_uses_cpp_void_instance_fields_only() {
+    let (session, _, _) = make_void_storage_session();
+    let item = represented_void_item(77, 19019);
+    let packet = session.represented_void_storage_item_packet_like_cpp(3, &item);
+
+    assert_eq!(packet.item.item_id, 19019);
+    assert_eq!(packet.item.random_properties_id, 0);
+    assert_eq!(packet.item.random_properties_seed, 0);
+    assert!(packet.item.item_bonus.is_none());
+    assert_eq!(
+        packet.item.modifications.values,
+        vec![wow_packet::packets::item::ItemMod::new(
+            80,
+            ItemModifier::TimewalkerLevel as u8,
+        )]
+    );
+}
+
 fn install_void_test_item_template(session: &mut WorldSession, entry: u32) {
     install_void_test_item_template_with_stack(session, entry, 1);
 }
@@ -572,9 +591,10 @@ fn mixed_transfer_publishes_deposit_destroy_before_withdrawal_create_like_cpp() 
     );
     withdrawn_item.set_item_flag(ItemFieldFlags::NEW_ITEM);
     session.insert_inventory_item_object(withdrawn_item.clone());
+    let mut post_store_item = withdrawn_item.clone();
+    WorldSession::clear_item_publication_changes_like_cpp(&mut post_store_item);
 
     let create_dynamic_flags = ItemFieldFlags::NEW_ITEM.bits();
-    let create = void_withdrawal_item_create_data_like_cpp(&withdrawn_item, create_dynamic_flags);
     let expected_destroy = UpdateObject::destroy_objects(vec![deposited_guid], 571).to_bytes();
     let expected_create = UpdateObject::create_stored_items(
         vec![void_withdrawal_item_create_data_like_cpp(
@@ -591,7 +611,12 @@ fn mixed_transfer_publishes_deposit_destroy_before_withdrawal_create_like_cpp() 
             (INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START),
             vec![deposited_guid],
         )],
-        vec![(create, create_dynamic_flags)],
+        vec![WorldSession::new_void_withdrawal_item_publication_like_cpp(
+            &withdrawn_item,
+            &post_store_item,
+            create_dynamic_flags,
+            571,
+        )],
     );
 
     let packets = send_rx.try_iter().collect::<Vec<_>>();
@@ -603,6 +628,119 @@ fn mixed_transfer_publishes_deposit_destroy_before_withdrawal_create_like_cpp() 
     assert!(
         create_index > 0,
         "C++ publishes every deposit destroy before withdrawal creates"
+    );
+}
+
+#[test]
+fn planned_stack_merge_publishes_store_then_post_store_values_like_cpp() {
+    let (session, send_rx, _) = make_void_storage_session();
+    let owner = ObjectGuid::create_player(1, 42);
+    let item_guid = ObjectGuid::create_item(1, 501);
+    let mut create_item = session.make_inventory_item_object(
+        item_guid,
+        19019,
+        owner,
+        1,
+        0,
+        ItemContext::None,
+        INVENTORY_SLOT_ITEM_START,
+    );
+    create_item.set_item_flag(ItemFieldFlags::NEW_ITEM);
+    let create_dynamic_flags = ItemFieldFlags::NEW_ITEM.bits();
+
+    let mut first_post_store_item = create_item.clone();
+    WorldSession::clear_item_publication_changes_like_cpp(&mut first_post_store_item);
+    first_post_store_item.set_creator(ObjectGuid::create_player(1, 7));
+    first_post_store_item.set_binding(true);
+
+    let mut merged_post_store_item = first_post_store_item.clone();
+    WorldSession::clear_item_publication_changes_like_cpp(&mut merged_post_store_item);
+    merged_post_store_item.set_creator(ObjectGuid::create_player(1, 8));
+
+    let expected_create = UpdateObject::create_stored_items(
+        vec![void_withdrawal_item_create_data_like_cpp(
+            &create_item,
+            create_dynamic_flags,
+        )],
+        571,
+    )
+    .to_bytes();
+    let expected_store_merge = UpdateObject::item_stack_count_update(item_guid, 571, 2).to_bytes();
+    let expected_post_store_merge =
+        crate::entity_update_bridge::item_values_update_to_update_object(
+            item_guid,
+            571,
+            &merged_post_store_item.values_update(),
+        )
+        .expect("planned-stack post-store VALUES update")
+        .to_bytes();
+
+    let mut publications = vec![WorldSession::new_void_withdrawal_item_publication_like_cpp(
+        &create_item,
+        &first_post_store_item,
+        create_dynamic_flags,
+        571,
+    )];
+    publications.extend(
+        WorldSession::merged_void_withdrawal_item_publications_like_cpp(
+            item_guid,
+            2,
+            None,
+            &merged_post_store_item,
+            571,
+        ),
+    );
+    session.publish_void_storage_item_lifecycle_like_cpp(571, Vec::new(), publications);
+
+    let packets = send_rx.try_iter().collect::<Vec<_>>();
+    let create_index = packets
+        .iter()
+        .position(|packet| packet == &expected_create)
+        .expect("count-one CREATE_OBJECT packet");
+    let store_merge_index = packets
+        .iter()
+        .position(|packet| packet == &expected_store_merge)
+        .expect("count-two StoreItem VALUES packet");
+    let post_store_merge_index = packets
+        .iter()
+        .position(|packet| packet == &expected_post_store_merge)
+        .expect("post-StoreNewItem creator VALUES packet");
+    assert!(
+        create_index < store_merge_index && store_merge_index < post_store_merge_index,
+        "C++ publishes CREATE, then the merge count, then post-store field changes"
+    );
+}
+
+#[test]
+fn nested_withdrawal_resolves_planned_bag_database_guid_like_cpp() {
+    let (mut session, _, _) = make_void_storage_session();
+    let bag_slot = wow_entities::INVENTORY_SLOT_BAG_START;
+    session.insert_inventory_item_like_cpp(
+        bag_slot,
+        InventoryItem {
+            guid: ObjectGuid::create_item(1, 600),
+            entry_id: 21841,
+            db_guid: 600,
+            inventory_type: Some(InventoryType::Bag as u8),
+        },
+    );
+    let planned = std::collections::HashMap::from([(bag_slot, 700)]);
+
+    assert_eq!(
+        session.void_storage_withdrawal_container_db_guid_like_cpp(INVENTORY_SLOT_BAG_0, &planned,),
+        Some(0)
+    );
+    assert_eq!(
+        session.void_storage_withdrawal_container_db_guid_like_cpp(bag_slot, &planned,),
+        Some(700),
+        "the planned bag must beat the stale runtime bag being replaced in the transaction"
+    );
+    assert_eq!(
+        session.void_storage_withdrawal_container_db_guid_like_cpp(
+            wow_entities::INVENTORY_SLOT_BAG_START + 1,
+            &planned,
+        ),
+        None
     );
 }
 

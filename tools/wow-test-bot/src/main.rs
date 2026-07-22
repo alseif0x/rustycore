@@ -8449,8 +8449,8 @@ async fn disconnect_rested_xp_and_wait(
     Ok(())
 }
 
-fn item_guid_raw(db_guid: u64) -> (u64, u64) {
-    let high = (3u64 << 58) | ((u64::from(realm_id()) & 0x1FFF) << 42);
+fn item_guid_raw(db_guid: u64, runtime_realm_id: u16) -> (u64, u64) {
+    let high = (3u64 << 58) | ((u64::from(runtime_realm_id) & 0x1FFF) << 42);
     (db_guid & OBJECT_GUID_COUNTER_MASK, high)
 }
 
@@ -8486,7 +8486,7 @@ fn build_void_storage_swap_payload(
     dst_slot: u32,
 ) -> Vec<u8> {
     let mut payload = vault_keeper_packed_guid(target, runtime_realm_id);
-    let (low, high) = item_guid_raw(void_item_id);
+    let (low, high) = item_guid_raw(void_item_id, runtime_realm_id);
     payload.extend(build_packed_guid(low, high));
     payload.extend_from_slice(&dst_slot.to_le_bytes());
     payload
@@ -8843,7 +8843,10 @@ async fn run_void_storage_smoke_phase(
                 bail!("freshly unlocked void storage was not empty: {contents:?}");
             }
 
-            let deposit_guid = item_guid_raw(options.fixture_item_guid);
+            let deposit_guid = item_guid_raw(
+                options.fixture_item_guid,
+                options.runtime_realm_id,
+            );
             let payload = build_void_storage_transfer_payload(
                 &options.vault_keeper,
                 options.runtime_realm_id,
@@ -8962,7 +8965,7 @@ async fn run_void_storage_smoke_phase(
                 bail!("swap relog query mismatch: {contents:?}");
             }
             result.void_storage_swap_relogin_verified = true;
-            let withdrawal_guid = item_guid_raw(expected_id);
+            let withdrawal_guid = item_guid_raw(expected_id, options.runtime_realm_id);
             let payload = build_void_storage_transfer_payload(
                 &options.vault_keeper,
                 options.runtime_realm_id,
@@ -16399,6 +16402,18 @@ mod tests {
         assert_eq!(
             vault_keeper_packed_guid(&target, 1),
             [0x01, 0xBF, 24, 0x80, 0x10, 0x1F, 0x60, 0x47, 0x04, 0x20]
+        );
+    }
+
+    #[test]
+    fn void_storage_item_guid_keeps_active_realm_like_runtime() {
+        assert_eq!(
+            item_guid_raw(77, 1),
+            (77, (3u64 << 58) | (1u64 << 42))
+        );
+        assert_eq!(
+            item_guid_raw(77, 2),
+            (77, (3u64 << 58) | (2u64 << 42))
         );
     }
 }

@@ -102,15 +102,33 @@ enum PlannedVoidWithdrawalDestinationLikeCpp {
         item_guid: wow_core::ObjectGuid,
         item_state: RepresentedVoidStorageItemLikeCpp,
         item_object: wow_entities::Item,
+        create_item_object: wow_entities::Item,
+        post_store_item_object: wow_entities::Item,
         enchantments: String,
         create_dynamic_flags: u32,
     },
     MergeExisting {
         inventory_item: InventoryItem,
         item_object: wow_entities::Item,
+        store_stack_count: u32,
+        store_dynamic_flags: Option<u32>,
+        post_store_item_object: wow_entities::Item,
         enchantments: String,
     },
-    MergedIntoPlanned,
+    MergedIntoPlanned {
+        item_guid: wow_core::ObjectGuid,
+        store_stack_count: u32,
+        store_dynamic_flags: Option<u32>,
+        post_store_item_object: wow_entities::Item,
+    },
+}
+
+enum VoidWithdrawalItemPublicationLikeCpp {
+    New {
+        create: ItemCreateData,
+        post_store: Option<UpdateObject>,
+    },
+    Values(UpdateObject),
 }
 
 #[derive(Debug, Clone)]
@@ -390,6 +408,82 @@ impl WorldSession {
         statements
     }
 
+    fn void_storage_withdrawal_container_db_guid_like_cpp(
+        &self,
+        bag: u8,
+        planned_container_db_guids: &HashMap<u8, u64>,
+    ) -> Option<u64> {
+        planned_container_db_guids
+            .get(&bag)
+            .copied()
+            .or_else(|| self.inventory_container_db_guid_like_cpp(bag))
+    }
+
+    fn new_void_withdrawal_item_publication_like_cpp(
+        create_item: &wow_entities::Item,
+        post_store_item: &wow_entities::Item,
+        create_dynamic_flags: u32,
+        map_id: u16,
+    ) -> VoidWithdrawalItemPublicationLikeCpp {
+        let post_store = crate::entity_update_bridge::item_values_update_to_update_object(
+            post_store_item.object().guid(),
+            map_id,
+            &post_store_item.values_update(),
+        );
+        VoidWithdrawalItemPublicationLikeCpp::New {
+            create: void_withdrawal_item_create_data_like_cpp(create_item, create_dynamic_flags),
+            post_store,
+        }
+    }
+
+    fn merged_void_withdrawal_item_publications_like_cpp(
+        item_guid: wow_core::ObjectGuid,
+        store_stack_count: u32,
+        store_dynamic_flags: Option<u32>,
+        post_store_item: &wow_entities::Item,
+        map_id: u16,
+    ) -> Vec<VoidWithdrawalItemPublicationLikeCpp> {
+        let store_update = if let Some(dynamic_flags) = store_dynamic_flags {
+            UpdateObject::item_stack_count_and_flags_update(
+                item_guid,
+                map_id,
+                store_stack_count,
+                dynamic_flags,
+            )
+        } else {
+            UpdateObject::item_stack_count_update(item_guid, map_id, store_stack_count)
+        };
+        let mut publications = vec![VoidWithdrawalItemPublicationLikeCpp::Values(store_update)];
+        publications.extend(
+            crate::entity_update_bridge::item_values_update_to_update_object(
+                item_guid,
+                map_id,
+                &post_store_item.values_update(),
+            )
+            .map(VoidWithdrawalItemPublicationLikeCpp::Values),
+        );
+        publications
+    }
+
+    fn apply_void_withdrawal_post_store_state_like_cpp(
+        item: &mut wow_entities::Item,
+        creator_guid: wow_core::ObjectGuid,
+        random_properties: &EffectiveVoidStorageRandomPropertiesLikeCpp,
+    ) {
+        item.set_creator(creator_guid);
+        // C++ `StoreNewItem` calls `SetItemRandomProperties` after
+        // `StoreItem` and applies it to the item returned by `_StoreItem`.
+        // On a merge that return value is the destination stack, so the later
+        // void item's random properties intentionally replace it.
+        Self::apply_effective_void_storage_random_properties_like_cpp(item, random_properties);
+        item.set_binding(true);
+    }
+
+    fn clear_item_publication_changes_like_cpp(item: &mut wow_entities::Item) {
+        item.clear_item_data_changes();
+        item.object_mut().clear_update_mask(false);
+    }
+
     fn apply_committed_void_storage_destroyed_items_like_cpp(
         &mut self,
         destroyed_items: &[PlannedVoidDestroyedInventoryItemLikeCpp],
@@ -432,7 +526,7 @@ impl WorldSession {
         &self,
         map_id: u16,
         destroyed_deposit_items: Vec<((u8, u8), Vec<wow_core::ObjectGuid>)>,
-        new_withdrawal_item_creates: Vec<(ItemCreateData, u32)>,
+        withdrawal_item_publications: Vec<VoidWithdrawalItemPublicationLikeCpp>,
     ) {
         for ((bag, slot), destroyed_guids) in destroyed_deposit_items {
             self.send_packet(&UpdateObject::destroy_objects(destroyed_guids, map_id));
@@ -457,27 +551,21 @@ impl WorldSession {
             }
         }
 
-        if !new_withdrawal_item_creates.is_empty() {
-            // C++ `StoreNewItem(..., true)` publishes each newly withdrawn
-            // object before post-store random properties plus the void
-            // handler's creator/binding changes produce a VALUES update, and
-            // before the player/bag slot starts referencing its GUID.
-            let post_store_updates = new_withdrawal_item_creates
-                .iter()
-                .map(|(create, flags)| (create.item_guid, *flags))
-                .collect::<Vec<_>>();
-            self.send_packet(&UpdateObject::create_stored_items(
-                new_withdrawal_item_creates
-                    .into_iter()
-                    .map(|(create, _)| create)
-                    .collect(),
-                map_id,
-            ));
-            for (item_guid, create_dynamic_flags) in post_store_updates {
-                self.send_void_withdrawal_post_store_item_values_update_like_cpp(
-                    item_guid,
-                    create_dynamic_flags,
-                );
+        // C++ calls `StoreNewItem(..., true)` once per withdrawal. Preserve
+        // that request order rather than batching creates: a first unit can
+        // create a new object and a later unit can then publish a VALUES
+        // update when it merges into that just-created stack.
+        for publication in withdrawal_item_publications {
+            match publication {
+                VoidWithdrawalItemPublicationLikeCpp::New { create, post_store } => {
+                    self.send_packet(&UpdateObject::create_stored_items(vec![create], map_id));
+                    if let Some(post_store) = post_store {
+                        self.send_packet(&post_store);
+                    }
+                }
+                VoidWithdrawalItemPublicationLikeCpp::Values(update) => {
+                    self.send_packet(&update);
+                }
             }
         }
     }
@@ -895,6 +983,13 @@ impl WorldSession {
             } else {
                 0
             };
+            let pre_store_dynamic_flags = item_object.item_flags_bits();
+            item_object.bind_if_stored(wow_entities::is_bag_pos(wow_entities::make_item_pos(
+                bag, slot,
+            )));
+            let store_dynamic_flags = item_object.item_flags_bits();
+            let store_dynamic_flags_update =
+                (store_dynamic_flags != pre_store_dynamic_flags).then_some(store_dynamic_flags);
             item_object.set_count(item_object.count().saturating_add(1).max(1));
             // A newly constructed destination already has count one; an
             // existing/planned merge gains the withdrawn unit.
@@ -902,16 +997,24 @@ impl WorldSession {
             {
                 item_object.set_count(1);
             }
-            item_object.set_creator(void_item.creator_guid);
-            Self::apply_effective_void_storage_random_properties_like_cpp(
+            let store_stack_count = item_object.count();
+            let create_item_object = item_object.clone();
+            let mut post_store_item_object = item_object.clone();
+            Self::clear_item_publication_changes_like_cpp(&mut post_store_item_object);
+            Self::apply_void_withdrawal_post_store_state_like_cpp(
                 &mut item_object,
+                void_item.creator_guid,
+                &random_properties,
+            );
+            Self::apply_void_withdrawal_post_store_state_like_cpp(
+                &mut post_store_item_object,
+                void_item.creator_guid,
                 &random_properties,
             );
             // C++ creates the temporary source with the void item's context,
             // but `_StoreItem` keeps the destination stack's context when it
             // merges. A brand-new destination already received this context
             // from `make_inventory_item_object` above.
-            item_object.set_binding(true);
             let enchantments = Self::overwrite_void_storage_random_property_enchantments_like_cpp(
                 &base_enchantments,
                 &random_properties,
@@ -922,6 +1025,9 @@ impl WorldSession {
                     PlannedVoidWithdrawalDestinationLikeCpp::MergeExisting {
                         inventory_item,
                         item_object: item_object.clone(),
+                        store_stack_count,
+                        store_dynamic_flags: store_dynamic_flags_update,
+                        post_store_item_object: post_store_item_object.clone(),
                         enchantments: enchantments.clone(),
                     }
                 }
@@ -935,6 +1041,7 @@ impl WorldSession {
                         return;
                     };
                     let PlannedVoidWithdrawalDestinationLikeCpp::New {
+                        item_guid: target_item_guid,
                         item_state,
                         item_object: target_item,
                         enchantments: target_enchantments,
@@ -954,7 +1061,12 @@ impl WorldSession {
                     item_state.creator_guid = void_item.creator_guid;
                     *target_item = item_object.clone();
                     *target_enchantments = enchantments.clone();
-                    PlannedVoidWithdrawalDestinationLikeCpp::MergedIntoPlanned
+                    PlannedVoidWithdrawalDestinationLikeCpp::MergedIntoPlanned {
+                        item_guid: *target_item_guid,
+                        store_stack_count,
+                        store_dynamic_flags: store_dynamic_flags_update,
+                        post_store_item_object: post_store_item_object.clone(),
+                    }
                 }
                 PlannedVoidDestinationTargetLikeCpp::Planned(_) => {
                     PlannedVoidWithdrawalDestinationLikeCpp::New {
@@ -964,6 +1076,8 @@ impl WorldSession {
                         item_guid,
                         item_state: void_item.clone(),
                         item_object: item_object.clone(),
+                        create_item_object,
+                        post_store_item_object,
                         enchantments: enchantments.clone(),
                         create_dynamic_flags,
                     }
@@ -1037,6 +1151,7 @@ impl WorldSession {
         }
 
         let (total_played_time, _) = self.current_played_time_values_like_cpp();
+        let mut planned_container_db_guids = HashMap::<u8, u64>::new();
         for withdrawal in &planned_withdrawals {
             match &withdrawal.destination {
                 PlannedVoidWithdrawalDestinationLikeCpp::QuestBoundNoItem => {}
@@ -1063,7 +1178,11 @@ impl WorldSession {
                             &enchantments,
                         ),
                     );
-                    let Some(container_db_guid) = self.inventory_container_db_guid_like_cpp(*bag)
+                    let Some(container_db_guid) = self
+                        .void_storage_withdrawal_container_db_guid_like_cpp(
+                            *bag,
+                            &planned_container_db_guids,
+                        )
                     else {
                         self.send_void_storage_transfer_result_like_cpp(
                             VoidTransferErrorLikeCpp::InventoryFull,
@@ -1077,11 +1196,23 @@ impl WorldSession {
                     insert_inventory.set_u8(2, *slot);
                     insert_inventory.set_u64(3, *db_guid);
                     tx.append(insert_inventory);
+                    if *bag == INVENTORY_SLOT_BAG_0
+                        && self
+                            .item_storage_template(item_object.object().entry())
+                            .is_some_and(|template| template.container_slots != 0)
+                    {
+                        // A later withdrawal can be planned inside a bag
+                        // created earlier in this same transaction. C++ has
+                        // already assigned that bag's item-instance GUID when
+                        // its sequential `StoreNewItem` reaches the child.
+                        planned_container_db_guids.insert(*slot, *db_guid);
+                    }
                 }
                 PlannedVoidWithdrawalDestinationLikeCpp::MergeExisting {
                     inventory_item,
                     item_object,
                     enchantments,
+                    ..
                 } => tx.append(
                     self.build_void_storage_merged_item_update_statement_like_cpp(
                         char_db.as_ref(),
@@ -1090,7 +1221,7 @@ impl WorldSession {
                         enchantments,
                     ),
                 ),
-                PlannedVoidWithdrawalDestinationLikeCpp::MergedIntoPlanned => {}
+                PlannedVoidWithdrawalDestinationLikeCpp::MergedIntoPlanned { .. } => {}
             }
             tx.append(Self::build_void_storage_delete_slot_statement_like_cpp(
                 player_guid.counter() as u64,
@@ -1127,7 +1258,7 @@ impl WorldSession {
         let mut added_items = Vec::new();
         let mut removed_items = Vec::new();
         let mut destroyed_deposit_items = Vec::new();
-        let mut new_withdrawal_item_creates = Vec::new();
+        let mut withdrawal_item_publications = Vec::new();
         let mut collection_updates = Vec::new();
         let mut changed_quest_ids = Vec::new();
         let mut added_changed_quest_ids = Vec::new();
@@ -1170,6 +1301,8 @@ impl WorldSession {
                     db_guid,
                     item_guid,
                     item_object,
+                    create_item_object,
+                    post_store_item_object,
                     create_dynamic_flags,
                     ..
                 } => {
@@ -1188,23 +1321,21 @@ impl WorldSession {
                     debug_assert!(inserted);
                     collection_updates
                         .extend(self.on_item_added_to_collection_like_cpp(item_object));
-                    if let Some(committed_item) =
-                        self.inventory_item_objects_like_cpp().get(item_guid)
-                    {
-                        new_withdrawal_item_creates.push((
-                            void_withdrawal_item_create_data_like_cpp(
-                                committed_item,
-                                *create_dynamic_flags,
-                            ),
+                    withdrawal_item_publications.push(
+                        Self::new_void_withdrawal_item_publication_like_cpp(
+                            create_item_object,
+                            post_store_item_object,
                             *create_dynamic_flags,
-                        ));
-                    } else {
-                        debug_assert!(false, "committed void withdrawal item is missing");
-                    }
+                            map_id,
+                        ),
+                    );
                 }
                 PlannedVoidWithdrawalDestinationLikeCpp::MergeExisting {
                     inventory_item,
                     item_object,
+                    store_stack_count,
+                    store_dynamic_flags,
+                    post_store_item_object,
                     ..
                 } => {
                     let updated = self
@@ -1214,12 +1345,36 @@ impl WorldSession {
                     debug_assert!(updated);
                     collection_updates
                         .extend(self.on_item_added_to_collection_like_cpp(item_object));
-                    self.send_inventory_item_pending_values_update_like_cpp(inventory_item.guid);
+                    withdrawal_item_publications.extend(
+                        Self::merged_void_withdrawal_item_publications_like_cpp(
+                            inventory_item.guid,
+                            *store_stack_count,
+                            *store_dynamic_flags,
+                            post_store_item_object,
+                            map_id,
+                        ),
+                    );
                     self.refresh_inventory_item_enchantment_duration_refs_like_cpp(
                         inventory_item.guid,
                     );
                 }
-                PlannedVoidWithdrawalDestinationLikeCpp::MergedIntoPlanned => {}
+                PlannedVoidWithdrawalDestinationLikeCpp::MergedIntoPlanned {
+                    item_guid,
+                    store_stack_count,
+                    store_dynamic_flags,
+                    post_store_item_object,
+                    ..
+                } => {
+                    withdrawal_item_publications.extend(
+                        Self::merged_void_withdrawal_item_publications_like_cpp(
+                            *item_guid,
+                            *store_stack_count,
+                            *store_dynamic_flags,
+                            post_store_item_object,
+                            map_id,
+                        ),
+                    );
+                }
             }
             if !matches!(
                 &withdrawal.destination,
@@ -1260,7 +1415,7 @@ impl WorldSession {
         self.publish_void_storage_item_lifecycle_like_cpp(
             map_id,
             destroyed_deposit_items,
-            new_withdrawal_item_creates,
+            withdrawal_item_publications,
         );
         self.publish_quest_item_added_status_changes_like_cpp(&added_changed_quest_ids);
         for update in &collection_updates {
