@@ -9857,6 +9857,7 @@ async fn run_inventory_swap_smoke_phase(
             stream,
             crypt,
             server_inflater,
+            realm_connection,
             options.slot_a,
             options.timeout_secs,
             result,
@@ -9918,10 +9919,14 @@ async fn verify_inventory_swap_invalid_position_gate(
     stream: &mut TcpStream,
     crypt: &mut WorldCrypt,
     server_inflater: &mut ServerPacketInflater,
+    realm_connection: &mut Option<EncryptedWorldConnection>,
     valid_destination_slot: u8,
     timeout_secs: u64,
     result: &mut BotRunResult,
 ) -> Result<()> {
+    let realm = realm_connection.as_mut().context(
+        "inventory validation smoke requires distinct realm/instance sockets to validate C++ routing",
+    )?;
     let payload = build_swap_item_invalid_source_payload(valid_destination_slot);
     send_encrypted_packet(stream, crypt, CMSG_SWAP_ITEM, &payload).await?;
     info!(
@@ -9932,12 +9937,54 @@ async fn verify_inventory_swap_invalid_position_gate(
     let deadline = tokio::time::Instant::now() + Duration::from_secs(timeout_secs);
     while tokio::time::Instant::now() < deadline {
         let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
-        let (opcode, payload) = tokio::time::timeout(
-            remaining,
-            read_encrypted_packet(stream, crypt, server_inflater),
-        )
+        enum InventoryValidationReady {
+            Instance,
+            Realm,
+        }
+        let mut instance_peek = [0u8; 1];
+        let mut realm_peek = [0u8; 1];
+        let ready = tokio::time::timeout(remaining, async {
+            tokio::select! {
+                ready = stream.peek(&mut instance_peek) => {
+                    if ready.context("inventory validation instance peek failed")? == 0 {
+                        bail!("instance connection closed during inventory validation smoke");
+                    }
+                    Ok(InventoryValidationReady::Instance)
+                }
+                ready = realm.stream.peek(&mut realm_peek) => {
+                    if ready.context("inventory validation realm peek failed")? == 0 {
+                        bail!("realm connection closed during inventory validation smoke");
+                    }
+                    Ok(InventoryValidationReady::Realm)
+                }
+            }
+        })
         .await
         .map_err(|_| anyhow!("timed out waiting for inventory invalid-position failure"))??;
+        let (connection, opcode, payload) = match ready {
+            InventoryValidationReady::Instance => {
+                let (opcode, payload) = tokio::time::timeout(
+                    deadline.saturating_duration_since(tokio::time::Instant::now()),
+                    read_encrypted_packet(stream, crypt, server_inflater),
+                )
+                .await
+                .map_err(|_| anyhow!("inventory validation instance packet read timed out"))??;
+                ("instance", opcode, payload)
+            }
+            InventoryValidationReady::Realm => {
+                let (opcode, payload) = tokio::time::timeout(
+                    deadline.saturating_duration_since(tokio::time::Instant::now()),
+                    read_encrypted_packet(
+                        &mut realm.stream,
+                        &mut realm.crypt,
+                        &mut realm.inflater,
+                    ),
+                )
+                .await
+                .map_err(|_| anyhow!("inventory validation realm packet read timed out"))??;
+                ("realm", opcode, payload)
+            }
+        };
         result.seen_opcodes.push(format!("0x{opcode:04X}"));
         if opcode == SMSG_TIME_SYNC_REQUEST {
             let sequence = parse_time_sync_request_sequence(&payload)?;
@@ -9947,11 +9994,17 @@ async fn verify_inventory_swap_invalid_position_gate(
         }
         if opcode != SMSG_INVENTORY_CHANGE_FAILURE {
             info!(
-                "[Bot {}] 📦 inventory validation probe {}",
+                "[Bot {}] 📦 {} inventory validation probe {}",
                 bot_index,
+                connection,
                 parse_packet(opcode, &payload)
             );
             continue;
+        }
+        if connection != "realm" {
+            bail!(
+                "inventory invalid-position failure arrived on {connection}; C++ Opcodes.cpp requires the realm connection"
+            );
         }
         if payload.len() < 4 {
             bail!(
@@ -9966,7 +10019,7 @@ async fn verify_inventory_swap_invalid_position_gate(
             );
         }
         info!(
-            "[Bot {}] ✅ inventory invalid-position gate returned ITEM_NOT_FOUND",
+            "[Bot {}] ✅ realm inventory invalid-position gate returned ITEM_NOT_FOUND",
             bot_index
         );
         return Ok(());
