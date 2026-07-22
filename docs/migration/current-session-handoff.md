@@ -21,6 +21,10 @@
   locked characters initialize coherent empty storage and cannot expose residual rows by
   unlocking later in the same session. The unlock transaction deletes those skipped rows with
   the money/flag update, closing the pre-full-save restart window.
+  Later review hardening restores full `CanStoreNewItem(NULL_BAG, NULL_SLOT)` withdrawal
+  destinations, including existing-stack merges and detached overlays across multiple planned
+  withdrawals; merged item state is persisted atomically. Accepted login rows now also replay the
+  represented default-modifier collection appearance hook used by C++ `_LoadVoidStorage`.
   Installed QA completed unlock, deposit/relog, swap/relog and withdrawal/relog with exact durable
   states and full character/item/vaultkeeper cleanup. The
   committed `void-storage-query` flow imports one real instance-routed C++/Rust

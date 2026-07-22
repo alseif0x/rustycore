@@ -4,11 +4,16 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use crate::session::{PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP, SessionPlayerController};
-use wow_constants::{InventoryType, ItemBondingType, ItemClass, ItemFieldFlags, ServerOpcodes};
+use wow_constants::{
+    Gender, InventoryType, ItemBondingType, ItemClass, ItemFieldFlags, ItemQuality,
+    ItemSubClassWeapon, ServerOpcodes,
+};
 use wow_core::{ObjectGuid, Position, VoidStorageItemIdGeneratorLikeCpp, guid::HighGuid};
 use wow_data::{
-    ItemRandomPropertiesEntry, ItemRandomPropertiesStore, ItemRandomSuffixEntry,
-    ItemRandomSuffixStore, ItemRecord, ItemSparseTemplateEntry, ItemStatsStore, ItemStore,
+    ItemModifiedAppearanceEntry, ItemModifiedAppearanceStore, ItemRandomPropertiesEntry,
+    ItemRandomPropertiesStore, ItemRandomPropertyTemplateEntry, ItemRandomSuffixEntry,
+    ItemRandomSuffixStore, ItemRecord, ItemSearchNameEntry, ItemSearchNameStore,
+    ItemSparseTemplateEntry, ItemStatsStore, ItemStore,
 };
 use wow_database::StatementDef;
 use wow_entities::{INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_ITEM_START};
@@ -94,6 +99,14 @@ fn represented_void_item(item_id: u64, entry: u32) -> RepresentedVoidStorageItem
 }
 
 fn install_void_test_item_template(session: &mut WorldSession, entry: u32) {
+    install_void_test_item_template_with_stack(session, entry, 1);
+}
+
+fn install_void_test_item_template_with_stack(
+    session: &mut WorldSession,
+    entry: u32,
+    max_stack_size: i32,
+) {
     session.set_item_store(Arc::new(ItemStore::from_records([ItemRecord {
         id: entry,
         class_id: ItemClass::Miscellaneous as u8,
@@ -112,7 +125,7 @@ fn install_void_test_item_template(session: &mut WorldSession, entry: u32) {
             flags: [0; 4],
             bag_family: 0,
             start_quest_id: 0,
-            stackable: 1,
+            stackable: max_stack_size,
             max_count: 0,
             lock_id: 0,
             required_reputation_rank: 0,
@@ -228,6 +241,133 @@ fn login_load_rejects_invalid_rows_and_identity_collisions() {
         Some(item)
     );
     assert_eq!(session.represented_void_storage_free_slots_like_cpp(), 159);
+}
+
+#[test]
+fn login_load_adds_default_void_item_appearance_like_cpp() {
+    let (mut session, _, canonical) = make_void_storage_session();
+    let entry = 19019;
+    let player_guid = ObjectGuid::create_player(1, 42);
+    session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+    let mut canonical_player = wow_entities::Player::new(Some(1), false);
+    canonical_player
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    canonical_player.set_race_class_gender(1, 1, Gender::Male);
+    canonical_player
+        .unit_mut()
+        .world_mut()
+        .set_map(571, 0)
+        .unwrap();
+    canonical_player
+        .unit_mut()
+        .world_mut()
+        .relocate(Position::new(0.0, 0.0, 0.0, 0.0));
+    canonical_player
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .add_to_world();
+    canonical
+        .lock()
+        .unwrap()
+        .create_world_map(571, 0)
+        .map_mut()
+        .insert_map_object_record(
+            wow_entities::MapObjectRecord::new_player(canonical_player).unwrap(),
+        )
+        .unwrap();
+    session.set_item_store(Arc::new(ItemStore::from_records([ItemRecord {
+        id: entry,
+        class_id: ItemClass::Weapon as u8,
+        subclass_id: ItemSubClassWeapon::Sword as u8,
+        material: 0,
+        inventory_type: InventoryType::Weapon as i8,
+        sheathe_type: 0,
+        random_select: 0,
+        random_suffix_group_id: 0,
+        scaling_stat_distribution_id: 0,
+        scaling_stat_value: 0,
+    }])));
+    session.set_item_search_name_store(Arc::new(ItemSearchNameStore::from_entries([
+        ItemSearchNameEntry {
+            id: entry,
+            allowable_race: 0,
+            display: String::new(),
+            overall_quality_id: ItemQuality::Uncommon as u8,
+            expansion_id: 0,
+            min_faction_id: 0,
+            min_reputation: 0,
+            allowable_class: 0,
+            required_level: 0,
+            required_skill: 0,
+            required_skill_rank: 0,
+            required_ability: 0,
+            item_level: 1,
+            flags: [0; 4],
+        },
+    ])));
+    session.set_item_stats_store(Arc::new(
+        ItemStatsStore::from_sparse_and_random_property_templates(
+            [(
+                entry,
+                ItemSparseTemplateEntry {
+                    flags: [0; 4],
+                    bag_family: 0,
+                    start_quest_id: 0,
+                    stackable: 1,
+                    max_count: 0,
+                    lock_id: 0,
+                    required_reputation_rank: 0,
+                    sell_price: 0,
+                    buy_price: 0,
+                    vendor_stack_count: 1,
+                    price_variance: 1.0,
+                    price_random_value: 1.0,
+                    max_durability: 0,
+                    other_faction_item_id: 0,
+                    content_tuning_id: 0,
+                    player_level_to_item_level_curve_id: 0,
+                    limit_category: 0,
+                    instance_bound: 0,
+                    zone_bound: [0; 2],
+                    required_reputation_faction: 0,
+                    allowable_class: 0,
+                    required_expansion: 0,
+                    bonding: ItemBondingType::None as u8,
+                    container_slots: 0,
+                    inventory_type: InventoryType::Weapon as i8,
+                },
+            )],
+            [(
+                entry,
+                ItemRandomPropertyTemplateEntry {
+                    item_level: 1,
+                    quality: ItemQuality::Uncommon as i8,
+                    inventory_type: InventoryType::Weapon as i8,
+                },
+            )],
+        ),
+    ));
+    session.set_item_modified_appearance_store(Arc::new(
+        ItemModifiedAppearanceStore::from_entries([ItemModifiedAppearanceEntry {
+            id: 65,
+            item_id: entry as i32,
+            item_appearance_modifier_id: 0,
+            item_appearance_id: 1000,
+            order_index: 0,
+            transmog_source_type_enum: 0,
+        }]),
+    ));
+    assert!(session.can_add_item_appearance_represented_like_cpp(65));
+
+    session.clear_represented_void_storage_like_cpp();
+    assert!(
+        session.load_represented_void_storage_row_like_cpp(0, represented_void_item(77, entry),)
+    );
+    assert!(session.represented_item_appearances_like_cpp.contains(&65));
 }
 
 #[test]
@@ -353,6 +493,7 @@ fn withdrawal_restores_and_persists_effective_random_property_enchantments_like_
         501,
         42,
         &item,
+        1,
         83,
         900,
         suffix.id,
@@ -386,6 +527,7 @@ fn withdrawal_restores_and_persists_effective_random_property_enchantments_like_
     );
 
     let mut runtime_item = wow_entities::Item::default();
+    runtime_item.set_enchantment(EnchantmentSlot::EnhancementPermanent, 999, 60_000, 2);
     WorldSession::apply_effective_void_storage_random_properties_like_cpp(
         &mut runtime_item,
         &suffix,
@@ -403,6 +545,11 @@ fn withdrawal_restores_and_persists_effective_random_property_enchantments_like_
     assert_eq!(
         runtime_item.data().enchantments[EnchantmentSlot::Property2 as usize].id,
         203
+    );
+    assert_eq!(
+        runtime_item.data().enchantments[EnchantmentSlot::EnhancementPermanent as usize].id,
+        999,
+        "SetItemRandomProperties must not clear unrelated destination enchantments"
     );
 }
 
@@ -425,6 +572,104 @@ fn empty_inventory_positions_use_active_backpack_slot_count_like_cpp() {
         expanded_positions.last(),
         Some(&(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START + 23))
     );
+}
+
+#[tokio::test]
+async fn withdrawal_store_plan_merges_before_empty_slots_with_atomic_overlays_like_cpp() {
+    let (mut session, _, _) = make_void_storage_session();
+    install_void_test_item_template_with_stack(&mut session, 19019, 20);
+    let player_guid = ObjectGuid::create_player(1, 42);
+    let existing_guid = ObjectGuid::create_item(1, 501);
+    let mut existing_item = session.make_inventory_item_object(
+        existing_guid,
+        19019,
+        player_guid,
+        19,
+        0,
+        ItemContext::None,
+        INVENTORY_SLOT_ITEM_START,
+    );
+    existing_item.set_count(19);
+    session.insert_inventory_item_object(existing_item);
+    session.insert_inventory_item_like_cpp(
+        INVENTORY_SLOT_ITEM_START,
+        InventoryItem {
+            guid: existing_guid,
+            entry_id: 19019,
+            db_guid: 501,
+            inventory_type: Some(InventoryType::NonEquip as u8),
+        },
+    );
+
+    let (result, destinations, _) = session
+        .plan_store_new_direct_inventory_item_with_overlays_like_cpp(19019, 1, &[])
+        .expect("represented inventory planner");
+    assert_eq!(result, wow_constants::InventoryResult::Ok);
+    assert_eq!(
+        destinations,
+        vec![wow_entities::ItemPosCount::new(
+            (u16::from(INVENTORY_SLOT_BAG_0) << 8) | u16::from(INVENTORY_SLOT_ITEM_START),
+            1,
+        )]
+    );
+
+    let overlays = [
+        DirectInventoryStorageOverlayLikeCpp {
+            bag: INVENTORY_SLOT_BAG_0,
+            slot: INVENTORY_SLOT_ITEM_START,
+            entry_id: 19019,
+            count: 20,
+        },
+        DirectInventoryStorageOverlayLikeCpp {
+            bag: INVENTORY_SLOT_BAG_0,
+            slot: INVENTORY_SLOT_ITEM_START + 1,
+            entry_id: 19019,
+            count: 1,
+        },
+    ];
+    let (result, destinations, _) = session
+        .plan_store_new_direct_inventory_item_with_overlays_like_cpp(19019, 1, &overlays)
+        .expect("represented inventory planner with detached reservations");
+    assert_eq!(result, wow_constants::InventoryResult::Ok);
+    assert_eq!(
+        destinations,
+        vec![wow_entities::ItemPosCount::new(
+            (u16::from(INVENTORY_SLOT_BAG_0) << 8) | u16::from(INVENTORY_SLOT_ITEM_START + 1),
+            1,
+        )]
+    );
+
+    let mut merged_item = session
+        .inventory_item_objects_like_cpp()
+        .get(&existing_guid)
+        .cloned()
+        .expect("existing merge target");
+    merged_item.set_count(20);
+    merged_item.set_creator(ObjectGuid::create_player(1, 7));
+    merged_item.set_binding(true);
+    let enchantments = WorldSession::void_storage_enchantments_db_string_like_cpp(&[0; 13]);
+    let lazy_pool = sqlx::mysql::MySqlPoolOptions::new()
+        .connect_lazy("mysql://rustycore:rustycore@127.0.0.1:1/characters")
+        .expect("syntactically valid lazy CharacterDB pool");
+    let char_db = wow_database::CharacterDatabase::from_pool(lazy_pool);
+    let statement = session.build_void_storage_merged_item_update_statement_like_cpp(
+        &char_db,
+        &InventoryItem {
+            guid: existing_guid,
+            entry_id: 19019,
+            db_guid: 501,
+            inventory_type: Some(InventoryType::NonEquip as u8),
+        },
+        &merged_item,
+        &enchantments,
+    );
+    assert_eq!(statement.sql(), CharStatements::UPD_ITEM_INSTANCE.sql());
+    assert_eq!(statement.params()[4], wow_database::SqlParam::U32(20));
+    assert_eq!(
+        statement.params()[8],
+        wow_database::SqlParam::String(enchantments)
+    );
+    assert_eq!(statement.params()[19], wow_database::SqlParam::U64(501));
 }
 
 #[tokio::test]

@@ -9,7 +9,7 @@
 //! `src/server/game/Handlers/VoidStorageHandler.cpp` and
 //! `src/server/game/Entities/Player/Player.cpp::{_Load,_Save}VoidStorage`.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use num_traits::FromPrimitive;
@@ -24,7 +24,10 @@ use wow_packet::packets::void_storage::{
 };
 use wow_packet::{ClientPacket, WorldPacket};
 
-use crate::session::{InventoryItem, RepresentedVoidStorageItemLikeCpp, WorldSession};
+use crate::session::{
+    DirectInventoryStorageOverlayLikeCpp, InventoryItem, RepresentedVoidStorageItemLikeCpp,
+    WorldSession,
+};
 
 const VOID_STORAGE_UNLOCK_COST_LIKE_CPP: u64 = 100 * 10_000;
 const VOID_STORAGE_STORE_ITEM_COST_LIKE_CPP: u64 = 10 * 10_000;
@@ -84,11 +87,39 @@ struct PlannedVoidDestroyedInventoryItemLikeCpp {
 struct PlannedVoidWithdrawalLikeCpp {
     old_void_slot: u8,
     void_item: RepresentedVoidStorageItemLikeCpp,
-    random_properties: EffectiveVoidStorageRandomPropertiesLikeCpp,
-    bag: u8,
-    slot: u8,
-    db_guid: u64,
-    item_guid: wow_core::ObjectGuid,
+    destination: PlannedVoidWithdrawalDestinationLikeCpp,
+}
+
+#[derive(Debug, Clone)]
+enum PlannedVoidWithdrawalDestinationLikeCpp {
+    New {
+        bag: u8,
+        slot: u8,
+        db_guid: u64,
+        item_guid: wow_core::ObjectGuid,
+        item_state: RepresentedVoidStorageItemLikeCpp,
+        item_object: wow_entities::Item,
+        enchantments: String,
+    },
+    MergeExisting {
+        inventory_item: InventoryItem,
+        item_object: wow_entities::Item,
+        enchantments: String,
+    },
+    MergedIntoPlanned,
+}
+
+#[derive(Debug, Clone)]
+struct PlannedVoidDestinationStateLikeCpp {
+    target: PlannedVoidDestinationTargetLikeCpp,
+    item_object: wow_entities::Item,
+    enchantments: String,
+}
+
+#[derive(Debug, Clone)]
+enum PlannedVoidDestinationTargetLikeCpp {
+    Existing(InventoryItem),
+    Planned(usize),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -157,22 +188,93 @@ impl WorldSession {
             .join(" ")
     }
 
+    fn overwrite_void_storage_random_property_enchantments_like_cpp(
+        enchantments: &str,
+        random_properties: &EffectiveVoidStorageRandomPropertiesLikeCpp,
+    ) -> String {
+        let mut fields = enchantments
+            .split_whitespace()
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+        if fields.len() != wow_entities::MAX_ENCHANTMENT_SLOT * 3 {
+            fields = vec!["0".to_string(); wow_entities::MAX_ENCHANTMENT_SLOT * 3];
+        }
+        let slots = if random_properties.id > 0 {
+            EnchantmentSlot::Property2 as usize..=EnchantmentSlot::Property4 as usize
+        } else if random_properties.id < 0 {
+            EnchantmentSlot::Property0 as usize..=EnchantmentSlot::Property2 as usize
+        } else {
+            return fields.join(" ");
+        };
+        for slot in slots {
+            let base = slot * 3;
+            fields[base] = random_properties.enchantment_ids[slot].to_string();
+            fields[base + 1] = "0".to_string();
+            fields[base + 2] = "0".to_string();
+        }
+        fields.join(" ")
+    }
+
+    fn build_void_storage_merged_item_update_statement_like_cpp(
+        &self,
+        char_db: &wow_database::CharacterDatabase,
+        inventory_item: &InventoryItem,
+        item: &wow_entities::Item,
+        enchantments: &str,
+    ) -> wow_database::PreparedStatement {
+        let data = item.data();
+        let mut charges = String::new();
+        for charge in data
+            .spell_charges
+            .iter()
+            .take(self.item_effect_count_like_cpp(item.object().entry()))
+        {
+            charges.push_str(&charge.to_string());
+            charges.push(' ');
+        }
+
+        let mut statement = char_db.prepare(CharStatements::UPD_ITEM_INSTANCE);
+        statement.set_u32(0, item.object().entry());
+        statement.set_u64(1, data.owner.counter() as u64);
+        statement.set_u64(2, data.creator.counter() as u64);
+        statement.set_u64(3, data.gift_creator.counter() as u64);
+        statement.set_u32(4, item.count());
+        statement.set_u32(5, data.expiration);
+        statement.set_string(6, charges);
+        statement.set_u32(7, data.dynamic_flags);
+        statement.set_string(8, enchantments);
+        statement.set_u32(9, data.durability);
+        statement.set_u32(10, data.create_played_time);
+        statement.set_string(11, item.text());
+        statement.set_u32(12, item.get_modifier(ItemModifier::BattlePetSpeciesId));
+        statement.set_u32(13, item.get_modifier(ItemModifier::BattlePetBreedData));
+        statement.set_u32(14, item.get_modifier(ItemModifier::BattlePetLevel));
+        statement.set_u32(15, item.get_modifier(ItemModifier::BattlePetDisplayId));
+        statement.set_i32(16, data.random_properties_id);
+        statement.set_i32(17, data.property_seed);
+        statement.set_i32(18, data.context);
+        statement.set_u64(19, inventory_item.db_guid);
+        statement
+    }
+
     fn apply_effective_void_storage_random_properties_like_cpp(
         item: &mut wow_entities::Item,
         random_properties: &EffectiveVoidStorageRandomPropertiesLikeCpp,
     ) {
+        if random_properties.id == 0 {
+            return;
+        }
         item.set_random_properties_id(random_properties.id);
         item.set_property_seed(random_properties.seed);
-        for (slot_index, enchantment_id) in random_properties
-            .enchantment_ids
-            .iter()
-            .copied()
-            .enumerate()
-        {
-            let Some(slot) = EnchantmentSlot::from_usize(slot_index) else {
-                continue;
-            };
-            item.set_enchantment(slot, enchantment_id, 0, 0);
+        let slots = if random_properties.id > 0 {
+            EnchantmentSlot::Property2 as usize..=EnchantmentSlot::Property4 as usize
+        } else {
+            EnchantmentSlot::Property0 as usize..=EnchantmentSlot::Property2 as usize
+        };
+        for slot_index in slots {
+            if let Some(slot) = EnchantmentSlot::from_usize(slot_index) {
+                item.set_enchantment(slot, random_properties.enchantment_ids[slot_index], 0, 0);
+            }
         }
     }
 
@@ -494,9 +596,10 @@ impl WorldSession {
         // operation. Validate and plan every withdrawal before committing any
         // deposit so a later item-specific storage failure cannot expose a
         // charged/destroyed deposit without the rest of the request.
-        let mut planned_withdrawals = Vec::new();
+        let mut planned_withdrawals: Vec<PlannedVoidWithdrawalLikeCpp> = Vec::new();
         let mut used_withdrawal_ids = HashSet::new();
-        let mut reserved_positions = HashSet::new();
+        let mut storage_overlays = Vec::new();
+        let mut destination_states = HashMap::<(u8, u8), PlannedVoidDestinationStateLikeCpp>::new();
         for withdrawal_guid in transfer.withdrawals {
             let void_item_id = withdrawal_guid.counter() as u64;
             if !used_withdrawal_ids.insert(void_item_id) {
@@ -507,23 +610,28 @@ impl WorldSession {
             else {
                 continue;
             };
-            let destination = empty_positions.iter().copied().find(|&(bag, slot)| {
-                !reserved_positions.contains(&(bag, slot))
-                    && self
-                        .plan_store_new_direct_inventory_item_at(void_item.item_entry, 1, bag, slot)
-                        .is_some_and(|(result, destinations, _)| {
-                            result == wow_constants::InventoryResult::Ok
-                                && destinations.len() == 1
-                                && destinations[0].pos == (u16::from(bag) << 8) | u16::from(slot)
-                        })
-            });
-            let Some((bag, slot)) = destination else {
+            let Some((result, destinations, _)) = self
+                .plan_store_new_direct_inventory_item_with_overlays_like_cpp(
+                    void_item.item_entry,
+                    1,
+                    &storage_overlays,
+                )
+            else {
                 self.send_void_storage_transfer_result_like_cpp(
                     VoidTransferErrorLikeCpp::InventoryFull,
                 );
                 return;
             };
-            reserved_positions.insert((bag, slot));
+            if result != wow_constants::InventoryResult::Ok
+                || destinations.len() != 1
+                || destinations[0].count != 1
+            {
+                self.send_void_storage_transfer_result_like_cpp(
+                    VoidTransferErrorLikeCpp::InventoryFull,
+                );
+                return;
+            }
+            let [bag, slot] = destinations[0].pos.to_be_bytes();
             let Some((db_guid, item_guid)) = self
                 .allocate_item_instance_guids_like_cpp(1)
                 .and_then(|mut ids| ids.pop())
@@ -537,14 +645,152 @@ impl WorldSession {
                 void_item.random_properties_id,
                 void_item.random_properties_seed,
             );
+            let existing_inventory_item = self.get_inventory_item_by_pos(bag, slot);
+            let previous_state = destination_states.get(&(bag, slot)).cloned();
+            let (target, mut item_object, base_enchantments) = if let Some(state) = previous_state {
+                (state.target, state.item_object, state.enchantments)
+            } else if let Some(inventory_item) = existing_inventory_item {
+                let Some(item_object) = self
+                    .inventory_item_objects_like_cpp()
+                    .get(&inventory_item.guid)
+                    .cloned()
+                else {
+                    self.send_void_storage_transfer_result_like_cpp(
+                        VoidTransferErrorLikeCpp::InventoryFull,
+                    );
+                    return;
+                };
+                let Some((enchantments, _)) = self
+                    .inventory_remove_enchantment_persistence_like_cpp(inventory_item.guid, false)
+                else {
+                    self.send_void_storage_transfer_result_like_cpp(
+                        VoidTransferErrorLikeCpp::InventoryFull,
+                    );
+                    return;
+                };
+                (
+                    PlannedVoidDestinationTargetLikeCpp::Existing(inventory_item),
+                    item_object,
+                    enchantments,
+                )
+            } else {
+                let context = ItemContext::from_u8(void_item.context).unwrap_or(ItemContext::None);
+                (
+                    PlannedVoidDestinationTargetLikeCpp::Planned(planned_withdrawals.len()),
+                    self.make_inventory_item_object(
+                        item_guid,
+                        void_item.item_entry,
+                        player_guid,
+                        1,
+                        self.item_template_max_durability(void_item.item_entry),
+                        context,
+                        slot,
+                    ),
+                    Self::void_storage_enchantments_db_string_like_cpp(
+                        &[0; wow_entities::MAX_ENCHANTMENT_SLOT],
+                    ),
+                )
+            };
+            item_object.set_count(item_object.count().saturating_add(1).max(1));
+            // A newly constructed destination already has count one; an
+            // existing/planned merge gains the withdrawn unit.
+            if matches!(target, PlannedVoidDestinationTargetLikeCpp::Planned(index) if index == planned_withdrawals.len())
+            {
+                item_object.set_count(1);
+            }
+            item_object.set_creator(void_item.creator_guid);
+            Self::apply_effective_void_storage_random_properties_like_cpp(
+                &mut item_object,
+                &random_properties,
+            );
+            // C++ creates the temporary source with the void item's context,
+            // but `_StoreItem` keeps the destination stack's context when it
+            // merges. A brand-new destination already received this context
+            // from `make_inventory_item_object` above.
+            item_object.set_binding(true);
+            let enchantments = Self::overwrite_void_storage_random_property_enchantments_like_cpp(
+                &base_enchantments,
+                &random_properties,
+            );
+
+            let destination = match target.clone() {
+                PlannedVoidDestinationTargetLikeCpp::Existing(inventory_item) => {
+                    PlannedVoidWithdrawalDestinationLikeCpp::MergeExisting {
+                        inventory_item,
+                        item_object: item_object.clone(),
+                        enchantments: enchantments.clone(),
+                    }
+                }
+                PlannedVoidDestinationTargetLikeCpp::Planned(index)
+                    if index < planned_withdrawals.len() =>
+                {
+                    let Some(target_withdrawal) = planned_withdrawals.get_mut(index) else {
+                        self.send_void_storage_transfer_result_like_cpp(
+                            VoidTransferErrorLikeCpp::InternalError1,
+                        );
+                        return;
+                    };
+                    let PlannedVoidWithdrawalDestinationLikeCpp::New {
+                        item_state,
+                        item_object: target_item,
+                        enchantments: target_enchantments,
+                        ..
+                    } = &mut target_withdrawal.destination
+                    else {
+                        self.send_void_storage_transfer_result_like_cpp(
+                            VoidTransferErrorLikeCpp::InternalError1,
+                        );
+                        return;
+                    };
+                    // `_StoreItem` keeps the first destination's context when
+                    // later temporary items merge into it. The handler still
+                    // overwrites the returned stack's creator after each
+                    // withdrawal, so only that persisted field follows the
+                    // latest item here.
+                    item_state.creator_guid = void_item.creator_guid;
+                    *target_item = item_object.clone();
+                    *target_enchantments = enchantments.clone();
+                    PlannedVoidWithdrawalDestinationLikeCpp::MergedIntoPlanned
+                }
+                PlannedVoidDestinationTargetLikeCpp::Planned(_) => {
+                    PlannedVoidWithdrawalDestinationLikeCpp::New {
+                        bag,
+                        slot,
+                        db_guid,
+                        item_guid,
+                        item_state: void_item.clone(),
+                        item_object: item_object.clone(),
+                        enchantments: enchantments.clone(),
+                    }
+                }
+            };
+
+            if let Some(overlay) = storage_overlays
+                .iter_mut()
+                .find(|overlay| overlay.bag == bag && overlay.slot == slot)
+            {
+                overlay.entry_id = item_object.object().entry();
+                overlay.count = item_object.count();
+            } else {
+                storage_overlays.push(DirectInventoryStorageOverlayLikeCpp {
+                    bag,
+                    slot,
+                    entry_id: item_object.object().entry(),
+                    count: item_object.count(),
+                });
+            }
+            destination_states.insert(
+                (bag, slot),
+                PlannedVoidDestinationStateLikeCpp {
+                    target,
+                    item_object,
+                    enchantments,
+                },
+            );
             planned_withdrawals.push(PlannedVoidWithdrawalLikeCpp {
                 old_void_slot,
                 void_item,
-                random_properties,
-                bag,
-                slot,
-                db_guid,
-                item_guid,
+                destination,
             });
         }
 
@@ -583,36 +829,58 @@ impl WorldSession {
 
         let (total_played_time, _) = self.current_played_time_values_like_cpp();
         for withdrawal in &planned_withdrawals {
-            let item = &withdrawal.void_item;
-            let max_durability = self.item_template_max_durability(item.item_entry);
-            tx.append(
-                Self::build_void_storage_withdrawal_item_insert_statement_like_cpp(
-                    withdrawal.db_guid,
-                    player_guid.counter() as u64,
-                    item,
-                    max_durability,
-                    total_played_time,
-                    withdrawal.random_properties.id,
-                    withdrawal.random_properties.seed,
-                    &Self::void_storage_enchantments_db_string_like_cpp(
-                        &withdrawal.random_properties.enchantment_ids,
+            match &withdrawal.destination {
+                PlannedVoidWithdrawalDestinationLikeCpp::New {
+                    bag,
+                    slot,
+                    db_guid,
+                    item_state,
+                    item_object,
+                    enchantments,
+                    ..
+                } => {
+                    tx.append(
+                        Self::build_void_storage_withdrawal_item_insert_statement_like_cpp(
+                            *db_guid,
+                            player_guid.counter() as u64,
+                            &item_state,
+                            item_object.count(),
+                            item_object.data().max_durability,
+                            total_played_time,
+                            item_object.data().random_properties_id,
+                            item_object.data().property_seed,
+                            &enchantments,
+                        ),
+                    );
+                    let Some(container_db_guid) = self.inventory_container_db_guid_like_cpp(*bag)
+                    else {
+                        self.send_void_storage_transfer_result_like_cpp(
+                            VoidTransferErrorLikeCpp::InventoryFull,
+                        );
+                        return;
+                    };
+                    let mut insert_inventory =
+                        char_db.prepare(CharStatements::REP_CHAR_INVENTORY_ITEM);
+                    insert_inventory.set_u64(0, player_guid.counter() as u64);
+                    insert_inventory.set_u64(1, container_db_guid);
+                    insert_inventory.set_u8(2, *slot);
+                    insert_inventory.set_u64(3, *db_guid);
+                    tx.append(insert_inventory);
+                }
+                PlannedVoidWithdrawalDestinationLikeCpp::MergeExisting {
+                    inventory_item,
+                    item_object,
+                    enchantments,
+                } => tx.append(
+                    self.build_void_storage_merged_item_update_statement_like_cpp(
+                        char_db.as_ref(),
+                        inventory_item,
+                        item_object,
+                        enchantments,
                     ),
                 ),
-            );
-
-            let Some(container_db_guid) = self.inventory_container_db_guid_like_cpp(withdrawal.bag)
-            else {
-                self.send_void_storage_transfer_result_like_cpp(
-                    VoidTransferErrorLikeCpp::InventoryFull,
-                );
-                return;
-            };
-            let mut insert_inventory = char_db.prepare(CharStatements::REP_CHAR_INVENTORY_ITEM);
-            insert_inventory.set_u64(0, player_guid.counter() as u64);
-            insert_inventory.set_u64(1, container_db_guid);
-            insert_inventory.set_u8(2, withdrawal.slot);
-            insert_inventory.set_u64(3, withdrawal.db_guid);
-            tx.append(insert_inventory);
+                PlannedVoidWithdrawalDestinationLikeCpp::MergedIntoPlanned => {}
+            }
             tx.append(Self::build_void_storage_delete_slot_statement_like_cpp(
                 player_guid.counter() as u64,
                 withdrawal.old_void_slot,
@@ -664,39 +932,48 @@ impl WorldSession {
             let removed =
                 self.delete_represented_void_storage_item_like_cpp(withdrawal.old_void_slot);
             debug_assert_eq!(removed.as_ref(), Some(&withdrawal.void_item));
-            let context =
-                ItemContext::from_u8(withdrawal.void_item.context).unwrap_or(ItemContext::None);
-            let mut item_object = self.make_inventory_item_object(
-                withdrawal.item_guid,
-                withdrawal.void_item.item_entry,
-                player_guid,
-                1,
-                self.item_template_max_durability(withdrawal.void_item.item_entry),
-                context,
-                withdrawal.slot,
-            );
-            item_object.set_creator(withdrawal.void_item.creator_guid);
-            Self::apply_effective_void_storage_random_properties_like_cpp(
-                &mut item_object,
-                &withdrawal.random_properties,
-            );
-            item_object.set_context_value(i32::from(withdrawal.void_item.context));
-            item_object.set_binding(true);
-            let collection_item = item_object.clone();
-            let inserted = self.apply_committed_new_inventory_item_at_like_cpp(
-                withdrawal.bag,
-                withdrawal.slot,
-                InventoryItem {
-                    guid: withdrawal.item_guid,
-                    entry_id: withdrawal.void_item.item_entry,
-                    db_guid: withdrawal.db_guid,
-                    inventory_type: self
-                        .item_template_inventory_type(withdrawal.void_item.item_entry),
-                },
-                item_object,
-            );
-            debug_assert!(inserted);
-            self.apply_loaded_inventory_item_collection_hooks_like_cpp(&collection_item);
+            match &withdrawal.destination {
+                PlannedVoidWithdrawalDestinationLikeCpp::New {
+                    bag,
+                    slot,
+                    db_guid,
+                    item_guid,
+                    item_object,
+                    ..
+                } => {
+                    let inserted = self.apply_committed_new_inventory_item_at_like_cpp(
+                        *bag,
+                        *slot,
+                        InventoryItem {
+                            guid: *item_guid,
+                            entry_id: item_object.object().entry(),
+                            db_guid: *db_guid,
+                            inventory_type: self
+                                .item_template_inventory_type(item_object.object().entry()),
+                        },
+                        item_object.clone(),
+                    );
+                    debug_assert!(inserted);
+                    self.apply_loaded_inventory_item_collection_hooks_like_cpp(&item_object);
+                }
+                PlannedVoidWithdrawalDestinationLikeCpp::MergeExisting {
+                    inventory_item,
+                    item_object,
+                    ..
+                } => {
+                    let updated = self
+                        .update_inventory_item_object_like_cpp(inventory_item.guid, |target| {
+                            *target = item_object.clone()
+                        });
+                    debug_assert!(updated);
+                    self.apply_loaded_inventory_item_collection_hooks_like_cpp(&item_object);
+                    self.send_inventory_item_pending_values_update_like_cpp(inventory_item.guid);
+                    self.refresh_inventory_item_enchantment_duration_refs_like_cpp(
+                        inventory_item.guid,
+                    );
+                }
+                PlannedVoidWithdrawalDestinationLikeCpp::MergedIntoPlanned => {}
+            }
             removed_items.push(wow_core::ObjectGuid::create_item(
                 self.realm_id(),
                 withdrawal.void_item.item_id as i64,
@@ -737,16 +1014,24 @@ impl WorldSession {
             }
         }
         for withdrawal in &planned_withdrawals {
-            if withdrawal.bag == INVENTORY_SLOT_BAG_0 {
-                self.send_player_values_update_from_entity_bridge(
-                    &[(withdrawal.slot, withdrawal.item_guid)],
-                    &[],
-                    &[],
-                    &[],
-                    None,
-                );
-            } else {
-                self.send_bag_slot_values_update_like_cpp(withdrawal.bag, withdrawal.slot);
+            if let PlannedVoidWithdrawalDestinationLikeCpp::New {
+                bag,
+                slot,
+                item_guid,
+                ..
+            } = &withdrawal.destination
+            {
+                if *bag == INVENTORY_SLOT_BAG_0 {
+                    self.send_player_values_update_from_entity_bridge(
+                        &[(*slot, *item_guid)],
+                        &[],
+                        &[],
+                        &[],
+                        None,
+                    );
+                } else {
+                    self.send_bag_slot_values_update_like_cpp(*bag, *slot);
+                }
             }
         }
         self.send_packet(&VoidStorageTransferChanges {

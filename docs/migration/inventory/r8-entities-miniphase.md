@@ -1,7 +1,7 @@
 # `#NEXT.R8.ENTITIES.1205` — atomic void-storage persistence (issue #114).
 
 Source-of-truth C++ was checked before implementation:
-`VoidStorageHandler.cpp:28-249`, `Player.cpp:17774-17775,18358-18403,20026-20055,28066-28140`,
+`VoidStorageHandler.cpp:28-249`, `Player.cpp:11190-11230,17774-17775,18358-18403,20026-20055,28066-28140`,
 `ObjectMgr.cpp:7369-7371,7431-7440`, `VoidStoragePackets.cpp:20-106`,
 `ItemPacketsCommon.cpp:78-94`, `Item.cpp:806-843`, and `ObjectGuid.cpp:758-785`. Rust now loads a validated fixed
 160-slot authority, rejecting invalid IDs, entries, slots and collisions; initializes one
@@ -41,6 +41,11 @@ Login now also honors C++ `Player::LoadFromDB`'s unlock gate: locked characters 
 persisted void rows, but initialize a coherent empty vault that remains empty if unlocked in the
 same session. Unlock persists deletion of any skipped residual rows in the same transaction as
 the money and player flag, so a restart cannot resurrect them before the next full save.
+Withdrawal planning now consumes the full C++ `CanStoreNewItem(NULL_BAG, NULL_SLOT)` destination:
+compatible partial stacks are merged before empty slots, detached overlays make multiple
+withdrawals see earlier planned counts/slots, and the transaction either updates the complete
+existing item instance or creates one combined destination. Login also runs the represented
+`CollectionMgr::AddItemAppearance(itemEntry, 0)` side effect for every accepted void row.
 The accredited server binary SHA-256 was
 `fe8058f7986d84e1cd444709d24e19af9c711c917ee9b00183acfc4cef63e8ec`; the QA bot SHA-256 was
 `95f4b45c75a8fdd687f2ba6fa97303e0a240fd80e33d597bc4093548d9981d85`.

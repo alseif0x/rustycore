@@ -5886,6 +5886,16 @@ pub struct InventoryItem {
     pub inventory_type: Option<u8>,
 }
 
+/// Detached inventory state already reserved by an earlier operation in the
+/// same atomic storage plan.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct DirectInventoryStorageOverlayLikeCpp {
+    pub(crate) bag: u8,
+    pub(crate) slot: u8,
+    pub(crate) entry_id: u32,
+    pub(crate) count: u32,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedAutoUnequipOffhandReasonLikeCpp {
     Forced,
@@ -7465,7 +7475,13 @@ impl WorldSession {
         {
             return false;
         }
+        let item_entry = item.item_entry;
         self.represented_void_storage_items_like_cpp[slot] = Some(item);
+        // C++ `_LoadVoidStorage` initializes `BonusData` from the void item
+        // instance and calls `CollectionMgr::AddItemAppearance`; this DB shape
+        // only carries the fixed-level modifier, so the effective appearance
+        // modifier remains the template default zero.
+        let _ = self.add_item_appearance_for_item_like_cpp(item_entry, 0);
         true
     }
 
@@ -20717,6 +20733,19 @@ impl WorldSession {
         true
     }
 
+    pub(crate) fn send_inventory_item_pending_values_update_like_cpp(&self, item_guid: ObjectGuid) {
+        let Some(item) = self.inventory_item_objects_like_cpp().get(&item_guid) else {
+            return;
+        };
+        if let Some(packet) = item_values_update_to_update_object(
+            item_guid,
+            self.player_map_id_like_cpp(),
+            &item.values_update(),
+        ) {
+            self.send_packet(&packet);
+        }
+    }
+
     pub(crate) fn remove_inventory_item_like_cpp(&mut self, slot: u8) -> Option<InventoryItem> {
         self.mutate_player_inventory_runtime_like_cpp(|inventory| {
             inventory.inventory_items.remove(&slot)
@@ -21782,7 +21811,18 @@ impl WorldSession {
         bag: u8,
         slot: u8,
     ) -> Option<(InventoryResult, Vec<ItemPosCount>, Option<u32>)> {
-        self.plan_store_direct_inventory_item_like_cpp(entry_id, count, bag, slot, None)
+        self.plan_store_direct_inventory_item_like_cpp(entry_id, count, bag, slot, None, &[])
+    }
+
+    pub(crate) fn plan_store_new_direct_inventory_item_with_overlays_like_cpp(
+        &self,
+        entry_id: u32,
+        count: u32,
+        overlays: &[DirectInventoryStorageOverlayLikeCpp],
+    ) -> Option<(InventoryResult, Vec<ItemPosCount>, Option<u32>)> {
+        self.plan_store_direct_inventory_item_like_cpp(
+            entry_id, count, NULL_BAG, NULL_SLOT, None, overlays,
+        )
     }
 
     pub(crate) fn plan_store_existing_direct_inventory_item_like_cpp(
@@ -21807,6 +21847,7 @@ impl WorldSession {
             NULL_BAG,
             NULL_SLOT,
             Some(source_item),
+            &[],
         )
     }
 
@@ -21925,11 +21966,32 @@ impl WorldSession {
         bag: u8,
         slot: u8,
         source_item: Option<&Item>,
+        overlays: &[DirectInventoryStorageOverlayLikeCpp],
     ) -> Option<(InventoryResult, Vec<ItemPosCount>, Option<u32>)> {
-        let player = self.direct_inventory_player_snapshot()?;
+        let mut player = self.direct_inventory_player_snapshot()?;
         let proto = self.item_storage_template(entry_id);
         let inventory_items = self.inventory_items_like_cpp();
         let item_objects = self.inventory_item_objects_like_cpp();
+        let mut overlay_items = Vec::with_capacity(overlays.len());
+        for (index, overlay) in overlays.iter().enumerate() {
+            let mut item = self
+                .get_inventory_item_by_pos(overlay.bag, overlay.slot)
+                .and_then(|inventory_item| item_objects.get(&inventory_item.guid))
+                .cloned()
+                .unwrap_or_else(|| {
+                    let mut item = Item::default();
+                    let placeholder_counter = i64::MAX.saturating_sub(index as i64);
+                    item.object_mut().create(ObjectGuid::create_item(
+                        self.realm_id(),
+                        placeholder_counter,
+                    ));
+                    item.object_mut().set_entry(overlay.entry_id);
+                    item
+                });
+            item.set_count(overlay.count);
+            item.set_slot(overlay.slot);
+            overlay_items.push((overlay.bag, overlay.slot, item));
+        }
         let mut template_cache = HashMap::new();
         for item in item_objects.values() {
             let entry_id = item.object().entry();
@@ -21938,6 +22000,14 @@ impl WorldSession {
                 if let Some(template) = self.item_storage_template(entry_id) {
                     entry.insert(template);
                 }
+            }
+        }
+        for (_, _, item) in &overlay_items {
+            let entry_id = item.object().entry();
+            if let std::collections::hash_map::Entry::Vacant(entry) = template_cache.entry(entry_id)
+                && let Some(template) = self.item_storage_template(entry_id)
+            {
+                entry.insert(template);
             }
         }
 
@@ -21956,11 +22026,39 @@ impl WorldSession {
                 }
             }
         }
+        for (index, (bag, slot, item)) in overlay_items.iter().enumerate() {
+            if *bag != INVENTORY_SLOT_BAG_0 || !is_represented_bag_slot(*slot) {
+                continue;
+            }
+            let Some(template) = template_cache.get(&item.object().entry()) else {
+                continue;
+            };
+            if template.container_slots == 0 {
+                continue;
+            }
+            if self.get_inventory_item_by_pos(*bag, *slot).is_none() {
+                let placeholder_counter = i64::MAX.saturating_sub(index as i64);
+                let placeholder_guid =
+                    ObjectGuid::create_item(self.realm_id(), placeholder_counter);
+                let _ = player.store_top_level_item(*slot, placeholder_guid);
+                let _ =
+                    player.register_bag_storage(*slot, placeholder_guid, template.container_slots);
+            }
+            if !bag_templates.iter().any(|bag| bag.bag == *slot) {
+                bag_templates.push(BagTemplateRef::new(*slot, template));
+            }
+        }
 
         let mut slot_items = Vec::new();
         let mut stored_items = Vec::new();
         for (&slot, inventory_item) in inventory_items {
             if Self::is_buyback_slot(slot) {
+                continue;
+            }
+            if overlays
+                .iter()
+                .any(|overlay| overlay.bag == INVENTORY_SLOT_BAG_0 && overlay.slot == slot)
+            {
                 continue;
             }
             let Some(item) = item_objects.get(&inventory_item.guid) else {
@@ -21982,11 +22080,27 @@ impl WorldSession {
             let Some(&bag_slot) = represented_bag_slots_by_guid.get(&container_guid) else {
                 continue;
             };
+            if overlays
+                .iter()
+                .any(|overlay| overlay.bag == bag_slot && overlay.slot == item.slot())
+            {
+                continue;
+            }
             let entry_id = item.object().entry();
             slot_items.push(ItemSlotRef::new(bag_slot, item.slot(), item));
             stored_items.push(ItemStorageRef::new(
                 bag_slot,
                 item.slot(),
+                item,
+                template_cache.get(&entry_id),
+            ));
+        }
+        for (bag, slot, item) in &overlay_items {
+            let entry_id = item.object().entry();
+            slot_items.push(ItemSlotRef::new(*bag, *slot, item));
+            stored_items.push(ItemStorageRef::new(
+                *bag,
+                *slot,
                 item,
                 template_cache.get(&entry_id),
             ));
@@ -28827,6 +28941,7 @@ impl WorldSession {
         db_guid: u64,
         player_guid_counter: u64,
         item: &RepresentedVoidStorageItemLikeCpp,
+        count: u32,
         max_durability: u32,
         total_played_time: u32,
         random_properties_id: i32,
@@ -28839,7 +28954,7 @@ impl WorldSession {
         stmt.set_u64(2, player_guid_counter);
         stmt.set_u64(3, item.creator_guid.counter() as u64);
         stmt.set_u64(4, 0);
-        stmt.set_u32(5, 1);
+        stmt.set_u32(5, count);
         stmt.set_u32(6, 0);
         stmt.set_string(7, "");
         stmt.set_string(8, enchantments);
