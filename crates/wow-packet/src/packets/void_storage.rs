@@ -55,7 +55,7 @@ impl ClientPacket for UnlockVoidStorage {
 
     fn read(packet: &mut WorldPacket) -> Result<Self, PacketError> {
         Ok(Self {
-            npc: packet.read_guid()?,
+            npc: packet.read_packed_guid()?,
         })
     }
 }
@@ -70,7 +70,7 @@ impl ClientPacket for QueryVoidStorage {
 
     fn read(packet: &mut WorldPacket) -> Result<Self, PacketError> {
         Ok(Self {
-            npc: packet.read_guid()?,
+            npc: packet.read_packed_guid()?,
         })
     }
 }
@@ -98,8 +98,8 @@ pub struct VoidItem {
 
 impl VoidItem {
     fn write(&self, packet: &mut WorldPacket) {
-        packet.write_guid(&self.guid);
-        packet.write_guid(&self.creator);
+        packet.write_packed_guid(&self.guid);
+        packet.write_packed_guid(&self.creator);
         packet.write_uint32(self.slot);
         self.item.write(packet);
     }
@@ -134,7 +134,7 @@ impl ClientPacket for VoidStorageTransfer {
     const OPCODE: ClientOpcodes = ClientOpcodes::VoidStorageTransfer;
 
     fn read(packet: &mut WorldPacket) -> Result<Self, PacketError> {
-        let npc = packet.read_guid()?;
+        let npc = packet.read_packed_guid()?;
         let deposit_count = packet.read_uint32()? as usize;
         let withdrawal_count = packet.read_uint32()? as usize;
         if deposit_count > VOID_STORAGE_MAX_DEPOSIT_LIKE_CPP {
@@ -151,10 +151,10 @@ impl ClientPacket for VoidStorageTransfer {
         }
 
         let deposits = (0..deposit_count)
-            .map(|_| packet.read_guid())
+            .map(|_| packet.read_packed_guid())
             .collect::<Result<Vec<_>, _>>()?;
         let withdrawals = (0..withdrawal_count)
-            .map(|_| packet.read_guid())
+            .map(|_| packet.read_packed_guid())
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(Self {
@@ -184,7 +184,7 @@ impl ServerPacket for VoidStorageTransferChanges {
             item.write(packet);
         }
         for item in &self.removed_items {
-            packet.write_guid(item);
+            packet.write_packed_guid(item);
         }
     }
 }
@@ -201,8 +201,8 @@ impl ClientPacket for SwapVoidItem {
 
     fn read(packet: &mut WorldPacket) -> Result<Self, PacketError> {
         Ok(Self {
-            npc: packet.read_guid()?,
-            void_item_guid: packet.read_guid()?,
+            npc: packet.read_packed_guid()?,
+            void_item_guid: packet.read_packed_guid()?,
             dst_slot: packet.read_uint32()?,
         })
     }
@@ -220,9 +220,9 @@ impl ServerPacket for VoidItemSwapResponse {
     const OPCODE: ServerOpcodes = ServerOpcodes::VoidItemSwapResponse;
 
     fn write(&self, packet: &mut WorldPacket) {
-        packet.write_guid(&self.void_item_a);
+        packet.write_packed_guid(&self.void_item_a);
         packet.write_uint32(self.void_item_slot_a);
-        packet.write_guid(&self.void_item_b);
+        packet.write_packed_guid(&self.void_item_b);
         packet.write_uint32(self.void_item_slot_b);
     }
 }
@@ -243,7 +243,7 @@ mod tests {
         let npc =
             ObjectGuid::create_world_object(wow_core::guid::HighGuid::Creature, 0, 1, 0, 0, 1, 1);
         let mut packet = WorldPacket::new_empty();
-        packet.write_guid(&npc);
+        packet.write_packed_guid(&npc);
         packet.write_uint32((VOID_STORAGE_MAX_DEPOSIT_LIKE_CPP + 1) as u32);
         packet.write_uint32(0);
         let bytes = packet.into_data();
@@ -283,10 +283,13 @@ mod tests {
         );
         let body = payload(&bytes);
         assert_eq!(body[0], 1, "C++ writes the item count as eight bits");
-        assert_eq!(&body[1..17], &guid.to_raw_bytes());
-        assert_eq!(&body[17..33], &creator.to_raw_bytes());
-        assert_eq!(&body[33..37], &3u32.to_le_bytes());
-        assert_eq!(&body[37..41], &19019i32.to_le_bytes());
+        let mut expected_prefix = WorldPacket::new_empty();
+        expected_prefix.write_packed_guid(&guid);
+        expected_prefix.write_packed_guid(&creator);
+        expected_prefix.write_uint32(3);
+        expected_prefix.write_int32(19019);
+        let expected_prefix = expected_prefix.into_data();
+        assert_eq!(&body[1..1 + expected_prefix.len()], &expected_prefix);
     }
 
     #[test]
@@ -307,6 +310,21 @@ mod tests {
         .to_bytes();
 
         assert_eq!(payload(&bytes)[0], 0x11);
-        assert_eq!(&payload(&bytes)[51..67], &removed.to_raw_bytes());
+        let body = payload(&bytes);
+        let mut packet = WorldPacket::from_bytes(&body[1..]);
+        assert_eq!(
+            packet.read_packed_guid().unwrap(),
+            ObjectGuid::create_item(1, 91)
+        );
+        assert_eq!(packet.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
+        assert_eq!(packet.read_uint32().unwrap(), 4);
+        assert_eq!(packet.read_int32().unwrap(), 25);
+        assert_eq!(packet.read_int32().unwrap(), 0);
+        assert_eq!(packet.read_int32().unwrap(), 0);
+        assert!(!packet.read_bit().unwrap());
+        packet.reset_bits();
+        assert_eq!(packet.read_bits(6).unwrap(), 0);
+        packet.reset_bits();
+        assert_eq!(packet.read_packed_guid().unwrap(), removed);
     }
 }

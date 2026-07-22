@@ -252,8 +252,8 @@ async fn swap_definite_rollback_keeps_void_slots_unchanged() {
     )));
 
     let mut packet = WorldPacket::new_empty();
-    packet.write_guid(&vault_keeper);
-    packet.write_guid(&ObjectGuid::create_item(1, 77));
+    packet.write_packed_guid(&vault_keeper);
+    packet.write_packed_guid(&ObjectGuid::create_item(1, 77));
     packet.write_uint32(4);
     session.handle_void_storage_swap_item(packet).await;
 
@@ -320,10 +320,10 @@ async fn deposit_definite_rollback_keeps_money_inventory_and_void_state_unchange
     )));
 
     let mut packet = WorldPacket::new_empty();
-    packet.write_guid(&vault_keeper);
+    packet.write_packed_guid(&vault_keeper);
     packet.write_uint32(1);
     packet.write_uint32(0);
-    packet.write_guid(&item_guid);
+    packet.write_packed_guid(&item_guid);
     session.handle_void_storage_transfer(packet).await;
 
     assert_eq!(session.player_gold_like_cpp(), 500_000);

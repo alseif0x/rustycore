@@ -8448,26 +8448,19 @@ async fn disconnect_rested_xp_and_wait(
     Ok(())
 }
 
-fn build_full_guid(low: u64, high: u64) -> Vec<u8> {
-    let mut payload = Vec::with_capacity(16);
-    payload.extend_from_slice(&low.to_le_bytes());
-    payload.extend_from_slice(&high.to_le_bytes());
-    payload
-}
-
 fn item_guid_raw(db_guid: u64) -> (u64, u64) {
     let high = (3u64 << 58) | ((u64::from(realm_id()) & 0x1FFF) << 42);
     (db_guid & OBJECT_GUID_COUNTER_MASK, high)
 }
 
-fn vault_keeper_full_guid(target: &ResolvedCreatureTarget, runtime_realm_id: u16) -> Vec<u8> {
+fn vault_keeper_packed_guid(target: &ResolvedCreatureTarget, runtime_realm_id: u16) -> Vec<u8> {
     let (low, high) = create_void_storage_creature_guid_raw(
         target.map_id,
         target.entry,
         target.guid_counter,
         runtime_realm_id,
     );
-    build_full_guid(low, high)
+    build_packed_guid(low, high)
 }
 
 fn build_void_storage_transfer_payload(
@@ -8476,12 +8469,11 @@ fn build_void_storage_transfer_payload(
     deposits: &[(u64, u64)],
     withdrawals: &[(u64, u64)],
 ) -> Vec<u8> {
-    let mut payload = vault_keeper_full_guid(target, runtime_realm_id);
+    let mut payload = vault_keeper_packed_guid(target, runtime_realm_id);
     payload.extend_from_slice(&(deposits.len() as u32).to_le_bytes());
     payload.extend_from_slice(&(withdrawals.len() as u32).to_le_bytes());
     for &(low, high) in deposits.iter().chain(withdrawals) {
-        payload.extend_from_slice(&low.to_le_bytes());
-        payload.extend_from_slice(&high.to_le_bytes());
+        payload.extend(build_packed_guid(low, high));
     }
     payload
 }
@@ -8492,22 +8484,32 @@ fn build_void_storage_swap_payload(
     void_item_id: u64,
     dst_slot: u32,
 ) -> Vec<u8> {
-    let mut payload = vault_keeper_full_guid(target, runtime_realm_id);
+    let mut payload = vault_keeper_packed_guid(target, runtime_realm_id);
     let (low, high) = item_guid_raw(void_item_id);
-    payload.extend_from_slice(&low.to_le_bytes());
-    payload.extend_from_slice(&high.to_le_bytes());
+    payload.extend(build_packed_guid(low, high));
     payload.extend_from_slice(&dst_slot.to_le_bytes());
     payload
 }
 
 fn parse_void_item_wire(payload: &[u8], cursor: &mut usize) -> Result<VoidStorageItemWire> {
+    let (guid_len, item_id, _) = parse_packed_guid(
+        payload
+            .get(*cursor..)
+            .ok_or_else(|| anyhow!("truncated void-storage item GUID"))?,
+    )
+    .ok_or_else(|| anyhow!("truncated void-storage item GUID"))?;
+    *cursor += guid_len;
+    let (creator_len, _, _) = parse_packed_guid(
+        payload
+            .get(*cursor..)
+            .ok_or_else(|| anyhow!("truncated void-storage creator GUID"))?,
+    )
+    .ok_or_else(|| anyhow!("truncated void-storage creator GUID"))?;
+    *cursor += creator_len;
     let fixed_end = cursor
-        .checked_add(50)
+        .checked_add(18)
         .filter(|end| *end <= payload.len())
         .ok_or_else(|| anyhow!("truncated void-storage item"))?;
-    let item_id = u64::from_le_bytes(payload[*cursor..*cursor + 8].try_into()?);
-    *cursor += 16; // full void-item ObjectGuid
-    *cursor += 16; // full creator ObjectGuid
     let slot = u32::from_le_bytes(payload[*cursor..*cursor + 4].try_into()?);
     *cursor += 4;
     let item_entry = i32::from_le_bytes(payload[*cursor..*cursor + 4].try_into()?);
@@ -8618,7 +8620,7 @@ async fn query_void_storage_contents(
         stream,
         crypt,
         CMSG_QUERY_VOID_STORAGE,
-        &vault_keeper_full_guid(target, runtime_realm_id),
+        &vault_keeper_packed_guid(target, runtime_realm_id),
     )
     .await?;
     let deadline = tokio::time::Instant::now() + Duration::from_secs(timeout_secs);
@@ -8671,17 +8673,15 @@ async fn wait_for_void_storage_transfer(
                 if expect_added {
                     changed_item = Some(parse_void_item_wire(&payload, &mut cursor)?);
                 } else {
-                    if cursor + 16 != payload.len() {
-                        bail!("withdrawal change packet has invalid GUID length");
-                    }
-                    let removed_id = u64::from_le_bytes(payload[cursor..cursor + 8].try_into()?);
+                    let (guid_len, removed_id, _) = parse_packed_guid(&payload[cursor..])
+                        .ok_or_else(|| anyhow!("withdrawal change packet has invalid GUID"))?;
                     if Some(removed_id) != expected_item_id {
                         bail!(
                             "withdrawal removed void item {removed_id}, expected {:?}",
                             expected_item_id
                         );
                     }
-                    cursor += 16;
+                    cursor += guid_len;
                 }
                 if cursor != payload.len() {
                     bail!("void-storage transfer changes left trailing bytes");
@@ -8721,20 +8721,30 @@ async fn wait_for_void_storage_swap(
         if opcode != SMSG_VOID_ITEM_SWAP_RESPONSE {
             continue;
         }
-        if payload.len() != 40 {
-            bail!(
-                "void-storage swap response has {} bytes, expected 40",
-                payload.len()
-            );
-        }
-        let item_id = u64::from_le_bytes(payload[..8].try_into()?);
-        let slot = u32::from_le_bytes(payload[16..20].try_into()?);
-        let destination_low = u64::from_le_bytes(payload[20..28].try_into()?);
-        let destination_slot = u32::from_le_bytes(payload[36..40].try_into()?);
+        let mut cursor = 0;
+        let (item_guid_len, item_id, _) = parse_packed_guid(&payload[cursor..])
+            .ok_or_else(|| anyhow!("void-storage swap response has invalid item GUID"))?;
+        cursor += item_guid_len;
+        let slot = payload
+            .get(cursor..cursor + 4)
+            .and_then(|bytes| bytes.try_into().ok())
+            .map(u32::from_le_bytes)
+            .ok_or_else(|| anyhow!("void-storage swap response omitted item slot"))?;
+        cursor += 4;
+        let (destination_guid_len, destination_low, _) = parse_packed_guid(&payload[cursor..])
+            .ok_or_else(|| anyhow!("void-storage swap response has invalid destination GUID"))?;
+        cursor += destination_guid_len;
+        let destination_slot = payload
+            .get(cursor..cursor + 4)
+            .and_then(|bytes| bytes.try_into().ok())
+            .map(u32::from_le_bytes)
+            .ok_or_else(|| anyhow!("void-storage swap response omitted destination slot"))?;
+        cursor += 4;
         if item_id != expected_item_id
             || slot != expected_slot
             || destination_low != 0
             || destination_slot != 0
+            || cursor != payload.len()
         {
             bail!(
                 "unexpected void-storage swap response item/slot/destination {item_id}/{slot}/{destination_low}/{destination_slot}"
@@ -8800,7 +8810,7 @@ async fn run_void_storage_smoke_phase(
                 stream,
                 crypt,
                 CMSG_UNLOCK_VOID_STORAGE,
-                &vault_keeper_full_guid(&options.vault_keeper, options.runtime_realm_id),
+                &vault_keeper_packed_guid(&options.vault_keeper, options.runtime_realm_id),
             )
             .await?;
             let after_unlock = wait_for_void_storage_db_state(
@@ -16288,12 +16298,10 @@ mod tests {
     }
 
     #[test]
-    fn void_storage_contents_parser_matches_cpp_fixed_guid_layout() {
+    fn void_storage_contents_parser_matches_cpp_packed_guid_layout() {
         let mut payload = vec![1];
-        payload.extend_from_slice(&77u64.to_le_bytes());
-        payload.extend_from_slice(&0x0C00_0400_0000_0000u64.to_le_bytes());
-        payload.extend_from_slice(&0u64.to_le_bytes());
-        payload.extend_from_slice(&0u64.to_le_bytes());
+        payload.extend(build_packed_guid(77, 0x0C00_0400_0000_0000));
+        payload.extend(build_packed_guid(0, 0));
         payload.extend_from_slice(&5u32.to_le_bytes());
         payload.extend_from_slice(&2589i32.to_le_bytes());
         payload.extend_from_slice(&0i32.to_le_bytes());
@@ -16382,8 +16390,8 @@ mod tests {
             packed_guid: Vec::new(),
         };
         assert_eq!(
-            vault_keeper_full_guid(&target, 1),
-            [24, 0, 0, 0, 0, 0, 0, 0, 0x80, 0x10, 0x1F, 0x60, 0x47, 0x04, 0, 0x20,]
+            vault_keeper_packed_guid(&target, 1),
+            [0x01, 0xBF, 24, 0x80, 0x10, 0x1F, 0x60, 0x47, 0x04, 0x20]
         );
     }
 }
