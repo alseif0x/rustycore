@@ -152,24 +152,25 @@ use wow_entities::{
     EQUIPMENT_SLOT_SHOULDERS, EQUIPMENT_SLOT_TABARD, EQUIPMENT_SLOT_TRINKET1,
     EQUIPMENT_SLOT_TRINKET2, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS, EquippedGemRef,
     GAMEOBJECT_TYPE_GUILD_BANK, GameObject, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0,
-    INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS,
-    ITEM_DATA_CONTAINED_IN_BIT, ITEM_DATA_DURABILITY_BIT, ITEM_DATA_DYNAMIC_FLAGS_BIT,
-    ITEM_DATA_DYNAMIC_FLAGS2_BIT, ITEM_DATA_ENCHANTMENT_FIRST_BIT,
-    ITEM_DATA_ENCHANTMENT_PARENT_BIT, ITEM_DATA_PARENT_BIT, Item, ItemCreateInfo, ItemDataUpdate,
-    ItemLimitCategoryTemplate, ItemPosCount, ItemSlotRef, ItemStorageRef, ItemStorageTemplate,
-    ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS, MAX_MONEY_AMOUNT, MAX_POWERS,
-    MAX_POWERS_PER_CLASS, MovementGeneratorKind, MovementSlot, NULL_BAG, NULL_SLOT, ObjectAccessor,
-    PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, PLAYER_SLOT_END, PROFESSION_SLOT_END, Pet, PetAuraLikeCpp,
-    PetDeclinedNamesLikeCpp, PetSaveMode, PetSpellState, PetSpellType, PetStable, PetStableInfo,
-    PetType, PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInventoryStorage,
-    PlayerItemTimeUpdate, QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE,
-    REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, ReactState, SendNewItemDelivery,
-    SendNewItemDisplayText, SendNewItemPlan, SocketedGemUniqueRef, TYPEID_CONTAINER, TYPEID_ITEM,
-    TitanGripPenaltyAction, UNIT_DATA_BITS, UNIT_DATA_EMOTE_STATE_BIT, UNIT_DATA_HEALTH_BIT,
-    UNIT_DATA_MODS_PARENT_BIT, Unit, UnitDataUpdate, UnitDataValues,
-    UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle, VehicleAccessory, VisibleItemValues,
-    WorldObject, explored_zones_db_string_from_blocks_like_cpp, is_bag_pos,
-    is_equipment_packed_pos, is_inventory_pos, item_resistance_bonus_actions_like_cpp,
+    INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_END,
+    INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS, ITEM_DATA_CONTAINED_IN_BIT,
+    ITEM_DATA_DURABILITY_BIT, ITEM_DATA_DYNAMIC_FLAGS_BIT, ITEM_DATA_DYNAMIC_FLAGS2_BIT,
+    ITEM_DATA_ENCHANTMENT_FIRST_BIT, ITEM_DATA_ENCHANTMENT_PARENT_BIT, ITEM_DATA_PARENT_BIT, Item,
+    ItemCreateInfo, ItemDataUpdate, ItemLimitCategoryTemplate, ItemPosCount, ItemSlotRef,
+    ItemStorageRef, ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS,
+    MAX_MONEY_AMOUNT, MAX_POWERS, MAX_POWERS_PER_CLASS, MovementGeneratorKind, MovementSlot,
+    NULL_BAG, NULL_SLOT, ObjectAccessor, PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, PLAYER_SLOT_END,
+    PROFESSION_SLOT_END, Pet, PetAuraLikeCpp, PetDeclinedNamesLikeCpp, PetSaveMode, PetSpellState,
+    PetSpellType, PetStable, PetStableInfo, PetType, PhaseShift, Player, PlayerEnchantTimeUpdate,
+    PlayerInventoryStorage, PlayerItemTimeUpdate, QUESTS_COMPLETED_BITS_PER_BLOCK,
+    QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, ReactState,
+    SendNewItemDelivery, SendNewItemDisplayText, SendNewItemPlan, SocketedGemUniqueRef,
+    TYPEID_CONTAINER, TYPEID_ITEM, TitanGripPenaltyAction, UNIT_DATA_BITS,
+    UNIT_DATA_EMOTE_STATE_BIT, UNIT_DATA_HEALTH_BIT, UNIT_DATA_MODS_PARENT_BIT, Unit,
+    UnitDataUpdate, UnitDataValues, UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle,
+    VehicleAccessory, VisibleItemValues, WorldObject,
+    explored_zones_db_string_from_blocks_like_cpp, is_bag_pos, is_equipment_packed_pos,
+    is_inventory_pos, item_resistance_bonus_actions_like_cpp,
     item_scaling_stat_bonus_actions_like_cpp, item_shield_block_bonus_action_like_cpp,
     item_stat_bonus_actions_like_cpp, item_weapon_damage_actions_like_cpp, make_item_pos,
     parse_explored_zones_db_string_like_cpp,
@@ -4936,6 +4937,8 @@ pub struct WorldSession {
     represented_talent_reset_time_secs_like_cpp: u64,
     /// C++ `Player::GetBankBagSlotCount`, loaded from `characters.bankSlots`.
     player_bank_bag_slot_count_like_cpp: u8,
+    /// C++ `Player::GetInventorySlotCount`, loaded from `characters.inventorySlots`.
+    player_inventory_slot_count_like_cpp: u8,
     /// C++ `UF::ActivePlayerData::CharacterPoints`, recalculated by InitTalentForLevel/LearnTalent.
     player_character_points_like_cpp: i32,
     /// Current `characters.power1..power10` values loaded from DB or mutated by represented runtime.
@@ -6913,6 +6916,7 @@ impl WorldSession {
             represented_talent_reset_cost_like_cpp: 0,
             represented_talent_reset_time_secs_like_cpp: 0,
             player_bank_bag_slot_count_like_cpp: 0,
+            player_inventory_slot_count_like_cpp: INVENTORY_DEFAULT_SIZE,
             player_character_points_like_cpp: 0,
             represented_player_powers_like_cpp: empty_character_power_snapshot_like_cpp(),
             represented_player_max_powers_like_cpp: empty_character_power_snapshot_like_cpp(),
@@ -7876,8 +7880,8 @@ impl WorldSession {
 
     fn find_free_backpack_slot_like_cpp(&self) -> Option<u8> {
         let inventory_end = INVENTORY_SLOT_ITEM_START
-            .saturating_add(INVENTORY_DEFAULT_SIZE)
-            .min(PLAYER_SLOT_END as u8);
+            .saturating_add(self.player_inventory_slot_count_like_cpp())
+            .min(INVENTORY_SLOT_ITEM_END);
         (INVENTORY_SLOT_ITEM_START..inventory_end)
             .find(|slot| !self.inventory_items_like_cpp().contains_key(slot))
     }
@@ -8395,6 +8399,7 @@ impl WorldSession {
         player.set_next_level_xp(self.player_next_level_xp_like_cpp() as i32);
         player.set_scaling_player_level_delta_like_cpp(self.player_scaling_level_delta_like_cpp());
         player.set_money(self.player_gold_like_cpp());
+        player.set_inventory_slot_count(self.player_inventory_slot_count_like_cpp());
         player.set_bank_bag_slot_count(self.player_bank_bag_slot_count_like_cpp());
         for (category, party_type) in self
             .party_member_party_type_like_cpp()
@@ -20637,8 +20642,8 @@ impl WorldSession {
 
     pub(crate) fn represented_empty_inventory_positions_like_cpp(&self) -> Vec<(u8, u8)> {
         let inventory_end = INVENTORY_SLOT_ITEM_START
-            .saturating_add(INVENTORY_DEFAULT_SIZE)
-            .min(PLAYER_SLOT_END as u8);
+            .saturating_add(self.player_inventory_slot_count_like_cpp())
+            .min(INVENTORY_SLOT_ITEM_END);
         let mut positions = (INVENTORY_SLOT_ITEM_START..inventory_end)
             .filter(|slot| {
                 self.get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, *slot)
@@ -21310,7 +21315,7 @@ impl WorldSession {
             .world_mut()
             .object_mut()
             .create(player_guid);
-        player.set_inventory_slot_count(INVENTORY_DEFAULT_SIZE);
+        player.set_inventory_slot_count(self.player_inventory_slot_count_like_cpp());
         player.set_bank_bag_slot_count(self.player_bank_bag_slot_count_like_cpp());
 
         let item_objects = self.inventory_item_objects_like_cpp();
@@ -38131,6 +38136,10 @@ impl WorldSession {
         }
     }
 
+    pub(crate) fn set_player_inventory_slot_count_like_cpp(&mut self, count: u8) {
+        self.player_inventory_slot_count_like_cpp = count;
+    }
+
     pub(crate) fn set_player_character_points_like_cpp(&mut self, points: i32) {
         self.player_character_points_like_cpp = points;
         if let Some(controller) = &mut self.player_controller {
@@ -40526,6 +40535,10 @@ impl WorldSession {
             .as_ref()
             .map(SessionPlayerController::bank_bag_slot_count)
             .unwrap_or(self.player_bank_bag_slot_count_like_cpp)
+    }
+
+    pub(crate) fn player_inventory_slot_count_like_cpp(&self) -> u8 {
+        self.player_inventory_slot_count_like_cpp
     }
 
     pub(crate) fn player_character_points_like_cpp(&self) -> i32 {

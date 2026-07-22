@@ -7,8 +7,11 @@
   affected void row before publishing runtime or packets. Definite rollback stays invisible and
   indeterminate COMMIT is fenced from stale saves. C++ comparison corrected every void-storage
   GUID from the old fixed 16-byte Rust/bot representation to the real two-mask `PackedGuid` wire
-  format. Focused tests are clean. Installed QA completed unlock, deposit/relog, swap/relog and
-  withdrawal/relog with exact durable states and full character/item/vaultkeeper cleanup. The
+  format. Post-review fixes load and propagate `characters.inventorySlots`, prove both default
+  16-slot and expanded 24-slot withdrawal placement, and pin the issue's atomic contract with a
+  mixed-request validation regression that publishes no partial deposit. Focused tests are clean.
+  Installed QA completed unlock, deposit/relog, swap/relog and withdrawal/relog with exact durable
+  states and full character/item/vaultkeeper cleanup. The
   committed `void-storage-query` flow imports one real instance-routed C++/Rust
   `SMSG_VOID_STORAGE_CONTENTS`: 1/1 exact packets, no normalization or accepted divergence.
   Boundary: represented-partial pending final local preflight, CI, current-HEAD GitHub review and

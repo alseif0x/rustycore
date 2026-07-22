@@ -8,6 +8,7 @@ use wow_constants::{InventoryType, ItemBondingType, ItemClass, ItemFieldFlags, S
 use wow_core::{ObjectGuid, Position, VoidStorageItemIdGeneratorLikeCpp, guid::HighGuid};
 use wow_data::{ItemRecord, ItemSparseTemplateEntry, ItemStatsStore, ItemStore};
 use wow_database::StatementDef;
+use wow_entities::{INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_ITEM_START};
 
 fn make_void_storage_session() -> (
     WorldSession,
@@ -231,6 +232,27 @@ fn withdrawal_insert_persists_required_enchantments_column() {
     );
 }
 
+#[test]
+fn empty_inventory_positions_use_active_backpack_slot_count_like_cpp() {
+    let (mut session, _, _) = make_void_storage_session();
+
+    session.set_player_inventory_slot_count_like_cpp(INVENTORY_DEFAULT_SIZE);
+    let default_positions = session.represented_empty_inventory_positions_like_cpp();
+    assert_eq!(default_positions.len(), usize::from(INVENTORY_DEFAULT_SIZE));
+    assert_eq!(
+        default_positions.last(),
+        Some(&(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START + 15))
+    );
+
+    session.set_player_inventory_slot_count_like_cpp(24);
+    let expanded_positions = session.represented_empty_inventory_positions_like_cpp();
+    assert_eq!(expanded_positions.len(), 24);
+    assert_eq!(
+        expanded_positions.last(),
+        Some(&(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START + 23))
+    );
+}
+
 #[tokio::test]
 async fn swap_definite_rollback_keeps_void_slots_unchanged() {
     let (mut session, send_rx, canonical) = make_void_storage_session();
@@ -348,5 +370,76 @@ async fn deposit_definite_rollback_keeps_money_inventory_and_void_state_unchange
             .begin_like_cpp()
             .is_ok(),
         "definite rollback must reopen payout/save admission"
+    );
+}
+
+#[tokio::test]
+async fn mixed_transfer_validation_failure_publishes_no_partial_deposit() {
+    let (mut session, send_rx, canonical) = make_void_storage_session();
+    let vault_keeper = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 1918, 43);
+    insert_vault_keeper(&canonical, vault_keeper, 1918);
+    install_void_test_item_template(&mut session, 19019);
+    session.set_player_gold_like_cpp(500_000);
+
+    let deposit_guid = ObjectGuid::create_item(1, 501);
+    let deposit_item = session.make_inventory_item_object(
+        deposit_guid,
+        19019,
+        ObjectGuid::create_player(1, 42),
+        1,
+        0,
+        ItemContext::None,
+        INVENTORY_SLOT_ITEM_START,
+    );
+    session.insert_inventory_item_object(deposit_item);
+    session.insert_inventory_item_like_cpp(
+        INVENTORY_SLOT_ITEM_START,
+        InventoryItem {
+            guid: deposit_guid,
+            entry_id: 19019,
+            db_guid: 501,
+            inventory_type: Some(InventoryType::NonEquip as u8),
+        },
+    );
+
+    let unstoreable_void_item = represented_void_item(77, 99999);
+    assert_eq!(
+        session.add_represented_void_storage_item_like_cpp(unstoreable_void_item.clone()),
+        Some(0)
+    );
+    let lazy_pool = sqlx::mysql::MySqlPoolOptions::new()
+        .max_connections(1)
+        .acquire_timeout(Duration::from_millis(100))
+        .connect_lazy("mysql://rustycore:rustycore@127.0.0.1:1/characters")
+        .expect("syntactically valid lazy CharacterDB pool");
+    session.set_char_db(Arc::new(wow_database::CharacterDatabase::from_pool(
+        lazy_pool,
+    )));
+
+    let mut packet = WorldPacket::new_empty();
+    packet.write_packed_guid(&vault_keeper);
+    packet.write_uint32(1);
+    packet.write_uint32(1);
+    packet.write_packed_guid(&deposit_guid);
+    packet.write_packed_guid(&ObjectGuid::create_item(1, 77));
+    session.handle_void_storage_transfer(packet).await;
+
+    assert_eq!(session.player_gold_like_cpp(), 500_000);
+    assert!(
+        session
+            .get_inventory_item_by_guid_like_cpp(deposit_guid)
+            .is_some(),
+        "the deposit remains visible when a later withdrawal cannot be planned"
+    );
+    assert_eq!(
+        session.represented_void_storage_item_at_like_cpp(0),
+        Some(unstoreable_void_item)
+    );
+    assert_eq!(
+        send_rx
+            .try_iter()
+            .filter_map(|bytes| WorldPacket::from_bytes(&bytes).server_opcode())
+            .collect::<Vec<_>>(),
+        vec![ServerOpcodes::VoidTransferResult]
     );
 }

@@ -23,6 +23,11 @@ errors, rollback isolation, post-commit publication and the persistence plan. Th
 runtime then completed unlock, deposit, logout/fresh-auth query, occupied-slot swap, another
 logout/fresh-auth query, withdrawal and a final relog. Every flags/money/void/inventory transition
 was durable and the character, item and vaultkeeper fixtures were restored exactly afterward.
+Post-review coverage also proves withdrawal capacity and placement use the loaded C++
+`GetInventorySlotCount` value for both 16-slot and expanded 24-slot backpacks. A mixed request
+whose withdrawal cannot pass item-specific storage validation leaves its planned deposit, money
+and void state unpublished, preserving this issue's explicit all-or-nothing durability contract
+instead of exposing C++'s intermediate in-memory mutation order.
 The accredited server binary SHA-256 was
 `fe8058f7986d84e1cd444709d24e19af9c711c917ee9b00183acfc4cef63e8ec`; the QA bot SHA-256 was
 `95f4b45c75a8fdd687f2ba6fa97303e0a240fd80e33d597bc4093548d9981d85`.

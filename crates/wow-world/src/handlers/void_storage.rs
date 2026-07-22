@@ -294,6 +294,11 @@ impl WorldSession {
             });
         }
 
+        // Unlike C++'s in-memory-only mutation order, this issue's durability
+        // contract requires the mixed request to be one atomic CharacterDB
+        // operation. Validate and plan every withdrawal before committing any
+        // deposit so a later item-specific storage failure cannot expose a
+        // charged/destroyed deposit without the rest of the request.
         let mut planned_withdrawals = Vec::new();
         let mut used_withdrawal_ids = HashSet::new();
         let mut reserved_positions = HashSet::new();

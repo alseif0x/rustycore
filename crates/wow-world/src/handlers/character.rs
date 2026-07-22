@@ -3522,7 +3522,7 @@ impl WorldSession {
         ins_stmt.set_u8(6, 1); // level
         ins_stmt.set_u64(7, 0); // xp
         ins_stmt.set_u64(8, 0); // money
-        ins_stmt.set_u32(9, 0); // inventorySlots
+        ins_stmt.set_u32(9, u32::from(INVENTORY_DEFAULT_SIZE)); // inventorySlots
         ins_stmt.set_u32(10, 0); // bankSlots
         ins_stmt.set_u8(
             11,
@@ -5003,6 +5003,9 @@ impl WorldSession {
         self.total_played_time = result.try_read::<u32>(23).unwrap_or(0);
         self.level_played_time = result.try_read::<u32>(24).unwrap_or(0);
         self.set_player_gold_like_cpp(result.try_read::<u64>(8).unwrap_or(0));
+        self.set_player_inventory_slot_count_like_cpp(
+            result.try_read::<u8>(9).unwrap_or(INVENTORY_DEFAULT_SIZE),
+        );
         self.set_player_bank_bag_slot_count_like_cpp(result.try_read::<u8>(10).unwrap_or(0));
         self.set_player_xp_like_cpp(result.try_read::<u32>(7).unwrap_or(0));
         self.set_represented_talent_reset_state_like_cpp(
