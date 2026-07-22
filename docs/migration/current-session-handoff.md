@@ -1,3 +1,19 @@
+- `#NEXT.R8.ENTITIES.1205` — issue #114 implements the remaining D-C3 void-storage slice.
+  C++ `VoidStorageHandler.cpp:28-249`, `Player.cpp:18358-18403,20026-20055,28066-28140`,
+  `ObjectMgr.cpp:7369-7371,7431-7440`, the packet writers and `ObjectGuid.cpp:758-785` anchor the
+  implementation. Rust now owns a validated fixed 160-slot player authority and one shared,
+  startup-initialized, fail-closed void-item allocator; unlock/query/transfer/swap are live, and
+  deposit, withdrawal and swaps atomically persist flags/money, inventory/item rows and every
+  affected void row before publishing runtime or packets. Definite rollback stays invisible and
+  indeterminate COMMIT is fenced from stale saves. C++ comparison corrected every void-storage
+  GUID from the old fixed 16-byte Rust/bot representation to the real two-mask `PackedGuid` wire
+  format. Focused tests are clean. Installed QA completed unlock, deposit/relog, swap/relog and
+  withdrawal/relog with exact durable states and full character/item/vaultkeeper cleanup. The
+  committed `void-storage-query` flow imports one real instance-routed C++/Rust
+  `SMSG_VOID_STORAGE_CONTENTS`: 1/1 exact packets, no normalization or accepted divergence.
+  Boundary: represented-partial pending final local preflight, CI, current-HEAD GitHub review and
+  merge; full inventory validation remains #52 and aggregate D-C1-D-C9 reconciliation remains #20.
+
 - `#NEXT.R8.ENTITIES.1204` — issue #112 makes equipment-set and transmog-outfit
   GUID allocation process-wide and relog-clean. C++ `ObjectMgr::SetHighestGuids`
   (`ObjectMgr.cpp:7357-7360,7401-7410`) initializes one raw `uint64` generator from the
@@ -25,9 +41,8 @@
   against the audited C++ save/load source. Checks so far: formatting/diff checks; generator 2/0;
   max-SQL 1/0; equipment-set handler/session 19/0; signed transmog 1/0; bot 4/0; live two-client
   QA; strict capture-diff; complete local PR preflight (format, checks/builds, clippy, focused
-  suites and capture gate); local Codex review CLEAN. Boundary: represented-partial until CI,
-  current-HEAD GitHub Codex verdict, and merge; void-storage persistence remains the open D-C3
-  child.
+  suites and capture gate); local/current-HEAD GitHub Codex reviews CLEAN; PR #113 merged.
+  Boundary: represented-partial; issue #114 owns the final D-C3 void-storage child.
 
 - `#NEXT.R8.ENTITIES.1203` — issue #110 makes the existing-group accept capacity decision
   indivisible. C++ `WorldSession::HandlePartyInviteResponseOpcode`

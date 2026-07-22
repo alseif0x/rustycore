@@ -88,7 +88,7 @@ observable mutation · **ABSENT**.
 | Vendor buy/sell, Trainer learn, Groups (+DB) | WORKS⚠ | atomicity (D-C8), oversell (D-H11), trainer skips validation (D-H9), group race (D-C9) |
 | Gossip menus + quest-giver status icons | WORKS | `handlers/quest.rs:1248`; gossip conditions evaluated |
 | Item enchant/gem/socket, durability repair, binding | WORKS⚠ | `wow-entities/src/item.rs`; correct in-memory, but **not reloaded from DB (D-C1)** |
-| Bank / equipment-sets / void-storage persistence | **PARTIAL (live)** | personal-bank moves are merged and live; issue #112 locally adds shared collision-safe equipment/transmog GUIDs plus transactional save and fresh-auth relog proof; void storage remains a D-C3 stub, and #112 still needs CI/current-HEAD review/merge |
+| Bank / equipment-sets / void-storage persistence | **WORKS⚠** | personal-bank and equipment/transmog-set persistence are merged; issue #114 locally adds atomic void-storage unlock/deposit/query/swap/withdraw, full fresh-auth relog proof and a byte-clean C++ query capture; #114 still needs final preflight, CI/current-HEAD review/merge, and aggregate D-C3 remains open until then |
 | UpdateFields / CREATE-block serialization | WORKS | `wow-packet/src/packets/update.rs` (capture-diffed); minor value gaps in M1.4 |
 | Rested XP / offline rest state (XP slice) | **PARTIAL (live)** | issue #81: live accrual, consumption, DB persistence/relog and `SMSG_LOG_XP_GAIN` are capture-clean under the reviewed runtime-counter comparator; full `RestMgr` ownership and rest-area wire remain open |
 

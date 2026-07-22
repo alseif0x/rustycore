@@ -1,3 +1,41 @@
+# `#NEXT.R8.ENTITIES.1205` — atomic void-storage persistence (issue #114).
+
+Source-of-truth C++ was checked before implementation:
+`VoidStorageHandler.cpp:28-249`, `Player.cpp:18358-18403,20026-20055,28066-28140`,
+`ObjectMgr.cpp:7369-7371,7431-7440`, `VoidStoragePackets.cpp:20-106`,
+`ItemPacketsCommon.cpp:78-94`, and `ObjectGuid.cpp:758-785`. Rust now loads a validated fixed
+160-slot authority, rejecting invalid IDs, entries, slots and collisions; initializes one
+process-wide void-item ID allocator fail-closed from `MAX(itemId)`; and registers the unlock,
+query, transfer and swap handlers with the C++ interaction, unlock, capacity, money and inventory
+gates. Deposit, withdrawal and swap are planned without changing visible session state. One
+CharacterDB transaction then persists player flags/money, destroys or creates every inventory
+row, and replaces/deletes all affected void rows; only a durable commit publishes runtime state
+and success packets. Definite rollback leaves runtime untouched, while an indeterminate commit is
+fenced from stale saves. Withdrawal restores the preserved creator, scaling, random-property and
+context metadata, creates the required item-instance fields, and binds the new inventory item.
+
+Packet contrast exposed a shared false positive in the previous Rust server and QA bot: C++
+`ByteBuffer << ObjectGuid` uses two mask bytes followed by only the nonzero bytes, so every
+void-storage GUID is `PackedGuid`, not a fixed 16-byte high/low pair. The production codecs, bot
+builders/parsers and focused round-trip tests now use that exact representation. Allocator,
+packet and handler coverage proves concurrent uniqueness, overflow/query failures, validation
+errors, rollback isolation, post-commit publication and the persistence plan. The installed Rust
+runtime then completed unlock, deposit, logout/fresh-auth query, occupied-slot swap, another
+logout/fresh-auth query, withdrawal and a final relog. Every flags/money/void/inventory transition
+was durable and the character, item and vaultkeeper fixtures were restored exactly afterward.
+The accredited server binary SHA-256 was
+`fe8058f7986d84e1cd444709d24e19af9c711c917ee9b00183acfc4cef63e8ec`; the QA bot SHA-256 was
+`95f4b45c75a8fdd687f2ba6fa97303e0a240fd80e33d597bc4093548d9981d85`.
+
+Paired real C++/Rust captures isolate one instance-routed `SMSG_VOID_STORAGE_CONTENTS` with one
+item: the 27-byte body is exact, 1/1 packets match, and the committed flow has no normalization or
+accepted divergence. Capture-only `RUST_CAPTURE_MIN_STACK_BYTES=16777216` avoids the known debug
+worker stack limit, and every wrapper restoration returned the original PM2 runtime online.
+Focused packet/allocator/handler/bot tests, the full Rust lifecycle QA, strict capture-diff and
+diff checks are clean. Boundary: represented-partial until the final local preflight, CI,
+current-HEAD GitHub Codex verdict and merge. Broader inventory validation remains in #52; #20
+still owns aggregate D-C1-D-C9 reconciliation.
+
 # `#NEXT.R8.ENTITIES.1204` — globally collision-safe equipment-set persistence (issue #112).
 
 Source-of-truth C++ was checked before implementation:
@@ -22,8 +60,8 @@ captures import a one-packet, instance-routed `SMSG_EQUIPMENT_SET_ID` flow CLEAN
 divergence or normalization. The installed C++ reference emitted both expected ACKs but did not
 pass the bot's later database-row verifier, so that flow intentionally proves only the action ACK;
 Rust durability/relog is the separate live QA plus source contrast. Boundary: represented-partial
-after the complete local preflight and CLEAN local Codex review; CI/current-HEAD GitHub
-review/merge remain, and D-C3 stays open for void storage only.
+after the complete local preflight, CLEAN local/current-HEAD GitHub Codex reviews and PR #113
+merge; issue #114 owns the final D-C3 void-storage child.
 
 # `#NEXT.R8.ENTITIES.1203` — atomic existing-group capacity check and join (issue #110).
 

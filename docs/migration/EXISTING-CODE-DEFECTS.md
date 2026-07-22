@@ -50,16 +50,25 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
     legacy slot `19` instead of the 3.4.3 backpack start slot `35`.
     PR #103 merged on 2026-07-14 after the full live bot bank deposit/relog/withdraw/relog
     round-trip passed. Personal-bank movement is therefore closed.
-  - 2026-07-21 issue #112 local slice: equipment sets and transmog outfits now share one
+  - 2026-07-21 issue #112, merged as PR #113: equipment sets and transmog outfits now share one
     process-wide, startup-initialized GUID namespace like C++ `ObjectMgr`; initialization uses the
     exact combined CharacterDB maximum and fails closed. The existing player-save transaction
     persists new/changed/deleted rows, and login correctly decodes signed transmog schema values.
     A two-client installed runtime run proved concurrent distinct GUIDs, exact durable rows, two
     fresh-auth relogs with exact loaded sets, and cleanup. The committed one-packet
     `SMSG_EQUIPMENT_SET_ID` action capture is byte-clean against C++ on the instance route with no
-    accepted divergence. Equipment-set persistence is therefore closed locally, subject to the
-    issue #112 CI/current-HEAD review/merge gates. Void-storage persistence is the remaining D-C3
-    child and keeps this aggregate item open.
+    accepted divergence. Equipment-set persistence is therefore closed.
+  - 2026-07-22 issue #114 local slice: void storage now loads into a validated fixed 160-slot
+    authority and uses one process-wide, startup-initialized item-ID generator like C++
+    `ObjectMgr`. Unlock, query, transfer and swap enforce the represented C++ gates. Deposit,
+    withdrawal and swap commit flags/money, inventory/item mutations and all affected void rows
+    in one CharacterDB transaction before publishing runtime or success packets; definite
+    rollback stays invisible and indeterminate COMMIT is fenced from stale saves. C++ packet
+    contrast also corrected every void-storage GUID from a fixed 16-byte Rust/bot encoding to
+    C++ `PackedGuid`. Focused tests, an installed unlock/deposit/relog/swap/relog/withdraw/relog
+    lifecycle with exact cleanup, and a 1/1 byte-clean real C++/Rust query capture have passed.
+    All three D-C3 children are therefore implemented locally; this aggregate remains open only
+    for issue #114 final preflight, CI/current-HEAD GitHub Codex verdict and merge.
 - [ ] **D-C4 Inventory swap not transactional.** Two separate `execute()` calls; mid-fail
   orphans/dupes items. `handlers/character.rs:11668-11681`. C++ appends both changed positions to
   the character save transaction through `Player::_SaveInventory`.
@@ -195,8 +204,12 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
 - [ ] **D-M3 Off-hand dual-wield damage has no penalty** (~25% too high). `session.rs:7923`.
 - [ ] **D-M4 Haste has no attack-speed cap** → scales unbounded. `session.rs:1358`.
 - [ ] **D-M5 Threat = raw damage**, no ability/role threat modifiers. `session.rs:47875`.
-- [ ] **D-M6 Equipment sets in-memory only** (no DB) → lost on logout. `handlers/character.rs:4798`.
-- [ ] **D-M7 Void storage not saved.** `session.rs:21656`.
+- [x] **D-M6 Equipment sets in-memory only** was closed by issue #112 / PR #113: sets and
+  transmog outfits now persist transactionally and load on fresh authentication with a shared
+  collision-safe GUID namespace.
+- [ ] **D-M7 Void storage not saved.** Issue #114 fixes this locally with one atomic
+  flags/money/inventory/void transaction and fresh-auth lifecycle proof; keep open until its
+  final preflight, CI, current-HEAD review and merge gates pass.
 - [ ] **D-M8 Group member DB insert fail logged-only**, runtime kept → reload drops member. `handlers/group.rs:1090`.
 - [ ] **D-M9 Phase not re-checked on movement** → out-of-phase objects linger. `handlers/movement.rs:274`.
 - [ ] **D-M10 Position save binds extra `instance_id`** vs C++ 7-field SavePosition (verify SQL param alignment). `session.rs:21578`.
