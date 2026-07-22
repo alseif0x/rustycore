@@ -61,8 +61,17 @@ const SMSG_BUY_SUCCEEDED: u16 = 0x26C6;
 const SMSG_BUY_FAILED: u16 = 0x26C7;
 const SMSG_SET_CURRENCY: u16 = 0x2574;
 const CMSG_SAVE_EQUIPMENT_SET: u16 = 0x3509;
+const CMSG_UNLOCK_VOID_STORAGE: u16 = 0x31A2;
+const CMSG_QUERY_VOID_STORAGE: u16 = 0x31A3;
+const CMSG_VOID_STORAGE_TRANSFER: u16 = 0x31A4;
+const CMSG_SWAP_VOID_ITEM: u16 = 0x31A5;
 const SMSG_EQUIPMENT_SET_ID: u16 = 0x26B2;
 const SMSG_LOAD_EQUIPMENT_SET: u16 = 0x270E;
+const SMSG_VOID_STORAGE_FAILED: u16 = 0x2DA0;
+const SMSG_VOID_STORAGE_CONTENTS: u16 = 0x2DA1;
+const SMSG_VOID_STORAGE_TRANSFER_CHANGES: u16 = 0x2DA2;
+const SMSG_VOID_TRANSFER_RESULT: u16 = 0x2DA3;
+const SMSG_VOID_ITEM_SWAP_RESPONSE: u16 = 0x2DA4;
 const EQUIPMENT_SET_SLOTS_LIKE_CPP: usize = 19;
 const MAX_EQUIPMENT_SET_INDEX_LIKE_CPP: u32 = 20;
 const EQUIPMENT_SET_IGNORE_ALL_SLOTS_LIKE_CPP: u32 = (1 << EQUIPMENT_SET_SLOTS_LIKE_CPP) - 1;
@@ -87,7 +96,12 @@ const BANK_SLOT_ITEM_START: u8 = 59;
 const BANK_SLOT_ITEM_END: u8 = 87;
 const NPC_FLAG_BANKER: u32 = 0x20000;
 const NPC_FLAG_INNKEEPER: u32 = 0x10000;
+const NPC_FLAG_VAULT_KEEPER: u32 = 0x2000_0000;
 const DEFAULT_BANK_SMOKE_ITEM_ENTRY: u32 = 2589;
+const DEFAULT_VOID_STORAGE_SMOKE_ITEM_ENTRY: u32 = 2589;
+const PLAYER_FLAGS_VOID_UNLOCKED: u32 = 0x2000_0000;
+const VOID_STORAGE_UNLOCK_COST: u64 = 1_000_000;
+const VOID_STORAGE_STORE_ITEM_COST: u64 = 100_000;
 const DEFAULT_INVENTORY_SWAP_ITEM_ENTRY_A: u32 = 2589;
 const DEFAULT_INVENTORY_SWAP_ITEM_ENTRY_B: u32 = 2592;
 const DEFAULT_VENDOR_ENTRY: u32 = 18_525;
@@ -238,6 +252,10 @@ struct CliOptions {
     bank_item_entry: u32,
     bank_runtime_counter: Option<u64>,
     bank_timeout_secs: u64,
+    void_storage_smoke: bool,
+    void_storage_item_entry: u32,
+    void_storage_runtime_counter: Option<u64>,
+    void_storage_timeout_secs: u64,
     homebind_smoke: bool,
     homebind_runtime_counter: Option<u64>,
     homebind_timeout_secs: u64,
@@ -348,6 +366,17 @@ struct BotRunResult {
     bank_relogin_after_deposit: bool,
     bank_withdraw_persisted: bool,
     bank_failure: Option<String>,
+    void_storage_smoke: bool,
+    void_storage_smoke_passed: Option<bool>,
+    void_storage_unlock_persisted: bool,
+    void_storage_deposit_persisted: bool,
+    void_storage_deposit_relogin_verified: bool,
+    void_storage_swap_persisted: bool,
+    void_storage_swap_relogin_verified: bool,
+    void_storage_withdraw_persisted: bool,
+    void_storage_withdraw_relogin_verified: bool,
+    void_storage_item_id: Option<u64>,
+    void_storage_failure: Option<String>,
     homebind_smoke: bool,
     homebind_smoke_passed: Option<bool>,
     homebind_innkeeper_entry: Option<u32>,
@@ -492,6 +521,19 @@ impl BotRunResult {
                 && self.player_login_verified
                 && self.bank_smoke_passed.unwrap_or(false);
         }
+        if self.void_storage_smoke {
+            return self.world_auth
+                && self.enum_characters
+                && self.player_login_verified
+                && self.void_storage_smoke_passed.unwrap_or(false)
+                && self.void_storage_unlock_persisted
+                && self.void_storage_deposit_persisted
+                && self.void_storage_deposit_relogin_verified
+                && self.void_storage_swap_persisted
+                && self.void_storage_swap_relogin_verified
+                && self.void_storage_withdraw_persisted
+                && self.void_storage_withdraw_relogin_verified;
+        }
         if self.homebind_smoke {
             return self.world_auth
                 && self.enum_characters
@@ -558,6 +600,7 @@ struct RunReport {
     login_only: bool,
     stand_state_smoke: bool,
     bank_smoke: bool,
+    void_storage_smoke: bool,
     homebind_smoke: bool,
     inventory_swap_smoke: bool,
     vendor_smoke: bool,
@@ -627,6 +670,50 @@ struct StandStateSmokeOptions {
 enum BankSmokePhase {
     Deposit,
     Withdraw,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum VoidStorageSmokePhase {
+    UnlockDeposit,
+    VerifyDepositSwap,
+    VerifySwapWithdraw,
+    VerifyWithdraw,
+}
+
+#[derive(Debug, Clone)]
+struct VoidStorageSmokeOptions {
+    phase: VoidStorageSmokePhase,
+    vault_keeper: ResolvedCreatureTarget,
+    discover_runtime_guid: bool,
+    fixture_item_guid: u64,
+    item_entry: u32,
+    inventory_slot: u8,
+    expected_void_item_id: Option<u64>,
+    expected_void_slot: u8,
+    timeout_secs: u64,
+}
+
+#[derive(Debug, Clone)]
+struct VoidStorageSmokeFixture {
+    options: VoidStorageSmokeOptions,
+    original_position: CharacterPositionSnapshot,
+    original_money: u64,
+    original_player_flags: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct VoidStorageItemWire {
+    item_id: u64,
+    slot: u32,
+    item_entry: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct VoidStorageDbState {
+    money: u64,
+    player_flags: u32,
+    void_items: Vec<(u64, u32, u8)>,
+    inventory_items: Vec<(u64, u8, u32)>,
 }
 
 #[derive(Debug, Clone)]
@@ -1043,6 +1130,24 @@ fn parse_cli() -> Result<CliOptions> {
             .map(|value| value.parse::<u64>())
             .transpose()?
             .unwrap_or(8),
+        void_storage_smoke: std::env::var("WOW_BOT_VOID_STORAGE_SMOKE")
+            .ok()
+            .map(|v| is_truthy(&v))
+            .unwrap_or(false),
+        void_storage_item_entry: std::env::var("WOW_BOT_VOID_STORAGE_ITEM_ENTRY")
+            .ok()
+            .map(|value| value.parse::<u32>())
+            .transpose()?
+            .unwrap_or(DEFAULT_VOID_STORAGE_SMOKE_ITEM_ENTRY),
+        void_storage_runtime_counter: std::env::var("WOW_BOT_VOID_STORAGE_RUNTIME_COUNTER")
+            .ok()
+            .map(|value| value.parse::<u64>())
+            .transpose()?,
+        void_storage_timeout_secs: std::env::var("WOW_BOT_VOID_STORAGE_TIMEOUT_SECS")
+            .ok()
+            .map(|value| value.parse::<u64>())
+            .transpose()?
+            .unwrap_or(8),
         homebind_smoke: std::env::var("WOW_BOT_HOMEBIND_SMOKE")
             .ok()
             .map(|v| is_truthy(&v))
@@ -1349,6 +1454,19 @@ fn parse_cli() -> Result<CliOptions> {
             }
             "--bank-timeout" => {
                 opts.bank_timeout_secs = next_arg(&mut args, "--bank-timeout")?.parse()?;
+            }
+            "--void-storage-smoke" => opts.void_storage_smoke = true,
+            "--void-storage-item-entry" => {
+                opts.void_storage_item_entry =
+                    next_arg(&mut args, "--void-storage-item-entry")?.parse()?;
+            }
+            "--void-storage-runtime-counter" => {
+                opts.void_storage_runtime_counter =
+                    Some(next_arg(&mut args, "--void-storage-runtime-counter")?.parse()?);
+            }
+            "--void-storage-timeout" => {
+                opts.void_storage_timeout_secs =
+                    next_arg(&mut args, "--void-storage-timeout")?.parse()?;
             }
             "--homebind-smoke" => opts.homebind_smoke = true,
             "--homebind-runtime-counter" => {
@@ -1818,6 +1936,17 @@ fn print_help() {
     println!("  --bank-timeout <secs>    Per bank phase timeout (default: 8)");
     println!(
         "                           Env: WOW_BOT_BANK_SMOKE, WOW_BOT_BANK_ITEM_ENTRY, WOW_BOT_BANK_RUNTIME_COUNTER, WOW_BOT_BANK_TIMEOUT_SECS"
+    );
+    println!(
+        "  --void-storage-smoke     Unlock, deposit, relog/swap, relog/withdraw, and verify CharacterDB"
+    );
+    println!("  --void-storage-item-entry <id> Controlled fixture item (default: 2589)");
+    println!(
+        "  --void-storage-runtime-counter <n> Optional checked live ObjectGuid counter override"
+    );
+    println!("  --void-storage-timeout <secs> Per action/DB timeout (default: 8)");
+    println!(
+        "                           Env: WOW_BOT_VOID_STORAGE_SMOKE, WOW_BOT_VOID_STORAGE_ITEM_ENTRY, WOW_BOT_VOID_STORAGE_RUNTIME_COUNTER, WOW_BOT_VOID_STORAGE_TIMEOUT_SECS"
     );
     println!(
         "  --vendor-smoke           Buy one extended-cost vendor item, relog, verify DB persistence, and restore the fixture"
@@ -2536,6 +2665,7 @@ async fn main() -> Result<()> {
             || cli.login_only
             || cli.stand_state_smoke
             || cli.bank_smoke
+            || cli.void_storage_smoke
             || cli.homebind_smoke
             || cli.inventory_swap_smoke
             || cli.vendor_smoke
@@ -2626,6 +2756,7 @@ async fn main() -> Result<()> {
     let post_login_mode_count = [
         cli.stand_state_smoke,
         cli.bank_smoke,
+        cli.void_storage_smoke,
         cli.homebind_smoke,
         cli.inventory_swap_smoke,
         cli.vendor_smoke,
@@ -2640,7 +2771,7 @@ async fn main() -> Result<()> {
     .filter(|enabled| *enabled)
     .count();
     if post_login_mode_count > 1 {
-        bail!("stand-state, bank, homebind, inventory-swap, vendor, equipment-set-race, rested-xp, loot-race, loot-item-capture, group-capacity-race, and quest smoke are separate post-login modes");
+        bail!("stand-state, bank, void-storage, homebind, inventory-swap, vendor, equipment-set-race, rested-xp, loot-race, loot-item-capture, group-capacity-race, and quest smoke are separate post-login modes");
     }
     if cli.bank_smoke && bots.len() != 1 {
         bail!("--bank-smoke requires exactly one bot; select it with --single");
@@ -2652,6 +2783,12 @@ async fn main() -> Result<()> {
         bail!(
             "--bank-smoke requires --bank-runtime-counter or WOW_BOT_BANK_RUNTIME_COUNTER for the live banker ObjectGuid"
         );
+    }
+    if cli.void_storage_smoke && bots.len() != 1 {
+        bail!("--void-storage-smoke requires exactly one bot; select it with --single");
+    }
+    if cli.void_storage_smoke && cli.void_storage_timeout_secs == 0 {
+        bail!("--void-storage-timeout must be greater than zero");
     }
     if cli.homebind_smoke && bots.len() != 1 {
         bail!("--homebind-smoke requires exactly one bot; select it with --single");
@@ -2796,6 +2933,8 @@ async fn main() -> Result<()> {
             "stand-state-smoke"
         } else if cli.bank_smoke {
             "bank-smoke"
+        } else if cli.void_storage_smoke {
+            "void-storage-smoke"
         } else if cli.homebind_smoke {
             "homebind-smoke"
         } else if cli.inventory_swap_smoke {
@@ -2830,6 +2969,7 @@ async fn main() -> Result<()> {
         && !cli.login_only
         && !cli.stand_state_smoke
         && !cli.bank_smoke
+        && !cli.void_storage_smoke
         && !cli.homebind_smoke
         && !cli.inventory_swap_smoke
         && !cli.vendor_smoke
@@ -2918,6 +3058,17 @@ async fn main() -> Result<()> {
                     cli.bank_item_entry,
                     cli.bank_runtime_counter,
                     cli.bank_timeout_secs,
+                )
+                .await
+            } else if cli.void_storage_smoke {
+                run_void_storage_smoke_workflow(
+                    bot,
+                    dungeon_id,
+                    timeout_secs,
+                    auto_teleport,
+                    cli.void_storage_item_entry,
+                    cli.void_storage_runtime_counter,
+                    cli.void_storage_timeout_secs,
                 )
                 .await
             } else if cli.homebind_smoke {
@@ -3058,6 +3209,7 @@ async fn main() -> Result<()> {
         cli.login_only,
         cli.stand_state_smoke,
         cli.bank_smoke,
+        cli.void_storage_smoke,
         cli.homebind_smoke,
         cli.inventory_swap_smoke,
         cli.vendor_smoke,
@@ -3197,6 +3349,45 @@ async fn run_bot(
     equipment_set_options: Option<EquipmentSetSmokeOptions>,
     quest_options: Option<QuestSmokeOptions>,
 ) -> Result<BotRunResult> {
+    run_bot_with_void_storage(
+        bot,
+        dungeon_id,
+        lfg_secs,
+        auto_teleport,
+        login_only,
+        stand_state_options,
+        bank_options,
+        homebind_options,
+        inventory_swap_options,
+        vendor_options,
+        rested_xp_options,
+        loot_race_options,
+        group_capacity_options,
+        equipment_set_options,
+        quest_options,
+        None,
+    )
+    .await
+}
+
+async fn run_bot_with_void_storage(
+    bot: config::BotConfig,
+    dungeon_id: u32,
+    lfg_secs: u64,
+    auto_teleport: bool,
+    login_only: bool,
+    stand_state_options: Option<StandStateSmokeOptions>,
+    bank_options: Option<BankSmokeOptions>,
+    homebind_options: Option<HomebindSmokeOptions>,
+    inventory_swap_options: Option<InventorySwapSmokeOptions>,
+    vendor_options: Option<VendorSmokeOptions>,
+    rested_xp_options: Option<RestedXpSmokeOptions>,
+    loot_race_options: Option<loot_race::LootRaceOptions>,
+    group_capacity_options: Option<loot_race::GroupCapacityRaceOptions>,
+    equipment_set_options: Option<EquipmentSetSmokeOptions>,
+    quest_options: Option<QuestSmokeOptions>,
+    mut void_storage_options: Option<VoidStorageSmokeOptions>,
+) -> Result<BotRunResult> {
     let bot_index = bot.account_id as usize;
     let mut result = BotRunResult {
         account: bot.account.clone(),
@@ -3242,6 +3433,19 @@ async fn run_bot(
         bank_relogin_after_deposit: false,
         bank_withdraw_persisted: false,
         bank_failure: None,
+        void_storage_smoke: void_storage_options.is_some(),
+        void_storage_smoke_passed: None,
+        void_storage_unlock_persisted: false,
+        void_storage_deposit_persisted: false,
+        void_storage_deposit_relogin_verified: false,
+        void_storage_swap_persisted: false,
+        void_storage_swap_relogin_verified: false,
+        void_storage_withdraw_persisted: false,
+        void_storage_withdraw_relogin_verified: false,
+        void_storage_item_id: void_storage_options
+            .as_ref()
+            .and_then(|options| options.expected_void_item_id),
+        void_storage_failure: None,
         homebind_smoke: homebind_options.is_some(),
         homebind_smoke_passed: None,
         homebind_innkeeper_entry: homebind_options
@@ -3747,9 +3951,11 @@ async fn run_bot(
         || rested_xp_options.is_some()
         || loot_race_options.is_some()
         || group_capacity_options.is_some()
-        || equipment_set_options.is_some();
+        || equipment_set_options.is_some()
+        || void_storage_options.is_some();
     let mut loot_race_target_seen = false;
     let mut vendor_target_seen: Option<DiscoveredCreatureGuid> = None;
+    let mut void_storage_target_seen: Option<DiscoveredCreatureGuid> = None;
     let login_budget = LoginVerifyBudget::new(LOGIN_VERIFY_TIMEOUT);
     while let Some(read_timeout) = login_budget.next_read_timeout() {
         match tokio::time::timeout(
@@ -3796,6 +4002,38 @@ async fn run_bot(
                                 );
                             }
                             _ => vendor_target_seen = Some(candidate),
+                        }
+                    }
+                }
+                if let Some(options) = void_storage_options.as_ref() {
+                    let expected_counter = (!options.discover_runtime_guid)
+                        .then_some(options.vault_keeper.guid_counter & OBJECT_GUID_COUNTER_MASK);
+                    let candidate = (op == SMSG_UPDATE_OBJECT)
+                        .then(|| {
+                            find_creature_guid_near_position_in_update_object(
+                                &payload,
+                                options.vault_keeper.map_id,
+                                options.vault_keeper.entry,
+                                options.vault_keeper.x as f32,
+                                options.vault_keeper.y as f32,
+                                options.vault_keeper.z as f32,
+                                10.0,
+                                expected_counter,
+                            )
+                        })
+                        .flatten();
+                    if let Some(candidate) = candidate {
+                        match void_storage_target_seen {
+                            Some(previous)
+                                if (previous.low, previous.high)
+                                    != (candidate.low, candidate.high) =>
+                            {
+                                bail!(
+                                    "void-storage login discovery produced two different live candidates near SQL spawn {}",
+                                    options.vault_keeper.spawn_guid
+                                );
+                            }
+                            _ => void_storage_target_seen = Some(candidate),
                         }
                     }
                 }
@@ -3944,6 +4182,34 @@ async fn run_bot(
         {
             result.bank_failure = Some(error.to_string());
             result.bank_smoke_passed = Some(false);
+        }
+        return Ok(result);
+    }
+
+    if let Some(mut void_storage_options) = void_storage_options.take() {
+        let discovered = void_storage_target_seen.ok_or_else(|| {
+            anyhow!(
+                "void-storage vault keeper entry {} spawn {} was not discovered in login object updates",
+                void_storage_options.vault_keeper.entry,
+                void_storage_options.vault_keeper.spawn_guid
+            )
+        })?;
+        void_storage_options.vault_keeper.guid_counter = discovered.low;
+        void_storage_options.vault_keeper.packed_guid =
+            build_packed_guid(discovered.low, discovered.high);
+        if let Err(error) = run_void_storage_smoke_phase(
+            bot_index,
+            &bot,
+            &mut stream,
+            &mut crypt,
+            &mut server_inflater,
+            &void_storage_options,
+            &mut result,
+        )
+        .await
+        {
+            result.void_storage_failure = Some(error.to_string());
+            result.void_storage_smoke_passed = Some(false);
         }
         return Ok(result);
     }
@@ -4342,6 +4608,22 @@ fn log_bot_summary(
             );
             return;
         }
+        if result.void_storage_smoke {
+            info!(
+                "✅ Bot {}: SUCCESS void_storage item_id={:?} unlock={} deposit={} deposit_relog={} swap={} swap_relog={} withdraw={} withdraw_relog={} failure={:?}",
+                result.account,
+                result.void_storage_item_id,
+                result.void_storage_unlock_persisted,
+                result.void_storage_deposit_persisted,
+                result.void_storage_deposit_relogin_verified,
+                result.void_storage_swap_persisted,
+                result.void_storage_swap_relogin_verified,
+                result.void_storage_withdraw_persisted,
+                result.void_storage_withdraw_relogin_verified,
+                result.void_storage_failure
+            );
+            return;
+        }
         if result.homebind_smoke {
             info!(
                 "✅ Bot {}: SUCCESS homebind_smoke innkeeper={:?}/{:?} spell_go={} bind_update={} player_bound={} gossip_complete={} db_persisted={} relog={} failure={:?}",
@@ -4524,6 +4806,22 @@ fn log_bot_summary(
             );
             return;
         }
+        if result.void_storage_smoke {
+            error!(
+                "❌ Bot {}: FAILED void_storage item_id={:?} unlock={} deposit={} deposit_relog={} swap={} swap_relog={} withdraw={} withdraw_relog={} failure={:?}",
+                result.account,
+                result.void_storage_item_id,
+                result.void_storage_unlock_persisted,
+                result.void_storage_deposit_persisted,
+                result.void_storage_deposit_relogin_verified,
+                result.void_storage_swap_persisted,
+                result.void_storage_swap_relogin_verified,
+                result.void_storage_withdraw_persisted,
+                result.void_storage_withdraw_relogin_verified,
+                result.void_storage_failure
+            );
+            return;
+        }
         if result.homebind_smoke {
             error!(
                 "❌ Bot {}: FAILED homebind_smoke innkeeper={:?}/{:?} spell_go={} bind_update={} player_bound={} gossip_complete={} db_persisted={} relog={} failure={:?}",
@@ -4673,6 +4971,7 @@ fn write_report_if_requested(
     login_only: bool,
     stand_state_smoke: bool,
     bank_smoke: bool,
+    void_storage_smoke: bool,
     homebind_smoke: bool,
     inventory_swap_smoke: bool,
     vendor_smoke: bool,
@@ -4699,6 +4998,7 @@ fn write_report_if_requested(
         login_only,
         stand_state_smoke,
         bank_smoke,
+        void_storage_smoke,
         homebind_smoke,
         inventory_swap_smoke,
         vendor_smoke,
@@ -6723,6 +7023,142 @@ async fn run_bank_smoke_workflow(
     Ok(combined)
 }
 
+async fn run_void_storage_smoke_workflow(
+    bot: config::BotConfig,
+    dungeon_id: u32,
+    lfg_secs: u64,
+    auto_teleport: bool,
+    item_entry: u32,
+    runtime_counter: Option<u64>,
+    timeout_secs: u64,
+) -> Result<BotRunResult> {
+    let bot_for_setup = bot.clone();
+    let fixture = tokio::task::spawn_blocking(move || {
+        prepare_void_storage_smoke_fixture(
+            &bot_for_setup,
+            item_entry,
+            runtime_counter,
+            timeout_secs,
+        )
+    })
+    .await
+    .map_err(|error| anyhow!("Void-storage fixture setup worker failed: {error}"))??;
+
+    let workflow = async {
+        let mut unlock_deposit = fixture.options.clone();
+        unlock_deposit.phase = VoidStorageSmokePhase::UnlockDeposit;
+        let mut combined = run_bot_with_void_storage(
+            bot.clone(),
+            dungeon_id,
+            lfg_secs,
+            auto_teleport,
+            false,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(unlock_deposit),
+        )
+        .await?;
+        if !combined.void_storage_smoke_passed.unwrap_or(false) {
+            return Ok(combined);
+        }
+        let void_item_id = combined
+            .void_storage_item_id
+            .context("void-storage deposit response omitted its generated item ID")?;
+
+        let phases = [
+            VoidStorageSmokePhase::VerifyDepositSwap,
+            VoidStorageSmokePhase::VerifySwapWithdraw,
+            VoidStorageSmokePhase::VerifyWithdraw,
+        ];
+        for phase in phases {
+            let mut options = fixture.options.clone();
+            options.phase = phase;
+            options.expected_void_item_id = Some(void_item_id);
+            options.expected_void_slot = match phase {
+                VoidStorageSmokePhase::VerifyDepositSwap => 0,
+                VoidStorageSmokePhase::VerifySwapWithdraw => 5,
+                VoidStorageSmokePhase::VerifyWithdraw => 0,
+                VoidStorageSmokePhase::UnlockDeposit => unreachable!(),
+            };
+            let next = run_bot_with_void_storage(
+                bot.clone(),
+                dungeon_id,
+                lfg_secs,
+                auto_teleport,
+                false,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                Some(options),
+            )
+            .await?;
+            combined.world_auth &= next.world_auth;
+            combined.enum_characters &= next.enum_characters;
+            combined.player_login_verified &= next.player_login_verified;
+            combined.void_storage_deposit_relogin_verified |=
+                next.void_storage_deposit_relogin_verified;
+            combined.void_storage_swap_persisted |= next.void_storage_swap_persisted;
+            combined.void_storage_swap_relogin_verified |= next.void_storage_swap_relogin_verified;
+            combined.void_storage_withdraw_persisted |= next.void_storage_withdraw_persisted;
+            combined.void_storage_withdraw_relogin_verified |=
+                next.void_storage_withdraw_relogin_verified;
+            combined.seen_opcodes.extend(next.seen_opcodes);
+            if !next.void_storage_smoke_passed.unwrap_or(false) {
+                combined.void_storage_failure = next.void_storage_failure;
+                combined.void_storage_smoke_passed = Some(false);
+                break;
+            }
+        }
+        combined.void_storage_smoke_passed = Some(
+            combined.void_storage_unlock_persisted
+                && combined.void_storage_deposit_persisted
+                && combined.void_storage_deposit_relogin_verified
+                && combined.void_storage_swap_persisted
+                && combined.void_storage_swap_relogin_verified
+                && combined.void_storage_withdraw_persisted
+                && combined.void_storage_withdraw_relogin_verified,
+        );
+        Ok::<_, anyhow::Error>(combined)
+    }
+    .await;
+
+    let bot_for_cleanup = bot.clone();
+    let fixture_for_cleanup = fixture.clone();
+    let cleanup = tokio::task::spawn_blocking(move || {
+        cleanup_void_storage_smoke_fixture(&bot_for_cleanup, &fixture_for_cleanup)
+    })
+    .await
+    .map_err(|error| anyhow!("Void-storage cleanup worker failed: {error}"))?;
+
+    match (workflow, cleanup) {
+        (Ok(result), Ok(())) => Ok(result),
+        (Ok(mut result), Err(error)) => {
+            result.void_storage_smoke_passed = Some(false);
+            result.void_storage_failure = Some(format!("fixture cleanup failed: {error}"));
+            Ok(result)
+        }
+        (Err(error), Ok(())) => Err(error),
+        (Err(workflow_error), Err(cleanup_error)) => Err(anyhow!(
+            "Void-storage workflow failed: {workflow_error}; cleanup failed: {cleanup_error}"
+        )),
+    }
+}
+
 async fn run_homebind_smoke_workflow(
     bot: config::BotConfig,
     dungeon_id: u32,
@@ -7859,6 +8295,551 @@ async fn disconnect_rested_xp_and_wait(
         "[Bot {}] ✅ rested-XP sockets disconnected and character save reached a stable offline row",
         bot_index
     );
+    Ok(())
+}
+
+fn build_full_guid(low: u64, high: u64) -> Vec<u8> {
+    let mut payload = Vec::with_capacity(16);
+    payload.extend_from_slice(&low.to_le_bytes());
+    payload.extend_from_slice(&high.to_le_bytes());
+    payload
+}
+
+fn item_guid_raw(db_guid: u64) -> (u64, u64) {
+    let high = (3u64 << 58) | ((u64::from(realm_id()) & 0x1FFF) << 42);
+    (db_guid & OBJECT_GUID_COUNTER_MASK, high)
+}
+
+fn vault_keeper_full_guid(target: &ResolvedCreatureTarget) -> Vec<u8> {
+    let (low, high) = create_creature_guid_raw(target.map_id, target.entry, target.guid_counter);
+    build_full_guid(low, high)
+}
+
+fn build_void_storage_transfer_payload(
+    target: &ResolvedCreatureTarget,
+    deposits: &[(u64, u64)],
+    withdrawals: &[(u64, u64)],
+) -> Vec<u8> {
+    let mut payload = vault_keeper_full_guid(target);
+    payload.extend_from_slice(&(deposits.len() as u32).to_le_bytes());
+    payload.extend_from_slice(&(withdrawals.len() as u32).to_le_bytes());
+    for &(low, high) in deposits.iter().chain(withdrawals) {
+        payload.extend_from_slice(&low.to_le_bytes());
+        payload.extend_from_slice(&high.to_le_bytes());
+    }
+    payload
+}
+
+fn build_void_storage_swap_payload(
+    target: &ResolvedCreatureTarget,
+    void_item_id: u64,
+    dst_slot: u32,
+) -> Vec<u8> {
+    let mut payload = vault_keeper_full_guid(target);
+    let (low, high) = item_guid_raw(void_item_id);
+    payload.extend_from_slice(&low.to_le_bytes());
+    payload.extend_from_slice(&high.to_le_bytes());
+    payload.extend_from_slice(&dst_slot.to_le_bytes());
+    payload
+}
+
+fn parse_void_item_wire(payload: &[u8], cursor: &mut usize) -> Result<VoidStorageItemWire> {
+    let fixed_end = cursor
+        .checked_add(50)
+        .filter(|end| *end <= payload.len())
+        .ok_or_else(|| anyhow!("truncated void-storage item"))?;
+    let item_id = u64::from_le_bytes(payload[*cursor..*cursor + 8].try_into()?);
+    *cursor += 16; // full void-item ObjectGuid
+    *cursor += 16; // full creator ObjectGuid
+    let slot = u32::from_le_bytes(payload[*cursor..*cursor + 4].try_into()?);
+    *cursor += 4;
+    let item_entry = i32::from_le_bytes(payload[*cursor..*cursor + 4].try_into()?);
+    if item_entry <= 0 {
+        bail!("void-storage item carried invalid entry {item_entry}");
+    }
+    *cursor += 12; // item id + random seed + random property id
+    let has_bonus = payload[*cursor] & 0x80 != 0;
+    *cursor += 1;
+    let modifier_count = usize::from(payload[*cursor] >> 2);
+    *cursor += 1;
+    let modifier_bytes = modifier_count
+        .checked_mul(5)
+        .ok_or_else(|| anyhow!("void-storage modifier length overflow"))?;
+    *cursor = cursor
+        .checked_add(modifier_bytes)
+        .filter(|end| *end <= payload.len())
+        .ok_or_else(|| anyhow!("truncated void-storage item modifiers"))?;
+    if has_bonus {
+        if *cursor + 5 > payload.len() {
+            bail!("truncated void-storage item bonuses");
+        }
+        *cursor += 1;
+        let bonus_count = u32::from_le_bytes(payload[*cursor..*cursor + 4].try_into()?) as usize;
+        *cursor += 4;
+        let bonus_bytes = bonus_count
+            .checked_mul(4)
+            .ok_or_else(|| anyhow!("void-storage bonus length overflow"))?;
+        *cursor = cursor
+            .checked_add(bonus_bytes)
+            .filter(|end| *end <= payload.len())
+            .ok_or_else(|| anyhow!("truncated void-storage bonus list"))?;
+    }
+    debug_assert!(*cursor >= fixed_end);
+    Ok(VoidStorageItemWire {
+        item_id,
+        slot,
+        item_entry: item_entry as u32,
+    })
+}
+
+fn parse_void_storage_contents(payload: &[u8]) -> Result<Vec<VoidStorageItemWire>> {
+    let count = usize::from(
+        *payload
+            .first()
+            .ok_or_else(|| anyhow!("empty SMSG_VOID_STORAGE_CONTENTS"))?,
+    );
+    let mut cursor = 1;
+    let mut items = Vec::with_capacity(count);
+    for _ in 0..count {
+        items.push(parse_void_item_wire(payload, &mut cursor)?);
+    }
+    if cursor != payload.len() {
+        bail!(
+            "SMSG_VOID_STORAGE_CONTENTS left {} trailing bytes",
+            payload.len() - cursor
+        );
+    }
+    Ok(items)
+}
+
+async fn read_void_storage_packet(
+    bot_index: usize,
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    server_inflater: &mut ServerPacketInflater,
+    deadline: tokio::time::Instant,
+    result: &mut BotRunResult,
+) -> Result<(u16, Vec<u8>)> {
+    loop {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if remaining.is_zero() {
+            bail!("timed out waiting for void-storage response");
+        }
+        let (opcode, payload) = tokio::time::timeout(
+            remaining,
+            read_encrypted_packet(stream, crypt, server_inflater),
+        )
+        .await
+        .map_err(|_| anyhow!("timed out waiting for void-storage response"))??;
+        result.seen_opcodes.push(format!("0x{opcode:04X}"));
+        info!(
+            "[Bot {}] 📦 void-storage {}",
+            bot_index,
+            parse_packet(opcode, &payload)
+        );
+        if opcode == SMSG_TIME_SYNC_REQUEST {
+            let sequence = parse_time_sync_request_sequence(&payload)?;
+            let response = build_time_sync_response_payload(sequence, 0);
+            send_encrypted_packet(stream, crypt, CMSG_TIME_SYNC_RESPONSE, &response).await?;
+            continue;
+        }
+        return Ok((opcode, payload));
+    }
+}
+
+async fn query_void_storage_contents(
+    bot_index: usize,
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    server_inflater: &mut ServerPacketInflater,
+    target: &ResolvedCreatureTarget,
+    timeout_secs: u64,
+    result: &mut BotRunResult,
+) -> Result<Vec<VoidStorageItemWire>> {
+    send_encrypted_packet(
+        stream,
+        crypt,
+        CMSG_QUERY_VOID_STORAGE,
+        &vault_keeper_full_guid(target),
+    )
+    .await?;
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(timeout_secs);
+    loop {
+        let (opcode, payload) =
+            read_void_storage_packet(bot_index, stream, crypt, server_inflater, deadline, result)
+                .await?;
+        match opcode {
+            SMSG_VOID_STORAGE_CONTENTS => return parse_void_storage_contents(&payload),
+            SMSG_VOID_STORAGE_FAILED => bail!("void-storage query returned failure"),
+            _ => {}
+        }
+    }
+}
+
+async fn wait_for_void_storage_transfer(
+    bot_index: usize,
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    server_inflater: &mut ServerPacketInflater,
+    timeout_secs: u64,
+    expect_added: bool,
+    expected_item_id: Option<u64>,
+    result: &mut BotRunResult,
+) -> Result<Option<VoidStorageItemWire>> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(timeout_secs);
+    let mut changed_item = None;
+    let mut changes_seen = false;
+    let mut success_seen = false;
+    while !changes_seen || !success_seen {
+        let (opcode, payload) =
+            read_void_storage_packet(bot_index, stream, crypt, server_inflater, deadline, result)
+                .await?;
+        match opcode {
+            SMSG_VOID_STORAGE_TRANSFER_CHANGES => {
+                let counts = *payload
+                    .first()
+                    .ok_or_else(|| anyhow!("empty void-storage transfer changes"))?;
+                let added_count = usize::from(counts >> 4);
+                let removed_count = usize::from(counts & 0x0F);
+                let expected_counts = if expect_added { (1, 0) } else { (0, 1) };
+                if (added_count, removed_count) != expected_counts {
+                    bail!(
+                        "unexpected void-storage change counts {added_count}/{removed_count}, expected {}/{}",
+                        expected_counts.0,
+                        expected_counts.1
+                    );
+                }
+                let mut cursor = 1;
+                if expect_added {
+                    changed_item = Some(parse_void_item_wire(&payload, &mut cursor)?);
+                } else {
+                    if cursor + 16 != payload.len() {
+                        bail!("withdrawal change packet has invalid GUID length");
+                    }
+                    let removed_id = u64::from_le_bytes(payload[cursor..cursor + 8].try_into()?);
+                    if Some(removed_id) != expected_item_id {
+                        bail!(
+                            "withdrawal removed void item {removed_id}, expected {:?}",
+                            expected_item_id
+                        );
+                    }
+                    cursor += 16;
+                }
+                if cursor != payload.len() {
+                    bail!("void-storage transfer changes left trailing bytes");
+                }
+                changes_seen = true;
+            }
+            SMSG_VOID_TRANSFER_RESULT => {
+                if payload.len() != 4 || i32::from_le_bytes(payload[..4].try_into()?) != 0 {
+                    bail!("void-storage transfer returned nonzero or malformed result");
+                }
+                success_seen = true;
+            }
+            _ => {}
+        }
+    }
+    Ok(changed_item)
+}
+
+async fn wait_for_void_storage_swap(
+    bot_index: usize,
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    server_inflater: &mut ServerPacketInflater,
+    timeout_secs: u64,
+    expected_item_id: u64,
+    expected_slot: u32,
+    result: &mut BotRunResult,
+) -> Result<()> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(timeout_secs);
+    loop {
+        let (opcode, payload) =
+            read_void_storage_packet(bot_index, stream, crypt, server_inflater, deadline, result)
+                .await?;
+        if opcode == SMSG_VOID_STORAGE_FAILED || opcode == SMSG_VOID_TRANSFER_RESULT {
+            bail!("void-storage swap returned failure opcode 0x{opcode:04X}");
+        }
+        if opcode != SMSG_VOID_ITEM_SWAP_RESPONSE {
+            continue;
+        }
+        if payload.len() != 40 {
+            bail!(
+                "void-storage swap response has {} bytes, expected 40",
+                payload.len()
+            );
+        }
+        let item_id = u64::from_le_bytes(payload[..8].try_into()?);
+        let slot = u32::from_le_bytes(payload[16..20].try_into()?);
+        let destination_low = u64::from_le_bytes(payload[20..28].try_into()?);
+        let destination_slot = u32::from_le_bytes(payload[36..40].try_into()?);
+        if item_id != expected_item_id
+            || slot != expected_slot
+            || destination_low != 0
+            || destination_slot != 0
+        {
+            bail!(
+                "unexpected void-storage swap response item/slot/destination {item_id}/{slot}/{destination_low}/{destination_slot}"
+            );
+        }
+        return Ok(());
+    }
+}
+
+async fn wait_for_void_storage_db_state<F>(
+    bot: &config::BotConfig,
+    item_entry: u32,
+    timeout_secs: u64,
+    description: &str,
+    predicate: F,
+) -> Result<VoidStorageDbState>
+where
+    F: Fn(&VoidStorageDbState) -> bool,
+{
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(timeout_secs);
+    loop {
+        let bot_for_db = bot.clone();
+        let state = tokio::task::spawn_blocking(move || {
+            load_void_storage_db_state(&bot_for_db, item_entry)
+        })
+        .await
+        .map_err(|error| anyhow!("Void-storage DB worker failed: {error}"))??;
+        if predicate(&state) {
+            return Ok(state);
+        }
+        if tokio::time::Instant::now() >= deadline {
+            bail!("timed out waiting for {description}; last state: {state:?}");
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+}
+
+async fn run_void_storage_smoke_phase(
+    bot_index: usize,
+    bot: &config::BotConfig,
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    server_inflater: &mut ServerPacketInflater,
+    options: &VoidStorageSmokeOptions,
+    result: &mut BotRunResult,
+) -> Result<()> {
+    match options.phase {
+        VoidStorageSmokePhase::UnlockDeposit => {
+            let before = wait_for_void_storage_db_state(
+                bot,
+                options.item_entry,
+                options.timeout_secs,
+                "seeded void-storage fixture",
+                |state| {
+                    state.player_flags & PLAYER_FLAGS_VOID_UNLOCKED == 0
+                        && state.void_items.is_empty()
+                        && state.inventory_items
+                            == vec![(options.fixture_item_guid, options.inventory_slot, 0)]
+                },
+            )
+            .await?;
+            send_encrypted_packet(
+                stream,
+                crypt,
+                CMSG_UNLOCK_VOID_STORAGE,
+                &vault_keeper_full_guid(&options.vault_keeper),
+            )
+            .await?;
+            let after_unlock = wait_for_void_storage_db_state(
+                bot,
+                options.item_entry,
+                options.timeout_secs,
+                "atomic void-storage unlock",
+                |state| {
+                    state.player_flags & PLAYER_FLAGS_VOID_UNLOCKED != 0
+                        && state.money == before.money.saturating_sub(VOID_STORAGE_UNLOCK_COST)
+                },
+            )
+            .await?;
+            result.void_storage_unlock_persisted = true;
+
+            let contents = query_void_storage_contents(
+                bot_index,
+                stream,
+                crypt,
+                server_inflater,
+                &options.vault_keeper,
+                options.timeout_secs,
+                result,
+            )
+            .await?;
+            if !contents.is_empty() {
+                bail!("freshly unlocked void storage was not empty: {contents:?}");
+            }
+
+            let deposit_guid = item_guid_raw(options.fixture_item_guid);
+            let payload =
+                build_void_storage_transfer_payload(&options.vault_keeper, &[deposit_guid], &[]);
+            send_encrypted_packet(stream, crypt, CMSG_VOID_STORAGE_TRANSFER, &payload).await?;
+            let added = wait_for_void_storage_transfer(
+                bot_index,
+                stream,
+                crypt,
+                server_inflater,
+                options.timeout_secs,
+                true,
+                None,
+                result,
+            )
+            .await?
+            .context("deposit transfer omitted added void item")?;
+            if added.item_entry != options.item_entry || added.slot != 0 || added.item_id == 0 {
+                bail!("unexpected deposited void item: {added:?}");
+            }
+            let expected_money = after_unlock
+                .money
+                .saturating_sub(VOID_STORAGE_STORE_ITEM_COST);
+            wait_for_void_storage_db_state(
+                bot,
+                options.item_entry,
+                options.timeout_secs,
+                "atomic void-storage deposit",
+                |state| {
+                    state.money == expected_money
+                        && state.void_items == vec![(added.item_id, options.item_entry, 0)]
+                        && state.inventory_items.is_empty()
+                },
+            )
+            .await?;
+            result.void_storage_item_id = Some(added.item_id);
+            result.void_storage_deposit_persisted = true;
+        }
+        VoidStorageSmokePhase::VerifyDepositSwap => {
+            let expected_id = options
+                .expected_void_item_id
+                .context("deposit-relog phase omitted void item ID")?;
+            let contents = query_void_storage_contents(
+                bot_index,
+                stream,
+                crypt,
+                server_inflater,
+                &options.vault_keeper,
+                options.timeout_secs,
+                result,
+            )
+            .await?;
+            if contents
+                != vec![VoidStorageItemWire {
+                    item_id: expected_id,
+                    slot: u32::from(options.expected_void_slot),
+                    item_entry: options.item_entry,
+                }]
+            {
+                bail!("deposit relog query mismatch: {contents:?}");
+            }
+            result.void_storage_deposit_relogin_verified = true;
+            let payload = build_void_storage_swap_payload(&options.vault_keeper, expected_id, 5);
+            send_encrypted_packet(stream, crypt, CMSG_SWAP_VOID_ITEM, &payload).await?;
+            wait_for_void_storage_swap(
+                bot_index,
+                stream,
+                crypt,
+                server_inflater,
+                options.timeout_secs,
+                expected_id,
+                5,
+                result,
+            )
+            .await?;
+            wait_for_void_storage_db_state(
+                bot,
+                options.item_entry,
+                options.timeout_secs,
+                "atomic void-storage slot swap",
+                |state| state.void_items == vec![(expected_id, options.item_entry, 5)],
+            )
+            .await?;
+            result.void_storage_swap_persisted = true;
+        }
+        VoidStorageSmokePhase::VerifySwapWithdraw => {
+            let expected_id = options
+                .expected_void_item_id
+                .context("swap-relog phase omitted void item ID")?;
+            let contents = query_void_storage_contents(
+                bot_index,
+                stream,
+                crypt,
+                server_inflater,
+                &options.vault_keeper,
+                options.timeout_secs,
+                result,
+            )
+            .await?;
+            if contents
+                != vec![VoidStorageItemWire {
+                    item_id: expected_id,
+                    slot: u32::from(options.expected_void_slot),
+                    item_entry: options.item_entry,
+                }]
+            {
+                bail!("swap relog query mismatch: {contents:?}");
+            }
+            result.void_storage_swap_relogin_verified = true;
+            let withdrawal_guid = item_guid_raw(expected_id);
+            let payload =
+                build_void_storage_transfer_payload(&options.vault_keeper, &[], &[withdrawal_guid]);
+            send_encrypted_packet(stream, crypt, CMSG_VOID_STORAGE_TRANSFER, &payload).await?;
+            wait_for_void_storage_transfer(
+                bot_index,
+                stream,
+                crypt,
+                server_inflater,
+                options.timeout_secs,
+                false,
+                Some(expected_id),
+                result,
+            )
+            .await?;
+            wait_for_void_storage_db_state(
+                bot,
+                options.item_entry,
+                options.timeout_secs,
+                "atomic void-storage withdrawal",
+                |state| {
+                    state.void_items.is_empty()
+                        && state.inventory_items.len() == 1
+                        && state.inventory_items[0].2 & 1 != 0
+                },
+            )
+            .await?;
+            result.void_storage_withdraw_persisted = true;
+        }
+        VoidStorageSmokePhase::VerifyWithdraw => {
+            let contents = query_void_storage_contents(
+                bot_index,
+                stream,
+                crypt,
+                server_inflater,
+                &options.vault_keeper,
+                options.timeout_secs,
+                result,
+            )
+            .await?;
+            if !contents.is_empty() {
+                bail!("withdraw relog query was not empty: {contents:?}");
+            }
+            wait_for_void_storage_db_state(
+                bot,
+                options.item_entry,
+                options.timeout_secs,
+                "withdrawn item after relog",
+                |state| {
+                    state.void_items.is_empty()
+                        && state.inventory_items.len() == 1
+                        && state.inventory_items[0].2 & 1 != 0
+                },
+            )
+            .await?;
+            result.void_storage_withdraw_relogin_verified = true;
+        }
+    }
+    logout_and_wait(bot_index, stream, crypt, server_inflater, result).await?;
+    result.void_storage_smoke_passed = Some(true);
     Ok(())
 }
 
@@ -11795,6 +12776,379 @@ fn cleanup_vendor_smoke_fixture(
     Ok(())
 }
 
+fn load_void_storage_db_state(
+    bot: &config::BotConfig,
+    item_entry: u32,
+) -> Result<VoidStorageDbState> {
+    use mysql::prelude::Queryable;
+
+    let characters_url = characters_db_url()?;
+    let opts = mysql::Opts::from_url(&characters_url)
+        .map_err(|error| anyhow!("Bad characters DB URL: {error}"))?;
+    let mut conn = mysql::Conn::new(opts)
+        .map_err(|error| anyhow!("Connect to characters DB failed: {error}"))?;
+    let (money, player_flags): (u64, u32) = conn
+        .exec_first(
+            "SELECT money, playerFlags FROM characters WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Load void-storage character state: {error}"))?
+        .ok_or_else(|| anyhow!("No characters row for guid {}", bot.character_guid))?;
+    let void_items = conn
+        .exec_map(
+            "SELECT itemId, itemEntry, slot FROM character_void_storage WHERE playerGuid = ? ORDER BY slot",
+            (bot.character_guid,),
+            |(item_id, entry, slot): (u64, u32, u8)| (item_id, entry, slot),
+        )
+        .map_err(|error| anyhow!("Load character_void_storage state: {error}"))?;
+    let inventory_items = conn
+        .exec_map(
+            "SELECT ii.guid, ci.slot, ii.flags FROM character_inventory ci \
+             JOIN item_instance ii ON ii.guid = ci.item \
+             WHERE ci.guid = ? AND ii.itemEntry = ? ORDER BY ii.guid",
+            (bot.character_guid, item_entry),
+            |(guid, slot, flags): (u64, u8, u32)| (guid, slot, flags),
+        )
+        .map_err(|error| anyhow!("Load void-storage fixture inventory state: {error}"))?;
+    Ok(VoidStorageDbState {
+        money,
+        player_flags,
+        void_items,
+        inventory_items,
+    })
+}
+
+fn prepare_void_storage_smoke_fixture(
+    bot: &config::BotConfig,
+    item_entry: u32,
+    runtime_counter: Option<u64>,
+    timeout_secs: u64,
+) -> Result<VoidStorageSmokeFixture> {
+    use mysql::prelude::Queryable;
+
+    if !bot.account.to_ascii_uppercase().ends_with("@BOT.LOCAL") {
+        bail!(
+            "refusing destructive void-storage fixture setup for non-local account {}",
+            bot.account
+        );
+    }
+    let characters_url = characters_db_url()?;
+    let character_opts = mysql::Opts::from_url(&characters_url)
+        .map_err(|error| anyhow!("Bad characters DB URL: {error}"))?;
+    let mut characters = mysql::Conn::new(character_opts)
+        .map_err(|error| anyhow!("Connect to characters DB failed: {error}"))?;
+    let character: Option<(u32, u8, u64, u32, u32, u32, u32, f64, f64, f64, f32)> = characters
+        .exec_first(
+            "SELECT account, online, money, playerFlags, map, zone, instance_id, position_x, position_y, position_z, orientation \
+             FROM characters WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Load void-storage bot character: {error}"))?;
+    let (
+        owner,
+        online,
+        original_money,
+        original_player_flags,
+        map_id,
+        zone_id,
+        instance_id,
+        x,
+        y,
+        z,
+        orientation,
+    ) = character.ok_or_else(|| anyhow!("No characters row for guid {}", bot.character_guid))?;
+    if owner != bot.account_id {
+        bail!(
+            "character {} belongs to account {}, expected {}",
+            bot.character_guid,
+            owner,
+            bot.account_id
+        );
+    }
+    if online != 0 {
+        bail!(
+            "character {} is online; log it out before void-storage smoke setup",
+            bot.character_guid
+        );
+    }
+    let existing_void_items: u64 = characters
+        .exec_first(
+            "SELECT COUNT(*) FROM character_void_storage WHERE playerGuid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Check existing void-storage rows: {error}"))?
+        .unwrap_or(0);
+    if existing_void_items != 0 {
+        bail!(
+            "character {} already has {existing_void_items} void-storage rows; use an empty disposable bot",
+            bot.character_guid
+        );
+    }
+    let same_entry_count: u64 = characters
+        .exec_first(
+            "SELECT COUNT(*) FROM character_inventory ci JOIN item_instance ii ON ii.guid = ci.item \
+             WHERE ci.guid = ? AND ii.itemEntry = ?",
+            (bot.character_guid, item_entry),
+        )
+        .map_err(|error| anyhow!("Check existing void-storage fixture item entry: {error}"))?
+        .unwrap_or(0);
+    if same_entry_count != 0 {
+        bail!(
+            "bot character already owns item entry {item_entry}; choose another --void-storage-item-entry"
+        );
+    }
+    let occupied_slots: Vec<u8> = characters
+        .exec_map(
+            "SELECT slot FROM character_inventory WHERE guid = ? AND bag = 0",
+            (bot.character_guid,),
+            |slot: u8| slot,
+        )
+        .map_err(|error| anyhow!("Load occupied void-storage bot slots: {error}"))?;
+    let inventory_slot = (INVENTORY_SLOT_ITEM_START..INVENTORY_SLOT_ITEM_START + 16)
+        .find(|slot| !occupied_slots.contains(slot))
+        .ok_or_else(|| anyhow!("No empty default backpack slot for void-storage smoke"))?;
+    let max_item_guid: u64 = characters
+        .query_first("SELECT COALESCE(MAX(guid), 0) FROM item_instance")
+        .map_err(|error| anyhow!("Load max item guid: {error}"))?
+        .unwrap_or(0);
+    let item_guid = max_item_guid
+        .checked_add(10_000)
+        .ok_or_else(|| anyhow!("item guid overflow while reserving void-storage fixture"))?;
+
+    let world_url = world_db_url()?;
+    let world_opts =
+        mysql::Opts::from_url(&world_url).map_err(|error| anyhow!("Bad world DB URL: {error}"))?;
+    let mut world = mysql::Conn::new(world_opts)
+        .map_err(|error| anyhow!("Connect to world DB failed: {error}"))?;
+    let neutral: Option<(u64, u32, u32, f64, f64, f64, f32)> = world
+        .exec_first(
+            "SELECT c.guid, c.id, c.map, c.position_x, c.position_y, c.position_z, c.orientation \
+             FROM creature c JOIN creature_template ct ON ct.entry = c.id \
+             WHERE ct.faction = 35 \
+               AND ((IF(c.npcflag <> 0, c.npcflag, ct.npcflag) & ?) <> 0) \
+               AND c.phaseid = 0 AND c.phasegroup = 0 \
+               AND FIND_IN_SET('0', c.spawnDifficulties) > 0 \
+               AND ct.VehicleId = 0 ORDER BY c.guid LIMIT 1",
+            (NPC_FLAG_VAULT_KEEPER,),
+        )
+        .map_err(|error| anyhow!("Resolve neutral vault keeper: {error}"))?;
+    let vault_row = match neutral {
+        Some(row) => row,
+        None => world
+            .exec_first(
+                "SELECT c.guid, c.id, c.map, c.position_x, c.position_y, c.position_z, c.orientation \
+                 FROM creature c JOIN creature_template ct ON ct.entry = c.id \
+                 WHERE ((IF(c.npcflag <> 0, c.npcflag, ct.npcflag) & ?) <> 0) \
+                 ORDER BY c.guid LIMIT 1",
+                (NPC_FLAG_VAULT_KEEPER,),
+            )
+            .map_err(|error| anyhow!("Resolve fallback vault keeper: {error}"))?
+            .ok_or_else(|| anyhow!("No vault-keeper creature spawn exists in world DB"))?,
+    };
+    let (spawn_guid, entry, vault_map, vault_x, vault_y, vault_z, vault_orientation) = vault_row;
+    let vault_map = u16::try_from(vault_map)
+        .map_err(|_| anyhow!("vault-keeper map id does not fit protocol: {vault_map}"))?;
+    let discover_runtime_guid = runtime_counter.is_none();
+    let guid_counter = runtime_counter.unwrap_or(spawn_guid);
+    let (low, high) = create_creature_guid_raw(vault_map, entry, guid_counter);
+    let vault_keeper = ResolvedCreatureTarget {
+        entry,
+        spawn_guid,
+        guid_counter,
+        map_id: vault_map,
+        x: vault_x,
+        y: vault_y,
+        z: vault_z,
+        orientation: vault_orientation,
+        packed_guid: build_packed_guid(low, high),
+    };
+
+    let fixture_money = original_money.max(
+        VOID_STORAGE_UNLOCK_COST
+            .saturating_add(VOID_STORAGE_STORE_ITEM_COST)
+            .saturating_add(10_000),
+    );
+    let fixture_flags = original_player_flags & !PLAYER_FLAGS_VOID_UNLOCKED;
+    let mut transaction = characters
+        .start_transaction(mysql::TxOpts::default())
+        .map_err(|error| anyhow!("Start void-storage fixture transaction: {error}"))?;
+    transaction
+        .exec_drop(
+            "INSERT INTO item_instance \
+             (guid, itemEntry, owner_guid, creatorGuid, giftCreatorGuid, count, durability, \
+              enchantments, charges, flags, randomPropertiesId, randomPropertiesSeed, context) \
+             VALUES (?, ?, ?, 0, 0, 1, 0, '', '', 0, 0, 0, 0)",
+            (item_guid, item_entry, bot.character_guid),
+        )
+        .map_err(|error| anyhow!("Insert void-storage fixture item: {error}"))?;
+    transaction
+        .exec_drop(
+            "INSERT INTO character_inventory (guid, bag, slot, item) VALUES (?, 0, ?, ?)",
+            (bot.character_guid, inventory_slot, item_guid),
+        )
+        .map_err(|error| anyhow!("Insert void-storage fixture inventory row: {error}"))?;
+    transaction
+        .exec_drop(
+            "UPDATE characters SET money = ?, playerFlags = ?, map = ?, zone = 0, instance_id = 0, \
+             position_x = ?, position_y = ?, position_z = ?, orientation = ? \
+             WHERE guid = ? AND online = 0",
+            (
+                fixture_money,
+                fixture_flags,
+                u32::from(vault_map),
+                vault_x + 2.0,
+                vault_y,
+                vault_z,
+                vault_orientation,
+                bot.character_guid,
+            ),
+        )
+        .map_err(|error| anyhow!("Relocate and seed void-storage bot: {error}"))?;
+    if transaction.affected_rows() != 1 {
+        bail!("void-storage fixture lost its offline character guard");
+    }
+    transaction
+        .commit()
+        .map_err(|error| anyhow!("Commit void-storage fixture transaction: {error}"))?;
+
+    info!(
+        "Void-storage fixture: character={} item={}/entry={} slot={} vault={}/{} runtime_counter={}",
+        bot.character_guid,
+        item_guid,
+        item_entry,
+        inventory_slot,
+        entry,
+        spawn_guid,
+        guid_counter
+    );
+    Ok(VoidStorageSmokeFixture {
+        options: VoidStorageSmokeOptions {
+            phase: VoidStorageSmokePhase::UnlockDeposit,
+            vault_keeper,
+            discover_runtime_guid,
+            fixture_item_guid: item_guid,
+            item_entry,
+            inventory_slot,
+            expected_void_item_id: None,
+            expected_void_slot: 0,
+            timeout_secs,
+        },
+        original_position: CharacterPositionSnapshot {
+            map_id,
+            zone_id,
+            instance_id,
+            x,
+            y,
+            z,
+            orientation,
+        },
+        original_money,
+        original_player_flags,
+    })
+}
+
+fn cleanup_void_storage_smoke_fixture(
+    bot: &config::BotConfig,
+    fixture: &VoidStorageSmokeFixture,
+) -> Result<()> {
+    use mysql::prelude::Queryable;
+
+    let characters_url = characters_db_url()?;
+    let opts = mysql::Opts::from_url(&characters_url)
+        .map_err(|error| anyhow!("Bad characters DB URL: {error}"))?;
+    let mut conn = mysql::Conn::new(opts)
+        .map_err(|error| anyhow!("Connect to characters DB failed: {error}"))?;
+    let offline_deadline = std::time::Instant::now() + Duration::from_secs(10);
+    loop {
+        let online: Option<u8> = conn
+            .exec_first(
+                "SELECT online FROM characters WHERE guid = ?",
+                (bot.character_guid,),
+            )
+            .map_err(|error| anyhow!("Check void-storage bot offline state: {error}"))?;
+        match online {
+            Some(0) => break,
+            Some(_) if std::time::Instant::now() < offline_deadline => {
+                std::thread::sleep(Duration::from_millis(100));
+            }
+            Some(_) => bail!(
+                "character {} remained online; refusing void-storage fixture cleanup",
+                bot.character_guid
+            ),
+            None => bail!(
+                "No characters row for guid {} during void-storage cleanup",
+                bot.character_guid
+            ),
+        }
+    }
+
+    let item_guids: Vec<u64> = conn
+        .exec_map(
+            "SELECT ii.guid FROM character_inventory ci JOIN item_instance ii ON ii.guid = ci.item \
+             WHERE ci.guid = ? AND ii.itemEntry = ?",
+            (bot.character_guid, fixture.options.item_entry),
+            |guid: u64| guid,
+        )
+        .map_err(|error| anyhow!("Resolve void-storage cleanup items: {error}"))?;
+    let mut transaction = conn
+        .start_transaction(mysql::TxOpts::default())
+        .map_err(|error| anyhow!("Start void-storage cleanup transaction: {error}"))?;
+    for item_guid in item_guids {
+        transaction
+            .exec_drop(
+                "DELETE FROM character_inventory WHERE guid = ? AND item = ?",
+                (bot.character_guid, item_guid),
+            )
+            .map_err(|error| anyhow!("Delete void-storage fixture inventory row: {error}"))?;
+        transaction
+            .exec_drop(
+                "DELETE FROM item_instance WHERE guid = ? AND owner_guid = ? AND itemEntry = ?",
+                (item_guid, bot.character_guid, fixture.options.item_entry),
+            )
+            .map_err(|error| anyhow!("Delete void-storage fixture item: {error}"))?;
+    }
+    transaction
+        .exec_drop(
+            "DELETE FROM character_void_storage WHERE playerGuid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Delete void-storage fixture rows: {error}"))?;
+    transaction
+        .exec_drop(
+            "UPDATE characters SET money = ?, playerFlags = ?, map = ?, zone = ?, instance_id = ?, \
+             position_x = ?, position_y = ?, position_z = ?, orientation = ? \
+             WHERE guid = ? AND online = 0",
+            (
+                fixture.original_money,
+                fixture.original_player_flags,
+                fixture.original_position.map_id,
+                fixture.original_position.zone_id,
+                fixture.original_position.instance_id,
+                fixture.original_position.x,
+                fixture.original_position.y,
+                fixture.original_position.z,
+                fixture.original_position.orientation,
+                bot.character_guid,
+            ),
+        )
+        .map_err(|error| anyhow!("Restore void-storage bot character: {error}"))?;
+    if transaction.affected_rows() != 1 {
+        bail!("void-storage cleanup lost its offline character guard");
+    }
+    transaction
+        .commit()
+        .map_err(|error| anyhow!("Commit void-storage fixture cleanup: {error}"))?;
+    let restored = load_void_storage_db_state(bot, fixture.options.item_entry)?;
+    if restored.money != fixture.original_money
+        || restored.player_flags != fixture.original_player_flags
+        || !restored.void_items.is_empty()
+        || !restored.inventory_items.is_empty()
+    {
+        bail!("void-storage cleanup verification failed: {restored:?}");
+    }
+    Ok(())
+}
+
 fn prepare_bank_smoke_fixture(
     bot: &config::BotConfig,
     item_entry: u32,
@@ -14615,6 +15969,53 @@ mod tests {
         );
         assert!(create_only_provisioning_plan(true, false).is_err());
         assert!(create_only_provisioning_plan(false, true).is_err());
+    }
+
+    #[test]
+    fn void_storage_contents_parser_matches_cpp_fixed_guid_layout() {
+        let mut payload = vec![1];
+        payload.extend_from_slice(&77u64.to_le_bytes());
+        payload.extend_from_slice(&0x0C00_0400_0000_0000u64.to_le_bytes());
+        payload.extend_from_slice(&0u64.to_le_bytes());
+        payload.extend_from_slice(&0u64.to_le_bytes());
+        payload.extend_from_slice(&5u32.to_le_bytes());
+        payload.extend_from_slice(&2589i32.to_le_bytes());
+        payload.extend_from_slice(&0i32.to_le_bytes());
+        payload.extend_from_slice(&0i32.to_le_bytes());
+        payload.push(0); // no bonus list
+        payload.push(0); // zero 6-bit item modifiers
+
+        assert_eq!(
+            parse_void_storage_contents(&payload).unwrap(),
+            vec![VoidStorageItemWire {
+                item_id: 77,
+                slot: 5,
+                item_entry: 2589,
+            }]
+        );
+        payload.push(0);
+        assert!(parse_void_storage_contents(&payload).is_err());
+    }
+
+    #[test]
+    fn void_storage_success_requires_every_fresh_login_checkpoint() {
+        let mut result = BotRunResult {
+            world_auth: true,
+            enum_characters: true,
+            player_login_verified: true,
+            void_storage_smoke: true,
+            void_storage_smoke_passed: Some(true),
+            void_storage_unlock_persisted: true,
+            void_storage_deposit_persisted: true,
+            void_storage_deposit_relogin_verified: true,
+            void_storage_swap_persisted: true,
+            void_storage_swap_relogin_verified: true,
+            void_storage_withdraw_persisted: true,
+            ..BotRunResult::default()
+        };
+        assert!(!result.success(false, false, false));
+        result.void_storage_withdraw_relogin_verified = true;
+        assert!(result.success(false, false, false));
     }
 }
 

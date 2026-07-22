@@ -199,6 +199,9 @@ pub struct SessionResources {
     /// Process-wide C++ `ObjectMgr::_equipmentSetGuid` mirror shared across
     /// equipment sets, transmog outfits, and every session.
     pub equipment_set_guid_generator: Option<Arc<wow_core::EquipmentSetGuidGeneratorLikeCpp>>,
+    /// Process-wide C++ `ObjectMgr::_voidItemId` mirror. This raw ID space is
+    /// independent from `item_instance.guid` and shared by every session.
+    pub void_storage_item_id_generator: Option<Arc<wow_core::VoidStorageItemIdGeneratorLikeCpp>>,
     pub instance_lock_mgr: Option<Arc<std::sync::RwLock<wow_instances::InstanceLockMgr>>>,
     pub bank_bag_slot_prices_store: Option<Arc<wow_data::BankBagSlotPricesStore>>,
     pub currency_types_store: Option<Arc<wow_data::CurrencyTypesStore>>,

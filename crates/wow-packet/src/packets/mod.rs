@@ -31,3 +31,4 @@ pub mod totem;
 pub mod trainer;
 pub mod update;
 pub mod vehicle;
+pub mod void_storage;

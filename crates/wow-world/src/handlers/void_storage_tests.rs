@@ -1,0 +1,319 @@
+use super::*;
+
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+
+use crate::session::{PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP, SessionPlayerController};
+use wow_constants::{InventoryType, ItemBondingType, ItemClass, ServerOpcodes};
+use wow_core::{ObjectGuid, Position, VoidStorageItemIdGeneratorLikeCpp, guid::HighGuid};
+use wow_data::{ItemRecord, ItemSparseTemplateEntry, ItemStatsStore, ItemStore};
+use wow_database::StatementDef;
+
+fn make_void_storage_session() -> (
+    WorldSession,
+    flume::Receiver<Vec<u8>>,
+    Arc<Mutex<wow_map::MapManager>>,
+) {
+    let (_packet_tx, packet_rx) = flume::bounded::<WorldPacket>(1);
+    let (send_tx, send_rx) = flume::bounded::<Vec<u8>>(16);
+    let mut session = WorldSession::new(
+        1,
+        "TestAccount".into(),
+        0,
+        2,
+        9,
+        54261,
+        vec![0u8; 40],
+        "esES".into(),
+        packet_rx,
+        send_tx,
+    );
+    let player_guid = ObjectGuid::create_player(1, 42);
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "Tester".to_string(),
+        Position::new(0.0, 0.0, 0.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session.set_loaded_player_flags_like_cpp(PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP);
+    session.set_void_storage_item_id_generator_like_cpp(Arc::new(
+        VoidStorageItemIdGeneratorLikeCpp::new(100),
+    ));
+    session.mark_represented_void_storage_loaded_like_cpp();
+    let canonical = Arc::new(Mutex::new(wow_map::MapManager::new(60_000, 10)));
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    (session, send_rx, canonical)
+}
+
+fn insert_vault_keeper(manager: &Arc<Mutex<wow_map::MapManager>>, guid: ObjectGuid, entry: u32) {
+    let mut creature = wow_entities::Creature::new(false);
+    creature.unit_mut().world_mut().object_mut().create(guid);
+    creature
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .set_entry(entry);
+    creature.unit_mut().world_mut().set_map(571, 0).unwrap();
+    creature
+        .unit_mut()
+        .world_mut()
+        .relocate(Position::new(5.0, 0.0, 0.0, 0.0));
+    creature.unit_mut().world_mut().set_combat_reach(1.0);
+    creature.unit_mut().set_level(80);
+    creature.unit_mut().set_max_health(100);
+    creature.unit_mut().set_health(100);
+    creature.set_ai_identity_runtime(1, 35, NPCFlags1::VAULT_KEEPER.bits(), 0);
+    creature.unit_mut().world_mut().object_mut().add_to_world();
+    manager
+        .lock()
+        .unwrap()
+        .create_world_map(571, 0)
+        .map_mut()
+        .insert_map_object_record(wow_entities::MapObjectRecord::new_creature(creature).unwrap())
+        .unwrap();
+}
+
+fn represented_void_item(item_id: u64, entry: u32) -> RepresentedVoidStorageItemLikeCpp {
+    RepresentedVoidStorageItemLikeCpp {
+        item_id,
+        item_entry: entry,
+        creator_guid: ObjectGuid::create_player(1, 7),
+        fixed_scaling_level: 80,
+        random_properties_id: -13,
+        random_properties_seed: 29,
+        context: ItemContext::Timewalking as u8,
+    }
+}
+
+fn install_void_test_item_template(session: &mut WorldSession, entry: u32) {
+    session.set_item_store(Arc::new(ItemStore::from_records([ItemRecord {
+        id: entry,
+        class_id: ItemClass::Miscellaneous as u8,
+        subclass_id: 0,
+        material: 0,
+        inventory_type: InventoryType::NonEquip as i8,
+        sheathe_type: 0,
+        random_select: 0,
+        random_suffix_group_id: 0,
+        scaling_stat_distribution_id: 0,
+        scaling_stat_value: 0,
+    }])));
+    session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates([(
+        entry,
+        ItemSparseTemplateEntry {
+            flags: [0; 4],
+            bag_family: 0,
+            start_quest_id: 0,
+            stackable: 1,
+            max_count: 0,
+            lock_id: 0,
+            required_reputation_rank: 0,
+            sell_price: 0,
+            buy_price: 0,
+            vendor_stack_count: 1,
+            price_variance: 1.0,
+            price_random_value: 1.0,
+            max_durability: 0,
+            other_faction_item_id: 0,
+            content_tuning_id: 0,
+            player_level_to_item_level_curve_id: 0,
+            limit_category: 0,
+            instance_bound: 0,
+            zone_bound: [0; 2],
+            required_reputation_faction: 0,
+            allowable_class: -1,
+            required_expansion: 0,
+            bonding: ItemBondingType::None as u8,
+            container_slots: 0,
+            inventory_type: InventoryType::NonEquip as i8,
+        },
+    )])));
+}
+
+#[test]
+fn login_load_rejects_invalid_rows_and_identity_collisions() {
+    let (mut session, _, _) = make_void_storage_session();
+    session.clear_represented_void_storage_like_cpp();
+    install_void_test_item_template(&mut session, 19019);
+    let item = represented_void_item(77, 19019);
+    assert!(session.load_represented_void_storage_row_like_cpp(3, item.clone()));
+    assert!(
+        !session.load_represented_void_storage_row_like_cpp(3, represented_void_item(78, 19019),)
+    );
+    assert!(!session.load_represented_void_storage_row_like_cpp(4, item.clone(),));
+    assert!(
+        !session.load_represented_void_storage_row_like_cpp(4, represented_void_item(0, 19019),)
+    );
+    assert!(
+        !session
+            .load_represented_void_storage_row_like_cpp(u8::MAX, represented_void_item(79, 19019),)
+    );
+    assert!(
+        !session.load_represented_void_storage_row_like_cpp(4, represented_void_item(80, 99999),)
+    );
+    assert_eq!(
+        session.represented_void_storage_item_at_like_cpp(3),
+        Some(item)
+    );
+    assert_eq!(session.represented_void_storage_free_slots_like_cpp(), 159);
+}
+
+#[test]
+fn full_save_rewrites_all_160_void_slots_like_cpp() {
+    let (mut session, _, _) = make_void_storage_session();
+    let item = represented_void_item(77, 19019);
+    assert_eq!(
+        session.add_represented_void_storage_item_like_cpp(item.clone()),
+        Some(0)
+    );
+
+    let statements = session
+        .character_void_storage_save_statements_like_cpp(42)
+        .expect("coherently loaded void storage");
+    assert_eq!(statements.len(), 160);
+    assert_eq!(
+        statements[0].sql(),
+        CharStatements::REP_CHAR_VOID_STORAGE_ITEM.sql()
+    );
+    assert_eq!(
+        statements[0].params(),
+        &[
+            wow_database::SqlParam::U64(77),
+            wow_database::SqlParam::U64(42),
+            wow_database::SqlParam::U32(19019),
+            wow_database::SqlParam::U8(0),
+            wow_database::SqlParam::U64(7),
+            wow_database::SqlParam::U32(80),
+            wow_database::SqlParam::I32(-13),
+            wow_database::SqlParam::I32(29),
+            wow_database::SqlParam::U8(ItemContext::Timewalking as u8),
+        ]
+    );
+    assert!(statements[1..].iter().all(|statement| {
+        statement.sql() == CharStatements::DEL_CHAR_VOID_STORAGE_ITEM_BY_SLOT.sql()
+    }));
+}
+
+#[tokio::test]
+async fn swap_definite_rollback_keeps_void_slots_unchanged() {
+    let (mut session, send_rx, canonical) = make_void_storage_session();
+    let vault_keeper = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 1918, 43);
+    insert_vault_keeper(&canonical, vault_keeper, 1918);
+    let item = represented_void_item(77, 19019);
+    assert_eq!(
+        session.add_represented_void_storage_item_like_cpp(item.clone()),
+        Some(0)
+    );
+
+    let failing_pool = sqlx::mysql::MySqlPoolOptions::new()
+        .max_connections(1)
+        .acquire_timeout(Duration::from_millis(100))
+        .connect_lazy("mysql://rustycore:rustycore@127.0.0.1:1/characters")
+        .expect("syntactically valid lazy CharacterDB pool");
+    session.set_char_db(Arc::new(wow_database::CharacterDatabase::from_pool(
+        failing_pool,
+    )));
+
+    let mut packet = WorldPacket::new_empty();
+    packet.write_guid(&vault_keeper);
+    packet.write_guid(&ObjectGuid::create_item(1, 77));
+    packet.write_uint32(4);
+    session.handle_void_storage_swap_item(packet).await;
+
+    assert_eq!(
+        session.represented_void_storage_item_at_like_cpp(0),
+        Some(item)
+    );
+    assert!(
+        session
+            .represented_void_storage_item_at_like_cpp(4)
+            .is_none()
+    );
+    assert_eq!(
+        send_rx
+            .try_iter()
+            .filter_map(|bytes| WorldPacket::from_bytes(&bytes).server_opcode())
+            .collect::<Vec<_>>(),
+        vec![ServerOpcodes::VoidTransferResult]
+    );
+    assert!(
+        session
+            .durable_loot_money_persistence_tracker_like_cpp()
+            .begin_like_cpp()
+            .is_ok(),
+        "definite rollback must reopen payout/save admission"
+    );
+}
+
+#[tokio::test]
+async fn deposit_definite_rollback_keeps_money_inventory_and_void_state_unchanged() {
+    let (mut session, send_rx, canonical) = make_void_storage_session();
+    let vault_keeper = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 1918, 43);
+    insert_vault_keeper(&canonical, vault_keeper, 1918);
+    install_void_test_item_template(&mut session, 19019);
+    session.set_player_gold_like_cpp(500_000);
+    let item_guid = ObjectGuid::create_item(1, 501);
+    let item = session.make_inventory_item_object(
+        item_guid,
+        19019,
+        ObjectGuid::create_player(1, 42),
+        1,
+        0,
+        ItemContext::None,
+        35,
+    );
+    session.insert_inventory_item_object(item);
+    session.insert_inventory_item_like_cpp(
+        35,
+        InventoryItem {
+            guid: item_guid,
+            entry_id: 19019,
+            db_guid: 501,
+            inventory_type: Some(InventoryType::NonEquip as u8),
+        },
+    );
+
+    let failing_pool = sqlx::mysql::MySqlPoolOptions::new()
+        .max_connections(1)
+        .acquire_timeout(Duration::from_millis(100))
+        .connect_lazy("mysql://rustycore:rustycore@127.0.0.1:1/characters")
+        .expect("syntactically valid lazy CharacterDB pool");
+    session.set_char_db(Arc::new(wow_database::CharacterDatabase::from_pool(
+        failing_pool,
+    )));
+
+    let mut packet = WorldPacket::new_empty();
+    packet.write_guid(&vault_keeper);
+    packet.write_uint32(1);
+    packet.write_uint32(0);
+    packet.write_guid(&item_guid);
+    session.handle_void_storage_transfer(packet).await;
+
+    assert_eq!(session.player_gold_like_cpp(), 500_000);
+    let (bag, slot, inventory_item) = session
+        .get_inventory_item_by_guid_like_cpp(item_guid)
+        .expect("rolled-back deposit must remain in inventory");
+    assert_eq!((bag, slot), (INVENTORY_SLOT_BAG_0, 35));
+    assert_eq!(inventory_item.guid, item_guid);
+    assert_eq!(inventory_item.entry_id, 19019);
+    assert_eq!(inventory_item.db_guid, 501);
+    assert_eq!(session.represented_void_storage_free_slots_like_cpp(), 160);
+    assert_eq!(
+        send_rx
+            .try_iter()
+            .filter_map(|bytes| WorldPacket::from_bytes(&bytes).server_opcode())
+            .collect::<Vec<_>>(),
+        vec![ServerOpcodes::VoidTransferResult]
+    );
+    assert!(
+        session
+            .durable_loot_money_persistence_tracker_like_cpp()
+            .begin_like_cpp()
+            .is_ok(),
+        "definite rollback must reopen payout/save admission"
+    );
+}

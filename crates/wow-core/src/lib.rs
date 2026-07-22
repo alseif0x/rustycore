@@ -10,7 +10,7 @@ pub mod time;
 pub use event_map::EventMap;
 pub use guid::{
     EQUIPMENT_SET_GUID_LIMIT_LIKE_CPP, EquipmentSetGuidGeneratorLikeCpp, ObjectGuid,
-    ObjectGuidGenerator,
+    ObjectGuidGenerator, VOID_STORAGE_ITEM_ID_LIMIT_LIKE_CPP, VoidStorageItemIdGeneratorLikeCpp,
 };
 pub use ip_location::{IpLocationRecord, IpLocationStore};
 pub use net::{

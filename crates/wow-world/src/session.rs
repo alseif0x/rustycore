@@ -59,7 +59,8 @@ use wow_constants::{
     ServerOpcodes, SpellCastResult, SpellItemEnchantmentFlags, Stats, TypeId, UnitState,
 };
 use wow_core::{
-    EquipmentSetGuidGeneratorLikeCpp, ObjectGuid, ObjectGuidGenerator, Position, guid::HighGuid,
+    EquipmentSetGuidGeneratorLikeCpp, ObjectGuid, ObjectGuidGenerator, Position,
+    VoidStorageItemIdGeneratorLikeCpp, guid::HighGuid,
 };
 use wow_data::character_progression::{ChrClassesStore, ChrRacesStore};
 use wow_data::trait_tree::TraitDefinitionStore;
@@ -249,6 +250,7 @@ const PLAYER_FLAGS_DND_LIKE_CPP: u32 = 0x0000_0004;
 const PLAYER_FLAGS_GHOST_LIKE_CPP: u32 = 0x0000_0010;
 const PLAYER_FLAGS_RESTING_LIKE_CPP: u32 = 0x0000_0020;
 const PLAYER_FLAGS_NO_XP_GAIN_LIKE_CPP: u32 = 0x0200_0000;
+pub(crate) const PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP: u32 = 0x2000_0000;
 pub(crate) const REST_STATE_RESTED_LIKE_CPP: u8 = 1;
 pub(crate) const REST_STATE_NORMAL_LIKE_CPP: u8 = 2;
 pub(crate) const REST_STATE_RAF_LINKED_LIKE_CPP: u8 = 6;
@@ -4825,6 +4827,8 @@ pub struct WorldSession {
     item_guid_generator_like_cpp: Option<Arc<ObjectGuidGenerator>>,
     // Process-wide C++ ObjectMgr generator shared by equipment and transmog sets.
     equipment_set_guid_generator_like_cpp: Option<Arc<EquipmentSetGuidGeneratorLikeCpp>>,
+    // Process-wide C++ ObjectMgr generator for character_void_storage.itemId.
+    void_storage_item_id_generator_like_cpp: Option<Arc<VoidStorageItemIdGeneratorLikeCpp>>,
 
     // Characters confirmed for this account
     legit_characters: Vec<ObjectGuid>,
@@ -5238,6 +5242,10 @@ pub struct WorldSession {
     /// C++ `Player::_equipmentSets`, represented until DB-backed save/load is canonical.
     represented_equipment_sets_like_cpp: BTreeMap<u64, RepresentedEquipmentSetLikeCpp>,
     represented_equipment_sets_loaded_like_cpp: bool,
+    /// C++ `Player::_voidStorageItems`, indexed by stable void-storage slot.
+    represented_void_storage_items_like_cpp: [Option<RepresentedVoidStorageItemLikeCpp>;
+        wow_packet::packets::void_storage::VOID_STORAGE_MAX_SLOT_LIKE_CPP],
+    represented_void_storage_loaded_like_cpp: bool,
     /// Represented accepted Adventure Map quest starts until AddQuestAndCheckCompletion is canonical.
     represented_adventure_map_start_quest_requests_like_cpp:
         Vec<RepresentedAdventureMapStartQuestLikeCpp>,
@@ -5926,6 +5934,17 @@ pub(crate) struct RepresentedEquipmentSetLikeCpp {
     pub(crate) set_name: String,
     pub(crate) set_icon: String,
     pub(crate) state: RepresentedEquipmentSetUpdateStateLikeCpp,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RepresentedVoidStorageItemLikeCpp {
+    pub(crate) item_id: u64,
+    pub(crate) item_entry: u32,
+    pub(crate) creator_guid: ObjectGuid,
+    pub(crate) fixed_scaling_level: u32,
+    pub(crate) random_properties_id: i32,
+    pub(crate) random_properties_seed: i32,
+    pub(crate) context: u8,
 }
 
 impl RepresentedEquipmentSetLikeCpp {
@@ -6847,6 +6866,7 @@ impl WorldSession {
             guid_generator: None,
             item_guid_generator_like_cpp: None,
             equipment_set_guid_generator_like_cpp: None,
+            void_storage_item_id_generator_like_cpp: None,
             legit_characters: Vec::new(),
             pending_packets: Vec::new(),
             player_loading: None,
@@ -7061,6 +7081,8 @@ impl WorldSession {
             represented_talent_respec_criteria_events_like_cpp: Vec::new(),
             represented_equipment_sets_like_cpp: BTreeMap::new(),
             represented_equipment_sets_loaded_like_cpp: false,
+            represented_void_storage_items_like_cpp: std::array::from_fn(|_| None),
+            represented_void_storage_loaded_like_cpp: false,
             represented_adventure_map_start_quest_requests_like_cpp: Vec::new(),
             taxi_node_map_ids_like_cpp: HashMap::new(),
             taxi_flight_state_like_cpp: None,
@@ -7397,6 +7419,167 @@ impl WorldSession {
     pub(crate) fn clear_represented_equipment_sets_like_cpp(&mut self) {
         self.represented_equipment_sets_like_cpp.clear();
         self.represented_equipment_sets_loaded_like_cpp = false;
+    }
+
+    pub(crate) fn clear_represented_void_storage_like_cpp(&mut self) {
+        self.represented_void_storage_items_like_cpp = std::array::from_fn(|_| None);
+        self.represented_void_storage_loaded_like_cpp = false;
+    }
+
+    pub(crate) fn mark_represented_void_storage_loaded_like_cpp(&mut self) {
+        self.represented_void_storage_loaded_like_cpp = true;
+    }
+
+    pub(crate) fn load_represented_void_storage_row_like_cpp(
+        &mut self,
+        slot: u8,
+        item: RepresentedVoidStorageItemLikeCpp,
+    ) -> bool {
+        let slot = usize::from(slot);
+        if item.item_id == 0
+            || slot >= wow_packet::packets::void_storage::VOID_STORAGE_MAX_SLOT_LIKE_CPP
+            || self.item_storage_template(item.item_entry).is_none()
+            || self.represented_void_storage_items_like_cpp[slot].is_some()
+            || self
+                .represented_void_storage_items_like_cpp
+                .iter()
+                .flatten()
+                .any(|loaded| loaded.item_id == item.item_id)
+        {
+            return false;
+        }
+        self.represented_void_storage_items_like_cpp[slot] = Some(item);
+        true
+    }
+
+    pub(crate) fn represented_void_storage_loaded_like_cpp(&self) -> bool {
+        self.represented_void_storage_loaded_like_cpp
+    }
+
+    pub(crate) fn represented_void_storage_free_slots_like_cpp(&self) -> usize {
+        self.represented_void_storage_items_like_cpp
+            .iter()
+            .filter(|item| item.is_none())
+            .count()
+    }
+
+    pub(crate) fn represented_void_storage_next_free_slot_like_cpp(&self) -> Option<u8> {
+        self.represented_void_storage_items_like_cpp
+            .iter()
+            .position(Option::is_none)
+            .and_then(|slot| u8::try_from(slot).ok())
+    }
+
+    pub(crate) fn represented_void_storage_item_by_id_like_cpp(
+        &self,
+        item_id: u64,
+    ) -> Option<(u8, RepresentedVoidStorageItemLikeCpp)> {
+        self.represented_void_storage_items_like_cpp
+            .iter()
+            .enumerate()
+            .find_map(|(slot, item)| {
+                let item = item.as_ref()?;
+                (item.item_id == item_id).then(|| {
+                    (
+                        u8::try_from(slot).expect("void-storage slot fits u8"),
+                        item.clone(),
+                    )
+                })
+            })
+    }
+
+    pub(crate) fn represented_void_storage_item_at_like_cpp(
+        &self,
+        slot: u8,
+    ) -> Option<RepresentedVoidStorageItemLikeCpp> {
+        self.represented_void_storage_items_like_cpp
+            .get(usize::from(slot))?
+            .clone()
+    }
+
+    pub(crate) fn add_represented_void_storage_item_like_cpp(
+        &mut self,
+        item: RepresentedVoidStorageItemLikeCpp,
+    ) -> Option<u8> {
+        let slot = self.represented_void_storage_next_free_slot_like_cpp()?;
+        self.represented_void_storage_items_like_cpp[usize::from(slot)] = Some(item);
+        Some(slot)
+    }
+
+    pub(crate) fn delete_represented_void_storage_item_like_cpp(
+        &mut self,
+        slot: u8,
+    ) -> Option<RepresentedVoidStorageItemLikeCpp> {
+        self.represented_void_storage_items_like_cpp
+            .get_mut(usize::from(slot))?
+            .take()
+    }
+
+    pub(crate) fn swap_represented_void_storage_item_like_cpp(
+        &mut self,
+        old_slot: u8,
+        new_slot: u8,
+    ) -> bool {
+        let old_slot = usize::from(old_slot);
+        let new_slot = usize::from(new_slot);
+        if old_slot >= wow_packet::packets::void_storage::VOID_STORAGE_MAX_SLOT_LIKE_CPP
+            || new_slot >= wow_packet::packets::void_storage::VOID_STORAGE_MAX_SLOT_LIKE_CPP
+            || old_slot == new_slot
+        {
+            return false;
+        }
+        self.represented_void_storage_items_like_cpp
+            .swap(old_slot, new_slot);
+        true
+    }
+
+    pub(crate) fn next_represented_void_storage_item_id_like_cpp(&self) -> Option<u64> {
+        self.void_storage_item_id_generator_like_cpp
+            .as_ref()
+            .map(|generator| generator.generate())
+    }
+
+    pub(crate) fn represented_void_storage_item_packet_like_cpp(
+        &self,
+        slot: u8,
+        item: &RepresentedVoidStorageItemLikeCpp,
+    ) -> wow_packet::packets::void_storage::VoidItem {
+        let modifications = (item.fixed_scaling_level != 0)
+            .then(|| {
+                wow_packet::packets::item::ItemMod::new(
+                    item.fixed_scaling_level as i32,
+                    ItemModifier::TimewalkerLevel as u8,
+                )
+            })
+            .into_iter()
+            .collect();
+        wow_packet::packets::void_storage::VoidItem {
+            guid: ObjectGuid::create_item(self.realm_id, item.item_id as i64),
+            creator: item.creator_guid,
+            slot: u32::from(slot),
+            item: wow_packet::packets::item::ItemInstance {
+                item_id: item.item_entry as i32,
+                modifications: wow_packet::packets::item::ItemModList {
+                    values: modifications,
+                },
+                ..Default::default()
+            },
+        }
+    }
+
+    pub(crate) fn represented_void_storage_contents_like_cpp(
+        &self,
+    ) -> wow_packet::packets::void_storage::VoidStorageContents {
+        let items = self
+            .represented_void_storage_items_like_cpp
+            .iter()
+            .enumerate()
+            .filter_map(|(slot, item)| {
+                let item = item.as_ref()?;
+                Some(self.represented_void_storage_item_packet_like_cpp(slot as u8, item))
+            })
+            .collect();
+        wow_packet::packets::void_storage::VoidStorageContents { items }
     }
 
     pub(crate) fn mark_represented_equipment_sets_loaded_like_cpp(&mut self) {
@@ -14863,6 +15046,14 @@ impl WorldSession {
         self.equipment_set_guid_generator_like_cpp = Some(generator);
     }
 
+    /// Install the process-wide C++ `sObjectMgr->GenerateVoidStorageItemId()` mirror.
+    pub fn set_void_storage_item_id_generator_like_cpp(
+        &mut self,
+        generator: Arc<VoidStorageItemIdGeneratorLikeCpp>,
+    ) {
+        self.void_storage_item_id_generator_like_cpp = Some(generator);
+    }
+
     /// Set the login database for this session.
     pub fn set_login_db(&mut self, db: Arc<LoginDatabase>) {
         self.login_db = Some(db);
@@ -20443,6 +20634,71 @@ impl WorldSession {
         })
     }
 
+    pub(crate) fn represented_empty_inventory_positions_like_cpp(&self) -> Vec<(u8, u8)> {
+        let inventory_end = INVENTORY_SLOT_ITEM_START
+            .saturating_add(INVENTORY_DEFAULT_SIZE)
+            .min(PLAYER_SLOT_END as u8);
+        let mut positions = (INVENTORY_SLOT_ITEM_START..inventory_end)
+            .filter(|slot| {
+                self.get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, *slot)
+                    .is_none()
+            })
+            .map(|slot| (INVENTORY_SLOT_BAG_0, slot))
+            .collect::<Vec<_>>();
+
+        for bag in INVENTORY_SLOT_BAG_START..INVENTORY_SLOT_BAG_END {
+            let Some(bag_item) = self.inventory_items_like_cpp().get(&bag) else {
+                continue;
+            };
+            let Some(template) = self.item_storage_template(bag_item.entry_id) else {
+                continue;
+            };
+            positions.extend(
+                (0..template.container_slots)
+                    .filter(|slot| self.get_inventory_item_by_pos(bag, *slot).is_none())
+                    .map(|slot| (bag, slot)),
+            );
+        }
+        positions
+    }
+
+    /// Publish one new item whose CharacterDB rows already committed.
+    pub(crate) fn apply_committed_new_inventory_item_at_like_cpp(
+        &mut self,
+        bag: u8,
+        slot: u8,
+        inventory_item: InventoryItem,
+        mut item_object: Item,
+    ) -> bool {
+        if self.get_inventory_item_by_pos(bag, slot).is_some() {
+            return false;
+        }
+
+        if bag == INVENTORY_SLOT_BAG_0 {
+            item_object.set_container_guid(ObjectGuid::EMPTY);
+            item_object.set_slot(slot);
+            self.insert_inventory_item_like_cpp(slot, inventory_item.clone());
+        } else {
+            let Some(bag_item) = self.inventory_items_like_cpp().get(&bag).cloned() else {
+                return false;
+            };
+            item_object.set_contained_in(bag_item.guid);
+            item_object.set_slot(slot);
+            item_object.set_container_guid_and_slot(bag_item.guid, bag);
+        }
+
+        let item_guid = inventory_item.guid;
+        self.insert_inventory_item_object(item_object);
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            if bag == INVENTORY_SLOT_BAG_0 {
+                let _ = player.store_top_level_item(slot, item_guid);
+            } else {
+                let _ = player.store_bag_item(bag, slot, item_guid);
+            }
+        });
+        true
+    }
+
     pub(crate) fn remove_inventory_item_like_cpp(&mut self, slot: u8) -> Option<InventoryItem> {
         self.mutate_player_inventory_runtime_like_cpp(|inventory| {
             inventory.inventory_items.remove(&slot)
@@ -25593,7 +25849,7 @@ impl WorldSession {
         adjusted.clamp(0, i64::from(u32::MAX)) as u32
     }
 
-    fn represented_player_has_flag_like_cpp(&self, flag: u32) -> bool {
+    pub(crate) fn represented_player_has_flag_like_cpp(&self, flag: u32) -> bool {
         let canonical = self
             .player_guid()
             .and_then(|guid| self.canonical_player_has_player_flag_like_cpp(guid, flag));
@@ -25607,6 +25863,42 @@ impl WorldSession {
                 (loaded_flags & flag) != 0
             }
             (None, None, _) => false,
+        }
+    }
+
+    pub(crate) fn represented_player_flags_value_like_cpp(&self) -> u32 {
+        self.canonical_player_snapshot_like_cpp(|player| player.data().player_flags)
+            .filter(|_| self.represented_loaded_player_flags_applied_like_cpp)
+            .or(self.represented_loaded_player_flags_like_cpp)
+            .unwrap_or(0)
+    }
+
+    pub(crate) fn void_storage_is_unlocked_like_cpp(&self) -> bool {
+        self.represented_player_has_flag_like_cpp(PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP)
+    }
+
+    /// Apply the already-committed void-storage unlock to runtime state and
+    /// emit the same PlayerData::Flags values delta that C++ SetPlayerFlag does.
+    pub(crate) fn apply_committed_void_storage_unlock_like_cpp(&mut self) {
+        let values_update = self.player_values_update_snapshot().and_then(|mut player| {
+            player.set_player_flag(PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP);
+            Some(player.values_update(true))
+        });
+
+        let flags =
+            self.represented_player_flags_value_like_cpp() | PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP;
+        self.represented_loaded_player_flags_like_cpp = Some(flags);
+        if self
+            .mutate_canonical_player_like_cpp(|player| {
+                player.set_player_flag(PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP);
+            })
+            .is_some()
+        {
+            self.represented_loaded_player_flags_applied_like_cpp = true;
+        }
+
+        if let Some(update) = values_update {
+            self.send_player_values_update_like_cpp(&update);
         }
     }
 
@@ -26528,6 +26820,17 @@ impl WorldSession {
                 account = self.account_id,
                 player_guid = ?self.player_guid(),
                 "Skipping represented equipment-set save because character_equipmentsets/character_transmog_outfits were not loaded coherently"
+            );
+        }
+
+        if let Some(statements) = self.character_void_storage_save_statements_like_cpp(guid_counter)
+        {
+            plan.statements.extend(statements);
+        } else {
+            warn!(
+                account = self.account_id,
+                player_guid = ?self.player_guid(),
+                "Skipping represented void-storage save because character_void_storage was not loaded coherently"
             );
         }
 
@@ -28400,6 +28703,65 @@ impl WorldSession {
             stmt.set_u64(7 + offset, item_guid.counter() as u64);
         }
         stmt
+    }
+
+    pub(crate) fn build_void_storage_replace_statement_like_cpp(
+        player_guid_counter: u64,
+        slot: u8,
+        item: &RepresentedVoidStorageItemLikeCpp,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::REP_CHAR_VOID_STORAGE_ITEM.sql());
+        stmt.set_u64(0, item.item_id);
+        stmt.set_u64(1, player_guid_counter);
+        stmt.set_u32(2, item.item_entry);
+        stmt.set_u8(3, slot);
+        stmt.set_u64(4, item.creator_guid.counter() as u64);
+        stmt.set_u32(5, item.fixed_scaling_level);
+        stmt.set_i32(6, item.random_properties_id);
+        stmt.set_i32(7, item.random_properties_seed);
+        stmt.set_u8(8, item.context);
+        stmt
+    }
+
+    pub(crate) fn build_void_storage_delete_slot_statement_like_cpp(
+        player_guid_counter: u64,
+        slot: u8,
+    ) -> PreparedStatement {
+        let mut stmt =
+            PreparedStatement::new(CharStatements::DEL_CHAR_VOID_STORAGE_ITEM_BY_SLOT.sql());
+        stmt.set_u8(0, slot);
+        stmt.set_u64(1, player_guid_counter);
+        stmt
+    }
+
+    pub(crate) fn character_void_storage_save_statements_like_cpp(
+        &self,
+        player_guid_counter: u64,
+    ) -> Option<Vec<PreparedStatement>> {
+        if !self.represented_void_storage_loaded_like_cpp {
+            return None;
+        }
+
+        Some(
+            self.represented_void_storage_items_like_cpp
+                .iter()
+                .enumerate()
+                .map(|(slot, item)| {
+                    let slot = u8::try_from(slot).expect("void-storage slot fits u8");
+                    match item {
+                        Some(item) => Self::build_void_storage_replace_statement_like_cpp(
+                            player_guid_counter,
+                            slot,
+                            item,
+                        ),
+                        None => Self::build_void_storage_delete_slot_statement_like_cpp(
+                            player_guid_counter,
+                            slot,
+                        ),
+                    }
+                })
+                .collect(),
+        )
     }
 
     pub(crate) fn build_equipment_set_update_statement_like_cpp(
@@ -35007,6 +35369,18 @@ impl WorldSession {
             }
             ClientOpcodes::OpenItem => {
                 self.handle_open_item(pkt).await;
+            }
+            ClientOpcodes::UnlockVoidStorage => {
+                self.handle_void_storage_unlock(pkt).await;
+            }
+            ClientOpcodes::QueryVoidStorage => {
+                self.handle_void_storage_query(pkt).await;
+            }
+            ClientOpcodes::VoidStorageTransfer => {
+                self.handle_void_storage_transfer(pkt).await;
+            }
+            ClientOpcodes::SwapVoidItem => {
+                self.handle_void_storage_swap_item(pkt).await;
             }
             ClientOpcodes::SpellClick => {
                 self.handle_spell_click(pkt).await;

@@ -73,7 +73,8 @@ use crate::session::{
     REST_STATE_RAF_LINKED_LIKE_CPP, RepresentedAlterAppearanceLikeCpp,
     RepresentedBankItemMoveLikeCpp, RepresentedConfirmBarbersChoiceLikeCpp,
     RepresentedGameObjectUseState, RepresentedHomebindLikeCpp,
-    RepresentedQuestObjectiveProgressEventLikeCpp, SpellCastMetadata,
+    RepresentedQuestObjectiveProgressEventLikeCpp, RepresentedVoidStorageItemLikeCpp,
+    SpellCastMetadata,
 };
 
 // ── Handler registration ────────────────────────────────────────────
@@ -5917,6 +5918,67 @@ impl WorldSession {
                 &loaded_equipped_item_guids,
             );
 
+        // ── Load void storage ──
+        // C++ `Player::_LoadVoidStorage` skips invalid rows but leaves every
+        // valid slot available to the query/transfer handlers.
+        self.clear_represented_void_storage_like_cpp();
+        {
+            let mut void_stmt = char_db.prepare(CharStatements::SEL_CHAR_VOID_STORAGE);
+            void_stmt.set_u64(0, guid.counter() as u64);
+            match char_db.query(&void_stmt).await {
+                Ok(mut void_result) => {
+                    if !void_result.is_empty() {
+                        loop {
+                            let item_id: u64 = void_result.try_read(0).unwrap_or(0);
+                            let item_entry: u32 = void_result.try_read(1).unwrap_or(0);
+                            let slot: u8 = void_result.try_read(2).unwrap_or(u8::MAX);
+                            let creator_counter: u64 = void_result.try_read(3).unwrap_or(0);
+                            let fixed_scaling_level: u32 = void_result.try_read(4).unwrap_or(0);
+                            let random_properties_id: i32 = void_result.try_read(5).unwrap_or(0);
+                            let random_properties_seed: i32 = void_result.try_read(6).unwrap_or(0);
+                            // The audited 3.4.3 C++ source constructs
+                            // `ItemContext` from fields[5], not fields[7].
+                            // Preserve that observable load behavior exactly.
+                            let context = random_properties_id as u8;
+                            let creator_guid = if creator_counter == 0 {
+                                ObjectGuid::EMPTY
+                            } else {
+                                ObjectGuid::create_player(realm_id, creator_counter as i64)
+                            };
+                            let loaded = self.load_represented_void_storage_row_like_cpp(
+                                slot,
+                                RepresentedVoidStorageItemLikeCpp {
+                                    item_id,
+                                    item_entry,
+                                    creator_guid,
+                                    fixed_scaling_level,
+                                    random_properties_id,
+                                    random_properties_seed,
+                                    context,
+                                },
+                            );
+                            if !loaded {
+                                warn!(
+                                    player_guid = guid.counter(),
+                                    item_id,
+                                    item_entry,
+                                    slot,
+                                    "Player::_LoadVoidStorage skipped an invalid row like C++"
+                                );
+                            }
+                            if !void_result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                    self.mark_represented_void_storage_loaded_like_cpp();
+                }
+                Err(e) => {
+                    warn!("Failed to load void storage for {:?}: {}", guid, e);
+                }
+            }
+        }
+
         // ── Load equipment sets / transmog outfits ──
         // C++ `Player::_LoadEquipmentSets` and `_LoadTransmogOutfits` rebuild
         // one shared `_equipmentSets` container before `SendEquipmentSetList`.
@@ -10248,7 +10310,7 @@ impl WorldSession {
         }))
     }
 
-    fn inventory_container_db_guid_like_cpp(&self, bag: u8) -> Option<u64> {
+    pub(crate) fn inventory_container_db_guid_like_cpp(&self, bag: u8) -> Option<u64> {
         if bag == INVENTORY_SLOT_BAG_0 {
             Some(0)
         } else {

@@ -1179,6 +1179,10 @@ pub enum CharStatements {
 
     /// UPDATE characters SET money = ? WHERE guid = ?
     UPD_CHAR_MONEY,
+    /// C++ `Player::UnlockVoidStorage` changes `PLAYER_FLAGS_VOID_UNLOCKED`;
+    /// Rust persists that flag in the same transaction as its unlock cost.
+    /// UPDATE characters SET playerFlags = ? WHERE guid = ?
+    UPD_CHAR_PLAYER_FLAGS,
     /// SELECT money FROM characters WHERE guid = ? FOR UPDATE
     SEL_CHAR_MONEY_FOR_UPDATE,
     /// C++ `CHAR_UPD_CHARACTER` persists this field immediately before powers.
@@ -1212,6 +1216,8 @@ pub enum CharStatements {
     SEL_MAX_ITEM_GUID,
     /// C++ `ObjectMgr::SetHighestGuids` shared equipment/transmog set GUID maximum.
     SEL_MAX_EQUIPMENT_SET_GUID,
+    /// C++ `ObjectMgr::SetHighestGuids` void-storage raw item-ID maximum.
+    SEL_MAX_VOID_STORAGE_ITEM_ID,
     /// C++ ObjectMgr::SetHighestGuids startup cleanup.
     DEL_INVALID_CHAR_INVENTORY_ITEM_GUIDS,
     DEL_INVALID_MAIL_ITEM_GUIDS,
@@ -2794,6 +2800,7 @@ impl StatementDef for CharStatements {
             Self::UPD_CHAR_XP => "UPDATE characters SET xp = ? WHERE guid = ?",
             Self::UPD_CHAR_LEVEL => "UPDATE characters SET level = ?, xp = ? WHERE guid = ?",
             Self::UPD_CHAR_MONEY => "UPDATE characters SET money = ? WHERE guid = ?",
+            Self::UPD_CHAR_PLAYER_FLAGS => "UPDATE characters SET playerFlags = ? WHERE guid = ?",
             Self::SEL_CHAR_MONEY_FOR_UPDATE => {
                 "SELECT money FROM characters WHERE guid = ? FOR UPDATE"
             }
@@ -2825,6 +2832,7 @@ impl StatementDef for CharStatements {
                 // signed/decimal coercion.
                 "SELECT CAST(MAX(maxguid) AS UNSIGNED) FROM ((SELECT MAX(setguid) AS maxguid FROM character_equipmentsets) UNION (SELECT MAX(setguid) AS maxguid FROM character_transmog_outfits)) allsets"
             }
+            Self::SEL_MAX_VOID_STORAGE_ITEM_ID => "SELECT MAX(itemId) FROM character_void_storage",
             Self::DEL_INVALID_CHAR_INVENTORY_ITEM_GUIDS => {
                 "DELETE FROM character_inventory WHERE item >= ?"
             }
@@ -4689,6 +4697,10 @@ mod tests {
             "UPDATE characters SET money = ? WHERE guid = ?"
         );
         assert_eq!(
+            CharStatements::UPD_CHAR_PLAYER_FLAGS.sql(),
+            "UPDATE characters SET playerFlags = ? WHERE guid = ?"
+        );
+        assert_eq!(
             CharStatements::UPD_CHAR_HEALTH.sql(),
             "UPDATE characters SET health = ? WHERE guid = ?"
         );
@@ -5875,6 +5887,14 @@ mod tests {
         assert_eq!(
             CharStatements::SEL_MAX_EQUIPMENT_SET_GUID.sql(),
             "SELECT CAST(MAX(maxguid) AS UNSIGNED) FROM ((SELECT MAX(setguid) AS maxguid FROM character_equipmentsets) UNION (SELECT MAX(setguid) AS maxguid FROM character_transmog_outfits)) allsets"
+        );
+    }
+
+    #[test]
+    fn void_storage_item_id_max_query_matches_cpp() {
+        assert_eq!(
+            CharStatements::SEL_MAX_VOID_STORAGE_ITEM_ID.sql(),
+            "SELECT MAX(itemId) FROM character_void_storage"
         );
     }
 
