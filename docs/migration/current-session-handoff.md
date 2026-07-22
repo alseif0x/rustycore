@@ -29,8 +29,10 @@
   states and full character/item/vaultkeeper cleanup. The
   committed `void-storage-query` flow imports one real instance-routed C++/Rust
   `SMSG_VOID_STORAGE_CONTENTS`: 1/1 exact packets, no normalization or accepted divergence.
-  Boundary: represented-partial pending final local preflight, CI, current-HEAD GitHub review and
-  merge; full inventory validation remains #52 and aggregate D-C1-D-C9 reconciliation remains #20.
+  The complete local PR preflight (format, checks/builds, clippy, focused suites and capture gate)
+  and local Codex review are CLEAN on the committed implementation. Boundary: represented-partial
+  pending CI, current-HEAD GitHub review and merge; full inventory validation remains #52 and
+  aggregate D-C1-D-C9 reconciliation remains #20.
 
 - `#NEXT.R8.ENTITIES.1204` — issue #112 makes equipment-set and transmog-outfit
   GUID allocation process-wide and relog-clean. C++ `ObjectMgr::SetHighestGuids`

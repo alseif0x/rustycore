@@ -74,8 +74,9 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
     same-session query nor a restart can expose contents C++ never loaded.
     Withdrawal now honors C++ merge-before-empty `CanStoreNewItem` placement across the entire
     atomic request, and login replays each valid row's represented collection appearance hook.
-    All three D-C3 children are therefore implemented locally; this aggregate remains open only
-    for issue #114 final preflight, CI/current-HEAD GitHub Codex verdict and merge.
+    The complete local preflight and local Codex review are clean. All three D-C3 children are
+    therefore implemented locally; this aggregate remains open only for issue #114 CI,
+    current-HEAD GitHub Codex verdict and merge.
 - [ ] **D-C4 Inventory swap not transactional.** Two separate `execute()` calls; mid-fail
   orphans/dupes items. `handlers/character.rs:11668-11681`. C++ appends both changed positions to
   the character save transaction through `Player::_SaveInventory`.
@@ -215,8 +216,9 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
   transmog outfits now persist transactionally and load on fresh authentication with a shared
   collision-safe GUID namespace.
 - [ ] **D-M7 Void storage not saved.** Issue #114 fixes this locally with one atomic
-  flags/money/inventory/void transaction and fresh-auth lifecycle proof; keep open until its
-  final preflight, CI, current-HEAD review and merge gates pass.
+  flags/money/inventory/void transaction and fresh-auth lifecycle proof; its complete local
+  preflight/review are clean, so keep open only until CI, current-HEAD GitHub review and merge
+  gates pass.
 - [ ] **D-M8 Group member DB insert fail logged-only**, runtime kept → reload drops member. `handlers/group.rs:1090`.
 - [ ] **D-M9 Phase not re-checked on movement** → out-of-phase objects linger. `handlers/movement.rs:274`.
 - [ ] **D-M10 Position save binds extra `instance_id`** vs C++ 7-field SavePosition (verify SQL param alignment). `session.rs:21578`.
