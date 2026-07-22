@@ -140,6 +140,12 @@ impl Default for EffectiveVoidStorageRandomPropertiesLikeCpp {
 }
 
 impl WorldSession {
+    /// C++ passes packet `uint32 DstSlot` to helpers taking `uint8`, so the
+    /// language conversion truncates before the 160-slot range check.
+    fn void_storage_swap_destination_slot_like_cpp(dst_slot: u32) -> u8 {
+        dst_slot as u8
+    }
+
     /// Resolve the state installed by C++ `Item::SetItemRandomProperties`.
     fn effective_void_storage_random_properties_like_cpp(
         &self,
@@ -1059,12 +1065,7 @@ impl WorldSession {
         else {
             return;
         };
-        let Ok(new_slot) = u8::try_from(swap.dst_slot) else {
-            self.send_void_storage_transfer_result_like_cpp(
-                VoidTransferErrorLikeCpp::InternalError1,
-            );
-            return;
-        };
+        let new_slot = Self::void_storage_swap_destination_slot_like_cpp(swap.dst_slot);
         let destination_item = self.represented_void_storage_item_at_like_cpp(new_slot);
         if old_slot == new_slot
             || usize::from(new_slot)

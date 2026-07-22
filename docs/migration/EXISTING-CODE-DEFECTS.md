@@ -73,7 +73,8 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
     storage; unlock deletes those skipped rows in the same money/flag transaction, so neither a
     same-session query nor a restart can expose contents C++ never loaded.
     Withdrawal now honors C++ merge-before-empty `CanStoreNewItem` placement across the entire
-    atomic request, and login replays each valid row's represented collection appearance hook.
+    atomic request, login replays each valid row's represented collection appearance hook, and
+    swap destination values preserve C++'s `uint32` to `uint8` truncation before range checks.
     The complete local preflight and local Codex review are clean. All three D-C3 children are
     therefore implemented locally; this aggregate remains open only for issue #114 CI,
     current-HEAD GitHub Codex verdict and merge.

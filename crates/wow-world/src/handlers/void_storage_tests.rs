@@ -574,6 +574,23 @@ fn empty_inventory_positions_use_active_backpack_slot_count_like_cpp() {
     );
 }
 
+#[test]
+fn swap_destination_slot_truncates_to_uint8_before_range_check_like_cpp() {
+    assert_eq!(
+        WorldSession::void_storage_swap_destination_slot_like_cpp(256),
+        0
+    );
+    assert_eq!(
+        WorldSession::void_storage_swap_destination_slot_like_cpp(415),
+        159
+    );
+    assert_eq!(
+        WorldSession::void_storage_swap_destination_slot_like_cpp(416),
+        160,
+        "truncation occurs before the handler's 160-slot range check"
+    );
+}
+
 #[tokio::test]
 async fn withdrawal_store_plan_merges_before_empty_slots_with_atomic_overlays_like_cpp() {
     let (mut session, _, _) = make_void_storage_session();

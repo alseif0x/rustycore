@@ -24,7 +24,9 @@
   Later review hardening restores full `CanStoreNewItem(NULL_BAG, NULL_SLOT)` withdrawal
   destinations, including existing-stack merges and detached overlays across multiple planned
   withdrawals; merged item state is persisted atomically. Accepted login rows now also replay the
-  represented default-modifier collection appearance hook used by C++ `_LoadVoidStorage`.
+  represented default-modifier collection appearance hook used by C++ `_LoadVoidStorage`. Swap
+  destinations preserve C++'s implicit packet-`uint32` to helper-`uint8` truncation before the
+  160-slot range check.
   Installed QA completed unlock, deposit/relog, swap/relog and withdrawal/relog with exact durable
   states and full character/item/vaultkeeper cleanup. The
   committed `void-storage-query` flow imports one real instance-routed C++/Rust
