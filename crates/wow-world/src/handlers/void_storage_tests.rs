@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use crate::session::{PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP, SessionPlayerController};
-use wow_constants::{InventoryType, ItemBondingType, ItemClass, ServerOpcodes};
+use wow_constants::{InventoryType, ItemBondingType, ItemClass, ItemFieldFlags, ServerOpcodes};
 use wow_core::{ObjectGuid, Position, VoidStorageItemIdGeneratorLikeCpp, guid::HighGuid};
 use wow_data::{ItemRecord, ItemSparseTemplateEntry, ItemStatsStore, ItemStore};
 use wow_database::StatementDef;
@@ -196,6 +196,39 @@ fn full_save_rewrites_all_160_void_slots_like_cpp() {
     assert!(statements[1..].iter().all(|statement| {
         statement.sql() == CharStatements::DEL_CHAR_VOID_STORAGE_ITEM_BY_SLOT.sql()
     }));
+}
+
+#[test]
+fn withdrawal_insert_persists_required_enchantments_column() {
+    let item = represented_void_item(77, 19019);
+    let statement = WorldSession::build_void_storage_withdrawal_item_insert_statement_like_cpp(
+        501, 42, &item, 83, 900,
+    );
+    assert_eq!(
+        statement.sql(),
+        CharStatements::INS_ITEM_INSTANCE_CLONE.sql()
+    );
+    assert!(statement.sql().contains("charges, enchantments, flags"));
+    assert_eq!(
+        statement.params(),
+        &[
+            wow_database::SqlParam::U64(501),
+            wow_database::SqlParam::U32(19019),
+            wow_database::SqlParam::U64(42),
+            wow_database::SqlParam::U64(7),
+            wow_database::SqlParam::U64(0),
+            wow_database::SqlParam::U32(1),
+            wow_database::SqlParam::U32(0),
+            wow_database::SqlParam::String(String::new()),
+            wow_database::SqlParam::String(String::new()),
+            wow_database::SqlParam::U32(ItemFieldFlags::SOULBOUND.bits()),
+            wow_database::SqlParam::U32(83),
+            wow_database::SqlParam::U32(900),
+            wow_database::SqlParam::I32(-13),
+            wow_database::SqlParam::I32(29),
+            wow_database::SqlParam::U8(ItemContext::Timewalking as u8),
+        ]
+    );
 }
 
 #[tokio::test]

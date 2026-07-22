@@ -2866,9 +2866,9 @@ impl StatementDef for CharStatements {
             Self::INS_ITEM_INSTANCE_CLONE => {
                 "INSERT INTO item_instance \
                  (guid, itemEntry, owner_guid, creatorGuid, giftCreatorGuid, count, \
-                  duration, charges, flags, durability, playedTime, randomPropertiesId, \
-                  randomPropertiesSeed, context) \
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                  duration, charges, enchantments, flags, durability, playedTime, \
+                  randomPropertiesId, randomPropertiesSeed, context) \
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             }
             Self::UPD_ITEM_INSTANCE_COUNT => "UPDATE item_instance SET count = ? WHERE guid = ?",
             Self::UPD_ITEM_INSTANCE_DURABILITY => {
@@ -6195,7 +6195,12 @@ mod tests {
                 .sql()
                 .matches('?')
                 .count(),
-            14
+            15
+        );
+        assert!(
+            CharStatements::INS_ITEM_INSTANCE_CLONE
+                .sql()
+                .contains("charges, enchantments, flags")
         );
         assert_eq!(
             CharStatements::UPD_ITEM_INSTANCE_FLAGS

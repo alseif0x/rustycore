@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 use num_traits::FromPrimitive;
 use wow_constants::unit::NPCFlags1;
-use wow_constants::{ClientOpcodes, ItemContext, ItemFieldFlags, ItemModifier};
+use wow_constants::{ClientOpcodes, ItemContext, ItemModifier};
 use wow_database::{CharStatements, SqlTransaction};
 use wow_entities::INVENTORY_SLOT_BAG_0;
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
@@ -391,22 +391,15 @@ impl WorldSession {
         for withdrawal in &planned_withdrawals {
             let item = &withdrawal.void_item;
             let max_durability = self.item_template_max_durability(item.item_entry);
-            let mut insert_item = char_db.prepare(CharStatements::INS_ITEM_INSTANCE_CLONE);
-            insert_item.set_u64(0, withdrawal.db_guid);
-            insert_item.set_u32(1, item.item_entry);
-            insert_item.set_u64(2, player_guid.counter() as u64);
-            insert_item.set_u64(3, item.creator_guid.counter() as u64);
-            insert_item.set_u64(4, 0);
-            insert_item.set_u32(5, 1);
-            insert_item.set_u32(6, 0);
-            insert_item.set_string(7, "");
-            insert_item.set_u32(8, ItemFieldFlags::SOULBOUND.bits());
-            insert_item.set_u32(9, max_durability);
-            insert_item.set_u32(10, total_played_time);
-            insert_item.set_i32(11, item.random_properties_id);
-            insert_item.set_i32(12, item.random_properties_seed);
-            insert_item.set_u8(13, item.context);
-            tx.append(insert_item);
+            tx.append(
+                Self::build_void_storage_withdrawal_item_insert_statement_like_cpp(
+                    withdrawal.db_guid,
+                    player_guid.counter() as u64,
+                    item,
+                    max_durability,
+                    total_played_time,
+                ),
+            );
 
             let Some(container_db_guid) = self.inventory_container_db_guid_like_cpp(withdrawal.bag)
             else {

@@ -54,9 +54,10 @@ use wow_constants::unit::{
 };
 use wow_constants::{
     BagFamilyMask, BuyResult, ClientOpcodes, InventoryResult, InventoryType, ItemBondingType,
-    ItemClass, ItemContext, ItemEnchantmentType, ItemFlags, ItemFlags2, ItemFlags3, ItemModifier,
-    ItemQuality, ItemSpelltriggerType, ItemSubClassArmor, ItemSubClassWeapon, SellResult,
-    ServerOpcodes, SpellCastResult, SpellItemEnchantmentFlags, Stats, TypeId, UnitState,
+    ItemClass, ItemContext, ItemEnchantmentType, ItemFieldFlags, ItemFlags, ItemFlags2, ItemFlags3,
+    ItemModifier, ItemQuality, ItemSpelltriggerType, ItemSubClassArmor, ItemSubClassWeapon,
+    SellResult, ServerOpcodes, SpellCastResult, SpellItemEnchantmentFlags, Stats, TypeId,
+    UnitState,
 };
 use wow_core::{
     EquipmentSetGuidGeneratorLikeCpp, ObjectGuid, ObjectGuidGenerator, Position,
@@ -28731,6 +28732,35 @@ impl WorldSession {
             PreparedStatement::new(CharStatements::DEL_CHAR_VOID_STORAGE_ITEM_BY_SLOT.sql());
         stmt.set_u8(0, slot);
         stmt.set_u64(1, player_guid_counter);
+        stmt
+    }
+
+    pub(crate) fn build_void_storage_withdrawal_item_insert_statement_like_cpp(
+        db_guid: u64,
+        player_guid_counter: u64,
+        item: &RepresentedVoidStorageItemLikeCpp,
+        max_durability: u32,
+        total_played_time: u32,
+    ) -> PreparedStatement {
+        let mut stmt = PreparedStatement::new(CharStatements::INS_ITEM_INSTANCE_CLONE.sql());
+        stmt.set_u64(0, db_guid);
+        stmt.set_u32(1, item.item_entry);
+        stmt.set_u64(2, player_guid_counter);
+        stmt.set_u64(3, item.creator_guid.counter() as u64);
+        stmt.set_u64(4, 0);
+        stmt.set_u32(5, 1);
+        stmt.set_u32(6, 0);
+        stmt.set_string(7, "");
+        // Void storage deliberately does not preserve item enchantments. An
+        // empty persisted value lets the login loader synthesize any random-
+        // property enchantments from the preserved random property id.
+        stmt.set_string(8, "");
+        stmt.set_u32(9, ItemFieldFlags::SOULBOUND.bits());
+        stmt.set_u32(10, max_durability);
+        stmt.set_u32(11, total_played_time);
+        stmt.set_i32(12, item.random_properties_id);
+        stmt.set_i32(13, item.random_properties_seed);
+        stmt.set_u8(14, item.context);
         stmt
     }
 

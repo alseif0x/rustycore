@@ -13207,6 +13207,16 @@ impl WorldSession {
                     &cloned_data.spell_charges,
                     self.item_effect_count_like_cpp(item.entry_id),
                 );
+                let Some((enchantments, _)) =
+                    self.inventory_remove_enchantment_persistence_like_cpp(item.guid, false)
+                else {
+                    self.send_sell_error(
+                        SellResult::CantSellItem,
+                        Some(sell.vendor_guid),
+                        sell.item_guid,
+                    );
+                    return;
+                };
 
                 let mut ins_item = char_db.prepare(CharStatements::INS_ITEM_INSTANCE_CLONE);
                 ins_item.set_u64(0, new_db_guid);
@@ -13217,12 +13227,13 @@ impl WorldSession {
                 ins_item.set_u32(5, cloned_item.count());
                 ins_item.set_u32(6, cloned_data.expiration);
                 ins_item.set_string(7, charges);
-                ins_item.set_u32(8, cloned_data.dynamic_flags);
-                ins_item.set_u32(9, cloned_data.durability);
-                ins_item.set_u32(10, cloned_data.create_played_time);
-                ins_item.set_i32(11, cloned_data.random_properties_id);
-                ins_item.set_i32(12, cloned_data.property_seed);
-                ins_item.set_u8(13, u8::try_from(cloned_data.context).unwrap_or(0));
+                ins_item.set_string(8, enchantments);
+                ins_item.set_u32(9, cloned_data.dynamic_flags);
+                ins_item.set_u32(10, cloned_data.durability);
+                ins_item.set_u32(11, cloned_data.create_played_time);
+                ins_item.set_i32(12, cloned_data.random_properties_id);
+                ins_item.set_i32(13, cloned_data.property_seed);
+                ins_item.set_u8(14, u8::try_from(cloned_data.context).unwrap_or(0));
                 tx.append(ins_item);
 
                 let mut ins_inv = char_db.prepare(CharStatements::INS_CHAR_INVENTORY);
