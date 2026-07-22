@@ -4054,14 +4054,13 @@ async fn run_bot_with_void_storage(
                     let equipment_set_login_ready = equipment_set_options
                         .as_ref()
                         .is_none_or(|_| result.equipment_set_load_seen);
-                    let void_storage_login_ready = void_storage_options.as_ref().is_none_or(
-                        |options| {
+                    let void_storage_login_ready =
+                        void_storage_options.as_ref().is_none_or(|options| {
                             void_storage_login_target_ready(
                                 options.discover_runtime_guid,
                                 void_storage_target_seen.is_some(),
                             )
-                        },
-                    );
+                        });
                     if (!preserve_realm_connection || realm_connection.is_some())
                         && equipment_set_login_ready
                         && void_storage_login_ready
@@ -4106,14 +4105,13 @@ async fn run_bot_with_void_storage(
                         server_inflater = ServerPacketInflater::default();
                     }
                     info!("[Bot {}] ✅ Instance socket authenticated", bot_index);
-                    let void_storage_login_ready = void_storage_options.as_ref().is_none_or(
-                        |options| {
+                    let void_storage_login_ready =
+                        void_storage_options.as_ref().is_none_or(|options| {
                             void_storage_login_target_ready(
                                 options.discover_runtime_guid,
                                 void_storage_target_seen.is_some(),
                             )
-                        },
-                    );
+                        });
                     if login_ok && preserve_realm_connection && void_storage_login_ready {
                         break;
                     }
@@ -8334,7 +8332,8 @@ fn item_guid_raw(db_guid: u64) -> (u64, u64) {
 }
 
 fn vault_keeper_full_guid(target: &ResolvedCreatureTarget) -> Vec<u8> {
-    let (low, high) = create_creature_guid_raw(target.map_id, target.entry, target.guid_counter);
+    let (low, high) =
+        create_void_storage_creature_guid_raw(target.map_id, target.entry, target.guid_counter);
     build_full_guid(low, high)
 }
 
@@ -14458,17 +14457,12 @@ fn resolve_quest_runtime_counter(
 }
 
 fn create_creature_guid_raw(map_id: u16, entry: u32, counter: u64) -> (u64, u64) {
-    let high =
-        (8u64 << 58) | ((map_id as u64 & 0x1FFF) << 29) | ((entry as u64 & 0x7F_FFFF) << 6);
+    let high = (8u64 << 58) | ((map_id as u64 & 0x1FFF) << 29) | ((entry as u64 & 0x7F_FFFF) << 6);
     let low = counter & OBJECT_GUID_COUNTER_MASK;
     (low, high)
 }
 
-fn create_void_storage_creature_guid_raw(
-    map_id: u16,
-    entry: u32,
-    counter: u64,
-) -> (u64, u64) {
+fn create_void_storage_creature_guid_raw(map_id: u16, entry: u32, counter: u64) -> (u64, u64) {
     // Rust's canonical creature runtime normalizes the realm component through
     // the active `realm.Id.Realm`; this QA environment is pinned to realm 1.
     let (low, high) = create_creature_guid_raw(map_id, entry, counter);
@@ -16065,6 +16059,25 @@ mod tests {
         assert_eq!(
             create_void_storage_creature_guid_raw(571, 31_810, 24),
             (24, 0x2000_0447_601F_1080)
+        );
+    }
+
+    #[test]
+    fn void_storage_wire_guid_keeps_active_realm_like_runtime() {
+        let target = ResolvedCreatureTarget {
+            entry: 31_810,
+            spawn_guid: 24,
+            guid_counter: 24,
+            map_id: 571,
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+            orientation: 0.0,
+            packed_guid: Vec::new(),
+        };
+        assert_eq!(
+            vault_keeper_full_guid(&target),
+            [24, 0, 0, 0, 0, 0, 0, 0, 0x80, 0x10, 0x1F, 0x60, 0x47, 0x04, 0, 0x20,]
         );
     }
 }
