@@ -76,9 +76,14 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
     atomic request while excluding stacks/children already planned for deposit destruction, login
     replays each valid row's represented collection appearance hook, and swap destination values
     preserve C++'s `uint32` to `uint8` truncation before range checks.
-    The complete local preflight and local Codex review are clean. All three D-C3 children are
-    therefore implemented locally; this aggregate remains open only for issue #114 CI,
-    current-HEAD GitHub Codex verdict and merge.
+    GitHub review also published a withdrawn item's pre-random/pre-handler `CREATE_OBJECT` and its
+    post-store random-property/creator/binding VALUES update before the slot update, and capped
+    allocation at the packet GUID's 40-bit counter so raw IDs cannot alias after truncation.
+    Context-column, void-packet random-affix, and fixed-scaling review suggestions are intentionally
+    not applied because exact C++ contrast confirms the existing Rust behavior in all three cases.
+    All three D-C3 children are implemented locally;
+    this aggregate remains open for the repeated full preflight, issue #114 CI, current-HEAD
+    GitHub Codex verdict and merge.
 - [ ] **D-C4 Inventory swap not transactional.** Two separate `execute()` calls; mid-fail
   orphans/dupes items. `handlers/character.rs:11668-11681`. C++ appends both changed positions to
   the character save transaction through `Player::_SaveInventory`.
@@ -218,9 +223,9 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
   transmog outfits now persist transactionally and load on fresh authentication with a shared
   collision-safe GUID namespace.
 - [ ] **D-M7 Void storage not saved.** Issue #114 fixes this locally with one atomic
-  flags/money/inventory/void transaction and fresh-auth lifecycle proof; its complete local
-  preflight/review are clean, so keep open only until CI, current-HEAD GitHub review and merge
-  gates pass.
+  flags/money/inventory/void transaction and fresh-auth lifecycle proof; GitHub-review fixes have
+  focused coverage clean and still require the repeated full preflight, CI, current-HEAD GitHub
+  review and merge gates.
 - [ ] **D-M8 Group member DB insert fail logged-only**, runtime kept → reload drops member. `handlers/group.rs:1090`.
 - [ ] **D-M9 Phase not re-checked on movement** → out-of-phase objects linger. `handlers/movement.rs:274`.
 - [ ] **D-M10 Position save binds extra `instance_id`** vs C++ 7-field SavePosition (verify SQL param alignment). `session.rs:21578`.

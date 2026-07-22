@@ -17,6 +17,7 @@ use wow_data::{
 };
 use wow_database::StatementDef;
 use wow_entities::{INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_ITEM_START};
+use wow_packet::ServerPacket;
 
 fn make_void_storage_session() -> (
     WorldSession,
@@ -434,6 +435,126 @@ fn full_save_rewrites_all_160_void_slots_like_cpp() {
 }
 
 #[test]
+fn new_void_withdrawal_create_carries_committed_item_state_like_cpp() {
+    let (mut session, _, _) = make_void_storage_session();
+    install_void_test_item_template(&mut session, 19019);
+    let owner = ObjectGuid::create_player(1, 42);
+    let bag = ObjectGuid::create_item(1, 500);
+    let item_guid = ObjectGuid::create_item(1, 501);
+    let mut item = session.make_inventory_item_object(
+        item_guid,
+        19019,
+        owner,
+        2,
+        37,
+        ItemContext::Timewalking,
+        4,
+    );
+    item.set_contained_in(bag);
+    item.set_container_guid_and_slot(bag, 19);
+    item.set_property_seed(29);
+    item.set_random_properties_id(-13);
+    item.set_creator(ObjectGuid::create_player(1, 7));
+    item.set_item_flag(ItemFieldFlags::NEW_ITEM);
+    item.set_binding(true);
+    item.set_enchantment(EnchantmentSlot::Property0, 201, 60_000, 2);
+
+    let create_dynamic_flags = ItemFieldFlags::NEW_ITEM.bits();
+    let create = void_withdrawal_item_create_data_like_cpp(&item, create_dynamic_flags);
+    assert_eq!(create.item_guid, item_guid);
+    assert_eq!(create.entry_id, 19019);
+    assert_eq!(create.owner_guid, owner);
+    assert_eq!(create.contained_in, bag);
+    assert_eq!(create.stack_count, 2);
+    assert_eq!(create.dynamic_flags, ItemFieldFlags::NEW_ITEM.bits());
+    assert_eq!(create.durability, 37);
+    assert_eq!(create.random_properties_seed, 0);
+    assert_eq!(create.random_properties_id, 0);
+    assert_eq!(create.context, ItemContext::Timewalking as u8);
+    assert_eq!(
+        create.enchantments[EnchantmentSlot::Property0 as usize].id,
+        0
+    );
+    assert_eq!(
+        create.enchantments[EnchantmentSlot::Property0 as usize].duration,
+        0
+    );
+    assert_eq!(
+        create.enchantments[EnchantmentSlot::Property0 as usize].charges,
+        0
+    );
+
+    let post_store_update = WorldSession::void_withdrawal_post_store_item_values_update_like_cpp(
+        &item,
+        create_dynamic_flags,
+    )
+    .expect("post-store item update");
+    let item_data = post_store_update
+        .item_data
+        .as_ref()
+        .expect("post-store update owns ItemData");
+    assert!(item_data.mask.is_set(wow_entities::ITEM_DATA_PARENT_BIT));
+    assert!(item_data.mask.is_set(wow_entities::ITEM_DATA_CREATOR_BIT));
+    assert!(
+        item_data
+            .mask
+            .is_set(wow_entities::ITEM_DATA_DYNAMIC_FLAGS_BIT)
+    );
+    assert!(
+        item_data
+            .mask
+            .is_set(wow_entities::ITEM_DATA_PROPERTY_SEED_BIT)
+    );
+    assert!(
+        item_data
+            .mask
+            .is_set(wow_entities::ITEM_DATA_RANDOM_PROPERTIES_ID_BIT)
+    );
+    assert!(
+        item_data
+            .mask
+            .is_set(wow_entities::ITEM_DATA_ENCHANTMENT_PARENT_BIT)
+    );
+    assert!(item_data.mask.is_set(
+        wow_entities::ITEM_DATA_ENCHANTMENT_FIRST_BIT + EnchantmentSlot::Property0 as usize
+    ));
+    assert_eq!(item_data.values.creator, ObjectGuid::create_player(1, 7));
+    assert_eq!(
+        item_data.values.dynamic_flags,
+        (ItemFieldFlags::NEW_ITEM | ItemFieldFlags::SOULBOUND).bits()
+    );
+    assert_eq!(item_data.values.property_seed, 29);
+    assert_eq!(item_data.values.random_properties_id, -13);
+    assert_eq!(
+        item_data.values.enchantments[EnchantmentSlot::Property0 as usize].id,
+        201
+    );
+
+    let packet = crate::entity_update_bridge::item_values_update_to_update_object(
+        item_guid,
+        571,
+        &post_store_update,
+    )
+    .expect("creator VALUES packet");
+    let bytes = packet.to_bytes();
+    let mut packed_creator = WorldPacket::new_empty();
+    packed_creator.write_packed_guid(&ObjectGuid::create_player(1, 7));
+    let packed_creator = packed_creator.into_data();
+    assert!(
+        bytes
+            .windows(packed_creator.len())
+            .any(|window| window == packed_creator),
+        "the creator GUID must reach the serialized VALUES update"
+    );
+    assert!(bytes.windows(4).any(|window| {
+        window
+            == (ItemFieldFlags::NEW_ITEM | ItemFieldFlags::SOULBOUND)
+                .bits()
+                .to_le_bytes()
+    }));
+}
+
+#[test]
 fn withdrawal_restores_and_persists_effective_random_property_enchantments_like_cpp() {
     let (mut session, _, _) = make_void_storage_session();
     session.set_item_random_properties_store(Arc::new(ItemRandomPropertiesStore::from_entries([
@@ -498,6 +619,7 @@ fn withdrawal_restores_and_persists_effective_random_property_enchantments_like_
         900,
         suffix.id,
         suffix.seed,
+        (ItemFieldFlags::NEW_ITEM | ItemFieldFlags::SOULBOUND).bits(),
         &enchantments,
     );
     assert_eq!(
@@ -517,7 +639,9 @@ fn withdrawal_restores_and_persists_effective_random_property_enchantments_like_
             wow_database::SqlParam::U32(0),
             wow_database::SqlParam::String(String::new()),
             wow_database::SqlParam::String(enchantments),
-            wow_database::SqlParam::U32(ItemFieldFlags::SOULBOUND.bits()),
+            wow_database::SqlParam::U32(
+                (ItemFieldFlags::NEW_ITEM | ItemFieldFlags::SOULBOUND).bits()
+            ),
             wow_database::SqlParam::U32(83),
             wow_database::SqlParam::U32(900),
             wow_database::SqlParam::I32(-13),

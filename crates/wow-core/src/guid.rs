@@ -622,12 +622,15 @@ impl EquipmentSetGuidGeneratorLikeCpp {
     }
 }
 
-/// Process-wide C++ `ObjectMgr::_voidItemId` mirror.
+/// Process-wide C++ `ObjectMgr::_voidItemId` mirror, bounded by the packet GUID.
 ///
 /// Void-storage rows use a raw `uint64` namespace independent from
 /// `item_instance.guid`. Allocations are intentionally not returned after a
 /// failed persistence attempt, matching `ObjectMgr::GenerateVoidStorageItemId`.
-pub const VOID_STORAGE_ITEM_ID_LIMIT_LIKE_CPP: u64 = 0xFFFF_FFFF_FFFF_FFFE;
+/// The audited C++ generator accepts a wider raw range even though
+/// `ObjectGuid::GetCounter` exposes only 40 bits. Rust fails closed before an
+/// ID could be truncated into another vault row on the wire or during lookup.
+pub const VOID_STORAGE_ITEM_ID_LIMIT_LIKE_PACKET_GUID: u64 = 0x100_0000_0000;
 
 pub struct VoidStorageItemIdGeneratorLikeCpp {
     next_id: AtomicU64,
@@ -636,8 +639,8 @@ pub struct VoidStorageItemIdGeneratorLikeCpp {
 impl VoidStorageItemIdGeneratorLikeCpp {
     pub fn new(next_id: u64) -> Self {
         assert!(
-            next_id < VOID_STORAGE_ITEM_ID_LIMIT_LIKE_CPP,
-            "void-storage item ID allocator start is outside the C++ generator range"
+            next_id < VOID_STORAGE_ITEM_ID_LIMIT_LIKE_PACKET_GUID,
+            "void-storage item ID allocator start is outside the packet GUID counter range"
         );
         Self {
             next_id: AtomicU64::new(next_id),
@@ -654,7 +657,7 @@ impl VoidStorageItemIdGeneratorLikeCpp {
     fn try_generate(&self) -> Option<u64> {
         self.next_id
             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
-                (current < VOID_STORAGE_ITEM_ID_LIMIT_LIKE_CPP).then_some(current + 1)
+                (current < VOID_STORAGE_ITEM_ID_LIMIT_LIKE_PACKET_GUID).then_some(current + 1)
             })
             .ok()
     }
@@ -1056,12 +1059,16 @@ mod tests {
     }
 
     #[test]
-    fn void_storage_item_id_generator_stops_at_cpp_limit() {
+    fn void_storage_item_id_generator_stops_at_packet_guid_limit() {
+        assert_eq!(
+            VOID_STORAGE_ITEM_ID_LIMIT_LIKE_PACKET_GUID,
+            ObjectGuid::max_counter(HighGuid::Item) as u64 + 1
+        );
         let generator =
-            VoidStorageItemIdGeneratorLikeCpp::new(VOID_STORAGE_ITEM_ID_LIMIT_LIKE_CPP - 1);
+            VoidStorageItemIdGeneratorLikeCpp::new(VOID_STORAGE_ITEM_ID_LIMIT_LIKE_PACKET_GUID - 1);
         assert_eq!(
             generator.try_generate(),
-            Some(VOID_STORAGE_ITEM_ID_LIMIT_LIKE_CPP - 1)
+            Some(VOID_STORAGE_ITEM_ID_LIMIT_LIKE_PACKET_GUID - 1)
         );
         assert_eq!(generator.try_generate(), None);
     }

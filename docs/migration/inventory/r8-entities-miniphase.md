@@ -11,8 +11,11 @@ gates. Deposit, withdrawal and swap are planned without changing visible session
 CharacterDB transaction then persists player flags/money, destroys or creates every inventory
 row, and replaces/deletes all affected void rows; only a durable commit publishes runtime state
 and success packets. Definite rollback leaves runtime untouched, while an indeterminate commit is
-fenced from stale saves. Withdrawal restores the preserved creator, scaling, random-property and
-context metadata, creates the required item-instance fields, and binds the new inventory item.
+fenced from stale saves. Vault packets preserve the stored creator, scaling, random-property and
+context metadata; withdrawal restores creator, random-property and context state, creates the
+required item-instance fields, and binds the new inventory item. The stored scaling value is not
+reapplied on withdrawal because audited C++ calls `StoreNewItem` without passing it and then uses
+the ordinary `Item::SetFixedLevel` path instead.
 
 Packet contrast exposed a shared false positive in the previous Rust server and QA bot: C++
 `ByteBuffer << ObjectGuid` uses two mask bytes followed by only the nonzero bytes, so every
@@ -51,6 +54,16 @@ into a deleted row. Login also runs the represented
 `CollectionMgr::AddItemAppearance(itemEntry, 0)` side effect for every accepted void row. Swap
 destination values also truncate from packet `uint32` to helper `uint8` before range validation,
 matching the implicit C++ call conversion even for malformed values above 255.
+GitHub review then exposed two real publication/identity holes: every newly withdrawn inventory
+object now emits the C++ `_StoreItem`-style pre-random/pre-handler `CREATE_OBJECT`, followed by the
+post-store VALUES update carrying random properties/enchantments plus the creator and binding
+changes, before its player/bag slot references the GUID; the shared
+allocator fails closed at the 40-bit packet-GUID counter boundary instead
+of allowing raw IDs that truncate into existing vault identities. Two other comments were rejected
+after exact C++ re-contrast: `ItemInstance::Initialize(VoidStorageItem)` deliberately leaves the
+random-property ID/seed zero on the wire, and `_LoadVoidStorage` deliberately constructs context
+from fields[5]. Rust retains both observable C++ behaviors without inventing unsupported packet or
+relog divergences.
 The accredited server binary SHA-256 was
 `fe8058f7986d84e1cd444709d24e19af9c711c917ee9b00183acfc4cef63e8ec`; the QA bot SHA-256 was
 `95f4b45c75a8fdd687f2ba6fa97303e0a240fd80e33d597bc4093548d9981d85`.

@@ -54,10 +54,9 @@ use wow_constants::unit::{
 };
 use wow_constants::{
     BagFamilyMask, BuyResult, ClientOpcodes, InventoryResult, InventoryType, ItemBondingType,
-    ItemClass, ItemContext, ItemEnchantmentType, ItemFieldFlags, ItemFlags, ItemFlags2, ItemFlags3,
-    ItemModifier, ItemQuality, ItemSpelltriggerType, ItemSubClassArmor, ItemSubClassWeapon,
-    SellResult, ServerOpcodes, SpellCastResult, SpellItemEnchantmentFlags, Stats, TypeId,
-    UnitState,
+    ItemClass, ItemContext, ItemEnchantmentType, ItemFlags, ItemFlags2, ItemFlags3, ItemModifier,
+    ItemQuality, ItemSpelltriggerType, ItemSubClassArmor, ItemSubClassWeapon, SellResult,
+    ServerOpcodes, SpellCastResult, SpellItemEnchantmentFlags, Stats, TypeId, UnitState,
 };
 use wow_core::{
     EquipmentSetGuidGeneratorLikeCpp, ObjectGuid, ObjectGuidGenerator, Position,
@@ -153,24 +152,24 @@ use wow_entities::{
     EQUIPMENT_SLOT_TRINKET2, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS, EquippedGemRef,
     GAMEOBJECT_TYPE_GUILD_BANK, GameObject, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0,
     INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_END,
-    INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS, ITEM_DATA_CONTAINED_IN_BIT,
+    INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS, ITEM_DATA_CONTAINED_IN_BIT, ITEM_DATA_CREATOR_BIT,
     ITEM_DATA_DURABILITY_BIT, ITEM_DATA_DYNAMIC_FLAGS_BIT, ITEM_DATA_DYNAMIC_FLAGS2_BIT,
-    ITEM_DATA_ENCHANTMENT_FIRST_BIT, ITEM_DATA_ENCHANTMENT_PARENT_BIT, ITEM_DATA_PARENT_BIT, Item,
-    ItemCreateInfo, ItemDataUpdate, ItemLimitCategoryTemplate, ItemPosCount, ItemSlotRef,
-    ItemStorageRef, ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS,
-    MAX_MONEY_AMOUNT, MAX_POWERS, MAX_POWERS_PER_CLASS, MovementGeneratorKind, MovementSlot,
-    NULL_BAG, NULL_SLOT, ObjectAccessor, PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, PLAYER_SLOT_END,
-    PROFESSION_SLOT_END, Pet, PetAuraLikeCpp, PetDeclinedNamesLikeCpp, PetSaveMode, PetSpellState,
-    PetSpellType, PetStable, PetStableInfo, PetType, PhaseShift, Player, PlayerEnchantTimeUpdate,
-    PlayerInventoryStorage, PlayerItemTimeUpdate, QUESTS_COMPLETED_BITS_PER_BLOCK,
-    QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, ReactState,
-    SendNewItemDelivery, SendNewItemDisplayText, SendNewItemPlan, SocketedGemUniqueRef,
-    TYPEID_CONTAINER, TYPEID_ITEM, TitanGripPenaltyAction, UNIT_DATA_BITS,
-    UNIT_DATA_EMOTE_STATE_BIT, UNIT_DATA_HEALTH_BIT, UNIT_DATA_MODS_PARENT_BIT, Unit,
-    UnitDataUpdate, UnitDataValues, UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle,
-    VehicleAccessory, VisibleItemValues, WorldObject,
-    explored_zones_db_string_from_blocks_like_cpp, is_bag_pos, is_equipment_packed_pos,
-    is_inventory_pos, item_resistance_bonus_actions_like_cpp,
+    ITEM_DATA_ENCHANTMENT_FIRST_BIT, ITEM_DATA_ENCHANTMENT_PARENT_BIT, ITEM_DATA_PARENT_BIT,
+    ITEM_DATA_PROPERTY_SEED_BIT, ITEM_DATA_RANDOM_PROPERTIES_ID_BIT, Item, ItemCreateInfo,
+    ItemDataUpdate, ItemLimitCategoryTemplate, ItemPosCount, ItemSlotRef, ItemStorageRef,
+    ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS, MAX_MONEY_AMOUNT,
+    MAX_POWERS, MAX_POWERS_PER_CLASS, MovementGeneratorKind, MovementSlot, NULL_BAG, NULL_SLOT,
+    ObjectAccessor, PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, PLAYER_SLOT_END, PROFESSION_SLOT_END, Pet,
+    PetAuraLikeCpp, PetDeclinedNamesLikeCpp, PetSaveMode, PetSpellState, PetSpellType, PetStable,
+    PetStableInfo, PetType, PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInventoryStorage,
+    PlayerItemTimeUpdate, QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE,
+    REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, ReactState, SendNewItemDelivery,
+    SendNewItemDisplayText, SendNewItemPlan, SocketedGemUniqueRef, TYPEID_CONTAINER, TYPEID_ITEM,
+    TitanGripPenaltyAction, UNIT_DATA_BITS, UNIT_DATA_EMOTE_STATE_BIT, UNIT_DATA_HEALTH_BIT,
+    UNIT_DATA_MODS_PARENT_BIT, Unit, UnitDataUpdate, UnitDataValues,
+    UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle, VehicleAccessory, VisibleItemValues,
+    WorldObject, explored_zones_db_string_from_blocks_like_cpp, is_bag_pos,
+    is_equipment_packed_pos, is_inventory_pos, item_resistance_bonus_actions_like_cpp,
     item_scaling_stat_bonus_actions_like_cpp, item_shield_block_bonus_action_like_cpp,
     item_stat_bonus_actions_like_cpp, item_weapon_damage_actions_like_cpp, make_item_pos,
     parse_explored_zones_db_string_like_cpp,
@@ -20746,6 +20745,71 @@ impl WorldSession {
         }
     }
 
+    pub(crate) fn void_withdrawal_post_store_item_values_update_like_cpp(
+        item: &Item,
+        create_dynamic_flags: u32,
+    ) -> Option<ItemValuesUpdate> {
+        let mut item_data_mask = UpdateMask::new(ITEM_DATA_BITS);
+        let mut has_parent_field = false;
+        if !item.data().creator.is_empty() {
+            item_data_mask.set(ITEM_DATA_CREATOR_BIT);
+            has_parent_field = true;
+        }
+        if item.data().dynamic_flags != create_dynamic_flags {
+            item_data_mask.set(ITEM_DATA_DYNAMIC_FLAGS_BIT);
+            has_parent_field = true;
+        }
+        if item.data().property_seed != 0 {
+            item_data_mask.set(ITEM_DATA_PROPERTY_SEED_BIT);
+            has_parent_field = true;
+        }
+        if item.data().random_properties_id != 0 {
+            item_data_mask.set(ITEM_DATA_RANDOM_PROPERTIES_ID_BIT);
+            has_parent_field = true;
+        }
+        if has_parent_field {
+            item_data_mask.set(ITEM_DATA_PARENT_BIT);
+        }
+        for (index, enchantment) in item.data().enchantments.iter().enumerate() {
+            if *enchantment != wow_entities::ItemEnchantment::default() {
+                item_data_mask.set(ITEM_DATA_ENCHANTMENT_PARENT_BIT);
+                item_data_mask.set(ITEM_DATA_ENCHANTMENT_FIRST_BIT + index);
+            }
+        }
+        if !item_data_mask.is_any_set() {
+            return None;
+        }
+        Some(ItemValuesUpdate {
+            changed_object_type_mask: 1 << TYPEID_ITEM,
+            object_data: None,
+            item_data: Some(ItemDataUpdate {
+                mask: item_data_mask,
+                values: item.data().clone(),
+            }),
+        })
+    }
+
+    pub(crate) fn send_void_withdrawal_post_store_item_values_update_like_cpp(
+        &self,
+        item_guid: ObjectGuid,
+        create_dynamic_flags: u32,
+    ) {
+        let Some(item) = self.inventory_item_objects_like_cpp().get(&item_guid) else {
+            return;
+        };
+        let Some(update) = Self::void_withdrawal_post_store_item_values_update_like_cpp(
+            item,
+            create_dynamic_flags,
+        ) else {
+            return;
+        };
+        if let Some(packet) =
+            item_values_update_to_update_object(item_guid, self.player_map_id_like_cpp(), &update)
+        {
+            self.send_packet(&packet);
+        }
+    }
+
     pub(crate) fn remove_inventory_item_like_cpp(&mut self, slot: u8) -> Option<InventoryItem> {
         self.mutate_player_inventory_runtime_like_cpp(|inventory| {
             inventory.inventory_items.remove(&slot)
@@ -28977,6 +29041,7 @@ impl WorldSession {
         total_played_time: u32,
         random_properties_id: i32,
         random_properties_seed: i32,
+        item_flags: u32,
         enchantments: &str,
     ) -> PreparedStatement {
         let mut stmt = PreparedStatement::new(CharStatements::INS_ITEM_INSTANCE_CLONE.sql());
@@ -28989,7 +29054,7 @@ impl WorldSession {
         stmt.set_u32(6, 0);
         stmt.set_string(7, "");
         stmt.set_string(8, enchantments);
-        stmt.set_u32(9, ItemFieldFlags::SOULBOUND.bits());
+        stmt.set_u32(9, item_flags);
         stmt.set_u32(10, max_durability);
         stmt.set_u32(11, total_played_time);
         stmt.set_i32(12, random_properties_id);

@@ -30,13 +30,21 @@
   `_LoadVoidStorage`. Swap
   destinations preserve C++'s implicit packet-`uint32` to helper-`uint8` truncation before the
   160-slot range check.
+  Current-HEAD GitHub review additionally corrected two concrete seams: a new withdrawal publishes
+  the pre-random/pre-handler item `CREATE_OBJECT` plus the subsequent post-store random-property,
+  creator and binding VALUES update before the inventory slot update, and allocation stops at the 40-bit
+  packet-GUID counter limit so no raw ID can truncate into another vault identity. Three review
+  suggestions remain intentionally absent after exact C++ re-contrast: void item packets leave
+  random-property ID/seed zero, login context comes from fields[5], and withdrawal does not pass
+  stored fixed scaling to `StoreNewItem`; those are the observable audited C++ behaviors.
   Installed QA completed unlock, deposit/relog, swap/relog and withdrawal/relog with exact durable
   states and full character/item/vaultkeeper cleanup. The
   committed `void-storage-query` flow imports one real instance-routed C++/Rust
   `SMSG_VOID_STORAGE_CONTENTS`: 1/1 exact packets, no normalization or accepted divergence.
-  The complete local PR preflight (format, checks/builds, clippy, focused suites and capture gate)
-  and local Codex review are CLEAN on the committed implementation. Boundary: represented-partial
-  pending CI, current-HEAD GitHub review and merge; full inventory validation remains #52 and
+  The earlier complete local PR preflight (format, checks/builds, clippy, focused suites and
+  capture gate) and local Codex review were CLEAN; the GitHub-review corrections have focused
+  packet/core/startup/world coverage clean and still require the repeated full preflight. Boundary:
+  represented-partial pending CI, current-HEAD GitHub review and merge; full inventory validation remains #52 and
   aggregate D-C1-D-C9 reconciliation remains #20.
 
 - `#NEXT.R8.ENTITIES.1204` — issue #112 makes equipment-set and transmog-outfit

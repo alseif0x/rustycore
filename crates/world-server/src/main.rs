@@ -29,7 +29,7 @@ use wow_config::{DatabaseInfo, LoadReport, WorldConfigSet};
 use wow_core::{
     EQUIPMENT_SET_GUID_LIMIT_LIKE_CPP, EquipmentSetGuidGeneratorLikeCpp, IpLocationStore,
     Ipv4NetworkLikeCpp, ObjectGuid, ObjectGuidGenerator, Position,
-    VOID_STORAGE_ITEM_ID_LIMIT_LIKE_CPP, VoidStorageItemIdGeneratorLikeCpp, guid::HighGuid,
+    VOID_STORAGE_ITEM_ID_LIMIT_LIKE_PACKET_GUID, VoidStorageItemIdGeneratorLikeCpp, guid::HighGuid,
     scan_local_ipv4_networks_like_cpp,
 };
 use wow_database::{
@@ -122,9 +122,9 @@ fn next_void_storage_item_id_allocator_start_like_cpp(
         .unwrap_or(0)
         .checked_add(1)
         .context("void-storage item ID counter overflow")?;
-    if next >= VOID_STORAGE_ITEM_ID_LIMIT_LIKE_CPP {
+    if next >= VOID_STORAGE_ITEM_ID_LIMIT_LIKE_PACKET_GUID {
         bail!(
-            "void-storage item ID allocator start {next} is outside the C++ generator range (must be below {VOID_STORAGE_ITEM_ID_LIMIT_LIKE_CPP})"
+            "void-storage item ID allocator start {next} is outside the packet GUID counter range (must be below {VOID_STORAGE_ITEM_ID_LIMIT_LIKE_PACKET_GUID})"
         );
     }
     Ok(next)
@@ -14634,7 +14634,7 @@ mod tests {
         let generator = wow_core::VoidStorageItemIdGeneratorLikeCpp::new(start);
         assert_eq!(generator.generate(), 42);
 
-        let limit = wow_core::VOID_STORAGE_ITEM_ID_LIMIT_LIKE_CPP;
+        let limit = wow_core::VOID_STORAGE_ITEM_ID_LIMIT_LIKE_PACKET_GUID;
         assert_eq!(
             next_void_storage_item_id_allocator_start_like_cpp(Some(limit - 2)).unwrap(),
             limit - 1
