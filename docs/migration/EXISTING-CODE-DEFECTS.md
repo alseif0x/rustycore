@@ -117,6 +117,16 @@ remain real; "sends the packet and mutates DB" still does not imply full gamepla
     rejected after a stack overflow and replaced with the verified release artifact before these
     passes. PR #105 merged with every required check and the current-HEAD Codex verdict green.
     The issue-#20 closeout reran both occupied swaps through logout/fresh-auth and exact DB checks.
+  - Separate validation follow-up, 2026-07-22 issue #52 local slice: the live move/equip/store
+    handlers now use C++ `IsValidPos`, bank-interaction, `CanUnequipItem`, `CanStoreItem`/
+    `CanBankItem`, `CanEquipItem`, bag, unique-equip and recursive-destroy rules instead of the
+    former direct-inventory simplification. `Player::SwapItem` now covers empty moves, merges,
+    bidirectional real swaps, bag exchanges, child redirects and persisted offhand follow-up, with
+    each concrete mutation committed before runtime publication. Paired installed C++/Rust QA
+    proved the invalid container-aware source error on the C++ realm route plus forward/reverse
+    occupied swaps and fresh-auth metadata; strict capture-diff matched request and response with
+    zero value/routing/count differences. This closes the bounded C#-ITEM.2 behavior, not broader
+    item/gem/durability parity, and remains pending PR CI/current-HEAD review/merge.
 - [x] **D-C5 Loot item TOCTOU → duplication.** Slot marked looted *after* the async inventory
   store; two concurrent looters both store it. `handlers/loot.rs`. C++ instead gets safety from
   object-owned `Loot` plus globally serialized `PROCESS_THREADUNSAFE` session work; it validates

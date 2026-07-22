@@ -1,3 +1,37 @@
+# `#NEXT.R8.ENTITIES.1207` — C++ inventory validation and `Player::SwapItem` (issue #52).
+
+C++ source-of-truth was checked before implementation: `ItemHandler.cpp:69-329,699-743` and
+`Player.cpp:9386-10328,10608-10843,12295-12577`. The six live inventory opcodes now preserve the
+C++ InvUpdate arity checks, validate explicit source/destination positions across backpack,
+equipment, bank, equipped bags and nested containers, require a current banker for bank positions,
+and apply the represented `CanUnequipItem`, `CanStoreItem`/`CanBankItem`, `CanEquipItem`, unique
+equip, self-bag and bag-in-bag rules before mutation.
+
+The live `Player::SwapItem` executor covers empty destinations, full and partial stack merges,
+bidirectional real swaps, bag-content exchanges, child-item redirects and persisted offhand
+auto-unequip. `AUTO_EQUIP_ITEM`, `AUTO_EQUIP_ITEM_SLOT`, and `AUTO_STORE_BAG_ITEM` use the same
+planners. `DESTROY_ITEM` honors unequip/no-destroy gates, partial counts, and recursive child-first
+full-bag destruction. Every concrete persistence operation commits its complete planned rows
+before changing runtime state or publishing item/player updates. C++ opcode contrast additionally
+corrected all direct `SMSG_INVENTORY_CHANGE_FAILURE` sends to the realm connection.
+
+Focused tests exercise positive and negative position, bank-access, unequip, equip/store, unique,
+stack-merge, real-swap, bag-exchange, recursive-destroy, SQL-failure, publication, and realm-routing
+branches. The full `wow-world --lib` suite is clean. Installed paired C++/Rust QA used one invalid
+container-aware `CMSG_SWAP_ITEM` followed by forward/reverse occupied swaps and fresh-auth relogs;
+both implementations returned exact result 23 on realm, preserved the same durable locations and
+item metadata, and restored the fixture. Strict capture-diff from request `0x399A` to response
+`0x2DA5` reports 2 matched, zero value/routing/missing/extra differences. The exact relog item
+create-block hash remains
+`25238a033be693b4969b9412f1666074e5d9be76c6db3b188e021a60b4feb2c8`.
+
+Boundary: represented session inputs still do not own every C++ current-spell weapon-change or
+combat-state gate; the accredited capture proves the invalid-source branch plus the occupied-swap
+lifecycle rather than every validation result; rare auto-equip/offhand follow-ups use sequential
+durable steps rather than one handler-wide transaction. Broader item/gem/durability behavior and
+full Part-2 inventory parity remain open. Revert the issue #52 commits and remove this inventory,
+handoff, state, plan and defect note to roll back the slice.
+
 # `#NEXT.R8.ENTITIES.1206` — M0.7 D-C1…D-C9 aggregate closeout (issue #20).
 
 All scoped child implementations are merged into `3.4.3`: PRs #89 (D-C1/D-C2), #103/#113/#115
@@ -23,7 +57,8 @@ post-reverse authentication before cleanup. All observed create blocks hashed to
 `25238a033be693b4969b9412f1666074e5d9be76c6db3b188e021a60b4feb2c8`; every DB metadata/location
 assertion passed, and the capture wrapper restored Rust online. C++ anchors are
 `Item.cpp:585-735,806-843`, `Player.cpp:18207-18445,19336-19718,19892`, `ItemHandler.cpp:69-112`, and
-`WorldSession.cpp:750-770`. Broader inventory validation remains issue #52.
+`WorldSession.cpp:750-770`. Broader inventory validation was deferred to issue #52 and is now
+recorded by `#NEXT.R8.ENTITIES.1207`.
 
 # `#NEXT.R8.ENTITIES.1205` — atomic void-storage persistence (issue #114).
 
@@ -121,8 +156,8 @@ live-collection regressions. The complete local PR preflight (whitespace, self-t
 locked checks/builds, clippy, focused suites, bot/capture gate and local Codex review) completed
 CLEAN on `2143334b` in 471.8 seconds. PR #115 merged as `55719eb4` with CI and current-HEAD GitHub
 Codex verdict green. The broader implementation remains represented-partial; its scoped D-C3
-child is closed. Broader inventory validation remains in #52, and #20 reconciliation is recorded
-in `#NEXT.R8.ENTITIES.1206`.
+child is closed. Broader inventory validation was deferred to #52 and is now recorded by
+`#NEXT.R8.ENTITIES.1207`; #20 reconciliation is recorded in `#NEXT.R8.ENTITIES.1206`.
 
 # `#NEXT.R8.ENTITIES.1204` — globally collision-safe equipment-set persistence (issue #112).
 
