@@ -2160,9 +2160,19 @@ async fn send_and_verify_loot_item_capture_fence(
 
 fn logout_completion_route(
     opcode: u16,
+    payload: &[u8],
     route: LogoutCompletionRoute,
-) -> Option<LogoutCompletionRoute> {
-    (opcode == SMSG_LOGOUT_COMPLETE).then_some(route)
+) -> Result<Option<LogoutCompletionRoute>> {
+    if opcode != SMSG_LOGOUT_COMPLETE {
+        return Ok(None);
+    }
+    if !payload.is_empty() {
+        bail!(
+            "SMSG_LOGOUT_COMPLETE carried {} bytes; C++ 3.4.3 writes an empty body",
+            payload.len()
+        );
+    }
+    Ok(Some(route))
 }
 
 fn wait_for_loot_character_offline(character_guid: u64, timeout: Duration) -> Result<()> {
@@ -2249,7 +2259,7 @@ pub(super) async fn logout_and_wait_routed_like_cpp(
                         parse_packet(opcode, &payload)
                     );
                     completion_route =
-                        logout_completion_route(opcode, LogoutCompletionRoute::Realm);
+                        logout_completion_route(opcode, &payload, LogoutCompletionRoute::Realm)?;
                 }
                 Ok(None) => {}
                 Err(error) => {
@@ -2290,7 +2300,7 @@ pub(super) async fn logout_and_wait_routed_like_cpp(
                         parse_packet(opcode, &payload)
                     );
                     completion_route =
-                        logout_completion_route(opcode, LogoutCompletionRoute::Instance);
+                        logout_completion_route(opcode, &payload, LogoutCompletionRoute::Instance)?;
                     if completion_route.is_none() {
                         handle_instance_housekeeping(bot_index, stream, crypt, opcode, &payload)
                             .await?;
@@ -7233,18 +7243,25 @@ mod tests {
     }
 
     #[test]
-    fn logout_complete_is_recognized_on_cpp_realm_and_legacy_instance_routes() {
+    fn logout_complete_requires_cpp_empty_body_on_both_routes() {
         assert_eq!(
-            logout_completion_route(SMSG_LOGOUT_COMPLETE, LogoutCompletionRoute::Realm),
+            logout_completion_route(SMSG_LOGOUT_COMPLETE, &[], LogoutCompletionRoute::Realm)
+                .unwrap(),
             Some(LogoutCompletionRoute::Realm)
         );
         assert_eq!(
-            logout_completion_route(SMSG_LOGOUT_COMPLETE, LogoutCompletionRoute::Instance),
+            logout_completion_route(SMSG_LOGOUT_COMPLETE, &[], LogoutCompletionRoute::Instance)
+                .unwrap(),
             Some(LogoutCompletionRoute::Instance)
         );
         assert_eq!(
-            logout_completion_route(SMSG_LOOT_RESPONSE, LogoutCompletionRoute::Realm),
+            logout_completion_route(SMSG_LOOT_RESPONSE, &[1], LogoutCompletionRoute::Realm)
+                .unwrap(),
             None
+        );
+        assert!(
+            logout_completion_route(SMSG_LOGOUT_COMPLETE, &[0], LogoutCompletionRoute::Realm)
+                .is_err()
         );
     }
 

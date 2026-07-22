@@ -4369,6 +4369,7 @@ async fn run_bot_with_void_storage(
             &mut stream,
             &mut crypt,
             &mut server_inflater,
+            &mut realm_connection,
             &inventory_swap_options,
             &mut result,
         )
@@ -9710,6 +9711,7 @@ async fn run_inventory_swap_smoke_phase(
     stream: &mut TcpStream,
     crypt: &mut WorldCrypt,
     server_inflater: &mut ServerPacketInflater,
+    realm_connection: &mut Option<EncryptedWorldConnection>,
     options: &InventorySwapSmokeOptions,
     result: &mut BotRunResult,
 ) -> Result<()> {
@@ -9758,6 +9760,20 @@ async fn run_inventory_swap_smoke_phase(
         bot_index, options.slot_a, options.slot_b, options.phase
     );
 
+    loot_race::logout_and_wait_routed_like_cpp(
+        bot_index,
+        stream,
+        crypt,
+        server_inflater,
+        realm_connection.as_mut(),
+        bot.character_guid,
+        result,
+    )
+    .await?;
+
+    // C++ marks both items changed in memory and persists them during the
+    // logout save transaction. Polling CharacterDB before logout would test a
+    // Rust-only implementation detail rather than the reference lifecycle.
     wait_for_inventory_swap_locations(
         bot,
         options,
@@ -9766,25 +9782,6 @@ async fn run_inventory_swap_smoke_phase(
         options.timeout_secs,
     )
     .await?;
-    logout_and_wait(bot_index, stream, crypt, server_inflater, result).await?;
-
-    let bot_for_after = bot.clone();
-    let options_for_after = options.clone();
-    let persisted = tokio::task::spawn_blocking(move || {
-        verify_inventory_swap_fixture_locations(
-            &bot_for_after,
-            &options_for_after,
-            expected_after_a,
-            expected_after_b,
-        )
-    })
-    .await
-    .map_err(|e| anyhow!("Inventory swap post-logout DB worker join failed: {e}"))??;
-    if !persisted {
-        bail!(
-            "inventory swap fixture did not persist in expected slots {expected_after_a}/{expected_after_b} after logout"
-        );
-    }
     result.inventory_swap_item_metadata_persisted = true;
 
     match options.phase {
