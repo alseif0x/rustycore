@@ -2818,7 +2818,12 @@ impl StatementDef for CharStatements {
             }
             Self::SEL_MAX_ITEM_GUID => "SELECT MAX(guid) FROM item_instance",
             Self::SEL_MAX_EQUIPMENT_SET_GUID => {
-                "SELECT MAX(maxguid) FROM ((SELECT MAX(setguid) AS maxguid FROM character_equipmentsets) UNION (SELECT MAX(setguid) AS maxguid FROM character_transmog_outfits)) allsets"
+                // The equipment table uses BIGINT UNSIGNED while the canonical
+                // transmog table uses signed BIGINT. MariaDB can promote their
+                // UNION/MAX result to DECIMAL; pin the wire type so startup can
+                // decode the shared raw uint64 namespace without driver-specific
+                // signed/decimal coercion.
+                "SELECT CAST(MAX(maxguid) AS UNSIGNED) FROM ((SELECT MAX(setguid) AS maxguid FROM character_equipmentsets) UNION (SELECT MAX(setguid) AS maxguid FROM character_transmog_outfits)) allsets"
             }
             Self::DEL_INVALID_CHAR_INVENTORY_ITEM_GUIDS => {
                 "DELETE FROM character_inventory WHERE item >= ?"
@@ -5869,7 +5874,7 @@ mod tests {
     fn equipment_set_guid_max_query_matches_cpp_shared_namespace() {
         assert_eq!(
             CharStatements::SEL_MAX_EQUIPMENT_SET_GUID.sql(),
-            "SELECT MAX(maxguid) FROM ((SELECT MAX(setguid) AS maxguid FROM character_equipmentsets) UNION (SELECT MAX(setguid) AS maxguid FROM character_transmog_outfits)) allsets"
+            "SELECT CAST(MAX(maxguid) AS UNSIGNED) FROM ((SELECT MAX(setguid) AS maxguid FROM character_equipmentsets) UNION (SELECT MAX(setguid) AS maxguid FROM character_transmog_outfits)) allsets"
         );
     }
 
