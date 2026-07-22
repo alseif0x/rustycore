@@ -695,6 +695,7 @@ enum VoidStorageSmokePhase {
 struct VoidStorageSmokeOptions {
     phase: VoidStorageSmokePhase,
     vault_keeper: ResolvedCreatureTarget,
+    runtime_realm_id: u16,
     discover_runtime_guid: bool,
     fixture_item_guid: u64,
     item_entry: u32,
@@ -1969,7 +1970,7 @@ fn print_help() {
     );
     println!("  --void-storage-timeout <secs> Per action/DB timeout (default: 8)");
     println!(
-        "                           Env: WOW_BOT_VOID_STORAGE_SMOKE, WOW_BOT_VOID_STORAGE_QUERY_CAPTURE, WOW_BOT_VOID_STORAGE_ITEM_ENTRY, WOW_BOT_VOID_STORAGE_RUNTIME_COUNTER, WOW_BOT_VOID_STORAGE_TIMEOUT_SECS"
+        "                           Env: WOW_BOT_VOID_STORAGE_SMOKE, WOW_BOT_VOID_STORAGE_QUERY_CAPTURE, WOW_BOT_VOID_STORAGE_ITEM_ENTRY, WOW_BOT_VOID_STORAGE_RUNTIME_COUNTER, WOW_BOT_VOID_STORAGE_RUNTIME_REALM_ID, WOW_BOT_VOID_STORAGE_TIMEOUT_SECS"
     );
     println!(
         "  --vendor-smoke           Buy one extended-cost vendor item, relog, verify DB persistence, and restore the fixture"
@@ -8459,18 +8460,23 @@ fn item_guid_raw(db_guid: u64) -> (u64, u64) {
     (db_guid & OBJECT_GUID_COUNTER_MASK, high)
 }
 
-fn vault_keeper_full_guid(target: &ResolvedCreatureTarget) -> Vec<u8> {
-    let (low, high) =
-        create_void_storage_creature_guid_raw(target.map_id, target.entry, target.guid_counter);
+fn vault_keeper_full_guid(target: &ResolvedCreatureTarget, runtime_realm_id: u16) -> Vec<u8> {
+    let (low, high) = create_void_storage_creature_guid_raw(
+        target.map_id,
+        target.entry,
+        target.guid_counter,
+        runtime_realm_id,
+    );
     build_full_guid(low, high)
 }
 
 fn build_void_storage_transfer_payload(
     target: &ResolvedCreatureTarget,
+    runtime_realm_id: u16,
     deposits: &[(u64, u64)],
     withdrawals: &[(u64, u64)],
 ) -> Vec<u8> {
-    let mut payload = vault_keeper_full_guid(target);
+    let mut payload = vault_keeper_full_guid(target, runtime_realm_id);
     payload.extend_from_slice(&(deposits.len() as u32).to_le_bytes());
     payload.extend_from_slice(&(withdrawals.len() as u32).to_le_bytes());
     for &(low, high) in deposits.iter().chain(withdrawals) {
@@ -8482,10 +8488,11 @@ fn build_void_storage_transfer_payload(
 
 fn build_void_storage_swap_payload(
     target: &ResolvedCreatureTarget,
+    runtime_realm_id: u16,
     void_item_id: u64,
     dst_slot: u32,
 ) -> Vec<u8> {
-    let mut payload = vault_keeper_full_guid(target);
+    let mut payload = vault_keeper_full_guid(target, runtime_realm_id);
     let (low, high) = item_guid_raw(void_item_id);
     payload.extend_from_slice(&low.to_le_bytes());
     payload.extend_from_slice(&high.to_le_bytes());
@@ -8603,6 +8610,7 @@ async fn query_void_storage_contents(
     crypt: &mut WorldCrypt,
     server_inflater: &mut ServerPacketInflater,
     target: &ResolvedCreatureTarget,
+    runtime_realm_id: u16,
     timeout_secs: u64,
     result: &mut BotRunResult,
 ) -> Result<Vec<VoidStorageItemWire>> {
@@ -8610,7 +8618,7 @@ async fn query_void_storage_contents(
         stream,
         crypt,
         CMSG_QUERY_VOID_STORAGE,
-        &vault_keeper_full_guid(target),
+        &vault_keeper_full_guid(target, runtime_realm_id),
     )
     .await?;
     let deadline = tokio::time::Instant::now() + Duration::from_secs(timeout_secs);
@@ -8792,7 +8800,7 @@ async fn run_void_storage_smoke_phase(
                 stream,
                 crypt,
                 CMSG_UNLOCK_VOID_STORAGE,
-                &vault_keeper_full_guid(&options.vault_keeper),
+                &vault_keeper_full_guid(&options.vault_keeper, options.runtime_realm_id),
             )
             .await?;
             let after_unlock = wait_for_void_storage_db_state(
@@ -8814,6 +8822,7 @@ async fn run_void_storage_smoke_phase(
                 crypt,
                 server_inflater,
                 &options.vault_keeper,
+                options.runtime_realm_id,
                 options.timeout_secs,
                 result,
             )
@@ -8823,8 +8832,12 @@ async fn run_void_storage_smoke_phase(
             }
 
             let deposit_guid = item_guid_raw(options.fixture_item_guid);
-            let payload =
-                build_void_storage_transfer_payload(&options.vault_keeper, &[deposit_guid], &[]);
+            let payload = build_void_storage_transfer_payload(
+                &options.vault_keeper,
+                options.runtime_realm_id,
+                &[deposit_guid],
+                &[],
+            );
             send_encrypted_packet(stream, crypt, CMSG_VOID_STORAGE_TRANSFER, &payload).await?;
             let added = wait_for_void_storage_transfer(
                 bot_index,
@@ -8869,6 +8882,7 @@ async fn run_void_storage_smoke_phase(
                 crypt,
                 server_inflater,
                 &options.vault_keeper,
+                options.runtime_realm_id,
                 options.timeout_secs,
                 result,
             )
@@ -8883,7 +8897,12 @@ async fn run_void_storage_smoke_phase(
                 bail!("deposit relog query mismatch: {contents:?}");
             }
             result.void_storage_deposit_relogin_verified = true;
-            let payload = build_void_storage_swap_payload(&options.vault_keeper, expected_id, 5);
+            let payload = build_void_storage_swap_payload(
+                &options.vault_keeper,
+                options.runtime_realm_id,
+                expected_id,
+                5,
+            );
             send_encrypted_packet(stream, crypt, CMSG_SWAP_VOID_ITEM, &payload).await?;
             wait_for_void_storage_swap(
                 bot_index,
@@ -8916,6 +8935,7 @@ async fn run_void_storage_smoke_phase(
                 crypt,
                 server_inflater,
                 &options.vault_keeper,
+                options.runtime_realm_id,
                 options.timeout_secs,
                 result,
             )
@@ -8931,8 +8951,12 @@ async fn run_void_storage_smoke_phase(
             }
             result.void_storage_swap_relogin_verified = true;
             let withdrawal_guid = item_guid_raw(expected_id);
-            let payload =
-                build_void_storage_transfer_payload(&options.vault_keeper, &[], &[withdrawal_guid]);
+            let payload = build_void_storage_transfer_payload(
+                &options.vault_keeper,
+                options.runtime_realm_id,
+                &[],
+                &[withdrawal_guid],
+            );
             send_encrypted_packet(stream, crypt, CMSG_VOID_STORAGE_TRANSFER, &payload).await?;
             wait_for_void_storage_transfer(
                 bot_index,
@@ -8966,6 +8990,7 @@ async fn run_void_storage_smoke_phase(
                 crypt,
                 server_inflater,
                 &options.vault_keeper,
+                options.runtime_realm_id,
                 options.timeout_secs,
                 result,
             )
@@ -8997,6 +9022,7 @@ async fn run_void_storage_smoke_phase(
                 crypt,
                 server_inflater,
                 &options.vault_keeper,
+                options.runtime_realm_id,
                 options.timeout_secs,
                 result,
             )
@@ -13125,9 +13151,11 @@ fn prepare_void_storage_smoke_fixture(
     let (spawn_guid, entry, vault_map, vault_x, vault_y, vault_z, vault_orientation) = vault_row;
     let vault_map = u16::try_from(vault_map)
         .map_err(|_| anyhow!("vault-keeper map id does not fit protocol: {vault_map}"))?;
+    let runtime_realm_id = void_storage_runtime_realm_id()?;
     let discover_runtime_guid = runtime_counter.is_none();
     let guid_counter = runtime_counter.unwrap_or(spawn_guid);
-    let (low, high) = create_void_storage_creature_guid_raw(vault_map, entry, guid_counter);
+    let (low, high) =
+        create_void_storage_creature_guid_raw(vault_map, entry, guid_counter, runtime_realm_id);
     let vault_keeper = ResolvedCreatureTarget {
         entry,
         spawn_guid,
@@ -13202,6 +13230,7 @@ fn prepare_void_storage_smoke_fixture(
         options: VoidStorageSmokeOptions {
             phase: VoidStorageSmokePhase::UnlockDeposit,
             vault_keeper,
+            runtime_realm_id,
             discover_runtime_guid,
             fixture_item_guid: item_guid,
             item_entry,
@@ -14704,11 +14733,27 @@ fn create_creature_guid_raw(map_id: u16, entry: u32, counter: u64) -> (u64, u64)
     (low, high)
 }
 
-fn create_void_storage_creature_guid_raw(map_id: u16, entry: u32, counter: u64) -> (u64, u64) {
-    // Rust's canonical creature runtime normalizes the realm component through
-    // the active `realm.Id.Realm`; this QA environment is pinned to realm 1.
+fn create_void_storage_creature_guid_raw(
+    map_id: u16,
+    entry: u32,
+    counter: u64,
+    runtime_realm_id: u16,
+) -> (u64, u64) {
     let (low, high) = create_creature_guid_raw(map_id, entry, counter);
-    (low, high | (1u64 << 42))
+    (low, high | (u64::from(runtime_realm_id) << 42))
+}
+
+fn void_storage_runtime_realm_id() -> Result<u16> {
+    let configured = std::env::var("WOW_BOT_VOID_STORAGE_RUNTIME_REALM_ID")
+        .ok()
+        .map(|value| value.parse::<u16>())
+        .transpose()
+        .map_err(|error| anyhow!("Invalid WOW_BOT_VOID_STORAGE_RUNTIME_REALM_ID: {error}"))?
+        .unwrap_or_else(|| u16::try_from(realm_id()).unwrap_or(u16::MAX));
+    if configured > 0x1FFF {
+        bail!("void-storage runtime realm ID {configured} exceeds the 13-bit ObjectGuid field");
+    }
+    Ok(configured)
 }
 
 fn resolve_vendor_runtime_target(
@@ -16314,8 +16359,12 @@ mod tests {
     #[test]
     fn explicit_creature_guid_includes_active_realm_like_cpp() {
         assert_eq!(
-            create_void_storage_creature_guid_raw(571, 31_810, 24),
+            create_void_storage_creature_guid_raw(571, 31_810, 24, 1),
             (24, 0x2000_0447_601F_1080)
+        );
+        assert_eq!(
+            create_void_storage_creature_guid_raw(530, 18_525, 111, 0),
+            create_creature_guid_raw(530, 18_525, 111)
         );
     }
 
@@ -16333,7 +16382,7 @@ mod tests {
             packed_guid: Vec::new(),
         };
         assert_eq!(
-            vault_keeper_full_guid(&target),
+            vault_keeper_full_guid(&target, 1),
             [24, 0, 0, 0, 0, 0, 0, 0, 0x80, 0x10, 0x1F, 0x60, 0x47, 0x04, 0, 0x20,]
         );
     }
