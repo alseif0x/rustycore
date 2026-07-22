@@ -231,6 +231,26 @@ fn login_load_rejects_invalid_rows_and_identity_collisions() {
 }
 
 #[test]
+fn locked_login_discards_residual_void_rows_and_initializes_empty_storage_like_cpp() {
+    let (mut session, _, _) = make_void_storage_session();
+    install_void_test_item_template(&mut session, 19019);
+    assert_eq!(
+        session.add_represented_void_storage_item_like_cpp(represented_void_item(77, 19019)),
+        Some(0)
+    );
+
+    session.set_loaded_player_flags_like_cpp(0);
+    assert!(!session.prepare_represented_void_storage_login_load_like_cpp());
+    assert!(session.represented_void_storage_loaded_like_cpp());
+    assert_eq!(session.represented_void_storage_free_slots_like_cpp(), 160);
+
+    session.apply_committed_void_storage_unlock_like_cpp();
+    assert!(session.void_storage_is_unlocked_like_cpp());
+    assert!(session.represented_void_storage_loaded_like_cpp());
+    assert_eq!(session.represented_void_storage_free_slots_like_cpp(), 160);
+}
+
+#[test]
 fn full_save_rewrites_all_160_void_slots_like_cpp() {
     let (mut session, _, _) = make_void_storage_session();
     let item = represented_void_item(77, 19019);

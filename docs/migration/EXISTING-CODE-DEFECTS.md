@@ -69,6 +69,8 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
     lifecycle with exact cleanup, and a 1/1 byte-clean real C++/Rust query capture have passed.
     Review hardening also restores C++ random-property/suffix enchantment slots on withdrawal and
     persists the same effective enchantment array, so a later save/relog cannot strip item affixes.
+    Locked-character login now skips residual void rows like C++ while initializing coherent empty
+    storage, so unlocking later in that session cannot expose contents C++ never loaded.
     All three D-C3 children are therefore implemented locally; this aggregate remains open only
     for issue #114 final preflight, CI/current-HEAD GitHub Codex verdict and merge.
 - [ ] **D-C4 Inventory swap not transactional.** Two separate `execute()` calls; mid-fail

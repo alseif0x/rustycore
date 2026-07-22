@@ -5922,10 +5922,11 @@ impl WorldSession {
             );
 
         // ── Load void storage ──
-        // C++ `Player::_LoadVoidStorage` skips invalid rows but leaves every
-        // valid slot available to the query/transfer handlers.
-        self.clear_represented_void_storage_like_cpp();
-        {
+        // C++ `Player::LoadFromDB` calls `_LoadVoidStorage` only when the
+        // already-loaded player flags say the vault is unlocked. A locked
+        // character starts with coherent empty storage even if stale rows
+        // exist in CharacterDB.
+        if self.prepare_represented_void_storage_login_load_like_cpp() {
             let mut void_stmt = char_db.prepare(CharStatements::SEL_CHAR_VOID_STORAGE);
             void_stmt.set_u64(0, guid.counter() as u64);
             match char_db.query(&void_stmt).await {

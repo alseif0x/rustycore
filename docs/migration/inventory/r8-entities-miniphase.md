@@ -1,7 +1,7 @@
 # `#NEXT.R8.ENTITIES.1205` — atomic void-storage persistence (issue #114).
 
 Source-of-truth C++ was checked before implementation:
-`VoidStorageHandler.cpp:28-249`, `Player.cpp:18358-18403,20026-20055,28066-28140`,
+`VoidStorageHandler.cpp:28-249`, `Player.cpp:17774-17775,18358-18403,20026-20055,28066-28140`,
 `ObjectMgr.cpp:7369-7371,7431-7440`, `VoidStoragePackets.cpp:20-106`,
 `ItemPacketsCommon.cpp:78-94`, `Item.cpp:806-843`, and `ObjectGuid.cpp:758-785`. Rust now loads a validated fixed
 160-slot authority, rejecting invalid IDs, entries, slots and collisions; initializes one
@@ -37,6 +37,9 @@ three enchantments in `Property2..4` with a zero seed, suffixes install `Propert
 preserved seed, and the exact effective enchantment array is applied to the live item and written
 to `item_instance.enchantments` in the atomic transaction. Missing DB2 entries leave the new item
 unmodified like C++; focused coverage prevents affixes from disappearing on the next save/relog.
+Login now also honors C++ `Player::LoadFromDB`'s unlock gate: locked characters do not consume
+persisted void rows, but initialize a coherent empty vault that remains empty if unlocked in the
+same session and can safely participate in the full save.
 The accredited server binary SHA-256 was
 `fe8058f7986d84e1cd444709d24e19af9c711c917ee9b00183acfc4cef63e8ec`; the QA bot SHA-256 was
 `95f4b45c75a8fdd687f2ba6fa97303e0a240fd80e33d597bc4093548d9981d85`.

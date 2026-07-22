@@ -7435,6 +7435,18 @@ impl WorldSession {
         self.represented_void_storage_loaded_like_cpp = true;
     }
 
+    /// Match C++ `Player::LoadFromDB`: locked characters do not consume the
+    /// prepared void-storage result, but still own a coherent empty vault that
+    /// can be unlocked and saved during this session.
+    pub(crate) fn prepare_represented_void_storage_login_load_like_cpp(&mut self) -> bool {
+        self.clear_represented_void_storage_like_cpp();
+        let should_load_rows = self.void_storage_is_unlocked_like_cpp();
+        if !should_load_rows {
+            self.mark_represented_void_storage_loaded_like_cpp();
+        }
+        should_load_rows
+    }
+
     pub(crate) fn load_represented_void_storage_row_like_cpp(
         &mut self,
         slot: u8,

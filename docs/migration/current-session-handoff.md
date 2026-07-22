@@ -17,6 +17,9 @@
   properties restore `Property2..4` with seed zero, suffixes restore `Property0..2` with the
   preserved seed, and the same effective enchantments are installed in runtime and persisted in
   `item_instance.enchantments`, preventing an affix loss on save/relog.
+  A fourth review fix gates login row consumption on the already-loaded unlock flag like C++:
+  locked characters initialize coherent empty storage and cannot expose residual rows by
+  unlocking later in the same session.
   Installed QA completed unlock, deposit/relog, swap/relog and withdrawal/relog with exact durable
   states and full character/item/vaultkeeper cleanup. The
   committed `void-storage-query` flow imports one real instance-routed C++/Rust
