@@ -15484,7 +15484,7 @@ impl WorldSession {
             self.direct_item_contains_items(item.guid),
         );
         if unequip_result != InventoryResult::Ok {
-            self.send_packet(&InventoryChangeFailure::error(unequip_result));
+            self.send_packet_realm(&InventoryChangeFailure::error(unequip_result));
             return;
         }
 
@@ -15492,7 +15492,7 @@ impl WorldSession {
             .item_template_flags(item.entry_id)
             .is_some_and(|flags| flags.contains(ItemFlags::NO_USER_DESTROY))
         {
-            self.send_packet(&InventoryChangeFailure::error(
+            self.send_packet_realm(&InventoryChangeFailure::error(
                 InventoryResult::DropBoundItem,
             ));
             return;
@@ -15520,7 +15520,7 @@ impl WorldSession {
             upd_count.set_u64(1, item.db_guid);
             if let Err(e) = char_db.execute(&upd_count).await {
                 warn!("DestroyItem: update partial stack count failed: {e}");
-                self.send_packet(&InventoryChangeFailure::error(
+                self.send_packet_realm(&InventoryChangeFailure::error(
                     InventoryResult::InternalBagError,
                 ));
                 return;
@@ -15658,7 +15658,7 @@ impl WorldSession {
 
         if let Err(e) = char_db.commit_transaction(tx).await {
             warn!("{context}: delete transaction failed: {e}");
-            self.send_packet(&InventoryChangeFailure::error(
+            self.send_packet_realm(&InventoryChangeFailure::error(
                 InventoryResult::InternalBagError,
             ));
             return false;
@@ -21137,7 +21137,7 @@ mod tests {
 
     #[tokio::test]
     async fn swap_item_validates_source_and_destination_positions_like_cpp() {
-        let (mut session, send_rx) = make_session_with_send_capacity(2);
+        let (mut session, instance_rx, realm_rx) = make_session_with_realm_send_capacity(2);
         session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
 
         session
@@ -21152,9 +21152,10 @@ mod tests {
             })
             .await;
         assert_eq!(
-            inventory_failure_result(&send_rx.try_recv().expect("invalid source error")),
+            inventory_failure_result(&realm_rx.try_recv().expect("invalid source realm error")),
             InventoryResult::ItemNotFound as i32
         );
+        assert!(instance_rx.try_recv().is_err());
 
         session
             .handle_swap_item(SwapItem {
@@ -21168,9 +21169,14 @@ mod tests {
             })
             .await;
         assert_eq!(
-            inventory_failure_result(&send_rx.try_recv().expect("invalid destination error")),
+            inventory_failure_result(
+                &realm_rx
+                    .try_recv()
+                    .expect("invalid destination realm error")
+            ),
             InventoryResult::WrongSlot as i32
         );
+        assert!(instance_rx.try_recv().is_err());
     }
 
     #[tokio::test]

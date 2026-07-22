@@ -37926,7 +37926,10 @@ impl WorldSession {
             }
         }
 
-        self.send_packet(&packet);
+        // C++ `Opcodes.cpp` registers `SMSG_INVENTORY_CHANGE_FAILURE` on
+        // `CONNECTION_TYPE_REALM`, including errors raised by instance-routed
+        // inventory requests after `ConnectTo`.
+        self.send_packet_realm(&packet);
     }
 
     pub fn send_buy_error(&self, result: BuyResult, creature_guid: Option<ObjectGuid>, item: u32) {
