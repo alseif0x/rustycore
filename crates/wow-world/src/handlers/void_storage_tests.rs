@@ -135,6 +135,70 @@ fn install_void_test_item_template(session: &mut WorldSession, entry: u32) {
     )])));
 }
 
+fn install_void_test_bag_and_child_templates(
+    session: &mut WorldSession,
+    bag_entry: u32,
+    child_entry: u32,
+) {
+    session.set_item_store(Arc::new(ItemStore::from_records([
+        ItemRecord {
+            id: bag_entry,
+            class_id: ItemClass::Container as u8,
+            subclass_id: 0,
+            material: 0,
+            inventory_type: InventoryType::Bag as i8,
+            sheathe_type: 0,
+            random_select: 0,
+            random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
+        },
+        ItemRecord {
+            id: child_entry,
+            class_id: ItemClass::Miscellaneous as u8,
+            subclass_id: 0,
+            material: 0,
+            inventory_type: InventoryType::NonEquip as i8,
+            sheathe_type: 0,
+            random_select: 0,
+            random_suffix_group_id: 0,
+            scaling_stat_distribution_id: 0,
+            scaling_stat_value: 0,
+        },
+    ])));
+    let sparse = |inventory_type: InventoryType, container_slots| ItemSparseTemplateEntry {
+        flags: [0; 4],
+        bag_family: 0,
+        start_quest_id: 0,
+        stackable: 1,
+        max_count: 0,
+        lock_id: 0,
+        required_reputation_rank: 0,
+        sell_price: 0,
+        buy_price: 0,
+        vendor_stack_count: 1,
+        price_variance: 1.0,
+        price_random_value: 1.0,
+        max_durability: 0,
+        other_faction_item_id: 0,
+        content_tuning_id: 0,
+        player_level_to_item_level_curve_id: 0,
+        limit_category: 0,
+        instance_bound: 0,
+        zone_bound: [0; 2],
+        required_reputation_faction: 0,
+        allowable_class: -1,
+        required_expansion: 0,
+        bonding: ItemBondingType::None as u8,
+        container_slots,
+        inventory_type: inventory_type as i8,
+    };
+    session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates([
+        (bag_entry, sparse(InventoryType::Bag, 8)),
+        (child_entry, sparse(InventoryType::NonEquip, 0)),
+    ])));
+}
+
 #[test]
 fn login_load_rejects_invalid_rows_and_identity_collisions() {
     let (mut session, _, _) = make_void_storage_session();
@@ -250,6 +314,118 @@ fn empty_inventory_positions_use_active_backpack_slot_count_like_cpp() {
     assert_eq!(
         expanded_positions.last(),
         Some(&(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START + 23))
+    );
+}
+
+#[tokio::test]
+async fn nonempty_bag_deposit_plan_destroys_children_before_parent_atomically() {
+    let (mut session, _, _) = make_void_storage_session();
+    let player_guid = ObjectGuid::create_player(1, 42);
+    let bag_entry = 21841;
+    let child_entry = 19019;
+    install_void_test_bag_and_child_templates(&mut session, bag_entry, child_entry);
+
+    let bag_guid = ObjectGuid::create_item(1, 501);
+    let bag_slot = wow_entities::INVENTORY_SLOT_BAG_START;
+    let bag_inventory = InventoryItem {
+        guid: bag_guid,
+        entry_id: bag_entry,
+        db_guid: 501,
+        inventory_type: Some(InventoryType::Bag as u8),
+    };
+    let bag_item = session.make_inventory_item_object(
+        bag_guid,
+        bag_entry,
+        player_guid,
+        1,
+        0,
+        ItemContext::None,
+        bag_slot,
+    );
+    session.insert_inventory_item_object(bag_item);
+    session.insert_inventory_item_like_cpp(bag_slot, bag_inventory.clone());
+
+    let child_guid = ObjectGuid::create_item(1, 502);
+    let mut child_item = session.make_inventory_item_object(
+        child_guid,
+        child_entry,
+        player_guid,
+        1,
+        0,
+        ItemContext::None,
+        5,
+    );
+    child_item.set_container_guid_and_slot(bag_guid, bag_slot);
+    session.insert_inventory_item_object(child_item);
+
+    let destroyed = session.plan_void_storage_destroyed_items_like_cpp(
+        INVENTORY_SLOT_BAG_0,
+        bag_slot,
+        bag_inventory,
+        Vec::new(),
+    );
+    assert_eq!(
+        destroyed
+            .iter()
+            .map(|item| item.inventory_item.guid)
+            .collect::<Vec<_>>(),
+        vec![child_guid, bag_guid]
+    );
+
+    let lazy_pool = sqlx::mysql::MySqlPoolOptions::new()
+        .connect_lazy("mysql://rustycore:rustycore@127.0.0.1:1/characters")
+        .expect("syntactically valid lazy CharacterDB pool");
+    let char_db = wow_database::CharacterDatabase::from_pool(lazy_pool);
+    let statements = destroyed
+        .iter()
+        .flat_map(|item| {
+            WorldSession::void_storage_destroy_item_statements_like_cpp(
+                &char_db,
+                42,
+                item.inventory_item.db_guid,
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(statements.len(), 18);
+    assert_eq!(
+        statements
+            .iter()
+            .filter(|statement| {
+                statement.sql() == CharStatements::DEL_CHAR_INVENTORY_ITEM.sql()
+            })
+            .map(|statement| statement.params().to_vec())
+            .collect::<Vec<_>>(),
+        vec![
+            vec![
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U64(502),
+            ],
+            vec![
+                wow_database::SqlParam::U64(42),
+                wow_database::SqlParam::U64(501),
+            ],
+        ]
+    );
+
+    assert_eq!(
+        session.apply_committed_void_storage_destroyed_items_like_cpp(&destroyed),
+        vec![child_guid, bag_guid]
+    );
+    assert!(session.get_inventory_item_by_pos(bag_slot, 5).is_none());
+    assert!(
+        session
+            .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, bag_slot)
+            .is_none()
+    );
+    assert!(
+        !session
+            .inventory_item_objects_like_cpp()
+            .contains_key(&child_guid)
+    );
+    assert!(
+        !session
+            .inventory_item_objects_like_cpp()
+            .contains_key(&bag_guid)
     );
 }
 

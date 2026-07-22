@@ -10,6 +10,9 @@
   format. Post-review fixes load and propagate `characters.inventorySlots`, prove both default
   16-slot and expanded 24-slot withdrawal placement, and pin the issue's atomic contract with a
   mixed-request validation regression that publishes no partial deposit. Focused tests are clean.
+  A second review fix recursively plans non-empty bag contents deepest-first and deletes every
+  child/parent inventory, item and auxiliary row in the same transaction before removing the same
+  runtime objects; request-order reservation prevents bag/child double deposits.
   Installed QA completed unlock, deposit/relog, swap/relog and withdrawal/relog with exact durable
   states and full character/item/vaultkeeper cleanup. The
   committed `void-storage-query` flow imports one real instance-routed C++/Rust

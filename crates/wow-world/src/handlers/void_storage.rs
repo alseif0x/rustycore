@@ -67,12 +67,17 @@ inventory::submit! {
 
 #[derive(Debug, Clone)]
 struct PlannedVoidDepositLikeCpp {
+    destroyed_items: Vec<PlannedVoidDestroyedInventoryItemLikeCpp>,
+    void_item: RepresentedVoidStorageItemLikeCpp,
+    void_slot: u8,
+}
+
+#[derive(Debug, Clone)]
+struct PlannedVoidDestroyedInventoryItemLikeCpp {
     bag: u8,
     slot: u8,
     inventory_item: InventoryItem,
     cleared_mainhand_enchantments: Vec<wow_constants::EnchantmentSlot>,
-    void_item: RepresentedVoidStorageItemLikeCpp,
-    void_slot: u8,
 }
 
 #[derive(Debug, Clone)]
@@ -86,6 +91,86 @@ struct PlannedVoidWithdrawalLikeCpp {
 }
 
 impl WorldSession {
+    fn plan_void_storage_destroyed_items_like_cpp(
+        &self,
+        bag: u8,
+        slot: u8,
+        inventory_item: InventoryItem,
+        cleared_mainhand_enchantments: Vec<wow_constants::EnchantmentSlot>,
+    ) -> Vec<PlannedVoidDestroyedInventoryItemLikeCpp> {
+        let mut destroyed_items = self
+            .represented_inventory_descendants_postorder_like_cpp(inventory_item.guid)
+            .into_iter()
+            .map(
+                |(bag, slot, inventory_item)| PlannedVoidDestroyedInventoryItemLikeCpp {
+                    bag,
+                    slot,
+                    inventory_item,
+                    cleared_mainhand_enchantments: Vec::new(),
+                },
+            )
+            .collect::<Vec<_>>();
+        destroyed_items.push(PlannedVoidDestroyedInventoryItemLikeCpp {
+            bag,
+            slot,
+            inventory_item,
+            cleared_mainhand_enchantments,
+        });
+        destroyed_items
+    }
+
+    fn void_storage_destroy_item_statements_like_cpp(
+        char_db: &wow_database::CharacterDatabase,
+        player_guid_counter: u64,
+        item_db_guid: u64,
+    ) -> Vec<wow_database::PreparedStatement> {
+        let mut statements = Vec::with_capacity(9);
+        let mut delete_inventory = char_db.prepare(CharStatements::DEL_CHAR_INVENTORY_ITEM);
+        delete_inventory.set_u64(0, player_guid_counter);
+        delete_inventory.set_u64(1, item_db_guid);
+        statements.push(delete_inventory);
+        for cleanup_kind in [
+            CharStatements::DEL_ITEM_REFUND_INSTANCE,
+            CharStatements::DEL_ITEM_BOP_TRADE,
+            CharStatements::DEL_ITEM_INSTANCE_GEMS,
+            CharStatements::DEL_ITEM_INSTANCE_TRANSMOG,
+            CharStatements::DEL_GIFT,
+            CharStatements::DEL_ITEMCONTAINER_ITEMS,
+            CharStatements::DEL_ITEMCONTAINER_MONEY,
+        ] {
+            let mut cleanup = char_db.prepare(cleanup_kind);
+            cleanup.set_u64(0, item_db_guid);
+            statements.push(cleanup);
+        }
+        let mut delete_item = char_db.prepare(CharStatements::DEL_ITEM_INSTANCE);
+        delete_item.set_u64(0, item_db_guid);
+        statements.push(delete_item);
+        statements
+    }
+
+    fn apply_committed_void_storage_destroyed_items_like_cpp(
+        &mut self,
+        destroyed_items: &[PlannedVoidDestroyedInventoryItemLikeCpp],
+    ) -> Vec<wow_core::ObjectGuid> {
+        let mut destroyed_guids = Vec::with_capacity(destroyed_items.len());
+        for destroyed in destroyed_items {
+            let _ = self.apply_inventory_item_remove_side_effects_like_cpp(
+                destroyed.bag,
+                destroyed.slot,
+                destroyed.inventory_item.guid,
+                &destroyed.cleared_mainhand_enchantments,
+            );
+            let removed = self.apply_committed_inventory_item_removal_like_cpp(
+                destroyed.bag,
+                destroyed.slot,
+                destroyed.inventory_item.guid,
+            );
+            debug_assert!(removed);
+            destroyed_guids.push(destroyed.inventory_item.guid);
+        }
+        destroyed_guids
+    }
+
     fn send_void_storage_transfer_result_like_cpp(&self, result: VoidTransferErrorLikeCpp) {
         self.send_packet(&VoidTransferResult { result });
     }
@@ -231,9 +316,12 @@ impl WorldSession {
 
         let mut planned_deposits = Vec::new();
         let mut used_deposit_guids = HashSet::new();
+        let mut reserved_destroyed_guids = HashSet::new();
         let mut reserved_void_slots = HashSet::new();
         for deposit_guid in transfer.deposits {
-            if !used_deposit_guids.insert(deposit_guid) {
+            if !used_deposit_guids.insert(deposit_guid)
+                || reserved_destroyed_guids.contains(&deposit_guid)
+            {
                 continue;
             }
             let Some((bag, slot, inventory_item)) =
@@ -276,11 +364,27 @@ impl WorldSession {
                 continue;
             };
             let data = runtime_item.data();
-            planned_deposits.push(PlannedVoidDepositLikeCpp {
+            let mut destroyed_items = self.plan_void_storage_destroyed_items_like_cpp(
                 bag,
                 slot,
                 inventory_item,
                 cleared_mainhand_enchantments,
+            );
+            // Planning is detached from runtime publication, so emulate C++'s
+            // request-order destruction when a bag and one of its children are
+            // both listed: a child already claimed by an earlier deposit is no
+            // longer part of the later bag destruction, while a child claimed
+            // by an earlier bag makes a later explicit deposit invalid.
+            destroyed_items.retain(|destroyed| {
+                !reserved_destroyed_guids.contains(&destroyed.inventory_item.guid)
+            });
+            reserved_destroyed_guids.extend(
+                destroyed_items
+                    .iter()
+                    .map(|destroyed| destroyed.inventory_item.guid),
+            );
+            planned_deposits.push(PlannedVoidDepositLikeCpp {
+                destroyed_items,
                 void_item: RepresentedVoidStorageItemLikeCpp {
                     item_id: void_item_id,
                     item_entry: runtime_item.object().entry(),
@@ -365,26 +469,15 @@ impl WorldSession {
         tx.append(update_money);
 
         for deposit in &planned_deposits {
-            let mut delete_inventory = char_db.prepare(CharStatements::DEL_CHAR_INVENTORY_ITEM);
-            delete_inventory.set_u64(0, player_guid.counter() as u64);
-            delete_inventory.set_u64(1, deposit.inventory_item.db_guid);
-            tx.append(delete_inventory);
-            for cleanup_kind in [
-                CharStatements::DEL_ITEM_REFUND_INSTANCE,
-                CharStatements::DEL_ITEM_BOP_TRADE,
-                CharStatements::DEL_ITEM_INSTANCE_GEMS,
-                CharStatements::DEL_ITEM_INSTANCE_TRANSMOG,
-                CharStatements::DEL_GIFT,
-                CharStatements::DEL_ITEMCONTAINER_ITEMS,
-                CharStatements::DEL_ITEMCONTAINER_MONEY,
-            ] {
-                let mut cleanup = char_db.prepare(cleanup_kind);
-                cleanup.set_u64(0, deposit.inventory_item.db_guid);
-                tx.append(cleanup);
+            for destroyed in &deposit.destroyed_items {
+                for statement in Self::void_storage_destroy_item_statements_like_cpp(
+                    char_db.as_ref(),
+                    player_guid.counter() as u64,
+                    destroyed.inventory_item.db_guid,
+                ) {
+                    tx.append(statement);
+                }
             }
-            let mut delete_item = char_db.prepare(CharStatements::DEL_ITEM_INSTANCE);
-            delete_item.set_u64(0, deposit.inventory_item.db_guid);
-            tx.append(delete_item);
             tx.append(Self::build_void_storage_replace_statement_like_cpp(
                 player_guid.counter() as u64,
                 deposit.void_slot,
@@ -447,20 +540,17 @@ impl WorldSession {
         self.stage_player_money_change_like_cpp(old_money, new_money);
         let mut added_items = Vec::new();
         let mut removed_items = Vec::new();
+        let mut destroyed_deposit_items = Vec::new();
         let map_id = self.player_map_id_like_cpp();
         for deposit in &planned_deposits {
-            let _ = self.apply_inventory_item_remove_side_effects_like_cpp(
-                deposit.bag,
-                deposit.slot,
-                deposit.inventory_item.guid,
-                &deposit.cleared_mainhand_enchantments,
-            );
-            let removed = self.apply_committed_inventory_item_removal_like_cpp(
-                deposit.bag,
-                deposit.slot,
-                deposit.inventory_item.guid,
-            );
-            debug_assert!(removed);
+            let parent = deposit
+                .destroyed_items
+                .last()
+                .expect("every void deposit includes its source item");
+            let parent_position = (parent.bag, parent.slot);
+            let destroyed_guids = self
+                .apply_committed_void_storage_destroyed_items_like_cpp(&deposit.destroyed_items);
+            destroyed_deposit_items.push((parent_position, destroyed_guids));
             let inserted_slot =
                 self.add_represented_void_storage_item_like_cpp(deposit.void_item.clone());
             debug_assert_eq!(inserted_slot, Some(deposit.void_slot));
@@ -518,29 +608,29 @@ impl WorldSession {
         if old_money != new_money {
             self.send_player_values_update_from_entity_bridge(&[], &[], &[], &[], Some(new_money));
         }
-        for deposit in &planned_deposits {
+        for ((bag, slot), destroyed_guids) in destroyed_deposit_items {
             self.send_packet(&wow_packet::packets::update::UpdateObject::destroy_objects(
-                vec![deposit.inventory_item.guid],
+                destroyed_guids,
                 map_id,
             ));
-            if deposit.bag == INVENTORY_SLOT_BAG_0 {
-                let visible = (deposit.slot < 19)
-                    .then_some((deposit.slot, 0, 0, 0))
+            if bag == INVENTORY_SLOT_BAG_0 {
+                let visible = (slot < 19)
+                    .then_some((slot, 0, 0, 0))
                     .into_iter()
                     .collect::<Vec<_>>();
-                let virtual_item = ((15..=17).contains(&deposit.slot))
-                    .then_some((deposit.slot - 15, 0, 0, 0))
+                let virtual_item = ((15..=17).contains(&slot))
+                    .then_some((slot - 15, 0, 0, 0))
                     .into_iter()
                     .collect::<Vec<_>>();
                 self.send_player_values_update_from_entity_bridge(
-                    &[(deposit.slot, wow_core::ObjectGuid::EMPTY)],
+                    &[(slot, wow_core::ObjectGuid::EMPTY)],
                     &visible,
                     &virtual_item,
                     &[],
                     None,
                 );
             } else {
-                self.send_bag_slot_values_update_like_cpp(deposit.bag, deposit.slot);
+                self.send_bag_slot_values_update_like_cpp(bag, slot);
             }
         }
         for withdrawal in &planned_withdrawals {

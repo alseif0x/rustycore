@@ -28,6 +28,10 @@ Post-review coverage also proves withdrawal capacity and placement use the loade
 whose withdrawal cannot pass item-specific storage validation leaves its planned deposit, money
 and void state unpublished, preserving this issue's explicit all-or-nothing durability contract
 instead of exposing C++'s intermediate in-memory mutation order.
+Depositing a non-empty bag now also mirrors C++ `Player::DestroyItem`: contained items are planned
+deepest-first, each inventory/item/auxiliary row is deleted in the same transaction, and every
+child plus the parent is removed from runtime only after commit. Request-order reservation keeps
+an explicitly listed child from being destroyed or deposited twice when its bag is listed too.
 The accredited server binary SHA-256 was
 `fe8058f7986d84e1cd444709d24e19af9c711c917ee9b00183acfc4cef63e8ec`; the QA bot SHA-256 was
 `95f4b45c75a8fdd687f2ba6fa97303e0a240fd80e33d597bc4093548d9981d85`.

@@ -21625,6 +21625,68 @@ impl WorldSession {
             .any(|item| item.container_guid() == item_guid)
     }
 
+    /// Return every runtime item contained by `container_guid`, deepest first.
+    /// C++ `Player::DestroyItem` recursively destroys bag contents before the
+    /// container itself. The normal client disallows nested bags, but keeping
+    /// this traversal recursive also makes corrupted/runtime-only graphs safe.
+    pub(crate) fn represented_inventory_descendants_postorder_like_cpp(
+        &self,
+        container_guid: ObjectGuid,
+    ) -> Vec<(u8, u8, InventoryItem)> {
+        let mut candidates = self
+            .inventory_item_objects_like_cpp()
+            .values()
+            .map(|item| {
+                (
+                    item.container_guid(),
+                    item.bag_slot(),
+                    item.slot(),
+                    item.object().guid(),
+                    item.object().entry(),
+                )
+            })
+            .collect::<Vec<_>>();
+        candidates.sort_by_key(|(_, bag, slot, guid, _)| (*bag, *slot, guid.counter()));
+
+        fn visit(
+            container_guid: ObjectGuid,
+            candidates: &[(ObjectGuid, u8, u8, ObjectGuid, u32)],
+            visited: &mut HashSet<ObjectGuid>,
+            descendants: &mut Vec<(u8, u8, ObjectGuid, u32)>,
+        ) {
+            for &(parent, bag, slot, guid, entry_id) in candidates {
+                if parent != container_guid || !visited.insert(guid) {
+                    continue;
+                }
+                visit(guid, candidates, visited, descendants);
+                descendants.push((bag, slot, guid, entry_id));
+            }
+        }
+
+        let mut descendants = Vec::new();
+        visit(
+            container_guid,
+            &candidates,
+            &mut HashSet::new(),
+            &mut descendants,
+        );
+        descendants
+            .into_iter()
+            .map(|(bag, slot, guid, entry_id)| {
+                (
+                    bag,
+                    slot,
+                    InventoryItem {
+                        guid,
+                        entry_id,
+                        db_guid: guid.counter() as u64,
+                        inventory_type: self.item_template_inventory_type(entry_id),
+                    },
+                )
+            })
+            .collect()
+    }
+
     pub(crate) fn represented_bag_contains_active_item_loot_like_cpp(
         &self,
         bag_guid: ObjectGuid,
