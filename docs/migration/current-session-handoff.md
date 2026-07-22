@@ -1,3 +1,18 @@
+- `#NEXT.R8.ENTITIES.1206` — issue #20 closes the scoped M0.7 D-C1…D-C9 CRIT
+  integrity track after auditing every child against its merged PR and current checks. PRs #89,
+  #103, #105, #107, #109, #111, #113 and #115 are merged into `3.4.3`; the D-C7 save slice is
+  already merged as PR #88. All carried a successful required `Codex reviewer verdict` on their
+  final HEAD. The closeout extends the occupied inventory-swap bot with a real permanent
+  enchantment plus random-property fixture, parses and SHA-256 hashes the complete owner-visible
+  item `CREATE_OBJECT`, preserves the realm socket beside the instance socket, follows C++'s
+  in-memory-swap → logout-save lifecycle, verifies exact empty-body `SMSG_LOGOUT_COMPLETE`, and
+  requires identical fresh-auth blocks plus exact committed metadata after both forward and
+  reverse swaps. Installed Rust and C++ runs both passed and produced
+  `25238a033be693b4969b9412f1666074e5d9be76c6db3b188e021a60b4feb2c8`; the C++ capture wrapper
+  restored the prior Rust runtime. This closes the audited CRIT defects, not the separately
+  documented HIGH/MED mechanics, the loot post-COMMIT crash-journal boundary, or broad inventory
+  validation issue #52.
+
 - `#NEXT.R8.ENTITIES.1205` — issue #114 implements the remaining D-C3 void-storage slice.
   C++ `VoidStorageHandler.cpp:28-249`, `Player.cpp:18358-18403,20026-20055,28066-28140`,
   `ObjectMgr.cpp:7369-7371,7431-7440`, the packet writers and `ObjectGuid.cpp:758-785` anchor the
@@ -55,8 +70,10 @@
   recursive quest-removal, mixed-transfer, quest-bound-withdrawal and live-collection tests. The
   complete local PR preflight (whitespace, self-test, formats, locked checks/builds, clippy,
   focused suites, bot/capture gate and local Codex review) completed CLEAN on `2143334b` in 471.8
-  seconds. Boundary: represented-partial pending CI, current-HEAD GitHub review and merge; full
-  inventory validation remains #52 and aggregate D-C1-D-C9 reconciliation remains #20.
+  seconds. PR #115 merged as `55719eb4` with CI and the current-HEAD GitHub Codex verdict green.
+  The implementation remains represented-partial only for broader parity; its scoped D-C3 child
+  is closed. Full inventory validation remains #52; aggregate D-C1-D-C9 reconciliation is handled
+  by `#NEXT.R8.ENTITIES.1206`.
 
 - `#NEXT.R8.ENTITIES.1204` — issue #112 makes equipment-set and transmog-outfit
   GUID allocation process-wide and relog-clean. C++ `ObjectMgr::SetHighestGuids`

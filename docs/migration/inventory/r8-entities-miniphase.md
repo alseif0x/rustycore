@@ -1,3 +1,27 @@
+# `#NEXT.R8.ENTITIES.1206` — M0.7 D-C1…D-C9 aggregate closeout (issue #20).
+
+All scoped child implementations are merged into `3.4.3`: PRs #89 (D-C1/D-C2), #103/#113/#115
+(D-C3), #105 (D-C4), #107 (D-C5/D-C6), #109 (D-C8), and #111 (D-C9), with the D-C7 periodic
+save/transaction slice already merged as PR #88. Each PR's final HEAD passed the required Codex
+reviewer verdict and required CI. This closeout does not relabel the remaining HIGH/MED defects or
+the explicitly separate loot process-abort journal boundary as complete.
+
+The final missing relog proof extends the installed inventory-swap workflow with item entry 2589
+carrying permanent enchantment 2673 and random-property record 5, whose C++/3.4.3 property
+enchantment 79 occupies `PROP_ENCHANTMENT_SLOT_2`. The bot parses the full owner-visible item
+`CREATE_OBJECT`, verifies all 13 enchantment slots plus random ID/seed, and hashes the exact block.
+It keeps the realm socket while gameplay uses the instance socket, sends the occupied swap, then
+waits for C++'s routed empty-body `SMSG_LOGOUT_COMPLETE` before checking CharacterDB because C++
+persists `ITEM_CHANGED` positions during `_SaveInventory`, not before logout. A fresh World
+authentication must publish the identical block; the inverse swap repeats the same proof.
+
+Installed Rust and C++ runs both completed the forward swap, logout, fresh-auth verification,
+reverse swap, second logout and cleanup. Both exact create blocks hashed to
+`25238a033be693b4969b9412f1666074e5d9be76c6db3b188e021a60b4feb2c8`; every DB metadata/location
+assertion passed, and the capture wrapper restored Rust online. C++ anchors are
+`Item.cpp:585-735,806-843`, `Player.cpp:18207-18445,19336-19718,19892`, `ItemHandler.cpp:69-112`, and
+`WorldSession.cpp:750-770`. Broader inventory validation remains issue #52.
+
 # `#NEXT.R8.ENTITIES.1205` — atomic void-storage persistence (issue #114).
 
 Source-of-truth C++ was checked before implementation:
@@ -92,9 +116,10 @@ clean. The latest corrections additionally pass the 13 void-storage tests and fo
 legacy-capacity, recursive quest-removal, mixed-transfer, quest-bound-withdrawal and
 live-collection regressions. The complete local PR preflight (whitespace, self-test, formats,
 locked checks/builds, clippy, focused suites, bot/capture gate and local Codex review) completed
-CLEAN on `2143334b` in 471.8 seconds. Boundary: represented-partial until CI, current-HEAD GitHub
-Codex verdict and merge. Broader inventory validation remains in #52; #20 still owns aggregate
-D-C1-D-C9 reconciliation.
+CLEAN on `2143334b` in 471.8 seconds. PR #115 merged as `55719eb4` with CI and current-HEAD GitHub
+Codex verdict green. The broader implementation remains represented-partial; its scoped D-C3
+child is closed. Broader inventory validation remains in #52, and #20 reconciliation is recorded
+in `#NEXT.R8.ENTITIES.1206`.
 
 # `#NEXT.R8.ENTITIES.1204` — globally collision-safe equipment-set persistence (issue #112).
 

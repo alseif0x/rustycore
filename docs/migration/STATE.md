@@ -1,6 +1,6 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**Date:** 2026-06-27 · **Base:** `develop` @ `d171117c` (audited HEAD, not a stale checkpoint).
+**Date:** 2026-07-22 · **Base:** `3.4.3` @ `55719eb4` plus issue #20 closeout QA.
 
 This document replaces the drifting status snapshots in `_INDEX.md` (2026-05-01, "5–15%"),
 the `MIGRATION_ROADMAP.md` §3 inherited table (which tells you not to trust it), and the
@@ -57,7 +57,7 @@ overlays by DB2 record ID, world `serverside_spell` masks, and the interrupt-mas
 | Axis | Estimate | Meaning |
 |---|---:|---|
 | **A. Breadth represented** | ~98% of R8 rows touched | Logic exists/contrasted in the represented model. **Retired as a headline** — rewards breadth over working features. |
-| **B. Live-playable core** | **partial, holed, buggy** | Core loop (login→move→melee→loot→quest→vendor→group) is live, **but carries CRIT data-loss/dupe bugs** (D-track) and wrong combat math. Spells, creature AI, world-interaction, death are represented-only. |
+| **B. Live-playable core** | **partial, holed, buggy** | Core loop (login→move→melee→loot→quest→vendor→group) is live. The scoped D-C1…D-C9 CRIT integrity track is closed, but combat math and multiple HIGH/MED gameplay/runtime gaps remain. Spells, creature AI, world-interaction and death are represented-only. |
 | **C. Full 1:1 parity** | **low** | Long tail absent: ~108 spell effects, ~255 aura types, content scripts (0/294k LOC), mail/AH/calendar live, BG/arena/instances, ~215 stat/data stores. |
 
 Part 1 of the plan drives **B** to complete; Part 2 drives **C** to complete.
@@ -71,24 +71,24 @@ Part 1 of the plan drives **B** to complete; Part 2 drives **C** to complete.
 **PARTIAL** = subset only · **STUB / REPRESENTED-ONLY** = validates/records intent, no
 observable mutation · **ABSENT**.
 
-> ⚠ **An adversarial audit of the "WORKS" surface found bugs in nearly all of it** — see
-> [EXISTING-CODE-DEFECTS.md](EXISTING-CODE-DEFECTS.md) (D-track). "WORKS" below means the
-> path is live, not that it is correct or safe against data loss/dupe.
+> ⚠ The scoped D-C1…D-C9 integrity defects are closed, but the adversarial audit still lists
+> substantial HIGH/MED gaps in [EXISTING-CODE-DEFECTS.md](EXISTING-CODE-DEFECTS.md). "WORKS"
+> means the named path is live; it is not a claim of full 1:1 gameplay parity.
 
-### Core gameplay loop — live, but D-track bugs inside
+### Core gameplay loop — live, with remaining non-CRIT gaps
 | Capability | Status | Evidence / defects |
 |---|---|---|
 | Auth/BNet SRP6 + world-enter handshake | WORKS | recent `fix(bnet)` commits; played live |
 | Player movement + broadcast to nearby | WORKS⚠ | `movement.rs:310`; trust-client position (D-H10), creature destroy deferred (D-H15), async CREATE race (D-H14) |
 | Melee combat (deals damage→death→loot) | **PARTIAL** | `session.rs:47635`; **no damage formula / hit table / armor mitigation** (D-H1, D-H2) — numbers are wrong |
 | Global creature runtime (aggro/melee/move→packets) | WORKS (default on) | `world-server/src/main.rs:12682+` |
-| Inventory equip/swap/move/destroy (+DB) | WORKS⚠ | `character.rs:11611,11762`; **enchant/random-prop lost on relog (D-C1/C2)**, swap not transactional (D-C4) |
-| Loot items + money (+DB) | WORKS⚠ | `loot.rs:1073,1262`; **dupe races (D-C5/C6)**, quest-credit gap (D-H6) |
+| Inventory equip/swap/move/destroy (+DB) | WORKS | D-C1/C2 relog metadata and D-C4 atomic occupied swaps are closed; paired installed C++/Rust logout/relog QA produced the same exact item-create hash and durable DB state |
+| Loot items + money (+DB) | WORKS⚠ | D-C5/C6 concurrent-claim duplication is closed; quest-credit gap (D-H6) and process-abort recovery of detached post-COMMIT continuations remain separate boundaries |
 | Quests accept/turn-in core rewards (+DB) | **PARTIAL** | `quest.rs:1359,5569`; kill/explore/item objectives may not auto-advance (D-H4/H5/H6) |
-| Vendor buy/sell, Trainer learn, Groups (+DB) | WORKS⚠ | atomicity (D-C8), oversell (D-H11), trainer skips validation (D-H9), group race (D-C9) |
+| Vendor buy/sell, Trainer learn, Groups (+DB) | WORKS⚠ | vendor D-C8 and group-capacity D-C9 atomicity are closed; finite-stock oversell (D-H11), trainer validation (D-H9), buyback/refund and wider group parity remain |
 | Gossip menus + quest-giver status icons | WORKS | `handlers/quest.rs:1248`; gossip conditions evaluated |
-| Item enchant/gem/socket, durability repair, binding | WORKS⚠ | `wow-entities/src/item.rs`; correct in-memory, but **not reloaded from DB (D-C1)** |
-| Bank / equipment-sets / void-storage persistence | **WORKS⚠** | personal-bank and equipment/transmog-set persistence are merged; issue #114 locally adds atomic void-storage unlock/deposit/query/swap/withdraw, restores and persists C++ random-affix enchantments, has full fresh-auth relog proof and a byte-clean C++ query capture; its explicit one-transaction/no-runtime-on-definite-failure contract accepts the failure-only divergence from C++ intermediate deposit publication; GitHub-review hardening publishes withdrawal item creates plus post-store random/creator/binding VALUES updates, bounds IDs to the 40-bit wire counter, intentionally repairs older-Rust zero-slot backpack rows to the C++ schema default, atomically persists the ordered deposit/withdrawal quest result (including recursive children and quest-bound no-item withdrawals), and sends live withdrawal collection updates, while three false positives were rejected with exact C++ evidence; focused latest-review tests and the complete local preflight/review are clean on `2143334b`; #114 still needs CI/current-HEAD GitHub review/merge, and aggregate D-C3 remains open until then |
+| Item enchant/gem/socket, durability repair, binding | WORKS | `wow-entities/src/item.rs`; D-C1/D-C2 now reload and serialize persisted enchant/random-property state, including the paired exact create-block proof |
+| Bank / equipment-sets / void-storage persistence | **WORKS** | D-C3 is closed: PRs #103, #113 and #115 merged with required CI/review gates. Installed bank, equipment/transmog and void-storage relog QA passed; the committed equipment-set ACK and void-storage query captures are strict C++/Rust CLEAN. Issue #114's documented failure-only all-or-nothing divergence remains intentional and bounded to its stronger transaction contract. |
 | UpdateFields / CREATE-block serialization | WORKS | `wow-packet/src/packets/update.rs` (capture-diffed); minor value gaps in M1.4 |
 | Rested XP / offline rest state (XP slice) | **PARTIAL (live)** | issue #81: live accrual, consumption, DB persistence/relog and `SMSG_LOG_XP_GAIN` are capture-clean under the reviewed runtime-counter comparator; full `RestMgr` ownership and rest-area wire remain open |
 
