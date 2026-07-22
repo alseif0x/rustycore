@@ -66,6 +66,9 @@ const SMSG_LOAD_EQUIPMENT_SET: u16 = 0x270E;
 const EQUIPMENT_SET_SLOTS_LIKE_CPP: usize = 19;
 const MAX_EQUIPMENT_SET_INDEX_LIKE_CPP: u32 = 20;
 const EQUIPMENT_SET_IGNORE_ALL_SLOTS_LIKE_CPP: u32 = (1 << EQUIPMENT_SET_SLOTS_LIKE_CPP) - 1;
+// Keep the mixed signed/unsigned aggregate pinned to an unsigned MySQL wire
+// type, matching the world-server startup query for this shared GUID namespace.
+const SHARED_EQUIPMENT_SET_GUID_MAX_QUERY: &str = "SELECT CAST(MAX(maxguid) AS UNSIGNED) FROM ((SELECT MAX(setguid) AS maxguid FROM character_equipmentsets) UNION (SELECT MAX(setguid) AS maxguid FROM character_transmog_outfits)) allsets";
 // Login can legitimately contain more than 30 packets before
 // SMSG_LOGIN_VERIFY_WORLD when another player is already on the map and its
 // CREATE/broadcast traffic is interleaved. Keep the guard wall-clock based so
@@ -5787,9 +5790,7 @@ fn prepare_equipment_set_smoke_fixture(
     }
 
     let initial_max_guid: Option<Option<u64>> = conn
-        .query_first(
-            "SELECT MAX(maxguid) FROM ((SELECT MAX(setguid) AS maxguid FROM character_equipmentsets) UNION (SELECT MAX(setguid) AS maxguid FROM character_transmog_outfits)) allsets",
-        )
+        .query_first(SHARED_EQUIPMENT_SET_GUID_MAX_QUERY)
         .map_err(|error| anyhow!("Load shared equipment/transmog maximum: {error}"))?;
     Ok(EquipmentSetSmokeFixture {
         initial_max_guid: initial_max_guid.flatten().unwrap_or(0),
@@ -13380,6 +13381,12 @@ mod tests {
     fn equipment_set_smoke_indices_stay_within_cpp_client_limit() {
         assert!(7 < MAX_EQUIPMENT_SET_INDEX_LIKE_CPP);
         assert!(8 < MAX_EQUIPMENT_SET_INDEX_LIKE_CPP);
+    }
+
+    #[test]
+    fn equipment_set_fixture_max_query_pins_unsigned_wire_type() {
+        assert!(SHARED_EQUIPMENT_SET_GUID_MAX_QUERY
+            .starts_with("SELECT CAST(MAX(maxguid) AS UNSIGNED)"));
     }
 
     #[test]
