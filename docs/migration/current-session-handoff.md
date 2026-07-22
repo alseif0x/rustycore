@@ -5,7 +5,10 @@
   startup-initialized, fail-closed void-item allocator; unlock/query/transfer/swap are live, and
   deposit, withdrawal and swaps atomically persist flags/money, inventory/item rows and every
   affected void row before publishing runtime or packets. Definite rollback stays invisible and
-  indeterminate COMMIT is fenced from stale saves. C++ comparison corrected every void-storage
+  indeterminate COMMIT is fenced from stale saves. Issue #114 explicitly accepts the failure-only
+  divergence from C++ intermediate deposit publication: a later withdrawal validation failure
+  rolls back the whole request by its one-transaction/no-runtime-change Done contract. Successful
+  ordering remains C++-anchored. C++ comparison corrected every void-storage
   GUID from the old fixed 16-byte Rust/bot representation to the real two-mask `PackedGuid` wire
   format. Post-review fixes load and propagate `characters.inventorySlots`, prove both default
   16-slot and expanded 24-slot withdrawal placement, and pin the issue's atomic contract with a

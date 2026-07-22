@@ -63,7 +63,10 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
     `ObjectMgr`. Unlock, query, transfer and swap enforce the represented C++ gates. Deposit,
     withdrawal and swap commit flags/money, inventory/item mutations and all affected void rows
     in one CharacterDB transaction before publishing runtime or success packets; definite
-    rollback stays invisible and indeterminate COMMIT is fenced from stale saves. C++ packet
+    rollback stays invisible and indeterminate COMMIT is fenced from stale saves. This explicitly
+    accepts issue #114's failure-only divergence from C++ intermediate deposit publication when a
+    later withdrawal fails validation; the issue's Done contract requires one transaction and no
+    runtime change on definite failure. C++ packet
     contrast also corrected every void-storage GUID from a fixed 16-byte Rust/bot encoding to
     C++ `PackedGuid`. Focused tests, an installed unlock/deposit/relog/swap/relog/withdraw/relog
     lifecycle with exact cleanup, and a 1/1 byte-clean real C++/Rust query capture have passed.

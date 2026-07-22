@@ -30,7 +30,10 @@ Post-review coverage also proves withdrawal capacity and placement use the loade
 `GetInventorySlotCount` value for both 16-slot and expanded 24-slot backpacks. A mixed request
 whose withdrawal cannot pass item-specific storage validation leaves its planned deposit, money
 and void state unpublished, preserving this issue's explicit all-or-nothing durability contract
-instead of exposing C++'s intermediate in-memory mutation order.
+instead of exposing C++'s intermediate in-memory mutation order. This is an accepted failure-only
+divergence mandated by issue #114's Done criterion (one transaction plus no runtime change on
+definite failure), not an accidental parity claim; successful transfer ordering remains grounded
+in C++ and the capture/runtime evidence.
 Depositing a non-empty bag now also mirrors C++ `Player::DestroyItem`: contained items are planned
 deepest-first, each inventory/item/auxiliary row is deleted in the same transaction, and every
 child plus the parent is removed from runtime only after commit. Request-order reservation keeps

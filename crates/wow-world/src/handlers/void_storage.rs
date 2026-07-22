@@ -653,11 +653,14 @@ impl WorldSession {
             });
         }
 
-        // Unlike C++'s in-memory-only mutation order, this issue's durability
-        // contract requires the mixed request to be one atomic CharacterDB
-        // operation. Validate and plan every withdrawal before committing any
-        // deposit so a later item-specific storage failure cannot expose a
-        // charged/destroyed deposit without the rest of the request.
+        // Accepted failure-only divergence required by issue #114's explicit
+        // Done contract: money, inventory and every affected void slot commit
+        // in one CharacterDB transaction, and a definite failure leaves
+        // runtime unchanged. Unlike C++'s intermediate in-memory mutations,
+        // validate and plan every withdrawal before committing any deposit so
+        // an item-specific storage failure cannot expose a charged/destroyed
+        // deposit without the rest of the request. Successful wire/state order
+        // remains C++-compatible and is covered separately by capture/runtime QA.
         let mut removed_entry_order = Vec::new();
         let mut removed_non_bank_counts = HashMap::<u32, u32>::new();
         for destroyed in planned_deposits
