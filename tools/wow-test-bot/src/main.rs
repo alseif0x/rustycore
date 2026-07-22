@@ -253,6 +253,7 @@ struct CliOptions {
     bank_runtime_counter: Option<u64>,
     bank_timeout_secs: u64,
     void_storage_smoke: bool,
+    void_storage_query_capture: bool,
     void_storage_item_entry: u32,
     void_storage_runtime_counter: Option<u64>,
     void_storage_timeout_secs: u64,
@@ -368,6 +369,8 @@ struct BotRunResult {
     bank_failure: Option<String>,
     void_storage_smoke: bool,
     void_storage_smoke_passed: Option<bool>,
+    void_storage_query_capture: bool,
+    void_storage_query_capture_passed: Option<bool>,
     void_storage_unlock_persisted: bool,
     void_storage_deposit_persisted: bool,
     void_storage_deposit_relogin_verified: bool,
@@ -534,6 +537,12 @@ impl BotRunResult {
                 && self.void_storage_withdraw_persisted
                 && self.void_storage_withdraw_relogin_verified;
         }
+        if self.void_storage_query_capture {
+            return self.world_auth
+                && self.enum_characters
+                && self.player_login_verified
+                && self.void_storage_query_capture_passed.unwrap_or(false);
+        }
         if self.homebind_smoke {
             return self.world_auth
                 && self.enum_characters
@@ -601,6 +610,7 @@ struct RunReport {
     stand_state_smoke: bool,
     bank_smoke: bool,
     void_storage_smoke: bool,
+    void_storage_query_capture: bool,
     homebind_smoke: bool,
     inventory_swap_smoke: bool,
     vendor_smoke: bool,
@@ -678,6 +688,7 @@ enum VoidStorageSmokePhase {
     VerifyDepositSwap,
     VerifySwapWithdraw,
     VerifyWithdraw,
+    QueryCapture,
 }
 
 #[derive(Debug, Clone)]
@@ -1138,6 +1149,10 @@ fn parse_cli() -> Result<CliOptions> {
             .ok()
             .map(|v| is_truthy(&v))
             .unwrap_or(false),
+        void_storage_query_capture: std::env::var("WOW_BOT_VOID_STORAGE_QUERY_CAPTURE")
+            .ok()
+            .map(|v| is_truthy(&v))
+            .unwrap_or(false),
         void_storage_item_entry: std::env::var("WOW_BOT_VOID_STORAGE_ITEM_ENTRY")
             .ok()
             .map(|value| value.parse::<u32>())
@@ -1460,6 +1475,7 @@ fn parse_cli() -> Result<CliOptions> {
                 opts.bank_timeout_secs = next_arg(&mut args, "--bank-timeout")?.parse()?;
             }
             "--void-storage-smoke" => opts.void_storage_smoke = true,
+            "--void-storage-query-capture" => opts.void_storage_query_capture = true,
             "--void-storage-item-entry" => {
                 opts.void_storage_item_entry =
                     next_arg(&mut args, "--void-storage-item-entry")?.parse()?;
@@ -1944,13 +1960,16 @@ fn print_help() {
     println!(
         "  --void-storage-smoke     Unlock, deposit, relog/swap, relog/withdraw, and verify CharacterDB"
     );
+    println!(
+        "  --void-storage-query-capture  Query one seeded void item for a narrow C++/Rust wire capture"
+    );
     println!("  --void-storage-item-entry <id> Controlled fixture item (default: 2589)");
     println!(
         "  --void-storage-runtime-counter <n> Optional checked live ObjectGuid counter override"
     );
     println!("  --void-storage-timeout <secs> Per action/DB timeout (default: 8)");
     println!(
-        "                           Env: WOW_BOT_VOID_STORAGE_SMOKE, WOW_BOT_VOID_STORAGE_ITEM_ENTRY, WOW_BOT_VOID_STORAGE_RUNTIME_COUNTER, WOW_BOT_VOID_STORAGE_TIMEOUT_SECS"
+        "                           Env: WOW_BOT_VOID_STORAGE_SMOKE, WOW_BOT_VOID_STORAGE_QUERY_CAPTURE, WOW_BOT_VOID_STORAGE_ITEM_ENTRY, WOW_BOT_VOID_STORAGE_RUNTIME_COUNTER, WOW_BOT_VOID_STORAGE_TIMEOUT_SECS"
     );
     println!(
         "  --vendor-smoke           Buy one extended-cost vendor item, relog, verify DB persistence, and restore the fixture"
@@ -2670,6 +2689,7 @@ async fn main() -> Result<()> {
             || cli.stand_state_smoke
             || cli.bank_smoke
             || cli.void_storage_smoke
+            || cli.void_storage_query_capture
             || cli.homebind_smoke
             || cli.inventory_swap_smoke
             || cli.vendor_smoke
@@ -2761,6 +2781,7 @@ async fn main() -> Result<()> {
         cli.stand_state_smoke,
         cli.bank_smoke,
         cli.void_storage_smoke,
+        cli.void_storage_query_capture,
         cli.homebind_smoke,
         cli.inventory_swap_smoke,
         cli.vendor_smoke,
@@ -2788,10 +2809,12 @@ async fn main() -> Result<()> {
             "--bank-smoke requires --bank-runtime-counter or WOW_BOT_BANK_RUNTIME_COUNTER for the live banker ObjectGuid"
         );
     }
-    if cli.void_storage_smoke && bots.len() != 1 {
-        bail!("--void-storage-smoke requires exactly one bot; select it with --single");
+    if (cli.void_storage_smoke || cli.void_storage_query_capture) && bots.len() != 1 {
+        bail!("void-storage modes require exactly one bot; select it with --single");
     }
-    if cli.void_storage_smoke && cli.void_storage_timeout_secs == 0 {
+    if (cli.void_storage_smoke || cli.void_storage_query_capture)
+        && cli.void_storage_timeout_secs == 0
+    {
         bail!("--void-storage-timeout must be greater than zero");
     }
     if cli.homebind_smoke && bots.len() != 1 {
@@ -2939,6 +2962,8 @@ async fn main() -> Result<()> {
             "bank-smoke"
         } else if cli.void_storage_smoke {
             "void-storage-smoke"
+        } else if cli.void_storage_query_capture {
+            "void-storage-query-capture"
         } else if cli.homebind_smoke {
             "homebind-smoke"
         } else if cli.inventory_swap_smoke {
@@ -2974,6 +2999,7 @@ async fn main() -> Result<()> {
         && !cli.stand_state_smoke
         && !cli.bank_smoke
         && !cli.void_storage_smoke
+        && !cli.void_storage_query_capture
         && !cli.homebind_smoke
         && !cli.inventory_swap_smoke
         && !cli.vendor_smoke
@@ -3066,6 +3092,17 @@ async fn main() -> Result<()> {
                 .await
             } else if cli.void_storage_smoke {
                 run_void_storage_smoke_workflow(
+                    bot,
+                    dungeon_id,
+                    timeout_secs,
+                    auto_teleport,
+                    cli.void_storage_item_entry,
+                    cli.void_storage_runtime_counter,
+                    cli.void_storage_timeout_secs,
+                )
+                .await
+            } else if cli.void_storage_query_capture {
+                run_void_storage_query_capture_workflow(
                     bot,
                     dungeon_id,
                     timeout_secs,
@@ -3214,6 +3251,7 @@ async fn main() -> Result<()> {
         cli.stand_state_smoke,
         cli.bank_smoke,
         cli.void_storage_smoke,
+        cli.void_storage_query_capture,
         cli.homebind_smoke,
         cli.inventory_swap_smoke,
         cli.vendor_smoke,
@@ -3393,6 +3431,9 @@ async fn run_bot_with_void_storage(
     mut void_storage_options: Option<VoidStorageSmokeOptions>,
 ) -> Result<BotRunResult> {
     let bot_index = bot.account_id as usize;
+    let void_storage_query_capture = void_storage_options
+        .as_ref()
+        .is_some_and(|options| options.phase == VoidStorageSmokePhase::QueryCapture);
     let mut result = BotRunResult {
         account: bot.account.clone(),
         account_id: bot.account_id,
@@ -3437,8 +3478,10 @@ async fn run_bot_with_void_storage(
         bank_relogin_after_deposit: false,
         bank_withdraw_persisted: false,
         bank_failure: None,
-        void_storage_smoke: void_storage_options.is_some(),
+        void_storage_smoke: void_storage_options.is_some() && !void_storage_query_capture,
         void_storage_smoke_passed: None,
+        void_storage_query_capture,
+        void_storage_query_capture_passed: None,
         void_storage_unlock_persisted: false,
         void_storage_deposit_persisted: false,
         void_storage_deposit_relogin_verified: false,
@@ -4230,7 +4273,11 @@ async fn run_bot_with_void_storage(
         .await
         {
             result.void_storage_failure = Some(error.to_string());
-            result.void_storage_smoke_passed = Some(false);
+            if result.void_storage_query_capture {
+                result.void_storage_query_capture_passed = Some(false);
+            } else {
+                result.void_storage_smoke_passed = Some(false);
+            }
         }
         return Ok(result);
     }
@@ -4645,6 +4692,13 @@ fn log_bot_summary(
             );
             return;
         }
+        if result.void_storage_query_capture {
+            info!(
+                "✅ Bot {}: SUCCESS void_storage_query_capture item_id={:?} failure={:?}",
+                result.account, result.void_storage_item_id, result.void_storage_failure
+            );
+            return;
+        }
         if result.homebind_smoke {
             info!(
                 "✅ Bot {}: SUCCESS homebind_smoke innkeeper={:?}/{:?} spell_go={} bind_update={} player_bound={} gossip_complete={} db_persisted={} relog={} failure={:?}",
@@ -4843,6 +4897,13 @@ fn log_bot_summary(
             );
             return;
         }
+        if result.void_storage_query_capture {
+            error!(
+                "❌ Bot {}: FAILED void_storage_query_capture item_id={:?} failure={:?}",
+                result.account, result.void_storage_item_id, result.void_storage_failure
+            );
+            return;
+        }
         if result.homebind_smoke {
             error!(
                 "❌ Bot {}: FAILED homebind_smoke innkeeper={:?}/{:?} spell_go={} bind_update={} player_bound={} gossip_complete={} db_persisted={} relog={} failure={:?}",
@@ -4993,6 +5054,7 @@ fn write_report_if_requested(
     stand_state_smoke: bool,
     bank_smoke: bool,
     void_storage_smoke: bool,
+    void_storage_query_capture: bool,
     homebind_smoke: bool,
     inventory_swap_smoke: bool,
     vendor_smoke: bool,
@@ -5020,6 +5082,7 @@ fn write_report_if_requested(
         stand_state_smoke,
         bank_smoke,
         void_storage_smoke,
+        void_storage_query_capture,
         homebind_smoke,
         inventory_swap_smoke,
         vendor_smoke,
@@ -7107,7 +7170,9 @@ async fn run_void_storage_smoke_workflow(
                 VoidStorageSmokePhase::VerifyDepositSwap => 0,
                 VoidStorageSmokePhase::VerifySwapWithdraw => 5,
                 VoidStorageSmokePhase::VerifyWithdraw => 0,
-                VoidStorageSmokePhase::UnlockDeposit => unreachable!(),
+                VoidStorageSmokePhase::UnlockDeposit | VoidStorageSmokePhase::QueryCapture => {
+                    unreachable!()
+                }
             };
             let next = run_bot_with_void_storage(
                 bot.clone(),
@@ -7176,6 +7241,69 @@ async fn run_void_storage_smoke_workflow(
         (Err(error), Ok(())) => Err(error),
         (Err(workflow_error), Err(cleanup_error)) => Err(anyhow!(
             "Void-storage workflow failed: {workflow_error}; cleanup failed: {cleanup_error}"
+        )),
+    }
+}
+
+async fn run_void_storage_query_capture_workflow(
+    bot: config::BotConfig,
+    dungeon_id: u32,
+    lfg_secs: u64,
+    auto_teleport: bool,
+    item_entry: u32,
+    runtime_counter: Option<u64>,
+    timeout_secs: u64,
+) -> Result<BotRunResult> {
+    let bot_for_setup = bot.clone();
+    let fixture = tokio::task::spawn_blocking(move || {
+        prepare_void_storage_query_capture_fixture(
+            &bot_for_setup,
+            item_entry,
+            runtime_counter,
+            timeout_secs,
+        )
+    })
+    .await
+    .map_err(|error| anyhow!("Void-storage query fixture setup worker failed: {error}"))??;
+
+    let workflow = run_bot_with_void_storage(
+        bot.clone(),
+        dungeon_id,
+        lfg_secs,
+        auto_teleport,
+        false,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some(fixture.options.clone()),
+    )
+    .await;
+
+    let bot_for_cleanup = bot.clone();
+    let fixture_for_cleanup = fixture.clone();
+    let cleanup = tokio::task::spawn_blocking(move || {
+        cleanup_void_storage_smoke_fixture(&bot_for_cleanup, &fixture_for_cleanup)
+    })
+    .await
+    .map_err(|error| anyhow!("Void-storage query cleanup worker failed: {error}"))?;
+
+    match (workflow, cleanup) {
+        (Ok(result), Ok(())) => Ok(result),
+        (Ok(mut result), Err(error)) => {
+            result.void_storage_query_capture_passed = Some(false);
+            result.void_storage_failure = Some(format!("fixture cleanup failed: {error}"));
+            Ok(result)
+        }
+        (Err(error), Ok(())) => Err(error),
+        (Err(workflow_error), Err(cleanup_error)) => Err(anyhow!(
+            "Void-storage query workflow failed: {workflow_error}; cleanup failed: {cleanup_error}"
         )),
     }
 }
@@ -8859,9 +8987,36 @@ async fn run_void_storage_smoke_phase(
             .await?;
             result.void_storage_withdraw_relogin_verified = true;
         }
+        VoidStorageSmokePhase::QueryCapture => {
+            let expected_id = options
+                .expected_void_item_id
+                .context("void-storage query capture omitted seeded item ID")?;
+            let contents = query_void_storage_contents(
+                bot_index,
+                stream,
+                crypt,
+                server_inflater,
+                &options.vault_keeper,
+                options.timeout_secs,
+                result,
+            )
+            .await?;
+            let expected = vec![VoidStorageItemWire {
+                item_id: expected_id,
+                slot: u32::from(options.expected_void_slot),
+                item_entry: options.item_entry,
+            }];
+            if contents != expected {
+                bail!("void-storage query capture mismatch: {contents:?}, expected {expected:?}");
+            }
+            result.void_storage_item_id = Some(expected_id);
+            result.void_storage_query_capture_passed = Some(true);
+        }
     }
     logout_and_wait(bot_index, stream, crypt, server_inflater, result).await?;
-    result.void_storage_smoke_passed = Some(true);
+    if options.phase != VoidStorageSmokePhase::QueryCapture {
+        result.void_storage_smoke_passed = Some(true);
+    }
     Ok(())
 }
 
@@ -13069,6 +13224,93 @@ fn prepare_void_storage_smoke_fixture(
     })
 }
 
+fn prepare_void_storage_query_capture_fixture(
+    bot: &config::BotConfig,
+    item_entry: u32,
+    runtime_counter: Option<u64>,
+    timeout_secs: u64,
+) -> Result<VoidStorageSmokeFixture> {
+    use mysql::prelude::Queryable;
+
+    let mut fixture = prepare_void_storage_smoke_fixture(
+        bot,
+        item_entry,
+        runtime_counter,
+        timeout_secs,
+    )?;
+    let setup = (|| {
+        let characters_url = characters_db_url()?;
+        let opts = mysql::Opts::from_url(&characters_url)
+            .map_err(|error| anyhow!("Bad characters DB URL: {error}"))?;
+        let mut conn = mysql::Conn::new(opts)
+            .map_err(|error| anyhow!("Connect to characters DB failed: {error}"))?;
+        let max_void_item_id: u64 = conn
+            .query_first("SELECT COALESCE(MAX(itemId), 0) FROM character_void_storage")
+            .map_err(|error| anyhow!("Load max void item ID for query capture: {error}"))?
+            .unwrap_or(0);
+        let void_item_id = max_void_item_id
+            .checked_add(10_000)
+            .ok_or_else(|| anyhow!("void item ID overflow while reserving query fixture"))?;
+        let mut transaction = conn
+            .start_transaction(mysql::TxOpts::default())
+            .map_err(|error| anyhow!("Start void-storage query fixture transaction: {error}"))?;
+        transaction
+            .exec_drop(
+                "DELETE FROM character_inventory WHERE guid = ? AND item = ?",
+                (bot.character_guid, fixture.options.fixture_item_guid),
+            )
+            .map_err(|error| anyhow!("Delete query fixture inventory row: {error}"))?;
+        transaction
+            .exec_drop(
+                "DELETE FROM item_instance WHERE guid = ? AND owner_guid = ? AND itemEntry = ?",
+                (
+                    fixture.options.fixture_item_guid,
+                    bot.character_guid,
+                    item_entry,
+                ),
+            )
+            .map_err(|error| anyhow!("Delete query fixture item instance: {error}"))?;
+        transaction
+            .exec_drop(
+                "INSERT INTO character_void_storage \
+                 (itemId, playerGuid, itemEntry, slot, creatorGuid, fixedScalingLevel, \
+                  randomPropertiesId, randomPropertiesSeed, context) \
+                 VALUES (?, ?, ?, 0, 0, 0, 0, 0, 0)",
+                (void_item_id, bot.character_guid, item_entry),
+            )
+            .map_err(|error| anyhow!("Insert void-storage query fixture row: {error}"))?;
+        transaction
+            .exec_drop(
+                "UPDATE characters SET playerFlags = playerFlags | ? WHERE guid = ? AND online = 0",
+                (PLAYER_FLAGS_VOID_UNLOCKED, bot.character_guid),
+            )
+            .map_err(|error| anyhow!("Unlock void-storage query fixture: {error}"))?;
+        if transaction.affected_rows() != 1 {
+            bail!("void-storage query fixture lost its offline character guard");
+        }
+        transaction
+            .commit()
+            .map_err(|error| anyhow!("Commit void-storage query fixture: {error}"))?;
+        Ok::<u64, anyhow::Error>(void_item_id)
+    })();
+
+    let void_item_id = match setup {
+        Ok(void_item_id) => void_item_id,
+        Err(error) => {
+            return match cleanup_void_storage_smoke_fixture(bot, &fixture) {
+                Ok(()) => Err(error),
+                Err(cleanup_error) => Err(anyhow!(
+                    "Void-storage query fixture setup failed: {error}; cleanup failed: {cleanup_error}"
+                )),
+            };
+        }
+    };
+    fixture.options.phase = VoidStorageSmokePhase::QueryCapture;
+    fixture.options.expected_void_item_id = Some(void_item_id);
+    fixture.options.expected_void_slot = 0;
+    Ok(fixture)
+}
+
 fn cleanup_void_storage_smoke_fixture(
     bot: &config::BotConfig,
     fixture: &VoidStorageSmokeFixture,
@@ -16045,6 +16287,21 @@ mod tests {
         assert!(!result.success(false, false, false));
         result.void_storage_withdraw_relogin_verified = true;
         assert!(result.success(false, false, false));
+    }
+
+    #[test]
+    fn void_storage_query_capture_has_its_own_success_contract() {
+        let mut result = BotRunResult {
+            world_auth: true,
+            enum_characters: true,
+            player_login_verified: true,
+            void_storage_query_capture: true,
+            ..BotRunResult::default()
+        };
+        assert!(!result.success(false, false, false));
+        result.void_storage_query_capture_passed = Some(true);
+        assert!(result.success(false, false, false));
+        assert!(!result.void_storage_smoke);
     }
 
     #[test]
