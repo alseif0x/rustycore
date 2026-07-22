@@ -1052,6 +1052,10 @@ struct DiscoveredCreatureGuid {
     z: f32,
 }
 
+fn void_storage_login_target_ready(discover_runtime_guid: bool, target_seen: bool) -> bool {
+    !discover_runtime_guid || target_seen
+}
+
 fn test_dungeon_id(app_config: &config::AppConfig) -> u32 {
     // Allow override via env var (handy for ad-hoc testing); otherwise pick up
     // the value from config.json::test_config.dungeon_id.
@@ -4050,8 +4054,17 @@ async fn run_bot_with_void_storage(
                     let equipment_set_login_ready = equipment_set_options
                         .as_ref()
                         .is_none_or(|_| result.equipment_set_load_seen);
+                    let void_storage_login_ready = void_storage_options.as_ref().is_none_or(
+                        |options| {
+                            void_storage_login_target_ready(
+                                options.discover_runtime_guid,
+                                void_storage_target_seen.is_some(),
+                            )
+                        },
+                    );
                     if (!preserve_realm_connection || realm_connection.is_some())
                         && equipment_set_login_ready
+                        && void_storage_login_ready
                     {
                         break;
                     }
@@ -4093,7 +4106,15 @@ async fn run_bot_with_void_storage(
                         server_inflater = ServerPacketInflater::default();
                     }
                     info!("[Bot {}] ✅ Instance socket authenticated", bot_index);
-                    if login_ok && preserve_realm_connection {
+                    let void_storage_login_ready = void_storage_options.as_ref().is_none_or(
+                        |options| {
+                            void_storage_login_target_ready(
+                                options.discover_runtime_guid,
+                                void_storage_target_seen.is_some(),
+                            )
+                        },
+                    );
+                    if login_ok && preserve_realm_connection && void_storage_login_ready {
                         break;
                     }
                 } else if op == 0x304B {
@@ -4187,16 +4208,18 @@ async fn run_bot_with_void_storage(
     }
 
     if let Some(mut void_storage_options) = void_storage_options.take() {
-        let discovered = void_storage_target_seen.ok_or_else(|| {
-            anyhow!(
-                "void-storage vault keeper entry {} spawn {} was not discovered in login object updates",
-                void_storage_options.vault_keeper.entry,
-                void_storage_options.vault_keeper.spawn_guid
-            )
-        })?;
-        void_storage_options.vault_keeper.guid_counter = discovered.low;
-        void_storage_options.vault_keeper.packed_guid =
-            build_packed_guid(discovered.low, discovered.high);
+        if void_storage_options.discover_runtime_guid {
+            let discovered = void_storage_target_seen.ok_or_else(|| {
+                anyhow!(
+                    "void-storage vault keeper entry {} spawn {} was not discovered in login object updates",
+                    void_storage_options.vault_keeper.entry,
+                    void_storage_options.vault_keeper.spawn_guid
+                )
+            })?;
+            void_storage_options.vault_keeper.guid_counter = discovered.low;
+            void_storage_options.vault_keeper.packed_guid =
+                build_packed_guid(discovered.low, discovered.high);
+        }
         if let Err(error) = run_void_storage_smoke_phase(
             bot_index,
             &bot,
@@ -16016,6 +16039,13 @@ mod tests {
         assert!(!result.success(false, false, false));
         result.void_storage_withdraw_relogin_verified = true;
         assert!(result.success(false, false, false));
+    }
+
+    #[test]
+    fn void_storage_explicit_runtime_guid_does_not_require_login_discovery() {
+        assert!(void_storage_login_target_ready(false, false));
+        assert!(!void_storage_login_target_ready(true, false));
+        assert!(void_storage_login_target_ready(true, true));
     }
 }
 
