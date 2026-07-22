@@ -1,0 +1,6 @@
+{
+  "description": "The first instance-routed SMSG_EQUIPMENT_SET_ID emitted for a new transmog-outfit save. The paired two-client Rust QA separately proves process-wide equipment/transmog GUID uniqueness, CharacterDB persistence, fresh-auth relog loading, and cleanup.",
+  "directions": [
+    "s2c"
+  ]
+}

@@ -19,6 +19,9 @@
 #                     capturing; the original PM2 executable is still restored
 #   RUST_CAPTURE_EXEC_SHA256 mandatory 64-hex SHA-256 when RUST_CAPTURE_EXEC is
 #                            set; both the file and live /proc executable must match
+#   RUST_CAPTURE_MIN_STACK_BYTES optional decimal RUST_MIN_STACK value used only
+#                            by the temporary capture process; the original PM2
+#                            profile is restored without this override
 #   RUST_CAPTURE_LOOT_FIXTURE_GUARD set to 1 only for the versioned
 #                            loot-single-item-claim or loot-two-session-atomic-race
 #                            fixtures; the single-item flow temporarily lowers
@@ -67,6 +70,7 @@ RUST_WORLD_PORT="${RUST_WORLD_PORT:-8085}"
 RUST_INSTANCE_PORT="${RUST_INSTANCE_PORT:-8086}"
 RUST_CAPTURE_EXEC="${RUST_CAPTURE_EXEC:-}"
 RUST_CAPTURE_EXEC_SHA256="${RUST_CAPTURE_EXEC_SHA256:-}"
+RUST_CAPTURE_MIN_STACK_BYTES="${RUST_CAPTURE_MIN_STACK_BYTES:-}"
 CAPTURE_WORLD_PORT="$RUST_WORLD_PORT"
 CAPTURE_INSTANCE_PORT="$RUST_INSTANCE_PORT"
 CAPTURE_ORCHESTRATION_LOCK="${CAPTURE_ORCHESTRATION_LOCK:-${XDG_RUNTIME_DIR:-/tmp}/rustycore-capture-$(id -u)-${RUST_WORLD_PORT}-${RUST_INSTANCE_PORT}.lock.d}"
@@ -169,6 +173,11 @@ capture_validate_world_timeouts || exit 2
   echo "error: RUST_WORLD_PORT and RUST_INSTANCE_PORT must be distinct" >&2
   exit 2
 }
+[ -z "$RUST_CAPTURE_MIN_STACK_BYTES" ] \
+  || [[ "$RUST_CAPTURE_MIN_STACK_BYTES" =~ ^[1-9][0-9]*$ ]] || {
+    echo "error: RUST_CAPTURE_MIN_STACK_BYTES must be empty or a positive decimal integer" >&2
+    exit 2
+  }
 
 if [ "$FLOW" = "loot-single-item-claim" ] \
     && [ "$RUST_CAPTURE_LOOT_FIXTURE_GUARD" != "1" ]; then
@@ -1562,8 +1571,12 @@ chmod 700 "$DUMP_STAGE_DIR" || {
 }
 if ! jq \
     --arg dump_dir "$DUMP_STAGE_DIR" \
-    --arg capture_exec "$CAPTURE_EXEC" '
+    --arg capture_exec "$CAPTURE_EXEC" \
+    --arg capture_min_stack "$RUST_CAPTURE_MIN_STACK_BYTES" '
       .apps[0].env.RUSTYCORE_PACKET_DUMP_DIR = $dump_dir
+      | if $capture_min_stack == "" then .
+        else .apps[0].env.RUST_MIN_STACK = $capture_min_stack
+        end
       | if $capture_exec == "" then .
         else .apps[0].script = $capture_exec
         end

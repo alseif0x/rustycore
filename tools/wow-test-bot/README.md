@@ -64,6 +64,32 @@ position. Optional fixture overrides are `WOW_BOT_VENDOR_ENTRY`,
 `WOW_BOT_VENDOR_EXTENDED_COST`, `WOW_BOT_VENDOR_CURRENCY_ID`,
 `WOW_BOT_VENDOR_CURRENCY_COST`, and `WOW_BOT_VENDOR_CURRENCY_QUANTITY`.
 
+For the two-session equipment-set GUID and relog smoke, use two existing
+disposable local identities:
+
+```bash
+WOW_BOT_DB_CONF=/absolute/path/to/worldserver.conf \
+tools/wow-test-bot/target/debug/wow-test-bot \
+  --config /absolute/path/to/ignored-config.json \
+  --equipment-set-race-smoke \
+  --equipment-set-account-a TESTBOT2@bot.local \
+  --equipment-set-account-b TESTBOT3@bot.local \
+  --equipment-set-timeout 15 \
+  --report /tmp/rustycore-equipment-set-race.json
+```
+
+The preflight rejects non-`@BOT.LOCAL` accounts, online characters, duplicate
+identities, and characters with pre-existing equipment/transmog sets. After
+that verification it writes a fresh 64-byte World session key to each fixture
+account. After both fresh World logins it barriers two real
+`CMSG_SAVE_EQUIPMENT_SET` packets:
+one ordinary equipment set and one transmog outfit. It requires distinct
+nonzero GUIDs above the pre-run maximum, exact `SMSG_EQUIPMENT_SET_ID` fields,
+durable rows in the two CharacterDB tables after logout, then two new
+authentications whose `SMSG_LOAD_EQUIPMENT_SET` packets contain exactly the
+saved sets. Cleanup waits for both characters to be offline, removes only rows
+owned by the two verified GUIDs, and proves both tables returned to empty.
+
 For a complete rested-XP calculation and consumption round-trip, set both
 `WOW_BOT_RESTED_XP_SMOKE=1` and `WOW_BOT_ACK_DISPOSABLE_RESTED_XP=1` when using
 the wrapper. The bot records and later restores only the selected character

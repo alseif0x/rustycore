@@ -1,5 +1,5 @@
 use std::fmt;
-use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 
 /// High-type discriminator for ObjectGuid. Stored in bits [63:58] of the high qword.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -581,6 +581,47 @@ pub struct ObjectGuidGenerator {
     high_guid: HighGuid,
 }
 
+/// Process-wide C++ `ObjectMgr::_equipmentSetGuid` mirror.
+///
+/// Equipment sets and transmog outfits share one raw `uint64` identifier
+/// namespace. Unlike an `ObjectGuid`, this value has no `HighGuid` bits.
+pub const EQUIPMENT_SET_GUID_LIMIT_LIKE_CPP: u64 = 0xFFFF_FFFF_FFFF_FFFE;
+
+pub struct EquipmentSetGuidGeneratorLikeCpp {
+    next_guid: AtomicU64,
+}
+
+impl EquipmentSetGuidGeneratorLikeCpp {
+    pub fn new(next_guid: u64) -> Self {
+        assert!(
+            next_guid < EQUIPMENT_SET_GUID_LIMIT_LIKE_CPP,
+            "EquipmentSet guid allocator start is outside the C++ generator range"
+        );
+        Self {
+            next_guid: AtomicU64::new(next_guid),
+        }
+    }
+
+    pub fn generate(&self) -> u64 {
+        self.try_generate().unwrap_or_else(|| {
+            eprintln!("EquipmentSet guid overflow! Cannot continue.");
+            std::process::abort();
+        })
+    }
+
+    fn try_generate(&self) -> Option<u64> {
+        self.next_guid
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+                (current < EQUIPMENT_SET_GUID_LIMIT_LIKE_CPP).then_some(current + 1)
+            })
+            .ok()
+    }
+
+    pub fn next_after_max_used(&self) -> u64 {
+        self.next_guid.load(Ordering::Relaxed)
+    }
+}
+
 impl ObjectGuidGenerator {
     pub fn new(high_guid: HighGuid, start: i64) -> Self {
         Self {
@@ -909,6 +950,46 @@ mod tests {
         assert_eq!(generator.generate(), 2);
         assert_eq!(generator.generate(), 3);
         assert_eq!(generator.next_after_max_used(), 4);
+    }
+
+    #[test]
+    fn equipment_set_guid_generator_allocates_one_process_wide_sequence() {
+        let generator = std::sync::Arc::new(EquipmentSetGuidGeneratorLikeCpp::new(41));
+        let handles: Vec<_> = (0..8)
+            .map(|_| {
+                let generator = std::sync::Arc::clone(&generator);
+                std::thread::spawn(move || {
+                    (0..128).map(|_| generator.generate()).collect::<Vec<_>>()
+                })
+            })
+            .collect();
+        let mut generated: Vec<_> = handles
+            .into_iter()
+            .flat_map(|handle| handle.join().expect("allocator worker"))
+            .collect();
+        generated.sort_unstable();
+
+        assert_eq!(generated, (41..41 + 8 * 128).collect::<Vec<_>>());
+        assert_eq!(generator.next_after_max_used(), 41 + 8 * 128);
+    }
+
+    #[test]
+    fn equipment_set_guid_generator_stops_at_cpp_limit() {
+        let generator =
+            EquipmentSetGuidGeneratorLikeCpp::new(EQUIPMENT_SET_GUID_LIMIT_LIKE_CPP - 1);
+        assert_eq!(
+            generator.try_generate(),
+            Some(EQUIPMENT_SET_GUID_LIMIT_LIKE_CPP - 1)
+        );
+        assert_eq!(
+            generator.next_after_max_used(),
+            EQUIPMENT_SET_GUID_LIMIT_LIKE_CPP
+        );
+        assert_eq!(generator.try_generate(), None);
+        assert_eq!(
+            generator.next_after_max_used(),
+            EQUIPMENT_SET_GUID_LIMIT_LIKE_CPP
+        );
     }
 
     #[test]
