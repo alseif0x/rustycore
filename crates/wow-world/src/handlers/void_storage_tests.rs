@@ -16,7 +16,7 @@ use wow_data::{
     ItemSparseTemplateEntry, ItemStatsStore, ItemStore,
 };
 use wow_database::StatementDef;
-use wow_entities::{INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_ITEM_START};
+use wow_entities::{INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START};
 use wow_packet::ServerPacket;
 use wow_packet::packets::loot::{CreatureLoot, LOOT_TYPE_ITEM_LIKE_CPP, LootEntry, LootEntryFlags};
 
@@ -615,6 +615,93 @@ fn withdrawn_bag_create_preserves_template_container_slots_like_cpp() {
 
     assert_eq!(create.container_slots, 8);
     assert!(create.container_item_guids.iter().all(ObjectGuid::is_empty));
+}
+
+#[test]
+fn committed_withdrawn_bag_registers_canonical_storage_before_child_like_cpp() {
+    let (mut session, _, canonical) = make_void_storage_session();
+    let bag_entry = 21841;
+    let child_entry = 19019;
+    install_void_test_bag_and_child_templates(&mut session, bag_entry, child_entry);
+    let player_guid = ObjectGuid::create_player(1, 42);
+    let mut canonical_player = wow_entities::Player::new(Some(1), false);
+    canonical_player
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    canonical_player.set_race_class_gender(1, 1, Gender::Male);
+    canonical_player
+        .unit_mut()
+        .world_mut()
+        .set_map(571, 0)
+        .unwrap();
+    canonical_player
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .add_to_world();
+    canonical
+        .lock()
+        .unwrap()
+        .create_world_map(571, 0)
+        .map_mut()
+        .insert_map_object_record(
+            wow_entities::MapObjectRecord::new_player(canonical_player).unwrap(),
+        )
+        .unwrap();
+    let bag_guid = ObjectGuid::create_item(1, 501);
+    let child_guid = ObjectGuid::create_item(1, 502);
+    let bag_object = session.make_inventory_item_object(
+        bag_guid,
+        bag_entry,
+        player_guid,
+        1,
+        0,
+        ItemContext::None,
+        INVENTORY_SLOT_BAG_START,
+    );
+    assert!(session.apply_committed_new_inventory_item_at_like_cpp(
+        INVENTORY_SLOT_BAG_0,
+        INVENTORY_SLOT_BAG_START,
+        InventoryItem {
+            guid: bag_guid,
+            entry_id: bag_entry,
+            db_guid: 501,
+            inventory_type: Some(InventoryType::Bag as u8),
+        },
+        bag_object,
+    ));
+
+    let child_object = session.make_inventory_item_object(
+        child_guid,
+        child_entry,
+        player_guid,
+        1,
+        0,
+        ItemContext::None,
+        0,
+    );
+    assert!(session.apply_committed_new_inventory_item_at_like_cpp(
+        INVENTORY_SLOT_BAG_START,
+        0,
+        InventoryItem {
+            guid: child_guid,
+            entry_id: child_entry,
+            db_guid: 502,
+            inventory_type: Some(InventoryType::NonEquip as u8),
+        },
+        child_object,
+    ));
+
+    assert_eq!(
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player.get_item_by_pos(INVENTORY_SLOT_BAG_START, 0)
+            })
+            .flatten(),
+        Some(child_guid)
+    );
 }
 
 #[test]

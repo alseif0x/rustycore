@@ -20728,12 +20728,27 @@ impl WorldSession {
         }
 
         let item_guid = inventory_item.guid;
+        let new_bag_size = (bag == INVENTORY_SLOT_BAG_0 && is_represented_bag_slot(slot))
+            .then(|| self.item_storage_template(inventory_item.entry_id))
+            .flatten()
+            .map(|template| template.container_slots)
+            .filter(|size| *size > 0);
         self.insert_inventory_item_object(item_object);
         let _ = self.mutate_canonical_player_like_cpp(|player| {
             if bag == INVENTORY_SLOT_BAG_0 {
-                let _ = player.store_top_level_item(slot, item_guid);
+                let stored = player.store_top_level_item(slot, item_guid);
+                debug_assert!(stored.is_ok());
+                if let Some(bag_size) = new_bag_size {
+                    // C++ installs the new `Bag` object in m_items before a
+                    // later sequential StoreNewItem can address its children.
+                    // The canonical Rust Player keeps bag contents in a
+                    // separate registry, so establish it at the same point.
+                    let registered = player.register_bag_storage(slot, item_guid, bag_size);
+                    debug_assert!(registered.is_ok());
+                }
             } else {
-                let _ = player.store_bag_item(bag, slot, item_guid);
+                let stored = player.store_bag_item(bag, slot, item_guid);
+                debug_assert!(stored.is_ok());
             }
         });
         true

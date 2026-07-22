@@ -714,6 +714,10 @@ impl WorldSession {
             self.send_void_storage_transfer_result_like_cpp(VoidTransferErrorLikeCpp::Full);
             return;
         }
+        // C++ counts only currently empty backpack/equipped-bag slots here,
+        // before deposits and before per-item `CanStoreNewItem`. It does not
+        // admit a request merely because a later deposit may vacate a slot or
+        // the withdrawn item could merge into an existing stack.
         let empty_positions = self.represented_empty_inventory_positions_like_cpp();
         if transfer.withdrawals.len() > empty_positions.len() {
             self.send_void_storage_transfer_result_like_cpp(
@@ -1002,6 +1006,10 @@ impl WorldSession {
                     context,
                     slot,
                 );
+                // C++ `HandleVoidStorageTransfer` does not pass the stored
+                // FixedScalingLevel to `StoreNewItem`; that path recomputes
+                // fixed level from the current player instead. Do not restore
+                // `void_item.fixed_scaling_level` as a Timewalker modifier.
                 if bag != INVENTORY_SLOT_BAG_0 {
                     // C++ `_StoreItem` calls `Bag::StoreItem` before
                     // `SendUpdateToPlayer`; the CREATE therefore already
