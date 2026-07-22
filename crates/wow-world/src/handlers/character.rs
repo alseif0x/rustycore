@@ -115,6 +115,17 @@ const GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP: u8 = 3;
 const GOSSIP_OPTION_TRAINER_TEXT_LIKE_CPP: &str = "I would like to train.";
 const ITEM_ENCHANTMENT_DB_FIELDS: usize = 3;
 
+fn void_storage_login_context_like_cpp(
+    random_properties_id: i32,
+    _selected_context_column: u8,
+) -> u8 {
+    // Audited 3.4.3 `Player::_LoadVoidStorage` constructs ItemContext from
+    // fields[5] even though CHAR_SEL_CHAR_VOID_STORAGE selects `context` as
+    // fields[7]. Keep that executable C++ behavior; the unused argument makes
+    // the query/implementation mismatch explicit instead of hiding column 7.
+    random_properties_id as u8
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct DirectInventoryPositionUpdateLikeCpp {
     slot: u8,
@@ -5954,10 +5965,11 @@ impl WorldSession {
                             let fixed_scaling_level: u32 = void_result.try_read(4).unwrap_or(0);
                             let random_properties_id: i32 = void_result.try_read(5).unwrap_or(0);
                             let random_properties_seed: i32 = void_result.try_read(6).unwrap_or(0);
-                            // The audited 3.4.3 C++ source constructs
-                            // `ItemContext` from fields[5], not fields[7].
-                            // Preserve that observable load behavior exactly.
-                            let context = random_properties_id as u8;
+                            let selected_context_column: u8 = void_result.try_read(7).unwrap_or(0);
+                            let context = void_storage_login_context_like_cpp(
+                                random_properties_id,
+                                selected_context_column,
+                            );
                             let creator_guid = if creator_counter == 0 {
                                 ObjectGuid::EMPTY
                             } else {
@@ -16880,6 +16892,17 @@ mod tests {
             fields[base + 2] = charges.to_string();
         }
         fields.join(" ")
+    }
+
+    #[test]
+    fn void_storage_login_context_preserves_cpp_field_five_bug() {
+        let selected_context_column = ItemContext::Timewalking as u8;
+
+        assert_eq!(
+            void_storage_login_context_like_cpp(29, selected_context_column),
+            29
+        );
+        assert_ne!(29, selected_context_column);
     }
 
     #[test]

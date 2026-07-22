@@ -752,6 +752,11 @@ impl WorldSession {
             else {
                 continue;
             };
+            // Audited 3.4.3 `HandleVoidStorageTransfer` lines 142-151 gates a
+            // deposit only with `GetItemByGuid`; it does not inspect stack,
+            // unique, quest, bag, or `ITEM_FLAG3_NO_VOID_STORAGE` metadata.
+            // Preserve that server behavior here. Issue #114 explicitly keeps
+            // broader inventory validation in #52.
             let Some(runtime_item) = self
                 .inventory_item_objects_like_cpp()
                 .get(&inventory_item.guid)
