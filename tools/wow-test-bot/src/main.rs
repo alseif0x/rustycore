@@ -5808,37 +5808,58 @@ fn verify_equipment_set_db_row(
         .map_err(|error| anyhow!("Bad characters DB URL: {error}"))?;
     let mut conn = mysql::Conn::new(opts)
         .map_err(|error| anyhow!("Connect to characters DB failed: {error}"))?;
-    if options.set_type == 0 {
-        let row: Option<(u64, u32, String, String, u32, i32)> = conn
-            .exec_first(
-                "SELECT setguid, setindex, name, iconname, ignore_mask, AssignedSpecIndex FROM character_equipmentsets WHERE guid = ?",
-                (bot.character_guid,),
-            )
-            .map_err(|error| anyhow!("Load persisted equipment set: {error}"))?;
-        Ok(row
-            == Some((
-                expected_guid,
-                options.set_id,
-                options.set_name.clone(),
-                options.set_icon.clone(),
-                EQUIPMENT_SET_IGNORE_ALL_SLOTS_LIKE_CPP,
-                -1,
-            )))
-    } else {
-        let row: Option<(u64, u32, String, String, u32)> = conn
-            .exec_first(
-                "SELECT setguid, setindex, name, iconname, ignore_mask FROM character_transmog_outfits WHERE guid = ?",
-                (bot.character_guid,),
-            )
-            .map_err(|error| anyhow!("Load persisted transmog outfit: {error}"))?;
-        Ok(row
-            == Some((
-                expected_guid,
-                options.set_id,
-                options.set_name.clone(),
-                options.set_icon.clone(),
-                EQUIPMENT_SET_IGNORE_ALL_SLOTS_LIKE_CPP,
-            )))
+    let equipment_rows: Vec<(u64, u32, String, String, u32, i32)> = conn
+        .exec(
+            "SELECT CAST(setguid AS UNSIGNED), setindex, name, iconname, ignore_mask, AssignedSpecIndex FROM character_equipmentsets WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Load persisted equipment sets: {error}"))?;
+    let transmog_rows: Vec<(u64, u32, String, String, u32)> = conn
+        .exec(
+            "SELECT CAST(setguid AS UNSIGNED), setindex, name, iconname, ignore_mask FROM character_transmog_outfits WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Load persisted transmog outfits: {error}"))?;
+
+    Ok(equipment_set_db_rows_match(
+        options,
+        expected_guid,
+        &equipment_rows,
+        &transmog_rows,
+    ))
+}
+
+fn equipment_set_db_rows_match(
+    options: &EquipmentSetSmokeOptions,
+    expected_guid: u64,
+    equipment_rows: &[(u64, u32, String, String, u32, i32)],
+    transmog_rows: &[(u64, u32, String, String, u32)],
+) -> bool {
+    match options.set_type {
+        0 => {
+            equipment_rows
+                == [(
+                    expected_guid,
+                    options.set_id,
+                    options.set_name.clone(),
+                    options.set_icon.clone(),
+                    EQUIPMENT_SET_IGNORE_ALL_SLOTS_LIKE_CPP,
+                    -1,
+                )]
+                && transmog_rows.is_empty()
+        }
+        1 => {
+            equipment_rows.is_empty()
+                && transmog_rows
+                    == [(
+                        expected_guid,
+                        options.set_id,
+                        options.set_name.clone(),
+                        options.set_icon.clone(),
+                        EQUIPMENT_SET_IGNORE_ALL_SLOTS_LIKE_CPP,
+                    )]
+        }
+        _ => false,
     }
 }
 
@@ -13387,6 +13408,60 @@ mod tests {
     fn equipment_set_fixture_max_query_pins_unsigned_wire_type() {
         assert!(SHARED_EQUIPMENT_SET_GUID_MAX_QUERY
             .starts_with("SELECT CAST(MAX(maxguid) AS UNSIGNED)"));
+    }
+
+    #[test]
+    fn equipment_set_db_verifier_requires_one_row_in_the_expected_table() {
+        let options = equipment_set_test_options();
+        let equipment_row = (
+            42,
+            options.set_id,
+            options.set_name.clone(),
+            options.set_icon.clone(),
+            EQUIPMENT_SET_IGNORE_ALL_SLOTS_LIKE_CPP,
+            -1,
+        );
+        let transmog_row = (
+            42,
+            options.set_id,
+            options.set_name.clone(),
+            options.set_icon.clone(),
+            EQUIPMENT_SET_IGNORE_ALL_SLOTS_LIKE_CPP,
+        );
+
+        assert!(equipment_set_db_rows_match(
+            &options,
+            42,
+            std::slice::from_ref(&equipment_row),
+            &[],
+        ));
+        assert!(!equipment_set_db_rows_match(
+            &options,
+            42,
+            &[equipment_row.clone(), equipment_row],
+            &[],
+        ));
+        assert!(!equipment_set_db_rows_match(
+            &options,
+            42,
+            &[],
+            std::slice::from_ref(&transmog_row),
+        ));
+
+        let mut transmog_options = options;
+        transmog_options.set_type = 1;
+        assert!(equipment_set_db_rows_match(
+            &transmog_options,
+            42,
+            &[],
+            std::slice::from_ref(&transmog_row),
+        ));
+        assert!(!equipment_set_db_rows_match(
+            &transmog_options,
+            42,
+            &[],
+            &[transmog_row.clone(), transmog_row],
+        ));
     }
 
     #[test]
