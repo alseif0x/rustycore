@@ -8843,10 +8843,7 @@ async fn run_void_storage_smoke_phase(
                 bail!("freshly unlocked void storage was not empty: {contents:?}");
             }
 
-            let deposit_guid = item_guid_raw(
-                options.fixture_item_guid,
-                options.runtime_realm_id,
-            );
+            let deposit_guid = item_guid_raw(options.fixture_item_guid, options.runtime_realm_id);
             let payload = build_void_storage_transfer_payload(
                 &options.vault_keeper,
                 options.runtime_realm_id,
@@ -16407,14 +16404,8 @@ mod tests {
 
     #[test]
     fn void_storage_item_guid_keeps_active_realm_like_runtime() {
-        assert_eq!(
-            item_guid_raw(77, 1),
-            (77, (3u64 << 58) | (1u64 << 42))
-        );
-        assert_eq!(
-            item_guid_raw(77, 2),
-            (77, (3u64 << 58) | (2u64 << 42))
-        );
+        assert_eq!(item_guid_raw(77, 1), (77, (3u64 << 58) | (1u64 << 42)));
+        assert_eq!(item_guid_raw(77, 2), (77, (3u64 << 58) | (2u64 << 42)));
     }
 }
 
