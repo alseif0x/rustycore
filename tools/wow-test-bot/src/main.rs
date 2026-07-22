@@ -9967,16 +9967,14 @@ async fn verify_inventory_swap_invalid_position_gate(
         };
         let (connection, opcode, payload) = match ready {
             InventoryDrainReady::Instance => {
-                let (opcode, payload) = read_encrypted_packet(stream, crypt, server_inflater).await?;
+                let (opcode, payload) =
+                    read_encrypted_packet(stream, crypt, server_inflater).await?;
                 ("instance", opcode, payload)
             }
             InventoryDrainReady::Realm => {
-                let (opcode, payload) = read_encrypted_packet(
-                    &mut realm.stream,
-                    &mut realm.crypt,
-                    &mut realm.inflater,
-                )
-                .await?;
+                let (opcode, payload) =
+                    read_encrypted_packet(&mut realm.stream, &mut realm.crypt, &mut realm.inflater)
+                        .await?;
                 ("realm", opcode, payload)
             }
         };
@@ -10041,11 +10039,7 @@ async fn verify_inventory_swap_invalid_position_gate(
             InventoryValidationReady::Realm => {
                 let (opcode, payload) = tokio::time::timeout(
                     deadline.saturating_duration_since(tokio::time::Instant::now()),
-                    read_encrypted_packet(
-                        &mut realm.stream,
-                        &mut realm.crypt,
-                        &mut realm.inflater,
-                    ),
+                    read_encrypted_packet(&mut realm.stream, &mut realm.crypt, &mut realm.inflater),
                 )
                 .await
                 .map_err(|_| anyhow!("inventory validation realm packet read timed out"))??;
