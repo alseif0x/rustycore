@@ -114766,9 +114766,12 @@ mod tests {
             .expect("coherently loaded equipment sets should be saveable");
 
         assert_eq!(statements.len(), 3);
-        assert_eq!(statements[0].sql(), CharStatements::INS_EQUIP_SET.sql());
+        let inserted_equipment = statements
+            .iter()
+            .find(|statement| statement.sql() == CharStatements::INS_EQUIP_SET.sql())
+            .expect("equipment-set save plan should contain the new equipment row");
         assert_eq!(
-            &statements[0].params()[0..8],
+            &inserted_equipment.params()[0..8],
             &[
                 wow_database::SqlParam::U64(42),
                 wow_database::SqlParam::U64(100),
@@ -114781,12 +114784,12 @@ mod tests {
             ]
         );
 
+        let updated_transmog = statements
+            .iter()
+            .find(|statement| statement.sql() == CharStatements::UPD_TRANSMOG_OUTFIT.sql())
+            .expect("equipment-set save plan should contain the changed transmog row");
         assert_eq!(
-            statements[1].sql(),
-            CharStatements::UPD_TRANSMOG_OUTFIT.sql()
-        );
-        assert_eq!(
-            &statements[1].params()[0..6],
+            &updated_transmog.params()[0..6],
             &[
                 wow_database::SqlParam::String("Look".to_string()),
                 wow_database::SqlParam::String("INV_Chest".to_string()),
@@ -114797,7 +114800,7 @@ mod tests {
             ]
         );
         assert_eq!(
-            &statements[1].params()[22..27],
+            &updated_transmog.params()[22..27],
             &[
                 wow_database::SqlParam::I32(123),
                 wow_database::SqlParam::I32(456),
@@ -114807,8 +114810,14 @@ mod tests {
             ]
         );
 
-        assert_eq!(statements[2].sql(), CharStatements::DEL_EQUIP_SET.sql());
-        assert_eq!(statements[2].params(), &[wow_database::SqlParam::U64(300)]);
+        let deleted_equipment = statements
+            .iter()
+            .find(|statement| statement.sql() == CharStatements::DEL_EQUIP_SET.sql())
+            .expect("equipment-set save plan should contain the deleted equipment row");
+        assert_eq!(
+            deleted_equipment.params(),
+            &[wow_database::SqlParam::U64(300)]
+        );
     }
 
     #[test]

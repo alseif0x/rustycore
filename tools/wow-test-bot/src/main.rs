@@ -778,6 +778,10 @@ struct EquipmentSetWire {
     guid: u64,
     set_id: u32,
     ignore_mask: u32,
+    pieces: [[u8; 16]; EQUIPMENT_SET_SLOTS_LIKE_CPP],
+    appearances: [i32; EQUIPMENT_SET_SLOTS_LIKE_CPP],
+    enchants: [i32; 2],
+    secondary_appearances_and_slots: [i32; 4],
     assigned_spec_index: i32,
     set_name: String,
     set_icon: String,
@@ -6097,12 +6101,22 @@ fn parse_load_equipment_sets(payload: &[u8]) -> Result<Vec<EquipmentSetWire>> {
         let guid = read_equipment_u64(payload, &mut offset)?;
         let set_id = read_equipment_u32(payload, &mut offset)?;
         let ignore_mask = read_equipment_u32(payload, &mut offset)?;
-        take_equipment_bytes(
-            payload,
-            &mut offset,
-            EQUIPMENT_SET_SLOTS_LIKE_CPP * (16 + 4),
-        )?;
-        take_equipment_bytes(payload, &mut offset, 6 * 4)?;
+        let mut pieces = [[0_u8; 16]; EQUIPMENT_SET_SLOTS_LIKE_CPP];
+        let mut appearances = [0_i32; EQUIPMENT_SET_SLOTS_LIKE_CPP];
+        for index in 0..EQUIPMENT_SET_SLOTS_LIKE_CPP {
+            pieces[index] = take_equipment_bytes(payload, &mut offset, 16)?.try_into()?;
+            appearances[index] = read_equipment_i32(payload, &mut offset)?;
+        }
+        let enchants = [
+            read_equipment_i32(payload, &mut offset)?,
+            read_equipment_i32(payload, &mut offset)?,
+        ];
+        let secondary_appearances_and_slots = [
+            read_equipment_i32(payload, &mut offset)?,
+            read_equipment_i32(payload, &mut offset)?,
+            read_equipment_i32(payload, &mut offset)?,
+            read_equipment_i32(payload, &mut offset)?,
+        ];
         let mut bit_offset = offset * 8;
         let has_spec = read_equipment_msb_bits(payload, &mut bit_offset, 1)? != 0;
         let name_len = read_equipment_msb_bits(payload, &mut bit_offset, 8)? as usize;
@@ -6122,6 +6136,10 @@ fn parse_load_equipment_sets(payload: &[u8]) -> Result<Vec<EquipmentSetWire>> {
             guid,
             set_id,
             ignore_mask,
+            pieces,
+            appearances,
+            enchants,
+            secondary_appearances_and_slots,
             assigned_spec_index,
             set_name,
             set_icon,
@@ -6151,6 +6169,25 @@ fn parse_equipment_set_id(payload: &[u8]) -> Result<(u64, i32, u32)> {
     ))
 }
 
+fn validate_equipment_set_id_response(
+    on_realm: bool,
+    payload: &[u8],
+    options: &EquipmentSetSmokeOptions,
+) -> Result<u64> {
+    if on_realm {
+        bail!("SMSG_EQUIPMENT_SET_ID arrived on realm instead of instance");
+    }
+    let (guid, set_type, set_id) = parse_equipment_set_id(payload)?;
+    if guid == 0 || set_type != options.set_type || set_id != options.set_id {
+        bail!(
+            "SMSG_EQUIPMENT_SET_ID mismatch: got {guid}/{set_type}/{set_id}, expected nonzero/{}/{}",
+            options.set_type,
+            options.set_id
+        );
+    }
+    Ok(guid)
+}
+
 fn record_equipment_set_login_signal(
     opcode: u16,
     payload: &[u8],
@@ -6175,6 +6212,10 @@ fn record_equipment_set_login_signal(
             guid: expected_guid,
             set_id: options.set_id,
             ignore_mask: EQUIPMENT_SET_IGNORE_ALL_SLOTS_LIKE_CPP,
+            pieces: [[0; 16]; EQUIPMENT_SET_SLOTS_LIKE_CPP],
+            appearances: [0; EQUIPMENT_SET_SLOTS_LIKE_CPP],
+            enchants: [0; 2],
+            secondary_appearances_and_slots: [0; 4],
             assigned_spec_index: -1,
             set_name: options.set_name.clone(),
             set_icon: options.set_icon.clone(),
@@ -6250,21 +6291,10 @@ async fn wait_for_equipment_set_id_routed(
         if opcode != SMSG_EQUIPMENT_SET_ID {
             continue;
         }
-        let (guid, set_type, set_id) = parse_equipment_set_id(&payload)?;
-        if guid == 0 || set_type != options.set_type || set_id != options.set_id {
-            bail!(
-                "SMSG_EQUIPMENT_SET_ID mismatch: got {guid}/{set_type}/{set_id}, expected nonzero/{}/{}",
-                options.set_type,
-                options.set_id
-            );
-        }
+        let guid = validate_equipment_set_id_response(on_realm, &payload, options)?;
         info!(
-            "[Bot {}] ✅ SMSG_EQUIPMENT_SET_ID guid={} type={} set_id={} route={}",
-            bot_index,
-            guid,
-            set_type,
-            set_id,
-            if on_realm { "realm" } else { "instance" }
+            "[Bot {}] ✅ SMSG_EQUIPMENT_SET_ID guid={} type={} set_id={} route=instance",
+            bot_index, guid, options.set_type, options.set_id
         );
         return Ok(guid);
     }
@@ -13577,11 +13607,34 @@ mod tests {
                 guid,
                 set_id: 7,
                 ignore_mask: EQUIPMENT_SET_IGNORE_ALL_SLOTS_LIKE_CPP,
+                pieces: [[0; 16]; EQUIPMENT_SET_SLOTS_LIKE_CPP],
+                appearances: [0; EQUIPMENT_SET_SLOTS_LIKE_CPP],
+                enchants: [0; 2],
+                secondary_appearances_and_slots: [0; 4],
                 assigned_spec_index: -1,
                 set_name: "QA Equipment".to_string(),
                 set_icon: "INV_Sword_01".to_string(),
             }]
         );
+
+        let mut nonzero_fields = load.clone();
+        let first_piece_offset = 4 + 4 + 8 + 4 + 4;
+        nonzero_fields[first_piece_offset] = 1;
+        let first_appearance_offset = first_piece_offset + 16;
+        nonzero_fields[first_appearance_offset..first_appearance_offset + 4]
+            .copy_from_slice(&2_i32.to_le_bytes());
+        let first_enchant_offset = first_piece_offset + EQUIPMENT_SET_SLOTS_LIKE_CPP * (16 + 4);
+        nonzero_fields[first_enchant_offset..first_enchant_offset + 4]
+            .copy_from_slice(&3_i32.to_le_bytes());
+        let first_secondary_offset = first_enchant_offset + 2 * 4;
+        nonzero_fields[first_secondary_offset..first_secondary_offset + 4]
+            .copy_from_slice(&4_i32.to_le_bytes());
+        let parsed = parse_load_equipment_sets(&nonzero_fields).unwrap();
+        assert_eq!(parsed[0].pieces[0][0], 1);
+        assert_eq!(parsed[0].appearances[0], 2);
+        assert_eq!(parsed[0].enchants[0], 3);
+        assert_eq!(parsed[0].secondary_appearances_and_slots[0], 4);
+
         load.push(0);
         assert!(parse_load_equipment_sets(&load).is_err());
     }
@@ -13595,6 +13648,21 @@ mod tests {
         assert_eq!(parse_equipment_set_id(&payload).unwrap(), (42, 1, 72));
         payload.push(0);
         assert!(parse_equipment_set_id(&payload).is_err());
+    }
+
+    #[test]
+    fn equipment_set_id_validator_requires_instance_route() {
+        let options = equipment_set_test_options();
+        let mut payload = Vec::new();
+        payload.extend_from_slice(&42_u64.to_le_bytes());
+        payload.extend_from_slice(&options.set_type.to_le_bytes());
+        payload.extend_from_slice(&options.set_id.to_le_bytes());
+
+        assert_eq!(
+            validate_equipment_set_id_response(false, &payload, &options).unwrap(),
+            42
+        );
+        assert!(validate_equipment_set_id_response(true, &payload, &options).is_err());
     }
 
     fn vendor_inventory_fixture(has_bonus: u8, modifier_count: u8) -> (Vec<u8>, Vec<u8>) {
