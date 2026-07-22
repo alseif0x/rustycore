@@ -783,6 +783,29 @@ struct EquipmentSetWire {
     set_icon: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct EquipmentSetDbRow {
+    set_guid: u64,
+    set_index: u32,
+    name: String,
+    icon_name: String,
+    ignore_mask: u32,
+    assigned_spec_index: i32,
+    items: [u64; EQUIPMENT_SET_SLOTS_LIKE_CPP],
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TransmogOutfitDbRow {
+    set_guid: u64,
+    set_index: u32,
+    name: String,
+    icon_name: String,
+    ignore_mask: u32,
+    appearances: [i32; EQUIPMENT_SET_SLOTS_LIKE_CPP],
+    main_hand_enchant: i32,
+    off_hand_enchant: i32,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct VendorInventoryItemWire {
     muid: i32,
@@ -5808,18 +5831,26 @@ fn verify_equipment_set_db_row(
         .map_err(|error| anyhow!("Bad characters DB URL: {error}"))?;
     let mut conn = mysql::Conn::new(opts)
         .map_err(|error| anyhow!("Connect to characters DB failed: {error}"))?;
-    let equipment_rows: Vec<(u64, u32, String, String, u32, i32)> = conn
+    let equipment_rows: Vec<mysql::Row> = conn
         .exec(
-            "SELECT CAST(setguid AS UNSIGNED), setindex, name, iconname, ignore_mask, AssignedSpecIndex FROM character_equipmentsets WHERE guid = ?",
+            "SELECT CAST(setguid AS UNSIGNED) AS setguid, setindex, name, iconname, ignore_mask, AssignedSpecIndex, item0, item1, item2, item3, item4, item5, item6, item7, item8, item9, item10, item11, item12, item13, item14, item15, item16, item17, item18 FROM character_equipmentsets WHERE guid = ?",
             (bot.character_guid,),
         )
         .map_err(|error| anyhow!("Load persisted equipment sets: {error}"))?;
-    let transmog_rows: Vec<(u64, u32, String, String, u32)> = conn
+    let equipment_rows = equipment_rows
+        .iter()
+        .map(equipment_set_db_row_from_mysql)
+        .collect::<Result<Vec<_>>>()?;
+    let transmog_rows: Vec<mysql::Row> = conn
         .exec(
-            "SELECT CAST(setguid AS UNSIGNED), setindex, name, iconname, ignore_mask FROM character_transmog_outfits WHERE guid = ?",
+            "SELECT CAST(setguid AS UNSIGNED) AS setguid, setindex, name, iconname, ignore_mask, appearance0, appearance1, appearance2, appearance3, appearance4, appearance5, appearance6, appearance7, appearance8, appearance9, appearance10, appearance11, appearance12, appearance13, appearance14, appearance15, appearance16, appearance17, appearance18, mainHandEnchant, offHandEnchant FROM character_transmog_outfits WHERE guid = ?",
             (bot.character_guid,),
         )
         .map_err(|error| anyhow!("Load persisted transmog outfits: {error}"))?;
+    let transmog_rows = transmog_rows
+        .iter()
+        .map(transmog_outfit_db_row_from_mysql)
+        .collect::<Result<Vec<_>>>()?;
 
     Ok(equipment_set_db_rows_match(
         options,
@@ -5832,34 +5863,88 @@ fn verify_equipment_set_db_row(
 fn equipment_set_db_rows_match(
     options: &EquipmentSetSmokeOptions,
     expected_guid: u64,
-    equipment_rows: &[(u64, u32, String, String, u32, i32)],
-    transmog_rows: &[(u64, u32, String, String, u32)],
+    equipment_rows: &[EquipmentSetDbRow],
+    transmog_rows: &[TransmogOutfitDbRow],
 ) -> bool {
     match options.set_type {
         0 => {
-            equipment_rows
-                == [(
-                    expected_guid,
-                    options.set_id,
-                    options.set_name.clone(),
-                    options.set_icon.clone(),
-                    EQUIPMENT_SET_IGNORE_ALL_SLOTS_LIKE_CPP,
-                    -1,
-                )]
+            equipment_rows == [expected_equipment_set_db_row(options, expected_guid)]
                 && transmog_rows.is_empty()
         }
         1 => {
             equipment_rows.is_empty()
-                && transmog_rows
-                    == [(
-                        expected_guid,
-                        options.set_id,
-                        options.set_name.clone(),
-                        options.set_icon.clone(),
-                        EQUIPMENT_SET_IGNORE_ALL_SLOTS_LIKE_CPP,
-                    )]
+                && transmog_rows == [expected_transmog_outfit_db_row(options, expected_guid)]
         }
         _ => false,
+    }
+}
+
+fn equipment_set_db_row_from_mysql(row: &mysql::Row) -> Result<EquipmentSetDbRow> {
+    Ok(EquipmentSetDbRow {
+        set_guid: required_row_value(row, "setguid")?,
+        set_index: required_row_value(row, "setindex")?,
+        name: required_row_value(row, "name")?,
+        icon_name: required_row_value(row, "iconname")?,
+        ignore_mask: required_row_value(row, "ignore_mask")?,
+        assigned_spec_index: required_row_value(row, "AssignedSpecIndex")?,
+        items: required_indexed_row_values(row, "item")?,
+    })
+}
+
+fn transmog_outfit_db_row_from_mysql(row: &mysql::Row) -> Result<TransmogOutfitDbRow> {
+    Ok(TransmogOutfitDbRow {
+        set_guid: required_row_value(row, "setguid")?,
+        set_index: required_row_value(row, "setindex")?,
+        name: required_row_value(row, "name")?,
+        icon_name: required_row_value(row, "iconname")?,
+        ignore_mask: required_row_value(row, "ignore_mask")?,
+        appearances: required_indexed_row_values(row, "appearance")?,
+        main_hand_enchant: required_row_value(row, "mainHandEnchant")?,
+        off_hand_enchant: required_row_value(row, "offHandEnchant")?,
+    })
+}
+
+fn required_indexed_row_values<T, const N: usize>(row: &mysql::Row, prefix: &str) -> Result<[T; N]>
+where
+    T: mysql::prelude::FromValue,
+{
+    let mut values = Vec::with_capacity(N);
+    for index in 0..N {
+        values.push(required_row_value(row, &format!("{prefix}{index}"))?);
+    }
+    values
+        .try_into()
+        .map_err(|_| anyhow!("Expected exactly {N} `{prefix}` columns in QA fixture query"))
+}
+
+fn expected_equipment_set_db_row(
+    options: &EquipmentSetSmokeOptions,
+    expected_guid: u64,
+) -> EquipmentSetDbRow {
+    EquipmentSetDbRow {
+        set_guid: expected_guid,
+        set_index: options.set_id,
+        name: options.set_name.clone(),
+        icon_name: options.set_icon.clone(),
+        ignore_mask: EQUIPMENT_SET_IGNORE_ALL_SLOTS_LIKE_CPP,
+        assigned_spec_index: -1,
+        items: [0; EQUIPMENT_SET_SLOTS_LIKE_CPP],
+    }
+}
+
+fn expected_transmog_outfit_db_row(
+    options: &EquipmentSetSmokeOptions,
+    expected_guid: u64,
+) -> TransmogOutfitDbRow {
+    TransmogOutfitDbRow {
+        set_guid: expected_guid,
+        set_index: options.set_id,
+        name: options.set_name.clone(),
+        icon_name: options.set_icon.clone(),
+        ignore_mask: EQUIPMENT_SET_IGNORE_ALL_SLOTS_LIKE_CPP,
+        appearances: [0; EQUIPMENT_SET_SLOTS_LIKE_CPP],
+        main_hand_enchant: 0,
+        off_hand_enchant: 0,
     }
 }
 
@@ -13413,21 +13498,8 @@ mod tests {
     #[test]
     fn equipment_set_db_verifier_requires_one_row_in_the_expected_table() {
         let options = equipment_set_test_options();
-        let equipment_row = (
-            42,
-            options.set_id,
-            options.set_name.clone(),
-            options.set_icon.clone(),
-            EQUIPMENT_SET_IGNORE_ALL_SLOTS_LIKE_CPP,
-            -1,
-        );
-        let transmog_row = (
-            42,
-            options.set_id,
-            options.set_name.clone(),
-            options.set_icon.clone(),
-            EQUIPMENT_SET_IGNORE_ALL_SLOTS_LIKE_CPP,
-        );
+        let equipment_row = expected_equipment_set_db_row(&options, 42);
+        let transmog_row = expected_transmog_outfit_db_row(&options, 42);
 
         assert!(equipment_set_db_rows_match(
             &options,
@@ -13438,7 +13510,7 @@ mod tests {
         assert!(!equipment_set_db_rows_match(
             &options,
             42,
-            &[equipment_row.clone(), equipment_row],
+            &[equipment_row.clone(), equipment_row.clone()],
             &[],
         ));
         assert!(!equipment_set_db_rows_match(
@@ -13447,8 +13519,16 @@ mod tests {
             &[],
             std::slice::from_ref(&transmog_row),
         ));
+        let mut equipment_with_wrong_item = equipment_row;
+        equipment_with_wrong_item.items[3] = 99;
+        assert!(!equipment_set_db_rows_match(
+            &options,
+            42,
+            std::slice::from_ref(&equipment_with_wrong_item),
+            &[],
+        ));
 
-        let mut transmog_options = options;
+        let mut transmog_options = options.clone();
         transmog_options.set_type = 1;
         assert!(equipment_set_db_rows_match(
             &transmog_options,
@@ -13460,7 +13540,23 @@ mod tests {
             &transmog_options,
             42,
             &[],
-            &[transmog_row.clone(), transmog_row],
+            &[transmog_row.clone(), transmog_row.clone()],
+        ));
+        let mut transmog_with_wrong_appearance = transmog_row.clone();
+        transmog_with_wrong_appearance.appearances[4] = 1;
+        assert!(!equipment_set_db_rows_match(
+            &transmog_options,
+            42,
+            &[],
+            std::slice::from_ref(&transmog_with_wrong_appearance),
+        ));
+        let mut transmog_with_wrong_enchant = transmog_row;
+        transmog_with_wrong_enchant.main_hand_enchant = 7;
+        assert!(!equipment_set_db_rows_match(
+            &transmog_options,
+            42,
+            &[],
+            std::slice::from_ref(&transmog_with_wrong_enchant),
         ));
     }
 
