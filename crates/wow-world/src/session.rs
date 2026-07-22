@@ -28814,6 +28814,15 @@ impl WorldSession {
         stmt
     }
 
+    pub(crate) fn build_void_storage_delete_all_statement_like_cpp(
+        player_guid_counter: u64,
+    ) -> PreparedStatement {
+        let mut stmt =
+            PreparedStatement::new(CharStatements::DEL_CHAR_VOID_STORAGE_ITEM_BY_CHAR_GUID.sql());
+        stmt.set_u64(0, player_guid_counter);
+        stmt
+    }
+
     pub(crate) fn build_void_storage_withdrawal_item_insert_statement_like_cpp(
         db_guid: u64,
         player_guid_counter: u64,

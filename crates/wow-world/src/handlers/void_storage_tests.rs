@@ -248,6 +248,13 @@ fn locked_login_discards_residual_void_rows_and_initializes_empty_storage_like_c
     assert!(session.void_storage_is_unlocked_like_cpp());
     assert!(session.represented_void_storage_loaded_like_cpp());
     assert_eq!(session.represented_void_storage_free_slots_like_cpp(), 160);
+
+    let delete_all = WorldSession::build_void_storage_delete_all_statement_like_cpp(42);
+    assert_eq!(
+        delete_all.sql(),
+        CharStatements::DEL_CHAR_VOID_STORAGE_ITEM_BY_CHAR_GUID.sql()
+    );
+    assert_eq!(delete_all.params(), &[wow_database::SqlParam::U64(42)]);
 }
 
 #[test]

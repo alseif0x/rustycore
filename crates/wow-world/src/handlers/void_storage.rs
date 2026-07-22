@@ -304,6 +304,12 @@ impl WorldSession {
         update_flags.set_u32(0, new_flags);
         update_flags.set_u64(1, player_guid.counter() as u64);
         tx.append(update_flags);
+        // A locked login deliberately skipped any residual rows like C++.
+        // Persist that coherent empty authority together with the flag so a
+        // restart cannot expose stale contents before the next full save.
+        tx.append(Self::build_void_storage_delete_all_statement_like_cpp(
+            player_guid.counter() as u64,
+        ));
 
         let Some(money_persistence) = self
             .commit_exclusive_player_money_transaction_like_cpp(

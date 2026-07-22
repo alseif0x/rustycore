@@ -39,7 +39,8 @@ to `item_instance.enchantments` in the atomic transaction. Missing DB2 entries l
 unmodified like C++; focused coverage prevents affixes from disappearing on the next save/relog.
 Login now also honors C++ `Player::LoadFromDB`'s unlock gate: locked characters do not consume
 persisted void rows, but initialize a coherent empty vault that remains empty if unlocked in the
-same session and can safely participate in the full save.
+same session. Unlock persists deletion of any skipped residual rows in the same transaction as
+the money and player flag, so a restart cannot resurrect them before the next full save.
 The accredited server binary SHA-256 was
 `fe8058f7986d84e1cd444709d24e19af9c711c917ee9b00183acfc4cef63e8ec`; the QA bot SHA-256 was
 `95f4b45c75a8fdd687f2ba6fa97303e0a240fd80e33d597bc4093548d9981d85`.

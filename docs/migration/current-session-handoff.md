@@ -19,7 +19,8 @@
   `item_instance.enchantments`, preventing an affix loss on save/relog.
   A fourth review fix gates login row consumption on the already-loaded unlock flag like C++:
   locked characters initialize coherent empty storage and cannot expose residual rows by
-  unlocking later in the same session.
+  unlocking later in the same session. The unlock transaction deletes those skipped rows with
+  the money/flag update, closing the pre-full-save restart window.
   Installed QA completed unlock, deposit/relog, swap/relog and withdrawal/relog with exact durable
   states and full character/item/vaultkeeper cleanup. The
   committed `void-storage-query` flow imports one real instance-routed C++/Rust
