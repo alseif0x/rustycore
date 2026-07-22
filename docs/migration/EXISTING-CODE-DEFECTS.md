@@ -86,11 +86,10 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
     item-objective quest state across ordered deposit destruction (including bag children) and
     withdrawal credit, preserves intermediate recursive removal checks plus quest-bound
     no-physical-item withdrawals, and sends live collection updates for both new and merged
-    physical withdrawals. The earlier repeated complete local preflight/local review are clean;
-    these latest fixes pass focused void/capacity/quest/collection tests and the final uncommitted
-    local review is CLEAN. All three D-C3 children
-    are implemented locally; this aggregate remains open for the repeated preflight, issue #114
-    CI, current-HEAD GitHub Codex verdict and merge.
+    physical withdrawals. These latest fixes pass focused void/capacity/quest/collection tests;
+    the complete local PR preflight and local Codex review completed CLEAN on `2143334b` in 471.8
+    seconds. All three D-C3 children are implemented locally; this aggregate remains open for
+    issue #114 CI, current-HEAD GitHub Codex verdict and merge.
 - [ ] **D-C4 Inventory swap not transactional.** Two separate `execute()` calls; mid-fail
   orphans/dupes items. `handlers/character.rs:11668-11681`. C++ appends both changed positions to
   the character save transaction through `Player::_SaveInventory`.
@@ -232,8 +231,8 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
 - [ ] **D-M7 Void storage not saved.** Issue #114 fixes this locally with one atomic
   flags/money/inventory/void transaction and fresh-auth lifecycle proof; the GitHub-review fixes
   also cover legacy backpack capacity, deposit quest-objective removal and live withdrawal
-  collection updates. The latest fixes pass their focused tests; repeated full preflight, CI,
-  current-HEAD GitHub review and merge gates remain.
+  collection updates. The latest fixes pass their focused tests and complete local preflight on
+  `2143334b`; CI, current-HEAD GitHub review and merge gates remain.
 - [ ] **D-M8 Group member DB insert fail logged-only**, runtime kept → reload drops member. `handlers/group.rs:1090`.
 - [ ] **D-M9 Phase not re-checked on movement** → out-of-phase objects linger. `handlers/movement.rs:274`.
 - [ ] **D-M10 Position save binds extra `instance_id`** vs C++ 7-field SavePosition (verify SQL param alignment). `session.rs:21578`.

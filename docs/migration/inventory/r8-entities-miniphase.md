@@ -84,13 +84,14 @@ Paired real C++/Rust captures isolate one instance-routed `SMSG_VOID_STORAGE_CON
 item: the 27-byte body is exact, 1/1 packets match, and the committed flow has no normalization or
 accepted divergence. Capture-only `RUST_CAPTURE_MIN_STACK_BYTES=16777216` avoids the known debug
 worker stack limit, and every wrapper restoration returned the original PM2 runtime online.
-Focused packet/allocator/handler/bot tests, the full Rust lifecycle QA, strict capture-diff and
-earlier repeated complete local PR preflight plus local Codex review are clean; the latest review
-corrections additionally pass the 13 void-storage tests and focused legacy-capacity, recursive
-quest-removal, mixed transfer, quest-bound withdrawal and live-collection regressions; the final
-uncommitted local Codex review is CLEAN. Boundary: represented-partial until the repeated full preflight,
-CI, current-HEAD GitHub Codex verdict and merge. Broader inventory validation remains in #52; #20
-still owns aggregate D-C1-D-C9 reconciliation.
+Focused packet/allocator/handler/bot tests, the full Rust lifecycle QA and strict capture-diff are
+clean. The latest corrections additionally pass the 13 void-storage tests and focused
+legacy-capacity, recursive quest-removal, mixed-transfer, quest-bound-withdrawal and
+live-collection regressions. The complete local PR preflight (whitespace, self-test, formats,
+locked checks/builds, clippy, focused suites, bot/capture gate and local Codex review) completed
+CLEAN on `2143334b` in 471.8 seconds. Boundary: represented-partial until CI, current-HEAD GitHub
+Codex verdict and merge. Broader inventory validation remains in #52; #20 still owns aggregate
+D-C1-D-C9 reconciliation.
 
 # `#NEXT.R8.ENTITIES.1204` — globally collision-safe equipment-set persistence (issue #112).
 
