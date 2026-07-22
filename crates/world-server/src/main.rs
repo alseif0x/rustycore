@@ -27,7 +27,8 @@ use tokio::task::AbortHandle;
 use tracing::{debug, info, warn};
 use wow_config::{DatabaseInfo, LoadReport, WorldConfigSet};
 use wow_core::{
-    IpLocationStore, Ipv4NetworkLikeCpp, ObjectGuid, ObjectGuidGenerator, Position, guid::HighGuid,
+    EQUIPMENT_SET_GUID_LIMIT_LIKE_CPP, EquipmentSetGuidGeneratorLikeCpp, IpLocationStore,
+    Ipv4NetworkLikeCpp, ObjectGuid, ObjectGuidGenerator, Position, guid::HighGuid,
     scan_local_ipv4_networks_like_cpp,
 };
 use wow_database::{
@@ -93,6 +94,21 @@ fn next_item_guid_allocator_start_like_cpp(max_persisted_guid: Option<u64>) -> R
     if next >= generator_limit {
         bail!(
             "item_instance GUID allocator start {next} is outside HighGuid::Item generator range (must be below {generator_limit})"
+        );
+    }
+    Ok(next)
+}
+
+fn next_equipment_set_guid_allocator_start_like_cpp(
+    max_persisted_guid: Option<u64>,
+) -> Result<u64> {
+    let next = max_persisted_guid
+        .unwrap_or(0)
+        .checked_add(1)
+        .context("equipment-set GUID counter overflow")?;
+    if next >= EQUIPMENT_SET_GUID_LIMIT_LIKE_CPP {
+        bail!(
+            "equipment-set GUID allocator start {next} is outside the C++ generator range (must be below {EQUIPMENT_SET_GUID_LIMIT_LIKE_CPP})"
         );
     }
     Ok(next)
@@ -1421,6 +1437,35 @@ async fn main() -> Result<ExitCode> {
         .context("failed to clean dangling item GUID references before allocator publication")?;
     let item_guid_generator = Arc::new(ObjectGuidGenerator::new(HighGuid::Item, next_item_guid));
     info!("Item GUID generator initialized, next counter: {next_item_guid}");
+
+    // C++ `ObjectMgr::SetHighestGuids` owns one raw uint64 namespace for both
+    // equipment sets and transmog outfits. It must be initialized only after
+    // the process has exclusive ownership of this character database's GUID
+    // allocation domain (the advisory lock above).
+    let next_equipment_set_guid = {
+        let stmt = char_db.prepare(CharStatements::SEL_MAX_EQUIPMENT_SET_GUID);
+        match char_db.query(&stmt).await {
+            Ok(result) => {
+                if result.is_empty() || result.is_null(0) {
+                    next_equipment_set_guid_allocator_start_like_cpp(None)?
+                } else {
+                    let max_val: u64 = result
+                        .try_read(0)
+                        .context("failed to decode the equipment/transmog set GUID maximum")?;
+                    next_equipment_set_guid_allocator_start_like_cpp(Some(max_val))?
+                }
+            }
+            Err(error) => {
+                return Err(error).context(
+                    "failed to initialize the equipment-set GUID allocator from character_equipmentsets/character_transmog_outfits",
+                );
+            }
+        }
+    };
+    let equipment_set_guid_generator = Arc::new(EquipmentSetGuidGeneratorLikeCpp::new(
+        next_equipment_set_guid,
+    ));
+    info!("Equipment-set GUID generator initialized, next counter: {next_equipment_set_guid}");
 
     let char_db = Arc::new(char_db);
 
@@ -5106,6 +5151,7 @@ async fn main() -> Result<ExitCode> {
         world_db: Some(Arc::clone(&world_db)),
         guid_generator: Some(Arc::clone(&guid_generator)),
         item_guid_generator: Some(Arc::clone(&item_guid_generator)),
+        equipment_set_guid_generator: Some(Arc::clone(&equipment_set_guid_generator)),
         instance_lock_mgr: Some(Arc::clone(&instance_lock_mgr)),
         bank_bag_slot_prices_store: Some(Arc::clone(&bank_bag_slot_prices_store)),
         currency_types_store: Some(Arc::clone(&currency_types_store)),
@@ -12553,6 +12599,9 @@ async fn create_session(
     if let Some(ref generator) = resources.item_guid_generator {
         session.set_item_guid_generator_like_cpp(Arc::clone(generator));
     }
+    if let Some(ref generator) = resources.equipment_set_guid_generator {
+        session.set_equipment_set_guid_generator_like_cpp(Arc::clone(generator));
+    }
     if let Some(ref mgr) = resources.instance_lock_mgr {
         session.set_instance_lock_mgr(Arc::clone(mgr));
     }
@@ -14396,13 +14445,13 @@ mod tests {
         materialize_game_event_world_event_state_db_bridge_like_cpp,
         max_core_stuck_time_ms_like_cpp, max_core_stuck_time_secs_like_cpp,
         min_world_update_time_ms_like_cpp, mmap_runtime_config_like_cpp,
-        next_item_guid_allocator_start_like_cpp, normalize_realm_security_level_like_cpp,
-        normalize_realm_type_like_cpp, normalized_realm_name_like_cpp,
-        persisted_respawn_info_from_row_like_cpp, process_exit_code_like_cpp,
-        queue_respawn_db_delete_like_cpp, queue_respawn_db_save_like_cpp, realm_id_like_cpp,
-        realm_list_entry_from_row_like_cpp, repair_cost_rate_like_cpp, reputation_rates_like_cpp,
-        reset_schedule_like_cpp, respawn_db_retry_delay,
-        run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp,
+        next_equipment_set_guid_allocator_start_like_cpp, next_item_guid_allocator_start_like_cpp,
+        normalize_realm_security_level_like_cpp, normalize_realm_type_like_cpp,
+        normalized_realm_name_like_cpp, persisted_respawn_info_from_row_like_cpp,
+        process_exit_code_like_cpp, queue_respawn_db_delete_like_cpp,
+        queue_respawn_db_save_like_cpp, realm_id_like_cpp, realm_list_entry_from_row_like_cpp,
+        repair_cost_rate_like_cpp, reputation_rates_like_cpp, reset_schedule_like_cpp,
+        respawn_db_retry_delay, run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp,
         run_legacy_creature_melee_tick_and_deliver_once_like_cpp,
         run_legacy_creature_movement_tick_and_deliver_once_like_cpp,
         run_legacy_creature_runtime_tick_and_deliver_once_like_cpp,
@@ -14500,6 +14549,29 @@ mod tests {
             "startup must reject the value that ObjectGuidGenerator::generate would panic on"
         );
         assert!(next_item_guid_allocator_start_like_cpp(Some(u64::MAX)).is_err());
+    }
+
+    #[test]
+    fn equipment_set_guid_allocator_start_uses_shared_cpp_maximum_and_fails_closed() {
+        assert_eq!(
+            next_equipment_set_guid_allocator_start_like_cpp(None).unwrap(),
+            1
+        );
+        let start = next_equipment_set_guid_allocator_start_like_cpp(Some(41)).unwrap();
+        assert_eq!(start, 42);
+        let generator = wow_core::EquipmentSetGuidGeneratorLikeCpp::new(start);
+        assert_eq!(generator.generate(), 42);
+
+        let limit = wow_core::EQUIPMENT_SET_GUID_LIMIT_LIKE_CPP;
+        assert_eq!(
+            next_equipment_set_guid_allocator_start_like_cpp(Some(limit - 2)).unwrap(),
+            limit - 1
+        );
+        assert!(
+            next_equipment_set_guid_allocator_start_like_cpp(Some(limit - 1)).is_err(),
+            "startup must reject the value that the C++ generator refuses to allocate"
+        );
+        assert!(next_equipment_set_guid_allocator_start_like_cpp(Some(u64::MAX)).is_err());
     }
 
     #[test]

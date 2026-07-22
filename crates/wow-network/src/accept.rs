@@ -196,6 +196,9 @@ pub struct SessionResources {
     /// Every session must share this allocator so concurrent item creation
     /// cannot select the same `item_instance.guid`.
     pub item_guid_generator: Option<Arc<wow_core::ObjectGuidGenerator>>,
+    /// Process-wide C++ `ObjectMgr::_equipmentSetGuid` mirror shared across
+    /// equipment sets, transmog outfits, and every session.
+    pub equipment_set_guid_generator: Option<Arc<wow_core::EquipmentSetGuidGeneratorLikeCpp>>,
     pub instance_lock_mgr: Option<Arc<std::sync::RwLock<wow_instances::InstanceLockMgr>>>,
     pub bank_bag_slot_prices_store: Option<Arc<wow_data::BankBagSlotPricesStore>>,
     pub currency_types_store: Option<Arc<wow_data::CurrencyTypesStore>>,

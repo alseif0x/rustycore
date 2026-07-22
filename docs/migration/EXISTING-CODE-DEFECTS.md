@@ -31,8 +31,8 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
   - 2026-07-01 issue #20 local slice: the same login path now loads `randomPropertiesId` and
     `randomPropertiesSeed` for equipped and bagged items into runtime item state and login create
     data. Kept open until capture-diff/live relog QA is run.
-- [ ] **D-C3 Bank contents never persisted.** Bank moves recorded in-memory only
-  (`represented_bank_item_moves`), no DB write → 100% bank loss on logout. `session.rs:31575`.
+- [ ] **D-C3 Bank/equipment-set/void-storage persistence incomplete.** The original audit found
+  these storage paths represented only in memory, with loss on logout.
   - 2026-07-13 issue #102 local slice: personal `AUTOBANK` / `AUTOSTORE_BANK_ITEM` now plans
     C++ `CanBankItem` / `CanStoreItem` destinations, commits every stack/location plus the
     surviving items' count/expiration/charges/flags/enchantments/durability/played-time and
@@ -49,8 +49,17 @@ mutates DB" ≠ "computes the right result / can't lose or dupe data."
     false-positive test that sent
     legacy slot `19` instead of the 3.4.3 backpack start slot `35`.
     PR #103 merged on 2026-07-14 after the full live bot bank deposit/relog/withdraw/relog
-    round-trip passed. Personal-bank movement is therefore closed; equipment-set and void-storage
-    persistence remain under the wider D-C3 heading and keep this aggregate item open.
+    round-trip passed. Personal-bank movement is therefore closed.
+  - 2026-07-21 issue #112 local slice: equipment sets and transmog outfits now share one
+    process-wide, startup-initialized GUID namespace like C++ `ObjectMgr`; initialization uses the
+    exact combined CharacterDB maximum and fails closed. The existing player-save transaction
+    persists new/changed/deleted rows, and login correctly decodes signed transmog schema values.
+    A two-client installed runtime run proved concurrent distinct GUIDs, exact durable rows, two
+    fresh-auth relogs with exact loaded sets, and cleanup. The committed one-packet
+    `SMSG_EQUIPMENT_SET_ID` action capture is byte-clean against C++ on the instance route with no
+    accepted divergence. Equipment-set persistence is therefore closed locally, subject to the
+    issue #112 CI/current-HEAD review/merge gates. Void-storage persistence is the remaining D-C3
+    child and keeps this aggregate item open.
 - [ ] **D-C4 Inventory swap not transactional.** Two separate `execute()` calls; mid-fail
   orphans/dupes items. `handlers/character.rs:11668-11681`. C++ appends both changed positions to
   the character save transaction through `Player::_SaveInventory`.
