@@ -12973,7 +12973,7 @@ fn prepare_void_storage_smoke_fixture(
         .map_err(|_| anyhow!("vault-keeper map id does not fit protocol: {vault_map}"))?;
     let discover_runtime_guid = runtime_counter.is_none();
     let guid_counter = runtime_counter.unwrap_or(spawn_guid);
-    let (low, high) = create_creature_guid_raw(vault_map, entry, guid_counter);
+    let (low, high) = create_void_storage_creature_guid_raw(vault_map, entry, guid_counter);
     let vault_keeper = ResolvedCreatureTarget {
         entry,
         spawn_guid,
@@ -14458,9 +14458,21 @@ fn resolve_quest_runtime_counter(
 }
 
 fn create_creature_guid_raw(map_id: u16, entry: u32, counter: u64) -> (u64, u64) {
-    let high = (8u64 << 58) | ((map_id as u64 & 0x1FFF) << 29) | ((entry as u64 & 0x7F_FFFF) << 6);
+    let high =
+        (8u64 << 58) | ((map_id as u64 & 0x1FFF) << 29) | ((entry as u64 & 0x7F_FFFF) << 6);
     let low = counter & OBJECT_GUID_COUNTER_MASK;
     (low, high)
+}
+
+fn create_void_storage_creature_guid_raw(
+    map_id: u16,
+    entry: u32,
+    counter: u64,
+) -> (u64, u64) {
+    // Rust's canonical creature runtime normalizes the realm component through
+    // the active `realm.Id.Realm`; this QA environment is pinned to realm 1.
+    let (low, high) = create_creature_guid_raw(map_id, entry, counter);
+    (low, high | (1u64 << 42))
 }
 
 fn resolve_vendor_runtime_target(
@@ -16046,6 +16058,14 @@ mod tests {
         assert!(void_storage_login_target_ready(false, false));
         assert!(!void_storage_login_target_ready(true, false));
         assert!(void_storage_login_target_ready(true, true));
+    }
+
+    #[test]
+    fn explicit_creature_guid_includes_active_realm_like_cpp() {
+        assert_eq!(
+            create_void_storage_creature_guid_raw(571, 31_810, 24),
+            (24, 0x2000_0447_601F_1080)
+        );
     }
 }
 
