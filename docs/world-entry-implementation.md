@@ -567,7 +567,7 @@ the original packet data.
 ### Compressed Packet Format
 
 ```
-[u16]  CompressedPacket opcode    -- 0x0446 (part of encrypted data)
+[u16]  CompressedPacket opcode    -- 0x3052 (part of encrypted data)
 [i32]  UncompressedSize           -- original opcode(2) + payload size
 [u32]  UncompressedAdler32        -- custom Adler32 of original data
 [u32]  CompressedAdler32          -- custom Adler32 of compressed data
@@ -576,7 +576,7 @@ the original packet data.
 
 ### Persistent Deflate Stream
 
-C# TrinityCore uses a single `z_stream` per socket, initialized once with
+C++ TrinityCore uses a single `z_stream` per socket, initialized once with
 `deflateInit2(stream, 1, 8, -15, 8, 0)` and reused for all packets. The WoW client has
 a matching persistent inflate stream. Each compressed packet must use the same deflate
 state:
@@ -592,7 +592,9 @@ sync marker `00 00 FF FF` to the compressed data. The client's persistent inflat
 stream processes this marker to know where each packet ends.
 
 **Creating a fresh compressor per packet will NOT work** -- the client's decompressor
-carries state across packets, so the server's compressor must too.
+carries state across packets, so the server's compressor must too. Rust moves the
+physical socket's existing `PacketCompressor` into `SocketWriter` during
+`split_for_io`; the async ownership split does not reset the stream.
 
 ### Custom Adler32
 
@@ -611,6 +613,10 @@ During a typical login, these packets exceed the threshold and get compressed:
 - `SMSG_UPDATE_ACTION_BUTTONS` (~1443 bytes: 2 opcode + 1 bit + flush + 180*8)
 - `SMSG_INITIALIZE_FACTIONS` (~6127 bytes: 1000 factions)
 - `SMSG_UPDATE_OBJECT` (~15624 bytes for self-view ActivePlayer)
+
+Issue-#8 installed QA decoded four consecutive compressed packets through one
+persistent bot inflater on the same instance socket before completing login and a
+Sit/Stand round trip: `1443→46`, `6127→207`, `18156→736`, and `52913→5171`.
 
 ---
 

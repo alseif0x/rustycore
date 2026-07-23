@@ -91,16 +91,6 @@ impl PacketCompressor {
 /// [CompressedData: ...]           — deflated bytes (raw deflate, Z_SYNC_FLUSH)
 /// ```
 ///
-/// Returns the compressed data (to be sent with `ServerOpcodes::CompressedPacket`).
-///
-/// **Note:** This creates a fresh compressor per call. For production use,
-/// prefer [`PacketCompressor`] which maintains state across packets
-/// (required for the WoW client's persistent inflate stream).
-pub fn compress_packet(opcode_bytes: &[u8; 2], payload: &[u8]) -> Vec<u8> {
-    let mut compressor = Compress::new(Compression::fast(), false);
-    compress_packet_impl(&mut compressor, opcode_bytes, payload)
-}
-
 /// Shared implementation: compress using an existing deflate stream.
 fn compress_packet_impl(
     compressor: &mut Compress,
@@ -242,6 +232,10 @@ pub fn decompress_packet(data: &[u8]) -> Result<Vec<u8>, PacketError> {
 mod tests {
     use super::*;
 
+    fn compress_single_packet(opcode: &[u8; 2], payload: &[u8]) -> Vec<u8> {
+        PacketCompressor::new().compress_packet(opcode, payload)
+    }
+
     #[test]
     fn adler32_empty() {
         let result = adler32(&[]);
@@ -274,7 +268,7 @@ mod tests {
         let opcode: [u8; 2] = [0x48, 0x30]; // AuthChallenge opcode LE
         let payload = vec![0xAA; 2048]; // Larger than threshold
 
-        let compressed = compress_packet(&opcode, &payload);
+        let compressed = compress_single_packet(&opcode, &payload);
         let decompressed = decompress_packet(&compressed).unwrap();
 
         // Decompressed = opcode + payload
@@ -287,7 +281,7 @@ mod tests {
         let opcode: [u8; 2] = [0x01, 0x00];
         let payload = b"test";
 
-        let compressed = compress_packet(&opcode, payload);
+        let compressed = compress_single_packet(&opcode, payload);
         let decompressed = decompress_packet(&compressed).unwrap();
 
         assert_eq!(&decompressed[..2], &opcode);
@@ -299,7 +293,7 @@ mod tests {
         let opcode: [u8; 2] = [0x01, 0x00];
         let payload = b"test data here!";
 
-        let mut compressed = compress_packet(&opcode, payload);
+        let mut compressed = compress_single_packet(&opcode, payload);
         // Corrupt the compressed adler32 (bytes 8..12)
         compressed[8] ^= 0xFF;
 
@@ -317,7 +311,7 @@ mod tests {
         let opcode: [u8; 2] = [0x83, 0x25]; // EnumCharactersResult
         let payload = vec![0u8; 2048];
 
-        let compressed = compress_packet(&opcode, &payload);
+        let compressed = compress_single_packet(&opcode, &payload);
         // Skip the 12-byte header to get the raw deflated data
         let deflated = &compressed[12..];
 
@@ -342,7 +336,7 @@ mod tests {
         let opcode: [u8; 2] = [0x83, 0x25];
         let payload = vec![0u8; 3600];
 
-        let compressed = compress_packet(&opcode, &payload);
+        let compressed = compress_single_packet(&opcode, &payload);
         let decompressed = decompress_packet(&compressed).unwrap();
 
         assert_eq!(decompressed.len(), 3602); // opcode(2) + payload(3600)

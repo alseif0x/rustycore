@@ -3313,6 +3313,7 @@ dependencies = [
  "bytes",
  "dashmap",
  "ed25519-dalek",
+ "flate2",
  "flume",
  "num-traits",
  "rand",

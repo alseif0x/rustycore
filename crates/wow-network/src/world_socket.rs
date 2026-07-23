@@ -1143,7 +1143,10 @@ impl WorldSocket {
             send_write_fence_like_cpp: self.send_write_fence_like_cpp,
             addr: self.addr,
             connection_id: self.connection_id,
-            compressor: compression::PacketCompressor::new(),
+            // C++ owns one z_stream for the complete physical WorldSocket
+            // lifetime. Moving the existing stream preserves any direct-send
+            // history accumulated before the async read/write ownership split.
+            compressor: self.compressor,
         };
 
         info!(
@@ -1543,6 +1546,71 @@ fn should_compress_server_packet_like_cpp(data: &[u8]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn split_for_io_preserves_socket_compressor_history_like_cpp() {
+        use flate2::{Decompress, FlushDecompress};
+        use tokio::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let listener_addr = listener.local_addr().unwrap();
+        let connect = TcpStream::connect(listener_addr);
+        let (accepted, connected) = tokio::join!(listener.accept(), connect);
+        let (server_stream, client_addr) = accepted.unwrap();
+        let client_stream = connected.unwrap();
+
+        let mut socket = WorldSocket::new(server_stream, client_addr);
+        let first_opcode = 0x25E0_u16.to_le_bytes();
+        let first_payload = vec![0xA5; compression::COMPRESSION_THRESHOLD + 257];
+        let first = socket
+            .compressor
+            .compress_packet(&first_opcode, &first_payload);
+        let second_opcode = 0x2724_u16.to_le_bytes();
+        let second_payload = vec![0xA5; compression::COMPRESSION_THRESHOLD + 513];
+
+        let mut uninterrupted = compression::PacketCompressor::new();
+        let expected_first = uninterrupted.compress_packet(&first_opcode, &first_payload);
+        let expected_second = uninterrupted.compress_packet(&second_opcode, &second_payload);
+        assert_eq!(first, expected_first);
+
+        socket.set_encrypt_key([0x42; 16]);
+        let (_packet_rx, send_tx, _write_fence) = socket.create_session_channels();
+        let (_reader, mut writer) = socket.split_for_io(send_tx);
+
+        let second = writer
+            .compressor
+            .compress_packet(&second_opcode, &second_payload);
+        assert_eq!(
+            second, expected_second,
+            "split_for_io must transfer the socket's existing deflate stream"
+        );
+
+        let mut inflater = Decompress::new(false);
+        for (index, (packet, opcode, payload)) in [
+            (&first, first_opcode, &first_payload),
+            (&second, second_opcode, &second_payload),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let expected_size = i32::from_le_bytes(packet[0..4].try_into().unwrap()) as usize;
+            let mut output = vec![0_u8; expected_size + 256];
+            let base_out = inflater.total_out() as usize;
+            inflater
+                .decompress(&packet[12..], &mut output, FlushDecompress::Sync)
+                .unwrap_or_else(|error| {
+                    panic!("packet {index} failed persistent inflate: {error}")
+                });
+            let produced = inflater.total_out() as usize - base_out;
+            output.truncate(produced);
+
+            assert_eq!(produced, expected_size, "packet {index} decoded size");
+            assert_eq!(&output[..2], &opcode, "packet {index} decoded opcode");
+            assert_eq!(&output[2..], payload, "packet {index} decoded payload");
+        }
+
+        drop(client_stream);
+    }
 
     #[tokio::test]
     async fn write_fence_acknowledges_only_after_prior_fifo_packet_like_cpp() {
