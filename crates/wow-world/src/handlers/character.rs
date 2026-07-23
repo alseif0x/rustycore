@@ -2273,44 +2273,23 @@ fn loaded_spell_for_add_spell_side_effects_like_cpp(spell_id: u32, disabled: u8)
     }
 }
 
-fn skill_rewarded_spell_valid_for_player_like_cpp(
-    spell_info: &wow_data::spell::SpellInfo,
-    spell_store: &wow_data::SpellStore,
-    class: u8,
-) -> bool {
-    for effect in spell_info.effects() {
-        if effect.effect_trigger_spell > 0 && spell_store.get(effect.effect_trigger_spell).is_none()
-        {
-            return false;
+fn apply_skill_rewarded_spell_changes_to_login_like_cpp(
+    known_spells: &mut Vec<i32>,
+    loaded_spell_side_effect_spells: &mut Vec<i32>,
+    changes: wow_data::SkillRewardedSpellChangesLikeCpp,
+) {
+    for spell_id in changes.remove {
+        known_spells.retain(|known_spell| *known_spell != spell_id);
+        loaded_spell_side_effect_spells.retain(|known_spell| *known_spell != spell_id);
+    }
+    for spell_id in changes.learn {
+        if !known_spells.contains(&spell_id) {
+            known_spells.push(spell_id);
         }
-
-        match effect.effect {
-            wow_data::spell::spell_effect_types::SPELL_EFFECT_PARRY => {
-                if !matches!(class, 1 | 2 | 3 | 4 | 6) {
-                    return false;
-                }
-            }
-            wow_data::spell::spell_effect_types::SPELL_EFFECT_BLOCK => {
-                if !matches!(class, 1 | 2 | 7) {
-                    return false;
-                }
-            }
-            wow_data::spell::spell_effect_types::SPELL_EFFECT_ENERGIZE => {
-                let player_power = match class {
-                    1 => 1,
-                    4 => 3,
-                    6 => 6,
-                    _ => 0,
-                };
-                if effect.effect_misc_value_1 != player_power {
-                    return false;
-                }
-            }
-            _ => {}
+        if !loaded_spell_side_effect_spells.contains(&spell_id) {
+            loaded_spell_side_effect_spells.push(spell_id);
         }
     }
-
-    true
 }
 
 pub(crate) fn favorite_known_spells_for_send_like_cpp(
@@ -3116,6 +3095,63 @@ fn is_represented_bag_slot(slot: u8) -> bool {
 }
 
 impl WorldSession {
+    fn skill_rewarded_quest_fallback_allowed_like_cpp(&self, spell_id: i32) -> bool {
+        let Ok(spell_id) = u32::try_from(spell_id) else {
+            return false;
+        };
+        let Some(condition_id) = self
+            .spell_misc_store()
+            .and_then(|store| store.entry_for_spell_difficulty_like_cpp(spell_id, 0))
+            .map(|misc| misc.show_future_spell_player_condition_id)
+            .filter(|condition_id| *condition_id > 0)
+            .and_then(|condition_id| u32::try_from(condition_id).ok())
+        else {
+            // C++ `SpellInfo::MeetsFutureSpellPlayerCondition` returns false
+            // when ShowFutureSpellPlayerConditionID is zero.
+            return false;
+        };
+
+        self.represented_meets_player_condition_id_like_cpp(condition_id)
+    }
+
+    fn skill_rewarded_spell_changes_for_login_like_cpp(
+        &self,
+        skill_id: u16,
+        skill_value: u16,
+        race: u8,
+        class: u8,
+        level: u8,
+    ) -> wow_data::SkillRewardedSpellChangesLikeCpp {
+        let Some(skill_store) = self.skill_store() else {
+            return wow_data::SkillRewardedSpellChangesLikeCpp::default();
+        };
+        let spell_store = self.spell_store().cloned();
+        let spell_levels_store = self.spell_levels_store().cloned();
+
+        skill_store.skill_rewarded_spell_changes_like_cpp(
+            skill_id,
+            skill_value,
+            race,
+            class,
+            level,
+            |spell_id| {
+                let spell_id_u32 = u32::try_from(spell_id).ok()?;
+                spell_store.as_ref()?.get(spell_id)?;
+                spell_levels_store
+                    .as_ref()
+                    .and_then(|store| store.entry_for_spell_difficulty_like_cpp(spell_id_u32, 0))
+                    .map(|spell| {
+                        (
+                            u32::try_from(spell.base_level).unwrap_or(0),
+                            u32::try_from(spell.spell_level).unwrap_or(0),
+                        )
+                    })
+                    .or(Some((0, 0)))
+            },
+            |spell_id| self.skill_rewarded_quest_fallback_allowed_like_cpp(spell_id),
+        )
+    }
+
     fn creature_addon_create_fields_like_cpp(
         addon: Option<&CreatureAddonLifecycleRecordLikeCpp>,
     ) -> CreatureAddonCreateFieldsLikeCpp {
@@ -6421,13 +6457,10 @@ impl WorldSession {
             }
         }
 
-        // ── Load character skill IDs from character_skills table ──
-        // These are used to filter DBC auto-learned spells (weapons, languages,
-        // racials, worn armor type). This mirrors TrinityCore C++ where
-        // LearnSkillRewardedSpells() runs from SetSkill for skills the character has.
-        let mut known_skill_ids = std::collections::HashSet::<u16>::new();
+        // ── C++ Player::_LoadSkills ──
         let mut skill_records =
             std::collections::HashMap::<u16, crate::session::RepresentedPlayerSkillLikeCpp>::new();
+        let mut skill_info_by_id = BTreeMap::<u16, wow_data::SkillInfoEntry>::new();
         let mut loaded_skill_records_like_cpp = false;
         {
             let mut skill_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_SKILLS);
@@ -6442,7 +6475,6 @@ impl WorldSession {
                             let skill_max: u16 = skill_result.try_read(2).unwrap_or(skill_value);
                             let profession_slot: i8 = skill_result.try_read(3).unwrap_or(-1);
                             if skill_id > 0 {
-                                known_skill_ids.insert(skill_id);
                                 skill_records.insert(
                                     skill_id,
                                     crate::session::RepresentedPlayerSkillLikeCpp {
@@ -6459,8 +6491,8 @@ impl WorldSession {
                         }
                     }
                     info!(
-                        "Loaded {} known skill IDs for {:?}",
-                        known_skill_ids.len(),
+                        "Loaded {} persisted skill rows for {:?}",
+                        skill_records.len(),
                         guid
                     );
                 }
@@ -6469,103 +6501,67 @@ impl WorldSession {
                 }
             }
         }
-        // ── Merge DBC auto-learned spells + build SkillInfo ──
-        // Existing characters mirror C++ `UpdateSkillsForLevel()`: for each
-        // persisted `character_skills` row, `SetSkill` calls
-        // `LearnSkillRewardedSpells(skill, value, race)`. This is narrower than
-        // adding every starting SkillLineAbility and keeps profession/weapon proc
-        // auras out unless the character actually has that skill.
-        let db_count = known_spells.len();
-        let mut skill_info_tuples: Vec<(u16, u16, u16, u16, u16, i16, u16)> = Vec::new();
-        if let Some(skill_store) = self.skill_store() {
-            let mut dbc_spells = if db_count == 0 {
-                skill_store.starting_spells(race, class, level, Some(&known_skill_ids))
-            } else {
-                Vec::new()
-            };
-            if db_count > 0 {
-                let spell_levels_store = self.spell_levels_store().cloned();
-                let spell_store = self.spell_store().cloned();
-                for skill_record in skill_records.values() {
-                    let Some(_rc_info) = skill_store.skill_race_class_info_like_cpp(
-                        skill_record.skill_id,
+
+        // C++ `_LoadSkills` rejects forbidden race/class rows, fixes language,
+        // mono and level ranges, then `UpdateSkillsForLevel` applies
+        // ALWAYS_MAX_VALUE before learning the skill-rewarded spells.
+        if let (Some(skill_store), Some(skill_line_store), Some(skill_tiers_store)) = (
+            self.skill_store().cloned(),
+            self.skill_line_store().cloned(),
+            self.skill_tiers_store().cloned(),
+        ) {
+            let mut normalized_records = HashMap::new();
+            let mut persisted_records: Vec<_> = skill_records.into_values().collect();
+            persisted_records.sort_by_key(|skill| skill.skill_id);
+            for mut skill_record in persisted_records {
+                let Some(entry) = skill_store.loaded_skill_info_like_cpp(
+                    skill_record.skill_id,
+                    race,
+                    class,
+                    level,
+                    skill_record.value,
+                    skill_record.max,
+                    skill_line_store.as_ref(),
+                    skill_tiers_store.as_ref(),
+                ) else {
+                    warn!(
+                        player_guid = guid.counter(),
                         race,
                         class,
-                    ) else {
-                        continue;
-                    };
-                    let skill_spells = skill_store.skill_rewarded_spells_like_cpp(
-                        skill_record.skill_id,
-                        skill_record.value,
-                        race,
-                        class,
-                        level,
-                        |spell_id| {
-                            let spell_id = u32::try_from(spell_id).ok()?;
-                            let spell_id_i32 = spell_id as i32;
-                            let spell_store = spell_store.as_ref()?;
-                            let spell_info = spell_store.get(spell_id_i32)?;
-                            if !skill_rewarded_spell_valid_for_player_like_cpp(
-                                spell_info,
-                                spell_store,
-                                class,
-                            ) {
-                                return None;
-                            }
-
-                            if let Some(spell) = spell_levels_store.as_ref().and_then(|store| {
-                                store.entry_for_spell_difficulty_like_cpp(spell_id, 0)
-                            }) {
-                                return Some((
-                                    u32::try_from(spell.base_level).unwrap_or(0),
-                                    u32::try_from(spell.spell_level).unwrap_or(0),
-                                ));
-                            }
-
-                            // C++ LearnSkillRewardedSpells only requires SpellInfo and then
-                            // compares SpellLevel/BaseLevel. Hidden passive skill spells still
-                            // run AddSpell side effects such as SPELL_EFFECT_PROFICIENCY.
-                            Some((0, 0))
-                        },
-                        |_| false,
+                        skill_id = skill_record.skill_id,
+                        "Skipping forbidden persisted skill like C++ Player::_LoadSkills"
                     );
-                    dbc_spells.extend(skill_spells);
-                }
+                    continue;
+                };
+                skill_record.value = entry.rank;
+                skill_record.max = entry.max_rank;
+                normalized_records.insert(skill_record.skill_id, skill_record);
+                skill_info_by_id.insert(entry.skill_id, entry);
             }
-            for spell_id in dbc_spells {
-                if !known_spells.contains(&spell_id) {
-                    known_spells.push(spell_id);
-                }
-                if !loaded_spell_side_effect_spells.contains(&spell_id) {
-                    loaded_spell_side_effect_spells.push(spell_id);
-                }
-            }
-            info!(
-                "Total spells for {:?}: {} ({} from DB, {} from DBC)",
-                guid,
-                known_spells.len(),
-                db_count,
-                known_spells.len() - db_count
-            );
-
-            // Build SkillInfo entries for the UpdateObject SkillInfo array.
-            // TrinityCore C++ LearnDefaultSkills -> SetSkill writes skill slots.
-            let skill_entries = skill_store.starting_skill_info(race, class, level);
-            for entry in &skill_entries {
-                skill_info_tuples.push((
-                    entry.skill_id,
-                    entry.step,
-                    entry.rank,
-                    entry.starting_rank,
-                    entry.max_rank,
-                    entry.temp_bonus,
-                    entry.perm_bonus,
-                ));
-            }
-            info!("Loaded {} skill slots for {:?}", skill_entries.len(), guid);
+            skill_records = normalized_records;
         }
+
         if loaded_skill_records_like_cpp {
-            self.set_player_skill_records_like_cpp(skill_records);
+            self.set_player_skill_records_like_cpp(skill_records.clone());
+        }
+        for entry in skill_info_by_id.values() {
+            let mut changes = self.skill_rewarded_spell_changes_for_login_like_cpp(
+                entry.skill_id,
+                entry.rank,
+                race,
+                class,
+                level,
+            );
+            // C++ `_LoadSkills` runs before `_LoadSpells`, so its RemoveSpell
+            // branch cannot remove a character_spell row that has not been
+            // loaded yet. The later LearnDefaultSkills pass below runs after
+            // `_LoadSpells` and does apply removals.
+            changes.remove.clear();
+            apply_skill_rewarded_spell_changes_to_login_like_cpp(
+                &mut known_spells,
+                &mut loaded_spell_side_effect_spells,
+                changes,
+            );
         }
 
         // ── Load talents from character_talent ──
@@ -6837,6 +6833,115 @@ impl WorldSession {
 
         // Load active quests from characters DB
         self.load_player_quests().await;
+
+        // C++ calls `LearnDefaultSkills` after `_LoadSkills`, `_LoadSpells`
+        // and quest-status loading. Only Availability == 1 rows at or below
+        // the player's level are candidates; `LearnDefaultSkill` computes the
+        // range-specific value/max and `SetSkill` immediately runs
+        // `LearnSkillRewardedSpells` with that real value.
+        let persisted_skill_count = skill_info_by_id.len();
+        let mut default_skill_entries = Vec::new();
+        if let (Some(skill_store), Some(skill_line_store), Some(skill_tiers_store)) = (
+            self.skill_store().cloned(),
+            self.skill_line_store().cloned(),
+            self.skill_tiers_store().cloned(),
+        ) {
+            for entry in skill_store.default_starting_skill_info_like_cpp(
+                race,
+                class,
+                level,
+                skill_line_store.as_ref(),
+                skill_tiers_store.as_ref(),
+            ) {
+                if skill_records
+                    .get(&entry.skill_id)
+                    .is_some_and(|skill| skill.value > 0)
+                {
+                    continue;
+                }
+                if skill_info_by_id.len() >= 256 {
+                    break;
+                }
+
+                let profession_slot = skill_records
+                    .get(&entry.skill_id)
+                    .map(|skill| skill.profession_slot)
+                    .unwrap_or(-1);
+                skill_records.insert(
+                    entry.skill_id,
+                    crate::session::RepresentedPlayerSkillLikeCpp {
+                        skill_id: entry.skill_id,
+                        value: entry.rank,
+                        max: entry.max_rank,
+                        profession_slot,
+                    },
+                );
+                skill_info_by_id.insert(entry.skill_id, entry);
+                default_skill_entries.push(entry);
+            }
+            self.set_player_skill_records_like_cpp(skill_records.clone());
+        }
+
+        for entry in &default_skill_entries {
+            let changes = self.skill_rewarded_spell_changes_for_login_like_cpp(
+                entry.skill_id,
+                entry.rank,
+                race,
+                class,
+                level,
+            );
+            apply_skill_rewarded_spell_changes_to_login_like_cpp(
+                &mut known_spells,
+                &mut loaded_spell_side_effect_spells,
+                changes,
+            );
+        }
+
+        // Default skill spells run through C++ AddSpell just like DB-loaded
+        // spells. Re-run the idempotent represented side effects so newly
+        // learned dependencies, proficiencies, capabilities and passives are
+        // present before the initial player CreateObject.
+        let default_dependent_spell_count =
+            self.apply_loaded_known_spell_dependencies_like_cpp(&mut known_spells);
+        for &spell_id in &known_spells {
+            if !loaded_spell_side_effect_spells.contains(&spell_id) {
+                loaded_spell_side_effect_spells.push(spell_id);
+            }
+        }
+        let default_inactive_lower_rank_count =
+            self.deactivate_lower_rank_known_spells_for_send_like_cpp(&mut known_spells);
+        self.set_known_spells_like_cpp(known_spells.clone());
+        self.apply_login_known_spell_proficiencies_like_cpp(&loaded_spell_side_effect_spells);
+        self.apply_login_known_spell_combat_capabilities_like_cpp(&loaded_spell_side_effect_spells);
+        self.apply_login_passive_known_spell_auras_like_cpp();
+        self.apply_loaded_known_spell_previous_rank_passive_auras_like_cpp(&known_spells);
+        self.promote_loaded_character_mount_spells_like_cpp(&known_spells);
+
+        info!(
+            player_guid = guid.counter(),
+            loaded_skill_count = persisted_skill_count,
+            default_skill_count = default_skill_entries.len(),
+            default_dependent_spell_count,
+            default_inactive_lower_rank_count,
+            total_spell_count = known_spells.len(),
+            "Applied C++ LearnDefaultSkills and LearnSkillRewardedSpells"
+        );
+
+        let skill_info_tuples: Vec<(u16, u16, u16, u16, u16, i16, u16)> = skill_info_by_id
+            .values()
+            .map(|entry| {
+                (
+                    entry.skill_id,
+                    entry.step,
+                    entry.rank,
+                    entry.starting_rank,
+                    entry.max_rank,
+                    entry.temp_bonus,
+                    entry.perm_bonus,
+                )
+            })
+            .collect();
+
         self.load_completed_achievements_like_cpp().await;
         self.load_instance_time_restrictions_like_cpp().await;
         self.load_player_account_data_like_cpp(guid).await;
@@ -18548,7 +18653,8 @@ mod tests {
         QuestTemplate,
     };
     use wow_data::{
-        ItemChildEquipmentEntry, ItemChildEquipmentStore, PlayerLevelStats, PlayerStatsStore,
+        ItemChildEquipmentEntry, ItemChildEquipmentStore, PlayerConditionEntry, PlayerLevelStats,
+        PlayerStatsStore, SpellMiscEntry, SpellMiscStore,
     };
     use wow_database::StatementDef;
     use wow_entities::{CHILD_EQUIPMENT_SLOT_START, EQUIPMENT_SLOT_MAINHAND};
@@ -19184,6 +19290,194 @@ mod tests {
             EquipmentSetGuidGeneratorLikeCpp::new(1),
         ));
         (session, send_rx)
+    }
+
+    #[test]
+    fn skill_rewarded_quest_fallback_uses_future_player_condition_like_cpp() {
+        let (mut session, _) = make_session_with_send_capacity(1);
+        session.set_loaded_player_identity_like_cpp(0, 1, 1, 10, 0);
+        session.set_spell_misc_store(Arc::new(SpellMiscStore::from_entries([
+            SpellMiscEntry {
+                id: 1,
+                spell_id: 900,
+                show_future_spell_player_condition_id: 77,
+                ..SpellMiscEntry::default()
+            },
+            SpellMiscEntry {
+                id: 2,
+                spell_id: 901,
+                show_future_spell_player_condition_id: 0,
+                ..SpellMiscEntry::default()
+            },
+        ])));
+        session.set_player_condition_store(Arc::new(wow_data::PlayerConditionStore::from_entries(
+            [PlayerConditionEntry {
+                id: 77,
+                class_mask: 1,
+                ..PlayerConditionEntry::default()
+            }],
+        )));
+
+        assert!(session.skill_rewarded_quest_fallback_allowed_like_cpp(900));
+        assert!(
+            !session.skill_rewarded_quest_fallback_allowed_like_cpp(901),
+            "C++ MeetsFutureSpellPlayerCondition returns false when the condition id is zero"
+        );
+
+        session.set_loaded_player_identity_like_cpp(0, 1, 2, 10, 0);
+        assert!(
+            !session.skill_rewarded_quest_fallback_allowed_like_cpp(900),
+            "the fallback must evaluate the real PlayerCondition against the current player"
+        );
+    }
+
+    #[test]
+    fn skill_rewarded_login_changes_use_real_spell_levels_and_conditions_like_cpp() {
+        fn ability(
+            id: u32,
+            spell: i32,
+            acquire_method: i8,
+            min_skill_line_rank: i16,
+            flags: i8,
+        ) -> wow_data::SkillLineAbilityRecord {
+            wow_data::SkillLineAbilityRecord {
+                id,
+                race_mask: 1,
+                skill_line: 164,
+                spell,
+                min_skill_line_rank,
+                class_mask: 1,
+                supercedes_spell: 0,
+                acquire_method,
+                trivial_rank_high: 0,
+                trivial_rank_low: 0,
+                flags,
+                num_skill_ups: 0,
+                skillup_skill_line_id: 0,
+            }
+        }
+
+        fn spell_info(spell_id: i32) -> wow_data::SpellInfo {
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: Vec::new(),
+            }
+        }
+
+        let (mut session, _) = make_session_with_send_capacity(1);
+        session.set_loaded_player_identity_like_cpp(0, 1, 1, 10, 0);
+        session.set_skill_store(Arc::new(
+            wow_data::SkillStore::from_skill_line_abilities_like_cpp([
+                ability(
+                    1,
+                    900,
+                    wow_data::skill::SKILL_LINE_ABILITY_LEARNED_ON_SKILL_VALUE_LIKE_CPP,
+                    50,
+                    0,
+                ),
+                ability(
+                    2,
+                    901,
+                    wow_data::skill::SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP,
+                    0,
+                    0,
+                ),
+                ability(
+                    3,
+                    902,
+                    wow_data::skill::SKILL_LINE_ABILITY_REWARDED_FROM_QUEST_LIKE_CPP,
+                    0,
+                    wow_data::skill::SKILL_LINE_ABILITY_CAN_FALLBACK_TO_LEARNED_ON_SKILL_LEARN_LIKE_CPP,
+                ),
+                ability(
+                    4,
+                    903,
+                    wow_data::skill::SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP,
+                    0,
+                    0,
+                ),
+            ]),
+        ));
+
+        let mut spell_store = wow_data::SpellStore::new();
+        for spell_id in [900, 901, 902] {
+            spell_store.insert(spell_id, spell_info(spell_id));
+        }
+        session.set_spell_store(Arc::new(spell_store));
+        session.set_spell_levels_store(Arc::new(wow_data::SpellLevelsStore::from_entries([
+            wow_data::SpellLevelsEntry {
+                id: 1,
+                difficulty_id: 0,
+                base_level: 1,
+                max_level: 0,
+                spell_level: 1,
+                max_passive_aura_level: 0,
+                spell_id: 900,
+            },
+            wow_data::SpellLevelsEntry {
+                id: 2,
+                difficulty_id: 0,
+                base_level: 20,
+                max_level: 0,
+                spell_level: 1,
+                max_passive_aura_level: 0,
+                spell_id: 901,
+            },
+            wow_data::SpellLevelsEntry {
+                id: 3,
+                difficulty_id: 0,
+                base_level: 1,
+                max_level: 0,
+                spell_level: 1,
+                max_passive_aura_level: 0,
+                spell_id: 902,
+            },
+            wow_data::SpellLevelsEntry {
+                id: 4,
+                difficulty_id: 0,
+                base_level: 1,
+                max_level: 0,
+                spell_level: 1,
+                max_passive_aura_level: 0,
+                spell_id: 903,
+            },
+        ])));
+        session.set_spell_misc_store(Arc::new(SpellMiscStore::from_entries([SpellMiscEntry {
+            id: 1,
+            spell_id: 902,
+            show_future_spell_player_condition_id: 77,
+            ..SpellMiscEntry::default()
+        }])));
+        session.set_player_condition_store(Arc::new(wow_data::PlayerConditionStore::from_entries(
+            [PlayerConditionEntry {
+                id: 77,
+                class_mask: 1,
+                ..PlayerConditionEntry::default()
+            }],
+        )));
+
+        let changes = session.skill_rewarded_spell_changes_for_login_like_cpp(164, 40, 1, 1, 10);
+
+        assert_eq!(
+            changes.remove,
+            vec![900],
+            "C++ removes an OnSkillValue spell while the skill is below its required rank"
+        );
+        assert_eq!(
+            changes.learn,
+            vec![902],
+            "the level-gated spell and the ability without real SpellInfo must be skipped"
+        );
     }
 
     fn inventory_failure_result(packet: &[u8]) -> i32 {

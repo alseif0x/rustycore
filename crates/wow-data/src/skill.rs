@@ -52,6 +52,9 @@ pub const SKILL_RUNEFORGING_LIKE_CPP: u16 = 960;
 pub const SKILL_RIDING_LIKE_CPP: u16 = 762;
 pub const SKILL_CATEGORY_ARMOR_LIKE_CPP: i8 = 8;
 pub const SKILL_CATEGORY_LANGUAGES_LIKE_CPP: i8 = 10;
+pub const SKILL_CATEGORY_SECONDARY_LIKE_CPP: i8 = 9;
+pub const SKILL_CATEGORY_PROFESSION_LIKE_CPP: i8 = 11;
+pub const CLASS_DEATH_KNIGHT_LIKE_CPP: u8 = 6;
 
 /// A single record from SkillRaceClassInfo.db2.
 #[derive(Debug, Clone)]
@@ -172,7 +175,7 @@ impl SkillTiersStoreLikeCpp {
 }
 
 /// A single skill slot entry for the player's SkillInfo update fields.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SkillInfoEntry {
     pub skill_id: u16,
     pub step: u16,
@@ -181,6 +184,12 @@ pub struct SkillInfoEntry {
     pub max_rank: u16,
     pub temp_bonus: i16,
     pub perm_bonus: u16,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SkillRewardedSpellChangesLikeCpp {
+    pub learn: Vec<i32>,
+    pub remove: Vec<i32>,
 }
 
 /// Minimal C++ `SpellInfo` view used by `LoadPetLevelupSpellMap`.
@@ -623,19 +632,21 @@ impl SkillStore {
                 .or_default()
                 .push(record.clone());
 
-            for race in 1u8..=11 {
-                if !matches_race(record.race_mask, race) {
-                    continue;
-                }
-                for class in 1u8..=11 {
-                    if !matches_class(record.class_mask, class) {
+            if record.availability == 1 {
+                for race in 1u8..=11 {
+                    if !matches_race(record.race_mask, race) {
                         continue;
                     }
-                    store
-                        .starting_skills
-                        .entry((race, class))
-                        .or_default()
-                        .push(record.clone());
+                    for class in 1u8..=11 {
+                        if !matches_class(record.class_mask, class) {
+                            continue;
+                        }
+                        store
+                            .starting_skills
+                            .entry((race, class))
+                            .or_default()
+                            .push(record.clone());
+                    }
                 }
             }
 
@@ -661,21 +672,20 @@ impl SkillStore {
         let mut total_abilities = 0usize;
 
         for (id, idx) in sla_reader.iter_records() {
-            // WDC4 field layout (empirically verified):
-            // The WDC4 file has 16 fields; C# struct has 14. Field[1] is an
-            // extra inline field (possibly id_parent duplicate), shifting all
-            // subsequent fields by +1 compared to C# indices.
+            // C++ `SkillLineAbilityEntry` / `SkillLineAbilityLoadInfo`
+            // logical field order. `iter_records()` already returns the ID,
+            // while physical field[1] also stores that C++ ID column.
             //  0: RaceMask (i64, 64 bits)
-            //  1: [extra field — skip]
-            //  2: id_parent / SkillLine (11 bits signed) ← C# field 1
-            //  3: Spell (20 bits signed)                 ← C# field 2
-            //  4: MinSkillLineRank (10 bits signed)      ← C# field 3
-            //  5: ClassMask (Common)                     ← C# field 4
-            //  6: SupercedesSpell (Common)               ← C# field 5
-            //  7: AcquireMethod (3 bits signed)          ← C# field 6
-            //  8: TrivialSkillLineRankHigh (Common)      ← C# field 7
-            //  9: TrivialSkillLineRankLow (Common)       ← C# field 8
-            // 10: Flags (2 bits signed)                  ← C# field 9
+            //  1: ID (already returned by iter_records)
+            //  2: SkillLine
+            //  3: Spell
+            //  4: MinSkillLineRank
+            //  5: ClassMask
+            //  6: SupercedesSpell
+            //  7: AcquireMethod
+            //  8: TrivialSkillLineRankHigh
+            //  9: TrivialSkillLineRankLow
+            // 10: Flags
             // 11+: remaining fields
             let skill_line = sla_reader.get_field_u16(idx, 2);
             let record = SkillLineAbilityRecord {
@@ -719,7 +729,8 @@ impl SkillStore {
         // First pass: collect all records
         let mut all_records: Vec<SkillRaceClassInfoRecord> = Vec::new();
         for (id, idx) in srci_reader.iter_records() {
-            // Field order from C# SkillRaceClassInfoRecord:
+            // C++ `SkillRaceClassInfoEntry` logical field order
+            // (`DB2Structure.h` / `SkillRaceClassInfoLoadInfo`):
             //  0: RaceMask (i64)
             //  1: SkillID (u16)
             //  2: ClassMask (i32)
@@ -754,18 +765,22 @@ impl SkillStore {
         // for all 10 races × 11 classes
         let mut starting_skills: HashMap<(u8, u8), Vec<SkillRaceClassInfoRecord>> = HashMap::new();
         for record in &all_records {
-            for race in 1u8..=11 {
-                if !matches_race(record.race_mask, race) {
-                    continue;
-                }
-                for class in 1u8..=11 {
-                    if !matches_class(record.class_mask, class) {
+            // C++ `ObjectMgr::LoadPlayerInfo` only adds Availability == 1
+            // records to `PlayerInfo::skills`.
+            if record.availability == 1 {
+                for race in 1u8..=11 {
+                    if !matches_race(record.race_mask, race) {
                         continue;
                     }
-                    starting_skills
-                        .entry((race, class))
-                        .or_default()
-                        .push(record.clone());
+                    for class in 1u8..=11 {
+                        if !matches_class(record.class_mask, class) {
+                            continue;
+                        }
+                        starting_skills
+                            .entry((race, class))
+                            .or_default()
+                            .push(record.clone());
+                    }
                 }
             }
         }
@@ -832,13 +847,15 @@ impl SkillStore {
         }
     }
 
-    /// Get the SkillInfo entries for a character's starting skills.
-    ///
-    /// Returns up to 256 entries matching C#'s `LearnDefaultSkills()` → `SetSkill()`.
-    /// Each entry contains the skill ID, current rank, and max rank.
-    pub fn starting_skill_info(&self, race: u8, class: u8, level: u8) -> Vec<SkillInfoEntry> {
-        let max_rank = (level as u16) * 5;
-
+    /// C++ `Player::LearnDefaultSkills` -> `Player::LearnDefaultSkill`.
+    pub fn default_starting_skill_info_like_cpp(
+        &self,
+        race: u8,
+        class: u8,
+        level: u8,
+        skill_line_store: &SkillLineStore,
+        skill_tiers_store: &SkillTiersStoreLikeCpp,
+    ) -> Vec<SkillInfoEntry> {
         let skills = match self.starting_skills.get(&(race, class)) {
             Some(s) => s,
             None => return Vec::new(),
@@ -849,24 +866,24 @@ impl SkillStore {
 
         for skill_info in skills {
             let skill_id = skill_info.skill_id;
-            if skill_id == 0 || !seen_skills.insert(skill_id) {
-                continue;
-            }
-            // Only include skills that have at least one ability for this race/class
-            let has_abilities = self.abilities_by_skill.get(&skill_id).is_some();
-            if !has_abilities {
+            if skill_id == 0
+                || i16::from(skill_info.min_level) > i16::from(level)
+                || seen_skills.contains(&skill_id)
+            {
                 continue;
             }
 
-            entries.push(SkillInfoEntry {
-                skill_id,
-                step: 0,
-                rank: max_rank,
-                starting_rank: 1,
-                max_rank,
-                temp_bonus: 0,
-                perm_bonus: 0,
-            });
+            let Some(entry) = self.default_skill_info_like_cpp(
+                skill_info,
+                class,
+                level,
+                skill_line_store,
+                skill_tiers_store,
+            ) else {
+                continue;
+            };
+            seen_skills.insert(skill_id);
+            entries.push(entry);
 
             if entries.len() >= 256 {
                 break;
@@ -876,168 +893,115 @@ impl SkillStore {
         entries
     }
 
-    /// Get all spells that a character of the given race/class/level should
-    /// automatically know from DBC data (LearnDefaultSkills + LearnSkillRewardedSpells).
-    ///
-    /// `known_skill_ids` is the set of skill IDs from the character's `character_skills`
-    /// table. When provided, only skills that are either class-specific (exactly one class
-    /// bit in the SkillRaceClassInfo class_mask matching this class) or present in the
-    /// character's known skills will be processed. This mirrors TrinityCore C++: default
-    /// skills call `SetSkill`, and `SetSkill` calls `LearnSkillRewardedSpells()` for the
-    /// skills the character actually has.
-    ///
-    /// Pass `None` to disable filtering (useful for tests / backward compat).
-    ///
-    /// Returns a deduplicated Vec of spell IDs.
-    pub fn starting_spells(
+    fn default_skill_info_like_cpp(
         &self,
+        rc_info: &SkillRaceClassInfoRecord,
+        class: u8,
+        level: u8,
+        skill_line_store: &SkillLineStore,
+        skill_tiers_store: &SkillTiersStoreLikeCpp,
+    ) -> Option<SkillInfoEntry> {
+        let max_for_level = u16::from(level).saturating_mul(5);
+        let (step, rank, max_rank) =
+            match self.skill_range_type_like_cpp(rc_info, skill_line_store, skill_tiers_store) {
+                SkillRangeTypeLikeCpp::Language => (0, 300, 300),
+                SkillRangeTypeLikeCpp::Level => {
+                    let rank = if rc_info.flags & SKILL_FLAG_ALWAYS_MAX_VALUE_LIKE_CPP != 0 {
+                        max_for_level
+                    } else if class == CLASS_DEATH_KNIGHT_LIKE_CPP {
+                        u16::from(level.saturating_sub(1))
+                            .saturating_mul(5)
+                            .max(1)
+                            .min(max_for_level)
+                    } else {
+                        1
+                    };
+                    (0, rank, max_for_level)
+                }
+                SkillRangeTypeLikeCpp::Mono => (0, 1, 1),
+                SkillRangeTypeLikeCpp::Rank => {
+                    let tier = u32::try_from(rc_info.skill_tier_id)
+                        .ok()
+                        .and_then(|id| skill_tiers_store.get_skill_tier_like_cpp(id))?;
+                    let max_rank = u16::try_from(tier.get_value_for_tier_index_like_cpp(0))
+                        .unwrap_or(u16::MAX);
+                    let rank = if rc_info.flags & SKILL_FLAG_ALWAYS_MAX_VALUE_LIKE_CPP != 0 {
+                        max_rank
+                    } else if class == CLASS_DEATH_KNIGHT_LIKE_CPP {
+                        u16::from(level.saturating_sub(1))
+                            .saturating_mul(5)
+                            .max(1)
+                            .min(max_rank)
+                    } else {
+                        1
+                    };
+                    (1, rank, max_rank)
+                }
+                SkillRangeTypeLikeCpp::None => return None,
+            };
+
+        Some(SkillInfoEntry {
+            skill_id: rc_info.skill_id,
+            step,
+            rank,
+            starting_rank: 1,
+            max_rank,
+            temp_bonus: 0,
+            perm_bonus: 0,
+        })
+    }
+
+    /// C++ `Player::_LoadSkills` followed by `Player::UpdateSkillsForLevel`.
+    pub fn loaded_skill_info_like_cpp(
+        &self,
+        skill_id: u16,
         race: u8,
         class: u8,
         level: u8,
-        known_skill_ids: Option<&std::collections::HashSet<u16>>,
-    ) -> Vec<i32> {
-        let mut spells: Vec<i32> = Vec::new();
-        let mut seen: std::collections::HashSet<i32> = std::collections::HashSet::new();
-
-        // C# Player.GetMaxSkillValueForLevel() = level * 5
-        let max_skill_rank = (level as i16) * 5;
-
-        // Get starting skills for this race/class combination
-        let skills = match self.starting_skills.get(&(race, class)) {
-            Some(s) => s,
-            None => return spells,
-        };
-
-        for skill_info in skills {
-            let skill_id = skill_info.skill_id;
-
-            // Skip purely racial skills — handled separately by racial_spells()
-            let is_purely_racial = skill_info.race_mask != 0 && skill_info.class_mask == 0;
-            if is_purely_racial {
-                continue;
+        mut rank: u16,
+        mut max_rank: u16,
+        skill_line_store: &SkillLineStore,
+        skill_tiers_store: &SkillTiersStoreLikeCpp,
+    ) -> Option<SkillInfoEntry> {
+        let rc_info = self.skill_race_class_info_like_cpp(skill_id, race, class)?;
+        match self.skill_range_type_like_cpp(rc_info, skill_line_store, skill_tiers_store) {
+            SkillRangeTypeLikeCpp::Language => {
+                rank = 300;
+                max_rank = 300;
             }
-
-            // Only process skills that either:
-            // 1. Are class-specific to this player's class (class_mask has exactly 1 bit set
-            //    matching this class). This covers class skills like Priest, Holy, Shadow, etc.
-            // 2. Are in the character's actual known skills (from character_skills table).
-            //    This covers weapons, languages, racials, worn armor type, etc.
-            //
-            // This matches C++ behavior: LearnSkillRewardedSpells() only runs for skills the
-            // character HAS. Professions (class_mask=0, available to all) are excluded unless
-            // the character has actually learned them.
-            let is_this_class_skill = skill_info.class_mask != 0
-                && (skill_info.class_mask as u32).count_ones() == 1
-                && (skill_info.class_mask & (1i32 << (class as i32 - 1))) != 0;
-
-            let character_has_skill = known_skill_ids
-                .map(|ids| ids.contains(&skill_id))
-                .unwrap_or(true); // If no filter provided, allow all (backward compat)
-
-            if !is_this_class_skill && !character_has_skill {
-                continue; // Skip: profession/other-class skill the character doesn't have
-            }
-
-            // Get all abilities for this skill
-            let abilities = match self.abilities_by_skill.get(&skill_id) {
-                Some(a) => a,
-                None => continue,
-            };
-
-            for ability in abilities {
-                // TrinityCore C++ Player::LearnSkillRewardedSpells only auto-learns
-                // SkillLineAbility entries learned on skill value / skill learn here.
-                // Trainer-learned class spells (AcquireMethod=0) must come from
-                // character_spell via Player::_LoadSpells/AddSpell, not from DBC.
-                if ability.acquire_method != 1 && ability.acquire_method != 2 {
-                    continue;
-                }
-
-                // Check race/class masks on the ability itself
-                if !matches_race(ability.race_mask, race) {
-                    continue;
-                }
-                if !matches_class(ability.class_mask, class) {
-                    continue;
-                }
-
-                // Check skill rank requirement against the character's
-                // effective skill value (level * 5 for class skills).
-                if ability.min_skill_line_rank > max_skill_rank {
-                    continue;
-                }
-
-                let spell_id = ability.spell;
-                if spell_id <= 0 {
-                    continue;
-                }
-
-                // Handle supercedes_spell: if this spell replaces another,
-                // remove the old one (only include highest rank)
-                if ability.supercedes_spell > 0 {
-                    seen.remove(&ability.supercedes_spell);
-                    spells.retain(|&s| s != ability.supercedes_spell);
-                }
-
-                if seen.insert(spell_id) {
-                    spells.push(spell_id);
+            SkillRangeTypeLikeCpp::Level => {
+                max_rank = u16::from(level).saturating_mul(5);
+                if rc_info.flags & SKILL_FLAG_ALWAYS_MAX_VALUE_LIKE_CPP != 0 {
+                    rank = max_rank;
                 }
             }
+            SkillRangeTypeLikeCpp::Mono => {
+                rank = 1;
+                max_rank = 1;
+            }
+            SkillRangeTypeLikeCpp::Rank | SkillRangeTypeLikeCpp::None => {}
         }
 
-        spells
-    }
+        let step = skill_line_store
+            .get(u32::from(skill_id))
+            .filter(|skill| {
+                matches!(
+                    skill.category_id,
+                    SKILL_CATEGORY_SECONDARY_LIKE_CPP | SKILL_CATEGORY_PROFESSION_LIKE_CPP
+                )
+            })
+            .map(|_| max_rank / 75)
+            .unwrap_or(0);
 
-    /// Returns racial spells for this race — spells tied to skills that are
-    /// race-specific AND NOT class-specific (purely racial skills like Blood Elf 756).
-    /// These are always granted based on race, not via the skill-learning system.
-    pub fn racial_spells(&self, race: u8) -> Vec<i32> {
-        let mut spells: Vec<i32> = Vec::new();
-        let mut seen: std::collections::HashSet<i32> = std::collections::HashSet::new();
-
-        for ((_r, _c), skills) in &self.starting_skills {
-            for skill_info in skills {
-                // Purely racial skill: race_mask set, class_mask == 0
-                let is_racial = skill_info.race_mask != 0 && skill_info.class_mask == 0;
-                if !is_racial {
-                    continue;
-                }
-                // Must match this race
-                if !matches_race(skill_info.race_mask, race) {
-                    continue;
-                }
-
-                let abilities = match self.abilities_by_skill.get(&skill_info.skill_id) {
-                    Some(a) => a,
-                    None => continue,
-                };
-
-                for ability in abilities {
-                    // Only auto-granted (OnSkillValue=1, OnSkillLearn=2)
-                    if ability.acquire_method != 1 && ability.acquire_method != 2 {
-                        continue;
-                    }
-                    // Race filter on the ability itself
-                    if !matches_race(ability.race_mask, race) {
-                        continue;
-                    }
-                    // No class filter here (these are racial, class_mask should be 0)
-                    let spell_id = ability.spell;
-                    if spell_id <= 0 {
-                        continue;
-                    }
-                    // Handle supercedes_spell
-                    if ability.supercedes_spell > 0 {
-                        seen.remove(&ability.supercedes_spell);
-                        spells.retain(|&s| s != ability.supercedes_spell);
-                    }
-                    if seen.insert(spell_id) {
-                        spells.push(spell_id);
-                    }
-                }
-            }
-        }
-        spells
+        Some(SkillInfoEntry {
+            skill_id,
+            step,
+            rank,
+            starting_rank: 1,
+            max_rank,
+            temp_bonus: 0,
+            perm_bonus: 0,
+        })
     }
 
     /// Return the subset of `known_spells` that are abilities for `skill_id`.
@@ -1101,19 +1065,47 @@ impl SkillStore {
         race: u8,
         class: u8,
         level: u8,
-        mut spell_levels: SpellLevels,
-        mut quest_fallback_allowed: QuestFallback,
+        spell_levels: SpellLevels,
+        quest_fallback_allowed: QuestFallback,
     ) -> Vec<i32>
     where
         SpellLevels: FnMut(i32) -> Option<(u32, u32)>,
         QuestFallback: FnMut(i32) -> bool,
     {
+        self.skill_rewarded_spell_changes_like_cpp(
+            skill_id,
+            skill_value,
+            race,
+            class,
+            level,
+            spell_levels,
+            quest_fallback_allowed,
+        )
+        .learn
+    }
+
+    /// C++ `Player::LearnSkillRewardedSpells`, including the below-rank
+    /// `RemoveSpell` branch for `LEARNED_ON_SKILL_VALUE` rows.
+    pub fn skill_rewarded_spell_changes_like_cpp<SpellLevels, QuestFallback>(
+        &self,
+        skill_id: u16,
+        skill_value: u16,
+        race: u8,
+        class: u8,
+        level: u8,
+        mut spell_levels: SpellLevels,
+        mut quest_fallback_allowed: QuestFallback,
+    ) -> SkillRewardedSpellChangesLikeCpp
+    where
+        SpellLevels: FnMut(i32) -> Option<(u32, u32)>,
+        QuestFallback: FnMut(i32) -> bool,
+    {
         let Some(abilities) = self.skill_line_abilities_by_skill_like_cpp(skill_id) else {
-            return Vec::new();
+            return SkillRewardedSpellChangesLikeCpp::default();
         };
 
         let class_mask = 1i32 << (class as i32 - 1);
-        let mut spells = Vec::new();
+        let mut changes = SkillRewardedSpellChangesLikeCpp::default();
         for ability in abilities {
             let Some((base_level, spell_level)) = spell_levels(ability.spell) else {
                 continue;
@@ -1156,15 +1148,15 @@ impl SkillStore {
             if i32::from(skill_value) < i32::from(ability.min_skill_line_rank)
                 && ability.acquire_method == SKILL_LINE_ABILITY_LEARNED_ON_SKILL_VALUE_LIKE_CPP
             {
-                continue;
-            }
-
-            if ability.spell > 0 {
-                spells.push(ability.spell);
+                if ability.spell > 0 {
+                    changes.remove.push(ability.spell);
+                }
+            } else if ability.spell > 0 {
+                changes.learn.push(ability.spell);
             }
         }
 
-        spells
+        changes
     }
 
     /// C++ `sSkillLineAbilityStore` full row iteration.
@@ -1224,6 +1216,44 @@ mod tests {
             flags: 0,
             num_skill_ups: 0,
             skillup_skill_line_id: 0,
+        }
+    }
+
+    fn race_class_info(
+        id: u32,
+        skill_id: u16,
+        flags: u16,
+        availability: i8,
+        min_level: i8,
+        skill_tier_id: i16,
+    ) -> SkillRaceClassInfoRecord {
+        SkillRaceClassInfoRecord {
+            id,
+            race_mask: 1,
+            skill_id,
+            class_mask: 1,
+            flags,
+            availability,
+            min_level,
+            skill_tier_id,
+        }
+    }
+
+    fn skill_line(id: u32, category_id: i8) -> crate::SkillLineEntry {
+        crate::SkillLineEntry {
+            id,
+            display_name: String::new(),
+            alternate_verb: String::new(),
+            description: String::new(),
+            horde_display_name: String::new(),
+            override_source_info_display_name: String::new(),
+            category_id,
+            spell_icon_file_id: 0,
+            can_link: 0,
+            parent_skill_line_id: 0,
+            parent_tier_index: 0,
+            flags: 0,
+            spell_book_spell_id: 0,
         }
     }
 
@@ -1305,6 +1335,25 @@ mod tests {
         );
 
         assert_eq!(spells, vec![822, 28877]);
+
+        let changes = store.skill_rewarded_spell_changes_like_cpp(
+            756,
+            400,
+            10,
+            5,
+            80,
+            |spell_id| match spell_id {
+                1002 => Some((81, 81)),
+                _ => Some((0, 0)),
+            },
+            |_| false,
+        );
+        assert_eq!(changes.learn, vec![822, 28877]);
+        assert_eq!(
+            changes.remove,
+            vec![999],
+            "C++ removes LEARNED_ON_SKILL_VALUE spells below MinSkillLineRank"
+        );
     }
 
     #[test]
@@ -1380,6 +1429,152 @@ mod tests {
         assert_eq!(tier.get_value_for_tier_index_like_cpp(0), 75);
         assert_eq!(tier.get_value_for_tier_index_like_cpp(3), 225);
         assert_eq!(tier.get_value_for_tier_index_like_cpp(6), 450);
+    }
+
+    #[test]
+    fn default_skills_filter_availability_and_min_level_and_use_cpp_ranges() {
+        let store = SkillStore::from_skill_line_abilities_and_race_class_like_cpp(
+            std::iter::empty(),
+            [
+                race_class_info(1, 100, 0, 1, 1, 0),
+                race_class_info(2, 101, 0, 1, 1, 0),
+                race_class_info(3, 102, SKILL_FLAG_ALWAYS_MAX_VALUE_LIKE_CPP, 1, 1, 0),
+                race_class_info(4, 103, 0, 1, 1, 0),
+                race_class_info(5, 104, 0, 1, 1, 12),
+                race_class_info(6, 105, 0, 0, 1, 0),
+                race_class_info(7, 106, 0, 1, 11, 0),
+            ],
+        );
+        let skill_lines = SkillLineStore::from_entries([
+            skill_line(100, SKILL_CATEGORY_LANGUAGES_LIKE_CPP),
+            skill_line(101, 0),
+            skill_line(102, 0),
+            skill_line(103, SKILL_CATEGORY_ARMOR_LIKE_CPP),
+            skill_line(104, SKILL_CATEGORY_PROFESSION_LIKE_CPP),
+            skill_line(105, 0),
+            skill_line(106, 0),
+        ]);
+        let tiers = SkillTiersStoreLikeCpp::from_rows_like_cpp([skill_tier_row(
+            12,
+            [75, 150, 225, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        )]);
+
+        assert_eq!(
+            store.default_starting_skill_info_like_cpp(1, 1, 10, &skill_lines, &tiers),
+            vec![
+                SkillInfoEntry {
+                    skill_id: 100,
+                    step: 0,
+                    rank: 300,
+                    starting_rank: 1,
+                    max_rank: 300,
+                    temp_bonus: 0,
+                    perm_bonus: 0,
+                },
+                SkillInfoEntry {
+                    skill_id: 101,
+                    step: 0,
+                    rank: 1,
+                    starting_rank: 1,
+                    max_rank: 50,
+                    temp_bonus: 0,
+                    perm_bonus: 0,
+                },
+                SkillInfoEntry {
+                    skill_id: 102,
+                    step: 0,
+                    rank: 50,
+                    starting_rank: 1,
+                    max_rank: 50,
+                    temp_bonus: 0,
+                    perm_bonus: 0,
+                },
+                SkillInfoEntry {
+                    skill_id: 103,
+                    step: 0,
+                    rank: 1,
+                    starting_rank: 1,
+                    max_rank: 1,
+                    temp_bonus: 0,
+                    perm_bonus: 0,
+                },
+                SkillInfoEntry {
+                    skill_id: 104,
+                    step: 1,
+                    rank: 1,
+                    starting_rank: 1,
+                    max_rank: 75,
+                    temp_bonus: 0,
+                    perm_bonus: 0,
+                },
+            ],
+            "C++ includes default skills even without abilities, but excludes Availability != 1 and future MinLevel rows"
+        );
+    }
+
+    #[test]
+    fn default_death_knight_skill_uses_level_minus_one_value_like_cpp() {
+        let store = SkillStore::from_skill_line_abilities_and_race_class_like_cpp(
+            std::iter::empty(),
+            [SkillRaceClassInfoRecord {
+                class_mask: 1 << (CLASS_DEATH_KNIGHT_LIKE_CPP - 1),
+                ..race_class_info(1, 200, 0, 1, 1, 0)
+            }],
+        );
+        let skill_lines = SkillLineStore::from_entries([skill_line(200, 0)]);
+
+        assert_eq!(
+            store.default_starting_skill_info_like_cpp(
+                1,
+                CLASS_DEATH_KNIGHT_LIKE_CPP,
+                58,
+                &skill_lines,
+                &SkillTiersStoreLikeCpp::default(),
+            )[0]
+            .rank,
+            285
+        );
+    }
+
+    #[test]
+    fn loaded_skill_info_applies_cpp_fixed_ranges_and_steps() {
+        let store = SkillStore::from_skill_line_abilities_and_race_class_like_cpp(
+            std::iter::empty(),
+            [
+                race_class_info(1, 300, 0, 0, 0, 0),
+                race_class_info(2, 301, SKILL_FLAG_ALWAYS_MAX_VALUE_LIKE_CPP, 0, 0, 0),
+            ],
+        );
+        let skill_lines = SkillLineStore::from_entries([
+            skill_line(300, SKILL_CATEGORY_LANGUAGES_LIKE_CPP),
+            skill_line(301, SKILL_CATEGORY_SECONDARY_LIKE_CPP),
+        ]);
+        let tiers = SkillTiersStoreLikeCpp::default();
+
+        assert_eq!(
+            store.loaded_skill_info_like_cpp(300, 1, 1, 10, 12, 25, &skill_lines, &tiers),
+            Some(SkillInfoEntry {
+                skill_id: 300,
+                step: 0,
+                rank: 300,
+                starting_rank: 1,
+                max_rank: 300,
+                temp_bonus: 0,
+                perm_bonus: 0,
+            })
+        );
+        assert_eq!(
+            store.loaded_skill_info_like_cpp(301, 1, 1, 80, 12, 25, &skill_lines, &tiers),
+            Some(SkillInfoEntry {
+                skill_id: 301,
+                step: 5,
+                rank: 400,
+                starting_rank: 1,
+                max_rank: 400,
+                temp_bonus: 0,
+                perm_bonus: 0,
+            })
+        );
     }
 
     #[test]
@@ -1861,92 +2056,5 @@ mod tests {
                 "field[3] should be spell 585"
             );
         }
-    }
-
-    #[test]
-    fn test_priest_starting_spells() {
-        let store = match load_store() {
-            Some(s) => s,
-            None => return,
-        };
-
-        // Race 1 = Human, Class 5 = Priest, Level 80
-        let spells = store.starting_spells(1, 5, 80, None);
-        assert!(
-            spells.len() > 10,
-            "expected >10 starting spells for Human Priest L80, got {}",
-            spells.len()
-        );
-        // Reasonable range: class skills + a few shared auto-learns
-        assert!(
-            spells.len() < 1000,
-            "too many spells ({}), likely including profession recipes",
-            spells.len()
-        );
-
-        // Priest should know Smite (585)
-        assert!(
-            spells.contains(&585),
-            "Human Priest should know Smite (585), got: {:?}",
-            &spells[..spells.len().min(20)]
-        );
-    }
-
-    #[test]
-    fn test_warrior_starting_spells() {
-        let store = match load_store() {
-            Some(s) => s,
-            None => return,
-        };
-
-        // Race 2 = Orc, Class 1 = Warrior, Level 80
-        let spells = store.starting_spells(2, 1, 80, None);
-        assert!(
-            spells.len() > 5,
-            "expected >5 starting spells for Orc Warrior L80, got {}",
-            spells.len()
-        );
-
-        // Warrior should know Battle Stance (2457)
-        assert!(
-            spells.contains(&2457),
-            "Orc Warrior should know Battle Stance (2457), got: {:?}",
-            &spells[..spells.len().min(20)]
-        );
-    }
-
-    #[test]
-    fn test_no_duplicate_spells() {
-        let store = match load_store() {
-            Some(s) => s,
-            None => return,
-        };
-
-        let spells = store.starting_spells(1, 5, 80, None);
-        let mut unique = spells.clone();
-        unique.sort();
-        unique.dedup();
-        assert_eq!(
-            spells.len(),
-            unique.len(),
-            "starting_spells should not contain duplicates"
-        );
-    }
-
-    #[test]
-    fn test_different_classes_different_spells() {
-        let store = match load_store() {
-            Some(s) => s,
-            None => return,
-        };
-
-        let priest_spells = store.starting_spells(1, 5, 80, None);
-        let warrior_spells = store.starting_spells(1, 1, 80, None);
-
-        // They should not be identical
-        assert_ne!(
-            priest_spells, warrior_spells,
-            "Priest and Warrior should have different spell lists"
-        );
     }
 }
