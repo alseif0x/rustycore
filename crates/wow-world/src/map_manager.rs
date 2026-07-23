@@ -1277,7 +1277,7 @@ impl WorldCreature {
             display_power: data.display_power,
             power: data.power,
             max_power: data.max_power,
-            base_mana: data.max_power[0],
+            base_mana: data.base_mana,
             virtual_items: [
                 (
                     data.virtual_items[0].item_id,
@@ -4650,7 +4650,7 @@ pub fn pending_respawn_from_world_creature_like_cpp(
             display_power: creature.creature.unit().data().display_power,
             power: creature.creature.unit().data().power,
             max_power: creature.creature.unit().data().max_power,
-            base_mana: creature.creature.unit().data().max_power[0],
+            base_mana: creature.creature.unit().data().base_mana,
             virtual_items: [
                 (
                     creature.creature.unit().data().virtual_items[0].item_id,
@@ -4870,7 +4870,7 @@ mod tests {
     use super::*;
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
-    use wow_constants::{CreatureFlagsExtra, PhaseFlags};
+    use wow_constants::{CreatureFlagsExtra, PhaseFlags, PowerType};
     use wow_core::guid::HighGuid;
     use wow_map::map::MapWorldObjectEnvironment;
 
@@ -5144,6 +5144,25 @@ mod tests {
 
         assert_eq!(create_data.base_attack_time, 1500);
         assert_eq!(create_data.ranged_attack_time, 1800);
+    }
+
+    #[test]
+    fn create_data_from_canonical_keeps_base_mana_distinct_from_non_mana_power_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 1, 9003);
+        let mut creature = Creature::new(false);
+        creature.unit_mut().world_mut().object_mut().create(guid);
+        creature.unit_mut().world_mut().object_mut().set_entry(9003);
+        creature.set_power_type(PowerType::Focus);
+        creature.unit_mut().set_create_mana_like_cpp(600);
+        creature.unit_mut().set_max_power(PowerType::Focus, 100);
+        creature.unit_mut().set_power(PowerType::Focus, 25);
+
+        let create_data = WorldCreature::create_data_from_canonical_like_cpp(&creature);
+
+        assert_eq!(create_data.display_power, PowerType::Focus as u8);
+        assert_eq!(create_data.base_mana, 600);
+        assert_eq!(create_data.max_power[0], 100);
+        assert_eq!(create_data.power[0], 25);
     }
 
     #[test]

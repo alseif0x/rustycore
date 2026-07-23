@@ -2104,9 +2104,17 @@ async fn main() -> Result<ExitCode> {
         wow_data::character_progression::ChrClassesStore::load(&data_dir, &locale)
             .context("Failed to load ChrClasses.db2")?,
     );
+    let power_type_store = Arc::new(
+        wow_data::character_progression::PowerTypeStore::load_with_hotfixes(
+            &data_dir, &locale, &hotfix_db,
+        )
+        .await
+        .context("Failed to load PowerType.db2 / hotfix rows")?,
+    );
     info!(
-        "Loaded {} class rows from ChrClasses.db2",
-        chr_classes_store.len()
+        "Loaded {} class rows and {} effective power-type rows from DB2/hotfixes",
+        chr_classes_store.len(),
+        power_type_store.len()
     );
     let chr_model_store = wow_data::character_progression::ChrModelStore::load(&data_dir, &locale)
         .context("Failed to load ChrModel.db2")?;
@@ -4985,6 +4993,8 @@ async fn main() -> Result<ExitCode> {
         sparring_store: Arc::clone(&creature_template_sparring_store),
         difficulty_store: Arc::clone(&creature_difficulty_store),
         base_stats_store: Arc::clone(&creature_base_stats_store),
+        chr_classes_store: Arc::clone(&chr_classes_store),
+        power_type_store: Arc::clone(&power_type_store),
         health_rates: creature_health_rates,
         display_store: Arc::clone(&creature_display_info_store),
         model_store: Arc::clone(&creature_model_data_store),
@@ -5298,6 +5308,7 @@ async fn main() -> Result<ExitCode> {
         glyph_properties_store: Some(Arc::clone(&glyph_properties_store)),
         chr_races_store: Some(Arc::clone(&chr_races_store)),
         chr_classes_store: Some(Arc::clone(&chr_classes_store)),
+        power_type_store: Some(Arc::clone(&power_type_store)),
         spell_chain_store: Some(Arc::clone(&spell_chain_store)),
         spell_store: Some(Arc::clone(&spell_store)),
         spell_levels_store: Some(Arc::clone(&spell_levels_store)),
@@ -10908,6 +10919,8 @@ struct LoadedGridCreatureRespawnCachesLikeCpp {
     sparring_store: Arc<wow_data::CreatureTemplateSparringStoreLikeCpp>,
     difficulty_store: Arc<wow_data::CreatureDifficultyStoreLikeCpp>,
     base_stats_store: Arc<wow_data::CreatureBaseStatsStoreLikeCpp>,
+    chr_classes_store: Arc<wow_data::character_progression::ChrClassesStore>,
+    power_type_store: Arc<wow_data::character_progression::PowerTypeStore>,
     health_rates: wow_data::CreatureClassificationHealthRatesLikeCpp,
     display_store: Arc<wow_data::CreatureDisplayInfoStore>,
     model_store: Arc<wow_data::CreatureModelDataStore>,
@@ -11105,25 +11118,28 @@ fn build_loaded_grid_creature_record_with_respawn_time_like_cpp(
         .creature_formation_info_like_cpp(spawn_id)
         .copied();
     let mut random = MapCreatureModelSelectionRandomLikeCpp { map };
-    let inputs = creature_loaded_grid::build_loaded_grid_creature_inputs_from_db_like_cpp(
-        spawn,
-        runtime_row,
-        caches.template_store.as_ref(),
-        caches.difficulty_store.as_ref(),
-        caches.base_stats_store.as_ref(),
-        &caches.health_rates,
-        caches.display_store.as_ref(),
-        caches.model_store.as_ref(),
-        caches.model_info_store.as_ref(),
-        Some(caches.creature_equipment_store.as_ref()),
-        caches.creature_addon_store.as_ref(),
-        difficulty_id,
-        instance_id,
-        respawn_time,
-        true,
-        formation_info,
-        &mut random,
-    );
+    let inputs =
+        creature_loaded_grid::build_loaded_grid_creature_inputs_with_power_stores_from_db_like_cpp(
+            spawn,
+            runtime_row,
+            caches.template_store.as_ref(),
+            caches.difficulty_store.as_ref(),
+            caches.base_stats_store.as_ref(),
+            &caches.health_rates,
+            caches.display_store.as_ref(),
+            caches.model_store.as_ref(),
+            caches.model_info_store.as_ref(),
+            Some(caches.creature_equipment_store.as_ref()),
+            caches.creature_addon_store.as_ref(),
+            Some(caches.chr_classes_store.as_ref()),
+            Some(caches.power_type_store.as_ref()),
+            difficulty_id,
+            instance_id,
+            respawn_time,
+            true,
+            formation_info,
+            &mut random,
+        );
     let (template, resolved_spawn, runtime_selection) = match inputs {
         Ok(inputs) => inputs,
         Err(error) => {
@@ -12897,6 +12913,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.chr_classes_store {
         session.set_chr_classes_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.power_type_store {
+        session.set_power_type_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.spell_store {
         session.set_spell_store(Arc::clone(store));
@@ -15489,6 +15508,12 @@ mod tests {
             sparring_store: Arc::new(wow_data::CreatureTemplateSparringStoreLikeCpp::default()),
             difficulty_store: Arc::new(wow_data::CreatureDifficultyStoreLikeCpp::default()),
             base_stats_store: Arc::new(wow_data::CreatureBaseStatsStoreLikeCpp::default()),
+            chr_classes_store: Arc::new(
+                wow_data::character_progression::ChrClassesStore::from_entries([]),
+            ),
+            power_type_store: Arc::new(
+                wow_data::character_progression::PowerTypeStore::from_entries([]),
+            ),
             health_rates: wow_data::CreatureClassificationHealthRatesLikeCpp::default(),
             display_store: Arc::new(wow_data::CreatureDisplayInfoStore::from_entries([])),
             model_store: Arc::new(wow_data::CreatureModelDataStore::from_entries([])),
@@ -24443,6 +24468,12 @@ mmap.enablePathFinding = 0
                 (19, 1, creature_base_stats_record_like_cpp(190)),
                 (20, 1, creature_base_stats_record_like_cpp(200)),
             ])),
+            chr_classes_store: Arc::new(
+                wow_data::character_progression::ChrClassesStore::from_entries([]),
+            ),
+            power_type_store: Arc::new(
+                wow_data::character_progression::PowerTypeStore::from_entries([]),
+            ),
             health_rates: wow_data::CreatureClassificationHealthRatesLikeCpp::default(),
             display_store: Arc::new(wow_data::CreatureDisplayInfoStore::from_entries([])),
             model_store: Arc::new(wow_data::CreatureModelDataStore::from_entries([])),

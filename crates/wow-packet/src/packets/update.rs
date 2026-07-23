@@ -2963,6 +2963,8 @@ pub struct GameObjectCreateData {
     pub rotation: [f32; 4], // rotation0..3 (quaternion)
     pub anim_progress: u8,
     pub state: i8,
+    /// C++ `GameObjectData::ArtKit`, including runtime `SetGoArtKit` changes.
+    pub art_kit: u32,
     pub created_by: ObjectGuid,
     pub faction_template: i32,
     pub gameobject_flags: u32,
@@ -3031,7 +3033,7 @@ impl GameObjectCreateData {
         buf.write_int8(self.state); // State
         buf.write_int8(self.go_type as i8); // TypeID (gameobject type)
         buf.write_uint8(self.anim_progress); // PercentHealth (anim progress)
-        buf.write_int32(0); // ArtKit
+        buf.write_int32(self.art_kit as i32); // ArtKit
         buf.write_int32(0); // EnableDoodadSets.Size
         buf.write_int32(0); // CustomParam
         buf.write_int32(0); // WorldEffects.Size
@@ -9487,6 +9489,7 @@ mod tests {
             rotation: [0.0, 0.0, 0.0, 1.0],
             anim_progress: 255,
             state: 1,
+            art_kit: 0,
             created_by: ObjectGuid::EMPTY,
             faction_template: 0,
             gameobject_flags: 0,
@@ -9524,6 +9527,7 @@ mod tests {
             rotation: [0.0, 0.0, 0.0, 1.0],
             anim_progress: 255,
             state: 1,
+            art_kit: 0,
             created_by: ObjectGuid::EMPTY,
             faction_template: 0,
             gameobject_flags: 0,
@@ -9570,6 +9574,7 @@ mod tests {
             rotation: [0.0, 0.0, 0.0, 1.0],
             anim_progress: 255,
             state: 1,
+            art_kit: 0,
             created_by: ObjectGuid::EMPTY,
             faction_template: 0,
             gameobject_flags: 0,
@@ -9614,6 +9619,7 @@ mod tests {
             rotation: [0.0, 0.0, 0.0, 1.0],
             anim_progress: 255,
             state: 1,
+            art_kit: 0x5566_7788,
             created_by: ObjectGuid::EMPTY,
             faction_template: 1735,
             gameobject_flags: 0x20,
@@ -9638,6 +9644,11 @@ mod tests {
             data.windows(4)
                 .any(|window| window == 0x44u32.to_le_bytes())
         );
+        assert!(
+            data.windows(4)
+                .any(|window| window == 0x5566_7788u32.to_le_bytes()),
+            "C++ GameObjectData::ArtKit must be serialized in CREATE values"
+        );
     }
 
     #[test]
@@ -9661,6 +9672,7 @@ mod tests {
             rotation: [0.0, 0.0, 0.0, 1.0],
             anim_progress: 255,
             state: 1,
+            art_kit: 0,
             created_by: ObjectGuid::EMPTY,
             faction_template: 0,
             gameobject_flags: 0,

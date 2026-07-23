@@ -7432,6 +7432,7 @@ impl WorldSession {
                 } else {
                     wow_entities::GoState::Ready as i8
                 },
+                art_kit: 0,
                 created_by: ObjectGuid::EMPTY,
                 faction_template: transport.faction_template,
                 // C++ MO_TRANSPORTs carry GO_FLAG_TRANSPORT(0x8) | GO_FLAG_NODESPAWN(0x20) |
@@ -7767,15 +7768,15 @@ impl WorldSession {
             damage_school: wow_constants::spell::SpellSchools::Normal as u8,
             scale,
             unit_class,
-            display_power: self.creature_display_power_for_class_like_cpp(unit_class),
+            display_power: creature_stats.power_type as u8,
             power: {
                 let mut power = [0; 10];
-                power[0] = creature_stats.power_mana;
+                power[0] = creature_stats.power;
                 power
             },
             max_power: {
                 let mut max_power = [0; 10];
-                max_power[0] = creature_stats.base_mana;
+                max_power[0] = creature_stats.max_power;
                 max_power
             },
             base_mana: creature_stats.base_mana,
@@ -8624,6 +8625,8 @@ impl WorldSession {
                         rotation: [rot0, rot1, rot2, rot3],
                         anim_progress,
                         state,
+                        // C++ ObjectMgr initializes SQL `GameObjectData::artKit` to zero.
+                        art_kit: 0,
                         created_by: ObjectGuid::EMPTY,
                         faction_template: effective_faction as i32,
                         gameobject_flags: effective_flags,
@@ -9443,6 +9446,8 @@ impl WorldSession {
                 rotation: [rot0, rot1, rot2, rot3],
                 anim_progress,
                 state,
+                // C++ ObjectMgr initializes SQL `GameObjectData::artKit` to zero.
+                art_kit: 0,
                 created_by: ObjectGuid::EMPTY,
                 faction_template: effective_faction as i32,
                 gameobject_flags: effective_flags,
