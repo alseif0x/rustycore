@@ -4494,6 +4494,10 @@ fn trinity_sprintf_like_cpp(format: &str, args: &[&str]) -> String {
     output
 }
 
+struct PlayerTransportLoginStateLikeCpp {
+    info: wow_packet::packets::movement::TransportInfo,
+}
+
 /// Per-player session on the world server.
 ///
 /// Receives deserialized packets from the socket layer via a channel,
@@ -5816,11 +5820,15 @@ pub struct WorldSession {
     /// C++ `Player::m_clientGUIDs`: exact objects currently known by this client.
     /// Updated on login and each visibility refresh (player movement).
     pub(crate) client_visible_guids_like_cpp: std::collections::HashSet<wow_core::ObjectGuid>,
+    /// C++ `PlayerData::Customizations` loaded before the self CREATE and
+    /// retained for non-owner visibility CREATE blocks.
+    loaded_player_customizations_like_cpp:
+        Box<Vec<wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate>>,
     /// C++ `Player::m_visibleTransports`, maintained by `Map::SendInitTransports`.
     pub(crate) client_visible_transports_like_cpp: std::collections::HashSet<wow_core::ObjectGuid>,
     /// Current C++ `m_movementInfo.transport.guid`, used to exclude the
     /// player's own transport from `Map::SendInitTransports`.
-    player_transport_guid_like_cpp: Option<wow_core::ObjectGuid>,
+    player_transport_login_state_like_cpp: Option<Box<PlayerTransportLoginStateLikeCpp>>,
     /// Login-start delivery guard for creature movement packets.
     ///
     /// The C++ 3.4.3 login baseline does not deliver `SMSG_ON_MONSTER_MOVE`
@@ -7407,8 +7415,9 @@ impl WorldSession {
             represented_personal_loot_money: std::collections::HashMap::new(),
             represented_personal_loot_owners: std::collections::HashSet::new(),
             client_visible_guids_like_cpp: std::collections::HashSet::new(),
+            loaded_player_customizations_like_cpp: Box::default(),
             client_visible_transports_like_cpp: std::collections::HashSet::new(),
-            player_transport_guid_like_cpp: None,
+            player_transport_login_state_like_cpp: None,
             suppress_creature_movement_queued_at_or_before_like_cpp: None,
             represented_seer_guid_like_cpp: None,
             represented_dynamic_object_values_updates_delivered_like_cpp:
@@ -32720,6 +32729,8 @@ impl WorldSession {
                 power_type,
                 current_power,
                 max_power,
+                base_mana: self.represented_player_base_mana_like_cpp,
+                transport: self.player_transport_info_like_cpp(),
                 is_pvp: pvp_flags.contains(UnitPvpFlags::PVP),
                 is_ffa_pvp: pvp_flags.contains(UnitPvpFlags::FFA_PVP),
                 is_ghost,
@@ -32781,7 +32792,10 @@ impl WorldSession {
                 level,
                 gray_level: self.gray_level(level),
                 display_id: default_display_id(race, gender),
-                visible_items,
+                visible_items: Arc::new(visible_items),
+                customizations: Arc::new(
+                    self.loaded_player_customizations_like_cpp.as_ref().clone(),
+                ),
                 lifetime_honorable_kills,
                 this_week_contribution,
                 yesterday_contribution,
@@ -32834,6 +32848,8 @@ impl WorldSession {
             info.power_type = power_type;
             info.current_power = current_power;
             info.max_power = max_power;
+            info.base_mana = self.represented_player_base_mana_like_cpp;
+            info.transport = self.player_transport_info_like_cpp();
             if let Some(guid) = self.player_guid() {
                 let pvp_flags = self
                     .canonical_player_pvp_flags_like_cpp(guid)
@@ -32902,6 +32918,8 @@ impl WorldSession {
                     .unwrap_or_default();
             info.party_member_auras = self.party_member_visible_auras_like_cpp();
             info.party_member_pet_stats = self.party_member_pet_stats_like_cpp();
+            info.customizations =
+                Arc::new(self.loaded_player_customizations_like_cpp.as_ref().clone());
             let (
                 lifetime_honorable_kills,
                 this_week_contribution,
@@ -33092,6 +33110,7 @@ impl WorldSession {
             entry.map_id = map_id;
             entry.instance_id = instance_id;
             entry.liquid_status = self.player_liquid_status_like_cpp();
+            entry.transport = self.player_transport_info_like_cpp();
         }
         if let Some(accessor) = &self.object_accessor {
             if let Some(object) = accessor.write().player_object_mut(guid) {
@@ -53131,12 +53150,71 @@ impl WorldSession {
     }
 
     pub(crate) fn set_player_transport_guid_like_cpp(&mut self, guid: Option<ObjectGuid>) {
-        self.player_transport_guid_like_cpp = guid.filter(|guid| !guid.is_empty());
-        self.player_on_transport_like_cpp = self.player_transport_guid_like_cpp.is_some();
+        self.set_player_transport_info_like_cpp(guid.filter(|guid| !guid.is_empty()).map(|guid| {
+            wow_packet::packets::movement::TransportInfo {
+                guid,
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+                o: 0.0,
+                seat: -1,
+                time: 0,
+                prev_time: None,
+                vehicle_id: None,
+            }
+        }));
     }
 
-    pub(crate) const fn player_transport_guid_like_cpp(&self) -> Option<ObjectGuid> {
-        self.player_transport_guid_like_cpp
+    pub(crate) fn set_player_transport_info_like_cpp(
+        &mut self,
+        info: Option<wow_packet::packets::movement::TransportInfo>,
+    ) {
+        self.player_transport_login_state_like_cpp = info
+            .filter(|info| !info.guid.is_empty())
+            .map(|info| Box::new(PlayerTransportLoginStateLikeCpp { info }));
+        self.player_on_transport_like_cpp = self.player_transport_login_state_like_cpp.is_some();
+    }
+
+    pub(crate) fn player_transport_guid_like_cpp(&self) -> Option<ObjectGuid> {
+        self.player_transport_login_state_like_cpp
+            .as_ref()
+            .map(|state| state.info.guid)
+    }
+
+    pub(crate) fn set_player_transport_position_like_cpp(&mut self, position: Option<Position>) {
+        if let Some(state) = self.player_transport_login_state_like_cpp.as_mut() {
+            if let Some(position) = position {
+                state.info.x = position.x;
+                state.info.y = position.y;
+                state.info.z = position.z;
+                state.info.o = position.orientation;
+            }
+        }
+    }
+
+    pub(crate) fn player_transport_position_like_cpp(&self) -> Option<Position> {
+        self.player_transport_login_state_like_cpp
+            .as_ref()
+            .map(|state| Position::new(state.info.x, state.info.y, state.info.z, state.info.o))
+    }
+
+    pub(crate) fn player_transport_info_like_cpp(
+        &self,
+    ) -> Option<wow_packet::packets::movement::TransportInfo> {
+        self.player_transport_login_state_like_cpp
+            .as_ref()
+            .map(|state| state.info.clone())
+    }
+
+    pub(crate) fn set_loaded_player_customizations_like_cpp(
+        &mut self,
+        customizations: Vec<wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate>,
+    ) {
+        self.loaded_player_customizations_like_cpp = Box::new(customizations);
+        // Login registers the player before `SendInitSelf` loads customization
+        // rows. Publish the completed snapshot before the forced visibility
+        // pass can expose this player to existing map sessions.
+        self.sync_player_registry_state_like_cpp();
     }
 
     pub(crate) fn should_send_init_transport_like_cpp(
@@ -53144,7 +53222,7 @@ impl WorldSession {
         transport_guid: ObjectGuid,
         transport_phase_shift: &PhaseShift,
     ) -> bool {
-        self.player_transport_guid_like_cpp != Some(transport_guid)
+        self.player_transport_guid_like_cpp() != Some(transport_guid)
             && self.can_see_phase_shift_like_cpp(transport_phase_shift)
     }
 
@@ -96573,6 +96651,8 @@ mod tests {
             power_type: 0,
             current_power: 0,
             max_power: 0,
+            base_mana: 0,
+            transport: None,
             is_pvp: false,
             is_ffa_pvp: false,
             is_ghost: false,
@@ -96618,7 +96698,8 @@ mod tests {
             level: 1,
             gray_level: 0,
             display_id: 49,
-            visible_items: [(0, 0, 0); 19],
+            visible_items: Arc::new([(0, 0, 0); 19]),
+            customizations: Arc::default(),
             lifetime_honorable_kills: 0,
             this_week_contribution: 0,
             yesterday_contribution: 0,
@@ -96905,6 +96986,96 @@ mod tests {
             0,
             "C++ UpdateData::m_blockCount excludes the separate out-of-range GUID section"
         );
+    }
+
+    #[test]
+    fn player_visibility_create_uses_live_stats_and_customizations_like_cpp() {
+        let guid = ObjectGuid::create_player(1, 51);
+        let (send_tx, _send_rx) = flume::bounded(1);
+        let mut info = broadcast_info(guid, send_tx);
+        info.class = 8;
+        info.power_type = PowerType::Mana as u8;
+        info.current_health = 1_234;
+        info.max_health = 4_567;
+        info.current_power = 321;
+        info.max_power = 789;
+        info.base_mana = 456;
+        info.transport = Some(wow_packet::packets::movement::TransportInfo {
+            guid: ObjectGuid::create_transport(HighGuid::Transport, 7_004),
+            x: 1.0,
+            y: 2.0,
+            z: 3.0,
+            o: 0.5,
+            seat: 4,
+            time: 123,
+            prev_time: Some(122),
+            vehicle_id: Some(99),
+        });
+        info.customizations = Arc::new(vec![
+            wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate {
+                option_id: 10,
+                choice_id: 20,
+            },
+            wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate {
+                option_id: 30,
+                choice_id: 40,
+            },
+        ]);
+
+        let update =
+            crate::handlers::character::player_visibility_create_update_like_cpp(guid, &info, 571);
+        let [
+            wow_packet::packets::update::UpdateBlock::CreateObject {
+                create_data,
+                movement: Some(movement),
+                is_self,
+                ..
+            },
+        ] = update.blocks.as_slice()
+        else {
+            panic!("expected one non-owner player CREATE block");
+        };
+
+        assert!(!is_self);
+        assert_eq!(create_data.health, 1_234);
+        assert_eq!(create_data.max_health, 4_567);
+        assert_eq!(create_data.current_power0, 321);
+        assert_eq!(create_data.max_mana, 789);
+        assert_eq!(create_data.base_mana, 456);
+        assert_eq!(&create_data.customizations, info.customizations.as_ref());
+        let transport = movement
+            .transport
+            .as_ref()
+            .expect("non-owner player transport attachment");
+        assert_eq!(transport.guid, info.transport.as_ref().unwrap().guid);
+        assert_eq!(transport.x, 1.0);
+        assert_eq!(transport.seat, 4);
+        assert_eq!(transport.time, 123);
+        assert_eq!(transport.prev_time, Some(122));
+        assert_eq!(transport.vehicle_id, Some(99));
+    }
+
+    #[test]
+    fn loaded_customizations_refresh_already_registered_player_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 52);
+        let registry = Arc::new(PlayerRegistry::default());
+        let (send_tx, _send_rx) = flume::bounded(1);
+
+        session.set_player_guid(Some(guid));
+        session.set_player_registry(Arc::clone(&registry));
+        registry.insert(guid, broadcast_info(guid, send_tx));
+
+        let customizations = vec![
+            wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate {
+                option_id: 50,
+                choice_id: 60,
+            },
+        ];
+        session.set_loaded_player_customizations_like_cpp(customizations.clone());
+
+        let info = registry.get(&guid).expect("registered player");
+        assert_eq!(info.customizations.as_ref(), &customizations);
     }
 
     #[test]

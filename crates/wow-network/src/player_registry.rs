@@ -19,9 +19,11 @@ use std::time::Instant;
 use wow_core::{ObjectGuid, Position};
 use wow_loot::{LootClaimLease, OwnedLootAuthority};
 use wow_packet::packets::loot::LootEntry;
+use wow_packet::packets::movement::TransportInfo;
 use wow_packet::packets::party::{
     PartyMemberAuraState, PartyMemberPetStats, PartyMemberPhaseStates, PartyUpdate,
 };
+use wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate;
 
 #[derive(Clone, Debug)]
 pub enum SessionCommand {
@@ -928,6 +930,10 @@ pub struct PlayerBroadcastInfo {
     pub current_power: u16,
     /// Represented `Unit::GetMaxPower(GetPowerType())` snapshot for party member full-state packets.
     pub max_power: u16,
+    /// C++ `UnitData::BaseMana` snapshot used independently from live maximum power in CREATE.
+    pub base_mana: i32,
+    /// Current MO-transport passenger movement state used by player CREATEs.
+    pub transport: Option<TransportInfo>,
     /// Represented `Player::IsPvP()` snapshot for party member full-state packets.
     pub is_pvp: bool,
     /// Represented `Player::IsFFAPvP()` snapshot for party member full-state packets.
@@ -1025,7 +1031,9 @@ pub struct PlayerBroadcastInfo {
     /// Display ID for model rendering
     pub display_id: u32,
     /// Equipped item display info: (item_entry, enchant_display_id, subclass) per slot 0-18
-    pub visible_items: [(i32, u16, u16); 19],
+    pub visible_items: Arc<[(i32, u16, u16); 19]>,
+    /// C++ `PlayerData::Customizations` snapshot used by non-owner CREATE blocks.
+    pub customizations: Arc<Vec<ChrCustomizationChoiceValuesUpdate>>,
     /// C++ `ActivePlayerData::LifetimeHonorableKills` snapshot for inspect honor stats.
     pub lifetime_honorable_kills: u32,
     /// C++ `ActivePlayerData::ThisWeekContribution` snapshot for inspect honor stats.
@@ -1081,6 +1089,8 @@ mod tests {
             power_type: 0,
             current_power: 0,
             max_power: 0,
+            base_mana: 0,
+            transport: None,
             is_pvp: false,
             is_ffa_pvp: false,
             is_ghost: false,
@@ -1126,7 +1136,8 @@ mod tests {
             level: 1,
             gray_level: 0,
             display_id: 49,
-            visible_items: [(0, 0, 0); 19],
+            visible_items: Arc::new([(0, 0, 0); 19]),
+            customizations: Arc::default(),
             lifetime_honorable_kills: 0,
             this_week_contribution: 0,
             yesterday_contribution: 0,

@@ -90,8 +90,9 @@ intent, no mutation — see STATE.md §0). Almost every item below is "convert r
 - [ ] **M1.3** Close the 33 login-burst divergences (**#9–#12**, `world-load-audit.md`):
   proficiency set, AccountDataTimes/TutorialFlags resend, ordering, FeatureSystemStatus, MOTD, etc.
   Issues #9–#10 are merged. Issue #11's 1221–1227 visibility slice is implemented and locally
-  validated; issue #12 retains the later movement/order rows and the full capture/original-client
-  exit.
+  validated, including review follow-up for live visible-player fields with distinct base mana
+  and current-transport attachment; issue #12 retains the later movement/order rows and the full
+  capture/original-client exit.
 - [x] **M1.4** Re-audit and fix the bounded CREATE-block UpdateField VALUE gaps (issue #10,
   `world-load-audit.md` cross-cutting). Five findings were already fixed, player power slots were
   correct, canonical ParentRotation retains a documented architecture follow-up, and merged

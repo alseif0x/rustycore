@@ -60,6 +60,7 @@ use wow_packet::packets::chat::ChatServerMessage;
 use wow_packet::packets::item::*;
 use wow_packet::packets::loot::LootReleaseAll;
 use wow_packet::packets::misc::*;
+use wow_packet::packets::movement::TransportInfo;
 use wow_packet::packets::quest::QuestGiverStatusMultiple;
 use wow_packet::packets::spell::{SpellCastVisual, SpellTargetData};
 use wow_packet::packets::update::*;
@@ -1150,7 +1151,7 @@ fn enum_character_query_statements_like_cpp(
     )
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 struct MapTransportCreateLikeCpp {
     guid_low: u32,
     entry: u32,
@@ -1167,12 +1168,256 @@ struct MapTransportCreateLikeCpp {
     faction_template: i32,
 }
 
-#[derive(Debug, Clone, Copy)]
+fn map_transport_create_from_row_like_cpp(result: &SqlResult) -> MapTransportCreateLikeCpp {
+    MapTransportCreateLikeCpp {
+        guid_low: result
+            .try_read::<i64>(0)
+            .map(|value| value.max(0) as u32)
+            .or_else(|| result.try_read::<u32>(0))
+            .unwrap_or(0),
+        entry: result
+            .try_read::<i32>(1)
+            .map(|value| value.max(0) as u32)
+            .or_else(|| result.try_read::<u32>(1))
+            .unwrap_or(0),
+        phase_use_flags: result
+            .try_read::<u8>(2)
+            .or_else(|| result.try_read::<i16>(2).map(|value| value.max(0) as u8))
+            .unwrap_or(0),
+        phase_id: result
+            .try_read::<u16>(3)
+            .or_else(|| result.try_read::<i32>(3).map(|value| value.max(0) as u16))
+            .unwrap_or(0),
+        phase_group_id: result
+            .try_read::<u32>(4)
+            .or_else(|| result.try_read::<i32>(4).map(|value| value.max(0) as u32))
+            .unwrap_or(0),
+        display_id: result
+            .try_read::<i32>(5)
+            .map(|value| value.max(0) as u32)
+            .or_else(|| result.try_read::<u32>(5))
+            .unwrap_or(0),
+        scale: result.try_read::<f32>(6).unwrap_or(1.0),
+        taxi_path_id: result
+            .try_read::<i32>(7)
+            .map(|value| value.max(0) as u16)
+            .or_else(|| result.try_read::<u16>(7))
+            .unwrap_or(0),
+        move_speed: result
+            .try_read::<i32>(8)
+            .map(|value| value.max(1) as u32)
+            .or_else(|| result.try_read::<u32>(8))
+            .unwrap_or(1),
+        accel_rate: result
+            .try_read::<i32>(9)
+            .map(|value| value.max(1) as u32)
+            .or_else(|| result.try_read::<u32>(9))
+            .unwrap_or(1),
+        allow_stopping: result
+            .try_read::<i32>(10)
+            .map(|value| value != 0)
+            .or_else(|| result.try_read::<u8>(10).map(|value| value != 0))
+            .unwrap_or(false),
+        gameobject_flags: result
+            .try_read::<i64>(11)
+            .map(|value| value.max(0) as u32)
+            .or_else(|| result.try_read::<u32>(11))
+            .unwrap_or(0),
+        faction_template: result
+            .try_read::<i64>(12)
+            .map(|value| value as i32)
+            .or_else(|| result.try_read::<i32>(12))
+            .unwrap_or(0),
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 struct TransportCreatePositionLikeCpp {
     map_id: u16,
     position: Position,
     timer_ms: u32,
     total_time_ms: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct PersistedTransportLoginLikeCpp {
+    guid: ObjectGuid,
+    map_id: u16,
+    offset: Position,
+    world_position: Position,
+    transport_position: TransportCreatePositionLikeCpp,
+    transport_create: MapTransportCreateLikeCpp,
+}
+
+fn validate_persisted_transport_login_like_cpp(
+    guid: ObjectGuid,
+    offset: Position,
+    transport_position: TransportCreatePositionLikeCpp,
+    transport_create: MapTransportCreateLikeCpp,
+) -> Option<PersistedTransportLoginLikeCpp> {
+    // C++ Player::LoadFromDB first converts the saved passenger offset to
+    // world coordinates, then rejects invalid world coordinates and transport
+    // offsets outside the hard ±250-yard transport-size limit.
+    if !offset.x.is_finite()
+        || !offset.y.is_finite()
+        || !offset.z.is_finite()
+        || !offset.orientation.is_finite()
+        || offset.x.abs() > 250.0
+        || offset.y.abs() > 250.0
+        || offset.z.abs() > 250.0
+    {
+        return None;
+    }
+
+    let world_position =
+        wow_entities::calculate_passenger_position(offset, transport_position.position);
+    world_position
+        .is_valid_map_coord_like_cpp()
+        .then_some(PersistedTransportLoginLikeCpp {
+            guid,
+            map_id: transport_position.map_id,
+            offset,
+            world_position,
+            transport_position,
+            transport_create,
+        })
+}
+
+fn transport_route_contains_saved_map_like_cpp(
+    route_map_ids: impl IntoIterator<Item = u16>,
+    saved_map_id: u16,
+) -> bool {
+    route_map_ids
+        .into_iter()
+        .any(|map_id| map_id == saved_map_id)
+}
+
+fn map_transport_create_block_like_cpp(
+    transport: MapTransportCreateLikeCpp,
+    path_position: TransportCreatePositionLikeCpp,
+    now_ms: u32,
+) -> UpdateBlock {
+    let transport_guid =
+        ObjectGuid::create_transport(HighGuid::Transport, transport.guid_low as i64);
+    let path_progress =
+        ((path_position.timer_ms as f32 / path_position.total_time_ms as f32) * 65535.0) as u32;
+    let create_data = GameObjectCreateData {
+        guid: transport_guid,
+        entry: transport.entry,
+        dynamic_flags: path_progress << 16,
+        display_id: transport.display_id,
+        go_type: GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT_LIKE_CPP,
+        position: path_position.position,
+        rotation: [0.0, 0.0, 0.0, 1.0],
+        anim_progress: 255,
+        state: if transport.allow_stopping {
+            wow_entities::GoState::Active as i8
+        } else {
+            wow_entities::GoState::Ready as i8
+        },
+        art_kit: 0,
+        created_by: ObjectGuid::EMPTY,
+        faction_template: transport.faction_template,
+        // Transport.cpp + GameObject flags:
+        // GO_FLAG_TRANSPORT | GO_FLAG_NODESPAWN | GO_FLAG_MAP_OBJECT.
+        gameobject_flags: transport.gameobject_flags | 0x0010_0028,
+        world_effect_id: 0,
+        scale: transport.scale,
+        level: path_position.total_time_ms,
+        parent_rotation: [0.0, 0.0, 0.0, 1.0],
+    };
+    UpdateObject::create_transport_block(create_data, now_ms)
+}
+
+#[derive(Default)]
+struct InitTransportsPlanLikeCpp {
+    own_transport: Option<(ObjectGuid, UpdateBlock)>,
+    other_blocks: Vec<UpdateBlock>,
+    other_visible_guids: Vec<ObjectGuid>,
+    considered: usize,
+    skipped_other_map: usize,
+    skipped_missing_path: usize,
+    skipped_phase: usize,
+}
+
+pub(crate) fn player_visibility_create_update_like_cpp(
+    guid: ObjectGuid,
+    player: &wow_network::PlayerBroadcastInfo,
+    map_id: u16,
+) -> UpdateObject {
+    let max_mana = if player.power_type == PowerType::Mana as u8 {
+        i64::from(player.max_power)
+    } else {
+        0
+    };
+    let combat = PlayerCombatStats {
+        health: i64::from(player.current_health),
+        max_health: i64::from(player.max_health),
+        base_mana: player.base_mana,
+        max_mana,
+        ..PlayerCombatStats::default()
+    };
+    let mut update = UpdateObject::create_player_with_party_type(
+        guid,
+        player.race,
+        player.class,
+        player.sex,
+        player.level,
+        player.display_id,
+        &player.position,
+        map_id,
+        player.zone_id,
+        false,
+        *player.visible_items,
+        [ObjectGuid::EMPTY; 141],
+        combat,
+        Vec::new(),
+        0,
+        Vec::new(),
+        player.party_member_party_type,
+    );
+    update.set_player_current_power0_like_cpp(i32::from(player.current_power));
+    update.set_player_customizations_like_cpp(player.customizations.as_ref().clone());
+    if let Some(transport) = player.transport.clone() {
+        update.set_player_movement_transport_like_cpp(transport);
+    }
+    update
+}
+
+fn compose_init_self_create_blocks_like_cpp(
+    player_update: &mut UpdateObject,
+    item_creates: Vec<ItemCreateData>,
+    own_transport: Option<(ObjectGuid, UpdateBlock)>,
+    fellow_passenger_blocks: Vec<UpdateBlock>,
+) -> Option<ObjectGuid> {
+    if item_creates.is_empty() && own_transport.is_none() && fellow_passenger_blocks.is_empty() {
+        return None;
+    }
+
+    let mut blocks = Vec::with_capacity(
+        usize::from(own_transport.is_some())
+            + item_creates.len()
+            + player_update.blocks.len()
+            + fellow_passenger_blocks.len(),
+    );
+    let own_transport_guid = own_transport.map(|(guid, block)| {
+        blocks.push(block);
+        guid
+    });
+    blocks.extend(
+        item_creates
+            .into_iter()
+            .map(|create_data| UpdateBlock::CreateItem {
+                update_type: UpdateType::CreateObject,
+                guid: create_data.item_guid,
+                create_data,
+            }),
+    );
+    blocks.append(&mut player_update.blocks);
+    blocks.extend(fellow_passenger_blocks);
+    player_update.blocks = blocks;
+    player_update.num_updates = player_update.blocks.len() as u32;
+    own_transport_guid
 }
 
 fn object_guid_from_db_binary_like_cpp(raw: Vec<u8>) -> ObjectGuid {
@@ -5265,11 +5510,17 @@ impl WorldSession {
         let at_login_flags = result.try_read::<u16>(39).unwrap_or(0);
         let create_mode = result.try_read::<u8>(21).unwrap_or(0);
         let mut map_id: i32 = result.try_read::<u16>(17).unwrap_or(0) as i32; // smallint unsigned
-        let saved_map_id_for_transport = map_id;
+        let saved_map_id_for_transport = map_id as u16;
         let saved_transport_guid_low = result
             .try_read::<u64>(36)
             .or_else(|| result.try_read::<i64>(36).map(|value| value.max(0) as u64))
             .unwrap_or(0);
+        let saved_transport_position = Position::new(
+            result.try_read::<f32>(32).unwrap_or(0.0),
+            result.try_read::<f32>(33).unwrap_or(0.0),
+            result.try_read::<f32>(34).unwrap_or(0.0),
+            result.try_read::<f32>(35).unwrap_or(0.0),
+        );
         let pos_x: f32 = result.try_read(14).unwrap_or(0.0);
         let pos_y: f32 = result.try_read(15).unwrap_or(0.0);
         let pos_z: f32 = result.try_read(16).unwrap_or(0.0);
@@ -6995,11 +7246,62 @@ impl WorldSession {
 
         // Store current map and character info for VALUES updates + stat recalculation
         self.set_loaded_player_identity_like_cpp(map_id as u16, race, class, level, gender);
-        self.set_player_transport_guid_like_cpp(
-            (saved_transport_guid_low != 0 && map_id == saved_map_id_for_transport).then(|| {
-                ObjectGuid::create_transport(HighGuid::Transport, saved_transport_guid_low as i64)
-            }),
-        );
+        let validated_persisted_transport_login = if saved_transport_guid_low != 0
+            && !saved_character_map_is_battleground
+        {
+            if let Some(transport) = self
+                .resolve_persisted_transport_login_like_cpp(
+                    saved_transport_guid_low,
+                    saved_map_id_for_transport,
+                    saved_transport_position,
+                )
+                .await
+            {
+                map_id = i32::from(transport.map_id);
+                position = transport.world_position;
+                self.seed_login_location_zone_area_like_cpp(
+                    &mut zone,
+                    CharacterLoginLocationLikeCpp {
+                        map_id: u32::from(transport.map_id),
+                        bind_area_id: None,
+                        position: transport.world_position,
+                    },
+                );
+                self.set_player_map_position_like_cpp(transport.map_id, transport.world_position);
+                self.set_player_transport_guid_like_cpp(Some(transport.guid));
+                self.set_player_transport_position_like_cpp(Some(transport.offset));
+                if attached_controller {
+                    let _ = self.ensure_canonical_world_map_for_current_player_like_cpp();
+                }
+                Some(transport)
+            } else {
+                warn!(
+                    player_guid = guid.counter(),
+                    transport_guid_low = saved_transport_guid_low,
+                    offset_x = saved_transport_position.x,
+                    offset_y = saved_transport_position.y,
+                    offset_z = saved_transport_position.z,
+                    offset_o = saved_transport_position.orientation,
+                    "invalid persisted transport login state; relocated to homebind like C++ Player::LoadFromDB"
+                );
+                let homebind_map_id = u16::try_from(login_homebind.map_id)
+                    .expect("validated character login homebind map ID");
+                map_id = i32::from(homebind_map_id);
+                position = login_homebind.position;
+                self.seed_login_location_zone_area_like_cpp(&mut zone, login_homebind);
+                self.set_player_map_position_like_cpp(homebind_map_id, login_homebind.position);
+                self.set_player_transport_guid_like_cpp(None);
+                self.set_player_transport_position_like_cpp(None);
+                if attached_controller {
+                    let _ = self.ensure_canonical_world_map_for_current_player_like_cpp();
+                }
+                None
+            }
+        } else {
+            self.set_player_transport_guid_like_cpp(None);
+            self.set_player_transport_position_like_cpp(None);
+            None
+        };
         self.refresh_next_level_xp();
         // NOTE: known_spells is stored below after DBC merge (see "Merge DBC auto-learned spells")
 
@@ -7322,6 +7624,7 @@ impl WorldSession {
                 map_id,
                 zone,
                 login_homebind,
+                validated_persisted_transport_login,
                 visible_items,
                 inv_slots,
                 item_creates,
@@ -7388,12 +7691,137 @@ impl WorldSession {
         );
     }
 
-    /// C++ `Map::SendInitTransports`: after `SendInitSelf`, send map
-    /// transports as GameObject-derived create blocks.
-    async fn send_init_transports_like_cpp(&mut self, map_id: u16) {
+    /// Resolve C++ `Player::LoadFromDB`'s persisted transport passenger state
+    /// against the currently materialized MO-transport path.
+    async fn resolve_persisted_transport_login_like_cpp(
+        &self,
+        guid_low: u64,
+        saved_map_id: u16,
+        offset: Position,
+    ) -> Option<PersistedTransportLoginLikeCpp> {
+        let world_db = self.world_db().map(Arc::clone)?;
+        let query = format!(
+            "SELECT t.guid, t.entry, t.phaseUseFlags, t.phaseid, t.phasegroup, \
+             gt.displayId, gt.size, gt.Data0, gt.Data1, gt.Data2, gt.Data8, \
+             COALESCE(goo.flags, gta.flags, 0), COALESCE(goo.faction, gta.faction, 0) \
+             FROM transports t \
+             JOIN gameobject_template gt ON gt.entry = t.entry \
+             LEFT JOIN gameobject_template_addon gta ON gta.entry = t.entry \
+             LEFT JOIN gameobject_overrides goo ON goo.spawnId = t.guid \
+             WHERE gt.type = 15 AND t.guid = {guid_low} \
+             LIMIT 1"
+        );
+        let result = world_db.direct_query(&query).await.ok()?;
+        if result.is_empty() {
+            return None;
+        }
+        let transport_create = map_transport_create_from_row_like_cpp(&result);
+
+        let data_dir = self.mmap_runtime_config_like_cpp().data_dir.clone();
+        let taxi_path_nodes = TaxiPathNodeStore::load(&data_dir, &self.locale).ok()?;
+        let nodes: Vec<TaxiPathNodeEntry> = taxi_path_nodes
+            .entries()
+            .filter(|node| node.path_id == transport_create.taxi_path_id)
+            .cloned()
+            .collect();
+        // TransportMgr creates one same-GUID transport object for every map in
+        // the template route. C++ first asks the character's saved map for that
+        // object before it may follow GetExpectedMapId() to the current leg.
+        if !transport_route_contains_saved_map_like_cpp(
+            nodes.iter().map(|node| node.continent_id),
+            saved_map_id,
+        ) {
+            return None;
+        }
+        let transport_position = transport_position_for_login_like_cpp(
+            &nodes,
+            transport_create.move_speed,
+            transport_create.accel_rate,
+            Self::game_time_ms_like_cpp(),
+        )?;
+        let guid = ObjectGuid::create_transport(HighGuid::Transport, guid_low as i64);
+        validate_persisted_transport_login_like_cpp(
+            guid,
+            offset,
+            transport_position,
+            transport_create,
+        )
+    }
+
+    /// C++ `Map::SendInitSelf` appends other passengers on the player's
+    /// current transport after the player's own CREATE block, but only when
+    /// `HaveAtClient(passenger)` was already true.
+    fn init_self_fellow_transport_passenger_blocks_like_cpp(
+        &self,
+        map_id: u16,
+        transport_guid: ObjectGuid,
+    ) -> Vec<UpdateBlock> {
+        let (Some(player_guid), Some(registry)) = (self.player_guid(), self.player_registry())
+        else {
+            return Vec::new();
+        };
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let mut passengers: Vec<_> = registry
+            .iter()
+            .filter_map(|entry| {
+                let (guid, info) = entry.pair();
+                (*guid != player_guid
+                    && info.is_in_world
+                    && info.map_id == map_id
+                    && info.instance_id == instance_id
+                    && info
+                        .transport
+                        .as_ref()
+                        .is_some_and(|transport| transport.guid == transport_guid)
+                    && self.client_visible_guids_like_cpp.contains(guid))
+                .then(|| (*guid, info.clone()))
+            })
+            .collect();
+        passengers.sort_by_key(|(guid, _)| *guid);
+        passengers
+            .into_iter()
+            .filter_map(|(guid, info)| {
+                player_visibility_create_update_like_cpp(guid, &info, map_id)
+                    .blocks
+                    .pop()
+            })
+            .collect()
+    }
+
+    /// Plan C++ `Map::SendInitSelf`'s current transport plus
+    /// `Map::SendInitTransports`' remaining map transports from one stable
+    /// path-time snapshot.
+    async fn plan_init_transports_like_cpp(
+        &mut self,
+        map_id: u16,
+        persisted_transport: Option<PersistedTransportLoginLikeCpp>,
+    ) -> Box<InitTransportsPlanLikeCpp> {
         self.client_visible_transports_like_cpp.clear();
+        let mut plan = Box::new(InitTransportsPlanLikeCpp::default());
+        let now_ms = Self::game_time_ms_like_cpp();
+        if let Some(snapshot) = persisted_transport {
+            if snapshot.map_id == map_id {
+                plan.own_transport = Some((
+                    snapshot.guid,
+                    map_transport_create_block_like_cpp(
+                        snapshot.transport_create,
+                        snapshot.transport_position,
+                        now_ms,
+                    ),
+                ));
+                plan.considered += 1;
+            } else {
+                // A validated attachment and the selected login map must be
+                // one snapshot. Fail closed instead of sending a player whose
+                // nested transport reference has no preceding CREATE block.
+                self.set_player_transport_info_like_cpp(None);
+            }
+        }
         let Some(world_db) = self.world_db().map(Arc::clone) else {
-            return;
+            return plan;
         };
 
         let data_dir = self.mmap_runtime_config_like_cpp().data_dir.clone();
@@ -7408,7 +7836,7 @@ impl WorldSession {
                     %error,
                     "RUST_LOGIN send_init_transports skipped: TaxiPathNode.db2 load failed"
                 );
-                return;
+                return plan;
             }
         };
 
@@ -7441,109 +7869,35 @@ impl WorldSession {
                     %error,
                     "RUST_LOGIN send_init_transports skipped: DB query failed"
                 );
-                return;
+                return plan;
             }
         };
 
         if result.is_empty() {
-            return;
+            return plan;
         }
 
         let mut transports = Vec::new();
         loop {
-            let guid_low = result
-                .try_read::<i64>(0)
-                .map(|value| value.max(0) as u32)
-                .or_else(|| result.try_read::<u32>(0))
-                .unwrap_or(0);
-            let entry = result
-                .try_read::<i32>(1)
-                .map(|value| value.max(0) as u32)
-                .or_else(|| result.try_read::<u32>(1))
-                .unwrap_or(0);
-            let phase_use_flags = result
-                .try_read::<u8>(2)
-                .or_else(|| result.try_read::<i16>(2).map(|value| value.max(0) as u8))
-                .unwrap_or(0);
-            let phase_id = result
-                .try_read::<u16>(3)
-                .or_else(|| result.try_read::<i32>(3).map(|value| value.max(0) as u16))
-                .unwrap_or(0);
-            let phase_group_id = result
-                .try_read::<u32>(4)
-                .or_else(|| result.try_read::<i32>(4).map(|value| value.max(0) as u32))
-                .unwrap_or(0);
-            let display_id = result
-                .try_read::<i32>(5)
-                .map(|value| value.max(0) as u32)
-                .or_else(|| result.try_read::<u32>(5))
-                .unwrap_or(0);
-            let scale = result.try_read::<f32>(6).unwrap_or(1.0);
-            let taxi_path_id = result
-                .try_read::<i32>(7)
-                .map(|value| value.max(0) as u16)
-                .or_else(|| result.try_read::<u16>(7))
-                .unwrap_or(0);
-            let move_speed = result
-                .try_read::<i32>(8)
-                .map(|value| value.max(1) as u32)
-                .or_else(|| result.try_read::<u32>(8))
-                .unwrap_or(1);
-            let accel_rate = result
-                .try_read::<i32>(9)
-                .map(|value| value.max(1) as u32)
-                .or_else(|| result.try_read::<u32>(9))
-                .unwrap_or(1);
-            let allow_stopping = result
-                .try_read::<i32>(10)
-                .map(|value| value != 0)
-                .or_else(|| result.try_read::<u8>(10).map(|value| value != 0))
-                .unwrap_or(false);
-            let gameobject_flags = result
-                .try_read::<i64>(11)
-                .map(|value| value.max(0) as u32)
-                .or_else(|| result.try_read::<u32>(11))
-                .unwrap_or(0);
-            let faction_template = result
-                .try_read::<i64>(12)
-                .map(|value| value as i32)
-                .or_else(|| result.try_read::<i32>(12))
-                .unwrap_or(0);
-
-            transports.push(MapTransportCreateLikeCpp {
-                guid_low,
-                entry,
-                display_id,
-                scale,
-                taxi_path_id,
-                move_speed,
-                accel_rate,
-                allow_stopping,
-                phase_use_flags,
-                phase_id,
-                phase_group_id,
-                gameobject_flags,
-                faction_template,
-            });
+            transports.push(map_transport_create_from_row_like_cpp(&result));
 
             if !result.next_row() {
                 break;
             }
         }
 
-        let now_ms = Self::game_time_ms_like_cpp();
-        let mut blocks = Vec::new();
-        let mut visible_transport_guids = Vec::new();
         let player_transport_guid = self.player_transport_guid_like_cpp();
-        let mut considered = 0usize;
-        let mut skipped_own_transport = 0usize;
-        let mut skipped_other_map = 0usize;
-        let mut skipped_missing_path = 0usize;
-        let mut skipped_phase = 0usize;
 
         for transport in transports {
+            let transport_guid =
+                ObjectGuid::create_transport(HighGuid::Transport, transport.guid_low as i64);
+            if player_transport_guid == Some(transport_guid) {
+                // The validated own transport was materialized above without a
+                // second fallible query/path load.
+                continue;
+            }
             let Some(nodes) = nodes_by_path.get(&transport.taxi_path_id) else {
-                skipped_missing_path += 1;
+                plan.skipped_missing_path += 1;
                 continue;
             };
             let Some(path_position) = transport_position_for_login_like_cpp(
@@ -7552,12 +7906,12 @@ impl WorldSession {
                 transport.accel_rate,
                 now_ms,
             ) else {
-                skipped_missing_path += 1;
+                plan.skipped_missing_path += 1;
                 continue;
             };
 
             if path_position.map_id != map_id {
-                skipped_other_map += 1;
+                plan.skipped_other_map += 1;
                 continue;
             }
 
@@ -7568,75 +7922,47 @@ impl WorldSession {
                 transport.phase_group_id,
                 -1,
             );
-            let transport_guid =
-                ObjectGuid::create_transport(HighGuid::Transport, transport.guid_low as i64);
             if !self.should_send_init_transport_like_cpp(transport_guid, &target_phase_shift) {
-                if player_transport_guid == Some(transport_guid) {
-                    skipped_own_transport += 1;
-                } else {
-                    skipped_phase += 1;
-                }
+                plan.skipped_phase += 1;
                 continue;
             }
 
-            considered += 1;
-            let path_progress = ((path_position.timer_ms as f32
-                / path_position.total_time_ms as f32)
-                * 65535.0) as u32;
-            let dynamic_flags = path_progress << 16;
-            let create_data = GameObjectCreateData {
-                guid: transport_guid,
-                entry: transport.entry,
-                dynamic_flags,
-                display_id: transport.display_id,
-                go_type: GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT_LIKE_CPP,
-                position: path_position.position,
-                rotation: [0.0, 0.0, 0.0, 1.0],
-                anim_progress: 255,
-                state: if transport.allow_stopping {
-                    wow_entities::GoState::Active as i8
-                } else {
-                    wow_entities::GoState::Ready as i8
-                },
-                art_kit: 0,
-                created_by: ObjectGuid::EMPTY,
-                faction_template: transport.faction_template,
-                // C++ MO_TRANSPORTs carry GO_FLAG_TRANSPORT(0x8) | GO_FLAG_NODESPAWN(0x20) |
-                // GO_FLAG_MAP_OBJECT(0x100000) = 0x100028 (Transport.cpp:139 + GameObject flags).
-                // GO_FLAG_MAP_OBJECT tells the 3.4.3 client to load the model as a WMO; without
-                // it the client mis-loads the transport model and crashes. Confirmed via C++/Rust
-                // wire diff (C++=0x100028, Rust was 0). OR it in so DB-sourced flags are preserved.
-                gameobject_flags: transport.gameobject_flags | 0x0010_0028,
-                world_effect_id: 0,
-                scale: transport.scale,
-                // C++ Transport::Create -> SetPeriod(TotalPathTime): the MO_TRANSPORT period
-                // goes in GameObjectData::Level. The client divides PathProgress by it to
-                // interpolate; 0 -> divide-by-zero -> 0xFFFF node index -> client ERROR #132.
-                level: path_position.total_time_ms,
-                // MO_TRANSPORTs serialize via create_transport_block (own writer); identity
-                // here. Transport-specific parent rotation is a #NEXT.R8.ENTITIES.1216 follow-up.
-                parent_rotation: [0.0, 0.0, 0.0, 1.0],
-            };
-            blocks.push(UpdateObject::create_transport_block(create_data, now_ms));
-            visible_transport_guids.push(transport_guid);
+            plan.considered += 1;
+            plan.other_blocks.push(map_transport_create_block_like_cpp(
+                transport,
+                path_position,
+                now_ms,
+            ));
+            plan.other_visible_guids.push(transport_guid);
         }
 
         info!(
             map_id,
-            blocks = blocks.len(),
-            considered,
-            skipped_other_map,
-            skipped_missing_path,
-            skipped_phase,
-            skipped_own_transport,
+            own_transport = plan.own_transport.is_some(),
+            other_blocks = plan.other_blocks.len(),
+            considered = plan.considered,
+            skipped_other_map = plan.skipped_other_map,
+            skipped_missing_path = plan.skipped_missing_path,
+            skipped_phase = plan.skipped_phase,
             "RUST_LOGIN send_init_transports plan"
         );
 
-        if blocks.is_empty() {
+        plan
+    }
+
+    /// C++ `Map::SendInitTransports`: after `SendInitSelf`, send map
+    /// transports other than the player's current transport.
+    fn send_init_transports_like_cpp(&mut self, map_id: u16, plan: Box<InitTransportsPlanLikeCpp>) {
+        if plan.other_blocks.is_empty() {
             return;
         }
 
-        let update = UpdateObject::create_world_objects(blocks, map_id);
+        let InitTransportsPlanLikeCpp {
+            other_blocks,
+            other_visible_guids,
+            ..
+        } = *plan;
+        let update = UpdateObject::create_world_objects(other_blocks, map_id);
         if std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some() {
             for line in update.debug_create_summary_like_cpp() {
                 info!("RUST_UPDATEOBJECT init_transports {line}");
@@ -7644,7 +7970,7 @@ impl WorldSession {
         }
         self.send_packet(&update);
         self.client_visible_transports_like_cpp
-            .extend(visible_transport_guids);
+            .extend(other_visible_guids);
     }
 
     fn materialize_creature_spawn_row_like_cpp(
@@ -8545,32 +8871,13 @@ impl WorldSession {
                 out_of_range_guids.extend(removed_misc_objects);
             }
 
-            let empty_inventory = [ObjectGuid::EMPTY; 141];
             for (guid, player) in visible_other_players {
                 new_visible_players.insert(guid);
                 if self.client_visible_guids_like_cpp.contains(&guid) {
                     continue;
                 }
 
-                let mut update = UpdateObject::create_player_with_party_type(
-                    guid,
-                    player.race,
-                    player.class,
-                    player.sex,
-                    player.level,
-                    player.display_id,
-                    &player.position,
-                    map_id,
-                    player.zone_id,
-                    false,
-                    player.visible_items,
-                    empty_inventory,
-                    wow_packet::packets::update::PlayerCombatStats::default(),
-                    Vec::new(),
-                    0,
-                    Vec::new(),
-                    player.party_member_party_type,
-                );
+                let mut update = player_visibility_create_update_like_cpp(guid, &player, map_id);
                 if let Some(block) = update.blocks.pop() {
                     update_blocks.push(block);
                     created_players += 1;
@@ -18517,6 +18824,7 @@ impl WorldSession {
         map_id: i32,
         zone_id: i32,
         homebind: CharacterLoginLocationLikeCpp,
+        persisted_transport_login: Option<PersistedTransportLoginLikeCpp>,
         visible_items: [(i32, u16, u16); 19],
         inv_slots: [ObjectGuid; 141],
         item_creates: Vec<wow_packet::packets::update::ItemCreateData>,
@@ -18727,12 +19035,13 @@ impl WorldSession {
             map_id,
             "RUST_LOGIN map_add after_add_to_world"
         );
+        let mut init_transports_plan = self
+            .plan_init_transports_like_cpp(map_id as u16, persisted_transport_login)
+            .await;
 
-        // C++ `Map::SendInitSelf` — items + player in a SINGLE packet.
-        //     C++ Map::SendInitSelf builds the player's self create data in
-        //     one UpdateData. Items must come first so the client has them
-        //     when it processes InvSlots, but everything must be in the same
-        //     packet for forward-referenced Owner GUIDs to resolve.
+        // C++ `Map::SendInitSelf` — current transport + items + player in a
+        // single packet. The transport precedes the player's nested
+        // MovementInfo::TransportInfo reference; items precede InvSlots.
         {
             // Build quest log for the UpdateObject (25 slots max).
             // C++ Player::BuildValuesCreate sends quest log fields in the
@@ -18746,6 +19055,7 @@ impl WorldSession {
             let account_transmog = self.account_transmog_active_player_rows_like_cpp();
             let trait_configs = self.load_active_player_trait_configs_like_cpp(guid).await;
             let player_customizations = self.load_player_customizations_like_cpp(guid).await;
+            self.set_loaded_player_customizations_like_cpp(player_customizations.clone());
             info!(
                 toys = account_toys.len(),
                 heirlooms = account_heirlooms.len(),
@@ -18819,26 +19129,52 @@ impl WorldSession {
             );
             player_pkt.set_player_customizations_like_cpp(player_customizations);
 
-            if !item_creates.is_empty() {
+            if let (Some((transport_guid, _)), Some(transport_position)) = (
+                init_transports_plan.own_transport.as_ref(),
+                self.player_transport_position_like_cpp(),
+            ) {
+                player_pkt.set_player_movement_transport_like_cpp(TransportInfo {
+                    guid: *transport_guid,
+                    x: transport_position.x,
+                    y: transport_position.y,
+                    z: transport_position.z,
+                    o: transport_position.orientation,
+                    seat: -1,
+                    time: 0,
+                    prev_time: None,
+                    vehicle_id: None,
+                });
+            }
+
+            let fellow_passenger_blocks = init_transports_plan
+                .own_transport
+                .as_ref()
+                .map(|(transport_guid, _)| {
+                    self.init_self_fellow_transport_passenger_blocks_like_cpp(
+                        map_id as u16,
+                        *transport_guid,
+                    )
+                })
+                .unwrap_or_default();
+            if !item_creates.is_empty()
+                || init_transports_plan.own_transport.is_some()
+                || !fellow_passenger_blocks.is_empty()
+            {
                 info!(
-                    "Sending {} item CREATE blocks + player in single UpdateObject",
-                    item_creates.len()
+                    items = item_creates.len(),
+                    own_transport = init_transports_plan.own_transport.is_some(),
+                    fellow_passengers = fellow_passenger_blocks.len(),
+                    "Sending C++ Map::SendInitSelf CREATE blocks"
                 );
-                // Prepend item blocks before the player block
-                let mut all_blocks: Vec<UpdateBlock> = item_creates
-                    .into_iter()
-                    .map(|data| {
-                        let g = data.item_guid;
-                        UpdateBlock::CreateItem {
-                            update_type: UpdateType::CreateObject,
-                            guid: g,
-                            create_data: data,
-                        }
-                    })
-                    .collect();
-                all_blocks.append(&mut player_pkt.blocks);
-                player_pkt.blocks = all_blocks;
-                player_pkt.num_updates = player_pkt.blocks.len() as u32;
+                if let Some(transport_guid) = compose_init_self_create_blocks_like_cpp(
+                    &mut player_pkt,
+                    item_creates,
+                    init_transports_plan.own_transport.take(),
+                    fellow_passenger_blocks,
+                ) {
+                    self.client_visible_transports_like_cpp
+                        .insert(transport_guid);
+                }
             }
 
             if std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some() {
@@ -18853,7 +19189,7 @@ impl WorldSession {
         }
         // C++ Map::AddPlayerToMap sends transports immediately after
         // SendInitSelf, before clearing the normal visible GUID cache.
-        self.send_init_transports_like_cpp(map_id as u16).await;
+        self.send_init_transports_like_cpp(map_id as u16, init_transports_plan);
         if updateobject_trace_enabled {
             info!(guid = ?guid, "RUST_LOGIN map_add after_send_init_transports");
         }
@@ -19341,6 +19677,242 @@ mod tests {
             29
         );
         assert_ne!(29, selected_context_column);
+    }
+
+    #[test]
+    fn init_self_orders_transport_attached_player_and_fellow_passenger_like_cpp() {
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let passenger_guid = ObjectGuid::create_player(1, 43);
+        let transport_guid = ObjectGuid::create_transport(HighGuid::Transport, 7_001);
+        let mut player_update = UpdateObject::create_player(
+            player_guid,
+            1,
+            8,
+            0,
+            80,
+            49,
+            &Position::ZERO,
+            571,
+            0,
+            true,
+            [(0, 0, 0); 19],
+            [ObjectGuid::EMPTY; 141],
+            PlayerCombatStats::default(),
+            Vec::new(),
+            0,
+            Vec::new(),
+        );
+        player_update.set_player_movement_transport_like_cpp(TransportInfo {
+            guid: transport_guid,
+            x: 1.0,
+            y: 2.0,
+            z: 3.0,
+            o: 0.5,
+            seat: -1,
+            time: 0,
+            prev_time: None,
+            vehicle_id: None,
+        });
+        let transport_block = UpdateObject::create_transport_block(
+            GameObjectCreateData {
+                guid: transport_guid,
+                entry: 1,
+                dynamic_flags: 0,
+                display_id: 2,
+                go_type: GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT_LIKE_CPP,
+                position: Position::ZERO,
+                rotation: [0.0, 0.0, 0.0, 1.0],
+                anim_progress: 255,
+                state: wow_entities::GoState::Ready as i8,
+                art_kit: 0,
+                created_by: ObjectGuid::EMPTY,
+                faction_template: 0,
+                gameobject_flags: 0x0010_0028,
+                world_effect_id: 0,
+                scale: 1.0,
+                level: 1_000,
+                parent_rotation: [0.0, 0.0, 0.0, 1.0],
+            },
+            0,
+        );
+        let mut passenger_update = UpdateObject::create_player(
+            passenger_guid,
+            1,
+            8,
+            0,
+            80,
+            49,
+            &Position::ZERO,
+            571,
+            0,
+            false,
+            [(0, 0, 0); 19],
+            [ObjectGuid::EMPTY; 141],
+            PlayerCombatStats::default(),
+            Vec::new(),
+            0,
+            Vec::new(),
+        );
+        let passenger_block = passenger_update
+            .blocks
+            .pop()
+            .expect("fellow passenger CREATE");
+
+        assert_eq!(
+            compose_init_self_create_blocks_like_cpp(
+                &mut player_update,
+                Vec::new(),
+                Some((transport_guid, transport_block)),
+                vec![passenger_block],
+            ),
+            Some(transport_guid)
+        );
+        assert_eq!(player_update.num_updates, 3);
+        assert!(matches!(
+            player_update.blocks.first(),
+            Some(UpdateBlock::CreateTransport { guid, .. }) if *guid == transport_guid
+        ));
+        let Some(UpdateBlock::CreateObject {
+            guid,
+            movement: Some(movement),
+            is_self: true,
+            ..
+        }) = player_update.blocks.get(1)
+        else {
+            panic!("expected attached self player after its transport");
+        };
+        assert_eq!(*guid, player_guid);
+        assert_eq!(
+            movement.transport.as_ref().map(|transport| transport.guid),
+            Some(transport_guid)
+        );
+        assert!(matches!(
+            player_update.blocks.get(2),
+            Some(UpdateBlock::CreateObject {
+                guid,
+                is_self: false,
+                ..
+            }) if *guid == passenger_guid
+        ));
+    }
+
+    #[test]
+    fn persisted_transport_login_resolves_valid_offset_to_current_world_position_like_cpp() {
+        let guid = ObjectGuid::create_transport(HighGuid::Transport, 7_002);
+        let offset = Position::new(10.0, 20.0, 3.0, 0.25);
+        let transport_create = MapTransportCreateLikeCpp {
+            guid_low: 7_002,
+            entry: 192_241,
+            display_id: 3_012,
+            scale: 1.0,
+            taxi_path_id: 784,
+            move_speed: 30,
+            accel_rate: 10,
+            allow_stopping: false,
+            phase_use_flags: 0,
+            phase_id: 0,
+            phase_group_id: 0,
+            gameobject_flags: 0,
+            faction_template: 0,
+        };
+        let transport_position = TransportCreatePositionLikeCpp {
+            map_id: 571,
+            position: Position::new(100.0, 200.0, 10.0, PI / 2.0),
+            timer_ms: 1,
+            total_time_ms: 2,
+        };
+        let resolved = validate_persisted_transport_login_like_cpp(
+            guid,
+            offset,
+            transport_position,
+            transport_create,
+        )
+        .expect("valid passenger attachment");
+
+        assert_eq!(resolved.guid, guid);
+        assert_eq!(resolved.map_id, 571);
+        assert_eq!(resolved.offset, offset);
+        assert_eq!(
+            resolved.transport_create, transport_create,
+            "SendInitSelf must not need a second DB query for the own transport CREATE"
+        );
+        assert_eq!(
+            resolved.transport_position, transport_position,
+            "SendInitSelf must reuse the validated path-time snapshot"
+        );
+        assert!((resolved.world_position.x - 80.0).abs() < 0.001);
+        assert!((resolved.world_position.y - 210.0).abs() < 0.001);
+        assert!((resolved.world_position.z - 13.0).abs() < 0.001);
+        assert!((resolved.world_position.orientation - (PI / 2.0 + 0.25)).abs() < 0.001);
+    }
+
+    #[test]
+    fn persisted_transport_login_rejects_corrupt_offsets_and_world_coordinates_like_cpp() {
+        let guid = ObjectGuid::create_transport(HighGuid::Transport, 7_003);
+        let transport_create = MapTransportCreateLikeCpp {
+            guid_low: 7_003,
+            entry: 192_241,
+            display_id: 3_012,
+            scale: 1.0,
+            taxi_path_id: 784,
+            move_speed: 30,
+            accel_rate: 10,
+            allow_stopping: false,
+            phase_use_flags: 0,
+            phase_id: 0,
+            phase_group_id: 0,
+            gameobject_flags: 0,
+            faction_template: 0,
+        };
+        let valid_transport = TransportCreatePositionLikeCpp {
+            map_id: 571,
+            position: Position::ZERO,
+            timer_ms: 1,
+            total_time_ms: 2,
+        };
+
+        for invalid_offset in [
+            Position::new(250.01, 0.0, 0.0, 0.0),
+            Position::new(0.0, -250.01, 0.0, 0.0),
+            Position::new(0.0, 0.0, f32::INFINITY, 0.0),
+            Position::new(0.0, 0.0, 0.0, f32::NAN),
+        ] {
+            assert!(
+                validate_persisted_transport_login_like_cpp(
+                    guid,
+                    invalid_offset,
+                    valid_transport,
+                    transport_create,
+                )
+                .is_none()
+            );
+        }
+
+        assert!(
+            validate_persisted_transport_login_like_cpp(
+                guid,
+                Position::new(1.0, 0.0, 0.0, 0.0),
+                TransportCreatePositionLikeCpp {
+                    position: Position::new(Position::MAP_HALFSIZE_LIKE_CPP, 0.0, 0.0, 0.0,),
+                    ..valid_transport
+                },
+                transport_create,
+            )
+            .is_none(),
+            "C++ rejects an attachment whose calculated world coordinate is outside the map"
+        );
+    }
+
+    #[test]
+    fn persisted_transport_login_requires_saved_map_in_transport_route_like_cpp() {
+        assert!(transport_route_contains_saved_map_like_cpp(
+            [0, 1, 571],
+            571
+        ));
+        assert!(
+            !transport_route_contains_saved_map_like_cpp([0, 1, 571], 530),
+            "C++ GetTransport(savedMap) rejects a same-GUID transport absent from that map"
+        );
     }
 
     #[test]
@@ -21070,6 +21642,7 @@ mod tests {
                         bind_area_id: Some(0),
                         position: Position::ZERO,
                     },
+                    None,
                     [(0, 0, 0); 19],
                     [ObjectGuid::EMPTY; 141],
                     Vec::new(),

@@ -17,6 +17,7 @@ use wow_core::guid::TypeId;
 use wow_core::{ObjectGuid, Position};
 use wow_movement::{MonsterMoveType, MoveSpline, MoveSplineFlag};
 
+use crate::packets::movement::TransportInfo;
 use crate::{ServerPacket, WorldPacket};
 
 // ── UpdateType ──────────────────────────────────────────────────────
@@ -38,6 +39,11 @@ pub struct MovementBlock {
     pub movement_flags: u32,
     pub movement_flags2: u32,
     pub movement_flags3: u32,
+    /// C++ `MovementInfo::transport`, written inside `MovementUpdate` when
+    /// `HasTransport` is set. This is distinct from the top-level
+    /// `CreateObjectBits::MovementTransport` fallback used by world objects
+    /// without a normal movement block.
+    pub transport: Option<Box<TransportInfo>>,
     pub create_object_spline: Option<MoveSpline>,
     pub walk_speed: f32,
     pub run_speed: f32,
@@ -57,6 +63,7 @@ impl Default for MovementBlock {
             movement_flags: 0,
             movement_flags2: 0,
             movement_flags3: 0,
+            transport: None,
             create_object_spline: None,
             walk_speed: 2.5,
             run_speed: 7.0,
@@ -4203,20 +4210,16 @@ impl UpdateObject {
         }
     }
 
-    /// Override `UnitData::Power[0]` for the self player create block.
+    /// Override `UnitData::Power[0]` for a player create block.
     ///
     /// C++ `Player::BuildValuesCreate` serializes the live current power and
-    /// max power separately. Login loads current `characters.power1`; callers
-    /// that do not have that DB value keep the default full-power create data.
+    /// max power separately. Login loads current `characters.power1`, while
+    /// non-owner visibility uses the live registry snapshot.
     pub fn set_player_current_power0_like_cpp(&mut self, current_power0: i32) {
         for block in &mut self.blocks {
-            if let UpdateBlock::CreateObject {
-                create_data,
-                is_self: true,
-                ..
-            } = block
-            {
+            if let UpdateBlock::CreateObject { create_data, .. } = block {
                 create_data.current_power0 = current_power0;
+                return;
             }
         }
     }
@@ -4315,23 +4318,36 @@ impl UpdateObject {
         }
     }
 
-    /// Populate PlayerData::Customizations on the self CREATE block.
+    /// Populate PlayerData::Customizations on a player CREATE block.
     ///
     /// C++ `Player::LoadFromDB` loads `CHAR_SEL_CHARACTER_CUSTOMIZATIONS`,
     /// calls `SetCustomizations`, then `PlayerData::WriteCreate` writes the
-    /// dynamic field during login.
+    /// dynamic field for both owner and non-owner viewers.
     pub fn set_player_customizations_like_cpp(
         &mut self,
         customizations: Vec<ChrCustomizationChoiceValuesUpdate>,
     ) {
         for block in &mut self.blocks {
+            if let UpdateBlock::CreateObject { create_data, .. } = block {
+                create_data.customizations = customizations;
+                return;
+            }
+        }
+    }
+
+    /// Populate C++ `Unit::m_movementInfo.transport` on a player CREATE.
+    ///
+    /// `Map::SendInitSelf` creates the player's current transport before the
+    /// player block, and the player `MovementUpdate` references it through the
+    /// nested `HasTransport` branch.
+    pub fn set_player_movement_transport_like_cpp(&mut self, transport: TransportInfo) {
+        for block in &mut self.blocks {
             if let UpdateBlock::CreateObject {
-                create_data,
-                is_self: true,
+                movement: Some(movement),
                 ..
             } = block
             {
-                create_data.customizations = customizations;
+                movement.transport = Some(Box::new(transport));
                 return;
             }
         }
@@ -5081,7 +5097,7 @@ fn write_movement_update(buf: &mut WorldPacket, guid: &ObjectGuid, mv: &Movement
     // sub-bits here, ending at HasAdvFlying. A previous Rust-only ninth
     // HasDriveStatus bit crashed the 54261 client while parsing player CREATE.
     buf.write_bit(false); // HasStandingOnGameObjectGUID
-    buf.write_bit(false); // HasTransport
+    buf.write_bit(mv.transport.is_some()); // HasTransport
     buf.write_bit(false); // HasFall
     buf.write_bit(active_create_spline.is_some()); // HasSpline
     buf.write_bit(false); // HeightChangeFailed
@@ -5090,7 +5106,29 @@ fn write_movement_update(buf: &mut WorldPacket, guid: &ObjectGuid, mv: &Movement
     buf.write_bit(false); // HasAdvFlying
     buf.flush_bits();
 
-    // No transport, standing, inertia, advFlying, or fall blocks.
+    if let Some(transport) = &mv.transport {
+        let prev_time = transport.prev_time.filter(|time| *time != 0);
+        let vehicle_id = transport.vehicle_id.filter(|id| *id != 0);
+
+        buf.write_packed_guid(&transport.guid);
+        buf.write_float(transport.x);
+        buf.write_float(transport.y);
+        buf.write_float(transport.z);
+        buf.write_float(transport.o);
+        buf.write_int8(transport.seat);
+        buf.write_uint32(transport.time);
+        buf.write_bit(prev_time.is_some());
+        buf.write_bit(vehicle_id.is_some());
+        buf.flush_bits();
+        if let Some(prev_time) = prev_time {
+            buf.write_uint32(prev_time);
+        }
+        if let Some(vehicle_id) = vehicle_id {
+            buf.write_int32(vehicle_id);
+        }
+    }
+
+    // No standing, inertia, advFlying, or fall blocks.
 
     // 9 movement speeds
     buf.write_float(mv.walk_speed);
@@ -9703,6 +9741,7 @@ mod tests {
             movement_flags: 0,
             movement_flags2: 0,
             movement_flags3: 0,
+            transport: None,
             create_object_spline: None,
             walk_speed: 1.0,
             run_speed: 2.0,
@@ -9750,12 +9789,51 @@ mod tests {
     }
 
     #[test]
+    fn movement_create_block_serializes_nested_transport_like_cpp() {
+        let transport_guid =
+            ObjectGuid::create_transport(wow_core::guid::HighGuid::Transport, 7_001);
+        let mv = MovementBlock {
+            position: Position::new(100.0, 200.0, 300.0, 1.5),
+            transport: Some(Box::new(TransportInfo {
+                guid: transport_guid,
+                x: 1.25,
+                y: -2.5,
+                z: 3.75,
+                o: 0.5,
+                seat: -1,
+                time: 42,
+                prev_time: None,
+                vehicle_id: None,
+            })),
+            ..Default::default()
+        };
+
+        let mut bytes = WorldPacket::new_empty();
+        write_movement_update(&mut bytes, &ObjectGuid::EMPTY, &mv);
+        let mut reader = WorldPacket::from_bytes(bytes.data());
+        let decoded = crate::packets::movement::MovementInfo::read(&mut reader)
+            .expect("C++ nested MovementInfo::TransportInfo");
+        let transport = decoded.transport.expect("HasTransport");
+
+        assert_eq!(transport.guid, transport_guid);
+        assert_eq!(
+            (transport.x, transport.y, transport.z, transport.o),
+            (1.25, -2.5, 3.75, 0.5)
+        );
+        assert_eq!(transport.seat, -1);
+        assert_eq!(transport.time, 42);
+        assert_eq!(transport.prev_time, None);
+        assert_eq!(transport.vehicle_id, None);
+    }
+
+    #[test]
     fn movement_create_block_serializes_creature_hover_flag_like_cpp() {
         let mv = MovementBlock {
             position: Position::ZERO,
             movement_flags: wow_constants::movement::MovementFlag::HOVER.bits(),
             movement_flags2: 0,
             movement_flags3: 0,
+            transport: None,
             create_object_spline: None,
             walk_speed: 1.0,
             run_speed: 2.0,

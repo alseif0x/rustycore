@@ -214,7 +214,10 @@ _Audited the world-object visibility dimension of world-entry by contrasting C++
   use this same diff, phase/range gate and `client_visible_guids_like_cpp` cache; entry and removal
   queue a receiver-side full visibility refresh instead of sending uncached raw CREATE/DESTROY
   packets. A shared pending bit coalesces and retains that refresh if the receiver's bounded
-  command queue is full. Corpse CREATE/VALUES preserve `CorpseData::Customizations`, while Conversation CREATE
+  command queue is full. Player CREATEs consume the registry's live health, power, distinct
+  base-mana and customization snapshot instead of default combat/customization values; loading
+  customizations refreshes the already-registered login before visibility fanout. Corpse CREATE/VALUES
+  preserve `CorpseData::Customizations`, while Conversation CREATE
   selects localized line/final timings by the receiver's DB locale like C++
   `ViewerDependentValues.h`. Before this visibility pass, the login bridge executes
   `SEL_CORPSES`, `SEL_CORPSE_PHASES` and `SEL_CORPSE_CUSTOMIZATIONS` once per canonical map;
@@ -288,10 +291,17 @@ _Audited the world-object visibility dimension of world-entry by contrasting C++
 - **Rust:** crates/wow-world/src/handlers/character.rs:5728 send_init_transports_like_cpp queries the transports table (gameobject_template type=15) and builds transport create blocks. Present and structurally analogous.
 - **Suggested fix:** Capture on a map with active MO transports (e.g. Orgrimmar/Undercity zeppelins) and diff transport CREATE blocks against C++ SendInitTransports.
 - **Status — represented path closed in issue #11; live capture still required:** Login now restores
-  the persisted transport GUID, movement keeps it current, `send_init_transports_like_cpp`
-  excludes that exact transport, preserves the existing phase gate and records every emitted
-  transport in `client_visible_transports_like_cpp` like `m_visibleTransports`. Focused tests pin
-  own-transport and wrong-phase exclusion. A paired active-MO-transport C++/Rust capture remains
+  the persisted transport GUID and relative position only after requiring its route on the
+  character's saved map, resolving one stable live path/current-map snapshot, calculating valid
+  world coordinates and enforcing C++'s finite/±250 passenger-offset
+  gates; missing or corrupt transport state relocates to homebind like `Player::LoadFromDB`.
+  That snapshot is retained through `SendInitSelf`, which also appends already-visible fellow
+  transport passengers after the attached player; movement then keeps a validated attachment current, and
+  `SendInitSelf` emits that current transport before the player's CREATE block whose nested
+  movement data references it. The following `send_init_transports_like_cpp` excludes that exact
+  transport, preserves the existing phase gate and records every emitted transport in
+  `client_visible_transports_like_cpp` like `m_visibleTransports`. Focused tests pin the
+  current-transport ordering/attachment and wrong-phase exclusion. A paired active-MO-transport C++/Rust capture remains
   an explicit validation boundary; no capture-clean claim is made for this row.
 
 

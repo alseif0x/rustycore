@@ -20,10 +20,19 @@ visibility NGrids and materializes typed records. Row 1224 was also a false logi
 although `Map::AddPlayerToMap` schedules a notifier, C++ immediately forces
 `UpdateVisibilityForPlayer()` at the start of `SendInitialPacketsAfterAddToMap`, which Rust keeps.
 Transport login now restores and follows the current transport GUID, excludes the player's own
-transport, phase-gates candidates and records emitted transports. Focused mixed-class, wire,
+transport from `SendInitTransports`, phase-gates candidates and records emitted transports.
+`SendInitSelf` instead reuses one retained path-time snapshot, emits that current transport
+before the player CREATE, writes the nested movement attachment, and appends already-visible
+fellow passengers like C++. Persisted
+attachment first requires the transport route to contain the character's saved map, then resolves the live path/map,
+converts the passenger offset to current world coordinates and rejects missing/corrupt/oversized
+state by falling back to homebind like `Player::LoadFromDB`. Visible-player CREATEs use the registry's live
+health/power and customization snapshot rather than defaults while preserving C++'s distinct
+base-mana value; customization load also refreshes the already-registered login before visibility
+fanout. Focused mixed-class, wire,
 phase, range, symmetric player, transport, corpse-load/customization and conversation-locale
 regressions pass; full `wow-map` (688/0), `wow-data` (580/0), `wow-entities` (665/0),
-`wow-network` (104/0), `wow-packet` (715/0), `wow-world` (3075/0), `world-server` check and the complete committed
+`wow-network` (104/0), `wow-packet` (716/0), `wow-world` (3081/0), `world-server` check and the complete committed
 `capture-diff` test gate are clean. This is represented-partial until an active-MO-transport paired capture,
 installed/original-client QA, CI, current-HEAD Codex verdict and merge complete.
 
