@@ -451,6 +451,7 @@ pub mod aura_types {
     pub const SPELL_AURA_RANGED_ATTACK_POWER_ATTACKER_BONUS: i32 = 127;
     pub const SPELL_AURA_MOD_SPEED_ALWAYS: i32 = 129;
     pub const SPELL_AURA_MOD_MOUNTED_SPEED_ALWAYS: i32 = 130;
+    pub const SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE: i32 = 137;
     pub const SPELL_AURA_MOD_MELEE_HASTE: i32 = 138;
     pub const SPELL_AURA_FORCE_REACTION: i32 = 139;
     pub const SPELL_AURA_MOD_RANGED_HASTE: i32 = 140;
@@ -504,6 +505,8 @@ pub const TOTAL_AURAS_LIKE_CPP: i32 = 545;
 pub const TOTAL_SPELL_TARGETS_LIKE_CPP: i32 = 153;
 
 pub mod attributes {
+    /// C++ `SPELL_ATTR0_IS_ABILITY` (`SharedDefines.h`).
+    pub const SPELL_ATTR0_IS_ABILITY: u32 = 0x0000_0010;
     /// C++ `SPELL_ATTR0_PASSIVE` (`SharedDefines.h`).
     pub const SPELL_ATTR0_PASSIVE: u32 = 0x0000_0040;
     /// C++ `SPELL_ATTR0_DO_NOT_DISPLAY_SPELLBOOK_AURA_ICON_COMBAT_LOG` (`SharedDefines.h`).

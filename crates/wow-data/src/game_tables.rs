@@ -25,6 +25,21 @@ pub struct BattlePetXpGameTableLikeCpp {
     rows: Vec<BattlePetXpEntryLikeCpp>,
 }
 
+/// C++ `GtBaseMPEntry`.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct BaseMpEntryLikeCpp {
+    columns: [f32; BaseMpGameTableLikeCpp::VALUE_COLUMN_COUNT],
+}
+
+/// C++ `sBaseMPGameTable`.
+///
+/// GameTables are indexed by row position, not by the explicit first column.
+/// Row 0 is a default unused entry, matching `LoadGameTable`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BaseMpGameTableLikeCpp {
+    rows: Vec<BaseMpEntryLikeCpp>,
+}
+
 /// C++ `GtCombatRatingsEntry`.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct CombatRatingsEntryLikeCpp {
@@ -144,6 +159,122 @@ impl BattlePetXpGameTableLikeCpp {
                 wins: parse_float_like_cpp(values[1]),
                 xp: parse_float_like_cpp(values[2]),
             });
+        }
+
+        Ok(Self { rows })
+    }
+}
+
+impl BaseMpEntryLikeCpp {
+    pub fn from_columns(columns: [f32; BaseMpGameTableLikeCpp::VALUE_COLUMN_COUNT]) -> Self {
+        Self { columns }
+    }
+
+    /// C++ `GetGameTableColumnForClass`.
+    pub fn mana_for_class_like_cpp(&self, class: u8) -> f32 {
+        let column = match class {
+            4 => 0,   // Rogue
+            11 => 1,  // Druid
+            3 => 2,   // Hunter
+            8 => 3,   // Mage
+            2 => 4,   // Paladin
+            5 => 5,   // Priest
+            7 => 6,   // Shaman
+            9 => 7,   // Warlock
+            1 => 8,   // Warrior
+            6 => 9,   // Death Knight
+            10 => 10, // Monk
+            12 => 11, // Demon Hunter
+            _ => return 0.0,
+        };
+        self.columns[column]
+    }
+}
+
+impl BaseMpGameTableLikeCpp {
+    pub const FILE_NAME: &'static str = "BaseMp.txt";
+    pub const VALUE_COLUMN_COUNT: usize = 12;
+
+    pub fn load(data_dir: impl AsRef<Path>) -> Result<Self> {
+        Self::load_from_path(data_dir.as_ref().join("gt").join(Self::FILE_NAME))
+    }
+
+    pub fn load_from_path(path: impl AsRef<Path>) -> Result<Self> {
+        let path = path.as_ref();
+        let content = fs::read_to_string(path)
+            .with_context(|| format!("GameTable file {} cannot be opened.", path.display()))?;
+        Self::parse_like_cpp(&content, path)
+    }
+
+    pub fn from_rows(rows: impl IntoIterator<Item = BaseMpEntryLikeCpp>) -> Self {
+        let mut stored = Vec::with_capacity(1);
+        stored.push(BaseMpEntryLikeCpp::default());
+        stored.extend(rows);
+        Self { rows: stored }
+    }
+
+    pub fn row(&self, level: u16) -> Option<&BaseMpEntryLikeCpp> {
+        self.rows.get(usize::from(level))
+    }
+
+    /// C++ `ObjectMgr::GetPlayerClassLevelInfo`.
+    pub fn base_mana_like_cpp(&self, class: u8, level: u8) -> Option<u32> {
+        self.row(u16::from(level))
+            .map(|row| row.mana_for_class_like_cpp(class) as u32)
+    }
+
+    pub fn len(&self) -> usize {
+        self.rows.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.rows.is_empty()
+    }
+
+    fn parse_like_cpp(content: &str, path: &Path) -> Result<Self> {
+        let mut lines = content.lines();
+        let Some(headers) = lines.next() else {
+            bail!("GameTable file {} is empty.", path.display());
+        };
+
+        let column_defs: Vec<&str> = headers
+            .split('\t')
+            .filter(|part| !part.is_empty())
+            .collect();
+        if column_defs.len().saturating_sub(1) != Self::VALUE_COLUMN_COUNT {
+            bail!(
+                "GameTable '{}' has different count of columns {} than expected by size of C++ structure ({}).",
+                path.display(),
+                column_defs.len().saturating_sub(1),
+                Self::VALUE_COLUMN_COUNT
+            );
+        }
+
+        let mut rows = vec![BaseMpEntryLikeCpp::default()];
+        for raw_line in lines {
+            let line = raw_line.strip_suffix('\r').unwrap_or(raw_line);
+            let mut values: Vec<&str> = line.split('\t').collect();
+            if values.is_empty() || (values.len() == 1 && values[0].is_empty()) {
+                break;
+            }
+
+            while values.len() > 1 && values.last().is_some_and(|value| value.is_empty()) {
+                values.pop();
+            }
+
+            if values.len() <= 1 {
+                break;
+            }
+
+            if values.len() != column_defs.len() {
+                bail!("{} == {}", values.len(), column_defs.len());
+            }
+
+            let mut columns = [0.0f32; Self::VALUE_COLUMN_COUNT];
+            for (column, raw_value) in columns.iter_mut().zip(values.iter().skip(1)) {
+                *column = parse_float_like_cpp(raw_value);
+            }
+            rows.push(BaseMpEntryLikeCpp { columns });
         }
 
         Ok(Self { rows })
@@ -444,6 +575,23 @@ mod tests {
         dir
     }
 
+    fn write_temp_base_mp(content: &str) -> PathBuf {
+        let mut dir = std::env::temp_dir();
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time")
+            .as_nanos();
+        dir.push(format!(
+            "rustycore-base-mp-{}-{}",
+            std::process::id(),
+            unique
+        ));
+        fs::create_dir_all(dir.join("gt")).expect("create temp gt dir");
+        let path = dir.join("gt").join(BaseMpGameTableLikeCpp::FILE_NAME);
+        fs::write(&path, content).expect("write temp BaseMp");
+        dir
+    }
+
     fn write_temp_shield_block_regular(content: &str) -> PathBuf {
         let mut dir = std::env::temp_dir();
         let unique = SystemTime::now()
@@ -515,6 +663,42 @@ mod tests {
         assert!(err.to_string().contains("different count of columns"));
 
         fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn base_mp_game_table_maps_file_columns_to_cpp_class_ids() {
+        let dir = write_temp_base_mp(
+            "Level\tRogue\tDruid\tHunter\tMage\tPaladin\tPriest\tShaman\tWarlock\tWarrior\tDeath Knight\tMonk\tDemon Hunter\r\n\
+             1\t10\t11\t12\t13\t14\t15\t16\t17\t18\t19\t20\t21\r\n",
+        );
+        let table = BaseMpGameTableLikeCpp::load(&dir).expect("load table");
+
+        assert_eq!(table.base_mana_like_cpp(4, 1), Some(10));
+        assert_eq!(table.base_mana_like_cpp(11, 1), Some(11));
+        assert_eq!(table.base_mana_like_cpp(1, 1), Some(18));
+        assert_eq!(table.base_mana_like_cpp(6, 1), Some(19));
+        assert_eq!(table.base_mana_like_cpp(13, 1), Some(0));
+        assert_eq!(table.base_mana_like_cpp(5, 2), None);
+
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn base_mp_fixture_matches_cpp_level_and_class_lookup() {
+        let data_dir = Path::new("/home/server/woltk-server-core/Data");
+        let path = data_dir.join("gt").join(BaseMpGameTableLikeCpp::FILE_NAME);
+        if !path.exists() {
+            eprintln!(
+                "Skipping test: BaseMp fixture not found at {}",
+                path.display()
+            );
+            return;
+        }
+
+        let table = BaseMpGameTableLikeCpp::load(data_dir).expect("load BaseMp");
+        assert_eq!(table.base_mana_like_cpp(5, 1), Some(155));
+        assert_eq!(table.base_mana_like_cpp(11, 1), Some(31));
+        assert_eq!(table.base_mana_like_cpp(1, 80), Some(0));
     }
 
     #[test]

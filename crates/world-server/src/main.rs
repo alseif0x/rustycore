@@ -3155,13 +3155,6 @@ async fn main() -> Result<ExitCode> {
         transmog_set_item_store.len()
     );
 
-    // Load player level stats from world DB
-    let player_stats = Arc::new(
-        wow_data::PlayerStatsStore::load(&world_db)
-            .await
-            .context("Failed to load player_levelstats")?,
-    );
-    info!("Loaded {} player level stat entries", player_stats.len());
     let player_create_taxi_path_store = wow_data::TaxiPathStore::load(&data_dir, &locale)
         .context("Failed to load TaxiPath.db2 for C++ playercreateinfo")?;
     let player_create_taxi_path_node_store = wow_data::TaxiPathNodeStore::load(&data_dir, &locale)
@@ -3192,6 +3185,26 @@ async fn main() -> Result<ExitCode> {
         discarded_invalid_npe_map = player_create_info_report.discarded_invalid_npe_map,
         discarded_invalid_npe_transport = player_create_info_report.discarded_invalid_npe_transport,
         "Loaded C++ player create base definitions"
+    );
+    let valid_player_race_classes: Vec<_> = player_create_info_store
+        .race_class_combinations_like_cpp()
+        .collect();
+    // C++ ObjectMgr::LoadPlayerInfo: class/level stats + race modifiers
+    // only for `_playerInfo` race/class pairs, with create mana read from
+    // gt/BaseMp.txt.
+    let player_stats = Arc::new(
+        wow_data::PlayerStatsStore::load(
+            &world_db,
+            &data_dir,
+            world_config_u8(&world_configs, "CONFIG_MAX_PLAYER_LEVEL", 80),
+            &valid_player_race_classes,
+        )
+        .await
+        .context("Failed to load C++ player class/race level stats")?,
+    );
+    info!(
+        "Loaded {} C++ player race/class/level stat entries",
+        player_stats.len()
     );
     let player_create_cast_spell_store = Arc::new(
         wow_data::PlayerCreateInfoCastSpellStoreLikeCpp::load_like_cpp(&world_db)
