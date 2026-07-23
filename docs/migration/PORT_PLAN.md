@@ -89,6 +89,8 @@ intent, no mutation — see STATE.md §0). Almost every item below is "convert r
   decoded four consecutive large packets through one persistent inflater.
 - [ ] **M1.3** Close the 33 login-burst divergences (**#9–#12**, `world-load-audit.md`):
   proficiency set, AccountDataTimes/TutorialFlags resend, ordering, FeatureSystemStatus, MOTD, etc.
+  Issue #9's 1201–1211 slice is implemented and live-order validated locally; issues #10–#12
+  retain the remaining rows and the full capture/original-client exit.
 - [ ] **M1.4** Fix the CREATE-block UpdateField VALUE gaps (AuraState, DK DisplayPower,
   BoundingRadius, non-mana power, GO ParentRotation/ArtKit — `world-load-audit.md` cross-cutting).
 - [ ] **M1 exit:** fresh character logs in, bags open, correct UI, no Lua errors, login burst capture-clean.

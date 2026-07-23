@@ -1,6 +1,6 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**Date:** 2026-07-23 · **Base:** `3.4.3` @ `a39d4f6c` plus the local issue #8 branch.
+**Date:** 2026-07-23 · **Base:** `3.4.3` @ `da46a101` plus local issue #9 @ `6cdfaf35`.
 
 This document replaces the drifting status snapshots in `_INDEX.md` (2026-05-01, "5–15%"),
 the `MIGRATION_ROADMAP.md` §3 inherited table (which tells you not to trust it), and the
@@ -181,10 +181,19 @@ successive compressed packets through one persistent inflater before completing
 the stand-state round trip. Original-client/manual UI validation remains part of
 the broader M1 exit.
 
+Issue #9 closes the first eleven login-burst audit rows. Seven live gaps are corrected:
+global account-data and tutorial resends, battle-pet-lock placement, configured MOTD,
+cross-socket packet ordering, contact-list publication, and PlayerCondition-filtered
+account-mount partials. The other five rows were already fixed, request-driven, or
+explicitly bounded after C++ contrast. An accredited 81-packet two-socket Rust capture
+proves the corrected physical order; the installed C++ runtime could not complete the
+same bot's second-socket login, so this is intentionally not described as a full
+byte-clean login capture.
+
 | # | Bug | Effect | Status |
 |---|---|---|---|
 | #13 | `CMSG_GAME_OBJ_USE` doesn't cast GO use-spell | **portals do nothing** | open |
-| #9–#12 | 33 login-burst divergences (`world-load-audit.md`) | ordering/value parity | mostly open |
+| #9–#12 | 33 login-burst divergences (`world-load-audit.md`) | ordering/value parity | #9 locally complete; #10–#12 open |
 
 ---
 

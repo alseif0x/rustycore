@@ -1,3 +1,28 @@
+- `#NEXT.R8.ENTITIES.1234` — issue #9 re-audits and closes the bounded
+  `HandlePlayerLogin` / `SendInitialPacketsBeforeAddToMap` rows 1201–1211 against C++
+  `CharacterHandler.cpp:1076-1205,1457-1490`,
+  `Player.cpp:23479-23590`, `WorldSession.cpp:986-1020`,
+  `CollectionMgr.cpp:324-425`, `SocialMgr.cpp:141+`, and
+  `LFGHandler.cpp:595+`. Rust now resends global account data and tutorials,
+  publishes PlayerCondition-usable account mounts before the main burst, moves the
+  battle-pet lock before before-add, emits configured `Motd` segments, and sends
+  contact lists without a synchronous name-query packet. Live QA exposed that
+  source order alone was insufficient across the realm and instance writers, so
+  explicit cross-socket fences now preserve C++ physical order through
+  LoginVerifyWorld, TimeSync/contact, bind/talents/spells, ActiveGlyphs, and the
+  following action/rest packets. Focused tests pin the prelude, before-add order,
+  empty contact list, mount PlayerCondition, proficiency, feature payload, and MOTD
+  split. The accredited 81-packet two-socket capture on `6cdfaf35` used binary
+  SHA-256 `b45d7839ada9fb7bdd9595d0b83f5ff1a6fcb6439d49b04c1707f35d19d3c292`
+  and proves the corrected physical opcode order with no injected
+  `QueryPlayerNamesResponse`. The installed C++ reference closed its second socket
+  immediately after `ResumeComms` for the same bot fixture, so the committed full
+  login golden was not replaced and this is not a full byte-clean login claim.
+  Row 1201 was already fixed by PR #119; 1208 is request-driven rather than a login
+  gap; 1210 remains intentionally unsent because the target C++ opcode is unresolved
+  `0xBADD`; and 1211 was already fixed on the base. Issues #10–#12 own the remaining
+  M1.3 rows and original-client/full-login exit.
+
 - `#NEXT.R8.ENTITIES.1209` — issue #8 closes the remaining persistent-compression lifetime
   gap against C++ `WorldSocket.cpp:178-188,538-609` and `WorldSocket.h:89,139,172`.
   The earlier `b1bde801` change had already restored C++'s payload-only `> 0x400` threshold

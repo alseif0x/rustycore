@@ -4832,7 +4832,7 @@ impl ServerPacket for MoveSetActiveMover {
 /// The same struct is used for both `SetFlatSpellModifier` (0x2c33) and
 /// `SetPctSpellModifier` (0x2c34) — only the opcode differs.
 ///
-/// C# format:
+/// C++ `WorldPackets::Spells::SetSpellModifier` format:
 /// ```text
 /// [i32] Modifiers.Count
 /// for each SpellModifierInfo:
@@ -4874,7 +4874,7 @@ impl SetSpellModifier {
 
 /// Tells the client what weapon/armor types the player can use.
 ///
-/// C# format:
+/// C++ `WorldPackets::Item::SetProficiency` format:
 /// ```text
 /// [i32] ProficiencyMask  (bitmask of sub-classes)
 /// [u8]  ProficiencyClass (ItemClass enum: 2=Weapon, 4=Armor)
@@ -4896,7 +4896,7 @@ impl ServerPacket for SetProficiency {
 impl SetProficiency {
     /// Default weapon proficiency for a given class.
     ///
-    /// Masks from C# InitDataForForm() / proficiency spell effects.
+    /// Compatibility masks derived from C++ proficiency spell effects.
     /// Class 2 = Weapon (ItemClass.Weapon).
     pub fn default_weapons(class_id: u8) -> Self {
         // Weapon subclass bit positions (1 << subclass):

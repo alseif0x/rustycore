@@ -1,3 +1,23 @@
+# `#NEXT.R8.ENTITIES.1234` — issue #9 HandlePlayerLogin/before-add burst parity.
+
+C++ source-of-truth was re-checked in `CharacterHandler.cpp:1076-1205,1457-1490`,
+`Player.cpp:23479-23590`, `WorldSession.cpp:986-1020`, `CollectionMgr.cpp:324-425`,
+`SocialMgr.cpp:141+`, and `LFGHandler.cpp:595+`. Rust now resends global account data and
+tutorials, publishes only PlayerCondition-usable account mount partials, places the battle-pet
+lock before before-add, emits configured `Motd` segments, and publishes `ContactList` without an
+inline name-query response. Explicit realm/instance writer fences preserve C++ physical order
+through the login prelude, TimeSync/contact, bind/talents/spells, ActiveGlyphs, and action/rest.
+
+Focused positive/negative tests cover those payload and branch decisions. An accredited
+81-packet two-socket capture from exact HEAD `6cdfaf35` and binary SHA-256
+`b45d7839ada9fb7bdd9595d0b83f5ff1a6fcb6439d49b04c1707f35d19d3c292` proves the live opcode
+order and absence of `QueryPlayerNamesResponse`. A fresh paired C++ run could not proceed beyond
+the installed reference runtime closing its second socket immediately after `ResumeComms`, so the
+different-character/same-connection committed login golden was not replaced and no full-login
+byte-clean claim is made. Rows 1201 and 1211 were already fixed on the base, 1208 is request-driven,
+and 1210 remains intentionally unsent because C++ leaves its target opcode at `0xBADD`.
+Issues #10–#12 retain the remaining M1.3 rows and full original-client/login exit.
+
 # `#NEXT.R8.ENTITIES.1207` — C++ inventory validation and `Player::SwapItem` (issue #52).
 
 C++ source-of-truth was checked before implementation: `ItemHandler.cpp:69-329,699-743` and
