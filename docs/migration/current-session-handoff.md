@@ -40,7 +40,15 @@
   offhand cleanup. Two other review suggestions were intentionally rejected after exact
   local and current-upstream contrast: neither `HandleAutoEquipItemOpcode` nor
   `HandleAutoStoreBagItemOpcode` calls `CanUseBank`; only the explicit swap handlers do. Adding
-  those guards would be a Rust-only behavioral divergence from both C++ authorities.
+  those guards would be a Rust-only behavioral divergence from both C++ authorities. The next
+  review corrected quest side effects that had accidentally been keyed only by storage direction:
+  `AutoBankItem` alone performs `ItemRemovedQuestCheck`, bank-to-inventory `AutoStoreBankItem`
+  performs `ItemAddedQuestCheck`, and its inventory-to-bank branch performs neither, exactly as
+  `BankHandler.cpp`. Partial and recursive full-stack destruction now persist the final quest
+  statuses in the same item transaction and replay `ItemRemovedQuestCheck` child-first then parent
+  after commit. A proposed `AutoBankItem.BankType` byte remains intentionally absent: audited
+  3.4.3 `BankPackets.cpp:20-24` reads `Inv`, `Bag`, `Slot`; that byte and account-bank rejection are
+  retail-upstream behavior added for a later client build and would shift the real 3.4.3 payload.
   Boundaries remain explicit: the live session still lacks full current-spell weapon-change and
   some combat-state ownership needed to exercise every `CanEquipItem` input; the capture proves
   the invalid-source gate and occupied-swap lifecycle, not every validation branch; rare

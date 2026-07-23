@@ -148,6 +148,13 @@ enum InventoryStorageTargetLikeCpp {
     Bank,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum InventoryStorageQuestChecksLikeCpp {
+    None,
+    AutoBankItemRemoved,
+    AutoStoreBankItemAdded,
+}
+
 fn autostore_bank_target_like_cpp(
     source_bag: u8,
     source_slot: u8,
@@ -156,6 +163,18 @@ fn autostore_bank_target_like_cpp(
         InventoryStorageTargetLikeCpp::Inventory
     } else {
         InventoryStorageTargetLikeCpp::Bank
+    }
+}
+
+fn autostore_bank_quest_checks_like_cpp(
+    target: InventoryStorageTargetLikeCpp,
+) -> InventoryStorageQuestChecksLikeCpp {
+    if target == InventoryStorageTargetLikeCpp::Inventory {
+        InventoryStorageQuestChecksLikeCpp::AutoStoreBankItemAdded
+    } else {
+        // C++ HandleAutoStoreBankItemOpcode intentionally does not call
+        // ItemRemovedQuestCheck in its inventory-to-bank branch.
+        InventoryStorageQuestChecksLikeCpp::None
     }
 }
 
@@ -302,13 +321,6 @@ struct InventoryStorageMovePlanLikeCpp {
     source_count: u32,
     existing_updates: Vec<ExistingStorageStackUpdateLikeCpp>,
     moved_destination: Option<(u8, u8, u32)>,
-}
-
-fn bank_move_runs_item_removed_quest_check_like_cpp(moving_to_bank: bool) -> bool {
-    // C++ BankHandler.cpp intentionally differs by opcode here:
-    // HandleAutoBankItemOpcode calls ItemRemovedQuestCheck, while the
-    // inventory-to-bank branch of HandleAutoStoreBankItemOpcode does not.
-    moving_to_bank
 }
 
 fn bank_store_item_added_quest_count_like_cpp(plan: &InventoryStorageMovePlanLikeCpp) -> u32 {
@@ -2826,6 +2838,14 @@ fn loaded_item_refund_decision(
 enum DestroyItemCountAction {
     FullStack,
     PartialStack { new_count: u32 },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct DestroyQuestItemLikeCpp {
+    bag: u8,
+    slot: u8,
+    entry_id: u32,
+    count: u32,
 }
 
 fn destroy_item_count_action(current_count: u32, requested_count: u32) -> DestroyItemCountAction {
@@ -10452,6 +10472,7 @@ impl WorldSession {
         destination_bag: u8,
         destination_slot: u8,
         target: InventoryStorageTargetLikeCpp,
+        quest_checks: InventoryStorageQuestChecksLikeCpp,
         represented_move: Option<RepresentedBankItemMoveLikeCpp>,
     ) {
         let Some(player_guid) = self.player_guid() else {
@@ -10490,13 +10511,16 @@ impl WorldSession {
             plan.source_slot,
             target,
         );
-        let quest_log_item_id = if moving_from_bank {
+        let runs_added_quest_check = quest_checks
+            == InventoryStorageQuestChecksLikeCpp::AutoStoreBankItemAdded
+            && moving_from_bank;
+        let quest_log_item_id = if runs_added_quest_check {
             self.quest_source_item_quest_log_item_id_like_cpp(plan.source.entry_id)
                 .await
         } else {
             0
         };
-        let added_quest_count = if moving_from_bank {
+        let added_quest_count = if runs_added_quest_check {
             bank_store_item_added_quest_count_like_cpp(&plan)
         } else {
             0
@@ -10512,32 +10536,35 @@ impl WorldSession {
             });
         let current_non_bank_count =
             self.represented_non_bank_item_count_like_cpp(plan.source.entry_id);
-        let post_move_non_bank_count =
-            if moving_to_bank && !is_bank_pos(plan.source_bag, plan.source_slot) {
-                current_non_bank_count.saturating_sub(plan.source_count)
-            } else {
-                current_non_bank_count
-            };
-        let planned_quest_statuses =
-            if bank_move_runs_item_removed_quest_check_like_cpp(moving_to_bank) {
-                self.plan_bank_item_quest_persistence_like_cpp(
+        let post_move_non_bank_count = if quest_checks
+            == InventoryStorageQuestChecksLikeCpp::AutoBankItemRemoved
+            && moving_to_bank
+            && !is_bank_pos(plan.source_bag, plan.source_slot)
+        {
+            current_non_bank_count.saturating_sub(plan.source_count)
+        } else {
+            current_non_bank_count
+        };
+        let planned_quest_statuses = match quest_checks {
+            InventoryStorageQuestChecksLikeCpp::AutoBankItemRemoved => self
+                .plan_bank_item_quest_persistence_like_cpp(
                     plan.source.entry_id,
                     0,
                     true,
                     post_move_non_bank_count,
                     0,
-                )
-            } else if moving_from_bank {
-                self.plan_bank_item_quest_persistence_like_cpp(
+                ),
+            InventoryStorageQuestChecksLikeCpp::AutoStoreBankItemAdded if moving_from_bank => self
+                .plan_bank_item_quest_persistence_like_cpp(
                     plan.source.entry_id,
                     quest_log_item_id,
                     false,
                     post_move_non_bank_count,
                     added_quest_count,
-                )
-            } else {
-                Vec::new()
-            };
+                ),
+            InventoryStorageQuestChecksLikeCpp::None
+            | InventoryStorageQuestChecksLikeCpp::AutoStoreBankItemAdded => Vec::new(),
+        };
         let enchantment_persistence = plan.moved_destination.and_then(|_| {
             self.inventory_remove_enchantment_persistence_like_cpp(
                 plan.source.guid,
@@ -10888,12 +10915,12 @@ impl WorldSession {
         }
 
         let mut changed_quest_ids =
-            if bank_move_runs_item_removed_quest_check_like_cpp(moving_to_bank) {
+            if quest_checks == InventoryStorageQuestChecksLikeCpp::AutoBankItemRemoved {
                 self.apply_quest_item_removed_like_cpp(plan.source.entry_id)
             } else {
                 Vec::new()
             };
-        if moving_from_bank {
+        if runs_added_quest_check {
             changed_quest_ids.extend(
                 self.apply_quest_item_added_objective_progress_like_cpp(
                     plan.source.entry_id,
@@ -10941,6 +10968,7 @@ impl WorldSession {
             NULL_BAG,
             NULL_SLOT,
             InventoryStorageTargetLikeCpp::Bank,
+            InventoryStorageQuestChecksLikeCpp::AutoBankItemRemoved,
             Some(represented_move),
         )
         .await;
@@ -10973,6 +11001,7 @@ impl WorldSession {
             NULL_BAG,
             NULL_SLOT,
             target,
+            autostore_bank_quest_checks_like_cpp(target),
             Some(represented_move),
         )
         .await;
@@ -14451,6 +14480,7 @@ impl WorldSession {
             INVENTORY_SLOT_BAG_0,
             hidden_slot,
             InventoryStorageTargetLikeCpp::Inventory,
+            InventoryStorageQuestChecksLikeCpp::None,
             None,
         )
         .await;
@@ -14601,6 +14631,7 @@ impl WorldSession {
                 bag,
                 slot,
                 target,
+                InventoryStorageQuestChecksLikeCpp::None,
                 None,
             )
             .await;
@@ -14738,6 +14769,7 @@ impl WorldSession {
                         dst_bag,
                         dst_slot,
                         InventoryStorageTargetLikeCpp::Inventory,
+                        InventoryStorageQuestChecksLikeCpp::None,
                         None,
                     )
                     .await;
@@ -14749,6 +14781,7 @@ impl WorldSession {
                         dst_bag,
                         dst_slot,
                         InventoryStorageTargetLikeCpp::Bank,
+                        InventoryStorageQuestChecksLikeCpp::None,
                         None,
                     )
                     .await;
@@ -15020,6 +15053,7 @@ impl WorldSession {
             NULL_BAG,
             NULL_SLOT,
             InventoryStorageTargetLikeCpp::Inventory,
+            InventoryStorageQuestChecksLikeCpp::None,
             None,
         )
         .await;
@@ -15801,6 +15835,7 @@ impl WorldSession {
             fallback_bag,
             fallback_slot,
             fallback_target,
+            InventoryStorageQuestChecksLikeCpp::None,
             None,
         )
         .await;
@@ -15954,6 +15989,7 @@ impl WorldSession {
             store.container_slot_b,
             NULL_SLOT,
             InventoryStorageTargetLikeCpp::Inventory,
+            InventoryStorageQuestChecksLikeCpp::None,
             None,
         )
         .await;
@@ -16029,10 +16065,31 @@ impl WorldSession {
             .unwrap_or(DestroyItemCountAction::FullStack);
 
         if let DestroyItemCountAction::PartialStack { new_count } = count_action {
+            let removed_count = runtime_item
+                .as_ref()
+                .map(|item_object| item_object.count().saturating_sub(new_count))
+                .unwrap_or(0);
+            let planned_quest_statuses =
+                self.plan_destroyed_inventory_quest_persistence_like_cpp(&[
+                    DestroyQuestItemLikeCpp {
+                        bag,
+                        slot,
+                        entry_id: item.entry_id,
+                        count: removed_count,
+                    },
+                ]);
             let mut upd_count = char_db.prepare(CharStatements::UPD_ITEM_INSTANCE_COUNT);
             upd_count.set_u32(0, new_count);
             upd_count.set_u64(1, item.db_guid);
-            if let Err(e) = char_db.execute(&upd_count).await {
+            let mut tx = SqlTransaction::new();
+            tx.append(upd_count);
+            self.append_planned_quest_statuses_to_transaction_like_cpp(
+                &mut tx,
+                char_db.as_ref(),
+                player_guid.counter() as u64,
+                &planned_quest_statuses,
+            );
+            if let Err(e) = char_db.commit_transaction(tx).await {
                 warn!("DestroyItem: update partial stack count failed: {e}");
                 self.send_packet_realm(&InventoryChangeFailure::error(
                     InventoryResult::InternalBagError,
@@ -16043,6 +16100,12 @@ impl WorldSession {
             self.update_inventory_item_object_like_cpp(item.guid, |item_object| {
                 item_object.set_count(new_count);
             });
+            let changed_quest_ids = self.apply_quest_item_removed_like_cpp(item.entry_id);
+            debug_assert_eq!(
+                changed_quest_ids.len(),
+                planned_quest_statuses.len(),
+                "partial destroy quest persistence must match committed runtime removal"
+            );
             self.sync_object_accessor_player();
             self.send_packet(&UpdateObject::item_stack_count_update(
                 item.guid,
@@ -16072,6 +16135,41 @@ impl WorldSession {
                 destroyed_entry_id, bag, slot, player_guid
             );
         }
+    }
+
+    fn plan_destroyed_inventory_quest_persistence_like_cpp(
+        &self,
+        destroyed_items: &[DestroyQuestItemLikeCpp],
+    ) -> Vec<crate::handlers::quest::PlayerQuestStatus> {
+        let removed_entries_in_order = destroyed_items
+            .iter()
+            .map(|item| item.entry_id)
+            .collect::<Vec<_>>();
+        let mut removed_non_bank_counts = HashMap::<u32, u32>::new();
+        for item in destroyed_items {
+            if !is_bank_pos(item.bag, item.slot) {
+                removed_non_bank_counts
+                    .entry(item.entry_id)
+                    .and_modify(|count| *count = count.saturating_add(item.count))
+                    .or_insert(item.count);
+            }
+        }
+        let post_removal_non_bank_counts = removed_entries_in_order
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .map(|entry_id| {
+                let current = self.represented_non_bank_item_count_like_cpp(entry_id);
+                let removed = removed_non_bank_counts.get(&entry_id).copied().unwrap_or(0);
+                (entry_id, current.saturating_sub(removed))
+            })
+            .collect::<Vec<_>>();
+        self.plan_item_transfer_quest_persistence_like_cpp(
+            &removed_entries_in_order,
+            &post_removal_non_bank_counts,
+            &[],
+        )
     }
 
     /// Handle CMSG_CANCEL_TEMP_ENCHANTMENT.
@@ -16144,6 +16242,32 @@ impl WorldSession {
             })
             .collect::<Vec<_>>();
 
+        let mut destroyed_quest_items = descendant_runtime
+            .iter()
+            .map(
+                |(child_bag, child_slot, child, child_runtime)| DestroyQuestItemLikeCpp {
+                    bag: *child_bag,
+                    slot: *child_slot,
+                    entry_id: child.entry_id,
+                    count: child_runtime
+                        .as_ref()
+                        .map(wow_entities::Item::count)
+                        .unwrap_or(1),
+                },
+            )
+            .collect::<Vec<_>>();
+        destroyed_quest_items.push(DestroyQuestItemLikeCpp {
+            bag,
+            slot,
+            entry_id: item.entry_id,
+            count: runtime_item
+                .as_ref()
+                .map(wow_entities::Item::count)
+                .unwrap_or(1),
+        });
+        let planned_quest_statuses =
+            self.plan_destroyed_inventory_quest_persistence_like_cpp(&destroyed_quest_items);
+
         let mut tx = SqlTransaction::new();
         let should_expire_refund = runtime_item
             .as_ref()
@@ -16169,6 +16293,12 @@ impl WorldSession {
             del_item.set_u64(0, db_guid);
             tx.append(del_item);
         }
+        self.append_planned_quest_statuses_to_transaction_like_cpp(
+            &mut tx,
+            char_db.as_ref(),
+            player_guid.counter() as u64,
+            &planned_quest_statuses,
+        );
 
         if let Err(e) = char_db.commit_transaction(tx).await {
             warn!("{context}: delete transaction failed: {e}");
@@ -16179,6 +16309,7 @@ impl WorldSession {
         }
 
         let mut destroyed_guids = Vec::with_capacity(descendant_runtime.len() + 1);
+        let mut changed_quest_ids = Vec::new();
         for (child_bag, child_slot, child, child_runtime) in descendant_runtime {
             let should_expire_child_refund = child_runtime
                 .as_ref()
@@ -16198,6 +16329,7 @@ impl WorldSession {
                 });
             }
             destroyed_guids.push(child.guid);
+            changed_quest_ids.extend(self.apply_quest_item_removed_like_cpp(child.entry_id));
         }
 
         let represented_item_mods_changed =
@@ -16206,6 +16338,14 @@ impl WorldSession {
         let removed = self.apply_committed_inventory_item_removal_like_cpp(bag, slot, item.guid);
         debug_assert!(removed);
         destroyed_guids.push(item.guid);
+        changed_quest_ids.extend(self.apply_quest_item_removed_like_cpp(item.entry_id));
+        changed_quest_ids.sort_unstable();
+        changed_quest_ids.dedup();
+        debug_assert_eq!(
+            changed_quest_ids.len(),
+            planned_quest_statuses.len(),
+            "recursive destroy quest persistence must match child/parent runtime removals"
+        );
         self.sync_object_accessor_player();
         self.sync_player_registry_state_like_cpp();
 
@@ -18359,7 +18499,8 @@ mod tests {
     };
     use wow_data::quest::{
         QUEST_ITEM_DROP_COUNT, QUEST_REWARD_CHOICES_COUNT, QUEST_REWARD_DISPLAY_SPELL_COUNT,
-        QUEST_REWARD_ITEM_COUNT, QUEST_REWARD_REPUTATIONS_COUNT, QuestStore, QuestTemplate,
+        QUEST_REWARD_ITEM_COUNT, QUEST_REWARD_REPUTATIONS_COUNT, QuestObjective, QuestStore,
+        QuestTemplate,
     };
     use wow_data::{
         ItemChildEquipmentEntry, ItemChildEquipmentStore, PlayerLevelStats, PlayerStatsStore,
@@ -22304,6 +22445,67 @@ mod tests {
         );
     }
 
+    #[test]
+    fn recursive_destroy_plans_child_and_parent_quest_removal_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send_capacity(1);
+        let quest_id = 91_001;
+        let child_entry = 700;
+        let parent_entry = 600;
+        let mut quest = quest_template(quest_id);
+        quest.objectives = [child_entry, parent_entry]
+            .into_iter()
+            .enumerate()
+            .map(|(index, entry_id)| QuestObjective {
+                id: quest_id * 10 + index as u32,
+                quest_id,
+                obj_type: 1,
+                order: index as u8,
+                storage_index: index as i8,
+                object_id: entry_id as i32,
+                amount: 1,
+                flags: 0,
+                flags2: 0,
+                progress_bar_weight: 0.0,
+                description: String::new(),
+            })
+            .collect();
+        session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
+        session.player_quests.insert(
+            quest_id,
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![1, 1],
+                slot: 0,
+            },
+        );
+
+        let planned = session.plan_destroyed_inventory_quest_persistence_like_cpp(&[
+            DestroyQuestItemLikeCpp {
+                bag: INVENTORY_SLOT_BAG_START,
+                slot: 0,
+                entry_id: child_entry,
+                count: 1,
+            },
+            DestroyQuestItemLikeCpp {
+                bag: INVENTORY_SLOT_BAG_0,
+                slot: INVENTORY_SLOT_BAG_START,
+                entry_id: parent_entry,
+                count: 1,
+            },
+        ]);
+
+        assert_eq!(planned.len(), 1);
+        assert_eq!(planned[0].objective_counts, vec![0, 0]);
+        assert_eq!(
+            planned[0].status,
+            crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP
+        );
+    }
+
     #[tokio::test]
     async fn recursive_destroy_commit_failure_keeps_bag_and_children_like_cpp() {
         let (mut session, send_rx) = make_session_with_send_capacity(1);
@@ -23515,10 +23717,14 @@ mod tests {
 
     #[test]
     fn bank_move_quest_removal_follows_opcode_not_direction_like_cpp() {
-        assert!(bank_move_runs_item_removed_quest_check_like_cpp(true));
-        assert!(
-            !bank_move_runs_item_removed_quest_check_like_cpp(false),
-            "C++ AutoStore inventory-to-bank does not call ItemRemovedQuestCheck"
+        assert_eq!(
+            autostore_bank_quest_checks_like_cpp(InventoryStorageTargetLikeCpp::Bank),
+            InventoryStorageQuestChecksLikeCpp::None,
+            "C++ AutoStore inventory-to-bank must select no quest check even though its target is Bank"
+        );
+        assert_eq!(
+            autostore_bank_quest_checks_like_cpp(InventoryStorageTargetLikeCpp::Inventory),
+            InventoryStorageQuestChecksLikeCpp::AutoStoreBankItemAdded
         );
     }
 

@@ -45,6 +45,14 @@ real swaps now execute current-upstream `CanEquipChildItem` before parent mutati
 Two bank-access suggestions were rejected after exact contrast: local 3.4.3 and current upstream both
 omit `CanUseBank` in `HandleAutoEquipItemOpcode` and `HandleAutoStoreBagItemOpcode`, while retaining
 it in `HandleSwapInvItemOpcode`/`HandleSwapItem`; Rust preserves that observable handler contract.
+The following review separated quest effects from storage direction: only `AutoBankItem` performs
+the removal check, only bank-to-inventory `AutoStoreBankItem` performs the addition check, and
+inventory-to-bank `AutoStoreBankItem` performs neither. Partial destroys and recursive full-bag
+destroys now plan/persist final quest state in the same transaction, then apply C++ child-first,
+parent-last removal checks after commit. The retail-upstream `AutoBankItem.BankType` suggestion is
+intentionally excluded because audited 3.4.3 `BankPackets.cpp:20-24` reads exactly
+`Inv -> Bag -> Slot`; consuming the later account-bank byte would corrupt this target build's wire
+layout.
 
 Boundary: represented session inputs still do not own every C++ current-spell weapon-change or
 combat-state gate; the accredited capture proves the invalid-source branch plus the occupied-swap
