@@ -31,6 +31,7 @@ const CMSG_PING: u16 = 0x3768;
 const SMSG_PONG: u16 = 0x304E;
 const SMSG_UPDATE_OBJECT: u16 = 0x27CB;
 const SMSG_AURA_UPDATE: u16 = 0x2C1F;
+const SMSG_SEND_KNOWN_SPELLS: u16 = 0x2C27;
 const SMSG_TIME_SYNC_REQUEST: u16 = 0x2DD2;
 const CMSG_TIME_SYNC_RESPONSE: u16 = 0x3A3D;
 const SMSG_ON_MONSTER_MOVE: u16 = 0x2DD4;
@@ -1760,6 +1761,14 @@ fn is_truthy(value: &str) -> bool {
         value.to_ascii_lowercase().as_str(),
         "1" | "true" | "yes" | "y" | "on"
     )
+}
+
+fn login_known_spells_ready(
+    login_verified: bool,
+    require_known_spells: bool,
+    known_spells_seen: bool,
+) -> bool {
+    login_verified && (!require_known_spells || known_spells_seen)
 }
 
 fn validate_provisioning_mode(guarded_mode: bool, ensure_test_accounts: bool) -> Result<()> {
@@ -4028,6 +4037,9 @@ async fn run_bot_with_void_storage(
     info!("[Bot {}] ✅ CMSG_PLAYER_LOGIN sent", bot_index);
 
     let mut login_ok = false;
+    let require_known_spells = login_only
+        && std::env::var("WOW_BOT_LOGIN_REQUIRE_KNOWN_SPELLS").is_ok_and(|value| is_truthy(&value));
+    let mut known_spells_seen = false;
     let preserve_realm_connection = stand_state_options.is_some()
         || homebind_options.is_some()
         || inventory_swap_options.is_some()
@@ -4050,6 +4062,10 @@ async fn run_bot_with_void_storage(
         {
             Ok(Ok((op, payload))) => {
                 result.seen_opcodes.push(format!("0x{:04X}", op));
+                if op == SMSG_SEND_KNOWN_SPELLS {
+                    known_spells_seen = true;
+                    info!("[Bot {}] ✅ SMSG_SEND_KNOWN_SPELLS received", bot_index);
+                }
                 if let Some(options) = loot_race_options.as_ref() {
                     if let Some(counter) = loot_race::target_seen_in_update(options, op, &payload)?
                     {
@@ -4154,7 +4170,8 @@ async fn run_bot_with_void_storage(
                     let inventory_swap_login_ready = inventory_swap_options
                         .as_ref()
                         .is_none_or(|_| result.inventory_swap_item_create_sha256.is_some());
-                    if (!preserve_realm_connection || realm_connection.is_some())
+                    if login_known_spells_ready(login_ok, require_known_spells, known_spells_seen)
+                        && (!preserve_realm_connection || realm_connection.is_some())
                         && equipment_set_login_ready
                         && void_storage_login_ready
                         && inventory_swap_login_ready
@@ -4234,6 +4251,11 @@ async fn run_bot_with_void_storage(
                 {
                     break;
                 }
+                if require_known_spells
+                    && login_known_spells_ready(login_ok, true, known_spells_seen)
+                {
+                    break;
+                }
             }
             Ok(Err(e)) => {
                 warn!("[Bot {}] Login read error: {}", bot_index, e);
@@ -4246,6 +4268,9 @@ async fn run_bot_with_void_storage(
     }
     if !login_ok {
         bail!("Login verification failed");
+    }
+    if require_known_spells && !known_spells_seen {
+        bail!("Login verification did not reach SMSG_SEND_KNOWN_SPELLS");
     }
     if inventory_swap_options.is_some() && result.inventory_swap_item_create_sha256.is_none() {
         bail!("issue #20 item CREATE_OBJECT was not observed during the login window");
@@ -15857,6 +15882,15 @@ fn build_packed_guid(low: u64, high: u64) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn optional_login_known_spells_gate_waits_for_both_signals() {
+        assert!(!login_known_spells_ready(false, false, false));
+        assert!(login_known_spells_ready(true, false, false));
+        assert!(!login_known_spells_ready(true, true, false));
+        assert!(!login_known_spells_ready(false, true, true));
+        assert!(login_known_spells_ready(true, true, true));
+    }
 
     #[test]
     fn loot_result_requires_verified_relog_for_success() {
