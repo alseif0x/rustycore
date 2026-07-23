@@ -3413,7 +3413,7 @@ impl crate::session::WorldSession {
 
         let Some((bag, slot, item)) = self.get_inventory_item_by_guid_like_cpp(request.item_guid)
         else {
-            self.send_packet(&InventoryChangeFailure::error(
+            self.send_packet_realm(&InventoryChangeFailure::error(
                 InventoryResult::ItemNotFound,
             ));
             return;

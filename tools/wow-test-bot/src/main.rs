@@ -40,6 +40,7 @@ const CMSG_BINDER_ACTIVATE: u16 = 0x34B2;
 const CMSG_AUTOBANK_ITEM: u16 = 0x3997;
 const CMSG_AUTOSTORE_BANK_ITEM: u16 = 0x3996;
 const CMSG_SWAP_INV_ITEM: u16 = 0x399B;
+const CMSG_SWAP_ITEM: u16 = 0x399A;
 const CMSG_LIST_INVENTORY: u16 = 0x34A1;
 const CMSG_BUY_ITEM: u16 = 0x34A3;
 const CMSG_ATTACK_SWING: u16 = 0x3255;
@@ -417,6 +418,7 @@ struct BotRunResult {
     inventory_swap_item_create_sha256: Option<String>,
     inventory_swap_item_create_relogin_verified: bool,
     inventory_swap_item_metadata_persisted: bool,
+    inventory_swap_validation_gate_seen: bool,
     inventory_swap_failure: Option<String>,
     vendor_smoke: bool,
     vendor_smoke_passed: Option<bool>,
@@ -571,7 +573,8 @@ impl BotRunResult {
                 && self.inventory_swap_item_create_sha256.is_some()
                 && self.inventory_swap_item_create_relogin_verified
                 && self.inventory_swap_relogin_after_reverse
-                && self.inventory_swap_item_metadata_persisted;
+                && self.inventory_swap_item_metadata_persisted
+                && self.inventory_swap_validation_gate_seen;
         }
         if self.vendor_smoke {
             return self.world_auth
@@ -3566,6 +3569,7 @@ async fn run_bot_with_void_storage(
         inventory_swap_item_create_sha256: None,
         inventory_swap_item_create_relogin_verified: false,
         inventory_swap_item_metadata_persisted: false,
+        inventory_swap_validation_gate_seen: false,
         inventory_swap_failure: None,
         vendor_smoke: vendor_options.is_some(),
         vendor_smoke_passed: None,
@@ -4783,7 +4787,7 @@ fn log_bot_summary(
         }
         if result.inventory_swap_smoke {
             info!(
-                "✅ Bot {}: SUCCESS inventory_swap_smoke items={:?}/{:?} entries={:?}/{:?} slots={:?}<->{:?} forward={} relog_forward={} reverse={} relog_reverse={} item_create={:?} item_create_relog={} metadata_persisted={} failure={:?}",
+                "✅ Bot {}: SUCCESS inventory_swap_smoke items={:?}/{:?} entries={:?}/{:?} slots={:?}<->{:?} validation_gate={} forward={} relog_forward={} reverse={} relog_reverse={} item_create={:?} item_create_relog={} metadata_persisted={} failure={:?}",
                 result.account,
                 result.inventory_swap_item_guid_a,
                 result.inventory_swap_item_guid_b,
@@ -4791,6 +4795,7 @@ fn log_bot_summary(
                 result.inventory_swap_item_entry_b,
                 result.inventory_swap_slot_a,
                 result.inventory_swap_slot_b,
+                result.inventory_swap_validation_gate_seen,
                 result.inventory_swap_forward_persisted,
                 result.inventory_swap_relogin_after_forward,
                 result.inventory_swap_reverse_persisted,
@@ -4992,7 +4997,7 @@ fn log_bot_summary(
         }
         if result.inventory_swap_smoke {
             error!(
-                "❌ Bot {}: FAILED inventory_swap_smoke items={:?}/{:?} entries={:?}/{:?} slots={:?}<->{:?} forward={} relog_forward={} reverse={} relog_reverse={} item_create={:?} item_create_relog={} metadata_persisted={} failure={:?}",
+                "❌ Bot {}: FAILED inventory_swap_smoke items={:?}/{:?} entries={:?}/{:?} slots={:?}<->{:?} validation_gate={} forward={} relog_forward={} reverse={} relog_reverse={} item_create={:?} item_create_relog={} metadata_persisted={} failure={:?}",
                 result.account,
                 result.inventory_swap_item_guid_a,
                 result.inventory_swap_item_guid_b,
@@ -5000,6 +5005,7 @@ fn log_bot_summary(
                 result.inventory_swap_item_entry_b,
                 result.inventory_swap_slot_a,
                 result.inventory_swap_slot_b,
+                result.inventory_swap_validation_gate_seen,
                 result.inventory_swap_forward_persisted,
                 result.inventory_swap_relogin_after_forward,
                 result.inventory_swap_reverse_persisted,
@@ -9845,6 +9851,21 @@ async fn run_inventory_swap_smoke_phase(
         return Ok(());
     }
 
+    if options.phase == InventorySwapSmokePhase::Forward {
+        verify_inventory_swap_invalid_position_gate(
+            bot_index,
+            stream,
+            crypt,
+            server_inflater,
+            realm_connection,
+            options.slot_a,
+            options.timeout_secs,
+            result,
+        )
+        .await?;
+        result.inventory_swap_validation_gate_seen = true;
+    }
+
     let payload = build_swap_inv_item_payload(options.slot_a, options.slot_b);
     send_encrypted_packet(stream, crypt, CMSG_SWAP_INV_ITEM, &payload).await?;
     info!(
@@ -9891,6 +9912,180 @@ async fn run_inventory_swap_smoke_phase(
     }
     result.inventory_swap_smoke_passed = Some(true);
     Ok(())
+}
+
+async fn verify_inventory_swap_invalid_position_gate(
+    bot_index: usize,
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    server_inflater: &mut ServerPacketInflater,
+    realm_connection: &mut Option<EncryptedWorldConnection>,
+    valid_destination_slot: u8,
+    timeout_secs: u64,
+    result: &mut BotRunResult,
+) -> Result<()> {
+    let realm = realm_connection.as_mut().context(
+        "inventory validation smoke requires distinct realm/instance sockets to validate C++ routing",
+    )?;
+
+    // Establish a quiet action boundary before the probe. Login publication
+    // can still be arriving on either socket after LOGIN_VERIFY_WORLD; those
+    // packets are not causally part of CMSG_SWAP_ITEM and would otherwise sit
+    // between the request and its immediate C++ error in the raw capture.
+    let drain_deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    loop {
+        let remaining = drain_deadline.saturating_duration_since(tokio::time::Instant::now());
+        if remaining.is_zero() {
+            bail!("inventory validation login drain never reached a quiet period");
+        }
+        enum InventoryDrainReady {
+            Instance,
+            Realm,
+        }
+        let mut instance_peek = [0u8; 1];
+        let mut realm_peek = [0u8; 1];
+        let ready = tokio::time::timeout(Duration::from_millis(250).min(remaining), async {
+            tokio::select! {
+                ready = stream.peek(&mut instance_peek) => {
+                    if ready.context("inventory login-drain instance peek failed")? == 0 {
+                        bail!("instance connection closed during inventory login drain");
+                    }
+                    Ok(InventoryDrainReady::Instance)
+                }
+                ready = realm.stream.peek(&mut realm_peek) => {
+                    if ready.context("inventory login-drain realm peek failed")? == 0 {
+                        bail!("realm connection closed during inventory login drain");
+                    }
+                    Ok(InventoryDrainReady::Realm)
+                }
+            }
+        })
+        .await;
+        let ready = match ready {
+            Ok(ready) => ready?,
+            Err(_) => break,
+        };
+        let (connection, opcode, payload) = match ready {
+            InventoryDrainReady::Instance => {
+                let (opcode, payload) =
+                    read_encrypted_packet(stream, crypt, server_inflater).await?;
+                ("instance", opcode, payload)
+            }
+            InventoryDrainReady::Realm => {
+                let (opcode, payload) =
+                    read_encrypted_packet(&mut realm.stream, &mut realm.crypt, &mut realm.inflater)
+                        .await?;
+                ("realm", opcode, payload)
+            }
+        };
+        result.seen_opcodes.push(format!("0x{opcode:04X}"));
+        if opcode == SMSG_TIME_SYNC_REQUEST {
+            let sequence = parse_time_sync_request_sequence(&payload)?;
+            let response = build_time_sync_response_payload(sequence, 0);
+            send_encrypted_packet(stream, crypt, CMSG_TIME_SYNC_RESPONSE, &response).await?;
+        }
+        info!(
+            "[Bot {}] 📦 {} inventory pre-action drain {}",
+            bot_index,
+            connection,
+            parse_packet(opcode, &payload)
+        );
+    }
+
+    let payload = build_swap_item_invalid_source_payload(valid_destination_slot);
+    send_encrypted_packet(stream, crypt, CMSG_SWAP_ITEM, &payload).await?;
+    info!(
+        "[Bot {}] ✅ CMSG_SWAP_ITEM invalid-source validation probe sent",
+        bot_index
+    );
+
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(timeout_secs);
+    while tokio::time::Instant::now() < deadline {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        enum InventoryValidationReady {
+            Instance,
+            Realm,
+        }
+        let mut instance_peek = [0u8; 1];
+        let mut realm_peek = [0u8; 1];
+        let ready = tokio::time::timeout(remaining, async {
+            tokio::select! {
+                ready = stream.peek(&mut instance_peek) => {
+                    if ready.context("inventory validation instance peek failed")? == 0 {
+                        bail!("instance connection closed during inventory validation smoke");
+                    }
+                    Ok(InventoryValidationReady::Instance)
+                }
+                ready = realm.stream.peek(&mut realm_peek) => {
+                    if ready.context("inventory validation realm peek failed")? == 0 {
+                        bail!("realm connection closed during inventory validation smoke");
+                    }
+                    Ok(InventoryValidationReady::Realm)
+                }
+            }
+        })
+        .await
+        .map_err(|_| anyhow!("timed out waiting for inventory invalid-position failure"))??;
+        let (connection, opcode, payload) = match ready {
+            InventoryValidationReady::Instance => {
+                let (opcode, payload) = tokio::time::timeout(
+                    deadline.saturating_duration_since(tokio::time::Instant::now()),
+                    read_encrypted_packet(stream, crypt, server_inflater),
+                )
+                .await
+                .map_err(|_| anyhow!("inventory validation instance packet read timed out"))??;
+                ("instance", opcode, payload)
+            }
+            InventoryValidationReady::Realm => {
+                let (opcode, payload) = tokio::time::timeout(
+                    deadline.saturating_duration_since(tokio::time::Instant::now()),
+                    read_encrypted_packet(&mut realm.stream, &mut realm.crypt, &mut realm.inflater),
+                )
+                .await
+                .map_err(|_| anyhow!("inventory validation realm packet read timed out"))??;
+                ("realm", opcode, payload)
+            }
+        };
+        result.seen_opcodes.push(format!("0x{opcode:04X}"));
+        if opcode == SMSG_TIME_SYNC_REQUEST {
+            let sequence = parse_time_sync_request_sequence(&payload)?;
+            let response = build_time_sync_response_payload(sequence, 0);
+            send_encrypted_packet(stream, crypt, CMSG_TIME_SYNC_RESPONSE, &response).await?;
+            continue;
+        }
+        if opcode != SMSG_INVENTORY_CHANGE_FAILURE {
+            info!(
+                "[Bot {}] 📦 {} inventory validation probe {}",
+                bot_index,
+                connection,
+                parse_packet(opcode, &payload)
+            );
+            continue;
+        }
+        if connection != "realm" {
+            bail!(
+                "inventory invalid-position failure arrived on {connection}; C++ Opcodes.cpp requires the realm connection"
+            );
+        }
+        if payload.len() < 4 {
+            bail!(
+                "inventory invalid-position failure payload too short: {}",
+                payload.len()
+            );
+        }
+        let result_code = i32::from_le_bytes(payload[0..4].try_into()?);
+        if result_code != 23 {
+            bail!(
+                "inventory invalid-position result mismatch: expected ITEM_NOT_FOUND(23), got {result_code}"
+            );
+        }
+        info!(
+            "[Bot {}] ✅ realm inventory invalid-position gate returned ITEM_NOT_FOUND",
+            bot_index
+        );
+        return Ok(());
+    }
+    bail!("timed out waiting for inventory invalid-position failure")
 }
 
 async fn wait_for_inventory_swap_locations(
@@ -10433,6 +10628,23 @@ fn build_swap_inv_item_payload(src_slot: u8, dst_slot: u8) -> [u8; 7] {
         src_slot,
         dst_slot,
         src_slot,
+    ]
+}
+
+fn build_swap_item_invalid_source_payload(valid_destination_slot: u8) -> [u8; 9] {
+    // InvUpdate contains the destination then source. The packet body follows
+    // C++ order ContainerSlotB/A, SlotB/A; container 200 is never a valid
+    // player bag position and must produce EQUIP_ERR_ITEM_NOT_FOUND.
+    [
+        0x80,
+        INVENTORY_SLOT_BAG_0,
+        valid_destination_slot,
+        200,
+        0,
+        INVENTORY_SLOT_BAG_0,
+        200,
+        valid_destination_slot,
+        0,
     ]
 }
 
@@ -16137,6 +16349,14 @@ mod tests {
         );
     }
 
+    #[test]
+    fn inventory_swap_invalid_source_payload_matches_cpp_container_order() {
+        assert_eq!(
+            build_swap_item_invalid_source_payload(40),
+            [0x80, 255, 40, 200, 0, 255, 200, 40, 0]
+        );
+    }
+
     fn issue20_item_create_fixture(
         item_guid: u64,
         item_entry: u32,
@@ -16302,7 +16522,7 @@ mod tests {
     }
 
     #[test]
-    fn inventory_swap_success_requires_issue20_relog_metadata_proof() {
+    fn inventory_swap_success_requires_issue20_metadata_and_issue52_validation_proofs() {
         let mut result = BotRunResult {
             inventory_swap_smoke: true,
             inventory_swap_smoke_passed: Some(true),
@@ -16317,6 +16537,9 @@ mod tests {
         result.inventory_swap_item_create_relogin_verified = true;
         result.inventory_swap_relogin_after_reverse = true;
         result.inventory_swap_item_metadata_persisted = true;
+        assert!(!result.success(false, false, false));
+
+        result.inventory_swap_validation_gate_seen = true;
         assert!(result.success(false, false, false));
     }
 

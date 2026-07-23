@@ -1574,6 +1574,15 @@ async fn main() -> Result<ExitCode> {
             .context("Failed to load Item.db2 — check DataDir and DBC.Locale config")?,
     );
     info!("Loaded {} items from Item.db2", item_store.len());
+    let item_child_equipment_store = Arc::new(
+        wow_data::ItemChildEquipmentStore::load(&data_dir, &locale).context(
+            "Failed to load ItemChildEquipment.db2 — check DataDir and DBC.Locale config",
+        )?,
+    );
+    info!(
+        "Loaded {} item child-equipment rows from ItemChildEquipment.db2",
+        item_child_equipment_store.len()
+    );
 
     let item_price_base_store = Arc::new(
         wow_data::ItemPriceBaseStore::load(&data_dir, &locale)
@@ -5208,6 +5217,7 @@ async fn main() -> Result<ExitCode> {
         item_currency_cost_store: Some(Arc::clone(&item_currency_cost_store)),
         item_extended_cost_store: Some(Arc::clone(&item_extended_cost_store)),
         item_store: Some(Arc::clone(&item_store)),
+        item_child_equipment_store: Some(Arc::clone(&item_child_equipment_store)),
         item_appearance_store: Some(Arc::clone(&item_appearance_store)),
         item_modified_appearance_store: Some(Arc::clone(&item_modified_appearance_store)),
         item_search_name_store: Some(Arc::clone(&item_search_name_store)),
@@ -12682,6 +12692,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.item_store {
         session.set_item_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.item_child_equipment_store {
+        session.set_item_child_equipment_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.item_appearance_store {
         session.set_item_appearance_store(Arc::clone(store));
