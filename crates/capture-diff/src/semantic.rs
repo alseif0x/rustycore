@@ -1,11 +1,13 @@
 //! Narrow semantic packet comparators for fields that are intentionally
-//! runtime-allocated, or for a specifically proven accumulated update-mask
-//! artifact, and therefore cannot be compared byte-for-byte.
+//! runtime-allocated, intrinsically unordered in C++, or for a specifically
+//! proven accumulated update-mask artifact, and therefore cannot be compared
+//! byte-for-byte.
 //!
 //! Keep this module deliberately small. A semantic comparator is allowed to
 //! omit only a field whose value cannot be made stable across equivalent C++
-//! and Rust runs, or one exact empty mask fragment whose cadence was reproduced
-//! independently; every other decoded bit remains part of the comparison.
+//! and Rust runs, canonicalize only proven unordered collection order, or omit
+//! one exact empty mask fragment whose cadence was reproduced independently;
+//! every other decoded bit remains part of the comparison.
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -20,6 +22,9 @@ pub const SMSG_LOG_XP_GAIN: u16 = 0x26E5;
 
 /// `SMSG_LOOT_REMOVED` in the 3.4.3 opcode table.
 pub const SMSG_LOOT_REMOVED: u16 = 0x2615;
+
+/// `SMSG_SEND_KNOWN_SPELLS` in the 3.4.3 opcode table.
+pub const SMSG_SEND_KNOWN_SPELLS: u16 = 0x2C27;
 
 /// `SMSG_ITEM_PUSH_RESULT` in the 3.4.3 opcode table.
 pub const SMSG_ITEM_PUSH_RESULT: u16 = 0x2623;
@@ -141,6 +146,20 @@ pub struct BuySucceededBody {
     pub quantity_bought: u32,
 }
 
+/// Canonical semantic representation of a 3.4.3
+/// `SMSG_SEND_KNOWN_SPELLS` body.
+///
+/// C++ fills both vectors while iterating `PlayerSpellMap`, an
+/// `std::unordered_map`. Their wire order is therefore not a protocol
+/// contract. The decoder sorts both unique lists while retaining exact
+/// membership, cardinality, favorite membership, and every other body bit.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SendKnownSpellsBody {
+    pub initial_login: bool,
+    pub known_spells: Vec<u32>,
+    pub favorite_spells: Vec<u32>,
+}
+
 /// One exact `ActivePlayerData::InvSlots` value in a normalized player VALUES
 /// update.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -173,6 +192,8 @@ pub struct SemanticBodySide {
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub buy_succeeded: Option<BuySucceededBody>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub send_known_spells: Option<SendKnownSpellsBody>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
     pub update_object_inv_slots: Option<UpdateObjectInvSlotsBody>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub decode_error: Option<String>,
@@ -199,6 +220,7 @@ impl SemanticBodySide {
                     log_xp_gain: Some(decoded.body),
                     loot_removed: None,
                     buy_succeeded: None,
+                    send_known_spells: None,
                     update_object_inv_slots: None,
                     decode_error: Some(
                         "kill XP creature victim has a zero runtime GUID counter".to_string(),
@@ -210,6 +232,7 @@ impl SemanticBodySide {
                 log_xp_gain: Some(decoded.body),
                 loot_removed: None,
                 buy_succeeded: None,
+                send_known_spells: None,
                 update_object_inv_slots: None,
                 decode_error: None,
                 raw_body_sha256: (!decoded.is_creature_kill()).then(|| raw_body_sha256(raw_body)),
@@ -218,6 +241,7 @@ impl SemanticBodySide {
                 log_xp_gain: None,
                 loot_removed: None,
                 buy_succeeded: None,
+                send_known_spells: None,
                 update_object_inv_slots: None,
                 decode_error: Some(error),
                 raw_body_sha256: Some(raw_body_sha256(raw_body)),
@@ -237,6 +261,7 @@ impl SemanticBodySide {
                     log_xp_gain: None,
                     loot_removed: Some(decoded.body),
                     buy_succeeded: None,
+                    send_known_spells: None,
                     update_object_inv_slots: None,
                     decode_error: shape_error,
                     // Only the exact issue-#106 Doctor/LootObject/list shape may
@@ -250,6 +275,7 @@ impl SemanticBodySide {
                 log_xp_gain: None,
                 loot_removed: None,
                 buy_succeeded: None,
+                send_known_spells: None,
                 update_object_inv_slots: None,
                 decode_error: Some(error),
                 raw_body_sha256: Some(raw_body_sha256(raw_body)),
@@ -269,6 +295,7 @@ impl SemanticBodySide {
                     log_xp_gain: None,
                     loot_removed: None,
                     buy_succeeded: Some(decoded.body),
+                    send_known_spells: None,
                     update_object_inv_slots: None,
                     decode_error: shape_error,
                     raw_body_sha256: (!reviewed_shape).then(|| raw_body_sha256(raw_body)),
@@ -278,6 +305,33 @@ impl SemanticBodySide {
                 log_xp_gain: None,
                 loot_removed: None,
                 buy_succeeded: None,
+                send_known_spells: None,
+                update_object_inv_slots: None,
+                decode_error: Some(error),
+                raw_body_sha256: Some(raw_body_sha256(raw_body)),
+            },
+        }
+    }
+
+    fn from_decoded_send_known_spells(
+        decoded: Result<SendKnownSpellsBody, String>,
+        raw_body: &[u8],
+    ) -> Self {
+        match decoded {
+            Ok(decoded) => Self {
+                log_xp_gain: None,
+                loot_removed: None,
+                buy_succeeded: None,
+                send_known_spells: Some(decoded),
+                update_object_inv_slots: None,
+                decode_error: None,
+                raw_body_sha256: None,
+            },
+            Err(error) => Self {
+                log_xp_gain: None,
+                loot_removed: None,
+                buy_succeeded: None,
+                send_known_spells: None,
                 update_object_inv_slots: None,
                 decode_error: Some(error),
                 raw_body_sha256: Some(raw_body_sha256(raw_body)),
@@ -294,6 +348,7 @@ impl SemanticBodySide {
                 log_xp_gain: None,
                 loot_removed: None,
                 buy_succeeded: None,
+                send_known_spells: None,
                 update_object_inv_slots: Some(decoded.body),
                 decode_error: None,
                 raw_body_sha256: None,
@@ -302,6 +357,7 @@ impl SemanticBodySide {
                 log_xp_gain: None,
                 loot_removed: None,
                 buy_succeeded: None,
+                send_known_spells: None,
                 update_object_inv_slots: None,
                 decode_error: Some(format!(
                     "not the reviewed single-player InvSlots VALUES shape: {reason}"
@@ -312,6 +368,7 @@ impl SemanticBodySide {
                 log_xp_gain: None,
                 loot_removed: None,
                 buy_succeeded: None,
+                send_known_spells: None,
                 update_object_inv_slots: None,
                 decode_error: Some(error),
                 raw_body_sha256: Some(raw_body_sha256(raw_body)),
@@ -342,6 +399,7 @@ impl SemanticBodyDiff {
             && self.cpp.log_xp_gain == self.rust.log_xp_gain
             && self.cpp.loot_removed == self.rust.loot_removed
             && self.cpp.buy_succeeded == self.rust.buy_succeeded
+            && self.cpp.send_known_spells == self.rust.send_known_spells
             && self.cpp.update_object_inv_slots == self.rust.update_object_inv_slots
             && self.cpp.raw_body_sha256 == self.rust.raw_body_sha256
     }
@@ -369,6 +427,13 @@ impl SemanticBodyDiff {
         }
 
         if let (Some(cpp), Some(rust)) = (
+            self.cpp.send_known_spells.as_ref(),
+            self.rust.send_known_spells.as_ref(),
+        ) {
+            return mismatch_send_known_spells(cpp, rust);
+        }
+
+        if let (Some(cpp), Some(rust)) = (
             self.cpp.update_object_inv_slots.as_ref(),
             self.rust.update_object_inv_slots.as_ref(),
         ) {
@@ -376,6 +441,25 @@ impl SemanticBodyDiff {
         }
 
         "semantic body shape differs or is missing".to_string()
+    }
+}
+
+fn mismatch_send_known_spells(cpp: &SendKnownSpellsBody, rust: &SendKnownSpellsBody) -> String {
+    let mut fields = Vec::new();
+    if cpp.initial_login != rust.initial_login {
+        fields.push("initial_login");
+    }
+    if cpp.known_spells != rust.known_spells {
+        fields.push("known_spells");
+    }
+    if cpp.favorite_spells != rust.favorite_spells {
+        fields.push("favorite_spells");
+    }
+
+    if fields.is_empty() {
+        "semantic values are equal".to_string()
+    } else {
+        format!("mismatched field(s): {}", fields.join(", "))
     }
 }
 
@@ -565,8 +649,23 @@ pub fn compare_packet_bodies(
         SMSG_LOG_XP_GAIN => compare_log_xp_gain_bodies(cpp, rust),
         SMSG_LOOT_REMOVED => compare_loot_removed_bodies(cpp, rust),
         SMSG_BUY_SUCCEEDED => compare_buy_succeeded_bodies(cpp, rust),
+        SMSG_SEND_KNOWN_SPELLS => Some(compare_send_known_spells_bodies(cpp, rust)),
         SMSG_UPDATE_OBJECT => compare_update_object_inv_slots_bodies(cpp, rust),
         _ => None,
+    }
+}
+
+fn compare_send_known_spells_bodies(cpp: &[u8], rust: &[u8]) -> SemanticBodyDiff {
+    SemanticBodyDiff {
+        comparator: "smsg_send_known_spells_unordered_spell_sets".to_string(),
+        cpp: SemanticBodySide::from_decoded_send_known_spells(
+            decode_send_known_spells_body(cpp),
+            cpp,
+        ),
+        rust: SemanticBodySide::from_decoded_send_known_spells(
+            decode_send_known_spells_body(rust),
+            rust,
+        ),
     }
 }
 
@@ -1630,6 +1729,89 @@ pub fn decode_loot_removed_body(body: &[u8]) -> Result<LootRemovedBody, String> 
 /// `WorldPackets::Item::BuySucceeded::Write`.
 pub fn decode_buy_succeeded_body(body: &[u8]) -> Result<BuySucceededBody, String> {
     decode_buy_succeeded_body_with_counter(body).map(|decoded| decoded.body)
+}
+
+/// Decode and canonicalize the opcode-less body emitted by C++
+/// `WorldPackets::Spells::SendKnownSpells::Write`.
+///
+/// The first bit and both counts remain exact. Known and favorite spell IDs
+/// are sorted only after canonical body decoding so the comparator mirrors
+/// C++'s unordered `PlayerSpellMap` iteration without accepting a different
+/// set. Duplicate IDs, favorite IDs absent from the known set, nonzero bit
+/// padding, count/length mismatches, and spell ID zero are rejected.
+pub fn decode_send_known_spells_body(body: &[u8]) -> Result<SendKnownSpellsBody, String> {
+    if body.len() < 9 {
+        return Err(format!(
+            "SendKnownSpells body is {} bytes; need at least 9",
+            body.len()
+        ));
+    }
+    let bit_byte = body[0];
+    if bit_byte & 0x7F != 0 {
+        return Err(format!(
+            "SendKnownSpells InitialLogin byte has non-canonical padding bits: 0x{bit_byte:02X}"
+        ));
+    }
+    let initial_login = bit_byte & 0x80 != 0;
+    let known_count = u32::from_le_bytes(body[1..5].try_into().expect("four-byte slice")) as usize;
+    let favorite_count =
+        u32::from_le_bytes(body[5..9].try_into().expect("four-byte slice")) as usize;
+    let spell_count = known_count
+        .checked_add(favorite_count)
+        .ok_or_else(|| "SendKnownSpells spell counts overflow usize".to_string())?;
+    let expected_len = spell_count
+        .checked_mul(4)
+        .and_then(|bytes| bytes.checked_add(9))
+        .ok_or_else(|| "SendKnownSpells body length overflows usize".to_string())?;
+    if body.len() != expected_len {
+        return Err(format!(
+            "SendKnownSpells counts require {expected_len} bytes but body has {}",
+            body.len()
+        ));
+    }
+
+    let mut cursor = 9;
+    let mut read_spells = |count: usize, label: &str| -> Result<Vec<u32>, String> {
+        let mut spells = Vec::with_capacity(count);
+        for index in 0..count {
+            let end = cursor + 4;
+            let spell = u32::from_le_bytes(
+                body[cursor..end]
+                    .try_into()
+                    .expect("validated exact body length"),
+            );
+            cursor = end;
+            if spell == 0 {
+                return Err(format!("{label}[{index}] has invalid spell ID 0"));
+            }
+            spells.push(spell);
+        }
+        spells.sort_unstable();
+        if let Some(duplicate) = spells.windows(2).find(|pair| pair[0] == pair[1]) {
+            return Err(format!(
+                "{label} contains duplicate spell ID {}",
+                duplicate[0]
+            ));
+        }
+        Ok(spells)
+    };
+
+    let known_spells = read_spells(known_count, "KnownSpells")?;
+    let favorite_spells = read_spells(favorite_count, "FavoriteSpells")?;
+    if let Some(spell) = favorite_spells
+        .iter()
+        .find(|spell| known_spells.binary_search(spell).is_err())
+    {
+        return Err(format!(
+            "FavoriteSpells contains spell ID {spell} absent from KnownSpells"
+        ));
+    }
+
+    Ok(SendKnownSpellsBody {
+        initial_login,
+        known_spells,
+        favorite_spells,
+    })
 }
 
 fn decode_buy_succeeded_body_with_counter(body: &[u8]) -> Result<DecodedBuySucceededBody, String> {

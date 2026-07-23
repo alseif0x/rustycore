@@ -1,6 +1,6 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**Date:** 2026-07-23 · **Base:** `3.4.3` @ `00dd269e` plus the local issue #60 branch.
+**Date:** 2026-07-23 · **Base:** `3.4.3` @ `f05852b0` plus the local issue #62 branch.
 
 This document replaces the drifting status snapshots in `_INDEX.md` (2026-05-01, "5–15%"),
 the `MIGRATION_ROADMAP.md` §3 inherited table (which tells you not to trust it), and the
@@ -79,7 +79,8 @@ observable mutation · **ABSENT**.
 | Capability | Status | Evidence / defects |
 |---|---|---|
 | Auth/BNet SRP6 + world-enter handshake | WORKS | recent `fix(bnet)` commits; played live |
-| Player base/stat projection | **PARTIAL (live)** | issue #60 local branch replaces the C# `player_levelstats` path with `player_racestats` + `player_classlevelstats`, `GtBaseMP`, `CreateHealth=0` and a shared create/login/equipment/level-up StatSystem projection. Login now seeds passive parry/block capability before projection and defers its saved-health clamp until persisted stat auras and represented item/enchantment modifiers are active; live total-stat aura recalculations retain those item bonuses and emit no pre-CreateObject VALUES delta. Paired accredited C++/Rust login captures match the scoped max-health/mana, five primary stats, armor, base mana, AP and damage fields exactly, including the 3% total-stat racial passive. The complete login `UpdateObject` still has unrelated field divergences, and wider unit-mod/aura/item-stat parity remains open. |
+| Player base/stat projection | **PARTIAL (live)** | issue #60 replaces the C# `player_levelstats` path with `player_racestats` + `player_classlevelstats`, `GtBaseMP`, `CreateHealth=0` and a shared create/login/equipment/level-up StatSystem projection. Login now seeds passive parry/block capability before projection and defers its saved-health clamp until persisted stat auras and represented item/enchantment modifiers are active; live total-stat aura recalculations retain those item bonuses and emit no pre-CreateObject VALUES delta. Paired accredited C++/Rust login captures match the scoped max-health/mana, five primary stats, armor, base mana, AP and damage fields exactly, including the 3% total-stat racial passive. The complete login `UpdateObject` still has unrelated field divergences, and wider unit-mod/aura/item-stat parity remains open. |
+| Starting skills and skill-rewarded login spells | **WORKS (scoped issue #62)** | `SkillRaceClassInfo` now follows C++ `Availability`/`MinLevel`; default skill rank/max/step follows language, level, mono, tier, always-max and DK rules; loaded rows are normalized like `_LoadSkills`; and the live no-DB-spell login path applies `LearnSkillRewardedSpells` with real spell levels, quest fallback, Riding, masks and actual skill values. Correct WDC4 inline IDs restore Common-compressed `SkillLineAbility` fields. A live Blood Elf Hunter C++/Rust pair yields the same exact 43-spell set under the reviewed unordered-map comparator; bit/count/list/favorites integrity remains strict. Wider skill gain/update/discovery/unlearn runtime remains in L18. |
 | Player movement + broadcast to nearby | WORKS⚠ | `movement.rs:310`; trust-client position (D-H10), creature destroy deferred (D-H15), async CREATE race (D-H14) |
 | Melee combat (deals damage→death→loot) | **PARTIAL** | `session.rs:47635`; **no damage formula / hit table / armor mitigation** (D-H1, D-H2) — numbers are wrong |
 | Global creature runtime (aggro/melee/move→packets) | WORKS (default on) | `world-server/src/main.rs:12682+` |
@@ -195,7 +196,8 @@ concentrated in a 235k-line `wow-world` monolith; the per-domain crate split in 
 
 A capability is **done** only when: (1) it runs in the **live runtime**, (2) its wire output
 is **capture-clean vs a C++ capture** of the same action — byte/opcode exact unless a narrowly
-reviewed comparator omits only an intrinsically runtime-allocated identifier while retaining
-every stable bit and failing malformed input — (3) it has been **exercised on a running
-server/client**, and (4) C++ refs + the validating capture/test are cited.
+reviewed comparator omits only an intrinsically runtime-allocated identifier or canonicalizes
+only proven unordered C++ collection order, while retaining every stable value/count and failing
+malformed input — (3) it has been **exercised on a running server/client**, and (4) C++ refs +
+the validating capture/test are cited.
 `represented-complete` is no longer a closure state — it means "logic drafted, not yet live".

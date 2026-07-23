@@ -77,8 +77,9 @@ pub struct BodyDiff {
     pub cpp_hex: String,
     pub rust_hex: String,
     /// Reviewed field-level comparison for packets with unavoidable runtime
-    /// identifiers. When present, this result (not the raw byte offset)
-    /// determines whether the body is identical.
+    /// identifiers or intrinsically unordered C++ collection order. When
+    /// present, this result (not the raw byte offset) determines whether the
+    /// body is identical.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub semantic: Option<SemanticBodyDiff>,
 }

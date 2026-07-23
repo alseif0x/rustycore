@@ -31,6 +31,7 @@ const CMSG_PING: u16 = 0x3768;
 const SMSG_PONG: u16 = 0x304E;
 const SMSG_UPDATE_OBJECT: u16 = 0x27CB;
 const SMSG_AURA_UPDATE: u16 = 0x2C1F;
+const SMSG_SEND_KNOWN_SPELLS: u16 = 0x2C27;
 const SMSG_TIME_SYNC_REQUEST: u16 = 0x2DD2;
 const CMSG_TIME_SYNC_RESPONSE: u16 = 0x3A3D;
 const SMSG_ON_MONSTER_MOVE: u16 = 0x2DD4;
@@ -1760,6 +1761,119 @@ fn is_truthy(value: &str) -> bool {
         value.to_ascii_lowercase().as_str(),
         "1" | "true" | "yes" | "y" | "on"
     )
+}
+
+fn login_known_spells_ready(
+    login_verified: bool,
+    require_known_spells: bool,
+    known_spells_seen: bool,
+) -> bool {
+    login_verified && (!require_known_spells || known_spells_seen)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LoginKnownSpellsLikeCpp {
+    initial_login: bool,
+    known_spells: Vec<u32>,
+    favorite_spells: Vec<u32>,
+}
+
+fn parse_login_known_spells_expectation(raw: &str) -> Result<Vec<u32>> {
+    let mut spells = raw
+        .split(',')
+        .map(str::trim)
+        .filter(|spell| !spell.is_empty())
+        .map(|spell| {
+            spell
+                .parse::<u32>()
+                .with_context(|| format!("invalid spell ID '{spell}'"))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    if spells.is_empty() {
+        bail!("WOW_BOT_LOGIN_EXPECT_KNOWN_SPELLS must contain at least one spell ID");
+    }
+    if spells.contains(&0) {
+        bail!("WOW_BOT_LOGIN_EXPECT_KNOWN_SPELLS contains invalid spell ID 0");
+    }
+    spells.sort_unstable();
+    if let Some(duplicate) = spells.windows(2).find(|pair| pair[0] == pair[1]) {
+        bail!(
+            "WOW_BOT_LOGIN_EXPECT_KNOWN_SPELLS contains duplicate spell ID {}",
+            duplicate[0]
+        );
+    }
+    Ok(spells)
+}
+
+fn decode_login_known_spells_like_cpp(payload: &[u8]) -> Result<LoginKnownSpellsLikeCpp> {
+    if payload.len() < 9 {
+        bail!(
+            "SMSG_SEND_KNOWN_SPELLS body is {} bytes; need at least 9",
+            payload.len()
+        );
+    }
+    let bit_byte = payload[0];
+    if bit_byte & 0x7F != 0 {
+        bail!(
+            "SMSG_SEND_KNOWN_SPELLS InitialLogin byte has non-canonical padding bits: 0x{bit_byte:02X}"
+        );
+    }
+    let initial_login = bit_byte & 0x80 != 0;
+    let known_count =
+        u32::from_le_bytes(payload[1..5].try_into().expect("four-byte slice")) as usize;
+    let favorite_count =
+        u32::from_le_bytes(payload[5..9].try_into().expect("four-byte slice")) as usize;
+    let spell_count = known_count
+        .checked_add(favorite_count)
+        .ok_or_else(|| anyhow!("SMSG_SEND_KNOWN_SPELLS spell counts overflow usize"))?;
+    let expected_len = spell_count
+        .checked_mul(4)
+        .and_then(|bytes| bytes.checked_add(9))
+        .ok_or_else(|| anyhow!("SMSG_SEND_KNOWN_SPELLS body length overflows usize"))?;
+    if payload.len() != expected_len {
+        bail!(
+            "SMSG_SEND_KNOWN_SPELLS counts require {expected_len} bytes but body has {}",
+            payload.len()
+        );
+    }
+
+    let mut cursor = 9;
+    let mut read_spells = |count: usize, label: &str| -> Result<Vec<u32>> {
+        let mut spells = Vec::with_capacity(count);
+        for index in 0..count {
+            let end = cursor + 4;
+            let spell = u32::from_le_bytes(
+                payload[cursor..end]
+                    .try_into()
+                    .expect("validated exact body length"),
+            );
+            cursor = end;
+            if spell == 0 {
+                bail!("{label}[{index}] has invalid spell ID 0");
+            }
+            spells.push(spell);
+        }
+        spells.sort_unstable();
+        if let Some(duplicate) = spells.windows(2).find(|pair| pair[0] == pair[1]) {
+            bail!("{label} contains duplicate spell ID {}", duplicate[0]);
+        }
+        Ok(spells)
+    };
+
+    let known_spells = read_spells(known_count, "KnownSpells")?;
+    let favorite_spells = read_spells(favorite_count, "FavoriteSpells")?;
+    if let Some(spell) = favorite_spells
+        .iter()
+        .find(|spell| known_spells.binary_search(spell).is_err())
+    {
+        bail!("FavoriteSpells contains spell ID {spell} absent from KnownSpells");
+    }
+
+    Ok(LoginKnownSpellsLikeCpp {
+        initial_login,
+        known_spells,
+        favorite_spells,
+    })
 }
 
 fn validate_provisioning_mode(guarded_mode: bool, ensure_test_accounts: bool) -> Result<()> {
@@ -4028,6 +4142,18 @@ async fn run_bot_with_void_storage(
     info!("[Bot {}] ✅ CMSG_PLAYER_LOGIN sent", bot_index);
 
     let mut login_ok = false;
+    let expected_known_spells = std::env::var("WOW_BOT_LOGIN_EXPECT_KNOWN_SPELLS")
+        .ok()
+        .map(|raw| parse_login_known_spells_expectation(&raw))
+        .transpose()?;
+    if expected_known_spells.is_some() && !login_only {
+        bail!("WOW_BOT_LOGIN_EXPECT_KNOWN_SPELLS requires login-only mode");
+    }
+    let require_known_spells = login_only
+        && (expected_known_spells.is_some()
+            || std::env::var("WOW_BOT_LOGIN_REQUIRE_KNOWN_SPELLS")
+                .is_ok_and(|value| is_truthy(&value)));
+    let mut known_spells_seen = false;
     let preserve_realm_connection = stand_state_options.is_some()
         || homebind_options.is_some()
         || inventory_swap_options.is_some()
@@ -4050,6 +4176,28 @@ async fn run_bot_with_void_storage(
         {
             Ok(Ok((op, payload))) => {
                 result.seen_opcodes.push(format!("0x{:04X}", op));
+                if op == SMSG_SEND_KNOWN_SPELLS {
+                    let decoded = decode_login_known_spells_like_cpp(&payload)?;
+                    if !decoded.initial_login {
+                        bail!("login SMSG_SEND_KNOWN_SPELLS has InitialLogin=false");
+                    }
+                    if let Some(expected) = expected_known_spells.as_ref() {
+                        if decoded.known_spells != *expected {
+                            bail!(
+                                "SMSG_SEND_KNOWN_SPELLS mismatch: expected {:?}, received {:?}",
+                                expected,
+                                decoded.known_spells
+                            );
+                        }
+                    }
+                    known_spells_seen = true;
+                    info!(
+                        "[Bot {}] ✅ SMSG_SEND_KNOWN_SPELLS received (known={}, favorites={})",
+                        bot_index,
+                        decoded.known_spells.len(),
+                        decoded.favorite_spells.len()
+                    );
+                }
                 if let Some(options) = loot_race_options.as_ref() {
                     if let Some(counter) = loot_race::target_seen_in_update(options, op, &payload)?
                     {
@@ -4154,7 +4302,8 @@ async fn run_bot_with_void_storage(
                     let inventory_swap_login_ready = inventory_swap_options
                         .as_ref()
                         .is_none_or(|_| result.inventory_swap_item_create_sha256.is_some());
-                    if (!preserve_realm_connection || realm_connection.is_some())
+                    if login_known_spells_ready(login_ok, require_known_spells, known_spells_seen)
+                        && (!preserve_realm_connection || realm_connection.is_some())
                         && equipment_set_login_ready
                         && void_storage_login_ready
                         && inventory_swap_login_ready
@@ -4234,6 +4383,11 @@ async fn run_bot_with_void_storage(
                 {
                     break;
                 }
+                if require_known_spells
+                    && login_known_spells_ready(login_ok, true, known_spells_seen)
+                {
+                    break;
+                }
             }
             Ok(Err(e)) => {
                 warn!("[Bot {}] Login read error: {}", bot_index, e);
@@ -4246,6 +4400,9 @@ async fn run_bot_with_void_storage(
     }
     if !login_ok {
         bail!("Login verification failed");
+    }
+    if require_known_spells && !known_spells_seen {
+        bail!("Login verification did not reach SMSG_SEND_KNOWN_SPELLS");
     }
     if inventory_swap_options.is_some() && result.inventory_swap_item_create_sha256.is_none() {
         bail!("issue #20 item CREATE_OBJECT was not observed during the login window");
@@ -15857,6 +16014,68 @@ fn build_packed_guid(low: u64, high: u64) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn optional_login_known_spells_gate_waits_for_both_signals() {
+        assert!(!login_known_spells_ready(false, false, false));
+        assert!(login_known_spells_ready(true, false, false));
+        assert!(!login_known_spells_ready(true, true, false));
+        assert!(!login_known_spells_ready(false, true, true));
+        assert!(login_known_spells_ready(true, true, true));
+    }
+
+    #[test]
+    fn login_known_spells_expectation_is_an_exact_unique_set() {
+        assert_eq!(
+            parse_login_known_spells_expectation("822, 75,81").unwrap(),
+            vec![75, 81, 822]
+        );
+        for invalid in ["", "0", "75,nope", "75,75"] {
+            assert!(
+                parse_login_known_spells_expectation(invalid).is_err(),
+                "accepted {invalid:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn login_known_spells_decoder_canonicalizes_only_wire_order() {
+        fn body(initial_login: bool, known: &[u32], favorites: &[u32]) -> Vec<u8> {
+            let mut body = vec![if initial_login { 0x80 } else { 0 }];
+            body.extend((known.len() as u32).to_le_bytes());
+            body.extend((favorites.len() as u32).to_le_bytes());
+            for spell in known.iter().chain(favorites) {
+                body.extend(spell.to_le_bytes());
+            }
+            body
+        }
+
+        let decoded =
+            decode_login_known_spells_like_cpp(&body(true, &[822, 75, 81], &[81])).unwrap();
+        assert_eq!(
+            decoded,
+            LoginKnownSpellsLikeCpp {
+                initial_login: true,
+                known_spells: vec![75, 81, 822],
+                favorite_spells: vec![81],
+            }
+        );
+
+        let mut bad_padding = body(true, &[75], &[]);
+        bad_padding[0] |= 1;
+        for malformed in [
+            bad_padding,
+            body(true, &[75, 75], &[]),
+            body(true, &[75], &[81]),
+            body(true, &[0], &[]),
+            body(true, &[75], &[])[..12].to_vec(),
+        ] {
+            assert!(
+                decode_login_known_spells_like_cpp(&malformed).is_err(),
+                "accepted malformed body {malformed:02X?}"
+            );
+        }
+    }
 
     #[test]
     fn loot_result_requires_verified_relog_for_success() {
