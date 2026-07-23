@@ -27,10 +27,16 @@ create-block hash remains
 
 GitHub review found that the local legacy C++ child redirect omitted the
 `AutoUnequipChildItem(parentItem)` call present in current upstream TrinityCore before the recursive
-`SwapItem` steps. Rust now commits that child relocation into reserved slot 138–140 before queuing
-the two parent redirects; a regression proves both later preflights continue instead of re-entering
-the same redirect. The shared storage executor also runs item-added quest checks only for
-bank-to-inventory moves, so this internal child relocation cannot duplicate objective credit. Two
+`SwapItem` steps. Rust now constructs a reversible child-slot overlay, proves both redirected moves
+against the normal dead/combat/charmed/`CanUnequipItem` plus destination planners, restores the
+overlay, and only then durably moves the child into the selected reserved slot 138–140 before
+queuing the two parent redirects. Regressions prove both valid moves continue without re-entering
+the redirect and a rejected move leaves the child, source and parent in their original slots. The
+shared storage executor also runs item-added quest checks only for bank-to-inventory moves, so this
+internal child relocation cannot duplicate objective credit. A later current-HEAD review also
+found that the empty-equip and real-swap persistence plans used `_StoreItem`'s bonding rule for an
+equipment destination. They now use C++ `EquipItem -> VisualizeItem`, which binds `BIND_ON_EQUIP`
+before persistence, while ordinary inventory storage retains the narrower `_StoreItem` rule. Two
 bank-access suggestions were rejected after exact contrast: local 3.4.3 and current upstream both
 omit `CanUseBank` in `HandleAutoEquipItemOpcode` and `HandleAutoStoreBagItemOpcode`, while retaining
 it in `HandleSwapInvItemOpcode`/`HandleSwapItem`; Rust preserves that observable handler contract.

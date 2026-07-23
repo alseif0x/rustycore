@@ -2153,6 +2153,19 @@ fn vendor_stored_new_item_flags_like_cpp(
     item.item_flags_bits()
 }
 
+fn bind_inventory_item_for_destination_like_cpp(item: &mut wow_entities::Item, destination: u16) {
+    let [bag, slot] = destination.to_be_bytes();
+    if is_equipment_pos(bag, slot) {
+        // C++ `Player::EquipItem` calls `VisualizeItem`, which binds
+        // BIND_ON_EQUIP as well as the acquire/quest bonding modes.
+        item.bind_if_visualized();
+    } else {
+        // C++ `Player::_StoreItem` has the narrower storage rule: an
+        // OnEquip item binds here only when stored in a bag-equipment slot.
+        item.bind_if_stored(wow_entities::is_bag_pos(destination));
+    }
+}
+
 fn player_money_gain_like_cpp(current_money: u64, amount: u64) -> Option<u64> {
     if amount == 0 {
         return Some(current_money);
@@ -14241,17 +14254,163 @@ impl WorldSession {
         }
     }
 
+    fn validate_inventory_redirected_empty_move_like_cpp(
+        &self,
+        src: u16,
+        dst: u16,
+    ) -> Result<Option<u32>, InventoryResult> {
+        let Some(preflight) = self.plan_inventory_swap_preflight_like_cpp(src, dst) else {
+            return Err(InventoryResult::InternalBagError);
+        };
+        match preflight.result {
+            SwapItemPreflightResult::NoSource => return Ok(None),
+            SwapItemPreflightResult::Error(result) => return Err(result),
+            SwapItemPreflightResult::ChildRedirect { .. } => {
+                return Err(InventoryResult::InternalBagError);
+            }
+            SwapItemPreflightResult::Continue => {}
+        }
+
+        let [src_bag, src_slot] = src.to_be_bytes();
+        let [dst_bag, dst_slot] = dst.to_be_bytes();
+        if self.get_inventory_item_by_pos(dst_bag, dst_slot).is_some() {
+            return Err(InventoryResult::InternalBagError);
+        }
+        let source = self
+            .get_inventory_item_by_pos(src_bag, src_slot)
+            .ok_or(InventoryResult::ItemNotFound)?;
+        let count = self
+            .inventory_item_objects_like_cpp()
+            .get(&source.guid)
+            .map(wow_entities::Item::count)
+            .ok_or(InventoryResult::ItemNotFound)?;
+        let Some((result, target)) = self.validate_inventory_swap_target_like_cpp(
+            src_bag, src_slot, dst_bag, dst_slot, false, true,
+        ) else {
+            return Err(InventoryResult::InternalBagError);
+        };
+        if result != InventoryResult::Ok {
+            return Err(result);
+        }
+        if matches!(target, InventorySwapTargetLikeCpp::None) {
+            return Err(InventoryResult::InternalBagError);
+        }
+        Ok(Some(count))
+    }
+
+    /// Validate the two recursive `Player::SwapItem` moves against a temporary
+    /// overlay before `AutoUnequipChildItem` is persisted. C++ performs those
+    /// calls synchronously; preserving that observable order in Rust must not
+    /// leave the child hidden when a later dead/combat/charmed/unequip/equip
+    /// gate rejects either move.
+    fn plan_inventory_child_redirect_like_cpp(
+        &mut self,
+        child_bag: u8,
+        child_slot: u8,
+        first_src: u16,
+        first_dst: u16,
+        second_src: u16,
+        second_dst: u16,
+    ) -> Result<u8, InventoryResult> {
+        let child_move = self
+            .plan_inventory_storage_move_like_cpp(
+                child_bag,
+                child_slot,
+                INVENTORY_SLOT_BAG_0,
+                NULL_SLOT,
+                InventoryStorageTargetLikeCpp::Inventory,
+            )
+            .ok_or(InventoryResult::ItemNotFound)??;
+        if !child_move.existing_updates.is_empty() {
+            return Err(InventoryResult::InternalBagError);
+        }
+        let Some((hidden_bag, hidden_slot, hidden_count)) = child_move.moved_destination else {
+            return Err(InventoryResult::InternalBagError);
+        };
+        if hidden_bag != INVENTORY_SLOT_BAG_0
+            || !is_child_equipment_pos(hidden_bag, hidden_slot)
+            || hidden_count != child_move.source_count
+        {
+            return Err(InventoryResult::InternalBagError);
+        }
+        if !self.apply_committed_inventory_item_relocation_like_cpp(
+            child_bag,
+            child_slot,
+            hidden_bag,
+            hidden_slot,
+            hidden_count,
+        ) {
+            return Err(InventoryResult::InternalBagError);
+        }
+
+        let first_count =
+            self.validate_inventory_redirected_empty_move_like_cpp(first_src, first_dst);
+        let mut first_applied_count = None;
+        let validation = match first_count {
+            Ok(Some(count)) => {
+                let [first_src_bag, first_src_slot] = first_src.to_be_bytes();
+                let [first_dst_bag, first_dst_slot] = first_dst.to_be_bytes();
+                if self.apply_committed_inventory_item_relocation_like_cpp(
+                    first_src_bag,
+                    first_src_slot,
+                    first_dst_bag,
+                    first_dst_slot,
+                    count,
+                ) {
+                    first_applied_count = Some(count);
+                    self.validate_inventory_redirected_empty_move_like_cpp(second_src, second_dst)
+                        .map(|_| ())
+                } else {
+                    Err(InventoryResult::InternalBagError)
+                }
+            }
+            Ok(None) => self
+                .validate_inventory_redirected_empty_move_like_cpp(second_src, second_dst)
+                .map(|_| ()),
+            Err(result) => Err(result),
+        };
+
+        let first_rolled_back = if let Some(count) = first_applied_count {
+            let [first_src_bag, first_src_slot] = first_src.to_be_bytes();
+            let [first_dst_bag, first_dst_slot] = first_dst.to_be_bytes();
+            self.apply_committed_inventory_item_relocation_like_cpp(
+                first_dst_bag,
+                first_dst_slot,
+                first_src_bag,
+                first_src_slot,
+                count,
+            )
+        } else {
+            true
+        };
+        debug_assert!(first_rolled_back);
+        let child_rolled_back = self.apply_committed_inventory_item_relocation_like_cpp(
+            hidden_bag,
+            hidden_slot,
+            child_bag,
+            child_slot,
+            hidden_count,
+        );
+        debug_assert!(child_rolled_back);
+        if !first_rolled_back || !child_rolled_back {
+            return Err(InventoryResult::InternalBagError);
+        }
+
+        validation.map(|()| hidden_slot)
+    }
+
     /// Current upstream TrinityCore calls `Player::AutoUnequipChildItem`
     /// before recursively continuing either child redirect in
     /// `Player::SwapItem`. The legacy 3.4.3 snapshot omitted that call and
-    /// recurses on the unchanged equipped child forever. Move the child into
-    /// the reserved child-equipment range first, durably, so the queued
-    /// C++ redirect steps observe the equipment position as empty.
+    /// recurses on the unchanged equipped child forever. Persist the child in
+    /// the already validated reserved slot so both queued moves observe its
+    /// equipment position as empty.
     async fn execute_inventory_auto_unequip_child_item_like_cpp(
         &mut self,
         child_bag: u8,
         child_slot: u8,
         child_guid: ObjectGuid,
+        hidden_slot: u8,
     ) -> bool {
         if is_child_equipment_pos(child_bag, child_slot) {
             return true;
@@ -14261,18 +14420,14 @@ impl WorldSession {
             child_bag,
             child_slot,
             INVENTORY_SLOT_BAG_0,
-            NULL_SLOT,
+            hidden_slot,
             InventoryStorageTargetLikeCpp::Inventory,
             None,
         )
         .await;
 
         self.get_inventory_item_by_guid_like_cpp(child_guid)
-            .is_some_and(|(bag, slot, _)| {
-                bag == INVENTORY_SLOT_BAG_0
-                    && (CHILD_EQUIPMENT_SLOT_START..wow_entities::CHILD_EQUIPMENT_SLOT_END)
-                        .contains(&slot)
-            })
+            .is_some_and(|(bag, slot, _)| bag == INVENTORY_SLOT_BAG_0 && slot == hidden_slot)
     }
 
     async fn execute_inventory_swap_step_like_cpp(
@@ -14325,9 +14480,21 @@ impl WorldSession {
                 let Some((child_bag, child_slot, child_guid)) = child else {
                     return InventorySwapStepLikeCpp::Done;
                 };
+                let hidden_slot = match self.plan_inventory_child_redirect_like_cpp(
+                    child_bag, child_slot, first_src, first_dst, second_src, second_dst,
+                ) {
+                    Ok(hidden_slot) => hidden_slot,
+                    Err(result) => {
+                        self.send_equip_error(result, source_guid, destination_guid, 0, 0);
+                        return InventorySwapStepLikeCpp::Done;
+                    }
+                };
                 if !self
                     .execute_inventory_auto_unequip_child_item_like_cpp(
-                        child_bag, child_slot, child_guid,
+                        child_bag,
+                        child_slot,
+                        child_guid,
+                        hidden_slot,
                     )
                     .await
                 {
@@ -14503,7 +14670,7 @@ impl WorldSession {
             return;
         };
         let mut planned_item = runtime_item.clone();
-        planned_item.bind_if_stored(wow_entities::is_bag_pos(destination));
+        bind_inventory_item_for_destination_like_cpp(&mut planned_item, destination);
         for slot in &cleared_enchantments {
             planned_item.clear_enchantment(*slot);
         }
@@ -14879,12 +15046,15 @@ impl WorldSession {
         let source_destination_pos = wow_entities::make_item_pos(destination_bag, destination_slot);
         let destination_source_pos = wow_entities::make_item_pos(source_bag, source_slot);
         let mut planned_source = source_object.clone();
-        planned_source.bind_if_stored(wow_entities::is_bag_pos(source_destination_pos));
+        bind_inventory_item_for_destination_like_cpp(&mut planned_source, source_destination_pos);
         for slot in &source_cleared {
             planned_source.clear_enchantment(*slot);
         }
         let mut planned_destination = destination_object.clone();
-        planned_destination.bind_if_stored(wow_entities::is_bag_pos(destination_source_pos));
+        bind_inventory_item_for_destination_like_cpp(
+            &mut planned_destination,
+            destination_source_pos,
+        );
         for slot in &destination_cleared {
             planned_destination.clear_enchantment(*slot);
         }
@@ -21307,7 +21477,40 @@ mod tests {
     }
 
     #[test]
-    fn child_redirect_reserves_hidden_slot_before_requeued_steps_like_upstream_cpp() {
+    fn equip_destination_uses_visualize_binding_rule_like_cpp() {
+        let mut equipped = wow_entities::Item::default();
+        equipped.set_bonding(ItemBondingType::OnEquip);
+        bind_inventory_item_for_destination_like_cpp(
+            &mut equipped,
+            wow_entities::make_item_pos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_MAINHAND),
+        );
+        assert!(
+            equipped.is_soul_bound(),
+            "C++ Player::VisualizeItem binds BIND_ON_EQUIP before EquipItem persistence"
+        );
+
+        let mut backpack = wow_entities::Item::default();
+        backpack.set_bonding(ItemBondingType::OnEquip);
+        bind_inventory_item_for_destination_like_cpp(
+            &mut backpack,
+            wow_entities::make_item_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START),
+        );
+        assert!(
+            !backpack.is_soul_bound(),
+            "ordinary C++ _StoreItem destinations keep BIND_ON_EQUIP unbound"
+        );
+
+        let mut equipped_bag = wow_entities::Item::default();
+        equipped_bag.set_bonding(ItemBondingType::OnEquip);
+        bind_inventory_item_for_destination_like_cpp(
+            &mut equipped_bag,
+            wow_entities::make_item_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_START),
+        );
+        assert!(equipped_bag.is_soul_bound());
+    }
+
+    #[test]
+    fn child_redirect_validates_both_steps_without_mutating_runtime_like_upstream_cpp() {
         let (mut session, _send_rx) = make_session_with_send_capacity(1);
         let player_guid = ObjectGuid::create_player(1, 42);
         let entry_id = 121;
@@ -21359,55 +21562,140 @@ mod tests {
             panic!("equipped child destination must redirect through its parent");
         };
 
-        let child_move = session
-            .plan_inventory_storage_move_like_cpp(
-                INVENTORY_SLOT_BAG_0,
-                EQUIPMENT_SLOT_MAINHAND,
-                INVENTORY_SLOT_BAG_0,
-                NULL_SLOT,
-                InventoryStorageTargetLikeCpp::Inventory,
-            )
-            .expect("child source")
-            .expect("reserved child-equipment destination");
         assert_eq!(
-            child_move.moved_destination,
-            Some((INVENTORY_SLOT_BAG_0, CHILD_EQUIPMENT_SLOT_START, 1))
-        );
-        assert!(session.apply_committed_inventory_item_relocation_like_cpp(
-            INVENTORY_SLOT_BAG_0,
-            EQUIPMENT_SLOT_MAINHAND,
-            INVENTORY_SLOT_BAG_0,
-            CHILD_EQUIPMENT_SLOT_START,
-            1,
-        ));
-
-        assert!(matches!(
             session
-                .plan_inventory_swap_preflight_like_cpp(first_src, first_dst)
-                .expect("first redirect preflight")
-                .result,
-            SwapItemPreflightResult::Continue
-        ));
-        assert!(session.apply_committed_inventory_item_relocation_like_cpp(
-            INVENTORY_SLOT_BAG_0,
-            INVENTORY_SLOT_ITEM_START,
-            INVENTORY_SLOT_BAG_0,
-            EQUIPMENT_SLOT_MAINHAND,
-            1,
-        ));
+                .plan_inventory_child_redirect_like_cpp(
+                    INVENTORY_SLOT_BAG_0,
+                    EQUIPMENT_SLOT_MAINHAND,
+                    first_src,
+                    first_dst,
+                    second_src,
+                    second_dst,
+                )
+                .expect("both redirected moves are legal"),
+            CHILD_EQUIPMENT_SLOT_START
+        );
         assert_eq!(
             session
                 .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_MAINHAND)
                 .map(|item| item.guid),
+            Some(child_guid),
+            "the validation overlay must restore the visible child slot"
+        );
+        assert_eq!(
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)
+                .map(|item| item.guid),
             Some(source_guid)
         );
-        assert!(matches!(
+        assert_eq!(
             session
-                .plan_inventory_swap_preflight_like_cpp(second_src, second_dst)
-                .expect("second redirect preflight")
-                .result,
-            SwapItemPreflightResult::Continue
-        ));
+                .get_inventory_item_by_pos(
+                    INVENTORY_SLOT_BAG_0,
+                    wow_entities::EQUIPMENT_SLOT_OFFHAND,
+                )
+                .map(|item| item.guid),
+            Some(parent_guid)
+        );
+        assert!(
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, CHILD_EQUIPMENT_SLOT_START)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn rejected_child_redirect_restores_validation_overlay_before_error_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send_capacity(1);
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let entry_id = 122;
+        session.set_player_guid(Some(player_guid));
+        session.set_player_alive_like_cpp(false);
+        install_equippable_item_fixture(&mut session, entry_id, InventoryType::Weapon, None);
+
+        let source_guid = insert_equippable_test_item(
+            &mut session,
+            INVENTORY_SLOT_BAG_0,
+            INVENTORY_SLOT_ITEM_START,
+            entry_id,
+            74,
+            InventoryType::Weapon,
+        );
+        let parent_guid = insert_equippable_test_item(
+            &mut session,
+            INVENTORY_SLOT_BAG_0,
+            wow_entities::EQUIPMENT_SLOT_OFFHAND,
+            entry_id,
+            75,
+            InventoryType::Weapon,
+        );
+        let child_guid = insert_equippable_test_item(
+            &mut session,
+            INVENTORY_SLOT_BAG_0,
+            EQUIPMENT_SLOT_MAINHAND,
+            entry_id,
+            76,
+            InventoryType::Weapon,
+        );
+        session.update_inventory_item_object_like_cpp(child_guid, |child| {
+            child.set_item_flag(ItemFieldFlags::CHILD);
+            child.set_creator(parent_guid);
+        });
+
+        let source = wow_entities::make_item_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START);
+        let destination =
+            wow_entities::make_item_pos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_MAINHAND);
+        let redirect = session
+            .plan_inventory_swap_preflight_like_cpp(source, destination)
+            .expect("player inventory preflight");
+        let SwapItemPreflightResult::ChildRedirect {
+            first_src,
+            first_dst,
+            second_src,
+            second_dst,
+        } = redirect.result
+        else {
+            panic!("C++ examines child redirects before the player-dead gate");
+        };
+
+        assert_eq!(
+            session.plan_inventory_child_redirect_like_cpp(
+                INVENTORY_SLOT_BAG_0,
+                EQUIPMENT_SLOT_MAINHAND,
+                first_src,
+                first_dst,
+                second_src,
+                second_dst,
+            ),
+            Err(InventoryResult::PlayerDead)
+        );
+        assert_eq!(
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_MAINHAND)
+                .map(|item| item.guid),
+            Some(child_guid),
+            "a rejected redirected move must not persist the child in a hidden slot"
+        );
+        assert_eq!(
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)
+                .map(|item| item.guid),
+            Some(source_guid)
+        );
+        assert_eq!(
+            session
+                .get_inventory_item_by_pos(
+                    INVENTORY_SLOT_BAG_0,
+                    wow_entities::EQUIPMENT_SLOT_OFFHAND,
+                )
+                .map(|item| item.guid),
+            Some(parent_guid)
+        );
+        assert!(
+            session
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, CHILD_EQUIPMENT_SLOT_START)
+                .is_none()
+        );
     }
 
     #[test]

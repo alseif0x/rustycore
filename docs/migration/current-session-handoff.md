@@ -23,9 +23,14 @@
   GitHub review exposed one real child-equipment seam. The legacy 3.4.3 snapshot recursively
   re-enters `SwapItem` while the same child still occupies the equipment slot; current upstream
   TrinityCore repairs that omission by calling `AutoUnequipChildItem(parentItem)` first. Rust now
-  durably relocates the child into reserved slot 138–140 before queuing the two redirect steps,
-  and ordinary inventory/child relocations no longer re-credit quest-item objectives as though
-  they came from bank. Two other review suggestions were intentionally rejected after exact
+  uses a reversible overlay to validate both redirected moves, restores it, and only then durably
+  relocates the child into the selected reserved slot 138–140 before queuing those steps; a failed
+  dead/combat/charmed/unequip/equip gate therefore cannot leave the child hidden. Ordinary
+  inventory/child relocations no longer re-credit quest-item objectives as though they came from
+  bank. Current-HEAD review also corrected equipment binding: empty equips and both directions of
+  a real swap now apply C++ `EquipItem -> VisualizeItem` bonding before persistence, so
+  `BIND_ON_EQUIP` cannot remain tradable after relog, while normal inventory storage keeps
+  `_StoreItem`'s narrower rule. Two other review suggestions were intentionally rejected after exact
   local and current-upstream contrast: neither `HandleAutoEquipItemOpcode` nor
   `HandleAutoStoreBagItemOpcode` calls `CanUseBank`; only the explicit swap handlers do. Adding
   those guards would be a Rust-only behavioral divergence from both C++ authorities.
