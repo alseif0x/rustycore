@@ -188,8 +188,10 @@ pub enum WorldStatements {
     SEL_GAMEOBJECT_TEMPLATE_IDS,
     /// SELECT InventoryType FROM item_template WHERE entry = ?
     SEL_ITEM_INVENTORY_TYPE,
-    /// Load base stats for all race/class/level combos.
-    SEL_PLAYER_LEVELSTATS,
+    /// C++ `ObjectMgr::LoadPlayerInfo` race stat modifiers.
+    SEL_PLAYER_RACESTATS,
+    /// C++ `ObjectMgr::LoadPlayerInfo` class/level base stats.
+    SEL_PLAYER_CLASSLEVELSTATS,
     /// Load initial action buttons for character creation.
     SEL_PLAYER_CREATEINFO_ACTION,
     /// C++ `ObjectMgr::LoadPlayerInfo` base playercreateinfo startup query.
@@ -831,8 +833,11 @@ impl StatementDef for WorldStatements {
             Self::SEL_ITEM_INVENTORY_TYPE => {
                 "SELECT InventoryType FROM item_template WHERE entry = ?"
             }
-            Self::SEL_PLAYER_LEVELSTATS => {
-                "SELECT race, class, level, str, agi, sta, inte, spi, basehp, basemana FROM player_levelstats"
+            Self::SEL_PLAYER_RACESTATS => {
+                "SELECT race, str, agi, sta, inte, spi FROM player_racestats"
+            }
+            Self::SEL_PLAYER_CLASSLEVELSTATS => {
+                "SELECT class, level, str, agi, sta, inte, spi FROM player_classlevelstats"
             }
             Self::SEL_PLAYER_CREATEINFO_ACTION => {
                 "SELECT race, class, button, action, Type FROM playercreateinfo_action"

@@ -1394,13 +1394,20 @@ pub struct PlayerStatChanges {
     pub base_mana: i32,
     pub base_health: i32,
     pub attack_power: i32,
+    pub attack_power_mod_pos: i32,
+    pub attack_power_mod_neg: i32,
+    pub attack_power_multiplier: f32,
     pub ranged_attack_power: i32,
+    pub ranged_attack_power_mod_pos: i32,
+    pub ranged_attack_power_mod_neg: i32,
+    pub ranged_attack_power_multiplier: f32,
     pub min_ranged_damage: f32,
     pub max_ranged_damage: f32,
     pub power0: i32,             // Mana/Rage/Energy current
     pub max_power0: i32,         // Mana/Rage/Energy max
     pub stats: [i32; 5],         // STR, AGI, STA, INT, SPI
     pub stat_pos_buff: [i32; 5], // gear bonuses shown as positive buffs
+    pub stat_neg_buff: [i32; 5], // negative item/aura stat modifiers
     pub armor: i32,              // Resistances[0] = Physical
     // ActivePlayerData secondary stats
     pub combat_ratings: [i32; 32], // CombatRatings[32] (indices per CombatRating enum, 0-24 used)
@@ -1443,13 +1450,20 @@ impl Default for PlayerStatChanges {
             base_mana: 0,
             base_health: 0,
             attack_power: 0,
+            attack_power_mod_pos: 0,
+            attack_power_mod_neg: 0,
+            attack_power_multiplier: 0.0,
             ranged_attack_power: 0,
+            ranged_attack_power_mod_pos: 0,
+            ranged_attack_power_mod_neg: 0,
+            ranged_attack_power_multiplier: 0.0,
             min_ranged_damage: 0.0,
             max_ranged_damage: 0.0,
             power0: 0,
             max_power0: 0,
             stats: [0; 5],
             stat_pos_buff: [0; 5],
+            stat_neg_buff: [0; 5],
             armor: 0,
             combat_ratings: [0; 32],
             spell_power: 0,
@@ -1489,19 +1503,30 @@ pub struct PlayerCombatStats {
     pub health: i64,
     pub max_health: i64,
     pub stats: [i32; 5],
+    pub stat_pos_buff: [i32; 5],
+    pub stat_neg_buff: [i32; 5],
     pub base_armor: i32,
+    pub base_mana: i32,
     pub max_mana: i64,
     pub attack_power: i32,
+    pub attack_power_mod_pos: i32,
     pub ranged_attack_power: i32,
+    pub ranged_attack_power_mod_pos: i32,
     pub min_damage: f32,
     pub max_damage: f32,
     pub min_ranged_damage: f32,
     pub max_ranged_damage: f32,
+    pub block_pct: f32,
     pub dodge_pct: f32,
+    pub dodge_from_attr: f32,
     pub parry_pct: f32,
+    pub parry_from_attr: f32,
     pub crit_pct: f32,
     pub ranged_crit_pct: f32,
-    pub spell_crit_pct: f32,
+    pub offhand_crit_pct: f32,
+    pub spell_crit_pct: [f32; 7],
+    pub combat_ratings: [i32; 32],
+    pub spell_power: i32,
 }
 
 impl Default for PlayerCombatStats {
@@ -1510,19 +1535,30 @@ impl Default for PlayerCombatStats {
             health: 100,
             max_health: 100,
             stats: [0; 5],
+            stat_pos_buff: [0; 5],
+            stat_neg_buff: [0; 5],
             base_armor: 0,
+            base_mana: 0,
             max_mana: 60,
             attack_power: 0,
+            attack_power_mod_pos: 0,
             ranged_attack_power: 0,
+            ranged_attack_power_mod_pos: 0,
             min_damage: 1.0,
             max_damage: 2.0,
             min_ranged_damage: 0.0,
             max_ranged_damage: 0.0,
+            block_pct: 0.0,
             dodge_pct: 0.0,
+            dodge_from_attr: 0.0,
             parry_pct: 0.0,
+            parry_from_attr: 0.0,
             crit_pct: 5.0,
             ranged_crit_pct: 5.0,
-            spell_crit_pct: 0.0,
+            offhand_crit_pct: 5.0,
+            spell_crit_pct: [5.0; 7],
+            combat_ratings: [0; 32],
+            spell_power: 0,
         }
     }
 }
@@ -1552,32 +1588,44 @@ pub struct PlayerCreateData {
     pub player_flags_ex: u32,
     /// Primary stats: [STR, AGI, STA, INT, SPI].
     pub stats: [i32; 5],
+    pub stat_pos_buff: [i32; 5],
+    pub stat_neg_buff: [i32; 5],
     /// Base armor (AGI * 2).
     pub base_armor: i32,
+    /// C++ `UnitData::BaseMana` / `Player::GetCreateMana`.
+    pub base_mana: i32,
     /// Max mana from level stats (for caster classes).
     pub max_mana: i64,
     /// Current primary power stored in `UnitData::Power[0]`.
     pub current_power0: i32,
     /// Melee attack power.
     pub attack_power: i32,
+    pub attack_power_mod_pos: i32,
     /// Ranged attack power.
     pub ranged_attack_power: i32,
+    pub ranged_attack_power_mod_pos: i32,
     /// Melee min/max damage (unarmed base).
     pub min_damage: f32,
     pub max_damage: f32,
     /// Ranged min/max damage.
     pub min_ranged_damage: f32,
     pub max_ranged_damage: f32,
+    pub block_pct: f32,
     /// Dodge percentage.
     pub dodge_pct: f32,
+    pub dodge_from_attr: f32,
     /// Parry percentage.
     pub parry_pct: f32,
+    pub parry_from_attr: f32,
     /// Melee crit percentage.
     pub crit_pct: f32,
     /// Ranged crit percentage.
     pub ranged_crit_pct: f32,
-    /// Spell crit percentage (applied to all 7 schools).
-    pub spell_crit_pct: f32,
+    pub offhand_crit_pct: f32,
+    /// Spell crit percentage by school.
+    pub spell_crit_pct: [f32; 7],
+    pub combat_ratings: [i32; 32],
+    pub spell_power: i32,
     /// Visible equipment items (19 slots).
     /// Each entry: (ItemID, AppearanceModID, ItemVisual).
     /// Slots: Head(0), Neck(1), Shoulders(2), Shirt(3), Chest(4), Waist(5),
@@ -1682,7 +1730,7 @@ impl PlayerCreateData {
     /// - Warrior (1): rage = 1000 (stored as 10×)
     /// - Rogue (4): energy = 100
     /// - DK (6): runic power = 1000 (stored as 10×)
-    /// - All others: mana from `max_mana` field (loaded from player_levelstats)
+    /// - All others: mana from C++ `GtBaseMP`
     fn max_power_for_slot0(&self) -> i32 {
         match self.class {
             1 => 1000,                 // Warrior: rage
@@ -1699,7 +1747,7 @@ impl PlayerCreateData {
 
     fn base_mana_for_create_like_cpp(&self) -> i32 {
         if power_type_for_class(self.class) == 0 {
-            self.max_mana.max(0).min(i64::from(i32::MAX)) as i32
+            self.base_mana.max(0)
         } else {
             0
         }
@@ -1947,8 +1995,8 @@ impl PlayerCreateData {
         if is_owner {
             for i in 0..5 {
                 buf.write_int32(self.stats[i]); // Stat
-                buf.write_int32(0); // StatPosBuff
-                buf.write_int32(0); // StatNegBuff
+                buf.write_int32(self.stat_pos_buff[i]); // StatPosBuff
+                buf.write_int32(self.stat_neg_buff[i]); // StatNegBuff
             }
         }
 
@@ -1974,12 +2022,12 @@ impl PlayerCreateData {
             buf.write_int32(0); // Negative
         }
 
-        // BaseMana — use real mana from stats store for caster classes
+        // BaseMana — C++ GtBaseMP create mana for caster classes.
         buf.write_int32(self.base_mana_for_create_like_cpp());
 
-        // BaseHealth (Owner only)
+        // C++ Player::InitStatsForLevel sets CreateHealth/BaseHealth to zero.
         if is_owner {
-            buf.write_int32(self.max_health as i32);
+            buf.write_int32(0);
         }
 
         // SheatheState, PvpFlags, PetFlags, ShapeshiftForm
@@ -1991,13 +2039,13 @@ impl PlayerCreateData {
         // AttackPower block (Owner only — 13 fields)
         if is_owner {
             buf.write_int32(self.attack_power); // AttackPower
-            buf.write_int32(0); // AttackPowerModPos
+            buf.write_int32(self.attack_power_mod_pos); // AttackPowerModPos
             buf.write_int32(0); // AttackPowerModNeg
-            buf.write_float(1.0); // AttackPowerMultiplier
+            buf.write_float(0.0); // AttackPowerMultiplier
             buf.write_int32(self.ranged_attack_power); // RangedAttackPower
-            buf.write_int32(0); // RangedAttackPowerModPos
+            buf.write_int32(self.ranged_attack_power_mod_pos); // RangedAttackPowerModPos
             buf.write_int32(0); // RangedAttackPowerModNeg
-            buf.write_float(1.0); // RangedAttackPowerMultiplier
+            buf.write_float(0.0); // RangedAttackPowerMultiplier
             buf.write_int32(0); // SetAttackSpeedAura
             buf.write_float(0.0); // Lifesteal
             buf.write_float(self.min_ranged_damage); // MinRangedDamage
@@ -2232,19 +2280,19 @@ impl PlayerCreateData {
         buf.write_float(0.0);
 
         // Block, Dodge, DodgeFromAttr, Parry, ParryFromAttr, Crit, RangedCrit, OffhandCrit
-        buf.write_float(0.0); // Block (need shield)
+        buf.write_float(self.block_pct); // Block
         buf.write_float(self.dodge_pct); // Dodge
-        buf.write_float(self.dodge_pct); // DodgeFromAttr (same as dodge for display)
+        buf.write_float(self.dodge_from_attr); // DodgeFromAttr
         buf.write_float(self.parry_pct); // Parry
-        buf.write_float(self.parry_pct); // ParryFromAttr
+        buf.write_float(self.parry_from_attr); // ParryFromAttr
         buf.write_float(self.crit_pct); // CritPercentage
         buf.write_float(self.ranged_crit_pct); // RangedCritPercentage
-        buf.write_float(self.crit_pct); // OffhandCritPercentage
+        buf.write_float(self.offhand_crit_pct); // OffhandCritPercentage
 
         // SpellCritPercentage[7], ModDamageDonePos[7], ModDamageDoneNeg[7], ModDamageDonePercent[7]
-        for _ in 0..7 {
-            buf.write_float(self.spell_crit_pct); // SpellCritPercentage per school
-            buf.write_int32(0); // ModDamageDonePos (spell power from gear)
+        for school in 0..7 {
+            buf.write_float(self.spell_crit_pct[school]); // SpellCritPercentage per school
+            buf.write_int32(if school == 0 { 0 } else { self.spell_power }); // ModDamageDonePos
             buf.write_int32(0); // ModDamageDoneNeg
             buf.write_float(1.0); // ModDamageDonePercent
         }
@@ -2281,7 +2329,7 @@ impl PlayerCreateData {
         }
 
         // ModHealingDonePos, ModHealingPercent, ModHealingDonePercent, ModPeriodicHealingDonePercent
-        buf.write_int32(0);
+        buf.write_int32(self.spell_power);
         buf.write_float(1.0);
         buf.write_float(1.0);
         buf.write_float(1.0);
@@ -2349,8 +2397,8 @@ impl PlayerCreateData {
         buf.write_int32(self.watched_faction_index);
 
         // CombatRatings[32]
-        for _ in 0..32 {
-            buf.write_int32(0);
+        for rating in self.combat_ratings {
+            buf.write_int32(rating);
         }
         trace(buf, "combat_ratings");
 
@@ -3809,7 +3857,10 @@ impl UpdateObject {
             player_flags: 0,
             player_flags_ex: 0,
             stats: combat.stats,
+            stat_pos_buff: combat.stat_pos_buff,
+            stat_neg_buff: combat.stat_neg_buff,
             base_armor: combat.base_armor,
+            base_mana: combat.base_mana,
             max_mana: combat.max_mana,
             current_power0: match class {
                 1 => 1000,
@@ -3818,16 +3869,24 @@ impl UpdateObject {
                 _ => combat.max_mana.max(0).min(i64::from(i32::MAX)) as i32,
             },
             attack_power: combat.attack_power,
+            attack_power_mod_pos: combat.attack_power_mod_pos,
             ranged_attack_power: combat.ranged_attack_power,
+            ranged_attack_power_mod_pos: combat.ranged_attack_power_mod_pos,
             min_damage: combat.min_damage,
             max_damage: combat.max_damage,
             min_ranged_damage: combat.min_ranged_damage,
             max_ranged_damage: combat.max_ranged_damage,
+            block_pct: combat.block_pct,
             dodge_pct: combat.dodge_pct,
+            dodge_from_attr: combat.dodge_from_attr,
             parry_pct: combat.parry_pct,
+            parry_from_attr: combat.parry_from_attr,
             crit_pct: combat.crit_pct,
             ranged_crit_pct: combat.ranged_crit_pct,
+            offhand_crit_pct: combat.offhand_crit_pct,
             spell_crit_pct: combat.spell_crit_pct,
+            combat_ratings: combat.combat_ratings,
+            spell_power: combat.spell_power,
             visible_items,
             customizations: Vec::new(),
             inv_slots,
@@ -7660,12 +7719,13 @@ fn write_full_active_player_values_update_block(
 /// Field write order (C++ `UnitData::WriteUpdate`):
 ///   Block 0: Health(5), MaxHealth(6)
 ///   Block 1: MinDamage(52→20), MaxDamage(53→21)
-///   Block 2: BaseMana(75→11), BaseHealth(76→12), AttackPower(81→17),
-///            RangedAttackPower(85→21), MinRangedDamage(91→27), MaxRangedDamage(92→28)
+///   Block 2: BaseMana(75→11), BaseHealth(76→12), AttackPower(81-84→17-20),
+///            RangedAttackPower(85-88→21-24), MinRangedDamage(91→27), MaxRangedDamage(92→28)
 ///   Block 3: Power parent(116→20)
 ///   Block 4: Power[0](137→9), MaxPower[0](147→19)
 ///   Block 5: VirtualItems(167-170→7-10), Stats(174-179→14-19),
-///            StatPosBuff(180-184→20-24), Resistances(190-191→30-31)
+///            StatPosBuff(180-184→20-24), StatNegBuff(185-189→25-29),
+///            Resistances(190-191→30-31)
 fn write_unit_data_values_update(
     buf: &mut WorldPacket,
     virtual_item_changes: &[(u8, i32, u16, u16)],
@@ -7687,8 +7747,19 @@ fn write_unit_data_values_update(
     if stat_changes.is_some() {
         blocks[0] |= (1 << 0) | (1 << 5) | (1 << 6);
         blocks[1] |= (1 << 0) | (1 << 20) | (1 << 21);
-        blocks[2] |=
-            (1 << 0) | (1 << 11) | (1 << 12) | (1 << 17) | (1 << 21) | (1 << 27) | (1 << 28);
+        blocks[2] |= (1 << 0)
+            | (1 << 11)
+            | (1 << 12)
+            | (1 << 17)
+            | (1 << 18)
+            | (1 << 19)
+            | (1 << 20)
+            | (1 << 21)
+            | (1 << 22)
+            | (1 << 23)
+            | (1 << 24)
+            | (1 << 27)
+            | (1 << 28);
         blocks[3] |= (1 << 20) | (1 << 21) | (1 << 31);
         blocks[4] |= (1 << 9) | (1 << 19) | (1 << 29);
         blocks[5] |= (1 << 14)
@@ -7702,6 +7773,11 @@ fn write_unit_data_values_update(
             | (1 << 22)
             | (1 << 23)
             | (1 << 24)
+            | (1 << 25)
+            | (1 << 26)
+            | (1 << 27)
+            | (1 << 28)
+            | (1 << 29)
             | (1 << 30)
             | (1 << 31);
     }
@@ -7735,12 +7811,18 @@ fn write_unit_data_values_update(
         buf.write_float(sc.min_damage);
         buf.write_float(sc.max_damage);
 
-        // Block 2: BaseMana, BaseHealth, AttackPower, RangedAttackPower,
-        //          MinRangedDamage, MaxRangedDamage
+        // Block 2: BaseMana, BaseHealth, AP base/modifiers, ranged AP
+        //          base/modifiers, MinRangedDamage, MaxRangedDamage
         buf.write_int32(sc.base_mana);
         buf.write_int32(sc.base_health);
         buf.write_int32(sc.attack_power);
+        buf.write_int32(sc.attack_power_mod_pos);
+        buf.write_int32(sc.attack_power_mod_neg);
+        buf.write_float(sc.attack_power_multiplier);
         buf.write_int32(sc.ranged_attack_power);
+        buf.write_int32(sc.ranged_attack_power_mod_pos);
+        buf.write_int32(sc.ranged_attack_power_mod_neg);
+        buf.write_float(sc.ranged_attack_power_multiplier);
         buf.write_float(sc.min_ranged_damage);
         buf.write_float(sc.max_ranged_damage);
 
@@ -7773,7 +7855,7 @@ fn write_unit_data_values_update(
         for i in 0..5 {
             buf.write_int32(sc.stats[i]); // Stats[i]
             buf.write_int32(sc.stat_pos_buff[i]); // StatPosBuff[i]
-            // StatNegBuff[i] bits not set → skip
+            buf.write_int32(sc.stat_neg_buff[i]); // StatNegBuff[i]
         }
         buf.write_int32(sc.armor); // Resistances[0]
     }
@@ -10874,13 +10956,20 @@ mod tests {
             base_mana: 0,
             base_health: 0,
             attack_power: 0,
+            attack_power_mod_pos: 0,
+            attack_power_mod_neg: 0,
+            attack_power_multiplier: 0.0,
             ranged_attack_power: 0,
+            ranged_attack_power_mod_pos: 0,
+            ranged_attack_power_mod_neg: 0,
+            ranged_attack_power_multiplier: 0.0,
             min_ranged_damage: 0.0,
             max_ranged_damage: 0.0,
             power0: 0,
             max_power0: 0,
             stats: [0; 5],
             stat_pos_buff: [0; 5],
+            stat_neg_buff: [0; 5],
             armor: 0,
             combat_ratings,
             spell_power: 123,
@@ -11008,13 +11097,20 @@ mod tests {
             base_mana: 0,
             base_health: 0,
             attack_power: 0,
+            attack_power_mod_pos: 0,
+            attack_power_mod_neg: 0,
+            attack_power_multiplier: 0.0,
             ranged_attack_power: 0,
+            ranged_attack_power_mod_pos: 0,
+            ranged_attack_power_mod_neg: 0,
+            ranged_attack_power_multiplier: 0.0,
             min_ranged_damage: 0.0,
             max_ranged_damage: 0.0,
             power0: 0,
             max_power0: 0,
             stats: [0; 5],
             stat_pos_buff: [0; 5],
+            stat_neg_buff: [0; 5],
             armor: 0,
             combat_ratings: [0; 32],
             spell_power: 0,
@@ -11041,6 +11137,100 @@ mod tests {
             mod_periodic_healing_pct: 0.0,
             mod_spell_power_pct: 0.0,
         }
+    }
+
+    #[test]
+    fn unit_stats_values_update_writes_cpp_ap_modifiers_and_negative_stat_buffs() {
+        let mut stats = zeroed_stat_changes();
+        stats.health = 1;
+        stats.max_health = 2;
+        stats.min_damage = 3.0;
+        stats.max_damage = 4.0;
+        stats.base_mana = 5;
+        stats.base_health = 6;
+        stats.attack_power = 7;
+        stats.attack_power_mod_pos = 8;
+        stats.attack_power_mod_neg = 9;
+        stats.attack_power_multiplier = 10.0;
+        stats.ranged_attack_power = 11;
+        stats.ranged_attack_power_mod_pos = 12;
+        stats.ranged_attack_power_mod_neg = 13;
+        stats.ranged_attack_power_multiplier = 14.0;
+        stats.min_ranged_damage = 15.0;
+        stats.max_ranged_damage = 16.0;
+        stats.mana_regen = 17.0;
+        stats.mana_regen_combat = 18.0;
+        stats.power0 = 19;
+        stats.max_power0 = 20;
+        stats.mana_regen_mp5 = 21.0;
+        stats.stats = [22, 25, 28, 31, 34];
+        stats.stat_pos_buff = [23, 26, 29, 32, 35];
+        stats.stat_neg_buff = [24, 27, 30, 33, 36];
+        stats.armor = 37;
+
+        let mut values = WorldPacket::new_empty();
+        write_unit_data_values_update(&mut values, &[], Some(&stats));
+        let mut values = WorldPacket::from_bytes(&values.into_data());
+
+        assert_eq!(values.read_bits(8).unwrap(), 0x3F);
+        assert_eq!(
+            values.read_bits(32).unwrap(),
+            (1 << 0) | (1 << 5) | (1 << 6)
+        );
+        assert_eq!(
+            values.read_bits(32).unwrap(),
+            (1 << 0) | (1 << 20) | (1 << 21)
+        );
+        assert_eq!(
+            values.read_bits(32).unwrap(),
+            (1 << 0)
+                | (1 << 11)
+                | (1 << 12)
+                | (1 << 17)
+                | (1 << 18)
+                | (1 << 19)
+                | (1 << 20)
+                | (1 << 21)
+                | (1 << 22)
+                | (1 << 23)
+                | (1 << 24)
+                | (1 << 27)
+                | (1 << 28)
+        );
+        assert_eq!(
+            values.read_bits(32).unwrap(),
+            (1 << 20) | (1 << 21) | (1 << 31)
+        );
+        assert_eq!(
+            values.read_bits(32).unwrap(),
+            (1 << 9) | (1 << 19) | (1 << 29)
+        );
+        assert_eq!(values.read_bits(32).unwrap(), u32::MAX << 14);
+        values.reset_bits();
+
+        assert_eq!(values.read_int64().unwrap(), 1);
+        assert_eq!(values.read_int64().unwrap(), 2);
+        assert_eq!(values.read_float().unwrap(), 3.0);
+        assert_eq!(values.read_float().unwrap(), 4.0);
+        for expected in [5, 6, 7, 8, 9] {
+            assert_eq!(values.read_int32().unwrap(), expected);
+        }
+        assert_eq!(values.read_float().unwrap(), 10.0);
+        for expected in [11, 12, 13] {
+            assert_eq!(values.read_int32().unwrap(), expected);
+        }
+        assert_eq!(values.read_float().unwrap(), 14.0);
+        for expected in [15.0, 16.0, 17.0, 18.0] {
+            assert_eq!(values.read_float().unwrap(), expected);
+        }
+        assert_eq!(values.read_int32().unwrap(), 19);
+        assert_eq!(values.read_int32().unwrap(), 20);
+        assert_eq!(values.read_float().unwrap(), 21.0);
+        for expected in 22..=36 {
+            assert_eq!(values.read_int32().unwrap(), expected);
+        }
+        assert_eq!(values.read_int32().unwrap(), 37);
+        assert_eq!(values.remaining(), 0);
     }
 
     fn set_active_player_bit(data: &mut ActivePlayerDataValuesUpdate, bit: usize) {
@@ -11379,20 +11569,31 @@ mod tests {
             player_flags: 0,
             player_flags_ex: 0,
             stats: [0; 5],
+            stat_pos_buff: [0; 5],
+            stat_neg_buff: [0; 5],
             base_armor: 0,
+            base_mana: 0,
             max_mana: 0,
             current_power0: 1000,
             attack_power: 0,
+            attack_power_mod_pos: 0,
             ranged_attack_power: 0,
+            ranged_attack_power_mod_pos: 0,
             min_damage: 1.0,
             max_damage: 2.0,
             min_ranged_damage: 0.0,
             max_ranged_damage: 0.0,
+            block_pct: 0.0,
             dodge_pct: 0.0,
+            dodge_from_attr: 0.0,
             parry_pct: 0.0,
+            parry_from_attr: 0.0,
             crit_pct: 5.0,
             ranged_crit_pct: 5.0,
-            spell_crit_pct: 0.0,
+            offhand_crit_pct: 5.0,
+            spell_crit_pct: [5.0; 7],
+            combat_ratings: [0; 32],
+            spell_power: 0,
             visible_items: [(0, 0, 0); 19],
             customizations: Vec::new(),
             inv_slots: [ObjectGuid::EMPTY; 141],
@@ -11752,6 +11953,7 @@ mod tests {
         let pos = Position::new(0.0, 0.0, 0.0, 0.0);
         let mut combat = PlayerCombatStats::default();
         combat.max_mana = 1000;
+        combat.base_mana = 155;
         let mut packet = UpdateObject::create_player(
             guid,
             1,
@@ -11788,8 +11990,8 @@ mod tests {
         );
         assert_eq!(
             create_data.base_mana_for_create_like_cpp(),
-            1000,
-            "mana percentage spell costs still use create/base mana"
+            155,
+            "C++ BaseMana keeps GtBaseMP separate from intellect-inflated MaxPower"
         );
     }
 

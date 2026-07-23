@@ -224,6 +224,11 @@ impl PlayerCreateInfoStoreLikeCpp {
         self.info_by_key.get(&(race, class))
     }
 
+    /// Race/class pairs for which C++ allocated `_playerInfo`.
+    pub fn race_class_combinations_like_cpp(&self) -> impl Iterator<Item = (u8, u8)> + '_ {
+        self.info_by_key.keys().copied()
+    }
+
     pub fn len(&self) -> usize {
         self.info_by_key.len()
     }
