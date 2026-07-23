@@ -1,0 +1,6 @@
+{
+  "description": "Post-add login burst for one non-empty CUF profile: InitWorldStates, LoadCufProfiles, AuraUpdate, then the final OnMapChange PhaseShiftChange. The CUF and PhaseShift packets are byte-identical; InitWorldStates and AuraUpdate retain their separately tracked runtime-value divergences.",
+  "directions": [
+    "s2c"
+  ]
+}

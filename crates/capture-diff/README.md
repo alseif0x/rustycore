@@ -412,6 +412,13 @@ committed baseline is therefore the *current* real C++-vs-Rust login divergence
 set (the live equivalent of `docs/migration/world-load-audit.md`); it shrinks as
 Rust login parity improves.
 
+The issue-#7 `cuf-login-order` flow is a newer focused live pair with one
+non-empty profile. It pins C++'s exact post-add sequence
+`InitWorldStates → LoadCufProfiles → AuraUpdate → PhaseShiftChange`, requires
+the CUF and final phase-shift bodies to remain byte-identical, and retains the
+separately tracked dynamic world-state/aura value differences in its explicit
+baseline. See `flows/cuf-login-order/README.md` for provenance and scope.
+
 To re-pin after a Rust login change (records into `target/`, which is gitignored,
 then installs + re-baselines in one step):
 

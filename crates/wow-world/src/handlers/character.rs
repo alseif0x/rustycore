@@ -17718,7 +17718,7 @@ impl WorldSession {
     /// C++ `Player::SendInitialPacketsAfterAddToMap` (Player.cpp:23592-23685): the packets
     /// sent after the player is added to the map — the post-add phase shift, visibility
     /// mirror, `UpdateZone` -> SMSG_INIT_WORLD_STATES (resolved for the destination map),
-    /// the PhasingHandler::OnMapChange phase shift, CUF profiles and auras. Shared by login
+    /// CUF profiles, auras and the `PhasingHandler::OnMapChange` phase shift. Shared by login
     /// and far teleport (#NEXT.R8.ENTITIES.1229). Reads all data from self; the destination
     /// guid/position/map are passed in.
     pub(crate) async fn send_initial_packets_after_add_to_map(
@@ -17817,17 +17817,18 @@ impl WorldSession {
             world_states,
         ));
 
-        // C++ Player::SendInitialPacketsAfterAddToMap calls PhasingHandler::OnMapChange(this)
-        // after SendInitWorldStates, which re-sends SMSG_PHASE_SHIFT_CHANGE (the second
-        // phase-shift of login, byte-identical to the AddToMap one; Player.cpp:23672).
-        // #NEXT.R8.ENTITIES.1228.
-        self.send_packet(&PhaseShiftChange::default_for(guid));
-
-        // 28. LoadCufProfiles
+        // 28. LoadCufProfiles — C++ sends this immediately after InitWorldStates.
+        // Keeping the CUF profile application at that exact point in the login burst is
+        // client-significant: the later phase refresh must not overtake it.
         self.send_packet(&self.represented_load_cuf_profiles_packet_like_cpp());
         // C++ `Player::SendInitialPacketsAfterAddToMap` calls
         // `SendAurasForTarget(this)` after movement aura state setup.
         self.send_initial_player_auras_like_cpp();
+        // C++ calls PhasingHandler::OnMapChange(this) only after CUF profiles, the
+        // login-effect/movement-aura work and SendAurasForTarget (Player.cpp:23600-23672).
+        // This re-sends SMSG_PHASE_SHIFT_CHANGE (the second phase-shift of login,
+        // byte-identical to the AddToMap one). #NEXT.R8.ENTITIES.1228.
+        self.send_packet(&PhaseShiftChange::default_for(guid));
         // C++ RestMgr only dirties PLAYER_FLAGS_RESTING during UpdateZone; the
         // map object-update owner flushes that field after post-add packets.
         if rest_flag_update_dirty {
