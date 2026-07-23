@@ -136,6 +136,28 @@ The one-packet fixture proves the reward wire shape; the bot workflow separately
 proves offline accrual, DB XP/rest consumption, relog persistence, fixture
 restoration, and the natural respawn timer.
 
+Issue #62 uses a similarly narrow `SMSG_SEND_KNOWN_SPELLS` comparator for one
+live Blood Elf Hunter login. C++ builds `KnownSpells` and `FavoriteSpells` by
+iterating `PlayerSpellMap` (`std::unordered_map`), so their vector order is not
+a stable protocol value. The comparator decodes the complete body, requires
+canonical bit padding and exact lengths/counts, rejects zero/duplicate spell
+IDs and favorites absent from the known set, then sorts each list before
+comparison. `InitialLogin`, exact membership/cardinality, favorites, opcode,
+direction, and connection routing remain strict. The focused regression embeds
+the exact C++ and Rust wire orders plus source capture hashes and proves both
+43-spell sets are identical. The bot's
+`WOW_BOT_LOGIN_EXPECT_KNOWN_SPELLS` gate independently validates that exact
+set against a live Rust login packet.
+
+The installed legacy C++ runtime could complete this login only on its direct
+world socket, while Rust completed the normal `SMSG_CONNECT_TO` split flow.
+Consequently the issue-#62 evidence claims capture-clean packet semantics, not
+numeric capture-local connection identity across those two different
+topologies. C++ registers `SMSG_SEND_KNOWN_SPELLS` as
+`CONNECTION_TYPE_INSTANCE`, Rust emits it on its authenticated instance
+socket, and the comparator itself does not normalize routing; a same-topology
+connection regression remains a separate hard failure.
+
 The issue-#108 vendor fixture isolates the exact post-COMMIT realm response:
 `SMSG_BUY_SUCCEEDED` followed by `SMSG_ITEM_PUSH_RESULT`. Paired C++ and Rust
 bot runs bought item `30183` from G'eras (entry `18525`, spawn `96654`) for

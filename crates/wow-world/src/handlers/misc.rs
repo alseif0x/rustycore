@@ -2149,14 +2149,33 @@ impl crate::session::WorldSession {
         let party_type = self.party_member_party_type_like_cpp();
         let display_id = crate::handlers::character::default_display_id(race, gender);
 
-        // Skill info — including the language skills (Common/Orcish/etc.) the client uses to
-        // decide which languages the player can speak. Omitting these left the player unable to
-        // chat after a teleport until relog. Built like login (skill_store.starting_skill_info).
+        // Rebuild the active SkillInfo rows from the canonical login skill
+        // records. This preserves persisted/default values across far
+        // teleports instead of re-running LearnDefaultSkills with fabricated
+        // level×5 ranks.
         let skill_info: Vec<(u16, u16, u16, u16, u16, i16, u16)> =
-            if let Some(skill_store) = self.skill_store() {
-                skill_store
-                    .starting_skill_info(race, class, level)
-                    .iter()
+            if let (Some(skill_store), Some(skill_line_store), Some(skill_tiers_store)) = (
+                self.skill_store(),
+                self.skill_line_store(),
+                self.skill_tiers_store(),
+            ) {
+                let mut skill_records: Vec<_> =
+                    self.player_skill_records_like_cpp().values().collect();
+                skill_records.sort_by_key(|skill| skill.skill_id);
+                skill_records
+                    .into_iter()
+                    .filter_map(|skill| {
+                        skill_store.loaded_skill_info_like_cpp(
+                            skill.skill_id,
+                            race,
+                            class,
+                            level,
+                            skill.value,
+                            skill.max,
+                            skill_line_store,
+                            skill_tiers_store,
+                        )
+                    })
                     .map(|entry| {
                         (
                             entry.skill_id,

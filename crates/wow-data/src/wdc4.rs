@@ -63,7 +63,7 @@ struct Wdc4Header {
     max_id: u32,
     _locale: u32,
     flags: u16,
-    _id_index: u16,
+    id_index: u16,
     total_field_count: u32,
     _packed_data_offset: u32,
     _lookup_column_count: u32,
@@ -292,7 +292,17 @@ impl Wdc4Reader {
             } else if !has_offset_map {
                 let base_idx = base_data_len / record_size;
                 for i in 0..sec.record_count {
-                    record_ids.push(header.min_id + base_idx as u32 + i);
+                    // Fixed-record WDC4 files without an external ID list can
+                    // carry their IDs in the field selected by `id_index`.
+                    // Keep one placeholder per record until every section's
+                    // bytes and offsets have been assembled, then decode that
+                    // inline field before Common-compressed values use the IDs
+                    // as lookup keys.
+                    if header.id_index != u16::MAX {
+                        record_ids.push(0);
+                    } else {
+                        record_ids.push(header.min_id + base_idx as u32 + i);
+                    }
                 }
             }
 
@@ -431,6 +441,32 @@ impl Wdc4Reader {
                 "  section {si}: {} records, {} copies, id_list={}, offset_map={}",
                 sec.record_count, sec.copy_table_count, sec.id_list_size, sec._offset_map_id_count
             );
+        }
+
+        if !has_id_list && !has_offset_map && header.id_index != u16::MAX {
+            let id_field = usize::from(header.id_index);
+            ensure!(
+                id_field < field_info.len(),
+                "inline id field {id_field} is outside {} WDC4 fields",
+                field_info.len()
+            );
+            ensure!(
+                record_ids.len() == record_offsets.len(),
+                "inline id record/offset count mismatch ({} != {})",
+                record_ids.len(),
+                record_offsets.len()
+            );
+            for (record_idx, record_id) in record_ids.iter_mut().enumerate() {
+                *record_id = read_inline_record_id(
+                    &record_data,
+                    &record_offsets,
+                    record_size,
+                    &field_info,
+                    &pallet_data,
+                    record_idx,
+                    id_field,
+                )?;
+            }
         }
 
         // Build id→index map
@@ -813,6 +849,71 @@ fn read_u64_le(data: &[u8], off: usize) -> u64 {
     ])
 }
 
+fn read_inline_record_id(
+    record_data: &[u8],
+    record_offsets: &[usize],
+    record_size: usize,
+    field_info: &[FieldStorageInfo],
+    pallet_data: &[Vec<u32>],
+    record_idx: usize,
+    field: usize,
+) -> Result<u32> {
+    let info = &field_info[field];
+    let record_start = record_offsets
+        .get(record_idx)
+        .copied()
+        .unwrap_or(record_idx * record_size);
+
+    match info.compression {
+        CompressionType::None | CompressionType::Bitpacked | CompressionType::BitpackedSigned => {
+            Ok(read_bits(
+                record_data,
+                record_start,
+                info.field_offset_bits as usize,
+                info.field_size_bits as usize,
+            ))
+        }
+        CompressionType::Pallet => {
+            let index = read_bits(
+                record_data,
+                record_start,
+                info.field_offset_bits as usize,
+                info.field_size_bits as usize,
+            ) as usize;
+            pallet_data
+                .get(field)
+                .and_then(|pallet| pallet.get(index))
+                .copied()
+                .with_context(|| {
+                    format!(
+                        "inline id field {field} pallet index {index} is outside its value table"
+                    )
+                })
+        }
+        CompressionType::PalletArray => {
+            let index = read_bits(
+                record_data,
+                record_start,
+                info.field_offset_bits as usize,
+                info.field_size_bits as usize,
+            ) as usize;
+            let cardinality = info.val3.max(1) as usize;
+            pallet_data
+                .get(field)
+                .and_then(|pallet| pallet.get(index * cardinality))
+                .copied()
+                .with_context(|| {
+                    format!(
+                        "inline id field {field} pallet-array index {index} is outside its value table"
+                    )
+                })
+        }
+        CompressionType::Common => {
+            bail!("inline WDC4 id field {field} cannot use Common compression")
+        }
+    }
+}
+
 fn parse_header(data: &[u8]) -> Result<Wdc4Header> {
     let magic = read_u32_le(data, 0);
     ensure!(magic == WDC4_MAGIC, "not a WDC4 file (magic=0x{magic:08X})");
@@ -828,7 +929,7 @@ fn parse_header(data: &[u8]) -> Result<Wdc4Header> {
         max_id: read_u32_le(data, 32),
         _locale: read_u32_le(data, 36),
         flags: read_u16_le(data, 40),
-        _id_index: read_u16_le(data, 42),
+        id_index: read_u16_le(data, 42),
         total_field_count: read_u32_le(data, 44),
         _packed_data_offset: read_u32_le(data, 48),
         _lookup_column_count: read_u32_le(data, 52),
@@ -1050,6 +1151,88 @@ mod tests {
             CompressionType::Pallet
         );
         assert!(CompressionType::from_u32(99).is_err());
+    }
+
+    #[test]
+    fn inline_record_ids_key_common_fields_like_cpp() {
+        let record_data = [100u32.to_le_bytes(), 300u32.to_le_bytes()].concat();
+        let record_offsets = vec![0, 4];
+        let field_info = vec![
+            FieldStorageInfo {
+                field_offset_bits: 0,
+                field_size_bits: 32,
+                additional_data_size: 0,
+                compression: CompressionType::None,
+                val1: 0,
+                val2: 0,
+                val3: 0,
+            },
+            FieldStorageInfo {
+                field_offset_bits: 0,
+                field_size_bits: 0,
+                additional_data_size: 0,
+                compression: CompressionType::Common,
+                val1: 5,
+                val2: 0,
+                val3: 0,
+            },
+        ];
+        let pallet_data = vec![Vec::new(), Vec::new()];
+        let record_ids = (0..2)
+            .map(|record_idx| {
+                read_inline_record_id(
+                    &record_data,
+                    &record_offsets,
+                    4,
+                    &field_info,
+                    &pallet_data,
+                    record_idx,
+                    0,
+                )
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
+        let reader = Wdc4Reader {
+            header: Wdc4Header {
+                record_count: 2,
+                field_count: 2,
+                record_size: 4,
+                string_table_size: 0,
+                table_hash: 0,
+                _layout_hash: 0,
+                min_id: 100,
+                max_id: 300,
+                _locale: 0,
+                flags: 0,
+                id_index: 0,
+                total_field_count: 2,
+                _packed_data_offset: 0,
+                _lookup_column_count: 0,
+                field_storage_info_size: 0,
+                common_data_size: 0,
+                pallet_data_size: 0,
+                section_count: 1,
+            },
+            field_info,
+            pallet_data,
+            common_data: vec![HashMap::new(), HashMap::from([(100, 7), (300, 9)])],
+            record_data,
+            record_ids,
+            copy_table: Vec::new(),
+            id_to_index: HashMap::from([(100, 0), (300, 1)]),
+            relationship_ids: Vec::new(),
+            record_offsets,
+            record_sizes: vec![4, 4],
+            string_tables: Vec::new(),
+            record_string_table_indices: vec![None, None],
+        };
+
+        assert_eq!(
+            reader.iter_records().map(|(id, _)| id).collect::<Vec<_>>(),
+            vec![100, 300]
+        );
+        assert_eq!(reader.get_field_u32(0, 1), 7);
+        assert_eq!(reader.get_field_u32(1, 1), 9);
     }
 
     // Integration test: parse real Item.db2 if available
