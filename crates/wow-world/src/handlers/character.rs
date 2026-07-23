@@ -16504,6 +16504,8 @@ impl WorldSession {
                 attack_power_per_agility,
                 ranged_attack_power_per_agility,
                 stat_total_multipliers: self.represented_total_stat_multipliers_like_cpp(),
+                stat_buff_total_multipliers: self
+                    .represented_total_stat_buff_multipliers_like_cpp(),
                 gear_stats: gear.stats,
                 gear_health: gear.health,
                 gear_mana: gear.mana,
@@ -16738,6 +16740,40 @@ impl WorldSession {
         let Some((player_guid, changes)) = self.player_stat_changes_like_cpp() else {
             return;
         };
+
+        let update =
+            UpdateObject::player_stat_update(player_guid, self.player_map_id_like_cpp(), changes);
+        self.send_packet(&update);
+    }
+
+    /// Recalculate stats for C++ `HandleModTotalPercentStat`.
+    ///
+    /// Ability auras that select stamina preserve the pre-change health
+    /// percentage after max health is recalculated. Other total-stat auras use
+    /// ordinary `SetMaxHealth` clamping.
+    pub(crate) fn send_total_stat_percentage_update_like_cpp(&mut self, preserve_health_pct: bool) {
+        let (health_before, max_health_before) = self
+            .canonical_player_health_snapshot_like_cpp()
+            .unwrap_or_else(|| {
+                (
+                    self.player_health_like_cpp(),
+                    self.player_max_health_like_cpp(),
+                )
+            });
+        let max_health_before = max_health_before.max(1);
+        let zero_health = health_before == 0;
+        let Some((player_guid, mut changes)) = self.player_stat_changes_like_cpp() else {
+            return;
+        };
+
+        if preserve_health_pct {
+            let max_health_after = max_health_u32_like_cpp(changes.max_health);
+            let health_pct = health_before as f32 * 100.0 / max_health_before as f32;
+            let restored = (max_health_after as f32 * health_pct / 100.0) as u32;
+            let restored = restored.max(if zero_health { 0 } else { 1 });
+            let _ = self.sync_canonical_player_health_like_cpp(restored, max_health_after);
+            changes.health = i64::from(restored);
+        }
 
         let update =
             UpdateObject::player_stat_update(player_guid, self.player_map_id_like_cpp(), changes);
@@ -19830,6 +19866,44 @@ mod tests {
         )])));
     }
 
+    fn total_stat_percentage_spell_store_like_cpp(
+        spell_id: i32,
+        is_ability: bool,
+    ) -> wow_data::SpellStore {
+        let mut store = wow_data::SpellStore::new();
+        store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE,
+                    effect_base_points: 99,
+                    effect_die_sides: 1,
+                    effect_misc_value_2: 1 << 2,
+                    ..Default::default()
+                }],
+            },
+        );
+        let mut attributes = [0; 15];
+        if is_ability {
+            attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_IS_ABILITY;
+        }
+        store.insert_spell_misc_attributes_like_cpp(spell_id, attributes);
+        store
+    }
+
     fn attach_stat_update_player_with_mana(
         session: &mut WorldSession,
         player_guid: ObjectGuid,
@@ -20059,6 +20133,79 @@ mod tests {
         assert_eq!(
             session.canonical_player_health_snapshot_like_cpp(),
             Some((10, 10))
+        );
+    }
+
+    #[test]
+    fn total_stat_percentage_ability_preserves_health_pct_on_apply_and_remove_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send_capacity(8);
+        let player_guid = ObjectGuid::create_player(1, 82);
+        let spell_id = 90_082;
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
+        set_priest_level80_stats(&mut session, 1_000, 40);
+        attach_stat_update_player_with_mana_and_health(
+            &mut session,
+            player_guid,
+            777,
+            1_320,
+            5,
+            10,
+        );
+        session.set_player_health_like_cpp(5, 10);
+        session.set_spell_store(Arc::new(total_stat_percentage_spell_store_like_cpp(
+            spell_id, true,
+        )));
+
+        session
+            .apply_aura(spell_id, player_guid, 30_000, 1)
+            .expect("apply stamina ability");
+        assert_eq!(
+            session.canonical_player_health_snapshot_like_cpp(),
+            Some((10, 20)),
+            "C++ restores 50% health after the stamina ability raises max health"
+        );
+
+        let slot = session
+            .visible_aura_slot_for_spell_like_cpp(spell_id)
+            .expect("stamina ability aura slot");
+        session.remove_aura(slot).expect("remove stamina ability");
+        assert_eq!(
+            session.canonical_player_health_snapshot_like_cpp(),
+            Some((5, 10)),
+            "C++ restores 50% health after the stamina ability lowers max health"
+        );
+    }
+
+    #[test]
+    fn total_stat_percentage_non_ability_keeps_current_health_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send_capacity(4);
+        let player_guid = ObjectGuid::create_player(1, 83);
+        let spell_id = 90_083;
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
+        set_priest_level80_stats(&mut session, 1_000, 40);
+        attach_stat_update_player_with_mana_and_health(
+            &mut session,
+            player_guid,
+            777,
+            1_320,
+            5,
+            10,
+        );
+        session.set_player_health_like_cpp(5, 10);
+        session.set_spell_store(Arc::new(total_stat_percentage_spell_store_like_cpp(
+            spell_id, false,
+        )));
+
+        session
+            .apply_aura(spell_id, player_guid, 30_000, 1)
+            .expect("apply non-ability stamina aura");
+
+        assert_eq!(
+            session.canonical_player_health_snapshot_like_cpp(),
+            Some((5, 20)),
+            "C++ only preserves health percentage for SPELL_ATTR0_IS_ABILITY"
         );
     }
 

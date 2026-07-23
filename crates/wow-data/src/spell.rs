@@ -505,6 +505,8 @@ pub const TOTAL_AURAS_LIKE_CPP: i32 = 545;
 pub const TOTAL_SPELL_TARGETS_LIKE_CPP: i32 = 153;
 
 pub mod attributes {
+    /// C++ `SPELL_ATTR0_IS_ABILITY` (`SharedDefines.h`).
+    pub const SPELL_ATTR0_IS_ABILITY: u32 = 0x0000_0010;
     /// C++ `SPELL_ATTR0_PASSIVE` (`SharedDefines.h`).
     pub const SPELL_ATTR0_PASSIVE: u32 = 0x0000_0040;
     /// C++ `SPELL_ATTR0_DO_NOT_DISPLAY_SPELLBOOK_AURA_ICON_COMBAT_LOG` (`SharedDefines.h`).

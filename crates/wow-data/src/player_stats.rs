@@ -54,6 +54,9 @@ pub struct PlayerStatSystemInputLikeCpp {
     /// C++ UnitMods `TOTAL_PCT` after represented
     /// `SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE` effects, one factor per stat.
     pub stat_total_multipliers: [f32; 5],
+    /// C++ `Unit::UpdateStatBuffMod` factor for the client-visible positive
+    /// and negative flat-stat buff fields.
+    pub stat_buff_total_multipliers: [f32; 5],
     pub gear_stats: [i32; 5],
     pub gear_health: i32,
     pub gear_mana: i32,
@@ -149,8 +152,14 @@ pub fn calculate_player_stat_system_like_cpp(
         // C++ `Player::UpdateStats` truncates `GetTotalStatValue()` to int32.
         (value as f32 * input.stat_total_multipliers[index].max(0.0)) as i32
     });
-    let stat_pos_buff = input.gear_stats.map(|value| value.max(0));
-    let stat_neg_buff = input.gear_stats.map(|value| value.min(0));
+    let stat_pos_buff = std::array::from_fn(|index| {
+        (input.gear_stats[index].max(0) as f32 * input.stat_buff_total_multipliers[index].max(0.0))
+            as i32
+    });
+    let stat_neg_buff = std::array::from_fn(|index| {
+        (input.gear_stats[index].min(0) as f32 * input.stat_buff_total_multipliers[index].max(0.0))
+            as i32
+    });
 
     let max_health =
         i64::from(input.gear_health).saturating_add(health_bonus_from_stamina_like_cpp(stats[2]));
@@ -556,6 +565,7 @@ mod tests {
             attack_power_per_agility: 0,
             ranged_attack_power_per_agility: 0,
             stat_total_multipliers: [1.0; 5],
+            stat_buff_total_multipliers: [1.0; 5],
             gear_stats: [0, 0, 5, 3, 0],
             gear_health: 100,
             gear_mana: 50,
@@ -597,6 +607,7 @@ mod tests {
             attack_power_per_agility: 0,
             ranged_attack_power_per_agility: 0,
             stat_total_multipliers: [1.0; 5],
+            stat_buff_total_multipliers: [1.0; 5],
             gear_stats: [0; 5],
             gear_health: 0,
             gear_mana: 0,
@@ -637,6 +648,7 @@ mod tests {
             attack_power_per_agility: 0,
             ranged_attack_power_per_agility: 0,
             stat_total_multipliers: [1.03; 5],
+            stat_buff_total_multipliers: [1.03; 5],
             gear_stats: [0; 5],
             gear_health: 0,
             gear_mana: 0,
@@ -653,5 +665,39 @@ mod tests {
         assert_eq!(projection.max_mana, 6_100);
         assert_eq!(projection.armor, 184);
         assert_eq!(projection.attack_power, 576);
+    }
+
+    #[test]
+    fn stat_system_scales_positive_and_negative_client_buffs_like_cpp() {
+        let projection = calculate_player_stat_system_like_cpp(PlayerStatSystemInputLikeCpp {
+            base: PlayerLevelStats {
+                strength: 10,
+                agility: 200,
+                stamina: 10,
+                intellect: 10,
+                spirit: 10,
+                base_mana: 0,
+            },
+            class: 1,
+            level: 1,
+            attack_power_per_strength: 2,
+            attack_power_per_agility: 0,
+            ranged_attack_power_per_agility: 0,
+            stat_total_multipliers: [1.03; 5],
+            stat_buff_total_multipliers: [1.03; 5],
+            gear_stats: [100, -100, 0, 0, 0],
+            gear_health: 0,
+            gear_mana: 0,
+            gear_armor: 0,
+            gear_attack_power: 0,
+            gear_ranged_attack_power: 0,
+            rating_bonuses: [0.0; 32],
+            can_parry: false,
+            can_block: false,
+        });
+
+        assert_eq!(projection.stats[..2], [113, 103]);
+        assert_eq!(projection.stat_pos_buff[..2], [103, 0]);
+        assert_eq!(projection.stat_neg_buff[..2], [0, -103]);
     }
 }
