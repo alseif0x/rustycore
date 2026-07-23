@@ -49,6 +49,13 @@
   after commit. A proposed `AutoBankItem.BankType` byte remains intentionally absent: audited
   3.4.3 `BankPackets.cpp:20-24` reads `Inv`, `Bag`, `Slot`; that byte and account-bank rejection are
   retail-upstream behavior added for a later client build and would shift the real 3.4.3 payload.
+  Final review hardening makes the currency-vendor branch return after every failed extended-cost
+  preflight, publishes `ITEM_DATA_DYNAMIC_FLAGS` when `VisualizeItem` binds an equipped item, and
+  plans linked child equipment for either item entering an equipment slot in a real swap rather
+  than only the source-to-destination direction. A proposed pre-exchange bag-loot snapshot was
+  rejected after exact local contrast: 3.4.3 `Player::SwapItem` exchanges bag contents first and
+  only then inspects the bags that originally occupied `src`/`dst` bag slots
+  (`Player.cpp:12539-12662`); Rust intentionally preserves that observable ordering.
   Boundaries remain explicit: the live session still lacks full current-spell weapon-change and
   some combat-state ownership needed to exercise every `CanEquipItem` input; the capture proves
   the invalid-source gate and occupied-swap lifecycle, not every validation branch; rare

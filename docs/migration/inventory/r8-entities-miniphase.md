@@ -52,7 +52,12 @@ destroys now plan/persist final quest state in the same transaction, then apply 
 parent-last removal checks after commit. The retail-upstream `AutoBankItem.BankType` suggestion is
 intentionally excluded because audited 3.4.3 `BankPackets.cpp:20-24` reads exactly
 `Inv -> Bag -> Slot`; consuming the later account-bank byte would corrupt this target build's wire
-layout.
+layout. Final current-HEAD review hardening returns from the currency-vendor path on every failed
+extended-cost preflight, publishes `ITEM_DATA_DYNAMIC_FLAGS` when equipment binding changes it,
+and plans current-upstream linked-child equipment in both real-swap directions. The suggested
+pre-exchange bag-loot snapshot remains absent: local 3.4.3 `Player::SwapItem` first exchanges bag
+contents and then checks the bags that originally occupied `src`/`dst` bag slots
+(`Player.cpp:12539-12662`), which is the ordering Rust preserves.
 
 Boundary: represented session inputs still do not own every C++ current-spell weapon-change or
 combat-state gate; the accredited capture proves the invalid-source branch plus the occupied-swap

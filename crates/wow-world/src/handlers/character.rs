@@ -2196,6 +2196,13 @@ fn bind_inventory_item_for_destination_like_cpp(item: &mut wow_entities::Item, d
     }
 }
 
+fn item_dynamic_flags_changed_like_cpp(
+    before: &wow_entities::Item,
+    after: &wow_entities::Item,
+) -> bool {
+    before.item_flags_bits() != after.item_flags_bits()
+}
+
 fn relocate_bag_exchange_child_like_cpp(
     item: &mut wow_entities::Item,
     destination_bag_guid: ObjectGuid,
@@ -12177,7 +12184,7 @@ impl WorldSession {
                 return;
             }
 
-            match vendor_buy_extended_cost_block_result(
+            if let Some(result) = vendor_buy_extended_cost_block_result(
                 self.item_extended_cost_store().map(|store| store.as_ref()),
                 self.currency_types_store().map(|store| store.as_ref()),
                 |item_id, amount| self.has_item_count_direct_inventory(item_id, amount),
@@ -12187,13 +12194,18 @@ impl WorldSession {
                 vendor_item.max_count,
                 quantity,
             ) {
-                Some(VendorExtendedCostBlock::Equip(result)) => {
-                    self.send_equip_error(result, None, None, 0, 0);
+                match result {
+                    VendorExtendedCostBlock::Equip(result) => {
+                        self.send_equip_error(result, None, None, 0, 0);
+                    }
+                    VendorExtendedCostBlock::Buy(result) => {
+                        self.send_buy_error(result, Some(buy.vendor_guid), buy.item_id as u32);
+                    }
+                    VendorExtendedCostBlock::Silent => {}
                 }
-                Some(VendorExtendedCostBlock::Buy(result)) => {
-                    self.send_buy_error(result, Some(buy.vendor_guid), buy.item_id as u32);
-                }
-                Some(VendorExtendedCostBlock::Silent) | None => {}
+                // C++ BuyItemFromVendorSlot returns for every failed extended
+                // cost preflight before it derives or commits any costs.
+                return;
             }
 
             let extended_cost_item_costs = vendor_buy_extended_cost_item_costs(
@@ -14937,6 +14949,8 @@ impl WorldSession {
         };
         let mut planned_item = runtime_item.clone();
         bind_inventory_item_for_destination_like_cpp(&mut planned_item, destination);
+        let dynamic_flags_changed =
+            item_dynamic_flags_changed_like_cpp(&runtime_item, &planned_item);
         for slot in &cleared_enchantments {
             planned_item.clear_enchantment(*slot);
         }
@@ -15022,6 +15036,11 @@ impl WorldSession {
             (destination_bag, destination_slot),
         ]);
         self.send_item_relocation_values_update_like_cpp(source.guid, true, &cleared_enchantments);
+        if dynamic_flags_changed {
+            // C++ VisualizeItem dirties ITEM_DATA_DYNAMIC_FLAGS when the
+            // destination applies OnEquip/OnAcquire binding.
+            self.send_item_dynamic_flags_values_update_like_cpp(source.guid);
+        }
         if removed_mods || added_mods {
             self.send_represented_item_bonus_player_stat_update_like_cpp();
         }
@@ -15252,6 +15271,36 @@ impl WorldSession {
     }
 
     #[allow(clippy::too_many_arguments)]
+    fn plan_inventory_real_swap_children_like_cpp(
+        &self,
+        source_bag: u8,
+        source_slot: u8,
+        source_guid: ObjectGuid,
+        destination_bag: u8,
+        destination_slot: u8,
+        destination_guid: ObjectGuid,
+    ) -> Result<Vec<InventoryEquipChildPlanLikeCpp>, InventoryResult> {
+        let mut plans = Vec::new();
+        if is_equipment_pos(destination_bag, destination_slot) {
+            if let Some(plan) =
+                self.plan_inventory_equip_child_like_cpp(source_bag, source_slot, source_guid)?
+            {
+                plans.push(plan);
+            }
+        }
+        if is_equipment_pos(source_bag, source_slot) {
+            if let Some(plan) = self.plan_inventory_equip_child_like_cpp(
+                destination_bag,
+                destination_slot,
+                destination_guid,
+            )? {
+                plans.push(plan);
+            }
+        }
+        Ok(plans)
+    }
+
+    #[allow(clippy::too_many_arguments)]
     async fn execute_inventory_real_swap_like_cpp(
         &mut self,
         source_bag: u8,
@@ -15280,16 +15329,19 @@ impl WorldSession {
         else {
             return;
         };
-        let child_plan = if is_equipment_pos(destination_bag, destination_slot) {
-            match self.plan_inventory_equip_child_like_cpp(source_bag, source_slot, source.guid) {
-                Ok(plan) => plan,
-                Err(result) => {
-                    self.send_equip_error(result, Some(destination.guid), Some(source.guid), 0, 0);
-                    return;
-                }
+        let child_plans = match self.plan_inventory_real_swap_children_like_cpp(
+            source_bag,
+            source_slot,
+            source.guid,
+            destination_bag,
+            destination_slot,
+            destination.guid,
+        ) {
+            Ok(plans) => plans,
+            Err(result) => {
+                self.send_equip_error(result, Some(source.guid), Some(destination.guid), 0, 0);
+                return;
             }
-        } else {
-            None
         };
         let Some(source_container_db_guid) = self.inventory_container_db_guid_like_cpp(source_bag)
         else {
@@ -15323,6 +15375,8 @@ impl WorldSession {
         let destination_source_pos = wow_entities::make_item_pos(source_bag, source_slot);
         let mut planned_source = source_object.clone();
         bind_inventory_item_for_destination_like_cpp(&mut planned_source, source_destination_pos);
+        let source_dynamic_flags_changed =
+            item_dynamic_flags_changed_like_cpp(&source_object, &planned_source);
         for slot in &source_cleared {
             planned_source.clear_enchantment(*slot);
         }
@@ -15331,6 +15385,8 @@ impl WorldSession {
             &mut planned_destination,
             destination_source_pos,
         );
+        let destination_dynamic_flags_changed =
+            item_dynamic_flags_changed_like_cpp(&destination_object, &planned_destination);
         for slot in &destination_cleared {
             planned_destination.clear_enchantment(*slot);
         }
@@ -15560,11 +15616,17 @@ impl WorldSession {
             (destination_bag, destination_slot),
         ]);
         self.send_item_relocation_values_update_like_cpp(source.guid, true, &source_cleared);
+        if source_dynamic_flags_changed {
+            self.send_item_dynamic_flags_values_update_like_cpp(source.guid);
+        }
         self.send_item_relocation_values_update_like_cpp(
             destination.guid,
             true,
             &destination_cleared,
         );
+        if destination_dynamic_flags_changed {
+            self.send_item_dynamic_flags_values_update_like_cpp(destination.guid);
+        }
         for (child_guid, _, full_guid, empty_guid, _, from_slot, to_slot) in &child_moves {
             self.send_item_relocation_values_update_like_cpp(*child_guid, false, &[]);
             self.send_bag_object_slot_values_update_like_cpp(*full_guid, *from_slot);
@@ -15577,6 +15639,10 @@ impl WorldSession {
         {
             self.send_represented_item_bonus_player_stat_update_like_cpp();
         }
+        // Preserve the local 3.4.3 C++ ordering in Player::SwapItem: exchange
+        // bag contents first, then inspect the items still contained by bags
+        // that occupied src/dst bag slots. Snapshotting the pre-exchange
+        // contents here would release loot in cases where C++ does not.
         let source_moved_bag_has_active_loot = wow_entities::is_bag_pos(destination_source_pos)
             && self.represented_bag_contains_active_item_loot_like_cpp(source.guid);
         let destination_moved_bag_has_active_loot =
@@ -15589,7 +15655,7 @@ impl WorldSession {
         self.record_represented_avg_equipped_item_level_update_like_cpp();
         self.sync_object_accessor_player();
         self.sync_player_registry_state_like_cpp();
-        if let Some(plan) = child_plan {
+        for plan in child_plans {
             let _ = self.execute_inventory_equip_child_like_cpp(plan).await;
         }
         self.execute_inventory_auto_unequip_offhand_if_need_like_cpp()
@@ -21873,6 +21939,7 @@ mod tests {
     fn equip_destination_uses_visualize_binding_rule_like_cpp() {
         let mut equipped = wow_entities::Item::default();
         equipped.set_bonding(ItemBondingType::OnEquip);
+        let unequipped = equipped.clone();
         bind_inventory_item_for_destination_like_cpp(
             &mut equipped,
             wow_entities::make_item_pos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_MAINHAND),
@@ -21880,6 +21947,10 @@ mod tests {
         assert!(
             equipped.is_soul_bound(),
             "C++ Player::VisualizeItem binds BIND_ON_EQUIP before EquipItem persistence"
+        );
+        assert!(
+            item_dynamic_flags_changed_like_cpp(&unequipped, &equipped),
+            "the equip path must publish ITEM_DATA_DYNAMIC_FLAGS after applying binding"
         );
 
         let mut backpack = wow_entities::Item::default();
@@ -21999,6 +22070,69 @@ mod tests {
                 destination_slot: wow_entities::EQUIPMENT_SLOT_OFFHAND,
                 displaced_storage: None,
             })
+        );
+    }
+
+    #[test]
+    fn real_swap_plans_child_for_item_entering_source_equipment_slot_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send_capacity(1);
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let entry = 124;
+        session.set_player_guid(Some(player_guid));
+        install_equippable_item_fixture(&mut session, entry, InventoryType::Weapon, None);
+        install_child_equipment_fixture(
+            &mut session,
+            entry,
+            entry,
+            wow_entities::EQUIPMENT_SLOT_OFFHAND,
+        );
+        let source_guid = insert_equippable_test_item(
+            &mut session,
+            INVENTORY_SLOT_BAG_0,
+            EQUIPMENT_SLOT_MAINHAND,
+            entry,
+            85,
+            InventoryType::Weapon,
+        );
+        let destination_parent_guid = insert_equippable_test_item(
+            &mut session,
+            INVENTORY_SLOT_BAG_0,
+            INVENTORY_SLOT_ITEM_START,
+            entry,
+            86,
+            InventoryType::Weapon,
+        );
+        let child_guid = insert_equippable_test_item(
+            &mut session,
+            INVENTORY_SLOT_BAG_0,
+            CHILD_EQUIPMENT_SLOT_START,
+            entry,
+            87,
+            InventoryType::Weapon,
+        );
+        session.update_inventory_item_object_like_cpp(child_guid, |child| {
+            child.set_item_flag(ItemFieldFlags::CHILD);
+            child.set_creator(destination_parent_guid);
+        });
+
+        let plans = session
+            .plan_inventory_real_swap_children_like_cpp(
+                INVENTORY_SLOT_BAG_0,
+                EQUIPMENT_SLOT_MAINHAND,
+                source_guid,
+                INVENTORY_SLOT_BAG_0,
+                INVENTORY_SLOT_ITEM_START,
+                destination_parent_guid,
+            )
+            .expect("reverse-direction child preflight");
+
+        assert_eq!(
+            plans,
+            vec![InventoryEquipChildPlanLikeCpp {
+                child_guid,
+                destination_slot: wow_entities::EQUIPMENT_SLOT_OFFHAND,
+                displaced_storage: None,
+            }]
         );
     }
 
