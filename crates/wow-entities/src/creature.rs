@@ -225,8 +225,10 @@ pub struct CreatureLifecycleStats {
     pub max_health: u64,
     pub health: u64,
     pub power_type: PowerType,
-    pub max_mana: i32,
-    pub mana: i32,
+    /// C++ `UnitData::BaseMana`; independent of the selected display power.
+    pub base_mana: i32,
+    pub max_power: i32,
+    pub power: i32,
     pub min_damage: f32,
     pub max_damage: f32,
 }
@@ -237,8 +239,9 @@ impl CreatureLifecycleStats {
             max_health,
             health,
             power_type: PowerType::Mana,
-            max_mana,
-            mana,
+            base_mana: max_mana,
+            max_power: max_mana,
+            power: mana,
             min_damage: BASE_MINDAMAGE,
             max_damage: BASE_MAXDAMAGE,
         }
@@ -1146,9 +1149,11 @@ impl Creature {
         self.set_power_type(record.stats.power_type);
         self.unit.set_max_health(record.stats.max_health);
         self.unit.set_health(record.stats.health);
+        self.unit.set_create_mana_like_cpp(record.stats.base_mana);
         self.unit
-            .set_max_power(PowerType::Mana, record.stats.max_mana);
-        self.unit.set_power(PowerType::Mana, record.stats.mana);
+            .set_max_power(record.stats.power_type, record.stats.max_power);
+        self.unit
+            .set_power(record.stats.power_type, record.stats.power);
         self.unit.set_weapon_damage(
             WeaponAttackType::BaseAttack,
             record.stats.min_damage,
@@ -1240,7 +1245,7 @@ impl Creature {
                 .selected_model_dimensions
                 .or(template.model_dimensions),
             spawn_health: Some(record.stats.health),
-            spawn_mana: Some(record.stats.mana),
+            spawn_mana: Some(record.stats.power),
             template_scale: template.scale,
             speed_walk: template.speed_walk,
             speed_run: template.speed_run,
@@ -4960,6 +4965,33 @@ mod tests {
             CreatureFlightMovementType::DisableGravity as u8
         );
         assert_eq!(creature.unit().changed_object_type_mask(), 0);
+    }
+
+    #[test]
+    fn creature_lifecycle_seeds_selected_non_mana_power_like_cpp() {
+        let mut record = creature_lifecycle_create_record();
+        record.stats = CreatureLifecycleStats {
+            max_health: 5_000,
+            health: 4_500,
+            power_type: PowerType::Focus,
+            base_mana: 600,
+            max_power: 100,
+            power: 25,
+            min_damage: BASE_MINDAMAGE,
+            max_damage: BASE_MAXDAMAGE,
+        };
+
+        let creature = Creature::create_from_lifecycle(record);
+
+        assert_eq!(creature.power_type(), PowerType::Focus);
+        assert_eq!(creature.unit().get_create_mana_like_cpp(), 600);
+        assert_eq!(creature.unit().get_max_power(PowerType::Focus), 100);
+        assert_eq!(creature.unit().get_power(PowerType::Focus), 25);
+        assert_eq!(
+            creature.unit().get_max_power(PowerType::Mana),
+            0,
+            "changing display power removes POWER_MANA from the creature power index"
+        );
     }
 
     #[test]

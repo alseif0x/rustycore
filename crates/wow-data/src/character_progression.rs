@@ -259,6 +259,15 @@ pub struct PowerTypeEntry {
     pub flags: i16,
 }
 
+/// C++ `Creature::UpdateLevelDependantStats` power seed after
+/// `SetCreateMana`, `SetStatPctModifier`, `SetPowerType`, and the
+/// `PowerTypeEntry` default/full-power branch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CreatureInitialPowerLikeCpp {
+    pub max_power: i32,
+    pub power: i32,
+}
+
 macro_rules! db2_store {
     ($store:ident, $entry:ty) => {
         pub struct $store {
@@ -678,6 +687,49 @@ impl PowerTypeStore {
             }
         })
     }
+
+    /// C++ `DB2Manager::GetPowerTypeEntry(Powers)` indexes by
+    /// `PowerTypeEntry::PowerTypeEnum`, not by the DB2 row ID.
+    pub fn get_by_power_type_like_cpp(&self, power_type: i8) -> Option<&PowerTypeEntry> {
+        self.entries
+            .values()
+            .find(|entry| entry.power_type_enum == power_type)
+    }
+
+    /// Mirrors the creature-specific create/max/current power rules in:
+    /// - `Creature::UpdateLevelDependantStats`
+    /// - `Creature::GetCreatePowerValue`
+    /// - `Unit::GetCreatePowerValue`
+    /// - `Unit::UpdateMaxPower`
+    pub fn creature_initial_power_like_cpp(
+        &self,
+        power_type: i8,
+        create_mana: i32,
+        mana_modifier: f32,
+    ) -> CreatureInitialPowerLikeCpp {
+        const UNITS_USE_DEFAULT_POWER_ON_INIT: u16 = 0x0020;
+        const IS_USED_BY_NPCS: u16 = 0x0080;
+
+        let entry = self.get_by_power_type_like_cpp(power_type);
+        let create_power = match entry {
+            Some(entry) if (entry.flags as u16 & IS_USED_BY_NPCS) == 0 => 0,
+            _ if power_type == 0 => create_mana.max(0),
+            Some(entry) => entry.max_base_power,
+            None => 0,
+        };
+        let max_power = ((create_power as f32) * mana_modifier)
+            .round()
+            .clamp(0.0, i32::MAX as f32) as i32;
+        let power = entry.map_or(0, |entry| {
+            if entry.flags as u16 & UNITS_USE_DEFAULT_POWER_ON_INIT != 0 {
+                entry.default_power.min(max_power)
+            } else {
+                max_power
+            }
+        });
+
+        CreatureInitialPowerLikeCpp { max_power, power }
+    }
 }
 
 fn load_store<T, S>(
@@ -759,6 +811,30 @@ impl_from_entries!(PowerTypeStore, PowerTypeEntry);
 mod tests {
     use super::*;
 
+    fn power_type_entry(
+        id: u32,
+        power_type_enum: i8,
+        max_base_power: i32,
+        default_power: i32,
+        flags: i16,
+    ) -> PowerTypeEntry {
+        PowerTypeEntry {
+            id,
+            name_global_string_tag: String::new(),
+            cost_global_string_tag: String::new(),
+            power_type_enum,
+            min_power: 0,
+            max_base_power,
+            center_power: 0,
+            default_power,
+            display_modifier: 1,
+            regen_interrupt_time_ms: 0,
+            regen_peace: 0.0,
+            regen_combat: 0.0,
+            flags,
+        }
+    }
+
     #[test]
     fn character_loadout_item_uses_cpp_parent_relationship() {
         let store = CharacterLoadoutItemStore::from_entries([CharacterLoadoutItemEntry {
@@ -768,6 +844,54 @@ mod tests {
         }]);
 
         assert_eq!(store.get(1).unwrap().character_loadout_id, 9);
+    }
+
+    #[test]
+    fn creature_initial_power_keys_by_enum_and_honors_cpp_flags() {
+        let store = PowerTypeStore::from_entries([
+            power_type_entry(700, 2, 100, 25, 0x0080),
+            power_type_entry(701, 3, 120, 40, 0x0020 | 0x0080),
+            power_type_entry(702, 6, 1_000, 0, 0),
+        ]);
+
+        assert_eq!(
+            store.creature_initial_power_like_cpp(2, 999, 1.5),
+            CreatureInitialPowerLikeCpp {
+                max_power: 150,
+                power: 150,
+            },
+            "C++ keys PowerType by enum and fills NPC powers without the default flag"
+        );
+        assert_eq!(
+            store.creature_initial_power_like_cpp(3, 999, 2.0),
+            CreatureInitialPowerLikeCpp {
+                max_power: 240,
+                power: 40,
+            },
+            "UnitsUseDefaultPowerOnInit preserves the DB2 DefaultPower"
+        );
+        assert_eq!(
+            store.creature_initial_power_like_cpp(6, 999, 1.0),
+            CreatureInitialPowerLikeCpp {
+                max_power: 0,
+                power: 0,
+            },
+            "Creature::GetCreatePowerValue rejects powers without IsUsedByNPCs"
+        );
+    }
+
+    #[test]
+    fn creature_initial_mana_uses_create_mana_and_cpp_rounding() {
+        let store = PowerTypeStore::from_entries([power_type_entry(900, 0, 9_999, 0, 0x0080)]);
+
+        assert_eq!(
+            store.creature_initial_power_like_cpp(0, 101, 1.5),
+            CreatureInitialPowerLikeCpp {
+                max_power: 152,
+                power: 152,
+            },
+            "Unit::GetCreatePowerValue uses BaseMana for POWER_MANA and UpdateMaxPower lroundf"
+        );
     }
 
     #[test]
