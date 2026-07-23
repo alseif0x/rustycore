@@ -2,11 +2,12 @@
 //!
 //! "Done" across the whole port plan means the Rust wire output is byte/opcode
 //! clean versus a C++ capture of the same action (STATE.md §5), except for
-//! narrowly reviewed runtime identifiers handled by [`semantic`]. This crate is
-//! that harness: it parses a C++ **PKT 3.1** capture ([`pkt`]) and a RustyCore
-//! packet dump ([`rustdump`]), normalizes both to a common model ([`model`]),
-//! and diffs them opcode-by-opcode ([`diff`]). Flows ([`flow`]) pin a golden
-//! capture per scenario so every milestone PR gets an objective regression gate.
+//! narrowly reviewed runtime identifiers or intrinsically unordered C++
+//! collection order handled by [`semantic`]. This crate is that harness: it
+//! parses a C++ **PKT 3.1** capture ([`pkt`]) and a RustyCore packet dump
+//! ([`rustdump`]), normalizes both to a common model ([`model`]), and diffs
+//! them opcode-by-opcode ([`diff`]). Flows ([`flow`]) pin a golden capture per
+//! scenario so every milestone PR gets an objective regression gate.
 //!
 //! ## Capturing
 //!
@@ -40,7 +41,8 @@ pub use flow::{
 pub use model::{Capture, CapturedPacket, Direction, PacketBoundary, opcode_name};
 pub use semantic::{
     BuySucceededBody, ExactObjectGuid, InvSlotValue, LogXpGainBody, LootRemovedBody,
-    SemanticBodyDiff, SemanticBodySide, StableObjectGuid, UpdateObjectInvSlotsBody,
-    decode_buy_succeeded_body, decode_log_xp_gain_body, decode_loot_removed_body,
+    SemanticBodyDiff, SemanticBodySide, SendKnownSpellsBody, StableObjectGuid,
+    UpdateObjectInvSlotsBody, decode_buy_succeeded_body, decode_log_xp_gain_body,
+    decode_loot_removed_body, decode_send_known_spells_body,
     validate_loot_single_item_claim_capture,
 };

@@ -39,6 +39,10 @@ the corresponding Rust server port is ready.
 - `WOW_BOT_LOGIN_REQUIRE_KNOWN_SPELLS=1`: in login-only mode, keep the
   connection open until `SMSG_SEND_KNOWN_SPELLS` is observed; useful for
   starting-spell capture parity without changing the default login smoke.
+- `WOW_BOT_LOGIN_EXPECT_KNOWN_SPELLS=<comma-separated IDs>`: implies the
+  previous gate and requires the login packet's canonical known-spell set to
+  match exactly. Packet bit padding, counts, length, duplicate/zero IDs and
+  favorite membership are validated before the set comparison.
 - `WOW_BOT_CLIENT_BUILD` / `WOW_BOT_BUILD`: build value printed by the smoke,
   default `54261`.
 - `WOW_BOT_PASSWORD`: shared local password for accounts in `config.example.json`.
