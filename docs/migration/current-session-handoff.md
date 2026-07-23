@@ -1,3 +1,18 @@
+- `#NEXT.R8.ENTITIES.1208` — issue #7 fixes the CUF-profile login crash by matching C++
+  `Player::SendInitialPacketsAfterAddToMap` exactly:
+  `InitWorldStates -> LoadCufProfiles -> AuraUpdate -> OnMapChange PhaseShiftChange`.
+  The existing CUF serializer was already field-for-field C++; the defect was Rust's early
+  phase-shift placement between world states and CUF. Focused world-port tests cover the normal
+  and far-teleport sequences. A paired installed C++/Rust capture used the same character with
+  one temporary non-empty CUF profile and produced the same exact four opcodes on the instance
+  connection. The 28-byte CUF body and final phase-shift body are byte-identical. The committed
+  capture baseline keeps the unrelated dynamic `InitWorldStates` zone/world-state values and
+  `AuraUpdate` runtime identifiers visible as two value divergences, with no routing, missing, or
+  extra packets. Both headless runs completed auth, enumeration, login verification, and a
+  stand-state round trip; the temporary DB profile was removed and the stable Rust runtime was
+  restored. This closes the C++ wire-order defect, not the broader M1 login-burst divergences or
+  manual-client UI validation.
+
 - `#NEXT.R8.ENTITIES.1207` — issue #52 closes the bounded C#-ITEM.2 inventory-validation
   gap against C++ `ItemHandler.cpp:69-329,699-743` and
   `Player.cpp:9386-10328,10608-10843,12295-12577`. `CMSG_SWAP_INV_ITEM`,

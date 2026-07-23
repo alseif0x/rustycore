@@ -1,6 +1,6 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**Date:** 2026-07-23 · **Base:** `3.4.3` @ `f05852b0` plus the local issue #62 branch.
+**Date:** 2026-07-23 · **Base:** `3.4.3` @ `d740f638` plus the local issue #7 branch.
 
 This document replaces the drifting status snapshots in `_INDEX.md` (2026-05-01, "5–15%"),
 the `MIGRATION_ROADMAP.md` §3 inherited table (which tells you not to trust it), and the
@@ -167,11 +167,15 @@ refresh · Weather · Warden · Calendar · Petitions · Pet/Totem AI. Empty cra
 
 ---
 
-## 3. Known live bugs blocking "playable" (open GitHub issues)
+## 3. Known live bugs blocking "playable" (open after issue #7)
+
+Issue #7's CUF login crash is fixed on its branch: Rust now matches the exact C++
+post-add order, and a paired live capture with one non-empty profile pins the
+four-packet sequence. The CUF and final phase-shift packets are byte-identical;
+the broader M1 exit and manual-client UI validation remain open.
 
 | # | Bug | Effect | Status |
 |---|---|---|---|
-| #7 | `SMSG_LOAD_CUF_PROFILES` → client Lua error | **Bags never open** | proven RustyCore-specific |
 | #8 | persistent-deflate desync vs C++ on large SMSG | spells/UpdateObject empty | worked around (compression off, `fa86e19e`) |
 | #13 | `CMSG_GAME_OBJ_USE` doesn't cast GO use-spell | **portals do nothing** | open |
 | #9–#12 | 33 login-burst divergences (`world-load-audit.md`) | ordering/value parity | mostly open |

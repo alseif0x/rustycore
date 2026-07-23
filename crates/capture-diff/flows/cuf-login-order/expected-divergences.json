@@ -1,0 +1,20 @@
+[
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x2746",
+    "name": "InitWorldStates",
+    "cpp_body_len": 384,
+    "rust_body_len": 384,
+    "first_diff_offset": 4
+  },
+  {
+    "kind": "body_mismatch",
+    "direction": "s2c",
+    "opcode": "0x2C1F",
+    "name": "AuraUpdate",
+    "cpp_body_len": 186,
+    "rust_body_len": 186,
+    "first_diff_offset": 6
+  }
+]
