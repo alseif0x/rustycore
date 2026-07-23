@@ -81,7 +81,9 @@ intent, no mutation — see STATE.md §0). Almost every item below is "convert r
   journal boundary remain outside this scoped CRIT closeout.
 
 ### M1 — Clean, crash-free world entry
-- [ ] **M1.1** Fix **#7** (CUF profiles → bags don't open).
+- [x] **M1.1** Fix **#7** (CUF profiles → bags don't open): match C++'s post-add
+  `InitWorldStates → LoadCufProfiles → AuraUpdate → PhaseShiftChange` order and pin a live,
+  non-empty C++/Rust capture pair.
 - [ ] **M1.2** Restore real compression **#8** (one persistent deflate stream per socket; re-enable threshold).
 - [ ] **M1.3** Close the 33 login-burst divergences (**#9–#12**, `world-load-audit.md`):
   proficiency set, AccountDataTimes/TutorialFlags resend, ordering, FeatureSystemStatus, MOTD, etc.
