@@ -16,7 +16,7 @@ pub mod header;
 pub mod packets;
 pub mod world_packet;
 
-pub use compression::{compress_packet, decompress_packet};
+pub use compression::decompress_packet;
 pub use header::PacketHeader;
 pub use world_packet::{PacketError, WorldPacket};
 
