@@ -33512,7 +33512,11 @@ impl WorldSession {
                 aura_flags,
                 effect_mask,
             );
-            if modifies_total_stats {
+            // C++ applies login/load auras while Player is not yet in world,
+            // then folds their modifiers into UpdateAllStats and the initial
+            // CreateObject. Do not publish a VALUES delta for a GUID the
+            // client has not created yet.
+            if modifies_total_stats && self.state == SessionState::LoggedIn {
                 self.send_total_stat_percentage_update_like_cpp(preserve_health_pct);
             }
         }
@@ -33697,6 +33701,48 @@ impl WorldSession {
         }
 
         applied
+    }
+
+    /// Apply the non-aura combat-capability effects cast by C++ `Player::AddSpell`
+    /// while `_LoadSpells` reconstructs known passive spells.
+    ///
+    /// `SPELL_EFFECT_PARRY` and `SPELL_EFFECT_BLOCK` set `m_canParry` /
+    /// `m_canBlock` before `Player::UpdateAllStats`, so the first login
+    /// projection must observe those flags as well.
+    pub(crate) fn apply_login_known_spell_combat_capabilities_like_cpp(
+        &mut self,
+        known_spells: &[i32],
+    ) -> usize {
+        if self.player_guid().is_none() {
+            return 0;
+        }
+        let Some(spell_store) = self.spell_store().cloned() else {
+            return 0;
+        };
+
+        let before = self.canonical_player_parry_block_snapshot_like_cpp();
+        for &spell_id in known_spells {
+            if !spell_store.is_passive_like_cpp(spell_id) {
+                continue;
+            }
+            let Some(spell_info) = spell_store.get(spell_id) else {
+                continue;
+            };
+
+            if spell_info
+                .has_effect_like_cpp(wow_data::spell::spell_effect_types::SPELL_EFFECT_PARRY)
+            {
+                let _ = self.apply_parry_effect_like_cpp();
+            }
+            if spell_info
+                .has_effect_like_cpp(wow_data::spell::spell_effect_types::SPELL_EFFECT_BLOCK)
+            {
+                let _ = self.apply_block_effect_like_cpp();
+            }
+        }
+
+        let after = self.canonical_player_parry_block_snapshot_like_cpp();
+        usize::from(!before.0 && after.0) + usize::from(!before.1 && after.1)
     }
 
     pub(crate) fn apply_loaded_known_spell_previous_rank_passive_auras_like_cpp(
@@ -34607,7 +34653,9 @@ impl WorldSession {
         if aura.spell_id == SPELL_PVP_RULES_ENABLED_LIKE_CPP {
             let _ = self.update_represented_item_level_area_based_scaling_like_cpp();
         }
-        if self.aura_has_total_stat_percentage_effect_like_cpp(&aura) {
+        if self.state == SessionState::LoggedIn
+            && self.aura_has_total_stat_percentage_effect_like_cpp(&aura)
+        {
             let preserve_health_pct =
                 self.total_stat_percentage_aura_preserves_health_pct_like_cpp(&aura);
             self.send_total_stat_percentage_update_like_cpp(preserve_health_pct);

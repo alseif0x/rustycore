@@ -6647,6 +6647,15 @@ impl WorldSession {
                 "Applied represented login spell proficiencies like C++ Player::_LoadSpells/AddSpell"
             );
         }
+        let login_combat_capabilities = self
+            .apply_login_known_spell_combat_capabilities_like_cpp(&loaded_spell_side_effect_spells);
+        if login_combat_capabilities > 0 {
+            info!(
+                player_guid = guid.counter(),
+                login_combat_capabilities,
+                "Applied represented login parry/block capabilities like C++ Player::_LoadSpells/AddSpell"
+            );
+        }
         let inactive_lower_rank_count =
             self.deactivate_lower_rank_known_spells_for_send_like_cpp(&mut known_spells);
         if inactive_lower_rank_count > 0 {
@@ -6814,8 +6823,6 @@ impl WorldSession {
             }
         }
 
-        let gear = self.represented_player_gear_stats_like_cpp(false);
-
         // C++ `Player::LoadFromDB` restores `fields.health` after `UpdateAllStats`,
         // clamping it to the recalculated max and preserving zero as corpse state.
         let saved_health = result.try_read::<u32>(51);
@@ -6826,90 +6833,7 @@ impl WorldSession {
                 .min(i32::MAX as u32) as i32
         });
         self.set_loaded_player_powers_like_cpp(loaded_powers);
-        let current_power0 = loaded_powers[0];
-
-        let (combat, base_mana_like_cpp) = if let Some(projection) =
-            self.player_stat_system_projection_like_cpp(race, class, level, &gear)
-        {
-            let ap_f = projection.total_attack_power as f32;
-            let base_dmg = ap_f / 14.0 * 2.0;
-            let min_damage = (base_dmg + 1.0).max(1.0);
-            let max_damage = min_damage + 1.0;
-            let ranged_ap_f = projection.total_ranged_attack_power as f32;
-            let (min_ranged_damage, max_ranged_damage) = if ranged_ap_f > 0.0 {
-                let damage = ranged_ap_f / 14.0 * 2.8;
-                ((damage + 1.0).max(1.0), damage + 3.0)
-            } else {
-                (0.0, 0.0)
-            };
-
-            (
-                PlayerCombatStats {
-                    health: restored_saved_health_like_cpp(saved_health, projection.max_health),
-                    max_health: projection.max_health,
-                    stats: projection.stats,
-                    stat_pos_buff: projection.stat_pos_buff,
-                    stat_neg_buff: projection.stat_neg_buff,
-                    base_armor: projection.armor,
-                    base_mana: projection.base_mana,
-                    max_mana: projection.max_mana,
-                    attack_power: projection.attack_power,
-                    attack_power_mod_pos: projection.attack_power_mod_pos,
-                    ranged_attack_power: projection.ranged_attack_power,
-                    ranged_attack_power_mod_pos: projection.ranged_attack_power_mod_pos,
-                    min_damage,
-                    max_damage,
-                    min_ranged_damage,
-                    max_ranged_damage,
-                    block_pct: projection.block_pct,
-                    dodge_pct: projection.dodge_pct,
-                    dodge_from_attr: projection.dodge_from_attr,
-                    parry_pct: projection.parry_pct,
-                    parry_from_attr: projection.parry_from_attr,
-                    crit_pct: projection.crit_pct,
-                    ranged_crit_pct: projection.ranged_crit_pct,
-                    offhand_crit_pct: projection.offhand_crit_pct,
-                    spell_crit_pct: projection.spell_crit_pct,
-                    combat_ratings: gear.combat_ratings,
-                    spell_power: gear.spell_power,
-                },
-                projection.base_mana,
-            )
-        } else {
-            warn!(
-                "Missing C++ player stats or ChrClasses coefficients for race={race} class={class} level={level}; using fallback"
-            );
-            let (h, m) = default_health_mana(class);
-            (
-                PlayerCombatStats {
-                    health: restored_saved_health_like_cpp(saved_health, h as i64),
-                    max_health: h as i64,
-                    base_mana: m as i32,
-                    max_mana: m as i64,
-                    ..PlayerCombatStats::default()
-                },
-                m as i32,
-            )
-        };
-
-        info!(
-            "Player '{}' ({:?}) continuing login at map {} ({}, {}, {}), {} equipped items, \
-             HP={} Mana={} AP={} STR/AGI/STA/INT/SPI={:?} Armor={} Dodge={:.1}% Crit={:.1}%",
-            name,
-            guid,
-            map_id,
-            pos_x,
-            pos_y,
-            pos_z,
-            item_creates.len(),
-            combat.max_health,
-            combat.max_mana,
-            combat.attack_power,
-            combat.stats,
-            combat.base_armor,
-            combat.dodge_pct,
-            combat.crit_pct
-        );
+        let saved_power0 = loaded_powers[0];
 
         // Load active quests from characters DB
         self.load_player_quests().await;
@@ -7006,6 +6930,49 @@ impl WorldSession {
             );
         }
         let loaded_enchantment_updates = initial_item_mods.enchantments;
+
+        // C++ defers `UpdateAllStats` and the saved-health clamp until after
+        // `_LoadAuras` and `_LoadInventory` have applied every aura and item
+        // modifier. Build the initial self snapshot at the same boundary.
+        let (combat, base_mana_like_cpp, current_power0) = if let Some(combat) =
+            self.player_login_combat_stats_like_cpp(race, class, level, saved_health, saved_power0)
+        {
+            combat
+        } else {
+            warn!(
+                "Missing C++ player stats or ChrClasses coefficients for race={race} class={class} level={level}; using fallback"
+            );
+            let (h, m) = default_health_mana(class);
+            let combat = PlayerCombatStats {
+                health: restored_saved_health_like_cpp(saved_health, h as i64),
+                max_health: h as i64,
+                base_mana: m as i32,
+                max_mana: m as i64,
+                ..PlayerCombatStats::default()
+            };
+            let max_power0 = primary_max_power_for_class_like_cpp(class, combat.max_mana);
+            (combat, m as i32, saved_power0.clamp(0, max_power0.max(0)))
+        };
+
+        info!(
+            "Player '{}' ({:?}) continuing login at map {} ({}, {}, {}), {} equipped items, \
+             HP={} Mana={} AP={} STR/AGI/STA/INT/SPI={:?} Armor={} Dodge={:.1}% Crit={:.1}%",
+            name,
+            guid,
+            map_id,
+            pos_x,
+            pos_y,
+            pos_z,
+            item_creates.len(),
+            combat.max_health,
+            combat.max_mana,
+            combat.attack_power,
+            combat.stats,
+            combat.base_armor,
+            combat.dodge_pct,
+            combat.crit_pct
+        );
+
         let login_known_spells = self.login_known_spells_after_account_collections_like_cpp();
         let login_favorite_spells =
             favorite_known_spells_for_send_like_cpp(&login_known_spells, &favorite_spell_rows);
@@ -16519,6 +16486,67 @@ impl WorldSession {
         ))
     }
 
+    /// Build the self CreateObject combat snapshot after C++ login has loaded
+    /// persisted auras and applied all equipped-item modifiers.
+    fn player_login_combat_stats_like_cpp(
+        &self,
+        race: u8,
+        class: u8,
+        level: u8,
+        saved_health: Option<u32>,
+        saved_power0: i32,
+    ) -> Option<(PlayerCombatStats, i32, i32)> {
+        let gear = self.represented_player_gear_stats_like_cpp(true);
+        let projection = self.player_stat_system_projection_like_cpp(race, class, level, &gear)?;
+        let ap_f = projection.total_attack_power as f32;
+        let base_dmg = ap_f / 14.0 * 2.0;
+        let min_damage = (base_dmg + 1.0).max(1.0);
+        let max_damage = min_damage + 1.0;
+        let ranged_ap_f = projection.total_ranged_attack_power as f32;
+        let (min_ranged_damage, max_ranged_damage) = if ranged_ap_f > 0.0 {
+            let damage = ranged_ap_f / 14.0 * 2.8;
+            ((damage + 1.0).max(1.0), damage + 3.0)
+        } else {
+            (0.0, 0.0)
+        };
+
+        let combat = PlayerCombatStats {
+            health: restored_saved_health_like_cpp(saved_health, projection.max_health),
+            max_health: projection.max_health,
+            stats: projection.stats,
+            stat_pos_buff: projection.stat_pos_buff,
+            stat_neg_buff: projection.stat_neg_buff,
+            base_armor: projection.armor,
+            base_mana: projection.base_mana,
+            max_mana: projection.max_mana,
+            attack_power: projection.attack_power,
+            attack_power_mod_pos: projection.attack_power_mod_pos,
+            ranged_attack_power: projection.ranged_attack_power,
+            ranged_attack_power_mod_pos: projection.ranged_attack_power_mod_pos,
+            min_damage,
+            max_damage,
+            min_ranged_damage,
+            max_ranged_damage,
+            block_pct: projection.block_pct,
+            dodge_pct: projection.dodge_pct,
+            dodge_from_attr: projection.dodge_from_attr,
+            parry_pct: projection.parry_pct,
+            parry_from_attr: projection.parry_from_attr,
+            crit_pct: projection.crit_pct,
+            ranged_crit_pct: projection.ranged_crit_pct,
+            offhand_crit_pct: projection.offhand_crit_pct,
+            spell_crit_pct: projection.spell_crit_pct,
+            combat_ratings: gear.combat_ratings,
+            spell_power: gear.spell_power,
+        };
+        let max_power0 = primary_max_power_for_class_like_cpp(class, combat.max_mana);
+        Some((
+            combat,
+            projection.base_mana,
+            saved_power0.clamp(0, max_power0.max(0)),
+        ))
+    }
+
     /// Recalculate all stats from base + gear.
     ///
     /// C++ `Player::UpdateAllStats` updates max power but preserves current power,
@@ -16762,7 +16790,9 @@ impl WorldSession {
             });
         let max_health_before = max_health_before.max(1);
         let zero_health = health_before == 0;
-        let Some((player_guid, mut changes)) = self.player_stat_changes_like_cpp() else {
+        let Some((player_guid, mut changes)) =
+            self.player_stat_changes_with_represented_item_bonuses_like_cpp(true)
+        else {
             return;
         };
 
@@ -19904,6 +19934,49 @@ mod tests {
         store
     }
 
+    fn passive_combat_capability_spell_store_like_cpp(
+        parry_spell_id: i32,
+        block_spell_id: i32,
+    ) -> wow_data::SpellStore {
+        let mut store = wow_data::SpellStore::new();
+        for (spell_id, effect) in [
+            (
+                parry_spell_id,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_PARRY,
+            ),
+            (
+                block_spell_id,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_BLOCK,
+            ),
+        ] {
+            store.insert(
+                spell_id,
+                wow_data::SpellInfo {
+                    spell_id,
+                    cast_time_ms: 0,
+                    cooldown_ms: 0,
+                    recovery_time_ms: 0,
+                    effect_type: effect,
+                    effect_base_points: 0,
+                    effect_bonus_coefficient: 0.0,
+                    aura_type: None,
+                    display_flags: 0,
+                    requires_spell_focus: 0,
+                    power_costs: Vec::new(),
+                    effects: vec![wow_data::SpellEffectInfo {
+                        effect_index: 0,
+                        effect,
+                        ..Default::default()
+                    }],
+                },
+            );
+            let mut attributes = [0; 15];
+            attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_PASSIVE;
+            store.insert_spell_misc_attributes_like_cpp(spell_id, attributes);
+        }
+        store
+    }
+
     fn attach_stat_update_player_with_mana(
         session: &mut WorldSession,
         player_guid: ObjectGuid,
@@ -20156,6 +20229,7 @@ mod tests {
         session.set_spell_store(Arc::new(total_stat_percentage_spell_store_like_cpp(
             spell_id, true,
         )));
+        session.set_state(crate::session::SessionState::LoggedIn);
 
         session
             .apply_aura(spell_id, player_guid, 30_000, 1)
@@ -20197,6 +20271,7 @@ mod tests {
         session.set_spell_store(Arc::new(total_stat_percentage_spell_store_like_cpp(
             spell_id, false,
         )));
+        session.set_state(crate::session::SessionState::LoggedIn);
 
         session
             .apply_aura(spell_id, player_guid, 30_000, 1)
@@ -20210,8 +20285,151 @@ mod tests {
     }
 
     #[test]
-    fn login_stat_update_derives_and_syncs_loaded_enchantment_bonuses_like_cpp() {
+    fn login_passive_total_stat_aura_defers_values_update_until_create_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(4);
+        let player_guid = ObjectGuid::create_player(1, 84);
+        let spell_id = 90_085;
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
+        set_priest_level80_stats(&mut session, 1_000, 40);
+        attach_stat_update_player_with_mana_and_health(
+            &mut session,
+            player_guid,
+            777,
+            1_320,
+            5,
+            10,
+        );
+        session.set_known_spells_like_cpp(vec![spell_id]);
+        let mut spell_store = total_stat_percentage_spell_store_like_cpp(spell_id, false);
+        let mut attributes = [0; 15];
+        attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_PASSIVE;
+        spell_store.insert_spell_misc_attributes_like_cpp(spell_id, attributes);
+        session.set_spell_store(Arc::new(spell_store));
+
+        assert_eq!(session.state(), crate::session::SessionState::Authed);
+        assert_eq!(session.apply_login_passive_known_spell_auras_like_cpp(), 1);
+        assert_eq!(
+            session.represented_total_stat_multipliers_like_cpp(),
+            [1.0, 1.0, 2.0, 1.0, 1.0]
+        );
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(
+            !opcodes.contains(&ServerOpcodes::UpdateObject),
+            "C++ folds login passive modifiers into UpdateAllStats/CreateObject instead of sending pre-create VALUES"
+        );
+    }
+
+    #[test]
+    fn login_combat_snapshot_clamps_saved_health_after_persisted_stat_auras_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send_capacity(2);
+        let player_guid = ObjectGuid::create_player(1, 85);
+        let spell_id = 90_086;
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
+        set_priest_level80_stats(&mut session, 1_000, 40);
+        session.set_spell_store(Arc::new(total_stat_percentage_spell_store_like_cpp(
+            spell_id, false,
+        )));
+
+        assert_eq!(
+            session.load_represented_character_auras_like_cpp(
+                [crate::session::CharacterAuraRowLikeCpp {
+                    caster_guid: player_guid,
+                    spell_id: spell_id as u32,
+                    effect_mask: 1,
+                    recalculate_mask: 0,
+                    difficulty: 0,
+                    stack_count: 1,
+                    max_duration_ms: -1,
+                    remain_time_ms: -1,
+                    remain_charges: 0,
+                }],
+                [crate::session::CharacterAuraEffectRowLikeCpp {
+                    caster_guid: player_guid,
+                    spell_id: spell_id as u32,
+                    effect_mask: 1,
+                    effect_index: 0,
+                    amount: 100,
+                    base_amount: 100,
+                }],
+                0,
+            ),
+            1
+        );
+
+        let (combat, _, current_power0) = session
+            .player_login_combat_stats_like_cpp(1, 5, 80, Some(15), 2_000)
+            .expect("login combat snapshot");
+        assert_eq!(combat.max_health, 20);
+        assert_eq!(
+            combat.health, 15,
+            "saved health valid under the persisted stamina aura must not be pre-clamped to the unbuffed max"
+        );
+        assert_eq!(
+            current_power0, 1_320,
+            "saved primary power is clamped after the final aura/item projection like C++"
+        );
+    }
+
+    #[test]
+    fn login_passive_parry_and_block_capabilities_feed_first_stat_projection_like_cpp() {
         let (mut session, _send_rx) = make_session_with_send_capacity(1);
+        let player_guid = ObjectGuid::create_player(1, 86);
+        session.set_player_guid(Some(player_guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_player_stats(Arc::new(PlayerStatsStore::from_entries([(
+            (1, 1, 80),
+            PlayerLevelStats {
+                strength: 50,
+                agility: 30,
+                stamina: 40,
+                intellect: 10,
+                spirit: 20,
+                base_mana: 0,
+            },
+        )])));
+        session.set_chr_classes_store(Arc::new(ChrClassesStore::from_entries([chr_class_entry(
+            1, 0,
+        )])));
+        attach_stat_update_player_with_mana_and_health(&mut session, player_guid, 0, 0, 100, 220);
+        let parry_spell_id = 90_087;
+        let block_spell_id = 90_088;
+        session.set_spell_store(Arc::new(passive_combat_capability_spell_store_like_cpp(
+            parry_spell_id,
+            block_spell_id,
+        )));
+
+        assert_eq!(
+            session.canonical_player_parry_block_snapshot_like_cpp(),
+            (false, false)
+        );
+        assert_eq!(
+            session.apply_login_known_spell_combat_capabilities_like_cpp(&[
+                parry_spell_id,
+                block_spell_id,
+            ]),
+            2
+        );
+        assert_eq!(
+            session.canonical_player_parry_block_snapshot_like_cpp(),
+            (true, true)
+        );
+        let projection = session
+            .player_stat_system_projection_like_cpp(
+                1,
+                1,
+                80,
+                &RepresentedPlayerGearStatsLikeCpp::default(),
+            )
+            .expect("warrior stat projection");
+        assert_eq!(projection.parry_pct, 5.0);
+        assert_eq!(projection.block_pct, 5.0);
+    }
+
+    #[test]
+    fn login_stat_update_derives_and_syncs_loaded_enchantment_bonuses_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send_capacity(4);
         let player_guid = ObjectGuid::create_player(1, 81);
         let item_guid = ObjectGuid::create_item(1, 82);
         session.set_player_guid(Some(player_guid));
@@ -20325,6 +20543,30 @@ mod tests {
         assert_eq!(
             session.canonical_player_power_snapshot_like_cpp(PowerType::Mana),
             Some((777, 1324))
+        );
+
+        let spell_id = 90_084;
+        session.set_spell_store(Arc::new(total_stat_percentage_spell_store_like_cpp(
+            spell_id, false,
+        )));
+        session.set_state(crate::session::SessionState::LoggedIn);
+        session
+            .apply_aura(spell_id, player_guid, 30_000, 1)
+            .expect("apply total-stat aura over loaded enchantments");
+        assert_eq!(
+            session.canonical_player_health_snapshot_like_cpp(),
+            Some((13, 80)),
+            "absolute aura recalc keeps the loaded +3 stamina enchant before doubling stamina"
+        );
+
+        let slot = session
+            .visible_aura_slot_for_spell_like_cpp(spell_id)
+            .expect("total-stat aura slot");
+        session.remove_aura(slot).expect("remove total-stat aura");
+        assert_eq!(
+            session.canonical_player_health_snapshot_like_cpp(),
+            Some((13, 13)),
+            "absolute aura removal keeps the loaded enchantment bonus"
         );
     }
 
