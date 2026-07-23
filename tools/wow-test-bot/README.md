@@ -60,14 +60,17 @@ For a full occupied-slot inventory-swap round-trip, set
 in two free backpack slots. Item A carries one permanent enchantment plus a
 real random-property record and its generated property enchantment. The bot
 requires that item's exact owner-visible `CREATE_OBJECT` block, hashes it,
-sends the real `CMSG_SWAP_INV_ITEM`, and verifies committed DB state only after
-C++'s logout save transaction. It then authenticates again, requires an
+first sends a container-aware `CMSG_SWAP_ITEM` with an invalid source container
+and requires C++'s `EQUIP_ERR_ITEM_NOT_FOUND`, then sends the real
+`CMSG_SWAP_INV_ITEM` and verifies committed DB state only after C++'s logout
+save transaction. It then authenticates again, requires an
 identical create-block hash, swaps the items back, and performs a third
 authentication that must publish the same block before removing the fixture.
 Item B's complete 13x `(id,duration,charges)` DB shape must remain zero throughout.
 The realm connection is retained alongside the instance connection, and every
 phase must observe `SMSG_LOGOUT_COMPLETE` with C++'s empty body.
-This covers atomic occupied swaps plus D-C1/D-C2 relog metadata preservation
+This covers the issue #52 `IsValidPos` source gate, atomic occupied swaps, and
+D-C1/D-C2 relog metadata preservation
 without relying on Rust-only pre-logout DB publication. Optional entry overrides are
 `WOW_BOT_INVENTORY_SWAP_ITEM_ENTRY_A/B` (defaults `2589`/`2592`).
 

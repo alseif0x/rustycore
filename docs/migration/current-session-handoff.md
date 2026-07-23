@@ -1,3 +1,68 @@
+- `#NEXT.R8.ENTITIES.1207` — issue #52 closes the bounded C#-ITEM.2 inventory-validation
+  gap against C++ `ItemHandler.cpp:69-329,699-743` and
+  `Player.cpp:9386-10328,10608-10843,12295-12577`. `CMSG_SWAP_INV_ITEM`,
+  `CMSG_SWAP_ITEM`, both auto-equip paths, `CMSG_AUTO_STORE_BAG_ITEM`, and
+  `CMSG_DESTROY_ITEM` now use C++-shaped explicit-position, bank-interaction,
+  `CanUnequipItem`, `CanStoreItem`/`CanBankItem`, `CanEquipItem`, and unique-equip gates
+  across the backpack, equipped slots, bank, equipped bags, and nested containers. The live
+  `Player::SwapItem` path handles empty moves, stack merges, real two-item swaps, bag-content
+  exchanges, child-item redirects, and persisted offhand auto-unequip; destroy supports partial
+  stacks and recursively removes full bags. Each concrete DB mutation commits before runtime
+  publication, preserving the earlier atomic inventory guarantees. Packet contrast also exposed
+  and fixed the shared routing bug: C++ registers `SMSG_INVENTORY_CHANGE_FAILURE` on the realm
+  connection even when the request arrived on the instance connection, so all direct Rust
+  inventory failures now use that route.
+  Focused positive/negative tests cover position, bank, unequip, equip, store, merge, swap, bag,
+  destroy, SQL-failure, side-effect, and routing branches; the full `wow-world` library suite is
+  clean. Installed C++ and Rust lifecycle QA used the same two-item fixture for an invalid
+  container-aware `CMSG_SWAP_ITEM`, forward/reverse occupied swaps, logout/fresh-auth relogs,
+  exact CharacterDB locations/metadata, and cleanup. Both sides returned result 23
+  (`EQUIP_ERR_ITEM_NOT_FOUND`) on realm. The strict action capture is exact: two packets matched,
+  with zero value, routing, missing, or extra differences. The full item `CREATE_OBJECT` hash
+  remained `25238a033be693b4969b9412f1666074e5d9be76c6db3b188e021a60b4feb2c8`.
+  GitHub review exposed one real child-equipment seam. The legacy 3.4.3 snapshot recursively
+  re-enters `SwapItem` while the same child still occupies the equipment slot; current upstream
+  TrinityCore repairs that omission by calling `AutoUnequipChildItem(parentItem)` first. Rust now
+  uses a reversible overlay to validate both redirected moves, restores it, and only then durably
+  relocates the child into the selected reserved slot 138–140 before queuing those steps; a failed
+  dead/combat/charmed/unequip/equip gate therefore cannot leave the child hidden. Ordinary
+  inventory/child relocations no longer re-credit quest-item objectives as though they came from
+  bank. Current-HEAD review also corrected equipment binding: empty equips and both directions of
+  a real swap now apply C++ `EquipItem -> VisualizeItem` bonding before persistence, so
+  `BIND_ON_EQUIP` cannot remain tradable after relog, while normal inventory storage keeps
+  `_StoreItem`'s narrower rule. The next current-HEAD review closed three more concrete seams.
+  `HandleAutoStoreBankItemOpcode` now derives its target from the source domain, returning bank
+  items to inventory and sending non-bank items to bank. Bag-content exchanges update each moved
+  child's cached container, wire-visible `ContainedIn`, and slot, then publish the child's values
+  plus the old/new bag-slot changes. Finally, startup loads `ItemChildEquipment.db2`; empty equips
+  and real swaps run current-upstream `CanEquipChildItem` before moving the parent, store any item
+  displaced from the DB2-selected child slot, and then persist/equip the linked `CHILD` item before
+  offhand cleanup. Two other review suggestions were intentionally rejected after exact
+  local and current-upstream contrast: neither `HandleAutoEquipItemOpcode` nor
+  `HandleAutoStoreBagItemOpcode` calls `CanUseBank`; only the explicit swap handlers do. Adding
+  those guards would be a Rust-only behavioral divergence from both C++ authorities. The next
+  review corrected quest side effects that had accidentally been keyed only by storage direction:
+  `AutoBankItem` alone performs `ItemRemovedQuestCheck`, bank-to-inventory `AutoStoreBankItem`
+  performs `ItemAddedQuestCheck`, and its inventory-to-bank branch performs neither, exactly as
+  `BankHandler.cpp`. Partial and recursive full-stack destruction now persist the final quest
+  statuses in the same item transaction and replay `ItemRemovedQuestCheck` child-first then parent
+  after commit. A proposed `AutoBankItem.BankType` byte remains intentionally absent: audited
+  3.4.3 `BankPackets.cpp:20-24` reads `Inv`, `Bag`, `Slot`; that byte and account-bank rejection are
+  retail-upstream behavior added for a later client build and would shift the real 3.4.3 payload.
+  Final review hardening makes the currency-vendor branch return after every failed extended-cost
+  preflight, publishes `ITEM_DATA_DYNAMIC_FLAGS` when `VisualizeItem` binds an equipped item, and
+  plans linked child equipment for either item entering an equipment slot in a real swap rather
+  than only the source-to-destination direction. A proposed pre-exchange bag-loot snapshot was
+  rejected after exact local contrast: 3.4.3 `Player::SwapItem` exchanges bag contents first and
+  only then inspects the bags that originally occupied `src`/`dst` bag slots
+  (`Player.cpp:12539-12662`); Rust intentionally preserves that observable ordering.
+  Boundaries remain explicit: the live session still lacks full current-spell weapon-change and
+  some combat-state ownership needed to exercise every `CanEquipItem` input; the capture proves
+  the invalid-source gate and occupied-swap lifecycle, not every validation branch; rare
+  multi-step child-equip/offhand follow-ups are sequential durable operations rather than one
+  handler-wide transaction. Broader item/gem/durability and full Part-2 inventory parity remain
+  open outside #52.
+
 - `#NEXT.R8.ENTITIES.1206` — issue #20 closes the scoped M0.7 D-C1…D-C9 CRIT
   integrity track after auditing every child against its merged PR and current checks. PRs #89,
   #103, #105, #107, #109, #111, #113 and #115 are merged into `3.4.3`; the D-C7 save slice is
@@ -12,8 +77,8 @@
   reverse save. Installed Rust and C++ contrast produced
   `25238a033be693b4969b9412f1666074e5d9be76c6db3b188e021a60b4feb2c8`; the C++ capture wrapper
   restored the prior Rust runtime. This closes the audited CRIT defects, not the separately
-  documented HIGH/MED mechanics, the loot post-COMMIT crash-journal boundary, or broad inventory
-  validation issue #52.
+  documented HIGH/MED mechanics, the loot post-COMMIT crash-journal boundary, or the broad
+  inventory validation then deferred to issue #52 and now recorded by `#NEXT.R8.ENTITIES.1207`.
 
 - `#NEXT.R8.ENTITIES.1205` — issue #114 implements the remaining D-C3 void-storage slice.
   C++ `VoidStorageHandler.cpp:28-249`, `Player.cpp:18358-18403,20026-20055,28066-28140`,
@@ -74,8 +139,9 @@
   focused suites, bot/capture gate and local Codex review) completed CLEAN on `2143334b` in 471.8
   seconds. PR #115 merged as `55719eb4` with CI and the current-HEAD GitHub Codex verdict green.
   The implementation remains represented-partial only for broader parity; its scoped D-C3 child
-  is closed. Full inventory validation remains #52; aggregate D-C1-D-C9 reconciliation is handled
-  by `#NEXT.R8.ENTITIES.1206`.
+  is closed. Full inventory validation was deferred to #52 and is now recorded by
+  `#NEXT.R8.ENTITIES.1207`; aggregate D-C1-D-C9 reconciliation is handled by
+  `#NEXT.R8.ENTITIES.1206`.
 
 - `#NEXT.R8.ENTITIES.1204` — issue #112 makes equipment-set and transmog-outfit
   GUID allocation process-wide and relog-clean. C++ `ObjectMgr::SetHighestGuids`

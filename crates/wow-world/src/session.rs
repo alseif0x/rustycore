@@ -44,7 +44,8 @@ use wow_ai::{
 };
 use wow_constants::creature::{CreatureFlagsExtra, CreatureType, CreatureTypeFlags};
 use wow_constants::item::{
-    CurrencyTypes, CurrencyTypesFlags, EnchantmentSlot, ItemBonusType, ItemFieldFlags2,
+    CurrencyTypes, CurrencyTypesFlags, EnchantmentSlot, ItemBonusType, ItemFieldFlags,
+    ItemFieldFlags2,
 };
 use wow_constants::movement::MovementFlag;
 use wow_constants::shared::DifficultyFlags;
@@ -81,18 +82,19 @@ use wow_data::{
     FishingBaseSkillStoreLikeCpp, GameObjectDisplayInfoStore,
     GameObjectTemplateLifecycleStoreLikeCpp, GemPropertiesStore, GlyphPropertiesStore,
     GraveyardStore, HeirloomEntry, HeirloomStore, HotfixBlobCache, ImportPriceStores,
-    ItemAppearanceStore, ItemBonusDb2Store, ItemClassStore, ItemCurrencyCostStore,
-    ItemDisenchantLootStore, ItemEffectStore, ItemExtendedCostStore,
-    ItemLimitCategoryConditionStore, ItemLimitCategoryStore, ItemModifiedAppearanceStore,
-    ItemPriceBaseStore, ItemRandomEnchantmentTemplateStore, ItemRandomPropertiesStore,
-    ItemRandomPropertyTemplateEntry, ItemRandomSuffixStore, ItemSearchNameStore, ItemSetSpellStore,
-    ItemSetStore, ItemSpecOverrideStore, ItemStatsStore, ItemStore, LfgDungeonStoreLikeCpp,
-    LfgDungeonsStore, LockStore, MapDifficultyStore, MapDifficultyXConditionStore, MapStore,
-    MountCapabilityStore, MountDefinitionStoreLikeCpp, MountStore, MountTypeXCapabilityStore,
-    MountXDisplayStore, MovieStore, NpcSpellClickStoreLikeCpp, PetDefaultSpellStoreLikeCpp,
-    PetDefaultSpellsEntryLikeCpp, PetFamilySpellStoreLikeCpp, PetLevelupSpellSetLikeCpp,
-    PetLevelupSpellStoreLikeCpp, PhaseGroupStore, PhaseStore, PlayerConditionAuraLikeCpp,
-    PlayerConditionContextLikeCpp, PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
+    ItemAppearanceStore, ItemBonusDb2Store, ItemChildEquipmentEntry, ItemChildEquipmentStore,
+    ItemClassStore, ItemCurrencyCostStore, ItemDisenchantLootStore, ItemEffectStore,
+    ItemExtendedCostStore, ItemLimitCategoryConditionStore, ItemLimitCategoryStore,
+    ItemModifiedAppearanceStore, ItemPriceBaseStore, ItemRandomEnchantmentTemplateStore,
+    ItemRandomPropertiesStore, ItemRandomPropertyTemplateEntry, ItemRandomSuffixStore,
+    ItemSearchNameStore, ItemSetSpellStore, ItemSetStore, ItemSpecOverrideStore, ItemStatsStore,
+    ItemStore, LfgDungeonStoreLikeCpp, LfgDungeonsStore, LockStore, MapDifficultyStore,
+    MapDifficultyXConditionStore, MapStore, MountCapabilityStore, MountDefinitionStoreLikeCpp,
+    MountStore, MountTypeXCapabilityStore, MountXDisplayStore, MovieStore,
+    NpcSpellClickStoreLikeCpp, PetDefaultSpellStoreLikeCpp, PetDefaultSpellsEntryLikeCpp,
+    PetFamilySpellStoreLikeCpp, PetLevelupSpellSetLikeCpp, PetLevelupSpellStoreLikeCpp,
+    PhaseGroupStore, PhaseStore, PlayerConditionAuraLikeCpp, PlayerConditionContextLikeCpp,
+    PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
     PlayerConditionQuestKillLikeCpp, PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp,
     PlayerConditionStore, PlayerCreateInfoCastSpellStoreLikeCpp,
     PlayerCreateInfoCustomSpellStoreLikeCpp, PlayerCreateInfoStoreLikeCpp, PlayerStatsStore,
@@ -142,8 +144,8 @@ use wow_entities::{
     ApplyEnchantmentPlan, ApplyEnchantmentRandomSuffixRef, ApplyEnchantmentResult,
     ApplyEnchantmentSocketContext, ApplyEnchantmentTemplateRef, BANK_SLOT_BAG_END,
     BANK_SLOT_BAG_START, BUYBACK_SLOT_COUNT, BUYBACK_SLOT_END, BUYBACK_SLOT_START, BagTemplateRef,
-    CanBankItemArgs, CanEquipItemArgs, CanEquipUniqueItemArgs, CanStoreItemArgs,
-    CanUnequipItemArgs, CanUseItemArgs, CanUseItemTemplateArgs,
+    CanBankItemArgs, CanEquipItemArgs, CanEquipItemOutcome, CanEquipUniqueItemArgs,
+    CanStoreItemArgs, CanUnequipItemArgs, CanUseItemArgs, CanUseItemTemplateArgs,
     CreatureAddonLifecycleRecordLikeCpp, EQUIPMENT_SLOT_BACK, EQUIPMENT_SLOT_BODY,
     EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_END, EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_FINGER1,
     EQUIPMENT_SLOT_FINGER2, EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_LEGS,
@@ -164,12 +166,13 @@ use wow_entities::{
     PetStableInfo, PetType, PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInventoryStorage,
     PlayerItemTimeUpdate, QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE,
     REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, ReactState, SendNewItemDelivery,
-    SendNewItemDisplayText, SendNewItemPlan, SocketedGemUniqueRef, TYPEID_CONTAINER, TYPEID_ITEM,
-    TitanGripPenaltyAction, UNIT_DATA_BITS, UNIT_DATA_EMOTE_STATE_BIT, UNIT_DATA_HEALTH_BIT,
-    UNIT_DATA_MODS_PARENT_BIT, Unit, UnitDataUpdate, UnitDataValues,
-    UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle, VehicleAccessory, VisibleItemValues,
-    WorldObject, explored_zones_db_string_from_blocks_like_cpp, is_bag_pos,
-    is_equipment_packed_pos, is_inventory_pos, item_resistance_bonus_actions_like_cpp,
+    SendNewItemDisplayText, SendNewItemPlan, SocketedGemUniqueRef, SwapItemPreflightItem,
+    SwapItemPreflightPlan, TYPEID_CONTAINER, TYPEID_ITEM, TitanGripPenaltyAction, UNIT_DATA_BITS,
+    UNIT_DATA_EMOTE_STATE_BIT, UNIT_DATA_HEALTH_BIT, UNIT_DATA_MODS_PARENT_BIT, Unit,
+    UnitDataUpdate, UnitDataValues, UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle,
+    VehicleAccessory, VisibleItemValues, WorldObject,
+    explored_zones_db_string_from_blocks_like_cpp, is_bag_pos, is_equipment_packed_pos,
+    is_inventory_pos, item_resistance_bonus_actions_like_cpp,
     item_scaling_stat_bonus_actions_like_cpp, item_shield_block_bonus_action_like_cpp,
     item_stat_bonus_actions_like_cpp, item_weapon_damage_actions_like_cpp, make_item_pos,
     parse_explored_zones_db_string_like_cpp,
@@ -4594,6 +4597,9 @@ pub struct WorldSession {
     // Item store (Item.db2 BasicData — class/subclass)
     item_store: Option<Arc<ItemStore>>,
 
+    // Item child-equipment store (parent item -> child equipment slot)
+    item_child_equipment_store: Option<Arc<ItemChildEquipmentStore>>,
+
     // Item appearance store (ItemAppearance.db2 data)
     item_appearance_store: Option<Arc<ItemAppearanceStore>>,
 
@@ -6747,6 +6753,7 @@ impl WorldSession {
             item_currency_cost_store: None,
             item_extended_cost_store: None,
             item_store: None,
+            item_child_equipment_store: None,
             item_appearance_store: None,
             item_modified_appearance_store: None,
             item_search_name_store: None,
@@ -8197,6 +8204,156 @@ impl WorldSession {
                 }
             } else {
                 let _ = player.store_bag_item(destination_bag, destination_slot, item_guid);
+            }
+        });
+        true
+    }
+
+    /// Publish a committed C++ real swap after both database positions were
+    /// replaced in one transaction. Both positions must still contain the
+    /// pre-commit items; all runtime mutation is therefore infallible after
+    /// this preflight.
+    pub(crate) fn apply_committed_inventory_item_swap_like_cpp(
+        &mut self,
+        source_bag: u8,
+        source_slot: u8,
+        destination_bag: u8,
+        destination_slot: u8,
+    ) -> bool {
+        if source_bag == destination_bag && source_slot == destination_slot {
+            return false;
+        }
+        let Some(source) = self.get_inventory_item_by_pos(source_bag, source_slot) else {
+            return false;
+        };
+        let Some(destination) = self.get_inventory_item_by_pos(destination_bag, destination_slot)
+        else {
+            return false;
+        };
+
+        let container_guid = |session: &Self, bag: u8| {
+            if bag == INVENTORY_SLOT_BAG_0 {
+                Some(ObjectGuid::EMPTY)
+            } else {
+                session
+                    .inventory_items_like_cpp()
+                    .get(&bag)
+                    .map(|item| item.guid)
+            }
+        };
+        let Some(source_container) = container_guid(self, source_bag) else {
+            return false;
+        };
+        let Some(destination_container) = container_guid(self, destination_bag) else {
+            return false;
+        };
+
+        let source_bag_size = self
+            .item_storage_template(source.entry_id)
+            .map(|template| template.container_slots)
+            .filter(|size| *size > 0);
+        let destination_bag_size = self
+            .item_storage_template(destination.entry_id)
+            .map(|template| template.container_slots)
+            .filter(|size| *size > 0);
+        let source_children = self
+            .inventory_item_objects_like_cpp()
+            .values()
+            .filter(|item| item.container_guid() == source.guid)
+            .map(|item| (item.slot(), item.object().guid()))
+            .collect::<Vec<_>>();
+        let destination_children = self
+            .inventory_item_objects_like_cpp()
+            .values()
+            .filter(|item| item.container_guid() == destination.guid)
+            .map(|item| (item.slot(), item.object().guid()))
+            .collect::<Vec<_>>();
+
+        if source_bag == INVENTORY_SLOT_BAG_0 {
+            self.remove_inventory_item_like_cpp(source_slot);
+        }
+        if destination_bag == INVENTORY_SLOT_BAG_0 {
+            self.remove_inventory_item_like_cpp(destination_slot);
+        }
+        if destination_bag == INVENTORY_SLOT_BAG_0 {
+            self.insert_inventory_item_like_cpp(destination_slot, source.clone());
+        }
+        if source_bag == INVENTORY_SLOT_BAG_0 {
+            self.insert_inventory_item_like_cpp(source_slot, destination.clone());
+        }
+
+        let player_guid = self.player_guid().unwrap_or(ObjectGuid::EMPTY);
+        self.update_inventory_item_object_like_cpp(source.guid, |item| {
+            item.set_slot(destination_slot);
+            item.set_container_guid_and_slot(destination_container, destination_bag);
+            item.set_contained_in(if destination_container.is_empty() {
+                player_guid
+            } else {
+                destination_container
+            });
+        });
+        self.update_inventory_item_object_like_cpp(destination.guid, |item| {
+            item.set_slot(source_slot);
+            item.set_container_guid_and_slot(source_container, source_bag);
+            item.set_contained_in(if source_container.is_empty() {
+                player_guid
+            } else {
+                source_container
+            });
+        });
+        for (_, child_guid) in &source_children {
+            self.update_inventory_item_object_like_cpp(*child_guid, |item| {
+                item.set_container_guid_and_slot(source.guid, destination_slot);
+            });
+        }
+        for (_, child_guid) in &destination_children {
+            self.update_inventory_item_object_like_cpp(*child_guid, |item| {
+                item.set_container_guid_and_slot(destination.guid, source_slot);
+            });
+        }
+
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            if source_bag == INVENTORY_SLOT_BAG_0 {
+                let _ = player.remove_top_level_item(source_slot);
+            } else {
+                let _ = player.remove_bag_item(source_bag, source_slot);
+            }
+            if destination_bag == INVENTORY_SLOT_BAG_0 {
+                let _ = player.remove_top_level_item(destination_slot);
+            } else {
+                let _ = player.remove_bag_item(destination_bag, destination_slot);
+            }
+
+            if destination_bag == INVENTORY_SLOT_BAG_0 {
+                let _ = player.store_top_level_item(destination_slot, source.guid);
+                if is_represented_bag_slot(destination_slot)
+                    && let Some(size) = source_bag_size
+                    && player
+                        .register_bag_storage(destination_slot, source.guid, size)
+                        .is_ok()
+                {
+                    for &(slot, guid) in &source_children {
+                        let _ = player.store_bag_item(destination_slot, slot, guid);
+                    }
+                }
+            } else {
+                let _ = player.store_bag_item(destination_bag, destination_slot, source.guid);
+            }
+
+            if source_bag == INVENTORY_SLOT_BAG_0 {
+                let _ = player.store_top_level_item(source_slot, destination.guid);
+                if is_represented_bag_slot(source_slot)
+                    && let Some(size) = destination_bag_size
+                    && player
+                        .register_bag_storage(source_slot, destination.guid, size)
+                        .is_ok()
+                {
+                    for &(slot, guid) in &destination_children {
+                        let _ = player.store_bag_item(source_slot, slot, guid);
+                    }
+                }
+            } else {
+                let _ = player.store_bag_item(source_bag, source_slot, destination.guid);
             }
         });
         true
@@ -15518,6 +15675,23 @@ impl WorldSession {
         self.item_store = Some(store);
     }
 
+    /// Set `ItemChildEquipment.db2`, used by C++ `CanEquipChildItem` and
+    /// `EquipChildItem` to move a linked child into its visible equipment slot.
+    pub fn set_item_child_equipment_store(&mut self, store: Arc<ItemChildEquipmentStore>) {
+        self.item_child_equipment_store = Some(store);
+    }
+
+    /// C++ `DB2Manager::GetItemChildEquipment(parentItemId)`.
+    pub(crate) fn item_child_equipment_for_parent_like_cpp(
+        &self,
+        parent_item_id: u32,
+    ) -> Option<&ItemChildEquipmentEntry> {
+        self.item_child_equipment_store
+            .as_ref()?
+            .values()
+            .find(|entry| entry.parent_item_id == parent_item_id)
+    }
+
     /// Resolve C++ `ItemTemplate::GetRandomSelect()`.
     pub(crate) fn item_template_random_select(&self, item_id: u32) -> u16 {
         self.item_store
@@ -21725,7 +21899,38 @@ impl WorldSession {
         proto: Option<&ItemStorageTemplate>,
         source_is_not_empty_bag: bool,
     ) -> InventoryResult {
-        let pos = make_item_pos(INVENTORY_SLOT_BAG_0, slot);
+        self.can_unequip_inventory_item_at_like_cpp(
+            INVENTORY_SLOT_BAG_0,
+            slot,
+            false,
+            source_item,
+            proto,
+            source_is_not_empty_bag,
+        )
+    }
+
+    /// C++ `Player::IsValidPos` against the session-owned inventory snapshot.
+    pub(crate) fn is_valid_inventory_pos_like_cpp(
+        &self,
+        bag: u8,
+        slot: u8,
+        explicit_pos: bool,
+    ) -> bool {
+        self.direct_inventory_player_snapshot()
+            .is_some_and(|player| player.is_valid_pos(bag, slot, explicit_pos))
+    }
+
+    /// C++ `Player::CanUnequipItem` for any represented top-level or bag position.
+    pub(crate) fn can_unequip_inventory_item_at_like_cpp(
+        &self,
+        bag: u8,
+        slot: u8,
+        swap: bool,
+        source_item: Option<&Item>,
+        proto: Option<&ItemStorageTemplate>,
+        source_is_not_empty_bag: bool,
+    ) -> InventoryResult {
+        let pos = make_item_pos(bag, slot);
         if !is_equipment_packed_pos(pos) && !is_bag_pos(pos) {
             return InventoryResult::Ok;
         }
@@ -21733,16 +21938,26 @@ impl WorldSession {
         let Some(player) = self.direct_inventory_player_snapshot() else {
             return InventoryResult::Ok;
         };
+        let is_charmed = self
+            .canonical_player_snapshot_like_cpp(|player| {
+                player.unit().subsystems().control.is_charmed()
+            })
+            .unwrap_or(false);
+        let is_in_progress_arena = self.represented_battleground_status_like_cpp == Some(3)
+            && self
+                .map_store()
+                .and_then(|store| store.get(u32::from(self.player_map_id_like_cpp())))
+                .is_some_and(|entry| entry.instance_type == wow_data::map::MAP_ARENA);
 
         player.can_unequip_item(CanUnequipItemArgs {
             pos,
             source_item,
             proto,
-            swap: false,
+            swap,
             source_is_not_empty_bag,
-            is_charmed: false,
+            is_charmed,
             is_in_combat: self.in_combat,
-            is_in_progress_arena: false,
+            is_in_progress_arena,
         })
     }
 
@@ -21750,6 +21965,79 @@ impl WorldSession {
         self.inventory_item_objects_like_cpp()
             .values()
             .any(|item| item.container_guid() == item_guid)
+    }
+
+    /// C++ `Player::SwapItem` preflight (child redirects, life state,
+    /// `CanUnequipItem`, and bag-in-bag guards) for live session positions.
+    pub(crate) fn plan_inventory_swap_preflight_like_cpp(
+        &self,
+        src: u16,
+        dst: u16,
+    ) -> Option<SwapItemPreflightPlan> {
+        let [src_bag, src_slot] = src.to_be_bytes();
+        let [dst_bag, dst_slot] = dst.to_be_bytes();
+        let source = self.get_inventory_item_by_pos(src_bag, src_slot);
+        let destination = self.get_inventory_item_by_pos(dst_bag, dst_slot);
+
+        let preflight_item = |item: &InventoryItem, bag: u8, slot: u8, swap: bool| {
+            let runtime_item = self.inventory_item_objects_like_cpp().get(&item.guid);
+            let proto = self.item_storage_template(item.entry_id);
+            let is_bag = proto
+                .as_ref()
+                .is_some_and(|template| template.container_slots > 0);
+            let parent_pos = runtime_item
+                .filter(|item| item.has_item_flag(ItemFieldFlags::CHILD))
+                .and_then(|item| self.get_inventory_item_by_guid_like_cpp(item.data().creator))
+                .map(|(bag, slot, _)| make_item_pos(bag, slot));
+            SwapItemPreflightItem {
+                is_bag,
+                is_empty_bag: is_bag && !self.direct_item_contains_items(item.guid),
+                is_child: runtime_item
+                    .is_some_and(|item| item.has_item_flag(ItemFieldFlags::CHILD)),
+                parent_pos,
+                can_unequip_result: self.can_unequip_inventory_item_at_like_cpp(
+                    bag,
+                    slot,
+                    swap,
+                    runtime_item,
+                    proto.as_ref(),
+                    self.direct_item_contains_items(item.guid),
+                ),
+            }
+        };
+
+        let source_is_bag_pos = is_bag_pos(src);
+        let destination_is_bag_pos = is_bag_pos(dst);
+        let source_is_bag = source.as_ref().is_some_and(|item| {
+            self.item_storage_template(item.entry_id)
+                .is_some_and(|template| template.container_slots > 0)
+        });
+        let destination_is_empty_bag = destination.as_ref().is_some_and(|item| {
+            self.item_storage_template(item.entry_id)
+                .is_some_and(|template| template.container_slots > 0)
+                && !self.direct_item_contains_items(item.guid)
+        });
+        let source_is_empty_bag = source_is_bag
+            && source
+                .as_ref()
+                .is_some_and(|item| !self.direct_item_contains_items(item.guid));
+        let source_swap = !source_is_bag_pos || destination_is_bag_pos || destination_is_empty_bag;
+        let destination_swap = !destination_is_bag_pos || source_is_bag_pos || source_is_empty_bag;
+        let source_preflight = source
+            .as_ref()
+            .map(|item| preflight_item(item, src_bag, src_slot, source_swap));
+        let destination_preflight = destination
+            .as_ref()
+            .map(|item| preflight_item(item, dst_bag, dst_slot, destination_swap));
+
+        let player = self.direct_inventory_player_snapshot()?;
+        Some(player.swap_item_preflight_plan(
+            src,
+            dst,
+            self.player_is_alive_like_cpp(),
+            source_preflight,
+            destination_preflight,
+        ))
     }
 
     /// Return every runtime item contained by `container_guid`, deepest first.
@@ -21897,7 +22185,16 @@ impl WorldSession {
         bag: u8,
         slot: u8,
     ) -> Option<(InventoryResult, Vec<ItemPosCount>, Option<u32>)> {
-        self.plan_store_direct_inventory_item_like_cpp(entry_id, count, bag, slot, None, &[], &[])
+        self.plan_store_direct_inventory_item_like_cpp(
+            entry_id,
+            count,
+            bag,
+            slot,
+            None,
+            false,
+            &[],
+            &[],
+        )
     }
 
     pub(crate) fn plan_store_new_direct_inventory_item_with_overlays_like_cpp(
@@ -21913,6 +22210,7 @@ impl WorldSession {
             NULL_BAG,
             NULL_SLOT,
             None,
+            false,
             overlays,
             vacated_positions,
         )
@@ -21930,6 +22228,23 @@ impl WorldSession {
         source_bag: u8,
         source_slot: u8,
     ) -> Option<(InventoryResult, Vec<ItemPosCount>, Option<u32>)> {
+        self.plan_store_existing_inventory_item_at_like_cpp(
+            source_bag,
+            source_slot,
+            NULL_BAG,
+            NULL_SLOT,
+            false,
+        )
+    }
+
+    pub(crate) fn plan_store_existing_inventory_item_at_like_cpp(
+        &self,
+        source_bag: u8,
+        source_slot: u8,
+        destination_bag: u8,
+        destination_slot: u8,
+        swap: bool,
+    ) -> Option<(InventoryResult, Vec<ItemPosCount>, Option<u32>)> {
         let inventory_item = self.get_inventory_item_by_pos(source_bag, source_slot)?;
         let source_item = self
             .inventory_item_objects_like_cpp()
@@ -21937,9 +22252,10 @@ impl WorldSession {
         self.plan_store_direct_inventory_item_like_cpp(
             inventory_item.entry_id,
             source_item.count(),
-            NULL_BAG,
-            NULL_SLOT,
+            destination_bag,
+            destination_slot,
             Some(source_item),
+            swap,
             &[],
             &[],
         )
@@ -21949,6 +22265,23 @@ impl WorldSession {
         &self,
         source_bag: u8,
         source_slot: u8,
+    ) -> Option<(InventoryResult, Vec<ItemPosCount>)> {
+        self.plan_bank_existing_inventory_item_at_like_cpp(
+            source_bag,
+            source_slot,
+            NULL_BAG,
+            NULL_SLOT,
+            false,
+        )
+    }
+
+    pub(crate) fn plan_bank_existing_inventory_item_at_like_cpp(
+        &self,
+        source_bag: u8,
+        source_slot: u8,
+        destination_bag: u8,
+        destination_slot: u8,
+        swap: bool,
     ) -> Option<(InventoryResult, Vec<ItemPosCount>)> {
         let inventory_item = self.get_inventory_item_by_pos(source_bag, source_slot)?;
         let source_item = self
@@ -22029,8 +22362,8 @@ impl WorldSession {
         let result = player.can_bank_item(
             &mut dest,
             CanBankItemArgs {
-                bag: NULL_BAG,
-                slot: NULL_SLOT,
+                bag: destination_bag,
+                slot: destination_slot,
                 proto: proto.as_ref(),
                 source_item: Some(source_item),
                 source_is_not_empty_bag: self.direct_item_contains_items(inventory_item.guid),
@@ -22041,7 +22374,7 @@ impl WorldSession {
                     .as_ref()
                     .is_some_and(|proto| proto.bag_family.contains(BagFamilyMask::CURRENCY_TOKENS)),
                 source_bop_trade_allowed_for_player: false,
-                swap: false,
+                swap,
                 can_use_result,
                 limit_category: limit_category.as_ref(),
                 slot_items: &slot_items,
@@ -22060,6 +22393,7 @@ impl WorldSession {
         bag: u8,
         slot: u8,
         source_item: Option<&Item>,
+        swap: bool,
         overlays: &[DirectInventoryStorageOverlayLikeCpp],
         vacated_positions: &[(u8, u8)],
     ) -> Option<(InventoryResult, Vec<ItemPosCount>, Option<u32>)> {
@@ -22239,7 +22573,7 @@ impl WorldSession {
                 source_is_not_empty_bag: source_item
                     .is_some_and(|item| self.direct_item_contains_items(item.object().guid())),
                 source_bop_trade_allowed_for_player: false,
-                swap: false,
+                swap,
                 limit_category: limit_category.as_ref(),
                 slot_items: &slot_items,
                 stored_items: &stored_items,
@@ -37614,7 +37948,10 @@ impl WorldSession {
             }
         }
 
-        self.send_packet(&packet);
+        // C++ `Opcodes.cpp` registers `SMSG_INVENTORY_CHANGE_FAILURE` on
+        // `CONNECTION_TYPE_REALM`, including errors raised by instance-routed
+        // inventory requests after `ConnectTo`.
+        self.send_packet_realm(&packet);
     }
 
     pub fn send_buy_error(&self, result: BuyResult, creature_guid: Option<ObjectGuid>, item: u32) {
@@ -38500,6 +38837,14 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedAutoUnequipOffhandLikeCpp] {
         &self.represented_auto_unequip_offhand_requests_like_cpp
+    }
+
+    pub(crate) fn record_represented_auto_unequip_offhand_request_like_cpp(
+        &mut self,
+        request: RepresentedAutoUnequipOffhandLikeCpp,
+    ) {
+        self.represented_auto_unequip_offhand_requests_like_cpp
+            .push(request);
     }
 
     pub(crate) fn represented_guild_bank_can_interact_like_cpp(
@@ -39963,17 +40308,15 @@ impl WorldSession {
         });
     }
 
-    fn represented_auto_unequip_offhand_if_need_like_cpp(&mut self, force: bool) -> bool {
-        let Some(offhand_item) = self
+    pub(crate) fn represented_auto_unequip_offhand_reason_like_cpp(
+        &self,
+        force: bool,
+    ) -> Option<RepresentedAutoUnequipOffhandReasonLikeCpp> {
+        let offhand_item = self
             .inventory_items_like_cpp()
             .get(&EQUIPMENT_SLOT_OFFHAND)
-            .cloned()
-        else {
-            return false;
-        };
-        let Some(offhand_template) = self.item_storage_template(offhand_item.entry_id) else {
-            return false;
-        };
+            .cloned()?;
+        let offhand_template = self.item_storage_template(offhand_item.entry_id)?;
         let mainhand_template = self
             .inventory_items_like_cpp()
             .get(&EQUIPMENT_SLOT_MAINHAND)
@@ -40002,7 +40345,7 @@ impl WorldSession {
                     && template.subclass_id != ItemSubClassWeapon::Wand as u32)
         });
 
-        let reason = if force {
+        if force {
             Some(RepresentedAutoUnequipOffhandReasonLikeCpp::Forced)
         } else if lost_dual_wield {
             Some(RepresentedAutoUnequipOffhandReasonLikeCpp::LostDualWield)
@@ -40012,9 +40355,19 @@ impl WorldSession {
             Some(RepresentedAutoUnequipOffhandReasonLikeCpp::InvalidTwoHandState)
         } else {
             None
+        }
+    }
+
+    fn represented_auto_unequip_offhand_if_need_like_cpp(&mut self, force: bool) -> bool {
+        let Some(offhand_item) = self
+            .inventory_items_like_cpp()
+            .get(&EQUIPMENT_SLOT_OFFHAND)
+            .cloned()
+        else {
+            return false;
         };
 
-        let Some(reason) = reason else {
+        let Some(reason) = self.represented_auto_unequip_offhand_reason_like_cpp(force) else {
             return false;
         };
 
@@ -40374,6 +40727,40 @@ impl WorldSession {
         item_mods_changed
     }
 
+    /// C++ `StoreItem`/`BankItem`/`EquipItem` post-placement side effects for
+    /// a runtime item whose persistence and position have already committed.
+    pub(crate) fn apply_inventory_item_store_side_effects_like_cpp(
+        &mut self,
+        bag: u8,
+        slot: u8,
+        item_guid: ObjectGuid,
+    ) -> bool {
+        self.add_inventory_item_duration_refs_like_cpp(item_guid);
+        if bag != INVENTORY_SLOT_BAG_0 || slot >= INVENTORY_SLOT_BAG_END {
+            return false;
+        }
+
+        self.update_inventory_item_object_like_cpp(item_guid, |item| {
+            item.set_item_flag2(ItemFieldFlags2::EQUIPPED);
+        });
+        let _ = self.record_represented_items_set_item_like_cpp(item_guid, true);
+        let item_mods_changed = if self
+            .inventory_item_objects_like_cpp()
+            .get(&item_guid)
+            .is_some_and(|item| !item.is_broken())
+        {
+            let action_start = self.represented_item_bonus_actions_like_cpp.len();
+            self.record_represented_item_mods_like_cpp(item_guid, slot, true);
+            self.represented_item_bonus_actions_like_cpp.len() != action_start
+        } else {
+            false
+        };
+        if slot < PROFESSION_SLOT_END {
+            self.record_inventory_item_combat_stat_recalculations_like_cpp(slot);
+        }
+        item_mods_changed
+    }
+
     fn record_represented_offhand_item_mod_remove_like_cpp(
         &mut self,
         item_guid: ObjectGuid,
@@ -40504,6 +40891,61 @@ impl WorldSession {
                 values: ContainerDataValues {
                     num_slots: u32::from(bag_size),
                     slots: slot_values,
+                },
+            }),
+        };
+        if let Some(packet) =
+            bag_values_update_to_update_object(bag_guid, self.player_map_id_like_cpp(), &update)
+        {
+            self.send_packet(&packet);
+        }
+    }
+
+    /// Publish a container-slot change by bag GUID. This is needed for C++'s
+    /// bag-content exchange: the previously full bag may no longer occupy a
+    /// registered bag slot, but the client still owns that container object
+    /// and must see its old child slot cleared.
+    pub(crate) fn send_bag_object_slot_values_update_like_cpp(
+        &self,
+        bag_guid: ObjectGuid,
+        changed_slot: u8,
+    ) {
+        if changed_slot as usize >= MAX_BAG_SIZE {
+            return;
+        }
+        let Some(bag_item) = self.inventory_item_objects_like_cpp().get(&bag_guid) else {
+            return;
+        };
+        let Some(bag_size) = self
+            .item_storage_template(bag_item.object().entry())
+            .map(|template| template.container_slots)
+            .filter(|size| *size > 0)
+        else {
+            return;
+        };
+        let mut slots = [ObjectGuid::EMPTY; MAX_BAG_SIZE];
+        for item in self
+            .inventory_item_objects_like_cpp()
+            .values()
+            .filter(|item| item.container_guid() == bag_guid)
+        {
+            if let Some(slot) = slots.get_mut(item.slot() as usize) {
+                *slot = item.object().guid();
+            }
+        }
+
+        let mut container_data_mask = UpdateMask::new(CONTAINER_DATA_BITS);
+        container_data_mask.set(CONTAINER_DATA_SLOTS_PARENT_BIT);
+        container_data_mask.set(CONTAINER_DATA_SLOTS_FIRST_BIT + changed_slot as usize);
+        let update = BagValuesUpdate {
+            changed_object_type_mask: 1 << TYPEID_CONTAINER,
+            object_data: None,
+            item_data: None,
+            container_data: Some(ContainerDataUpdate {
+                mask: container_data_mask,
+                values: ContainerDataValues {
+                    num_slots: u32::from(bag_size),
+                    slots,
                 },
             }),
         };
@@ -41214,8 +41656,7 @@ impl WorldSession {
                 return;
             }
 
-            if self
-                .represented_avg_total_item_level_can_equip_unique_like_cpp(entry_id, runtime_item)
+            if self.represented_can_equip_unique_item_like_cpp(entry_id, runtime_item, NULL_SLOT)
                 != InventoryResult::Ok
             {
                 return;
@@ -41251,10 +41692,11 @@ impl WorldSession {
         }
     }
 
-    fn represented_avg_total_item_level_can_equip_unique_like_cpp(
+    fn represented_can_equip_unique_item_like_cpp(
         &self,
         entry_id: u32,
         runtime_item: &Item,
+        except_slot: u8,
     ) -> InventoryResult {
         let Some(player) = self.direct_inventory_player_snapshot() else {
             return InventoryResult::ItemNotFound;
@@ -41351,7 +41793,7 @@ impl WorldSession {
         player.can_equip_unique_item(CanEquipUniqueItemArgs {
             source_item: Some(runtime_item),
             proto: Some(&proto),
-            except_slot: NULL_SLOT,
+            except_slot,
             limit_count: 1,
             unique_equippable,
             limit_category: limit_category.as_ref(),
@@ -41368,11 +41810,82 @@ impl WorldSession {
         can_dual_wield: bool,
         can_titan_grip: bool,
     ) -> InventoryResult {
-        let Some(mut player) = self.direct_inventory_player_snapshot() else {
-            return InventoryResult::ItemNotFound;
+        let inventory_item = InventoryItem {
+            guid: runtime_item.object().guid(),
+            entry_id,
+            db_guid: runtime_item.object().guid().counter() as u64,
+            inventory_type: self.item_template_inventory_type(entry_id),
         };
+        self.can_equip_inventory_item_like_cpp(
+            &inventory_item,
+            runtime_item,
+            NULL_SLOT,
+            true,
+            false,
+            false,
+            can_dual_wield,
+            can_titan_grip,
+        )
+        .result
+    }
+
+    /// C++ `Player::CanEquipItem` for a represented runtime item.
+    pub(crate) fn plan_equip_existing_inventory_item_like_cpp(
+        &self,
+        source_bag: u8,
+        source_slot: u8,
+        requested_slot: u8,
+        swap: bool,
+    ) -> Option<(InventoryResult, u16)> {
+        let inventory_item = self.get_inventory_item_by_pos(source_bag, source_slot)?;
+        let runtime_item = self
+            .inventory_item_objects_like_cpp()
+            .get(&inventory_item.guid)?;
+        let can_dual_wield = self
+            .canonical_player_snapshot_like_cpp(|player| player.unit().can_dual_wield_like_cpp())
+            .unwrap_or(false);
+        let can_titan_grip = self
+            .canonical_player_snapshot_like_cpp(Player::can_titan_grip)
+            .unwrap_or(false);
+        let outcome = self.can_equip_inventory_item_like_cpp(
+            &inventory_item,
+            runtime_item,
+            requested_slot,
+            swap,
+            true,
+            self.in_combat,
+            can_dual_wield,
+            can_titan_grip,
+        );
+        Some((outcome.result, outcome.dest))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn can_equip_inventory_item_like_cpp(
+        &self,
+        inventory_item: &InventoryItem,
+        runtime_item: &Item,
+        requested_slot: u8,
+        swap: bool,
+        not_loading: bool,
+        is_in_combat: bool,
+        can_dual_wield: bool,
+        can_titan_grip: bool,
+    ) -> CanEquipItemOutcome {
+        let Some(mut player) = self.direct_inventory_player_snapshot() else {
+            return CanEquipItemOutcome {
+                result: InventoryResult::ItemNotFound,
+                dest: 0,
+                unique_ignore_slot: None,
+            };
+        };
+        let entry_id = inventory_item.entry_id;
         let Some(proto) = self.item_storage_template(entry_id) else {
-            return InventoryResult::ItemNotFound;
+            return CanEquipItemOutcome {
+                result: InventoryResult::ItemNotFound,
+                dest: 0,
+                unique_ignore_slot: None,
+            };
         };
 
         player
@@ -41451,53 +41964,99 @@ impl WorldSession {
             .and_then(|item| self.item_storage_template(item.entry_id));
         let is_two_hand_used = player.is_two_hand_used_template(mainhand_template.as_ref());
         let can_use_result = self.can_use_inventory_item_represented_with_loading_like_cpp(
-            &InventoryItem {
-                guid: runtime_item.object().guid(),
-                entry_id,
-                db_guid: runtime_item.object().guid().counter() as u64,
-                inventory_type: Some(proto.inventory_type as u8),
-            },
+            inventory_item,
             Some(runtime_item),
-            false,
+            not_loading,
         );
-        let can_equip_unique_result =
-            self.represented_avg_total_item_level_can_equip_unique_like_cpp(entry_id, runtime_item);
         let proto_always_allow_dual_wield = self
             .item_template_flags3(entry_id)
             .is_some_and(|flags| (flags & ItemFlags3::AlwaysAllowDualWield as u32) != 0);
         let limit_category = self.item_limit_category_template_like_cpp(proto.item_limit_category);
-
-        player
-            .can_equip_item(CanEquipItemArgs {
-                slot: NULL_SLOT,
-                proto: Some(&proto),
-                source_item: Some(runtime_item),
-                source_bop_trade_allowed_for_player: false,
-                swap: true,
-                not_loading: false,
-                is_stunned: false,
-                is_charmed: false,
-                is_in_combat: false,
-                is_in_progress_arena: false,
-                weapon_change_timer_active: false,
-                current_generic_spell_allows_equip: None,
-                current_channeled_spell_allows_equip: None,
-                heirloom_required_level_failed: false,
-                can_use_result,
-                can_equip_unique_result,
-                can_dual_wield,
-                can_titan_grip,
-                is_two_hand_used,
-                proto_always_allow_dual_wield,
-                has_required_profession_skill: false,
-                profession_slot: None,
-                offhand_can_unequip_result: InventoryResult::Ok,
-                offhand_can_store_result: InventoryResult::Ok,
-                limit_category: limit_category.as_ref(),
-                equipped_items: &equipped_items,
-                stored_items: &stored_items,
+        let (is_stunned, is_charmed) = self
+            .canonical_player_snapshot_like_cpp(|player| {
+                (
+                    player.unit().has_unit_state(UnitState::STUNNED.bits()),
+                    player.unit().subsystems().control.is_charmed(),
+                )
             })
-            .result
+            .unwrap_or((false, false));
+        let is_in_progress_arena = self.represented_battleground_status_like_cpp == Some(3)
+            && self
+                .map_store()
+                .and_then(|store| store.get(u32::from(self.player_map_id_like_cpp())))
+                .is_some_and(|entry| entry.instance_type == wow_data::map::MAP_ARENA);
+
+        let offhand_item =
+            self.get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_OFFHAND);
+        let offhand_runtime = offhand_item
+            .as_ref()
+            .and_then(|item| item_objects.get(&item.guid));
+        let offhand_proto = offhand_item
+            .as_ref()
+            .and_then(|item| template_cache.get(&item.entry_id));
+        let offhand_can_unequip_result = self.can_unequip_inventory_item_at_like_cpp(
+            INVENTORY_SLOT_BAG_0,
+            EQUIPMENT_SLOT_OFFHAND,
+            false,
+            offhand_runtime,
+            offhand_proto,
+            offhand_item
+                .as_ref()
+                .is_some_and(|item| self.direct_item_contains_items(item.guid)),
+        );
+        let offhand_can_store_result = offhand_item
+            .as_ref()
+            .and_then(|_| {
+                self.plan_store_existing_inventory_item_like_cpp(
+                    INVENTORY_SLOT_BAG_0,
+                    EQUIPMENT_SLOT_OFFHAND,
+                )
+            })
+            .map_or(InventoryResult::Ok, |(result, _, _)| result);
+
+        let make_args = |can_equip_unique_result| CanEquipItemArgs {
+            slot: requested_slot,
+            proto: Some(&proto),
+            source_item: Some(runtime_item),
+            source_bop_trade_allowed_for_player: false,
+            swap,
+            not_loading,
+            is_stunned,
+            is_charmed,
+            is_in_combat,
+            is_in_progress_arena,
+            weapon_change_timer_active: false,
+            current_generic_spell_allows_equip: None,
+            current_channeled_spell_allows_equip: None,
+            heirloom_required_level_failed: false,
+            can_use_result,
+            can_equip_unique_result,
+            can_dual_wield,
+            can_titan_grip,
+            is_two_hand_used,
+            proto_always_allow_dual_wield,
+            has_required_profession_skill: false,
+            profession_slot: None,
+            offhand_can_unequip_result,
+            offhand_can_store_result,
+            limit_category: limit_category.as_ref(),
+            equipped_items: &equipped_items,
+            stored_items: &stored_items,
+        };
+
+        // C++ computes the unique-equip ignore slot from the selected equip
+        // destination. Run the already-ported selector once with a neutral
+        // unique result, then repeat with the exact CanEquipUniqueItem result.
+        let initial = player.can_equip_item(make_args(InventoryResult::Ok));
+        if initial.result != InventoryResult::Ok {
+            return initial;
+        }
+        let unique_result = self.represented_can_equip_unique_item_like_cpp(
+            entry_id,
+            runtime_item,
+            initial.unique_ignore_slot.unwrap_or(NULL_SLOT),
+        );
+        player.can_equip_item(make_args(unique_result))
     }
 
     fn represented_item_level_like_cpp(

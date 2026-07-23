@@ -137,7 +137,10 @@ impl ClientPacket for FarSight {
 
 // ── Bank (CMSG 0x3997 / 0x3996 / 0x34B4) ──────────────────────────
 
-/// C++ `WorldPackets::Bank::AutoBankItem`: `InvUpdate`, source bag and slot.
+/// Audited 3.4.3 C++ `WorldPackets::Bank::AutoBankItem`: `InvUpdate`, source
+/// bag and slot. Retail upstream added a `BankType` byte for account-bank
+/// support after this client build; consuming it here would shift real 3.4.3
+/// `Bag`/`Slot` payloads.
 #[derive(Debug, Clone)]
 pub struct AutoBankItem {
     pub inv_update: InvUpdate,
@@ -12783,7 +12786,7 @@ mod tests {
     }
 
     #[test]
-    fn auto_bank_item_reads_inv_bag_slot_like_cpp() {
+    fn auto_bank_item_reads_343_inv_bag_slot_without_retail_bank_type_like_cpp() {
         let mut pkt = WorldPacket::new_empty();
         pkt.write_bits(1, 2);
         pkt.flush_bits();
