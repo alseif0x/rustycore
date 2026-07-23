@@ -42,6 +42,8 @@ pub enum HotfixStatements {
     SEL_VEHICLE,
     /// C++ `HOTFIX_SEL_VEHICLE_SEAT`.
     SEL_VEHICLE_SEAT,
+    /// C++ `HOTFIX_SEL_POWER_TYPE`.
+    SEL_POWER_TYPE,
     /// `DB2Manager::LoadHotfixData`.
     SEL_HOTFIX_DATA,
     /// `DB2Manager::LoadHotfixBlob`.
@@ -101,6 +103,7 @@ impl HotfixStatements {
                 | Self::SEL_CREATURE_MODEL_DATA
                 | Self::SEL_VEHICLE
                 | Self::SEL_VEHICLE_SEAT
+                | Self::SEL_POWER_TYPE
                 | Self::SEL_PHASE
                 | Self::SEL_PHASE_X_PHASE_GROUP
                 | Self::SEL_UI_MAP_X_MAP_ART
@@ -194,6 +197,11 @@ impl StatementDef for HotfixStatements {
                 "CameraFacingChaseRate, CameraEnteringZoom, CameraSeatZoomMin, CameraSeatZoomMax, EnterAnimKitID, ",
                 "RideAnimKitID, ExitAnimKitID, VehicleEnterAnimKitID, VehicleRideAnimKitID, VehicleExitAnimKitID, ",
                 "CameraModeID FROM vehicle_seat WHERE VerifiedBuild > 0"
+            ),
+            Self::SEL_POWER_TYPE => concat!(
+                "SELECT ID, NameGlobalStringTag, CostGlobalStringTag, PowerTypeEnum, MinPower, ",
+                "MaxBasePower, CenterPower, DefaultPower, DisplayModifier, RegenInterruptTimeMS, ",
+                "RegenPeace, RegenCombat, Flags FROM power_type WHERE (`VerifiedBuild` > 0) = ?"
             ),
             Self::SEL_HOTFIX_DATA => {
                 "SELECT Id, UniqueId, TableHash, RecordId, Status FROM hotfix_data ORDER BY Id"
@@ -362,6 +370,7 @@ mod tests {
         assert!(!HotfixStatements::SEL_AREA_TABLE.is_control_table_like_cpp());
         assert!(HotfixStatements::SEL_AREA_TABLE.is_selected_overlay_like_cpp());
         assert!(HotfixStatements::SEL_VEHICLE_SEAT.is_selected_overlay_like_cpp());
+        assert!(HotfixStatements::SEL_POWER_TYPE.is_selected_overlay_like_cpp());
         assert!(HotfixStatements::SEL_SPELL_INTERRUPTS.is_selected_overlay_like_cpp());
         assert!(HotfixStatements::SEL_SPELL_NAME.is_selected_overlay_like_cpp());
         assert!(!HotfixStatements::SEL_HOTFIX_DATA.is_selected_overlay_like_cpp());
@@ -383,6 +392,18 @@ mod tests {
         assert_eq!(
             HotfixStatements::SEL_SPELL_NAME.sql(),
             "SELECT ID, Name FROM spell_name WHERE (`VerifiedBuild` > 0) = ?"
+        );
+    }
+
+    #[test]
+    fn power_type_overlay_statement_matches_cpp_columns() {
+        assert_eq!(
+            HotfixStatements::SEL_POWER_TYPE.sql(),
+            concat!(
+                "SELECT ID, NameGlobalStringTag, CostGlobalStringTag, PowerTypeEnum, MinPower, ",
+                "MaxBasePower, CenterPower, DefaultPower, DisplayModifier, RegenInterruptTimeMS, ",
+                "RegenPeace, RegenCombat, Flags FROM power_type WHERE (`VerifiedBuild` > 0) = ?"
+            )
         );
     }
 

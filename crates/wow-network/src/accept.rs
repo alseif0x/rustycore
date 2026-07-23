@@ -290,6 +290,7 @@ pub struct SessionResources {
     pub glyph_properties_store: Option<Arc<wow_data::GlyphPropertiesStore>>,
     pub chr_races_store: Option<Arc<wow_data::character_progression::ChrRacesStore>>,
     pub chr_classes_store: Option<Arc<wow_data::character_progression::ChrClassesStore>>,
+    pub power_type_store: Option<Arc<wow_data::character_progression::PowerTypeStore>>,
     pub spell_chain_store: Option<Arc<wow_data::SpellChainStoreLikeCpp>>,
     pub spell_store: Option<Arc<wow_data::SpellStore>>,
     pub spell_levels_store: Option<Arc<wow_data::SpellLevelsStore>>,

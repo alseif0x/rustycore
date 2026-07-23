@@ -63,7 +63,7 @@ use wow_core::{
     EquipmentSetGuidGeneratorLikeCpp, ObjectGuid, ObjectGuidGenerator, Position,
     VoidStorageItemIdGeneratorLikeCpp, guid::HighGuid,
 };
-use wow_data::character_progression::{ChrClassesStore, ChrRacesStore};
+use wow_data::character_progression::{ChrClassesStore, ChrRacesStore, PowerTypeStore};
 use wow_data::trait_tree::TraitDefinitionStore;
 use wow_data::{
     AccessRequirementStoreLikeCpp, AdventureMapPoiStore, AreaTableStore, AreaTriggerDb2Store,
@@ -5491,6 +5491,7 @@ pub struct WorldSession {
     spell_target_position_store: Option<Arc<SpellTargetPositionStoreLikeCpp>>,
     spell_totem_model_store: Option<Arc<SpellTotemModelStoreLikeCpp>>,
     chr_classes_store: Option<Arc<ChrClassesStore>>,
+    power_type_store: Option<Arc<PowerTypeStore>>,
     chr_races_store: Option<Arc<ChrRacesStore>>,
     cinematic_sequences_store: Option<Arc<CinematicSequencesStore>>,
     movie_store: Option<Arc<MovieStore>>,
@@ -6622,7 +6623,9 @@ pub(crate) struct CreatureCreateDisplaySelectionLikeCpp {
 pub(crate) struct CreatureCreateStatsLikeCpp {
     pub health: i64,
     pub max_health: i64,
-    pub power_mana: i32,
+    pub power_type: PowerType,
+    pub power: i32,
+    pub max_power: i32,
     pub base_mana: i32,
 }
 
@@ -7236,6 +7239,7 @@ impl WorldSession {
             spell_target_position_store: None,
             spell_totem_model_store: None,
             chr_classes_store: None,
+            power_type_store: None,
             chr_races_store: None,
             cinematic_sequences_store: None,
             movie_store: None,
@@ -11961,9 +11965,15 @@ impl WorldSession {
             creature
                 .unit_mut()
                 .set_hover_height_like_cpp(create_data.hover_height);
+            let power_type = power_type_from_u8_like_cpp(create_data.display_power);
+            // This legacy SQL path also becomes a typed canonical Creature. Keep
+            // its display-power index and create mana coherent with the CREATE
+            // arrays so later canonical reads and Unit power mutations address
+            // the same slot as C++ `Creature::UpdateLevelDependantStats`.
+            creature.set_power_type(power_type);
             creature
                 .unit_mut()
-                .set_display_power(power_type_from_u8_like_cpp(create_data.display_power));
+                .set_create_mana_like_cpp(create_data.base_mana);
             creature
                 .unit_mut()
                 .replace_create_power_arrays_like_cpp(create_data.power, create_data.max_power);
@@ -14959,6 +14969,7 @@ impl WorldSession {
                     rotation: state.rotation,
                     anim_progress: 255,
                     state: state_for_viewer as i8,
+                    art_kit: gameobject.data().art_kit,
                     created_by: state.owner_guid.unwrap_or(ObjectGuid::EMPTY),
                     faction_template: state.faction_template.unwrap_or(0) as i32,
                     gameobject_flags: state.gameobject_flags,
@@ -15040,6 +15051,7 @@ impl WorldSession {
             rotation: gameobject.local_rotation_like_cpp(),
             anim_progress: gameobject.go_anim_progress_like_cpp(),
             state: data.state,
+            art_kit: data.art_kit,
             created_by: data.created_by,
             faction_template: data.faction_template,
             gameobject_flags: data.flags,
@@ -24489,12 +24501,31 @@ impl WorldSession {
         db_cur_health: u32,
         db_cur_mana: u32,
     ) -> CreatureCreateStatsLikeCpp {
+        let power_type =
+            power_type_from_u8_like_cpp(self.creature_display_power_for_class_like_cpp(unit_class));
+        let db_cur_power = i32::try_from(db_cur_mana).unwrap_or(i32::MAX);
+        let fallback_power = if power_type == PowerType::Mana {
+            wow_data::character_progression::CreatureInitialPowerLikeCpp {
+                max_power: db_cur_power,
+                power: db_cur_power,
+            }
+        } else {
+            self.power_type_store.as_ref().map_or(
+                wow_data::character_progression::CreatureInitialPowerLikeCpp {
+                    max_power: 0,
+                    power: 0,
+                },
+                |store| store.creature_initial_power_like_cpp(power_type as i8, 0, 1.0),
+            )
+        };
         let Some(difficulty_store) = self.creature_difficulty_store_like_cpp.as_ref() else {
             let health = i64::from(db_cur_health.max(1));
             return CreatureCreateStatsLikeCpp {
                 health,
                 max_health: health,
-                power_mana: i32::try_from(db_cur_mana).unwrap_or(i32::MAX),
+                power_type,
+                power: fallback_power.power,
+                max_power: fallback_power.max_power,
                 base_mana: 0,
             };
         };
@@ -24503,7 +24534,9 @@ impl WorldSession {
             return CreatureCreateStatsLikeCpp {
                 health,
                 max_health: health,
-                power_mana: i32::try_from(db_cur_mana).unwrap_or(i32::MAX),
+                power_type,
+                power: fallback_power.power,
+                max_power: fallback_power.max_power,
                 base_mana: 0,
             };
         };
@@ -24525,16 +24558,41 @@ impl WorldSession {
         };
 
         let base_mana = i32::try_from(base_stats.base_mana).unwrap_or(i32::MAX);
-        let power_mana = if regen_health {
-            base_mana
-        } else {
+        let initial_power = self.power_type_store.as_ref().map_or_else(
+            || {
+                let max_power = if power_type == PowerType::Mana {
+                    i32::try_from(base_stats.generate_mana_like_cpp(difficulty)).unwrap_or(i32::MAX)
+                } else {
+                    0
+                };
+                wow_data::character_progression::CreatureInitialPowerLikeCpp {
+                    max_power,
+                    power: max_power,
+                }
+            },
+            |store| {
+                store.creature_initial_power_like_cpp(
+                    power_type as i8,
+                    base_mana,
+                    difficulty.mana_modifier,
+                )
+            },
+        );
+        // C++ `Creature::SetSpawnHealth` only applies the `curmana` column through
+        // `SetPower(POWER_MANA, ...)`. A Focus/Energy/Rage creature keeps the
+        // default/full power seeded by `UpdateLevelDependantStats`.
+        let power = if !regen_health && power_type == PowerType::Mana {
             i32::try_from(db_cur_mana).unwrap_or(i32::MAX)
+        } else {
+            initial_power.power
         };
 
         CreatureCreateStatsLikeCpp {
             health,
             max_health,
-            power_mana,
+            power_type,
+            power,
+            max_power: initial_power.max_power,
             base_mana,
         }
     }
@@ -25277,6 +25335,10 @@ impl WorldSession {
 
     pub fn set_chr_classes_store(&mut self, store: Arc<ChrClassesStore>) {
         self.chr_classes_store = Some(store);
+    }
+
+    pub fn set_power_type_store(&mut self, store: Arc<PowerTypeStore>) {
+        self.power_type_store = Some(store);
     }
 
     pub(crate) fn player_class_attack_power_coefficients_like_cpp(
@@ -83237,7 +83299,7 @@ mod tests {
                 rotation,
                 anim_progress: 33,
                 go_state: wow_entities::GoState::Ready,
-                art_kit: 0,
+                art_kit: 4,
                 dynamic: false,
                 spawn_id: 98_765,
                 template: wow_entities::GameObjectTemplateLifecycleRecord {
@@ -88108,6 +88170,10 @@ mod tests {
         assert_eq!(visible[0].rotation, rotation);
         assert_eq!(visible[0].anim_progress, 33);
         assert_eq!(visible[0].state, wow_entities::GoState::Ready as i8);
+        assert_eq!(
+            visible[0].art_kit, 4,
+            "canonical GameObjectData::ArtKit must reach later viewers' CREATE blocks"
+        );
         assert_eq!(visible[0].faction_template, 35);
         assert_eq!(visible[0].gameobject_flags, 0x24);
         assert_eq!(visible[0].scale, 1.75);
@@ -93905,32 +93971,98 @@ mod tests {
             ),
         ));
         session.set_creature_base_stats_store_like_cpp(Arc::new(
-            wow_data::CreatureBaseStatsStoreLikeCpp::from_records([(
-                5,
-                2,
-                wow_data::CreatureBaseStatsRecordLikeCpp {
-                    base_health: [100, 100, 100],
-                    base_mana: 600,
-                    base_armor: 0,
-                    attack_power: 0,
-                    ranged_attack_power: 0,
-                    base_damage: [0.0; 3],
-                },
-            )]),
+            wow_data::CreatureBaseStatsStoreLikeCpp::from_records([
+                (
+                    5,
+                    2,
+                    wow_data::CreatureBaseStatsRecordLikeCpp {
+                        base_health: [100, 100, 100],
+                        base_mana: 600,
+                        base_armor: 0,
+                        attack_power: 0,
+                        ranged_attack_power: 0,
+                        base_damage: [0.0; 3],
+                    },
+                ),
+                (
+                    5,
+                    3,
+                    wow_data::CreatureBaseStatsRecordLikeCpp {
+                        base_health: [100, 100, 100],
+                        base_mana: 600,
+                        base_armor: 0,
+                        attack_power: 0,
+                        ranged_attack_power: 0,
+                        base_damage: [0.0; 3],
+                    },
+                ),
+            ]),
         ));
+        session.set_chr_classes_store(Arc::new(ChrClassesStore::from_entries([
+            wow_data::character_progression::ChrClassesEntry {
+                id: 2,
+                display_power: PowerType::Mana as u8,
+                ..Default::default()
+            },
+            wow_data::character_progression::ChrClassesEntry {
+                id: 3,
+                display_power: PowerType::Focus as u8,
+                ..Default::default()
+            },
+        ])));
+        session.set_power_type_store(Arc::new(PowerTypeStore::from_entries([
+            wow_data::character_progression::PowerTypeEntry {
+                id: 800,
+                name_global_string_tag: String::new(),
+                cost_global_string_tag: String::new(),
+                power_type_enum: PowerType::Mana as i8,
+                min_power: 0,
+                max_base_power: 0,
+                center_power: 0,
+                default_power: 0,
+                display_modifier: 1,
+                regen_interrupt_time_ms: 0,
+                regen_peace: 0.0,
+                regen_combat: 0.0,
+                flags: 0x0080,
+            },
+            wow_data::character_progression::PowerTypeEntry {
+                id: 802,
+                name_global_string_tag: String::new(),
+                cost_global_string_tag: String::new(),
+                power_type_enum: PowerType::Focus as i8,
+                min_power: 0,
+                max_base_power: 100,
+                center_power: 0,
+                default_power: 25,
+                display_modifier: 1,
+                regen_interrupt_time_ms: 0,
+                regen_peace: 0.0,
+                regen_combat: 0.0,
+                flags: 0x0020 | 0x0080,
+            },
+        ])));
 
         let full = session.creature_create_stats_like_cpp(90_021, 5, 2, 0, true, 42, 77);
         assert_eq!(
-            full.power_mana, 600,
+            full.power, 600,
             "C++ SetFullPower(POWER_MANA) uses max/base mana when _regenerateHealth is true"
         );
 
         let from_spawn = session.creature_create_stats_like_cpp(90_021, 5, 2, 0, false, 42, 77);
         assert_eq!(
-            from_spawn.power_mana, 77,
+            from_spawn.power, 77,
             "C++ SetSpawnHealth copies CreatureData::curmana when _regenerateHealth is false"
         );
         assert_eq!(from_spawn.base_mana, 600);
+
+        let focus = session.creature_create_stats_like_cpp(90_021, 5, 3, 0, false, 42, 77);
+        assert_eq!(focus.power_type, PowerType::Focus);
+        assert_eq!(focus.max_power, 100);
+        assert_eq!(
+            focus.power, 25,
+            "C++ SetSpawnHealth writes curmana through POWER_MANA and leaves Focus at DB2 DefaultPower"
+        );
     }
 
     fn creature_template_lifecycle_store_for_test(
@@ -94707,8 +94839,11 @@ mod tests {
         create_data.bounding_radius = 0.91;
         create_data.combat_reach = 2.75;
         create_data.display_power = wow_constants::unit::PowerType::Energy as u8;
+        create_data.power[0] = 42;
+        create_data.max_power[0] = 100;
         create_data.power[3] = 42;
         create_data.max_power[3] = 100;
+        create_data.base_mana = 600;
         create_data.base_attack_time = 1_750;
         create_data.ranged_attack_time = 2_250;
         create_data.mount_display_id = 321;
@@ -94764,8 +94899,25 @@ mod tests {
         assert_eq!(reconstructed.bounding_radius, create_data.bounding_radius);
         assert_eq!(reconstructed.combat_reach, create_data.combat_reach);
         assert_eq!(reconstructed.display_power, create_data.display_power);
+        assert_eq!(reconstructed.power[0], create_data.power[0]);
+        assert_eq!(reconstructed.max_power[0], create_data.max_power[0]);
         assert_eq!(reconstructed.power[3], create_data.power[3]);
         assert_eq!(reconstructed.max_power[3], create_data.max_power[3]);
+        assert_eq!(reconstructed.base_mana, create_data.base_mana);
+        assert_eq!(
+            creature.get_power_index(wow_constants::unit::PowerType::Energy),
+            Some(0)
+        );
+        assert_eq!(
+            creature
+                .unit()
+                .get_power(wow_constants::unit::PowerType::Energy),
+            create_data.power[0]
+        );
+        assert_eq!(
+            creature.unit().get_create_mana_like_cpp(),
+            create_data.base_mana
+        );
         assert_eq!(reconstructed.base_attack_time, create_data.base_attack_time);
         assert_eq!(
             reconstructed.ranged_attack_time,

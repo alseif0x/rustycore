@@ -36,6 +36,7 @@ use wow_data::{
     CreatureDisplayInfoStore, CreatureEquipmentStoreLikeCpp, CreatureModelDataStore,
     CreatureModelInfoStoreLikeCpp, CreatureModelSelectionRandomLikeCpp,
     CreatureTemplateLifecycleModelLikeCpp, CreatureTemplateLifecycleStoreLikeCpp,
+    character_progression::{ChrClassesStore, PowerTypeStore},
 };
 use wow_entities::{
     Creature, CreatureAddToWorldVehicleResetContextLikeCpp, CreatureAddonLifecycleRecordLikeCpp,
@@ -304,6 +305,58 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
     ),
     CreatureLoadedGridResolveErrorLikeCpp,
 > {
+    build_loaded_grid_creature_inputs_with_power_stores_from_db_like_cpp(
+        spawn,
+        runtime_row,
+        template_store,
+        difficulty_store,
+        base_stats_store,
+        health_rates,
+        _display_store,
+        _model_store,
+        model_info_store,
+        equipment_store,
+        addon_store,
+        None,
+        None,
+        difficulty_id,
+        instance_id,
+        respawn_time,
+        add_to_map,
+        formation_info,
+        random,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn build_loaded_grid_creature_inputs_with_power_stores_from_db_like_cpp(
+    spawn: &wow_map::SpawnData,
+    runtime_row: &CreatureSpawnRuntimeRowLikeCpp,
+    template_store: &CreatureTemplateLifecycleStoreLikeCpp,
+    difficulty_store: &CreatureDifficultyStoreLikeCpp,
+    base_stats_store: &CreatureBaseStatsStoreLikeCpp,
+    health_rates: &CreatureClassificationHealthRatesLikeCpp,
+    _display_store: &CreatureDisplayInfoStore,
+    _model_store: &CreatureModelDataStore,
+    model_info_store: &CreatureModelInfoStoreLikeCpp,
+    equipment_store: Option<&CreatureEquipmentStoreLikeCpp>,
+    addon_store: &CreatureAddonStoreLikeCpp,
+    chr_classes_store: Option<&ChrClassesStore>,
+    power_type_store: Option<&PowerTypeStore>,
+    difficulty_id: u8,
+    instance_id: u32,
+    respawn_time: i64,
+    add_to_map: bool,
+    formation_info: Option<CreatureFormationInfoLikeCpp>,
+    random: &mut impl LoadedGridCreatureRandomSourceLikeCpp,
+) -> Result<
+    (
+        ResolvedCreatureTemplateLikeCpp,
+        ResolvedCreatureSpawnLikeCpp,
+        ResolvedCreatureRuntimeSelectionLikeCpp,
+    ),
+    CreatureLoadedGridResolveErrorLikeCpp,
+> {
     let template = template_store
         .get(spawn.id)
         .ok_or(CreatureLoadedGridResolveErrorLikeCpp::MissingTemplate { entry: spawn.id })?;
@@ -322,7 +375,34 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
     let health_rate = health_rates.modifier_for_classification_like_cpp(template.classification);
     let max_health =
         u64::from((base_stats.generate_health_like_cpp(difficulty) as f32 * health_rate) as u32);
-    let max_mana = i32::try_from(base_stats.generate_mana_like_cpp(difficulty)).unwrap_or(i32::MAX);
+    let base_mana = i32::try_from(base_stats.base_mana).unwrap_or(i32::MAX);
+    let display_power = chr_classes_store
+        .and_then(|store| store.get(u32::from(template.unit_class)))
+        .map(|entry| entry.display_power)
+        // C++ `Unit::CalculateDisplayPowerType` starts at POWER_MANA and only
+        // replaces it when `sChrClassesStore.LookupEntry(GetClass())` succeeds.
+        .unwrap_or(wow_constants::PowerType::Mana as u8);
+    let power_type = power_type_from_u8_like_cpp(display_power);
+    let initial_power = power_type_store.map_or_else(
+        || {
+            let max_power = if power_type == wow_constants::PowerType::Mana {
+                i32::try_from(base_stats.generate_mana_like_cpp(difficulty)).unwrap_or(i32::MAX)
+            } else {
+                0
+            };
+            wow_data::character_progression::CreatureInitialPowerLikeCpp {
+                max_power,
+                power: max_power,
+            }
+        },
+        |store| {
+            store.creature_initial_power_like_cpp(
+                power_type as i8,
+                base_mana,
+                difficulty.mana_modifier,
+            )
+        },
+    );
     // C++ `Creature::SetSpawnHealth`: flags5 `NO_HEALTH_REGEN` returns before reading
     // `_regenerateHealth` or DB `curhealth`/`curmana`, preserving the Create/UpdateLevel-
     // DependantStats current health/mana. Otherwise `_regenerateHealth` selects full spawned
@@ -333,8 +413,8 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
     );
     let no_health_regen =
         flags5.contains(wow_constants::creature::CreatureStaticFlags5::NO_HEALTH_REGEN);
-    let (health, mana) = if no_health_regen || template.regen_health {
-        (max_health, max_mana)
+    let (health, power) = if no_health_regen || template.regen_health {
+        (max_health, initial_power.power)
     } else {
         let health = if runtime_row.curhealth == 0 {
             0
@@ -343,7 +423,11 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
         };
         (
             health,
-            i32::try_from(runtime_row.curmana).unwrap_or(i32::MAX),
+            if power_type == wow_constants::PowerType::Mana {
+                i32::try_from(runtime_row.curmana).unwrap_or(i32::MAX)
+            } else {
+                initial_power.power
+            },
         )
     };
     let min_damage =
@@ -500,9 +584,10 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
         stats: CreatureLifecycleStats {
             max_health,
             health,
-            power_type: wow_constants::PowerType::Mana,
-            max_mana,
-            mana,
+            power_type,
+            base_mana,
+            max_power: initial_power.max_power,
+            power,
             min_damage,
             max_damage: min_damage * 1.5,
         },
@@ -514,6 +599,39 @@ pub fn build_loaded_grid_creature_inputs_from_db_like_cpp(
     };
 
     Ok((resolved_template, resolved_spawn, runtime_selection))
+}
+
+const fn power_type_from_u8_like_cpp(power: u8) -> wow_constants::PowerType {
+    use wow_constants::PowerType;
+
+    match power {
+        1 => PowerType::Rage,
+        2 => PowerType::Focus,
+        3 => PowerType::Energy,
+        4 => PowerType::Happiness,
+        5 => PowerType::Runes,
+        6 => PowerType::RunicPower,
+        7 => PowerType::SoulShards,
+        8 => PowerType::LunarPower,
+        9 => PowerType::HolyPower,
+        10 => PowerType::AlternatePower,
+        11 => PowerType::Maelstrom,
+        12 => PowerType::Chi,
+        13 => PowerType::Insanity,
+        14 => PowerType::ComboPoints,
+        15 => PowerType::DemonicFury,
+        16 => PowerType::ArcaneCharges,
+        17 => PowerType::Fury,
+        18 => PowerType::Pain,
+        19 => PowerType::Essence,
+        20 => PowerType::RuneBlood,
+        21 => PowerType::RuneFrost,
+        22 => PowerType::RuneUnholy,
+        23 => PowerType::AlternateQuest,
+        24 => PowerType::AlternateEncounter,
+        25 => PowerType::AlternateMount,
+        _ => PowerType::Mana,
+    }
 }
 
 fn movement_type_like_cpp(
@@ -806,8 +924,9 @@ mod tests {
                     max_health: 1_234,
                     health: 777,
                     power_type: PowerType::Mana,
-                    max_mana: 456,
-                    mana: 123,
+                    base_mana: 456,
+                    max_power: 456,
+                    power: 123,
                     min_damage: 12.0,
                     max_damage: 34.0,
                 },
@@ -1190,8 +1309,8 @@ mod tests {
         );
         assert_eq!(runtime.stats.max_health, 200);
         assert_eq!(runtime.stats.health, 200);
-        assert_eq!(runtime.stats.max_mana, 150);
-        assert_eq!(runtime.stats.mana, 150);
+        assert_eq!(runtime.stats.max_power, 150);
+        assert_eq!(runtime.stats.power, 150);
         assert_eq!(runtime.stats.min_damage, 20.0);
         assert_eq!(runtime.stats.max_damage, 30.0);
 
@@ -1219,6 +1338,56 @@ mod tests {
         assert_eq!(default_loot_template.skin_loot_id, 0);
         assert_eq!(default_loot_template.gold_min, 0);
         assert_eq!(default_loot_template.gold_max, 0);
+
+        let chr_classes_store =
+            ChrClassesStore::from_entries([wow_data::character_progression::ChrClassesEntry {
+                id: 1,
+                display_power: PowerType::Focus as u8,
+                ..Default::default()
+            }]);
+        let power_type_store =
+            PowerTypeStore::from_entries([wow_data::character_progression::PowerTypeEntry {
+                id: 7_777,
+                name_global_string_tag: String::new(),
+                cost_global_string_tag: String::new(),
+                power_type_enum: PowerType::Focus as i8,
+                min_power: 0,
+                max_base_power: 100,
+                center_power: 0,
+                default_power: 25,
+                display_modifier: 1,
+                regen_interrupt_time_ms: 0,
+                regen_peace: 0.0,
+                regen_combat: 0.0,
+                flags: 0x0020 | 0x0080,
+            }]);
+        let (_, _, focus_runtime) =
+            build_loaded_grid_creature_inputs_with_power_stores_from_db_like_cpp(
+                &spawn,
+                &runtime_row,
+                &db_backed_template_store(entry),
+                &db_backed_fallback_difficulty_store_with_loot(entry, static_flags, 0, 0, 0, 0),
+                &db_backed_base_stats_store(),
+                &CreatureClassificationHealthRatesLikeCpp::default(),
+                &display_store,
+                &model_store,
+                &model_info_store,
+                None,
+                &CreatureAddonStoreLikeCpp::default(),
+                Some(&chr_classes_store),
+                Some(&power_type_store),
+                2,
+                9,
+                123,
+                true,
+                None,
+                &mut random,
+            )
+            .expect("DB-backed builder should seed a non-mana C++ creature power");
+        assert_eq!(focus_runtime.stats.power_type, PowerType::Focus);
+        assert_eq!(focus_runtime.stats.base_mana, 50);
+        assert_eq!(focus_runtime.stats.max_power, 300);
+        assert_eq!(focus_runtime.stats.power, 25);
     }
 
     #[test]
@@ -1574,8 +1743,8 @@ mod tests {
 
         assert_eq!(runtime.stats.max_health, 400);
         assert_eq!(runtime.stats.health, 400);
-        assert_eq!(runtime.stats.max_mana, 150);
-        assert_eq!(runtime.stats.mana, 150);
+        assert_eq!(runtime.stats.max_power, 150);
+        assert_eq!(runtime.stats.power, 150);
     }
 
     #[test]
@@ -1638,11 +1807,11 @@ mod tests {
 
         assert_eq!(runtime.stats.max_health, 400);
         assert_eq!(runtime.stats.health, runtime.stats.max_health);
-        assert_eq!(runtime.stats.max_mana, 150);
-        assert_eq!(runtime.stats.mana, runtime.stats.max_mana);
+        assert_eq!(runtime.stats.max_power, 150);
+        assert_eq!(runtime.stats.power, runtime.stats.max_power);
         assert_ne!(runtime.stats.health, u64::from(runtime_row.curhealth) * 2);
         assert_ne!(
-            runtime.stats.mana,
+            runtime.stats.power,
             i32::try_from(runtime_row.curmana).unwrap()
         );
     }
@@ -1798,7 +1967,7 @@ mod tests {
             })
         );
         assert_eq!(runtime.stats.health, runtime.stats.max_health);
-        assert_eq!(runtime.stats.mana, runtime.stats.max_mana);
+        assert_eq!(runtime.stats.power, runtime.stats.max_power);
         assert_eq!(
             resolved_template.corpse_delay, DEFAULT_CORPSE_DELAY_SECS,
             "C++ Creature constructor keeps a 60-second corpse delay for DB spawns"
@@ -1939,8 +2108,8 @@ mod tests {
 
         assert_eq!(runtime.stats.max_health, 400);
         assert_eq!(runtime.stats.health, 0);
-        assert_eq!(runtime.stats.max_mana, 150);
-        assert_eq!(runtime.stats.mana, 33);
+        assert_eq!(runtime.stats.max_power, 150);
+        assert_eq!(runtime.stats.power, 33);
     }
 
     #[test]
@@ -2000,7 +2169,7 @@ mod tests {
         .expect("regen=false non-zero current health should min-clamp after scaling");
         assert_eq!(low_health_runtime.stats.max_health, 50);
         assert_eq!(low_health_runtime.stats.health, 1);
-        assert_eq!(low_health_runtime.stats.mana, 44);
+        assert_eq!(low_health_runtime.stats.power, 44);
 
         let scaled_health_row = CreatureSpawnRuntimeRowLikeCpp {
             curhealth: 80,
@@ -2030,7 +2199,7 @@ mod tests {
         .expect("regen=false current health should scale by classification health rate");
         assert_eq!(scaled_health_runtime.stats.max_health, 50);
         assert_eq!(scaled_health_runtime.stats.health, 20);
-        assert_eq!(scaled_health_runtime.stats.mana, 55);
+        assert_eq!(scaled_health_runtime.stats.power, 55);
     }
 
     #[test]
