@@ -1,6 +1,6 @@
 # World-load (login → enter world) C++/Rust parity audit
 
-> Status: **mixed. Phase A (1201–1211) was re-audited and dispositioned by issue #9; later phases remain candidate gaps.** Generated 2026-06-26 by a multi-agent audit of the world-entry flow against the C++ source of truth (`/home/server/woltk-trinity-legacy`) and a byte-level diff of full C++ vs Rust login packet captures. Each item cites the C++ ref and the Rust target; `#NEXT.R8.ENTITIES.12xx` ids are placeholders for when the item is picked up. Verify every claim against current C++/worktree before implementing — some may already be partially handled.
+> Status: **mixed. Phase A (1201–1211) was dispositioned by issue #9 and the cross-cutting CREATE-value slice (1212–1220) by issue #10; later phases remain candidate gaps.** Generated 2026-06-26 by a multi-agent audit of the world-entry flow against the C++ source of truth (`/home/server/woltk-trinity-legacy`) and a byte-level diff of full C++ vs Rust login packet captures. Each item cites the C++ ref and the Rust target; `#NEXT.R8.ENTITIES.12xx` ids are placeholders for when the item is picked up. Verify every claim against current C++/worktree before implementing — some may already be partially handled.
 
 Context: prompted after fixing the world-entry client crash (`#NEXT.R8.ENTITIES.1200`, MO_TRANSPORT `SpawnTrackingStateAnimID`/`Flags`). While bisecting that crash we saw a recurring pattern — packets omitted and UpdateFields shipped as `0` where C++ computes a value — so this catalogues the rest of the world-load flow. No new crash-risk items were found here; the cluster is functional/ordering parity work.
 
@@ -110,7 +110,22 @@ M1.3 exit.
 
 ## Cross-cutting — UpdateFields VALUE completeness (CREATE-block fields stubbed to 0/default)
 
-_Audited UpdateFields VALUE completeness in CREATE-block serializers (crates/wow-packet/src/packets/update.rs) against the C++ WriteCreate layouts (UpdateFields.cpp) and seeders (Creature::SelectLevel, Player::SetObjectScale, GameObject::Create, Unit::SetHealth/CalculateDisplayPowerType). The Rust field ORDER matches C++ well; the gaps are stubbed/wrong VALUES, the same pattern as the known AURASTATE/StateAnimID fixes. Highest-value findings: (1) PLAYER UnitData.AuraState is hardcoded 0 while C++ computes 0x00D00000 for a full-health player via the same logic already used for creatures — the creature fix was never applied to the player self-block; (2) DeathKnight player DisplayPower is written as 5 (Runes) instead of 6 (RunicPower) in power_type_for_class (update.rs:2553) while the creature path is correct; (3) player BoundingRadius is hardcoded 0.306 vs C++ DEFAULT_PLAYER_BOUNDING_RADIUS=0.389; (4) non-mana creatures (Focus/Energy) ship Power[0]=MaxPower[0]=0 because the seeder only uses base_mana, while C++ SetFullPower/SetPower seeds the display-power slot. GameObject gaps: ParentRotation hardcoded to identity (ignores gameobject_addon ParentRotation, esp. transports), ArtKit hardcoded 0, and one nearby-GO path defaults anim_progress to 0 instead of 255. One cosmetic player StatPosBuff=0 tooltip-breakdown gap. AttackRoundBaseTime, StateAnimID (player+creature), GO SpawnTrackingStateAnimID, MO_TRANSPORT Level/Flags, ModCastingSpeed/haste floats, VirtualItems, FactionTemplate, CurrentAreaID were checked and are correctly computed (not new gaps)._
+_The paragraph and entries below preserve the original 2026-06-26 findings. Issue #10
+re-contrasted all nine rows against current Rust and the exact C++ seed/write paths before
+changing code. The original audit was stale for five rows and over-stated static SQL ArtKit;
+the final dispositions are:_
+
+| Row | Issue #10 disposition |
+|---|---|
+| 1212 | Already fixed on the integration base: player `AuraState` is seeded through `health_aura_state_like_cpp`; focused coverage pins the full-health C++ mask. |
+| 1213 | Already fixed: Death Knights publish `RunicPower` (6), not `Runes` (5). |
+| 1214 | Already fixed: player `BoundingRadius` uses C++ `0.388999998569489`. |
+| 1215 | Fixed by `7e106e25`: production loads `PowerType.db2`, indexes it by `PowerTypeEnum`, applies `IsUsedByNPCs`/`UnitsUseDefaultPowerOnInit`, `ManaModifier` and C++ rounding, and seeds both canonical loaded-grid and legacy nearby creatures in their selected display-power slot. |
+| 1216 | The DB-backed create path was already fixed. Canonical per-spawn/runtime ParentRotation remains a bounded follow-up because the canonical entity does not yet own it. |
+| 1217 | Fixed by `7e106e25`: CREATE serialization carries canonical `GameObjectData::ArtKit`, including runtime `SetGoArtKit` changes. The target C++ initializes ordinary SQL `GameObjectData::artKit` to zero, so the DB-only paths intentionally remain zero. |
+| 1218 | Already fixed: the audited DB GameObject paths default missing `anim_progress` to 255. |
+| 1219 | No change required: the single display-power slot and zero non-applicable slots match C++. |
+| 1220 | Already fixed: positive/negative stat-buff arrays are propagated into player CREATE values. |
 
 ### #NEXT.R8.ENTITIES.1212 — PlayerCreateData UnitData.AuraState (player self + other players)  ·  🟠 functional
 - **Gap:** Player create block ships AuraState=0 while C++ ships 0x00D00000 for a full-health player. Identical class of bug to the already-fixed creature AURASTATE, but never applied to the player self-block or other-player blocks.
@@ -136,7 +151,13 @@ _Audited UpdateFields VALUE completeness in CREATE-block serializers (crates/wow
 - **Rust:** crates/wow-world/src/handlers/character.rs:6267-6276 only sets power[0]=creature_stats.power_mana and max_power[0]=creature_stats.base_mana; for a non-mana creature (e.g. unit_class 3 Hunter -> Focus) base_mana/power_mana are 0, so both ship as 0.
 - **Suggested fix:** In the creature seeder, when display_power != Mana set power[0]/max_power[0] to the C++ create power value (Focus/Energy full default, Rage/RunicPower 0) instead of base_mana.
 - **C++ values confirmed:** Creature::SelectLevel (Creature.cpp:1597-1608): for the display power, `SetPower(type, DefaultPower)` if PowerTypeFlags::UnitsUseDefaultPowerOnInit (=0x0020, DBCEnums.h:1796-1810) else `SetFullPower` (= GetCreatePowerValue = PowerTypeEntry->MaxBasePower for non-mana). The raw MaxBasePower goes on the wire (client applies DisplayModifier for display). Rust loads PowerType.db2 as `PowerTypeStore`/`PowerTypeEntry{max_base_power,default_power,flags}` (wow-data character_progression.rs:246-313,657-668) but it is NOT wired onto sessions in production (only chr_races + creature_model_data are; chr_classes_store is test-only) — so a fix would use the store-if-present + a faithful base-value fallback, like creature_display_power_for_class_like_cpp (session.rs:20406).
-- **Status — entangled with canonical creature instantiation (live-runtime track).** The login-visibility wire builds CreatureCreateData via `create_data_from_canonical_like_cpp` (map_manager.rs:1019), which reads the canonical Creature entity's `UnitData.power`/`max_power` — so the value must be set at canonical creature stat-init (the SelectLevel equivalent), which lives in the same multi-world-model creature path as 1222. The audit-cited `materialize_creature_spawn_row_like_cpp` (character.rs:5967-6276) is the SEPARATE legacy session nearby path (callers 6507/6838), so fixing only it would not correct the canonical login wire. A bounded slice could fix the legacy path now; full parity needs the canonical init. NOT attempted to avoid a big-bang into the canonical creature path.
+- **Status — fixed in issue #10.** `PowerTypeStore::creature_initial_power_like_cpp` mirrors
+  C++'s enum-keyed DB2 lookup, NPC/default flags, create-power choice, difficulty modifier and
+  `lroundf`. `world-server` injects the class/power stores into both the canonical loaded-grid
+  lifecycle and sessions; canonical `Creature` entities now keep `BaseMana` distinct from the
+  selected `Power[0]/MaxPower[0]`, while the legacy nearby path applies DB `curmana` only to
+  `POWER_MANA` like `SetSpawnHealth`. Focused tests cover Focus default power, full power,
+  rejected non-NPC power types, mana rounding and canonical CREATE projection.
 
 ### #NEXT.R8.ENTITIES.1216 — GameObjectCreateData GameObjectData.ParentRotation  ·  🟠 functional
 - **Gap:** GameObjects that have a gameobject_addon ParentRotation (e.g. transports, some doors/animated GOs) ship identity ParentRotation, mis-orienting the model and the path-rotation matrix the client builds (GameObject.cpp:301).
@@ -150,6 +171,12 @@ _Audited UpdateFields VALUE completeness in CREATE-block serializers (crates/wow
 - **C++:** GameObject::Create -> SetGoArtKit(artKit) (GameObject.cpp:1053), artKit from spawn/template; serialized at UpdateFields.cpp:4321.
 - **Rust:** crates/wow-packet/src/packets/update.rs:2914 writes ArtKit = literal 0 for all GameObjects; no art_kit field on GameObjectCreateData.
 - **Suggested fix:** Add art_kit to GameObjectCreateData sourced from gameobject spawn/template and write it at update.rs:2914 instead of 0.
+- **Status — fixed for the live source that exists in the target C++ model.** `GameObjectCreateData`
+  now serializes an explicit `art_kit`; both represented-state and canonical entity projections
+  copy `GameObjectData::ArtKit`, so runtime `SetGoArtKit` changes reach later viewers. Exact C++
+  contrast showed ordinary SQL `GameObjectData::artKit` is initialized to zero in this branch,
+  so DB-only and transport literals intentionally use zero rather than inventing a spawn value.
+  Packet and canonical-lifecycle regressions pin a distinctive non-zero value.
 
 ### #NEXT.R8.ENTITIES.1218 — GameObject PercentHealth (anim_progress) default in DB-spawn path  ·  🟡 cosmetic
 - **Gap:** In one nearby-GO path a missing anim_progress column defaults to 0 instead of 255, so destructible/transport-type GOs may render at 0% health/progress (empty bar) inconsistently with the other paths and C++.

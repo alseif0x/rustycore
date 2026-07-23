@@ -1,3 +1,24 @@
+# `#NEXT.R8.ENTITIES.1235` — issue #10 CREATE-block value audit (rows 1212–1220).
+
+C++ source-of-truth was re-checked in `Creature.cpp:1567-1608`,
+`Unit.cpp:5509-5597`, `StatSystem.cpp:89-99,315-330,878-945`,
+`DBCEnums.h:1796-1810`, `GameObject.cpp:951-1055,1859,1915-1930,2385-2402`,
+and the corresponding `UpdateFields.cpp` create writers. Five of the nine findings were already
+fixed on the integration base, the player slot-zero layout was correct, and the DB-backed
+ParentRotation path remains implemented with a bounded canonical ownership follow-up.
+
+Commit `7e106e25` closes the two live gaps. Creature stat initialization now loads and uses
+`ChrClasses` plus enum-keyed `PowerType` data, applies the C++ NPC/default flags, difficulty
+modifier and rounding, preserves `BaseMana`, and seeds the selected power slot in both canonical
+loaded-grid and legacy nearby paths. GameObject CREATE data now carries the canonical/runtime
+`ArtKit`; ordinary SQL paths stay at zero because this C++ branch initializes their art kit to
+zero. Focused positive/negative tests, full `wow-data` (579/0), `wow-entities` (665/0),
+`wow-packet` (712/0), `wow-world` (3066/0), `world-server` check, and the complete
+`capture-diff` suite pass. Four `world-server` tests fail identically on clean base `f80463d2`
+and are not attributed to this slice. Remaining boundaries are canonical per-spawn
+ParentRotation ownership, vehicle/pet display-power overrides, issues #11–#12, and the full
+original-client/login capture exit.
+
 # `#NEXT.R8.ENTITIES.1234` — issue #9 HandlePlayerLogin/before-add burst parity.
 
 C++ source-of-truth was re-checked in `CharacterHandler.cpp:1076-1205,1457-1490`,

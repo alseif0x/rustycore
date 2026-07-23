@@ -1,6 +1,6 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**Date:** 2026-07-23 · **Base:** `3.4.3` @ `da46a101` plus local issue #9 @ `6cdfaf35`.
+**Date:** 2026-07-23 · **Base:** `3.4.3` @ `f80463d2` plus local issue #10 implementation @ `7e106e25`.
 
 This document replaces the drifting status snapshots in `_INDEX.md` (2026-05-01, "5–15%"),
 the `MIGRATION_ROADMAP.md` §3 inherited table (which tells you not to trust it), and the
@@ -91,7 +91,7 @@ observable mutation · **ABSENT**.
 | Gossip menus + quest-giver status icons | WORKS | `handlers/quest.rs:1248`; gossip conditions evaluated |
 | Item enchant/gem/socket, durability repair, binding | **PARTIAL** | D-C1/D-C2 relog now reloads and serializes the exact persisted 13-slot enchant/random-property state, including the paired exact create-block proof. Broader gem/socket/durability/binding runtime parity remains unproven and belongs to later parity work; issue #52 is the separate move/equip/store validation closure. |
 | Bank / equipment-sets / void-storage persistence | **WORKS** | D-C3 is closed: PRs #103, #113 and #115 merged with required CI/review gates. Installed bank, equipment/transmog and void-storage relog QA passed; the committed equipment-set ACK and void-storage query captures are strict C++/Rust CLEAN. Issue #114's documented failure-only all-or-nothing divergence remains intentional and bounded to its stronger transaction contract. |
-| UpdateFields / CREATE-block serialization | WORKS | `wow-packet/src/packets/update.rs` (capture-diffed); minor value gaps in M1.4 |
+| UpdateFields / CREATE-block serialization | WORKS | `wow-packet/src/packets/update.rs`; issue #10 re-audited rows 1212–1220 and closed M1.4's bounded value gaps, including selected non-mana creature power and runtime GO ArtKit; canonical per-spawn ParentRotation remains in its documented architecture follow-up |
 | Rested XP / offline rest state (XP slice) | **PARTIAL (live)** | issue #81: live accrual, consumption, DB persistence/relog and `SMSG_LOG_XP_GAIN` are capture-clean under the reviewed runtime-counter comparator; full `RestMgr` ownership and rest-area wire remain open |
 
 #### 2026-07-18 bounded rested-XP evidence
@@ -193,7 +193,7 @@ byte-clean login capture.
 | # | Bug | Effect | Status |
 |---|---|---|---|
 | #13 | `CMSG_GAME_OBJ_USE` doesn't cast GO use-spell | **portals do nothing** | open |
-| #9–#12 | 33 login-burst divergences (`world-load-audit.md`) | ordering/value parity | #9 locally complete; #10–#12 open |
+| #9–#12 | 33 login-burst divergences (`world-load-audit.md`) | ordering/value parity | #9 merged; #10 implemented and locally validated; #11–#12 open |
 
 ---
 

@@ -1,3 +1,19 @@
+- `#NEXT.R8.ENTITIES.1235` — issue #10 re-audits the bounded CREATE-value rows 1212–1220
+  against C++ `Creature::UpdateLevelDependantStats`,
+  `Unit::CalculateDisplayPowerType`, `Creature::GetCreatePowerValue`,
+  `Creature::UpdateMaxPower`, `GameObject::Create`/`SetGoArtKit`, and the exact CREATE writers.
+  Rows 1212–1214, 1218 and 1220 were already fixed on the integration base; 1219 is correct
+  without a change; and 1216 retains only its documented canonical ParentRotation ownership
+  follow-up. Commit `7e106e25` loads and injects `PowerType.db2`, keys it by
+  `PowerTypeEnum`, applies C++ NPC/default flags, `ManaModifier` and rounding, keeps
+  `BaseMana` distinct, and seeds selected non-mana power in canonical loaded-grid plus legacy
+  nearby creatures. It also carries canonical/runtime GameObject `ArtKit` through CREATE
+  serialization while intentionally retaining C++'s zero SQL default. Focused regressions,
+  full `wow-data` (579/0), `wow-entities` (665/0), `wow-packet` (712/0), `wow-world`
+  (3066/0), `world-server` check, and the complete `capture-diff` suite pass. Four
+  `world-server` tests fail identically on base `f80463d2`; canonical ParentRotation,
+  vehicle/pet overrides, issues #11–#12 and the original-client/full-login exit remain.
+
 - `#NEXT.R8.ENTITIES.1234` — issue #9 re-audits and closes the bounded
   `HandlePlayerLogin` / `SendInitialPacketsBeforeAddToMap` rows 1201–1211 against C++
   `CharacterHandler.cpp:1076-1205,1457-1490`,
