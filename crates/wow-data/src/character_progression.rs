@@ -5,6 +5,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use tracing::info;
+use wow_database::{HotfixDatabase, HotfixStatements};
 
 use crate::wdc4::Wdc4Reader;
 
@@ -688,6 +689,64 @@ impl PowerTypeStore {
         })
     }
 
+    /// Apply C++ `DB2StorageBase::LoadFromDB` ordering for `PowerType.db2`:
+    /// official rows first, then custom rows. A SQL row replaces the client
+    /// record with the same DB2 ID before enum-keyed runtime lookup.
+    pub async fn load_with_hotfixes(
+        data_dir: &str,
+        locale: &str,
+        hotfix_db: &HotfixDatabase,
+    ) -> Result<Self> {
+        let mut store = Self::load(data_dir, locale)?;
+        let hotfix_rows = store.apply_hotfix_overlays_like_cpp(hotfix_db).await?;
+        if hotfix_rows != 0 {
+            info!("Loaded {hotfix_rows} PowerType hotfix rows");
+        }
+        Ok(store)
+    }
+
+    async fn apply_hotfix_overlays_like_cpp(&mut self, db: &HotfixDatabase) -> Result<usize> {
+        let mut count = 0usize;
+        for official in [true, false] {
+            let mut stmt = db.prepare(HotfixStatements::SEL_POWER_TYPE);
+            stmt.set_bool(0, official);
+            let mut result = db.query(&stmt).await?;
+            if result.is_empty() {
+                continue;
+            }
+
+            loop {
+                if let Some(id) = result.try_read::<u32>(0) {
+                    self.overlay_hotfix_row_like_cpp(PowerTypeEntry {
+                        id,
+                        name_global_string_tag: result.try_read(1).unwrap_or_default(),
+                        cost_global_string_tag: result.try_read(2).unwrap_or_default(),
+                        power_type_enum: result.try_read(3).unwrap_or_default(),
+                        min_power: result.try_read(4).unwrap_or_default(),
+                        max_base_power: result.try_read(5).unwrap_or_default(),
+                        center_power: result.try_read(6).unwrap_or_default(),
+                        default_power: result.try_read(7).unwrap_or_default(),
+                        display_modifier: result.try_read(8).unwrap_or_default(),
+                        regen_interrupt_time_ms: result.try_read(9).unwrap_or_default(),
+                        regen_peace: result.try_read(10).unwrap_or_default(),
+                        regen_combat: result.try_read(11).unwrap_or_default(),
+                        flags: result.try_read(12).unwrap_or_default(),
+                    });
+                    count += 1;
+                }
+
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+        Ok(count)
+    }
+
+    fn overlay_hotfix_row_like_cpp(&mut self, entry: PowerTypeEntry) {
+        self.entries.insert(entry.id, entry);
+    }
+
     /// C++ `DB2Manager::GetPowerTypeEntry(Powers)` indexes by
     /// `PowerTypeEntry::PowerTypeEnum`, not by the DB2 row ID.
     pub fn get_by_power_type_like_cpp(&self, power_type: i8) -> Option<&PowerTypeEntry> {
@@ -877,6 +936,22 @@ mod tests {
                 power: 0,
             },
             "Creature::GetCreatePowerValue rejects powers without IsUsedByNPCs"
+        );
+    }
+
+    #[test]
+    fn power_type_hotfix_row_replaces_db2_record_before_enum_lookup() {
+        let mut store = PowerTypeStore::from_entries([power_type_entry(700, 2, 100, 25, 0x0080)]);
+
+        store.overlay_hotfix_row_like_cpp(power_type_entry(700, 2, 175, 40, 0x0020 | 0x0080));
+
+        assert_eq!(
+            store.creature_initial_power_like_cpp(2, 999, 2.0),
+            CreatureInitialPowerLikeCpp {
+                max_power: 350,
+                power: 40,
+            },
+            "C++ hotfix overlays replace the DB2 row by ID before PowerTypeEnum lookup"
         );
     }
 

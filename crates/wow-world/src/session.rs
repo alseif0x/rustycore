@@ -11965,9 +11965,15 @@ impl WorldSession {
             creature
                 .unit_mut()
                 .set_hover_height_like_cpp(create_data.hover_height);
+            let power_type = power_type_from_u8_like_cpp(create_data.display_power);
+            // This legacy SQL path also becomes a typed canonical Creature. Keep
+            // its display-power index and create mana coherent with the CREATE
+            // arrays so later canonical reads and Unit power mutations address
+            // the same slot as C++ `Creature::UpdateLevelDependantStats`.
+            creature.set_power_type(power_type);
             creature
                 .unit_mut()
-                .set_display_power(power_type_from_u8_like_cpp(create_data.display_power));
+                .set_create_mana_like_cpp(create_data.base_mana);
             creature
                 .unit_mut()
                 .replace_create_power_arrays_like_cpp(create_data.power, create_data.max_power);
@@ -94833,8 +94839,11 @@ mod tests {
         create_data.bounding_radius = 0.91;
         create_data.combat_reach = 2.75;
         create_data.display_power = wow_constants::unit::PowerType::Energy as u8;
+        create_data.power[0] = 42;
+        create_data.max_power[0] = 100;
         create_data.power[3] = 42;
         create_data.max_power[3] = 100;
+        create_data.base_mana = 600;
         create_data.base_attack_time = 1_750;
         create_data.ranged_attack_time = 2_250;
         create_data.mount_display_id = 321;
@@ -94890,8 +94899,25 @@ mod tests {
         assert_eq!(reconstructed.bounding_radius, create_data.bounding_radius);
         assert_eq!(reconstructed.combat_reach, create_data.combat_reach);
         assert_eq!(reconstructed.display_power, create_data.display_power);
+        assert_eq!(reconstructed.power[0], create_data.power[0]);
+        assert_eq!(reconstructed.max_power[0], create_data.max_power[0]);
         assert_eq!(reconstructed.power[3], create_data.power[3]);
         assert_eq!(reconstructed.max_power[3], create_data.max_power[3]);
+        assert_eq!(reconstructed.base_mana, create_data.base_mana);
+        assert_eq!(
+            creature.get_power_index(wow_constants::unit::PowerType::Energy),
+            Some(0)
+        );
+        assert_eq!(
+            creature
+                .unit()
+                .get_power(wow_constants::unit::PowerType::Energy),
+            create_data.power[0]
+        );
+        assert_eq!(
+            creature.unit().get_create_mana_like_cpp(),
+            create_data.base_mana
+        );
         assert_eq!(reconstructed.base_attack_time, create_data.base_attack_time);
         assert_eq!(
             reconstructed.ranged_attack_time,

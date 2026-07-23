@@ -2105,11 +2105,14 @@ async fn main() -> Result<ExitCode> {
             .context("Failed to load ChrClasses.db2")?,
     );
     let power_type_store = Arc::new(
-        wow_data::character_progression::PowerTypeStore::load(&data_dir, &locale)
-            .context("Failed to load PowerType.db2")?,
+        wow_data::character_progression::PowerTypeStore::load_with_hotfixes(
+            &data_dir, &locale, &hotfix_db,
+        )
+        .await
+        .context("Failed to load PowerType.db2 / hotfix rows")?,
     );
     info!(
-        "Loaded {} class rows and {} power-type rows from DB2",
+        "Loaded {} class rows and {} effective power-type rows from DB2/hotfixes",
         chr_classes_store.len(),
         power_type_store.len()
     );
