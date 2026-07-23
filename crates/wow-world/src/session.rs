@@ -21203,6 +21203,16 @@ impl WorldSession {
         })
     }
 
+    pub(crate) fn canonical_player_parry_block_snapshot_like_cpp(&self) -> (bool, bool) {
+        self.canonical_player_snapshot_like_cpp(|player| {
+            (
+                player.unit().can_parry_like_cpp(),
+                player.unit().can_block_like_cpp(),
+            )
+        })
+        .unwrap_or((false, false))
+    }
+
     pub(crate) fn canonical_player_reputation_standings_snapshot_like_cpp(
         &self,
     ) -> Vec<(u32, i32)> {
@@ -25266,6 +25276,22 @@ impl WorldSession {
 
     pub fn set_chr_classes_store(&mut self, store: Arc<ChrClassesStore>) {
         self.chr_classes_store = Some(store);
+    }
+
+    pub(crate) fn player_class_attack_power_coefficients_like_cpp(
+        &self,
+        class: u8,
+    ) -> Option<(u8, u8, u8)> {
+        self.chr_classes_store
+            .as_ref()?
+            .get(u32::from(class))
+            .map(|entry| {
+                (
+                    entry.attack_power_per_strength,
+                    entry.attack_power_per_agility,
+                    entry.ranged_attack_power_per_agility,
+                )
+            })
     }
 
     pub fn set_chr_races_store(&mut self, store: Arc<ChrRacesStore>) {
@@ -29962,20 +29988,28 @@ impl WorldSession {
 
             info!(account = self.account_id, new_level, "Player leveled up");
 
-            // Send SMSG_LEVELUP_INFO — "Ding!" popup
-            // Stats deltas are loaded from player_levelstats in real impl;
-            // for now send 0 deltas (client will update from UpdateObject).
+            // C++ `Player::GiveLevel` computes these deltas from
+            // player_classlevelstats + player_racestats and GtBaseMP before
+            // updating the live player level.
+            let (base_mana_delta, stat_delta) = self
+                .level_up_stat_deltas_like_cpp(new_level)
+                .unwrap_or((0, [0; 5]));
+            let mut power_delta = [0i32; 10];
+            power_delta[0] = base_mana_delta;
+
+            // Send SMSG_LEVELUP_INFO — "Ding!" popup.
             // C++ registers SMSG_LEVEL_UP_INFO on CONNECTION_TYPE_REALM too.
             self.send_packet_realm(&LevelUpInfo {
                 level: new_level as i32,
                 health_delta: 0,
-                power_delta: [0i32; 10],
-                stat_delta: [0i32; 5],
+                power_delta,
+                stat_delta,
                 num_new_talents: 0,
             });
 
             self.set_player_level_like_cpp(new_level);
             self.refresh_next_level_xp();
+            self.send_level_up_stat_update_like_cpp();
         }
 
         self.sync_represented_xp_level_to_canonical_and_client_like_cpp(
