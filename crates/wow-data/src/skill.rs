@@ -2017,6 +2017,74 @@ mod tests {
     }
 
     #[test]
+    fn live_hunter_starting_skill_rewards_match_cpp_capture() {
+        let Some(store) = load_store() else {
+            return;
+        };
+        let spell_names =
+            crate::SpellNameStore::load(DATA_DIR, LOCALE).expect("failed to load SpellNameStore");
+        let spell_levels = crate::SpellLevelsStore::load(DATA_DIR, LOCALE)
+            .expect("failed to load SpellLevelsStore");
+        let mut learned = Vec::new();
+
+        for (skill_id, skill_value) in [
+            (45, 1),
+            (51, 15),
+            (95, 300),
+            (109, 300),
+            (137, 300),
+            (162, 1),
+            (163, 15),
+            (172, 1),
+            (173, 1),
+            (183, 15),
+            (414, 1),
+            (415, 1),
+            (756, 15),
+            (777, 1),
+        ] {
+            learned.extend(
+                store
+                    .skill_rewarded_spell_changes_like_cpp(
+                        skill_id,
+                        skill_value,
+                        10,
+                        3,
+                        3,
+                        |spell_id| {
+                            let spell_id = u32::try_from(spell_id).ok()?;
+                            spell_names.get(spell_id)?;
+                            spell_levels
+                                .entry_for_spell_difficulty_like_cpp(spell_id, 0)
+                                .map(|entry| {
+                                    (
+                                        u32::try_from(entry.base_level).unwrap_or(0),
+                                        u32::try_from(entry.spell_level).unwrap_or(0),
+                                    )
+                                })
+                                .or(Some((0, 0)))
+                        },
+                        |_| false,
+                    )
+                    .learn,
+            );
+        }
+
+        learned.sort_unstable();
+        learned.dedup();
+        assert_eq!(
+            learned,
+            vec![
+                75, 81, 197, 203, 204, 264, 522, 669, 813, 822, 1180, 2382, 2973, 3050, 3365, 6233,
+                6246, 6247, 6477, 6478, 6603, 7266, 7267, 7355, 8386, 9077, 9078, 9125, 13358,
+                21651, 21652, 22027, 22810, 24949, 28730, 28877, 34082, 45927, 61437, 63644, 63645,
+                68398, 349794,
+            ],
+            "C++ Player::LearnSkillRewardedSpells trace for TESTBOT1 guid 14"
+        );
+    }
+
+    #[test]
     fn test_matches_race() {
         assert!(matches_race(0, 1)); // mask=0 matches all
         assert!(matches_race(0, 5));
@@ -2043,18 +2111,25 @@ mod tests {
         }
         let sla = Wdc4Reader::open(&sla_path).unwrap();
 
-        // Record 320: Smite (spell=585) for Priest (skill_line=56)
-        if let Some(idx) = sla.get_record_index(320) {
-            assert_eq!(
-                sla.get_field_i32(idx, 2),
-                56,
-                "field[2] should be skill_line 56"
-            );
-            assert_eq!(
-                sla.get_field_i32(idx, 3),
-                585,
-                "field[3] should be spell 585"
-            );
-        }
+        // Record 246: one-handed axes (spell=264) for skill line 45.
+        // This DB2 has no external ID list: C++ reads its inline field[1].
+        let idx = sla
+            .get_record_index(246)
+            .expect("inline SkillLineAbility ID 246 must be indexed");
+        assert_eq!(
+            sla.get_field_u32(idx, 1),
+            246,
+            "field[1] should be the inline record ID"
+        );
+        assert_eq!(
+            sla.get_field_i32(idx, 2),
+            45,
+            "field[2] should be skill_line 45"
+        );
+        assert_eq!(
+            sla.get_field_i32(idx, 3),
+            264,
+            "field[3] should be spell 264"
+        );
     }
 }
