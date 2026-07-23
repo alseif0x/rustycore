@@ -990,6 +990,9 @@ impl SkillStore {
                     SKILL_CATEGORY_SECONDARY_LIKE_CPP | SKILL_CATEGORY_PROFESSION_LIKE_CPP
                 )
             })
+            // Pinned 3.4.3 C++ `Player::_LoadSkills` computes both secondary
+            // and profession steps as `max / 75`. It does not reverse-map
+            // custom `SkillTiersEntry::Value` rows on this load path.
             .map(|_| max_rank / 75)
             .unwrap_or(0);
 
@@ -1575,6 +1578,56 @@ mod tests {
                 perm_bonus: 0,
             })
         );
+    }
+
+    #[test]
+    fn loaded_profession_step_uses_cpp_max_div_75_even_for_nonstandard_tier() {
+        let store = SkillStore::from_skill_line_abilities_and_race_class_like_cpp(
+            std::iter::empty(),
+            [race_class_info(1, 301, 0, 0, 0, 12)],
+        );
+        let skill_lines =
+            SkillLineStore::from_entries([skill_line(301, SKILL_CATEGORY_PROFESSION_LIKE_CPP)]);
+        let tiers = SkillTiersStoreLikeCpp::from_rows_like_cpp([skill_tier_row(
+            12,
+            [73, 181, 400, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        )]);
+
+        let loaded = store
+            .loaded_skill_info_like_cpp(301, 1, 1, 80, 12, 400, &skill_lines, &tiers)
+            .expect("the persisted profession is valid for this race/class");
+
+        assert_eq!(
+            loaded.step, 5,
+            "pinned C++ _LoadSkills uses max / 75, not the matching custom tier index"
+        );
+    }
+
+    #[test]
+    fn loaded_zero_value_skill_is_retained_for_cpp_default_reactivation() {
+        let store = SkillStore::from_skill_line_abilities_and_race_class_like_cpp(
+            std::iter::empty(),
+            [race_class_info(1, 301, 0, 0, 0, 0)],
+        );
+        let skill_lines =
+            SkillLineStore::from_entries([skill_line(301, SKILL_CATEGORY_PROFESSION_LIKE_CPP)]);
+
+        let loaded = store
+            .loaded_skill_info_like_cpp(
+                301,
+                1,
+                1,
+                80,
+                0,
+                400,
+                &skill_lines,
+                &SkillTiersStoreLikeCpp::default(),
+            )
+            .expect("C++ _LoadSkills keeps the zero-valued status/update-field entry");
+
+        assert_eq!(loaded.rank, 0);
+        assert_eq!(loaded.max_rank, 400);
+        assert_eq!(loaded.step, 5);
     }
 
     #[test]

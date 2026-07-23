@@ -2292,6 +2292,53 @@ fn apply_skill_rewarded_spell_changes_to_login_like_cpp(
     }
 }
 
+const SKILL_UNARMED_LIKE_CPP: u16 = 162;
+const SKILL_FIST_WEAPONS_LIKE_CPP: u16 = 473;
+
+/// Pinned 3.4.3 C++ `Player::_LoadSkills` final Fist Weapons fixup.
+///
+/// `HasSkill(SKILL_FIST_WEAPONS)` is false for a zero-rank loaded row, so only
+/// an active persisted Fist Weapons skill is synchronized. `SetSkill` removes
+/// it when Unarmed is absent/zero; otherwise it copies the current Unarmed
+/// value and the level-dependent maximum.
+fn sync_loaded_fist_weapons_with_unarmed_like_cpp(
+    skill_records: &mut HashMap<u16, crate::session::RepresentedPlayerSkillLikeCpp>,
+    skill_info_by_id: &mut BTreeMap<u16, wow_data::SkillInfoEntry>,
+    level: u8,
+) {
+    let Some(mut fist_weapons) = skill_info_by_id
+        .get(&SKILL_FIST_WEAPONS_LIKE_CPP)
+        .copied()
+        .filter(|entry| entry.rank > 0)
+    else {
+        return;
+    };
+
+    let unarmed_rank = skill_info_by_id
+        .get(&SKILL_UNARMED_LIKE_CPP)
+        .map(|entry| entry.rank)
+        .unwrap_or(0);
+    fist_weapons.step = 0;
+    fist_weapons.rank = unarmed_rank;
+    fist_weapons.max_rank = if unarmed_rank == 0 {
+        0
+    } else {
+        u16::from(level).saturating_mul(5)
+    };
+    fist_weapons.temp_bonus = 0;
+    fist_weapons.perm_bonus = 0;
+    skill_info_by_id.insert(SKILL_FIST_WEAPONS_LIKE_CPP, fist_weapons);
+
+    if unarmed_rank == 0 {
+        // C++ `SetSkill(..., newVal = 0, ...)` marks the persisted skill
+        // deleted while leaving its cleared initial update-field slot.
+        skill_records.remove(&SKILL_FIST_WEAPONS_LIKE_CPP);
+    } else if let Some(skill_record) = skill_records.get_mut(&SKILL_FIST_WEAPONS_LIKE_CPP) {
+        skill_record.value = fist_weapons.rank;
+        skill_record.max = fist_weapons.max_rank;
+    }
+}
+
 pub(crate) fn favorite_known_spells_for_send_like_cpp(
     known_spells: &[i32],
     favorite_spells: &HashSet<i32>,
@@ -6535,10 +6582,19 @@ impl WorldSession {
                 };
                 skill_record.value = entry.rank;
                 skill_record.max = entry.max_rank;
+                // Pinned 3.4.3 C++ `_LoadSkills` also inserts a status and
+                // initial update-field slot when the persisted value is zero.
+                // `HasSkill` then remains false, allowing the later
+                // `LearnDefaultSkills` pass to reactivate a default skill.
                 normalized_records.insert(skill_record.skill_id, skill_record);
                 skill_info_by_id.insert(entry.skill_id, entry);
             }
             skill_records = normalized_records;
+            sync_loaded_fist_weapons_with_unarmed_like_cpp(
+                &mut skill_records,
+                &mut skill_info_by_id,
+                level,
+            );
         }
 
         if loaded_skill_records_like_cpp {
@@ -19290,6 +19346,106 @@ mod tests {
             EquipmentSetGuidGeneratorLikeCpp::new(1),
         ));
         (session, send_rx)
+    }
+
+    #[test]
+    fn loaded_fist_weapons_mirrors_unarmed_after_all_skill_rows_like_cpp() {
+        fn skill_info(skill_id: u16, rank: u16, max_rank: u16) -> wow_data::SkillInfoEntry {
+            wow_data::SkillInfoEntry {
+                skill_id,
+                step: 0,
+                rank,
+                starting_rank: 1,
+                max_rank,
+                temp_bonus: 0,
+                perm_bonus: 0,
+            }
+        }
+
+        let mut records = HashMap::from([
+            (
+                SKILL_UNARMED_LIKE_CPP,
+                crate::session::RepresentedPlayerSkillLikeCpp {
+                    skill_id: SKILL_UNARMED_LIKE_CPP,
+                    value: 37,
+                    max: 400,
+                    profession_slot: -1,
+                },
+            ),
+            (
+                SKILL_FIST_WEAPONS_LIKE_CPP,
+                crate::session::RepresentedPlayerSkillLikeCpp {
+                    skill_id: SKILL_FIST_WEAPONS_LIKE_CPP,
+                    value: 12,
+                    max: 400,
+                    profession_slot: -1,
+                },
+            ),
+        ]);
+        let mut skill_info_by_id = BTreeMap::from([
+            (
+                SKILL_UNARMED_LIKE_CPP,
+                skill_info(SKILL_UNARMED_LIKE_CPP, 37, 400),
+            ),
+            (
+                SKILL_FIST_WEAPONS_LIKE_CPP,
+                skill_info(SKILL_FIST_WEAPONS_LIKE_CPP, 12, 400),
+            ),
+        ]);
+
+        sync_loaded_fist_weapons_with_unarmed_like_cpp(&mut records, &mut skill_info_by_id, 80);
+
+        assert_eq!(
+            skill_info_by_id
+                .get(&SKILL_FIST_WEAPONS_LIKE_CPP)
+                .expect("loaded Fist Weapons slot")
+                .rank,
+            37
+        );
+        assert_eq!(
+            records
+                .get(&SKILL_FIST_WEAPONS_LIKE_CPP)
+                .expect("active persisted Fist Weapons")
+                .value,
+            37
+        );
+    }
+
+    #[test]
+    fn loaded_fist_weapons_without_unarmed_is_cleared_like_cpp_set_skill_zero() {
+        let mut records = HashMap::from([(
+            SKILL_FIST_WEAPONS_LIKE_CPP,
+            crate::session::RepresentedPlayerSkillLikeCpp {
+                skill_id: SKILL_FIST_WEAPONS_LIKE_CPP,
+                value: 12,
+                max: 400,
+                profession_slot: -1,
+            },
+        )]);
+        let mut skill_info_by_id = BTreeMap::from([(
+            SKILL_FIST_WEAPONS_LIKE_CPP,
+            wow_data::SkillInfoEntry {
+                skill_id: SKILL_FIST_WEAPONS_LIKE_CPP,
+                step: 0,
+                rank: 12,
+                starting_rank: 1,
+                max_rank: 400,
+                temp_bonus: 0,
+                perm_bonus: 0,
+            },
+        )]);
+
+        sync_loaded_fist_weapons_with_unarmed_like_cpp(&mut records, &mut skill_info_by_id, 80);
+
+        assert!(
+            !records.contains_key(&SKILL_FIST_WEAPONS_LIKE_CPP),
+            "C++ marks the persisted skill deleted"
+        );
+        let cleared = skill_info_by_id
+            .get(&SKILL_FIST_WEAPONS_LIKE_CPP)
+            .expect("C++ retains the cleared initial update-field slot");
+        assert_eq!(cleared.rank, 0);
+        assert_eq!(cleared.max_rank, 0);
     }
 
     #[test]
