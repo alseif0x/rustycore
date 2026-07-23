@@ -251,6 +251,9 @@ impl WorldSession {
         }
 
         if mover_is_player {
+            self.set_player_transport_guid_like_cpp(
+                info.transport.as_ref().map(|transport| transport.guid),
+            );
             self.apply_movement_side_effects_like_cpp(opcode, &info);
         } else if matches!(
             opcode,
@@ -2669,6 +2672,7 @@ mod tests {
             realm_send_tx: send_tx.clone(),
             send_tx,
             command_tx,
+            visibility_refresh_pending_like_cpp: Default::default(),
             durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),
             pass_on_group_loot: false,

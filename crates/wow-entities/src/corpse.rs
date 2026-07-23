@@ -13,6 +13,7 @@ pub const CORPSE_BONES_EXPIRE_SECS: i64 = 60 * 60;
 pub const CORPSE_RESURRECTABLE_EXPIRE_SECS: i64 = 3 * 24 * 60 * 60;
 
 pub const CORPSE_DATA_PARENT_BIT: usize = 0;
+pub const CORPSE_DATA_CUSTOMIZATIONS_BIT: usize = 1;
 pub const CORPSE_DATA_DYNAMIC_FLAGS_BIT: usize = 2;
 pub const CORPSE_DATA_OWNER_BIT: usize = 3;
 pub const CORPSE_DATA_PARTY_GUID_BIT: usize = 4;
@@ -36,8 +37,15 @@ pub enum CorpseType {
     ResurrectablePvp = 2,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CorpseCustomizationChoice {
+    pub option_id: u32,
+    pub choice_id: u32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct CorpseDataValues {
+    pub customizations: Vec<CorpseCustomizationChoice>,
     pub dynamic_flags: u32,
     pub owner: ObjectGuid,
     pub party_guid: ObjectGuid,
@@ -54,6 +62,7 @@ pub struct CorpseDataValues {
 impl Default for CorpseDataValues {
     fn default() -> Self {
         Self {
+            customizations: Vec::new(),
             dynamic_flags: 0,
             owner: ObjectGuid::EMPTY,
             party_guid: ObjectGuid::EMPTY,
@@ -204,6 +213,17 @@ impl Corpse {
         self.replace_all_corpse_dynamic_flags(self.data.dynamic_flags | flag);
     }
 
+    /// Replace the C++ `CorpseData::Customizations` dynamic field.
+    ///
+    /// `Map::LoadCorpseData` uses this after loading all
+    /// `corpse_customizations` rows for one corpse.
+    pub fn set_customizations(&mut self, customizations: Vec<CorpseCustomizationChoice>) {
+        if self.data.customizations != customizations {
+            self.data.customizations = customizations;
+            self.mark_corpse_data(CORPSE_DATA_CUSTOMIZATIONS_BIT);
+        }
+    }
+
     pub fn remove_corpse_dynamic_flag(&mut self, flag: u32) {
         self.replace_all_corpse_dynamic_flags(self.data.dynamic_flags & !flag);
     }
@@ -294,7 +314,7 @@ impl Corpse {
                 .is_any_set()
                 .then(|| CorpseDataUpdate {
                     mask: self.corpse_data_changes.clone(),
-                    values: self.data,
+                    values: self.data.clone(),
                 }),
         }
     }
@@ -413,6 +433,10 @@ mod tests {
         let guild = ObjectGuid::new(5, 6);
 
         corpse.set_owner_guid(owner);
+        corpse.set_customizations(vec![CorpseCustomizationChoice {
+            option_id: 12,
+            choice_id: 34,
+        }]);
         corpse.set_party_guid(party);
         corpse.set_guild_guid(guild);
         corpse.set_display_id(1234);
@@ -425,6 +449,13 @@ mod tests {
         corpse.set_item(3, 777);
 
         assert_eq!(corpse.data().owner, owner);
+        assert_eq!(
+            corpse.data().customizations,
+            vec![CorpseCustomizationChoice {
+                option_id: 12,
+                choice_id: 34,
+            }]
+        );
         assert_eq!(corpse.data().party_guid, party);
         assert_eq!(corpse.data().guild_guid, guild);
         assert_eq!(corpse.data().display_id, 1234);
@@ -444,6 +475,11 @@ mod tests {
             corpse
                 .corpse_data_changes_mask()
                 .is_set(CORPSE_DATA_OWNER_BIT)
+        );
+        assert!(
+            corpse
+                .corpse_data_changes_mask()
+                .is_set(CORPSE_DATA_CUSTOMIZATIONS_BIT)
         );
         assert!(
             corpse

@@ -1,3 +1,32 @@
+# `#NEXT.R8.ENTITIES.1236` — issue #11 world-object visibility coverage and rules.
+
+C++ source-of-truth was re-checked in `Map.cpp:428-494,1927-1957`,
+`Player.cpp:23337-23365,23592+`, `Object.cpp:1100-1120`, the Corpse/SceneObject/Conversation
+constructors and `UpdateFields.cpp` CREATE writers. The normal visibility diff now covers the
+same eight instantiated classes as C++: Player, Creature, Corpse, GameObject, DynamicObject,
+AreaTrigger, SceneObject and Conversation. Player entry/exit uses receiver-side visibility
+refreshes so CREATE/out-of-range delivery and `client_visible_guids_like_cpp` remain symmetric;
+the cross-session pending bit is durable/coalesced when the bounded command queue is full;
+canonical player phase and exact 2D distance with both combat reaches are applied.
+Corpse CREATE/VALUES now retain the C++ `CorpseData::Customizations` dynamic field, and
+Conversation CREATE resolves per-line and final timing through the receiver's
+`GetSessionDbLocaleIndex()` equivalent. The login bridge executes the three
+`Map::LoadCorpseData` character queries once per canonical map, registers every persisted corpse
+without forcing unloaded grids into world, and activates/deactivates those typed records with
+their grid like C++ `ObjectWorldLoader`.
+
+The old 1222/1225 diagnosis was stale: the production login-grid resolver already loads adjacent
+visibility NGrids and materializes typed records. Row 1224 was also a false login premise:
+although `Map::AddPlayerToMap` schedules a notifier, C++ immediately forces
+`UpdateVisibilityForPlayer()` at the start of `SendInitialPacketsAfterAddToMap`, which Rust keeps.
+Transport login now restores and follows the current transport GUID, excludes the player's own
+transport, phase-gates candidates and records emitted transports. Focused mixed-class, wire,
+phase, range, symmetric player, transport, corpse-load/customization and conversation-locale
+regressions pass; full `wow-map` (688/0), `wow-data` (580/0), `wow-entities` (665/0),
+`wow-network` (104/0), `wow-packet` (715/0), `wow-world` (3075/0), `world-server` check and the complete committed
+`capture-diff` test gate are clean. This is represented-partial until an active-MO-transport paired capture,
+installed/original-client QA, CI, current-HEAD Codex verdict and merge complete.
+
 # `#NEXT.R8.ENTITIES.1235` — issue #10 CREATE-block value audit (rows 1212–1220).
 
 C++ source-of-truth was re-checked in `Creature.cpp:1567-1608`,

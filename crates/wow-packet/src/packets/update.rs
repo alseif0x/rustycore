@@ -3132,6 +3132,142 @@ impl DynamicObjectCreateData {
     }
 }
 
+/// Data needed to build a Corpse CREATE block.
+///
+/// C++ `Corpse::BuildValuesCreate` writes `ObjectData` followed by
+/// `CorpseData`; corpses use only the Stationary movement-create flag.
+#[derive(Debug, Clone)]
+pub struct CorpseCreateData {
+    pub guid: ObjectGuid,
+    pub entry_id: u32,
+    pub object_dynamic_flags: u32,
+    pub scale: f32,
+    pub position: Position,
+    pub corpse_dynamic_flags: u32,
+    pub owner: ObjectGuid,
+    pub party_guid: ObjectGuid,
+    pub guild_guid: ObjectGuid,
+    pub display_id: u32,
+    pub items: [u32; 19],
+    pub race_id: u8,
+    pub sex: u8,
+    pub class: u8,
+    pub customizations: Vec<ChrCustomizationChoiceValuesUpdate>,
+    pub flags: u32,
+    pub faction_template: i32,
+}
+
+impl CorpseCreateData {
+    fn write_values_create(&self, pkt: &mut WorldPacket) {
+        let mut buf = WorldPacket::new_empty();
+        buf.write_uint8(0); // UpdateFieldFlag::None
+        write_object_data_create_like_cpp(
+            &mut buf,
+            self.entry_id,
+            self.object_dynamic_flags,
+            self.scale,
+        );
+
+        buf.write_uint32(self.corpse_dynamic_flags);
+        buf.write_packed_guid(&self.owner);
+        buf.write_packed_guid(&self.party_guid);
+        buf.write_packed_guid(&self.guild_guid);
+        buf.write_uint32(self.display_id);
+        for item in self.items {
+            buf.write_uint32(item);
+        }
+        buf.write_uint8(self.race_id);
+        buf.write_uint8(self.sex);
+        buf.write_uint8(self.class);
+        buf.write_uint32(self.customizations.len() as u32);
+        buf.write_uint32(self.flags);
+        buf.write_int32(self.faction_template);
+        for customization in &self.customizations {
+            write_chr_customization_choice_values_update(&mut buf, customization);
+        }
+
+        let data = buf.into_data();
+        pkt.write_uint32(data.len() as u32);
+        pkt.write_bytes(&data);
+    }
+}
+
+/// Data needed to build a SceneObject CREATE block.
+#[derive(Debug, Clone)]
+pub struct SceneObjectCreateData {
+    pub guid: ObjectGuid,
+    pub entry_id: u32,
+    pub dynamic_flags: u32,
+    pub scale: f32,
+    pub position: Position,
+    pub script_package_id: i32,
+    pub rnd_seed_val: u32,
+    pub created_by: ObjectGuid,
+    pub scene_type: u32,
+}
+
+impl SceneObjectCreateData {
+    fn write_values_create(&self, pkt: &mut WorldPacket) {
+        let mut buf = WorldPacket::new_empty();
+        buf.write_uint8(0); // UpdateFieldFlag::None
+        write_object_data_create_like_cpp(&mut buf, self.entry_id, self.dynamic_flags, self.scale);
+        buf.write_int32(self.script_package_id);
+        buf.write_uint32(self.rnd_seed_val);
+        buf.write_packed_guid(&self.created_by);
+        buf.write_uint32(self.scene_type);
+
+        let data = buf.into_data();
+        pkt.write_uint32(data.len() as u32);
+        pkt.write_bytes(&data);
+    }
+}
+
+/// Data needed to build a Conversation CREATE block.
+#[derive(Debug, Clone)]
+pub struct ConversationCreateData {
+    pub guid: ObjectGuid,
+    pub entry_id: u32,
+    pub dynamic_flags: u32,
+    pub scale: f32,
+    pub position: Position,
+    pub texture_kit_id: u32,
+    pub lines: Vec<ConversationLineValuesUpdate>,
+    pub actors: Vec<ConversationActorValuesUpdate>,
+    pub last_line_end_time: i32,
+}
+
+impl ConversationCreateData {
+    fn write_values_create(&self, pkt: &mut WorldPacket) {
+        let mut buf = WorldPacket::new_empty();
+        buf.write_uint8(0); // UpdateFieldFlag::None
+        write_object_data_create_like_cpp(&mut buf, self.entry_id, self.dynamic_flags, self.scale);
+        buf.write_uint32(self.lines.len() as u32);
+        buf.write_int32(self.last_line_end_time);
+        for line in &self.lines {
+            write_conversation_line_values_update(&mut buf, line);
+        }
+        buf.write_uint32(self.actors.len() as u32);
+        for actor in &self.actors {
+            write_conversation_actor_values_update(&mut buf, actor);
+        }
+
+        let data = buf.into_data();
+        pkt.write_uint32(data.len() as u32);
+        pkt.write_bytes(&data);
+    }
+}
+
+fn write_object_data_create_like_cpp(
+    buf: &mut WorldPacket,
+    entry_id: u32,
+    dynamic_flags: u32,
+    scale: f32,
+) {
+    buf.write_int32(entry_id as i32);
+    buf.write_uint32(dynamic_flags);
+    buf.write_float(scale);
+}
+
 /// A single update block within an UpdateObject packet.
 pub enum UpdateBlock {
     CreateObject {
@@ -3164,6 +3300,18 @@ pub enum UpdateBlock {
     CreateAreaTrigger {
         guid: ObjectGuid,
         create_data: AreaTriggerCreateData,
+    },
+    CreateCorpse {
+        guid: ObjectGuid,
+        create_data: CorpseCreateData,
+    },
+    CreateSceneObject {
+        guid: ObjectGuid,
+        create_data: SceneObjectCreateData,
+    },
+    CreateConversation {
+        guid: ObjectGuid,
+        create_data: ConversationCreateData,
     },
     CreateItem {
         update_type: UpdateType,
@@ -3587,6 +3735,42 @@ impl UpdateObject {
                         create_data.bounds_radius_2d
                     ));
                 }
+                UpdateBlock::CreateCorpse { guid, create_data } => {
+                    lines.push(format!(
+                        "#{index:03} corpse guid={guid:?} entry={} display={} pos=({:.3},{:.3},{:.3},{:.3})",
+                        create_data.entry_id,
+                        create_data.display_id,
+                        create_data.position.x,
+                        create_data.position.y,
+                        create_data.position.z,
+                        create_data.position.orientation
+                    ));
+                }
+                UpdateBlock::CreateSceneObject { guid, create_data } => {
+                    lines.push(format!(
+                        "#{index:03} scene_object guid={guid:?} entry={} script_package={} scene_type={} pos=({:.3},{:.3},{:.3},{:.3})",
+                        create_data.entry_id,
+                        create_data.script_package_id,
+                        create_data.scene_type,
+                        create_data.position.x,
+                        create_data.position.y,
+                        create_data.position.z,
+                        create_data.position.orientation
+                    ));
+                }
+                UpdateBlock::CreateConversation { guid, create_data } => {
+                    lines.push(format!(
+                        "#{index:03} conversation guid={guid:?} entry={} lines={} actors={} texture_kit={} pos=({:.3},{:.3},{:.3},{:.3})",
+                        create_data.entry_id,
+                        create_data.lines.len(),
+                        create_data.actors.len(),
+                        create_data.texture_kit_id,
+                        create_data.position.x,
+                        create_data.position.y,
+                        create_data.position.z,
+                        create_data.position.orientation
+                    ));
+                }
                 UpdateBlock::ItemValuesUpdate {
                     guid,
                     stack_count,
@@ -3754,6 +3938,27 @@ impl UpdateObject {
 
     pub fn create_area_trigger_block(create_data: AreaTriggerCreateData) -> UpdateBlock {
         UpdateBlock::CreateAreaTrigger {
+            guid: create_data.guid,
+            create_data,
+        }
+    }
+
+    pub fn create_corpse_block(create_data: CorpseCreateData) -> UpdateBlock {
+        UpdateBlock::CreateCorpse {
+            guid: create_data.guid,
+            create_data,
+        }
+    }
+
+    pub fn create_scene_object_block(create_data: SceneObjectCreateData) -> UpdateBlock {
+        UpdateBlock::CreateSceneObject {
+            guid: create_data.guid,
+            create_data,
+        }
+    }
+
+    pub fn create_conversation_block(create_data: ConversationCreateData) -> UpdateBlock {
+        UpdateBlock::CreateConversation {
             guid: create_data.guid,
             create_data,
         }
@@ -4656,6 +4861,15 @@ impl ServerPacket for UpdateObject {
                 UpdateBlock::CreateAreaTrigger { guid, create_data } => {
                     write_area_trigger_create_block(&mut blocks_buf, guid, create_data);
                 }
+                UpdateBlock::CreateCorpse { guid, create_data } => {
+                    write_corpse_create_block(&mut blocks_buf, guid, create_data);
+                }
+                UpdateBlock::CreateSceneObject { guid, create_data } => {
+                    write_scene_object_create_block(&mut blocks_buf, guid, create_data);
+                }
+                UpdateBlock::CreateConversation { guid, create_data } => {
+                    write_conversation_create_block(&mut blocks_buf, guid, create_data);
+                }
                 UpdateBlock::CreateItem {
                     update_type,
                     guid,
@@ -5291,6 +5505,108 @@ fn write_dynamic_object_create_block(
     buf.write_float(create_data.position.orientation);
 
     // ── Values block ─────────────────────────────────────────
+    create_data.write_values_create(buf);
+}
+
+fn write_stationary_world_object_create_prefix_like_cpp(
+    buf: &mut WorldPacket,
+    guid: &ObjectGuid,
+    type_id: TypeId,
+    position: Position,
+    scene_object: bool,
+    conversation_texture_kit_id: Option<u32>,
+) {
+    buf.write_uint8(UpdateType::CreateObject as u8);
+    buf.write_packed_guid(guid);
+    buf.write_uint8(type_id as u8);
+
+    buf.write_bit(false); // NoBirthAnim
+    buf.write_bit(false); // EnablePortals
+    buf.write_bit(false); // PlayHoverAnim
+    buf.write_bit(false); // MovementUpdate
+    buf.write_bit(false); // MovementTransport
+    buf.write_bit(true); // Stationary
+    buf.write_bit(false); // CombatVictim
+    buf.write_bit(false); // ServerTime
+    buf.write_bit(false); // Vehicle
+    buf.write_bit(false); // AnimKit
+    buf.write_bit(false); // Rotation
+    buf.write_bit(false); // AreaTrigger
+    buf.write_bit(false); // GameObject
+    buf.write_bit(false); // SmoothPhasing
+    buf.write_bit(false); // ThisIsYou
+    buf.write_bit(scene_object); // SceneObject
+    buf.write_bit(false); // ActivePlayer
+    buf.write_bit(conversation_texture_kit_id.is_some()); // Conversation
+    buf.flush_bits();
+
+    buf.write_uint32(0); // PauseTimes count
+    buf.write_float(position.x);
+    buf.write_float(position.y);
+    buf.write_float(position.z);
+    buf.write_float(position.orientation);
+
+    if scene_object {
+        buf.write_bit(false); // HasLocalScriptData
+        buf.write_bit(false); // HasPetBattleFullUpdate
+        buf.flush_bits();
+    }
+
+    if let Some(texture_kit_id) = conversation_texture_kit_id {
+        let has_texture_kit = texture_kit_id != 0;
+        buf.write_bit(has_texture_kit);
+        if has_texture_kit {
+            buf.write_uint32(texture_kit_id);
+        }
+        buf.flush_bits();
+    }
+}
+
+fn write_corpse_create_block(
+    buf: &mut WorldPacket,
+    guid: &ObjectGuid,
+    create_data: &CorpseCreateData,
+) {
+    write_stationary_world_object_create_prefix_like_cpp(
+        buf,
+        guid,
+        TypeId::Corpse,
+        create_data.position,
+        false,
+        None,
+    );
+    create_data.write_values_create(buf);
+}
+
+fn write_scene_object_create_block(
+    buf: &mut WorldPacket,
+    guid: &ObjectGuid,
+    create_data: &SceneObjectCreateData,
+) {
+    write_stationary_world_object_create_prefix_like_cpp(
+        buf,
+        guid,
+        TypeId::SceneObject,
+        create_data.position,
+        true,
+        None,
+    );
+    create_data.write_values_create(buf);
+}
+
+fn write_conversation_create_block(
+    buf: &mut WorldPacket,
+    guid: &ObjectGuid,
+    create_data: &ConversationCreateData,
+) {
+    write_stationary_world_object_create_prefix_like_cpp(
+        buf,
+        guid,
+        TypeId::Conversation,
+        create_data.position,
+        false,
+        Some(create_data.texture_kit_id),
+    );
     create_data.write_values_create(buf);
 }
 
@@ -9809,6 +10125,124 @@ mod tests {
                 .any(|window| window == 12345u32.to_le_bytes())
         );
         assert!(!bytes.windows(1).all(|window| window == [0]));
+    }
+
+    #[test]
+    fn corpse_create_block_matches_cpp_stationary_and_values_create_shape() {
+        let mut items = [0; 19];
+        items[0] = 0xAABB_CCDD;
+        let create_data = CorpseCreateData {
+            guid: ObjectGuid::EMPTY,
+            entry_id: 44,
+            object_dynamic_flags: 7,
+            scale: 1.25,
+            position: Position::new(1.0, 2.0, 3.0, 4.0),
+            corpse_dynamic_flags: 9,
+            owner: ObjectGuid::EMPTY,
+            party_guid: ObjectGuid::EMPTY,
+            guild_guid: ObjectGuid::EMPTY,
+            display_id: 123,
+            items,
+            race_id: 1,
+            sex: 0,
+            class: 2,
+            customizations: vec![ChrCustomizationChoiceValuesUpdate {
+                option_id: 11,
+                choice_id: 22,
+            }],
+            flags: 0x55,
+            faction_template: 35,
+        };
+
+        let mut block = WorldPacket::new_empty();
+        write_corpse_create_block(&mut block, &ObjectGuid::EMPTY, &create_data);
+        let bytes = block.into_data();
+
+        assert_eq!(bytes[0], UpdateType::CreateObject as u8);
+        assert_eq!(&bytes[1..3], &[0, 0]);
+        assert_eq!(bytes[3], TypeId::Corpse as u8);
+        assert_eq!(u32::from_le_bytes(bytes[27..31].try_into().unwrap()), 126);
+        assert_eq!(bytes[31], 0);
+        assert_eq!(i32::from_le_bytes(bytes[32..36].try_into().unwrap()), 44);
+        assert_eq!(u32::from_le_bytes(bytes[44..48].try_into().unwrap()), 9);
+        assert!(
+            bytes
+                .windows(4)
+                .any(|window| window == 0xAABB_CCDDu32.to_le_bytes())
+        );
+        assert_eq!(bytes.len(), 157);
+    }
+
+    #[test]
+    fn scene_object_create_block_matches_cpp_scene_movement_and_values_shape() {
+        let create_data = SceneObjectCreateData {
+            guid: ObjectGuid::EMPTY,
+            entry_id: 77,
+            dynamic_flags: 5,
+            scale: 1.0,
+            position: Position::new(1.0, 2.0, 3.0, 4.0),
+            script_package_id: 99,
+            rnd_seed_val: 1234,
+            created_by: ObjectGuid::EMPTY,
+            scene_type: 1,
+        };
+
+        let mut block = WorldPacket::new_empty();
+        write_scene_object_create_block(&mut block, &ObjectGuid::EMPTY, &create_data);
+        let bytes = block.into_data();
+
+        assert_eq!(bytes[0], UpdateType::CreateObject as u8);
+        assert_eq!(&bytes[1..3], &[0, 0]);
+        assert_eq!(bytes[3], TypeId::SceneObject as u8);
+        assert_eq!(bytes[27], 0); // two false SceneObject extension bits
+        assert_eq!(u32::from_le_bytes(bytes[28..32].try_into().unwrap()), 27);
+        assert_eq!(i32::from_le_bytes(bytes[45..49].try_into().unwrap()), 99);
+        assert_eq!(bytes.len(), 59);
+    }
+
+    #[test]
+    fn conversation_create_block_matches_cpp_texture_lines_and_actors_shape() {
+        let create_data = ConversationCreateData {
+            guid: ObjectGuid::EMPTY,
+            entry_id: 88,
+            dynamic_flags: 6,
+            scale: 1.0,
+            position: Position::new(1.0, 2.0, 3.0, 4.0),
+            texture_kit_id: 321,
+            lines: vec![ConversationLineValuesUpdate {
+                conversation_line_id: 7,
+                start_time: 100,
+                ui_camera_id: -3,
+                actor_index: 2,
+                flags: 0x80,
+            }],
+            actors: vec![ConversationActorValuesUpdate {
+                actor_type: 1,
+                id: 55,
+                creature_id: 12_345,
+                creature_display_info_id: 54_321,
+                actor_guid: ObjectGuid::EMPTY,
+            }],
+            last_line_end_time: 777,
+        };
+
+        let mut block = WorldPacket::new_empty();
+        write_conversation_create_block(&mut block, &ObjectGuid::EMPTY, &create_data);
+        let bytes = block.into_data();
+
+        assert_eq!(bytes[0], UpdateType::CreateObject as u8);
+        assert_eq!(&bytes[1..3], &[0, 0]);
+        assert_eq!(bytes[3], TypeId::Conversation as u8);
+        assert_eq!(bytes[27], 0x80); // HasTextureKit
+        assert_eq!(u32::from_le_bytes(bytes[28..32].try_into().unwrap()), 321);
+        assert_eq!(u32::from_le_bytes(bytes[32..36].try_into().unwrap()), 52);
+        assert_eq!(i32::from_le_bytes(bytes[57..61].try_into().unwrap()), 7);
+        assert!(
+            bytes
+                .windows(4)
+                .any(|window| window == 54_321u32.to_le_bytes())
+        );
+        assert_eq!(bytes.len(), 88);
     }
 
     #[test]

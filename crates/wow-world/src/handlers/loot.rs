@@ -4420,6 +4420,7 @@ impl WorldSession {
                 }
             }
         }
+        self.flush_pending_visibility_refresh_like_cpp().await;
     }
 
     fn handle_apply_group_removal_command_like_cpp(
@@ -5060,6 +5061,7 @@ impl WorldSession {
         if session_instance_id != command.instance_id {
             return;
         }
+        self.clear_pending_visibility_refresh_like_cpp();
         self.force_update_visibility_like_cpp().await;
     }
 
@@ -17959,6 +17961,7 @@ mod tests {
             realm_send_tx: send_tx.clone(),
             send_tx,
             command_tx,
+            visibility_refresh_pending_like_cpp: Default::default(),
             durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),
             pass_on_group_loot: false,

@@ -89,13 +89,13 @@ intent, no mutation — see STATE.md §0). Almost every item below is "convert r
   decoded four consecutive large packets through one persistent inflater.
 - [ ] **M1.3** Close the 33 login-burst divergences (**#9–#12**, `world-load-audit.md`):
   proficiency set, AccountDataTimes/TutorialFlags resend, ordering, FeatureSystemStatus, MOTD, etc.
-  Issue #9's 1201–1211 slice is merged; issue #10's 1212–1220 slice is implemented and locally
-  validated. Issues #11–#12 retain the later visibility/order rows and the full
-  capture/original-client exit.
+  Issues #9–#10 are merged. Issue #11's 1221–1227 visibility slice is implemented and locally
+  validated; issue #12 retains the later movement/order rows and the full capture/original-client
+  exit.
 - [x] **M1.4** Re-audit and fix the bounded CREATE-block UpdateField VALUE gaps (issue #10,
   `world-load-audit.md` cross-cutting). Five findings were already fixed, player power slots were
-  correct, canonical ParentRotation retains a documented architecture follow-up, and local
-  `7e106e25` plus review fix `befc062f` close selected non-mana creature power (including
+  correct, canonical ParentRotation retains a documented architecture follow-up, and merged
+  PR #123 closes selected non-mana creature power (including
   hotfix overlays and legacy-to-canonical state) plus runtime GameObject ArtKit.
 - [ ] **M1 exit:** fresh character logs in, bags open, correct UI, no Lua errors, login burst capture-clean.
 

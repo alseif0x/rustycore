@@ -39,14 +39,15 @@ use wow_database::{
     SqlTransaction, StatementDef, WorldDatabase, WorldStatements,
 };
 use wow_entities::{
-    BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_START,
-    CreatureAddonLifecycleRecordLikeCpp, GAMEOBJECT_TYPE_FISHING_HOLE, GAMEOBJECT_TYPE_QUESTGIVER,
-    GameObjectTemplateData, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
-    INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, MAX_BAG_SIZE, MAX_GAMEOBJECT_DATA,
-    MovementGeneratorType, NULL_BAG, NULL_SLOT, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START,
-    SendNewItemDelivery, SendNewItemDisplayText, SendNewItemInstancePlan, SendNewItemModifier,
-    SendNewItemPlan, SocketedGem, SwapItemPreflightResult, WorldObject, is_bank_pos,
-    is_child_equipment_pos, is_equipment_pos, is_inventory_pos, item_can_go_into_bag,
+    BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_START, Corpse, CorpseCustomizationChoice,
+    CorpseType, CreatureAddonLifecycleRecordLikeCpp, GAMEOBJECT_TYPE_FISHING_HOLE,
+    GAMEOBJECT_TYPE_QUESTGIVER, GameObjectTemplateData, INVENTORY_DEFAULT_SIZE,
+    INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
+    INVENTORY_SLOT_ITEM_START, MAX_BAG_SIZE, MAX_GAMEOBJECT_DATA, MovementGeneratorType, NULL_BAG,
+    NULL_SLOT, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemDelivery,
+    SendNewItemDisplayText, SendNewItemInstancePlan, SendNewItemModifier, SendNewItemPlan,
+    SocketedGem, SwapItemPreflightResult, WorldObject, is_bank_pos, is_child_equipment_pos,
+    is_equipment_pos, is_inventory_pos, item_can_go_into_bag,
     normalize_creature_chase_movement_type_like_cpp,
     normalize_creature_random_movement_type_like_cpp,
 };
@@ -117,6 +118,149 @@ const GOSSIP_OPTION_ID_AUTO_TRAINER_LIKE_CPP: i32 = -1;
 const GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP: u8 = 3;
 const GOSSIP_OPTION_TRAINER_TEXT_LIKE_CPP: &str = "I would like to train.";
 const ITEM_ENCHANTMENT_DB_FIELDS: usize = 3;
+
+#[derive(Debug, Clone, PartialEq)]
+struct LoadedMapCorpseRowLikeCpp {
+    position: Position,
+    map_id: u16,
+    display_id: u32,
+    items: [u32; wow_entities::CORPSE_ITEMS],
+    race: u8,
+    class: u8,
+    sex: u8,
+    flags: u32,
+    dynamic_flags: u32,
+    ghost_time: i64,
+    corpse_type: CorpseType,
+    instance_id: u32,
+    owner_db_guid: u64,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct MapCorpseLoadOutcomeLikeCpp {
+    already_loaded: bool,
+    rows_seen: u32,
+    corpses_added: u32,
+    invalid_type_rows: u32,
+    invalid_race_rows: u32,
+    invalid_position_rows: u32,
+    add_to_map_errors: u32,
+}
+
+fn parse_corpse_items_like_cpp(item_cache: &str) -> [u32; wow_entities::CORPSE_ITEMS] {
+    let mut items = [0; wow_entities::CORPSE_ITEMS];
+    let tokens = item_cache.split_whitespace().collect::<Vec<_>>();
+    if tokens.len() == items.len() {
+        for (slot, token) in tokens.into_iter().enumerate() {
+            items[slot] = token.parse().unwrap_or(0);
+        }
+    }
+    items
+}
+
+fn materialize_loaded_map_corpses_like_cpp(
+    map: &mut wow_map::Map,
+    realm_id: u16,
+    rows: Vec<LoadedMapCorpseRowLikeCpp>,
+    phases: &HashMap<u64, BTreeSet<u32>>,
+    customizations: &HashMap<u64, Vec<CorpseCustomizationChoice>>,
+    faction_templates_by_race: &HashMap<u8, i32>,
+) -> MapCorpseLoadOutcomeLikeCpp {
+    if map.corpse_data_loaded_like_cpp() {
+        return MapCorpseLoadOutcomeLikeCpp {
+            already_loaded: true,
+            ..Default::default()
+        };
+    }
+
+    let mut outcome = MapCorpseLoadOutcomeLikeCpp::default();
+    for row in rows {
+        outcome.rows_seen = outcome.rows_seen.saturating_add(1);
+        // C++ `Map::LoadCorpseData` consumes the map-local counter when it
+        // calls `LoadCorpseFromDB(GenerateLowGuid(), fields)`. The latter only
+        // validates map coordinates near the end, so even a rejected position
+        // has already advanced the GUID generator.
+        let Ok(low_guid) = map.generate_low_guid_like_cpp(HighGuid::Corpse) else {
+            outcome.add_to_map_errors = outcome.add_to_map_errors.saturating_add(1);
+            continue;
+        };
+        if row.map_id != map.map_id() as u16 || row.instance_id != map.instance_id() {
+            outcome.add_to_map_errors = outcome.add_to_map_errors.saturating_add(1);
+            continue;
+        }
+        if !row.position.is_valid_map_coord_like_cpp() {
+            outcome.invalid_position_rows = outcome.invalid_position_rows.saturating_add(1);
+            continue;
+        }
+        let Some(faction_template) = faction_templates_by_race.get(&row.race).copied() else {
+            outcome.invalid_race_rows = outcome.invalid_race_rows.saturating_add(1);
+            continue;
+        };
+
+        let mut corpse = Corpse::new_at(row.corpse_type, row.ghost_time);
+        let corpse_guid = ObjectGuid::create_world_object(
+            HighGuid::Corpse,
+            0,
+            realm_id,
+            row.map_id,
+            0,
+            0,
+            low_guid,
+        );
+        corpse.world_mut().object_mut().create(corpse_guid);
+        if corpse
+            .world_mut()
+            .set_map(u32::from(row.map_id), row.instance_id)
+            .is_err()
+        {
+            outcome.add_to_map_errors = outcome.add_to_map_errors.saturating_add(1);
+            continue;
+        }
+        corpse.world_mut().relocate(row.position);
+        corpse.set_display_id(row.display_id);
+        corpse.set_race(row.race);
+        corpse.set_class(row.class);
+        corpse.set_sex(row.sex);
+        corpse.replace_all_flags(row.flags);
+        corpse.replace_all_corpse_dynamic_flags(row.dynamic_flags);
+        corpse.set_owner_guid(ObjectGuid::create_player(
+            realm_id,
+            row.owner_db_guid as i64,
+        ));
+        corpse.set_faction_template(faction_template);
+        for (slot, item) in row.items.into_iter().enumerate() {
+            corpse.set_item(slot, item);
+        }
+        for phase_id in phases
+            .get(&row.owner_db_guid)
+            .into_iter()
+            .flatten()
+            .copied()
+        {
+            corpse.world_mut().phase_shift_mut().insert(phase_id);
+        }
+        corpse.set_customizations(
+            customizations
+                .get(&row.owner_db_guid)
+                .cloned()
+                .unwrap_or_default(),
+        );
+
+        // C++ loads these fields before AddCorpse/AddToMap, so they form the
+        // clean baseline rather than a later VALUES delta.
+        corpse.clear_corpse_data_changes();
+        corpse.world_mut().object_mut().clear_update_mask(false);
+        match map.register_loaded_corpse_like_cpp(corpse) {
+            Ok(_) => outcome.corpses_added = outcome.corpses_added.saturating_add(1),
+            Err(_) => {
+                outcome.add_to_map_errors = outcome.add_to_map_errors.saturating_add(1);
+            }
+        }
+    }
+
+    map.mark_corpse_data_loaded_like_cpp();
+    outcome
+}
 
 fn motd_lines_like_cpp(motd: &str) -> Vec<String> {
     // C++ `World::SetMotd` uses `boost::split` on `@` with token compression
@@ -4707,10 +4851,12 @@ impl WorldSession {
         // Mark character offline in DB
         self.mark_character_offline().await;
 
-        // Notify other players that this player has left before removing from registry.
-        self.broadcast_destroy_player_to_others();
-        // Remove from broadcast registry before clearing player_guid.
+        // C++ removes the Player from the map before nearby players recompute
+        // visibility. Remove the registry record first, then queue the same
+        // full visibility diff used on entry so receiver GUID caches and the
+        // out-of-range packet stay symmetric.
         self.unregister_from_player_registry();
+        self.notify_other_players_visibility_changed_like_cpp();
         self.unregister_from_object_accessor();
 
         // Send LogoutComplete → client returns to character select
@@ -5119,6 +5265,11 @@ impl WorldSession {
         let at_login_flags = result.try_read::<u16>(39).unwrap_or(0);
         let create_mode = result.try_read::<u8>(21).unwrap_or(0);
         let mut map_id: i32 = result.try_read::<u16>(17).unwrap_or(0) as i32; // smallint unsigned
+        let saved_map_id_for_transport = map_id;
+        let saved_transport_guid_low = result
+            .try_read::<u64>(36)
+            .or_else(|| result.try_read::<i64>(36).map(|value| value.max(0) as u64))
+            .unwrap_or(0);
         let pos_x: f32 = result.try_read(14).unwrap_or(0.0);
         let pos_y: f32 = result.try_read(15).unwrap_or(0.0);
         let pos_z: f32 = result.try_read(16).unwrap_or(0.0);
@@ -6844,6 +6995,11 @@ impl WorldSession {
 
         // Store current map and character info for VALUES updates + stat recalculation
         self.set_loaded_player_identity_like_cpp(map_id as u16, race, class, level, gender);
+        self.set_player_transport_guid_like_cpp(
+            (saved_transport_guid_low != 0 && map_id == saved_map_id_for_transport).then(|| {
+                ObjectGuid::create_transport(HighGuid::Transport, saved_transport_guid_low as i64)
+            }),
+        );
         self.refresh_next_level_xp();
         // NOTE: known_spells is stored below after DBC merge (see "Merge DBC auto-learned spells")
 
@@ -7235,6 +7391,7 @@ impl WorldSession {
     /// C++ `Map::SendInitTransports`: after `SendInitSelf`, send map
     /// transports as GameObject-derived create blocks.
     async fn send_init_transports_like_cpp(&mut self, map_id: u16) {
+        self.client_visible_transports_like_cpp.clear();
         let Some(world_db) = self.world_db().map(Arc::clone) else {
             return;
         };
@@ -7376,7 +7533,10 @@ impl WorldSession {
 
         let now_ms = Self::game_time_ms_like_cpp();
         let mut blocks = Vec::new();
+        let mut visible_transport_guids = Vec::new();
+        let player_transport_guid = self.player_transport_guid_like_cpp();
         let mut considered = 0usize;
+        let mut skipped_own_transport = 0usize;
         let mut skipped_other_map = 0usize;
         let mut skipped_missing_path = 0usize;
         let mut skipped_phase = 0usize;
@@ -7408,8 +7568,14 @@ impl WorldSession {
                 transport.phase_group_id,
                 -1,
             );
-            if !self.can_see_phase_shift_like_cpp(&target_phase_shift) {
-                skipped_phase += 1;
+            let transport_guid =
+                ObjectGuid::create_transport(HighGuid::Transport, transport.guid_low as i64);
+            if !self.should_send_init_transport_like_cpp(transport_guid, &target_phase_shift) {
+                if player_transport_guid == Some(transport_guid) {
+                    skipped_own_transport += 1;
+                } else {
+                    skipped_phase += 1;
+                }
                 continue;
             }
 
@@ -7419,7 +7585,7 @@ impl WorldSession {
                 * 65535.0) as u32;
             let dynamic_flags = path_progress << 16;
             let create_data = GameObjectCreateData {
-                guid: ObjectGuid::create_transport(HighGuid::Transport, transport.guid_low as i64),
+                guid: transport_guid,
                 entry: transport.entry,
                 dynamic_flags,
                 display_id: transport.display_id,
@@ -7452,6 +7618,7 @@ impl WorldSession {
                 parent_rotation: [0.0, 0.0, 0.0, 1.0],
             };
             blocks.push(UpdateObject::create_transport_block(create_data, now_ms));
+            visible_transport_guids.push(transport_guid);
         }
 
         info!(
@@ -7461,6 +7628,7 @@ impl WorldSession {
             skipped_other_map,
             skipped_missing_path,
             skipped_phase,
+            skipped_own_transport,
             "RUST_LOGIN send_init_transports plan"
         );
 
@@ -7475,6 +7643,8 @@ impl WorldSession {
             }
         }
         self.send_packet(&update);
+        self.client_visible_transports_like_cpp
+            .extend(visible_transport_guids);
     }
 
     fn materialize_creature_spawn_row_like_cpp(
@@ -8107,10 +8277,16 @@ impl WorldSession {
             self.visible_dynamic_objects_from_canonical_map_like_cpp(map_id, &pos, range);
         let canonical_area_triggers =
             self.visible_area_triggers_from_canonical_map_like_cpp(map_id, &pos, range);
+        let canonical_misc_objects =
+            self.visible_misc_objects_from_canonical_map_like_cpp(map_id, &pos, range);
+        let visible_other_players =
+            self.visible_other_players_from_registry_like_cpp(map_id, &pos, range);
         if self.has_world_map_manager_like_cpp()
             || canonical_gameobjects.is_some()
             || canonical_dynamic_objects.is_some()
             || canonical_area_triggers.is_some()
+            || canonical_misc_objects.is_some()
+            || self.player_registry().is_some()
         {
             let creature_vis_trace = std::env::var_os("RUSTYCORE_CREATURE_VIS_TRACE").is_some();
             if creature_vis_trace {
@@ -8158,12 +8334,20 @@ impl WorldSession {
             let mut new_visible_gos: HashSet<ObjectGuid> = HashSet::new();
             let mut new_visible_dynamic_objects: HashSet<ObjectGuid> = HashSet::new();
             let mut new_visible_area_triggers: HashSet<ObjectGuid> = HashSet::new();
+            let mut new_visible_corpses: HashSet<ObjectGuid> = HashSet::new();
+            let mut new_visible_scene_objects: HashSet<ObjectGuid> = HashSet::new();
+            let mut new_visible_conversations: HashSet<ObjectGuid> = HashSet::new();
+            let mut new_visible_players: HashSet<ObjectGuid> = HashSet::new();
             let mut update_blocks: Vec<UpdateBlock> = Vec::new();
             let mut out_of_range_guids: Vec<ObjectGuid> = Vec::new();
             let mut created_creatures = 0usize;
             let mut created_gameobjects = 0usize;
             let mut created_dynamic_objects = 0usize;
             let mut created_area_triggers = 0usize;
+            let mut created_corpses = 0usize;
+            let mut created_scene_objects = 0usize;
+            let mut created_conversations = 0usize;
+            let mut created_players = 0usize;
             let mut initial_visible_creatures_like_cpp = Vec::new();
             for creature in &map_creatures {
                 let guid = creature.guid();
@@ -8314,6 +8498,92 @@ impl WorldSession {
                 }
             }
 
+            if let Some((corpses, scene_objects, conversations)) = canonical_misc_objects {
+                new_visible_corpses = corpses.iter().map(|corpse| corpse.guid).collect();
+                for corpse in corpses {
+                    if !self.client_visible_guids_like_cpp.contains(&corpse.guid) {
+                        update_blocks.push(UpdateObject::create_corpse_block(corpse));
+                        created_corpses += 1;
+                    }
+                }
+
+                new_visible_scene_objects = scene_objects.iter().map(|scene| scene.guid).collect();
+                for scene_object in scene_objects {
+                    if !self
+                        .client_visible_guids_like_cpp
+                        .contains(&scene_object.guid)
+                    {
+                        update_blocks.push(UpdateObject::create_scene_object_block(scene_object));
+                        created_scene_objects += 1;
+                    }
+                }
+
+                new_visible_conversations = conversations
+                    .iter()
+                    .map(|conversation| conversation.guid)
+                    .collect();
+                for conversation in conversations {
+                    if !self
+                        .client_visible_guids_like_cpp
+                        .contains(&conversation.guid)
+                    {
+                        update_blocks.push(UpdateObject::create_conversation_block(conversation));
+                        created_conversations += 1;
+                    }
+                }
+
+                let removed_misc_objects: Vec<ObjectGuid> = self
+                    .client_visible_guids_like_cpp
+                    .iter()
+                    .filter(|guid| {
+                        (guid.is_corpse() && !new_visible_corpses.contains(guid))
+                            || (guid.is_scene_object() && !new_visible_scene_objects.contains(guid))
+                            || (guid.is_conversation() && !new_visible_conversations.contains(guid))
+                    })
+                    .copied()
+                    .collect();
+                out_of_range_guids.extend(removed_misc_objects);
+            }
+
+            let empty_inventory = [ObjectGuid::EMPTY; 141];
+            for (guid, player) in visible_other_players {
+                new_visible_players.insert(guid);
+                if self.client_visible_guids_like_cpp.contains(&guid) {
+                    continue;
+                }
+
+                let mut update = UpdateObject::create_player_with_party_type(
+                    guid,
+                    player.race,
+                    player.class,
+                    player.sex,
+                    player.level,
+                    player.display_id,
+                    &player.position,
+                    map_id,
+                    player.zone_id,
+                    false,
+                    player.visible_items,
+                    empty_inventory,
+                    wow_packet::packets::update::PlayerCombatStats::default(),
+                    Vec::new(),
+                    0,
+                    Vec::new(),
+                    player.party_member_party_type,
+                );
+                if let Some(block) = update.blocks.pop() {
+                    update_blocks.push(block);
+                    created_players += 1;
+                }
+            }
+            let removed_players: Vec<ObjectGuid> = self
+                .client_visible_guids_like_cpp
+                .iter()
+                .filter(|guid| guid.is_player() && !new_visible_players.contains(guid))
+                .copied()
+                .collect();
+            out_of_range_guids.extend(removed_players);
+
             if !update_blocks.is_empty() || !out_of_range_guids.is_empty() {
                 let update = UpdateObject {
                     map_id,
@@ -8329,6 +8599,10 @@ impl WorldSession {
                         created_gameobjects,
                         created_dynamic_objects,
                         created_area_triggers,
+                        created_corpses,
+                        created_scene_objects,
+                        created_conversations,
+                        created_players,
                         "RUST_UPDATEOBJECT visibility_update plan"
                     );
                     for line in update.debug_create_summary_like_cpp() {
@@ -8346,6 +8620,10 @@ impl WorldSession {
                     && !guid.is_game_object()
                     && !guid.is_dynamic_object()
                     && !guid.is_area_trigger()
+                    && !guid.is_corpse()
+                    && !guid.is_scene_object()
+                    && !guid.is_conversation()
+                    && !guid.is_player()
             });
             self.client_visible_guids_like_cpp
                 .extend(new_visible_creatures.iter().copied());
@@ -8355,6 +8633,14 @@ impl WorldSession {
                 .extend(new_visible_dynamic_objects.iter().copied());
             self.client_visible_guids_like_cpp
                 .extend(new_visible_area_triggers.iter().copied());
+            self.client_visible_guids_like_cpp
+                .extend(new_visible_corpses.iter().copied());
+            self.client_visible_guids_like_cpp
+                .extend(new_visible_scene_objects.iter().copied());
+            self.client_visible_guids_like_cpp
+                .extend(new_visible_conversations.iter().copied());
+            self.client_visible_guids_like_cpp
+                .extend(new_visible_players.iter().copied());
             self.last_visibility_pos = Some(pos);
             debug!(
                 "Visibility updated at ({:.1}, {:.1}): {} creatures / {} GOs in range",
@@ -18269,6 +18555,29 @@ impl WorldSession {
         ) {
             return false;
         }
+        let corpse_load_outcome = self
+            .load_map_corpse_data_like_cpp(map_id as u16, grid_instance_id)
+            .await;
+        if corpse_load_outcome.rows_seen != 0
+            || corpse_load_outcome.already_loaded
+            || corpse_load_outcome.invalid_type_rows != 0
+            || corpse_load_outcome.invalid_race_rows != 0
+            || corpse_load_outcome.invalid_position_rows != 0
+            || corpse_load_outcome.add_to_map_errors != 0
+        {
+            info!(
+                map_id,
+                instance_id = grid_instance_id,
+                already_loaded = corpse_load_outcome.already_loaded,
+                rows_seen = corpse_load_outcome.rows_seen,
+                corpses_added = corpse_load_outcome.corpses_added,
+                invalid_type_rows = corpse_load_outcome.invalid_type_rows,
+                invalid_race_rows = corpse_load_outcome.invalid_race_rows,
+                invalid_position_rows = corpse_load_outcome.invalid_position_rows,
+                add_to_map_errors = corpse_load_outcome.add_to_map_errors,
+                "Loaded canonical map corpse data like C++ Map::LoadCorpseData"
+            );
+        }
 
         // ── Phase 1: HandlePlayerLogin packets ──
         let motd =
@@ -18605,15 +18914,11 @@ impl WorldSession {
         // player itself was already installed above at the AddToWorld point.
         self.set_state(crate::session::SessionState::LoggedIn);
 
-        // 31. Broadcast this player's CREATE block to all other players on the same map.
-        //     Each other player receives an UpdateObject with this player's CREATE block.
-        self.broadcast_create_player_to_others();
+        // 31. Existing nearby sessions run the same C++-style visibility diff
+        //     so their client GUID caches gain this player symmetrically.
+        self.notify_other_players_visibility_changed_like_cpp();
 
-        // 32. Receive CREATE blocks from all other players on the same map.
-        //     This player receives UpdateObject packets for each other player.
-        self.receive_other_players_on_map();
-
-        // 33. Send full stat VALUES update so all character panel tabs
+        // 32. Send full stat VALUES update so all character panel tabs
         //     (Melee, Ranged, Spell, Defense) display correct values on login.
         //     C++ has already applied loaded item enchantments at this point;
         //     merge their represented modifiers into this absolute snapshot.
@@ -18626,6 +18931,200 @@ impl WorldSession {
             guid
         );
         true
+    }
+
+    /// Load the map's persisted corpses once, including the two auxiliary
+    /// tables consumed by C++ `Map::LoadCorpseData` before `AddCorpse`.
+    async fn load_map_corpse_data_like_cpp(
+        &self,
+        map_id: u16,
+        instance_id: u32,
+    ) -> MapCorpseLoadOutcomeLikeCpp {
+        let Some(manager) = self.canonical_map_manager.as_ref().map(Arc::clone) else {
+            return MapCorpseLoadOutcomeLikeCpp::default();
+        };
+        {
+            let Ok(manager) = manager.lock() else {
+                warn!(
+                    map_id,
+                    instance_id, "Cannot inspect canonical map corpse-load state: lock poisoned"
+                );
+                return MapCorpseLoadOutcomeLikeCpp::default();
+            };
+            let Some(map) = manager.find_map(u32::from(map_id), instance_id) else {
+                warn!(
+                    map_id,
+                    instance_id, "Cannot load C++ map corpses: canonical map is unavailable"
+                );
+                return MapCorpseLoadOutcomeLikeCpp::default();
+            };
+            if map.map().corpse_data_loaded_like_cpp() {
+                return MapCorpseLoadOutcomeLikeCpp {
+                    already_loaded: true,
+                    ..Default::default()
+                };
+            }
+        }
+
+        let Some(char_db) = self.char_db().map(Arc::clone) else {
+            return MapCorpseLoadOutcomeLikeCpp::default();
+        };
+        let mut corpse_stmt = char_db.prepare(CharStatements::SEL_CORPSES);
+        corpse_stmt.set_u32(0, u32::from(map_id));
+        corpse_stmt.set_u32(1, instance_id);
+        let mut corpse_result = match char_db.query(&corpse_stmt).await {
+            Ok(result) => result,
+            Err(error) => {
+                warn!(
+                    map_id,
+                    instance_id,
+                    %error,
+                    "C++ Map::LoadCorpseData base query failed"
+                );
+                return MapCorpseLoadOutcomeLikeCpp::default();
+            }
+        };
+
+        let had_corpse_rows = !corpse_result.is_empty();
+        let mut rows = Vec::with_capacity(corpse_result.row_count_like_cpp());
+        let mut invalid_type_rows = 0u32;
+        if had_corpse_rows {
+            loop {
+                let corpse_type = match corpse_result.try_read::<u8>(13).unwrap_or(u8::MAX) {
+                    1 => Some(CorpseType::ResurrectablePve),
+                    2 => Some(CorpseType::ResurrectablePvp),
+                    // C++ rejects bones and values >= MAX_CORPSE_TYPE.
+                    _ => None,
+                };
+                if let Some(corpse_type) = corpse_type {
+                    rows.push(LoadedMapCorpseRowLikeCpp {
+                        position: Position::new(
+                            corpse_result.try_read::<f32>(0).unwrap_or(f32::NAN),
+                            corpse_result.try_read::<f32>(1).unwrap_or(f32::NAN),
+                            corpse_result.try_read::<f32>(2).unwrap_or(f32::NAN),
+                            corpse_result.try_read::<f32>(3).unwrap_or(f32::NAN),
+                        ),
+                        map_id: corpse_result.try_read::<u16>(4).unwrap_or(map_id),
+                        display_id: corpse_result.try_read::<u32>(5).unwrap_or(0),
+                        items: parse_corpse_items_like_cpp(&corpse_result.read_string(6)),
+                        race: corpse_result.try_read::<u8>(7).unwrap_or(0),
+                        class: corpse_result.try_read::<u8>(8).unwrap_or(0),
+                        sex: corpse_result.try_read::<u8>(9).unwrap_or(0),
+                        flags: u32::from(corpse_result.try_read::<u8>(10).unwrap_or(0)),
+                        dynamic_flags: u32::from(corpse_result.try_read::<u8>(11).unwrap_or(0)),
+                        ghost_time: i64::from(corpse_result.try_read::<u32>(12).unwrap_or(0)),
+                        corpse_type,
+                        instance_id: corpse_result.try_read::<u32>(14).unwrap_or(instance_id),
+                        owner_db_guid: corpse_result.try_read::<u64>(15).unwrap_or(0),
+                    });
+                } else {
+                    invalid_type_rows = invalid_type_rows.saturating_add(1);
+                }
+
+                if !corpse_result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        let mut phases = HashMap::<u64, BTreeSet<u32>>::new();
+        let mut customizations = HashMap::<u64, Vec<CorpseCustomizationChoice>>::new();
+        if had_corpse_rows {
+            let mut phase_stmt = char_db.prepare(CharStatements::SEL_CORPSE_PHASES);
+            phase_stmt.set_u32(0, u32::from(map_id));
+            phase_stmt.set_u32(1, instance_id);
+            match char_db.query(&phase_stmt).await {
+                Ok(mut phase_result) => {
+                    if !phase_result.is_empty() {
+                        loop {
+                            phases
+                                .entry(phase_result.try_read::<u64>(0).unwrap_or(0))
+                                .or_default()
+                                .insert(phase_result.try_read::<u32>(1).unwrap_or(0));
+                            if !phase_result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                }
+                Err(error) => {
+                    warn!(
+                        map_id,
+                        instance_id,
+                        %error,
+                        "C++ Map::LoadCorpseData phase query failed; continuing without phases"
+                    );
+                }
+            }
+
+            let mut customization_stmt = char_db.prepare(CharStatements::SEL_CORPSE_CUSTOMIZATIONS);
+            customization_stmt.set_u32(0, u32::from(map_id));
+            customization_stmt.set_u32(1, instance_id);
+            match char_db.query(&customization_stmt).await {
+                Ok(mut customization_result) => {
+                    if !customization_result.is_empty() {
+                        loop {
+                            customizations
+                                .entry(customization_result.try_read::<u64>(0).unwrap_or(0))
+                                .or_default()
+                                .push(CorpseCustomizationChoice {
+                                    option_id: customization_result.try_read::<u32>(1).unwrap_or(0),
+                                    choice_id: customization_result.try_read::<u32>(2).unwrap_or(0),
+                                });
+                            if !customization_result.next_row() {
+                                break;
+                            }
+                        }
+                    }
+                }
+                Err(error) => {
+                    warn!(
+                        map_id,
+                        instance_id,
+                        %error,
+                        "C++ Map::LoadCorpseData customization query failed; continuing without customizations"
+                    );
+                }
+            }
+        }
+
+        let faction_templates_by_race = rows
+            .iter()
+            .filter_map(|row| {
+                self.faction_template_for_race_like_cpp(row.race)
+                    .map(|faction| (row.race, faction))
+            })
+            .collect::<HashMap<_, _>>();
+        let Ok(mut manager) = manager.lock() else {
+            warn!(
+                map_id,
+                instance_id, "Cannot materialize canonical map corpses: lock poisoned"
+            );
+            return MapCorpseLoadOutcomeLikeCpp {
+                invalid_type_rows,
+                ..Default::default()
+            };
+        };
+        let Some(map) = manager.find_map_mut(u32::from(map_id), instance_id) else {
+            warn!(
+                map_id,
+                instance_id, "Cannot materialize C++ map corpses: canonical map disappeared"
+            );
+            return MapCorpseLoadOutcomeLikeCpp {
+                invalid_type_rows,
+                ..Default::default()
+            };
+        };
+        let mut outcome = materialize_loaded_map_corpses_like_cpp(
+            map.map_mut(),
+            self.realm_id(),
+            rows,
+            &phases,
+            &customizations,
+            &faction_templates_by_race,
+        );
+        outcome.invalid_type_rows = outcome.invalid_type_rows.saturating_add(invalid_type_rows);
+        outcome
     }
 
     /// C++ `Player::LoadFromDB` first attempts go-back/homebind relocation and
@@ -18842,6 +19341,84 @@ mod tests {
             29
         );
         assert_ne!(29, selected_context_column);
+    }
+
+    #[test]
+    fn map_corpse_loader_applies_persisted_phases_and_customizations_once_like_cpp() {
+        let mut manager = wow_map::MapManager::default();
+        let map = manager.create_world_map(571, 0).map_mut();
+        assert!(map.load_grid(10.0, 20.0));
+        let row = LoadedMapCorpseRowLikeCpp {
+            position: Position::new(10.0, 20.0, 30.0, 1.5),
+            map_id: 571,
+            display_id: 12_345,
+            items: std::array::from_fn(|slot| slot as u32 + 100),
+            race: 4,
+            class: 1,
+            sex: 0,
+            flags: 0x20,
+            dynamic_flags: 0x01,
+            ghost_time: 1_000,
+            corpse_type: CorpseType::ResurrectablePve,
+            instance_id: 0,
+            owner_db_guid: 77,
+        };
+        let phases = HashMap::from([(77, BTreeSet::from([9, 10]))]);
+        let choices = vec![
+            CorpseCustomizationChoice {
+                option_id: 101,
+                choice_id: 201,
+            },
+            CorpseCustomizationChoice {
+                option_id: 102,
+                choice_id: 202,
+            },
+        ];
+        let customizations = HashMap::from([(77, choices.clone())]);
+        let factions = HashMap::from([(4, 35)]);
+
+        let mut invalid_position_row = row.clone();
+        invalid_position_row.position.x = f32::NAN;
+        let outcome = materialize_loaded_map_corpses_like_cpp(
+            map,
+            9,
+            vec![invalid_position_row, row.clone()],
+            &phases,
+            &customizations,
+            &factions,
+        );
+
+        assert_eq!(outcome.rows_seen, 2);
+        assert_eq!(outcome.corpses_added, 1);
+        assert_eq!(outcome.invalid_position_rows, 1);
+        assert!(map.corpse_data_loaded_like_cpp());
+        let corpse_guid = ObjectGuid::create_world_object(HighGuid::Corpse, 0, 9, 571, 0, 0, 2);
+        let corpse = map.get_typed_corpse(corpse_guid).unwrap();
+        assert_eq!(corpse.data().owner, ObjectGuid::create_player(9, 77));
+        assert_eq!(corpse.data().customizations, choices);
+        assert_eq!(corpse.data().items, row.items);
+        assert_eq!(corpse.data().faction_template, 35);
+        assert!(corpse.world().phase_shift().has_phase_like_cpp(9));
+        assert!(corpse.world().phase_shift().has_phase_like_cpp(10));
+        assert!(!corpse.corpse_data_changes_mask().is_any_set());
+        assert!(corpse.world().object().is_in_world());
+        assert!(
+            map.nearby_cell_guids_like_cpp(10.0, 20.0, 1.0)
+                .world
+                .corpses
+                .contains(&corpse_guid)
+        );
+
+        let duplicate = materialize_loaded_map_corpses_like_cpp(
+            map,
+            9,
+            vec![row],
+            &phases,
+            &customizations,
+            &factions,
+        );
+        assert!(duplicate.already_loaded);
+        assert_eq!(duplicate.corpses_added, 0);
     }
 
     #[test]

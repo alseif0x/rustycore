@@ -900,6 +900,12 @@ pub struct PlayerBroadcastInfo {
     pub realm_send_tx: flume::Sender<Vec<u8>>,
     /// Channel used for C++-style cross-session state mutations.
     pub command_tx: flume::Sender<SessionCommand>,
+    /// Durable/coalesced equivalent of C++'s retained visibility notify bit.
+    ///
+    /// Senders set this before attempting the bounded command queue. The owning
+    /// session consumes it even when the queue was full, so player entry/exit
+    /// visibility cannot be lost under command backpressure.
+    pub visibility_refresh_pending_like_cpp: Arc<AtomicBool>,
     /// Per-character durable loot-money fence used by remote source sessions.
     pub durable_loot_money_tracker_like_cpp: Arc<DurableLootMoneyPersistenceTrackerLikeCpp>,
     /// Exact represented pending loot-roll identities owned by this session.
@@ -1064,6 +1070,7 @@ mod tests {
             realm_send_tx: send_tx.clone(),
             send_tx,
             command_tx,
+            visibility_refresh_pending_like_cpp: Default::default(),
             durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),
             pass_on_group_loot: false,
