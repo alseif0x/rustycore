@@ -71,8 +71,8 @@ use crate::session::{
     ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP, CharacterPetAuraEffectRowLikeCpp,
     CharacterPetAuraRowLikeCpp, CharacterPetDeclinedNamesRowLikeCpp,
     CharacterPetSpellChargeRowLikeCpp, CharacterPetSpellCooldownRowLikeCpp,
-    CharacterPetSpellRowLikeCpp, CharacterPetStableRowLikeCpp, REST_STATE_NORMAL_LIKE_CPP,
-    REST_STATE_RAF_LINKED_LIKE_CPP, RepresentedAlterAppearanceLikeCpp,
+    CharacterPetSpellRowLikeCpp, CharacterPetStableRowLikeCpp, GLOBAL_CACHE_MASK_LIKE_CPP,
+    REST_STATE_NORMAL_LIKE_CPP, REST_STATE_RAF_LINKED_LIKE_CPP, RepresentedAlterAppearanceLikeCpp,
     RepresentedAutoUnequipOffhandLikeCpp, RepresentedBankItemMoveLikeCpp,
     RepresentedConfirmBarbersChoiceLikeCpp, RepresentedGameObjectUseState,
     RepresentedHomebindLikeCpp, RepresentedQuestObjectiveProgressEventLikeCpp,
@@ -88,6 +88,7 @@ const GO_SPAWN_PHASE_GROUP_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 2;
 const GO_SPAWN_TERRAIN_SWAP_MAP_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 3;
 const GO_SPAWN_EFFECTIVE_FLAGS_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 4;
 const GO_SPAWN_EFFECTIVE_FACTION_COLUMN: usize = GO_SPAWN_PHASE_USE_FLAGS_COLUMN + 5;
+const DEFAULT_MOTD_LIKE_CPP: &str = "Welcome to a Trinity Core Server.";
 const DIRECT_VENDOR_MASK_LIKE_CPP: u32 = 0x80 | 0x100 | 0x200 | 0x400 | 0x800;
 const DIRECT_TRAINER_MASK_LIKE_CPP: u32 = 0x10 | 0x20 | 0x40;
 const DIRECT_FLIGHT_MASTER_LIKE_CPP: u32 = 0x2000;
@@ -116,6 +117,12 @@ const GOSSIP_OPTION_ID_AUTO_TRAINER_LIKE_CPP: i32 = -1;
 const GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP: u8 = 3;
 const GOSSIP_OPTION_TRAINER_TEXT_LIKE_CPP: &str = "I would like to train.";
 const ITEM_ENCHANTMENT_DB_FIELDS: usize = 3;
+
+fn motd_lines_like_cpp(motd: &str) -> Vec<String> {
+    // C++ `World::SetMotd` uses `boost::split` on `@` with token compression
+    // disabled, so empty and trailing lines remain part of the login burst.
+    motd.split('@').map(ToOwned::to_owned).collect()
+}
 
 fn void_storage_login_context_like_cpp(
     random_properties_id: i32,
@@ -17602,7 +17609,7 @@ impl WorldSession {
         action_buttons: [i64; 180],
         account_mounts: Vec<AccountMount>,
         updateobject_trace_enabled: bool,
-    ) {
+    ) -> bool {
         if updateobject_trace_enabled {
             info!(guid = ?guid, "RUST_LOGIN before_initial_packets_before_add");
         }
@@ -17617,11 +17624,23 @@ impl WorldSession {
         self.send_time_sync();
 
         // 7. ContactList — C++ `GetSocial()->SendSocialList(this, SOCIAL_FLAG_ALL)`.
+        if !self
+            .wait_for_instance_send_before_realm_send_like_cpp()
+            .await
+        {
+            return false;
+        }
         self.send_contact_list_like_cpp(7).await;
 
         // 8. BindPointUpdate — C++ `Player::SendBindPointUpdate` always uses
         // `m_homebind`/`m_homebindAreaId`, independently of the current login
         // location selected by `UpdatePositionData`.
+        if !self
+            .wait_for_realm_send_before_instance_update_like_cpp()
+            .await
+        {
+            return false;
+        }
         self.send_packet(&login_bind_point_update_like_cpp(homebind));
 
         // 9. UpdateTalentData — C++ `Player::SendTalentsInfoData`.
@@ -17649,9 +17668,21 @@ impl WorldSession {
         });
 
         // 14. ActiveGlyphs — full update; bindable spell mapping is still pending.
+        if !self
+            .wait_for_instance_send_before_realm_send_like_cpp()
+            .await
+        {
+            return false;
+        }
         self.send_packet_realm(&self.represented_active_glyphs_packet_like_cpp());
 
         // 15. UpdateActionButtons — populated from character_action table
+        if !self
+            .wait_for_realm_send_before_instance_update_like_cpp()
+            .await
+        {
+            return false;
+        }
         self.send_packet(&UpdateActionButtons {
             buttons: action_buttons,
             reason: 0, // Initialization
@@ -17713,6 +17744,7 @@ impl WorldSession {
         if updateobject_trace_enabled {
             info!(guid = ?guid, "RUST_LOGIN after_initial_packets_before_add");
         }
+        true
     }
 
     /// C++ `Player::SendInitialPacketsAfterAddToMap` (Player.cpp:23592-23685): the packets
@@ -18099,15 +18131,89 @@ impl WorldSession {
         self.current_canonical_player_map_key_like_cpp().is_some()
     }
 
+    /// C++ `WorldSession::HandlePlayerLogin` packet prelude through
+    /// `BattlePetMgr::SendJournalLockStatus`.
+    async fn send_handle_player_login_packets_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+        position: &Position,
+        map_id: i32,
+        account_mounts: &[AccountMount],
+        motd: &str,
+    ) -> bool {
+        // C++ `Player::LoadFromDB -> CollectionMgr::LoadMounts -> AddMount`
+        // publishes one partial update for every usable account mount before
+        // `HandlePlayerLogin` begins its explicit packet burst.
+        for mount in account_mounts {
+            self.send_packet(&AccountMountUpdate::partial(vec![*mount]));
+        }
+        // `LoadFromDB` may already have published proficiency/aura packets on
+        // the instance writer even when this account has no partial mounts.
+        // Drain that complete prefix before starting the realm-routed login
+        // burst so the two physical sockets retain C++ call order.
+        if !self
+            .wait_for_instance_send_before_realm_send_like_cpp()
+            .await
+        {
+            return false;
+        }
+
+        // C++ resends both account-scoped datasets here even though they were
+        // already sent by `InitializeSessionCallback` on the glue screen.
+        self.send_packet_realm(
+            &self.account_data_times_like_cpp(ObjectGuid::EMPTY, GLOBAL_CACHE_MASK_LIKE_CPP),
+        );
+        self.send_packet_realm(&self.tutorial_flags_packet_like_cpp());
+
+        self.send_packet_realm(&self.represented_dungeon_difficulty_packet_like_cpp());
+        if !self
+            .wait_for_realm_send_before_instance_update_like_cpp()
+            .await
+        {
+            return false;
+        }
+        self.send_packet(&LoginVerifyWorld {
+            map_id,
+            position: *position,
+            reason: 0,
+        });
+        if !self
+            .wait_for_instance_send_before_realm_send_like_cpp()
+            .await
+        {
+            return false;
+        }
+        self.send_packet_realm(
+            &self.account_data_times_like_cpp(guid, ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP),
+        );
+        self.send_packet_realm(&self.feature_system_status_like_cpp());
+
+        for motd_line in motd_lines_like_cpp(motd) {
+            self.send_packet_realm(&ChatServerMessage {
+                message_id: 3,
+                string_param: motd_line,
+            });
+        }
+
+        self.send_packet_realm(&SetTimeZoneInformation::utc());
+
+        // C++ sends the journal lock before
+        // `Player::SendInitialPacketsBeforeAddToMap`.
+        self.send_battle_pet_journal_lock_status_like_cpp();
+        self.wait_for_realm_send_before_instance_update_like_cpp()
+            .await
+    }
+
     /// Send the player login packet sequence to the client.
     ///
     /// Follows the C++ login phases:
     /// HandlePlayerLogin → SendInitialPacketsBeforeAddToMap → AddToMap →
     /// SendInitialPacketsAfterAddToMap.
     ///
-    /// Note: AuthResponse, SetTimeZone, FeatureSystemStatusGlueScreen,
-    /// AccountDataTimes(global), and TutorialFlags are already sent during
-    /// session init (see `send_session_init_packets`).
+    /// AuthResponse, SetTimeZone, FeatureSystemStatusGlueScreen,
+    /// AccountDataTimes(global), and TutorialFlags are first sent during
+    /// session init. C++ intentionally resends the account-data times,
+    /// tutorials, and time-zone packets during `HandlePlayerLogin`.
     async fn send_login_sequence(
         &mut self,
         guid: ObjectGuid,
@@ -18160,52 +18266,42 @@ impl WorldSession {
         }
 
         // ── Phase 1: HandlePlayerLogin packets ──
-
-        // 1. DungeonDifficultySet — C++ `Player::SendDungeonDifficulty()`
-        // sends the loaded `GetDungeonDifficultyID()` before LoginVerifyWorld.
-        self.send_packet_realm(&self.represented_dungeon_difficulty_packet_like_cpp());
-
-        // 2. LoginVerifyWorld — confirms map + position
-        self.send_packet(&LoginVerifyWorld {
-            map_id,
-            position: *position,
-            reason: 0,
-        });
-
-        // 3. AccountDataTimes — C++ sends ALL_ACCOUNT_DATA_CACHE_MASK
-        // after loading per-character account data.
-        self.send_packet_realm(
-            &self.account_data_times_like_cpp(guid, ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP),
-        );
-
-        // 4. FeatureSystemStatus (in-game version, different from glue screen)
-        self.send_packet_realm(&self.feature_system_status_like_cpp());
-
-        // 5. MOTD — C++ `World::SendServerMessage(SERVER_MSG_STRING, motdLine)`.
-        self.send_packet_realm(&ChatServerMessage {
-            message_id: 3,
-            string_param: "Welcome to a Trinity Core server.".to_string(),
-        });
-
-        // 6. SetTimeZoneInformation — C++ sends it again during player login.
-        self.send_packet_realm(&SetTimeZoneInformation::utc());
+        let motd =
+            wow_config::get_value_default::<String>("Motd", DEFAULT_MOTD_LIKE_CPP.to_string());
+        let account_mount_login_partials = self.account_mount_login_partial_rows_like_cpp();
+        if !self
+            .send_handle_player_login_packets_like_cpp(
+                guid,
+                position,
+                map_id,
+                &account_mount_login_partials,
+                &motd,
+            )
+            .await
+        {
+            return false;
+        }
 
         // ── Phase 2: SendInitialPacketsBeforeAddToMap ──
-        self.send_initial_packets_before_add_to_map(
-            guid,
-            position,
-            map_id,
-            zone_id,
-            homebind,
-            known_spells,
-            favorite_spells,
-            spell_history_entries,
-            spell_charge_entries,
-            action_buttons,
-            account_mounts,
-            updateobject_trace_enabled,
-        )
-        .await;
+        if !self
+            .send_initial_packets_before_add_to_map(
+                guid,
+                position,
+                map_id,
+                zone_id,
+                homebind,
+                known_spells,
+                favorite_spells,
+                spell_history_entries,
+                spell_charge_entries,
+                action_buttons,
+                account_mounts,
+                updateobject_trace_enabled,
+            )
+            .await
+        {
+            return false;
+        }
 
         // ── C++ Map::AddPlayerToMap ──
         if updateobject_trace_enabled {
@@ -19347,6 +19443,156 @@ mod tests {
             EquipmentSetGuidGeneratorLikeCpp::new(1),
         ));
         (session, send_rx)
+    }
+
+    #[test]
+    fn motd_split_preserves_cpp_empty_and_trailing_lines() {
+        assert_eq!(
+            motd_lines_like_cpp("first@@third@"),
+            vec!["first", "", "third", ""]
+        );
+    }
+
+    #[tokio::test]
+    async fn handle_player_login_prelude_resends_account_state_and_orders_packets_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send_capacity(32);
+        let guid = ObjectGuid::create_player(1, 42);
+        let tutorials = [10, 20, 30, 40, 50, 60, 70, 80];
+        let mounts = [
+            AccountMount {
+                spell_id: 100,
+                flags: 1,
+            },
+            AccountMount {
+                spell_id: 200,
+                flags: 2,
+            },
+        ];
+        session.set_player_guid(Some(guid));
+        session.load_tutorials_data_values_like_cpp(Some(tutorials));
+        assert!(
+            session
+                .send_handle_player_login_packets_like_cpp(
+                    guid,
+                    &Position::new(1.0, 2.0, 3.0, 4.0),
+                    571,
+                    &mounts,
+                    "first@second",
+                )
+                .await
+        );
+
+        let packets = send_rx.try_iter().collect::<Vec<_>>();
+        let opcodes = packets
+            .iter()
+            .filter_map(|bytes| WorldPacket::from_bytes(bytes).server_opcode())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            opcodes,
+            vec![
+                ServerOpcodes::AccountMountUpdate,
+                ServerOpcodes::AccountMountUpdate,
+                ServerOpcodes::AccountDataTimes,
+                ServerOpcodes::TutorialFlags,
+                ServerOpcodes::SetDungeonDifficulty,
+                ServerOpcodes::LoginVerifyWorld,
+                ServerOpcodes::AccountDataTimes,
+                ServerOpcodes::FeatureSystemStatus,
+                ServerOpcodes::ChatServerMessage,
+                ServerOpcodes::ChatServerMessage,
+                ServerOpcodes::SetTimeZoneInformation,
+                ServerOpcodes::BattlePetJournalLockAcquired,
+            ]
+        );
+
+        for (packet, expected_mount) in packets[..2].iter().zip(mounts) {
+            let mut body = WorldPacket::from_bytes(&packet[2..]);
+            assert!(!body.read_bit().unwrap());
+            assert_eq!(body.read_int32().unwrap(), 1);
+            assert_eq!(body.read_int32().unwrap(), expected_mount.spell_id);
+            assert_eq!(body.read_bits(4).unwrap(), u32::from(expected_mount.flags));
+            assert_eq!(body.remaining(), 0);
+        }
+
+        let mut global_account_data = WorldPacket::from_bytes(&packets[2][2..]);
+        assert_eq!(
+            global_account_data.read_packed_guid().unwrap(),
+            ObjectGuid::EMPTY
+        );
+        let mut tutorial_packet = WorldPacket::from_bytes(&packets[3][2..]);
+        for expected in tutorials {
+            assert_eq!(tutorial_packet.read_uint32().unwrap(), expected);
+        }
+        assert_eq!(tutorial_packet.remaining(), 0);
+
+        let mut character_account_data = WorldPacket::from_bytes(&packets[6][2..]);
+        assert_eq!(character_account_data.read_packed_guid().unwrap(), guid);
+
+        for (packet, expected_line) in packets[8..10].iter().zip(["first", "second"]) {
+            let mut body = WorldPacket::from_bytes(&packet[2..]);
+            assert_eq!(body.read_int32().unwrap(), 3);
+            let string_len = body.read_bits(11).unwrap() as usize;
+            assert_eq!(body.read_string(string_len).unwrap(), expected_line);
+            assert_eq!(body.remaining(), 0);
+        }
+
+        assert!(session.has_represented_battle_pet_journal_lock_like_cpp());
+    }
+
+    #[tokio::test]
+    async fn before_add_spell_packets_keep_cpp_order_without_name_query_injection() {
+        let (mut session, send_rx) = make_session_with_send_capacity(64);
+        let guid = ObjectGuid::create_player(1, 42);
+        session.set_player_guid(Some(guid));
+
+        assert!(
+            session
+                .send_initial_packets_before_add_to_map(
+                    guid,
+                    &Position::ZERO,
+                    571,
+                    0,
+                    CharacterLoginLocationLikeCpp {
+                        map_id: 571,
+                        bind_area_id: Some(0),
+                        position: Position::ZERO,
+                    },
+                    vec![123],
+                    Vec::new(),
+                    Vec::new(),
+                    Vec::new(),
+                    [0; 180],
+                    Vec::new(),
+                    false,
+                )
+                .await
+        );
+
+        let opcodes = drain_server_opcodes(&send_rx);
+        assert!(
+            !opcodes.contains(&ServerOpcodes::QueryPlayerNamesResponse),
+            "C++ ContactList serialization does not synchronously publish name-query results"
+        );
+        let expected = [
+            ServerOpcodes::ContactList,
+            ServerOpcodes::BindPointUpdate,
+            ServerOpcodes::UpdateTalentData,
+            ServerOpcodes::SendKnownSpells,
+            ServerOpcodes::SendUnlearnSpells,
+            ServerOpcodes::SendSpellHistory,
+            ServerOpcodes::SendSpellCharges,
+            ServerOpcodes::ActiveGlyphs,
+        ];
+        let positions = expected.map(|opcode| {
+            opcodes
+                .iter()
+                .position(|candidate| *candidate == opcode)
+                .unwrap_or_else(|| panic!("missing {opcode:?}"))
+        });
+        assert!(
+            positions.windows(2).all(|pair| pair[0] < pair[1]),
+            "C++ orders ContactList -> talents -> known/unlearn/history/charges -> ActiveGlyphs"
+        );
     }
 
     #[test]

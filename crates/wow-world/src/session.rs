@@ -39970,6 +39970,28 @@ impl WorldSession {
         mounts
     }
 
+    /// Account mounts for the per-mount `CollectionMgr::LoadMounts` login
+    /// publications. C++ keeps every valid DB2 row in the collection, but
+    /// suppresses this partial update when the mount's PlayerCondition fails.
+    pub(crate) fn account_mount_login_partial_rows_like_cpp(&self) -> Vec<AccountMount> {
+        self.account_mount_rows_like_cpp()
+            .into_iter()
+            .filter(|mount| {
+                let Ok(spell_id) = u32::try_from(mount.spell_id) else {
+                    return false;
+                };
+                self.mount_store
+                    .as_ref()
+                    .and_then(|store| store.get_by_source_spell_id_like_cpp(spell_id))
+                    .is_none_or(|entry| {
+                        self.represented_meets_player_condition_id_like_cpp(
+                            entry.player_condition_id,
+                        )
+                    })
+            })
+            .collect()
+    }
+
     /// Persist the login snapshot of the player's spell history + charge packets so the
     /// before-add init helper can re-send them (e.g. on far teleport). Mirrors C++
     /// `Player::SendInitialPacketsBeforeAddToMap` reading `GetSpellHistory()`.
@@ -82081,6 +82103,14 @@ mod tests {
                 flags: 0,
             },
         ]);
+        assert_eq!(
+            session.account_mount_login_partial_rows_like_cpp(),
+            vec![wow_packet::packets::misc::AccountMount {
+                spell_id: 100,
+                flags: 0,
+            }],
+            "C++ CollectionMgr::AddMount stores and learns both rows, but sends the partial AccountMountUpdate only after PlayerCondition succeeds"
+        );
         assert!(session.known_spells_like_cpp().contains(&100));
         assert!(
             session.known_spells_like_cpp().contains(&101),

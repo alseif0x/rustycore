@@ -12,9 +12,6 @@ use tracing::{info, warn};
 use wow_constants::ClientOpcodes;
 use wow_core::ObjectGuid;
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
-use wow_packet::packets::query::{
-    NameCacheLookupResult, PlayerGuidLookupData, QueryPlayerNamesResponse,
-};
 use wow_packet::packets::social::{
     AcceptSocialContract, AccountNotificationAcknowledged, AddIgnore, ContactInfo, ContactListPkt,
     DelIgnore, FriendStatusPkt, FriendsResult, SetContactNotes, SocialContractRequestResponse,
@@ -151,13 +148,21 @@ impl WorldSession {
 
         let char_db = match self.char_db() {
             Some(db) => Arc::clone(db),
-            None => return,
+            None => {
+                // C++ sends `ContactList` even when the loaded social map is
+                // empty; it never follows it with a name-query response.
+                self.send_packet_realm(&ContactListPkt {
+                    flags,
+                    contacts: Vec::new(),
+                });
+                return;
+            }
         };
 
         // C++ `PlayerSocial::SendSocialList` iterates the loaded social map and
         // writes only entries matching the requested `SocialFlag` bitmask.
         let rows = sqlx::query(
-            "SELECT CAST(cs.friend AS SIGNED), cs.flags, cs.note, c.race, c.class, c.level, c.zone, c.name, c.gender \
+            "SELECT CAST(cs.friend AS SIGNED), cs.flags, cs.note, c.class, c.level, c.zone \
              FROM character_social cs \
              JOIN characters c ON c.guid = cs.friend \
              WHERE cs.guid = ? AND (cs.flags & ?) <> 0",
@@ -170,41 +175,19 @@ impl WorldSession {
 
         let vra = self.virtual_realm_address();
 
-        struct ContactNameData {
-            guid: ObjectGuid,
-            name: String,
-            race: u8,
-            sex: u8,
-            class: u8,
-            level: u8,
-        }
-
         let mut contacts: Vec<ContactInfo> = Vec::new();
-        let mut name_data: Vec<ContactNameData> = Vec::new();
 
         for row in rows {
             use sqlx::Row;
             let friend_raw: i64 = row.try_get(0).unwrap_or(0);
             let type_flags: u32 = row.try_get::<u8, _>(1).unwrap_or(0) as u32;
             let note: String = row.try_get(2).unwrap_or_default();
-            let race: u8 = row.try_get::<u8, _>(3).unwrap_or(0);
-            let class_id: u32 = row.try_get::<u8, _>(4).unwrap_or(0) as u32;
-            let level: u32 = row.try_get::<u8, _>(5).unwrap_or(0) as u32;
-            let zone: u32 = row.try_get::<i32, _>(6).unwrap_or(0) as u32;
-            let name: String = row.try_get(7).unwrap_or_default();
-            let gender: u8 = row.try_get::<u8, _>(8).unwrap_or(0);
+            let class_id: u32 = row.try_get::<u8, _>(3).unwrap_or(0) as u32;
+            let level: u32 = row.try_get::<u8, _>(4).unwrap_or(0) as u32;
+            let zone: u32 = row.try_get::<i32, _>(5).unwrap_or(0) as u32;
 
             let friend_guid = ObjectGuid::create_player(0, friend_raw);
             let friend_status = self.friend_status_for_guid_like_cpp(friend_guid);
-
-            name_data.push(ContactNameData {
-                guid: friend_guid,
-                name,
-                race,
-                sex: gender,
-                class: class_id as u8,
-                level: level as u8,
-            });
 
             contacts.push(ContactInfo {
                 guid: friend_guid,
@@ -222,28 +205,6 @@ impl WorldSession {
         }
 
         self.send_packet_realm(&ContactListPkt { flags, contacts });
-
-        if !name_data.is_empty() {
-            let players: Vec<NameCacheLookupResult> = name_data
-                .into_iter()
-                .map(|nd| NameCacheLookupResult {
-                    player: nd.guid,
-                    result: 0,
-                    data: Some(PlayerGuidLookupData {
-                        guid_actual: nd.guid,
-                        name: nd.name,
-                        race: nd.race,
-                        sex: nd.sex,
-                        class: nd.class,
-                        level: nd.level,
-                        virtual_realm_address: vra,
-                        ..Default::default()
-                    }),
-                })
-                .collect();
-
-            self.send_packet_realm(&QueryPlayerNamesResponse { players });
-        }
     }
 
     /// CMSG_ADD_FRIEND (0x36d8)
@@ -819,6 +780,28 @@ mod tests {
             .await;
 
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn empty_contact_list_sends_only_contact_list_like_cpp() {
+        let (mut session, send_rx) = make_session();
+        session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+
+        session.send_contact_list_like_cpp(7).await;
+
+        let bytes = send_rx.try_recv().expect("empty contact list");
+        assert_eq!(
+            opcode(&bytes),
+            ServerOpcodes::ContactList.to_u16().expect("opcode")
+        );
+        let mut body = wow_packet::WorldPacket::from_bytes(&bytes[2..]);
+        assert_eq!(body.read_uint32().unwrap(), 7);
+        assert_eq!(body.read_bits(8).unwrap(), 0);
+        assert_eq!(body.remaining(), 0);
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ PlayerSocial::SendSocialList does not inject QueryPlayerNamesResponse"
+        );
     }
 
     #[test]
