@@ -18,7 +18,11 @@ use capture_diff::diff::{DiffReport, DivergenceSignature};
 use capture_diff::{flow, pkt, rustdump};
 
 const AUTH_RESPONSE: u16 = 0x256D;
+const PHASE_SHIFT_CHANGE: u16 = 0x2578;
+const LOAD_CUF_PROFILES: u16 = 0x25BC;
+const INIT_WORLD_STATES: u16 = 0x2746;
 const UPDATE_OBJECT: u16 = 0x27CB;
+const AURA_UPDATE: u16 = 0x2C1F;
 
 fn load_login_diff() -> (DiffReport, flow::Flow) {
     let flow = flow::load_flow("login").expect("login flow must exist");
@@ -76,6 +80,45 @@ fn rust_reference_parses_and_covers_the_login_burst() {
     let rust = rustdump::parse_rust_dump(&flow.reference_rust).unwrap();
     assert!(rust.packets.iter().any(|p| p.opcode == AUTH_RESPONSE));
     assert!(rust.packets.iter().any(|p| p.opcode == UPDATE_OBJECT));
+}
+
+#[test]
+fn load_cuf_profiles_matches_cpp_body_and_post_add_order() {
+    let flow = flow::load_flow("login").unwrap();
+    let cpp = pkt::parse_pkt_file(&flow.golden_pkt).unwrap();
+    let rust = rustdump::parse_rust_dump(&flow.reference_rust).unwrap();
+
+    let cpp_cuf = cpp
+        .packets
+        .iter()
+        .find(|packet| packet.opcode == LOAD_CUF_PROFILES)
+        .expect("C++ login capture must contain LoadCufProfiles");
+    let rust_cuf = rust
+        .packets
+        .iter()
+        .find(|packet| packet.opcode == LOAD_CUF_PROFILES)
+        .expect("Rust login capture must contain LoadCufProfiles");
+    assert_eq!(
+        rust_cuf.body, cpp_cuf.body,
+        "Rust LoadCufProfiles must be byte-identical to the C++ golden packet"
+    );
+
+    let expected = [
+        INIT_WORLD_STATES,
+        LOAD_CUF_PROFILES,
+        AURA_UPDATE,
+        PHASE_SHIFT_CHANGE,
+    ];
+    for (label, capture) in [("C++", &cpp), ("Rust", &rust)] {
+        assert!(
+            capture
+                .packets
+                .windows(expected.len())
+                .any(|packets| packets.iter().map(|packet| packet.opcode).eq(expected)),
+            "{label} login must send InitWorldStates, LoadCufProfiles, AuraUpdate and the \
+             OnMapChange PhaseShiftChange in C++ order"
+        );
+    }
 }
 
 #[test]

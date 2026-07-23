@@ -7767,8 +7767,8 @@ mod tests {
         // then the before-add control packets SetMovedUnit (MoveSetActiveMover) + a fresh
         // TimeSyncRequest, then (no nearby objects on the destination test map, so the AddToMap
         // refresh emits nothing) the full SendInitialPacketsAfterAddToMap helper — post-add
-        // PhaseShiftChange, InitWorldStates for the destination map, the PhasingHandler::
-        // OnMapChange PhaseShiftChange, and LoadCufProfiles (no auras on the test player). The
+        // PhaseShiftChange, InitWorldStates for the destination map, LoadCufProfiles (no auras
+        // on the test player), and the PhasingHandler::OnMapChange PhaseShiftChange. The
         // UpdateObject after TimeSyncRequest is SendInitSelf (the player's own ActivePlayer
         // create for the destination map — C++ Map::AddPlayerToMap initPlayer=true). The final
         // send_stat_update emits nothing in this minimal test (no stat stores configured).
@@ -7783,8 +7783,8 @@ mod tests {
                 ServerOpcodes::UpdateObject as u16,
                 ServerOpcodes::PhaseShiftChange as u16,
                 ServerOpcodes::InitWorldStates as u16,
-                ServerOpcodes::PhaseShiftChange as u16,
                 ServerOpcodes::LoadCufProfiles as u16,
+                ServerOpcodes::PhaseShiftChange as u16,
             ]
         );
     }
