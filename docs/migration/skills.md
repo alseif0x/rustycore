@@ -195,21 +195,21 @@ Note: in WoLK 3.4.3 most skill state propagation goes through **player update-fi
 <!-- REFINE.021:END rust-target-coverage -->
 
 **Files in `/home/server/rustycore`:**
-- `crates/wow-data/src/skill.rs` — 608 lines — `SkillStore` reader for `SkillLineAbility.db2` + `SkillRaceClassInfo.db2`. Provides `default_starting_skills(race, class)` and per-skill ability iteration. Used by `LearnDefaultSkills` equivalent in character handler.
-- (no per-player skill state)
+- `crates/wow-data/src/skill.rs` — `SkillStore` reader for `SkillLineAbility.db2` + `SkillRaceClassInfo.db2`, C++ range/default/load normalization, and `LearnSkillRewardedSpells` selection.
+- `crates/wow-world/src/handlers/character.rs` / `session.rs` — login-time represented player skill records, `SkillInfo` projection, `character_skills` load/full-rewrite save, and login rewarded-spell application.
 - (no skill discovery / extra item / perfect item tables)
-- (no handlers besides any auto-learn loop in character creation / login)
+- (runtime skill-gain handlers remain incomplete beyond the login path)
 
 **What's implemented:**
-- DB2 reading for `SkillLineAbility.db2` (auto-learn list) and `SkillRaceClassInfo.db2` (starting skill list).
-- Used at character creation / login to compute the starting spell set ("LearnDefaultSkills" equivalent), but **without** persisting per-skill rank/max state.
+- WDC4/DB2 reading for `SkillLineAbility.db2` and `SkillRaceClassInfo.db2`, including real inline record IDs needed by Common-compressed fields.
+- Issue #62 login slice: `Availability`/`MinLevel`, C++ language/level/mono/rank defaults, always-max/DK/tier behavior, `_LoadSkills` normalization, persisted/default `SkillInfo`, and live `LearnSkillRewardedSpells`.
+- Represented `character_skills` load/full-rewrite save with current/max/profession slot. This is not the full C++ `mSkillStatus` NEW/CHANGED/DELETED model.
 
 **What's missing vs C++:**
-- Per-player skill state (`mSkillStatus` map + update-field slot allocation).
-- `character_skills` table prepared statements + load/save.
+- Full per-player skill state (`mSkillStatus` NEW/CHANGED/DELETED tracking + exact update-field slot reuse).
 - `SetSkill`, `UpdateSkill`, `UpdateCraftSkill`, `UpdateGatherSkill`, `UpdateWeaponSkill`, `UpdateFishingSkill`.
 - `GetSkillValue` / `GetMaxSkillValue` / `GetPureSkillValue` / `HasSkill` / `ModifySkillBonus`.
-- `skill_tiers` world-table runtime consumption (needed for max-rank step calc).
+- Broader `skill_tiers` consumers beyond the issue-#62 default/login path.
 - `skill_discovery_template` loader + `GetSkillDiscoverySpell` / `GetExplicitDiscoverySpell`.
 - `skill_extra_item_template` loader + `CanCreateExtraItems`.
 - `skill_perfect_item_template` loader + `CanCreatePerfectItem`.
@@ -278,8 +278,8 @@ Complejidad: **L** (low, <1h), **M** (med, 1-4h), **H** (high, 4-12h), **XL** (>
 - [ ] **#SKILLS.7** Implement `Player::save_skills` (write NEW/CHANGED/DELETED rows via `_SaveSkills` semantics) (M)
 - [ ] **#SKILLS.8** Implement `Player::set_skill(skillId, step, currentValue, maxValue)` with full TC behavior: value=0 → mark DELETED + drop linked spells via `SkillLineAbility` reverse lookup (H)
 - [ ] **#SKILLS.9** Implement `Player::get_skill_value(skillId)` / `get_pure_skill_value` / `get_max_skill_value` / `has_skill` / `modify_skill_bonus` (M)
-- [ ] **#SKILLS.10** Implement `Player::learn_default_skills` triggered at character creation AND after level-up tier transitions (call `LearnSkillRewardedSpells` for each gained skill) (M)
-- [ ] **#SKILLS.11** Implement `Player::learn_skill_rewarded_spells(skillId, skillValue, race)` — iterate `SkillLineAbility` map for skill, grant any spell with rank ≤ value matching race/class (M)
+- [~] **#SKILLS.10** Issue #62 implements C++ `LearnDefaultSkills` for the live login/default-skill path, including persisted/default `SkillInfo`; character-create and later level/tier transition ownership still need full audit/wiring. (M)
+- [~] **#SKILLS.11** Issue #62 implements `LearnSkillRewardedSpells` for loaded/default login skills with real SpellInfo levels, quest fallback, Riding, masks and actual values; all later `SetSkill`/skill-gain call sites remain open. (M)
 - [ ] **#SKILLS.12** Implement `Player::update_craft_skill(spellId)` — red/yellow/green/grey thresholds vs `TrivialSkillLineRankHigh/Low` of the spell's ability record (M)
 - [ ] **#SKILLS.13** Implement `Player::update_gather_skill(skillId, current, redLevel, multiplicator)` — used by Mining/Herb/Skinning loot completion (M)
 - [ ] **#SKILLS.14** Implement `Player::update_weapon_skill(victim, attType)` — bumps SKILL_SWORDS etc. capped at 5*level (M)

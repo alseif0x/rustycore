@@ -105,11 +105,11 @@ indica donde se controla cada referencia.
 - [ ] `#CSharpAudit.QUEST.1` - `can_take_quest` omite timed/breadcrumb gates.
 - [ ] `#CSharpAudit.QUEST.2` - Accept quest omite side-effects C++.
 - [ ] `#CSharpAudit.QUEST.3` - Complete/request/choose reward runtime parcial.
-- [ ] `#CSharpAudit.DATASTATS.1` - `player_stats.rs` y proyecciones usan tablas/formulas C# para stats finales.
+- [x] `#CSharpAudit.DATASTATS.1` - Corregido en issue #60 / PR #118 con tablas y proyeccion C++ y captura de stats acreditada.
 - [ ] `#CSharpAudit.ITEMSTATS.1` - Aplicacion directa de stats de item es parcial frente a `_ApplyItemBonuses`.
-- [ ] `#CSharpAudit.SKILL.1` - Starting skills no filtran `Availability == 1` ni `MinLevel`.
-- [ ] `#CSharpAudit.SKILL.2` - Starting skill info no replica `LearnDefaultSkill`.
-- [ ] `#CSharpAudit.SKILL.3` - Starting/racial spells legacy no replica `LearnSkillRewardedSpells`.
+- [x] `#CSharpAudit.SKILL.1` - Corregido en issue #62: `PlayerInfo.skills`/login filtran `Availability == 1` y `MinLevel` como C++.
+- [x] `#CSharpAudit.SKILL.2` - Corregido en issue #62: valores language/level/mono/rank, always-max, DK, tier y skills sin abilities siguen `LearnDefaultSkill`.
+- [x] `#CSharpAudit.SKILL.3` - Corregido en issue #62: la ruta live aplica `LearnSkillRewardedSpells` con niveles reales, fallback quest, Riding, masks y skill value real.
 - [x] `#CSharpAudit.MOVEMENT.1` - Corregido en `98ceec4d`; `HandleMovementOpcode` usa mover actual (`GetUnitBeingMoved()` representado).
 - [ ] `#CSharpAudit.MOVEMENT.2` - Runtime generico movement omite ramas C++ de teleport/spline/transport/vehicle/under-map y estado generico completo.
 - [ ] `#CSharpAudit.MOVEMENT.3` - `MoveInitActiveMoverComplete` side effects no son 1:1.
