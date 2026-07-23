@@ -24,3 +24,6 @@ wow-data = { workspace = true }
 wow-database = { workspace = true }
 wow-instances = { workspace = true }
 wow-loot = { workspace = true }
+
+[dev-dependencies]
+flate2 = { workspace = true }

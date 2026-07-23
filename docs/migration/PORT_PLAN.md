@@ -84,7 +84,9 @@ intent, no mutation — see STATE.md §0). Almost every item below is "convert r
 - [x] **M1.1** Fix **#7** (CUF profiles → bags don't open): match C++'s post-add
   `InitWorldStates → LoadCufProfiles → AuraUpdate → PhaseShiftChange` order and pin a live,
   non-empty C++/Rust capture pair.
-- [ ] **M1.2** Restore real compression **#8** (one persistent deflate stream per socket; re-enable threshold).
+- [x] **M1.2** Restore real compression **#8**: the `0x400` C++ threshold is active,
+  one deflate stream survives the direct-send → async-writer ownership split, and live login QA
+  decoded four consecutive large packets through one persistent inflater.
 - [ ] **M1.3** Close the 33 login-burst divergences (**#9–#12**, `world-load-audit.md`):
   proficiency set, AccountDataTimes/TutorialFlags resend, ordering, FeatureSystemStatus, MOTD, etc.
 - [ ] **M1.4** Fix the CREATE-block UpdateField VALUE gaps (AuraState, DK DisplayPower,
