@@ -1,6 +1,6 @@
 # World-load (login → enter world) C++/Rust parity audit
 
-> Status: **candidate gaps to attack later — NOT yet implemented.** Generated 2026-06-26 by a multi-agent audit of the world-entry flow against the C++ source of truth (`/home/server/woltk-trinity-legacy`) and a byte-level diff of full C++ vs Rust login packet captures. Each item cites the C++ ref and the Rust target; `#NEXT.R8.ENTITIES.12xx` ids are placeholders for when the item is picked up. Verify every claim against current C++/worktree before implementing — some may already be partially handled.
+> Status: **mixed. Phase A (1201–1211) was re-audited and dispositioned by issue #9; later phases remain candidate gaps.** Generated 2026-06-26 by a multi-agent audit of the world-entry flow against the C++ source of truth (`/home/server/woltk-trinity-legacy`) and a byte-level diff of full C++ vs Rust login packet captures. Each item cites the C++ ref and the Rust target; `#NEXT.R8.ENTITIES.12xx` ids are placeholders for when the item is picked up. Verify every claim against current C++/worktree before implementing — some may already be partially handled.
 
 Context: prompted after fixing the world-entry client crash (`#NEXT.R8.ENTITIES.1200`, MO_TRANSPORT `SpawnTrackingStateAnimID`/`Flags`). While bisecting that crash we saw a recurring pattern — packets omitted and UpdateFields shipped as `0` where C++ computes a value — so this catalogues the rest of the world-load flow. No new crash-risk items were found here; the cluster is functional/ordering parity work.
 
@@ -8,6 +8,38 @@ Context: prompted after fixing the world-entry client crash (`#NEXT.R8.ENTITIES.
 ## Phase A — Before AddToMap (HandlePlayerLogin + SendInitialPacketsBeforeAddToMap)
 
 _Audited the BeforeAddToMap + HandlePlayerLogin packet burst (C++ Player::SendInitialPacketsBeforeAddToMap @ Player.cpp:23479 and WorldSession::HandlePlayerLogin @ CharacterHandler.cpp:1076) against the Rust send_login_sequence (character.rs:13101-13266), diffing the empirical opcode sequences (cpp counters 60-100 vs rust counters/seq 84-134+). The before-add core opcode set largely matches in both, but I found concrete divergences. Functional gaps: (1) SET_PROFICIENCY count/content mismatch — C++ sends 6 with specific accumulated masks, Rust sends 8 with different masks (session.rs:51540), indicating a different proficiency-spell/subclass-mask set; (2) Rust OMITS the global-cache-mask AccountDataTimes that C++ resends at the top of HandlePlayerLogin (CharacterHandler.cpp:1107); (3) Rust OMITS the TutorialFlags resend in the login burst (CharacterHandler.cpp:1108); (4) BattlePetJournalLockAcquired is sent post-add-to-map in Rust instead of pre-burst (CharacterHandler.cpp:1180). Cosmetic/ordering: MOTD is a single hardcoded line vs C++ 4 configured lines; ActiveGlyphs is emitted before SendKnownSpells on the wire (inverted); an extra QueryPlayerNamesResponse is injected mid-burst by the contact-list send; and an extra LfgListUpdateBlacklist is sent that C++ does not. Unknown/needs-verify: 3 early CollectionMgr AccountMountUpdate packets present in C++ but not Rust; AccountHeirloomUpdate empty-case parity; and FeatureSystemStatus uses a static default_wotlk() rather than C++'s config/EuropaTicket-populated struct (byte-compare cpp-s2c-00000075). No crash-risk gaps were identified in this dimension; the cluster is functional/ordering parity work._
+
+The paragraph and individual entries below preserve the original 2026-06-26 findings. Issue #9
+re-contrasted all eleven rows against current Rust and the exact C++ source and assigned these
+final dispositions:
+
+| Row | Issue #9 disposition |
+|---|---|
+| 1201 | Already fixed by issue #62/PR #119. A deterministic regression pins the C++ six-packet accumulated proficiency masks; the live TESTBOT character has a different class/spell fixture and therefore is not compared by packet count. |
+| 1202 | Fixed: resend global `AccountDataTimes` before the login prelude and retain the later per-character resend. |
+| 1203 | Fixed: resend `TutorialFlags` immediately after the global account-data packet. |
+| 1204 | Fixed: move the battle-pet journal lock into `HandlePlayerLogin` before the before-add burst. |
+| 1205 | Fixed: read configured `Motd`, split with C++ `@` semantics, and emit one `ChatServerMessage` per segment, including empty/trailing segments. |
+| 1206 | Fixed at the physical-socket boundary: explicit cross-writer fences preserve C++ order through `LoginVerifyWorld`, `TimeSync`, contact/bind/talent/spell packets, `ActiveGlyphs`, and action/rest packets. |
+| 1207 | Fixed: login contact-list publication emits only `ContactList`; it no longer injects `QueryPlayerNamesResponse`. |
+| 1208 | Rejected as a false positive. C++ sends `LfgListUpdateBlacklist` in response to its client request; it is not an automatic login packet, and Rust likewise does not inject it from the login sequence. |
+| 1209 | Fixed: account mounts remain stored/learned, but login publishes a partial `AccountMountUpdate` only when the mount's `PlayerCondition` succeeds, matching `CollectionMgr::AddMount`. |
+| 1210 | Audited boundary, intentionally not emitted: this 3.4.3 C++ target declares `SMSG_ACCOUNT_HEIRLOOM_UPDATE` as unresolved `0xBADD`. Rust retains the model but cannot invent a wire opcode. |
+| 1211 | Already fixed on the integration base. Focused coverage pins the C++ configuration/Europa ticket fields and payload. |
+
+Accredited live QA on local issue-#9 HEAD `6cdfaf35` used the exact
+`world-server` binary SHA-256
+`b45d7839ada9fb7bdd9595d0b83f5ff1a6fcb6439d49b04c1707f35d19d3c292`.
+The 81-packet two-socket capture proves the physical order
+`AccountDataTimes(global) -> TutorialFlags -> DungeonDifficulty -> LoginVerifyWorld ->
+AccountDataTimes(character) -> FeatureSystemStatus -> MOTD -> TimeZone -> battle-pet lock ->
+TimeSync -> ContactList -> BindPoint -> Talents -> Known -> Unlearn -> History -> Charges ->
+ActiveGlyphs`, with no name-query injection. A fresh same-character C++ capture could not pass
+the installed reference runtime's immediate second-socket close after `ResumeComms`; therefore the
+full login baseline was not replaced and no global byte-clean claim is made. The existing real C++
+golden, exact C++ call order, focused payload tests, and current two-socket Rust capture jointly
+validate this bounded slice. Issues #10–#12 still own the later 22 world-load rows and the complete
+M1.3 exit.
 
 ### #NEXT.R8.ENTITIES.1201 — SET_PROFICIENCY count + mask content  ·  🟠 functional
 - **Gap:** Rust sends 2 EXTRA proficiency packets and the accumulated weapon/armor subclass masks and emission order differ from C++. The set of proficiency-granting spells applied (or the equipped-item subclass mask table feeding represented_weapon/armor_proficiency_like_cpp) does not match C++, so the client receives a different final proficiency mask.
