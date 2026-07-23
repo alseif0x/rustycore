@@ -37,13 +37,18 @@ internal child relocation cannot duplicate objective credit. A later current-HEA
 found that the empty-equip and real-swap persistence plans used `_StoreItem`'s bonding rule for an
 equipment destination. They now use C++ `EquipItem -> VisualizeItem`, which binds `BIND_ON_EQUIP`
 before persistence, while ordinary inventory storage retains the narrower `_StoreItem` rule. Two
-bank-access suggestions were rejected after exact contrast: local 3.4.3 and current upstream both
+additional current-HEAD corrections make `AUTO_STORE_BANK_ITEM` choose bank versus inventory from
+the source position, publish both child `ContainedIn`/slot and old/new container-slot updates when
+bag contents are exchanged, and load/propagate `ItemChildEquipment.db2`. Parent empty-equips and
+real swaps now execute current-upstream `CanEquipChildItem` before parent mutation and
+`EquipChildItem` afterward, including storage of equipment displaced from the child's DB2 slot.
+Two bank-access suggestions were rejected after exact contrast: local 3.4.3 and current upstream both
 omit `CanUseBank` in `HandleAutoEquipItemOpcode` and `HandleAutoStoreBagItemOpcode`, while retaining
 it in `HandleSwapInvItemOpcode`/`HandleSwapItem`; Rust preserves that observable handler contract.
 
 Boundary: represented session inputs still do not own every C++ current-spell weapon-change or
 combat-state gate; the accredited capture proves the invalid-source branch plus the occupied-swap
-lifecycle rather than every validation result; rare auto-equip/offhand follow-ups use sequential
+lifecycle rather than every validation result; rare child-equip/offhand follow-ups use sequential
 durable steps rather than one handler-wide transaction. Broader item/gem/durability behavior and
 full Part-2 inventory parity remain open. Revert the issue #52 commits and remove this inventory,
 handoff, state, plan and defect note to roll back the slice.

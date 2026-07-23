@@ -82,18 +82,19 @@ use wow_data::{
     FishingBaseSkillStoreLikeCpp, GameObjectDisplayInfoStore,
     GameObjectTemplateLifecycleStoreLikeCpp, GemPropertiesStore, GlyphPropertiesStore,
     GraveyardStore, HeirloomEntry, HeirloomStore, HotfixBlobCache, ImportPriceStores,
-    ItemAppearanceStore, ItemBonusDb2Store, ItemClassStore, ItemCurrencyCostStore,
-    ItemDisenchantLootStore, ItemEffectStore, ItemExtendedCostStore,
-    ItemLimitCategoryConditionStore, ItemLimitCategoryStore, ItemModifiedAppearanceStore,
-    ItemPriceBaseStore, ItemRandomEnchantmentTemplateStore, ItemRandomPropertiesStore,
-    ItemRandomPropertyTemplateEntry, ItemRandomSuffixStore, ItemSearchNameStore, ItemSetSpellStore,
-    ItemSetStore, ItemSpecOverrideStore, ItemStatsStore, ItemStore, LfgDungeonStoreLikeCpp,
-    LfgDungeonsStore, LockStore, MapDifficultyStore, MapDifficultyXConditionStore, MapStore,
-    MountCapabilityStore, MountDefinitionStoreLikeCpp, MountStore, MountTypeXCapabilityStore,
-    MountXDisplayStore, MovieStore, NpcSpellClickStoreLikeCpp, PetDefaultSpellStoreLikeCpp,
-    PetDefaultSpellsEntryLikeCpp, PetFamilySpellStoreLikeCpp, PetLevelupSpellSetLikeCpp,
-    PetLevelupSpellStoreLikeCpp, PhaseGroupStore, PhaseStore, PlayerConditionAuraLikeCpp,
-    PlayerConditionContextLikeCpp, PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
+    ItemAppearanceStore, ItemBonusDb2Store, ItemChildEquipmentEntry, ItemChildEquipmentStore,
+    ItemClassStore, ItemCurrencyCostStore, ItemDisenchantLootStore, ItemEffectStore,
+    ItemExtendedCostStore, ItemLimitCategoryConditionStore, ItemLimitCategoryStore,
+    ItemModifiedAppearanceStore, ItemPriceBaseStore, ItemRandomEnchantmentTemplateStore,
+    ItemRandomPropertiesStore, ItemRandomPropertyTemplateEntry, ItemRandomSuffixStore,
+    ItemSearchNameStore, ItemSetSpellStore, ItemSetStore, ItemSpecOverrideStore, ItemStatsStore,
+    ItemStore, LfgDungeonStoreLikeCpp, LfgDungeonsStore, LockStore, MapDifficultyStore,
+    MapDifficultyXConditionStore, MapStore, MountCapabilityStore, MountDefinitionStoreLikeCpp,
+    MountStore, MountTypeXCapabilityStore, MountXDisplayStore, MovieStore,
+    NpcSpellClickStoreLikeCpp, PetDefaultSpellStoreLikeCpp, PetDefaultSpellsEntryLikeCpp,
+    PetFamilySpellStoreLikeCpp, PetLevelupSpellSetLikeCpp, PetLevelupSpellStoreLikeCpp,
+    PhaseGroupStore, PhaseStore, PlayerConditionAuraLikeCpp, PlayerConditionContextLikeCpp,
+    PlayerConditionCountLikeCpp, PlayerConditionPartyStatusLikeCpp,
     PlayerConditionQuestKillLikeCpp, PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp,
     PlayerConditionStore, PlayerCreateInfoCastSpellStoreLikeCpp,
     PlayerCreateInfoCustomSpellStoreLikeCpp, PlayerCreateInfoStoreLikeCpp, PlayerStatsStore,
@@ -4596,6 +4597,9 @@ pub struct WorldSession {
     // Item store (Item.db2 BasicData — class/subclass)
     item_store: Option<Arc<ItemStore>>,
 
+    // Item child-equipment store (parent item -> child equipment slot)
+    item_child_equipment_store: Option<Arc<ItemChildEquipmentStore>>,
+
     // Item appearance store (ItemAppearance.db2 data)
     item_appearance_store: Option<Arc<ItemAppearanceStore>>,
 
@@ -6749,6 +6753,7 @@ impl WorldSession {
             item_currency_cost_store: None,
             item_extended_cost_store: None,
             item_store: None,
+            item_child_equipment_store: None,
             item_appearance_store: None,
             item_modified_appearance_store: None,
             item_search_name_store: None,
@@ -15668,6 +15673,23 @@ impl WorldSession {
     /// Set the item store for this session.
     pub fn set_item_store(&mut self, store: Arc<ItemStore>) {
         self.item_store = Some(store);
+    }
+
+    /// Set `ItemChildEquipment.db2`, used by C++ `CanEquipChildItem` and
+    /// `EquipChildItem` to move a linked child into its visible equipment slot.
+    pub fn set_item_child_equipment_store(&mut self, store: Arc<ItemChildEquipmentStore>) {
+        self.item_child_equipment_store = Some(store);
+    }
+
+    /// C++ `DB2Manager::GetItemChildEquipment(parentItemId)`.
+    pub(crate) fn item_child_equipment_for_parent_like_cpp(
+        &self,
+        parent_item_id: u32,
+    ) -> Option<&ItemChildEquipmentEntry> {
+        self.item_child_equipment_store
+            .as_ref()?
+            .values()
+            .find(|entry| entry.parent_item_id == parent_item_id)
     }
 
     /// Resolve C++ `ItemTemplate::GetRandomSelect()`.
@@ -40869,6 +40891,61 @@ impl WorldSession {
                 values: ContainerDataValues {
                     num_slots: u32::from(bag_size),
                     slots: slot_values,
+                },
+            }),
+        };
+        if let Some(packet) =
+            bag_values_update_to_update_object(bag_guid, self.player_map_id_like_cpp(), &update)
+        {
+            self.send_packet(&packet);
+        }
+    }
+
+    /// Publish a container-slot change by bag GUID. This is needed for C++'s
+    /// bag-content exchange: the previously full bag may no longer occupy a
+    /// registered bag slot, but the client still owns that container object
+    /// and must see its old child slot cleared.
+    pub(crate) fn send_bag_object_slot_values_update_like_cpp(
+        &self,
+        bag_guid: ObjectGuid,
+        changed_slot: u8,
+    ) {
+        if changed_slot as usize >= MAX_BAG_SIZE {
+            return;
+        }
+        let Some(bag_item) = self.inventory_item_objects_like_cpp().get(&bag_guid) else {
+            return;
+        };
+        let Some(bag_size) = self
+            .item_storage_template(bag_item.object().entry())
+            .map(|template| template.container_slots)
+            .filter(|size| *size > 0)
+        else {
+            return;
+        };
+        let mut slots = [ObjectGuid::EMPTY; MAX_BAG_SIZE];
+        for item in self
+            .inventory_item_objects_like_cpp()
+            .values()
+            .filter(|item| item.container_guid() == bag_guid)
+        {
+            if let Some(slot) = slots.get_mut(item.slot() as usize) {
+                *slot = item.object().guid();
+            }
+        }
+
+        let mut container_data_mask = UpdateMask::new(CONTAINER_DATA_BITS);
+        container_data_mask.set(CONTAINER_DATA_SLOTS_PARENT_BIT);
+        container_data_mask.set(CONTAINER_DATA_SLOTS_FIRST_BIT + changed_slot as usize);
+        let update = BagValuesUpdate {
+            changed_object_type_mask: 1 << TYPEID_CONTAINER,
+            object_data: None,
+            item_data: None,
+            container_data: Some(ContainerDataUpdate {
+                mask: container_data_mask,
+                values: ContainerDataValues {
+                    num_slots: u32::from(bag_size),
+                    slots,
                 },
             }),
         };

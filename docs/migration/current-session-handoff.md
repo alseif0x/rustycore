@@ -30,14 +30,21 @@
   bank. Current-HEAD review also corrected equipment binding: empty equips and both directions of
   a real swap now apply C++ `EquipItem -> VisualizeItem` bonding before persistence, so
   `BIND_ON_EQUIP` cannot remain tradable after relog, while normal inventory storage keeps
-  `_StoreItem`'s narrower rule. Two other review suggestions were intentionally rejected after exact
+  `_StoreItem`'s narrower rule. The next current-HEAD review closed three more concrete seams.
+  `HandleAutoStoreBankItemOpcode` now derives its target from the source domain, returning bank
+  items to inventory and sending non-bank items to bank. Bag-content exchanges update each moved
+  child's cached container, wire-visible `ContainedIn`, and slot, then publish the child's values
+  plus the old/new bag-slot changes. Finally, startup loads `ItemChildEquipment.db2`; empty equips
+  and real swaps run current-upstream `CanEquipChildItem` before moving the parent, store any item
+  displaced from the DB2-selected child slot, and then persist/equip the linked `CHILD` item before
+  offhand cleanup. Two other review suggestions were intentionally rejected after exact
   local and current-upstream contrast: neither `HandleAutoEquipItemOpcode` nor
   `HandleAutoStoreBagItemOpcode` calls `CanUseBank`; only the explicit swap handlers do. Adding
   those guards would be a Rust-only behavioral divergence from both C++ authorities.
   Boundaries remain explicit: the live session still lacks full current-spell weapon-change and
   some combat-state ownership needed to exercise every `CanEquipItem` input; the capture proves
   the invalid-source gate and occupied-swap lifecycle, not every validation branch; rare
-  multi-step auto-equip/offhand follow-ups are sequential durable operations rather than one
+  multi-step child-equip/offhand follow-ups are sequential durable operations rather than one
   handler-wide transaction. Broader item/gem/durability and full Part-2 inventory parity remain
   open outside #52.
 

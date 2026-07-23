@@ -214,6 +214,7 @@ pub struct SessionResources {
     pub item_extended_cost_store: Option<Arc<wow_data::ItemExtendedCostStore>>,
     pub item_appearance_store: Option<Arc<wow_data::ItemAppearanceStore>>,
     pub item_store: Option<Arc<wow_data::ItemStore>>,
+    pub item_child_equipment_store: Option<Arc<wow_data::ItemChildEquipmentStore>>,
     pub item_modified_appearance_store: Option<Arc<wow_data::ItemModifiedAppearanceStore>>,
     pub item_search_name_store: Option<Arc<wow_data::ItemSearchNameStore>>,
     pub trinity_string_store: Option<Arc<wow_data::TrinityStringStoreLikeCpp>>,

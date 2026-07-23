@@ -38,7 +38,7 @@ use wow_database::{
     SqlTransaction, StatementDef, WorldDatabase, WorldStatements,
 };
 use wow_entities::{
-    BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_START, CHILD_EQUIPMENT_SLOT_START,
+    BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_START,
     CreatureAddonLifecycleRecordLikeCpp, GAMEOBJECT_TYPE_FISHING_HOLE, GAMEOBJECT_TYPE_QUESTGIVER,
     GameObjectTemplateData, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
     INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, MAX_BAG_SIZE, MAX_GAMEOBJECT_DATA,
@@ -146,6 +146,24 @@ enum InventorySwapTargetLikeCpp {
 enum InventoryStorageTargetLikeCpp {
     Inventory,
     Bank,
+}
+
+fn autostore_bank_target_like_cpp(
+    source_bag: u8,
+    source_slot: u8,
+) -> InventoryStorageTargetLikeCpp {
+    if is_bank_pos(source_bag, source_slot) {
+        InventoryStorageTargetLikeCpp::Inventory
+    } else {
+        InventoryStorageTargetLikeCpp::Bank
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct InventoryEquipChildPlanLikeCpp {
+    child_guid: ObjectGuid,
+    destination_slot: u8,
+    displaced_storage: Option<(u8, u8, InventoryStorageTargetLikeCpp)>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2164,6 +2182,16 @@ fn bind_inventory_item_for_destination_like_cpp(item: &mut wow_entities::Item, d
         // OnEquip item binds here only when stored in a bag-equipment slot.
         item.bind_if_stored(wow_entities::is_bag_pos(destination));
     }
+}
+
+fn relocate_bag_exchange_child_like_cpp(
+    item: &mut wow_entities::Item,
+    destination_bag_guid: ObjectGuid,
+    destination_slot: u8,
+) {
+    item.set_container_guid(destination_bag_guid);
+    item.set_contained_in(destination_bag_guid);
+    item.set_slot(destination_slot);
 }
 
 fn player_money_gain_like_cpp(current_money: u64, amount: u64) -> Option<u64> {
@@ -10932,8 +10960,9 @@ impl WorldSession {
             return;
         }
 
+        let target = autostore_bank_target_like_cpp(packet.bag, packet.slot);
         let represented_move = RepresentedBankItemMoveLikeCpp {
-            to_bank: false,
+            to_bank: target == InventoryStorageTargetLikeCpp::Bank,
             inv_update_items: packet.inv_update.items,
             bag: packet.bag,
             slot: packet.slot,
@@ -10943,7 +10972,7 @@ impl WorldSession {
             packet.slot,
             NULL_BAG,
             NULL_SLOT,
-            InventoryStorageTargetLikeCpp::Inventory,
+            target,
             Some(represented_move),
         )
         .await;
@@ -14430,6 +14459,176 @@ impl WorldSession {
             .is_some_and(|(bag, slot, _)| bag == INVENTORY_SLOT_BAG_0 && slot == hidden_slot)
     }
 
+    /// Current upstream C++ `Player::CanEquipChildItem`. Rust represents the
+    /// parent/child link with the child's `CHILD` flag plus creator GUID; the
+    /// DB2 row supplies the visible equipment slot. When that slot is busy,
+    /// validate where the displaced item can be stored before moving the
+    /// parent, preserving C++'s no-partial-parent-move failure contract.
+    fn plan_inventory_equip_child_like_cpp(
+        &self,
+        parent_bag: u8,
+        parent_slot: u8,
+        parent_guid: ObjectGuid,
+    ) -> Result<Option<InventoryEquipChildPlanLikeCpp>, InventoryResult> {
+        let Some(parent) = self.inventory_item_objects_like_cpp().get(&parent_guid) else {
+            return Ok(None);
+        };
+        let Some(child_equipment) =
+            self.item_child_equipment_for_parent_like_cpp(parent.object().entry())
+        else {
+            return Ok(None);
+        };
+        let destination_slot = child_equipment.child_item_equip_slot;
+        if !is_equipment_pos(INVENTORY_SLOT_BAG_0, destination_slot) {
+            return Err(InventoryResult::NotEquippable);
+        }
+        let Some(child) = self
+            .inventory_item_objects_like_cpp()
+            .values()
+            .find(|item| {
+                item.has_item_flag(ItemFieldFlags::CHILD)
+                    && item.data().creator == parent_guid
+                    && (child_equipment.child_item_id <= 0
+                        || item.object().entry() == child_equipment.child_item_id as u32)
+            })
+        else {
+            return Ok(None);
+        };
+        let child_guid = child.object().guid();
+        if self
+            .get_inventory_item_by_guid_like_cpp(child_guid)
+            .is_some_and(|(bag, slot, _)| bag == INVENTORY_SLOT_BAG_0 && slot == destination_slot)
+        {
+            return Ok(None);
+        }
+
+        let Some(displaced) =
+            self.get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, destination_slot)
+        else {
+            return Ok(Some(InventoryEquipChildPlanLikeCpp {
+                child_guid,
+                destination_slot,
+                displaced_storage: None,
+            }));
+        };
+        let displaced_object = self.inventory_item_objects_like_cpp().get(&displaced.guid);
+        let displaced_proto = self.item_storage_template(displaced.entry_id);
+        let child_is_bag = self
+            .item_storage_template(child.object().entry())
+            .is_some_and(|template| template.container_slots > 0);
+        let can_unequip = self.can_unequip_inventory_item_at_like_cpp(
+            INVENTORY_SLOT_BAG_0,
+            destination_slot,
+            !child_is_bag,
+            displaced_object,
+            displaced_proto.as_ref(),
+            self.direct_item_contains_items(displaced.guid),
+        );
+        if can_unequip != InventoryResult::Ok {
+            return Err(can_unequip);
+        }
+
+        let displaced_storage = if is_inventory_pos(parent_bag, parent_slot) {
+            let mut last_result = InventoryResult::InvFull;
+            let mut destination = None;
+            for (bag, slot) in [(parent_bag, NULL_SLOT), (NULL_BAG, NULL_SLOT)] {
+                let Some((result, _, _)) = self.plan_store_existing_inventory_item_at_like_cpp(
+                    INVENTORY_SLOT_BAG_0,
+                    destination_slot,
+                    bag,
+                    slot,
+                    true,
+                ) else {
+                    continue;
+                };
+                last_result = result;
+                if result == InventoryResult::Ok {
+                    destination = Some((bag, slot, InventoryStorageTargetLikeCpp::Inventory));
+                    break;
+                }
+            }
+            destination.ok_or(last_result)?
+        } else if is_bank_pos(parent_bag, parent_slot) {
+            let mut last_result = InventoryResult::BankFull;
+            let mut destination = None;
+            for (bag, slot) in [(parent_bag, NULL_SLOT), (NULL_BAG, NULL_SLOT)] {
+                let Some((result, _)) = self.plan_bank_existing_inventory_item_at_like_cpp(
+                    INVENTORY_SLOT_BAG_0,
+                    destination_slot,
+                    bag,
+                    slot,
+                    true,
+                ) else {
+                    continue;
+                };
+                last_result = result;
+                if result == InventoryResult::Ok {
+                    destination = Some((bag, slot, InventoryStorageTargetLikeCpp::Bank));
+                    break;
+                }
+            }
+            destination.ok_or(last_result)?
+        } else {
+            return Err(InventoryResult::CantSwap);
+        };
+
+        Ok(Some(InventoryEquipChildPlanLikeCpp {
+            child_guid,
+            destination_slot,
+            displaced_storage: Some(displaced_storage),
+        }))
+    }
+
+    /// Current upstream C++ `Player::EquipChildItem`, executed only after the
+    /// parent move and its preflight have succeeded.
+    async fn execute_inventory_equip_child_like_cpp(
+        &mut self,
+        plan: InventoryEquipChildPlanLikeCpp,
+    ) -> bool {
+        if self
+            .get_inventory_item_by_guid_like_cpp(plan.child_guid)
+            .is_some_and(|(bag, slot, _)| {
+                bag == INVENTORY_SLOT_BAG_0 && slot == plan.destination_slot
+            })
+        {
+            return true;
+        }
+
+        if let Some((bag, slot, target)) = plan.displaced_storage {
+            self.execute_inventory_storage_move_like_cpp(
+                INVENTORY_SLOT_BAG_0,
+                plan.destination_slot,
+                bag,
+                slot,
+                target,
+                None,
+            )
+            .await;
+            if self
+                .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, plan.destination_slot)
+                .is_some()
+            {
+                return false;
+            }
+        }
+
+        let Some((child_bag, child_slot, _)) =
+            self.get_inventory_item_by_guid_like_cpp(plan.child_guid)
+        else {
+            return false;
+        };
+        self.execute_inventory_equip_to_empty_raw_like_cpp(
+            child_bag,
+            child_slot,
+            wow_entities::make_item_pos(INVENTORY_SLOT_BAG_0, plan.destination_slot),
+        )
+        .await;
+        self.get_inventory_item_by_guid_like_cpp(plan.child_guid)
+            .is_some_and(|(bag, slot, _)| {
+                bag == INVENTORY_SLOT_BAG_0 && slot == plan.destination_slot
+            })
+    }
+
     async fn execute_inventory_swap_step_like_cpp(
         &mut self,
         src: u16,
@@ -14646,6 +14845,40 @@ impl WorldSession {
         source_slot: u8,
         destination: u16,
     ) {
+        let Some(source) = self.get_inventory_item_by_pos(source_bag, source_slot) else {
+            return;
+        };
+        let child_plan =
+            match self.plan_inventory_equip_child_like_cpp(source_bag, source_slot, source.guid) {
+                Ok(plan) => plan,
+                Err(result) => {
+                    self.send_equip_error(result, Some(source.guid), None, 0, 0);
+                    return;
+                }
+            };
+        let source_guid = source.guid;
+        self.execute_inventory_equip_to_empty_raw_like_cpp(source_bag, source_slot, destination)
+            .await;
+        let [destination_bag, destination_slot] = destination.to_be_bytes();
+        if !self
+            .get_inventory_item_by_guid_like_cpp(source_guid)
+            .is_some_and(|(bag, slot, _)| bag == destination_bag && slot == destination_slot)
+        {
+            return;
+        }
+        if let Some(plan) = child_plan {
+            let _ = self.execute_inventory_equip_child_like_cpp(plan).await;
+        }
+        self.execute_inventory_auto_unequip_offhand_if_need_like_cpp()
+            .await;
+    }
+
+    async fn execute_inventory_equip_to_empty_raw_like_cpp(
+        &mut self,
+        source_bag: u8,
+        source_slot: u8,
+        destination: u16,
+    ) {
         let [destination_bag, destination_slot] = destination.to_be_bytes();
         let Some(player_guid) = self.player_guid() else {
             return;
@@ -14763,8 +14996,6 @@ impl WorldSession {
         self.record_represented_avg_equipped_item_level_update_like_cpp();
         self.sync_object_accessor_player();
         self.sync_player_registry_state_like_cpp();
-        self.execute_inventory_auto_unequip_offhand_if_need_like_cpp()
-            .await;
     }
 
     /// C++ `Player::AutoUnequipOffhandIfNeed` after an equipment move. The
@@ -15015,6 +15246,17 @@ impl WorldSession {
         else {
             return;
         };
+        let child_plan = if is_equipment_pos(destination_bag, destination_slot) {
+            match self.plan_inventory_equip_child_like_cpp(source_bag, source_slot, source.guid) {
+                Ok(plan) => plan,
+                Err(result) => {
+                    self.send_equip_error(result, Some(destination.guid), Some(source.guid), 0, 0);
+                    return;
+                }
+            }
+        } else {
+            None
+        };
         let Some(source_container_db_guid) = self.inventory_container_db_guid_like_cpp(source_bag)
         else {
             return;
@@ -15140,7 +15382,7 @@ impl WorldSession {
                 );
                 return;
             }
-            for (to_slot, (_from_slot, child_guid, child_entry)) in children.into_iter().enumerate()
+            for (to_slot, (from_slot, child_guid, child_entry)) in children.into_iter().enumerate()
             {
                 let Some(child_proto) = self.item_storage_template(child_entry) else {
                     self.send_equip_error(
@@ -15168,6 +15410,7 @@ impl WorldSession {
                     full_guid,
                     empty_guid,
                     empty_db_guid,
+                    from_slot,
                     to_slot as u8,
                 ));
             }
@@ -15194,7 +15437,7 @@ impl WorldSession {
             &mut tx,
             &destination_mutable,
         );
-        for (_, child_db_guid, _, _, empty_db_guid, to_slot) in &child_moves {
+        for (_, child_db_guid, _, _, empty_db_guid, _, to_slot) in &child_moves {
             let mut replace_child = char_db.prepare(CharStatements::REP_CHAR_INVENTORY_ITEM);
             replace_child.set_u64(0, player_guid.counter() as u64);
             replace_child.set_u64(1, *empty_db_guid);
@@ -15245,10 +15488,9 @@ impl WorldSession {
             destination.guid,
             &destination_cleared,
         );
-        for (child_guid, _, _, empty_guid, _, to_slot) in &child_moves {
+        for (child_guid, _, _, empty_guid, _, _, to_slot) in &child_moves {
             self.update_inventory_item_object_like_cpp(*child_guid, |item| {
-                item.set_container_guid(*empty_guid);
-                item.set_slot(*to_slot);
+                relocate_bag_exchange_child_like_cpp(item, *empty_guid, *to_slot);
             });
         }
         let swapped = self.apply_committed_inventory_item_swap_like_cpp(
@@ -15289,6 +15531,11 @@ impl WorldSession {
             true,
             &destination_cleared,
         );
+        for (child_guid, _, full_guid, empty_guid, _, from_slot, to_slot) in &child_moves {
+            self.send_item_relocation_values_update_like_cpp(*child_guid, false, &[]);
+            self.send_bag_object_slot_values_update_like_cpp(*full_guid, *from_slot);
+            self.send_bag_object_slot_values_update_like_cpp(*empty_guid, *to_slot);
+        }
         if removed_source_mods
             || removed_destination_mods
             || added_source_mods
@@ -15308,6 +15555,9 @@ impl WorldSession {
         self.record_represented_avg_equipped_item_level_update_like_cpp();
         self.sync_object_accessor_player();
         self.sync_player_registry_state_like_cpp();
+        if let Some(plan) = child_plan {
+            let _ = self.execute_inventory_equip_child_like_cpp(plan).await;
+        }
         self.execute_inventory_auto_unequip_offhand_if_need_like_cpp()
             .await;
     }
@@ -18111,9 +18361,11 @@ mod tests {
         QUEST_ITEM_DROP_COUNT, QUEST_REWARD_CHOICES_COUNT, QUEST_REWARD_DISPLAY_SPELL_COUNT,
         QUEST_REWARD_ITEM_COUNT, QUEST_REWARD_REPUTATIONS_COUNT, QuestStore, QuestTemplate,
     };
-    use wow_data::{PlayerLevelStats, PlayerStatsStore};
+    use wow_data::{
+        ItemChildEquipmentEntry, ItemChildEquipmentStore, PlayerLevelStats, PlayerStatsStore,
+    };
     use wow_database::StatementDef;
-    use wow_entities::EQUIPMENT_SLOT_MAINHAND;
+    use wow_entities::{CHILD_EQUIPMENT_SLOT_START, EQUIPMENT_SLOT_MAINHAND};
     use wow_packet::WorldPacket;
     use wow_packet::packets::loot::{
         CreatureLoot, LOOT_TYPE_CORPSE_LIKE_CPP, LootEntry, LootEntryFlags,
@@ -21507,6 +21759,230 @@ mod tests {
             wow_entities::make_item_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_START),
         );
         assert!(equipped_bag.is_soul_bound());
+    }
+
+    #[test]
+    fn autostore_bank_target_depends_on_source_domain_like_cpp() {
+        assert_eq!(
+            autostore_bank_target_like_cpp(
+                INVENTORY_SLOT_BAG_0,
+                wow_entities::BANK_SLOT_ITEM_START,
+            ),
+            InventoryStorageTargetLikeCpp::Inventory
+        );
+        assert_eq!(
+            autostore_bank_target_like_cpp(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START,),
+            InventoryStorageTargetLikeCpp::Bank
+        );
+    }
+
+    #[test]
+    fn bag_exchange_child_updates_runtime_container_and_wire_field_like_cpp() {
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let old_bag_guid = ObjectGuid::create_item(1, 80);
+        let new_bag_guid = ObjectGuid::create_item(1, 81);
+        let mut child = wow_entities::Item::new(900);
+        child.set_container_guid_and_slot(old_bag_guid, INVENTORY_SLOT_BAG_START);
+        child.set_contained_in(old_bag_guid);
+        child.set_slot(7);
+
+        relocate_bag_exchange_child_like_cpp(&mut child, new_bag_guid, 2);
+
+        assert_eq!(child.container_guid(), new_bag_guid);
+        assert_eq!(child.data().contained_in, new_bag_guid);
+        assert_eq!(child.slot(), 2);
+        assert_ne!(child.data().contained_in, player_guid);
+    }
+
+    fn install_child_equipment_fixture(
+        session: &mut WorldSession,
+        parent_entry: u32,
+        child_entry: u32,
+        child_slot: u8,
+    ) {
+        session.set_item_child_equipment_store(Arc::new(ItemChildEquipmentStore::from_entries([
+            ItemChildEquipmentEntry {
+                id: 1,
+                child_item_id: child_entry as i32,
+                child_item_equip_slot: child_slot,
+                parent_item_id: parent_entry,
+            },
+        ])));
+    }
+
+    #[test]
+    fn child_equip_plan_targets_db2_slot_before_parent_moves_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send_capacity(1);
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let parent_entry = 123;
+        let child_entry = parent_entry;
+        session.set_player_guid(Some(player_guid));
+        install_equippable_item_fixture(&mut session, parent_entry, InventoryType::Weapon, None);
+        install_child_equipment_fixture(
+            &mut session,
+            parent_entry,
+            child_entry,
+            wow_entities::EQUIPMENT_SLOT_OFFHAND,
+        );
+        let parent_guid = insert_equippable_test_item(
+            &mut session,
+            INVENTORY_SLOT_BAG_0,
+            INVENTORY_SLOT_ITEM_START,
+            parent_entry,
+            77,
+            InventoryType::Weapon,
+        );
+        let child_guid = insert_equippable_test_item(
+            &mut session,
+            INVENTORY_SLOT_BAG_0,
+            CHILD_EQUIPMENT_SLOT_START,
+            child_entry,
+            78,
+            InventoryType::Weapon,
+        );
+        session.update_inventory_item_object_like_cpp(child_guid, |child| {
+            child.set_item_flag(ItemFieldFlags::CHILD);
+            child.set_creator(parent_guid);
+        });
+
+        assert_eq!(
+            session
+                .plan_inventory_equip_child_like_cpp(
+                    INVENTORY_SLOT_BAG_0,
+                    INVENTORY_SLOT_ITEM_START,
+                    parent_guid,
+                )
+                .expect("child equip preflight"),
+            Some(InventoryEquipChildPlanLikeCpp {
+                child_guid,
+                destination_slot: wow_entities::EQUIPMENT_SLOT_OFFHAND,
+                displaced_storage: None,
+            })
+        );
+    }
+
+    #[test]
+    fn child_equip_plan_preflights_displaced_equipment_storage_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send_capacity(1);
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let parent_entry = 125;
+        let child_entry = parent_entry;
+        let displaced_entry = parent_entry;
+        session.set_player_guid(Some(player_guid));
+        install_equippable_item_fixture(&mut session, parent_entry, InventoryType::Weapon, None);
+        install_child_equipment_fixture(
+            &mut session,
+            parent_entry,
+            child_entry,
+            wow_entities::EQUIPMENT_SLOT_OFFHAND,
+        );
+        let parent_guid = insert_equippable_test_item(
+            &mut session,
+            INVENTORY_SLOT_BAG_0,
+            INVENTORY_SLOT_ITEM_START,
+            parent_entry,
+            79,
+            InventoryType::Weapon,
+        );
+        let child_guid = insert_equippable_test_item(
+            &mut session,
+            INVENTORY_SLOT_BAG_0,
+            CHILD_EQUIPMENT_SLOT_START,
+            child_entry,
+            80,
+            InventoryType::Weapon,
+        );
+        session.update_inventory_item_object_like_cpp(child_guid, |child| {
+            child.set_item_flag(ItemFieldFlags::CHILD);
+            child.set_creator(parent_guid);
+        });
+        insert_equippable_test_item(
+            &mut session,
+            INVENTORY_SLOT_BAG_0,
+            wow_entities::EQUIPMENT_SLOT_OFFHAND,
+            displaced_entry,
+            81,
+            InventoryType::Weapon,
+        );
+
+        let plan = session
+            .plan_inventory_equip_child_like_cpp(
+                INVENTORY_SLOT_BAG_0,
+                INVENTORY_SLOT_ITEM_START,
+                parent_guid,
+            )
+            .expect("child equip preflight")
+            .expect("linked child");
+        assert_eq!(
+            plan.displaced_storage,
+            Some((
+                INVENTORY_SLOT_BAG_0,
+                NULL_SLOT,
+                InventoryStorageTargetLikeCpp::Inventory,
+            ))
+        );
+        assert_eq!(
+            session
+                .get_inventory_item_by_pos(
+                    INVENTORY_SLOT_BAG_0,
+                    wow_entities::EQUIPMENT_SLOT_OFFHAND,
+                )
+                .map(|item| item.entry_id),
+            Some(displaced_entry),
+            "CanEquipChildItem must not mutate the destination during preflight"
+        );
+    }
+
+    #[test]
+    fn child_equip_plan_rejects_displacement_when_parent_started_equipped_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send_capacity(1);
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let entry = 128;
+        session.set_player_guid(Some(player_guid));
+        install_equippable_item_fixture(&mut session, entry, InventoryType::Weapon, None);
+        install_child_equipment_fixture(
+            &mut session,
+            entry,
+            entry,
+            wow_entities::EQUIPMENT_SLOT_OFFHAND,
+        );
+        let parent_guid = insert_equippable_test_item(
+            &mut session,
+            INVENTORY_SLOT_BAG_0,
+            EQUIPMENT_SLOT_MAINHAND,
+            entry,
+            82,
+            InventoryType::Weapon,
+        );
+        let child_guid = insert_equippable_test_item(
+            &mut session,
+            INVENTORY_SLOT_BAG_0,
+            CHILD_EQUIPMENT_SLOT_START,
+            entry,
+            83,
+            InventoryType::Weapon,
+        );
+        session.update_inventory_item_object_like_cpp(child_guid, |child| {
+            child.set_item_flag(ItemFieldFlags::CHILD);
+            child.set_creator(parent_guid);
+        });
+        insert_equippable_test_item(
+            &mut session,
+            INVENTORY_SLOT_BAG_0,
+            wow_entities::EQUIPMENT_SLOT_OFFHAND,
+            entry,
+            84,
+            InventoryType::Weapon,
+        );
+
+        assert_eq!(
+            session.plan_inventory_equip_child_like_cpp(
+                INVENTORY_SLOT_BAG_0,
+                EQUIPMENT_SLOT_MAINHAND,
+                parent_guid,
+            ),
+            Err(InventoryResult::CantSwap)
+        );
     }
 
     #[test]
