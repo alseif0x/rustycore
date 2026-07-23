@@ -1,3 +1,20 @@
+- `#NEXT.R8.ENTITIES.1209` — issue #8 closes the remaining persistent-compression lifetime
+  gap against C++ `WorldSocket.cpp:178-188,538-609` and `WorldSocket.h:89,139,172`.
+  The earlier `b1bde801` change had already restored C++'s payload-only `> 0x400` threshold
+  and persistent compressors inside both Rust send phases, but `split_for_io` still discarded
+  the physical socket's existing deflate state and constructed a new writer stream. Rust now
+  moves the same `PacketCompressor` into `SocketWriter`, and the fresh-per-call public
+  compression helper is removed so production callers must own persistent state. The regression
+  first proved the old second block differed from an uninterrupted stream, then pins byte-exact
+  history preservation across the async ownership split and decodes both packets through one
+  inflater. Full `wow-network` (104/0) and `wow-packet` (712/0) suites pass. Installed QA on
+  commit `09cc645a` used a bot with one inflater per physical socket and decoded four consecutive
+  compressed instance packets: action buttons `1443 -> 46`, factions `6127 -> 207`, and
+  `UpdateObject` packets `18156 -> 736` and `52913 -> 5171`; auth, enumeration, verified login,
+  Sit/Stand confirmations, capture finalization, and stable-runtime restoration all passed.
+  This proves the default C++ level-1 stream lifecycle and large-login path, not configurable
+  compression levels 2–9 or original-client/manual UI validation.
+
 - `#NEXT.R8.ENTITIES.1208` — issue #7 fixes the CUF-profile login crash by matching C++
   `Player::SendInitialPacketsAfterAddToMap` exactly:
   `InitWorldStates -> LoadCufProfiles -> AuraUpdate -> OnMapChange PhaseShiftChange`.
