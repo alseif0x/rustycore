@@ -95,7 +95,8 @@ intent, no mutation — see STATE.md §0). Almost every item below is "convert r
 - [x] **M1.4** Re-audit and fix the bounded CREATE-block UpdateField VALUE gaps (issue #10,
   `world-load-audit.md` cross-cutting). Five findings were already fixed, player power slots were
   correct, canonical ParentRotation retains a documented architecture follow-up, and local
-  `7e106e25` fixes selected non-mana creature power plus runtime GameObject ArtKit.
+  `7e106e25` plus review fix `befc062f` close selected non-mana creature power (including
+  hotfix overlays and legacy-to-canonical state) plus runtime GameObject ArtKit.
 - [ ] **M1 exit:** fresh character logs in, bags open, correct UI, no Lua errors, login burst capture-clean.
 
 ### M2 — A world that feels alive

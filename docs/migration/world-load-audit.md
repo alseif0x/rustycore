@@ -120,7 +120,7 @@ the final dispositions are:_
 | 1212 | Already fixed on the integration base: player `AuraState` is seeded through `health_aura_state_like_cpp`; focused coverage pins the full-health C++ mask. |
 | 1213 | Already fixed: Death Knights publish `RunicPower` (6), not `Runes` (5). |
 | 1214 | Already fixed: player `BoundingRadius` uses C++ `0.388999998569489`. |
-| 1215 | Fixed by `7e106e25`: production loads `PowerType.db2`, indexes it by `PowerTypeEnum`, applies `IsUsedByNPCs`/`UnitsUseDefaultPowerOnInit`, `ManaModifier` and C++ rounding, and seeds both canonical loaded-grid and legacy nearby creatures in their selected display-power slot. |
+| 1215 | Fixed by `7e106e25` + `befc062f`: production composes `PowerType.db2` with official/custom hotfix rows, indexes the effective store by `PowerTypeEnum`, applies `IsUsedByNPCs`/`UnitsUseDefaultPowerOnInit`, `ManaModifier` and C++ rounding, seeds canonical loaded-grid and legacy nearby creatures, and keeps the legacy-to-canonical power index plus `BaseMana` coherent. |
 | 1216 | The DB-backed create path was already fixed. Canonical per-spawn/runtime ParentRotation remains a bounded follow-up because the canonical entity does not yet own it. |
 | 1217 | Fixed by `7e106e25`: CREATE serialization carries canonical `GameObjectData::ArtKit`, including runtime `SetGoArtKit` changes. The target C++ initializes ordinary SQL `GameObjectData::artKit` to zero, so the DB-only paths intentionally remain zero. |
 | 1218 | Already fixed: the audited DB GameObject paths default missing `anim_progress` to 255. |
@@ -153,11 +153,13 @@ the final dispositions are:_
 - **C++ values confirmed:** Creature::SelectLevel (Creature.cpp:1597-1608): for the display power, `SetPower(type, DefaultPower)` if PowerTypeFlags::UnitsUseDefaultPowerOnInit (=0x0020, DBCEnums.h:1796-1810) else `SetFullPower` (= GetCreatePowerValue = PowerTypeEntry->MaxBasePower for non-mana). The raw MaxBasePower goes on the wire (client applies DisplayModifier for display). Rust loads PowerType.db2 as `PowerTypeStore`/`PowerTypeEntry{max_base_power,default_power,flags}` (wow-data character_progression.rs:246-313,657-668) but it is NOT wired onto sessions in production (only chr_races + creature_model_data are; chr_classes_store is test-only) — so a fix would use the store-if-present + a faithful base-value fallback, like creature_display_power_for_class_like_cpp (session.rs:20406).
 - **Status — fixed in issue #10.** `PowerTypeStore::creature_initial_power_like_cpp` mirrors
   C++'s enum-keyed DB2 lookup, NPC/default flags, create-power choice, difficulty modifier and
-  `lroundf`. `world-server` injects the class/power stores into both the canonical loaded-grid
-  lifecycle and sessions; canonical `Creature` entities now keep `BaseMana` distinct from the
-  selected `Power[0]/MaxPower[0]`, while the legacy nearby path applies DB `curmana` only to
-  `POWER_MANA` like `SetSpawnHealth`. Focused tests cover Focus default power, full power,
-  rejected non-NPC power types, mana rounding and canonical CREATE projection.
+  `lroundf`. `world-server` composes official/custom PowerType hotfix rows in C++ order and
+  injects the effective class/power stores into both the canonical loaded-grid lifecycle and
+  sessions. Canonical `Creature` entities keep `BaseMana` distinct from selected
+  `Power[0]/MaxPower[0]`; the legacy nearby path applies DB `curmana` only to `POWER_MANA` like
+  `SetSpawnHealth`, then registers the same power index, arrays and `BaseMana` in canonical state.
+  Focused tests cover hotfix replacement, Focus default/full power, rejected non-NPC power types,
+  mana rounding and legacy/canonical CREATE projection.
 
 ### #NEXT.R8.ENTITIES.1216 — GameObjectCreateData GameObjectData.ParentRotation  ·  🟠 functional
 - **Gap:** GameObjects that have a gameobject_addon ParentRotation (e.g. transports, some doors/animated GOs) ship identity ParentRotation, mis-orienting the model and the path-rotation matrix the client builds (GameObject.cpp:301).

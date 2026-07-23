@@ -1,6 +1,6 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**Date:** 2026-07-23 · **Base:** `3.4.3` @ `f80463d2` plus local issue #10 implementation @ `7e106e25`.
+**Date:** 2026-07-23 · **Base:** `3.4.3` @ `f80463d2` plus local issue #10 @ `befc062f`.
 
 This document replaces the drifting status snapshots in `_INDEX.md` (2026-05-01, "5–15%"),
 the `MIGRATION_ROADMAP.md` §3 inherited table (which tells you not to trust it), and the
