@@ -6495,6 +6495,7 @@ pub enum RepresentedAuraEffectLikeCpp {
     ModBattlePetXpPct,
     ModReputationGain,
     ModRestedXpConsumption,
+    ModTotalStatPercentage,
     ProvideSpellFocus,
     Stealth,
     WaterWalk,
@@ -33408,6 +33409,46 @@ impl WorldSession {
             return Err("No free aura slots");
         }
 
+        // Preserve the represented StatSystem-relevant multiplier on the same
+        // AuraApplication. C++ AuraEffect::HandleModTotalPercentStat uses
+        // MiscValueB as a per-stat bitmask (zero means all stats), while the
+        // generic AuraApplication continues to own the visible slot.
+        let total_stat_percentage = self.spell_store().and_then(|store| {
+            store.get(spell_id).and_then(|spell| {
+                spell.effects().iter().find_map(|effect| {
+                    let bit = 1u32.checked_shl(effect.effect_index)?;
+                    (effect_mask & bit != 0
+                        && effect.effect_aura
+                            == wow_data::spell::aura_types::SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE)
+                        .then(|| {
+                            (
+                                effect.calc_value_no_caster_like_cpp(),
+                                effect.effect_misc_value_2,
+                                represented_aura_effect_amounts_like_cpp(effect),
+                            )
+                        })
+                })
+            })
+        });
+        let modifies_total_stats = total_stat_percentage.is_some();
+        let (
+            represented_effect,
+            represented_amount,
+            represented_effect_amounts,
+            represented_misc_value,
+            represented_multiplier,
+        ) = if let Some((amount, stat_mask, effect_amounts)) = total_stat_percentage {
+            (
+                Some(RepresentedAuraEffectLikeCpp::ModTotalStatPercentage),
+                amount,
+                effect_amounts,
+                Some(stat_mask),
+                (1.0 + amount as f32 / 100.0).max(0.0),
+            )
+        } else {
+            (None, 0, Vec::new(), None, 1.0)
+        };
+
         // Create aura
         let aura = AuraApplication {
             spell_id,
@@ -33420,11 +33461,11 @@ impl WorldSession {
             effect_mask,
             aura_interrupt_flags: 0,
             aura_interrupt_flags2: 0,
-            represented_effect: None,
-            represented_amount: 0,
-            represented_effect_amounts: Vec::new(),
-            represented_misc_value: None,
-            represented_multiplier: 1.0,
+            represented_effect,
+            represented_amount,
+            represented_effect_amounts,
+            represented_misc_value,
+            represented_multiplier,
             applied_at: Instant::now(),
         };
 
@@ -33439,6 +33480,9 @@ impl WorldSession {
                 aura_flags,
                 effect_mask,
             );
+            if modifies_total_stats {
+                self.send_stat_update();
+            }
         }
         if spell_id == SPELL_PVP_RULES_ENABLED_LIKE_CPP {
             let _ = self.update_represented_item_level_area_based_scaling_like_cpp();
@@ -34530,6 +34574,9 @@ impl WorldSession {
         self.send_aura_update_removed(slot);
         if aura.spell_id == SPELL_PVP_RULES_ENABLED_LIKE_CPP {
             let _ = self.update_represented_item_level_area_based_scaling_like_cpp();
+        }
+        if aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::ModTotalStatPercentage) {
+            self.send_stat_update();
         }
 
         Ok(())
@@ -43936,6 +43983,22 @@ impl WorldSession {
             .values()
             .filter(|aura| aura.represented_effect == Some(effect))
             .fold(1.0, |acc, aura| acc * aura.represented_multiplier)
+    }
+
+    pub(crate) fn represented_total_stat_multipliers_like_cpp(&self) -> [f32; 5] {
+        std::array::from_fn(|stat| {
+            let stat_bit = 1i32 << stat;
+            self.visible_auras
+                .values()
+                .filter(|aura| {
+                    aura.represented_effect
+                        == Some(RepresentedAuraEffectLikeCpp::ModTotalStatPercentage)
+                        && aura
+                            .represented_misc_value
+                            .is_some_and(|mask| mask == 0 || mask & stat_bit != 0)
+                })
+                .fold(1.0, |factor, aura| factor * aura.represented_multiplier)
+        })
     }
 
     #[cfg(test)]
@@ -126429,6 +126492,63 @@ mod tests {
                 .visible_auras
                 .values()
                 .any(|aura| matches!(aura.spell_id, 60_000 | 60_001 | 60_002 | 60_003))
+        );
+    }
+
+    #[test]
+    fn login_total_stat_percentage_aura_records_cpp_multiplier_and_misc_b_mask() {
+        let (mut session, _, _) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 15);
+        session.set_player_guid(Some(player_guid));
+        session.set_known_spells_like_cpp(vec![20_598]);
+
+        let mut spell_store = SpellStore::new();
+        spell_store.insert(
+            20_598,
+            SpellInfo {
+                spell_id: 20_598,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                aura_type: Some(wow_data::spell::aura_types::SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE),
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: wow_data::spell::aura_types::SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE,
+                    effect_base_points: 2,
+                    effect_die_sides: 1,
+                    // C++ HandleModTotalPercentStat selects with MiscValueB.
+                    // Zero applies the effect to all five primary stats.
+                    effect_misc_value_2: 0,
+                    ..Default::default()
+                }],
+                ..test_spell_info_like_cpp(20_598)
+            },
+        );
+        let mut attributes = [0u32; 15];
+        attributes[0] = wow_data::spell::attributes::SPELL_ATTR0_PASSIVE;
+        spell_store.insert_spell_misc_attributes_like_cpp(20_598, attributes);
+        session.set_spell_store(Arc::new(spell_store));
+
+        assert_eq!(session.apply_login_passive_known_spell_auras_like_cpp(), 1);
+        assert_eq!(
+            session.represented_total_stat_multipliers_like_cpp(),
+            [1.03; 5]
+        );
+        let aura = session
+            .visible_auras
+            .values()
+            .find(|aura| aura.spell_id == 20_598)
+            .expect("Human Spirit aura");
+        assert_eq!(
+            aura.represented_effect,
+            Some(RepresentedAuraEffectLikeCpp::ModTotalStatPercentage)
+        );
+        assert_eq!(aura.represented_amount, 3);
+        assert_eq!(aura.represented_misc_value, Some(0));
+
+        session.remove_aura(aura.slot).expect("remove Human Spirit");
+        assert_eq!(
+            session.represented_total_stat_multipliers_like_cpp(),
+            [1.0; 5]
         );
     }
 

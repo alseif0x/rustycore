@@ -51,6 +51,9 @@ pub struct PlayerStatSystemInputLikeCpp {
     pub attack_power_per_strength: u8,
     pub attack_power_per_agility: u8,
     pub ranged_attack_power_per_agility: u8,
+    /// C++ UnitMods `TOTAL_PCT` after represented
+    /// `SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE` effects, one factor per stat.
+    pub stat_total_multipliers: [f32; 5],
     pub gear_stats: [i32; 5],
     pub gear_health: i32,
     pub gear_mana: i32,
@@ -131,16 +134,21 @@ fn mana_bonus_from_intellect_like_cpp(intellect: i32) -> i64 {
     intellect.min(20) + (intellect - 20).max(0) * 15
 }
 
-/// Represent the exact no-aura branches of C++ `Player::UpdateAllStats`.
+/// Represent the C++ `Player::UpdateAllStats` branches backed by the inputs
+/// available in this runtime.
 ///
-/// Item flat modifiers and combat ratings are included. Aura percentage
-/// modifiers remain owned by the separate represented aura runtime.
+/// Item flat modifiers, combat ratings and the represented total-stat
+/// percentage multipliers are included. The remaining aura modifiers stay
+/// owned by the wider represented aura runtime.
 pub fn calculate_player_stat_system_like_cpp(
     input: PlayerStatSystemInputLikeCpp,
 ) -> PlayerStatSystemProjectionLikeCpp {
     let base_stats = input.base.primary_stats_like_cpp().map(i32::from);
-    let stats =
-        std::array::from_fn(|index| base_stats[index].saturating_add(input.gear_stats[index]));
+    let stats = std::array::from_fn(|index| {
+        let value = base_stats[index].saturating_add(input.gear_stats[index]);
+        // C++ `Player::UpdateStats` truncates `GetTotalStatValue()` to int32.
+        (value as f32 * input.stat_total_multipliers[index].max(0.0)) as i32
+    });
     let stat_pos_buff = input.gear_stats.map(|value| value.max(0));
     let stat_neg_buff = input.gear_stats.map(|value| value.min(0));
 
@@ -547,6 +555,7 @@ mod tests {
             attack_power_per_strength: 0,
             attack_power_per_agility: 0,
             ranged_attack_power_per_agility: 0,
+            stat_total_multipliers: [1.0; 5],
             gear_stats: [0, 0, 5, 3, 0],
             gear_health: 100,
             gear_mana: 50,
@@ -587,6 +596,7 @@ mod tests {
             attack_power_per_strength: 2,
             attack_power_per_agility: 0,
             ranged_attack_power_per_agility: 0,
+            stat_total_multipliers: [1.0; 5],
             gear_stats: [0; 5],
             gear_health: 0,
             gear_mana: 0,
@@ -608,5 +618,40 @@ mod tests {
         assert_eq!(projection.spell_crit_pct, [10.0; 7]);
         assert_eq!(projection.dodge_from_attr, 0.0);
         assert_eq!(projection.parry_from_attr, 0.0);
+    }
+
+    #[test]
+    fn stat_system_applies_total_stat_percentage_before_dependent_stats_like_cpp() {
+        let projection = calculate_player_stat_system_like_cpp(PlayerStatSystemInputLikeCpp {
+            base: PlayerLevelStats {
+                strength: 173,
+                agility: 90,
+                stamina: 160,
+                intellect: 98,
+                spirit: 108,
+                base_mana: 4_880,
+            },
+            class: 2,
+            level: 80,
+            attack_power_per_strength: 2,
+            attack_power_per_agility: 0,
+            ranged_attack_power_per_agility: 0,
+            stat_total_multipliers: [1.03; 5],
+            gear_stats: [0; 5],
+            gear_health: 0,
+            gear_mana: 0,
+            gear_armor: 0,
+            gear_attack_power: 0,
+            gear_ranged_attack_power: 0,
+            rating_bonuses: [0.0; 32],
+            can_parry: false,
+            can_block: false,
+        });
+
+        assert_eq!(projection.stats, [178, 92, 164, 100, 111]);
+        assert_eq!(projection.max_health, 1_460);
+        assert_eq!(projection.max_mana, 6_100);
+        assert_eq!(projection.armor, 184);
+        assert_eq!(projection.attack_power, 576);
     }
 }

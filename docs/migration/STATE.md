@@ -1,6 +1,6 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**Date:** 2026-07-22 · **Base:** `3.4.3` @ `55719eb4` plus issue #20 closeout QA.
+**Date:** 2026-07-23 · **Base:** `3.4.3` @ `00dd269e` plus the local issue #60 branch.
 
 This document replaces the drifting status snapshots in `_INDEX.md` (2026-05-01, "5–15%"),
 the `MIGRATION_ROADMAP.md` §3 inherited table (which tells you not to trust it), and the
@@ -79,6 +79,7 @@ observable mutation · **ABSENT**.
 | Capability | Status | Evidence / defects |
 |---|---|---|
 | Auth/BNet SRP6 + world-enter handshake | WORKS | recent `fix(bnet)` commits; played live |
+| Player base/stat projection | **PARTIAL (live)** | issue #60 local branch replaces the C# `player_levelstats` path with `player_racestats` + `player_classlevelstats`, `GtBaseMP`, `CreateHealth=0` and a shared create/login/equipment/level-up StatSystem projection. Paired accredited C++/Rust login captures match the scoped max-health/mana, five primary stats, armor, base mana, AP and damage fields exactly, including the 3% total-stat racial passive. The complete login `UpdateObject` still has unrelated field divergences, and wider unit-mod/aura/item-stat parity remains open. |
 | Player movement + broadcast to nearby | WORKS⚠ | `movement.rs:310`; trust-client position (D-H10), creature destroy deferred (D-H15), async CREATE race (D-H14) |
 | Melee combat (deals damage→death→loot) | **PARTIAL** | `session.rs:47635`; **no damage formula / hit table / armor mitigation** (D-H1, D-H2) — numbers are wrong |
 | Global creature runtime (aggro/melee/move→packets) | WORKS (default on) | `world-server/src/main.rs:12682+` |
