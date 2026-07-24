@@ -1778,6 +1778,73 @@ mod tests {
     }
 
     #[test]
+    fn monster_move_matches_real_cpp_waypoint_capture_bytes() {
+        // Packet 89 from the 111,420-byte raw C++ source capture recorded by
+        // `crates/capture-diff/flows/loot-single-item-claim/capture-provenance/
+        // cpp.capture-manifest.json` as artifact `cpp.pkt` (SHA-256
+        // a25f2c2bbf60de6cda7e32f305d732733017e711eb474dd5dbf6e007690143a8).
+        // This is not the checked-in 795-byte normalized flow `cpp.pkt`
+        // (SHA-256 a84abf8f1d067fc68a9fdbe1608243479b0740a703b07444097ab5af0aebf487).
+        // It is a real instance-socket SMSG_ON_MONSTER_MOVE emitted by
+        // MoveSplineInit::Launch for a compressed waypoint spline.
+        const CPP_BODY: &[u8] = &[
+            0x03, 0xBF, 0x0B, 0x01, 0x40, 0x3E, 0x15, 0x40, 0x42, 0x04, 0x20, 0xEC, 0xB9, 0x27,
+            0xC5, 0xE1, 0xD2, 0x1F, 0x45, 0x12, 0xE5, 0x95, 0x42, 0x06, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x30, 0x00, 0x00, 0x00, 0x00, 0x00, 0x11, 0x3F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x40, 0x00, 0xA0, 0x33, 0xB7, 0x27, 0xC5, 0xA4,
+            0x58, 0x22, 0x45, 0x04, 0xDB, 0x95, 0x42, 0x00, 0x00, 0x02, 0x00, 0x00, 0x80, 0x01,
+            0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x88, 0x3F, 0x00, 0x00, 0x08, 0x3F, 0x00, 0x00, 0x88, 0x3E, 0x00, 0x00, 0x08, 0x3E,
+            0x00, 0x00, 0x88, 0x3D, 0x00,
+        ];
+        let mover = ObjectGuid::new(0x2000_0442_4015_3E40, 0x010B);
+        let packet = MonsterMove {
+            mover_guid: mover,
+            current_pos: Position::new(
+                f32::from_bits(0xC527_B9EC),
+                f32::from_bits(0x451F_D2E1),
+                f32::from_bits(0x4295_E512),
+                0.0,
+            ),
+            spline: MovementMonsterSpline {
+                id: 6,
+                movement: MovementSpline {
+                    flags: 0x0030_0000,
+                    move_time: 16_145,
+                    points: vec![Position::new(
+                        f32::from_bits(0xC527_B733),
+                        f32::from_bits(0x4522_58A4),
+                        f32::from_bits(0x4295_DB04),
+                        0.0,
+                    )],
+                    packed_deltas: vec![
+                        [0.0, 16.0, 0.0],
+                        [0.0, 12.0, 0.0],
+                        [0.0, 8.0, 0.0],
+                        [0.0, 4.0, 0.0],
+                        [0.0, 0.0, 0.0],
+                        [0.0, -3.75, 0.0],
+                        [0.0, -7.75, 0.0],
+                        [0.0, -11.75, 0.0],
+                        [0.0, -15.75, 0.0],
+                        [0.0, -19.75, 0.0],
+                    ],
+                    ..MovementSpline::default()
+                },
+                ..MovementMonsterSpline::default()
+            },
+        };
+
+        let bytes = packet.to_bytes();
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            ServerOpcodes::OnMonsterMove as u16
+        );
+        assert_eq!(&bytes[2..], CPP_BODY);
+    }
+
+    #[test]
     fn monster_move_stop_writes_cpp_stop_tolerance_without_done_flag() {
         let mover = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 9, 88);
         let packet = MonsterMoveStop {
