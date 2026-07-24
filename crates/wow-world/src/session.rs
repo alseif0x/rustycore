@@ -223,7 +223,6 @@ use wow_packet::packets::quest::{
     QuestObjectiveSimple, QuestRewardsBlock,
 };
 use wow_packet::packets::spell::SpellTargetData;
-use wow_recastdetour::PathQueryFilterContext;
 
 // TrinityCore enqueues cross-connection sends without waiting for physical TCP
 // progress. RustyCore waits briefly to retain the order observed in captures,
@@ -54824,6 +54823,52 @@ impl WorldSession {
 
 // ── Creature movement step helper ────────────────────────────────
 
+/// Resolves one creature path request through the off-thread Detour worker with
+/// C++ `PathGenerator::CalculatePath` semantics.
+///
+/// A missing worker, or `Ok(None)` from it, both mean "this map has no usable
+/// navmesh for this query" — no `.mmap` map data, no per-instance
+/// `dtNavMeshQuery`, or no `.mmtile` covering the endpoints. C++
+/// `PathGenerator::CalculatePath` (`PathGenerator.cpp:79-86`) answers that with
+/// `BuildShortcut()` and `PATHFIND_NORMAL | PATHFIND_NOT_USING_PATH`, i.e. a
+/// launchable direct path rather than a failure, so creatures keep moving on
+/// unmeshed terrain instead of retrying forever.
+///
+/// A query error has no C++ counterpart (C++ would already be inside
+/// `BuildPolyPath`, which answers failures with `BuildShortcut()` +
+/// `PATHFIND_NOPATH`), so it stays a failure and the caller retries like the
+/// C++ `!result` / `PATHFIND_NOPATH` branch.
+fn resolve_creature_detour_path_like_cpp(
+    mmap_pathfinder: Option<&crate::map_manager::WorldMMapPathfinderWorkerLikeCpp>,
+    guid: wow_core::ObjectGuid,
+    request: crate::map_manager::WorldMMapPathRequestLikeCpp,
+) -> Option<wow_recastdetour::DetourPolyPath> {
+    let start = request.start;
+    let destination = request.destination;
+    let Some(worker) = mmap_pathfinder else {
+        return Some(crate::map_manager::detour_path_without_navmesh_like_cpp(
+            start,
+            destination,
+        ));
+    };
+
+    match worker.calculate_path_like_cpp(request) {
+        Ok(Some(path)) => Some(path),
+        Ok(None) => Some(crate::map_manager::detour_path_without_navmesh_like_cpp(
+            start,
+            destination,
+        )),
+        Err(error) => {
+            tracing::warn!(
+                "mmap pathfinding failed for creature {:?}: {:?}",
+                guid,
+                error
+            );
+            None
+        }
+    }
+}
+
 /// Advances a single creature's movement state for one tick and returns the
 /// serialised `MonsterMove` packet bytes if a new spline was launched, or
 /// `None` otherwise.
@@ -54899,6 +54944,10 @@ pub(crate) fn step_creature_movement_like_cpp(
             let source_map_id = creature.map_id();
             let source_instance_id = creature.instance_id();
             let phase_shift = creature.phase_shift().clone();
+            // C++ builds the Detour filter from the owner in
+            // `PathGenerator::CreateFilter`, so it must be sampled from this
+            // creature rather than assumed.
+            let filter_context = creature.path_query_filter_context_like_cpp();
             let should_try_pathfinding = mmap_config
                 .should_try_pathfinding_like_cpp(source_map_id, owner_ignores_pathfinding);
             let movement = creature.update_default_random_movement_after_spline_like_cpp(
@@ -54906,33 +54955,21 @@ pub(crate) fn step_creature_movement_like_cpp(
                 should_try_pathfinding,
                 terrain,
                 |start, destination, point_path_limit| {
-                    mmap_pathfinder.and_then(|worker| {
-                        match worker.calculate_path_like_cpp(
-                            crate::map_manager::WorldMMapPathRequestLikeCpp {
-                                start,
-                                destination,
-                                mesh_map_id: source_map_id,
-                                instance_map_id: source_map_id,
-                                instance_id: source_instance_id,
-                                filter_context: PathQueryFilterContext::creature(
-                                    true, false, false, false,
-                                ),
-                                force_destination: false,
-                                point_path_limit,
-                                phase_shift: phase_shift.clone(),
-                            },
-                        ) {
-                            Ok(path) => path,
-                            Err(error) => {
-                                tracing::warn!(
-                                    "mmap pathfinding failed for creature {:?}: {:?}",
-                                    guid,
-                                    error
-                                );
-                                None
-                            }
-                        }
-                    })
+                    resolve_creature_detour_path_like_cpp(
+                        mmap_pathfinder,
+                        guid,
+                        crate::map_manager::WorldMMapPathRequestLikeCpp {
+                            start,
+                            destination,
+                            mesh_map_id: source_map_id,
+                            instance_map_id: source_map_id,
+                            instance_id: source_instance_id,
+                            filter_context,
+                            force_destination: false,
+                            point_path_limit,
+                            phase_shift: phase_shift.clone(),
+                        },
+                    )
                 },
             );
             if let Some((from, move_spline)) = movement {
@@ -54968,6 +55005,9 @@ pub(crate) fn step_creature_movement_like_cpp(
             let source_map_id = creature.map_id();
             let source_instance_id = creature.instance_id();
             let phase_shift = creature.phase_shift().clone();
+            // Same owner-derived filter as the random generator: C++ constructs
+            // one `PathGenerator` per query and always runs `CreateFilter`.
+            let filter_context = creature.path_query_filter_context_like_cpp();
             let should_try_pathfinding = mmap_config
                 .should_try_pathfinding_like_cpp(source_map_id, owner_ignores_pathfinding);
             let (_action, launched_spline) = creature
@@ -54976,33 +55016,21 @@ pub(crate) fn step_creature_movement_like_cpp(
                     should_try_pathfinding,
                     terrain,
                     |start, destination, point_path_limit| {
-                        mmap_pathfinder.and_then(|worker| {
-                            match worker.calculate_path_like_cpp(
-                                crate::map_manager::WorldMMapPathRequestLikeCpp {
-                                    start,
-                                    destination,
-                                    mesh_map_id: source_map_id,
-                                    instance_map_id: source_map_id,
-                                    instance_id: source_instance_id,
-                                    filter_context: PathQueryFilterContext::creature(
-                                        true, false, false, false,
-                                    ),
-                                    force_destination: false,
-                                    point_path_limit,
-                                    phase_shift: phase_shift.clone(),
-                                },
-                            ) {
-                                Ok(path) => path,
-                                Err(error) => {
-                                    tracing::warn!(
-                                        "mmap waypoint pathfinding failed for creature {:?}: {:?}",
-                                        guid,
-                                        error
-                                    );
-                                    None
-                                }
-                            }
-                        })
+                        resolve_creature_detour_path_like_cpp(
+                            mmap_pathfinder,
+                            guid,
+                            crate::map_manager::WorldMMapPathRequestLikeCpp {
+                                start,
+                                destination,
+                                mesh_map_id: source_map_id,
+                                instance_map_id: source_map_id,
+                                instance_id: source_instance_id,
+                                filter_context,
+                                force_destination: false,
+                                point_path_limit,
+                                phase_shift: phase_shift.clone(),
+                            },
+                        )
                     },
                 );
             if let Some((from, move_spline)) = launched_spline {
@@ -146857,6 +146885,121 @@ mod tests {
             creature.state(),
             wow_entities::CreatureAiState::WalkingWaypoint
         );
+    }
+
+    /// End-to-end proof for #24: the live creature tick queries a **real**
+    /// Detour navmesh through the runtime pathfinder and walks around an
+    /// obstacle instead of straight through it.
+    ///
+    /// The fixture mesh is a walkable ring with an unwalkable centre cell, laid
+    /// out so that the straight segment from the creature to its waypoint node
+    /// crosses the hole. C++ `WaypointMovementGenerator<Creature>::StartMove`
+    /// reaches `MoveSplineInit::MoveTo(..., generatePath = true)`, which runs
+    /// `PathGenerator::CalculatePath` and hands the multi-point result to
+    /// `MovebyPath` (`MoveSplineInit.cpp:261-277`).
+    #[test]
+    fn step_creature_movement_waypoint_paths_around_real_navmesh_obstacle_like_cpp() {
+        use wow_recastdetour::test_fixtures::{
+            OBSTACLE_TILE_CELL_SIZE, obstacle_hole_bounds, write_obstacle_ring_mmaps_like_cpp,
+        };
+
+        const MAP_ID: u32 = 1;
+        let half = OBSTACLE_TILE_CELL_SIZE / 2.0;
+        // `wow_position_to_detour_like_cpp` maps WoW (x, y, z) to Detour
+        // (y, z, x), so WoW x selects the Detour z row and WoW y the Detour x
+        // column. Start and destination are the two ring cells on the middle
+        // row, with the obstacle between them.
+        let start = Position::new(half + OBSTACLE_TILE_CELL_SIZE, half, 0.0, 0.0);
+        let destination = Position::new(
+            half + OBSTACLE_TILE_CELL_SIZE,
+            half + 2.0 * OBSTACLE_TILE_CELL_SIZE,
+            0.0,
+            0.0,
+        );
+
+        let root = std::env::temp_dir().join(format!(
+            "rustycore-step-navmesh-obstacle-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        write_obstacle_ring_mmaps_like_cpp(&root, MAP_ID, &[(start.x, start.y)]);
+
+        let guid = test_creature_guid(200_024);
+        let mut creature = make_test_world_creature(guid);
+        creature
+            .creature
+            .unit_mut()
+            .world_mut()
+            .set_map(MAP_ID, 0)
+            .expect("bind the fixture map");
+        creature.creature.set_ai_position(start);
+        creature.creature.set_ai_home_position(start);
+
+        let path = wow_movement::WaypointPath::new(
+            77,
+            vec![wow_movement::WaypointNode::new(
+                10,
+                destination.x,
+                destination.y,
+                destination.z,
+            )],
+        );
+        assert_eq!(
+            creature.initialize_default_waypoint_movement_like_cpp(Some(path)),
+            wow_movement::WaypointMovementAction::StopMoving
+        );
+
+        let worker = crate::map_manager::WorldMMapPathfinderWorkerLikeCpp::spawn(&root);
+        let config = MMapRuntimeConfigLikeCpp {
+            data_dir: root.display().to_string(),
+            enabled: true,
+            ..Default::default()
+        };
+
+        let bytes = step_creature_movement_like_cpp(
+            &mut creature,
+            guid,
+            &config,
+            Some(&worker),
+            None,
+            wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP as u32,
+        )
+        .expect("the waypoint leg must launch a MonsterMove");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            wow_constants::ServerOpcodes::OnMonsterMove as u16
+        );
+
+        let spline = creature
+            .active_move_spline_like_cpp()
+            .expect("the launched spline");
+        let points = spline.create_object_path_points_like_cpp();
+
+        // A straight line here would be two endpoints only (four with the
+        // Catmull-Rom end duplication). Detour has to contribute real
+        // intermediate waypoints, and none of them may cross the obstacle.
+        assert!(
+            points.len() > 4,
+            "expected navmesh waypoints between the endpoints, got {points:?}"
+        );
+        let (hole_detour_x, hole_detour_z) = obstacle_hole_bounds();
+        for point in points.iter() {
+            let inside_hole = hole_detour_z.contains(&point.x) && hole_detour_x.contains(&point.y);
+            assert!(
+                !inside_hole,
+                "point {point:?} walks through the obstacle; points: {points:?}"
+            );
+        }
+        // The route must actually leave the blocked row to get around.
+        assert!(
+            points
+                .iter()
+                .any(|point| point.x < *hole_detour_z.start() || point.x > *hole_detour_z.end()),
+            "the route never leaves the blocked row: {points:?}"
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// Patrol progression: a creature with a multi-node DB waypoint path must

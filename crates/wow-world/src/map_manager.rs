@@ -44,7 +44,7 @@ use wow_movement::{
 use wow_packet::packets::update::CreatureCreateData;
 use wow_recastdetour::{
     CENTER_GRID_ID_LIKE_CPP, DetourNavMeshQueryError, DetourPathOptions, DetourPathType,
-    DetourPolyPath, DetourQueryFilterError, MAX_NUMBER_OF_GRIDS_LIKE_CPP,
+    DetourPointPath, DetourPolyPath, DetourQueryFilterError, MAX_NUMBER_OF_GRIDS_LIKE_CPP,
     MAX_POINT_PATH_LENGTH_LIKE_CPP, MMapData, MMapManager as DetourMMapManager, MMapManagerError,
     PathQueryFilterContext, SIZE_OF_GRIDS_LIKE_CPP, ThreadUnsafeMapData,
     create_path_query_filter_like_cpp,
@@ -812,6 +812,29 @@ impl WorldMMapPathfinderLikeCpp {
             return Ok(None);
         }
 
+        // `PathGenerator::CalculatePath` requires `HaveTile(start)` *and*
+        // `HaveTile(dest)` (`PathGenerator.cpp:80-81`). C++ satisfies both
+        // because `TerrainInfo::LoadMMap` pushes a grid's `.mmtile` into
+        // `MMapManager` as the grid loads (`TerrainMgr.cpp:174-184,237-247`),
+        // whereas RustyCore has no grid-driven mmtile load and resolves tiles on
+        // demand from the path request. Without also demand-loading the
+        // destination tile, any destination in a neighbouring tile would report
+        // "no navmesh" and silently degrade to a straight line.
+        if !self
+            .mmap_manager
+            .load_pathfinding_context_for_wow_position_like_cpp(
+                &self.data_dir,
+                mesh_map_id,
+                instance_map_id,
+                instance_id,
+                destination.x,
+                destination.y,
+            )?
+            .tile_available
+        {
+            return Ok(None);
+        }
+
         let Some(mmap_data) = self.mmap_manager.get_mmap_data(mesh_map_id) else {
             return Ok(None);
         };
@@ -953,6 +976,38 @@ fn random_path_result_from_path_type_like_cpp(path_type: PathType) -> RandomPath
         RandomPathResult::FarFromPoly
     } else {
         RandomPathResult::Success
+    }
+}
+
+/// C++ `PathGenerator::CalculatePath` (`PathGenerator.cpp:79-86`) does **not**
+/// report a failure when the map carries no usable navmesh for this query
+/// (`!_navMesh || !_navMeshQuery || !HaveTile(start) || !HaveTile(dest)`): it
+/// calls `BuildShortcut()` and returns `true` with
+/// `PATHFIND_NORMAL | PATHFIND_NOT_USING_PATH`. Because that type carries
+/// neither `PATHFIND_NOPATH` nor `PATHFIND_SHORTCUT`, callers such as
+/// `RandomMovementGenerator<Creature>::SetRandomLocation`
+/// (`RandomMovementGenerator.cpp:145-153`) still launch the two-point path
+/// instead of standing still.
+///
+/// `BuildShortcut` (`PathGenerator.cpp:630-646`) is exactly "current position →
+/// requested destination, then `NormalizePath()`", so the caller's normalizer
+/// still runs over both points.
+pub fn detour_path_without_navmesh_like_cpp(
+    start: Position,
+    destination: Position,
+) -> DetourPolyPath {
+    DetourPolyPath {
+        poly_refs: Vec::new(),
+        point_path: DetourPointPath {
+            points: vec![
+                position_to_wow_point_like_cpp(start),
+                position_to_wow_point_like_cpp(destination),
+            ],
+            actual_end: position_to_wow_point_like_cpp(destination),
+            path_type: DetourPathType::NORMAL | DetourPathType::NOT_USING_PATH,
+        },
+        start_far_from_poly: false,
+        end_far_from_poly: false,
     }
 }
 
@@ -2368,6 +2423,30 @@ impl WorldCreature {
         ai.wander_steps_remaining = next_wander_steps_roll;
         ai.state = CreatureAiState::Idle;
         true
+    }
+
+    /// C++ `PathGenerator::CreateFilter` + `PathGenerator::UpdateFilter`
+    /// (`PathGenerator.cpp:648-698`) derive the Detour query filter from the
+    /// *owner*, never from a constant: `Creature::CanWalk()` adds `NAV_GROUND`,
+    /// `Creature::CanEnterWater()` adds `NAV_WATER | NAV_MAGMA_SLIME`, and
+    /// `Unit::IsInCombat() || Creature::IsInEvadeMode()` adds
+    /// `NAV_GROUND_STEEP`.
+    ///
+    /// Boundary: `UpdateFilter` also ORs in
+    /// `Map::GetForceEnabled/DisabledNavMeshFilterFlags()` and, while the owner
+    /// `IsInWater()/IsUnderWater()`, `GetNavTerrain()` from
+    /// `Map::GetLiquidStatus`. Neither map-level source exists in the Rust
+    /// runtime yet, so those stay at their neutral values here.
+    pub fn path_query_filter_context_like_cpp(&self) -> PathQueryFilterContext {
+        PathQueryFilterContext::creature(
+            self.creature.can_walk_like_cpp(),
+            self.creature.can_enter_water_like_cpp(),
+            self.creature
+                .unit()
+                .unit_flags_like_cpp()
+                .contains(wow_constants::unit::UnitFlags::IN_COMBAT),
+            self.creature.is_in_evade_mode_like_cpp(),
+        )
     }
 
     fn allowed_position_z_caps_like_cpp(&self) -> AllowedPositionZCaps {
@@ -7748,6 +7827,189 @@ mod tests {
     }
 
     #[test]
+    fn detour_path_without_navmesh_matches_cpp_calculate_path_early_return() {
+        let start = Position::new(10.0, 10.0, 3.0, 0.0);
+        let destination = Position::new(25.0, 18.0, 4.0, 1.0);
+
+        let path = detour_path_without_navmesh_like_cpp(start, destination);
+
+        // C++ `BuildShortcut()` is exactly "start -> actual end", and
+        // `CalculatePath` types it `PATHFIND_NORMAL | PATHFIND_NOT_USING_PATH`
+        // (`PathGenerator.cpp:83-85`).
+        assert_eq!(
+            path.point_path.path_type,
+            DetourPathType::NORMAL | DetourPathType::NOT_USING_PATH
+        );
+        assert_eq!(
+            path.point_path.points,
+            vec![[10.0, 10.0, 3.0], [25.0, 18.0, 4.0]]
+        );
+        assert_eq!(path.point_path.actual_end, [25.0, 18.0, 4.0]);
+        assert!(path.poly_refs.is_empty());
+        assert!(!path.start_far_from_poly);
+        assert!(!path.end_far_from_poly);
+
+        // The type must be usable, otherwise the random generator would refuse
+        // to launch it the way it refuses NOPATH/SHORTCUT.
+        let path_type = path_type_from_detour_like_cpp(path.point_path.path_type);
+        assert_eq!(
+            random_path_result_from_path_type_like_cpp(path_type),
+            RandomPathResult::Success
+        );
+        assert!(!path_type.intersects(PathType::NOPATH | PathType::SHORTCUT));
+    }
+
+    #[test]
+    fn world_creature_random_launches_cpp_shortcut_when_navmesh_is_absent() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54341);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        creature
+            .creature
+            .set_default_movement_type_runtime_like_cpp(
+                wow_entities::MovementGeneratorType::Random,
+            );
+        creature.creature.ai_ownership_mut().wander_radius = 8.0;
+        creature.clock_started_at = Instant::now() - Duration::from_secs(10);
+
+        // C++ `CalculatePath` answers a missing navmesh/tile with
+        // `BuildShortcut()` + `PATHFIND_NORMAL | PATHFIND_NOT_USING_PATH`
+        // (`PathGenerator.cpp:79-86`). Neither bit is checked by
+        // `RandomMovementGenerator::SetRandomLocation`
+        // (`RandomMovementGenerator.cpp:146-153`), so the creature launches the
+        // two-point path instead of retrying forever.
+        let mut resolver_called = false;
+        let movement = creature.update_default_random_movement_with_path_resolver_like_cpp(
+            10,
+            true,
+            |start, destination, _point_path_limit| {
+                resolver_called = true;
+                Some(detour_path_without_navmesh_like_cpp(start, destination))
+            },
+        );
+
+        assert!(resolver_called);
+        let (from, spline) =
+            movement.expect("C++ launches the no-navmesh shortcut instead of standing still");
+        assert!(creature.active_move_spline_like_cpp().is_some());
+        assert_eq!(
+            creature.state(),
+            wow_entities::CreatureAiState::WalkingRandom
+        );
+
+        // The launched spline is the C++ `BuildShortcut()` segment: straight
+        // from the creature's position to the rolled wander destination, with
+        // no navmesh waypoints in between.
+        let destination = spline
+            .final_destination()
+            .expect("the launched shortcut has a destination");
+        let shortcut = detour_path_without_navmesh_like_cpp(from, destination);
+        let path = path_generator_from_detour_like_cpp(from, destination, &shortcut, false);
+        assert_eq!(
+            path.path_points(),
+            &[from, destination],
+            "the C++ no-navmesh case is a two-point shortcut"
+        );
+        assert_eq!(
+            path.path_type(),
+            PathType::NORMAL | PathType::NOT_USING_PATH
+        );
+    }
+
+    #[test]
+    fn world_creature_path_query_filter_context_follows_cpp_create_filter() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54342);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+
+        // C++ `CreatureMovementData` defaults to `Ground = Run` and
+        // `Swim = true` (`Creature.cpp:58`), so `CanWalk()` and
+        // `CanEnterWater()` both hold and `CreateFilter` includes
+        // NAV_GROUND | NAV_WATER | NAV_MAGMA_SLIME.
+        let context = creature.path_query_filter_context_like_cpp();
+        assert_eq!(
+            context.owner,
+            wow_recastdetour::PathQueryFilterOwner::Creature {
+                can_walk: true,
+                can_enter_water: true,
+                in_combat: false,
+                in_evade_mode: false,
+            }
+        );
+        let filter = create_path_query_filter_like_cpp(context).expect("filter");
+        assert_eq!(
+            filter.include_flags(),
+            (wow_recastdetour::NavTerrainFlag::GROUND
+                | wow_recastdetour::NavTerrainFlag::WATER
+                | wow_recastdetour::NavTerrainFlag::MAGMA_SLIME)
+                .bits()
+        );
+
+        // A ground-only, non-swimming template must lose the water bits, which
+        // the previously hardcoded context could never express.
+        creature.creature.set_ground_movement_type_runtime_like_cpp(
+            wow_constants::CreatureGroundMovementType::None as u8,
+        );
+        creature.creature.set_swim_allowed_runtime_like_cpp(false);
+        let context = creature.path_query_filter_context_like_cpp();
+        assert_eq!(
+            context.owner,
+            wow_recastdetour::PathQueryFilterOwner::Creature {
+                can_walk: false,
+                can_enter_water: false,
+                in_combat: false,
+                in_evade_mode: false,
+            }
+        );
+
+        // C++ `UpdateFilter` adds NAV_GROUND_STEEP while the creature
+        // `IsInCombat()` or `IsInEvadeMode()` (`PathGenerator.cpp:694-696`).
+        creature.creature.set_ground_movement_type_runtime_like_cpp(
+            wow_constants::CreatureGroundMovementType::Run as u8,
+        );
+        creature.creature.set_in_evade_mode_like_cpp(true);
+        let context = creature.path_query_filter_context_like_cpp();
+        assert!(matches!(
+            context.owner,
+            wow_recastdetour::PathQueryFilterOwner::Creature {
+                in_evade_mode: true,
+                ..
+            }
+        ));
+        let filter = create_path_query_filter_like_cpp(context).expect("filter");
+        assert_eq!(
+            filter.include_flags(),
+            (wow_recastdetour::NavTerrainFlag::GROUND
+                | wow_recastdetour::NavTerrainFlag::GROUND_STEEP)
+                .bits()
+        );
+    }
+
+    #[test]
     fn calculate_creature_detour_path_returns_none_until_runtime_mmap_exists_like_cpp() {
         let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54325);
         let creature = WorldCreature::new(
@@ -7800,6 +8062,90 @@ mod tests {
             ),
             Ok(None)
         );
+    }
+
+    /// C++ `PathGenerator::CalculatePath` needs `HaveTile(start)` **and**
+    /// `HaveTile(dest)` (`PathGenerator.cpp:79-86`); it gets both because
+    /// `TerrainInfo::LoadMMap` pushes each grid's `.mmtile` in as the grid
+    /// loads. RustyCore loads tiles on demand from the path request, so the
+    /// pathfinder has to demand-load the destination's tile too — otherwise a
+    /// destination one tile over reports "no navmesh" and the caller degrades to
+    /// a straight line even though the mesh is on disk.
+    #[test]
+    fn world_mmap_pathfinder_demand_loads_the_destination_tile_like_cpp() {
+        use wow_recastdetour::test_fixtures::{
+            OBSTACLE_TILE_CELL_SIZE, write_obstacle_ring_mmaps_like_cpp,
+        };
+
+        const MAP_ID: u32 = 1;
+        let half = OBSTACLE_TILE_CELL_SIZE / 2.0;
+        // WoW y drives the Detour x axis, so stepping y across
+        // `SIZE_OF_GRIDS_LIKE_CPP` moves both the navmesh tile and the grid file
+        // the tile is named after.
+        let start = Position::new(half, half, 0.0, 0.0);
+        let destination = Position::new(half, SIZE_OF_GRIDS_LIKE_CPP + half, 0.0, 0.0);
+        assert_ne!(
+            wow_recastdetour::mmap_tile_coords_for_wow_position_like_cpp(start.x, start.y),
+            wow_recastdetour::mmap_tile_coords_for_wow_position_like_cpp(
+                destination.x,
+                destination.y
+            ),
+            "the fixture must straddle a grid-file seam to be meaningful"
+        );
+
+        let root = unique_test_dir("world-mmap-pathfinder-destination-tile");
+        let _ = std::fs::remove_dir_all(&root);
+        write_obstacle_ring_mmaps_like_cpp(
+            &root,
+            MAP_ID,
+            &[(start.x, start.y), (destination.x, destination.y)],
+        );
+
+        let mut pathfinder = WorldMMapPathfinderLikeCpp::new(&root);
+        let result = pathfinder.calculate_path_from_positions_like_cpp(
+            start,
+            destination,
+            MAP_ID,
+            MAP_ID,
+            0,
+            PathQueryFilterContext::creature(true, false, false, false),
+            false,
+            MAX_POINT_PATH_LENGTH_LIKE_CPP,
+        );
+
+        // The query must actually run: reporting `Ok(None)` here would mean the
+        // destination tile was never loaded and the caller silently
+        // straight-lines.
+        let path = result
+            .expect("query must not error")
+            .expect("both endpoint tiles are on disk, so the query must run");
+
+        // The two fixture tiles are disconnected islands, so `findPath` returns
+        // a partial corridor that never reaches `endPoly`. That is the C++
+        // `PATHFIND_INCOMPLETE` tail in `BuildPolyPath`
+        // (`PathGenerator.cpp:519-522`) — a real navmesh answer, not a shortcut.
+        assert!(
+            path.point_path
+                .path_type
+                .contains(DetourPathType::INCOMPLETE),
+            "expected a partial navmesh corridor, got {:?}",
+            path.point_path.path_type
+        );
+        assert!(
+            !path
+                .point_path
+                .path_type
+                .intersects(DetourPathType::NOT_USING_PATH),
+            "the mesh was queried, so this must not be the no-navmesh shortcut: {:?}",
+            path.point_path.path_type
+        );
+        assert_eq!(
+            pathfinder.mmap_manager().get_loaded_tiles_count(),
+            2,
+            "the start tile and the destination tile must both be resident"
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
