@@ -14232,8 +14232,8 @@ fn run_legacy_creature_aggro_tick_and_deliver_once_like_cpp(
         aggro_config,
     );
     let delivery = deliver_creature_attack_start_commands_like_cpp(&outcome.commands, registry);
-    let alert_delivery = deliver_runtime_plan_like_cpp(&outcome.alert_plan, registry);
-    (outcome, delivery, alert_delivery)
+    let plan_delivery = deliver_runtime_plan_like_cpp(&outcome.plan, registry);
+    (outcome, delivery, plan_delivery)
 }
 
 /// Run one legacy global creature melee tick and deliver victim commands.
@@ -14275,7 +14275,7 @@ struct LegacyCreatureRuntimeTickBridgeOutcomeLikeCpp {
     pub movement_delivery: RuntimeDeliverySummaryLikeCpp,
     pub aggro: wow_world::session::LegacyCreatureAggroTickOutcomeLikeCpp,
     pub aggro_delivery: RuntimeCreatureAttackStartDeliverySummaryLikeCpp,
-    pub aggro_alert_delivery: RuntimeDeliverySummaryLikeCpp,
+    pub aggro_plan_delivery: RuntimeDeliverySummaryLikeCpp,
     pub melee: wow_world::session::LegacyCreatureMeleeTickOutcomeLikeCpp,
     pub melee_delivery: RuntimeCreatureMeleeDeliverySummaryLikeCpp,
     pub melee_plan_delivery: RuntimeDeliverySummaryLikeCpp,
@@ -14329,7 +14329,7 @@ fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
         diff_ms,
         registry,
     );
-    let (aggro, aggro_delivery, aggro_alert_delivery) =
+    let (aggro, aggro_delivery, aggro_plan_delivery) =
         run_legacy_creature_aggro_tick_and_deliver_once_like_cpp(
             legacy_map_manager,
             canonical_map_manager,
@@ -14350,7 +14350,7 @@ fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
         movement_delivery,
         aggro,
         aggro_delivery,
-        aggro_alert_delivery,
+        aggro_plan_delivery,
         melee,
         melee_delivery,
         melee_plan_delivery,
@@ -14461,7 +14461,8 @@ fn spawn_legacy_creature_runtime_update_loop_like_cpp(
                     aggro_starts = outcome.aggro.aggro_starts,
                     aggro_commands = outcome.aggro_delivery.candidates_queued,
                     aggro_alerts = outcome.aggro.alert_triggers,
-                    aggro_alert_commands = outcome.aggro_alert_delivery.candidates_queued,
+                    aggro_movement_interrupts = outcome.aggro.movement_interrupts,
+                    aggro_plan_commands = outcome.aggro_plan_delivery.candidates_queued,
                     melee_hits = outcome.melee.canonical_hits,
                     melee_commands = outcome.melee_delivery.candidates_queued,
                     melee_plan_commands = outcome.melee_plan_delivery.candidates_queued,

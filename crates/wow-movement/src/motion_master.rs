@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::fmt;
 
 use bitflags::bitflags;
 
@@ -56,15 +57,15 @@ impl MotionMasterDelayedActionType {
 
 pub struct DelayedAction<M> {
     pub action_type: MotionMasterDelayedActionType,
-    action: Box<dyn FnOnce(&mut M) + Send>,
-    validator: Box<dyn Fn() -> bool + Send>,
+    action: Box<dyn FnOnce(&mut M) + Send + Sync>,
+    validator: Box<dyn Fn() -> bool + Send + Sync>,
 }
 
 impl<M> DelayedAction<M> {
     #[must_use]
     pub fn new(
         action_type: MotionMasterDelayedActionType,
-        action: impl FnOnce(&mut M) + Send + 'static,
+        action: impl FnOnce(&mut M) + Send + Sync + 'static,
     ) -> Self {
         Self {
             action_type,
@@ -76,8 +77,8 @@ impl<M> DelayedAction<M> {
     #[must_use]
     pub fn with_validator(
         action_type: MotionMasterDelayedActionType,
-        action: impl FnOnce(&mut M) + Send + 'static,
-        validator: impl Fn() -> bool + Send + 'static,
+        action: impl FnOnce(&mut M) + Send + Sync + 'static,
+        validator: impl Fn() -> bool + Send + Sync + 'static,
     ) -> Self {
         Self {
             action_type,
@@ -102,6 +103,32 @@ pub struct MotionMaster {
     flags: MotionMasterFlags,
     base_unit_state_refs: Vec<u32>,
     pub last_resolved_delayed_actions: Vec<ResolvedDelayedAction>,
+}
+
+impl fmt::Debug for MotionMaster {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("MotionMaster")
+            .field(
+                "default_generator",
+                &self.current_kind_for_slot(MovementSlot::Default),
+            )
+            .field(
+                "active_generators",
+                &self
+                    .active_generators
+                    .iter()
+                    .map(|generator| generator.kind())
+                    .collect::<Vec<_>>(),
+            )
+            .field("flags", &self.flags)
+            .field("base_unit_state_refs", &self.base_unit_state_refs)
+            .field(
+                "last_resolved_delayed_actions",
+                &self.last_resolved_delayed_actions,
+            )
+            .finish()
+    }
 }
 
 impl MotionMaster {

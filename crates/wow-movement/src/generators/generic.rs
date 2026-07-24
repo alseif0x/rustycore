@@ -8,7 +8,7 @@ use crate::{
 
 pub const UNIT_STATE_ROAMING_LIKE_CPP: u32 = 0x0000_0010;
 
-pub type GenericSplineInitializer = Box<dyn FnOnce(&mut MoveSplineInit) + Send>;
+pub type GenericSplineInitializer = Box<dyn FnOnce(&mut MoveSplineInit) + Send + Sync>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GenericArrivalSpell {
@@ -43,7 +43,7 @@ pub struct GenericMovementGenerator {
 impl GenericMovementGenerator {
     #[must_use]
     pub fn new(
-        initializer: impl FnOnce(&mut MoveSplineInit) + Send + 'static,
+        initializer: impl FnOnce(&mut MoveSplineInit) + Send + Sync + 'static,
         movement_type: MovementGeneratorType,
         point_id: u32,
     ) -> Self {
@@ -52,7 +52,7 @@ impl GenericMovementGenerator {
 
     #[must_use]
     pub fn new_with_arrival_spell(
-        initializer: impl FnOnce(&mut MoveSplineInit) + Send + 'static,
+        initializer: impl FnOnce(&mut MoveSplineInit) + Send + Sync + 'static,
         movement_type: MovementGeneratorType,
         point_id: u32,
         arrival_spell: Option<GenericArrivalSpell>,

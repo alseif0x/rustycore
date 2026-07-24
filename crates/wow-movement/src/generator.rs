@@ -114,7 +114,7 @@ impl Default for MovementGeneratorState {
     }
 }
 
-pub trait MovementGenerator: Send {
+pub trait MovementGenerator: Send + Sync {
     fn state(&self) -> &MovementGeneratorState;
     fn state_mut(&mut self) -> &mut MovementGeneratorState;
     fn kind(&self) -> MovementGeneratorType;
