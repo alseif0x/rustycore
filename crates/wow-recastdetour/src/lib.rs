@@ -201,12 +201,27 @@ pub struct DetourPolyPath {
     pub end_far_from_poly: bool,
 }
 
+/// Owner capabilities `PathGenerator::BuildPolyPath` reads off `_source` when it
+/// decides whether a position with no navmesh polygon may still be walked
+/// directly: `Creature::CanFly()`, `Creature::CanSwim()` and `Unit::IsFalling()`
+/// (`PathGenerator.cpp:180-202`, `:222-240`).
+///
+/// All false reproduces "a ground creature that is not falling", which is what
+/// the pathfinder assumed before these were threaded through.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct DetourOwnerCapabilitiesLikeCpp {
+    pub can_fly: bool,
+    pub can_swim: bool,
+    pub is_falling: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DetourPathOptions {
     pub point_path_limit: usize,
     pub force_destination: bool,
     pub use_straight_path: bool,
     pub use_raycast: bool,
+    pub owner: DetourOwnerCapabilitiesLikeCpp,
 }
 
 impl Default for DetourPathOptions {
@@ -216,6 +231,7 @@ impl Default for DetourPathOptions {
             force_destination: false,
             use_straight_path: false,
             use_raycast: false,
+            owner: DetourOwnerCapabilitiesLikeCpp::default(),
         }
     }
 }
@@ -1035,11 +1051,62 @@ pub fn update_path_query_filter_like_cpp(
     }
 }
 
-pub fn get_poly_by_location_like_cpp(
+/// C++ `PathGenerator::GetPathPolyByPosition` (`PathGenerator.cpp:94-123`).
+///
+/// Scans the *current* corridor for the polygon closest to `point`, breaking
+/// early once one is within 1.0 yard, and accepts the result only below 3.0
+/// yards. The returned distance is the real distance to the closest polygon even
+/// when the reference is rejected, matching C++ writing `*distance` before its
+/// `minDist < 3.0f` test.
+pub fn get_path_poly_by_position_like_cpp(
+    query: &DetourNavMeshQuery<'_>,
+    poly_path: &[DetourPolyRef],
+    point: [f32; 3],
+) -> (DetourPolyRef, f32) {
+    if poly_path.is_empty() {
+        return (0, f32::MAX);
+    }
+
+    let mut nearest_poly = 0;
+    let mut min_dist_sq = f32::MAX;
+    for poly_ref in poly_path.iter().copied() {
+        let Ok((closest, _)) = query.closest_point_on_poly(poly_ref, point) else {
+            continue;
+        };
+        let dist_sq = detour_distance_sq(point, closest);
+        if dist_sq < min_dist_sq {
+            min_dist_sq = dist_sq;
+            nearest_poly = poly_ref;
+        }
+        if min_dist_sq < 1.0 {
+            break;
+        }
+    }
+
+    let distance = min_dist_sq.sqrt();
+    if min_dist_sq < 3.0 {
+        (nearest_poly, distance)
+    } else {
+        (0, distance)
+    }
+}
+
+/// C++ `PathGenerator::GetPolyByLocation` (`PathGenerator.cpp:125-158`).
+///
+/// It checks the current corridor first and only falls back to the expensive
+/// `findNearestPoly`, first with a low search box and then with a taller one.
+pub fn get_poly_by_location_with_previous_path_like_cpp(
     query: &DetourNavMeshQuery<'_>,
     filter: &DetourQueryFilter,
+    previous_poly_refs: &[DetourPolyRef],
     point: [f32; 3],
 ) -> Result<(DetourPolyRef, f32), DetourNavMeshQueryError> {
+    let (from_path, path_distance) =
+        get_path_poly_by_position_like_cpp(query, previous_poly_refs, point);
+    if from_path != 0 {
+        return Ok((from_path, path_distance));
+    }
+
     let low = query.find_nearest_poly(point, [3.0, 5.0, 3.0], filter)?;
     if low.poly_ref != 0 {
         return Ok((low.poly_ref, detour_distance(low.nearest_point, point)));
@@ -1051,6 +1118,16 @@ pub fn get_poly_by_location_like_cpp(
     }
 
     Ok((0, f32::MAX))
+}
+
+/// [`get_poly_by_location_with_previous_path_like_cpp`] with no prior corridor,
+/// i.e. the C++ behaviour on a freshly constructed `PathGenerator`.
+pub fn get_poly_by_location_like_cpp(
+    query: &DetourNavMeshQuery<'_>,
+    filter: &DetourQueryFilter,
+    point: [f32; 3],
+) -> Result<(DetourPolyRef, f32), DetourNavMeshQueryError> {
+    get_poly_by_location_with_previous_path_like_cpp(query, filter, &[], point)
 }
 
 /// C++ `PathGenerator::BuildPointPath` (`PathGenerator.cpp:530-622`).
@@ -1259,28 +1336,51 @@ pub fn build_straight_poly_path_like_cpp(
     filter: &DetourQueryFilter,
     start_point: [f32; 3],
     mut end_point: [f32; 3],
+    owner: DetourOwnerCapabilitiesLikeCpp,
+    previous_poly_refs: &[DetourPolyRef],
 ) -> Result<DetourPolyPath, DetourNavMeshQueryError> {
-    let (start_poly, dist_to_start_poly) =
-        get_poly_by_location_like_cpp(query, filter, start_point)?;
-    let (end_poly, dist_to_end_poly) = get_poly_by_location_like_cpp(query, filter, end_point)?;
+    // C++ resolves both endpoints through `GetPolyByLocation`, which consults the
+    // corridor it already holds before paying for `findNearestPoly`
+    // (`PathGenerator.cpp:125-158`); the distance it reports there feeds the
+    // `> 7.0f` far-from-poly decision below.
+    let (start_poly, dist_to_start_poly) = get_poly_by_location_with_previous_path_like_cpp(
+        query,
+        filter,
+        previous_poly_refs,
+        start_point,
+    )?;
+    let (end_poly, dist_to_end_poly) = get_poly_by_location_with_previous_path_like_cpp(
+        query,
+        filter,
+        previous_poly_refs,
+        end_point,
+    )?;
 
     if start_poly == 0 || end_poly == 0 {
-        // C++ builds the shortcut and then *assigns* `_type = PATHFIND_NOPATH`
-        // (`PathGenerator.cpp:207`), so the `PATHFIND_SHORTCUT` that
-        // `BuildShortcut()` had set is discarded.
+        // C++ runs `BuildShortcut()` first, then grants
+        // `PATHFIND_NORMAL | PATHFIND_NOT_USING_PATH` when the owner `CanFly()`,
+        // or `CanSwim()` with every shortcut point in liquid
+        // (`PathGenerator.cpp:178-202`). Otherwise, and while `!_useRaycast`, it
+        // *assigns* `_type = PATHFIND_NOPATH` (`:207`), discarding the
+        // `PATHFIND_SHORTCUT` that `BuildShortcut()` had set.
         //
-        // Boundary: C++ first grants `PATHFIND_NORMAL | PATHFIND_NOT_USING_PATH`
-        // when the owner `CanFly()`, or `CanSwim()` with every shortcut point in
-        // liquid (`PathGenerator.cpp:180-202`). Neither the owner's movement
-        // template nor `Map::GetLiquidStatus` is available at this layer yet, so
-        // that exception is still missing and flying/swimming owners keep
-        // getting `PATHFIND_NOPATH` here.
+        // Boundary: `waterPath` needs `Map::GetLiquidStatus` for each shortcut
+        // point, which this layer has no access to. A swimming owner therefore
+        // still falls through to `PATHFIND_NOPATH` here, exactly as it did
+        // before — the C++ `waterPath` loop can only ever *reduce* `waterPath`
+        // to false, so treating "no liquid data" as "not fully submerged" never
+        // grants a shortcut C++ would have withheld.
+        let path_type = if owner.can_fly {
+            DetourPathType::NORMAL | DetourPathType::NOT_USING_PATH
+        } else {
+            DetourPathType::NOPATH
+        };
         return Ok(DetourPolyPath {
             poly_refs: Vec::new(),
             point_path: DetourPointPath {
                 points: vec![start_point, end_point],
                 actual_end: end_point,
-                path_type: DetourPathType::NOPATH,
+                path_type,
             },
             start_far_from_poly: false,
             end_far_from_poly: false,
@@ -1291,6 +1391,41 @@ pub fn build_straight_poly_path_like_cpp(
     let end_far_from_poly = dist_to_end_poly > 7.0;
     let mut path_type = DetourPathType::NORMAL;
     if start_far_from_poly || end_far_from_poly {
+        // C++ picks the offending endpoint, and when it is *not* under water
+        // allows a direct shortcut for a flying owner, or for one that is
+        // falling towards a lower destination — the charge case
+        // (`PathGenerator.cpp:221-240`).
+        //
+        // Boundary: C++ selects the offending endpoint
+        // (`(distToStartPoly > 7.0f) ? startPos : endPos`) only to ask
+        // `Map::IsUnderWater` about it and, if so, consult `CanSwim()` instead.
+        // That liquid lookup is unavailable at this layer, so the "flying case"
+        // arm is always taken — the same arm Rust already took unconditionally.
+        // This only adds the shortcuts C++ grants inside it.
+        //
+        // Detour space is Y-up and `wow_position_to_detour_like_cpp` maps WoW z
+        // onto index 1, so index 1 is the height C++ compares as `endPos.z <
+        // startPos.z`.
+        let build_shortcut = owner.can_fly || (owner.is_falling && end_point[1] < start_point[1]);
+        if build_shortcut {
+            let mut path_type = DetourPathType::NORMAL | DetourPathType::NOT_USING_PATH;
+            add_far_from_poly_flags_like_cpp(
+                &mut path_type,
+                start_far_from_poly,
+                end_far_from_poly,
+            );
+            return Ok(DetourPolyPath {
+                poly_refs: Vec::new(),
+                point_path: DetourPointPath {
+                    points: vec![start_point, end_point],
+                    actual_end: end_point,
+                    path_type,
+                },
+                start_far_from_poly,
+                end_far_from_poly,
+            });
+        }
+
         if let Ok((closest, _)) = query.closest_point_on_poly(end_poly, end_point) {
             end_point = closest;
         }
@@ -1298,32 +1433,56 @@ pub fn build_straight_poly_path_like_cpp(
         add_far_from_poly_flags_like_cpp(&mut path_type, start_far_from_poly, end_far_from_poly);
     }
 
+    // C++ `BuildShortcut(); _type = PATHFIND_NOPATH;` with no
+    // `AddFarFromPolyFlags` afterwards (`PathGenerator.cpp:371-374`, `:508-515`).
+    let shortcut_no_path = || DetourPolyPath {
+        poly_refs: Vec::new(),
+        point_path: DetourPointPath {
+            points: vec![start_point, end_point],
+            actual_end: end_point,
+            path_type: DetourPathType::NOPATH,
+        },
+        start_far_from_poly,
+        end_far_from_poly,
+    };
+
     let poly_refs = if start_poly == end_poly {
+        // C++ `PathGenerator.cpp:271-289` treats this as a one-polygon corridor
+        // and hands it straight to `BuildPointPath`.
         vec![start_poly]
     } else {
-        let path = query.find_path(
+        // C++ `PathGenerator.cpp:291-413` first tries to reuse the corridor the
+        // generator already holds: an exact subpath when both polygons are still
+        // on it, or an ~80% prefix plus a freshly generated suffix when only the
+        // start polygon is.
+        match reuse_previous_poly_path_like_cpp(
+            query,
+            filter,
+            previous_poly_refs,
             start_poly,
             end_poly,
-            start_point,
             end_point,
-            filter,
-            MAX_PATH_LENGTH_LIKE_CPP,
-        )?;
-        if path.is_empty() {
-            // C++ `BuildShortcut(); _type = PATHFIND_NOPATH;` with no
-            // `AddFarFromPolyFlags` afterwards (`PathGenerator.cpp:508-515`).
-            return Ok(DetourPolyPath {
-                poly_refs: path,
-                point_path: DetourPointPath {
-                    points: vec![start_point, end_point],
-                    actual_end: end_point,
-                    path_type: DetourPathType::NOPATH,
-                },
-                start_far_from_poly,
-                end_far_from_poly,
-            });
+            false,
+        )? {
+            PreviousPolyPathLikeCpp::PolyRefs(reused) if !reused.is_empty() => reused,
+            PreviousPolyPathLikeCpp::ShortcutNoPath => return Ok(shortcut_no_path()),
+            // `Recalculate`, or a reuse that produced nothing: C++ `Clear()`s and
+            // generates the whole corridor (`:414-516`).
+            _ => {
+                let path = query.find_path(
+                    start_poly,
+                    end_poly,
+                    start_point,
+                    end_point,
+                    filter,
+                    MAX_PATH_LENGTH_LIKE_CPP,
+                )?;
+                if path.is_empty() {
+                    return Ok(shortcut_no_path());
+                }
+                path
+            }
         }
-        path
     };
 
     if poly_refs.last().copied() == Some(end_poly)
@@ -1472,6 +1631,8 @@ pub fn build_raycast_poly_path_like_cpp(
     })
 }
 
+/// [`calculate_detour_path_with_previous_path_like_cpp`] on a freshly
+/// constructed `PathGenerator`, i.e. with no corridor to reuse.
 pub fn calculate_detour_path_like_cpp(
     nav_mesh: &DetourNavMesh,
     query: &DetourNavMeshQuery<'_>,
@@ -1480,12 +1641,43 @@ pub fn calculate_detour_path_like_cpp(
     end_wow: [f32; 3],
     options: DetourPathOptions,
 ) -> Result<DetourPolyPath, DetourNavMeshQueryError> {
+    calculate_detour_path_with_previous_path_like_cpp(
+        nav_mesh,
+        query,
+        filter,
+        start_wow,
+        end_wow,
+        options,
+        &[],
+    )
+}
+
+/// C++ `PathGenerator::CalculatePath` from `BuildPolyPath` onwards, for a
+/// generator that kept its `PathGenerator` alive across updates and therefore
+/// still holds `_pathPolyRefs` (`PathGenerator.cpp:291-413`).
+#[allow(clippy::too_many_arguments)]
+pub fn calculate_detour_path_with_previous_path_like_cpp(
+    nav_mesh: &DetourNavMesh,
+    query: &DetourNavMeshQuery<'_>,
+    filter: &DetourQueryFilter,
+    start_wow: [f32; 3],
+    end_wow: [f32; 3],
+    options: DetourPathOptions,
+    previous_poly_refs: &[DetourPolyRef],
+) -> Result<DetourPolyPath, DetourNavMeshQueryError> {
     let start_point = wow_position_to_detour_like_cpp(start_wow);
     let end_point = wow_position_to_detour_like_cpp(end_wow);
     let mut poly_path = if options.use_raycast {
         build_raycast_poly_path_like_cpp(query, filter, start_point, end_point)?
     } else {
-        build_straight_poly_path_like_cpp(query, filter, start_point, end_point)?
+        build_straight_poly_path_like_cpp(
+            query,
+            filter,
+            start_point,
+            end_point,
+            options.owner,
+            previous_poly_refs,
+        )?
     };
 
     // C++ `BuildPolyPath` runs `BuildPointPath` exactly once, and only on the
@@ -1529,6 +1721,7 @@ fn calculate_detour_path_with_raw_query_like_cpp(
     start_wow: [f32; 3],
     end_wow: [f32; 3],
     options: DetourPathOptions,
+    previous_poly_refs: &[DetourPolyRef],
 ) -> Result<DetourPolyPath, DetourNavMeshQueryError> {
     let Some(raw) = NonNull::new(raw_query) else {
         return Err(DetourNavMeshQueryError::AllocationFailed);
@@ -1538,7 +1731,15 @@ fn calculate_detour_path_with_raw_query_like_cpp(
         _mesh_lifetime_and_thread_model: PhantomData,
     });
 
-    calculate_detour_path_like_cpp(nav_mesh, &query, filter, start_wow, end_wow, options)
+    calculate_detour_path_with_previous_path_like_cpp(
+        nav_mesh,
+        &query,
+        filter,
+        start_wow,
+        end_wow,
+        options,
+        previous_poly_refs,
+    )
 }
 
 #[must_use]
@@ -1996,6 +2197,30 @@ impl MMapData {
         end_wow: [f32; 3],
         options: DetourPathOptions,
     ) -> Result<Option<DetourPolyPath>, DetourNavMeshQueryError> {
+        self.calculate_path_for_instance_with_previous_path_like_cpp(
+            instance_map_id,
+            instance_id,
+            filter,
+            start_wow,
+            end_wow,
+            options,
+            &[],
+        )
+    }
+
+    /// As above, for a caller that kept the corridor from its previous query and
+    /// can therefore reproduce the C++ `_pathPolyRefs` reuse.
+    #[allow(clippy::too_many_arguments)]
+    pub fn calculate_path_for_instance_with_previous_path_like_cpp(
+        &self,
+        instance_map_id: u32,
+        instance_id: u32,
+        filter: &DetourQueryFilter,
+        start_wow: [f32; 3],
+        end_wow: [f32; 3],
+        options: DetourPathOptions,
+        previous_poly_refs: &[DetourPolyRef],
+    ) -> Result<Option<DetourPolyPath>, DetourNavMeshQueryError> {
         let Some(query) = self.get_nav_mesh_query(instance_map_id, instance_id) else {
             return Ok(None);
         };
@@ -2013,6 +2238,7 @@ impl MMapData {
             start_wow,
             end_wow,
             options,
+            previous_poly_refs,
         )
         .map(Some)
     }
@@ -3243,6 +3469,8 @@ mod tests {
             &filter,
             [0.25, 0.0, 0.25],
             [0.75, 0.0, 0.75],
+            DetourOwnerCapabilitiesLikeCpp::default(),
+            &[],
         )
         .unwrap();
 
@@ -3273,6 +3501,8 @@ mod tests {
             &filter,
             [0.25, 0.0, 0.25],
             [0.75, 0.0, 0.75],
+            DetourOwnerCapabilitiesLikeCpp::default(),
+            &[],
         )
         .unwrap();
 
@@ -4442,6 +4672,171 @@ mod tests {
             }),
             "the route never leaves the blocked row: {:?}",
             path.point_path.points
+        );
+    }
+
+    #[test]
+    fn detour_no_poly_grants_flying_owner_the_cpp_not_using_path_shortcut() {
+        let mesh = obstacle_ring_nav_mesh();
+        let query = DetourNavMeshQuery::new(&mesh, 1024).unwrap();
+        let filter = obstacle_ring_walk_filter();
+
+        // Far outside the fixture, so both `GetPolyByLocation` lookups fail.
+        let start = [10_000.0f32, 0.0, 10_000.0];
+        let end = [10_100.0f32, 0.0, 10_100.0];
+
+        // A ground creature keeps the plain `PATHFIND_NOPATH` C++ assigns at
+        // `PathGenerator.cpp:207`.
+        let ground = build_straight_poly_path_like_cpp(
+            &query,
+            &filter,
+            start,
+            end,
+            DetourOwnerCapabilitiesLikeCpp::default(),
+            &[],
+        )
+        .unwrap();
+        assert_eq!(ground.point_path.path_type, DetourPathType::NOPATH);
+
+        // `CanFly()` turns the same hole into the launchable shortcut
+        // (`PathGenerator.cpp:180,198-202`).
+        let flying = build_straight_poly_path_like_cpp(
+            &query,
+            &filter,
+            start,
+            end,
+            DetourOwnerCapabilitiesLikeCpp {
+                can_fly: true,
+                ..DetourOwnerCapabilitiesLikeCpp::default()
+            },
+            &[],
+        )
+        .unwrap();
+        assert_eq!(
+            flying.point_path.path_type,
+            DetourPathType::NORMAL | DetourPathType::NOT_USING_PATH
+        );
+        assert_eq!(flying.point_path.points, vec![start, end]);
+        assert!(flying.poly_refs.is_empty());
+
+        // Falling alone is not the no-poly exception — C++ only consults
+        // `IsFalling()` in the far-from-poly branch.
+        let falling = build_straight_poly_path_like_cpp(
+            &query,
+            &filter,
+            start,
+            end,
+            DetourOwnerCapabilitiesLikeCpp {
+                is_falling: true,
+                ..DetourOwnerCapabilitiesLikeCpp::default()
+            },
+            &[],
+        )
+        .unwrap();
+        assert_eq!(falling.point_path.path_type, DetourPathType::NOPATH);
+    }
+
+    #[test]
+    fn detour_far_from_poly_shortcuts_for_flying_and_falling_owners_like_cpp() {
+        let mesh = obstacle_ring_nav_mesh();
+        let query = DetourNavMeshQuery::new(&mesh, 1024).unwrap();
+        let filter = obstacle_ring_walk_filter();
+        let half = OBSTACLE_TILE_CELL_SIZE / 2.0;
+
+        // Start on a ring polygon; end high above another one so
+        // `GetPolyByLocation` still resolves a polygon (its search box grows to
+        // 50 on Y) while `distToEndPoly > 7.0f`.
+        let start = [half, 0.0, half];
+        let end = [half + 2.0 * OBSTACLE_TILE_CELL_SIZE, 40.0, half];
+
+        let ground = build_straight_poly_path_like_cpp(
+            &query,
+            &filter,
+            start,
+            end,
+            DetourOwnerCapabilitiesLikeCpp::default(),
+            &[],
+        )
+        .unwrap();
+        assert!(
+            ground.end_far_from_poly,
+            "fixture must actually trip the 7.0 yard far-from-poly test"
+        );
+        assert!(
+            ground
+                .point_path
+                .path_type
+                .contains(DetourPathType::INCOMPLETE),
+            "a ground creature takes the clamp + INCOMPLETE arm, got {:?}",
+            ground.point_path.path_type
+        );
+        assert!(
+            ground.point_path.points.is_empty(),
+            "the corridor still falls through to BuildPointPath"
+        );
+
+        // C++ `PathGenerator.cpp:232-239`: a flying owner shortcuts instead.
+        let flying = build_straight_poly_path_like_cpp(
+            &query,
+            &filter,
+            start,
+            end,
+            DetourOwnerCapabilitiesLikeCpp {
+                can_fly: true,
+                ..DetourOwnerCapabilitiesLikeCpp::default()
+            },
+            &[],
+        )
+        .unwrap();
+        assert_eq!(
+            flying.point_path.path_type,
+            DetourPathType::NORMAL
+                | DetourPathType::NOT_USING_PATH
+                | DetourPathType::FARFROMPOLY_END
+        );
+        assert_eq!(flying.point_path.points, vec![start, end]);
+
+        // A falling owner only shortcuts while moving *downwards*; here the end
+        // is above the start, so the INCOMPLETE arm must stand.
+        let falling_upwards = build_straight_poly_path_like_cpp(
+            &query,
+            &filter,
+            start,
+            end,
+            DetourOwnerCapabilitiesLikeCpp {
+                is_falling: true,
+                ..DetourOwnerCapabilitiesLikeCpp::default()
+            },
+            &[],
+        )
+        .unwrap();
+        assert!(
+            falling_upwards
+                .point_path
+                .path_type
+                .contains(DetourPathType::INCOMPLETE)
+        );
+
+        // Falling towards a lower destination is the C++ charge exception.
+        let falling_downwards = build_straight_poly_path_like_cpp(
+            &query,
+            &filter,
+            [half, 40.0, half],
+            [half + 2.0 * OBSTACLE_TILE_CELL_SIZE, 0.0, half],
+            DetourOwnerCapabilitiesLikeCpp {
+                is_falling: true,
+                ..DetourOwnerCapabilitiesLikeCpp::default()
+            },
+            &[],
+        )
+        .unwrap();
+        assert!(
+            falling_downwards
+                .point_path
+                .path_type
+                .contains(DetourPathType::NOT_USING_PATH),
+            "got {:?}",
+            falling_downwards.point_path.path_type
         );
     }
 

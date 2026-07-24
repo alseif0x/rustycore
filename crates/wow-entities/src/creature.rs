@@ -1281,6 +1281,14 @@ impl Creature {
         };
 
         self.set_template_rooted_like_cpp(init_entry_rooted);
+
+        // C++ `Creature::Create` (`Creature.cpp:1154-1155`) adds
+        // `UNIT_STATE_IGNORE_PATHFINDING` for templates carrying
+        // `CREATURE_FLAG_EXTRA_IGNORE_PATHFINDING` (0x20000000), and
+        // `PathGenerator::CalculatePath` then skips the navmesh entirely for
+        // them (`PathGenerator.cpp:80`).
+        self.refresh_ignore_pathfinding_state_like_cpp();
+
         self.refresh_threat_list_capability_like_cpp();
         self.clear_data_changes();
     }
@@ -2150,6 +2158,30 @@ impl Creature {
 
     pub fn set_flags_extra_runtime_like_cpp(&mut self, flags_extra: u32) {
         self.lifecycle_metadata.flags_extra = flags_extra;
+        // C++ derives `UNIT_STATE_IGNORE_PATHFINDING` from
+        // `CREATURE_FLAG_EXTRA_IGNORE_PATHFINDING` once, in `Creature::Create`
+        // (`Creature.cpp:1154-1155`). This setter is the runtime seam through
+        // which legacy registrations apply template `flags_extra` without going
+        // through the create lifecycle, so it has to reach the same state —
+        // otherwise the same template would use the navmesh on one path and skip
+        // it on the other.
+        self.refresh_ignore_pathfinding_state_like_cpp();
+    }
+
+    /// Applies the `CREATURE_FLAG_EXTRA_IGNORE_PATHFINDING` →
+    /// `UNIT_STATE_IGNORE_PATHFINDING` derivation of C++ `Creature::Create`
+    /// (`Creature.cpp:1154-1155`).
+    ///
+    /// C++ only ever *adds* the state there, and deliberately excludes it from
+    /// `UNIT_STATE_ALL_ERASABLE` so it survives respawn, so this never clears a
+    /// state the flag does not ask for.
+    fn refresh_ignore_pathfinding_state_like_cpp(&mut self) {
+        if CreatureFlagsExtra::from_bits_truncate(self.lifecycle_metadata.flags_extra)
+            .contains(CreatureFlagsExtra::IGNORE_PATHFINDING)
+        {
+            self.unit
+                .add_unit_state(UnitState::IGNORE_PATHFINDING.bits());
+        }
     }
 
     pub fn set_static_flags_runtime_like_cpp(&mut self, static_flags: [u32; 8]) {
@@ -4822,6 +4854,33 @@ mod tests {
             ignore_corpse_decay_ratio: true,
             addon: None,
         }
+    }
+
+    #[test]
+    fn creature_lifecycle_create_sets_ignore_pathfinding_from_flags_extra_like_cpp() {
+        // C++ `Creature::Create` (`Creature.cpp:1154-1155`).
+        let baseline = Creature::create_from_lifecycle(creature_lifecycle_create_record());
+        assert!(
+            !baseline
+                .unit()
+                .has_unit_state(UnitState::IGNORE_PATHFINDING.bits()),
+            "a template without the flag must keep using the navmesh"
+        );
+
+        let mut record = creature_lifecycle_create_record();
+        record.template.flags_extra |= CreatureFlagsExtra::IGNORE_PATHFINDING.bits();
+        let ignoring = Creature::create_from_lifecycle(record);
+        assert!(
+            ignoring
+                .unit()
+                .has_unit_state(UnitState::IGNORE_PATHFINDING.bits()),
+            "CREATURE_FLAG_EXTRA_IGNORE_PATHFINDING must add UNIT_STATE_IGNORE_PATHFINDING"
+        );
+        assert_eq!(
+            CreatureFlagsExtra::IGNORE_PATHFINDING.bits(),
+            0x2000_0000,
+            "flag value must match CreatureData.h:363"
+        );
     }
 
     #[test]

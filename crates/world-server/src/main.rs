@@ -14144,6 +14144,40 @@ fn deliver_creature_melee_damage_commands_like_cpp(
     summary
 }
 
+/// Snapshot player positions a chasing creature may need this frame.
+///
+/// C++ `ChaseMovementGenerator` dereferences a live `Unit*`; the Rust creature
+/// step has no object accessor, so the same facts are collected here from
+/// [`PlayerRegistry`] and every DashMap guard is dropped before the legacy map
+/// lock is taken — the pattern the aggro scan already uses.
+fn collect_legacy_chase_target_snapshots_like_cpp(
+    registry: &wow_network::PlayerRegistry,
+) -> std::collections::HashMap<wow_core::ObjectGuid, wow_world::ChaseTargetSnapshotLikeCpp> {
+    registry
+        .iter()
+        .filter_map(|entry| {
+            let guid = *entry.key();
+            let info = entry.value();
+            (info.is_in_world && info.is_alive).then_some((
+                guid,
+                wow_world::ChaseTargetSnapshotLikeCpp {
+                    guid,
+                    position: info.position,
+                    combat_reach: info.combat_reach,
+                    in_world: true,
+                    // C++ `Unit::isInAccessiblePlaceFor` asks `CanEnterWater()`
+                    // when the victim `IsInWater()`; the registry already carries
+                    // the liquid status the aggro scan uses.
+                    in_water: info.liquid_status
+                        & (wow_world::session::LIQUID_MAP_IN_WATER_LIKE_CPP
+                            | wow_world::session::LIQUID_MAP_UNDER_WATER_LIKE_CPP)
+                        != 0,
+                },
+            ))
+        })
+        .collect()
+}
+
 /// Run one legacy global creature-movement tick and deliver its runtime plan.
 ///
 /// Production reaches this through the map-owned
@@ -14161,11 +14195,13 @@ fn run_legacy_creature_movement_tick_and_deliver_once_like_cpp(
     wow_world::session::LegacyCreatureMovementTickOutcomeLikeCpp,
     RuntimeDeliverySummaryLikeCpp,
 ) {
+    let chase_targets = collect_legacy_chase_target_snapshots_like_cpp(registry);
     let outcome = wow_world::session::run_legacy_creature_movement_tick_once_like_cpp(
         legacy_map_manager,
         canonical_map_manager,
         mmap_config,
         mmap_pathfinder,
+        &chase_targets,
         diff_ms,
     );
     let delivery = deliver_runtime_plan_like_cpp(&outcome.plan, registry);

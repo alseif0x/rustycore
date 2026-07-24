@@ -14,7 +14,8 @@ pub mod reputation;
 pub mod session;
 
 pub use map_manager::{
-    GridCoord, MapManager, SharedMapManager, WorldCreature, WorldMMapPathfinderWorkerLikeCpp,
+    ChaseTargetSnapshotLikeCpp, GridCoord, MapManager, SharedMapManager, WorldCreature,
+    WorldMMapPathfinderWorkerLikeCpp,
 };
 pub use session::{
     MMapRuntimeConfigLikeCpp, SharedCanonicalMapManager, SharedObjectAccessor, WorldSession,
