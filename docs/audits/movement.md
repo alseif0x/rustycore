@@ -62,6 +62,21 @@ Fecha: 2026-05-11
 | `MotionMaster::MoveJump` / `CalculateJumpSpeeds` math | Corregido parcialmente en `#A06.8h.3e.2/#A06.8h.3e.4/#A06.8h.3e.5`: `wow-movement` porta `compute_jump_max_height_like_cpp` y `calculate_jump_speeds_like_cpp` desde `MotionMaster.cpp`/`MovementUtil.cpp` con tests de ramas min/mid/max; `wow-entities::MotionSubsystem` representa `LaunchMoveSpline`, `MoveJump`, `MoveJumpWithGravity`, `MoveKnockbackFrom` y `MoveFall` con `GenericMovementGenerator`, prioridad/estado/arrival spell/persist/guards como C++. | OK parcial | Falta conectar `MoveSplineInit` ejecutable, velocidades reales de `UnitMoveType`, destino real, spell effect extra data, `MoveJumpTo`, charge/pathgen, raycast knockback y fall runtime con altura/hover/SetFall. |
 | `GenericMovementGenerator` | Corregido parcialmente en `#A06.8h.3e.3/#A06.8h.3e.12`: Rust modela constructor/lifecycle representado contra `GenericMovementGenerator.h/.cpp`, incluyendo `UNIT_STATE_ROAMING`, flags init/initialized/deactivated/finalized/inform, duracion no-ciclica, cyclic infinito por duracion, arrival spell metadata e inform payload; `WorldCreature` registra el `MovementInform(type, pointId)` canonico para criaturas cuando finalize devuelve inform. | OK parcial | Falta ejecutar lambdas reales contra `MoveSplineInit(Unit*)`, hacer `CastSpell` real al llegar y conectar el runtime generico completo de `MotionMaster`. |
 
+### Seguimiento M2.3 / issue #23
+
+La mención anterior a conectar random/waypoint y cargar paths quedó superada por la auditoría
+contra `WaypointMovementGenerator.cpp:120-470` y `WaypointManager.cpp:35-145`. El startup Rust
+ya cargaba padres y nodos ordenados con la forma C++ (7.698 paths, 142.185 nodos y 5.419 spawns
+waypoint en el dataset comprobado). El fallo vivo era que el spline consumía reloj real mientras
+el timer del generator recibía `10 ms` fijo. El loop global de dueño único entrega ahora el
+`diff` realmente transcurrido a ambos, y las regresiones positiva, negativa, de 600 frames y
+multi-nodo fijan el rearmado continuo. Una build instalada emitió 627 paquetes de movimiento en
+327 ticks observados y el bot conectado recibió dos `SMSG_ON_MONSTER_MOVE`.
+
+Esto cierra el wander/patrol acotado de M2.3, no la unificación de todos los cuerpos
+owner-dependent tras una interfaz `Unit`, Detour/pathgen, transforms de transport/formation,
+callbacks SmartAI/scripts ni chase/threat/leash.
+
 ## TODOs añadidos al roadmap
 
 - `#A06.1`: corregido; `MovementInfo::write` usa la regla C++ de fall-data/fall-direction.
@@ -95,4 +110,4 @@ Fecha: 2026-05-11
 
 ## Conclusión
 
-`MovementInfo` y varios ACKs principales ya están fijados contra el wire C++ con tests, y el handler Rust cubre movimiento básico, side effects representables, `MoveInitActiveMoverComplete`, ACK bookkeeping seguro, anticheat de speed representado, sanitización representable de `ValidateMovementInfo`, wire puro + broadcast lineal representado de `SMSG_ON_MONSTER_MOVE`, primer núcleo `MoveSpline` en `wow-movement` con `Enter_Cycle`/anim tier/percent-eval y mapper packet-side `MoveSpline -> MovementMonsterSpline`, side effects representables de taxi `MoveSplineDone` y near teleport ACK. Aun así no es un port completo de `MovementHandler.cpp`: faltan runtime real de Aura/Pet/Proc, movement-force/speed productivo, `ValidateMovementInfo` completo integrado con Unit/Aura/Vehicle, Taxi/MotionMaster/MoveSpline conectado a Unit y `Player::TeleportTo` completo. El módulo queda en estado ⚠️, no ✅.
+`MovementInfo` y varios ACKs principales ya están fijados contra el wire C++ con tests, y el handler Rust cubre movimiento básico, side effects representables, `MoveInitActiveMoverComplete`, ACK bookkeeping seguro, anticheat de speed representado, sanitización representable de `ValidateMovementInfo`, wire puro + broadcast continuo de `SMSG_ON_MONSTER_MOVE`, primer núcleo `MoveSpline` en `wow-movement` con `Enter_Cycle`/anim tier/percent-eval y mapper packet-side `MoveSpline -> MovementMonsterSpline`, random/waypoint vivo sobre paths DB y side effects representables de taxi `MoveSplineDone` y near teleport ACK. Aun así no es un port completo de `MovementHandler.cpp`: faltan runtime real de Aura/Pet/Proc, movement-force/speed productivo, `ValidateMovementInfo` completo integrado con Unit/Aura/Vehicle, Detour/transport/formation y `Player::TeleportTo` completo. El módulo queda en estado ⚠️, no ✅.
