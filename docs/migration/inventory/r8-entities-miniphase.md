@@ -11,7 +11,9 @@ final per-session `HaveAtClient` check. The stale runtime fixtures are repaired 
 creation order (`Creature::Create` binds the map before `AddToWorld`) and to select
 `RANDOM_MOTION_TYPE` explicitly, as C++ derives it from spawn/template data. The one-shot,
 combined-runtime and production-loop tests then prove one globally-owned launch is resolved once,
-reaches two nearby clients and excludes a wrong-map client.
+reaches two nearby clients and excludes a wrong-map client. The global-tick fixture also uses a
+fixed RNG seed and an explicitly backdated creature-local test clock, so its first launch no
+longer depends on entropy or scheduler timing.
 
 PR #77 installed/restarted the Rust server and manually verified visible Durotar/Razormane
 movement in the original client, including the terrain-normalized path fix. This issue adds the
@@ -23,10 +25,10 @@ one full path point and ten packed deltas. The bounded M2.1 behavior is complete
 MotionMaster update ownership, remaining generator/path-store breadth, transport transforms and
 `SMSG_FLIGHT_SPLINE_SYNC` remain with M2.2/M2.3 and later movement work.
 
-Validation: focused serializer 4/0, movement-step 6/0 and world-server runtime 3/0 tests; full
-`wow-packet` 717/0 and `wow-world` 3081/0 suites; `world-server` check; all 137 committed
-`capture-diff` tests; and the required `loot-single-item-claim` flow CLEAN with six matched
-packets.
+Validation: focused serializer 4/0, movement-step 6/0 and world-server runtime 3/0 tests; 100/100
+repeated deterministic global-tick runs; full `wow-packet` 717/0 and `wow-world` 3081/0 suites;
+`world-server` check; all 137 committed `capture-diff` tests; and the required
+`loot-single-item-claim` flow CLEAN with six matched packets.
 
 # `#NEXT.R8.ENTITIES.1236` — issue #11 world-object visibility coverage and rules.
 

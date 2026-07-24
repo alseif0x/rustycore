@@ -11,12 +11,14 @@
   runtime tests had stale fixtures that neither bound their canonical creature before
   `AddToWorld` nor selected `MovementGeneratorType::Random`; the closeout restores those C++ load
   invariants and proves one global launch fans to two nearby same-map/instance sessions and not a
-  wrong-map session, both through the one-shot bridge and the production loop wrapper. M2.2
-  general MotionMaster ownership, M2.3 remaining generator/path loading, transports and flight
-  spline sync remain separate. Focused serializer 4/0, movement-step 6/0 and runtime 3/0 tests,
-  full `wow-packet` 717/0 and `wow-world` 3081/0 suites, `world-server` check, all 137 committed
-  `capture-diff` tests and the required six-packet `loot-single-item-claim` flow are clean. CI,
-  current-HEAD review and merge remain.
+  wrong-map session, both through the one-shot bridge and the production loop wrapper. A CI
+  follow-up also removes the global-tick regression's dependence on RNG entropy and a one
+  millisecond wall-clock sleep by fixing both inputs in the test fixture. M2.2 general
+  MotionMaster ownership, M2.3 remaining generator/path loading, transports and flight spline
+  sync remain separate. Focused serializer 4/0, movement-step 6/0 and runtime 3/0 tests, 100/100
+  repeated deterministic global-tick runs, full `wow-packet` 717/0 and `wow-world` 3081/0 suites,
+  `world-server` check, all 137 committed `capture-diff` tests and the required six-packet
+  `loot-single-item-claim` flow are clean. CI, current-HEAD review and merge remain.
 
 - `#NEXT.R8.ENTITIES.1236` — issue #11 re-audits world-entry visibility rows 1221–1227
   against C++ `Map::AddPlayerToMap`/`SendInitTransports`,

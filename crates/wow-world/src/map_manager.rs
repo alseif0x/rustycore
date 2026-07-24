@@ -1371,6 +1371,11 @@ impl WorldCreature {
             .min(u128::from(u64::MAX)) as u64
     }
 
+    #[cfg(test)]
+    pub(crate) fn backdate_runtime_clock_for_test(&mut self, elapsed: Duration) {
+        self.clock_started_at = Instant::now() - elapsed;
+    }
+
     pub fn guid(&self) -> ObjectGuid {
         self.creature.ai_guid()
     }
