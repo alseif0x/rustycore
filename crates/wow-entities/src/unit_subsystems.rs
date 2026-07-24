@@ -3425,6 +3425,16 @@ impl MotionSubsystem {
         self.add_generator(generator);
     }
 
+    pub fn move_chase_like_cpp(&mut self, target_guid: ObjectGuid) {
+        self.add_generator(
+            MovementGeneratorRef::new(MovementGeneratorKind::Chase, MovementSlot::Active)
+                .with_priority(MovementGeneratorPriority::Normal)
+                .with_flags(MOVEMENTGENERATOR_FLAG_INITIALIZATION_PENDING)
+                .with_base_unit_state(UnitState::CHASE.bits())
+                .with_target_guid(target_guid),
+        );
+    }
+
     pub fn launch_generic_movement(
         &mut self,
         kind: MovementGeneratorKind,
