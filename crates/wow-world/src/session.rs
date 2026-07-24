@@ -54909,13 +54909,78 @@ pub(crate) fn step_creature_movement_like_cpp(
     }
 
     if creature.state() == wow_entities::CreatureAiState::Returning {
-        if creature.movement_finished() {
-            creature.finish_move();
-            creature
-                .creature
-                .set_ai_state(wow_entities::CreatureAiState::Idle);
-        }
-        return None;
+        // C++ `HomeMovementGenerator<Creature>::SetTargetLocation` launches
+        // `init.MoveTo(GetHomePosition())` with `generatePath = true`, so an
+        // evading creature walks a navmesh route home instead of snapping there
+        // (`HomeMovementGenerator.cpp:53-82`).
+        let owner_ignores_pathfinding = creature
+            .creature
+            .unit()
+            .has_unit_state(UnitState::IGNORE_PATHFINDING.bits());
+        let source_map_id = creature.map_id();
+        let source_instance_id = creature.instance_id();
+        let phase_shift = creature.phase_shift().clone();
+        let filter_context = creature.path_query_filter_context_like_cpp();
+        let owner_capabilities = creature.detour_owner_capabilities_like_cpp();
+        let should_try_pathfinding =
+            mmap_config.should_try_pathfinding_like_cpp(source_map_id, owner_ignores_pathfinding);
+
+        let outcome = creature.update_runtime_home_movement_like_cpp(
+            should_try_pathfinding,
+            terrain,
+            |start, destination, point_path_limit| {
+                resolve_creature_detour_path_like_cpp(
+                    mmap_pathfinder,
+                    guid,
+                    crate::map_manager::WorldMMapPathRequestLikeCpp {
+                        start,
+                        destination,
+                        mesh_map_id: source_map_id,
+                        instance_map_id: source_map_id,
+                        instance_id: source_instance_id,
+                        filter_context,
+                        owner: owner_capabilities,
+                        // C++ builds a fresh `PathGenerator` inside
+                        // `MoveSplineInit::MoveTo`, so there is no corridor to
+                        // reuse for the home leg.
+                        previous_poly_refs: Vec::new(),
+                        force_destination: false,
+                        point_path_limit,
+                        phase_shift: phase_shift.clone(),
+                    },
+                )
+            },
+        );
+
+        return match outcome {
+            crate::map_manager::ChaseTickOutcomeLikeCpp::Idle => None,
+            crate::map_manager::ChaseTickOutcomeLikeCpp::Stopped(stop) => Some(
+                MonsterMoveStop {
+                    mover_guid: guid,
+                    current_pos: stop.position,
+                    spline_id: stop.spline_id,
+                }
+                .to_bytes(),
+            ),
+            crate::map_manager::ChaseTickOutcomeLikeCpp::Launched(from, move_spline) => {
+                let packet_spline = MovementMonsterSpline::from_move_spline(&move_spline);
+                let pkt = MonsterMove {
+                    mover_guid: guid,
+                    current_pos: from,
+                    spline: packet_spline.clone(),
+                };
+                let bytes = pkt.to_bytes();
+                trace_monster_move_packet_like_cpp(
+                    "home",
+                    guid,
+                    creature,
+                    &move_spline,
+                    &packet_spline,
+                    &bytes,
+                );
+                Some(bytes)
+            }
+        };
     }
 
     if creature.state() == wow_entities::CreatureAiState::WalkingRandom
@@ -146817,6 +146882,105 @@ mod tests {
                 .unit()
                 .has_unit_state(wow_constants::UnitState::CHASE_MOVE.bits()),
             "a launched chase sets UNIT_STATE_CHASE_MOVE"
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// Evade return must walk a navmesh route home instead of snapping there.
+    /// C++ `HomeMovementGenerator<Creature>::SetTargetLocation` launches
+    /// `init.MoveTo(GetHomePosition())` with `generatePath = true`
+    /// (`HomeMovementGenerator.cpp:60-82`).
+    #[test]
+    fn step_creature_movement_home_paths_around_real_navmesh_obstacle_like_cpp() {
+        use wow_recastdetour::test_fixtures::{
+            OBSTACLE_TILE_CELL_SIZE, obstacle_hole_bounds, write_obstacle_ring_mmaps_like_cpp,
+        };
+
+        const MAP_ID: u32 = 1;
+        let half = OBSTACLE_TILE_CELL_SIZE / 2.0;
+        let home = Position::new(half + OBSTACLE_TILE_CELL_SIZE, half, 0.0, 0.0);
+        let away = Position::new(
+            half + OBSTACLE_TILE_CELL_SIZE,
+            half + 2.0 * OBSTACLE_TILE_CELL_SIZE,
+            0.0,
+            0.0,
+        );
+
+        let root = std::env::temp_dir().join(format!(
+            "rustycore-step-home-obstacle-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        write_obstacle_ring_mmaps_like_cpp(&root, MAP_ID, &[(home.x, home.y)]);
+
+        let guid = test_creature_guid(200_027);
+        let mut creature = make_test_world_creature(guid);
+        creature
+            .creature
+            .unit_mut()
+            .world_mut()
+            .set_map(MAP_ID, 0)
+            .expect("bind the fixture map");
+        // Home is across the obstacle from where the creature stands.
+        creature.creature.set_ai_home_position(home);
+        creature.creature.set_ai_position(away);
+        creature
+            .creature
+            .set_ai_state(wow_entities::CreatureAiState::Returning);
+
+        let worker = crate::map_manager::WorldMMapPathfinderWorkerLikeCpp::spawn(&root);
+        let config = MMapRuntimeConfigLikeCpp {
+            data_dir: root.display().to_string(),
+            enabled: true,
+            ..Default::default()
+        };
+
+        let bytes = step_creature_movement_like_cpp(
+            &mut creature,
+            guid,
+            &config,
+            Some(&worker),
+            None,
+            None,
+            200,
+        )
+        .expect("evade return must launch a MonsterMove toward home");
+        assert_eq!(
+            u16::from_le_bytes([bytes[0], bytes[1]]),
+            wow_constants::ServerOpcodes::OnMonsterMove as u16
+        );
+
+        let spline = creature
+            .active_move_spline_like_cpp()
+            .expect("home launched a spline");
+        let points = spline.create_object_path_points_like_cpp();
+        assert!(
+            points.len() > 4,
+            "the return trip must be a navmesh route, not a teleport/straight line: {points:?}"
+        );
+        let (hole_detour_x, hole_detour_z) = obstacle_hole_bounds();
+        for point in points.iter() {
+            let inside_hole = hole_detour_z.contains(&point.x) && hole_detour_x.contains(&point.y);
+            assert!(
+                !inside_hole,
+                "home point {point:?} crosses the obstacle: {points:?}"
+            );
+        }
+        // C++ `SetTargetLocation` adds `UNIT_STATE_ROAMING_MOVE` before launching.
+        assert!(
+            creature
+                .creature
+                .unit()
+                .has_unit_state(wow_constants::UnitState::ROAMING_MOVE.bits())
+        );
+        // The creature must still be returning: C++ only finalizes once the
+        // spline reports finalized.
+        assert_eq!(
+            creature.state(),
+            wow_entities::CreatureAiState::Returning,
+            "the home generator stays alive until its spline finalizes"
         );
 
         let _ = std::fs::remove_dir_all(&root);

@@ -28,9 +28,9 @@ use wow_entities::{
 use wow_map::{GridMapTerrain, SharedStaticVMapLineOfSightProvider, SpawnObjectType};
 use wow_movement::generators::CreatureRandomMovementType as MovementCreatureRandomMovementType;
 use wow_movement::{
-    ChaseMovementGenerator, IdleMovementGenerator, MotionMaster, MoveSpline, MoveSplineFlag,
-    MoveSplineInit, MoveSplineLaunchInput, MoveSplineStopInput, MoveSplineStopResult,
-    MovementGenerator as RuntimeMovementGenerator,
+    ChaseMovementGenerator, HomeMovementGenerator, IdleMovementGenerator, MotionMaster, MoveSpline,
+    MoveSplineFlag, MoveSplineInit, MoveSplineLaunchInput, MoveSplineStopInput,
+    MoveSplineStopResult, MovementGenerator as RuntimeMovementGenerator,
     MovementGeneratorFlags as RuntimeMovementGeneratorFlags,
     MovementGeneratorMode as RuntimeMovementGeneratorMode,
     MovementGeneratorPriority as RuntimeMovementGeneratorPriority,
@@ -1291,6 +1291,8 @@ pub struct WorldCreature {
     /// `BuildPolyPath`'s subpath/suffix branches reachable
     /// (`PathGenerator.cpp:291-413`).
     active_random_path_poly_refs: Vec<u64>,
+    /// Selected home generator, kept so its C++ flags survive ticks.
+    active_home_generator: Option<HomeMovementGenerator>,
     /// Selected chase generator, kept so its C++ state survives ticks.
     active_chase_generator: Option<ChaseMovementGenerator>,
     /// Corridor held by the chase generator's `PathGenerator`, which C++ keeps
@@ -1321,6 +1323,7 @@ impl Clone for WorldCreature {
             active_move_spline: self.active_move_spline.clone(),
             active_random_generator: self.active_random_generator.clone(),
             active_random_path_poly_refs: self.active_random_path_poly_refs.clone(),
+            active_home_generator: self.active_home_generator.clone(),
             active_chase_generator: self.active_chase_generator,
             active_chase_path_poly_refs: self.active_chase_path_poly_refs.clone(),
             active_waypoint_generator: self.active_waypoint_generator.clone(),
@@ -1491,6 +1494,7 @@ impl WorldCreature {
             active_move_spline: None,
             active_random_generator: None,
             active_random_path_poly_refs: Vec::new(),
+            active_home_generator: None,
             active_chase_generator: None,
             active_chase_path_poly_refs: Vec::new(),
             active_waypoint_generator: None,
@@ -2541,6 +2545,125 @@ impl WorldCreature {
                 .intersects(MovementFlag::FALLING | MovementFlag::FALLING_FAR)
                 || spline_falling,
         }
+    }
+
+    /// Drives the home (evade-return) generator for one frame, mirroring C++
+    /// `HomeMovementGenerator<Creature>` (`HomeMovementGenerator.cpp:48-157`).
+    ///
+    /// C++ `SetTargetLocation` launches `init.MoveTo(home)` with the defaults
+    /// `generatePath = true, forceDestination = false`, so the return trip is a
+    /// real navmesh path — not a teleport.
+    pub fn update_runtime_home_movement_like_cpp(
+        &mut self,
+        should_try_pathfinding: bool,
+        terrain: Option<&LiveTerrainHeights>,
+        mut resolve_path: impl FnMut(Position, Position, usize) -> Option<DetourPolyPath>,
+    ) -> ChaseTickOutcomeLikeCpp {
+        let snapshot = self.home_unit_snapshot_like_cpp();
+        let action = match self.active_home_generator.as_mut() {
+            Some(generator) => generator.update_like_cpp(true, snapshot),
+            None => {
+                let mut generator = HomeMovementGenerator::new();
+                let action = generator.initialize_like_cpp(true, snapshot);
+                self.active_home_generator = Some(generator);
+                action
+            }
+        };
+
+        match action {
+            wow_movement::HomeMovementAction::Continue => ChaseTickOutcomeLikeCpp::Idle,
+            // C++ `SetTargetLocation` refuses to launch while ROOT/STUNNED/
+            // DISTRACTED so the creature cannot get stuck in evade; `DoUpdate`
+            // then finalizes on the next frame.
+            wow_movement::HomeMovementAction::Interrupted
+            | wow_movement::HomeMovementAction::Finished => {
+                self.finish_home_movement_like_cpp();
+                ChaseTickOutcomeLikeCpp::Idle
+            }
+            wow_movement::HomeMovementAction::Launch(plan) => {
+                self.creature
+                    .unit_mut()
+                    .clear_unit_state(plan.clear_unit_state_mask);
+                self.creature.unit_mut().add_unit_state(plan.add_unit_state);
+
+                let destination =
+                    self.normalize_path_position_z_like_cpp(plan.destination, terrain);
+                let detour_path = should_try_pathfinding
+                    .then(|| {
+                        resolve_path(self.position(), destination, MAX_POINT_PATH_LENGTH_LIKE_CPP)
+                    })
+                    .flatten();
+
+                // C++ goes through `MoveSplineInit::MoveTo(..., generatePath)`,
+                // which falls back to a direct two-point spline whenever the path
+                // is unusable (`MoveSplineInit.cpp:261-277`).
+                let path = detour_path
+                    .as_ref()
+                    .map(|detour_path| {
+                        self.path_generator_from_detour_for_creature_like_cpp(
+                            destination,
+                            detour_path,
+                            false,
+                            terrain,
+                        )
+                    })
+                    .filter(|path| !path.path_type().contains(PathType::NOPATH));
+
+                let spline_id = self.spline_id().saturating_add(1);
+                let mut init = MoveSplineInit::new(spline_id);
+                init.set_walk(plan.walk);
+                match path {
+                    Some(path) => init.move_by_path(path.path_points().to_vec(), 0),
+                    None => init.move_to(destination),
+                }
+                init.set_facing_angle(plan.facing);
+
+                match self.launch_move_spline_init_like_cpp(&mut init, destination) {
+                    Some((from, spline)) => ChaseTickOutcomeLikeCpp::Launched(from, spline),
+                    None => {
+                        self.finish_home_movement_like_cpp();
+                        ChaseTickOutcomeLikeCpp::Idle
+                    }
+                }
+            }
+        }
+    }
+
+    fn home_unit_snapshot_like_cpp(&self) -> wow_movement::HomeUnitSnapshot {
+        wow_movement::HomeUnitSnapshot {
+            owner_alive: self.creature.is_alive(),
+            owner_unit_state: self.creature.unit().unit_state(),
+            home_position: self.creature.ai_ownership().home_position,
+            move_spline_finalized: self
+                .active_move_spline
+                .as_ref()
+                .is_none_or(MoveSpline::finalized),
+            can_swim_out_of_combat: self.creature.can_swim_like_cpp(),
+            is_vehicle: false,
+        }
+    }
+
+    /// C++ `HomeMovementGenerator<Creature>::DoFinalize` reached-home payload:
+    /// clears `UNIT_STATE_ROAMING_MOVE | UNIT_STATE_EVADE` and reports
+    /// `JustReachedHome` (`HomeMovementGenerator.cpp:141-157`).
+    ///
+    /// Boundary: the spawn-health, creature-addon and sparring-health reloads
+    /// C++ performs there are respawn-owned work in this runtime and stay with
+    /// the lifecycle tick.
+    fn finish_home_movement_like_cpp(&mut self) {
+        let snapshot = self.home_unit_snapshot_like_cpp();
+        let finalize = self
+            .active_home_generator
+            .as_mut()
+            .map(|generator| generator.finalize_like_cpp(true, true, snapshot));
+        if let Some(finalize) = finalize {
+            self.creature
+                .unit_mut()
+                .clear_unit_state(finalize.clear_unit_state_mask);
+        }
+        self.active_home_generator = None;
+        self.creature.ai_ownership_mut().move_target = None;
+        self.creature.set_ai_state(CreatureAiState::Idle);
     }
 
     /// The chase generator currently selected for this creature, kept alongside
