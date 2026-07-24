@@ -1,27 +1,125 @@
 use wow_entities::{
     ActivePlayerDataUpdate, AreaTriggerDataUpdate, AreaTriggerValuesUpdate, BagValuesUpdate,
-    ContainerDataUpdate, ConversationDataUpdate, ConversationValuesUpdate, CorpseDataUpdate,
-    CorpseValuesUpdate, DynamicObjectDataUpdate, DynamicObjectValuesUpdate, GameObjectDataUpdate,
-    GameObjectValuesUpdate, ItemDataUpdate, ItemValuesUpdate, ObjectDataUpdate, PlayerDataUpdate,
-    PlayerValuesUpdate, SceneObjectDataUpdate, SceneObjectValuesUpdate, TYPEID_ACTIVE_PLAYER,
-    TYPEID_AREA_TRIGGER, TYPEID_CONTAINER, TYPEID_CONVERSATION, TYPEID_CORPSE,
-    TYPEID_DYNAMIC_OBJECT, TYPEID_GAME_OBJECT, TYPEID_ITEM, TYPEID_OBJECT, TYPEID_PLAYER,
-    TYPEID_SCENE_OBJECT, TYPEID_UNIT, UnitDataUpdate, UnitValuesUpdate,
+    ContainerDataUpdate, Conversation, ConversationDataUpdate, ConversationValuesUpdate, Corpse,
+    CorpseDataUpdate, CorpseValuesUpdate, DynamicObjectDataUpdate, DynamicObjectValuesUpdate,
+    GameObjectDataUpdate, GameObjectValuesUpdate, ItemDataUpdate, ItemValuesUpdate,
+    ObjectDataUpdate, PlayerDataUpdate, PlayerValuesUpdate, SceneObject, SceneObjectDataUpdate,
+    SceneObjectValuesUpdate, TYPEID_ACTIVE_PLAYER, TYPEID_AREA_TRIGGER, TYPEID_CONTAINER,
+    TYPEID_CONVERSATION, TYPEID_CORPSE, TYPEID_DYNAMIC_OBJECT, TYPEID_GAME_OBJECT, TYPEID_ITEM,
+    TYPEID_OBJECT, TYPEID_PLAYER, TYPEID_SCENE_OBJECT, TYPEID_UNIT, UnitDataUpdate,
+    UnitValuesUpdate,
 };
 use wow_packet::packets::update::{
     ActivePlayerDataValuesUpdate as PacketActivePlayerDataValuesUpdate, AreaTriggerCreateData,
     AreaTriggerDataValuesUpdate, AreaTriggerOrbitCreateData, AreaTriggerPosition2CreateData,
-    AreaTriggerPosition3CreateData, AreaTriggerShapeCreateData, ContainerDataValuesUpdate,
-    ConversationActorValuesUpdate, ConversationDataValuesUpdate, ConversationLineValuesUpdate,
+    AreaTriggerPosition3CreateData, AreaTriggerShapeCreateData, ChrCustomizationChoiceValuesUpdate,
+    ContainerDataValuesUpdate, ConversationActorValuesUpdate, ConversationCreateData,
+    ConversationDataValuesUpdate, ConversationLineValuesUpdate, CorpseCreateData,
     CorpseDataValuesUpdate, DynamicObjectDataValuesUpdate, GameObjectDataValuesUpdate,
     ItemBonusKeyValuesUpdate, ItemDataValuesDeltaUpdate, ItemEnchantmentValuesUpdate,
     ItemModListValuesUpdate, ItemModValuesUpdate, ObjectDataValuesUpdate,
     PlayerDataValuesDeltaUpdate, RestInfoValuesUpdate, ScaleCurveValuesUpdate,
-    SceneObjectDataValuesUpdate, SocketedGemValuesUpdate, UnitDataValuesDeltaUpdate, UpdateObject,
-    VisibleItemValuesUpdate, VisualAnimValuesUpdate,
+    SceneObjectCreateData, SceneObjectDataValuesUpdate, SocketedGemValuesUpdate,
+    UnitDataValuesDeltaUpdate, UpdateObject, VisibleItemValuesUpdate, VisualAnimValuesUpdate,
 };
 
 const VISIBLE_ITEM_FULL_UPDATE_MASK: u32 = 0x0F;
+
+pub fn corpse_create_data_from_entity_like_cpp(corpse: &Corpse) -> CorpseCreateData {
+    let world = corpse.world();
+    let object = world.object().object_data_values();
+    let data = corpse.data();
+    CorpseCreateData {
+        guid: world.guid(),
+        entry_id: u32::try_from(object.entry_id).unwrap_or(0),
+        object_dynamic_flags: object.dynamic_flags,
+        scale: object.scale,
+        position: world.position(),
+        corpse_dynamic_flags: data.dynamic_flags,
+        owner: data.owner,
+        party_guid: data.party_guid,
+        guild_guid: data.guild_guid,
+        display_id: data.display_id,
+        items: data.items,
+        race_id: data.race_id,
+        sex: data.sex,
+        class: data.class,
+        customizations: data
+            .customizations
+            .iter()
+            .map(|customization| ChrCustomizationChoiceValuesUpdate {
+                option_id: customization.option_id,
+                choice_id: customization.choice_id,
+            })
+            .collect(),
+        flags: data.flags,
+        faction_template: data.faction_template,
+    }
+}
+
+pub fn scene_object_create_data_from_entity_like_cpp(
+    scene_object: &SceneObject,
+) -> SceneObjectCreateData {
+    let world = scene_object.world();
+    let object = world.object().object_data_values();
+    let data = scene_object.data();
+    SceneObjectCreateData {
+        guid: world.guid(),
+        entry_id: u32::try_from(object.entry_id).unwrap_or(0),
+        dynamic_flags: object.dynamic_flags,
+        scale: object.scale,
+        position: scene_object.stationary_position(),
+        script_package_id: data.script_package_id,
+        rnd_seed_val: data.rnd_seed_val,
+        created_by: data.created_by,
+        scene_type: data.scene_type,
+    }
+}
+
+pub fn conversation_create_data_from_entity_like_cpp(
+    conversation: &Conversation,
+    receiver_locale: &str,
+) -> ConversationCreateData {
+    let world = conversation.world();
+    let object = world.object().object_data_values();
+    let data = conversation.data();
+    let locale = wow_data::locale_index_like_cpp(receiver_locale);
+    ConversationCreateData {
+        guid: world.guid(),
+        entry_id: u32::try_from(object.entry_id).unwrap_or(0),
+        dynamic_flags: object.dynamic_flags,
+        scale: object.scale,
+        position: conversation.stationary_position(),
+        texture_kit_id: conversation.texture_kit_id(),
+        lines: data
+            .lines
+            .iter()
+            .map(|line| ConversationLineValuesUpdate {
+                conversation_line_id: line.conversation_line_id,
+                start_time: conversation
+                    .line_start_time(locale as u8, line.conversation_line_id)
+                    .map_or(line.start_time, |start_time| start_time as u32),
+                ui_camera_id: line.ui_camera_id,
+                actor_index: line.actor_index,
+                flags: line.flags,
+            })
+            .collect(),
+        actors: data
+            .actors
+            .iter()
+            .map(|actor| ConversationActorValuesUpdate {
+                actor_type: actor.actor_type,
+                id: actor.id,
+                creature_id: actor.creature_id,
+                creature_display_info_id: actor.creature_display_info_id,
+                actor_guid: actor.actor_guid,
+            })
+            .collect(),
+        // C++ initializes one end time per locale to zero and sends the
+        // receiver's slot directly, not the aggregate update-field value.
+        last_line_end_time: conversation.last_line_end_time(locale).unwrap_or_default(),
+    }
+}
 
 pub fn player_values_update_to_packet(
     update: &PlayerValuesUpdate,
@@ -754,7 +852,17 @@ fn corpse_data_update_to_packet(update: &CorpseDataUpdate) -> CorpseDataValuesUp
         changed_object_type_mask: 1 << TYPEID_CORPSE,
         object_data: None,
         corpse_data_mask: update.mask.blocks().first().copied().unwrap_or(0),
-        customizations: Vec::new(),
+        customizations: update
+            .values
+            .customizations
+            .iter()
+            .map(|customization| ChrCustomizationChoiceValuesUpdate {
+                option_id: customization.option_id,
+                choice_id: customization.choice_id,
+            })
+            .collect(),
+        // `Corpse::set_customizations` replaces the complete C++ dynamic
+        // field, so a present field bit publishes every current element.
         customizations_update_mask: None,
         dynamic_flags: update.values.dynamic_flags,
         owner: update.values.owner,
@@ -1029,8 +1137,9 @@ mod tests {
         ACTIVE_PLAYER_DATA_TRANSMOG_BIT, ACTIVE_PLAYER_DATA_WATCHED_FACTION_INDEX_BIT,
         AREA_TRIGGER_DATA_DURATION_BIT, AREA_TRIGGER_DATA_PARENT_BIT, Bag,
         CONTAINER_DATA_NUM_SLOTS_BIT, CONVERSATION_DATA_LAST_LINE_END_TIME_BIT,
-        CONVERSATION_DATA_PARENT_BIT, CORPSE_DATA_DISPLAY_ID_BIT, CORPSE_DATA_PARENT_BIT, Corpse,
-        CorpseType, DYNAMIC_OBJECT_DATA_PARENT_BIT, DYNAMIC_OBJECT_DATA_RADIUS_BIT, DynamicObject,
+        CONVERSATION_DATA_PARENT_BIT, CORPSE_DATA_CUSTOMIZATIONS_BIT, CORPSE_DATA_DISPLAY_ID_BIT,
+        CORPSE_DATA_PARENT_BIT, ConversationLine, Corpse, CorpseCustomizationChoice, CorpseType,
+        DYNAMIC_OBJECT_DATA_PARENT_BIT, DYNAMIC_OBJECT_DATA_RADIUS_BIT, DynamicObject,
         GAME_OBJECT_DATA_CREATED_BY_BIT, GAME_OBJECT_DATA_DISPLAY_ID_BIT,
         GAME_OBJECT_DATA_PARENT_BIT, GameObject, ITEM_DATA_STACK_COUNT_BIT, Item,
         PLAYER_DATA_FLAGS_BIT, PLAYER_DATA_HONOR_LEVEL_BIT, PLAYER_DATA_PARENT_BIT,
@@ -1761,6 +1870,44 @@ mod tests {
     }
 
     #[test]
+    fn corpse_create_and_values_preserve_cpp_customizations() {
+        let mut corpse = Corpse::new(CorpseType::ResurrectablePve);
+        corpse.set_customizations(vec![
+            CorpseCustomizationChoice {
+                option_id: 101,
+                choice_id: 201,
+            },
+            CorpseCustomizationChoice {
+                option_id: 102,
+                choice_id: 202,
+            },
+        ]);
+
+        let create = corpse_create_data_from_entity_like_cpp(&corpse);
+        assert_eq!(
+            create.customizations,
+            vec![
+                ChrCustomizationChoiceValuesUpdate {
+                    option_id: 101,
+                    choice_id: 201,
+                },
+                ChrCustomizationChoiceValuesUpdate {
+                    option_id: 102,
+                    choice_id: 202,
+                },
+            ]
+        );
+
+        let packet_update = corpse_values_update_to_packet(&corpse.values_update()).unwrap();
+        assert!(mask_has_u64(
+            packet_update.corpse_data_mask as u64,
+            CORPSE_DATA_CUSTOMIZATIONS_BIT
+        ));
+        assert_eq!(packet_update.customizations, create.customizations);
+        assert!(packet_update.customizations_update_mask.is_none());
+    }
+
+    #[test]
     fn bridges_area_trigger_values_with_nested_full_masks() {
         let mut area_trigger = wow_entities::AreaTrigger::new();
         area_trigger.set_duration(4000);
@@ -1831,6 +1978,35 @@ mod tests {
         assert_eq!(packet_update.last_line_end_time, 1234);
         assert_eq!(packet_update.actors.len(), 1);
         assert!(packet_update.actor_update_mask.is_none());
+    }
+
+    #[test]
+    fn conversation_create_uses_receiver_locale_timings_like_cpp() {
+        let mut conversation = wow_entities::Conversation::new();
+        conversation.set_lines(vec![
+            ConversationLine {
+                conversation_line_id: 7,
+                start_time: 100,
+                ..Default::default()
+            },
+            ConversationLine {
+                conversation_line_id: 8,
+                start_time: 300,
+                ..Default::default()
+            },
+        ]);
+        conversation.set_last_line_end_time(9_999);
+        conversation.set_line_start_time(6, 7, 250);
+        conversation.set_last_line_end_time_for_locale(6, 1_500);
+
+        let create = conversation_create_data_from_entity_like_cpp(&conversation, "esES");
+
+        assert_eq!(create.lines[0].start_time, 250);
+        assert_eq!(
+            create.lines[1].start_time, 300,
+            "C++ falls back to the line's base StartTime when no localized slot exists"
+        );
+        assert_eq!(create.last_line_end_time, 1_500);
     }
 
     #[test]

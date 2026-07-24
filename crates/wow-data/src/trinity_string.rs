@@ -96,7 +96,7 @@ impl TrinityStringStoreLikeCpp {
     }
 }
 
-fn locale_index_like_cpp(locale: &str) -> usize {
+pub fn locale_index_like_cpp(locale: &str) -> usize {
     match locale {
         "koKR" => 1,
         "frFR" => 2,

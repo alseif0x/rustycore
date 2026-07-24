@@ -208,45 +208,101 @@ _Audited the world-object visibility dimension of world-entry by contrasting C++
 - **C++:** Map::AddPlayerToMap -> player->UpdateObjectVisibility -> Player::UpdateVisibilityForPlayer builds a single VisibleNotifier (GridNotifiers.h:48-57) and Cell::VisitAllObjects walks ALL grid containers, with Player::UpdateVisibilityOf template-instantiated for Player, Creature, Corpse, GameObject, DynamicObject, AreaTrigger, SceneObject, Conversation (Player.cpp:23337-23344). Every nearby object of these 8 classes gets a CREATE block in one UpdateData.
 - **Rust:** crates/wow-world/src/handlers/character.rs ~6598-6744: the unified visibility build only emits CREATE blocks for creatures (Unit), gameobjects, dynamic objects, and area triggers. No build path for Corpse, SceneObject, or Conversation create-blocks (canonical map DOES store them: crates/wow-map/src/grid_unload.rs:468-471). Other players are sent via a SEPARATE registry path (crates/wow-world/src/session.rs:48038 receive_other_players_on_map), not integrated into client_visible_guids_like_cpp or the same UpdateObject.
 - **Suggested fix:** Extend the visibility build at character.rs ~6598 to also gather/emit Corpse, SceneObject, Conversation create-blocks from the canonical map and fold other-players into the same client_visible_guids_like_cpp diff.
+- **Status — done in issue #11 (2026-07-23):** The canonical visibility pass now emits
+  C++-shaped CREATE blocks for Corpse, SceneObject and Conversation and combines them with
+  Player, Creature, GameObject, DynamicObject and AreaTrigger in one `UpdateData`. Other players
+  use this same diff, phase/range gate and `client_visible_guids_like_cpp` cache; entry and removal
+  queue a receiver-side full visibility refresh instead of sending uncached raw CREATE/DESTROY
+  packets. A shared pending bit coalesces and retains that refresh if the receiver's bounded
+  command queue is full. Player CREATEs consume the registry's live health, power, distinct
+  base-mana and customization snapshot instead of default combat/customization values; loading
+  customizations refreshes the already-registered login before visibility fanout. Corpse CREATE/VALUES
+  preserve `CorpseData::Customizations`, while Conversation CREATE
+  selects localized line/final timings by the receiver's DB locale like C++
+  `ViewerDependentValues.h`. Before this visibility pass, the login bridge executes
+  `SEL_CORPSES`, `SEL_CORPSE_PHASES` and `SEL_CORPSE_CUSTOMIZATIONS` once per canonical map;
+  loaded corpses remain dormant until their grid is loaded and return dormant on unload, matching
+  `Map::LoadCorpseData` plus `ObjectWorldLoader`. The mixed-class regression pins all eight C++
+  template instantiations in one packet, while focused regressions cover the persisted
+  corpse/dynamic/viewer-dependent values and player CREATE followed by the separate out-of-range
+  GUID section.
 
 ### #NEXT.R8.ENTITIES.1222 — World-object visibility: creature undercount on entry (volume)  ·  🟠 functional
 - **Gap:** Rust sends roughly 147 world objects where C++ sends 393 at the equivalent fanout. Root cause is the canonical map grid around the player not being fully populated with spawns at login time (canonical creature runtime is incomplete per AGENTS.md three-world-model note), so nearby_cell_guids_like_cpp returns far fewer creatures/GOs than C++ grid load yields.
 - **C++:** C++ world-entry trace (target/packet-dumps/20260623-203301/cpp/cpp-world-entry.log) tallies 219 creature (typeId=5) CREATE blocks for this login; bulk visibility packet #185 (SMSG_UPDATE_OBJECT) carries 393 blocks / 169741 bytes.
 - **Rust:** Rust dump target/packet-dumps/20260626-gofix: bulk visibility packet #202 carries only 147 blocks / 62222 bytes; total CREATE blocks across all 6 login UpdateObject packets is 189 vs C++ 484. Creature gather is crates/wow-world/src/session.rs:12146 visible_world_creatures_from_map_like_cpp -> visible_creatures_from_canonical_map_like_cpp (12178) reading map.nearby_cell_guids_like_cpp.
 - **Suggested fix:** Ensure object-grid loading (crates/wow-map/src/object_grid_loader.rs) eagerly loads all spawn cells within visibility range before the entry visibility build runs, matching EnsureGridLoadedForActiveObject.
-- **Status — root cause CONFIRMED (2026-06-27); ARCHITECTURAL, not a contained fix.** Traced the full path: (1) the login visibility creature/GO gather (`visible_creatures_from_canonical_map_like_cpp` session.rs:12178, `visible_gameobjects_from_canonical_map_like_cpp` 12516) reads `map.nearby_cell_guids_like_cpp` (wow-map/src/map.rs:11447), which only merges cells whose grid is already loaded (`get_ngrid` -> None => skip) — it does NOT trigger grid loading. (2) There is NO `ensure_grid_loaded`/`load_grid` call anywhere in the production login path (session.rs / handlers/character.rs) — the canonical grids around the player are never loaded at entry. (3) Even if they were, `ObjectGridLoaderState::load_spawn_guid` (wow-map/src/object_grid_loader.rs:363) only computes/returns the spawn `ObjectGuid` and inserts it into the cell's GUID set — it does NOT instantiate a typed `Creature`/`GameObject` entity in `Map::map_objects`, so the subsequent `map.get_typed_creature(guid)` in the gather returns None and the object is dropped. So closing 1222/1225 requires instantiating typed entities from spawns at grid load (`Creature::LoadFromDB`/`Creature::Create`/`AddToMap` equivalents) — i.e. the live-runtime / single-source-of-truth creature integration that AGENTS.md flags as architectural-risk "avoid big-bang" work (roadmap steps 3-6). The current ~147 visible objects come from the partial `add_to_map_like_cpp` population, not from grid load. NOT attempted as a slice; belongs to the deliberate live-runtime track. The 1223 2D-distance fix (done) addresses the orthogonal vertical-drop part of the undercount.
+- **Status — stale root cause, already fixed before issue #11:** The production login path now
+  calls `ensure_player_grid_loaded_like_cpp` before successful-login packets. The world-server
+  resolver `ensure_login_player_grid_loaded_like_cpp` loads the player's NGrid plus adjacent
+  NGrids intersecting visibility and `materialize_loaded_player_grid_records_like_cpp` installs
+  typed canonical/legacy records. Regression
+  `login_grid_load_materializes_visible_adjacent_ngrid_creature_like_cpp` proves that a creature
+  from an adjacent visible NGrid is materialized and selected. The old 2026-06-27 diagnosis
+  predates commits `38341266`, `c6446a73` and `41a3f44d`; issue #11 does not duplicate that work.
 
 ### #NEXT.R8.ENTITIES.1223 — World-object visibility: distance check is 3D instead of C++ 2D  ·  🟠 functional
 - **Gap:** Rust excludes objects within 100yd horizontally but with large Z separation; in vertically-layered maps like Icecrown Citadel (map 571, the audited capture) this drops many valid objects, contributing directly to the 219->147 undercount.
 - **C++:** WorldObject::_IsWithinDist (Object.cpp:1100-1120) for visibility uses is3D=false (IsInDist2d) because CanSeeOrDetect / GetSightRange call IsWithinDist(obj, range, false) (Object.cpp:1587-1609). Visibility is a horizontal (XY) range test.
 - **Rust:** Visibility filters call Position::is_within_dist (crates/wow-core/src/position.rs:83-85) which uses distance_sq INCLUDING z (3D). Used for creatures (crates/wow-world/src/session.rs:12219) and gameobjects (12550).
 - **Suggested fix:** Switch the visibility distance filters in session.rs (creature ~12219, gameobject ~12550, dynobj/areatrigger paths) to Position::is_within_dist_2d.
-- **Status — done (entry filters + represented values/destroy fanout):** The entry-visibility filters (creature/gameobject/dynamic_object/area_trigger) were switched to is_within_dist_2d in the prior slice. This slice extends the 2D fix to the remaining represented-fanout visibility checks that were still 3D: `send_represented_dynamic_object_values_updates_..._like_cpp` (4 checks: direct player + player/creature shared-vision sources + dynamic-object seer, session.rs ~44715-44750) now uses is_within_dist_2d, and `send_represented_gameobject_visibility_on_destroy_from_last_update_like_cpp` (session.rs ~44861) now passes is3D=false to WorldObject::is_within_dist (keeping include_own/target_radius=true). The creature/GameObject values fanout paths were already 2D, so all represented visibility distance checks are now uniformly 2D like C++. Regressions: dynamic_object_values_snapshot_direct_player_vertical_only_separation_sends_like_cpp and gameobject_visibility_on_destroy_vertical_only_separation_sends_destroy_like_cpp (an object at the player's exact X/Y with a large Z is now visible; a 3D check would drop it). Remaining: the grid-undercount (1222/1225), combat-reach factor on the entry filters (1226), and the deferred-notify model (1224) are still open.
+- **Status — done before issue #11:** Entry and represented fanout visibility checks use 2D.
+  Issue #11 retains that behavior inside the shared exact-distance helper while adding both
+  objects' combat reaches for 1226. The old “remaining” sentence is superseded by the row-specific
+  dispositions below.
 
 ### #NEXT.R8.ENTITIES.1224 — World-object visibility: synchronous inline build vs C++ deferred NOTIFY_VISIBILITY_CHANGED  ·  🟠 functional
 - **Gap:** Rust does the visibility fanout eagerly/once at login rather than via a deferred, tick-driven NOTIFY_VISIBILITY_CHANGED notifier. Functionally both deliver creates, but the eager one-shot model misses objects whose grids load slightly later and produces a single packet vs C++'s incremental stream; it also won't pick up objects that become visible between login phases.
 - **C++:** AddPlayerToMap calls player->UpdateObjectVisibility(false) (Map.cpp:494) which for the non-forced path only AddToNotify(NOTIFY_VISIBILITY_CHANGED) (Player.cpp:23352-23354); trace shows after_update_visibility visibleGuids=0 at AddToMap time. The 393-block fanout (#185) is emitted later by Map::Update's notifier pass (VisibleNotifier::SendToSelf), spread across many UpdateObject packets (21 over the session) as cells load and the notify period fires.
 - **Rust:** Rust builds and sends the full visibility UpdateObject synchronously inline during login orchestration (crates/wow-world/src/handlers/character.rs ~6746-6767, send_packet immediately) in a single bulk packet (#202), with no deferred per-tick notifier.
 - **Suggested fix:** Move entry visibility to a deferred per-map notify queue processed by the canonical map tick (NOTIFY_VISIBILITY_CHANGED equivalent) instead of one synchronous inline build.
+- **Status — not a login gap after exact C++ re-audit:** `Map::AddPlayerToMap` does schedule
+  `NOTIFY_VISIBILITY_CHANGED`, but `HandlePlayerLogin` subsequently calls
+  `Player::SendInitialPacketsAfterAddToMap`, whose first operation is the forced
+  `UpdateVisibilityForPlayer()` (`Player.cpp:23592+`). Rust mirrors that forced post-add pass in
+  `send_initial_packets_after_add_to_map`. Replacing it with a deferred-only queue would diverge
+  from the target C++ login path. Deferred periodic visibility ownership outside this bounded
+  login call remains part of the broader canonical-map runtime work, not a defect in row 1224.
 
 ### #NEXT.R8.ENTITIES.1225 — World-object visibility: gameobject undercount / GO grid source  ·  🟠 functional
 - **Gap:** Combined with the 3D-distance and grid-population gaps above, Rust delivers far fewer than 234 GOs. The GO gather itself looks structurally correct (grid container, phase + use-state filtering) so the deficit is driven by canonical grid population and the 3D range test, not by a missing GO path.
 - **C++:** C++ trace tallies 234 GameObject (typeId=8) CREATE blocks on this login; GOs are visited by the same VisibleNotifier over the GameObject grid container at GetVisibilityRange()=100 (continent default, World.cpp:1393, ObjectDefines.h:35).
 - **Rust:** crates/wow-world/src/session.rs:12516 visible_gameobjects_from_canonical_map_like_cpp reads only nearby.grid.gameobjects from nearby_cell_guids_like_cpp; emitted at character.rs ~6655-6665.
 - **Suggested fix:** Fix canonical GO grid loading + 2D distance (shared with creature fix); then re-capture and compare GO CREATE count to the C++ 234 baseline.
-- **Status:** The 2D-distance half is done (see 1223). The grid-population half shares the CONFIRMED architectural root cause documented under 1222 (grid load registers spawn GUIDs but never instantiates typed entities) and belongs to the live-runtime track, not a contained slice.
+- **Status — already fixed before issue #11:** The same login-grid bridge described under 1222
+  loads adjacent visibility NGrids and materializes typed GameObject records as well as creatures.
+  The GO gather already reads the grid container and applies phase/use-state filters; issue #11
+  preserves that path and applies the shared exact combat-reach distance rule.
 
 ### #NEXT.R8.ENTITIES.1226 — World-object visibility: visibility threshold omits combat-reach size factor  ·  🟡 cosmetic
 - **Gap:** Rust uses a strictly smaller visibility threshold than C++ (missing the additive combat-reach term), causing borderline objects to be dropped.
 - **C++:** _IsWithinDist (Object.cpp:1100-1105) adds sizefactor = GetCombatReach(self) + GetCombatReach(target) to the compare distance (incOwnRadius/incTargetRadius default true), so effective visible distance is 100 + ownReach + targetReach yards.
 - **Rust:** Rust visibility filters compare against the raw visibility_range (100.0) with no combat-reach addition (crates/wow-world/src/session.rs:12219, 12550).
 - **Suggested fix:** Add own+target combat reach to the comparison distance in the visibility filters to mirror _IsWithinDist incOwnRadius/incTargetRadius=true.
+- **Status — done in issue #11:** `visibility_distance_allows_like_cpp` performs the strict C++
+  2D comparison against `sightRange + sourceCombatReach + targetCombatReach`. Creature,
+  GameObject, DynamicObject, AreaTrigger, Corpse, SceneObject, Conversation and Player gathers
+  use it, and the boundary regression proves inclusion just inside and exclusion exactly at the
+  C++ threshold.
 
 ### #NEXT.R8.ENTITIES.1227 — World-object visibility: transports (SendInitTransports) parity  ·  ⚪ unknown
 - **Gap:** Transport path exists; not verified against this capture (no MO transports on ICC map 571 in the dump). Phase/own-transport exclusion and m_visibleTransports tracking equivalence not confirmed.
 - **C++:** Map::SendInitTransports (Map.cpp:1927-1957) iterates Map::_transports (MO transports), sends BuildCreateUpdateBlockForPlayer for each in-world transport not the player's own and in same phase, and records player->m_visibleTransports.
 - **Rust:** crates/wow-world/src/handlers/character.rs:5728 send_init_transports_like_cpp queries the transports table (gameobject_template type=15) and builds transport create blocks. Present and structurally analogous.
 - **Suggested fix:** Capture on a map with active MO transports (e.g. Orgrimmar/Undercity zeppelins) and diff transport CREATE blocks against C++ SendInitTransports.
+- **Status — represented path closed in issue #11; live capture still required:** Login now restores
+  the persisted transport GUID and relative position only after requiring its route on the
+  character's saved map, resolving one stable live path/current-map snapshot, calculating valid
+  world coordinates and enforcing C++'s finite/±250 passenger-offset
+  gates; missing or corrupt transport state relocates to homebind like `Player::LoadFromDB`.
+  That snapshot is retained through `SendInitSelf`, which also appends already-visible fellow
+  transport passengers after the attached player; movement then keeps a validated attachment current, and
+  `SendInitSelf` emits that current transport before the player's CREATE block whose nested
+  movement data references it. The following `send_init_transports_like_cpp` excludes that exact
+  transport, preserves the existing phase gate and records every emitted transport in
+  `client_visible_transports_like_cpp` like `m_visibleTransports`. Focused tests pin the
+  current-transport ordering/attachment and wrong-phase exclusion. A paired active-MO-transport C++/Rust capture remains
+  an explicit validation boundary; no capture-clean claim is made for this row.
 
 
 ## Phase D — Movement / active-mover / time-sync / world-state / weather init

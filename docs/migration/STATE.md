@@ -1,6 +1,6 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**Date:** 2026-07-23 · **Base:** `3.4.3` @ `f80463d2` plus local issue #10 @ `befc062f`.
+**Date:** 2026-07-23 · **Base:** `3.4.3` @ `0d85bd23` plus local issue #11 visibility work.
 
 This document replaces the drifting status snapshots in `_INDEX.md` (2026-05-01, "5–15%"),
 the `MIGRATION_ROADMAP.md` §3 inherited table (which tells you not to trust it), and the
@@ -193,7 +193,7 @@ byte-clean login capture.
 | # | Bug | Effect | Status |
 |---|---|---|---|
 | #13 | `CMSG_GAME_OBJ_USE` doesn't cast GO use-spell | **portals do nothing** | open |
-| #9–#12 | 33 login-burst divergences (`world-load-audit.md`) | ordering/value parity | #9 merged; #10 implemented and locally validated; #11–#12 open |
+| #9–#12 | 33 login-burst divergences (`world-load-audit.md`) | ordering/value parity | #9–#10 merged; #11 implemented and locally validated; #12 open |
 
 ---
 

@@ -2007,6 +2007,12 @@ pub struct Map<Terrain = NoopTerrainGridLoader, Lifecycle = NoopGridLifecycle> {
     respawn_store: RespawnStoreLikeCpp,
     pool_data: SpawnedPoolDataLikeCpp,
     grid_state_unloaded: bool,
+    /// Whether the one-shot C++ `Map::LoadCorpseData` database load completed.
+    ///
+    /// Map creation owns this flag; login may trigger the current async DB
+    /// bridge, but repeated sessions must not duplicate the same persisted
+    /// corpses in the canonical object store.
+    corpse_data_loaded_like_cpp: bool,
     /// Map-local typed by-spawn-id live-object stores, matching C++
     /// `_creatureBySpawnIdStore`, `_gameobjectBySpawnIdStore`, and
     /// `_areaTriggerBySpawnIdStore` beside `_objectsStore` (`Map.h:418-430`,
@@ -2186,6 +2192,7 @@ where
             respawn_store: RespawnStoreLikeCpp::new(),
             pool_data: SpawnedPoolDataLikeCpp::new(),
             grid_state_unloaded: false,
+            corpse_data_loaded_like_cpp: false,
             creatures_by_spawn_id: HashMap::new(),
             gameobjects_by_spawn_id: HashMap::new(),
             area_triggers_by_spawn_id: HashMap::new(),
@@ -2232,6 +2239,131 @@ where
 
     pub const fn spawn_mode(&self) -> Difficulty {
         self.spawn_mode
+    }
+
+    pub const fn corpse_data_loaded_like_cpp(&self) -> bool {
+        self.corpse_data_loaded_like_cpp
+    }
+
+    pub fn mark_corpse_data_loaded_like_cpp(&mut self) {
+        self.corpse_data_loaded_like_cpp = true;
+    }
+
+    /// Register a corpse produced by C++ `Map::LoadCorpseData`.
+    ///
+    /// `Map::AddCorpse` retains every loaded corpse by cell, but
+    /// `ObjectWorldLoader` only calls `AddToWorld` when that corpse's grid is
+    /// loaded. Rust keeps the typed record dormant in `map_objects` and
+    /// activates it immediately only when the destination grid is already
+    /// loaded (the async login bridge may finish after the player's grid load).
+    pub fn register_loaded_corpse_like_cpp(
+        &mut self,
+        corpse: Corpse,
+    ) -> Result<bool, AddToMapError> {
+        let record = MapObjectRecord::new_corpse(corpse).map_err(MapObjectStoreError::from)?;
+        let guid = record.object().guid();
+        let position = record.object().position();
+        if !is_valid_map_coord_2d(position.x, position.y) {
+            return Err(AddToMapError::InvalidCoordinates {
+                guid,
+                x: position.x,
+                y: position.y,
+            });
+        }
+
+        let grid = GridCoord::new(
+            Cell::from_world(position.x, position.y).grid_x(),
+            Cell::from_world(position.x, position.y).grid_y(),
+        );
+        self.insert_map_object_record(record)?;
+        if self.is_grid_loaded(grid) {
+            self.activate_registered_corpses_for_grid_like_cpp(grid);
+        }
+
+        Ok(self.object_is_in_world(guid))
+    }
+
+    fn activate_registered_corpses_for_grid_like_cpp(&mut self, grid: GridCoord) -> usize {
+        if !self.is_grid_loaded(grid) {
+            return 0;
+        }
+
+        let corpses = self
+            .map_objects
+            .iter()
+            .filter_map(|(guid, record)| {
+                if record.kind() != AccessorObjectKind::Corpse
+                    || record.object().object().is_in_world()
+                {
+                    return None;
+                }
+                let position = record.object().position();
+                let cell = Cell::from_world(position.x, position.y);
+                (GridCoord::new(cell.grid_x(), cell.grid_y()) == grid).then_some((
+                    *guid,
+                    cell,
+                    record.object().is_world_object(),
+                ))
+            })
+            .collect::<Vec<_>>();
+
+        for (guid, cell, is_world_object) in &corpses {
+            let ngrid = self
+                .get_ngrid_mut(grid)
+                .expect("registered corpse grid was checked as loaded");
+            let local_cell = ngrid
+                .get_grid_type_mut(cell.cell_x(), cell.cell_y())
+                .expect("registered corpse coordinates must identify a local grid cell");
+            insert_object_guid_in_cell_like_cpp(
+                local_cell,
+                AccessorObjectKind::Corpse,
+                *is_world_object,
+                *guid,
+            );
+
+            if let Some(corpse) = self
+                .map_objects
+                .get_mut(guid)
+                .and_then(MapObjectRecord::corpse_mut)
+            {
+                corpse
+                    .world_mut()
+                    .set_current_cell(cell.cell_x(), cell.cell_y());
+                corpse.world_mut().object_mut().add_to_world();
+            }
+        }
+
+        corpses.len()
+    }
+
+    fn deactivate_registered_corpses_for_grid_like_cpp(&mut self, grid: GridCoord) -> usize {
+        let corpses = self
+            .map_objects
+            .iter()
+            .filter_map(|(guid, record)| {
+                if record.kind() != AccessorObjectKind::Corpse
+                    || !record.object().object().is_in_world()
+                {
+                    return None;
+                }
+                let position = record.object().position();
+                let cell = Cell::from_world(position.x, position.y);
+                (GridCoord::new(cell.grid_x(), cell.grid_y()) == grid).then_some(*guid)
+            })
+            .collect::<Vec<_>>();
+
+        for guid in &corpses {
+            if let Some(corpse) = self
+                .map_objects
+                .get_mut(guid)
+                .and_then(MapObjectRecord::corpse_mut)
+            {
+                corpse.world_mut().object_mut().remove_from_world();
+                corpse.world_mut().clear_current_cell();
+            }
+        }
+
+        corpses.len()
     }
 
     /// Mirrors TrinityCore `urand(min, max)` (`Random.cpp:35-47`): assert
@@ -13218,13 +13350,16 @@ where
         let coord = GridCoord::new(cell.grid_x(), cell.grid_y());
         self.ensure_grid_created(coord);
         let index = checked_grid_index(coord);
-        let grid = self.grids[index].as_mut().expect("grid was just created");
-        if grid.grid_object_data_loaded() {
-            return false;
-        }
+        {
+            let grid = self.grids[index].as_mut().expect("grid was just created");
+            if grid.grid_object_data_loaded() {
+                return false;
+            }
 
-        grid.set_grid_object_data_loaded(true);
-        self.lifecycle.load_grid_objects(grid, cell);
+            grid.set_grid_object_data_loaded(true);
+            self.lifecycle.load_grid_objects(grid, cell);
+        }
+        self.activate_registered_corpses_for_grid_like_cpp(coord);
         true
     }
 
@@ -13541,6 +13676,7 @@ where
         self.drain_grid_unload_actions_like_cpp();
 
         let coord = GridCoord::new(grid.x() as u32, grid.y() as u32);
+        self.deactivate_registered_corpses_for_grid_like_cpp(coord);
         let (terrain_x, terrain_y) = terrain_grid_coords(coord);
         self.terrain.unload_map(terrain_x, terrain_y);
     }
@@ -15071,9 +15207,9 @@ mod tests {
     use wow_constants::{DeathState, TypeId, TypeMask, UnitStandStateType};
     use wow_core::{ObjectGuid, Position, guid::HighGuid};
     use wow_entities::{
-        ACTIVE_PLAYER_DATA_COINAGE_BIT, AccessorObjectRef, AppliedAuraRef, Creature,
-        CreatureAddToWorldVehicleResetContextLikeCpp, CreatureFormationInfoLikeCpp, GameObject,
-        GameObjectLootSource, GameObjectOwnedLoot, GooberUseSource, ObjectAccessor,
+        ACTIVE_PLAYER_DATA_COINAGE_BIT, AccessorObjectRef, AppliedAuraRef, Corpse, CorpseType,
+        Creature, CreatureAddToWorldVehicleResetContextLikeCpp, CreatureFormationInfoLikeCpp,
+        GameObject, GameObjectLootSource, GameObjectOwnedLoot, GooberUseSource, ObjectAccessor,
         ObjectNotifyFlags, OwnedAuraRef, PLAYER_DATA_INEBRIATION_BIT, Player,
         SPELL_AURA_INTERRUPT_FLAG_ENTER_WORLD_LIKE_CPP, Transport, UNIT_DATA_STAND_STATE_BIT,
         VehicleAccessory, VehicleSeatAddon, VehicleSeatInfo, VehicleSpellImmunity,
@@ -33072,6 +33208,66 @@ mod tests {
 
         assert!(map.is_grid_loaded(GridCoord::new(2, 3)));
         assert_eq!(map.lifecycle().loads, 1);
+    }
+
+    #[test]
+    fn registered_loaded_corpse_tracks_grid_load_and_unload_like_cpp() {
+        let mut map = Map::new(571, 0, 0, 60_000);
+        let position = Position::new(10.0, 20.0, 30.0, 1.5);
+        let cell = Cell::from_world(position.x, position.y);
+        let grid = GridCoord::new(cell.grid_x(), cell.grid_y());
+        let guid = ObjectGuid::create_world_object(HighGuid::Corpse, 0, 1, 571, 0, 0, 1);
+        let mut corpse = Corpse::new_at(CorpseType::ResurrectablePve, 1_000);
+        corpse.world_mut().object_mut().create(guid);
+        corpse.world_mut().set_map(571, 0).unwrap();
+        corpse.world_mut().relocate(position);
+
+        assert!(!map.register_loaded_corpse_like_cpp(corpse).unwrap());
+        assert!(
+            !map.get_typed_corpse(guid)
+                .unwrap()
+                .world()
+                .object()
+                .is_in_world()
+        );
+        assert!(
+            map.nearby_cell_guids_like_cpp(position.x, position.y, 1.0)
+                .world
+                .corpses
+                .is_empty()
+        );
+
+        assert!(map.ensure_grid_loaded(&cell));
+        assert!(
+            map.get_typed_corpse(guid)
+                .unwrap()
+                .world()
+                .object()
+                .is_in_world()
+        );
+        assert!(
+            map.nearby_cell_guids_like_cpp(position.x, position.y, 1.0)
+                .world
+                .corpses
+                .contains(&guid)
+        );
+
+        assert!(map.unload_grid_at(grid, true));
+        assert!(
+            !map.get_typed_corpse(guid)
+                .unwrap()
+                .world()
+                .object()
+                .is_in_world()
+        );
+        assert!(map.ensure_grid_loaded(&cell));
+        assert!(
+            map.get_typed_corpse(guid)
+                .unwrap()
+                .world()
+                .object()
+                .is_in_world()
+        );
     }
 
     #[test]

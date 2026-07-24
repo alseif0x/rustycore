@@ -1,3 +1,29 @@
+- `#NEXT.R8.ENTITIES.1236` — issue #11 re-audits world-entry visibility rows 1221–1227
+  against C++ `Map::AddPlayerToMap`/`SendInitTransports`,
+  `Player::UpdateVisibilityForPlayer`, `VisibleNotifier`, `_IsWithinDist`, and the exact
+  Corpse/SceneObject/Conversation CREATE writers. Rust now gathers all eight C++ visibility
+  classes into one diff, maintains other-player CREATE/out-of-range state symmetrically through
+  receiver refreshes with a durable/coalesced pending bit across bounded-command backpressure,
+  applies canonical phase plus strict 2D sight range with both combat reaches,
+  loads persisted map corpses once from the base/phase/customization tables and retains their
+  C++ grid lifecycle, preserves customization choices, applies receiver-locale Conversation
+  timing, and restores/excludes/tracks the player's own MO transport. Review follow-up makes
+  visible-player CREATEs use the registry's live health/power and customization snapshot while
+  retaining C++'s distinct base-mana value, publish customizations into an already-registered
+  login before visibility fanout, and validate persisted transport existence from the saved
+  route map plus
+  passenger offsets/world coordinates before attachment, relocating invalid state to homebind
+  like `Player::LoadFromDB`. The validated path-time snapshot is retained through
+  `Map::SendInitSelf`, which places the player's current transport CREATE before the
+  attached player whose movement block references it and then appends already-visible fellow
+  passengers on that transport. Rows 1222/1225 were already fixed by
+  the production adjacent-NGrid materialization bridge; 1224's deferred-only login premise was
+  false because C++ forces visibility at the start of `SendInitialPacketsAfterAddToMap`. Focused
+  wire and behavior regressions pass. Full `wow-map` 688/0, `wow-data` 580/0,
+  `wow-entities` 665/0, `wow-network` 104/0, `wow-packet` 716/0 and `wow-world` 3081/0 suites,
+  `world-server` check and the complete committed `capture-diff` test gate are clean. An active-transport paired capture,
+  installed/original-client QA, CI, current-HEAD review and merge remain.
+
 - `#NEXT.R8.ENTITIES.1235` — issue #10 re-audits the bounded CREATE-value rows 1212–1220
   against C++ `Creature::UpdateLevelDependantStats`,
   `Unit::CalculateDisplayPowerType`, `Creature::GetCreatePowerValue`,
