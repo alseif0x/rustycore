@@ -1,6 +1,6 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**Date:** 2026-07-23 · **Base:** `3.4.3` @ `0d85bd23` plus local issue #11 visibility work.
+**Date:** 2026-07-24 · **Base:** `3.4.3` @ `f4a974c5` plus local issue #21 movement evidence.
 
 This document replaces the drifting status snapshots in `_INDEX.md` (2026-05-01, "5–15%"),
 the `MIGRATION_ROADMAP.md` §3 inherited table (which tells you not to trust it), and the
@@ -49,6 +49,17 @@ lifecycle, and canonical `Map::SendObjectUpdates` ownership gaps. Missing masks 
 an effective table composed in C++ load order from `SpellInterrupts.db2`, official/custom SQL
 overlays by DB2 record ID, world `serverside_spell` masks, and the interrupt-mask subset of
 `LoadSpellInfoCorrections`; this does not claim full server-side `SpellInfo` or correction parity.
+
+Creature-movement evidence (2026-07-24, issue #21): M2.1's production implementation had already
+landed after the issue was opened. The global legacy tick launches random/waypoint `MoveSpline`s,
+serializes `SMSG_ON_MONSTER_MOVE`, and fans them to nearby sessions through the final
+`HaveAtClient` gate; PR #77 installed/restarted that runtime and manually verified visible
+creature movement in the client. The issue closeout pins a real 117-byte C++ compressed-waypoint
+packet from the accredited capture artifact
+`a25f2c2bbf60de6cda7e32f305d732733017e711eb474dd5dbf6e007690143a8`, and Rust reproduces
+it byte-for-byte; the complete 717-test packet suite is clean with that regression.
+M2.2's general MotionMaster tick ownership and M2.3's remaining
+generator/path-loading breadth stay separate.
 
 ---
 
