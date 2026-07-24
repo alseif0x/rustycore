@@ -1,3 +1,43 @@
+# `#NEXT.R8.ENTITIES.1239` — issue #23 live random/waypoint cadence and path-store closeout.
+
+C++ source-of-truth was re-checked in `Unit.cpp:418-480`,
+`RandomMovementGenerator.cpp`, `WaypointMovementGenerator.cpp:120-470` and
+`WaypointManager.cpp:35-145`. The C++ world/map update chain passes its measured frame `diff`
+through `Unit::Update`, which advances spline movement immediately before MotionMaster. A
+waypoint generator waits for the current spline to finalize, applies arrival/delay behavior and
+then starts the next stored node. `WaypointManager::LoadPaths` first loads parent rows, then
+ordered nodes, rejects missing parents and normalizes coordinates.
+
+The issue's “no waypoint path loader” diagnosis was stale. Rust startup already uses the same
+parent and ordered-node query shape, retains a `WaypointPathStoreLikeCpp`, resolves a creature's
+addon path while constructing its legacy runtime generator, and covers duplicate/invalid parent
+and resolved-spawn branches. The loaded world dataset was checked read-only: 7,698 paths,
+142,185 nodes, and 5,419 `MovementType=2` spawns with a nonzero addon path.
+
+The live remaining bug was the clock boundary. A creature spline advanced using wall-clock
+elapsed time, but the random/waypoint generator timer was decremented by a fixed configured
+10 ms. If the Tokio task was delayed, the spline could finalize before the timer reached zero
+and each re-arm could appear stalled until undersized diffs caught up. The existing single-owner loop now
+measures elapsed `Instant` time after every interval wake, clamps it to `u32`, skips a
+zero-length frame and passes the same real `diff` through the existing runtime tick. It creates
+no new task or lock and holds no lock across an await.
+
+Focused regressions prove the positive random re-arm, the negative fixed-diff lag, sustained
+random wandering over 600 frames, and natural progress through multiple waypoint nodes. Full
+`wow-world` is 3090/0; three waypoint-store tests, the production-loop smoke,
+`world-server` check, the exact C++ movement packet golden, required
+`loot-single-item-claim` capture CLEAN 6/6, format and diff checks pass. Release SHA-256
+`3c210cdc7a9dc883eaef92ac92a90967751061d82cc0b50d6169b29d7474e9a9` was installed and
+loaded by PM2 on 8085/8086. A connected bot completed world login and stand-state roundtrips,
+received two `SMSG_ON_MONSTER_MOVE` (`0x2DD4`) packets, and the server published 627 movement
+packets over 327 visible-work ticks in the observed window.
+
+The bounded M2.3 wander/patrol item is live, but this row remains `represented-partial` for the
+larger movement subsystem: the existing concrete `WorldCreature` bodies still provide the
+owner-dependent random/waypoint behavior selected by MotionMaster. Detour path exactness is
+M2.4; formation/transport transforms, SmartAI/script arrival callbacks and M2.5 chase/threat/
+leash remain separate.
+
 # `#NEXT.R8.ENTITIES.1238` — issue #22 MotionMaster runtime tick and priority.
 
 C++ source-of-truth was re-checked in `Unit.cpp:418-480`,
@@ -42,8 +82,9 @@ claimed by this issue.
 
 This row remains `represented-partial`: the stack owns runtime selection/lifecycle, while the
 owner-dependent random/waypoint bodies still use the existing concrete `WorldCreature` fields.
-M2.3 retains broader generator/path-store integration and M2.5 retains chase target path
-calculation, threat and leash behavior.
+The subsequent `#NEXT.R8.ENTITIES.1239` closes M2.3's live cadence/path-store item without
+claiming that architectural unification; M2.5 retains chase target calculation, threat and
+leash behavior.
 
 # `#NEXT.R8.ENTITIES.1237` — issue #21 creature MonsterMove broadcast.
 
