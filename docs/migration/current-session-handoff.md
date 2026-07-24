@@ -1,25 +1,3 @@
-- `#NEXT.R8.ENTITIES.1237` — issue #21 closes M2.1's stale “never sent” diagnosis.
-  C++ `MoveSplineInit::Launch` initializes `WorldPackets::Movement::MonsterMove` and broadcasts
-  it with the mover's visibility range; Rust already had the complete spline serializer, global
-  legacy movement tick, `NearbyVisible` fanout and final per-session `HaveAtClient` gate. PR #77
-  installed/restarted the runtime and manually verified that nearby Durotar creatures move
-  without sinking below terrain. This closeout adds a capture-derived byte golden from packet 89
-  of pinned C++ artifact
-  `a25f2c2bbf60de6cda7e32f305d732733017e711eb474dd5dbf6e007690143a8`: the Rust serializer
-  reproduces the real 117-byte compressed-waypoint `SMSG_ON_MONSTER_MOVE` body exactly, including
-  packed GUID, flushed outer bits, flags/timing, one full point and ten packed deltas. Existing
-  runtime tests had stale fixtures that neither bound their canonical creature before
-  `AddToWorld` nor selected `MovementGeneratorType::Random`; the closeout restores those C++ load
-  invariants and proves one global launch fans to two nearby same-map/instance sessions and not a
-  wrong-map session, both through the one-shot bridge and the production loop wrapper. A CI
-  follow-up also removes the global-tick regression's dependence on RNG entropy and a one
-  millisecond wall-clock sleep by fixing both inputs in the test fixture. M2.2 general
-  MotionMaster ownership, M2.3 remaining generator/path loading, transports and flight spline
-  sync remain separate. Focused serializer 4/0, movement-step 6/0 and runtime 3/0 tests, 100/100
-  repeated deterministic global-tick runs, full `wow-packet` 717/0 and `wow-world` 3081/0 suites,
-  `world-server` check, all 137 committed `capture-diff` tests and the required six-packet
-  `loot-single-item-claim` flow are clean. CI, current-HEAD review and merge remain.
-
 - `#NEXT.R8.ENTITIES.1236` — issue #11 re-audits world-entry visibility rows 1221–1227
   against C++ `Map::AddPlayerToMap`/`SendInitTransports`,
   `Player::UpdateVisibilityForPlayer`, `VisibleNotifier`, `_IsWithinDist`, and the exact
@@ -43,9 +21,8 @@
   false because C++ forces visibility at the start of `SendInitialPacketsAfterAddToMap`. Focused
   wire and behavior regressions pass. Full `wow-map` 688/0, `wow-data` 580/0,
   `wow-entities` 665/0, `wow-network` 104/0, `wow-packet` 716/0 and `wow-world` 3081/0 suites,
-  `world-server` check and the complete committed `capture-diff` test gate are clean. PR #124 is
-  merged and issue #11 is closed; an active-transport paired capture and installed/original-client
-  QA remain broader validation boundaries.
+  `world-server` check and the complete committed `capture-diff` test gate are clean. An active-transport paired capture,
+  installed/original-client QA, CI, current-HEAD review and merge remain.
 
 - `#NEXT.R8.ENTITIES.1235` — issue #10 re-audits the bounded CREATE-value rows 1212–1220
   against C++ `Creature::UpdateLevelDependantStats`,

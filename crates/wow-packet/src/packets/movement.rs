@@ -1779,9 +1779,12 @@ mod tests {
 
     #[test]
     fn monster_move_matches_real_cpp_waypoint_capture_bytes() {
-        // Packet 89 from the pinned C++ capture
-        // `loot-single-item-claim/cpp.pkt` (SHA-256
+        // Packet 89 from the 111,420-byte raw C++ source capture recorded by
+        // `crates/capture-diff/flows/loot-single-item-claim/capture-provenance/
+        // cpp.capture-manifest.json` as artifact `cpp.pkt` (SHA-256
         // a25f2c2bbf60de6cda7e32f305d732733017e711eb474dd5dbf6e007690143a8).
+        // This is not the checked-in 795-byte normalized flow `cpp.pkt`
+        // (SHA-256 a84abf8f1d067fc68a9fdbe1608243479b0740a703b07444097ab5af0aebf487).
         // It is a real instance-socket SMSG_ON_MONSTER_MOVE emitted by
         // MoveSplineInit::Launch for a compressed waypoint spline.
         const CPP_BODY: &[u8] = &[

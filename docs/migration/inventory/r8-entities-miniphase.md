@@ -21,9 +21,10 @@ missing C++ wire golden: packet 89 from accredited raw C++ artifact
 `a25f2c2bbf60de6cda7e32f305d732733017e711eb474dd5dbf6e007690143a8` is a 117-byte
 compressed-waypoint `SMSG_ON_MONSTER_MOVE` on the instance socket. Rust reproduces its body
 exactly, including the packed creature GUID, position, flushed outer bits, spline flags/timing,
-one full path point and ten packed deltas. The bounded M2.1 behavior is complete; general
-MotionMaster update ownership, remaining generator/path-store breadth, transport transforms and
-`SMSG_FLIGHT_SPLINE_SYNC` remain with M2.2/M2.3 and later movement work.
+one full path point and ten packed deltas. The bounded M2.1 behavior is closed, while this
+inventory row remains `represented-partial`: general MotionMaster update ownership, remaining
+generator/path-store breadth, transport transforms and `SMSG_FLIGHT_SPLINE_SYNC` remain with
+M2.2/M2.3 and later movement work.
 
 Validation: focused serializer 4/0, movement-step 6/0 and world-server runtime 3/0 tests; 100/100
 repeated deterministic global-tick runs; full `wow-packet` 717/0 and `wow-world` 3081/0 suites;
