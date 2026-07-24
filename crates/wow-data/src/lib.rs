@@ -532,7 +532,7 @@ pub use trainer::{
 };
 pub use trinity_string::{
     LANG_LEVEL_MINREQUIRED_AND_ITEM_LIKE_CPP, LANG_LEVEL_MINREQUIRED_LIKE_CPP,
-    TrinityStringEntryLikeCpp, TrinityStringStoreLikeCpp,
+    TrinityStringEntryLikeCpp, TrinityStringStoreLikeCpp, locale_index_like_cpp,
 };
 pub use ui_map::{UiMapXMapArtEntry, UiMapXMapArtStore};
 pub use vehicle::{

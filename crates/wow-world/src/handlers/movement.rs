@@ -251,6 +251,7 @@ impl WorldSession {
         }
 
         if mover_is_player {
+            self.set_player_transport_info_like_cpp(info.transport.clone());
             self.apply_movement_side_effects_like_cpp(opcode, &info);
         } else if matches!(
             opcode,
@@ -2669,6 +2670,7 @@ mod tests {
             realm_send_tx: send_tx.clone(),
             send_tx,
             command_tx,
+            visibility_refresh_pending_like_cpp: Default::default(),
             durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),
             pass_on_group_loot: false,
@@ -2679,6 +2681,8 @@ mod tests {
             power_type: 0,
             current_power: 0,
             max_power: 0,
+            base_mana: 0,
+            transport: None,
             is_pvp: false,
             is_ffa_pvp: false,
             is_ghost: false,
@@ -2724,7 +2728,8 @@ mod tests {
             level: 1,
             gray_level: 0,
             display_id: 49,
-            visible_items: [(0, 0, 0); 19],
+            visible_items: std::sync::Arc::new([(0, 0, 0); 19]),
+            customizations: std::sync::Arc::default(),
             lifetime_honorable_kills: 0,
             this_week_contribution: 0,
             yesterday_contribution: 0,

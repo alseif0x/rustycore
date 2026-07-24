@@ -197,9 +197,9 @@ use wow_network::{
     GroupInstanceResetMethodLikeCpp, GroupInstanceResetResultLikeCpp, GroupRegistry,
     KickLikeCppCommand, LootDropRatesLikeCpp, LootRollCommandIdentityLikeCpp,
     NotifyLootMoneyRemovedLikeCppCommand, PacketSpoofConfigLikeCpp, PendingInvites,
-    PlayerBroadcastInfo, PlayerRegistry, ReputationRatesLikeCpp, SessionCommand,
-    SocketTimeoutsLikeCpp, SocketWriteFenceLikeCpp, SocketWriteFenceWaitResultLikeCpp,
-    group_guid_by_db_store_id_like_cpp,
+    PlayerBroadcastInfo, PlayerRegistry, RefreshVisibleWorldCreaturesLikeCppCommand,
+    ReputationRatesLikeCpp, SessionCommand, SocketTimeoutsLikeCpp, SocketWriteFenceLikeCpp,
+    SocketWriteFenceWaitResultLikeCpp, group_guid_by_db_store_id_like_cpp,
 };
 use wow_packet::packets::chat::{ChatMsg, ChatPkt, PrintNotification};
 use wow_packet::packets::gossip::ClientGossipText;
@@ -4494,6 +4494,10 @@ fn trinity_sprintf_like_cpp(format: &str, args: &[&str]) -> String {
     output
 }
 
+struct PlayerTransportLoginStateLikeCpp {
+    info: wow_packet::packets::movement::TransportInfo,
+}
+
 /// Per-player session on the world server.
 ///
 /// Receives deserialized packets from the socket layer via a channel,
@@ -4539,6 +4543,7 @@ pub struct WorldSession {
     // Cross-session commands executed by this session's own update loop.
     session_command_tx: flume::Sender<SessionCommand>,
     session_command_rx: flume::Receiver<SessionCommand>,
+    visibility_refresh_pending_like_cpp: Arc<AtomicBool>,
 
     // State
     state: SessionState,
@@ -5815,6 +5820,15 @@ pub struct WorldSession {
     /// C++ `Player::m_clientGUIDs`: exact objects currently known by this client.
     /// Updated on login and each visibility refresh (player movement).
     pub(crate) client_visible_guids_like_cpp: std::collections::HashSet<wow_core::ObjectGuid>,
+    /// C++ `PlayerData::Customizations` loaded before the self CREATE and
+    /// retained for non-owner visibility CREATE blocks.
+    loaded_player_customizations_like_cpp:
+        Box<Vec<wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate>>,
+    /// C++ `Player::m_visibleTransports`, maintained by `Map::SendInitTransports`.
+    pub(crate) client_visible_transports_like_cpp: std::collections::HashSet<wow_core::ObjectGuid>,
+    /// Current C++ `m_movementInfo.transport.guid`, used to exclude the
+    /// player's own transport from `Map::SendInitTransports`.
+    player_transport_login_state_like_cpp: Option<Box<PlayerTransportLoginStateLikeCpp>>,
     /// Login-start delivery guard for creature movement packets.
     ///
     /// The C++ 3.4.3 login baseline does not deliver `SMSG_ON_MONSTER_MOVE`
@@ -6732,6 +6746,7 @@ impl WorldSession {
             send_write_fence_like_cpp: None,
             session_command_tx,
             session_command_rx,
+            visibility_refresh_pending_like_cpp: Arc::new(AtomicBool::new(false)),
             state: SessionState::Authed,
             last_packet_time: Instant::now(),
             socket_timeouts_like_cpp: SocketTimeoutsLikeCpp::default(),
@@ -7400,6 +7415,9 @@ impl WorldSession {
             represented_personal_loot_money: std::collections::HashMap::new(),
             represented_personal_loot_owners: std::collections::HashSet::new(),
             client_visible_guids_like_cpp: std::collections::HashSet::new(),
+            loaded_player_customizations_like_cpp: Box::default(),
+            client_visible_transports_like_cpp: std::collections::HashSet::new(),
+            player_transport_login_state_like_cpp: None,
             suppress_creature_movement_queued_at_or_before_like_cpp: None,
             represented_seer_guid_like_cpp: None,
             represented_dynamic_object_values_updates_delivered_like_cpp:
@@ -14511,6 +14529,7 @@ impl WorldSession {
 
         let mut creatures = Vec::new();
         let mut seen = std::collections::HashSet::new();
+        let source_combat_reach = self.represented_visibility_source_combat_reach_like_cpp();
 
         if let Some(manager) = &self.map_manager {
             let (_, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
@@ -14525,10 +14544,23 @@ impl WorldSession {
                         position.x,
                         position.y,
                         position.z,
-                        visibility_range,
+                        // C++ visits cells around `GetSightRange()` and applies
+                        // `_IsWithinDist` with both combat reaches. One extra
+                        // cell keeps borderline target centers in the legacy
+                        // candidate set before the exact check below.
+                        visibility_range + source_combat_reach + SIZE_OF_GRID_CELL,
                         Some(&self.represented_player_phase_shift),
                     )
                     .into_iter()
+                    .filter(|creature| {
+                        Self::visibility_distance_allows_like_cpp(
+                            position,
+                            source_combat_reach,
+                            &creature.position(),
+                            creature.creature.unit().world().combat_reach(),
+                            visibility_range,
+                        )
+                    })
                     .filter(|creature| {
                         self.represented_can_see_or_detect_world_creature_like_cpp(creature)
                     })
@@ -14571,14 +14603,17 @@ impl WorldSession {
             None => manager.find_map(requested_map_id, 0)?,
         };
         let visibility_range = self.player_map_visibility_range_like_cpp(map_id);
-        let nearby = map
-            .map()
-            .nearby_cell_guids_like_cpp(position.x, position.y, visibility_range);
         let Some(player) = self.canonical_player_entity_snapshot_for_map_like_cpp(
             wow_map::MapKey::new(map.map_id(), map.instance_id()),
         ) else {
             return None;
         };
+        let source_combat_reach = player.unit().world().combat_reach();
+        let nearby = map.map().nearby_cell_guids_like_cpp(
+            position.x,
+            position.y,
+            visibility_range + source_combat_reach,
+        );
 
         let mut creatures = Vec::new();
         for guid in nearby
@@ -14597,7 +14632,13 @@ impl WorldSession {
                 // IsWithinDist(obj, GetSightRange, is3D=false) (Object.cpp:1587-1609).
                 // #NEXT.R8.ENTITIES.1223 — use 2D so vertically-separated objects (e.g. ICC
                 // layered floors) within horizontal range are not dropped.
-                || !world.position().is_within_dist_2d(position, visibility_range)
+                || !Self::visibility_distance_allows_like_cpp(
+                    position,
+                    source_combat_reach,
+                    &world.position(),
+                    world.combat_reach(),
+                    visibility_range,
+                )
                 || !self
                     .represented_player_phase_shift
                     .can_see(world.phase_shift())
@@ -14902,6 +14943,7 @@ impl WorldSession {
     ) -> Option<Vec<wow_packet::packets::update::GameObjectCreateData>> {
         let requested_map_id = u32::from(map_id);
         let player_map_key = self.current_canonical_player_map_key_like_cpp();
+        let source_combat_reach = self.represented_visibility_source_combat_reach_like_cpp();
         let manager = self.canonical_map_manager.as_ref()?;
         let Ok(manager) = manager.lock() else {
             return None;
@@ -14913,9 +14955,11 @@ impl WorldSession {
             Some(_) => return None,
             None => manager.find_map(requested_map_id, 0)?,
         };
-        let nearby =
-            map.map()
-                .nearby_cell_guids_like_cpp(position.x, position.y, visibility_radius);
+        let nearby = map.map().nearby_cell_guids_like_cpp(
+            position.x,
+            position.y,
+            visibility_radius + source_combat_reach,
+        );
         let now = Instant::now();
         let mut gameobjects = Vec::new();
 
@@ -14926,9 +14970,13 @@ impl WorldSession {
             let object = gameobject.world();
             if !object.object().is_in_world()
                 || object.map_id() != u32::from(map_id)
-                || !object
-                    .position()
-                    .is_within_dist_2d(position, visibility_radius)
+                || !Self::visibility_distance_allows_like_cpp(
+                    position,
+                    source_combat_reach,
+                    &object.position(),
+                    object.combat_reach(),
+                    visibility_radius,
+                )
             {
                 continue;
             }
@@ -15094,6 +15142,7 @@ impl WorldSession {
     ) -> Option<Vec<wow_packet::packets::update::DynamicObjectCreateData>> {
         let requested_map_id = u32::from(map_id);
         let player_map_key = self.current_canonical_player_map_key_like_cpp();
+        let source_combat_reach = self.represented_visibility_source_combat_reach_like_cpp();
         let manager = self.canonical_map_manager.as_ref()?;
         let Ok(manager) = manager.lock() else {
             return None;
@@ -15105,9 +15154,11 @@ impl WorldSession {
             Some(_) => return None,
             None => manager.find_map(requested_map_id, 0)?,
         };
-        let nearby =
-            map.map()
-                .nearby_cell_guids_like_cpp(position.x, position.y, visibility_radius);
+        let nearby = map.map().nearby_cell_guids_like_cpp(
+            position.x,
+            position.y,
+            visibility_radius + source_combat_reach,
+        );
         let mut dynamic_objects = Vec::new();
 
         for guid in nearby
@@ -15122,9 +15173,13 @@ impl WorldSession {
             let object = dynamic_object.world();
             if !object.object().is_in_world()
                 || object.map_id() != u32::from(map_id)
-                || !object
-                    .position()
-                    .is_within_dist_2d(position, visibility_radius)
+                || !Self::visibility_distance_allows_like_cpp(
+                    position,
+                    source_combat_reach,
+                    &object.position(),
+                    object.combat_reach(),
+                    visibility_radius,
+                )
             {
                 continue;
             }
@@ -15145,6 +15200,7 @@ impl WorldSession {
     ) -> Option<Vec<wow_packet::packets::update::AreaTriggerCreateData>> {
         let requested_map_id = u32::from(map_id);
         let player_map_key = self.current_canonical_player_map_key_like_cpp();
+        let source_combat_reach = self.represented_visibility_source_combat_reach_like_cpp();
         let manager = self.canonical_map_manager.as_ref()?;
         let Ok(manager) = manager.lock() else {
             return None;
@@ -15156,9 +15212,11 @@ impl WorldSession {
             Some(_) => return None,
             None => manager.find_map(requested_map_id, 0)?,
         };
-        let nearby =
-            map.map()
-                .nearby_cell_guids_like_cpp(position.x, position.y, visibility_radius);
+        let nearby = map.map().nearby_cell_guids_like_cpp(
+            position.x,
+            position.y,
+            visibility_radius + source_combat_reach,
+        );
         let mut area_triggers = Vec::new();
 
         for guid in nearby.grid.area_triggers {
@@ -15172,9 +15230,13 @@ impl WorldSession {
             let object = area_trigger.world();
             if !object.object().is_in_world()
                 || object.map_id() != u32::from(map_id)
-                || !object
-                    .position()
-                    .is_within_dist_2d(position, visibility_radius)
+                || !Self::visibility_distance_allows_like_cpp(
+                    position,
+                    source_combat_reach,
+                    &object.position(),
+                    object.combat_reach(),
+                    visibility_radius,
+                )
                 || !self.can_see_phase_shift_like_cpp(object.phase_shift())
             {
                 continue;
@@ -15190,6 +15252,164 @@ impl WorldSession {
         }
 
         Some(area_triggers)
+    }
+
+    pub(crate) fn visible_misc_objects_from_canonical_map_like_cpp(
+        &self,
+        map_id: u16,
+        position: &wow_core::Position,
+        visibility_radius: f32,
+    ) -> Option<(
+        Vec<wow_packet::packets::update::CorpseCreateData>,
+        Vec<wow_packet::packets::update::SceneObjectCreateData>,
+        Vec<wow_packet::packets::update::ConversationCreateData>,
+    )> {
+        let requested_map_id = u32::from(map_id);
+        let player_map_key = self.current_canonical_player_map_key_like_cpp();
+        let source_combat_reach = self.represented_visibility_source_combat_reach_like_cpp();
+        let manager = self.canonical_map_manager.as_ref()?;
+        let Ok(manager) = manager.lock() else {
+            return None;
+        };
+        let map = match player_map_key {
+            Some(key) if key.map_id == requested_map_id => {
+                manager.find_map(key.map_id, key.instance_id)?
+            }
+            Some(_) => return None,
+            None => manager.find_map(requested_map_id, 0)?,
+        };
+        let nearby = map.map().nearby_cell_guids_like_cpp(
+            position.x,
+            position.y,
+            visibility_radius + source_combat_reach,
+        );
+
+        let allows_world_object = |world: &wow_entities::WorldObject| {
+            world.object().is_in_world()
+                && world.map_id() == requested_map_id
+                && self.can_see_phase_shift_like_cpp(world.phase_shift())
+                && Self::visibility_distance_allows_like_cpp(
+                    position,
+                    source_combat_reach,
+                    &world.position(),
+                    world.combat_reach(),
+                    visibility_radius,
+                )
+        };
+
+        let mut corpses = Vec::new();
+        for guid in nearby.world.corpses.into_iter().chain(nearby.grid.corpses) {
+            let Some(corpse) = map.map().get_typed_corpse(guid) else {
+                continue;
+            };
+            if allows_world_object(corpse.world()) {
+                corpses.push(
+                    crate::entity_update_bridge::corpse_create_data_from_entity_like_cpp(corpse),
+                );
+            }
+        }
+
+        let mut scene_objects = Vec::new();
+        for guid in nearby.grid.scene_objects {
+            let Some(scene_object) = map
+                .map()
+                .map_object_record(guid)
+                .and_then(wow_entities::MapObjectRecord::scene_object)
+            else {
+                continue;
+            };
+            if allows_world_object(scene_object.world()) {
+                scene_objects.push(
+                    crate::entity_update_bridge::scene_object_create_data_from_entity_like_cpp(
+                        scene_object,
+                    ),
+                );
+            }
+        }
+
+        let mut conversations = Vec::new();
+        for guid in nearby.grid.conversations {
+            let Some(conversation) = map
+                .map()
+                .map_object_record(guid)
+                .and_then(wow_entities::MapObjectRecord::conversation)
+            else {
+                continue;
+            };
+            if !conversation.is_removed() && allows_world_object(conversation.world()) {
+                conversations.push(
+                    crate::entity_update_bridge::conversation_create_data_from_entity_like_cpp(
+                        conversation,
+                        &self.locale,
+                    ),
+                );
+            }
+        }
+
+        Some((corpses, scene_objects, conversations))
+    }
+
+    pub(crate) fn visible_other_players_from_registry_like_cpp(
+        &self,
+        map_id: u16,
+        position: &Position,
+        visibility_radius: f32,
+    ) -> Vec<(ObjectGuid, PlayerBroadcastInfo)> {
+        let Some(player_guid) = self.player_guid() else {
+            return Vec::new();
+        };
+        let Some(registry) = &self.player_registry else {
+            return Vec::new();
+        };
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let source_combat_reach = self.represented_visibility_source_combat_reach_like_cpp();
+
+        registry
+            .iter()
+            .filter_map(|entry| {
+                let (guid, info) = entry.pair();
+                if *guid == player_guid
+                    || !info.is_in_world
+                    || info.map_id != map_id
+                    || info.instance_id != instance_id
+                    || self.canonical_player_phase_visible_like_cpp(map_id, instance_id, *guid)
+                        != Some(true)
+                    || !Self::visibility_distance_allows_like_cpp(
+                        position,
+                        source_combat_reach,
+                        &info.position,
+                        info.combat_reach,
+                        visibility_radius,
+                    )
+                {
+                    return None;
+                }
+                Some((*guid, info.clone()))
+            })
+            .collect()
+    }
+
+    /// Require the target to exist in the canonical map and apply the same
+    /// phase gate as C++ `VisibleNotifier::Visit(PlayerMapType&)`. Missing map
+    /// state returns `None` and fails closed at the caller: C++ cannot visit a
+    /// registry-only player.
+    fn canonical_player_phase_visible_like_cpp(
+        &self,
+        map_id: u16,
+        instance_id: u32,
+        target_guid: ObjectGuid,
+    ) -> Option<bool> {
+        let manager = self.canonical_map_manager.as_ref()?;
+        let manager = manager.lock().ok()?;
+        let map = manager.find_map(u32::from(map_id), instance_id)?;
+        let target = map.map().get_typed_player(target_guid)?;
+        Some(
+            self.represented_player_phase_shift_like_cpp()
+                .can_see(target.unit().world().phase_shift()),
+        )
     }
 
     pub fn set_realm_id(&mut self, realm_id: u16) {
@@ -25361,6 +25581,13 @@ impl WorldSession {
         self.chr_races_store = Some(store);
     }
 
+    pub(crate) fn faction_template_for_race_like_cpp(&self, race: u8) -> Option<i32> {
+        self.chr_races_store
+            .as_ref()?
+            .get(u32::from(race))
+            .map(|entry| i32::from(entry.faction_id))
+    }
+
     pub fn set_cinematic_sequences_store(&mut self, store: Arc<CinematicSequencesStore>) {
         self.cinematic_sequences_store = Some(store);
     }
@@ -32483,6 +32710,9 @@ impl WorldSession {
                 send_tx: self.send_tx.clone(),
                 realm_send_tx: self.realm_send_tx.as_ref().unwrap_or(&self.send_tx).clone(),
                 command_tx: self.session_command_tx.clone(),
+                visibility_refresh_pending_like_cpp: Arc::clone(
+                    &self.visibility_refresh_pending_like_cpp,
+                ),
                 durable_loot_money_tracker_like_cpp: Arc::clone(
                     &self.durable_loot_money_persistence_like_cpp,
                 ),
@@ -32499,6 +32729,8 @@ impl WorldSession {
                 power_type,
                 current_power,
                 max_power,
+                base_mana: self.represented_player_base_mana_like_cpp,
+                transport: self.player_transport_info_like_cpp(),
                 is_pvp: pvp_flags.contains(UnitPvpFlags::PVP),
                 is_ffa_pvp: pvp_flags.contains(UnitPvpFlags::FFA_PVP),
                 is_ghost,
@@ -32560,7 +32792,10 @@ impl WorldSession {
                 level,
                 gray_level: self.gray_level(level),
                 display_id: default_display_id(race, gender),
-                visible_items,
+                visible_items: Arc::new(visible_items),
+                customizations: Arc::new(
+                    self.loaded_player_customizations_like_cpp.as_ref().clone(),
+                ),
                 lifetime_honorable_kills,
                 this_week_contribution,
                 yesterday_contribution,
@@ -32613,6 +32848,8 @@ impl WorldSession {
             info.power_type = power_type;
             info.current_power = current_power;
             info.max_power = max_power;
+            info.base_mana = self.represented_player_base_mana_like_cpp;
+            info.transport = self.player_transport_info_like_cpp();
             if let Some(guid) = self.player_guid() {
                 let pvp_flags = self
                     .canonical_player_pvp_flags_like_cpp(guid)
@@ -32681,6 +32918,8 @@ impl WorldSession {
                     .unwrap_or_default();
             info.party_member_auras = self.party_member_visible_auras_like_cpp();
             info.party_member_pet_stats = self.party_member_pet_stats_like_cpp();
+            info.customizations =
+                Arc::new(self.loaded_player_customizations_like_cpp.as_ref().clone());
             let (
                 lifetime_honorable_kills,
                 this_week_contribution,
@@ -32787,8 +33026,9 @@ impl WorldSession {
     }
 
     pub fn cleanup_shared_runtime_state(&mut self) {
-        self.unregister_canonical_player_from_map_like_cpp();
         self.unregister_from_player_registry();
+        self.notify_other_players_visibility_changed_like_cpp();
+        self.unregister_canonical_player_from_map_like_cpp();
         self.unregister_from_object_accessor();
         self.clear_inventory_items_and_objects_like_cpp();
     }
@@ -32870,6 +33110,7 @@ impl WorldSession {
             entry.map_id = map_id;
             entry.instance_id = instance_id;
             entry.liquid_status = self.player_liquid_status_like_cpp();
+            entry.transport = self.player_transport_info_like_cpp();
         }
         if let Some(accessor) = &self.object_accessor {
             if let Some(object) = accessor.write().player_object_mut(guid) {
@@ -52908,6 +53149,83 @@ impl WorldSession {
         self.represented_pet_speed_propagations_like_cpp
     }
 
+    pub(crate) fn set_player_transport_guid_like_cpp(&mut self, guid: Option<ObjectGuid>) {
+        self.set_player_transport_info_like_cpp(guid.filter(|guid| !guid.is_empty()).map(|guid| {
+            wow_packet::packets::movement::TransportInfo {
+                guid,
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+                o: 0.0,
+                seat: -1,
+                time: 0,
+                prev_time: None,
+                vehicle_id: None,
+            }
+        }));
+    }
+
+    pub(crate) fn set_player_transport_info_like_cpp(
+        &mut self,
+        info: Option<wow_packet::packets::movement::TransportInfo>,
+    ) {
+        self.player_transport_login_state_like_cpp = info
+            .filter(|info| !info.guid.is_empty())
+            .map(|info| Box::new(PlayerTransportLoginStateLikeCpp { info }));
+        self.player_on_transport_like_cpp = self.player_transport_login_state_like_cpp.is_some();
+    }
+
+    pub(crate) fn player_transport_guid_like_cpp(&self) -> Option<ObjectGuid> {
+        self.player_transport_login_state_like_cpp
+            .as_ref()
+            .map(|state| state.info.guid)
+    }
+
+    pub(crate) fn set_player_transport_position_like_cpp(&mut self, position: Option<Position>) {
+        if let Some(state) = self.player_transport_login_state_like_cpp.as_mut() {
+            if let Some(position) = position {
+                state.info.x = position.x;
+                state.info.y = position.y;
+                state.info.z = position.z;
+                state.info.o = position.orientation;
+            }
+        }
+    }
+
+    pub(crate) fn player_transport_position_like_cpp(&self) -> Option<Position> {
+        self.player_transport_login_state_like_cpp
+            .as_ref()
+            .map(|state| Position::new(state.info.x, state.info.y, state.info.z, state.info.o))
+    }
+
+    pub(crate) fn player_transport_info_like_cpp(
+        &self,
+    ) -> Option<wow_packet::packets::movement::TransportInfo> {
+        self.player_transport_login_state_like_cpp
+            .as_ref()
+            .map(|state| state.info.clone())
+    }
+
+    pub(crate) fn set_loaded_player_customizations_like_cpp(
+        &mut self,
+        customizations: Vec<wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate>,
+    ) {
+        self.loaded_player_customizations_like_cpp = Box::new(customizations);
+        // Login registers the player before `SendInitSelf` loads customization
+        // rows. Publish the completed snapshot before the forced visibility
+        // pass can expose this player to existing map sessions.
+        self.sync_player_registry_state_like_cpp();
+    }
+
+    pub(crate) fn should_send_init_transport_like_cpp(
+        &self,
+        transport_guid: ObjectGuid,
+        transport_phase_shift: &PhaseShift,
+    ) -> bool {
+        self.player_transport_guid_like_cpp() != Some(transport_guid)
+            && self.can_see_phase_shift_like_cpp(transport_phase_shift)
+    }
+
     #[cfg(test)]
     pub(crate) fn set_player_on_transport_like_cpp(&mut self, on_transport: bool) {
         self.player_on_transport_like_cpp = on_transport;
@@ -54343,6 +54661,44 @@ impl WorldSession {
             .or(Some(player_position))
     }
 
+    fn represented_visibility_source_combat_reach_like_cpp(&self) -> f32 {
+        let Some(player_guid) = self.player_guid() else {
+            return 0.0;
+        };
+        let seer_guid = self
+            .represented_seer_guid_like_cpp
+            .filter(|guid| !guid.is_empty())
+            .unwrap_or(player_guid);
+
+        if let (Some(key), Some(manager)) = (
+            self.current_canonical_player_map_key_like_cpp(),
+            self.canonical_map_manager.as_ref(),
+        ) && let Ok(manager) = manager.lock()
+            && let Some(reach) = manager
+                .find_map(key.map_id, key.instance_id)
+                .and_then(|managed| managed.map().map_object_record(seer_guid))
+                .filter(|record| Self::is_represented_seer_kind_like_cpp(record.kind()))
+                .map(|record| record.object().combat_reach())
+        {
+            return reach.max(0.0);
+        }
+
+        self.canonical_player_combat_reach_snapshot_like_cpp()
+            .max(0.0)
+    }
+
+    fn visibility_distance_allows_like_cpp(
+        source_position: &Position,
+        source_combat_reach: f32,
+        target_position: &Position,
+        target_combat_reach: f32,
+        sight_range: f32,
+    ) -> bool {
+        let max_distance =
+            sight_range + source_combat_reach.max(0.0) + target_combat_reach.max(0.0);
+        source_position.distance_2d_sq(target_position) < max_distance * max_distance
+    }
+
     pub(crate) fn apply_far_sight_like_cpp(&mut self, enable: bool) {
         if !enable {
             if let Some(player_guid) = self.player_guid() {
@@ -54365,6 +54721,23 @@ impl WorldSession {
     pub(crate) async fn force_update_visibility_like_cpp(&mut self) {
         self.last_visibility_pos = None;
         self.update_visibility().await;
+    }
+
+    pub(crate) fn clear_pending_visibility_refresh_like_cpp(&self) {
+        self.visibility_refresh_pending_like_cpp
+            .store(false, Ordering::Release);
+    }
+
+    pub(crate) async fn flush_pending_visibility_refresh_like_cpp(&mut self) {
+        if self.state() != SessionState::LoggedIn {
+            return;
+        }
+        if self
+            .visibility_refresh_pending_like_cpp
+            .swap(false, Ordering::AcqRel)
+        {
+            self.force_update_visibility_like_cpp().await;
+        }
     }
 
     /// Complete timed logout.
@@ -57179,18 +57552,13 @@ impl WorldSession {
         visible_items
     }
 
-    /// Broadcast the newly logged-in player's CREATE block to nearby players on the same map.
+    /// Ask nearby sessions to run the same visibility diff after this player enters.
     ///
-    /// Called after login is complete. Iterates through all players in the registry
-    /// who are on the same map, creates an UpdateObject with the new player's CREATE block,
-    /// and sends it to each via their send_tx channel.
-    ///
-    /// C++ `Player::SendInitialPacketsAfterAddToMap` starts by calling
-    /// `UpdateVisibilityForPlayer`; this represents the cross-session create half.
-    pub(crate) fn broadcast_create_player_to_others(&self) {
-        use wow_packet::ServerPacket;
-        use wow_packet::packets::update::{PlayerCombatStats, UpdateObject};
-
+    /// C++ adds the new Player to the map before `UpdateVisibilityForPlayer`, so
+    /// other players discover it through their normal `m_clientGUIDs` path. Queue
+    /// the existing full visibility command instead of sending a raw CREATE that
+    /// cannot update the receiver's client-visible GUID set.
+    pub(crate) fn notify_other_players_visibility_changed_like_cpp(&self) {
         let Some(guid) = self.player_guid() else {
             return;
         };
@@ -57205,186 +57573,12 @@ impl WorldSession {
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
-        let range_sq =
-            crate::map_manager::VISIBILITY_RADIUS * crate::map_manager::VISIBILITY_RADIUS;
-        let race = self.player_race_like_cpp();
-        let class = self.player_class_like_cpp();
-        let gender = self.player_gender_like_cpp();
-        let level = self.player_level_like_cpp();
-
-        // Build visible_items from this player's equipped inventory.
-        let visible_items = self.loaded_player_visible_items_for_create_like_cpp();
-        let empty_inv_slots = [ObjectGuid::EMPTY; 141];
-        let empty_skills = Vec::new();
-
-        // Create the UpdateObject for this player (with is_self=false for other players)
-        use crate::handlers::character::default_display_id;
-        let party_type = self.party_member_party_type_like_cpp();
-        let update = UpdateObject::create_player_with_party_type(
-            guid,
-            race,
-            class,
-            gender,
-            level,
-            default_display_id(race, gender),
-            &pos,
-            map_id,
-            0,     // zone_id (would need to track)
-            false, // is_self: other players see this as a regular player, not ActivePlayer
-            visible_items,
-            empty_inv_slots,
-            PlayerCombatStats::default(), // other players don't need detailed combat stats
-            empty_skills,
-            self.player_gold_like_cpp(),
-            vec![], // quest_log — not sent to other players
-            party_type,
-        );
-
-        // Serialize once, reuse for all broadcasts
-        let bytes = update.to_bytes();
-
-        // Count players to broadcast to
+        let visibility_range = self.player_map_visibility_range_like_cpp(map_id);
+        let target_combat_reach = self.represented_visibility_source_combat_reach_like_cpp();
         let mut broadcast_count = 0;
 
-        // Iterate through visible player candidates. C++ `Player::UpdateVisibilityOf`
-        // creates objects only when `CanSeeOrDetect` passes; Rust does the
-        // bounded candidate part here and leaves exact phase/shared-vision
-        // parity for the full visibility runtime.
         for entry in registry.iter() {
             let (other_guid, broadcast_info) = entry.pair();
-            // Don't send to ourselves
-            if *other_guid == guid {
-                continue;
-            }
-            if !broadcast_info.is_in_world
-                || broadcast_info.map_id != map_id
-                || broadcast_info.instance_id != instance_id
-            {
-                continue;
-            }
-            let dx = broadcast_info.position.x - pos.x;
-            let dy = broadcast_info.position.y - pos.y;
-            if dx * dx + dy * dy > range_sq {
-                continue;
-            }
-
-            broadcast_count += 1;
-
-            if let Err(_) = broadcast_info.send_tx.try_send(bytes.clone()) {
-                debug!("Failed to broadcast CreatePlayer to {:?}", other_guid);
-            } else {
-                trace!("Broadcast CreatePlayer {:?} to {:?}", guid, other_guid);
-            }
-        }
-
-        if broadcast_count > 0 {
-            info!(
-                "Broadcasted CreatePlayer for {:?} to {} players on map {}",
-                guid, broadcast_count, map_id
-            );
-        }
-    }
-
-    /// Broadcast DestroyObject to all players on the same map when this player disconnects.
-    pub(crate) fn broadcast_destroy_player_to_others(&self) {
-        use wow_packet::ServerPacket;
-        use wow_packet::packets::update::UpdateObject;
-
-        let Some(guid) = self.player_guid() else {
-            return;
-        };
-        let Some(registry) = &self.player_registry else {
-            return;
-        };
-        let Some(pos) = self.player_position_like_cpp() else {
-            return;
-        };
-        let map_id = self.player_map_id_like_cpp();
-        let instance_id = self
-            .current_canonical_player_map_key_like_cpp()
-            .map(|key| key.instance_id)
-            .unwrap_or(0);
-        let range_sq =
-            crate::map_manager::VISIBILITY_RADIUS * crate::map_manager::VISIBILITY_RADIUS;
-
-        let destroy = UpdateObject::destroy_objects(vec![guid], map_id);
-        let bytes = destroy.to_bytes();
-
-        let mut count = 0usize;
-        for entry in registry.iter() {
-            let (other_guid, info) = entry.pair();
-            if *other_guid == guid {
-                continue;
-            }
-            if !info.is_in_world || info.map_id != map_id || info.instance_id != instance_id {
-                continue;
-            }
-            let dx = info.position.x - pos.x;
-            let dy = info.position.y - pos.y;
-            if dx * dx + dy * dy > range_sq {
-                continue;
-            }
-            if info
-                .command_tx
-                .try_send(SessionCommand::SendIfVisibleLikeCpp(
-                    SendIfVisibleLikeCppCommand {
-                        queued_at: Instant::now(),
-                        source_guid: guid,
-                        map_id,
-                        instance_id,
-                        packet_bytes: bytes.clone(),
-                    },
-                ))
-                .is_ok()
-            {
-                count += 1;
-            }
-        }
-        if count > 0 {
-            info!("Broadcast DestroyPlayer {:?} to {} players", guid, count);
-        }
-    }
-
-    /// Receive CREATE blocks from all other players currently on the same map.
-    ///
-    /// Called after login is complete. Queries the player registry for all players
-    /// on the current map (excluding self), builds their CREATE blocks, and sends
-    /// them as UpdateObjects to this session.
-    ///
-    /// C++ `Player::SendInitialPacketsAfterAddToMap` starts by calling
-    /// `UpdateVisibilityForPlayer`; this represents the receive-existing-players half.
-    pub(crate) fn receive_other_players_on_map(&self) {
-        use wow_packet::packets::update::{PlayerCombatStats, UpdateObject};
-
-        let Some(guid) = self.player_guid() else {
-            return;
-        };
-        let Some(registry) = &self.player_registry else {
-            return;
-        };
-        let Some(pos) = self.player_position_like_cpp() else {
-            return;
-        };
-        let map_id = self.player_map_id_like_cpp();
-        let instance_id = self
-            .current_canonical_player_map_key_like_cpp()
-            .map(|key| key.instance_id)
-            .unwrap_or(0);
-        let range_sq =
-            crate::map_manager::VISIBILITY_RADIUS * crate::map_manager::VISIBILITY_RADIUS;
-
-        let empty_inv_slots = [ObjectGuid::EMPTY; 141];
-        let empty_skills = Vec::new();
-        let default_combat_stats = PlayerCombatStats::default();
-
-        let mut player_count = 0;
-
-        // Iterate through all players in the registry
-        for entry in registry.iter() {
-            let (other_guid, broadcast_info) = entry.pair();
-
-            // Skip self and players outside this session's bounded visibility
-            // candidate set.
             if *other_guid == guid
                 || !broadcast_info.is_in_world
                 || broadcast_info.map_id != map_id
@@ -57392,46 +57586,44 @@ impl WorldSession {
             {
                 continue;
             }
-            let dx = broadcast_info.position.x - pos.x;
-            let dy = broadcast_info.position.y - pos.y;
-            if dx * dx + dy * dy > range_sq {
+            if !Self::visibility_distance_allows_like_cpp(
+                &broadcast_info.position,
+                broadcast_info.combat_reach,
+                &pos,
+                target_combat_reach,
+                visibility_range,
+            ) {
                 continue;
             }
 
-            player_count += 1;
-
-            // Create UpdateObject for this other player using cached data from broadcast_info
-            let update = UpdateObject::create_player_with_party_type(
-                *other_guid,
-                broadcast_info.race,
-                broadcast_info.class,
-                broadcast_info.sex,
-                broadcast_info.level,
-                broadcast_info.display_id,
-                &broadcast_info.position,
-                broadcast_info.map_id,
-                0,     // zone_id (unknown — would need separate tracking)
-                false, // is_self: this is another player, not us
-                broadcast_info.visible_items,
-                empty_inv_slots,
-                default_combat_stats,
-                empty_skills.clone(),
-                0,      // coinage (don't send other players' gold)
-                vec![], // quest_log — not sent to other players
-                broadcast_info.party_member_party_type,
+            broadcast_info
+                .visibility_refresh_pending_like_cpp
+                .store(true, Ordering::Release);
+            let command = SessionCommand::RefreshVisibleWorldCreaturesLikeCpp(
+                RefreshVisibleWorldCreaturesLikeCppCommand {
+                    map_id,
+                    instance_id,
+                },
             );
-
-            self.send_packet(&update);
-            trace!(
-                "Sent CREATE block for other player {:?} to account {}",
-                other_guid, self.account_id
-            );
+            match broadcast_info.command_tx.try_send(command) {
+                Ok(()) | Err(flume::TrySendError::Full(_)) => {
+                    // A full queue is safe: the receiver consumes the durable
+                    // coalesced flag after draining whatever currently fills
+                    // the bounded command queue.
+                    broadcast_count += 1;
+                }
+                Err(flume::TrySendError::Disconnected(_)) => {
+                    broadcast_info
+                        .visibility_refresh_pending_like_cpp
+                        .store(false, Ordering::Release);
+                }
+            }
         }
 
-        if player_count > 0 {
+        if broadcast_count > 0 {
             info!(
-                "Received CREATE blocks from {} other players on map {} for {:?}",
-                player_count, map_id, guid
+                "Queued visibility refresh for {:?} on {} nearby players on map {}",
+                guid, broadcast_count, map_id
             );
         }
     }
@@ -83624,6 +83816,96 @@ mod tests {
             .unwrap();
     }
 
+    fn add_canonical_visibility_misc_objects_on_map(
+        canonical: &SharedCanonicalMapManager,
+        corpse_guid: ObjectGuid,
+        scene_object_guid: ObjectGuid,
+        conversation_guid: ObjectGuid,
+        position: Position,
+        map_id: u32,
+        instance_id: u32,
+    ) {
+        let mut corpse =
+            wow_entities::Corpse::new_at(wow_entities::CorpseType::ResurrectablePve, 0);
+        corpse.world_mut().object_mut().create(corpse_guid);
+        corpse.world_mut().object_mut().set_entry(501);
+        corpse.world_mut().set_map(map_id, instance_id).unwrap();
+        corpse.world_mut().relocate(position);
+        corpse.set_display_id(7001);
+        corpse.set_race(1);
+        corpse.set_class(1);
+        corpse.set_owner_guid(ObjectGuid::create_player(1, 501));
+
+        let mut scene_object = wow_entities::SceneObject::new();
+        scene_object
+            .world_mut()
+            .object_mut()
+            .create(scene_object_guid);
+        scene_object.world_mut().object_mut().set_entry(502);
+        scene_object
+            .world_mut()
+            .set_map(map_id, instance_id)
+            .unwrap();
+        scene_object.world_mut().relocate(position);
+        scene_object.relocate_stationary_position(position);
+        scene_object.set_script_package_id(502);
+        scene_object.set_rnd_seed_val(1234);
+
+        let mut conversation = wow_entities::Conversation::new();
+        conversation
+            .world_mut()
+            .object_mut()
+            .create(conversation_guid);
+        conversation.world_mut().object_mut().set_entry(503);
+        conversation
+            .world_mut()
+            .set_map(map_id, instance_id)
+            .unwrap();
+        conversation.world_mut().relocate(position);
+        conversation.relocate_stationary_position(position);
+        conversation.set_duration_ms(10_000);
+        conversation.set_texture_kit_id(77);
+        conversation.add_line(wow_entities::ConversationLine {
+            conversation_line_id: 9,
+            start_time: 10,
+            ui_camera_id: 0,
+            actor_index: 0,
+            flags: 0,
+        });
+
+        let mut guard = canonical.lock().unwrap();
+        let map = guard.create_world_map(map_id, instance_id);
+        for (kind, world) in [
+            (AccessorObjectKind::Corpse, corpse.world().clone()),
+            (
+                AccessorObjectKind::SceneObject,
+                scene_object.world().clone(),
+            ),
+            (
+                AccessorObjectKind::Conversation,
+                conversation.world().clone(),
+            ),
+        ] {
+            map.map_mut().add_to_map_like_cpp(kind, world).unwrap();
+        }
+        corpse.world_mut().object_mut().add_to_world();
+        scene_object.world_mut().object_mut().add_to_world();
+        conversation.world_mut().object_mut().add_to_world();
+        map.map_mut()
+            .insert_map_object_record(wow_entities::MapObjectRecord::new_corpse(corpse).unwrap())
+            .unwrap();
+        map.map_mut()
+            .insert_map_object_record(
+                wow_entities::MapObjectRecord::new_scene_object(scene_object).unwrap(),
+            )
+            .unwrap();
+        map.map_mut()
+            .insert_map_object_record(
+                wow_entities::MapObjectRecord::new_conversation(conversation).unwrap(),
+            )
+            .unwrap();
+    }
+
     fn add_canonical_test_area_trigger_on_map(
         canonical: &SharedCanonicalMapManager,
         guid: ObjectGuid,
@@ -88284,9 +88566,41 @@ mod tests {
         let player_position = Position::new(10.0, 10.0, 0.0, 0.0);
         let creature_guid = test_creature_guid(40);
         let gameobject_guid = test_gameobject_guid(912, 41);
+        let dynamic_object_guid = test_dynamic_object_guid(913, 45);
+        let area_trigger_guid = test_area_trigger_guid(914, 46);
+        let corpse_guid = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Corpse,
+            0,
+            1,
+            571,
+            0,
+            501,
+            42,
+        );
+        let scene_object_guid = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::SceneObject,
+            0,
+            1,
+            571,
+            0,
+            502,
+            43,
+        );
+        let conversation_guid = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Conversation,
+            0,
+            1,
+            571,
+            0,
+            503,
+            44,
+        );
+        let other_player_guid = ObjectGuid::create_player(1, 74_313);
+        let registry = Arc::new(PlayerRegistry::default());
 
         session.set_map_manager(Arc::clone(&manager));
         session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_player_registry(Arc::clone(&registry));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
             player_guid,
             "MapVisibility".to_string(),
@@ -88338,25 +88652,74 @@ mod tests {
             1.0,
             [0.0, 0.0, 0.0, 1.0],
         );
+        add_canonical_visibility_misc_objects_on_map(
+            &canonical,
+            corpse_guid,
+            scene_object_guid,
+            conversation_guid,
+            Position::new(40.0, 40.0, 0.0, 0.0),
+            571,
+            0,
+        );
+        add_canonical_test_dynamic_object_on_map(
+            &canonical,
+            dynamic_object_guid,
+            player_guid,
+            913,
+            Position::new(42.0, 42.0, 0.0, 0.0),
+            571,
+            0,
+        );
+        add_canonical_test_area_trigger_on_map(
+            &canonical,
+            area_trigger_guid,
+            player_guid,
+            914,
+            Position::new(44.0, 44.0, 0.0, 0.0),
+            571,
+            0,
+        );
+        let (other_tx, _other_rx) = flume::bounded(1);
+        let mut other_info = broadcast_info(other_player_guid, other_tx);
+        other_info.map_id = 571;
+        other_info.position = Position::new(50.0, 50.0, 0.0, 0.0);
+        add_canonical_test_player_on_map(
+            &canonical,
+            other_player_guid,
+            other_info.position,
+            571,
+            0,
+        );
+        registry.insert(other_player_guid, other_info);
 
         session.update_visibility().await;
 
-        assert!(
-            session
-                .client_visible_guids_like_cpp
-                .contains(&creature_guid)
-        );
-        assert!(
-            session
-                .client_visible_guids_like_cpp
-                .contains(&gameobject_guid)
-        );
+        for guid in [
+            creature_guid,
+            gameobject_guid,
+            dynamic_object_guid,
+            area_trigger_guid,
+            corpse_guid,
+            scene_object_guid,
+            conversation_guid,
+            other_player_guid,
+        ] {
+            assert!(
+                session.client_visible_guids_like_cpp.contains(&guid),
+                "C++ VisibleNotifier class missing from client GUID cache: {guid:?}"
+            );
+        }
         assert_eq!(session.last_visibility_pos, Some(player_position));
         let packet = send_rx
             .try_recv()
             .expect("map-driven visibility should send create data without DB");
         let opcode = u16::from_le_bytes([packet[0], packet[1]]);
         assert_eq!(opcode, ServerOpcodes::UpdateObject as u16);
+        assert_eq!(
+            u32::from_le_bytes(packet[2..6].try_into().unwrap()),
+            8,
+            "C++ VisibleNotifier sends all eight instantiated object classes in one UpdateData"
+        );
         assert!(
             send_rx.try_recv().is_err(),
             "C++ VisibleNotifier::SendToSelf builds one UpdateData packet for mixed visibility"
@@ -96277,6 +96640,7 @@ mod tests {
             realm_send_tx: send_tx.clone(),
             send_tx,
             command_tx,
+            visibility_refresh_pending_like_cpp: Default::default(),
             durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),
             pass_on_group_loot: false,
@@ -96287,6 +96651,8 @@ mod tests {
             power_type: 0,
             current_power: 0,
             max_power: 0,
+            base_mana: 0,
+            transport: None,
             is_pvp: false,
             is_ffa_pvp: false,
             is_ghost: false,
@@ -96332,7 +96698,8 @@ mod tests {
             level: 1,
             gray_level: 0,
             display_id: 49,
-            visible_items: [(0, 0, 0); 19],
+            visible_items: Arc::new([(0, 0, 0); 19]),
+            customizations: Arc::default(),
             lifetime_honorable_kills: 0,
             this_week_contribution: 0,
             yesterday_contribution: 0,
@@ -96396,35 +96763,7 @@ mod tests {
     }
 
     #[test]
-    fn create_player_broadcast_skips_out_of_visibility_range_like_cpp() {
-        let (mut session, _, _) = make_session();
-        let guid = ObjectGuid::create_player(1, 42);
-        let nearby_guid = ObjectGuid::create_player(1, 43);
-        let far_guid = ObjectGuid::create_player(1, 44);
-        let registry = Arc::new(PlayerRegistry::default());
-        let (nearby_tx, nearby_rx) = flume::bounded(1);
-        let (far_tx, far_rx) = flume::bounded(1);
-
-        session.set_player_guid(Some(guid));
-        session.set_player_registry(Arc::clone(&registry));
-        session.set_player_position_like_cpp(Position::ZERO);
-
-        registry.insert(nearby_guid, broadcast_info(nearby_guid, nearby_tx));
-        let mut far_info = broadcast_info(far_guid, far_tx);
-        far_info.position =
-            Position::new(crate::map_manager::VISIBILITY_RADIUS + 1.0, 0.0, 0.0, 0.0);
-        registry.insert(far_guid, far_info);
-
-        session.broadcast_create_player_to_others();
-
-        let bytes = nearby_rx.try_recv().expect("nearby player create");
-        let pkt = WorldPacket::from_bytes(&bytes);
-        assert_eq!(pkt.server_opcode(), Some(ServerOpcodes::UpdateObject));
-        assert!(far_rx.try_recv().is_err());
-    }
-
-    #[test]
-    fn destroy_player_broadcast_uses_visible_command_gate_like_cpp() {
+    fn player_entry_visibility_refresh_skips_out_of_range_sessions_like_cpp() {
         let (mut session, _, _) = make_session();
         let guid = ObjectGuid::create_player(1, 42);
         let nearby_guid = ObjectGuid::create_player(1, 43);
@@ -96448,48 +96787,413 @@ mod tests {
             Position::new(crate::map_manager::VISIBILITY_RADIUS + 1.0, 0.0, 0.0, 0.0);
         registry.insert(far_guid, far_info);
 
-        session.broadcast_destroy_player_to_others();
+        session.notify_other_players_visibility_changed_like_cpp();
 
-        assert!(nearby_rx.try_recv().is_err());
         let command = nearby_command_rx
             .try_recv()
-            .expect("nearby visible destroy command");
-        let SessionCommand::SendIfVisibleLikeCpp(command) = command else {
-            panic!("expected SendIfVisibleLikeCpp destroy command");
+            .expect("nearby visibility refresh command");
+        let SessionCommand::RefreshVisibleWorldCreaturesLikeCpp(command) = command else {
+            panic!("expected full visibility refresh command");
         };
-        assert_eq!(command.source_guid, guid);
-        let pkt = WorldPacket::from_bytes(&command.packet_bytes);
-        assert_eq!(pkt.server_opcode(), Some(ServerOpcodes::UpdateObject));
+        assert_eq!(command.map_id, 0);
+        assert_eq!(command.instance_id, 0);
+        assert!(nearby_rx.try_recv().is_err());
         assert!(far_rx.try_recv().is_err());
         assert!(far_command_rx.try_recv().is_err());
     }
 
+    #[tokio::test]
+    async fn player_visibility_refresh_survives_full_command_queue_like_cpp() {
+        let (mut source, _, _) = make_session();
+        let (mut receiver, _, _) = make_session();
+        let source_guid = ObjectGuid::create_player(1, 45);
+        let receiver_guid = ObjectGuid::create_player(1, 46);
+        let source_registry = Arc::new(PlayerRegistry::default());
+        let receiver_registry = Arc::new(PlayerRegistry::default());
+        let (receiver_send_tx, _receiver_send_rx) = flume::bounded(1);
+        let (full_command_tx, full_command_rx) = flume::bounded(1);
+
+        full_command_tx
+            .try_send(SessionCommand::RefreshVisibleWorldCreaturesLikeCpp(
+                RefreshVisibleWorldCreaturesLikeCppCommand {
+                    map_id: 999,
+                    instance_id: 0,
+                },
+            ))
+            .unwrap();
+
+        source.set_player_guid(Some(source_guid));
+        source.set_player_registry(Arc::clone(&source_registry));
+        source.set_player_position_like_cpp(Position::ZERO);
+
+        receiver.set_player_guid(Some(receiver_guid));
+        receiver.set_player_registry(receiver_registry);
+        receiver.set_player_position_like_cpp(Position::ZERO);
+        receiver.set_state(SessionState::LoggedIn);
+
+        let mut receiver_info =
+            broadcast_info_with_command(receiver_guid, receiver_send_tx, full_command_tx);
+        receiver_info.visibility_refresh_pending_like_cpp =
+            Arc::clone(&receiver.visibility_refresh_pending_like_cpp);
+        source_registry.insert(receiver_guid, receiver_info);
+
+        source.notify_other_players_visibility_changed_like_cpp();
+
+        assert!(
+            receiver
+                .visibility_refresh_pending_like_cpp
+                .load(Ordering::Acquire),
+            "a full bounded queue must retain the C++ visibility notification"
+        );
+        assert_eq!(
+            full_command_rx.len(),
+            1,
+            "the saturated queue remains untouched and the refresh is coalesced separately"
+        );
+
+        receiver
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        assert!(
+            !receiver
+                .visibility_refresh_pending_like_cpp
+                .load(Ordering::Acquire)
+        );
+        assert_eq!(receiver.last_visibility_pos, Some(Position::ZERO));
+    }
+
     #[test]
-    fn receive_other_players_on_map_skips_out_of_visibility_range_like_cpp() {
-        let (mut session, _, send_rx) = make_session();
+    fn player_exit_visibility_refresh_uses_same_full_diff_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 42);
+        let nearby_guid = ObjectGuid::create_player(1, 43);
+        let registry = Arc::new(PlayerRegistry::default());
+        let (nearby_tx, nearby_rx) = flume::bounded(1);
+        let (nearby_command_tx, nearby_command_rx) = flume::bounded(1);
+
+        session.set_player_guid(Some(guid));
+        session.set_player_registry(Arc::clone(&registry));
+        session.set_player_position_like_cpp(Position::ZERO);
+
+        let (self_tx, _self_rx) = flume::bounded(1);
+        registry.insert(guid, broadcast_info(guid, self_tx));
+        registry.insert(
+            nearby_guid,
+            broadcast_info_with_command(nearby_guid, nearby_tx, nearby_command_tx),
+        );
+
+        session.cleanup_shared_runtime_state();
+
+        assert!(!registry.contains_key(&guid));
+        assert!(nearby_rx.try_recv().is_err());
+        let command = nearby_command_rx
+            .try_recv()
+            .expect("nearby full visibility refresh command");
+        let SessionCommand::RefreshVisibleWorldCreaturesLikeCpp(command) = command else {
+            panic!("expected full visibility refresh command");
+        };
+        assert_eq!(command.map_id, 0);
+        assert_eq!(command.instance_id, 0);
+    }
+
+    #[test]
+    fn visible_other_players_skips_out_of_visibility_range_like_cpp() {
+        let (mut session, _, _) = make_session();
         let guid = ObjectGuid::create_player(1, 42);
         let nearby_guid = ObjectGuid::create_player(1, 43);
         let far_guid = ObjectGuid::create_player(1, 44);
+        let canonical = Arc::new(Mutex::new(wow_map::MapManager::new(60_000, 1)));
         let registry = Arc::new(PlayerRegistry::default());
         let (nearby_tx, _nearby_rx) = flume::bounded(1);
         let (far_tx, _far_rx) = flume::bounded(1);
 
         session.set_player_guid(Some(guid));
         session.set_player_registry(Arc::clone(&registry));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
         session.set_player_position_like_cpp(Position::ZERO);
+        add_canonical_test_player_on_map(&canonical, guid, Position::ZERO, 571, 0);
+        add_canonical_test_player_on_map(&canonical, nearby_guid, Position::ZERO, 571, 0);
+        add_canonical_test_player_on_map(
+            &canonical,
+            far_guid,
+            Position::new(crate::map_manager::VISIBILITY_RADIUS + 1.0, 0.0, 0.0, 0.0),
+            571,
+            0,
+        );
 
-        registry.insert(nearby_guid, broadcast_info(nearby_guid, nearby_tx));
+        let mut nearby_info = broadcast_info(nearby_guid, nearby_tx);
+        nearby_info.map_id = 571;
+        registry.insert(nearby_guid, nearby_info);
         let mut far_info = broadcast_info(far_guid, far_tx);
+        far_info.map_id = 571;
         far_info.position =
             Position::new(crate::map_manager::VISIBILITY_RADIUS + 1.0, 0.0, 0.0, 0.0);
         registry.insert(far_guid, far_info);
 
-        session.receive_other_players_on_map();
+        let visible = session.visible_other_players_from_registry_like_cpp(
+            571,
+            &Position::ZERO,
+            crate::map_manager::VISIBILITY_RADIUS,
+        );
 
-        let bytes = send_rx.try_recv().expect("nearby player create to self");
-        let pkt = WorldPacket::from_bytes(&bytes);
-        assert_eq!(pkt.server_opcode(), Some(ServerOpcodes::UpdateObject));
-        assert!(send_rx.try_recv().is_err());
+        assert_eq!(visible.len(), 1);
+        assert_eq!(visible[0].0, nearby_guid);
+    }
+
+    #[tokio::test]
+    async fn player_visibility_diff_creates_then_removes_registry_player_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let viewer_guid = ObjectGuid::create_player(1, 47);
+        let target_guid = ObjectGuid::create_player(1, 48);
+        let canonical = Arc::new(Mutex::new(wow_map::MapManager::new(60_000, 1)));
+        let registry = Arc::new(PlayerRegistry::default());
+        let (target_tx, _target_rx) = flume::bounded(1);
+
+        session.set_player_guid(Some(viewer_guid));
+        session.set_player_registry(Arc::clone(&registry));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_player_position_like_cpp(Position::ZERO);
+        add_canonical_test_player_on_map(&canonical, viewer_guid, Position::ZERO, 571, 0);
+        add_canonical_test_player_on_map(&canonical, target_guid, Position::ZERO, 571, 0);
+        let mut target_info = broadcast_info(target_guid, target_tx);
+        target_info.map_id = 571;
+        registry.insert(target_guid, target_info);
+
+        session.force_update_visibility_like_cpp().await;
+        assert!(session.client_visible_guids_like_cpp.contains(&target_guid));
+        let create = send_rx.try_recv().expect("player CREATE visibility diff");
+        assert_eq!(
+            u16::from_le_bytes(create[0..2].try_into().unwrap()),
+            ServerOpcodes::UpdateObject as u16
+        );
+
+        registry.remove(&target_guid);
+        session.force_update_visibility_like_cpp().await;
+
+        assert!(!session.client_visible_guids_like_cpp.contains(&target_guid));
+        let out_of_range = send_rx
+            .try_recv()
+            .expect("player out-of-range visibility diff");
+        assert_eq!(
+            u16::from_le_bytes(out_of_range[0..2].try_into().unwrap()),
+            ServerOpcodes::UpdateObject as u16
+        );
+        assert_eq!(
+            u32::from_le_bytes(out_of_range[2..6].try_into().unwrap()),
+            0,
+            "C++ UpdateData::m_blockCount excludes the separate out-of-range GUID section"
+        );
+    }
+
+    #[test]
+    fn player_visibility_create_uses_live_stats_and_customizations_like_cpp() {
+        let guid = ObjectGuid::create_player(1, 51);
+        let (send_tx, _send_rx) = flume::bounded(1);
+        let mut info = broadcast_info(guid, send_tx);
+        info.class = 8;
+        info.power_type = PowerType::Mana as u8;
+        info.current_health = 1_234;
+        info.max_health = 4_567;
+        info.current_power = 321;
+        info.max_power = 789;
+        info.base_mana = 456;
+        info.transport = Some(wow_packet::packets::movement::TransportInfo {
+            guid: ObjectGuid::create_transport(HighGuid::Transport, 7_004),
+            x: 1.0,
+            y: 2.0,
+            z: 3.0,
+            o: 0.5,
+            seat: 4,
+            time: 123,
+            prev_time: Some(122),
+            vehicle_id: Some(99),
+        });
+        info.customizations = Arc::new(vec![
+            wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate {
+                option_id: 10,
+                choice_id: 20,
+            },
+            wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate {
+                option_id: 30,
+                choice_id: 40,
+            },
+        ]);
+
+        let update =
+            crate::handlers::character::player_visibility_create_update_like_cpp(guid, &info, 571);
+        let [
+            wow_packet::packets::update::UpdateBlock::CreateObject {
+                create_data,
+                movement: Some(movement),
+                is_self,
+                ..
+            },
+        ] = update.blocks.as_slice()
+        else {
+            panic!("expected one non-owner player CREATE block");
+        };
+
+        assert!(!is_self);
+        assert_eq!(create_data.health, 1_234);
+        assert_eq!(create_data.max_health, 4_567);
+        assert_eq!(create_data.current_power0, 321);
+        assert_eq!(create_data.max_mana, 789);
+        assert_eq!(create_data.base_mana, 456);
+        assert_eq!(&create_data.customizations, info.customizations.as_ref());
+        let transport = movement
+            .transport
+            .as_ref()
+            .expect("non-owner player transport attachment");
+        assert_eq!(transport.guid, info.transport.as_ref().unwrap().guid);
+        assert_eq!(transport.x, 1.0);
+        assert_eq!(transport.seat, 4);
+        assert_eq!(transport.time, 123);
+        assert_eq!(transport.prev_time, Some(122));
+        assert_eq!(transport.vehicle_id, Some(99));
+    }
+
+    #[test]
+    fn loaded_customizations_refresh_already_registered_player_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 52);
+        let registry = Arc::new(PlayerRegistry::default());
+        let (send_tx, _send_rx) = flume::bounded(1);
+
+        session.set_player_guid(Some(guid));
+        session.set_player_registry(Arc::clone(&registry));
+        registry.insert(guid, broadcast_info(guid, send_tx));
+
+        let customizations = vec![
+            wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate {
+                option_id: 50,
+                choice_id: 60,
+            },
+        ];
+        session.set_loaded_player_customizations_like_cpp(customizations.clone());
+
+        let info = registry.get(&guid).expect("registered player");
+        assert_eq!(info.customizations.as_ref(), &customizations);
+    }
+
+    #[test]
+    fn visible_other_players_rejects_registry_only_target_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let viewer_guid = ObjectGuid::create_player(1, 49);
+        let target_guid = ObjectGuid::create_player(1, 50);
+        let canonical = Arc::new(Mutex::new(wow_map::MapManager::new(60_000, 1)));
+        let registry = Arc::new(PlayerRegistry::default());
+        let (target_tx, _target_rx) = flume::bounded(1);
+
+        session.set_player_guid(Some(viewer_guid));
+        session.set_player_registry(Arc::clone(&registry));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_player_position_like_cpp(Position::ZERO);
+        add_canonical_test_player_on_map(&canonical, viewer_guid, Position::ZERO, 571, 0);
+
+        let mut target_info = broadcast_info(target_guid, target_tx);
+        target_info.map_id = 571;
+        registry.insert(target_guid, target_info);
+
+        assert!(
+            session
+                .visible_other_players_from_registry_like_cpp(
+                    571,
+                    &Position::ZERO,
+                    crate::map_manager::VISIBILITY_RADIUS,
+                )
+                .is_empty(),
+            "C++ VisibleNotifier cannot visit a registry-only player"
+        );
+    }
+
+    #[test]
+    fn visible_other_players_applies_canonical_phase_gate_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let viewer_guid = ObjectGuid::create_player(1, 45);
+        let target_guid = ObjectGuid::create_player(1, 46);
+        let canonical = Arc::new(Mutex::new(wow_map::MapManager::new(60_000, 1)));
+        let registry = Arc::new(PlayerRegistry::default());
+        let (target_tx, _target_rx) = flume::bounded(1);
+
+        session.set_player_guid(Some(viewer_guid));
+        session.set_player_registry(Arc::clone(&registry));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+        session.set_represented_player_phase_shift_like_cpp(PhaseShift::from_phases([10]));
+        session.set_player_position_like_cpp(Position::ZERO);
+        add_canonical_test_player_on_map(&canonical, viewer_guid, Position::ZERO, 571, 0);
+        add_canonical_test_player_on_map(&canonical, target_guid, Position::ZERO, 571, 0);
+        *canonical
+            .lock()
+            .unwrap()
+            .find_map_mut(571, 0)
+            .unwrap()
+            .map_mut()
+            .get_typed_player_mut(target_guid)
+            .unwrap()
+            .unit_mut()
+            .world_mut()
+            .phase_shift_mut() = PhaseShift::from_phases([20]);
+
+        let mut target = broadcast_info(target_guid, target_tx);
+        target.map_id = 571;
+        registry.insert(target_guid, target);
+
+        assert!(
+            session
+                .visible_other_players_from_registry_like_cpp(
+                    571,
+                    &Position::ZERO,
+                    crate::map_manager::VISIBILITY_RADIUS,
+                )
+                .is_empty(),
+            "C++ VisibleNotifier excludes players outside the viewer's phase"
+        );
+    }
+
+    #[test]
+    fn init_transport_filter_excludes_own_transport_and_wrong_phase_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let own_transport = ObjectGuid::create_transport(HighGuid::Transport, 7001);
+        let other_transport = ObjectGuid::create_transport(HighGuid::Transport, 7002);
+        session.set_player_transport_guid_like_cpp(Some(own_transport));
+        session.set_represented_player_phase_shift_like_cpp(PhaseShift::from_phases([10]));
+
+        assert!(!session.should_send_init_transport_like_cpp(
+            own_transport,
+            &PhaseShift::from_phases([10]),
+        ));
+        assert!(
+            session.should_send_init_transport_like_cpp(
+                other_transport,
+                &PhaseShift::from_phases([10]),
+            )
+        );
+        assert!(
+            !session.should_send_init_transport_like_cpp(
+                other_transport,
+                &PhaseShift::from_phases([20]),
+            )
+        );
+    }
+
+    #[test]
+    fn visibility_distance_adds_both_combat_reaches_with_cpp_strict_boundary() {
+        let source = Position::ZERO;
+        let inside = Position::new(103.49, 0.0, 500.0, 0.0);
+        let boundary = Position::new(103.5, 0.0, 0.0, 0.0);
+
+        assert!(WorldSession::visibility_distance_allows_like_cpp(
+            &source, 1.5, &inside, 2.0, 100.0,
+        ));
+        assert!(
+            !WorldSession::visibility_distance_allows_like_cpp(&source, 1.5, &boundary, 2.0, 100.0,),
+            "C++ Position::IsInDist2d uses a strict less-than comparison"
+        );
     }
 
     #[test]
