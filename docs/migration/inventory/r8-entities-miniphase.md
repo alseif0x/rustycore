@@ -1,7 +1,8 @@
 # `#NEXT.R8.ENTITIES.1238` — issue #22 MotionMaster runtime tick and priority.
 
 C++ source-of-truth was re-checked in `Unit.cpp:418-480`,
-`MotionMaster.cpp:293-337,350+` and `ChaseMovementGenerator.cpp:68-89`. C++ advances
+`UnitAI.cpp:29-42`, `MotionMaster.cpp:293-337,350+,1255-1325` and
+`ChaseMovementGenerator.cpp:68-89`. C++ advances
 `UpdateSplineMovement(diff)` immediately before `i_motionMaster->Update(diff)`;
 `MotionMaster::Update` initializes/resets and updates only the selected top generator before
 resolving delayed actions; chase is a normal-priority active generator with
@@ -11,23 +12,27 @@ Each map-owned `WorldCreature` now retains a persistent `wow_movement::MotionMas
 default is reconstructed from the creature's idle/random/waypoint state. The single-owner global
 legacy frame advances the spline, ticks this stack exactly once per creature, and only then runs
 the selected concrete random or waypoint body. Entering combat installs matching runtime and
-represented chase entries; chase wins over the default, stops an already-launched wander spline
-so clients do not continue lower-priority movement, and removal on combat reset exposes the
-default again. Shared runtime storage required movement generators, generic initializers and
-delayed actions to be `Send + Sync`; no new async task or lock boundary was introduced.
+represented chase entries. The global aggro phase synchronizes that stack immediately and
+publishes the stop in the same tick, instead of waiting for the next movement pass. A selector
+proxy retains the represented active generator above chase, so highest-priority point/charge
+movement continues while normal-priority chase waits below it; chase stops only a superseded
+default wander spline, and removal on combat reset exposes the default again. Shared runtime
+storage required movement generators, generic initializers and delayed actions to be `Send +
+Sync`; no new async task or lock boundary was introduced.
 
 Focused regressions cover random-to-chase interruption/resume, the emitted stop opcode, one
-MotionMaster tick in the movement step, and one global tick independent of fanout recipients.
+MotionMaster tick in the movement step, one global tick independent of fanout recipients,
+same-aggro-frame runtime/publication, and preservation of a highest-priority point spline.
 The existing accredited C++ movement artifact
 `a25f2c2bbf60de6cda7e32f305d732733017e711eb474dd5dbf6e007690143a8`
 continues to anchor the exact instance-routed `SMSG_ON_MONSTER_MOVE` body, while the stop
 serializer retains its C++ `StopDistanceTolerance=2` shape.
 
-Validation: full `wow-movement` 126/0, `wow-entities` 665/0, `wow-world` 3083/0 and
+Validation: full `wow-movement` 126/0, `wow-entities` 665/0, `wow-world` 3085/0 and
 `wow-packet` 717/0 suites; `world-server` check; exact C++ movement golden; required
 `loot-single-item-claim` capture flow CLEAN 6/6; format and diff checks. A release build
 (Clang was used for vendored Detour after GCC 13 hit an internal compiler error) was installed
-as SHA-256 `18be945b53c36739e2ea8291a245d83901459d7e244005bf75f9d95a36e2c73d`;
+as SHA-256 `ef174c80ef9cbb3e92ffbe92ca13db8ee15bf66c390ff0a29cbcbce1bfd2f71e`;
 PM2 loaded that exact executable, opened 8085/8086, marked realm 1 online and enabled the
 single-owner `GlobalLegacy` creature runtime at 10 ms. No original-client chase observation is
 claimed by this issue.

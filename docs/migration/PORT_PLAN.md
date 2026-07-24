@@ -106,8 +106,10 @@ intent, no mutation — see STATE.md §0). Almost every item below is "convert r
 - [x] **M2.2** Wire `MotionMaster::update()` into the runtime tick: every legacy
   `WorldCreature` owns a persistent stack, the global frame advances spline then ticks that stack
   exactly once, and selected random/waypoint execution is interrupted by normal-priority chase.
-  The chase bridge emits a C++-shape movement stop until M2.5 supplies target pathing; moving the
-  remaining owner-dependent generator bodies behind the generic interface stays with M2.3.
+  The global aggro phase installs chase and emits its C++-shape movement stop in the same tick,
+  while a highest-priority point/charge generator remains selected above chase. M2.5 supplies
+  target pathing; moving the remaining owner-dependent generator bodies behind the generic
+  interface stays with M2.3.
 - [ ] **M2.3** Connect creature movement generators (random/waypoint) + load waypoint paths.
 - [ ] **M2.4** Query the Detour navmesh (`find_path`) instead of straight-line fallback.
 - [ ] **M2.5** Real threat: generate threat from damage/heal/taunt; target switch; aggro range by level diff; leash/evade home; call-for-help.

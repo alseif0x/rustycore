@@ -61,10 +61,11 @@ it byte-for-byte; the complete 717-test packet suite is clean with that regressi
 M2.2 adds one persistent `wow_movement::MotionMaster` to each legacy `WorldCreature` and advances
 it once from the globally owned creature frame, after spline position advancement as in
 `Unit::Update`. Random and waypoint execution is now gated by the selected stack entry; active
-combat chase has normal priority, interrupts an in-flight wander spline with the existing C++-shape
-stop packet, and exposes the default generator again when combat resets. This is a bounded runtime
-bridge: the owner-dependent random/waypoint work still runs in the existing concrete generators
-after stack selection, and real chase target pathing remains with M2.3/M2.5.
+combat chase has normal priority, interrupts an in-flight wander spline with the existing
+C++-shape stop packet in the same global aggro frame, but remains below a represented
+highest-priority point/charge generator. Combat reset exposes the default generator again. This
+is a bounded runtime bridge: the owner-dependent random/waypoint work still runs in the existing
+concrete generators after stack selection, and real chase target pathing remains with M2.3/M2.5.
 
 ---
 

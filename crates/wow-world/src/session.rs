@@ -3908,7 +3908,8 @@ pub struct LegacyCreatureAggroTickOutcomeLikeCpp {
     pub ai_can_attack_rejections: usize,
     pub alert_triggers: usize,
     pub alert_rejections: usize,
-    pub alert_plan: crate::map_manager::RuntimePlan,
+    pub movement_interrupts: usize,
+    pub plan: crate::map_manager::RuntimePlan,
     pub aggro_starts: usize,
     pub commands: Vec<wow_network::player_registry::CreatureAttackStartLikeCppCommand>,
 }
@@ -56240,7 +56241,7 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                                 use crate::map_manager::{RecipientRule, RuntimeEvent};
 
                                 outcome.alert_triggers += 1;
-                                outcome.alert_plan.events.push(RuntimeEvent {
+                                outcome.plan.events.push(RuntimeEvent {
                                     source_guid: guid,
                                     recipients: RecipientRule::MapBroadcastVisible {
                                         map_id,
@@ -56351,6 +56352,35 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                         effective_aggro_range,
                     )
                 {
+                    use wow_packet::ServerPacket;
+                    use wow_packet::packets::movement::MonsterMoveStop;
+
+                    creature.sync_runtime_motion_master_like_cpp();
+                    if creature.runtime_motion_master_current_kind_like_cpp()
+                        == Some(wow_movement::MovementGeneratorType::Chase)
+                        && let Some(stop) = creature.stop_move_spline_like_cpp()
+                    {
+                        use crate::map_manager::{RecipientRule, RuntimeEvent};
+
+                        outcome.movement_interrupts += 1;
+                        outcome.plan.events.push(RuntimeEvent {
+                            source_guid: guid,
+                            recipients: RecipientRule::NearbyVisible {
+                                source_guid: guid,
+                                map_id,
+                                instance_id,
+                                source_position: stop.position,
+                                range: creature.visibility_range_like_cpp(),
+                                required_3d: false,
+                            },
+                            packet_bytes: MonsterMoveStop {
+                                mover_guid: guid,
+                                current_pos: stop.position,
+                                spline_id: stop.spline_id,
+                            }
+                            .to_bytes(),
+                        });
+                    }
                     outcome.aggro_starts += 1;
                     outcome.commands.push(
                         wow_network::player_registry::CreatureAttackStartLikeCppCommand {
@@ -141688,6 +141718,9 @@ mod tests {
             .mutate_world_creature(creature_guid, |creature| {
                 creature.creature.ai_ownership_mut().aggro_radius = 5.0;
                 creature.creature.unit_mut().set_level(25);
+                creature
+                    .begin_move_spline_like_cpp(Position::new(20.0, 10.0, 0.0, 0.0))
+                    .expect("launch pre-aggro wander spline");
             })
             .unwrap();
         manager
@@ -141721,16 +141754,107 @@ mod tests {
         assert_eq!(command.victim_guid, player);
         assert_eq!(command.map_id, 0);
         assert_eq!(command.instance_id, 0);
-        let combat_target = {
+        assert_eq!(
+            outcome.movement_interrupts, 1,
+            "C++ AttackStart installs chase and interrupts lower-priority wander in the same update"
+        );
+        assert_eq!(outcome.plan.events.len(), 1);
+        let stop_event = &outcome.plan.events[0];
+        assert_eq!(stop_event.source_guid, creature_guid);
+        assert!(matches!(
+            &stop_event.recipients,
+            crate::map_manager::RecipientRule::NearbyVisible {
+                source_guid,
+                map_id: 0,
+                instance_id: 0,
+                required_3d: false,
+                ..
+            } if *source_guid == creature_guid
+        ));
+        let mut stop_packet = wow_packet::WorldPacket::from_bytes(&stop_event.packet_bytes);
+        assert_eq!(
+            stop_packet.read_uint16().expect("opcode"),
+            ServerOpcodes::OnMonsterMove as u16
+        );
+        let (combat_target, runtime_kind, has_active_spline) = {
             let guard = manager.read().unwrap();
-            guard
-                .find_creature(0, 0, creature_guid)
-                .unwrap()
-                .creature
-                .ai_ownership()
-                .combat_target
+            let creature = guard.find_creature(0, 0, creature_guid).unwrap();
+            (
+                creature.creature.ai_ownership().combat_target,
+                creature.runtime_motion_master_current_kind_like_cpp(),
+                creature.active_move_spline_like_cpp().is_some(),
+            )
         };
         assert_eq!(combat_target, Some(player));
+        assert_eq!(
+            runtime_kind,
+            Some(wow_movement::MovementGeneratorType::Chase)
+        );
+        assert!(!has_active_spline);
+    }
+
+    #[test]
+    fn legacy_creature_aggro_preserves_high_priority_point_spline_above_chase_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_210);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 5.0;
+                creature.creature.unit_mut().set_level(25);
+                creature
+                    .begin_move_spline_like_cpp(Position::new(20.0, 10.0, 0.0, 0.0))
+                    .expect("launch high-priority point spline");
+                creature
+                    .creature
+                    .unit_mut()
+                    .subsystems_mut()
+                    .motion
+                    .move_charge(42);
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let player = ObjectGuid::create_player(1, 91_211);
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &[legacy_aggro_candidate_like_cpp(
+                player,
+                Position::new(10.5, 10.5, 0.0, 0.0),
+            )],
+            legacy_aggro_hostile_config_with_rate_like_cpp(3.0),
+        );
+
+        assert_eq!(outcome.aggro_starts, 1);
+        assert_eq!(outcome.movement_interrupts, 0);
+        assert!(outcome.plan.events.is_empty());
+        let (runtime_kind, represented_kind, has_active_spline) = {
+            let guard = manager.read().unwrap();
+            let creature = guard.find_creature(0, 0, creature_guid).unwrap();
+            (
+                creature.runtime_motion_master_current_kind_like_cpp(),
+                creature
+                    .creature
+                    .unit()
+                    .subsystems()
+                    .motion
+                    .current_movement_generator()
+                    .kind,
+                creature.active_move_spline_like_cpp().is_some(),
+            )
+        };
+        assert_eq!(
+            runtime_kind,
+            Some(wow_movement::MovementGeneratorType::Point)
+        );
+        assert_eq!(represented_kind, MovementGeneratorKind::Point);
+        assert!(has_active_spline);
     }
 
     #[test]
@@ -143426,8 +143550,8 @@ mod tests {
         assert_eq!(outcome.visibility_rejections, 1);
         assert_eq!(outcome.alert_triggers, 1);
         assert_eq!(outcome.alert_rejections, 0);
-        assert_eq!(outcome.alert_plan.events.len(), 1);
-        let alert_event = &outcome.alert_plan.events[0];
+        assert_eq!(outcome.plan.events.len(), 1);
+        let alert_event = &outcome.plan.events[0];
         assert_eq!(alert_event.source_guid, creature_guid);
         assert!(matches!(
             &alert_event.recipients,
