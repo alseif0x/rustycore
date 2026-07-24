@@ -1,6 +1,6 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**Date:** 2026-07-24 · **Base:** `3.4.3` @ `fb83f552` plus local issue #23 movement-generator cadence closeout.
+**Date:** 2026-07-24 · **Base:** `3.4.3` @ `30440c39` plus local issue #24 Detour navmesh-query closeout.
 
 This document replaces the drifting status snapshots in `_INDEX.md` (2026-05-01, "5–15%"),
 the `MIGRATION_ROADMAP.md` §3 inherited table (which tells you not to trust it), and the
@@ -50,7 +50,7 @@ an effective table composed in C++ load order from `SpellInterrupts.db2`, offici
 overlays by DB2 record ID, world `serverside_spell` masks, and the interrupt-mask subset of
 `LoadSpellInfoCorrections`; this does not claim full server-side `SpellInfo` or correction parity.
 
-Creature-movement evidence (2026-07-24, issues #21–#23): M2.1's production implementation had already
+Creature-movement evidence (2026-07-24, issues #21–#24): M2.1's production implementation had already
 landed after the issue was opened. The global legacy tick launches random/waypoint `MoveSpline`s,
 serializes `SMSG_ON_MONSTER_MOVE`, and fans them to nearby sessions through the final
 `HaveAtClient` gate; PR #77 installed/restarted that runtime and manually verified visible
@@ -83,6 +83,85 @@ progress. The installed release (`3c210cdc…`) passed a connected bot login/sta
 received two `SMSG_ON_MONSTER_MOVE` packets and the server published 627 movement packets over
 327 visible-work ticks in the observed window. This closes the bounded live wander/patrol item,
 not Detour path exactness, formation/transport behavior, SmartAI callbacks or chase/threat.
+
+M2.4's opening diagnosis — "navmesh loaded but `find_path()` never invoked" — was **stale**.
+`wow-recastdetour` is a real vendored Detour build with `findPath`/`findStraightPath`/
+`moveAlongSurface`/`raycast` plus a ported `FindSmoothPath`/`FixupCorridor`/`GetSteerTarget`, the
+runtime pathfinder thread is created whenever `CONFIG_ENABLE_MMAPS` is on (C++ default `true`),
+and both live generators already resolved corridors and launched them through
+`MoveSplineInit::MovebyPath`. The real defects were in **what the query returned and when it was
+even attempted**, all four contrasted against `PathGenerator.cpp`:
+
+1. `PathGenerator::CreateFilter`/`UpdateFilter` (`PathGenerator.cpp:648-698`) derives the Detour
+   filter from the owner; both live call sites passed a hardcoded ground-only creature filter, so
+   amphibious owners could never cross `NAV_WATER`/`NAV_MAGMA_SLIME` polygons and combat/evade
+   owners never got `NAV_GROUND_STEEP`. The filter is now sampled per creature from
+   `CanWalk()`/`CanEnterWater()`/`IsInCombat()`/`IsInEvadeMode()`.
+2. `CalculatePath` answers a missing navmesh/tile with `BuildShortcut()` and
+   `PATHFIND_NORMAL | PATHFIND_NOT_USING_PATH` (`PathGenerator.cpp:79-86`), which
+   `RandomMovementGenerator::SetRandomLocation` happily launches. RustyCore mapped that same case
+   to a path *failure*, so wander on unmeshed terrain retried every 100 ms forever instead of
+   moving. Only a genuine Detour error stays a failure now.
+3. `BuildPolyPath` calls `BuildPointPath` exactly once (`PathGenerator.cpp:287`, `:527`). The Rust
+   corridor builder also ran a full `findStraightPath` pass whose result was then discarded — one
+   wasted Detour query per request, and its `PATHFIND_SHORTCUT`/`PATHFIND_SHORT` bits leaked into
+   the surviving smooth path, which made the callers reject a perfectly good navmesh route. The
+   point path is now built once, in the mode `_useStraightPath`/`_useRaycast` selects, and the
+   possibly clamped `endPoint` is threaded through while `GetEndPosition()` stays the requested
+   destination for the `_forceDestination` comparisons.
+4. `CalculatePath` requires `HaveTile(start)` **and** `HaveTile(dest)`; C++ satisfies both because
+   `TerrainInfo::LoadMMap` loads each grid's `.mmtile` as the grid loads. RustyCore demand-loads
+   from the path request and only consulted the start position, so any destination one tile over
+   reported "no navmesh" while the mesh sat on disk. Both endpoints are demand-loaded now.
+
+The three shortcut/failure `PathType` values are also bit-exact again: C++ `BuildShortcut()`
+*assigns* `PATHFIND_SHORTCUT` before the caller ORs onto it, so the no-poly and empty-`findPath`
+branches are plain `PATHFIND_NOPATH` and the point-path failures are exactly
+`SHORTCUT|NOPATH` / `SHORTCUT|SHORT`. A deterministic navmesh fixture (a walkable ring around an
+unwalkable centre cell) proves the live waypoint tick walks *around* the hole with real
+intermediate points; the same test degrades to the four-point straight line when pathfinding is
+disabled, so it is a genuine regression guard.
+
+Four further C++ branches were then closed in the same slice:
+
+5. **The mesh-hole exceptions.** `BuildPolyPath` grants `PATHFIND_NORMAL | PATHFIND_NOT_USING_PATH`
+   when the owner `CanFly()` (`PathGenerator.cpp:180,198-202`), and the far-from-poly branch also
+   shortcuts for a flying owner or one that `IsFalling()` towards a lower destination — the charge
+   case (`:221-240`). Those owner facts are now threaded into the Detour layer. The `CanSwim()`
+   halves still need `Map::GetLiquidStatus`; treating "no liquid data" as "not submerged" can only
+   withhold a shortcut C++ would grant, never invent one.
+6. **`UNIT_STATE_IGNORE_PATHFINDING`** is set from `CREATURE_FLAG_EXTRA_IGNORE_PATHFINDING`
+   (0x20000000) as `Creature::Create` does (`Creature.cpp:1154-1155`), through both the create
+   lifecycle and the runtime `flags_extra` seam the legacy registration path uses.
+7. **Corridor reuse.** The previous `_pathPolyRefs` now travel in the path request, so
+   `BuildPolyPath`'s subpath and 80%-prefix-plus-suffix branches (`:291-413`) are reachable, and
+   `GetPathPolyByPosition` (`:94-123`) is ported so `GetPolyByLocation` consults that corridor
+   before paying for `findNearestPoly` — which also changes the `distToStartPoly` feeding the
+   7.0-yard test. Random and chase keep their corridor for the generator's lifetime like C++;
+   waypoint and home get a fresh one per call because `MoveSplineInit::MoveTo` constructs a new
+   `PathGenerator`.
+8. **Chase and home now path.** `ChaseMovementGenerator::Update`
+   (`ChaseMovementGenerator.cpp:94-240`) and `HomeMovementGenerator::SetTargetLocation`
+   (`HomeMovementGenerator.cpp:60-82`) were already faithful Rust ports with **no caller**. Chase
+   drives the live tick with the victim's facts snapshotted by the tick driver (players from the
+   registry, creature victims from the map, both before the mutable borrow) because the creature
+   step has no object accessor; it applies the C++ destination choice, `forceDest = CanFly()`,
+   `ShortenPathUntilDist` against the victim, `SetFacing(target)` and the chase walk template. Home
+   replaces a *teleport*: the old `Returning` arm assigned `move_target` onto the creature position
+   with no spline and no packet. Both have around-obstacle tests against the real navmesh fixture
+   that fail when pathfinding is disabled.
+
+Still absent, and explicitly **not** claimed: **point/charge, fleeing and confused** generators are
+complete, unit-tested ports with no live trigger — nothing sets `UNIT_STATE_FLEEING`/`CONFUSED`
+(there are no fear/confuse aura handlers) and no live caller installs a Point generator, so wiring
+tick arms for them would only be exercisable from tests. Also open: mutual chase (needs the
+victim's `MotionMaster`), `IsWithinLOS` and `ShortenPathUntilDist`'s LOS test (VMap stub), the
+`CanSwim()` mesh-hole halves and `Map::IsUnderWater` (liquid), `Map::GetForceEnabled/Disabled
+NavMeshFilterFlags`, `_useRaycast`/`_useStraightPath` (no live caller),
+`MovePositionToFirstCollision` + `IsWithinLOS` gating the wander roll, VMAP/liquid-aware
+`NormalizePath`, off-mesh links/transports/formation, the reached-home spawn-health/addon reloads
+(respawn-owned here), and C++'s per-instance pathfinder concurrency — every map still serializes
+through one pathfinder thread.
 
 ---
 
@@ -163,7 +242,7 @@ fanout, or a per-Player `RestMgr`/`Player::Update` owner. The aggregate
 | Creature AI (threat gen / spell cast / waypoints / SmartAI / text) | **PARTIAL** | random wander and DB waypoint patrol are live; threat generation, combat spells/text and SmartAI interpretation remain absent |
 | Creature movement: spline broadcast (SMSG_MONSTER_MOVE) | **PARTIAL** | global legacy tick continuously launches and broadcasts random/waypoint splines on measured elapsed cadence; exact captured compressed-waypoint body is byte-clean |
 | MotionMaster tick | **PARTIAL** | persistent per-creature stack is ticked once by the global frame and selects random/waypoint/chase priority; concrete owner-bound bodies and broader generator callbacks remain |
-| Pathfinding (Detour navmesh query) | **STUB** | navmesh loaded; `find_path()` never invoked → straight-line |
+| Pathfinding (Detour navmesh query) | **PARTIAL** (random/waypoint/chase/home live) | real vendored Detour + ported `FindSmoothPath`; owner-derived filter, single `BuildPointPath`, both endpoint tiles demand-loaded, C++-exact no-navmesh shortcut, fly/falling mesh-hole exceptions, `IGNORE_PATHFINDING`, corridor reuse + `GetPathPolyByPosition`. Point/flee/confused have no live trigger; raycast/straight-path unreachable; mutual chase, VMAP LOS and liquid-aware `NormalizePath` absent |
 | Canonical map tick (`wow_map::MapManager`) | **STUB** | `wow-map/src/manager.rs:520` no AI/combat side effects |
 
 ### World-interaction & death — REPRESENTED-ONLY (handlers record intent, no mutation)

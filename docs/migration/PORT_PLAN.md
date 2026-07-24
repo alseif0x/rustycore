@@ -119,7 +119,29 @@ intent, no mutation — see STATE.md §0). Almost every item below is "convert r
   an installed bot run received two movement packets while the server published 627 across 327
   visible-work ticks. This does not claim Detour, formation/transport transforms, SmartAI
   callbacks or chase/threat parity.
-- [ ] **M2.4** Query the Detour navmesh (`find_path`) instead of straight-line fallback.
+- [x] **M2.4** Query the Detour navmesh (`find_path`) instead of straight-line fallback: the
+  "never invoked" diagnosis was stale — `wow-recastdetour` is a real vendored Detour build and both
+  live generators already launched corridors. Four contrasted defects in *what the query returned
+  and when it ran* are closed against `PathGenerator.cpp`: the Detour filter is derived per owner
+  (`CreateFilter`/`UpdateFilter`) instead of a hardcoded ground-only mask; a missing navmesh/tile
+  now yields the C++ `BuildShortcut()` + `PATHFIND_NORMAL | PATHFIND_NOT_USING_PATH` that callers
+  launch, instead of a failure that froze wander in a 100 ms retry loop; `BuildPointPath` runs
+  exactly once so a discarded straight pass can no longer leak `PATHFIND_SHORTCUT`/`SHORT` into a
+  usable smooth path; and both endpoint tiles are demand-loaded, so a destination one `.mmtile`
+  over no longer reports "no navmesh". Shortcut/failure `PathType` values are bit-exact.
+  A deterministic ring-around-a-hole navmesh fixture proves the live waypoint tick routes around
+  the obstacle with real intermediate points and fails when pathfinding is disabled.
+  Four further C++ branches were closed in the same slice: the `CanFly()`/falling mesh-hole and
+  far-from-poly shortcuts (`:180-202`, `:221-240`), `UNIT_STATE_IGNORE_PATHFINDING` from
+  `flags_extra` (`Creature.cpp:1154-1155`), corridor reuse plus `GetPathPolyByPosition`
+  (`:94-123`, `:291-413`), and **live pathing for chase and home** — both were faithful ports with
+  no caller, and home previously *teleported* the creature on evade. Both have around-obstacle
+  tests that fail with pathfinding disabled.
+  Not claimed: point/charge, fleeing and confused have no live trigger (no fear/confuse aura
+  handlers, no live `MovePoint` caller), so their ported generators stay unreachable; also open are
+  mutual chase, VMap LOS, the `CanSwim()` mesh-hole halves, raycast/straight-path modes,
+  liquid-aware `NormalizePath`, transports/formation/off-mesh links, and per-instance pathfinder
+  concurrency.
 - [ ] **M2.5** Real threat: generate threat from damage/heal/taunt; target switch; aggro range by level diff; leash/evade home; call-for-help.
 - [ ] **M2.6** Creature spell casting in combat (from `creature_template` spell list; cooldowns).
 - [ ] **M2.7** Creature reactions: on-aggro/death/evade `creature_text` emotes/yells/sounds.
