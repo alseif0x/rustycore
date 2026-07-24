@@ -63,9 +63,12 @@ it once from the globally owned creature frame, after spline position advancemen
 `Unit::Update`. Random and waypoint execution is now gated by the selected stack entry; active
 combat chase has normal priority, interrupts an in-flight wander spline with the existing
 C++-shape stop packet in the same global aggro frame, but remains below a represented
-highest-priority point/charge generator. Combat reset exposes the default generator again. This
-is a bounded runtime bridge: the owner-dependent random/waypoint work still runs in the existing
-concrete generators after stack selection, and real chase target pathing remains with M2.3/M2.5.
+highest-priority point/charge generator. The represented source lifecycle is advanced in that
+same frame and popped finalizers are applied before resynchronizing, so finite spline/timer
+generators release their selector proxy and expose chase/default naturally. Combat reset also
+exposes the default generator again. This is a bounded runtime bridge: the owner-dependent
+random/waypoint work still runs in the existing concrete generators after stack selection, and
+real chase target pathing remains with M2.3/M2.5.
 
 ---
 

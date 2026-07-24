@@ -20,9 +20,10 @@ use wow_database::{
 use wow_entities::{
     AllowedPositionZCaps, Creature, CreatureAddonLifecycleRecordLikeCpp, CreatureAiState,
     DEFAULT_HEIGHT_SEARCH, DistractMovementAction, EVENT_CHARGE_PREPATH, GenericMovementInform,
-    INVALID_HEIGHT, MovementGeneratorKind, MovementGeneratorRef, MovementGeneratorType,
-    MovementSlot, PhaseShift, PointMovementAction, PointMovementInform, RotateMovementUpdate,
-    Z_OFFSET_FIND_HEIGHT, allowed_position_z_from_ground_like_cpp, game_time_secs_like_cpp,
+    INVALID_HEIGHT, MotionMasterUpdateContext, MotionMasterUpdateOutcome, MovementGeneratorKind,
+    MovementGeneratorRef, MovementGeneratorType, MovementSlot, PhaseShift, PointMovementAction,
+    PointMovementInform, RotateMovementUpdate, Z_OFFSET_FIND_HEIGHT,
+    allowed_position_z_from_ground_like_cpp, game_time_secs_like_cpp,
 };
 use wow_map::{GridMapTerrain, SharedStaticVMapLineOfSightProvider, SpawnObjectType};
 use wow_movement::generators::CreatureRandomMovementType as MovementCreatureRandomMovementType;
@@ -1347,7 +1348,7 @@ impl WorldCreature {
         Self::from_canonical(creature, create_data)
     }
 
-    pub fn from_canonical(creature: Creature, mut create_data: CreatureCreateData) -> Self {
+    pub fn from_canonical(mut creature: Creature, mut create_data: CreatureCreateData) -> Self {
         let ai = creature.ai_ownership();
         create_data.npc_flags = (u64::from(ai.npc_flags2) << 32) | u64::from(ai.npc_flags);
         create_data.unit_flags = ai.unit_flags;
@@ -1357,6 +1358,11 @@ impl WorldCreature {
         create_data.ai_anim_kit_id = creature.unit().ai_anim_kit_id_like_cpp();
         create_data.movement_anim_kit_id = creature.unit().movement_anim_kit_id_like_cpp();
         create_data.melee_anim_kit_id = creature.unit().melee_anim_kit_id_like_cpp();
+        let _ = creature
+            .unit_mut()
+            .subsystems_mut()
+            .motion
+            .add_to_world_like_cpp();
         let runtime_motion_master = Self::new_runtime_motion_master_like_cpp(&creature);
         Self {
             creature,
@@ -1843,12 +1849,87 @@ impl WorldCreature {
         }
     }
 
-    /// Advances C++ `MotionMaster::Update` exactly once for this creature's
-    /// runtime frame and returns the generator selected by its priority stack.
+    fn finalize_runtime_represented_generator_like_cpp(
+        &mut self,
+        mut generator: MovementGeneratorRef,
+    ) {
+        match generator.kind {
+            MovementGeneratorKind::Point => {
+                let finalize = generator.finalize_point_like_cpp(true, true);
+                if finalize.clear_roaming_move {
+                    self.creature
+                        .unit_mut()
+                        .clear_unit_state(UnitState::ROAMING_MOVE.bits());
+                }
+                if let Some(inform) = finalize.inform {
+                    self.creature
+                        .record_ai_movement_inform(inform.kind.trinity_id(), inform.movement_id);
+                }
+            }
+            MovementGeneratorKind::Rotate => {
+                if let Some(inform) = generator.finalize_rotate_like_cpp(true, true).inform {
+                    self.creature
+                        .record_ai_movement_inform(inform.kind.trinity_id(), inform.movement_id);
+                }
+            }
+            MovementGeneratorKind::Distract => {
+                let finalize = generator.finalize_distract_like_cpp(true, true);
+                if finalize.set_home_orientation {
+                    let current = self.position();
+                    let home = self.home_position();
+                    self.creature.set_ai_position(Position::new(
+                        current.x,
+                        current.y,
+                        current.z,
+                        home.orientation,
+                    ));
+                }
+            }
+            MovementGeneratorKind::Effect => {
+                if let Some(inform) = generator.finalize_generic_like_cpp(true) {
+                    self.creature
+                        .record_ai_movement_inform(inform.kind.trinity_id(), inform.movement_id);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn tick_runtime_represented_motion_like_cpp(&mut self, diff_ms: u32) {
+        let unit = self.creature.unit();
+        let active_spline = self.active_move_spline.as_ref();
+        let context = MotionMasterUpdateContext {
+            diff_ms,
+            can_move: !unit.has_unit_state(UnitState::NOT_MOVE.bits()),
+            owner_exists: true,
+            owner_is_standing: unit.is_stand_state_like_cpp(),
+            spline_finalized: active_spline.is_none_or(MoveSpline::finalized),
+            spline_cyclic: active_spline.is_some_and(MoveSpline::is_cyclic),
+            current_orientation: self.position().orientation,
+        };
+        let outcome = self
+            .creature
+            .unit_mut()
+            .subsystems_mut()
+            .motion
+            .update_motion_master_like_cpp(context);
+        if let MotionMasterUpdateOutcome::Updated {
+            popped: Some(generator),
+            ..
+        } = outcome
+        {
+            self.finalize_runtime_represented_generator_like_cpp(generator);
+        }
+    }
+
+    /// Advances the represented active lifecycle and the runtime selector once
+    /// for this creature's frame, then returns the selected generator.
     pub fn tick_runtime_motion_master_like_cpp(
         &mut self,
         diff_ms: u32,
     ) -> Option<RuntimeMovementGeneratorType> {
+        self.sync_runtime_motion_master_like_cpp();
+        self.tick_runtime_represented_motion_like_cpp(diff_ms);
         self.sync_runtime_motion_master_like_cpp();
         self.runtime_motion_master.update(diff_ms);
         self.runtime_motion_master_ticks = self.runtime_motion_master_ticks.saturating_add(1);
@@ -5357,16 +5438,43 @@ mod tests {
             "selecting chase must not stop the higher-priority point spline"
         );
 
-        creature
-            .creature
-            .unit_mut()
-            .subsystems_mut()
-            .motion
-            .remove_generator_kind(MovementGeneratorKind::Point, MovementSlot::Active);
+        creature.finish_move();
         assert_eq!(
             creature.tick_runtime_motion_master_like_cpp(50),
             Some(RuntimeMovementGeneratorType::Chase),
-            "finishing the higher-priority generator exposes chase"
+            "finishing the higher-priority point spline pops its represented generator and exposes chase"
+        );
+    }
+
+    #[test]
+    fn world_creature_motion_master_expires_finite_distract_and_exposes_chase_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 70_012);
+        let target = ObjectGuid::create_player(1, 7012);
+        let mut creature = test_creature(guid);
+        creature
+            .begin_distract_movement_like_cpp(10, 1.25)
+            .expect("launch finite distract");
+        creature.enter_combat(target);
+
+        assert_eq!(
+            creature.tick_runtime_motion_master_like_cpp(10),
+            Some(RuntimeMovementGeneratorType::Distract),
+            "C++ Distract remains selected while its timer has not expired"
+        );
+        assert_eq!(
+            creature.tick_runtime_motion_master_like_cpp(1),
+            Some(RuntimeMovementGeneratorType::Chase),
+            "the represented finite generator must pop and remove its runtime proxy"
+        );
+        assert_eq!(
+            creature
+                .creature
+                .unit()
+                .subsystems()
+                .motion
+                .current_movement_generator()
+                .kind,
+            MovementGeneratorKind::Chase
         );
     }
 

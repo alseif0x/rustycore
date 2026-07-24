@@ -16,23 +16,26 @@ represented chase entries. The global aggro phase synchronizes that stack immedi
 publishes the stop in the same tick, instead of waiting for the next movement pass. A selector
 proxy retains the represented active generator above chase, so highest-priority point/charge
 movement continues while normal-priority chase waits below it; chase stops only a superseded
-default wander spline, and removal on combat reset exposes the default again. Shared runtime
-storage required movement generators, generic initializers and delayed actions to be `Send +
-Sync`; no new async task or lock boundary was introduced.
+default wander spline. The same frame advances the represented source generator and applies its
+popped finalizer before resynchronizing the selector, so finite Point/Effect spline completion
+and Rotate/Distract timers cannot pin the proxy above chase/default forever. Combat reset exposes
+the default again. Shared runtime storage required movement generators, generic initializers and
+delayed actions to be `Send + Sync`; no new async task or lock boundary was introduced.
 
 Focused regressions cover random-to-chase interruption/resume, the emitted stop opcode, one
 MotionMaster tick in the movement step, one global tick independent of fanout recipients,
-same-aggro-frame runtime/publication, and preservation of a highest-priority point spline.
+same-aggro-frame runtime/publication, preservation then natural completion of a highest-priority
+point spline, and finite Distract expiry exposing chase.
 The existing accredited C++ movement artifact
 `a25f2c2bbf60de6cda7e32f305d732733017e711eb474dd5dbf6e007690143a8`
 continues to anchor the exact instance-routed `SMSG_ON_MONSTER_MOVE` body, while the stop
 serializer retains its C++ `StopDistanceTolerance=2` shape.
 
-Validation: full `wow-movement` 126/0, `wow-entities` 665/0, `wow-world` 3085/0 and
+Validation: full `wow-movement` 126/0, `wow-entities` 665/0, `wow-world` 3086/0 and
 `wow-packet` 717/0 suites; `world-server` check; exact C++ movement golden; required
 `loot-single-item-claim` capture flow CLEAN 6/6; format and diff checks. A release build
 (Clang was used for vendored Detour after GCC 13 hit an internal compiler error) was installed
-as SHA-256 `ef174c80ef9cbb3e92ffbe92ca13db8ee15bf66c390ff0a29cbcbce1bfd2f71e`;
+as SHA-256 `c55231e77d4c587e8c8e5542a99ddd77e097ca30a8cc91fecf397bf68b1d8903`;
 PM2 loaded that exact executable, opened 8085/8086, marked realm 1 online and enabled the
 single-owner `GlobalLegacy` creature runtime at 10 ms. No original-client chase observation is
 claimed by this issue.
