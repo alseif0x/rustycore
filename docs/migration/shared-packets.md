@@ -331,7 +331,7 @@ helper) actually do affect wire protocol.
 | `ByteBuffer::ReadPackedUInt64(uint64&)` | — (subsumed by `read_packed_guid`) | ⚠️ | No standalone 8-byte packed reader. `read_packed_guid` reads 16 bytes (low+high). If a future opcode needs the bare 64-bit form (e.g. for a non-GUID quantity packed by mask) it isn't available. |
 | `ByteBuffer::AppendPackedUInt64(uint64)` | — | ⚠️ | Same as above on the write side. |
 | `ObjectGuid` `operator<<`/`operator>>` (low+high mask, 128-bit) | `write_packed_guid(&ObjectGuid)` / `read_packed_guid()` | ✅ | Same algorithm: low_mask (1 byte), high_mask (1 byte), then non-zero bytes of low LE, then non-zero bytes of high LE. Verified against `src/server/game/Entities/Object/ObjectGuid.cpp:756-786`. wotlk_classic uses the 128-bit form (the §13 hypothesis "WotLK is 64-bit packed" was wrong for this branch). |
-| `ByteBuffer::appendPackXYZ(x, y, z)` | — | ❌ missing | Compressed position used in SMSG_ON_MONSTER_MOVE compressed-path branches. `MonsterMove` in `packets/movement.rs:347` currently writes 3 raw f32, which is wire-correct only for `UncompressedPath`. Sub-task #PACKETS.10. |
+| `ByteBuffer::appendPackXYZ(x, y, z)` | `WorldPacket::write_packed_xyz` | ✅ | `MonsterMove` uses the packed-u32 helper for every `packed_deltas` entry. `monster_move_matches_real_cpp_waypoint_capture_bytes` verifies the compressed path byte-for-byte against a real C++ `SMSG_ON_MONSTER_MOVE` body. |
 | `ByteBuffer::clear()` | — | ❌ missing | Reset write side without dropping the buffer. Rare. |
 | `ByteBuffer::resize(n)` / `reserve(n)` | (`BytesMut` has its own) | ✅ | Different API surface; equivalent capability. |
 | `ByteBuffer::DEFAULT_SIZE = 0x1000` | `BytesMut::with_capacity(64)` in `new_empty()` | ⚠️ | 64 vs 4096. For typical SMSG payloads (>64 bytes) the buffer grows several times. Minor perf impact, not correctness. Sub-task #PACKETS.11. |
@@ -344,7 +344,11 @@ helper) actually do affect wire protocol.
 
 **B. `PutBits` / `bitwpos` missing** — required for the C++ pattern of writing a bit-packed count placeholder, then writing N entries, then back-patching the count. Without it, any port of such handler must use a two-pass collect-then-write idiom (already documented in `AGENTS.md` § "Patterns to follow"), which is fine for `Vec<Vec<u8>>` of *whole packets* but not for *bits inside one packet*. Severity: medium-high for any future ObjectMgr / movement-update port. **#PACKETS.8.**
 
-**C. `appendPackXYZ` missing** — `MonsterMove` (`packets/movement.rs:328-356`) currently sends raw f32 triplets. C++ TC uses `appendPackXYZ` (ByteBuffer.h:583-590) when the spline flag set indicates compressed path. If any RustyCore caller ever sets `SplineFlag::CompressedPath`, the on-the-wire bytes will be 12 bytes (3×f32) instead of 4 bytes (packed u32) and the client will desync the movement spline. The existing impl carries a comment "Simplified version" — confirms this is a known gap, not a regression. Severity: low while compressed splines are unused; high once they are. **#PACKETS.10.**
+**C. `appendPackXYZ` closed** — `WorldPacket::write_packed_xyz` mirrors
+`ByteBuffer::appendPackXYZ` (ByteBuffer.h:583-590), and `MonsterMove` writes its
+`packed_deltas` through that helper. `monster_move_matches_real_cpp_waypoint_capture_bytes`
+now verifies the complete 117-byte body against a real C++ waypoint-movement capture.
+**#PACKETS.10 / #NEXT.R8.ENTITIES.1237.**
 
 **D. `wpos`/`bitwpos` setters missing** — the Rust API has no way to inspect or set the write cursor. Most handlers don't need this, but the family of "write placeholder, fill in later" patterns common in TC handlers cannot be ported directly. Severity: low until needed. Pairs with #PACKETS.8.
 
@@ -413,7 +417,7 @@ Append to §9 (priority H = wire-correctness, M = developer ergonomics, L = nice
 
 - [ ] **#PACKETS.8** Implement `put_bits(pos: usize, value: u32, n: u32)` + `bit_write_pos() -> usize` + `bit_write_pos_set(pos: usize)`. Required for back-patching bit-packed lengths. (M, blocks any movement-update / dynamic-list port that needs lazy length write) — H once that work starts.
 - [ ] **#PACKETS.9** `read_float` / `read_double` reject NaN/Inf with `Err(PacketError::InvalidValue("float", "non-finite"))`. Add `InvalidValue { ty: &'static str, value: String }` variant to `PacketError`. (H — security/robustness)
-- [ ] **#PACKETS.10** Implement `append_pack_xyz(x: f32, y: f32, z: f32)` per ByteBuffer.h:583-590 (`((x/0.25) & 0x7FF) | ((y/0.25) & 0x7FF)<<11 | ((z/0.25) & 0x3FF)<<22` written as u32). Wire it into `MonsterMove` for `SplineFlag::CompressedPath`. (M — protocol correctness for compressed splines)
+- [x] **#PACKETS.10** `WorldPacket::write_packed_xyz(x, y, z)` implements ByteBuffer.h:583-590 (`((x/0.25) & 0x7FF) | ((y/0.25) & 0x7FF)<<11 | ((z/0.25) & 0x3FF)<<22` written as u32), and `MonsterMove` uses it for the compressed spline deltas. Exact C++ capture coverage: `#NEXT.R8.ENTITIES.1237`.
 - [ ] **#PACKETS.11** Bump `BytesMut::with_capacity` in `new_empty()` from 64 → 1024 (or 4096 to match C++ DEFAULT_SIZE). Measure with criterion before/after on character-enum response. (L — perf only)
 - [ ] **#PACKETS.12** Decide whether to add a ring-buffer / `Normalize`-like wrapper around `wow-network`'s read path, or document explicitly that one-shot `read_exact` per message is the chosen design. (L — currently fine)
 - [ ] **#PACKETS.13** Add `read_double() -> Result<f64>` and `write_double(v: f64)`. (L)
@@ -424,5 +428,4 @@ Existing #PACKETS.1 (cross-impl bit roundtrip test) — superseded by §13.4; cl
 Existing #PACKETS.2 (`ReadPackedGuid` / `WritePackedGuid`) — done (write_packed_guid, read_packed_guid, see ObjectGuid 128-bit confirmation in §13.2).
 Existing #PACKETS.3 (string encoding per opcode) — sampled 5/many; close-to-done but the full sweep across all ~50 packet types remains future work.
 Existing #PACKETS.4 (`append_bytes` / `read_bytes`) — done (`write_bytes`, `read_bytes`).
-
 

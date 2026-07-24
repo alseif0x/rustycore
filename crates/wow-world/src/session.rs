@@ -141352,6 +141352,8 @@ mod tests {
                 ai.wander_delay_ms = 0;
                 ai.move_start_ms = 0;
                 ai.wander_radius = 3.0;
+                creature.seed_runtime_rng_like_cpp(0x9008);
+                creature.backdate_runtime_clock_for_test(Duration::from_millis(10));
             })
             .unwrap();
         manager
@@ -141363,9 +141365,6 @@ mod tests {
             enabled: false,
             ..Default::default()
         };
-        // Movement uses the creature-local monotonic clock. Cross the first
-        // millisecond explicitly instead of depending on CI runner speed.
-        std::thread::sleep(Duration::from_millis(1));
         let outcome = run_legacy_creature_movement_tick_once_like_cpp(
             &manager,
             Some(&canonical),

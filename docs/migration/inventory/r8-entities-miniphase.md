@@ -1,3 +1,36 @@
+# `#NEXT.R8.ENTITIES.1237` — issue #21 creature MonsterMove broadcast.
+
+C++ source-of-truth was re-checked in
+`Movement/Spline/MoveSplineInit.cpp:57-148`,
+`Server/Packets/MovementPackets.cpp:291-365,516-602`, and
+`Entities/Object/Object.cpp:1784-1795`. The issue's “splines are never serialized/sent”
+diagnosis had become stale after it was opened: Rust now maps real `MoveSpline` state into the
+complete `MovementMonsterSpline` layout, the global legacy movement tick launches random and
+waypoint splines, and `NearbyVisible` delivery reaches same-map/instance sessions before their
+final per-session `HaveAtClient` check. The stale runtime fixtures are repaired to follow C++
+creation order (`Creature::Create` binds the map before `AddToWorld`) and to select
+`RANDOM_MOTION_TYPE` explicitly, as C++ derives it from spawn/template data. The one-shot,
+combined-runtime and production-loop tests then prove one globally-owned launch is resolved once,
+reaches two nearby clients and excludes a wrong-map client. The global-tick fixture also uses a
+fixed RNG seed and an explicitly backdated creature-local test clock, so its first launch no
+longer depends on entropy or scheduler timing.
+
+PR #77 installed/restarted the Rust server and manually verified visible Durotar/Razormane
+movement in the original client, including the terrain-normalized path fix. This issue adds the
+missing C++ wire golden: packet 89 from accredited raw C++ artifact
+`a25f2c2bbf60de6cda7e32f305d732733017e711eb474dd5dbf6e007690143a8` is a 117-byte
+compressed-waypoint `SMSG_ON_MONSTER_MOVE` on the instance socket. Rust reproduces its body
+exactly, including the packed creature GUID, position, flushed outer bits, spline flags/timing,
+one full path point and ten packed deltas. The bounded M2.1 behavior is closed, while this
+inventory row remains `represented-partial`: general MotionMaster update ownership, remaining
+generator/path-store breadth, transport transforms and `SMSG_FLIGHT_SPLINE_SYNC` remain with
+M2.2/M2.3 and later movement work.
+
+Validation: focused serializer 4/0, movement-step 6/0 and world-server runtime 3/0 tests; 100/100
+repeated deterministic global-tick runs; full `wow-packet` 717/0 and `wow-world` 3081/0 suites;
+`world-server` check; all 137 committed `capture-diff` tests; and the required
+`loot-single-item-claim` flow CLEAN with six matched packets.
+
 # `#NEXT.R8.ENTITIES.1236` — issue #11 world-object visibility coverage and rules.
 
 C++ source-of-truth was re-checked in `Map.cpp:428-494,1927-1957`,

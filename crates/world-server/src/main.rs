@@ -25888,8 +25888,18 @@ mmap.enablePathFinding = 0
             ai.move_start_ms = 0;
             ai.wander_radius = 3.0;
         }
+        world_creature
+            .creature
+            .set_default_movement_type_runtime_like_cpp(
+                wow_entities::MovementGeneratorType::Random,
+            );
 
         let mut canonical_creature = world_creature.creature.clone();
+        canonical_creature
+            .unit_mut()
+            .world_mut()
+            .set_map(0, 0)
+            .unwrap();
         canonical_creature
             .unit_mut()
             .world_mut()
@@ -26042,7 +26052,17 @@ mmap.enablePathFinding = 0
             ai.wander_radius = 3.0;
             ai.aggro_radius = 0.0;
         }
+        moving_creature
+            .creature
+            .set_default_movement_type_runtime_like_cpp(
+                wow_entities::MovementGeneratorType::Random,
+            );
         let mut canonical_moving = moving_creature.creature.clone();
+        canonical_moving
+            .unit_mut()
+            .world_mut()
+            .set_map(0, 0)
+            .unwrap();
         canonical_moving
             .unit_mut()
             .world_mut()
@@ -26330,8 +26350,18 @@ mmap.enablePathFinding = 0
             ai.aggro_radius = 0.0;
             ai.swing_timer_ms = u64::MAX;
         }
+        world_creature
+            .creature
+            .set_default_movement_type_runtime_like_cpp(
+                wow_entities::MovementGeneratorType::Random,
+            );
 
         let mut canonical_creature = world_creature.creature.clone();
+        canonical_creature
+            .unit_mut()
+            .world_mut()
+            .set_map(0, 0)
+            .unwrap();
         canonical_creature
             .unit_mut()
             .world_mut()

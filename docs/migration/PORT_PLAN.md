@@ -89,9 +89,7 @@ intent, no mutation — see STATE.md §0). Almost every item below is "convert r
   decoded four consecutive large packets through one persistent inflater.
 - [ ] **M1.3** Close the 33 login-burst divergences (**#9–#12**, `world-load-audit.md`):
   proficiency set, AccountDataTimes/TutorialFlags resend, ordering, FeatureSystemStatus, MOTD, etc.
-  Issues #9–#10 are merged. Issue #11's 1221–1227 visibility slice is implemented and locally
-  validated, including review follow-up for live visible-player fields with distinct base mana
-  and current-transport attachment; issue #12 retains the later movement/order rows and the full
+  Issues #9–#11 are merged. Issue #12 retains the later movement/order rows and the full
   capture/original-client exit.
 - [x] **M1.4** Re-audit and fix the bounded CREATE-block UpdateField VALUE gaps (issue #10,
   `world-load-audit.md` cross-cutting). Five findings were already fixed, player power slots were
@@ -101,7 +99,10 @@ intent, no mutation — see STATE.md §0). Almost every item below is "convert r
 - [ ] **M1 exit:** fresh character logs in, bags open, correct UI, no Lua errors, login burst capture-clean.
 
 ### M2 — A world that feels alive
-- [ ] **M2.1** Broadcast creature movement: serialize + send `SMSG_MONSTER_MOVE` from computed splines (currently never sent).
+- [x] **M2.1** Broadcast creature movement (issue #21): the global legacy tick launches
+  random/waypoint splines and sends `SMSG_ON_MONSTER_MOVE` to nearby visible clients. PR #77
+  supplied installed/original-client validation; issue #21 pins a real C++ compressed-waypoint
+  packet and reproduces all 117 body bytes exactly in Rust.
 - [ ] **M2.2** Wire `MotionMaster::update()` into the runtime tick; route generators through the priority stack (not inline).
 - [ ] **M2.3** Connect creature movement generators (random/waypoint) + load waypoint paths.
 - [ ] **M2.4** Query the Detour navmesh (`find_path`) instead of straight-line fallback.
