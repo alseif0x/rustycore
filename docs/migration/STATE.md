@@ -1,6 +1,6 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**Date:** 2026-07-24 · **Base:** `3.4.3` @ `354ac25a` plus local issue #22 MotionMaster runtime wiring.
+**Date:** 2026-07-24 · **Base:** `3.4.3` @ `fb83f552` plus local issue #23 movement-generator cadence closeout.
 
 This document replaces the drifting status snapshots in `_INDEX.md` (2026-05-01, "5–15%"),
 the `MIGRATION_ROADMAP.md` §3 inherited table (which tells you not to trust it), and the
@@ -50,7 +50,7 @@ an effective table composed in C++ load order from `SpellInterrupts.db2`, offici
 overlays by DB2 record ID, world `serverside_spell` masks, and the interrupt-mask subset of
 `LoadSpellInfoCorrections`; this does not claim full server-side `SpellInfo` or correction parity.
 
-Creature-movement evidence (2026-07-24, issues #21–#22): M2.1's production implementation had already
+Creature-movement evidence (2026-07-24, issues #21–#23): M2.1's production implementation had already
 landed after the issue was opened. The global legacy tick launches random/waypoint `MoveSpline`s,
 serializes `SMSG_ON_MONSTER_MOVE`, and fans them to nearby sessions through the final
 `HaveAtClient` gate; PR #77 installed/restarted that runtime and manually verified visible
@@ -68,7 +68,21 @@ same frame and popped finalizers are applied before resynchronizing, so finite s
 generators release their selector proxy and expose chase/default naturally. Combat reset also
 exposes the default generator again. This is a bounded runtime bridge: the owner-dependent
 random/waypoint work still runs in the existing concrete generators after stack selection, and
-real chase target pathing remains with M2.3/M2.5.
+real chase target pathing remains with M2.5.
+
+M2.3 re-audited the existing world startup loader against `WaypointManager::LoadPaths`: the
+issue's “no waypoint path loader” diagnosis was stale. The current DB loads 7,698 parent paths
+and 142,185 ordered nodes, and 5,419 waypoint spawns resolve a nonzero addon path. The remaining
+live defect was cadence: the spline advanced against elapsed wall time while random/waypoint
+timers received a fixed configured 10 ms, so scheduler delay could finalize the spline before
+the generator timer and stretch patrol re-arming in proportion to runtime lag. The single existing Tokio owner now measures and
+clamps the real elapsed frame `diff`, matching the C++ `World::Update(diff)` →
+`MapManager::Update(diff)` contract, without adding tasks or holding a lock across an await.
+Positive, negative and long-horizon regressions prove random re-arming and multi-node waypoint
+progress. The installed release (`3c210cdc…`) passed a connected bot login/stand smoke: the bot
+received two `SMSG_ON_MONSTER_MOVE` packets and the server published 627 movement packets over
+327 visible-work ticks in the observed window. This closes the bounded live wander/patrol item,
+not Detour path exactness, formation/transport behavior, SmartAI callbacks or chase/threat.
 
 ---
 
@@ -146,9 +160,9 @@ fanout, or a per-Player `RestMgr`/`Player::Update` owner. The aggregate
 | Aura periodic tick (DoT/HoT) + ~255 aura types | **STUB** (~5 types) | `session.rs:27810` expiry only; `unit_subsystems.rs:12-14` |
 | Proc system | **ABSENT** | `SpellAuraOptionsEntry` fields unused |
 | Channeled / missiles / ground-AOE / DynamicObject | **ABSENT** | no lifecycle state machine |
-| Creature AI (threat gen / spell cast / waypoints / SmartAI / text) | **STUB** | `wow-ai/src/lib.rs` = selection only; "stand+aggro+melee"; SmartAI never interpreted |
-| Creature movement: spline broadcast (SMSG_MONSTER_MOVE) | **PARTIAL** | global legacy tick launches and broadcasts random/waypoint splines; exact captured compressed-waypoint body is byte-clean |
-| MotionMaster tick | **PARTIAL** | persistent per-creature stack is ticked once by the global frame and selects random/waypoint/chase priority; broader owner-bound generator execution remains |
+| Creature AI (threat gen / spell cast / waypoints / SmartAI / text) | **PARTIAL** | random wander and DB waypoint patrol are live; threat generation, combat spells/text and SmartAI interpretation remain absent |
+| Creature movement: spline broadcast (SMSG_MONSTER_MOVE) | **PARTIAL** | global legacy tick continuously launches and broadcasts random/waypoint splines on measured elapsed cadence; exact captured compressed-waypoint body is byte-clean |
+| MotionMaster tick | **PARTIAL** | persistent per-creature stack is ticked once by the global frame and selects random/waypoint/chase priority; concrete owner-bound bodies and broader generator callbacks remain |
 | Pathfinding (Detour navmesh query) | **STUB** | navmesh loaded; `find_path()` never invoked → straight-line |
 | Canonical map tick (`wow_map::MapManager`) | **STUB** | `wow-map/src/manager.rs:520` no AI/combat side effects |
 

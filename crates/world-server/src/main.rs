@@ -14401,10 +14401,28 @@ fn spawn_legacy_creature_runtime_update_loop_like_cpp(
             tokio::time::interval(Duration::from_millis(u64::from(tick_interval_ms.max(1))));
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
+        // Track real wall-clock elapsed between ticks. C++ `World::Update(diff)`
+        // / `MapManager::Update(diff)` feed the measured frame diff to
+        // `MotionMaster::Update` so `_timer.Update(diff)` advances at real time.
+        // The canonical map loop already does this; the legacy creature loop
+        // previously passed the constant `tick_interval_ms`, which let the
+        // generator timer drift behind the spline's real-clock finalization and
+        // delayed wander re-arming in proportion to scheduler lag. Mirror the
+        // canonical loop here.
+        let mut last_tick = Instant::now();
+
         loop {
             interval.tick().await;
             let stop_after_tick = respawn_db_producer_stop.load(Ordering::Acquire);
             let now = Instant::now();
+            let diff_ms = now
+                .duration_since(last_tick)
+                .as_millis()
+                .min(u128::from(u32::MAX)) as u32;
+            last_tick = now;
+            if diff_ms == 0 {
+                continue;
+            }
             let legacy_for_tick = Arc::clone(&legacy_map_manager);
             let canonical_for_tick = Arc::clone(&canonical_map_manager);
             let map_store_for_tick = Arc::clone(&map_store);
@@ -14423,7 +14441,7 @@ fn spawn_legacy_creature_runtime_update_loop_like_cpp(
                     &mmap_config_for_tick,
                     mmap_pathfinder_for_tick.as_deref(),
                     aggro_config_for_tick,
-                    tick_interval_ms,
+                    diff_ms,
                     now,
                     registry_for_tick.as_ref(),
                     Some(&respawn_db_mutation_order_for_tick),

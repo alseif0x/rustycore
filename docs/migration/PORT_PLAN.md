@@ -109,9 +109,16 @@ intent, no mutation — see STATE.md §0). Almost every item below is "convert r
   The global aggro phase installs chase and emits its C++-shape movement stop in the same tick,
   while a highest-priority point/charge generator remains selected above chase and its
   represented finite lifecycle releases the selector proxy on completion. M2.5 supplies target
-  pathing; moving the remaining owner-dependent generator bodies behind the generic interface
-  stays with M2.3.
-- [ ] **M2.3** Connect creature movement generators (random/waypoint) + load waypoint paths.
+  pathing; moving every owner-dependent generator body behind one generic Unit interface remains
+  wider movement architecture work.
+- [x] **M2.3** Connect creature movement generators (random/waypoint) + load waypoint paths:
+  startup already loaded the exact C++ parent/node query shape and current data resolves 7,698
+  paths, 142,185 nodes and 5,419 waypoint spawns. The global owner now supplies measured elapsed
+  `diff` to spline and generator timers, so scheduler delay cannot make random or waypoint
+  re-arming lag behind a finalized leg. Long-horizon random and multi-node waypoint regressions pass;
+  an installed bot run received two movement packets while the server published 627 across 327
+  visible-work ticks. This does not claim Detour, formation/transport transforms, SmartAI
+  callbacks or chase/threat parity.
 - [ ] **M2.4** Query the Detour navmesh (`find_path`) instead of straight-line fallback.
 - [ ] **M2.5** Real threat: generate threat from damage/heal/taunt; target switch; aggro range by level diff; leash/evade home; call-for-help.
 - [ ] **M2.6** Creature spell casting in combat (from `creature_template` spell list; cooldowns).
