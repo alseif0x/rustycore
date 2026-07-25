@@ -1306,6 +1306,16 @@ pub fn reuse_previous_poly_path_like_cpp(
         .unwrap_or_default();
 
     if suffix.is_empty() {
+        // C++ does NOT treat an empty/failed suffix as a shortcut+NOPATH here.
+        // `PathGenerator.cpp:401-412` logs the failure and deliberately keeps
+        // the prefix ("this is probably an error state, but we'll leave it and
+        // hopefully recover on the next Update; we still need to copy our
+        // prefix"), setting `_polyLength = prefixPolyLength + 0 - 1`. The tail of
+        // `BuildPolyPath` (`:518-524`) then marks it `PATHFIND_INCOMPLETE`
+        // because the last poly is not `endPoly`, and still builds a point path
+        // along the retained prefix — which starts at the creature's own start
+        // poly, so it advances toward the destination and re-paths next tick.
+        // Returning `ShortcutNoPath` here would diverge from that.
         prefix.pop();
         return Ok(PreviousPolyPathLikeCpp::PolyRefs(prefix));
     }
