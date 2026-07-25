@@ -99,7 +99,13 @@ Four further C++ branches were closed in the same slice:
    `findNearestPoly` (`:94-158`) — which also changes the `distToStartPoly` feeding the 7.0-yard
    far-from-poly test. Random and chase keep their corridor for the generator's lifetime as C++
    does; waypoint and home get an empty one because `MoveSplineInit::MoveTo` builds a fresh
-   `PathGenerator` per call.
+   `PathGenerator` per call. The disputed proximity metric is pinned as full 3D `dtVdistSqr`, not
+   2D; its comparison is against the squared literal `3.0f` (effective radius `sqrt(3)`), which is
+   retained because changing it to `9.0` would be speculative and can select a different stacked
+   surface. A failed suffix retains the shortened non-empty prefix exactly as C++ intends so the
+   next update can recover. The one-prefix/empty-suffix edge deliberately recalculates: C++ sets
+   `_polyLength` to zero and then indexes `_pathPolyRefs[_polyLength - 1]`, so reproducing it would
+   be undefined behavior rather than compatibility.
 8. **Chase and home now path.** `ChaseMovementGenerator::update_like_cpp` and
    `HomeMovementGenerator` were already faithful ports with **no caller anywhere outside
    `wow-movement`'s own tests**. Chase drives the live tick: because the creature step has no
@@ -107,7 +113,14 @@ Four further C++ branches were closed in the same slice:
    `PlayerRegistry`, creature victims from the legacy map, both through immutable lookups that
    finish before the mutable borrow), and the resulting `ChaseLaunchPlan` is executed with the C++
    destination choice (`:177-191`), `forceDest = owner->CanFly()`, `ShortenPathUntilDist` against
-   the victim at `maxTarget`, `SetFacing(target)` and the creature chase walk template. Home
+   the victim at `maxTarget`, `SetFacing(target)` and the creature chase walk template. Rust also
+   deliberately assigns the computed move-toward/move-away direction. C++ tests
+   `moveToward != _movingTowards` and uses `_movingTowards` to select the periodic min/max bound,
+   but never stores `moveToward`; leaving the default `true` can stop a move-away path immediately.
+   The focused regression proves the owner keeps moving until the minimum bound is reached. This
+   is client-visible only for a too-close chase that must move away; no accredited capture in this
+   slice exercises that branch, so no golden is silently re-pinned and connected observation
+   remains outstanding. Home
    replaces an outright **teleport**: the old `Returning` arm called `finish_move()`, which assigns
    `move_target` straight onto the creature position with no spline and no packet, and because
    `reset_combat` sets no duration `movement_finished()` was already true on the first frame. It now

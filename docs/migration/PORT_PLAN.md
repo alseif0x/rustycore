@@ -136,7 +136,10 @@ intent, no mutation — see STATE.md §0). Almost every item below is "convert r
   `flags_extra` (`Creature.cpp:1154-1155`), corridor reuse plus `GetPathPolyByPosition`
   (`:94-123`, `:291-413`), and **live pathing for chase and home** — both were faithful ports with
   no caller, and home previously *teleported* the creature on evade. Both have around-obstacle
-  tests that fail with pathfinding disabled.
+  tests that fail with pathfinding disabled. Two proven legacy defects are repaired rather than
+  copied: a one-prefix/empty-suffix corridor recalculates before C++'s zero-length tail underflow,
+  and chase stores the computed move-away direction that C++ reads but never assigns. The normal
+  failed-suffix prefix recovery and the 3D squared `< 3.0f` corridor lookup remain C++-faithful.
   Not claimed: point/charge, fleeing and confused have no live trigger (no fear/confuse aura
   handlers, no live `MovePoint` caller), so their ported generators stay unreachable; also open are
   mutual chase, VMap LOS, the `CanSwim()` mesh-hole halves, raycast/straight-path modes,

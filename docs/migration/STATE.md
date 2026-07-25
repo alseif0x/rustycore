@@ -13,6 +13,17 @@ findings, 25 open → tracked as GitHub issues #50–#64, index #65; feeds plan 
 Audit docs kept local/uncommitted: `../audits/csharp-reference-audit.md` +
 `../audits/csharp-reference-contrast.md`.
 
+### Fidelity policy for proven legacy defects
+
+The legacy C++ server is the behavioral baseline, not an instruction to reproduce undefined
+behavior or a demonstrated logic bug. An intentional Rust deviation is acceptable only when the
+C++ behavior and defect are both pinned to exact source, the replacement is the smallest bounded
+repair, focused tests distinguish it from both the legacy failure and a speculative rewrite, and
+the deviation is recorded in the owning migration item. Client-visible changes additionally need
+the corresponding C++/Rust capture decision recorded and, when deliberately different, a
+re-pinned golden approved as a compatibility change. Suspicious literals, cleanup opportunities
+and merely plausible optimizations do not meet that bar.
+
 ---
 
 ## 0. The central architectural truth: the "represented" pattern
@@ -139,14 +150,21 @@ Four further C++ branches were then closed in the same slice:
    before paying for `findNearestPoly` — which also changes the `distToStartPoly` feeding the
    7.0-yard test. Random and chase keep their corridor for the generator's lifetime like C++;
    waypoint and home get a fresh one per call because `MoveSplineInit::MoveTo` constructs a new
-   `PathGenerator`.
+   `PathGenerator`. Two edge decisions are explicit: the C++ lookup really uses the full 3D
+   `dtVdistSqr` and its literal squared `< 3.0f` threshold (effective radius `sqrt(3)`), so Rust
+   does not replace it with the reviewer's 2D metric or a speculative `< 9.0`; and a failed
+   80%-suffix keeps a non-empty prefix as C++ intends, while the one-prefix case recalculates
+   instead of reproducing C++'s zero-length tail underflow.
 8. **Chase and home now path.** `ChaseMovementGenerator::Update`
    (`ChaseMovementGenerator.cpp:94-240`) and `HomeMovementGenerator::SetTargetLocation`
    (`HomeMovementGenerator.cpp:60-82`) were already faithful Rust ports with **no caller**. Chase
    drives the live tick with the victim's facts snapshotted by the tick driver (players from the
    registry, creature victims from the map, both before the mutable borrow) because the creature
    step has no object accessor; it applies the C++ destination choice, `forceDest = CanFly()`,
-   `ShortenPathUntilDist` against the victim, `SetFacing(target)` and the chase walk template. Home
+   `ShortenPathUntilDist` against the victim, `SetFacing(target)` and the chase walk template.
+   Rust deliberately stores the computed move-toward/move-away direction: C++ compares
+   `moveToward` with `_movingTowards` but never assigns the field, leaving move-away range checks
+   on the wrong bound and able to stop immediately. Home
    replaces a *teleport*: the old `Returning` arm assigned `move_target` onto the creature position
    with no spline and no packet. Both have around-obstacle tests against the real navmesh fixture
    that fail when pathfinding is disabled.

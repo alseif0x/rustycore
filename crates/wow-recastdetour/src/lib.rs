@@ -43,6 +43,7 @@ pub const MAX_PATH_LENGTH_LIKE_CPP: usize = 74;
 pub const MAX_POINT_PATH_LENGTH_LIKE_CPP: usize = 74;
 pub const SMOOTH_PATH_STEP_SIZE_LIKE_CPP: f32 = 4.0;
 pub const SMOOTH_PATH_SLOP_LIKE_CPP: f32 = 0.3;
+const PATH_POLY_ACCEPT_DISTANCE_SQ_LIKE_CPP: f32 = 3.0;
 pub const MAX_NUMBER_OF_GRIDS_LIKE_CPP: i32 = 64;
 pub const SIZE_OF_GRIDS_LIKE_CPP: f32 = 533.3333;
 pub const CENTER_GRID_ID_LIKE_CPP: i32 = MAX_NUMBER_OF_GRIDS_LIKE_CPP / 2;
@@ -1054,10 +1055,17 @@ pub fn update_path_query_filter_like_cpp(
 /// C++ `PathGenerator::GetPathPolyByPosition` (`PathGenerator.cpp:94-123`).
 ///
 /// Scans the *current* corridor for the polygon closest to `point`, breaking
-/// early once one is within 1.0 yard, and accepts the result only below 3.0
-/// yards. The returned distance is the real distance to the closest polygon even
-/// when the reference is rejected, matching C++ writing `*distance` before its
-/// `minDist < 3.0f` test.
+/// early once its 3D squared distance is below `1.0`, and accepts the result
+/// only while that squared distance is below the literal `3.0` (an effective
+/// linear radius of `sqrt(3)`, not 3 yards). The returned distance is the real
+/// distance to the closest polygon even when the reference is rejected,
+/// matching C++ writing `*distance` before its `minDist < 3.0f` test.
+///
+/// The audited legacy source and TrinityCore's `3.3.5`, `cata_classic` and
+/// `master` branches all retain this squared comparison. Changing it to `9.0`
+/// would be a plausible optimization, but would also change corridor selection
+/// around close stacked surfaces without evidence that C++ intended a
+/// three-yard linear radius, so this port preserves the observable heuristic.
 pub fn get_path_poly_by_position_like_cpp(
     query: &DetourNavMeshQuery<'_>,
     poly_path: &[DetourPolyRef],
@@ -1084,7 +1092,7 @@ pub fn get_path_poly_by_position_like_cpp(
     }
 
     let distance = min_dist_sq.sqrt();
-    if min_dist_sq < 3.0 {
+    if min_dist_sq < PATH_POLY_ACCEPT_DISTANCE_SQ_LIKE_CPP {
         (nearest_poly, distance)
     } else {
         (0, distance)
@@ -1317,6 +1325,14 @@ pub fn reuse_previous_poly_path_like_cpp(
         // poly, so it advances toward the destination and re-paths next tick.
         // Returning `ShortcutNoPath` here would diverge from that.
         prefix.pop();
+        if prefix.is_empty() {
+            // Intentional safety repair for a one-poly retained corridor. C++
+            // computes `_polyLength = 1 + 0 - 1`, then indexes
+            // `_pathPolyRefs[_polyLength - 1]` in the common tail. Recalculate
+            // from the current start/end instead of reproducing that underflow;
+            // this is also what the caller already did for an empty `PolyRefs`.
+            return Ok(PreviousPolyPathLikeCpp::Recalculate);
+        }
         return Ok(PreviousPolyPathLikeCpp::PolyRefs(prefix));
     }
 
@@ -1476,9 +1492,12 @@ pub fn build_straight_poly_path_like_cpp(
         )? {
             PreviousPolyPathLikeCpp::PolyRefs(reused) if !reused.is_empty() => reused,
             PreviousPolyPathLikeCpp::ShortcutNoPath => return Ok(shortcut_no_path()),
-            // `Recalculate`, or a reuse that produced nothing: C++ `Clear()`s and
-            // generates the whole corridor (`:414-516`).
-            _ => {
+            // C++ `Clear()`s and generates the whole corridor when the retained
+            // path does not contain the current start polygon (`:414-516`).
+            // `reuse_previous_poly_path_like_cpp` also selects this branch as a
+            // deliberate safety repair for C++'s one-prefix/empty-suffix
+            // zero-length underflow.
+            PreviousPolyPathLikeCpp::Recalculate | PreviousPolyPathLikeCpp::PolyRefs(_) => {
                 let path = query.find_path(
                     start_poly,
                     end_poly,
@@ -3778,6 +3797,35 @@ mod tests {
     }
 
     #[test]
+    fn path_poly_lookup_uses_the_cpp_3d_squared_threshold() {
+        let params = DetourNavMeshParams {
+            origin: [0.0, 0.0, 0.0],
+            tile_width: 1.0,
+            tile_height: 1.0,
+            max_tiles: 16,
+            max_polys: 128,
+        };
+        let mut mesh = DetourNavMesh::new(&params).unwrap();
+        mesh.add_tile(&generated_square_tile_blob(0, 0)).unwrap();
+        let query = DetourNavMeshQuery::new(&mesh, 1024).unwrap();
+        let filter = DetourQueryFilter::new().unwrap();
+        let poly = query
+            .find_nearest_poly([0.5, 0.0, 0.5], [3.0, 5.0, 3.0], &filter)
+            .unwrap()
+            .poly_ref;
+
+        let (accepted, accepted_distance) =
+            get_path_poly_by_position_like_cpp(&query, &[poly], [0.5, 1.7, 0.5]);
+        assert_eq!(accepted, poly);
+        assert!((accepted_distance - 1.7).abs() < f32::EPSILON);
+
+        let (rejected, rejected_distance) =
+            get_path_poly_by_position_like_cpp(&query, &[poly], [0.5, 1.8, 0.5]);
+        assert_eq!(rejected, 0);
+        assert!((rejected_distance - 1.8).abs() < f32::EPSILON);
+    }
+
+    #[test]
     fn reuse_previous_poly_path_cuts_subpath_and_rejects_raycast_like_cpp() {
         let params = DetourNavMeshParams {
             origin: [0.0, 0.0, 0.0],
@@ -3826,6 +3874,56 @@ mod tests {
         )
         .unwrap();
         assert_eq!(raycast, PreviousPolyPathLikeCpp::ShortcutNoPath);
+    }
+
+    #[test]
+    fn empty_reuse_suffix_keeps_a_prefix_but_recalculates_before_cpp_underflow() {
+        let mesh = obstacle_ring_nav_mesh();
+        let query = DetourNavMeshQuery::new(&mesh, 1024).unwrap();
+        let filter = obstacle_ring_walk_filter();
+        let start = [5.0, 0.0, 15.0];
+        let old_end = [25.0, 0.0, 15.0];
+        let start_poly = query
+            .find_nearest_poly(start, [3.0, 5.0, 3.0], &filter)
+            .unwrap()
+            .poly_ref;
+        let old_end_poly = query
+            .find_nearest_poly(old_end, [3.0, 5.0, 3.0], &filter)
+            .unwrap()
+            .poly_ref;
+        let previous = query
+            .find_path(
+                start_poly,
+                old_end_poly,
+                start,
+                old_end,
+                &filter,
+                MAX_PATH_LENGTH_LIKE_CPP,
+            )
+            .unwrap();
+        assert!(previous.len() >= 3);
+
+        let prefix_len = ((previous.len() as f32) * 0.8 + 0.5) as usize;
+        let retained = reuse_previous_poly_path_like_cpp(
+            &query, &filter, &previous, start_poly, 0, old_end, false,
+        )
+        .unwrap();
+        assert_eq!(
+            retained,
+            PreviousPolyPathLikeCpp::PolyRefs(previous[..prefix_len - 1].to_vec())
+        );
+
+        let degenerate = reuse_previous_poly_path_like_cpp(
+            &query,
+            &filter,
+            &[start_poly],
+            start_poly,
+            0,
+            old_end,
+            false,
+        )
+        .unwrap();
+        assert_eq!(degenerate, PreviousPolyPathLikeCpp::Recalculate);
     }
 
     #[test]

@@ -250,6 +250,12 @@ impl ChaseMovementGenerator {
                     snapshot.target_position,
                     bounds.max_range,
                 );
+                // Intentional legacy repair. TrinityCore computes `moveToward`
+                // and compares it with `_movingTowards` when deciding whether
+                // to replace `_path`, but never stores the new direction. That
+                // leaves the field permanently `true`, so the periodic range
+                // check can immediately stop a move-away path against the
+                // maximum bound instead of waiting for the minimum bound.
                 self.moving_towards = move_toward;
                 self.cannot_reach_target = false;
                 self.add_flag(MovementGeneratorFlags::INFORM_ENABLED);
@@ -574,6 +580,46 @@ mod tests {
         );
         assert!(chase.moving_towards());
         assert!(chase.has_flag(MovementGeneratorFlags::INFORM_ENABLED));
+    }
+
+    #[test]
+    fn chase_move_away_repairs_the_legacy_unstored_direction() {
+        let mut chase =
+            ChaseMovementGenerator::new(guid(7), Some(ChaseRange::between(2.0, 6.0)), None);
+        let too_close = snapshot(
+            Position::new(1.0, 0.0, 0.0, 0.0),
+            Position::new(0.0, 0.0, 0.0, 0.0),
+        );
+
+        assert_eq!(
+            chase.update_like_cpp(true, true, 1, too_close),
+            ChaseMovementAction::Launch(ChaseLaunchPlan {
+                move_toward: false,
+                desired_distance: 3.5,
+                desired_relative_angle: None,
+                shorten_path: false,
+                allow_flying_path: false,
+                walk: false,
+            })
+        );
+        assert!(!chase.moving_towards());
+
+        // TrinityCore leaves `_movingTowards == true`, so this first periodic
+        // check uses only the maximum bound and immediately stops the newly
+        // launched move-away path while the owner is still too close.
+        assert_eq!(
+            chase.update_like_cpp(true, true, 99, too_close),
+            ChaseMovementAction::Continue
+        );
+
+        let far_enough = snapshot(
+            Position::new(3.5, 0.0, 0.0, 0.0),
+            Position::new(0.0, 0.0, 0.0, 0.0),
+        );
+        assert!(matches!(
+            chase.update_like_cpp(true, true, 100, far_enough),
+            ChaseMovementAction::StopMovingAndFaceInform(_)
+        ));
     }
 
     #[test]
