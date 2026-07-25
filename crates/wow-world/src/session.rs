@@ -54823,6 +54823,33 @@ impl WorldSession {
 
 // ── Creature movement step helper ────────────────────────────────
 
+/// Maps a bridge-built [`CreaturePathQueryLikeCpp`] onto a worker request.
+///
+/// The map/instance/phase identity belongs to the tick, while every
+/// query-sensitive input — filter, owner reads, retained corridor and
+/// `forceDest` — is supplied by the generator bridge at query time, so it cannot
+/// be sampled before the bridge's own state transitions.
+fn creature_path_request_like_cpp(
+    query: crate::map_manager::CreaturePathQueryLikeCpp,
+    source_map_id: u32,
+    source_instance_id: u32,
+    phase_shift: &wow_entities::PhaseShift,
+) -> crate::map_manager::WorldMMapPathRequestLikeCpp {
+    crate::map_manager::WorldMMapPathRequestLikeCpp {
+        start: query.start,
+        destination: query.destination,
+        mesh_map_id: source_map_id,
+        instance_map_id: source_map_id,
+        instance_id: source_instance_id,
+        filter_context: query.filter_context,
+        owner: query.owner,
+        previous_poly_refs: query.previous_poly_refs,
+        force_destination: query.force_destination,
+        point_path_limit: query.point_path_limit,
+        phase_shift: phase_shift.clone(),
+    }
+}
+
 /// Resolves one creature path request through the off-thread Detour worker with
 /// C++ `PathGenerator::CalculatePath` semantics.
 ///
@@ -54928,26 +54955,16 @@ pub(crate) fn step_creature_movement_like_cpp(
         let outcome = creature.update_runtime_home_movement_like_cpp(
             should_try_pathfinding,
             terrain,
-            |start, destination, point_path_limit| {
+            |query| {
                 resolve_creature_detour_path_like_cpp(
                     mmap_pathfinder,
                     guid,
-                    crate::map_manager::WorldMMapPathRequestLikeCpp {
-                        start,
-                        destination,
-                        mesh_map_id: source_map_id,
-                        instance_map_id: source_map_id,
-                        instance_id: source_instance_id,
-                        filter_context,
-                        owner: owner_capabilities,
-                        // C++ builds a fresh `PathGenerator` inside
-                        // `MoveSplineInit::MoveTo`, so there is no corridor to
-                        // reuse for the home leg.
-                        previous_poly_refs: Vec::new(),
-                        force_destination: false,
-                        point_path_limit,
-                        phase_shift: phase_shift.clone(),
-                    },
+                    creature_path_request_like_cpp(
+                        query,
+                        source_map_id,
+                        source_instance_id,
+                        &phase_shift,
+                    ),
                 )
             },
         );
@@ -55026,23 +55043,16 @@ pub(crate) fn step_creature_movement_like_cpp(
                 diff_ms,
                 should_try_pathfinding,
                 terrain,
-                |start, destination, point_path_limit| {
+                |query| {
                     resolve_creature_detour_path_like_cpp(
                         mmap_pathfinder,
                         guid,
-                        crate::map_manager::WorldMMapPathRequestLikeCpp {
-                            start,
-                            destination,
-                            mesh_map_id: source_map_id,
-                            instance_map_id: source_map_id,
-                            instance_id: source_instance_id,
-                            filter_context,
-                            owner: owner_capabilities,
-                            previous_poly_refs: previous_poly_refs.clone(),
-                            force_destination: false,
-                            point_path_limit,
-                            phase_shift: phase_shift.clone(),
-                        },
+                        creature_path_request_like_cpp(
+                            query,
+                            source_map_id,
+                            source_instance_id,
+                            &phase_shift,
+                        ),
                     )
                 },
             );
@@ -55090,27 +55100,16 @@ pub(crate) fn step_creature_movement_like_cpp(
                     diff_ms,
                     should_try_pathfinding,
                     terrain,
-                    |start, destination, point_path_limit| {
+                    |query| {
                         resolve_creature_detour_path_like_cpp(
                             mmap_pathfinder,
                             guid,
-                            crate::map_manager::WorldMMapPathRequestLikeCpp {
-                                start,
-                                destination,
-                                mesh_map_id: source_map_id,
-                                instance_map_id: source_map_id,
-                                instance_id: source_instance_id,
-                                filter_context,
-                                owner: owner_capabilities,
-                                // C++ `MoveSplineInit::MoveTo` builds a fresh
-                                // `PathGenerator` per call
-                                // (`MoveSplineInit.cpp:265`), so the waypoint
-                                // generator never has a corridor to reuse.
-                                previous_poly_refs: Vec::new(),
-                                force_destination: false,
-                                point_path_limit,
-                                phase_shift: phase_shift.clone(),
-                            },
+                            creature_path_request_like_cpp(
+                                query,
+                                source_map_id,
+                                source_instance_id,
+                                &phase_shift,
+                            ),
                         )
                     },
                 );
@@ -55174,24 +55173,16 @@ pub(crate) fn step_creature_movement_like_cpp(
                 target,
                 should_try_pathfinding,
                 terrain,
-                |start, destination, point_path_limit, force_destination| {
+                |query| {
                     resolve_creature_detour_path_like_cpp(
                         mmap_pathfinder,
                         guid,
-                        crate::map_manager::WorldMMapPathRequestLikeCpp {
-                            start,
-                            destination,
-                            mesh_map_id: source_map_id,
-                            instance_map_id: source_map_id,
-                            instance_id: source_instance_id,
-                            filter_context,
-                            owner: owner_capabilities,
-                            previous_poly_refs: previous_poly_refs.clone(),
-                            // C++ `CalculatePath(x, y, z, owner->CanFly())`.
-                            force_destination,
-                            point_path_limit,
-                            phase_shift: phase_shift.clone(),
-                        },
+                        creature_path_request_like_cpp(
+                            query,
+                            source_map_id,
+                            source_instance_id,
+                            &phase_shift,
+                        ),
                     )
                 },
             );
