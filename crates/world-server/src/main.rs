@@ -14168,10 +14168,12 @@ fn collect_legacy_chase_target_snapshots_like_cpp(
                     // C++ `Unit::isInAccessiblePlaceFor` asks `CanEnterWater()`
                     // when the victim `IsInWater()`; the registry already carries
                     // the liquid status the aggro scan uses.
-                    in_water: info.liquid_status
-                        & (wow_world::session::LIQUID_MAP_IN_WATER_LIKE_CPP
-                            | wow_world::session::LIQUID_MAP_UNDER_WATER_LIKE_CPP)
-                        != 0,
+                    in_water: Some(
+                        info.liquid_status
+                            & (wow_world::session::LIQUID_MAP_IN_WATER_LIKE_CPP
+                                | wow_world::session::LIQUID_MAP_UNDER_WATER_LIKE_CPP)
+                            != 0,
+                    ),
                 },
             ))
         })

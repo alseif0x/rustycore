@@ -55174,7 +55174,7 @@ pub(crate) fn step_creature_movement_like_cpp(
                 target,
                 should_try_pathfinding,
                 terrain,
-                |start, destination, point_path_limit| {
+                |start, destination, point_path_limit, force_destination| {
                     resolve_creature_detour_path_like_cpp(
                         mmap_pathfinder,
                         guid,
@@ -55187,10 +55187,8 @@ pub(crate) fn step_creature_movement_like_cpp(
                             filter_context,
                             owner: owner_capabilities,
                             previous_poly_refs: previous_poly_refs.clone(),
-                            // C++ passes `forceDest = owner->CanFly()`; the
-                            // creature bridge applies it to the PathGenerator it
-                            // builds from this corridor.
-                            force_destination: false,
+                            // C++ `CalculatePath(x, y, z, owner->CanFly())`.
+                            force_destination,
                             point_path_limit,
                             phase_shift: phase_shift.clone(),
                         },
@@ -55368,7 +55366,9 @@ pub fn run_legacy_creature_movement_tick_once_like_cpp(
                                         .combat_reach
                                         .max(0.0),
                                     in_world: target.creature.is_alive(),
-                                    in_water: false,
+                                    // Creature entities carry no liquid state;
+                                    // unknown, not "dry".
+                                    in_water: None,
                                 })
                         })
                     });
@@ -146828,7 +146828,7 @@ mod tests {
             position: victim_position,
             combat_reach: 1.0,
             in_world: true,
-            in_water: false,
+            in_water: Some(false),
         };
 
         let bytes = step_creature_movement_like_cpp(

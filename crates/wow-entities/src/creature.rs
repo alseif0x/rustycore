@@ -167,6 +167,11 @@ pub struct CreatureAiOwnershipState {
     pub terrain_swap_map: i32,
     pub last_movement_inform: Option<CreatureMovementInform>,
     pub last_spell_click_inform: Option<CreatureSpellClickInform>,
+    /// C++ `CreatureAI::JustReachedHome()`, fired only from
+    /// `HomeMovementGenerator<Creature>::DoFinalize` when the generator ended
+    /// naturally (`HomeMovementGenerator.cpp:145-157`). It is a distinct AI
+    /// callback, not a `MovementInform`.
+    pub just_reached_home_pending: bool,
 }
 
 impl Default for CreatureAiOwnershipState {
@@ -209,6 +214,7 @@ impl Default for CreatureAiOwnershipState {
             phase_group_id: 0,
             terrain_swap_map: -1,
             last_movement_inform: None,
+            just_reached_home_pending: false,
             last_spell_click_inform: None,
         }
     }
@@ -1785,6 +1791,16 @@ impl Creature {
 
     pub fn take_ai_movement_inform(&mut self) -> Option<CreatureMovementInform> {
         self.ai_ownership.last_movement_inform.take()
+    }
+
+    /// Records C++ `CreatureAI::JustReachedHome()`
+    /// (`HomeMovementGenerator.cpp:156`).
+    pub fn record_ai_just_reached_home(&mut self) {
+        self.ai_ownership.just_reached_home_pending = true;
+    }
+
+    pub fn take_ai_just_reached_home(&mut self) -> bool {
+        std::mem::take(&mut self.ai_ownership.just_reached_home_pending)
     }
 
     pub fn record_ai_spell_click_inform(&mut self, clicker: ObjectGuid, spell_click_handled: bool) {
