@@ -2603,6 +2603,7 @@ impl WorldCreature {
         mut resolve_path: impl FnMut(CreaturePathQueryLikeCpp) -> Option<DetourPolyPath>,
     ) -> ChaseTickOutcomeLikeCpp {
         let snapshot = self.home_unit_snapshot_like_cpp();
+        let from_update = self.active_home_generator.is_some();
         let action = match self.active_home_generator.as_mut() {
             Some(generator) => generator.update_like_cpp(true, snapshot),
             None => {
@@ -2633,9 +2634,17 @@ impl WorldCreature {
 
         match action {
             wow_movement::HomeMovementAction::Continue => ChaseTickOutcomeLikeCpp::Idle,
-            // C++ `SetTargetLocation` refuses to launch while ROOT/STUNNED/
-            // DISTRACTED so the creature cannot get stuck in evade; `DoUpdate`
-            // then finalizes on the next frame.
+            // C++ `SetTargetLocation` sets `MOVEMENTGENERATOR_FLAG_INTERRUPTED`
+            // and returns without launching while ROOT/STUNNED/DISTRACTED; the
+            // generator stays installed and only the *next* `DoUpdate` sets
+            // `INFORM_ENABLED` and finalizes (`HomeMovementGenerator.cpp:53-58,
+            // 117-122`). Finalizing here in the initialize frame would skip that
+            // `INFORM_ENABLED`, suppressing `JustReachedHome` and clearing evade
+            // one frame early. So `Interrupted` from initialization keeps the
+            // generator; only a `Finished` from an update finalizes.
+            wow_movement::HomeMovementAction::Interrupted if !from_update => {
+                ChaseTickOutcomeLikeCpp::Idle
+            }
             wow_movement::HomeMovementAction::Interrupted
             | wow_movement::HomeMovementAction::Finished => {
                 self.finish_home_movement_like_cpp();
@@ -2896,9 +2905,18 @@ impl WorldCreature {
 
         match action {
             wow_movement::ChaseMovementAction::Continue => ChaseTickOutcomeLikeCpp::Idle,
+            // C++ chase `Update` returns false when the victim is gone or has
+            // left the world (`ChaseMovementGenerator.cpp:97,101-103`), which
+            // pops the generator via `MotionMaster::Update` and runs `Finalize`.
+            // Clearing only the corridor would leave the generator,
+            // `UNIT_STATE_CHASE_MOVE` and the in-flight spline intact, so the
+            // creature keeps sliding toward the corpse and is re-selected as
+            // chasing every tick.
             wow_movement::ChaseMovementAction::Finished => {
-                self.active_chase_path_poly_refs.clear();
-                ChaseTickOutcomeLikeCpp::Idle
+                match self.finalize_runtime_chase_movement_like_cpp() {
+                    Some(stop) => ChaseTickOutcomeLikeCpp::Stopped(stop),
+                    None => ChaseTickOutcomeLikeCpp::Idle,
+                }
             }
             // C++ `StopMoving()` clears `UNIT_STATE_MOVING` (which contains
             // `UNIT_STATE_CHASE_MOVE`) and stops the spline.
@@ -3098,6 +3116,27 @@ impl WorldCreature {
     /// Same, for the chase generator.
     pub fn active_chase_path_poly_refs_like_cpp(&self) -> &[u64] {
         &self.active_chase_path_poly_refs
+    }
+
+    /// Retires the chase generator the way C++ `MotionMaster` does when chase
+    /// `Update` returns false: `Finalize` clears `UNIT_STATE_CHASE_MOVE` and
+    /// `SetCannotReachTarget(false)`, and the generator is removed so a lower
+    /// slot resumes (`ChaseMovementGenerator.cpp:251-260`). The superseded
+    /// spline is stopped so the creature does not keep coasting toward a victim
+    /// that is gone.
+    ///
+    /// Boundary: this is the movement half only. C++ also clears the victim
+    /// through the kill/threat path (`UpdateVictim`, evade); the combat target
+    /// and engagement are not reset here — that is M2.5 — so a creature still
+    /// flagged in combat may have chase re-selected next tick, but it no longer
+    /// drives toward the gone target with a stale `UNIT_STATE_CHASE_MOVE`.
+    pub fn finalize_runtime_chase_movement_like_cpp(&mut self) -> Option<MoveSplineStopResult> {
+        self.active_chase_generator = None;
+        self.active_chase_path_poly_refs.clear();
+        self.creature
+            .unit_mut()
+            .clear_unit_state(UnitState::CHASE_MOVE.bits());
+        self.stop_move_spline_like_cpp()
     }
 
     fn allowed_position_z_caps_like_cpp(&self) -> AllowedPositionZCaps {
@@ -9042,6 +9081,149 @@ mod tests {
             Some(&[][..]),
             "the first query for a new victim must not carry the previous corridor"
         );
+    }
+
+    /// When the victim leaves the world, C++ chase `Update` returns false and
+    /// `MotionMaster` finalizes the generator (`ChaseMovementGenerator.cpp:101-103`,
+    /// `:251-260`). The runtime must drop the chase generator and clear
+    /// `UNIT_STATE_CHASE_MOVE`, not merely clear the corridor, or the creature is
+    /// re-selected as chasing and keeps driving toward the corpse every tick.
+    #[test]
+    fn world_creature_chase_finalizes_when_the_victim_leaves_the_world_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54359);
+        let victim = ObjectGuid::create_world_object(HighGuid::Player, 0, 1, 0, 0, 0, 97);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        creature.enter_combat(victim);
+
+        // A live victim far enough to trigger a launch installs the generator and
+        // marks the creature chase-moving.
+        let _ = creature.update_runtime_chase_movement_like_cpp(
+            100,
+            ChaseTargetSnapshotLikeCpp {
+                guid: victim,
+                position: Position::new(60.0, 10.0, 0.0, 0.0),
+                combat_reach: 1.0,
+                in_world: true,
+                in_water: Some(false),
+            },
+            false,
+            None,
+            |_| None,
+        );
+        assert!(creature.active_chase_generator_like_cpp().is_some());
+        assert!(
+            creature
+                .creature
+                .unit()
+                .has_unit_state(wow_constants::UnitState::CHASE_MOVE.bits())
+        );
+
+        // The victim leaves the world: the snapshot reports `in_world: false`.
+        let _ = creature.update_runtime_chase_movement_like_cpp(
+            100,
+            ChaseTargetSnapshotLikeCpp {
+                guid: victim,
+                position: Position::new(60.0, 10.0, 0.0, 0.0),
+                combat_reach: 1.0,
+                in_world: false,
+                in_water: Some(false),
+            },
+            false,
+            None,
+            |_| None,
+        );
+        assert!(
+            creature.active_chase_generator_like_cpp().is_none(),
+            "the chase generator must be retired when the victim leaves the world"
+        );
+        assert!(
+            !creature
+                .creature
+                .unit()
+                .has_unit_state(wow_constants::UnitState::CHASE_MOVE.bits()),
+            "UNIT_STATE_CHASE_MOVE must be cleared on finalize"
+        );
+        assert!(creature.active_chase_path_poly_refs_like_cpp().is_empty());
+    }
+
+    /// C++ `HomeMovementGenerator::SetTargetLocation` sets
+    /// `MOVEMENTGENERATOR_FLAG_INTERRUPTED` and returns without launching while
+    /// ROOT/STUNNED/DISTRACTED (`HomeMovementGenerator.cpp:53-58`); only the next
+    /// `DoUpdate` sets `INFORM_ENABLED` and finalizes (`:117-122`). Finalizing in
+    /// the initialize frame would skip `INFORM_ENABLED`, suppressing
+    /// `JustReachedHome` and clearing evade a frame early.
+    #[test]
+    fn world_creature_home_interrupted_survives_one_frame_before_finalize_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54360);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(40.0, 10.0, 0.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        creature
+            .creature
+            .set_ai_home_position(Position::new(10.0, 10.0, 0.0, 0.0));
+        // The creature is returning (what `reset_combat` leaves behind), but
+        // rooted, so C++ `SetTargetLocation` interrupts instead of launching.
+        creature.creature.set_ai_state(CreatureAiState::Returning);
+        creature
+            .creature
+            .unit_mut()
+            .add_unit_state(wow_constants::UnitState::ROOT.bits());
+
+        // Initialize frame: interrupted, but the generator must stay installed
+        // and evade must be held, and the reached-home callback must NOT fire.
+        let outcome = creature.update_runtime_home_movement_like_cpp(false, None, |_| None);
+        assert_eq!(outcome, ChaseTickOutcomeLikeCpp::Idle);
+        assert!(
+            creature.creature.is_in_evade_mode_like_cpp(),
+            "evade must still be held while interrupted"
+        );
+        assert!(
+            !creature.creature.take_ai_just_reached_home(),
+            "JustReachedHome must not fire in the interrupt frame"
+        );
+        assert_eq!(
+            creature.state(),
+            CreatureAiState::Returning,
+            "the interrupted home generator stays selected for one more tick"
+        );
+
+        // Next frame: the update path sees INTERRUPTED, sets INFORM_ENABLED and
+        // finalizes, clearing evade and firing JustReachedHome.
+        let outcome = creature.update_runtime_home_movement_like_cpp(false, None, |_| None);
+        assert_eq!(outcome, ChaseTickOutcomeLikeCpp::Idle);
+        assert!(
+            !creature.creature.is_in_evade_mode_like_cpp(),
+            "DoFinalize clears UNIT_STATE_EVADE on the update frame"
+        );
+        assert!(
+            creature.creature.take_ai_just_reached_home(),
+            "JustReachedHome fires on the finalize frame, even for an interrupted return"
+        );
+        assert_eq!(creature.state(), CreatureAiState::Idle);
     }
 
     #[test]

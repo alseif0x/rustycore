@@ -55140,7 +55140,15 @@ pub(crate) fn step_creature_movement_like_cpp(
             // spline is still stopped so neither server nor clients keep running
             // the lower-priority movement.
             let Some(target) = chase_target else {
-                if let Some(stop) = creature.stop_move_spline_like_cpp() {
+                // The combat target vanished this tick (e.g. a player victim
+                // died and dropped out of the world snapshot, or its GUID no
+                // longer resolves). C++ chase `Update` returns false on
+                // `!target || !target->IsInWorld()` and `MotionMaster` finalizes
+                // the generator, so the runtime chase must be retired here too —
+                // not just its spline stopped — or `UNIT_STATE_CHASE_MOVE` and
+                // the generator would persist and re-drive toward the gone
+                // target every tick.
+                if let Some(stop) = creature.finalize_runtime_chase_movement_like_cpp() {
                     return Some(
                         MonsterMoveStop {
                             mover_guid: guid,
