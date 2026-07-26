@@ -72,11 +72,11 @@ it byte-for-byte; the complete 717-test packet suite is clean with that regressi
 
 Issue #24's guarded live Detour capture is now strict-clean on three isolated packets
 (heartbeat, one compressed chase spline, ping fence). The capture proved C++ falls from the
-elevated fixture to the lower `.map` plane when static VMap height is unavailable, but also proved
-that equal endpoint heights cannot safely establish surface continuity: two disconnected
-platforms satisfy that predicate. Rust therefore keeps the captured C++ route until a real VMap
-height provider can prove the whole corridor. Identity, options, flags and transport fields remain
-strict. The same capture exposed and fixed a separate lifecycle omission: Rust now mirrors
+elevated fixture to the lower `.map` plane when static VMap height is unavailable. Rust preserves
+the elevation only because Detour itself returned a connected elevated polygon corridor; it does
+not lift a lower route from equal endpoint heights, which cannot distinguish disconnected
+platforms. Identity, options, flags and transport fields remain strict. The same capture exposed
+and fixed a separate lifecycle omission: Rust now mirrors
 `Creature::AtEngage`/home-finalize by temporarily adding `UNIT_FLAG_CAN_SWIM` when the movement
 template permits water, so `MoveSplineInit` publishes the same `CAN_SWIM` flag as C++ and restores
 the out-of-combat flag afterward. Player chase snapshots are keyed by map, instance and GUID, so a

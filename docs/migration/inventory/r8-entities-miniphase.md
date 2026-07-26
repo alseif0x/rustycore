@@ -139,9 +139,10 @@ servers, the disposable character/spawn state, an exact heartbeat → compressed
 ping window, full 3.4.3 MonsterMove semantics, and clean source/binary provenance with reversible
 private-DataDir/database mutation. Reviewed C++ `5100ce3d` and Rust recordings are strict-clean
 (3/3). They prove the no-VMap elevated route falls to the lower `.map` plane, but equal endpoint
-heights cannot distinguish one continuous platform from two disconnected rooftops. Rust therefore
-does not lift the corridor without a real VMap height-continuity source. The same run found the
-missing `Creature::AtEngage` swim refresh: Rust now temporarily adds `UNIT_FLAG_CAN_SWIM` when the
+heights cannot distinguish one continuous platform from two disconnected rooftops. Rust preserves
+only elevations already carried by Detour's connected polygon corridor and never lifts a lower
+route from endpoint height alone. The same run found the missing `Creature::AtEngage` swim refresh:
+Rust now temporarily adds `UNIT_FLAG_CAN_SWIM` when the
 movement template permits water and removes it at home finalization if it was absent out of
 combat, leaving `MoveSplineInit` flags strict-equal to C++. Player chase snapshots are keyed by
 map, instance and GUID so a teleported target cannot drive a path in the wrong map.

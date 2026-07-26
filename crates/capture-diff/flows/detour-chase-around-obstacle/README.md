@@ -83,12 +83,12 @@ spawn ID remains `9102401`, while C++ `Creature::LoadFromDB` assigns its wire
 GUID with `Map::GenerateLowGuid`; each side must therefore report a nonzero
 runtime counter, but the counters need not equal the DB ID or each other.
 Cross-runtime comparison omits the process-local creature/spline allocation
-IDs and route timing. Without a VMap height provider, neither equal elevated
-endpoint heights nor a planar lower Detour route proves that one continuous
-elevated surface owns the corridor: two disconnected rooftops have the same
-shape. Rust therefore retains C++'s lower-plane result instead of inventing a
-surface; a safe repair remains blocked on real static VMap height continuity.
-All other GUID bits, flags (including `CAN_SWIM`), facing target, transport and
+IDs and route timing. Rust preserves Z only when the Detour result itself
+contains a connected elevated polygon corridor. It never lifts a lower route
+merely because its requested endpoints have equal elevated Z: disconnected
+rooftops satisfy that weaker predicate. This retains the capture-proven
+elevated fixture without inventing a surface absent from the navmesh. All
+other GUID bits, flags (including `CAN_SWIM`), facing target, transport and
 options remain strict. Each path must bend outside and avoid the missing
 square.
 
