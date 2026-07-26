@@ -2315,7 +2315,7 @@ impl WorldSession {
     }
 
     /// CMSG_QUEST_GIVER_QUERY_QUEST — player clicks a quest name in the list.
-    /// Shows full quest details (objectives, rewards) before accepting.
+    /// Shows full quest details (objectives, rewards) before acceptkng.
     /// Legacy non-canonical note: QuestHandler.HandleQuestGiverQueryQuest
     pub async fn handle_quest_giver_query_quest(&mut self, mut pkt: wow_packet::WorldPacket) {
         let (guid, quest_id, respond_to_giver) =
