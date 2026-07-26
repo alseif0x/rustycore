@@ -56,6 +56,21 @@ assert_eq "$DETOUR_FIXTURE_FLOW" \
 assert_eq 1380930628 "$(detour_chase_ping_fence_serial)" \
   "DTOR little-endian ping fence"
 
+float_snapshot_expression="$(
+  detour_chase_sql_serialized_value_expression position_x float
+)"
+[[ "$float_snapshot_expression" == *"DECIMAL(65,30)"* ]] \
+  || fail "FLOAT snapshots do not use lossless decimal serialization"
+text_snapshot_expression="$(
+  detour_chase_sql_serialized_value_expression taxi_path text
+)"
+[[ "$text_snapshot_expression" == *"FROM_BASE64"* ]] \
+  && [[ "$text_snapshot_expression" != *"DECIMAL(65,30)"* ]] \
+  || fail "non-floating snapshots no longer retain binary-safe serialization"
+if detour_chase_sql_serialized_value_expression position_x 'float;DROP'; then
+  fail "unsafe information-schema data type was accepted"
+fi
+
 CPP_WRAPPER="$SCRIPT_ROOT/capture-cpp.sh"
 RUST_WRAPPER="$SCRIPT_ROOT/capture-rust.sh"
 RECOVERY_WRAPPER="$SCRIPT_ROOT/recover-detour-chase-fixture.sh"

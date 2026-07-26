@@ -291,7 +291,7 @@ detour_chase_table_columns() {
 
   detour_chase_validate_sql_identifier "$table" || return 1
   "$mysql_function" -e "
-    SELECT COLUMN_NAME
+    SELECT COLUMN_NAME,LOWER(DATA_TYPE)
       FROM information_schema.COLUMNS
      WHERE TABLE_SCHEMA=DATABASE()
        AND TABLE_NAME='${table}'
@@ -301,20 +301,32 @@ detour_chase_table_columns() {
 
 detour_chase_sql_serialized_value_expression() {
   local column="$1"
+  local data_type="$2"
   detour_chase_validate_sql_identifier "$column" || return 1
+  [[ "$data_type" =~ ^[a-z][a-z0-9_]*$ ]] || return 1
   # REPLACE removes TO_BASE64's RFC-2045 line wrapping. The generated recovery
   # SQL is therefore ASCII-only and one row per line even for arbitrary text or
-  # binary columns. Numeric/date columns round-trip through their canonical SQL
-  # text representation; verification regenerates the exact same snapshot.
-  printf '%s' \
-    "IF(\`${column}\` IS NULL,'NULL',CONCAT('FROM_BASE64(''',REPLACE(TO_BASE64(\`${column}\`),CHAR(10),''),''')'))"
+  # binary columns. MariaDB's default FLOAT/DOUBLE text rendering is not a
+  # lossless round trip, so serialize those through a high-precision DECIMAL;
+  # assignment back to the original column reproduces the same IEEE value and
+  # the generated CAS predicate compares equal before mutation.
+  case "$data_type" in
+    float|double|real)
+      printf '%s' \
+        "IF(\`${column}\` IS NULL,'NULL',CONCAT('CAST(''',CAST(\`${column}\` AS DECIMAL(65,30)),''' AS DECIMAL(65,30))'))"
+      ;;
+    *)
+      printf '%s' \
+        "IF(\`${column}\` IS NULL,'NULL',CONCAT('FROM_BASE64(''',REPLACE(TO_BASE64(\`${column}\`),CHAR(10),''),''')'))"
+      ;;
+  esac
 }
 
 detour_chase_snapshot_table_insert_sql() {
   local mysql_function="$1"
   local table="$2"
   local where_sql="$3"
-  local columns column column_list="" values_expression="" delimiter=""
+  local columns column data_type column_list="" values_expression="" delimiter=""
   local serialized query
 
   detour_chase_validate_sql_identifier "$table" || return 1
@@ -325,9 +337,11 @@ detour_chase_snapshot_table_insert_sql() {
     echo "error: detour snapshot table ${table} is missing or has no writable columns" >&2
     return 1
   }
-  while IFS= read -r column; do
+  while IFS=$'\t' read -r column data_type; do
     detour_chase_validate_sql_identifier "$column" || return 1
-    serialized="$(detour_chase_sql_serialized_value_expression "$column")" \
+    serialized="$(
+      detour_chase_sql_serialized_value_expression "$column" "$data_type"
+    )" \
       || return 1
     column_list+="${delimiter}\`${column}\`"
     values_expression+="${delimiter}${serialized}"
@@ -344,16 +358,18 @@ detour_chase_snapshot_table_cas_predicate_sql() {
   local mysql_function="$1"
   local table="$2"
   local where_sql="$3"
-  local columns column serialized row_expression="" delimiter=""
+  local columns column data_type serialized row_expression="" delimiter=""
   local query rows row previous="" duplicate_count=0 total_count=0 predicate
 
   detour_chase_validate_sql_identifier "$table" || return 1
   [ -n "$where_sql" ] || return 1
   columns="$(detour_chase_table_columns "$mysql_function" "$table")" || return 1
   [ -n "$columns" ] || return 1
-  while IFS= read -r column; do
+  while IFS=$'\t' read -r column data_type; do
     detour_chase_validate_sql_identifier "$column" || return 1
-    serialized="$(detour_chase_sql_serialized_value_expression "$column")" \
+    serialized="$(
+      detour_chase_sql_serialized_value_expression "$column" "$data_type"
+    )" \
       || return 1
     row_expression+="${delimiter}'\`${column}\` <=> ',${serialized}"
     delimiter=", ' AND ',"
@@ -398,15 +414,17 @@ detour_chase_snapshot_single_row_update_sql() {
   local table="$2"
   local snapshot_where="$3"
   local restore_where="$4"
-  local columns column assignments="" delimiter="" serialized query
+  local columns column data_type assignments="" delimiter="" serialized query
 
   detour_chase_validate_sql_identifier "$table" || return 1
   [ -n "$snapshot_where" ] && [ -n "$restore_where" ] || return 1
   columns="$(detour_chase_table_columns "$mysql_function" "$table")" || return 1
   [ -n "$columns" ] || return 1
-  while IFS= read -r column; do
+  while IFS=$'\t' read -r column data_type; do
     detour_chase_validate_sql_identifier "$column" || return 1
-    serialized="$(detour_chase_sql_serialized_value_expression "$column")" \
+    serialized="$(
+      detour_chase_sql_serialized_value_expression "$column" "$data_type"
+    )" \
       || return 1
     assignments+="${delimiter}'\`${column}\`=',${serialized}"
     delimiter=",',',"
@@ -416,14 +434,16 @@ detour_chase_snapshot_single_row_update_sql() {
 }
 
 detour_chase_snapshot_single_character_predicate_sql() {
-  local columns column predicates="" delimiter="" serialized query
+  local columns column data_type predicates="" delimiter="" serialized query
 
   columns="$(detour_chase_table_columns loot_fixture_character_mysql characters)" \
     || return 1
   [ -n "$columns" ] || return 1
-  while IFS= read -r column; do
+  while IFS=$'\t' read -r column data_type; do
     detour_chase_validate_sql_identifier "$column" || return 1
-    serialized="$(detour_chase_sql_serialized_value_expression "$column")" \
+    serialized="$(
+      detour_chase_sql_serialized_value_expression "$column" "$data_type"
+    )" \
       || return 1
     predicates+="${delimiter}'\`${column}\` <=> ',${serialized}"
     delimiter=", ' AND ',"
