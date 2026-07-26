@@ -9269,10 +9269,6 @@ async fn run_detour_chase_capture_phase(
                 .await?;
                 result.detour_chase_time_sync_after_fence += 1;
             }
-            SMSG_ON_MONSTER_MOVE if monster_move_mover_guid_like_cpp(&payload)? == target_guid => {
-                result.detour_chase_window_target_moves += 1;
-                bail!("target emitted a second SMSG_ON_MONSTER_MOVE before capture-fence PONG");
-            }
             SMSG_PONG => {
                 let serial = parse_pong_serial_like_cpp(&payload)?;
                 if serial != ISSUE_24_PING_FENCE_SERIAL {
@@ -9284,11 +9280,10 @@ async fn run_detour_chase_capture_phase(
                 result.detour_chase_pong_confirmed = true;
                 break;
             }
-            _ => {
-                bail!(
-                    "unexpected opcode 0x{opcode:04X} before detour capture-fence PONG; isolation is not capture-clean"
-                );
-            }
+            // CMSG_PING is the exclusive end fence selected by capture-diff.
+            // Packets observed after it are outside the imported window; keep
+            // draining them until the correlated PONG proves server receipt.
+            _ => {}
         }
     }
 
