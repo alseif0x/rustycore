@@ -90,9 +90,19 @@ assert_eq "$expected_prior_snapshot" \
     "$current_snapshot" "$journal_snapshot")" \
   "digest preserves the accredited prior representation"
 if detour_chase_prior_snapshot_representation_for_digest \
-    "${current_snapshot/aaaaaaaa/bbbbbbbb}" "$journal_snapshot" >/dev/null; then
-  fail "digest representation accepted a different prior snapshot hash"
+    "${current_snapshot/\"scope_value\":15/\"scope_value\":16}" \
+    "$journal_snapshot" >/dev/null; then
+  fail "digest representation accepted a different snapshot scope"
 fi
+legacy_insert="INSERT INTO \`example\` (\`a\`,\`b\`,\`c\`) SELECT FROM_BASE64('MQ==')CAST('2' AS DECIMAL(65,30))NULL WHERE @detour_cas=1;"
+normalized_insert="INSERT INTO \`example\` (\`a\`,\`b\`,\`c\`) SELECT FROM_BASE64('MQ=='),CAST('2' AS DECIMAL(65,30)),NULL WHERE @detour_cas=1;"
+assert_eq \
+  "$normalized_insert" \
+  "$(detour_chase_normalize_legacy_insert_restore_sql "$legacy_insert")" \
+  "legacy INSERT VALUES delimiter normalization"
+assert_eq "$legacy_insert" \
+  "$(detour_chase_legacy_insert_restore_sql "$normalized_insert")" \
+  "normalized INSERT converts back to its journal representation"
 
 CPP_WRAPPER="$SCRIPT_ROOT/capture-cpp.sh"
 RUST_WRAPPER="$SCRIPT_ROOT/capture-rust.sh"

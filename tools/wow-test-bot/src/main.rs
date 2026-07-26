@@ -9021,13 +9021,11 @@ async fn run_detour_chase_capture_phase(
             options.target_z
         )
     })?;
-    if target.low != options.target_spawn_guid {
-        bail!(
-            "detour live target counter {} differs from persistent fixture spawn GUID {}",
-            target.low,
-            options.target_spawn_guid
-        );
-    }
+    // Creature::LoadFromDB keeps the persistent spawnId in m_spawnId but calls
+    // Map::GenerateLowGuid<HighGuid::Creature>() for the network ObjectGuid
+    // counter (legacy Creature.cpp). Therefore the runtime counter is evidence,
+    // not a DB identity. The fixture identity is established independently by
+    // the guarded spawn row plus the unique entry/map/position match above.
     result.detour_chase_target_runtime_counter = Some(target.low);
     result.detour_chase_target_discovered = true;
     let target_guid = (target.low, target.high);

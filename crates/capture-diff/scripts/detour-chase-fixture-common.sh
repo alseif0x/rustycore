@@ -326,7 +326,8 @@ detour_chase_snapshot_table_insert_sql() {
   local mysql_function="$1"
   local table="$2"
   local where_sql="$3"
-  local columns column data_type column_list="" values_expression="" delimiter=""
+  local columns column data_type column_list="" values_expression=""
+  local column_delimiter="" value_delimiter=""
   local serialized query
 
   detour_chase_validate_sql_identifier "$table" || return 1
@@ -343,9 +344,12 @@ detour_chase_snapshot_table_insert_sql() {
       detour_chase_sql_serialized_value_expression "$column" "$data_type"
     )" \
       || return 1
-    column_list+="${delimiter}\`${column}\`"
-    values_expression+="${delimiter}${serialized}"
-    delimiter=","
+    column_list+="${column_delimiter}\`${column}\`"
+    values_expression+="${value_delimiter}${serialized}"
+    # This is a CONCAT() argument list. The comma between SQL VALUES must be
+    # emitted as data, not merely used to separate the CONCAT arguments.
+    column_delimiter=","
+    value_delimiter=",',',"
   done <<<"$columns"
   # Recovery sets @detour_cas only after taking a WRITE lock and evaluating the
   # journaled full-domain predicate. Gating every INSERT keeps a failed CAS from
@@ -823,10 +827,39 @@ detour_chase_execute_recovery_sql() {
   return "$status"
 }
 
+detour_chase_normalize_legacy_insert_restore_sql() {
+  local sql="$1"
+
+  # Journals written before VALUES delimiters were emitted as CONCAT data can
+  # contain adjacent binary-safe expressions. Restrict compatibility to that
+  # exact generated shape; all newly written journals include literal commas.
+  if [[ "$sql" == INSERT\ INTO*FROM_BASE64* ]]; then
+    sql="${sql//)FROM_BASE64/),FROM_BASE64}"
+    sql="${sql//)CAST/),CAST}"
+    sql="${sql//)NULL/),NULL}"
+    sql="${sql//NULLFROM_BASE64/NULL,FROM_BASE64}"
+    sql="${sql//NULLCAST/NULL,CAST}"
+    sql="${sql//NULLNULL/NULL,NULL}"
+  fi
+  printf '%s\n' "$sql"
+}
+
+detour_chase_legacy_insert_restore_sql() {
+  local sql="$1"
+  sql="${sql//),FROM_BASE64/)FROM_BASE64}"
+  sql="${sql//),CAST/)CAST}"
+  sql="${sql//),NULL/)NULL}"
+  sql="${sql//NULL,FROM_BASE64/NULLFROM_BASE64}"
+  sql="${sql//NULL,CAST/NULLCAST}"
+  sql="${sql//NULL,NULL/NULLNULL}"
+  printf '%s\n' "$sql"
+}
+
 detour_chase_restore_account_state() {
   local encoded snapshot database strategy table scope_column scope_value
   local prior_sha post_sha restore_sql post_predicate_sql mysql_function
-  local restore_where current_sql current_sha cas_result recovery_sql
+  local restore_where current_sql current_sha legacy_current_sha
+  local normalized_prior_sha cas_result recovery_sql
   local restore_xtrace=0
 
   if [[ "$-" == *x* ]]; then
@@ -843,6 +876,9 @@ detour_chase_restore_account_state() {
     scope_value="$(jq -er '.scope_value' <<<"$snapshot")" || return 1
     prior_sha="$(jq -er '.prior_sha256' <<<"$snapshot")" || return 1
     restore_sql="$(jq -er '.restore_sql' <<<"$snapshot")" || return 1
+    restore_sql="$(
+      detour_chase_normalize_legacy_insert_restore_sql "$restore_sql"
+    )" || return 1
     post_sha="$(jq -er '.post_sha256' <<<"$snapshot")" || return 1
     post_predicate_sql="$(jq -er '.post_predicate_sql' <<<"$snapshot")" \
       || return 1
@@ -873,9 +909,19 @@ detour_chase_restore_account_state() {
       *) return 1 ;;
     esac
     current_sha="$(detour_chase_sha256_of_text "$current_sql")" || return 1
-    if [ "$current_sha" != "$prior_sha" ]; then
+    normalized_prior_sha="$(
+      detour_chase_sha256_of_text "$restore_sql"
+    )" || return 1
+    legacy_current_sha="$(
+      detour_chase_sha256_of_text "$(
+        detour_chase_legacy_insert_restore_sql "$current_sql"
+      )"
+    )" || return 1
+    if [ "$current_sha" != "$normalized_prior_sha" ] \
+        && [ "$legacy_current_sha" != "$prior_sha" ]; then
       [ "$DETOUR_FIXTURE_POSTSTATE_CHECKPOINTED" = 1 ] \
-        && [ "$current_sha" = "$post_sha" ] || {
+        && { [ "$current_sha" = "$post_sha" ] \
+          || [ "$legacy_current_sha" = "$post_sha" ]; } || {
           echo "WARNING: detour ${database}.${table} differs from both prior and checkpointed fixture poststate; refusing cleanup writes" >&2
           return 1
       }
@@ -924,7 +970,13 @@ detour_chase_restore_account_state() {
         )" || return 1
       fi
       current_sha="$(detour_chase_sha256_of_text "$current_sql")" || return 1
-      [ "$current_sha" = "$prior_sha" ] || {
+      legacy_current_sha="$(
+        detour_chase_sha256_of_text "$(
+          detour_chase_legacy_insert_restore_sql "$current_sql"
+        )"
+      )" || return 1
+      [ "$current_sha" = "$normalized_prior_sha" ] \
+        || [ "$legacy_current_sha" = "$prior_sha" ] || {
         echo "WARNING: detour ${database}.${table} did not restore exactly" >&2
         return 1
       }
@@ -2633,6 +2685,7 @@ detour_chase_prior_snapshot_representation_for_digest() {
       --slurpfile journal "$journal_file" '
         def invariant:
           del(
+            .prior_sha256,
             .restore_sql,
             .predicate_sql,
             .post_sha256,
@@ -2904,7 +2957,8 @@ detour_chase_complete_fixture_journal() {
 
 detour_chase_restore_character_auxiliary_state() {
   local encoded snapshot table scope_column prior_sha post_sha restore_sql
-  local post_predicate_sql current_sql current_sha cas_result
+  local post_predicate_sql current_sql current_sha legacy_current_sha
+  local normalized_prior_sha cas_result
 
   while IFS= read -r encoded; do
     snapshot="$(printf '%s' "$encoded" | base64 --decode)" || return 1
@@ -2913,6 +2967,9 @@ detour_chase_restore_character_auxiliary_state() {
     prior_sha="$(jq -er '.prior_sha256' <<<"$snapshot")" || return 1
     post_sha="$(jq -er '.post_sha256' <<<"$snapshot")" || return 1
     restore_sql="$(jq -er '.restore_sql' <<<"$snapshot")" || return 1
+    restore_sql="$(
+      detour_chase_normalize_legacy_insert_restore_sql "$restore_sql"
+    )" || return 1
     post_predicate_sql="$(jq -er '.post_predicate_sql' <<<"$snapshot")" \
       || return 1
     detour_chase_validate_sql_identifier "$table" \
@@ -2923,9 +2980,19 @@ detour_chase_restore_character_auxiliary_state() {
         "\`${scope_column}\`=${DETOUR_FIXTURE_CHARACTER_GUID}"
     )" || return 1
     current_sha="$(detour_chase_sha256_of_text "$current_sql")" || return 1
-    if [ "$current_sha" != "$prior_sha" ]; then
+    normalized_prior_sha="$(
+      detour_chase_sha256_of_text "$restore_sql"
+    )" || return 1
+    legacy_current_sha="$(
+      detour_chase_sha256_of_text "$(
+        detour_chase_legacy_insert_restore_sql "$current_sql"
+      )"
+    )" || return 1
+    if [ "$current_sha" != "$normalized_prior_sha" ] \
+        && [ "$legacy_current_sha" != "$prior_sha" ]; then
       [ "$DETOUR_FIXTURE_POSTSTATE_CHECKPOINTED" = 1 ] \
-        && [ "$current_sha" = "$post_sha" ] || {
+        && { [ "$current_sha" = "$post_sha" ] \
+          || [ "$legacy_current_sha" = "$post_sha" ]; } || {
           echo "WARNING: detour character auxiliary table ${table} differs from both prior and checkpointed fixture poststate; refusing cleanup writes" >&2
           return 1
         }
@@ -2951,7 +3018,13 @@ detour_chase_restore_character_auxiliary_state() {
           "\`${scope_column}\`=${DETOUR_FIXTURE_CHARACTER_GUID}"
       )" || return 1
       current_sha="$(detour_chase_sha256_of_text "$current_sql")" || return 1
-      [ "$current_sha" = "$prior_sha" ] || {
+      legacy_current_sha="$(
+        detour_chase_sha256_of_text "$(
+          detour_chase_legacy_insert_restore_sql "$current_sql"
+        )"
+      )" || return 1
+      [ "$current_sha" = "$normalized_prior_sha" ] \
+        || [ "$legacy_current_sha" = "$prior_sha" ] || {
         echo "WARNING: detour character auxiliary table ${table} did not restore exactly" >&2
         return 1
       }
@@ -2962,12 +3035,16 @@ detour_chase_restore_character_auxiliary_state() {
 
 detour_chase_restore_respawn_state() {
   local prior_sha post_sha restore_sql post_predicate_sql
-  local current_sql current_sha cas_result
+  local current_sql current_sha legacy_current_sha normalized_prior_sha
+  local cas_result
 
   prior_sha="$(jq -er '.prior_sha256' \
     <<<"$DETOUR_FIXTURE_RESPAWN_SNAPSHOT_JSON")" || return 1
   restore_sql="$(jq -er '.restore_sql' \
     <<<"$DETOUR_FIXTURE_RESPAWN_SNAPSHOT_JSON")" || return 1
+  restore_sql="$(
+    detour_chase_normalize_legacy_insert_restore_sql "$restore_sql"
+  )" || return 1
   post_sha="$(jq -er '.post_sha256' \
     <<<"$DETOUR_FIXTURE_RESPAWN_SNAPSHOT_JSON")" || return 1
   post_predicate_sql="$(jq -er '.post_predicate_sql' \
@@ -2978,9 +3055,19 @@ detour_chase_restore_respawn_state() {
       "spawnId=${DETOUR_FIXTURE_CREATURE_GUID}"
   )" || return 1
   current_sha="$(detour_chase_sha256_of_text "$current_sql")" || return 1
-  if [ "$current_sha" != "$prior_sha" ]; then
+  normalized_prior_sha="$(
+    detour_chase_sha256_of_text "$restore_sql"
+  )" || return 1
+  legacy_current_sha="$(
+    detour_chase_sha256_of_text "$(
+      detour_chase_legacy_insert_restore_sql "$current_sql"
+    )"
+  )" || return 1
+  if [ "$current_sha" != "$normalized_prior_sha" ] \
+      && [ "$legacy_current_sha" != "$prior_sha" ]; then
     [ "$DETOUR_FIXTURE_POSTSTATE_CHECKPOINTED" = 1 ] \
-      && [ "$current_sha" = "$post_sha" ] || {
+      && { [ "$current_sha" = "$post_sha" ] \
+        || [ "$legacy_current_sha" = "$post_sha" ]; } || {
         echo "WARNING: detour respawn domain differs from both prior and checkpointed fixture poststate; refusing cleanup writes" >&2
         return 1
       }
@@ -3006,7 +3093,13 @@ detour_chase_restore_respawn_state() {
         "spawnId=${DETOUR_FIXTURE_CREATURE_GUID}"
     )" || return 1
     current_sha="$(detour_chase_sha256_of_text "$current_sql")" || return 1
-    [ "$current_sha" = "$prior_sha" ] || {
+    legacy_current_sha="$(
+      detour_chase_sha256_of_text "$(
+        detour_chase_legacy_insert_restore_sql "$current_sql"
+      )"
+    )" || return 1
+    [ "$current_sha" = "$normalized_prior_sha" ] \
+      || [ "$legacy_current_sha" = "$prior_sha" ] || {
       echo "WARNING: detour creature respawn rows did not restore exactly" >&2
       return 1
     }
