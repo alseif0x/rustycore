@@ -8845,6 +8845,7 @@ mod tests {
             );
         creature.creature.ai_ownership_mut().wander_radius = 8.0;
         creature.clock_started_at = Instant::now() - Duration::from_secs(10);
+        creature.seed_runtime_rng_like_cpp(0x24_5A0);
 
         let mut resolver_called = false;
         let movement = creature.update_default_random_movement_with_path_resolver_like_cpp(

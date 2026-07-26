@@ -69,6 +69,16 @@ creature movement in the client. The issue closeout pins a real 117-byte C++ com
 packet from the accredited capture artifact
 `a25f2c2bbf60de6cda7e32f305d732733017e711eb474dd5dbf6e007690143a8`, and Rust reproduces
 it byte-for-byte; the complete 717-test packet suite is clean with that regression.
+
+Issue #24's guarded live Detour capture is now strict-clean on three isolated packets
+(heartbeat, one compressed chase spline, ping fence). It also pins an intentional bounded repair
+to a demonstrated C++ height-source defect: the legacy path falls from the elevated flat fixture
+to the unrelated lower `.map` plane, while Rust retains the proven flat requested/VMap surface.
+The comparator normalizes only that reviewed route/time and its route-derived facing direction;
+identity, options, flags and transport fields remain strict. The same capture exposed and fixed a
+separate lifecycle omission: Rust now mirrors `Creature::AtEngage`/home-finalize by temporarily
+adding `UNIT_FLAG_CAN_SWIM` when the movement template permits water, so `MoveSplineInit` publishes
+the same `CAN_SWIM` flag as C++ and restores the out-of-combat flag afterward.
 M2.2 adds one persistent `wow_movement::MotionMaster` to each legacy `WorldCreature` and advances
 it once from the globally owned creature frame, after spline position advancement as in
 `Unit::Update`. Random and waypoint execution is now gated by the selected stack entry; active

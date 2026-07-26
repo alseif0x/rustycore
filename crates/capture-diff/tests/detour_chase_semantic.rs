@@ -325,9 +325,9 @@ fn required_contract_rejects_straight_or_wrong_fence_evidence() {
 }
 
 #[test]
-fn committed_requirement_is_present_but_fail_closed_until_live_pair() {
+fn committed_requirement_is_ready_after_accredited_live_pair() {
     let requirement = load_requirement("detour-chase-around-obstacle").unwrap();
-    assert_eq!(requirement.status, RequirementStatus::AwaitingRealCaptures);
+    assert_eq!(requirement.status, RequirementStatus::Ready);
     requirement.validate_capture(&fixture_capture()).unwrap();
-    assert!(requirement.require_ready().is_err());
+    requirement.require_ready().unwrap();
 }

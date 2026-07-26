@@ -1,8 +1,7 @@
 {
   "issue": "#24",
-  "status": "awaiting-real-captures",
+  "status": "ready",
   "description": "A connected disposable character moves across the missing centre cell of the pinned synthetic navmesh; the selected creature must publish one compressed around-obstacle chase spline before a fixed instance ping fence.",
-  "blocked_reason": "The deterministic MMap assets and guarded private-DataDir/spawn/character orchestration are present, but same-action C++/Rust RAW captures have not yet been completed, reviewed, and imported.",
   "directions": [
     "s2c",
     "c2s"

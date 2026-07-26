@@ -1,10 +1,9 @@
 # Required capture: chase around a synthetic obstacle
 
-This is the fail-closed live C++/Rust gate for issue #24. It is intentionally
-`awaiting-real-captures`: the checked-in Detour assets and semantic contract do
-not substitute for running the same connected-client action against both
-servers. Do not mark the requirement `ready` until the private runtime fixture,
-RAW manifests, strict import, and retained lineage have all been reviewed.
+This is the fail-closed live C++/Rust gate for issue #24. The requirement is
+`ready` from reviewed same-action captures against C++ `5100ce3d` and Rust
+`e03f598d`; the retained manifests pin both executables, the bot, database
+snapshot, fixture cleanup, and exact harness HEAD.
 
 ## Fixture contract
 
@@ -83,13 +82,16 @@ reason to widen the ignore list.
 spawn ID remains `9102401`, while C++ `Creature::LoadFromDB` assigns its wire
 GUID with `Map::GenerateLowGuid`; each side must therefore report a nonzero
 runtime counter, but the counters need not equal the DB ID or each other.
-Cross-runtime comparison omits only those process-local creature/spline
-allocation IDs. All other GUID bits, float bits, flags, timing,
-facing/transport/options, endpoint, and packed deltas remain exact. Each side
-is also validated independently: the heartbeat must target the pinned
-destination, the movement must belong to the reserved creature and face the
-exact player GUID like C++ `ChaseMovementGenerator::Update`, and the
-reconstructed compressed path must bend outside and avoid the missing square.
+Cross-runtime comparison omits the process-local creature/spline allocation
+IDs. It also records one intentional, bounded correction to a proven legacy
+defect: with no VMap height source, C++ projects this elevated flat chase onto
+the lower `.map` plane and ends near `z=190.721`; Rust preserves the proven
+flat requested surface and ends near `z=218.49`. The side-specific validators
+pin both behaviors, and the semantic comparison normalizes only the reviewed
+route/time and route-derived facing bits for that exact legacy/repaired pair.
+All other GUID bits, flags (including `CAN_SWIM`), facing target, transport and
+options remain strict. Each path must bend outside and avoid the missing
+square.
 
 ## Promotion
 
@@ -106,8 +108,8 @@ cargo run -p capture-diff -- import detour-chase-around-obstacle \
   --from-opcode c2s:0x3A10 \
   --until-opcode c2s:0x3768 \
   --ignore-opcode s2c:0x2DD2 \
-  --ignore-opcode s2c:0x27CB \
   --ignore-opcode c2s:0x3A3D \
+  --ignore-opcode s2c:0x27CB \
   --direction both \
   --strict
 ```
