@@ -3241,13 +3241,15 @@ impl WorldCreature {
 
     /// Recover the narrow case C++ resolves through static VMap height during
     /// `PathGenerator::NormalizePath`: both requested endpoints are on the same
-    /// flat elevated surface, while every Detour point was projected onto the
-    /// lower `.map` terrain because Rust has no VMap height provider yet.
+    /// flat elevated surface, while every Detour point was projected onto one
+    /// coherent lower navmesh plane because Rust has no VMap height provider
+    /// yet.
     ///
-    /// This deliberately refuses slopes, changing endpoint offsets, points not
-    /// lying on the raw terrain, and small height differences. Those cases do
-    /// not prove that one elevated surface owns the whole corridor and must not
-    /// be guessed until VMap height is ported.
+    /// This deliberately refuses requested slopes, non-planar Detour paths,
+    /// and small endpoint elevations. The terrain beneath a flat bridge may
+    /// itself slope, so its two vertical offsets need not match. Other cases
+    /// do not prove that one elevated surface owns the whole corridor and must
+    /// not be guessed until VMap height is ported.
     fn restore_flat_elevated_detour_path_without_vmap_like_cpp(
         &self,
         destination: Position,
@@ -3255,7 +3257,7 @@ impl WorldCreature {
         terrain: &LiveTerrainHeights,
     ) -> Option<DetourPolyPath> {
         const FLAT_SURFACE_Z_TOLERANCE: f32 = 0.5;
-        const DETOUR_TERRAIN_Z_TOLERANCE: f32 = 1.0;
+        const FLAT_DETOUR_Z_TOLERANCE: f32 = 0.5;
         const MIN_PROVEN_ELEVATION: f32 = 2.0;
 
         let start = self.position();
@@ -3273,28 +3275,23 @@ impl WorldCreature {
         }
         let start_offset = start.z - start_ground;
         let destination_offset = destination.z - destination_ground;
-        if start_offset < MIN_PROVEN_ELEVATION
-            || destination_offset < MIN_PROVEN_ELEVATION
-            || (start_offset - destination_offset).abs() > FLAT_SURFACE_Z_TOLERANCE
-        {
+        if start_offset < MIN_PROVEN_ELEVATION || destination_offset < MIN_PROVEN_ELEVATION {
             return None;
         }
 
-        let all_points_projected_to_grid = detour_path.point_path.points.iter().all(|raw| {
-            let point = position_from_detour_point_like_cpp(*raw);
-            let ground = terrain.grid_height_like_cpp(self.map_id(), point.x, point.y);
-            ground > INVALID_HEIGHT && (point.z - ground).abs() <= DETOUR_TERRAIN_Z_TOLERANCE
-        });
-        if !all_points_projected_to_grid {
+        let detour_plane_z =
+            position_from_detour_point_like_cpp(detour_path.point_path.points[0]).z;
+        if start.z - detour_plane_z < MIN_PROVEN_ELEVATION
+            || detour_path.point_path.points.iter().any(|raw| {
+                (position_from_detour_point_like_cpp(*raw).z - detour_plane_z).abs()
+                    > FLAT_DETOUR_Z_TOLERANCE
+            })
+        {
             return None;
         }
 
         let actual_end = position_from_detour_point_like_cpp(detour_path.point_path.actual_end);
-        let actual_end_ground =
-            terrain.grid_height_like_cpp(self.map_id(), actual_end.x, actual_end.y);
-        if actual_end_ground <= INVALID_HEIGHT
-            || (actual_end.z - actual_end_ground).abs() > DETOUR_TERRAIN_Z_TOLERANCE
-        {
+        if (actual_end.z - detour_plane_z).abs() > FLAT_DETOUR_Z_TOLERANCE {
             return None;
         }
 
