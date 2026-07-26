@@ -229,16 +229,24 @@ fn comparator_requires_nonzero_fixture_counter_and_omits_runtime_ids() {
     assert!(semantic.mismatch_summary().contains("zero spline ID"));
 
     let generated_counter = fixture_monster_move(1, 4_001);
-    let semantic =
-        compare_packet_bodies(Direction::S2C, SMSG_ON_MONSTER_MOVE, &cpp, &generated_counter)
-            .expect("both nonzero process-local counters select the fixture comparator");
+    let semantic = compare_packet_bodies(
+        Direction::S2C,
+        SMSG_ON_MONSTER_MOVE,
+        &cpp,
+        &generated_counter,
+    )
+    .expect("both nonzero process-local counters select the fixture comparator");
     assert!(semantic.is_identical());
 
     let zero_counter = fixture_monster_move(0, 4_001);
     let semantic = compare_packet_bodies(Direction::S2C, SMSG_ON_MONSTER_MOVE, &cpp, &zero_counter)
         .expect("one valid fixture side selects the fail-closed comparator");
     assert!(!semantic.is_identical());
-    assert!(semantic.mismatch_summary().contains("zero runtime GUID counter"));
+    assert!(
+        semantic
+            .mismatch_summary()
+            .contains("zero runtime GUID counter")
+    );
 }
 
 #[test]

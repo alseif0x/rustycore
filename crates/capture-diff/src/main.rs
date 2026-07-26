@@ -233,9 +233,7 @@ fn validate_ignored_opcodes(opts: &Opts) -> Result<()> {
                     opcode: 0x27CB,
                 });
         if !APPROVED_AMBIENT_IGNORES.contains(ignored) && !reviewed_detour_combat_values {
-            bail!(
-                "--ignore-opcode {ignored} is not approved ambient traffic for this flow"
-            );
+            bail!("--ignore-opcode {ignored} is not approved ambient traffic for this flow");
         }
     }
     for (index, ignored) in opts.ignored_opcodes.iter().enumerate() {

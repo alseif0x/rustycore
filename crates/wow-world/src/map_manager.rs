@@ -3222,6 +3222,14 @@ impl WorldCreature {
         force_destination: bool,
         terrain: Option<&LiveTerrainHeights>,
     ) -> PathGenerator {
+        let elevated_path = terrain.and_then(|terrain| {
+            self.restore_flat_elevated_detour_path_without_vmap_like_cpp(
+                destination,
+                detour_path,
+                terrain,
+            )
+        });
+        let detour_path = elevated_path.as_ref().unwrap_or(detour_path);
         path_generator_from_detour_with_normalizer_like_cpp(
             self.position(),
             destination,
@@ -3229,6 +3237,73 @@ impl WorldCreature {
             force_destination,
             |point| self.normalize_path_position_z_like_cpp(point, terrain),
         )
+    }
+
+    /// Recover the narrow case C++ resolves through static VMap height during
+    /// `PathGenerator::NormalizePath`: both requested endpoints are on the same
+    /// flat elevated surface, while every Detour point was projected onto the
+    /// lower `.map` terrain because Rust has no VMap height provider yet.
+    ///
+    /// This deliberately refuses slopes, changing endpoint offsets, points not
+    /// lying on the raw terrain, and small height differences. Those cases do
+    /// not prove that one elevated surface owns the whole corridor and must not
+    /// be guessed until VMap height is ported.
+    fn restore_flat_elevated_detour_path_without_vmap_like_cpp(
+        &self,
+        destination: Position,
+        detour_path: &DetourPolyPath,
+        terrain: &LiveTerrainHeights,
+    ) -> Option<DetourPolyPath> {
+        const FLAT_SURFACE_Z_TOLERANCE: f32 = 0.5;
+        const DETOUR_TERRAIN_Z_TOLERANCE: f32 = 1.0;
+        const MIN_PROVEN_ELEVATION: f32 = 2.0;
+
+        let start = self.position();
+        if (start.z - destination.z).abs() > FLAT_SURFACE_Z_TOLERANCE
+            || detour_path.point_path.points.len() < 2
+        {
+            return None;
+        }
+
+        let start_ground = terrain.grid_height_like_cpp(self.map_id(), start.x, start.y);
+        let destination_ground =
+            terrain.grid_height_like_cpp(self.map_id(), destination.x, destination.y);
+        if start_ground <= INVALID_HEIGHT || destination_ground <= INVALID_HEIGHT {
+            return None;
+        }
+        let start_offset = start.z - start_ground;
+        let destination_offset = destination.z - destination_ground;
+        if start_offset < MIN_PROVEN_ELEVATION
+            || destination_offset < MIN_PROVEN_ELEVATION
+            || (start_offset - destination_offset).abs() > FLAT_SURFACE_Z_TOLERANCE
+        {
+            return None;
+        }
+
+        let all_points_projected_to_grid = detour_path.point_path.points.iter().all(|raw| {
+            let point = position_from_detour_point_like_cpp(*raw);
+            let ground = terrain.grid_height_like_cpp(self.map_id(), point.x, point.y);
+            ground > INVALID_HEIGHT && (point.z - ground).abs() <= DETOUR_TERRAIN_Z_TOLERANCE
+        });
+        if !all_points_projected_to_grid {
+            return None;
+        }
+
+        let actual_end = position_from_detour_point_like_cpp(detour_path.point_path.actual_end);
+        let actual_end_ground =
+            terrain.grid_height_like_cpp(self.map_id(), actual_end.x, actual_end.y);
+        if actual_end_ground <= INVALID_HEIGHT
+            || (actual_end.z - actual_end_ground).abs() > DETOUR_TERRAIN_Z_TOLERANCE
+        {
+            return None;
+        }
+
+        let mut restored = detour_path.clone();
+        for raw in &mut restored.point_path.points {
+            raw[2] = start.z;
+        }
+        restored.point_path.actual_end[2] = start.z;
+        Some(restored)
     }
 
     pub fn update_default_random_movement_with_path_resolver_like_cpp(
@@ -8494,6 +8569,133 @@ mod tests {
         assert_eq!(
             spline.final_destination(),
             Some(Position::new(15.0, 12.0, 30.0, 0.0))
+        );
+
+        let _ = std::fs::remove_dir_all(&data_dir);
+    }
+
+    #[test]
+    fn world_creature_detour_path_bridge_restores_flat_vmap_surface_from_projected_mmap_points() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54353);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, 30.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        creature
+            .creature
+            .unit_mut()
+            .world_mut()
+            .set_map(1, 0)
+            .expect("bind test creature to terrain map");
+        creature.clock_started_at = Instant::now() - Duration::from_secs(10);
+        let data_dir = temp_dir_with_constant_tile(1, 31, 31, 2.0);
+        let terrain = LiveTerrainHeights::new(&data_dir);
+        let dst = Position::new(15.0, 12.0, 30.0, 0.0);
+        let projected_path = DetourPolyPath {
+            poly_refs: vec![11, 22],
+            point_path: wow_recastdetour::DetourPointPath {
+                points: vec![[10.0, 10.0, 2.0], [12.0, 11.0, 2.0], [15.0, 12.0, 2.0]],
+                actual_end: [15.0, 12.0, 2.0],
+                path_type: DetourPathType::NORMAL,
+            },
+            start_far_from_poly: false,
+            end_far_from_poly: false,
+        };
+
+        let (_from, spline, path) = creature
+            .begin_random_move_spline_with_detour_path_and_terrain_like_cpp(
+                dst,
+                Some(&projected_path),
+                false,
+                Some(&terrain),
+            )
+            .expect("projected elevated detour path launches");
+
+        assert_eq!(
+            path.expect("path generator").path_points(),
+            &[
+                Position::new(10.0, 10.0, 30.0, 0.0),
+                Position::new(12.0, 11.0, 30.0, 0.0),
+                Position::new(15.0, 12.0, 30.0, 0.0),
+            ]
+        );
+        assert_eq!(
+            spline.final_destination(),
+            Some(Position::new(15.0, 12.0, 30.0, 0.0))
+        );
+
+        let _ = std::fs::remove_dir_all(&data_dir);
+    }
+
+    #[test]
+    fn world_creature_detour_path_bridge_does_not_invent_a_sloped_vmap_surface() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54354);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, 30.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        creature
+            .creature
+            .unit_mut()
+            .world_mut()
+            .set_map(1, 0)
+            .expect("bind test creature to terrain map");
+        creature.clock_started_at = Instant::now() - Duration::from_secs(10);
+        let data_dir = temp_dir_with_constant_tile(1, 31, 31, 2.0);
+        let terrain = LiveTerrainHeights::new(&data_dir);
+        let dst = Position::new(15.0, 12.0, 34.0, 0.0);
+        let projected_path = DetourPolyPath {
+            poly_refs: vec![11, 22],
+            point_path: wow_recastdetour::DetourPointPath {
+                points: vec![[10.0, 10.0, 2.0], [12.0, 11.0, 2.0], [15.0, 12.0, 2.0]],
+                actual_end: [15.0, 12.0, 2.0],
+                path_type: DetourPathType::NORMAL,
+            },
+            start_far_from_poly: false,
+            end_far_from_poly: false,
+        };
+
+        let (_from, spline, path) = creature
+            .begin_random_move_spline_with_detour_path_and_terrain_like_cpp(
+                dst,
+                Some(&projected_path),
+                false,
+                Some(&terrain),
+            )
+            .expect("unproven sloped path still launches");
+
+        assert_eq!(
+            path.expect("path generator").path_points(),
+            &[
+                Position::new(10.0, 10.0, 2.0, 0.0),
+                Position::new(12.0, 11.0, 2.0, 0.0),
+                Position::new(15.0, 12.0, 2.0, 0.0),
+            ],
+            "without VMap height Rust must not guess a changing elevated surface"
+        );
+        assert_eq!(
+            spline.final_destination(),
+            Some(Position::new(15.0, 12.0, 2.0, 0.0))
         );
 
         let _ = std::fs::remove_dir_all(&data_dir);
