@@ -376,13 +376,12 @@ detour_chase_snapshot_table_cas_predicate_sql() {
   done <<<"$columns"
   query="SELECT CONCAT('(',${row_expression},')') FROM \`${table}\` WHERE ${where_sql}"
   rows="$("$mysql_function" -e "$query" | LC_ALL=C sort)" || return 1
-  predicate="((SELECT COUNT(*) FROM \`${table}\` WHERE ${where_sql})="
   if [ -n "$rows" ]; then
     total_count="$(wc -l <<<"$rows" | tr -d '[:space:]')" || return 1
   else
     total_count=0
   fi
-  predicate+="${total_count})"
+  predicate="(SELECT (COUNT(*)=${total_count}"
   while IFS= read -r row; do
     [ -n "$row" ] || continue
     if [ -z "$previous" ]; then
@@ -391,15 +390,34 @@ detour_chase_snapshot_table_cas_predicate_sql() {
     elif [ "$row" = "$previous" ]; then
       duplicate_count=$((duplicate_count + 1))
     else
-      predicate+=" AND ((SELECT COUNT(*) FROM \`${table}\` WHERE ${where_sql} AND ${previous})=${duplicate_count})"
+      predicate+=" AND COALESCE(SUM(${previous}),0)=${duplicate_count}"
       previous="$row"
       duplicate_count=1
     fi
   done <<<"$rows"
   if [ -n "$previous" ]; then
-    predicate+=" AND ((SELECT COUNT(*) FROM \`${table}\` WHERE ${where_sql} AND ${previous})=${duplicate_count})"
+    predicate+=" AND COALESCE(SUM(${previous}),0)=${duplicate_count}"
   fi
+  predicate+=") FROM \`${table}\` WHERE ${where_sql})"
   printf '%s\n' "$predicate"
+}
+
+detour_chase_normalize_legacy_singleton_cas_predicate_sql() {
+  local table="$1"
+  local where_sql="$2"
+  local predicate="$3"
+  local prefix="((SELECT COUNT(*) FROM \`${table}\` WHERE ${where_sql})=1) AND "
+
+  # Journals written before the single-scan CAS format used one subquery for
+  # the row count and another for the complete singleton value. MariaDB
+  # requires a separately aliased LOCK TABLES entry for every such reference.
+  # The detailed COUNT=1 already proves both existence and cardinality, so
+  # dropping only the exact redundant prefix preserves the full CAS contract.
+  if [[ "$predicate" == "$prefix"* ]]; then
+    printf '%s\n' "${predicate#"$prefix"}"
+  else
+    printf '%s\n' "$predicate"
+  fi
 }
 
 detour_chase_snapshot_single_character_update_sql() {
@@ -2594,6 +2612,57 @@ detour_chase_merge_poststate_snapshots() {
   return "$status"
 }
 
+detour_chase_prior_snapshot_representation_for_digest() {
+  local current_json="$1"
+  local journal_json="$2"
+  local current_file journal_file output status=0
+
+  current_file="$(detour_chase_secure_temp_file)" || return 1
+  journal_file="$(detour_chase_secure_temp_file)" || {
+    rm -f -- "$current_file"
+    return 1
+  }
+  printf '%s\n' "$current_json" >"$current_file" \
+    && printf '%s\n' "$journal_json" >"$journal_file" || {
+      rm -f -- "$current_file" "$journal_file"
+      return 1
+    }
+  output="$(
+    jq -cn \
+      --slurpfile current "$current_file" \
+      --slurpfile journal "$journal_file" '
+        def invariant:
+          del(
+            .restore_sql,
+            .predicate_sql,
+            .post_sha256,
+            .post_predicate_sql
+          );
+        def prior:
+          .post_sha256 = null
+          | .post_predicate_sql = null;
+        if ($current[0] | type) != ($journal[0] | type)
+          then error("snapshot representation type differs")
+        elif ($current[0] | type) == "array"
+          then if ($current[0] | map(invariant))
+              != ($journal[0] | map(invariant))
+            then error("snapshot prior state differs")
+            else $journal[0] | map(prior)
+            end
+        elif ($current[0] | type) == "object"
+          then if ($current[0] | invariant) != ($journal[0] | invariant)
+            then error("snapshot prior state differs")
+            else $journal[0] | prior
+            end
+        else error("unsupported snapshot representation")
+        end
+      '
+  )" || status=$?
+  rm -f -- "$current_file" "$journal_file" || status=1
+  [ "$status" -eq 0 ] || return "$status"
+  printf '%s\n' "$output"
+}
+
 detour_chase_checkpoint_fixture_poststate() {
   local current_character_sql current_aux_json current_respawn_json
   local current_account_json world_aux_state creature_expression current_creature_sha
@@ -2951,7 +3020,8 @@ detour_chase_restore_fixture_guard() {
   local current_aux_json current_respawn_json current_database_sha
   local current_account_json
   local current_character_sha current_creature_exists expected_database_sha
-  local auth_identity_count character_cas_result restore_xtrace=0
+  local auth_identity_count character_cas_result character_post_predicate
+  local restore_xtrace=0
 
   [ "$DETOUR_FIXTURE_ENABLED" = "1" ] || return 0
   if [[ "$-" == *x* ]]; then
@@ -3020,10 +3090,15 @@ detour_chase_restore_fixture_guard() {
         echo "WARNING: complete detour characters row differs from both prior and checkpointed fixture poststate; refusing cleanup writes" >&2
         return 1
     }
+    character_post_predicate="$(
+      detour_chase_normalize_legacy_singleton_cas_predicate_sql \
+        characters "guid=${DETOUR_FIXTURE_CHARACTER_GUID}" \
+        "$DETOUR_FIXTURE_POST_CHARACTER_PREDICATE_SQL"
+    )" || return 1
     character_cas_result="$(loot_fixture_character_mysql -e "
       SET autocommit=0;
       LOCK TABLES characters WRITE;
-      SET @detour_cas=IF((${DETOUR_FIXTURE_POST_CHARACTER_PREDICATE_SQL}),1,0);
+      SET @detour_cas=IF((${character_post_predicate}),1,0);
       ${DETOUR_FIXTURE_CHARACTER_RESTORE_SQL}
         AND @detour_cas=1;
       COMMIT;
@@ -3120,6 +3195,23 @@ detour_chase_restore_fixture_guard() {
     || return 1
   current_account_json="$(detour_chase_snapshot_account_state)" \
     || return 1
+  # Predicate SQL is an implementation detail and can evolve between journal
+  # creation and crash recovery. The per-domain prior_sha256 values above
+  # prove the restored rows; hash the original journal representation after
+  # validating that its scope metadata and prior hashes match the live
+  # snapshots, so a formatting-only predicate change cannot fake DB drift.
+  current_aux_json="$(
+    detour_chase_prior_snapshot_representation_for_digest \
+      "$current_aux_json" "$DETOUR_FIXTURE_CHARACTER_AUX_SNAPSHOTS_JSON"
+  )" || return 1
+  current_respawn_json="$(
+    detour_chase_prior_snapshot_representation_for_digest \
+      "$current_respawn_json" "$DETOUR_FIXTURE_RESPAWN_SNAPSHOT_JSON"
+  )" || return 1
+  current_account_json="$(
+    detour_chase_prior_snapshot_representation_for_digest \
+      "$current_account_json" "$DETOUR_FIXTURE_ACCOUNT_SNAPSHOTS_JSON"
+  )" || return 1
   expected_database_sha="$DETOUR_FIXTURE_DATABASE_SNAPSHOT_SHA256"
   current_database_sha="$({
     printf 'creature-exists\0%s\0' "$current_creature_exists"

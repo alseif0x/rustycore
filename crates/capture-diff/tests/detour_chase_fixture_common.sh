@@ -71,6 +71,29 @@ if detour_chase_sql_serialized_value_expression position_x 'float;DROP'; then
   fail "unsafe information-schema data type was accepted"
 fi
 
+legacy_singleton_predicate='((SELECT COUNT(*) FROM `characters` WHERE guid=15)=1) AND ((SELECT COUNT(*) FROM `characters` WHERE guid=15 AND (`guid` <=> 15))=1)'
+assert_eq \
+  '((SELECT COUNT(*) FROM `characters` WHERE guid=15 AND (`guid` <=> 15))=1)' \
+  "$(detour_chase_normalize_legacy_singleton_cas_predicate_sql \
+    characters 'guid=15' "$legacy_singleton_predicate")" \
+  "legacy singleton CAS normalization"
+assert_eq "$legacy_singleton_predicate" \
+  "$(detour_chase_normalize_legacy_singleton_cas_predicate_sql \
+    characters 'guid=16' "$legacy_singleton_predicate")" \
+  "legacy CAS normalization rejects a different scope"
+
+current_snapshot='[{"table":"characters","scope_column":"guid","scope_value":15,"prior_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","restore_sql":"new restore","predicate_sql":"new single-scan predicate","post_sha256":null,"post_predicate_sql":null}]'
+journal_snapshot='[{"table":"characters","scope_column":"guid","scope_value":15,"prior_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","restore_sql":"old restore","predicate_sql":"old predicate","post_sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","post_predicate_sql":"old post predicate"}]'
+expected_prior_snapshot='[{"table":"characters","scope_column":"guid","scope_value":15,"prior_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","restore_sql":"old restore","predicate_sql":"old predicate","post_sha256":null,"post_predicate_sql":null}]'
+assert_eq "$expected_prior_snapshot" \
+  "$(detour_chase_prior_snapshot_representation_for_digest \
+    "$current_snapshot" "$journal_snapshot")" \
+  "digest preserves the accredited prior representation"
+if detour_chase_prior_snapshot_representation_for_digest \
+    "${current_snapshot/aaaaaaaa/bbbbbbbb}" "$journal_snapshot" >/dev/null; then
+  fail "digest representation accepted a different prior snapshot hash"
+fi
+
 CPP_WRAPPER="$SCRIPT_ROOT/capture-cpp.sh"
 RUST_WRAPPER="$SCRIPT_ROOT/capture-rust.sh"
 RECOVERY_WRAPPER="$SCRIPT_ROOT/recover-detour-chase-fixture.sh"
