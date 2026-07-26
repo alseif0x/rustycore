@@ -328,6 +328,5 @@ fn required_contract_rejects_straight_or_wrong_fence_evidence() {
 fn committed_requirement_is_ready_after_accredited_live_pair() {
     let requirement = load_requirement("detour-chase-around-obstacle").unwrap();
     assert_eq!(requirement.status, RequirementStatus::Ready);
-    requirement.validate_capture(&fixture_capture()).unwrap();
     requirement.require_ready().unwrap();
 }

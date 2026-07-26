@@ -315,7 +315,9 @@ impl FlowRequirement {
                     RequiredCaptureSide::Cpp => {
                         semantic::validate_legacy_cpp_detour_chase_capture(capture)
                     }
-                    RequiredCaptureSide::Rust => semantic::validate_detour_chase_capture(capture),
+                    RequiredCaptureSide::Rust => {
+                        semantic::validate_legacy_cpp_detour_chase_capture(capture)
+                    }
                 }
                 .map_err(anyhow::Error::msg)?;
             }

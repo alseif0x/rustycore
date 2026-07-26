@@ -71,14 +71,16 @@ packet from the accredited capture artifact
 it byte-for-byte; the complete 717-test packet suite is clean with that regression.
 
 Issue #24's guarded live Detour capture is now strict-clean on three isolated packets
-(heartbeat, one compressed chase spline, ping fence). It also pins an intentional bounded repair
-to a demonstrated C++ height-source defect: the legacy path falls from the elevated flat fixture
-to the unrelated lower `.map` plane, while Rust retains the proven flat requested/VMap surface.
-The comparator normalizes only that reviewed route/time and its route-derived facing direction;
-identity, options, flags and transport fields remain strict. The same capture exposed and fixed a
-separate lifecycle omission: Rust now mirrors `Creature::AtEngage`/home-finalize by temporarily
-adding `UNIT_FLAG_CAN_SWIM` when the movement template permits water, so `MoveSplineInit` publishes
-the same `CAN_SWIM` flag as C++ and restores the out-of-combat flag afterward.
+(heartbeat, one compressed chase spline, ping fence). The capture proved C++ falls from the
+elevated fixture to the lower `.map` plane when static VMap height is unavailable, but also proved
+that equal endpoint heights cannot safely establish surface continuity: two disconnected
+platforms satisfy that predicate. Rust therefore keeps the captured C++ route until a real VMap
+height provider can prove the whole corridor. Identity, options, flags and transport fields remain
+strict. The same capture exposed and fixed a separate lifecycle omission: Rust now mirrors
+`Creature::AtEngage`/home-finalize by temporarily adding `UNIT_FLAG_CAN_SWIM` when the movement
+template permits water, so `MoveSplineInit` publishes the same `CAN_SWIM` flag as C++ and restores
+the out-of-combat flag afterward. Player chase snapshots are keyed by map, instance and GUID, so a
+live target that teleports elsewhere cannot feed foreign coordinates to the chaser's Detour map.
 M2.2 adds one persistent `wow_movement::MotionMaster` to each legacy `WorldCreature` and advances
 it once from the globally owned creature frame, after spline position advancement as in
 `Unit::Update`. Random and waypoint execution is now gated by the selected stack entry; active

@@ -55307,7 +55307,7 @@ pub fn run_legacy_creature_movement_tick_once_like_cpp(
     canonical_map_manager: Option<&SharedCanonicalMapManager>,
     mmap_config: &MMapRuntimeConfigLikeCpp,
     mmap_pathfinder: Option<&crate::map_manager::WorldMMapPathfinderWorkerLikeCpp>,
-    chase_targets: &HashMap<ObjectGuid, crate::map_manager::ChaseTargetSnapshotLikeCpp>,
+    chase_targets: &HashMap<(u16, u32, ObjectGuid), crate::map_manager::ChaseTargetSnapshotLikeCpp>,
     diff_ms: u32,
 ) -> LegacyCreatureMovementTickOutcomeLikeCpp {
     use crate::map_manager::{RecipientRule, RuntimeEvent, RuntimePlan, RuntimeTickOwner};
@@ -55352,24 +55352,27 @@ pub fn run_legacy_creature_movement_tick_once_like_cpp(
                     .find_creature(map_id, instance_id, guid)
                     .and_then(|creature| creature.creature.ai_ownership().combat_target)
                     .and_then(|target_guid| {
-                        chase_targets.get(&target_guid).copied().or_else(|| {
-                            manager
-                                .find_creature(map_id, instance_id, target_guid)
-                                .map(|target| crate::map_manager::ChaseTargetSnapshotLikeCpp {
-                                    guid: target_guid,
-                                    position: target.position(),
-                                    combat_reach: target
-                                        .creature
-                                        .unit()
-                                        .data()
-                                        .combat_reach
-                                        .max(0.0),
-                                    in_world: target.creature.is_alive(),
-                                    // Creature entities carry no liquid state;
-                                    // unknown, not "dry".
-                                    in_water: None,
-                                })
-                        })
+                        chase_targets
+                            .get(&(map_id, instance_id, target_guid))
+                            .copied()
+                            .or_else(|| {
+                                manager.find_creature(map_id, instance_id, target_guid).map(
+                                    |target| crate::map_manager::ChaseTargetSnapshotLikeCpp {
+                                        guid: target_guid,
+                                        position: target.position(),
+                                        combat_reach: target
+                                            .creature
+                                            .unit()
+                                            .data()
+                                            .combat_reach
+                                            .max(0.0),
+                                        in_world: target.creature.is_alive(),
+                                        // Creature entities carry no liquid state;
+                                        // unknown, not "dry".
+                                        in_water: None,
+                                    },
+                                )
+                            })
                     });
 
                 let Some(creature) = manager.find_creature_mut(map_id, instance_id, guid) else {

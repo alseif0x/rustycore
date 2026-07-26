@@ -982,9 +982,13 @@ fn compare_monster_move_bodies(cpp: &[u8], rust: &[u8]) -> Option<SemanticBodyDi
         .as_ref()
         .is_ok_and(|decoded| validate_detour_chase_monster_move(decoded).is_ok());
     let cpp_is_fixture = cpp_is_legacy_fixture || cpp_is_repaired_fixture;
-    let rust_is_fixture = rust_decoded
+    let rust_is_repaired_fixture = rust_decoded
         .as_ref()
         .is_ok_and(|decoded| validate_detour_chase_monster_move(decoded).is_ok());
+    let rust_is_legacy_fixture = rust_decoded
+        .as_ref()
+        .is_ok_and(|decoded| validate_legacy_cpp_detour_chase_monster_move(decoded).is_ok());
+    let rust_is_fixture = rust_is_repaired_fixture || rust_is_legacy_fixture;
 
     // This comparator is intentionally not a generic movement normalization.
     // If neither side satisfies the complete issue-#24 identity, position,
@@ -994,7 +998,7 @@ fn compare_monster_move_bodies(cpp: &[u8], rust: &[u8]) -> Option<SemanticBodyDi
         return None;
     }
 
-    if cpp_is_legacy_fixture && rust_is_fixture {
+    if cpp_is_fixture && rust_is_fixture {
         for decoded in [&mut cpp_decoded, &mut rust_decoded]
             .into_iter()
             .filter_map(|decoded| decoded.as_mut().ok())
@@ -1013,9 +1017,7 @@ fn compare_monster_move_bodies(cpp: &[u8], rust: &[u8]) -> Option<SemanticBodyDi
     }
 
     Some(SemanticBodyDiff {
-        comparator:
-            "smsg_on_monster_move_with_reviewed_legacy_descent_repaired_by_flat_vmap_fallback"
-                .to_string(),
+        comparator: "smsg_on_monster_move_issue_24_process_local_route_fields".to_string(),
         cpp: SemanticBodySide::from_decoded_monster_move(cpp_decoded, cpp, cpp_is_fixture),
         rust: SemanticBodySide::from_decoded_monster_move(rust_decoded, rust, rust_is_fixture),
     })

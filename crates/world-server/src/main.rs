@@ -14152,14 +14152,17 @@ fn deliver_creature_melee_damage_commands_like_cpp(
 /// lock is taken — the pattern the aggro scan already uses.
 fn collect_legacy_chase_target_snapshots_like_cpp(
     registry: &wow_network::PlayerRegistry,
-) -> std::collections::HashMap<wow_core::ObjectGuid, wow_world::ChaseTargetSnapshotLikeCpp> {
+) -> std::collections::HashMap<
+    (u16, u32, wow_core::ObjectGuid),
+    wow_world::ChaseTargetSnapshotLikeCpp,
+> {
     registry
         .iter()
         .filter_map(|entry| {
             let guid = *entry.key();
             let info = entry.value();
             (info.is_in_world && info.is_alive).then_some((
-                guid,
+                (info.map_id, info.instance_id, guid),
                 wow_world::ChaseTargetSnapshotLikeCpp {
                     guid,
                     position: info.position,

@@ -137,13 +137,14 @@ Four further C++ branches were closed in the same slice:
 The `detour-chase-around-obstacle` capture flow now pins the same synthetic MMap bytes for both
 servers, the disposable character/spawn state, an exact heartbeat → compressed MonsterMove →
 ping window, full 3.4.3 MonsterMove semantics, and clean source/binary provenance with reversible
-private-DataDir/database mutation. Reviewed C++ `5100ce3d` and Rust `e03f598d` recordings are
-strict-clean (3/3). They prove C++'s no-VMap elevated route incorrectly falls to the lower `.map`
-plane; the bounded Rust repair retains the proven flat requested surface. Only that reviewed
-route/time and its route-derived facing direction are normalized. The same run found the missing
-`Creature::AtEngage` swim refresh: Rust now temporarily adds `UNIT_FLAG_CAN_SWIM` when the
+private-DataDir/database mutation. Reviewed C++ `5100ce3d` and Rust recordings are strict-clean
+(3/3). They prove the no-VMap elevated route falls to the lower `.map` plane, but equal endpoint
+heights cannot distinguish one continuous platform from two disconnected rooftops. Rust therefore
+does not lift the corridor without a real VMap height-continuity source. The same run found the
+missing `Creature::AtEngage` swim refresh: Rust now temporarily adds `UNIT_FLAG_CAN_SWIM` when the
 movement template permits water and removes it at home finalization if it was absent out of
-combat, leaving `MoveSplineInit` flags strict-equal to C++.
+combat, leaving `MoveSplineInit` flags strict-equal to C++. Player chase snapshots are keyed by
+map, instance and GUID so a teleported target cannot drive a path in the wrong map.
 
 Bounded and explicitly **not** claimed. **Point/charge, fleeing and confused are deliberately left
 unwired**: all three are complete, unit-tested ports, but nothing in the runtime can trigger them —
