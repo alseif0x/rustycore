@@ -152,9 +152,14 @@ Four further C++ branches were then closed in the same slice:
    waypoint and home get a fresh one per call because `MoveSplineInit::MoveTo` constructs a new
    `PathGenerator`. Two edge decisions are explicit: the C++ lookup really uses the full 3D
    `dtVdistSqr` and its literal squared `< 3.0f` threshold (effective radius `sqrt(3)`), so Rust
-   does not replace it with the reviewer's 2D metric or a speculative `< 9.0`; and a failed
-   80%-suffix keeps a non-empty prefix as C++ intends, while the one-prefix case recalculates
-   instead of reproducing C++'s zero-length tail underflow.
+   does not replace it with the reviewer's 2D metric or a speculative `< 9.0`. A failed
+   80%-suffix keeps the complete valid prefix: with no suffix there is no overlap polygon to
+   subtract, although C++ unconditionally computes `prefix + 0 - 1`. Rust clamps the point path
+   to that retained corridor boundary, recalculates a singleton prefix instead of reproducing
+   C++'s zero-length tail underflow, and clamps a successful singleton partial corridor to its
+   reachable polygon rather than appending a straight segment across a disconnected gap.
+   `BuildPointPath` branches that call C++ `BuildShortcut()` now also clear the retained polygon
+   corridor, so a later update cannot reuse path state that `PathGenerator::Clear()` destroyed.
 8. **Chase and home now path.** `ChaseMovementGenerator::Update`
    (`ChaseMovementGenerator.cpp:94-240`) and `HomeMovementGenerator::SetTargetLocation`
    (`HomeMovementGenerator.cpp:60-82`) were already faithful Rust ports with **no caller**. Chase
@@ -164,10 +169,20 @@ Four further C++ branches were then closed in the same slice:
    `ShortenPathUntilDist` against the victim, `SetFacing(target)` and the chase walk template.
    Rust deliberately stores the computed move-toward/move-away direction: C++ compares
    `moveToward` with `_movingTowards` but never assigns the field, leaving move-away range checks
-   on the wrong bound and able to stop immediately. Home
+   on the wrong bound and able to stop immediately. The direction is committed only after the
+   corresponding spline launches; a direction flip discards the old `PathGenerator` corridor
+   before querying, while a failed query cannot publish movement that never began. Home
    replaces a *teleport*: the old `Returning` arm assigned `move_target` onto the creature position
    with no spline and no packet. Both have around-obstacle tests against the real navmesh fixture
    that fail when pathfinding is disabled.
+
+The connected gate is now represented by the fail-closed
+`detour-chase-around-obstacle` capture flow. It pins a generated MMap tile, disposable
+character/spawn identity, exact heartbeat → compressed `SMSG_ON_MONSTER_MOVE` → ping window,
+full MonsterMove decoding (normalizing only the process-global spline ID), source/binary
+revision provenance, and guarded private-DataDir/database restoration. Its requirement remains
+`awaiting-real-captures` until the same action has been recorded, reviewed and strictly imported
+from both the pinned C++ and the clean committed Rust HEAD.
 
 Still absent, and explicitly **not** claimed: **point/charge, fleeing and confused** generators are
 complete, unit-tested ports with no live trigger — nothing sets `UNIT_STATE_FLEEING`/`CONFUSED`

@@ -136,10 +136,15 @@ intent, no mutation — see STATE.md §0). Almost every item below is "convert r
   `flags_extra` (`Creature.cpp:1154-1155`), corridor reuse plus `GetPathPolyByPosition`
   (`:94-123`, `:291-413`), and **live pathing for chase and home** — both were faithful ports with
   no caller, and home previously *teleported* the creature on evade. Both have around-obstacle
-  tests that fail with pathfinding disabled. Two proven legacy defects are repaired rather than
-  copied: a one-prefix/empty-suffix corridor recalculates before C++'s zero-length tail underflow,
-  and chase stores the computed move-away direction that C++ reads but never assigns. The normal
-  failed-suffix prefix recovery and the 3D squared `< 3.0f` corridor lookup remain C++-faithful.
+  tests that fail with pathfinding disabled. Proven legacy defects are repaired rather than
+  copied: an empty suffix retains the complete valid multi-poly prefix (there is no overlap to
+  subtract), clamps movement to its reachable boundary, and recalculates a singleton before C++'s
+  zero-length tail underflow; a disconnected singleton partial path is likewise clamped instead
+  of straight-lining across the gap; and chase stores the computed move-away direction that C++
+  reads but never assigns. Chase commits that direction only after a successful spline launch
+  and drops the prior corridor before a direction-flip query. The 3D squared `< 3.0f` corridor
+  lookup remains C++-faithful. The fail-closed `detour-chase-around-obstacle` flow pins the
+  connected MMap/action/provenance contract and is awaiting the real C++/Rust pair before closeout.
   Not claimed: point/charge, fleeing and confused have no live trigger (no fear/confuse aura
   handlers, no live `MovePoint` caller), so their ported generators stay unreachable; also open are
   mutual chase, VMap LOS, the `CanSwim()` mesh-hole halves, raycast/straight-path modes,

@@ -18,7 +18,8 @@ use anyhow::{Context, Result, bail, ensure};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::model::{Direction, PacketBoundary};
+use crate::model::{Capture, Direction, PacketBoundary};
+use crate::semantic::ISSUE_24_PING_FENCE_SERIAL;
 
 /// Completion marker for one fully derived capture flow.
 pub const LINEAGE_FILE: &str = "capture-lineage.json";
@@ -30,6 +31,12 @@ const RUST_RAW_MANIFEST_FILE: &str = "rust.capture-manifest.json";
 const CPP_BOT_REPORT_FILE: &str = "cpp.bot-report.json";
 const RUST_BOT_REPORT_FILE: &str = "rust.bot-report.json";
 const SHA256_HEX_LEN: usize = 64;
+const DETOUR_FIXTURE_MANIFEST_SHA256: &str =
+    "3a6c2aa6081974ef9cf13b8f63f739c402b18799f9833f80819f5e7e0de8d013";
+const DETOUR_FIXTURE_MAP_SHA256: &str =
+    "3ff3365bbd0aafb383f4c2984389d07df133dd86cdb0b9340c25361db32d8f5a";
+const DETOUR_FIXTURE_TILE_SHA256: &str =
+    "693b93ac3ac605fea8b846a0e1fcf6ca2d0b0dce2f8c5d9c34739febc3731f47";
 const LINEAGE_VERSION: u32 = 3;
 const RAW_MANIFEST_VERSION: u32 = 3;
 
@@ -58,6 +65,21 @@ struct RawArtifact {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+struct SyntheticMmapEvidence {
+    path: String,
+    size: u64,
+    sha256: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LinkedReadOnlyDataEvidence {
+    name: String,
+    target_path: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct FixtureGuardEvidence {
     enabled: bool,
     contract: String,
@@ -76,6 +98,26 @@ struct FixtureGuardEvidence {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     gameobject_spawn_guid: Option<u64>,
     item_entry: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    character_account_id: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    normal_data_dir: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    private_data_dir: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    private_data_dir_removed_before_normal_runtime: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    fixture_manifest_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    fixture_manifest_sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    synthetic_mmaps: Option<Vec<SyntheticMmapEvidence>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    linked_read_only_data: Option<Vec<LinkedReadOnlyDataEvidence>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    journal_sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    database_snapshot_sha256: Option<String>,
     cleanup_verified: bool,
 }
 
@@ -104,6 +146,8 @@ struct RawCaptureManifest {
     created_at: String,
     harness_repo_head: String,
     source_repo_head: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    source_exec_revision: Option<String>,
     harness_worktree_clean: bool,
     harness_worktree_state_sha256: String,
     source_worktree_dirty: bool,
@@ -318,6 +362,70 @@ pub fn validate_raw_pair(
     Ok(ValidatedRawPair { cpp, rust })
 }
 
+/// Bind the side-specific bot reports to the exact packet bodies selected from
+/// the raw artifacts. A valid report SHA alone proves only that a report file
+/// was retained; these body digests prove that the bot and packet importer are
+/// describing the same isolated action execution.
+pub fn validate_bot_report_capture_binding(
+    flow: &str,
+    raw: &ValidatedRawPair,
+    cpp: &Capture,
+    rust: &Capture,
+) -> Result<()> {
+    if flow != "detour-chase-around-obstacle" {
+        return Ok(());
+    }
+    validate_detour_report_capture_binding("C++", &raw.cpp, cpp)?;
+    validate_detour_report_capture_binding("Rust", &raw.rust, rust)
+}
+
+fn validate_detour_report_capture_binding(
+    side_name: &str,
+    side: &ValidatedRawSide,
+    capture: &Capture,
+) -> Result<()> {
+    let report_bytes = side
+        .bot_report_bytes
+        .as_deref()
+        .with_context(|| format!("{side_name} detour capture has no validated bot report"))?;
+    let report: serde_json::Value = serde_json::from_slice(report_bytes)
+        .with_context(|| format!("parsing {side_name} detour bot report for packet binding"))?;
+    let result = report
+        .get("results")
+        .and_then(serde_json::Value::as_array)
+        .and_then(|results| results.first())
+        .context("detour bot report has no result for packet binding")?;
+    let heartbeat_sha256 = result
+        .get("detour_chase_heartbeat_sha256")
+        .and_then(serde_json::Value::as_str)
+        .context("detour bot report has no heartbeat SHA-256 for packet binding")?;
+    let monster_move_sha256 = result
+        .get("detour_chase_monster_move_sha256")
+        .and_then(serde_json::Value::as_str)
+        .context("detour bot report has no MonsterMove SHA-256 for packet binding")?;
+    let monster_move_bytes = result
+        .get("detour_chase_monster_move_bytes")
+        .and_then(serde_json::Value::as_u64)
+        .context("detour bot report has no MonsterMove length for packet binding")?;
+    ensure!(
+        capture.packets.len() == 3,
+        "{side_name} detour packet/report binding requires the exact three-packet selected capture"
+    );
+    ensure!(
+        heartbeat_sha256 == sha256_bytes(&capture.packets[0].body),
+        "{side_name} detour heartbeat report SHA-256 does not match selected RAW packet body"
+    );
+    ensure!(
+        monster_move_sha256 == sha256_bytes(&capture.packets[1].body),
+        "{side_name} detour MonsterMove report SHA-256 does not match selected RAW packet body"
+    );
+    ensure!(
+        monster_move_bytes == capture.packets[1].body.len() as u64,
+        "{side_name} detour MonsterMove report length does not match selected RAW packet body"
+    );
+    Ok(())
+}
+
 fn read_and_validate_raw_manifest(
     path: &Path,
     flow: &str,
@@ -473,11 +581,23 @@ fn validate_raw_manifest_schema(
             validate_canonical_loot_race_identity(manifest)?;
         }
         "vendor-extended-cost-purchase" => validate_canonical_vendor_identity(manifest)?,
+        "detour-chase-around-obstacle" => validate_canonical_detour_identity(manifest)?,
         _ => {}
     }
 
     match side {
         RawSide::Cpp => {
+            if flow == "detour-chase-around-obstacle" {
+                ensure!(
+                    !manifest.source_worktree_dirty,
+                    "detour C++ source worktree must be clean"
+                );
+                ensure!(
+                    manifest.source_exec_revision.as_deref()
+                        == Some(manifest.source_repo_head.as_str()),
+                    "detour C++ embedded executable revision must equal source_repo_head"
+                );
+            }
             ensure!(
                 manifest.artifact.path == "cpp.pkt",
                 "C++ artifact path must be cpp.pkt"
@@ -500,6 +620,13 @@ fn validate_raw_manifest_schema(
                 manifest.harness_repo_head == manifest.source_repo_head,
                 "Rust harness/source repository HEAD values must match"
             );
+            if flow == "detour-chase-around-obstacle" {
+                ensure!(
+                    manifest.source_exec_revision.as_deref()
+                        == Some(manifest.source_repo_head.as_str()),
+                    "detour Rust embedded executable revision must equal source_repo_head"
+                );
+            }
             ensure!(
                 !manifest.source_worktree_dirty
                     && manifest.harness_worktree_state_sha256
@@ -648,6 +775,173 @@ fn validate_canonical_vendor_identity(manifest: &RawCaptureManifest) -> Result<(
     Ok(())
 }
 
+fn validate_canonical_detour_identity(manifest: &RawCaptureManifest) -> Result<()> {
+    let fixture = manifest
+        .fixture_guard
+        .as_ref()
+        .context("detour-chase-around-obstacle requires fixture_guard evidence")?;
+    ensure!(fixture.enabled, "fixture_guard.enabled must be true");
+    ensure!(
+        fixture.contract == "detour-chase-around-obstacle-shell-fixture-v1",
+        "unexpected fixture_guard contract"
+    );
+    ensure!(
+        fixture.account == "TESTBOT2@bot.local"
+            && fixture.account_id == 9
+            && fixture.character_guid == 15
+            && fixture.character_account_id == Some(9)
+            && fixture.peer_account.is_empty()
+            && fixture.peer_account_id == 0
+            && fixture.peer_character_guid == 0,
+        "fixture_guard subject is not the canonical TESTBOT2 detour fixture"
+    );
+    ensure!(
+        fixture.creature_entry == Some(15_271)
+            && fixture.creature_spawn_guid == Some(9_102_401)
+            && fixture.gameobject_entry.is_none()
+            && fixture.gameobject_spawn_guid.is_none()
+            && fixture.item_entry == 0,
+        "fixture_guard world identity is not the canonical detour creature"
+    );
+    ensure!(
+        fixture.cleanup_verified,
+        "fixture_guard cleanup was not verified"
+    );
+    ensure!(
+        fixture.private_data_dir_removed_before_normal_runtime == Some(true),
+        "private detour DataDir was not removed before normal runtime restoration"
+    );
+
+    let normal_data_dir = fixture
+        .normal_data_dir
+        .as_deref()
+        .context("fixture_guard.normal_data_dir is missing")?;
+    let private_data_dir = fixture
+        .private_data_dir
+        .as_deref()
+        .context("fixture_guard.private_data_dir is missing")?;
+    let fixture_manifest_path = fixture
+        .fixture_manifest_path
+        .as_deref()
+        .context("fixture_guard.fixture_manifest_path is missing")?;
+    ensure!(
+        Path::new(normal_data_dir).is_absolute()
+            && Path::new(private_data_dir).is_absolute()
+            && Path::new(fixture_manifest_path).is_absolute()
+            && normal_data_dir != private_data_dir,
+        "detour fixture paths must be distinct absolute paths"
+    );
+    ensure!(
+        Path::new(fixture_manifest_path).ends_with(
+            "crates/capture-diff/flows/detour-chase-around-obstacle/fixture/fixture.json"
+        ),
+        "fixture_guard manifest path is not the committed detour fixture"
+    );
+    ensure!(
+        fixture.fixture_manifest_sha256.as_deref() == Some(DETOUR_FIXTURE_MANIFEST_SHA256),
+        "fixture_guard.fixture_manifest_sha256 is not the exact reviewed detour manifest"
+    );
+    validate_sha256(
+        fixture
+            .journal_sha256
+            .as_deref()
+            .context("fixture_guard.journal_sha256 is missing")?,
+        "fixture_guard.journal_sha256",
+    )?;
+    validate_sha256(
+        fixture
+            .database_snapshot_sha256
+            .as_deref()
+            .context("fixture_guard.database_snapshot_sha256 is missing")?,
+        "fixture_guard.database_snapshot_sha256",
+    )?;
+
+    let synthetic_mmaps = fixture
+        .synthetic_mmaps
+        .as_deref()
+        .context("fixture_guard.synthetic_mmaps is missing")?;
+    ensure!(
+        synthetic_mmaps
+            == [
+                SyntheticMmapEvidence {
+                    path: "mmaps/0001.mmap".to_string(),
+                    size: 28,
+                    sha256: "3ff3365bbd0aafb383f4c2984389d07df133dd86cdb0b9340c25361db32d8f5a"
+                        .to_string(),
+                },
+                SyntheticMmapEvidence {
+                    path: "mmaps/00015026.mmtile".to_string(),
+                    size: 1_496,
+                    sha256: "693b93ac3ac605fea8b846a0e1fcf6ca2d0b0dce2f8c5d9c34739febc3731f47"
+                        .to_string(),
+                },
+            ],
+        "fixture_guard synthetic MMaps differ from the pinned obstacle assets"
+    );
+    let linked_read_only_data = fixture
+        .linked_read_only_data
+        .as_deref()
+        .context("fixture_guard.linked_read_only_data is missing")?;
+    let expected_links =
+        ["dbc", "gt", "maps", "vmaps", "cameras"].map(|name| LinkedReadOnlyDataEvidence {
+            name: name.to_string(),
+            target_path: Path::new(normal_data_dir)
+                .join(name)
+                .to_string_lossy()
+                .into_owned(),
+        });
+    ensure!(
+        linked_read_only_data == expected_links,
+        "fixture_guard read-only DataDir links differ from the normal runtime data"
+    );
+
+    let bot = manifest
+        .bot_report
+        .as_ref()
+        .context("detour-chase-around-obstacle requires bot_report evidence")?;
+    ensure!(
+        bot.contract == "wow-test-bot-detour-chase-capture-report-v1",
+        "unexpected bot_report contract"
+    );
+    ensure!(bot.report_validated, "bot_report was not validated");
+    ensure!(
+        bot.account == fixture.account
+            && bot.account_id == fixture.account_id
+            && bot.character_guid == fixture.character_guid,
+        "bot_report identity does not match fixture_guard identity"
+    );
+    Ok(())
+}
+
+fn detour_fixture_shared_identity_matches(
+    cpp: &FixtureGuardEvidence,
+    rust: &FixtureGuardEvidence,
+) -> bool {
+    cpp.enabled == rust.enabled
+        && cpp.contract == rust.contract
+        && cpp.account == rust.account
+        && cpp.account_id == rust.account_id
+        && cpp.character_guid == rust.character_guid
+        && cpp.peer_account == rust.peer_account
+        && cpp.peer_account_id == rust.peer_account_id
+        && cpp.peer_character_guid == rust.peer_character_guid
+        && cpp.creature_entry == rust.creature_entry
+        && cpp.creature_spawn_guid == rust.creature_spawn_guid
+        && cpp.gameobject_entry == rust.gameobject_entry
+        && cpp.gameobject_spawn_guid == rust.gameobject_spawn_guid
+        && cpp.item_entry == rust.item_entry
+        && cpp.character_account_id == rust.character_account_id
+        && cpp.normal_data_dir == rust.normal_data_dir
+        && cpp.private_data_dir_removed_before_normal_runtime
+            == rust.private_data_dir_removed_before_normal_runtime
+        && cpp.fixture_manifest_path == rust.fixture_manifest_path
+        && cpp.fixture_manifest_sha256 == rust.fixture_manifest_sha256
+        && cpp.synthetic_mmaps == rust.synthetic_mmaps
+        && cpp.linked_read_only_data == rust.linked_read_only_data
+        && cpp.database_snapshot_sha256 == rust.database_snapshot_sha256
+        && cpp.cleanup_verified == rust.cleanup_verified
+}
+
 fn validate_cross_side_identity(
     flow: &str,
     cpp: &RawCaptureManifest,
@@ -667,9 +961,20 @@ fn validate_cross_side_identity(
     );
     if matches!(
         flow,
-        "loot-single-item-claim" | "loot-two-session-atomic-race" | "vendor-extended-cost-purchase"
+        "loot-single-item-claim"
+            | "loot-two-session-atomic-race"
+            | "vendor-extended-cost-purchase"
+            | "detour-chase-around-obstacle"
     ) {
-        if flow != "vendor-extended-cost-purchase" {
+        if flow == "detour-chase-around-obstacle" {
+            ensure!(
+                cpp.fixture_guard
+                    .as_ref()
+                    .zip(rust.fixture_guard.as_ref())
+                    .is_some_and(|(cpp, rust)| detour_fixture_shared_identity_matches(cpp, rust)),
+                "C++ and Rust detour fixture identities differ"
+            );
+        } else if flow != "vendor-extended-cost-purchase" {
             ensure!(
                 cpp.fixture_guard == rust.fixture_guard,
                 "C++ and Rust guarded-loot fixture identities differ"
@@ -720,8 +1025,83 @@ fn validate_bot_report_json(bytes: &[u8], evidence: &BotReportEvidence) -> Resul
         "wow-test-bot-vendor-extended-cost-purchase-report-v1" => {
             validate_vendor_bot_report_json(&report, evidence)
         }
+        "wow-test-bot-detour-chase-capture-report-v1" => {
+            validate_detour_chase_bot_report_json(&report, evidence)
+        }
         contract => bail!("unsupported bot report contract {contract:?}"),
     }
+}
+
+fn validate_detour_chase_bot_report_json(
+    report: &serde_json::Value,
+    evidence: &BotReportEvidence,
+) -> Result<()> {
+    let results = report
+        .get("results")
+        .and_then(serde_json::Value::as_array)
+        .context("bot report results must be an array")?;
+    ensure!(
+        report
+            .get("detour_chase_capture")
+            .and_then(serde_json::Value::as_bool)
+            == Some(true)
+            && report
+                .get("loot_item_capture")
+                .and_then(serde_json::Value::as_bool)
+                == Some(false)
+            && report
+                .get("loot_race_smoke")
+                .and_then(serde_json::Value::as_bool)
+                == Some(false)
+            && report
+                .get("vendor_smoke")
+                .and_then(serde_json::Value::as_bool)
+                == Some(false)
+            && results.len() == 1,
+        "bot report is not one isolated detour-chase capture"
+    );
+    let result = &results[0];
+    let string = |key: &str| result.get(key).and_then(serde_json::Value::as_str);
+    let u64_value = |key: &str| result.get(key).and_then(serde_json::Value::as_u64);
+    let boolean = |key: &str| result.get(key).and_then(serde_json::Value::as_bool);
+    ensure!(
+        string("account") == Some(evidence.account.as_str())
+            && u64_value("account_id") == Some(u64::from(evidence.account_id))
+            && u64_value("character_guid") == Some(evidence.character_guid),
+        "bot report subject does not match manifest identity"
+    );
+    let heartbeat_sha256 = string("detour_chase_heartbeat_sha256")
+        .context("detour chase heartbeat SHA-256 is missing")?;
+    let monster_move_sha256 = string("detour_chase_monster_move_sha256")
+        .context("detour chase MonsterMove SHA-256 is missing")?;
+    validate_sha256(heartbeat_sha256, "detour chase heartbeat SHA-256")?;
+    validate_sha256(monster_move_sha256, "detour chase MonsterMove SHA-256")?;
+    ensure!(
+        boolean("world_auth") == Some(true)
+            && boolean("enum_characters") == Some(true)
+            && boolean("player_login_verified") == Some(true)
+            && boolean("detour_chase_capture") == Some(true)
+            && boolean("detour_chase_capture_passed") == Some(true)
+            && u64_value("detour_chase_target_entry") == Some(15_271)
+            && u64_value("detour_chase_target_spawn_guid") == Some(9_102_401)
+            && u64_value("detour_chase_target_runtime_counter") == Some(9_102_401)
+            && boolean("detour_chase_target_discovered") == Some(true)
+            && boolean("detour_chase_active_mover_ack_sent") == Some(true)
+            && boolean("detour_chase_attack_start_confirmed") == Some(true)
+            && boolean("detour_chase_first_swing_confirmed") == Some(true)
+            && u64_value("detour_chase_prewindow_target_moves") == Some(0)
+            && boolean("detour_chase_heartbeat_sent") == Some(true)
+            && u64_value("detour_chase_window_target_moves") == Some(1)
+            && u64_value("detour_chase_monster_move_bytes").is_some_and(|bytes| bytes > 0)
+            && u64_value("detour_chase_ping_serial") == Some(u64::from(ISSUE_24_PING_FENCE_SERIAL))
+            && boolean("detour_chase_pong_confirmed") == Some(true)
+            && boolean("detour_chase_logout_confirmed") == Some(true)
+            && result
+                .get("detour_chase_failure")
+                .is_some_and(serde_json::Value::is_null),
+        "bot report does not prove the canonical isolated detour-chase window"
+    );
+    Ok(())
 }
 
 fn validate_vendor_bot_report_json(
@@ -1170,9 +1550,23 @@ pub fn verify_required_lineage(
     );
     if matches!(
         flow,
-        "loot-single-item-claim" | "loot-two-session-atomic-race" | "vendor-extended-cost-purchase"
+        "loot-single-item-claim"
+            | "loot-two-session-atomic-race"
+            | "vendor-extended-cost-purchase"
+            | "detour-chase-around-obstacle"
     ) {
-        if flow != "vendor-extended-cost-purchase" {
+        if flow == "detour-chase-around-obstacle" {
+            ensure!(
+                lineage
+                    .sources
+                    .cpp
+                    .fixture_guard
+                    .as_ref()
+                    .zip(lineage.sources.rust.fixture_guard.as_ref())
+                    .is_some_and(|(cpp, rust)| detour_fixture_shared_identity_matches(cpp, rust)),
+                "required lineage C++/Rust detour fixture identities differ"
+            );
+        } else if flow != "vendor-extended-cost-purchase" {
             ensure!(
                 lineage.sources.cpp.fixture_guard == lineage.sources.rust.fixture_guard,
                 "required lineage C++/Rust guarded-loot fixture identities differ"
@@ -1768,6 +2162,10 @@ fn is_generated_entry(name: &str) -> bool {
 }
 
 fn copy_reviewed_metadata(source: &Path, destination: &Path) -> Result<()> {
+    let flow = source
+        .file_name()
+        .and_then(|name| name.to_str())
+        .context("published flow name is not UTF-8")?;
     for entry in fs::read_dir(source)? {
         let entry = entry?;
         let name = entry
@@ -1777,14 +2175,84 @@ fn copy_reviewed_metadata(source: &Path, destination: &Path) -> Result<()> {
         if is_generated_entry(&name) {
             continue;
         }
+        if flow == "detour-chase-around-obstacle" && name == "fixture" {
+            copy_detour_fixture_metadata(&entry.path(), &destination.join(&name))?;
+            continue;
+        }
         ensure!(
             matches!(
                 name.as_str(),
                 "README.md" | "flow.json" | "requirement.json"
             ),
-            "flow contains unknown non-generated entry {name:?}; import copies only README.md, flow.json, and requirement.json"
+            "flow contains unknown non-generated entry {name:?}; import copies only reviewed flow metadata"
         );
         copy_tree_entry(&entry.path(), &destination.join(name))?;
+    }
+    Ok(())
+}
+
+fn copy_detour_fixture_metadata(source: &Path, destination: &Path) -> Result<()> {
+    let metadata = fs::symlink_metadata(source)?;
+    ensure!(
+        metadata.file_type().is_dir() && !metadata.file_type().is_symlink(),
+        "detour fixture is not a non-symlink directory"
+    );
+    let mut root_names = fs::read_dir(source)?
+        .map(|entry| {
+            entry?
+                .file_name()
+                .into_string()
+                .map_err(|_| std::io::Error::other("detour fixture filename is not UTF-8"))
+        })
+        .collect::<std::io::Result<Vec<_>>>()?;
+    root_names.sort();
+    ensure!(
+        root_names == ["fixture.json", "mmaps"],
+        "detour fixture contains an unreviewed root entry"
+    );
+    let mmaps = source.join("mmaps");
+    let mmaps_metadata = fs::symlink_metadata(&mmaps)?;
+    ensure!(
+        mmaps_metadata.file_type().is_dir() && !mmaps_metadata.file_type().is_symlink(),
+        "detour fixture mmaps is not a non-symlink directory"
+    );
+    let mut mmap_names = fs::read_dir(&mmaps)?
+        .map(|entry| {
+            entry?
+                .file_name()
+                .into_string()
+                .map_err(|_| std::io::Error::other("detour MMap filename is not UTF-8"))
+        })
+        .collect::<std::io::Result<Vec<_>>>()?;
+    mmap_names.sort();
+    ensure!(
+        mmap_names == ["0001.mmap", "00015026.mmtile"],
+        "detour fixture contains an unreviewed MMap entry"
+    );
+    let manifest_bytes = read_regular_file(&source.join("fixture.json"))?;
+    let map_bytes = read_regular_file(&mmaps.join("0001.mmap"))?;
+    let tile_bytes = read_regular_file(&mmaps.join("00015026.mmtile"))?;
+    ensure!(
+        sha256_bytes(&manifest_bytes) == DETOUR_FIXTURE_MANIFEST_SHA256,
+        "detour fixture manifest differs from the reviewed bytes"
+    );
+    ensure!(
+        map_bytes.len() == 28 && sha256_bytes(&map_bytes) == DETOUR_FIXTURE_MAP_SHA256,
+        "detour fixture map header differs from the reviewed bytes"
+    );
+    ensure!(
+        tile_bytes.len() == 1_496 && sha256_bytes(&tile_bytes) == DETOUR_FIXTURE_TILE_SHA256,
+        "detour fixture tile differs from the reviewed bytes"
+    );
+
+    fs::create_dir(destination)?;
+    copy_tree_entry(
+        &source.join("fixture.json"),
+        &destination.join("fixture.json"),
+    )?;
+    fs::create_dir(destination.join("mmaps"))?;
+    for name in mmap_names {
+        copy_tree_entry(&mmaps.join(&name), &destination.join("mmaps").join(name))?;
     }
     Ok(())
 }
@@ -1916,6 +2384,7 @@ fn atomic_publish_new_directory(_source: &Path, _target: &Path) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::CapturedPacket;
 
     fn test_root(label: &str) -> PathBuf {
         let root = std::env::temp_dir().join(format!(
@@ -1955,6 +2424,7 @@ mod tests {
             "created_at": "2026-07-19T00:00:00Z",
             "harness_repo_head": fake_oid(),
             "source_repo_head": "d".repeat(40),
+            "source_exec_revision": "d".repeat(40),
             "harness_worktree_clean": true,
             "harness_worktree_state_sha256": "1".repeat(64),
             "source_worktree_dirty": true,
@@ -1996,6 +2466,7 @@ mod tests {
             "created_at": "2026-07-19T00:00:01Z",
             "harness_repo_head": fake_oid(),
             "source_repo_head": fake_oid(),
+            "source_exec_revision": fake_oid(),
             "harness_worktree_clean": true,
             "harness_worktree_state_sha256": "1".repeat(64),
             "source_worktree_dirty": false,
@@ -2170,6 +2641,118 @@ mod tests {
                     "contract": "wow-test-bot-loot-two-session-atomic-race-report-v1",
                     "exec_path": "/opt/rustycore/wow-test-bot",
                     "exec_sha256": "7".repeat(64),
+                    "report_path": report_path.to_string_lossy(),
+                    "report_sha256": sha256_bytes(&report_bytes),
+                    "account": "TESTBOT2@bot.local",
+                    "account_id": 9,
+                    "character_guid": 15,
+                    "report_validated": true
+                });
+                fs::write(manifest_path, serde_json::to_vec_pretty(&manifest).unwrap()).unwrap();
+            }
+        } else if flow == "detour-chase-around-obstacle" {
+            for (side, manifest_path, private_data_dir, journal_sha256) in [
+                (
+                    "cpp",
+                    &cpp_manifest,
+                    "/tmp/rustycore-detour-cpp.test",
+                    "8".repeat(64),
+                ),
+                (
+                    "rust",
+                    &rust_manifest,
+                    "/tmp/rustycore-detour-rust.test",
+                    "9".repeat(64),
+                ),
+            ] {
+                let report_json = serde_json::json!({
+                    "detour_chase_capture": true,
+                    "loot_item_capture": false,
+                    "loot_race_smoke": false,
+                    "vendor_smoke": false,
+                    "capture_side": side,
+                    "results": [{
+                        "account": "TESTBOT2@bot.local",
+                        "account_id": 9,
+                        "character_guid": 15,
+                        "world_auth": true,
+                        "enum_characters": true,
+                        "player_login_verified": true,
+                        "detour_chase_capture": true,
+                        "detour_chase_capture_passed": true,
+                        "detour_chase_target_entry": 15271,
+                        "detour_chase_target_spawn_guid": 9102401,
+                        "detour_chase_target_runtime_counter": 9102401,
+                        "detour_chase_target_discovered": true,
+                        "detour_chase_active_mover_ack_sent": true,
+                        "detour_chase_attack_start_confirmed": true,
+                        "detour_chase_first_swing_confirmed": true,
+                        "detour_chase_prewindow_target_moves": 0,
+                        "detour_chase_heartbeat_sent": true,
+                        "detour_chase_heartbeat_sha256": "a".repeat(64),
+                        "detour_chase_window_target_moves": 1,
+                        "detour_chase_monster_move_sha256": "b".repeat(64),
+                        "detour_chase_monster_move_bytes": 128,
+                        "detour_chase_ping_serial": ISSUE_24_PING_FENCE_SERIAL,
+                        "detour_chase_pong_confirmed": true,
+                        "detour_chase_logout_confirmed": true,
+                        "detour_chase_failure": null
+                    }]
+                });
+                let report_bytes = serde_json::to_vec_pretty(&report_json).unwrap();
+                let report_path = raw.join(format!("{side}-detour-report.json"));
+                fs::write(&report_path, &report_bytes).unwrap();
+                let fixture = serde_json::json!({
+                    "enabled": true,
+                    "contract": "detour-chase-around-obstacle-shell-fixture-v1",
+                    "account": "TESTBOT2@bot.local",
+                    "account_id": 9,
+                    "character_guid": 15,
+                    "peer_account": "",
+                    "peer_account_id": 0,
+                    "peer_character_guid": 0,
+                    "creature_entry": 15271,
+                    "creature_spawn_guid": 9102401,
+                    "character_account_id": 9,
+                    "item_entry": 0,
+                    "normal_data_dir": "/srv/wow-data",
+                    "private_data_dir": private_data_dir,
+                    "private_data_dir_removed_before_normal_runtime": true,
+                    "fixture_manifest_path": "/workspace/rustycore/crates/capture-diff/flows/detour-chase-around-obstacle/fixture/fixture.json",
+                    "fixture_manifest_sha256": DETOUR_FIXTURE_MANIFEST_SHA256,
+                    "synthetic_mmaps": [
+                        {
+                            "path": "mmaps/0001.mmap",
+                            "size": 28,
+                            "sha256": "3ff3365bbd0aafb383f4c2984389d07df133dd86cdb0b9340c25361db32d8f5a"
+                        },
+                        {
+                            "path": "mmaps/00015026.mmtile",
+                            "size": 1496,
+                            "sha256": "693b93ac3ac605fea8b846a0e1fcf6ca2d0b0dce2f8c5d9c34739febc3731f47"
+                        }
+                    ],
+                    "linked_read_only_data": [
+                        {"name": "dbc", "target_path": "/srv/wow-data/dbc"},
+                        {"name": "gt", "target_path": "/srv/wow-data/gt"},
+                        {"name": "maps", "target_path": "/srv/wow-data/maps"},
+                        {"name": "vmaps", "target_path": "/srv/wow-data/vmaps"},
+                        {"name": "cameras", "target_path": "/srv/wow-data/cameras"}
+                    ],
+                    "journal_sha256": journal_sha256,
+                    "database_snapshot_sha256": "4".repeat(64),
+                    "cleanup_verified": true
+                });
+                let mut manifest: serde_json::Value =
+                    serde_json::from_slice(&fs::read(manifest_path).unwrap()).unwrap();
+                if side == "cpp" {
+                    manifest["source_worktree_dirty"] = serde_json::Value::Bool(false);
+                }
+                manifest["fixture_guard"] = fixture;
+                manifest["bot_report"] = serde_json::json!({
+                    "contract": "wow-test-bot-detour-chase-capture-report-v1",
+                    "exec_path": "/opt/rustycore/wow-test-bot",
+                    "exec_sha256": "6".repeat(64),
                     "report_path": report_path.to_string_lossy(),
                     "report_sha256": sha256_bytes(&report_bytes),
                     "account": "TESTBOT2@bot.local",
@@ -2493,6 +3076,68 @@ mod tests {
     }
 
     #[test]
+    fn detour_import_copies_only_the_reviewed_fixture_tree() {
+        let root = test_root("detour-reviewed-fixture");
+        let target = root.join("detour-chase-around-obstacle");
+        let fixture = target.join("fixture");
+        let mmaps = fixture.join("mmaps");
+        let committed_fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("flows/detour-chase-around-obstacle/fixture");
+        fs::create_dir_all(&mmaps).unwrap();
+        fs::write(target.join("README.md"), b"reviewed").unwrap();
+        fs::copy(
+            committed_fixture.join("fixture.json"),
+            fixture.join("fixture.json"),
+        )
+        .unwrap();
+        fs::copy(
+            committed_fixture.join("mmaps/0001.mmap"),
+            mmaps.join("0001.mmap"),
+        )
+        .unwrap();
+        fs::copy(
+            committed_fixture.join("mmaps/00015026.mmtile"),
+            mmaps.join("00015026.mmtile"),
+        )
+        .unwrap();
+
+        {
+            let transaction =
+                AtomicFlowImport::prepare(&root, "detour-chase-around-obstacle").unwrap();
+            assert_eq!(
+                fs::read(transaction.staging_dir().join("fixture/fixture.json")).unwrap(),
+                fs::read(committed_fixture.join("fixture.json")).unwrap()
+            );
+            assert_eq!(
+                fs::read(
+                    transaction
+                        .staging_dir()
+                        .join("fixture/mmaps/00015026.mmtile")
+                )
+                .unwrap(),
+                fs::read(committed_fixture.join("mmaps/00015026.mmtile")).unwrap()
+            );
+        }
+
+        fs::write(mmaps.join("0001.mmap"), b"tampered").unwrap();
+        let error = AtomicFlowImport::prepare(&root, "detour-chase-around-obstacle")
+            .err()
+            .expect("tampered reviewed asset must fail closed");
+        assert!(error.to_string().contains("map header differs"));
+        fs::copy(
+            committed_fixture.join("mmaps/0001.mmap"),
+            mmaps.join("0001.mmap"),
+        )
+        .unwrap();
+        fs::write(fixture.join("unreviewed.bin"), b"must not propagate").unwrap();
+        let error = AtomicFlowImport::prepare(&root, "detour-chase-around-obstacle")
+            .err()
+            .expect("unknown fixture entry must fail closed");
+        assert!(error.to_string().contains("unreviewed root entry"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn complete_existing_flow_is_exchanged_as_one_generation() {
         let root = test_root("atomic-exchange");
         let target = root.join("required-flow");
@@ -2585,6 +3230,188 @@ mod tests {
             format!("{error:#}").contains("one shared target/list"),
             "unexpected error: {error:#}"
         );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn detour_raw_pair_allows_private_evidence_to_differ_but_pins_shared_fixture_and_window() {
+        let root = test_root("detour-identity");
+        let flow = "detour-chase-around-obstacle";
+        let (cpp, cpp_manifest, rust, rust_manifest) = make_raw_pair(&root, flow);
+        validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true).unwrap();
+
+        let cpp_original = fs::read(&cpp_manifest).unwrap();
+        let mut cpp_dirty: serde_json::Value = serde_json::from_slice(&cpp_original).unwrap();
+        cpp_dirty["source_worktree_dirty"] = serde_json::Value::Bool(true);
+        fs::write(
+            &cpp_manifest,
+            serde_json::to_vec_pretty(&cpp_dirty).unwrap(),
+        )
+        .unwrap();
+        let error = validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true)
+            .expect_err("dirty legacy C++ detour provenance must fail");
+        assert!(
+            format!("{error:#}").contains("detour C++ source worktree must be clean"),
+            "unexpected error: {error:#}"
+        );
+        fs::write(&cpp_manifest, cpp_original).unwrap();
+
+        let cpp_original = fs::read(&cpp_manifest).unwrap();
+        let mut cpp_wrong_binary: serde_json::Value =
+            serde_json::from_slice(&cpp_original).unwrap();
+        cpp_wrong_binary["source_exec_revision"] = serde_json::Value::String("e".repeat(40));
+        fs::write(
+            &cpp_manifest,
+            serde_json::to_vec_pretty(&cpp_wrong_binary).unwrap(),
+        )
+        .unwrap();
+        let error = validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true)
+            .expect_err("C++ binary/source revision mismatch must fail");
+        assert!(
+            format!("{error:#}")
+                .contains("embedded executable revision must equal source_repo_head"),
+            "unexpected error: {error:#}"
+        );
+        fs::write(&cpp_manifest, cpp_original).unwrap();
+
+        let rust_original = fs::read(&rust_manifest).unwrap();
+        let mut rust_wrong_binary: serde_json::Value =
+            serde_json::from_slice(&rust_original).unwrap();
+        rust_wrong_binary["source_exec_revision"] = serde_json::Value::String("e".repeat(40));
+        fs::write(
+            &rust_manifest,
+            serde_json::to_vec_pretty(&rust_wrong_binary).unwrap(),
+        )
+        .unwrap();
+        let error = validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true)
+            .expect_err("Rust binary/source revision mismatch must fail");
+        assert!(
+            format!("{error:#}")
+                .contains("detour Rust embedded executable revision must equal source_repo_head"),
+            "unexpected error: {error:#}"
+        );
+        fs::write(&rust_manifest, rust_original).unwrap();
+
+        let original = fs::read(&rust_manifest).unwrap();
+        let mut manifest: serde_json::Value = serde_json::from_slice(&original).unwrap();
+        manifest["fixture_guard"]["fixture_manifest_sha256"] =
+            serde_json::Value::String("5".repeat(64));
+        fs::write(
+            &rust_manifest,
+            serde_json::to_vec_pretty(&manifest).unwrap(),
+        )
+        .unwrap();
+        let error = validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true)
+            .expect_err("different committed fixture identity must fail");
+        assert!(format!("{error:#}").contains("exact reviewed detour manifest"));
+
+        let mut manifest: serde_json::Value = serde_json::from_slice(&original).unwrap();
+        manifest["fixture_guard"]["database_snapshot_sha256"] =
+            serde_json::Value::String("3".repeat(64));
+        fs::write(
+            &rust_manifest,
+            serde_json::to_vec_pretty(&manifest).unwrap(),
+        )
+        .unwrap();
+        let error = validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true)
+            .expect_err("different initial database snapshots must fail");
+        assert!(format!("{error:#}").contains("detour fixture identities differ"));
+
+        let mut manifest: serde_json::Value = serde_json::from_slice(&original).unwrap();
+        let report_path = PathBuf::from(manifest["bot_report"]["report_path"].as_str().unwrap());
+        let mut report: serde_json::Value =
+            serde_json::from_slice(&fs::read(&report_path).unwrap()).unwrap();
+        report["results"][0]["detour_chase_window_target_moves"] = serde_json::Value::from(2);
+        let report_bytes = serde_json::to_vec_pretty(&report).unwrap();
+        fs::write(&report_path, &report_bytes).unwrap();
+        manifest["bot_report"]["report_sha256"] =
+            serde_json::Value::String(sha256_bytes(&report_bytes));
+        fs::write(
+            &rust_manifest,
+            serde_json::to_vec_pretty(&manifest).unwrap(),
+        )
+        .unwrap();
+        let error = validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true)
+            .expect_err("a non-isolated movement window must fail");
+        assert!(format!("{error:#}").contains("canonical isolated detour-chase window"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn detour_bot_reports_are_cryptographically_bound_to_each_selected_raw_side() {
+        fn bind_report(manifest_path: &Path, heartbeat: &[u8], movement: &[u8]) {
+            let mut manifest: serde_json::Value =
+                serde_json::from_slice(&fs::read(manifest_path).unwrap()).unwrap();
+            let report_path =
+                PathBuf::from(manifest["bot_report"]["report_path"].as_str().unwrap());
+            let mut report: serde_json::Value =
+                serde_json::from_slice(&fs::read(&report_path).unwrap()).unwrap();
+            report["results"][0]["detour_chase_heartbeat_sha256"] =
+                serde_json::Value::String(sha256_bytes(heartbeat));
+            report["results"][0]["detour_chase_monster_move_sha256"] =
+                serde_json::Value::String(sha256_bytes(movement));
+            report["results"][0]["detour_chase_monster_move_bytes"] =
+                serde_json::Value::from(movement.len() as u64);
+            let report_bytes = serde_json::to_vec_pretty(&report).unwrap();
+            fs::write(&report_path, &report_bytes).unwrap();
+            manifest["bot_report"]["report_sha256"] =
+                serde_json::Value::String(sha256_bytes(&report_bytes));
+            fs::write(manifest_path, serde_json::to_vec_pretty(&manifest).unwrap()).unwrap();
+        }
+
+        fn selected_capture(source: &str, heartbeat: &[u8], movement: &[u8]) -> Capture {
+            Capture::new(
+                source,
+                vec![
+                    CapturedPacket {
+                        direction: Direction::C2S,
+                        connection_id: 1,
+                        opcode: 0x3A10,
+                        body: heartbeat.to_vec(),
+                    },
+                    CapturedPacket {
+                        direction: Direction::S2C,
+                        connection_id: 1,
+                        opcode: 0x2DD4,
+                        body: movement.to_vec(),
+                    },
+                    CapturedPacket {
+                        direction: Direction::C2S,
+                        connection_id: 1,
+                        opcode: 0x3769,
+                        body: b"fence".to_vec(),
+                    },
+                ],
+            )
+        }
+
+        let root = test_root("detour-report-packet-binding");
+        let flow = "detour-chase-around-obstacle";
+        let (cpp_path, cpp_manifest, rust_path, rust_manifest) = make_raw_pair(&root, flow);
+        let cpp_heartbeat = b"cpp-heartbeat";
+        let cpp_movement = b"cpp-movement";
+        let rust_heartbeat = b"rust-heartbeat";
+        let rust_movement = b"rust-movement";
+        bind_report(&cpp_manifest, cpp_heartbeat, cpp_movement);
+        bind_report(&rust_manifest, rust_heartbeat, rust_movement);
+        let raw = validate_raw_pair(
+            flow,
+            &cpp_path,
+            &cpp_manifest,
+            &rust_path,
+            &rust_manifest,
+            true,
+        )
+        .unwrap();
+        let cpp = selected_capture("cpp", cpp_heartbeat, cpp_movement);
+        let rust = selected_capture("rust", rust_heartbeat, rust_movement);
+        validate_bot_report_capture_binding(flow, &raw, &cpp, &rust).unwrap();
+
+        let mut mismatched = rust.clone();
+        mismatched.packets[1].body.push(0);
+        let error = validate_bot_report_capture_binding(flow, &raw, &cpp, &mismatched)
+            .expect_err("a report from a different execution must fail");
+        assert!(format!("{error:#}").contains("does not match selected RAW"));
         fs::remove_dir_all(root).unwrap();
     }
 

@@ -102,10 +102,13 @@ Four further C++ branches were closed in the same slice:
    `PathGenerator` per call. The disputed proximity metric is pinned as full 3D `dtVdistSqr`, not
    2D; its comparison is against the squared literal `3.0f` (effective radius `sqrt(3)`), which is
    retained because changing it to `9.0` would be speculative and can select a different stacked
-   surface. A failed suffix retains the shortened non-empty prefix exactly as C++ intends so the
-   next update can recover. The one-prefix/empty-suffix edge deliberately recalculates: C++ sets
-   `_polyLength` to zero and then indexes `_pathPolyRefs[_polyLength - 1]`, so reproducing it would
-   be undefined behavior rather than compatibility.
+   surface. A failed suffix retains the complete valid multi-poly prefix: C++ says to keep that
+   prefix, but its unconditional `prefix + suffix - overlap` subtraction is invalid when the
+   suffix is empty. Rust clamps the resulting point path to the retained boundary. A singleton
+   prefix deliberately recalculates before C++ indexes a zero-length tail, and a successful
+   singleton partial corridor is clamped to its reachable polygon instead of straight-lining to
+   a disconnected destination. Every `BuildPointPath` recovery that calls C++ `BuildShortcut()`
+   also clears the stored corridor, matching `PathGenerator::Clear()`.
 8. **Chase and home now path.** `ChaseMovementGenerator::update_like_cpp` and
    `HomeMovementGenerator` were already faithful ports with **no caller anywhere outside
    `wow-movement`'s own tests**. Chase drives the live tick: because the creature step has no
@@ -117,7 +120,10 @@ Four further C++ branches were closed in the same slice:
    deliberately assigns the computed move-toward/move-away direction. C++ tests
    `moveToward != _movingTowards` and uses `_movingTowards` to select the periodic min/max bound,
    but never stores `moveToward`; leaving the default `true` can stop a move-away path immediately.
-   The focused regression proves the owner keeps moving until the minimum bound is reached. This
+   Rust publishes the repaired direction only after the spline actually launches and drops the old
+   corridor before a direction-flip query, so a failed path cannot commit fictitious movement.
+   Focused positive/negative regressions prove both the successful move-away bound and the failed
+   launch rollback. This
    is client-visible only for a too-close chase that must move away; no accredited capture in this
    slice exercises that branch, so no golden is silently re-pinned and connected observation
    remains outstanding. Home
@@ -127,6 +133,12 @@ Four further C++ branches were closed in the same slice:
    reproduces `SetTargetLocation`'s interrupt guard, state mask, facing and `SetWalk(false)`, and
    only finalizes once the spline reports finalized. Both have around-obstacle tests against the
    real navmesh fixture that fail when pathfinding is disabled.
+
+The `detour-chase-around-obstacle` capture flow now pins the same synthetic MMap bytes for both
+servers, the disposable character/spawn state, an exact heartbeat → compressed MonsterMove →
+ping window, full 3.4.3 MonsterMove semantics, and clean source/binary provenance with reversible
+private-DataDir/database mutation. It remains fail-closed as `awaiting-real-captures` until the
+real C++ and Rust recordings are reviewed and strictly imported.
 
 Bounded and explicitly **not** claimed. **Point/charge, fleeing and confused are deliberately left
 unwired**: all three are complete, unit-tested ports, but nothing in the runtime can trigger them —

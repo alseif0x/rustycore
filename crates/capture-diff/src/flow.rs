@@ -72,6 +72,7 @@ pub enum RequirementStatus {
 #[serde(rename_all = "kebab-case")]
 pub enum RequirementSemanticContract {
     LootSingleItemClaimV1,
+    ChaseAroundObstacleV1,
 }
 
 /// One routing/order anchor that must occur in a required capture.
@@ -300,6 +301,9 @@ impl FlowRequirement {
             RequirementSemanticContract::LootSingleItemClaimV1 => {
                 semantic::validate_loot_single_item_claim_capture(capture)
                     .map_err(anyhow::Error::msg)?;
+            }
+            RequirementSemanticContract::ChaseAroundObstacleV1 => {
+                semantic::validate_detour_chase_capture(capture).map_err(anyhow::Error::msg)?;
             }
         }
         Ok(())

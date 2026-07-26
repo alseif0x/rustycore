@@ -769,6 +769,7 @@ fn cmd_import(args: &[String]) -> Result<ExitCode> {
     if opts.strict {
         validate_required_import(name, &directions, &opts, &cpp, &rust)?;
     }
+    lineage::validate_bot_report_capture_binding(name, &raw, &cpp, &rust)?;
     let report = DiffReport::compute(&cpp, &rust, &directions);
     if opts.strict && !report.is_clean() {
         print!("{}", report.render_text());

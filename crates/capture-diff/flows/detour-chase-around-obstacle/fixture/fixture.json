@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "flow": "detour-chase-around-obstacle",
+  "generator": {
+    "crate": "wow-recastdetour",
+    "example": "generate_detour_chase_fixture",
+    "feature": "test-fixtures"
+  },
+  "map": {
+    "id": 1,
+    "grid_x": 50,
+    "grid_y": 26
+  },
+  "geometry": {
+    "centre": {
+      "x": -10118.333,
+      "y": 2681.667,
+      "z": 218.49
+    },
+    "creature_start": {
+      "x": -10118.333,
+      "y": 2671.667,
+      "z": 218.49
+    },
+    "player_start": {
+      "x": -10118.333,
+      "y": 2670.667,
+      "z": 218.49,
+      "orientation": 1.5707964
+    },
+    "player_destination": {
+      "x": -10118.333,
+      "y": 2691.667,
+      "z": 218.49,
+      "orientation": -1.5707964
+    },
+    "obstacle": {
+      "min_x": -10123.333,
+      "max_x": -10113.333,
+      "min_y": 2676.667,
+      "max_y": 2686.667
+    }
+  },
+  "creature": {
+    "entry": 15271,
+    "spawn_guid": 9102401
+  },
+  "character": {
+    "guid": 15
+  },
+  "assets": [
+    {
+      "path": "mmaps/0001.mmap",
+      "bytes": 28,
+      "sha256": "3ff3365bbd0aafb383f4c2984389d07df133dd86cdb0b9340c25361db32d8f5a"
+    },
+    {
+      "path": "mmaps/00015026.mmtile",
+      "bytes": 1496,
+      "sha256": "693b93ac3ac605fea8b846a0e1fcf6ca2d0b0dce2f8c5d9c34739febc3731f47"
+    }
+  ]
+}

@@ -68,6 +68,11 @@ password_env_name() {
 
 ensure_local_password() {
   local account="${WOW_BOT_ACCOUNT:-TESTBOT1@bot.local}"
+  if [[ "${WOW_BOT_DETOUR_CHASE_CAPTURE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+    # The deterministic capture pins TESTBOT2 and must use an explicit
+    # caller-owned credential; never persist a generated shared password.
+    return
+  fi
   local per_account_var
   per_account_var="$(password_env_name "$account")"
   if [[ -n "${WOW_BOT_PASSWORD:-}" || -n "${!per_account_var:-}" ]]; then
@@ -106,6 +111,7 @@ inventory_swap_timeout_secs="${WOW_BOT_INVENTORY_SWAP_TIMEOUT_SECS:-8}"
 vendor_timeout_secs="${WOW_BOT_VENDOR_TIMEOUT_SECS:-8}"
 rested_xp_timeout_secs="${WOW_BOT_RESTED_XP_TIMEOUT_SECS:-120}"
 rested_xp_offline_secs="${WOW_BOT_RESTED_XP_OFFLINE_SECS:-86400}"
+detour_chase_timeout_secs="${WOW_BOT_DETOUR_CHASE_TIMEOUT_SECS:-30}"
 loot_race_timeout_secs="${WOW_BOT_LOOT_RACE_TIMEOUT_SECS:-30}"
 ensure_accounts="${WOW_BOT_ENSURE_TEST_ACCOUNTS:-1}"
 
@@ -159,6 +165,14 @@ rested_xp_acknowledged=0
 if [[ "${WOW_BOT_ACK_DISPOSABLE_RESTED_XP:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
   rested_xp_acknowledged=1
 fi
+detour_chase_requested=0
+if [[ "${WOW_BOT_DETOUR_CHASE_CAPTURE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  detour_chase_requested=1
+fi
+detour_chase_acknowledged=0
+if [[ "${WOW_BOT_ACK_DISPOSABLE_DETOUR_FIXTURE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
+  detour_chase_acknowledged=1
+fi
 loot_race_requested=0
 if [[ "${WOW_BOT_LOOT_RACE_SMOKE:-0}" =~ ^(1|true|TRUE|yes|YES|on|ON)$ ]]; then
   loot_race_requested=1
@@ -175,18 +189,34 @@ if ((rested_xp_acknowledged && !rested_xp_requested)); then
   echo "WOW_BOT_ACK_DISPOSABLE_RESTED_XP is only valid with WOW_BOT_RESTED_XP_SMOKE" >&2
   exit 2
 fi
+if ((detour_chase_acknowledged && !detour_chase_requested)); then
+  echo "WOW_BOT_ACK_DISPOSABLE_DETOUR_FIXTURE is only valid with WOW_BOT_DETOUR_CHASE_CAPTURE" >&2
+  exit 2
+fi
 if ((loot_race_acknowledged && !loot_race_requested && !loot_item_capture_requested)); then
   echo "WOW_BOT_ACK_DISPOSABLE_OVERWORLD_LOOT_RACE is only valid with WOW_BOT_LOOT_RACE_SMOKE or WOW_BOT_LOOT_ITEM_CAPTURE" >&2
   exit 2
 fi
-if ((stand_state_requested + quest_requested + bank_requested + void_storage_requested + void_storage_query_capture_requested + homebind_requested + inventory_swap_requested + vendor_requested + rested_xp_requested + loot_race_requested + loot_item_capture_requested > 1)); then
-  echo "Stand-state, quest, bank, void-storage, void-storage-query-capture, homebind, inventory-swap, vendor, rested-XP, loot-race, and loot-item-capture are separate modes" >&2
+if ((stand_state_requested + quest_requested + bank_requested + void_storage_requested + void_storage_query_capture_requested + homebind_requested + inventory_swap_requested + vendor_requested + rested_xp_requested + detour_chase_requested + loot_race_requested + loot_item_capture_requested > 1)); then
+  echo "Stand-state, quest, bank, void-storage, void-storage-query-capture, homebind, inventory-swap, vendor, rested-XP, detour-chase-capture, loot-race, and loot-item-capture are separate modes" >&2
   exit 2
 fi
 if ((loot_race_requested || loot_item_capture_requested)) \
     && ((!loot_race_acknowledged)); then
   echo "Loot fixture modes require WOW_BOT_ACK_DISPOSABLE_OVERWORLD_LOOT_RACE=1" >&2
   exit 2
+fi
+
+if ((detour_chase_requested)); then
+  if ((!detour_chase_acknowledged)); then
+    echo "Detour-chase capture requires WOW_BOT_ACK_DISPOSABLE_DETOUR_FIXTURE=1" >&2
+    exit 2
+  fi
+  # The fixture is pre-provisioned. The Rust bot performs a read-only identity,
+  # position, spawn, and asset preflight before login; generic provisioning is
+  # deliberately disabled for this destructive QA mode.
+  ensure_accounts=0
+  export WOW_BOT_ENSURE_TEST_ACCOUNTS=0
 fi
 
 if ((loot_race_requested || loot_item_capture_requested)); then
@@ -215,7 +245,22 @@ if ((loot_race_requested || loot_item_capture_requested)); then
   export WOW_BOT_REQUIRE_PARENT_DEATH_GUARD=1
 fi
 
-if ((loot_item_capture_requested)); then
+if ((detour_chase_requested)); then
+  account="TESTBOT2@bot.local"
+  detour_fixture_manifest="${WOW_BOT_DETOUR_FIXTURE_MANIFEST:-../../crates/capture-diff/flows/detour-chase-around-obstacle/fixture/fixture.json}"
+  if [[ -z "$detour_fixture_manifest" ]]; then
+    echo "Detour-chase capture requires WOW_BOT_DETOUR_FIXTURE_MANIFEST" >&2
+    exit 2
+  fi
+  report_path="${WOW_BOT_REPORT:-/tmp/rustycore-bot-detour-chase-capture-report.json}"
+  log_path="${WOW_BOT_LOG:-/tmp/rustycore-bot-detour-chase-capture.log}"
+  mode_args=(
+    --detour-chase-capture
+    --ack-disposable-detour-fixture
+    --detour-fixture-manifest "$detour_fixture_manifest"
+    --detour-chase-timeout "$detour_chase_timeout_secs"
+  )
+elif ((loot_item_capture_requested)); then
   if ((!loot_race_acknowledged)); then
     echo "Loot-item capture kills an exact overworld fixture and requires WOW_BOT_ACK_DISPOSABLE_OVERWORLD_LOOT_RACE=1" >&2
     exit 2

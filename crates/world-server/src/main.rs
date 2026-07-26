@@ -17775,6 +17775,15 @@ mod tests {
         let version = worldserver_full_version_like_cpp();
         assert!(version.contains("RustyCore World Server"));
         assert!(version.contains(env!("CARGO_PKG_VERSION")));
+        let revision = worldserver_revision_like_cpp();
+        assert!(
+            matches!(revision.len(), 40 | 64)
+                && revision
+                    .bytes()
+                    .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)),
+            "world-server builds from a Git checkout must embed the exact source revision"
+        );
+        assert!(version.contains(revision));
     }
 
     #[test]

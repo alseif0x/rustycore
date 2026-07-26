@@ -50,6 +50,10 @@
 #   WOW_BOT_REPORT           fresh absolute bot JSON report path. The guarded
 #                            wrapper independently validates the exact selected
 #                            loot or vendor contract before publish
+#   DETOUR_CAPTURE_ACK_FIXTURE_MUTATION must be 1 for
+#                            detour-chase-around-obstacle. That flow uses the
+#                            bot journal path as a shell-owned DB recovery
+#                            journal and a private synthetic-MMap DataDir
 #
 # This restarts the live world server (disconnecting players). Pass --yes to skip
 # the confirmation prompt.
@@ -92,6 +96,7 @@ CAPTURE_EXPECTED_EXEC=""
 CAPTURE_EXPECTED_SHA256=""
 CAPTURE_SOURCE_EXEC=""
 CAPTURE_SOURCE_SHA256=""
+CAPTURE_EXEC_SOURCE_HEAD=""
 CAPTURE_HARNESS_REPO_HEAD=""
 CAPTURE_SOURCE_REPO_HEAD=""
 CAPTURE_HARNESS_WORKTREE_SHA256=""
@@ -157,7 +162,14 @@ CAPTURE_CONFIG_FILE_SHA256=""
 source "$(dirname "${BASH_SOURCE[0]}")/loot-fixture-common.sh"
 # shellcheck source=capture-service-common.sh
 source "$(dirname "${BASH_SOURCE[0]}")/capture-service-common.sh"
+# shellcheck source=detour-chase-fixture-common.sh
+source "$(dirname "${BASH_SOURCE[0]}")/detour-chase-fixture-common.sh"
 capture_validate_world_timeouts || exit 2
+
+if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
+  LOOT_FIXTURE_GUARD_ENABLED=1
+  DETOUR_FIXTURE_DB_CONF="$RUST_CAPTURE_DB_CONF"
+fi
 
 [[ "$RUST_WORLD_PORT" =~ ^[1-9][0-9]*$ ]] \
   && ((RUST_WORLD_PORT <= 65535)) || {
@@ -249,6 +261,18 @@ case "$RUST_CAPTURE_LOOT_FIXTURE_GUARD" in
     exit 2
     ;;
 esac
+
+if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
+  [ -n "$RUST_CAPTURE_EXEC" ] && [ -n "$RUST_CAPTURE_EXEC_SHA256" ] || {
+    echo "error: detour evidence requires RUST_CAPTURE_EXEC and RUST_CAPTURE_EXEC_SHA256" >&2
+    exit 2
+  }
+  [ "$RUST_CAPTURE_EFFECTIVE_CONFIG_WAS_SET" = "x" ] \
+    && [ -n "$RUST_CAPTURE_EFFECTIVE_CONFIG" ] || {
+    echo "error: detour evidence requires RUST_CAPTURE_EFFECTIVE_CONFIG" >&2
+    exit 2
+  }
+fi
 
 if [ "$FLOW" = "vendor-extended-cost-purchase" ]; then
   [ -n "$RUST_CAPTURE_EXEC" ] && [ -n "$RUST_CAPTURE_EXEC_SHA256" ] || {
@@ -751,6 +775,19 @@ capture_exec_source_matches() {
   [ "$digest" = "$CAPTURE_EXEC_SHA256" ]
 }
 
+rust_capture_embedded_source_head() {
+  local executable="$1"
+  local output matches revision
+  output="$("$executable" --version 2>&1)" || return 1
+  matches="$(printf '%s\n' "$output" | sed -nE \
+    's/^RustyCore World Server .* \(rev ([0-9a-f]{40}|[0-9a-f]{64})\)$/\1/p')" \
+    || return 1
+  [ -n "$matches" ] && [[ "$matches" != *$'\n'* ]] || return 1
+  revision="$matches"
+  [[ "$revision" =~ ^[0-9a-f]{40}$|^[0-9a-f]{64}$ ]] || return 1
+  printf '%s\n' "$revision"
+}
+
 capture_process_exec_matches() {
   local identity="$1"
   [ -n "$CAPTURE_EXEC" ] || return 0
@@ -846,6 +883,18 @@ capture_git_repo_clean_at_head "$REPO_ROOT" "$CAPTURE_HARNESS_REPO_HEAD" || {
   echo "error: capture evidence requires a clean committed RustyCore harness/source worktree (including untracked files)" >&2
   exit 1
 }
+if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
+  CAPTURE_EXEC_SOURCE_HEAD="$(
+    rust_capture_embedded_source_head "$CAPTURE_EXEC"
+  )" || {
+    echo "error: pinned Rust world-server does not expose one embedded Git revision via --version" >&2
+    exit 1
+  }
+  [ "$CAPTURE_EXEC_SOURCE_HEAD" = "$CAPTURE_SOURCE_REPO_HEAD" ] || {
+    echo "error: pinned Rust binary revision ${CAPTURE_EXEC_SOURCE_HEAD} does not match clean source HEAD ${CAPTURE_SOURCE_REPO_HEAD}" >&2
+    exit 1
+  }
+fi
 CAPTURE_HARNESS_WORKTREE_SHA256="$(
   capture_git_worktree_state_sha256 "$REPO_ROOT"
 )" || {
@@ -870,6 +919,7 @@ rust_capture_effective_config_sha256() {
 capture.instance_port=${RUST_INSTANCE_PORT}
 capture.packet_dump=enabled" \
     PacketLogFile LogsDir Bot.AccountPrefix WorldServerPort InstanceServerPort \
+    DataDir \
     LoginDatabaseInfo WorldDatabaseInfo CharacterDatabaseInfo \
     Rate.Drop.Item.Poor Rate.Drop.Item.Normal Rate.Drop.Item.Uncommon \
     Rate.Drop.Item.Rare Rate.Drop.Item.Epic Rate.Drop.Item.Legendary \
@@ -922,10 +972,14 @@ finalize_rust_capture_artifact() {
 
   local bot_evidence="" capture_evidence created_at manifest packet_count
   local retained_bot_report path tree_sha
+  local fixture_guard_enabled="$RUST_CAPTURE_LOOT_FIXTURE_GUARD"
   [ "$CAPTURE_RUNTIME_CLEANUP_VERIFIED" -eq 1 ] \
     && [ "$CAPTURE_NORMAL_RUNTIME_RESTORED" -eq 1 ] || return 1
+  if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
+    fixture_guard_enabled=1
+  fi
   capture_fixture_cleanup_verified_for_publication \
-    "$RUST_CAPTURE_LOOT_FIXTURE_GUARD" \
+    "$fixture_guard_enabled" \
     "$CAPTURE_FIXTURE_CLEANUP_VERIFIED" || return 1
   case "$FLOW" in
     loot-single-item-claim)
@@ -956,9 +1010,13 @@ finalize_rust_capture_artifact() {
         = "$CAPTURE_BOT_REPORT_SHA256" ] || return 1
     CAPTURE_BOT_REPORT="$DUMP_DIR/race.bot-report.json"
   fi
-  capture_evidence="$(capture_bot_manifest_evidence \
-    "$FLOW" "$CAPTURE_BOT_EXEC" "$CAPTURE_BOT_EXEC_SHA256" \
-    "$CAPTURE_BOT_REPORT" "$CAPTURE_BOT_REPORT_SHA256")" || return 1
+  if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
+    capture_evidence="$(detour_chase_capture_evidence)" || return 1
+  else
+    capture_evidence="$(capture_bot_manifest_evidence \
+      "$FLOW" "$CAPTURE_BOT_EXEC" "$CAPTURE_BOT_EXEC_SHA256" \
+      "$CAPTURE_BOT_REPORT" "$CAPTURE_BOT_REPORT_SHA256")" || return 1
+  fi
   tree_sha="$(rust_capture_tree_digest "$DUMP_STAGE_DIR")" || return 1
   packet_count="$(find "$DUMP_STAGE_DIR" -mindepth 1 -maxdepth 1 \
     -type f -name '*.meta' -print | wc -l)" \
@@ -967,13 +1025,19 @@ finalize_rust_capture_artifact() {
   created_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" || return 1
   capture_git_repo_clean_at_head "$REPO_ROOT" "$CAPTURE_HARNESS_REPO_HEAD" \
     && [ "$(capture_git_worktree_state_sha256 "$REPO_ROOT")" \
-      = "$CAPTURE_HARNESS_WORKTREE_SHA256" ] || return 1
+      = "$CAPTURE_HARNESS_WORKTREE_SHA256" ] \
+    && {
+      [ "$FLOW" != "detour-chase-around-obstacle" ] \
+        || [ "$(rust_capture_embedded_source_head "$CAPTURE_EXEC")" \
+          = "$CAPTURE_EXEC_SOURCE_HEAD" ]
+    } || return 1
   manifest="$DUMP_STAGE_DIR/rust.capture-manifest.json"
   if ! jq -n \
       --arg flow "$FLOW" \
       --arg created_at "$created_at" \
       --arg harness_repo_head "$CAPTURE_HARNESS_REPO_HEAD" \
       --arg source_repo_head "$CAPTURE_SOURCE_REPO_HEAD" \
+      --arg source_exec_revision "$CAPTURE_EXEC_SOURCE_HEAD" \
       --arg harness_worktree_sha256 "$CAPTURE_HARNESS_WORKTREE_SHA256" \
       --arg expected_exec_path "$CAPTURE_EXPECTED_EXEC" \
       --arg expected_exec_sha256 "$CAPTURE_EXPECTED_SHA256" \
@@ -1003,6 +1067,8 @@ finalize_rust_capture_artifact() {
         created_at: $created_at,
         harness_repo_head: $harness_repo_head,
         source_repo_head: $source_repo_head,
+        source_exec_revision:
+          (if $source_exec_revision == "" then null else $source_exec_revision end),
         harness_worktree_clean: true,
         harness_worktree_state_sha256: $harness_worktree_sha256,
         source_worktree_dirty: false,
@@ -1081,12 +1147,17 @@ for dependency in awk chmod date dirname find flock git id mkdir mktemp mv \
     exit 1
   }
 done
-if [ "$RUST_CAPTURE_LOOT_FIXTURE_GUARD" = "1" ]; then
+if [ "$RUST_CAPTURE_LOOT_FIXTURE_GUARD" = "1" ] \
+    || [ "$FLOW" = "detour-chase-around-obstacle" ]; then
   command -v mysql >/dev/null 2>&1 || {
-    echo "error: mysql is required by the loot fixture guard" >&2
+    echo "error: mysql is required by the selected fixture guard" >&2
     exit 1
   }
   load_loot_fixture_database_credentials || exit 1
+fi
+if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
+  detour_chase_validate_capture_orchestration \
+    "$REPO_ROOT" "$RUST_CAPTURE_EFFECTIVE_CONFIG" rust || exit 2
 fi
 
 echo "flow      : ${FLOW}"
@@ -1256,7 +1327,8 @@ resolve_rust_profile_effective_config() {
     echo "error: guarded capture provenance does not yet support additional config overlays in ${config_dir_arg}" >&2
     return 1
   fi
-  if [ "$RUST_CAPTURE_LOOT_FIXTURE_GUARD" = "1" ] \
+  if { [ "$RUST_CAPTURE_LOOT_FIXTURE_GUARD" = "1" ] \
+        || [ "$FLOW" = "detour-chase-around-obstacle" ]; } \
       && ! jq -e '
         (.apps[0].env // {}) | keys
         | map(select(startswith("TC_"))) | length == 0
@@ -1325,9 +1397,39 @@ cleanup() {
   trap - EXIT
   trap '' HUP INT TERM
   if [ "$CAPTURE_MUTATED" -eq 0 ]; then
+    local pre_mutation_cleanup_failed=0
+    if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
+      if ! detour_chase_remove_rust_capture_config; then
+        echo "WARNING: failed to remove the unused temporary Rust detour config" >&2
+        pre_mutation_cleanup_failed=1
+      fi
+      if ! detour_chase_discard_unarmed_private_data_dir; then
+        echo "WARNING: failed to discard the unarmed private detour DataDir" >&2
+        pre_mutation_cleanup_failed=1
+      fi
+      if ! detour_chase_remove_rust_pm2_capture_file; then
+        echo "WARNING: failed to discard the unused detour PM2 capture file" >&2
+        pre_mutation_cleanup_failed=1
+      fi
+      if [ "$pre_mutation_cleanup_failed" -eq 0 ] \
+          && [ -e "$WOW_BOT_FIXTURE_JOURNAL" ]; then
+        if ! detour_chase_mark_filesystem_restored \
+            || ! capture_wait_for_world_ready "$PM2_RUST_WORLD" >/dev/null \
+            || ! detour_chase_mark_normal_runtime_restored \
+            || ! detour_chase_complete_fixture_journal \
+            || ! loot_fixture_bot_cleanup_complete \
+            || ! rm -f -- "$LOOT_FIXTURE_CLEANUP_MARKER"; then
+          echo "WARNING: failed to complete pre-mutation detour recovery journal" >&2
+          pre_mutation_cleanup_failed=1
+        fi
+      fi
+    fi
     rm -f "$RESTORE_FILE" "$CAPTURE_CONFIG_FILE"
     [ -z "$DUMP_STAGE_DIR" ] || rm -rf -- "$DUMP_STAGE_DIR"
     capture_release_orchestration_lock
+    if [ "$pre_mutation_cleanup_failed" -ne 0 ]; then
+      exit "$CAPTURE_RESTORE_FAILURE_STATUS"
+    fi
     exit "$capture_status"
   fi
   echo "recreating ${PM2_RUST_WORLD} without RUSTYCORE_PACKET_DUMP_DIR..."
@@ -1380,6 +1482,13 @@ cleanup() {
     restore_status=1
   fi
   if [ "$restore_status" -eq 0 ] \
+      && [ "$FLOW" = "detour-chase-around-obstacle" ] \
+      && ! detour_chase_restore_fixture_guard; then
+    echo "WARNING: failed to restore the guarded detour creature/character fixture" >&2
+    restore_status=1
+  fi
+  if [ "$restore_status" -eq 0 ] \
+      && [ "$FLOW" != "detour-chase-around-obstacle" ] \
       && ! loot_fixture_bot_cleanup_safe_for_capture_state \
         "$CAPTURE_BOT_READY"; then
     echo "WARNING: bot fixture cleanup is unproven; the normal world will remain stopped" >&2
@@ -1388,6 +1497,30 @@ cleanup() {
   if [ "$restore_status" -eq 0 ] \
       && [ "$RUST_CAPTURE_LOOT_FIXTURE_GUARD" = "1" ]; then
     CAPTURE_FIXTURE_CLEANUP_VERIFIED=1
+  fi
+  if [ "$restore_status" -eq 0 ] \
+      && [ "$FLOW" = "detour-chase-around-obstacle" ] \
+      && ! detour_chase_remove_rust_capture_config; then
+    echo "WARNING: failed to remove the temporary Rust detour config" >&2
+    restore_status=1
+  fi
+  if [ "$restore_status" -eq 0 ] \
+      && [ "$FLOW" = "detour-chase-around-obstacle" ] \
+      && ! detour_chase_remove_private_data_dir; then
+    echo "WARNING: failed to remove the private detour DataDir" >&2
+    restore_status=1
+  fi
+  if [ "$restore_status" -eq 0 ] \
+      && [ "$FLOW" = "detour-chase-around-obstacle" ] \
+      && ! detour_chase_remove_rust_pm2_capture_file; then
+    echo "WARNING: failed to remove the temporary Rust detour PM2 capture file" >&2
+    restore_status=1
+  fi
+  if [ "$restore_status" -eq 0 ] \
+      && [ "$FLOW" = "detour-chase-around-obstacle" ] \
+      && ! detour_chase_mark_filesystem_restored; then
+    echo "WARNING: failed to durably mark detour filesystem recovery" >&2
+    restore_status=1
   fi
   if [ "$restore_status" -eq 0 ] \
       && { [ ! -f "$RESTORE_FILE" ] || [ -L "$RESTORE_FILE" ] \
@@ -1429,6 +1562,20 @@ cleanup() {
       sleep 0.5
     done
   fi
+  if [ "$restore_status" -eq 0 ] \
+      && [ "$FLOW" = "detour-chase-around-obstacle" ]; then
+    if ! detour_chase_mark_normal_runtime_restored; then
+      echo "WARNING: normal Rust is online but detour recovery phase could not be persisted" >&2
+      restore_status=1
+    elif ! detour_chase_complete_fixture_journal \
+        || ! loot_fixture_bot_cleanup_complete; then
+      echo "WARNING: detour recovery journal could not be completed after normal runtime restoration" >&2
+      restore_status=1
+    else
+      DETOUR_FIXTURE_CLEANUP_VERIFIED=1
+      CAPTURE_FIXTURE_CLEANUP_VERIFIED=1
+    fi
+  fi
   if [ "$restore_status" -ne 0 ]; then
     echo "WARNING: failed to restore ${PM2_RUST_WORLD} exactly; inspect PM2 before another capture" >&2
     echo "WARNING: mode-0600 recovery snapshot retained at ${RESTORE_FILE}" >&2
@@ -1439,7 +1586,8 @@ cleanup() {
     exit "$CAPTURE_RESTORE_FAILURE_STATUS"
   fi
   rm -f "$RESTORE_FILE" "$CAPTURE_CONFIG_FILE"
-  if [ "$RUST_CAPTURE_LOOT_FIXTURE_GUARD" = "1" ] \
+  if { [ "$RUST_CAPTURE_LOOT_FIXTURE_GUARD" = "1" ] \
+      || [ "$FLOW" = "detour-chase-around-obstacle" ]; } \
       && ! rm -f -- "$LOOT_FIXTURE_CLEANUP_MARKER"; then
     echo "WARNING: failed to remove the consumed bot cleanup marker" >&2
     restore_status=1
@@ -1462,6 +1610,67 @@ trap cleanup EXIT
 trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
+
+if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
+  # Publish the minimal filesystem-recovery record before copying the
+  # credential-bearing config or any fixture asset. The two PM2 files are
+  # still empty, mode-0600 mktemp inodes here; their final hashes are upgraded
+  # atomically in the same journal before either service changes.
+  detour_chase_allocate_private_data_dir
+  DETOUR_CAPTURE_CONFIG_FILE_EARLY="$(
+    mktemp "$DETOUR_FIXTURE_PRIVATE_DATA_DIR/.capture-rust.pm2.XXXXXX.json"
+  )"
+  chmod 600 "$DETOUR_CAPTURE_CONFIG_FILE_EARLY"
+  rm -- "$CAPTURE_CONFIG_FILE"
+  CAPTURE_CONFIG_FILE="$DETOUR_CAPTURE_CONFIG_FILE_EARLY"
+
+  DETOUR_FIXTURE_DB_APPLIED=0
+  DETOUR_FIXTURE_DB_CONF="$(realpath -e -- "$RUST_CAPTURE_DB_CONF")"
+  DETOUR_FIXTURE_DB_CONF_SHA256="$(
+    sha256_of_file "$DETOUR_FIXTURE_DB_CONF"
+  )"
+  DETOUR_FIXTURE_DB_CONF_IDENTITY="$(
+    stat -c '%d:%i' -- "$DETOUR_FIXTURE_DB_CONF"
+  )"
+  DETOUR_FIXTURE_ORCHESTRATION_LOCK="$CAPTURE_ORCHESTRATION_LOCK"
+  DETOUR_FIXTURE_PM2_RUST_WORLD="$PM2_RUST_WORLD"
+  DETOUR_FIXTURE_PM2_CPP_WORLD="$PM2_CPP_WORLD"
+  DETOUR_FIXTURE_NORMAL_RUST_PM2_PROFILE_SHA256="$(
+    capture_pm2_profile_redacted_sha256 "$PM2_RUST_WORLD"
+  )"
+  DETOUR_FIXTURE_NORMAL_RUST_CONFIG="$(
+    realpath -e -- "$RUST_CAPTURE_EFFECTIVE_CONFIG"
+  )"
+  DETOUR_FIXTURE_NORMAL_RUST_CONFIG_SHA256="$(
+    sha256_of_file "$DETOUR_FIXTURE_NORMAL_RUST_CONFIG"
+  )"
+  DETOUR_FIXTURE_NORMAL_RUST_CONFIG_IDENTITY="$(
+    stat -c '%d:%i' -- "$DETOUR_FIXTURE_NORMAL_RUST_CONFIG"
+  )"
+  DETOUR_FIXTURE_WORLD_PORT="$RUST_WORLD_PORT"
+  DETOUR_FIXTURE_INSTANCE_PORT="$RUST_INSTANCE_PORT"
+  DETOUR_FIXTURE_PM2_RESTORE_FILE="$RESTORE_FILE"
+  DETOUR_FIXTURE_PM2_RESTORE_FILE_SHA256="$(
+    sha256_of_file "$RESTORE_FILE"
+  )"
+  DETOUR_FIXTURE_PM2_RESTORE_FILE_IDENTITY="$(
+    stat -c '%d:%i' -- "$RESTORE_FILE"
+  )"
+  DETOUR_FIXTURE_CAPTURE_CONFIG_FILE="$CAPTURE_CONFIG_FILE"
+  DETOUR_FIXTURE_CAPTURE_CONFIG_FILE_SHA256="$(
+    sha256_of_file "$CAPTURE_CONFIG_FILE"
+  )"
+  DETOUR_FIXTURE_CAPTURE_CONFIG_FILE_IDENTITY="$(
+    stat -c '%d:%i' -- "$CAPTURE_CONFIG_FILE"
+  )"
+  DETOUR_FIXTURE_RUST_CONFIG=""
+  DETOUR_FIXTURE_RUST_CONFIG_SHA256=""
+  DETOUR_FIXTURE_RUST_CONFIG_IDENTITY=""
+  detour_chase_arm_filesystem_recovery_journal
+  detour_chase_populate_private_data_dir
+  detour_chase_create_rust_capture_config \
+    "$CAPTURE_EFFECTIVE_CONFIG_PATH" "$DETOUR_FIXTURE_PRIVATE_DATA_DIR"
+fi
 
 # This harness intentionally supports the repository's documented PM2 profile:
 # one online fork-mode process, one instance, no watch mode. Reject a different
@@ -1588,6 +1797,15 @@ fi
   echo "error: failed to create PM2 capture snapshot" >&2
   exit 1
 }
+if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
+  detour_chase_patch_rust_pm2_capture_config \
+    "$CAPTURE_CONFIG_FILE" "$DETOUR_FIXTURE_RUST_CONFIG"
+  CAPTURE_EFFECTIVE_CONFIG_PATH="$DETOUR_FIXTURE_RUST_CONFIG"
+  CAPTURE_EFFECTIVE_CONFIG_SHA256="$(rust_capture_effective_config_sha256)" || {
+    echo "error: cannot accredit the temporary Rust detour config" >&2
+    exit 1
+  }
+fi
 chmod 600 "$RESTORE_FILE" "$CAPTURE_CONFIG_FILE" || {
   echo "error: failed to keep PM2 snapshots private" >&2
   exit 1
@@ -1595,6 +1813,43 @@ chmod 600 "$RESTORE_FILE" "$CAPTURE_CONFIG_FILE" || {
 RESTORE_FILE_SHA256="$(sha256_of_file "$RESTORE_FILE")" || exit 1
 CAPTURE_CONFIG_FILE_SHA256="$(sha256_of_file "$CAPTURE_CONFIG_FILE")" || exit 1
 RESTORE_READY=1
+if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
+  DETOUR_FIXTURE_DB_CONF="$(realpath -e -- "$RUST_CAPTURE_DB_CONF")"
+  DETOUR_FIXTURE_DB_CONF_SHA256="$(
+    sha256_of_file "$DETOUR_FIXTURE_DB_CONF"
+  )"
+  DETOUR_FIXTURE_DB_CONF_IDENTITY="$(
+    stat -c '%d:%i' -- "$DETOUR_FIXTURE_DB_CONF"
+  )"
+  DETOUR_FIXTURE_ORCHESTRATION_LOCK="$CAPTURE_ORCHESTRATION_LOCK"
+  DETOUR_FIXTURE_PM2_RUST_WORLD="$PM2_RUST_WORLD"
+  DETOUR_FIXTURE_PM2_CPP_WORLD="$PM2_CPP_WORLD"
+  DETOUR_FIXTURE_NORMAL_RUST_PM2_PROFILE_SHA256="$(
+    capture_pm2_profile_redacted_sha256 "$PM2_RUST_WORLD"
+  )"
+  DETOUR_FIXTURE_NORMAL_RUST_CONFIG="$(
+    realpath -e -- "$RUST_CAPTURE_EFFECTIVE_CONFIG"
+  )"
+  DETOUR_FIXTURE_NORMAL_RUST_CONFIG_SHA256="$(
+    sha256_of_file "$DETOUR_FIXTURE_NORMAL_RUST_CONFIG"
+  )"
+  DETOUR_FIXTURE_NORMAL_RUST_CONFIG_IDENTITY="$(
+    stat -c '%d:%i' -- "$DETOUR_FIXTURE_NORMAL_RUST_CONFIG"
+  )"
+  DETOUR_FIXTURE_WORLD_PORT="$RUST_WORLD_PORT"
+  DETOUR_FIXTURE_INSTANCE_PORT="$RUST_INSTANCE_PORT"
+  DETOUR_FIXTURE_PM2_RESTORE_FILE="$RESTORE_FILE"
+  DETOUR_FIXTURE_PM2_RESTORE_FILE_SHA256="$RESTORE_FILE_SHA256"
+  DETOUR_FIXTURE_PM2_RESTORE_FILE_IDENTITY="$(
+    stat -c '%d:%i' -- "$RESTORE_FILE"
+  )"
+  DETOUR_FIXTURE_CAPTURE_CONFIG_FILE="$CAPTURE_CONFIG_FILE"
+  DETOUR_FIXTURE_CAPTURE_CONFIG_FILE_SHA256="$CAPTURE_CONFIG_FILE_SHA256"
+  DETOUR_FIXTURE_CAPTURE_CONFIG_FILE_IDENTITY="$(
+    stat -c '%d:%i' -- "$CAPTURE_CONFIG_FILE"
+  )"
+  detour_chase_checkpoint_filesystem_recovery_metadata
+fi
 
 # Recheck immediately before touching either server. The earlier validation is
 # intentionally repeated because confirmation and snapshotting may take time.
@@ -1668,7 +1923,14 @@ rust_remove_world_and_verify \
   echo "error: original Rust PM2 entry/listener/descendants did not stop; refusing fixture mutation" >&2
   exit 1
 }
+capture_pm2_process_stopped "$PM2_CPP_WORLD" || {
+  echo "error: ${PM2_CPP_WORLD} changed state while the Rust world was stopping; refusing fixture mutation" >&2
+  exit 1
+}
 apply_loot_fixture_guard
+if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
+  detour_chase_apply_fixture_guard
+fi
 env -i \
   HOME="$HOME" \
   PATH="$PATH" \
@@ -1778,6 +2040,9 @@ if [ -z "$CAPTURE_EXEC" ]; then
 fi
 
 CAPTURE_BOT_READY=1
+if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
+  DETOUR_FIXTURE_BOT_READY=1
+fi
 echo
 echo ">>> Perform the '${FLOW}' flow with the client now."
 read -r -p ">>> Press ENTER when the flow is complete to finish the capture... " _

@@ -53,6 +53,10 @@ pub struct ChaseRangeBounds {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ChaseLaunchPlan {
     pub move_toward: bool,
+    /// C++ replaces its owned `PathGenerator` before calculating when the
+    /// chase direction flips. The runtime bridge uses this to discard the
+    /// retained Detour corridor before it builds the next query.
+    pub direction_changed: bool,
     pub desired_distance: f32,
     pub desired_relative_angle: Option<f32>,
     pub shorten_path: bool,
@@ -155,12 +159,38 @@ impl ChaseMovementGenerator {
         self.mutual_chase
     }
 
+    /// Commits the direction chosen by a launch plan only after the runtime
+    /// bridge has actually launched the corresponding spline.
+    ///
+    /// TrinityCore never assigns `_movingTowards` after calculating
+    /// `moveToward`; keeping that omission makes its periodic range check use
+    /// the wrong bound after a move-away launch. Rust intentionally repairs
+    /// that legacy defect, but does so transactionally so a failed path query
+    /// cannot commit a direction the creature never started moving in.
+    pub fn confirm_launch_like_cpp(&mut self, plan: ChaseLaunchPlan) {
+        self.moving_towards = plan.move_toward;
+    }
+
+    /// Publishes the C++ effects that occur only after `CalculatePath`
+    /// produced a launchable, non-`PATHFIND_NOPATH` path.
+    ///
+    /// This is deliberately separate from planning: a failed path preserves
+    /// the previous `INFORM_ENABLED` state and keeps `CannotReachTarget` set.
+    /// It is also separate from [`Self::confirm_launch_like_cpp`] because C++
+    /// applies these effects immediately before `MoveSplineInit::Launch`.
+    pub fn confirm_path_ready_like_cpp(&mut self) {
+        self.cannot_reach_target = false;
+        self.add_flag(MovementGeneratorFlags::INFORM_ENABLED);
+    }
+
     pub fn initialize_like_cpp(&mut self) {
         self.remove_flag(
             MovementGeneratorFlags::INITIALIZATION_PENDING | MovementGeneratorFlags::DEACTIVATED,
         );
         self.add_flag(MovementGeneratorFlags::INITIALIZED | MovementGeneratorFlags::INFORM_ENABLED);
         self.last_target_position = None;
+        // A reset has no live spline whose direction can be retained.
+        self.moving_towards = true;
     }
 
     pub fn reset_like_cpp(&mut self) {
@@ -250,18 +280,10 @@ impl ChaseMovementGenerator {
                     snapshot.target_position,
                     bounds.max_range,
                 );
-                // Intentional legacy repair. TrinityCore computes `moveToward`
-                // and compares it with `_movingTowards` when deciding whether
-                // to replace `_path`, but never stores the new direction. That
-                // leaves the field permanently `true`, so the periodic range
-                // check can immediately stop a move-away path against the
-                // maximum bound instead of waiting for the minimum bound.
-                self.moving_towards = move_toward;
-                self.cannot_reach_target = false;
-                self.add_flag(MovementGeneratorFlags::INFORM_ENABLED);
 
                 return ChaseMovementAction::Launch(ChaseLaunchPlan {
                     move_toward,
+                    direction_changed: move_toward != self.moving_towards,
                     desired_distance: if move_toward {
                         bounds.max_target
                     } else {
@@ -561,6 +583,8 @@ mod tests {
             Some(ChaseRange::between(2.0, 6.0)),
             Some(ChaseAngle::with_tolerance(0.0, 0.5)),
         );
+        chase.remove_flag(MovementGeneratorFlags::INFORM_ENABLED);
+        chase.cannot_reach_target = true;
         let mut snap = snapshot(
             Position::new(10.0, 0.0, 0.0, 0.0),
             Position::new(0.0, 0.0, 0.0, 0.0),
@@ -571,6 +595,7 @@ mod tests {
             action,
             ChaseMovementAction::Launch(ChaseLaunchPlan {
                 move_toward: true,
+                direction_changed: false,
                 desired_distance: 6.5,
                 desired_relative_angle: Some(0.0),
                 shorten_path: false,
@@ -579,22 +604,40 @@ mod tests {
             })
         );
         assert!(chase.moving_towards());
+        assert!(
+            !chase.has_flag(MovementGeneratorFlags::INFORM_ENABLED),
+            "planning alone must preserve the prior inform lifecycle"
+        );
+        assert!(
+            chase.cannot_reach_target,
+            "planning alone must not clear a prior cannot-reach result"
+        );
+        let ChaseMovementAction::Launch(plan) = action else {
+            unreachable!("asserted above")
+        };
+        chase.confirm_path_ready_like_cpp();
+        assert!(!chase.cannot_reach_target);
+        assert!(chase.has_flag(MovementGeneratorFlags::INFORM_ENABLED));
+        chase.confirm_launch_like_cpp(plan);
         assert!(chase.has_flag(MovementGeneratorFlags::INFORM_ENABLED));
     }
 
     #[test]
-    fn chase_move_away_repairs_the_legacy_unstored_direction() {
+    fn chase_move_away_commits_the_repaired_direction_only_after_launch() {
         let mut chase =
             ChaseMovementGenerator::new(guid(7), Some(ChaseRange::between(2.0, 6.0)), None);
+        chase.initialize_like_cpp();
         let too_close = snapshot(
             Position::new(1.0, 0.0, 0.0, 0.0),
             Position::new(0.0, 0.0, 0.0, 0.0),
         );
 
+        let action = chase.update_like_cpp(true, true, 1, too_close);
         assert_eq!(
-            chase.update_like_cpp(true, true, 1, too_close),
+            action,
             ChaseMovementAction::Launch(ChaseLaunchPlan {
                 move_toward: false,
+                direction_changed: true,
                 desired_distance: 3.5,
                 desired_relative_angle: None,
                 shorten_path: false,
@@ -602,7 +645,14 @@ mod tests {
                 walk: false,
             })
         );
+        assert!(chase.moving_towards());
+        assert!(chase.has_flag(MovementGeneratorFlags::INFORM_ENABLED));
+        let ChaseMovementAction::Launch(plan) = action else {
+            unreachable!("asserted above")
+        };
+        chase.confirm_launch_like_cpp(plan);
         assert!(!chase.moving_towards());
+        assert!(chase.has_flag(MovementGeneratorFlags::INFORM_ENABLED));
 
         // TrinityCore leaves `_movingTowards == true`, so this first periodic
         // check uses only the maximum bound and immediately stops the newly
@@ -620,6 +670,40 @@ mod tests {
             chase.update_like_cpp(true, true, 100, far_enough),
             ChaseMovementAction::StopMovingAndFaceInform(_)
         ));
+    }
+
+    #[test]
+    fn chase_reset_restores_the_no_live_spline_direction_after_move_away() {
+        let mut chase =
+            ChaseMovementGenerator::new(guid(7), Some(ChaseRange::between(2.0, 6.0)), None);
+        chase.initialize_like_cpp();
+        let too_close = snapshot(
+            Position::new(1.0, 0.0, 0.0, 0.0),
+            Position::new(0.0, 0.0, 0.0, 0.0),
+        );
+        let ChaseMovementAction::Launch(away) = chase.update_like_cpp(true, true, 1, too_close)
+        else {
+            panic!("too-close chase must plan a move-away launch");
+        };
+        chase.confirm_launch_like_cpp(away);
+        assert!(!chase.moving_towards());
+
+        chase.deactivate_like_cpp();
+        chase.reset_like_cpp();
+        assert!(
+            chase.moving_towards(),
+            "a reset generator has no live spline direction to preserve"
+        );
+
+        let far = snapshot(
+            Position::new(1.0, 0.0, 0.0, 0.0),
+            Position::new(20.0, 0.0, 0.0, 0.0),
+        );
+        let ChaseMovementAction::Launch(toward) = chase.update_like_cpp(true, true, 100, far)
+        else {
+            panic!("reset chase must relaunch toward a far target, not inform");
+        };
+        assert!(toward.move_toward);
     }
 
     #[test]

@@ -40,9 +40,13 @@ pub use flow::{
 };
 pub use model::{Capture, CapturedPacket, Direction, PacketBoundary, opcode_name};
 pub use semantic::{
-    BuySucceededBody, ExactObjectGuid, InvSlotValue, LogXpGainBody, LootRemovedBody,
+    BuySucceededBody, DecodedMonsterMoveBody, ExactObjectGuid, ISSUE_24_PING_FENCE_SERIAL,
+    ISSUE_24_PING_FENCE_WIRE, InvSlotValue, LogXpGainBody, LootRemovedBody, MonsterMoveBody,
+    MonsterMoveFaceBody, MonsterSplineAnimTierTransitionBody, MonsterSplineFilterBody,
+    MonsterSplineFilterKeyBody, MonsterSplineJumpExtraBody, MonsterSplineSpellEffectExtraBody,
     SemanticBodyDiff, SemanticBodySide, SendKnownSpellsBody, StableObjectGuid,
-    UpdateObjectInvSlotsBody, decode_buy_succeeded_body, decode_log_xp_gain_body,
-    decode_loot_removed_body, decode_send_known_spells_body,
-    validate_loot_single_item_claim_capture,
+    UpdateObjectInvSlotsBody, WirePosition, decode_buy_succeeded_body, decode_log_xp_gain_body,
+    decode_loot_removed_body, decode_monster_move_body, decode_send_known_spells_body,
+    reconstruct_monster_move_path, unpack_monster_move_delta, validate_detour_chase_capture,
+    validate_detour_chase_monster_move, validate_loot_single_item_claim_capture,
 };

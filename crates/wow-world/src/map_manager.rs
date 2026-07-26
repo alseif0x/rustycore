@@ -2952,6 +2952,14 @@ impl WorldCreature {
                 }
             }
             wow_movement::ChaseMovementAction::Launch(plan) => {
+                if plan.direction_changed {
+                    // C++ replaces the owned `PathGenerator` before
+                    // `CalculatePath` when chase direction flips
+                    // (`ChaseMovementGenerator.cpp:171-175`). The retained
+                    // Detour corridor belongs to that old path object.
+                    self.active_chase_path_poly_refs.clear();
+                }
+
                 // C++ picks the target centre when closing in without an angle
                 // constraint, otherwise a point on the tolerance ring
                 // (`ChaseMovementGenerator.cpp:177-191`).
@@ -3074,13 +3082,13 @@ impl WorldCreature {
                     );
                 }
 
-                if let Some(detour_path) = detour_path.as_ref() {
-                    self.active_chase_path_poly_refs
-                        .clone_from(&detour_path.poly_refs);
-                } else {
-                    self.active_chase_path_poly_refs.clear();
+                if let Some(generator) = self.active_chase_generator.as_mut() {
+                    // C++ clears `CannotReachTarget` after a successful
+                    // `CalculatePath` and enables the next arrival inform
+                    // immediately before launching the spline. A failed query
+                    // must preserve the previous inform lifecycle.
+                    generator.confirm_path_ready_like_cpp();
                 }
-
                 self.creature
                     .unit_mut()
                     .add_unit_state(UnitState::CHASE_MOVE.bits());
@@ -3100,7 +3108,18 @@ impl WorldCreature {
                 );
 
                 match self.launch_move_spline_init_like_cpp(&mut init, dst) {
-                    Some((from, spline)) => ChaseTickOutcomeLikeCpp::Launched(from, spline),
+                    Some((from, spline)) => {
+                        if let Some(detour_path) = detour_path.as_ref() {
+                            self.active_chase_path_poly_refs
+                                .clone_from(&detour_path.poly_refs);
+                        } else {
+                            self.active_chase_path_poly_refs.clear();
+                        }
+                        if let Some(generator) = self.active_chase_generator.as_mut() {
+                            generator.confirm_launch_like_cpp(plan);
+                        }
+                        ChaseTickOutcomeLikeCpp::Launched(from, spline)
+                    }
                     None => ChaseTickOutcomeLikeCpp::Idle,
                 }
             }
@@ -6148,6 +6167,34 @@ mod tests {
         )
     }
 
+    fn test_chase_target(victim: ObjectGuid, x: f32) -> ChaseTargetSnapshotLikeCpp {
+        ChaseTargetSnapshotLikeCpp {
+            guid: victim,
+            position: Position::new(x, 10.0, 0.0, 0.0),
+            combat_reach: 1.0,
+            in_world: true,
+            in_water: Some(false),
+        }
+    }
+
+    fn test_chase_corridor(poly_refs: Vec<u64>, end_x: f32) -> DetourPolyPath {
+        let points = vec![
+            [10.0, 10.0, 0.0],
+            [(10.0 + end_x) * 0.5, 10.0, 0.0],
+            [end_x, 10.0, 0.0],
+        ];
+        DetourPolyPath {
+            poly_refs,
+            point_path: DetourPointPath {
+                actual_end: *points.last().expect("test path"),
+                points,
+                path_type: DetourPathType::NORMAL,
+            },
+            start_far_from_poly: false,
+            end_far_from_poly: false,
+        }
+    }
+
     #[test]
     fn world_creature_motion_master_chase_interrupts_random_and_resumes_default_like_cpp() {
         let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 70_009);
@@ -8715,6 +8762,256 @@ mod tests {
                 .and_then(wow_movement::ChaseMovementGenerator::target),
             Some(second),
             "the generator must follow the new victim, not the previous one"
+        );
+    }
+
+    /// C++ replaces its owned `PathGenerator` before `CalculatePath` when
+    /// `moveToward != _movingTowards`, while keeping it for same-direction
+    /// recalculations (`ChaseMovementGenerator.cpp:170-175`). The retained
+    /// Detour corridor has to follow that exact lifecycle.
+    #[test]
+    fn world_creature_chase_direction_flip_resets_corridor_and_same_direction_reuses_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54361);
+        let victim = ObjectGuid::create_world_object(HighGuid::Player, 0, 1, 0, 0, 0, 98);
+        let mut creature = test_creature(guid);
+        creature.enter_combat(victim);
+
+        let launched = creature.update_runtime_chase_movement_like_cpp(
+            1,
+            test_chase_target(victim, 60.0),
+            true,
+            None,
+            |query| {
+                assert!(query.previous_poly_refs.is_empty());
+                Some(test_chase_corridor(vec![101, 102], 59.0))
+            },
+        );
+        assert!(matches!(launched, ChaseTickOutcomeLikeCpp::Launched(..)));
+        assert_eq!(creature.active_chase_path_poly_refs_like_cpp(), &[101, 102]);
+        assert!(
+            creature
+                .active_chase_generator_like_cpp()
+                .expect("chase generator")
+                .moving_towards()
+        );
+
+        let launched = creature.update_runtime_chase_movement_like_cpp(
+            1,
+            test_chase_target(victim, 65.0),
+            true,
+            None,
+            |query| {
+                assert_eq!(query.previous_poly_refs, vec![101, 102]);
+                Some(test_chase_corridor(vec![201, 202], 64.0))
+            },
+        );
+        assert!(matches!(launched, ChaseTickOutcomeLikeCpp::Launched(..)));
+        assert_eq!(creature.active_chase_path_poly_refs_like_cpp(), &[201, 202]);
+
+        let launched = creature.update_runtime_chase_movement_like_cpp(
+            1,
+            test_chase_target(victim, 10.5),
+            true,
+            None,
+            |query| {
+                assert!(
+                    query.previous_poly_refs.is_empty(),
+                    "a toward-to-away flip must discard the old path object"
+                );
+                Some(test_chase_corridor(vec![301, 302], 7.0))
+            },
+        );
+        assert!(matches!(launched, ChaseTickOutcomeLikeCpp::Launched(..)));
+        assert!(
+            !creature
+                .active_chase_generator_like_cpp()
+                .expect("chase generator")
+                .moving_towards()
+        );
+        assert_eq!(creature.active_chase_path_poly_refs_like_cpp(), &[301, 302]);
+
+        let launched = creature.update_runtime_chase_movement_like_cpp(
+            1,
+            test_chase_target(victim, 70.0),
+            true,
+            None,
+            |query| {
+                assert!(
+                    query.previous_poly_refs.is_empty(),
+                    "an away-to-toward flip must discard the old path object"
+                );
+                Some(test_chase_corridor(vec![401, 402], 69.0))
+            },
+        );
+        assert!(matches!(launched, ChaseTickOutcomeLikeCpp::Launched(..)));
+        assert!(
+            creature
+                .active_chase_generator_like_cpp()
+                .expect("chase generator")
+                .moving_towards()
+        );
+        assert_eq!(creature.active_chase_path_poly_refs_like_cpp(), &[401, 402]);
+    }
+
+    #[test]
+    fn world_creature_failed_direction_flip_does_not_publish_unlaunched_direction() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54362);
+        let victim = ObjectGuid::create_world_object(HighGuid::Player, 0, 1, 0, 0, 0, 99);
+        let mut creature = test_creature(guid);
+        creature.enter_combat(victim);
+
+        assert!(matches!(
+            creature.update_runtime_chase_movement_like_cpp(
+                1,
+                test_chase_target(victim, 60.0),
+                true,
+                None,
+                |_| Some(test_chase_corridor(vec![501, 502], 59.0)),
+            ),
+            ChaseTickOutcomeLikeCpp::Launched(..)
+        ));
+        assert_eq!(creature.active_chase_path_poly_refs_like_cpp(), &[501, 502]);
+
+        let failed = creature.update_runtime_chase_movement_like_cpp(
+            1,
+            test_chase_target(victim, 10.5),
+            true,
+            None,
+            |query| {
+                assert!(
+                    query.previous_poly_refs.is_empty(),
+                    "the old toward corridor must be gone before the away query"
+                );
+                None
+            },
+        );
+        assert!(matches!(
+            failed,
+            ChaseTickOutcomeLikeCpp::Stopped(_) | ChaseTickOutcomeLikeCpp::Idle
+        ));
+        assert!(
+            creature
+                .active_chase_generator_like_cpp()
+                .expect("chase generator")
+                .moving_towards(),
+            "a failed query must not publish a move-away direction that never launched"
+        );
+        assert!(creature.active_chase_path_poly_refs_like_cpp().is_empty());
+        assert!(
+            creature
+                .active_chase_generator_like_cpp()
+                .expect("chase generator")
+                .has_flag(RuntimeMovementGeneratorFlags::INFORM_ENABLED),
+            "failed path handling keeps the existing C++ inform lifecycle"
+        );
+    }
+
+    #[test]
+    fn world_creature_nopath_after_arrival_does_not_reenable_consumed_inform_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54363);
+        let victim = ObjectGuid::create_world_object(HighGuid::Player, 0, 1, 0, 0, 0, 100);
+        let mut creature = test_creature(guid);
+        creature.enter_combat(victim);
+
+        assert!(matches!(
+            creature.update_runtime_chase_movement_like_cpp(
+                1,
+                test_chase_target(victim, 60.0),
+                true,
+                None,
+                |_| Some(test_chase_corridor(vec![601, 602], 59.0)),
+            ),
+            ChaseTickOutcomeLikeCpp::Launched(..)
+        ));
+
+        let duration_ms = creature
+            .active_move_spline_like_cpp()
+            .expect("chase spline")
+            .duration_ms();
+        creature.backdate_runtime_clock_for_test(Duration::from_millis(
+            u64::from(duration_ms as u32) + 50,
+        ));
+        assert!(creature.update_move_spline_like_cpp());
+        let _ = creature.update_runtime_chase_movement_like_cpp(
+            100,
+            test_chase_target(victim, 60.0),
+            true,
+            None,
+            |_| panic!("arrival must not calculate another path"),
+        );
+        assert!(
+            !creature
+                .active_chase_generator_like_cpp()
+                .expect("chase generator")
+                .has_flag(RuntimeMovementGeneratorFlags::INFORM_ENABLED)
+        );
+        assert!(
+            creature.creature.take_ai_movement_inform().is_some(),
+            "the successful spline arrival must consume and publish its inform"
+        );
+
+        let failed = creature.update_runtime_chase_movement_like_cpp(
+            1,
+            test_chase_target(victim, 100.0),
+            true,
+            None,
+            |_| None,
+        );
+        assert!(matches!(
+            failed,
+            ChaseTickOutcomeLikeCpp::Stopped(_) | ChaseTickOutcomeLikeCpp::Idle
+        ));
+        let generator = creature
+            .active_chase_generator_like_cpp()
+            .expect("chase generator");
+        assert!(generator.cannot_reach_target);
+        assert!(
+            !generator.has_flag(RuntimeMovementGeneratorFlags::INFORM_ENABLED),
+            "NOPATH after arrival must preserve the consumed inform state"
+        );
+
+        let owner_position = creature.position();
+        let in_range_target = ChaseTargetSnapshotLikeCpp {
+            guid: victim,
+            position: Position::new(
+                owner_position.x + 3.0,
+                owner_position.y,
+                owner_position.z,
+                0.0,
+            ),
+            combat_reach: 1.0,
+            in_world: true,
+            in_water: Some(false),
+        };
+        let snapshot = creature.chase_unit_snapshot_like_cpp(in_range_target);
+        let bounds = creature
+            .active_chase_generator_like_cpp()
+            .expect("chase generator")
+            .bounds_like_cpp(snapshot);
+        assert!(
+            !snapshot.owner_has_chase_move
+                && wow_movement::generators::chase::position_okay_like_cpp(
+                    snapshot,
+                    Some(bounds.min_range),
+                    Some(bounds.max_range),
+                    None,
+                ),
+            "the final target must exercise the in-range, no-active-spline branch: \
+             snapshot={snapshot:?}, bounds={bounds:?}"
+        );
+        assert_eq!(
+            creature.update_runtime_chase_movement_like_cpp(
+                100,
+                in_range_target,
+                true,
+                None,
+                |_| panic!("an in-range target must not calculate another path"),
+            ),
+            ChaseTickOutcomeLikeCpp::Idle
+        );
+        assert!(
+            creature.creature.take_ai_movement_inform().is_none(),
+            "a route that never launched must not publish a duplicate arrival inform"
         );
     }
 

@@ -1,0 +1,52 @@
+{
+  "issue": "#24",
+  "status": "awaiting-real-captures",
+  "description": "A connected disposable character moves across the missing centre cell of the pinned synthetic navmesh; the selected creature must publish one compressed around-obstacle chase spline before a fixed instance ping fence.",
+  "blocked_reason": "The deterministic MMap assets and guarded private-DataDir/spawn/character orchestration are present, but same-action C++/Rust RAW captures have not yet been completed, reviewed, and imported.",
+  "directions": [
+    "s2c",
+    "c2s"
+  ],
+  "import_selection": {
+    "from_opcode": {
+      "direction": "c2s",
+      "opcode": 14864
+    },
+    "until_opcode": {
+      "direction": "c2s",
+      "opcode": 14184
+    },
+    "ignored_opcodes": [
+      {
+        "direction": "s2c",
+        "opcode": 11730
+      },
+      {
+        "direction": "c2s",
+        "opcode": 14909
+      }
+    ]
+  },
+  "require_each_anchor_exactly_once": true,
+  "semantic_contract": "chase-around-obstacle-v1",
+  "required_order": [
+    {
+      "direction": "c2s",
+      "connection_id": 1,
+      "opcode": 14864,
+      "label": "CMSG_MOVE_HEARTBEAT across obstacle"
+    },
+    {
+      "direction": "s2c",
+      "connection_id": 1,
+      "opcode": 11732,
+      "label": "SMSG_ON_MONSTER_MOVE fixture chase spline"
+    },
+    {
+      "direction": "c2s",
+      "connection_id": 1,
+      "opcode": 14184,
+      "label": "CMSG_PING deterministic fence"
+    }
+  ]
+}
