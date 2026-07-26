@@ -9212,6 +9212,12 @@ async fn run_detour_chase_capture_phase(
             result.detour_chase_time_sync_during_window += 1;
             continue;
         }
+        if opcode == SMSG_UPDATE_OBJECT {
+            // Combat VALUES fanout is deliberately excluded symmetrically by
+            // the flow import. Its ordering relative to chase movement differs
+            // between runtimes and is not evidence for Detour path geometry.
+            continue;
+        }
         if opcode != SMSG_ON_MONSTER_MOVE {
             bail!(
                 "unexpected opcode 0x{opcode:04X} inside detour capture window before movement anchor"

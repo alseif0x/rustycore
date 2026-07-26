@@ -225,9 +225,16 @@ fn validate_ignored_opcodes(opts: &Opts) -> Result<()> {
         {
             bail!("--ignore-opcode {ignored} cannot remove an action boundary");
         }
-        if !APPROVED_AMBIENT_IGNORES.contains(ignored) {
+        let reviewed_detour_combat_values = opts.positional.as_deref()
+            == Some("detour-chase-around-obstacle")
+            && *ignored
+                == (PacketBoundary {
+                    direction: Some(Direction::S2C),
+                    opcode: 0x27CB,
+                });
+        if !APPROVED_AMBIENT_IGNORES.contains(ignored) && !reviewed_detour_combat_values {
             bail!(
-                "--ignore-opcode {ignored} is not approved ambient traffic; reviewed filters are s2c:0x2DD2, c2s:0x3A3D, and s2c:0x2DD4"
+                "--ignore-opcode {ignored} is not approved ambient traffic for this flow"
             );
         }
     }
@@ -1449,6 +1456,30 @@ mod tests {
                 .unwrap_err()
                 .to_string()
                 .contains("duplicated")
+        );
+    }
+
+    #[test]
+    fn combat_values_ignore_is_scoped_to_detour_chase_flow() {
+        let detour = parse_opts(&[
+            "detour-chase-around-obstacle".into(),
+            "--ignore-opcode".into(),
+            "s2c:0x27CB".into(),
+        ])
+        .unwrap();
+        apply_capture_selection(Capture::new("capture", Vec::new()), &detour).unwrap();
+
+        let unrelated = parse_opts(&[
+            "stand-state".into(),
+            "--ignore-opcode".into(),
+            "s2c:0x27CB".into(),
+        ])
+        .unwrap();
+        assert!(
+            apply_capture_selection(Capture::new("capture", Vec::new()), &unrelated)
+                .unwrap_err()
+                .to_string()
+                .contains("not approved ambient traffic")
         );
     }
 

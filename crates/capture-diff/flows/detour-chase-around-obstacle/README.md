@@ -67,15 +67,16 @@ password through the runner's protected
 
 ## Exact wire window
 
-After symmetrically removing only the periodic time-sync request/response pair,
-the imported action is exactly:
+After symmetrically removing the periodic time-sync request/response pair and
+`SMSG_UPDATE_OBJECT` combat VALUES fanout (whose ordering relative to movement
+is outside this Detour path slice), the imported action is exactly:
 
 1. instance `CMSG_MOVE_HEARTBEAT` (`c2s`, connection `1`, `0x3A10`);
 2. instance `SMSG_ON_MONSTER_MOVE` (`s2c`, connection `1`, `0x2DD4`);
 3. instance `CMSG_PING` (`c2s`, connection `1`, `0x3768`).
 
-Do not ignore `SMSG_ON_MONSTER_MOVE`: it is the evidence. An extra combat,
-update, or movement packet inside the window is a failed isolation run, not a
+Do not ignore `SMSG_ON_MONSTER_MOVE`: it is the evidence. Any other extra
+combat or movement packet inside the window is a failed isolation run, not a
 reason to widen the ignore list.
 
 `ChaseAroundObstacleV1` fully decodes the C++ packet layout. The persistent
@@ -105,6 +106,7 @@ cargo run -p capture-diff -- import detour-chase-around-obstacle \
   --from-opcode c2s:0x3A10 \
   --until-opcode c2s:0x3768 \
   --ignore-opcode s2c:0x2DD2 \
+  --ignore-opcode s2c:0x27CB \
   --ignore-opcode c2s:0x3A3D \
   --direction both \
   --strict

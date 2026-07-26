@@ -24,6 +24,10 @@
       {
         "direction": "c2s",
         "opcode": 14909
+      },
+      {
+        "direction": "s2c",
+        "opcode": 10187
       }
     ]
   },
