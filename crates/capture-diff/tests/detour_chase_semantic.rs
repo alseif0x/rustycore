@@ -166,6 +166,11 @@ fn complete_fixture_body_decodes_and_proves_a_detour() {
     assert!(path[1][0] < -10_123.333);
     assert!(path[2][0] < -10_123.333);
 
+    let generated_counter = decode_monster_move_body(&fixture_monster_move(1, 91)).unwrap();
+    assert!(validate_detour_chase_monster_move(&generated_counter).is_ok());
+    let zero_counter = decode_monster_move_body(&fixture_monster_move(0, 91)).unwrap();
+    assert!(validate_detour_chase_monster_move(&zero_counter).is_err());
+
     let mut nonzero_elapsed = decoded.clone();
     nonzero_elapsed.body.elapsed = 1;
     assert!(validate_detour_chase_monster_move(&nonzero_elapsed).is_err());
@@ -197,7 +202,7 @@ fn complete_fixture_body_decodes_and_proves_a_detour() {
 }
 
 #[test]
-fn comparator_requires_exact_fixture_counter_and_omits_only_spline_id() {
+fn comparator_requires_nonzero_fixture_counter_and_omits_runtime_ids() {
     let cpp = fixture_monster_move(FIXTURE_SPAWN_GUID, 91);
     let rust = fixture_monster_move(FIXTURE_SPAWN_GUID, 4_001);
     let semantic = compare_packet_bodies(Direction::S2C, SMSG_ON_MONSTER_MOVE, &cpp, &rust)
@@ -223,16 +228,17 @@ fn comparator_requires_exact_fixture_counter_and_omits_only_spline_id() {
     assert!(!semantic.is_identical());
     assert!(semantic.mismatch_summary().contains("zero spline ID"));
 
-    let wrong_counter = fixture_monster_move(FIXTURE_SPAWN_GUID + 1, 4_001);
+    let generated_counter = fixture_monster_move(1, 4_001);
     let semantic =
-        compare_packet_bodies(Direction::S2C, SMSG_ON_MONSTER_MOVE, &cpp, &wrong_counter)
-            .expect("one valid fixture side selects the fail-closed comparator");
+        compare_packet_bodies(Direction::S2C, SMSG_ON_MONSTER_MOVE, &cpp, &generated_counter)
+            .expect("both nonzero process-local counters select the fixture comparator");
+    assert!(semantic.is_identical());
+
+    let zero_counter = fixture_monster_move(0, 4_001);
+    let semantic = compare_packet_bodies(Direction::S2C, SMSG_ON_MONSTER_MOVE, &cpp, &zero_counter)
+        .expect("one valid fixture side selects the fail-closed comparator");
     assert!(!semantic.is_identical());
-    assert!(
-        semantic
-            .mismatch_summary()
-            .contains("persistent spawn GUID")
-    );
+    assert!(semantic.mismatch_summary().contains("zero runtime GUID counter"));
 }
 
 #[test]

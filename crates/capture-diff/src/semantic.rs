@@ -93,7 +93,6 @@ const ISSUE_24_CREATURE_IDENTITY: StableObjectGuid = StableObjectGuid {
     subtype: 0,
     server_id: 0,
 };
-const ISSUE_24_CREATURE_SPAWN_GUID: u64 = 9_102_401;
 pub const ISSUE_24_PING_FENCE_WIRE: [u8; 4] = *b"DTOR";
 pub const ISSUE_24_PING_FENCE_SERIAL: u32 = u32::from_le_bytes(ISSUE_24_PING_FENCE_WIRE);
 const ISSUE_24_PING_BODY: [u8; 8] = [
@@ -992,7 +991,7 @@ fn compare_monster_move_bodies(cpp: &[u8], rust: &[u8]) -> Option<SemanticBodyDi
     }
 
     Some(SemanticBodyDiff {
-        comparator: "smsg_on_monster_move_with_exact_fixture_counter_without_spline_id".to_string(),
+        comparator: "smsg_on_monster_move_with_fixture_identity_without_runtime_ids".to_string(),
         cpp: SemanticBodySide::from_decoded_monster_move(cpp_decoded, cpp, cpp_is_fixture),
         rust: SemanticBodySide::from_decoded_monster_move(rust_decoded, rust, rust_is_fixture),
     })
@@ -1599,11 +1598,8 @@ pub fn validate_detour_chase_monster_move(
             movement.mover, ISSUE_24_CREATURE_IDENTITY
         ));
     }
-    if decoded.mover_runtime_counter != ISSUE_24_CREATURE_SPAWN_GUID {
-        return Err(format!(
-            "issue-#24 fixture mover counter {} is not persistent spawn GUID {}",
-            decoded.mover_runtime_counter, ISSUE_24_CREATURE_SPAWN_GUID
-        ));
+    if decoded.mover_runtime_counter == 0 {
+        return Err("issue-#24 fixture movement has zero runtime GUID counter".to_string());
     }
     if decoded.spline_id == 0 {
         return Err("issue-#24 fixture movement has zero spline ID".to_string());

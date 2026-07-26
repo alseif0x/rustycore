@@ -2183,7 +2183,7 @@ detour_chase_apply_fixture_guard() {
 
   updated="$(loot_fixture_character_mysql -e "
     UPDATE characters SET
-      map=1,zone=0,instance_id=0,
+      level=1,xp=0,map=1,zone=0,instance_id=0,
       position_x=${DETOUR_FIXTURE_PLAYER_X},
       position_y=${DETOUR_FIXTURE_PLAYER_Y},
       position_z=${DETOUR_FIXTURE_PLAYER_Z},
@@ -2205,7 +2205,7 @@ detour_chase_apply_fixture_guard() {
          WHERE guid=${DETOUR_FIXTURE_CHARACTER_GUID}
            AND account=${DETOUR_FIXTURE_CHARACTER_ACCOUNT}
            AND online=0 AND at_login=0 AND deleteDate IS NULL
-           AND map=1 AND zone=0 AND instance_id=0
+           AND level=1 AND xp=0 AND map=1 AND zone=0 AND instance_id=0
            AND position_x=CAST(${DETOUR_FIXTURE_PLAYER_X} AS FLOAT)
            AND position_y=CAST(${DETOUR_FIXTURE_PLAYER_Y} AS FLOAT)
            AND position_z=CAST(${DETOUR_FIXTURE_PLAYER_Z} AS FLOAT)
@@ -3468,7 +3468,8 @@ detour_chase_report_proves_exact_success() {
     and .results[0].detour_chase_capture_passed == true
     and .results[0].detour_chase_target_entry == 15271
     and .results[0].detour_chase_target_spawn_guid == 9102401
-    and .results[0].detour_chase_target_runtime_counter == 9102401
+    and (.results[0].detour_chase_target_runtime_counter
+      | type == "number" and . > 0)
     and .results[0].detour_chase_target_discovered == true
     and .results[0].detour_chase_active_mover_ack_sent == true
     and .results[0].detour_chase_attack_start_confirmed == true

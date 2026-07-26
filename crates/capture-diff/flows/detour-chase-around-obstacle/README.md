@@ -78,10 +78,12 @@ Do not ignore `SMSG_ON_MONSTER_MOVE`: it is the evidence. An extra combat,
 update, or movement packet inside the window is a failed isolation run, not a
 reason to widen the ignore list.
 
-`ChaseAroundObstacleV1` fully decodes the C++ packet layout. The fixture
-Creature GUID counter must equal persistent spawn ID `9102401` on both servers,
-as it does in C++ `Creature::Create`; cross-runtime comparison omits only the
-process-global spline ID. All other GUID bits, float bits, flags, timing,
+`ChaseAroundObstacleV1` fully decodes the C++ packet layout. The persistent
+spawn ID remains `9102401`, while C++ `Creature::LoadFromDB` assigns its wire
+GUID with `Map::GenerateLowGuid`; each side must therefore report a nonzero
+runtime counter, but the counters need not equal the DB ID or each other.
+Cross-runtime comparison omits only those process-local creature/spline
+allocation IDs. All other GUID bits, float bits, flags, timing,
 facing/transport/options, endpoint, and packed deltas remain exact. Each side
 is also validated independently: the heartbeat must target the pinned
 destination, the movement must belong to the reserved creature and face the
