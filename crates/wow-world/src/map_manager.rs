@@ -1429,8 +1429,7 @@ impl WorldCreature {
         creature.unit_mut().set_level(level);
         creature.unit_mut().set_max_health(u64::from(hp));
         creature.unit_mut().set_health(u64::from(hp));
-        creature.set_display_id(display_id, true, None);
-        creature.set_faction(faction);
+        creature.set_ai_identity_runtime(display_id, faction, npc_flags, unit_flags);
         creature.unit_mut().set_weapon_damage(
             WeaponAttackType::BaseAttack,
             min_dmg as f32,
@@ -1443,10 +1442,6 @@ impl WorldCreature {
             // random movement spawns get a positive distance from CreatureData.
             ai.wander_radius = 0.0;
             ai.respawn_time_secs = 30;
-            ai.npc_flags = npc_flags;
-            ai.unit_flags = unit_flags;
-            ai.display_id = display_id;
-            ai.faction = faction;
             ai.min_damage = min_dmg;
             ai.max_damage = max_dmg;
         }
@@ -2321,6 +2316,14 @@ impl WorldCreature {
         init: &mut MoveSplineInit,
         dst: Position,
     ) -> Option<(Position, MoveSpline)> {
+        // C++ `MoveSplineInit::MoveSplineInit(Unit*)` snapshots `CanSwim()` into
+        // every new spline before the generator customizes it
+        // (`MoveSplineInit.cpp:198-207`).
+        if self.creature.can_swim_like_cpp() {
+            init.args.flags.insert(MoveSplineFlag::CAN_SWIM);
+        } else {
+            init.args.flags.remove(MoveSplineFlag::CAN_SWIM);
+        }
         let spline_id = init.args.spline_id;
         let active_spline_position = self
             .active_move_spline
@@ -2725,7 +2728,7 @@ impl WorldCreature {
                 .active_move_spline
                 .as_ref()
                 .is_none_or(MoveSpline::finalized),
-            can_swim_out_of_combat: self.creature.can_swim_like_cpp(),
+            can_swim_out_of_combat: !self.creature.is_missing_can_swim_flag_out_of_combat(),
             is_vehicle: false,
         }
     }
@@ -2749,6 +2752,9 @@ impl WorldCreature {
             self.creature
                 .unit_mut()
                 .clear_unit_state(finalize.clear_unit_state_mask);
+            if finalize.remove_can_swim_flag {
+                self.creature.restore_can_swim_flag_after_home_like_cpp();
+            }
             if finalize.just_reached_home {
                 // C++ `AI()->JustReachedHome()` — the last step of the
                 // reached-home payload (`:156`). The spawn-health,
@@ -8523,7 +8529,7 @@ mod tests {
             100,
             14,
             0,
-            0,
+            wow_constants::UnitFlags::CAN_SWIM.bits(),
         );
         creature
             .creature
@@ -8566,6 +8572,11 @@ mod tests {
         assert_eq!(
             spline.final_destination(),
             Some(Position::new(15.0, 12.0, 30.0, 0.0))
+        );
+        assert!(creature.creature.can_swim_like_cpp());
+        assert!(
+            spline.flags().contains(MoveSplineFlag::CAN_SWIM),
+            "MoveSplineInit must snapshot Unit::CanSwim like C++"
         );
 
         let _ = std::fs::remove_dir_all(&data_dir);

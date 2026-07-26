@@ -1450,6 +1450,30 @@ impl Creature {
         unit_flags.intersects(UnitFlags::RENAME | UnitFlags::CAN_SWIM)
     }
 
+    /// C++ `Creature::RefreshCanSwimFlag`: remember whether `UNIT_FLAG_CAN_SWIM`
+    /// was absent out of combat, then add it while engaged when the movement
+    /// template otherwise allows the creature to enter water.
+    pub fn refresh_can_swim_flag_like_cpp(&mut self, recheck: bool) {
+        if !self.is_missing_can_swim_flag_out_of_combat || recheck {
+            self.is_missing_can_swim_flag_out_of_combat = !self
+                .unit
+                .unit_flags_like_cpp()
+                .contains(UnitFlags::CAN_SWIM);
+        }
+
+        if self.is_missing_can_swim_flag_out_of_combat && self.can_enter_water_like_cpp() {
+            let flags = self.unit.unit_flags_like_cpp() | UnitFlags::CAN_SWIM;
+            self.unit.set_unit_flags_like_cpp(flags);
+        }
+    }
+
+    pub fn restore_can_swim_flag_after_home_like_cpp(&mut self) {
+        if self.is_missing_can_swim_flag_out_of_combat {
+            let flags = self.unit.unit_flags_like_cpp() & !UnitFlags::CAN_SWIM;
+            self.unit.set_unit_flags_like_cpp(flags);
+        }
+    }
+
     /// C++ `Creature::CanFly()` returns true when the movement template allows
     /// flight (`Flight != None`) or runtime movement flags say the unit is
     /// flying (`MOVEMENTFLAG_FLYING | MOVEMENTFLAG_DISABLE_GRAVITY`).
@@ -1857,6 +1881,9 @@ impl Creature {
     }
 
     pub fn enter_ai_combat(&mut self, attacker: ObjectGuid) {
+        // C++ `Creature::AtEngage` refreshes this before any chase spline is
+        // built, so `MoveSplineInit` observes the effective combat capability.
+        self.refresh_can_swim_flag_like_cpp(false);
         self.ai_ownership.state = CreatureAiState::InCombat;
         self.ai_ownership.combat_target = Some(attacker);
         self.ai_ownership.move_target = None;
@@ -4547,6 +4574,28 @@ mod tests {
             .unit_mut()
             .set_unit_flags_like_cpp(UnitFlags::CAN_SWIM | UnitFlags::CANT_SWIM);
         assert!(!creature.can_enter_water_like_cpp());
+    }
+
+    #[test]
+    fn creature_engage_temporarily_adds_template_swim_capability_like_cpp() {
+        let mut creature = Creature::new(false);
+        creature.set_swim_allowed_runtime_like_cpp(true);
+        assert!(!creature.can_swim_like_cpp());
+
+        creature.enter_ai_combat(ObjectGuid::create_player(1, 7));
+        assert!(creature.can_swim_like_cpp());
+        assert!(creature.is_missing_can_swim_flag_out_of_combat());
+
+        creature.restore_can_swim_flag_after_home_like_cpp();
+        assert!(!creature.can_swim_like_cpp());
+
+        creature
+            .unit_mut()
+            .set_unit_flags_like_cpp(UnitFlags::CAN_SWIM);
+        creature.refresh_can_swim_flag_like_cpp(true);
+        assert!(!creature.is_missing_can_swim_flag_out_of_combat());
+        creature.restore_can_swim_flag_after_home_like_cpp();
+        assert!(creature.can_swim_like_cpp());
     }
 
     #[test]

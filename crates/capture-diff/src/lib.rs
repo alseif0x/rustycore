@@ -34,9 +34,9 @@ pub use diff::{
     DivergenceSignature, OpKind, baseline_delta,
 };
 pub use flow::{
-    Flow, FlowRequirement, RequiredImportBoundary, RequiredImportSelection, RequiredPacket,
-    RequirementSemanticContract, RequirementStatus, list_flows, list_requirements, load_flow,
-    load_requirement,
+    Flow, FlowRequirement, RequiredCaptureSide, RequiredImportBoundary, RequiredImportSelection,
+    RequiredPacket, RequirementSemanticContract, RequirementStatus, list_flows, list_requirements,
+    load_flow, load_requirement,
 };
 pub use model::{Capture, CapturedPacket, Direction, PacketBoundary, opcode_name};
 pub use semantic::{

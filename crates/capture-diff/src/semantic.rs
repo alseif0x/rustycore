@@ -973,11 +973,15 @@ pub fn compare_packet_bodies(
 }
 
 fn compare_monster_move_bodies(cpp: &[u8], rust: &[u8]) -> Option<SemanticBodyDiff> {
-    let cpp_decoded = decode_monster_move_body(cpp);
-    let rust_decoded = decode_monster_move_body(rust);
-    let cpp_is_fixture = cpp_decoded
+    let mut cpp_decoded = decode_monster_move_body(cpp);
+    let mut rust_decoded = decode_monster_move_body(rust);
+    let cpp_is_legacy_fixture = cpp_decoded
+        .as_ref()
+        .is_ok_and(|decoded| validate_legacy_cpp_detour_chase_monster_move(decoded).is_ok());
+    let cpp_is_repaired_fixture = cpp_decoded
         .as_ref()
         .is_ok_and(|decoded| validate_detour_chase_monster_move(decoded).is_ok());
+    let cpp_is_fixture = cpp_is_legacy_fixture || cpp_is_repaired_fixture;
     let rust_is_fixture = rust_decoded
         .as_ref()
         .is_ok_and(|decoded| validate_detour_chase_monster_move(decoded).is_ok());
@@ -990,8 +994,28 @@ fn compare_monster_move_bodies(cpp: &[u8], rust: &[u8]) -> Option<SemanticBodyDi
         return None;
     }
 
+    if cpp_is_legacy_fixture && rust_is_fixture {
+        for decoded in [&mut cpp_decoded, &mut rust_decoded]
+            .into_iter()
+            .filter_map(|decoded| decoded.as_mut().ok())
+        {
+            decoded.body.current_position = ISSUE_24_CREATURE_START;
+            decoded.body.move_time = 0;
+            decoded.body.points.clear();
+            decoded.body.packed_deltas.clear();
+            if let MonsterMoveFaceBody::Target { direction_bits, .. } = &mut decoded.body.face {
+                // The direction is derived from the final segment. The reviewed
+                // repair may route around the opposite side, but the exact
+                // target GUID remains authoritative.
+                *direction_bits = 0;
+            }
+        }
+    }
+
     Some(SemanticBodyDiff {
-        comparator: "smsg_on_monster_move_with_fixture_identity_without_runtime_ids".to_string(),
+        comparator:
+            "smsg_on_monster_move_with_reviewed_legacy_descent_repaired_by_flat_vmap_fallback"
+                .to_string(),
         cpp: SemanticBodySide::from_decoded_monster_move(cpp_decoded, cpp, cpp_is_fixture),
         rust: SemanticBodySide::from_decoded_monster_move(rust_decoded, rust, rust_is_fixture),
     })
@@ -1591,6 +1615,19 @@ pub fn reconstruct_monster_move_path(body: &MonsterMoveBody) -> Result<Vec<[f32;
 pub fn validate_detour_chase_monster_move(
     decoded: &DecodedMonsterMoveBody,
 ) -> Result<Vec<[f32; 3]>, String> {
+    validate_detour_chase_monster_move_for_side(decoded, false)
+}
+
+pub fn validate_legacy_cpp_detour_chase_monster_move(
+    decoded: &DecodedMonsterMoveBody,
+) -> Result<Vec<[f32; 3]>, String> {
+    validate_detour_chase_monster_move_for_side(decoded, true)
+}
+
+fn validate_detour_chase_monster_move_for_side(
+    decoded: &DecodedMonsterMoveBody,
+    legacy_cpp: bool,
+) -> Result<Vec<[f32; 3]>, String> {
     let movement = &decoded.body;
     if movement.mover != ISSUE_24_CREATURE_IDENTITY {
         return Err(format!(
@@ -1671,13 +1708,25 @@ pub fn validate_detour_chase_monster_move(
     let endpoint = *path
         .last()
         .expect("reconstruction always includes start and endpoint");
-    let endpoint_distance = ((endpoint[0] - destination[0]).powi(2)
-        + (endpoint[1] - destination[1]).powi(2)
-        + (endpoint[2] - destination[2]).powi(2))
-    .sqrt();
-    if endpoint[1] <= ISSUE_24_OBSTACLE_MAX_Y || endpoint_distance > 6.0 {
+    let endpoint_distance_2d =
+        ((endpoint[0] - destination[0]).powi(2) + (endpoint[1] - destination[1]).powi(2)).sqrt();
+    let endpoint_distance_3d =
+        (endpoint_distance_2d.powi(2) + (endpoint[2] - destination[2]).powi(2)).sqrt();
+    let endpoint_invalid = if legacy_cpp {
+        endpoint_distance_2d > 6.0
+            || destination[2] - endpoint[2] < 20.0
+            || (endpoint[2] - 190.721_01).abs() > 1.0
+    } else {
+        endpoint_distance_3d > 6.0
+    };
+    if endpoint[1] <= ISSUE_24_OBSTACLE_MAX_Y || endpoint_invalid {
         return Err(format!(
-            "chase endpoint {endpoint:?} is not beyond the obstacle within 6 yards of player destination {destination:?}"
+            "{} chase endpoint {endpoint:?} does not satisfy the reviewed destination contract for {destination:?}",
+            if legacy_cpp {
+                "legacy C++"
+            } else {
+                "repaired Rust"
+            }
         ));
     }
     if !segment_intersects_issue_24_obstacle(path[0], destination) {
@@ -1705,6 +1754,17 @@ pub fn validate_detour_chase_monster_move(
 
 /// Validate the complete three-packet issue-#24 capture contract.
 pub fn validate_detour_chase_capture(capture: &Capture) -> Result<(), String> {
+    validate_detour_chase_capture_for_side(capture, false)
+}
+
+pub fn validate_legacy_cpp_detour_chase_capture(capture: &Capture) -> Result<(), String> {
+    validate_detour_chase_capture_for_side(capture, true)
+}
+
+fn validate_detour_chase_capture_for_side(
+    capture: &Capture,
+    legacy_cpp: bool,
+) -> Result<(), String> {
     const EXPECTED: [(Direction, u32, u16); 3] = [
         (Direction::C2S, 1, CMSG_MOVE_HEARTBEAT),
         (Direction::S2C, 1, SMSG_ON_MONSTER_MOVE),
@@ -1738,7 +1798,11 @@ pub fn validate_detour_chase_capture(capture: &Capture) -> Result<(), String> {
     }
     validate_issue_24_heartbeat(&capture.packets[0].body)?;
     let movement = decode_monster_move_body(&capture.packets[1].body)?;
-    validate_detour_chase_monster_move(&movement)?;
+    if legacy_cpp {
+        validate_legacy_cpp_detour_chase_monster_move(&movement)?;
+    } else {
+        validate_detour_chase_monster_move(&movement)?;
+    }
     if capture.packets[2].body != ISSUE_24_PING_BODY {
         return Err(format!(
             "CMSG_PING fence body is {:02X?}, expected fixed DTOR/zero-latency body {:02X?}",

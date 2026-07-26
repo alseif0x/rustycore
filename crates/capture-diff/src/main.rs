@@ -700,8 +700,8 @@ fn cmd_verify_required(args: &[String]) -> Result<ExitCode> {
 
     let cpp = load_capture(&pinned.golden_pkt)?;
     let rust = load_capture(&pinned.reference_rust)?;
-    requirement.validate_capture(&cpp)?;
-    requirement.validate_capture(&rust)?;
+    requirement.validate_capture_for_side(&cpp, flow::RequiredCaptureSide::Cpp)?;
+    requirement.validate_capture_for_side(&rust, flow::RequiredCaptureSide::Rust)?;
 
     let expected_text = std::fs::read_to_string(&pinned.expected)
         .with_context(|| format!("reading baseline {}", pinned.expected.display()))?;
@@ -860,8 +860,8 @@ fn validate_required_import(
         &opts.ignored_opcodes,
         opts.strict,
     )?;
-    requirement.validate_capture(cpp)?;
-    requirement.validate_capture(rust)?;
+    requirement.validate_capture_for_side(cpp, flow::RequiredCaptureSide::Cpp)?;
+    requirement.validate_capture_for_side(rust, flow::RequiredCaptureSide::Rust)?;
     Ok(())
 }
 
