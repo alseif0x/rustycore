@@ -1,0 +1,108 @@
+{
+  "version": 3,
+  "flow": "detour-chase-around-obstacle",
+  "side": "rust",
+  "completed": true,
+  "created_at": "2026-07-26T23:51:49Z",
+  "harness_repo_head": "789ece6ea1f05e67c6ef18634b4eb1832dc7f0e6",
+  "source_repo_head": "789ece6ea1f05e67c6ef18634b4eb1832dc7f0e6",
+  "source_exec_revision": "789ece6ea1f05e67c6ef18634b4eb1832dc7f0e6",
+  "harness_worktree_clean": true,
+  "harness_worktree_state_sha256": "d7e80cd7503c8fdd48401c9cb4bdf8c15cb1a6dd677cf77634983bca42344a29",
+  "source_worktree_dirty": false,
+  "source_worktree_state_sha256": "d7e80cd7503c8fdd48401c9cb4bdf8c15cb1a6dd677cf77634983bca42344a29",
+  "worktree_state_algorithm": "git-head-path-mode-content-sha256-v1",
+  "expected_exec_path": "/home/server/rustycore-issue-24/target/release/world-server",
+  "expected_exec_sha256": "2419740d8dc9369c7c9ce04180f868cc292111e4f902d539b558a8519e097661",
+  "source_exec_path": "/home/server/rustycore-issue-24/target/release/world-server",
+  "source_exec_sha256": "2419740d8dc9369c7c9ce04180f868cc292111e4f902d539b558a8519e097661",
+  "live_exec_path": "/home/server/rustycore-issue-24/target/release/world-server",
+  "live_exec_sha256": "2419740d8dc9369c7c9ce04180f868cc292111e4f902d539b558a8519e097661",
+  "executable_pin_enforced": true,
+  "pm2_entry_pid": 2617666,
+  "pm2_entry_starttime": 134615743,
+  "pm2_exec_path": "/home/server/rustycore-issue-24/target/release/world-server",
+  "pm2_exec_sha256": "2419740d8dc9369c7c9ce04180f868cc292111e4f902d539b558a8519e097661",
+  "pm2_profile_redacted_sha256": "8c078255c7dbb167e6125b0bfa941229cefd0dbefd36d384d2c9d0c7b31ad9fd",
+  "listener_runtime_pid": 2617666,
+  "listener_runtime_starttime": 134615743,
+  "listener_relationship_verified": true,
+  "restart_count": 0,
+  "effective_config_path": "/run/user/1000/rustycore-detour-rust.6lVWKR/rustycore-detour-worldserver.REBr4D.conf",
+  "effective_config_redacted_sha256": "7d0d6dd1556425a6ba1a32e9516248cfc56b7087a4234de8671306e6eeea34a7",
+  "effective_config_algorithm": "capture-relevant-redacted-v1",
+  "runtime_cleanup_verified": true,
+  "normal_runtime_restored": true,
+  "fixture_guard": {
+    "enabled": true,
+    "contract": "detour-chase-around-obstacle-shell-fixture-v1",
+    "account": "TESTBOT2@bot.local",
+    "account_id": 9,
+    "character_guid": 15,
+    "peer_account": "",
+    "peer_account_id": 0,
+    "peer_character_guid": 0,
+    "creature_entry": 15271,
+    "creature_spawn_guid": 9102401,
+    "character_account_id": 9,
+    "item_entry": 0,
+    "normal_data_dir": "/home/server/woltk-server-core/Data",
+    "private_data_dir": "/run/user/1000/rustycore-detour-rust.6lVWKR",
+    "private_data_dir_removed_before_normal_runtime": true,
+    "fixture_manifest_path": "/home/server/rustycore-issue-24/crates/capture-diff/flows/detour-chase-around-obstacle/fixture/fixture.json",
+    "fixture_manifest_sha256": "3a6c2aa6081974ef9cf13b8f63f739c402b18799f9833f80819f5e7e0de8d013",
+    "synthetic_mmaps": [
+      {
+        "path": "mmaps/0001.mmap",
+        "size": 28,
+        "sha256": "3ff3365bbd0aafb383f4c2984389d07df133dd86cdb0b9340c25361db32d8f5a"
+      },
+      {
+        "path": "mmaps/00015026.mmtile",
+        "size": 1496,
+        "sha256": "693b93ac3ac605fea8b846a0e1fcf6ca2d0b0dce2f8c5d9c34739febc3731f47"
+      }
+    ],
+    "linked_read_only_data": [
+      {
+        "name": "dbc",
+        "target_path": "/home/server/woltk-server-core/Data/dbc"
+      },
+      {
+        "name": "gt",
+        "target_path": "/home/server/woltk-server-core/Data/gt"
+      },
+      {
+        "name": "maps",
+        "target_path": "/home/server/woltk-server-core/Data/maps"
+      },
+      {
+        "name": "vmaps",
+        "target_path": "/home/server/woltk-server-core/Data/vmaps"
+      },
+      {
+        "name": "cameras",
+        "target_path": "/home/server/woltk-server-core/Data/cameras"
+      }
+    ],
+    "journal_sha256": "db5f7face9ca25beab8a50b57b7519ef616a5be0b74b23f506da302be46874eb",
+    "database_snapshot_sha256": "ab2049d81c034eca507ab866902b663387b7a39985e208be300fabb186f7516b",
+    "cleanup_verified": true
+  },
+  "bot_report": {
+    "contract": "wow-test-bot-detour-chase-capture-report-v1",
+    "exec_path": "/home/server/rustycore-issue-24/tools/wow-test-bot/target/release/wow-test-bot",
+    "exec_sha256": "70a4c204a763a34a33b54f972707a32ade93a1c184fd0ee10f6fbd76fa1b45e8",
+    "report_path": "/tmp/rustycore-detour-rust-789ece6e.2NNQ5j/report.json",
+    "report_sha256": "6553f6f0b312971640f6d54954124d7cb2f14c010859a29f3f009df97e7c2dd2",
+    "account": "TESTBOT2@bot.local",
+    "account_id": 9,
+    "character_guid": 15,
+    "report_validated": true
+  },
+  "artifact": {
+    "path": "rust",
+    "packet_count": 88,
+    "tree_sha256": "8319c5fbfb59ffa794ec708c017e7c1710d2e4430caa6de511396d478c5adc8b"
+  }
+}

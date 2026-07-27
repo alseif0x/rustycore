@@ -31,7 +31,7 @@ pub const DT_NAV_MESH_PARAMS_SIZE_LIKE_CPP: usize = 28;
 pub const DT_FAILURE_LIKE_CPP: DetourStatus = 1_u32 << 31;
 pub const DT_SUCCESS_LIKE_CPP: DetourStatus = 1_u32 << 30;
 pub const DT_IN_PROGRESS_LIKE_CPP: DetourStatus = 1_u32 << 29;
-pub const DT_BUFFER_TOO_SMALL_LIKE_CPP: DetourStatus = 1_u32 << 0;
+pub const DT_BUFFER_TOO_SMALL_LIKE_CPP: DetourStatus = 1_u32 << 4;
 pub const DT_OUT_OF_MEMORY_LIKE_CPP: DetourStatus = 1_u32 << 2;
 pub const DT_INVALID_PARAM_LIKE_CPP: DetourStatus = 1_u32 << 3;
 pub const DT_STRAIGHTPATH_START_LIKE_CPP: u8 = 0x01;
@@ -43,6 +43,7 @@ pub const MAX_PATH_LENGTH_LIKE_CPP: usize = 74;
 pub const MAX_POINT_PATH_LENGTH_LIKE_CPP: usize = 74;
 pub const SMOOTH_PATH_STEP_SIZE_LIKE_CPP: f32 = 4.0;
 pub const SMOOTH_PATH_SLOP_LIKE_CPP: f32 = 0.3;
+const PATH_POLY_ACCEPT_DISTANCE_SQ_LIKE_CPP: f32 = 3.0;
 pub const MAX_NUMBER_OF_GRIDS_LIKE_CPP: i32 = 64;
 pub const SIZE_OF_GRIDS_LIKE_CPP: f32 = 533.3333;
 pub const CENTER_GRID_ID_LIKE_CPP: i32 = MAX_NUMBER_OF_GRIDS_LIKE_CPP / 2;
@@ -201,12 +202,27 @@ pub struct DetourPolyPath {
     pub end_far_from_poly: bool,
 }
 
+/// Owner capabilities `PathGenerator::BuildPolyPath` reads off `_source` when it
+/// decides whether a position with no navmesh polygon may still be walked
+/// directly: `Creature::CanFly()`, `Creature::CanSwim()` and `Unit::IsFalling()`
+/// (`PathGenerator.cpp:180-202`, `:222-240`).
+///
+/// All false reproduces "a ground creature that is not falling", which is what
+/// the pathfinder assumed before these were threaded through.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct DetourOwnerCapabilitiesLikeCpp {
+    pub can_fly: bool,
+    pub can_swim: bool,
+    pub is_falling: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DetourPathOptions {
     pub point_path_limit: usize,
     pub force_destination: bool,
     pub use_straight_path: bool,
     pub use_raycast: bool,
+    pub owner: DetourOwnerCapabilitiesLikeCpp,
 }
 
 impl Default for DetourPathOptions {
@@ -216,6 +232,7 @@ impl Default for DetourPathOptions {
             force_destination: false,
             use_straight_path: false,
             use_raycast: false,
+            owner: DetourOwnerCapabilitiesLikeCpp::default(),
         }
     }
 }
@@ -382,6 +399,29 @@ unsafe extern "C" {
     fn rustycore_dt_create_square_tile_data(
         tile_x: i32,
         tile_y: i32,
+        out_data: *mut *mut u8,
+        out_data_size: *mut i32,
+    ) -> bool;
+    // Test-only fixture builder; see `test_fixtures::obstacle_ring_tile_blob`.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    #[allow(clippy::too_many_arguments)]
+    fn rustycore_dt_create_poly_mesh_tile_data(
+        tile_x: i32,
+        tile_y: i32,
+        verts: *const u16,
+        vert_count: i32,
+        polys: *const u16,
+        poly_count: i32,
+        nvp: i32,
+        poly_flags: *const u16,
+        poly_areas: *const u8,
+        bmin: *const f32,
+        bmax: *const f32,
+        cs: f32,
+        ch: f32,
+        walkable_height: f32,
+        walkable_radius: f32,
+        walkable_climb: f32,
         out_data: *mut *mut u8,
         out_data_size: *mut i32,
     ) -> bool;
@@ -1012,11 +1052,69 @@ pub fn update_path_query_filter_like_cpp(
     }
 }
 
-pub fn get_poly_by_location_like_cpp(
+/// C++ `PathGenerator::GetPathPolyByPosition` (`PathGenerator.cpp:94-123`).
+///
+/// Scans the *current* corridor for the polygon closest to `point`, breaking
+/// early once its 3D squared distance is below `1.0`, and accepts the result
+/// only while that squared distance is below the literal `3.0` (an effective
+/// linear radius of `sqrt(3)`, not 3 yards). The returned distance is the real
+/// distance to the closest polygon even when the reference is rejected,
+/// matching C++ writing `*distance` before its `minDist < 3.0f` test.
+///
+/// The audited legacy source and TrinityCore's `3.3.5`, `cata_classic` and
+/// `master` branches all retain this squared comparison. Changing it to `9.0`
+/// would be a plausible optimization, but would also change corridor selection
+/// around close stacked surfaces without evidence that C++ intended a
+/// three-yard linear radius, so this port preserves the observable heuristic.
+pub fn get_path_poly_by_position_like_cpp(
+    query: &DetourNavMeshQuery<'_>,
+    poly_path: &[DetourPolyRef],
+    point: [f32; 3],
+) -> (DetourPolyRef, f32) {
+    if poly_path.is_empty() {
+        return (0, f32::MAX);
+    }
+
+    let mut nearest_poly = 0;
+    let mut min_dist_sq = f32::MAX;
+    for poly_ref in poly_path.iter().copied() {
+        let Ok((closest, _)) = query.closest_point_on_poly(poly_ref, point) else {
+            continue;
+        };
+        let dist_sq = detour_distance_sq(point, closest);
+        if dist_sq < min_dist_sq {
+            min_dist_sq = dist_sq;
+            nearest_poly = poly_ref;
+        }
+        if min_dist_sq < 1.0 {
+            break;
+        }
+    }
+
+    let distance = min_dist_sq.sqrt();
+    if min_dist_sq < PATH_POLY_ACCEPT_DISTANCE_SQ_LIKE_CPP {
+        (nearest_poly, distance)
+    } else {
+        (0, distance)
+    }
+}
+
+/// C++ `PathGenerator::GetPolyByLocation` (`PathGenerator.cpp:125-158`).
+///
+/// It checks the current corridor first and only falls back to the expensive
+/// `findNearestPoly`, first with a low search box and then with a taller one.
+pub fn get_poly_by_location_with_previous_path_like_cpp(
     query: &DetourNavMeshQuery<'_>,
     filter: &DetourQueryFilter,
+    previous_poly_refs: &[DetourPolyRef],
     point: [f32; 3],
 ) -> Result<(DetourPolyRef, f32), DetourNavMeshQueryError> {
+    let (from_path, path_distance) =
+        get_path_poly_by_position_like_cpp(query, previous_poly_refs, point);
+    if from_path != 0 {
+        return Ok((from_path, path_distance));
+    }
+
     let low = query.find_nearest_poly(point, [3.0, 5.0, 3.0], filter)?;
     if low.poly_ref != 0 {
         return Ok((low.poly_ref, detour_distance(low.nearest_point, point)));
@@ -1030,80 +1128,56 @@ pub fn get_poly_by_location_like_cpp(
     Ok((0, f32::MAX))
 }
 
-pub fn build_straight_point_path_like_cpp(
+/// [`get_poly_by_location_with_previous_path_like_cpp`] with no prior corridor,
+/// i.e. the C++ behaviour on a freshly constructed `PathGenerator`.
+pub fn get_poly_by_location_like_cpp(
     query: &DetourNavMeshQuery<'_>,
-    start_point: [f32; 3],
-    end_point: [f32; 3],
-    poly_refs: &[DetourPolyRef],
-    point_path_limit: usize,
-    mut path_type: DetourPathType,
-    force_destination: bool,
-) -> Result<DetourPointPath, DetourNavMeshQueryError> {
-    let mut points = query
-        .find_straight_path(start_point, end_point, poly_refs, point_path_limit, 0)?
-        .into_iter()
-        .map(|point| point.position)
-        .collect::<Vec<_>>();
-
-    if poly_refs.len() == 1 && points.len() == 1 {
-        points.push(end_point);
-    } else if points.len() < 2 {
-        return Ok(DetourPointPath {
-            points: vec![start_point, end_point],
-            actual_end: end_point,
-            path_type: path_type | DetourPathType::SHORTCUT | DetourPathType::NOPATH,
-        });
-    } else if points.len() >= point_path_limit {
-        return Ok(DetourPointPath {
-            points: vec![start_point, end_point],
-            actual_end: end_point,
-            path_type: path_type | DetourPathType::SHORTCUT | DetourPathType::SHORT,
-        });
-    }
-
-    let mut actual_end = points.last().copied().unwrap_or(end_point);
-    if force_destination
-        && (!path_type.contains(DetourPathType::NORMAL)
-            || !detour_in_range(end_point, actual_end, 1.0, 1.0))
-    {
-        actual_end = end_point;
-        if detour_distance_sq(points.last().copied().unwrap_or(start_point), end_point)
-            < 0.3 * detour_distance_sq(start_point, end_point)
-        {
-            if let Some(last) = points.last_mut() {
-                *last = end_point;
-            }
-        } else {
-            points = vec![start_point, end_point];
-        }
-        path_type = DetourPathType::NORMAL | DetourPathType::NOT_USING_PATH;
-    }
-
-    Ok(DetourPointPath {
-        points,
-        actual_end,
-        path_type,
-    })
+    filter: &DetourQueryFilter,
+    point: [f32; 3],
+) -> Result<(DetourPolyRef, f32), DetourNavMeshQueryError> {
+    get_poly_by_location_with_previous_path_like_cpp(query, filter, &[], point)
 }
 
-pub fn build_point_path_like_cpp(
+/// Internal result of C++ `PathGenerator::BuildPointPath`
+/// (`PathGenerator.cpp:530-622`).
+///
+/// `BuildShortcut()` calls `Clear()` before installing the two direct points
+/// (`PathGenerator.h:117-121`, `PathGenerator.cpp:630-645`), so point data
+/// cannot be returned without its corridor-lifecycle decision.
+#[derive(Debug, Clone, PartialEq)]
+struct BuildPointPathOutcomeLikeCpp {
+    point_path: DetourPointPath,
+    cleared_poly_path: bool,
+}
+
+/// `end_point` is the (possibly clamped) `endPoint` C++ passes as an argument
+/// and queries against, while `requested_end_point` is `GetEndPosition()` — the
+/// destination `CalculatePath` was originally asked for. The `_forceDestination`
+/// block compares against the latter (`PathGenerator.cpp:603-619`), so the two
+/// must stay distinct whenever the far-from-poly branch clamped the endpoint.
+#[allow(clippy::too_many_arguments)]
+fn build_point_path_outcome_like_cpp(
     nav_mesh: &DetourNavMesh,
     query: &DetourNavMeshQuery<'_>,
     filter: &DetourQueryFilter,
     start_point: [f32; 3],
     end_point: [f32; 3],
+    requested_end_point: [f32; 3],
     poly_refs: &[DetourPolyRef],
     point_path_limit: usize,
     mut path_type: DetourPathType,
     force_destination: bool,
     use_straight_path: bool,
     use_raycast: bool,
-) -> Result<DetourPointPath, DetourNavMeshQueryError> {
+) -> Result<BuildPointPathOutcomeLikeCpp, DetourNavMeshQueryError> {
     if use_raycast {
-        return Ok(DetourPointPath {
-            points: vec![start_point, end_point],
-            actual_end: end_point,
-            path_type: DetourPathType::NOPATH,
+        return Ok(BuildPointPathOutcomeLikeCpp {
+            point_path: DetourPointPath {
+                points: vec![start_point, end_point],
+                actual_end: end_point,
+                path_type: DetourPathType::NOPATH,
+            },
+            cleared_poly_path: true,
         });
     }
 
@@ -1123,13 +1197,20 @@ pub fn build_point_path_like_cpp(
         )
     };
 
+    // C++ `BuildShortcut()` *assigns* `_type = PATHFIND_SHORTCUT`
+    // (`PathGenerator.cpp:645`) and the failure branches then OR onto that
+    // fresh value, so the incoming `NORMAL`/`INCOMPLETE`/`FARFROMPOLY_*` bits
+    // are discarded rather than merged (`PathGenerator.cpp:575-591`).
     let mut points = match point_result {
         Ok(points) => points,
         Err(_) => {
-            return Ok(DetourPointPath {
-                points: vec![start_point, end_point],
-                actual_end: end_point,
-                path_type: path_type | DetourPathType::SHORTCUT | DetourPathType::NOPATH,
+            return Ok(BuildPointPathOutcomeLikeCpp {
+                point_path: DetourPointPath {
+                    points: vec![start_point, end_point],
+                    actual_end: end_point,
+                    path_type: DetourPathType::SHORTCUT | DetourPathType::NOPATH,
+                },
+                cleared_poly_path: true,
             });
         }
     };
@@ -1137,41 +1218,57 @@ pub fn build_point_path_like_cpp(
     if poly_refs.len() == 1 && points.len() == 1 {
         points.push(end_point);
     } else if points.len() < 2 {
-        return Ok(DetourPointPath {
-            points: vec![start_point, end_point],
-            actual_end: end_point,
-            path_type: path_type | DetourPathType::SHORTCUT | DetourPathType::NOPATH,
+        return Ok(BuildPointPathOutcomeLikeCpp {
+            point_path: DetourPointPath {
+                points: vec![start_point, end_point],
+                actual_end: end_point,
+                path_type: DetourPathType::SHORTCUT | DetourPathType::NOPATH,
+            },
+            cleared_poly_path: true,
         });
     } else if points.len() >= point_path_limit {
-        return Ok(DetourPointPath {
-            points: vec![start_point, end_point],
-            actual_end: end_point,
-            path_type: path_type | DetourPathType::SHORTCUT | DetourPathType::SHORT,
+        return Ok(BuildPointPathOutcomeLikeCpp {
+            point_path: DetourPointPath {
+                points: vec![start_point, end_point],
+                actual_end: end_point,
+                path_type: DetourPathType::SHORTCUT | DetourPathType::SHORT,
+            },
+            cleared_poly_path: true,
         });
     }
 
+    // C++ `SetActualEndPosition(_pathPoints[pointCount-1])`.
     let mut actual_end = points.last().copied().unwrap_or(end_point);
+    let mut cleared_poly_path = false;
     if force_destination
         && (!path_type.contains(DetourPathType::NORMAL)
-            || !detour_in_range(end_point, actual_end, 1.0, 1.0))
+            || !detour_in_range(requested_end_point, actual_end, 1.0, 1.0))
     {
-        actual_end = end_point;
-        if detour_distance_sq(points.last().copied().unwrap_or(start_point), end_point)
-            < 0.3 * detour_distance_sq(start_point, end_point)
+        actual_end = requested_end_point;
+        if detour_distance_sq(
+            points.last().copied().unwrap_or(start_point),
+            requested_end_point,
+        ) < 0.3 * detour_distance_sq(start_point, requested_end_point)
         {
             if let Some(last) = points.last_mut() {
-                *last = end_point;
+                *last = requested_end_point;
             }
         } else {
-            points = vec![start_point, end_point];
+            // C++ `BuildShortcut()`: current position -> actual end position,
+            // which the branch above has just set to the requested destination.
+            points = vec![start_point, requested_end_point];
+            cleared_poly_path = true;
         }
         path_type = DetourPathType::NORMAL | DetourPathType::NOT_USING_PATH;
     }
 
-    Ok(DetourPointPath {
-        points,
-        actual_end,
-        path_type,
+    Ok(BuildPointPathOutcomeLikeCpp {
+        point_path: DetourPointPath {
+            points,
+            actual_end,
+            path_type,
+        },
+        cleared_poly_path,
     })
 }
 
@@ -1244,7 +1341,18 @@ pub fn reuse_previous_poly_path_like_cpp(
         .unwrap_or_default();
 
     if suffix.is_empty() {
-        prefix.pop();
+        // C++ deliberately keeps the valid prefix after an empty/failed suffix
+        // so the creature can advance and recover on the next update
+        // (`PathGenerator.cpp:401-412`). Its final `prefix + suffix - overlap`
+        // arithmetic assumes `findPath` returned at least `suffixStartPoly`;
+        // with an empty suffix there is no overlap to remove. Reproducing the
+        // unconditional `- 1` discards a valid last prefix polygon and can make
+        // a remote destination look like a same-poly direct path.
+        if prefix.len() == 1 {
+            // A singleton cannot provide a useful retained segment. Recalculate
+            // rather than reproduce C++'s zero-length underflow.
+            return Ok(PreviousPolyPathLikeCpp::Recalculate);
+        }
         return Ok(PreviousPolyPathLikeCpp::PolyRefs(prefix));
     }
 
@@ -1253,25 +1361,72 @@ pub fn reuse_previous_poly_path_like_cpp(
     Ok(PreviousPolyPathLikeCpp::PolyRefs(prefix))
 }
 
+/// C++ `PathGenerator::BuildPolyPath` (`PathGenerator.cpp:160-528`).
+///
+/// This produces the *polygon corridor* and `_type`. Following C++, it does
+/// **not** build the point path itself: the branches that answer with
+/// `BuildShortcut()` return terminal results whose `point_path.points` are
+/// already populated, while the branches that fall through to
+/// `BuildPointPath(startPoint, endPoint)` (`PathGenerator.cpp:287` and
+/// `:527`) return an **empty** `point_path.points` so the caller runs
+/// `build_point_path_outcome_like_cpp` exactly once, in the mode
+/// `_useStraightPath`/`_useRaycast` selects.
+///
+/// `point_path.actual_end` carries the possibly clamped `endPoint`, mirroring
+/// the `SetActualEndPosition(closestPointOnPoly(endPoly, endPoint))` the
+/// far-from-poly branch performs (`PathGenerator.cpp:253-259`); the caller must
+/// feed it back into `BuildPointPath` the way C++ passes its mutated local
+/// `endPoint`.
 pub fn build_straight_poly_path_like_cpp(
     query: &DetourNavMeshQuery<'_>,
     filter: &DetourQueryFilter,
     start_point: [f32; 3],
     mut end_point: [f32; 3],
-    point_path_limit: usize,
-    force_destination: bool,
+    owner: DetourOwnerCapabilitiesLikeCpp,
+    previous_poly_refs: &[DetourPolyRef],
 ) -> Result<DetourPolyPath, DetourNavMeshQueryError> {
-    let (start_poly, dist_to_start_poly) =
-        get_poly_by_location_like_cpp(query, filter, start_point)?;
-    let (end_poly, dist_to_end_poly) = get_poly_by_location_like_cpp(query, filter, end_point)?;
+    // C++ resolves both endpoints through `GetPolyByLocation`, which consults the
+    // corridor it already holds before paying for `findNearestPoly`
+    // (`PathGenerator.cpp:125-158`); the distance it reports there feeds the
+    // `> 7.0f` far-from-poly decision below.
+    let (start_poly, dist_to_start_poly) = get_poly_by_location_with_previous_path_like_cpp(
+        query,
+        filter,
+        previous_poly_refs,
+        start_point,
+    )?;
+    let (end_poly, dist_to_end_poly) = get_poly_by_location_with_previous_path_like_cpp(
+        query,
+        filter,
+        previous_poly_refs,
+        end_point,
+    )?;
 
     if start_poly == 0 || end_poly == 0 {
+        // C++ runs `BuildShortcut()` first, then grants
+        // `PATHFIND_NORMAL | PATHFIND_NOT_USING_PATH` when the owner `CanFly()`,
+        // or `CanSwim()` with every shortcut point in liquid
+        // (`PathGenerator.cpp:178-202`). Otherwise, and while `!_useRaycast`, it
+        // *assigns* `_type = PATHFIND_NOPATH` (`:207`), discarding the
+        // `PATHFIND_SHORTCUT` that `BuildShortcut()` had set.
+        //
+        // Boundary: `waterPath` needs `Map::GetLiquidStatus` for each shortcut
+        // point, which this layer has no access to. A swimming owner therefore
+        // still falls through to `PATHFIND_NOPATH` here, exactly as it did
+        // before — the C++ `waterPath` loop can only ever *reduce* `waterPath`
+        // to false, so treating "no liquid data" as "not fully submerged" never
+        // grants a shortcut C++ would have withheld.
+        let path_type = if owner.can_fly {
+            DetourPathType::NORMAL | DetourPathType::NOT_USING_PATH
+        } else {
+            DetourPathType::NOPATH
+        };
         return Ok(DetourPolyPath {
             poly_refs: Vec::new(),
             point_path: DetourPointPath {
                 points: vec![start_point, end_point],
                 actual_end: end_point,
-                path_type: DetourPathType::NOPATH | DetourPathType::SHORTCUT,
+                path_type,
             },
             start_far_from_poly: false,
             end_far_from_poly: false,
@@ -1282,6 +1437,41 @@ pub fn build_straight_poly_path_like_cpp(
     let end_far_from_poly = dist_to_end_poly > 7.0;
     let mut path_type = DetourPathType::NORMAL;
     if start_far_from_poly || end_far_from_poly {
+        // C++ picks the offending endpoint, and when it is *not* under water
+        // allows a direct shortcut for a flying owner, or for one that is
+        // falling towards a lower destination — the charge case
+        // (`PathGenerator.cpp:221-240`).
+        //
+        // Boundary: C++ selects the offending endpoint
+        // (`(distToStartPoly > 7.0f) ? startPos : endPos`) only to ask
+        // `Map::IsUnderWater` about it and, if so, consult `CanSwim()` instead.
+        // That liquid lookup is unavailable at this layer, so the "flying case"
+        // arm is always taken — the same arm Rust already took unconditionally.
+        // This only adds the shortcuts C++ grants inside it.
+        //
+        // Detour space is Y-up and `wow_position_to_detour_like_cpp` maps WoW z
+        // onto index 1, so index 1 is the height C++ compares as `endPos.z <
+        // startPos.z`.
+        let build_shortcut = owner.can_fly || (owner.is_falling && end_point[1] < start_point[1]);
+        if build_shortcut {
+            let mut path_type = DetourPathType::NORMAL | DetourPathType::NOT_USING_PATH;
+            add_far_from_poly_flags_like_cpp(
+                &mut path_type,
+                start_far_from_poly,
+                end_far_from_poly,
+            );
+            return Ok(DetourPolyPath {
+                poly_refs: Vec::new(),
+                point_path: DetourPointPath {
+                    points: vec![start_point, end_point],
+                    actual_end: end_point,
+                    path_type,
+                },
+                start_far_from_poly,
+                end_far_from_poly,
+            });
+        }
+
         if let Ok((closest, _)) = query.closest_point_on_poly(end_poly, end_point) {
             end_point = closest;
         }
@@ -1289,30 +1479,61 @@ pub fn build_straight_poly_path_like_cpp(
         add_far_from_poly_flags_like_cpp(&mut path_type, start_far_from_poly, end_far_from_poly);
     }
 
+    // C++ `BuildShortcut(); _type = PATHFIND_NOPATH;` with no
+    // `AddFarFromPolyFlags` afterwards (`PathGenerator.cpp:371-374`, `:508-515`).
+    let shortcut_no_path = || DetourPolyPath {
+        poly_refs: Vec::new(),
+        point_path: DetourPointPath {
+            points: vec![start_point, end_point],
+            actual_end: end_point,
+            path_type: DetourPathType::NOPATH,
+        },
+        start_far_from_poly,
+        end_far_from_poly,
+    };
+
     let poly_refs = if start_poly == end_poly {
+        // C++ `PathGenerator.cpp:271-289` treats this as a one-polygon corridor
+        // and hands it straight to `BuildPointPath`.
         vec![start_poly]
     } else {
-        let path = query.find_path(
+        // C++ `PathGenerator.cpp:291-413` first tries to reuse the corridor the
+        // generator already holds: an exact subpath when both polygons are still
+        // on it, or an ~80% prefix plus a freshly generated suffix when only the
+        // start polygon is.
+        match reuse_previous_poly_path_like_cpp(
+            query,
+            filter,
+            previous_poly_refs,
             start_poly,
             end_poly,
-            start_point,
             end_point,
-            filter,
-            MAX_PATH_LENGTH_LIKE_CPP,
-        )?;
-        if path.is_empty() {
-            return Ok(DetourPolyPath {
-                poly_refs: path,
-                point_path: DetourPointPath {
-                    points: vec![start_point, end_point],
-                    actual_end: end_point,
-                    path_type: DetourPathType::NOPATH | DetourPathType::SHORTCUT,
-                },
-                start_far_from_poly,
-                end_far_from_poly,
-            });
+            false,
+        )? {
+            PreviousPolyPathLikeCpp::PolyRefs(reused) if !reused.is_empty() => reused,
+            PreviousPolyPathLikeCpp::ShortcutNoPath => return Ok(shortcut_no_path()),
+            // C++ `Clear()`s and generates the whole corridor when the retained
+            // path does not contain the current start polygon (`:414-516`).
+            // `reuse_previous_poly_path_like_cpp` also selects this branch as a
+            // deliberate safety repair for C++'s one-prefix/empty-suffix
+            // zero-length underflow.
+            PreviousPolyPathLikeCpp::Recalculate | PreviousPolyPathLikeCpp::PolyRefs(_) => {
+                match query.find_path(
+                    start_poly,
+                    end_poly,
+                    start_point,
+                    end_point,
+                    filter,
+                    MAX_PATH_LENGTH_LIKE_CPP,
+                ) {
+                    Ok(path) if !path.is_empty() => path,
+                    // C++ has already `Clear()`ed the previous corridor in
+                    // this branch and turns either a failed status or zero
+                    // length into `BuildShortcut(); PATHFIND_NOPATH`.
+                    Ok(_) | Err(_) => return Ok(shortcut_no_path()),
+                }
+            }
         }
-        path
     };
 
     if poly_refs.last().copied() == Some(end_poly)
@@ -1324,19 +1545,31 @@ pub fn build_straight_poly_path_like_cpp(
     }
     add_far_from_poly_flags_like_cpp(&mut path_type, start_far_from_poly, end_far_from_poly);
 
-    let point_path = build_straight_point_path_like_cpp(
-        query,
-        start_point,
-        end_point,
-        &poly_refs,
-        point_path_limit,
-        path_type,
-        force_destination,
-    )?;
+    if start_poly != end_poly && poly_refs.len() == 1 {
+        // A successful Detour query may still return only `startPoly` when the
+        // destination is on a disconnected island or every neighbour is
+        // excluded by the filter. C++ passes the remote endpoint into
+        // `FindSmoothPath`, whose singleton shortcut treats it as same-poly and
+        // appends a final straight segment across the gap. Keep the valid
+        // partial result, but clamp its effective endpoint to the reachable
+        // boundary. Genuine same-poly paths retain their requested endpoint.
+        match query.closest_point_on_poly_boundary(poly_refs[0], end_point) {
+            Ok(boundary) => end_point = boundary,
+            // C++ `FindSmoothPath` cannot build a usable singleton partial
+            // path when the reachable boundary itself is invalid. Fall back
+            // to the same cleared shortcut/NOPATH state as its failed point
+            // query branches instead of retaining the remote endpoint.
+            Err(_) => return Ok(shortcut_no_path()),
+        }
+    }
 
     Ok(DetourPolyPath {
         poly_refs,
-        point_path,
+        point_path: DetourPointPath {
+            points: Vec::new(),
+            actual_end: end_point,
+            path_type,
+        },
         start_far_from_poly,
         end_far_from_poly,
     })
@@ -1467,6 +1700,8 @@ pub fn build_raycast_poly_path_like_cpp(
     })
 }
 
+/// [`calculate_detour_path_with_previous_path_like_cpp`] on a freshly
+/// constructed `PathGenerator`, i.e. with no corridor to reuse.
 pub fn calculate_detour_path_like_cpp(
     nav_mesh: &DetourNavMesh,
     query: &DetourNavMeshQuery<'_>,
@@ -1474,6 +1709,30 @@ pub fn calculate_detour_path_like_cpp(
     start_wow: [f32; 3],
     end_wow: [f32; 3],
     options: DetourPathOptions,
+) -> Result<DetourPolyPath, DetourNavMeshQueryError> {
+    calculate_detour_path_with_previous_path_like_cpp(
+        nav_mesh,
+        query,
+        filter,
+        start_wow,
+        end_wow,
+        options,
+        &[],
+    )
+}
+
+/// C++ `PathGenerator::CalculatePath` from `BuildPolyPath` onwards, for a
+/// generator that kept its `PathGenerator` alive across updates and therefore
+/// still holds `_pathPolyRefs` (`PathGenerator.cpp:291-413`).
+#[allow(clippy::too_many_arguments)]
+pub fn calculate_detour_path_with_previous_path_like_cpp(
+    nav_mesh: &DetourNavMesh,
+    query: &DetourNavMeshQuery<'_>,
+    filter: &DetourQueryFilter,
+    start_wow: [f32; 3],
+    end_wow: [f32; 3],
+    options: DetourPathOptions,
+    previous_poly_refs: &[DetourPolyRef],
 ) -> Result<DetourPolyPath, DetourNavMeshQueryError> {
     let start_point = wow_position_to_detour_like_cpp(start_wow);
     let end_point = wow_position_to_detour_like_cpp(end_wow);
@@ -1485,17 +1744,26 @@ pub fn calculate_detour_path_like_cpp(
             filter,
             start_point,
             end_point,
-            options.point_path_limit,
-            options.force_destination,
+            options.owner,
+            previous_poly_refs,
         )?
     };
 
-    if !options.use_raycast {
-        poly_path.point_path = build_point_path_like_cpp(
+    // C++ `BuildPolyPath` runs `BuildPointPath` exactly once, and only on the
+    // branches that did not already answer with `BuildShortcut()`
+    // (`PathGenerator.cpp:287`, `:527`). Those shortcut branches arrive here
+    // with their two points already set, so re-running the point build would
+    // both waste a Detour query and let the discarded pass leak
+    // `PATHFIND_SHORTCUT`/`PATHFIND_SHORT` into an otherwise usable path.
+    if !options.use_raycast && poly_path.point_path.points.is_empty() {
+        let point_path_outcome = build_point_path_outcome_like_cpp(
             nav_mesh,
             query,
             filter,
             start_point,
+            // C++ passes its own possibly clamped local `endPoint`, while
+            // `GetEndPosition()` keeps the originally requested destination.
+            poly_path.point_path.actual_end,
             end_point,
             &poly_path.poly_refs,
             options.point_path_limit,
@@ -1504,6 +1772,10 @@ pub fn calculate_detour_path_like_cpp(
             options.use_straight_path,
             false,
         )?;
+        poly_path.point_path = point_path_outcome.point_path;
+        if point_path_outcome.cleared_poly_path {
+            poly_path.poly_refs.clear();
+        }
     }
 
     for point in &mut poly_path.point_path.points {
@@ -1522,6 +1794,7 @@ fn calculate_detour_path_with_raw_query_like_cpp(
     start_wow: [f32; 3],
     end_wow: [f32; 3],
     options: DetourPathOptions,
+    previous_poly_refs: &[DetourPolyRef],
 ) -> Result<DetourPolyPath, DetourNavMeshQueryError> {
     let Some(raw) = NonNull::new(raw_query) else {
         return Err(DetourNavMeshQueryError::AllocationFailed);
@@ -1531,7 +1804,15 @@ fn calculate_detour_path_with_raw_query_like_cpp(
         _mesh_lifetime_and_thread_model: PhantomData,
     });
 
-    calculate_detour_path_like_cpp(nav_mesh, &query, filter, start_wow, end_wow, options)
+    calculate_detour_path_with_previous_path_like_cpp(
+        nav_mesh,
+        &query,
+        filter,
+        start_wow,
+        end_wow,
+        options,
+        previous_poly_refs,
+    )
 }
 
 #[must_use]
@@ -1989,6 +2270,30 @@ impl MMapData {
         end_wow: [f32; 3],
         options: DetourPathOptions,
     ) -> Result<Option<DetourPolyPath>, DetourNavMeshQueryError> {
+        self.calculate_path_for_instance_with_previous_path_like_cpp(
+            instance_map_id,
+            instance_id,
+            filter,
+            start_wow,
+            end_wow,
+            options,
+            &[],
+        )
+    }
+
+    /// As above, for a caller that kept the corridor from its previous query and
+    /// can therefore reproduce the C++ `_pathPolyRefs` reuse.
+    #[allow(clippy::too_many_arguments)]
+    pub fn calculate_path_for_instance_with_previous_path_like_cpp(
+        &self,
+        instance_map_id: u32,
+        instance_id: u32,
+        filter: &DetourQueryFilter,
+        start_wow: [f32; 3],
+        end_wow: [f32; 3],
+        options: DetourPathOptions,
+        previous_poly_refs: &[DetourPolyRef],
+    ) -> Result<Option<DetourPolyPath>, DetourNavMeshQueryError> {
         let Some(query) = self.get_nav_mesh_query(instance_map_id, instance_id) else {
             return Ok(None);
         };
@@ -2006,6 +2311,7 @@ impl MMapData {
             start_wow,
             end_wow,
             options,
+            previous_poly_refs,
         )
         .map(Some)
     }
@@ -2561,9 +2867,413 @@ fn read_f32(bytes: &[u8], offset: usize) -> f32 {
     ])
 }
 
+/// In-memory Detour navmesh fixtures for tests in this crate and downstream
+/// crates.
+///
+/// Gated behind the `test-fixtures` feature (always on for this crate's own
+/// tests) so nothing here reaches a production build.
+#[cfg(any(test, feature = "test-fixtures"))]
+pub mod test_fixtures {
+    use super::*;
+
+    /// Side length in cells of [`obstacle_ring_tile_blob`].
+    pub const OBSTACLE_TILE_CELLS: u16 = 3;
+    /// Cell that is left out of [`obstacle_ring_tile_blob`], i.e. the obstacle.
+    pub const OBSTACLE_TILE_HOLE: (u16, u16) = (1, 1);
+    /// World size of one cell. It has to comfortably exceed
+    /// [`SMOOTH_PATH_STEP_SIZE_LIKE_CPP`], otherwise one `FindSmoothPath` step
+    /// would jump across the whole fixture and the resulting point list would
+    /// say nothing about the route actually taken.
+    pub const OBSTACLE_TILE_CELL_SIZE: f32 = 10.0;
+    /// World extent of the fixture along one axis.
+    pub const OBSTACLE_TILE_EXTENT: f32 = OBSTACLE_TILE_CELL_SIZE * OBSTACLE_TILE_CELLS as f32;
+
+    /// Builds one navmesh tile shaped like a 3x3 grid of square quads with the
+    /// centre quad missing, so a straight line through the centre is not
+    /// walkable but a route around it is. This is the smallest navmesh that can
+    /// distinguish "queried Detour" from "shortcut straight to the
+    /// destination".
+    ///
+    /// Vertices use the same winding as `rustycore_dt_create_square_tile_data`
+    /// (`(x,z) -> (x+1,z) -> (x+1,z+1) -> (x,z+1)`, y up), and edge `j` runs
+    /// from vertex `j` to vertex `j+1`, so the neighbour half of each
+    /// `rcPolyMesh` poly entry is `[-z, +x, +z, -x]`. `MESH_NULL_IDX` (0xffff)
+    /// marks a border edge, matching `DetourNavMeshBuilder.cpp:525-546`.
+    #[must_use]
+    pub fn obstacle_ring_tile_blob(tile_x: i32, tile_y: i32) -> MmapTileBlob {
+        obstacle_ring_tile_blob_at(tile_x, tile_y, 0.0, 0.0)
+    }
+
+    /// Same fixture, but with its geometry offset to `(origin_detour_x,
+    /// origin_detour_z)` so it can be placed inside a navmesh tile other than
+    /// `(0, 0)`.
+    #[must_use]
+    pub fn obstacle_ring_tile_blob_at(
+        tile_x: i32,
+        tile_y: i32,
+        origin_detour_x: f32,
+        origin_detour_z: f32,
+    ) -> MmapTileBlob {
+        obstacle_ring_tile_blob_at_height(tile_x, tile_y, origin_detour_x, 0.0, origin_detour_z)
+    }
+
+    /// Height-aware form of [`obstacle_ring_tile_blob_at`].
+    ///
+    /// Detour uses `(x, y, z)` with `y` vertical, while WoW uses `(x, y, z)`
+    /// with `z` vertical. A connected fixture placed in a real world-map grid
+    /// therefore has to preserve the live terrain height instead of silently
+    /// building its polygons at zero.
+    #[must_use]
+    pub fn obstacle_ring_tile_blob_at_height(
+        tile_x: i32,
+        tile_y: i32,
+        origin_detour_x: f32,
+        origin_detour_y: f32,
+        origin_detour_z: f32,
+    ) -> MmapTileBlob {
+        const NVP: usize = 4;
+        const MESH_NULL_IDX: u16 = 0xffff;
+        let cells = OBSTACLE_TILE_CELLS;
+        let lattice = cells + 1;
+
+        let mut verts: Vec<u16> =
+            Vec::with_capacity(usize::from(lattice) * usize::from(lattice) * 3);
+        for z in 0..lattice {
+            for x in 0..lattice {
+                verts.extend_from_slice(&[x, 0, z]);
+            }
+        }
+        let vert_index = |x: u16, z: u16| z * lattice + x;
+
+        // Poly index per walkable cell; the hole has none.
+        let mut poly_index_of_cell = vec![MESH_NULL_IDX; usize::from(cells) * usize::from(cells)];
+        let mut next_poly_index = 0u16;
+        for z in 0..cells {
+            for x in 0..cells {
+                if (x, z) == OBSTACLE_TILE_HOLE {
+                    continue;
+                }
+                poly_index_of_cell[usize::from(z) * usize::from(cells) + usize::from(x)] =
+                    next_poly_index;
+                next_poly_index += 1;
+            }
+        }
+        let cell_poly = |x: i32, z: i32| -> u16 {
+            if x < 0 || z < 0 || x >= i32::from(cells) || z >= i32::from(cells) {
+                return MESH_NULL_IDX;
+            }
+            poly_index_of_cell[z as usize * usize::from(cells) + x as usize]
+        };
+
+        let mut polys: Vec<u16> = Vec::with_capacity(usize::from(next_poly_index) * NVP * 2);
+        for z in 0..cells {
+            for x in 0..cells {
+                if (x, z) == OBSTACLE_TILE_HOLE {
+                    continue;
+                }
+                polys.extend_from_slice(&[
+                    vert_index(x, z),
+                    vert_index(x + 1, z),
+                    vert_index(x + 1, z + 1),
+                    vert_index(x, z + 1),
+                ]);
+                let (xi, zi) = (i32::from(x), i32::from(z));
+                polys.extend_from_slice(&[
+                    cell_poly(xi, zi - 1),
+                    cell_poly(xi + 1, zi),
+                    cell_poly(xi, zi + 1),
+                    cell_poly(xi - 1, zi),
+                ]);
+            }
+        }
+
+        let poly_count = usize::from(next_poly_index);
+        // NAV_GROUND is the flag `create_path_query_filter_like_cpp` includes
+        // for a walking creature; area 0 keeps the default cost.
+        let poly_flags = vec![NavTerrainFlag::GROUND.bits(); poly_count];
+        let poly_areas = vec![0u8; poly_count];
+        let bmin = [origin_detour_x, origin_detour_y, origin_detour_z];
+        let bmax = [
+            origin_detour_x + OBSTACLE_TILE_EXTENT,
+            origin_detour_y + OBSTACLE_TILE_CELL_SIZE,
+            origin_detour_z + OBSTACLE_TILE_EXTENT,
+        ];
+
+        let mut data = std::ptr::null_mut();
+        let mut data_size = 0;
+        assert!(unsafe {
+            rustycore_dt_create_poly_mesh_tile_data(
+                tile_x,
+                tile_y,
+                verts.as_ptr(),
+                (verts.len() / 3) as i32,
+                polys.as_ptr(),
+                poly_count as i32,
+                NVP as i32,
+                poly_flags.as_ptr(),
+                poly_areas.as_ptr(),
+                bmin.as_ptr(),
+                bmax.as_ptr(),
+                OBSTACLE_TILE_CELL_SIZE,
+                OBSTACLE_TILE_CELL_SIZE,
+                2.0,
+                0.0,
+                0.9,
+                &mut data,
+                &mut data_size,
+            )
+        });
+        assert!(!data.is_null());
+        assert!(data_size > 0);
+
+        let bytes = unsafe { std::slice::from_raw_parts(data, data_size as usize) }.to_vec();
+        unsafe { rustycore_dt_free(data.cast()) };
+
+        MmapTileBlob {
+            header: MmapTileHeader {
+                mmap_magic: MMAP_MAGIC_LIKE_CPP,
+                dt_version: DT_NAVMESH_VERSION_LIKE_CPP,
+                mmap_version: MMAP_VERSION_LIKE_CPP,
+                size: data_size as u32,
+                uses_liquids: true,
+                padding: [0, 0, 0],
+            },
+            data: bytes,
+        }
+    }
+
+    /// Navmesh params under which [`obstacle_ring_tile_blob`] occupies exactly
+    /// tile `(0, 0)`.
+    #[must_use]
+    pub fn obstacle_ring_nav_mesh_params() -> DetourNavMeshParams {
+        DetourNavMeshParams {
+            origin: [0.0, 0.0, 0.0],
+            tile_width: OBSTACLE_TILE_EXTENT,
+            tile_height: OBSTACLE_TILE_EXTENT,
+            max_tiles: 4,
+            max_polys: 256,
+        }
+    }
+
+    /// Mesh whose only tile is [`obstacle_ring_tile_blob`].
+    #[must_use]
+    pub fn obstacle_ring_nav_mesh() -> DetourNavMesh {
+        let params = obstacle_ring_nav_mesh_params();
+        let mut mesh = DetourNavMesh::new(&params).unwrap();
+        let tile = obstacle_ring_tile_blob(0, 0);
+        assert_ne!(mesh.add_tile(&tile).unwrap(), 0);
+        mesh
+    }
+
+    /// Walking-creature filter, i.e. the C++ `CreateFilter` result for
+    /// `CanWalk() == true` and `CanEnterWater() == false`.
+    #[must_use]
+    pub fn obstacle_ring_walk_filter() -> DetourQueryFilter {
+        create_path_query_filter_like_cpp(PathQueryFilterContext::creature(
+            true, false, false, false,
+        ))
+        .unwrap()
+    }
+
+    /// World bounds of the missing centre cell, as `x`/`z` in Detour space.
+    #[must_use]
+    pub fn obstacle_hole_bounds() -> (std::ops::RangeInclusive<f32>, std::ops::RangeInclusive<f32>)
+    {
+        let (hole_x, hole_z) = OBSTACLE_TILE_HOLE;
+        let low_x = f32::from(hole_x) * OBSTACLE_TILE_CELL_SIZE;
+        let low_z = f32::from(hole_z) * OBSTACLE_TILE_CELL_SIZE;
+        (
+            low_x..=(low_x + OBSTACLE_TILE_CELL_SIZE),
+            low_z..=(low_z + OBSTACLE_TILE_CELL_SIZE),
+        )
+    }
+
+    /// Navmesh params on the production 533.3333-unit tile grid, so fixture
+    /// tiles are placed and looked up by exactly the rules `MMapManager` uses
+    /// for real `.mmtile` data.
+    #[must_use]
+    pub fn obstacle_ring_world_nav_mesh_params() -> DetourNavMeshParams {
+        obstacle_ring_world_nav_mesh_params_at(0.0, 0.0)
+    }
+
+    /// Production-grid params with an explicit Detour `(x, z)` origin.
+    ///
+    /// Real `.mmap` files choose an origin that keeps tile indices inside the
+    /// navmesh's finite tile grid. Connected synthetic fixtures can live at
+    /// negative WoW coordinates, so using a hardcoded zero origin would create
+    /// a negative Detour tile index that the runtime correctly rejects.
+    #[must_use]
+    pub fn obstacle_ring_world_nav_mesh_params_at(
+        origin_detour_x: f32,
+        origin_detour_z: f32,
+    ) -> DetourNavMeshParams {
+        DetourNavMeshParams {
+            origin: [origin_detour_x, 0.0, origin_detour_z],
+            tile_width: SIZE_OF_GRIDS_LIKE_CPP,
+            tile_height: SIZE_OF_GRIDS_LIKE_CPP,
+            max_tiles: 4096,
+            max_polys: 16_384,
+        }
+    }
+
+    /// Writes the fixture into `base_path` as the on-disk mmaps layout
+    /// `MMapManager` loads — `mmaps/<map>.mmap` on the production tile grid plus
+    /// one `.mmtile` per requested WoW position — so a real runtime pathfinder
+    /// can serve queries for `map_id` around each of them.
+    ///
+    /// Each tile is placed at the navmesh tile `dtNavMesh::calcTileLoc` derives
+    /// for its position, with its geometry offset to that tile's corner, and
+    /// named with the C++ 64x64 grid id for the same position.
+    pub fn write_obstacle_ring_mmaps_like_cpp(
+        base_path: impl AsRef<Path>,
+        map_id: u32,
+        wow_positions: &[(f32, f32)],
+    ) {
+        let positions = wow_positions
+            .iter()
+            .map(|&(wow_x, wow_y)| (wow_x, wow_y, 0.0))
+            .collect::<Vec<_>>();
+        write_obstacle_ring_mmaps_at_height_like_cpp(base_path, map_id, &positions);
+    }
+
+    /// Height-aware on-disk fixture writer used by connected C++/Rust capture
+    /// fixtures. Each `(x, y, z)` tuple is in WoW coordinates.
+    pub fn write_obstacle_ring_mmaps_at_height_like_cpp(
+        base_path: impl AsRef<Path>,
+        map_id: u32,
+        wow_positions: &[(f32, f32, f32)],
+    ) {
+        let base_path = base_path.as_ref();
+        std::fs::create_dir_all(base_path.join("mmaps")).unwrap();
+        let origin_tile_x = wow_positions
+            .iter()
+            .map(|&(_, wow_y, _)| (wow_y / SIZE_OF_GRIDS_LIKE_CPP).floor() as i32)
+            .min()
+            .unwrap_or(0);
+        let origin_tile_z = wow_positions
+            .iter()
+            .map(|&(wow_x, _, _)| (wow_x / SIZE_OF_GRIDS_LIKE_CPP).floor() as i32)
+            .min()
+            .unwrap_or(0);
+        let origin_detour_x = origin_tile_x as f32 * SIZE_OF_GRIDS_LIKE_CPP;
+        let origin_detour_z = origin_tile_z as f32 * SIZE_OF_GRIDS_LIKE_CPP;
+        std::fs::write(
+            map_file_path_like_cpp(base_path, map_id),
+            obstacle_ring_world_nav_mesh_params_at(origin_detour_x, origin_detour_z).to_bytes(),
+        )
+        .unwrap();
+
+        for &(wow_x, wow_y, wow_z) in wow_positions {
+            // `wow_position_to_detour_like_cpp` puts WoW y on the Detour x axis
+            // and WoW x on the Detour z axis, which is what `calcTileLoc`
+            // divides by the tile size.
+            let tile_x = (wow_y / SIZE_OF_GRIDS_LIKE_CPP).floor();
+            let tile_z = (wow_x / SIZE_OF_GRIDS_LIKE_CPP).floor();
+            let tile = obstacle_ring_tile_blob_at_height(
+                tile_x as i32 - origin_tile_x,
+                tile_z as i32 - origin_tile_z,
+                tile_x * SIZE_OF_GRIDS_LIKE_CPP,
+                wow_z,
+                tile_z * SIZE_OF_GRIDS_LIKE_CPP,
+            );
+
+            let (grid_x, grid_y) = mmap_tile_coords_for_wow_position_like_cpp(wow_x, wow_y);
+            let mut bytes = tile.header.to_bytes().to_vec();
+            bytes.extend_from_slice(&tile.data);
+            std::fs::write(
+                tile_file_path_like_cpp(base_path, map_id, grid_x, grid_y),
+                bytes,
+            )
+            .unwrap();
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn disconnected_two_island_nav_mesh() -> DetourNavMesh {
+        const NVP: usize = 4;
+        const MESH_NULL_IDX: u16 = 0xffff;
+        // Two ten-yard quads separated by a ten-yard void.
+        let verts: [u16; 24] = [
+            0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, // first island
+            2, 0, 0, 3, 0, 0, 3, 0, 1, 2, 0, 1, // second island
+        ];
+        let polys: [u16; 16] = [
+            0,
+            1,
+            2,
+            3,
+            MESH_NULL_IDX,
+            MESH_NULL_IDX,
+            MESH_NULL_IDX,
+            MESH_NULL_IDX,
+            4,
+            5,
+            6,
+            7,
+            MESH_NULL_IDX,
+            MESH_NULL_IDX,
+            MESH_NULL_IDX,
+            MESH_NULL_IDX,
+        ];
+        let poly_flags = [NavTerrainFlag::GROUND.bits(); 2];
+        let poly_areas = [0_u8; 2];
+        let bmin = [0.0, 0.0, 0.0];
+        let bmax = [30.0, 10.0, 10.0];
+        let mut data = std::ptr::null_mut();
+        let mut data_size = 0;
+        assert!(unsafe {
+            rustycore_dt_create_poly_mesh_tile_data(
+                0,
+                0,
+                verts.as_ptr(),
+                (verts.len() / 3) as i32,
+                polys.as_ptr(),
+                2,
+                NVP as i32,
+                poly_flags.as_ptr(),
+                poly_areas.as_ptr(),
+                bmin.as_ptr(),
+                bmax.as_ptr(),
+                10.0,
+                10.0,
+                2.0,
+                0.0,
+                0.9,
+                &mut data,
+                &mut data_size,
+            )
+        });
+        assert!(!data.is_null());
+        assert!(data_size > 0);
+        let bytes = unsafe { std::slice::from_raw_parts(data, data_size as usize) }.to_vec();
+        unsafe { rustycore_dt_free(data.cast()) };
+
+        let params = DetourNavMeshParams {
+            origin: [0.0, 0.0, 0.0],
+            tile_width: 30.0,
+            tile_height: 10.0,
+            max_tiles: 1,
+            max_polys: 16,
+        };
+        let mut mesh = DetourNavMesh::new(&params).unwrap();
+        let tile = MmapTileBlob {
+            header: MmapTileHeader {
+                mmap_magic: MMAP_MAGIC_LIKE_CPP,
+                dt_version: DT_NAVMESH_VERSION_LIKE_CPP,
+                mmap_version: MMAP_VERSION_LIKE_CPP,
+                size: data_size as u32,
+                uses_liquids: true,
+                padding: [0; 3],
+            },
+            data: bytes,
+        };
+        assert_ne!(mesh.add_tile(&tile).unwrap(), 0);
+        mesh
+    }
 
     #[test]
     fn mmap_constants_and_nav_flags_match_cpp() {
@@ -2588,6 +3298,7 @@ mod tests {
         assert_eq!(DT_FAILURE_LIKE_CPP, 1_u32 << 31);
         assert_eq!(DT_SUCCESS_LIKE_CPP, 1_u32 << 30);
         assert_eq!(DT_IN_PROGRESS_LIKE_CPP, 1_u32 << 29);
+        assert_eq!(DT_BUFFER_TOO_SMALL_LIKE_CPP, 1_u32 << 4);
         assert_eq!(DT_OUT_OF_MEMORY_LIKE_CPP, 1_u32 << 2);
         assert_eq!(DT_INVALID_PARAM_LIKE_CPP, 1_u32 << 3);
         assert_eq!(MAX_PATH_LENGTH_LIKE_CPP, 74);
@@ -2972,17 +3683,17 @@ mod tests {
             &filter,
             [0.25, 0.0, 0.25],
             [0.75, 0.0, 0.75],
-            MAX_POINT_PATH_LENGTH_LIKE_CPP,
-            false,
+            DetourOwnerCapabilitiesLikeCpp::default(),
+            &[],
         )
         .unwrap();
 
         assert_eq!(path.poly_refs.len(), 1);
         assert_eq!(path.point_path.path_type, DetourPathType::NORMAL);
-        assert_eq!(
-            path.point_path.points,
-            vec![[0.25, 0.0, 0.25], [0.75, 0.0, 0.75]]
-        );
+        // C++ reaches `BuildPointPath` for the `startPoly == endPoly` case
+        // (`PathGenerator.cpp:287`), so the corridor builder leaves the points
+        // to the caller instead of producing them twice.
+        assert!(path.point_path.points.is_empty());
         assert_eq!(path.point_path.actual_end, [0.75, 0.0, 0.75]);
     }
 
@@ -3004,15 +3715,21 @@ mod tests {
             &filter,
             [0.25, 0.0, 0.25],
             [0.75, 0.0, 0.75],
-            MAX_POINT_PATH_LENGTH_LIKE_CPP,
-            false,
+            DetourOwnerCapabilitiesLikeCpp::default(),
+            &[],
         )
         .unwrap();
 
         assert!(path.poly_refs.is_empty());
+        // C++ assigns `_type = PATHFIND_NOPATH` after `BuildShortcut()`
+        // (`PathGenerator.cpp:207`), so `PATHFIND_SHORTCUT` does not survive.
+        assert_eq!(path.point_path.path_type, DetourPathType::NOPATH);
+        // C++ answers the hole-in-mesh case with `BuildShortcut()` and returns
+        // before `BuildPointPath` (`PathGenerator.cpp:176-209`), so the two
+        // shortcut points are already present here.
         assert_eq!(
-            path.point_path.path_type,
-            DetourPathType::SHORTCUT | DetourPathType::NOPATH
+            path.point_path.points,
+            vec![[0.25, 0.0, 0.25], [0.75, 0.0, 0.75]]
         );
     }
 
@@ -3062,18 +3779,73 @@ mod tests {
             build_raycast_poly_path_like_cpp(&query, &filter, [0.25, 0.0, 0.25], [0.75, 0.0, 0.75])
                 .unwrap();
 
+        // With no polygons, native raycast fails because startPoly is invalid.
+        // C++ converts that query error into BuildShortcut + NOPATH rather than
+        // propagating it to CalculatePath.
+        assert!(path.poly_refs.is_empty());
         assert!(path.start_far_from_poly);
         assert!(path.end_far_from_poly);
-        assert!(path.point_path.path_type.contains(DetourPathType::NOPATH));
-        assert!(
-            path.point_path
-                .path_type
-                .contains(DetourPathType::FARFROMPOLY_START)
+        assert_eq!(
+            path.point_path.path_type,
+            DetourPathType::SHORTCUT
+                | DetourPathType::NOPATH
+                | DetourPathType::FARFROMPOLY_START
+                | DetourPathType::FARFROMPOLY_END
         );
+    }
+
+    #[test]
+    fn calculate_build_point_failures_clear_the_corridor_like_cpp() {
+        let mesh = obstacle_ring_nav_mesh();
+        let query = DetourNavMeshQuery::new(&mesh, 1024).unwrap();
+        let filter = obstacle_ring_walk_filter();
+        let start_detour = [5.0, 0.0, 15.0];
+        let end_detour = [25.0, 0.0, 15.0];
+        let start_wow = detour_position_to_wow_like_cpp(start_detour);
+        let end_wow = detour_position_to_wow_like_cpp(end_detour);
+
+        let fewer_than_two = calculate_detour_path_like_cpp(
+            &mesh,
+            &query,
+            &filter,
+            start_wow,
+            end_wow,
+            DetourPathOptions {
+                point_path_limit: 0,
+                ..DetourPathOptions::default()
+            },
+        )
+        .unwrap();
+        assert!(fewer_than_two.poly_refs.is_empty());
+        assert_eq!(
+            fewer_than_two.point_path.path_type,
+            DetourPathType::SHORTCUT | DetourPathType::NOPATH
+        );
+
+        // The oversized limit is deterministic fault injection into the Rust
+        // query wrapper (`StraightPathBufferTooLarge`). Production limits are
+        // bounded, but this reaches the same `dtStatusFailed` recovery C++
+        // handles with BuildShortcut/Clear.
+        let failed_query = calculate_detour_path_like_cpp(
+            &mesh,
+            &query,
+            &filter,
+            start_wow,
+            end_wow,
+            DetourPathOptions {
+                use_straight_path: true,
+                point_path_limit: i32::MAX as usize + 1,
+                ..DetourPathOptions::default()
+            },
+        )
+        .unwrap();
         assert!(
-            path.point_path
-                .path_type
-                .contains(DetourPathType::FARFROMPOLY_END)
+            failed_query.poly_refs.is_empty(),
+            "failed point query leaked {failed_query:?}"
+        );
+        assert_eq!(
+            failed_query.point_path.path_type,
+            DetourPathType::SHORTCUT | DetourPathType::NOPATH
         );
     }
 
@@ -3177,11 +3949,12 @@ mod tests {
             .find_nearest_poly([0.25, 0.0, 0.25], [3.0, 5.0, 3.0], &filter)
             .unwrap();
 
-        let smooth = build_point_path_like_cpp(
+        let smooth = build_point_path_outcome_like_cpp(
             &mesh,
             &query,
             &filter,
             [0.25, 0.0, 0.25],
+            [0.75, 0.0, 0.75],
             [0.75, 0.0, 0.75],
             &[nearest.poly_ref],
             MAX_POINT_PATH_LENGTH_LIKE_CPP,
@@ -3190,15 +3963,17 @@ mod tests {
             false,
             false,
         )
-        .unwrap();
+        .unwrap()
+        .point_path;
         assert_eq!(smooth.points, vec![[0.25, 0.0, 0.25], [0.75, 0.0, 0.75]]);
         assert_eq!(smooth.path_type, DetourPathType::NORMAL);
 
-        let straight = build_point_path_like_cpp(
+        let straight = build_point_path_outcome_like_cpp(
             &mesh,
             &query,
             &filter,
             [0.25, 0.0, 0.25],
+            [0.75, 0.0, 0.75],
             [0.75, 0.0, 0.75],
             &[nearest.poly_ref],
             MAX_POINT_PATH_LENGTH_LIKE_CPP,
@@ -3207,15 +3982,17 @@ mod tests {
             true,
             false,
         )
-        .unwrap();
+        .unwrap()
+        .point_path;
         assert_eq!(straight.points, smooth.points);
         assert_eq!(straight.path_type, DetourPathType::NORMAL);
 
-        let raycast = build_point_path_like_cpp(
+        let raycast = build_point_path_outcome_like_cpp(
             &mesh,
             &query,
             &filter,
             [0.25, 0.0, 0.25],
+            [0.75, 0.0, 0.75],
             [0.75, 0.0, 0.75],
             &[nearest.poly_ref],
             MAX_POINT_PATH_LENGTH_LIKE_CPP,
@@ -3224,9 +4001,175 @@ mod tests {
             false,
             true,
         )
-        .unwrap();
+        .unwrap()
+        .point_path;
         assert_eq!(raycast.points, vec![[0.25, 0.0, 0.25], [0.75, 0.0, 0.75]]);
         assert_eq!(raycast.path_type, DetourPathType::NOPATH);
+    }
+
+    #[test]
+    fn build_point_path_reports_every_cpp_build_shortcut_clear() {
+        let params = DetourNavMeshParams {
+            origin: [0.0, 0.0, 0.0],
+            tile_width: 1.0,
+            tile_height: 1.0,
+            max_tiles: 16,
+            max_polys: 128,
+        };
+        let mut mesh = DetourNavMesh::new(&params).unwrap();
+        mesh.add_tile(&generated_square_tile_blob(0, 0)).unwrap();
+        let query = DetourNavMeshQuery::new(&mesh, 1024).unwrap();
+        let filter = DetourQueryFilter::new().unwrap();
+        let poly = query
+            .find_nearest_poly([0.25, 0.0, 0.25], [3.0, 5.0, 3.0], &filter)
+            .unwrap()
+            .poly_ref;
+        let start = [0.25, 0.0, 0.25];
+        let end = [0.75, 0.0, 0.75];
+
+        let raycast = build_point_path_outcome_like_cpp(
+            &mesh,
+            &query,
+            &filter,
+            start,
+            end,
+            end,
+            &[poly],
+            MAX_POINT_PATH_LENGTH_LIKE_CPP,
+            DetourPathType::NORMAL,
+            false,
+            false,
+            true,
+        )
+        .unwrap();
+        assert!(raycast.cleared_poly_path);
+        assert_eq!(raycast.point_path.path_type, DetourPathType::NOPATH);
+
+        let failed_query = build_point_path_outcome_like_cpp(
+            &mesh,
+            &query,
+            &filter,
+            start,
+            end,
+            end,
+            &[0],
+            MAX_POINT_PATH_LENGTH_LIKE_CPP,
+            DetourPathType::NORMAL,
+            false,
+            true,
+            false,
+        )
+        .unwrap();
+        assert!(failed_query.cleared_poly_path);
+        assert_eq!(
+            failed_query.point_path.path_type,
+            DetourPathType::SHORTCUT | DetourPathType::NOPATH
+        );
+
+        let fewer_than_two_points = build_point_path_outcome_like_cpp(
+            &mesh,
+            &query,
+            &filter,
+            start,
+            end,
+            end,
+            &[],
+            MAX_POINT_PATH_LENGTH_LIKE_CPP,
+            DetourPathType::NORMAL,
+            false,
+            false,
+            false,
+        )
+        .unwrap();
+        assert!(fewer_than_two_points.cleared_poly_path);
+        assert_eq!(
+            fewer_than_two_points.point_path.path_type,
+            DetourPathType::SHORTCUT | DetourPathType::NOPATH
+        );
+
+        let point_limit = build_point_path_outcome_like_cpp(
+            &mesh,
+            &query,
+            &filter,
+            start,
+            end,
+            end,
+            &[poly],
+            2,
+            DetourPathType::NORMAL,
+            false,
+            false,
+            false,
+        )
+        .unwrap();
+        assert!(point_limit.cleared_poly_path);
+        assert_eq!(
+            point_limit.point_path.path_type,
+            DetourPathType::SHORTCUT | DetourPathType::SHORT
+        );
+
+        let far_forced_destination = build_point_path_outcome_like_cpp(
+            &mesh,
+            &query,
+            &filter,
+            start,
+            end,
+            [10.0, 0.0, 10.0],
+            &[poly],
+            MAX_POINT_PATH_LENGTH_LIKE_CPP,
+            DetourPathType::INCOMPLETE,
+            true,
+            false,
+            false,
+        )
+        .unwrap();
+        assert!(far_forced_destination.cleared_poly_path);
+        assert_eq!(
+            far_forced_destination.point_path.path_type,
+            DetourPathType::NORMAL | DetourPathType::NOT_USING_PATH
+        );
+        assert_eq!(
+            far_forced_destination.point_path.points,
+            vec![start, [10.0, 0.0, 10.0]]
+        );
+
+        let near_forced_destination = build_point_path_outcome_like_cpp(
+            &mesh,
+            &query,
+            &filter,
+            start,
+            end,
+            [0.8, 0.0, 0.8],
+            &[poly],
+            MAX_POINT_PATH_LENGTH_LIKE_CPP,
+            DetourPathType::INCOMPLETE,
+            true,
+            false,
+            false,
+        )
+        .unwrap();
+        assert!(!near_forced_destination.cleared_poly_path);
+        assert_eq!(
+            near_forced_destination.point_path.points.last(),
+            Some(&[0.8, 0.0, 0.8])
+        );
+
+        let normal = build_point_path_outcome_like_cpp(
+            &mesh,
+            &query,
+            &filter,
+            start,
+            end,
+            end,
+            &[poly],
+            MAX_POINT_PATH_LENGTH_LIKE_CPP,
+            DetourPathType::NORMAL,
+            false,
+            false,
+            false,
+        )
+        .unwrap();
+        assert!(!normal.cleared_poly_path);
     }
 
     #[test]
@@ -3259,6 +4202,35 @@ mod tests {
             vec![[0.25, 0.25, 0.0], [0.75, 0.75, 0.0]]
         );
         assert_eq!(path.point_path.actual_end, [0.75, 0.75, 0.0]);
+    }
+
+    #[test]
+    fn path_poly_lookup_uses_the_cpp_3d_squared_threshold() {
+        let params = DetourNavMeshParams {
+            origin: [0.0, 0.0, 0.0],
+            tile_width: 1.0,
+            tile_height: 1.0,
+            max_tiles: 16,
+            max_polys: 128,
+        };
+        let mut mesh = DetourNavMesh::new(&params).unwrap();
+        mesh.add_tile(&generated_square_tile_blob(0, 0)).unwrap();
+        let query = DetourNavMeshQuery::new(&mesh, 1024).unwrap();
+        let filter = DetourQueryFilter::new().unwrap();
+        let poly = query
+            .find_nearest_poly([0.5, 0.0, 0.5], [3.0, 5.0, 3.0], &filter)
+            .unwrap()
+            .poly_ref;
+
+        let (accepted, accepted_distance) =
+            get_path_poly_by_position_like_cpp(&query, &[poly], [0.5, 1.7, 0.5]);
+        assert_eq!(accepted, poly);
+        assert!((accepted_distance - 1.7).abs() < f32::EPSILON);
+
+        let (rejected, rejected_distance) =
+            get_path_poly_by_position_like_cpp(&query, &[poly], [0.5, 1.8, 0.5]);
+        assert_eq!(rejected, 0);
+        assert!((rejected_distance - 1.8).abs() < f32::EPSILON);
     }
 
     #[test]
@@ -3310,6 +4282,192 @@ mod tests {
         )
         .unwrap();
         assert_eq!(raycast, PreviousPolyPathLikeCpp::ShortcutNoPath);
+    }
+
+    #[test]
+    fn empty_reuse_suffix_keeps_the_full_valid_prefix_and_clamps_the_point_path() {
+        let mesh = obstacle_ring_nav_mesh();
+        let query = DetourNavMeshQuery::new(&mesh, 1024).unwrap();
+        let filter = obstacle_ring_walk_filter();
+        let start = [5.0, 0.0, 15.0];
+        let old_end = [25.0, 0.0, 15.0];
+        let start_poly = query
+            .find_nearest_poly(start, [3.0, 5.0, 3.0], &filter)
+            .unwrap()
+            .poly_ref;
+        let old_end_poly = query
+            .find_nearest_poly(old_end, [3.0, 5.0, 3.0], &filter)
+            .unwrap()
+            .poly_ref;
+        let previous = query
+            .find_path(
+                start_poly,
+                old_end_poly,
+                start,
+                old_end,
+                &filter,
+                MAX_PATH_LENGTH_LIKE_CPP,
+            )
+            .unwrap();
+        assert!(previous.len() >= 3);
+
+        let two_poly_prefix = &previous[..2];
+        // `endPoly == 0` deliberately injects the empty/failed `findPath`
+        // result C++'s recovery branch documents. A healthy Detour query with
+        // valid refs normally returns at least `suffixStartPoly`, so this is a
+        // fault-injection test of the recovery invariant, not a claim that the
+        // fixture naturally produces an empty suffix.
+        let retained = reuse_previous_poly_path_like_cpp(
+            &query,
+            &filter,
+            two_poly_prefix,
+            start_poly,
+            0,
+            old_end,
+            false,
+        )
+        .unwrap();
+        let PreviousPolyPathLikeCpp::PolyRefs(retained) = retained else {
+            panic!("an empty suffix must retain the usable two-poly prefix");
+        };
+        assert_eq!(retained, two_poly_prefix);
+
+        let expected_clamp = query
+            .closest_point_on_poly_boundary(*retained.last().unwrap(), old_end)
+            .unwrap();
+        let retained_point_path = build_point_path_outcome_like_cpp(
+            &mesh,
+            &query,
+            &filter,
+            start,
+            old_end,
+            old_end,
+            &retained,
+            MAX_POINT_PATH_LENGTH_LIKE_CPP,
+            DetourPathType::INCOMPLETE,
+            false,
+            false,
+            false,
+        )
+        .unwrap()
+        .point_path;
+        assert_eq!(retained_point_path.actual_end, expected_clamp);
+        assert_eq!(
+            retained_point_path.points.last(),
+            Some(&expected_clamp),
+            "the retained corridor must stop at its valid boundary"
+        );
+        assert_ne!(
+            retained_point_path.actual_end, old_end,
+            "dropping the non-overlapping prefix tail would turn this into a remote same-poly jump"
+        );
+
+        let truncated_point_path = build_point_path_outcome_like_cpp(
+            &mesh,
+            &query,
+            &filter,
+            start,
+            old_end,
+            old_end,
+            &retained[..1],
+            MAX_POINT_PATH_LENGTH_LIKE_CPP,
+            DetourPathType::INCOMPLETE,
+            false,
+            false,
+            false,
+        )
+        .unwrap()
+        .point_path;
+        assert_eq!(
+            truncated_point_path.points.last(),
+            Some(&old_end),
+            "the popped corridor incorrectly accepts the remote destination"
+        );
+        let segment_start =
+            truncated_point_path.points[truncated_point_path.points.len().saturating_sub(2)];
+        let (hole_x, hole_z) = obstacle_hole_bounds();
+        assert!(
+            segment_start[0] < *hole_x.start()
+                && old_end[0] > *hole_x.end()
+                && hole_z.contains(&segment_start[2])
+                && hole_z.contains(&old_end[2]),
+            "the final segment {segment_start:?} -> {old_end:?} must reproduce the obstacle crossing"
+        );
+
+        let degenerate = reuse_previous_poly_path_like_cpp(
+            &query,
+            &filter,
+            &[start_poly],
+            start_poly,
+            0,
+            old_end,
+            false,
+        )
+        .unwrap();
+        assert_eq!(degenerate, PreviousPolyPathLikeCpp::Recalculate);
+    }
+
+    #[test]
+    fn partial_singleton_corridor_clamps_to_the_reachable_island_boundary() {
+        let mesh = disconnected_two_island_nav_mesh();
+        let query = DetourNavMeshQuery::new(&mesh, 1024).unwrap();
+        let filter = create_path_query_filter_like_cpp(PathQueryFilterContext::creature(
+            true, false, false, false,
+        ))
+        .unwrap();
+        let start = [5.0, 0.0, 5.0];
+        let requested_end = [25.0, 0.0, 5.0];
+        let start_poly = query
+            .find_nearest_poly(start, [3.0, 5.0, 3.0], &filter)
+            .unwrap()
+            .poly_ref;
+        let end_poly = query
+            .find_nearest_poly(requested_end, [3.0, 5.0, 3.0], &filter)
+            .unwrap()
+            .poly_ref;
+        assert_ne!(start_poly, end_poly);
+        assert_eq!(
+            query
+                .find_path(
+                    start_poly,
+                    end_poly,
+                    start,
+                    requested_end,
+                    &filter,
+                    MAX_PATH_LENGTH_LIKE_CPP,
+                )
+                .unwrap(),
+            vec![start_poly],
+            "Detour retains the reachable start island as a valid partial corridor"
+        );
+
+        let path = calculate_detour_path_like_cpp(
+            &mesh,
+            &query,
+            &filter,
+            detour_position_to_wow_like_cpp(start),
+            detour_position_to_wow_like_cpp(requested_end),
+            DetourPathOptions::default(),
+        )
+        .unwrap();
+
+        assert_eq!(path.poly_refs, vec![start_poly]);
+        assert!(
+            path.point_path
+                .path_type
+                .contains(DetourPathType::INCOMPLETE)
+        );
+        assert!(
+            path.point_path
+                .points
+                .iter()
+                .all(|point| point[1] <= 10.001),
+            "a partial singleton must never append a segment across the void: {path:?}"
+        );
+        assert_ne!(
+            path.point_path.actual_end,
+            detour_position_to_wow_like_cpp(requested_end)
+        );
     }
 
     #[test]
@@ -3871,6 +5029,65 @@ mod tests {
     }
 
     #[test]
+    fn connected_obstacle_fixture_loads_from_grid_file_and_routes_at_pinned_height() {
+        let root = unique_test_dir("connected-obstacle-height");
+        let centre = [-10_118.333, 2_681.667, 218.49];
+        let start = [centre[0], centre[1] - 10.0, centre[2]];
+        let end = [centre[0], centre[1] + 10.0, centre[2]];
+        write_obstacle_ring_mmaps_at_height_like_cpp(
+            &root,
+            1,
+            &[(centre[0], centre[1], centre[2])],
+        );
+        assert_eq!(
+            mmap_tile_coords_for_wow_position_like_cpp(centre[0], centre[1]),
+            (50, 26)
+        );
+
+        let mut manager = MMapManager::new();
+        for point in [start, end] {
+            let loaded = manager
+                .load_pathfinding_context_for_wow_position_like_cpp(
+                    &root, 1, 1, 0, point[0], point[1],
+                )
+                .unwrap();
+            assert!(loaded.map_data_available);
+            assert!(loaded.instance_query_available);
+            assert!(loaded.tile_available);
+        }
+
+        let filter = obstacle_ring_walk_filter();
+        let path = manager
+            .get_mmap_data(1)
+            .unwrap()
+            .calculate_path_for_instance_like_cpp(
+                1,
+                0,
+                &filter,
+                start,
+                end,
+                DetourPathOptions::default(),
+            )
+            .unwrap()
+            .expect("the pinned instance query is loaded");
+        assert!(
+            path.point_path.points.len() > 2,
+            "the direct segment crosses the missing centre cell, so Detour must add a turn"
+        );
+        assert!((path.point_path.points[0][2] - centre[2]).abs() < 0.01);
+        assert!((path.point_path.points.last().unwrap()[2] - centre[2]).abs() < 0.01);
+        assert!(
+            path.point_path.points[1..path.point_path.points.len() - 1]
+                .iter()
+                .all(|point| (point[2] - (centre[2] + 0.5)).abs() < 0.01),
+            "C++ FindSmoothPath raises intermediate polygon heights by 0.5: {:?}",
+            path.point_path.points
+        );
+
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn mmap_manager_pathfinding_context_missing_tile_falls_back_like_cpp() {
         let root = unique_test_dir("mmap-manager-missing-path-context");
         std::fs::create_dir_all(root.join("mmaps")).unwrap();
@@ -4042,9 +5259,406 @@ mod tests {
         }
     }
 
+    use crate::test_fixtures::*;
+
     fn write_mmap_tile_blob(path: &std::path::Path, tile: &MmapTileBlob) {
         let mut bytes = tile.header.to_bytes().to_vec();
         bytes.extend_from_slice(&tile.data);
         std::fs::write(path, bytes).unwrap();
+    }
+
+    #[test]
+    fn detour_obstacle_fixture_leaves_the_centre_cell_unwalkable() {
+        let mesh = obstacle_ring_nav_mesh();
+        let query = DetourNavMeshQuery::new(&mesh, 1024).unwrap();
+        let filter = obstacle_ring_walk_filter();
+        let half = OBSTACLE_TILE_CELL_SIZE / 2.0;
+
+        // Every ring cell resolves to a polygon at its own centre.
+        for centre in [
+            [half, 0.0, half + OBSTACLE_TILE_CELL_SIZE],
+            [
+                half + 2.0 * OBSTACLE_TILE_CELL_SIZE,
+                0.0,
+                half + OBSTACLE_TILE_CELL_SIZE,
+            ],
+            [half + OBSTACLE_TILE_CELL_SIZE, 0.0, half],
+            [
+                half + OBSTACLE_TILE_CELL_SIZE,
+                0.0,
+                half + 2.0 * OBSTACLE_TILE_CELL_SIZE,
+            ],
+        ] {
+            let (poly, distance) = get_poly_by_location_like_cpp(&query, &filter, centre).unwrap();
+            assert_ne!(poly, 0, "ring cell {centre:?} must be walkable");
+            assert!(distance < 1.0, "ring cell {centre:?} distance {distance}");
+        }
+
+        // The obstacle centre is covered by no polygon. C++
+        // `GetPolyByLocation` has no distance cut-off on its
+        // `findNearestPoly` branch, so it still answers with the closest ring
+        // polygon — but at a distance of about half a cell, which is what
+        // `BuildPolyPath`'s `distToStartPoly > 7.0f` test keys off.
+        let hole = [
+            half + OBSTACLE_TILE_CELL_SIZE,
+            0.0,
+            half + OBSTACLE_TILE_CELL_SIZE,
+        ];
+        let (_, hole_distance) = get_poly_by_location_like_cpp(&query, &filter, hole).unwrap();
+        assert!(
+            hole_distance >= half,
+            "the obstacle centre must not sit inside a polygon, got distance {hole_distance}"
+        );
+    }
+
+    #[test]
+    fn detour_obstacle_fixture_preserves_connected_world_height() {
+        let origin = [2_666.6667, 218.49, -10_133.333];
+        let params = DetourNavMeshParams {
+            origin,
+            tile_width: OBSTACLE_TILE_EXTENT,
+            tile_height: OBSTACLE_TILE_EXTENT,
+            max_tiles: 4,
+            max_polys: 256,
+        };
+        let tile = obstacle_ring_tile_blob_at_height(0, 0, origin[0], origin[1], origin[2]);
+        let mut mesh = DetourNavMesh::new(&params).unwrap();
+        assert_ne!(mesh.add_tile(&tile).unwrap(), 0);
+        let query = DetourNavMeshQuery::new(&mesh, 1024).unwrap();
+        let filter = obstacle_ring_walk_filter();
+
+        let point = [
+            origin[0] + OBSTACLE_TILE_CELL_SIZE / 2.0,
+            origin[1],
+            origin[2] + OBSTACLE_TILE_CELL_SIZE / 2.0,
+        ];
+        let nearest = query
+            .find_nearest_poly(point, [3.0, 5.0, 3.0], &filter)
+            .unwrap();
+        assert_ne!(nearest.poly_ref, 0);
+        assert!(
+            (nearest.nearest_point[1] - origin[1]).abs() < 0.001,
+            "the generated polygon must remain at the connected fixture's live terrain height"
+        );
+    }
+
+    #[test]
+    fn detour_path_around_obstacle_returns_intermediate_points_like_cpp() {
+        let mesh = obstacle_ring_nav_mesh();
+        let query = DetourNavMeshQuery::new(&mesh, 1024).unwrap();
+        let filter = obstacle_ring_walk_filter();
+        let half = OBSTACLE_TILE_CELL_SIZE / 2.0;
+        let mid = half + OBSTACLE_TILE_CELL_SIZE;
+
+        // `wow_position_to_detour_like_cpp` maps WoW (x, y, z) to Detour
+        // (y, z, x), so a WoW position (mid, y, 0) sits at Detour (y, 0, mid).
+        // Start and end are the centres of the -x and +x ring cells on the
+        // middle row: the direct segment between them crosses the obstacle.
+        let start_wow = [mid, half, 0.0];
+        let end_wow = [mid, half + 2.0 * OBSTACLE_TILE_CELL_SIZE, 0.0];
+
+        let path = calculate_detour_path_like_cpp(
+            &mesh,
+            &query,
+            &filter,
+            start_wow,
+            end_wow,
+            DetourPathOptions::default(),
+        )
+        .unwrap();
+
+        assert!(
+            path.point_path.path_type.contains(DetourPathType::NORMAL),
+            "expected a normal Detour path, got {:?}",
+            path.point_path.path_type
+        );
+        assert!(
+            !path
+                .point_path
+                .path_type
+                .intersects(DetourPathType::NOPATH | DetourPathType::SHORTCUT),
+            "a navmesh route exists, so this must not degrade to a shortcut: {:?}",
+            path.point_path.path_type
+        );
+        assert!(
+            path.poly_refs.len() > 1,
+            "routing around the obstacle needs more than one polygon, got {:?}",
+            path.poly_refs
+        );
+        assert!(
+            path.point_path.points.len() > 2,
+            "a detour around the obstacle must carry intermediate points, got {:?}",
+            path.point_path.points
+        );
+
+        // No point may cross the obstacle, which is exactly what the straight
+        // line between start and end would have done. Points come back in WoW
+        // space, so WoW x is Detour z and WoW y is Detour x.
+        let (hole_detour_x, hole_detour_z) = obstacle_hole_bounds();
+        for point in &path.point_path.points {
+            let inside_hole =
+                hole_detour_z.contains(&point[0]) && hole_detour_x.contains(&point[1]);
+            assert!(
+                !inside_hole,
+                "point {point:?} crosses the obstacle; points: {:?}",
+                path.point_path.points
+            );
+        }
+
+        // The route has to leave the middle row to get around, i.e. at least
+        // one point sits in the -z or +z ring row.
+        assert!(
+            path.point_path.points.iter().any(|point| {
+                let detour_z = point[0];
+                detour_z < *hole_detour_z.start() || detour_z > *hole_detour_z.end()
+            }),
+            "the route never leaves the blocked row: {:?}",
+            path.point_path.points
+        );
+    }
+
+    #[test]
+    fn detour_no_poly_grants_flying_owner_the_cpp_not_using_path_shortcut() {
+        let mesh = obstacle_ring_nav_mesh();
+        let query = DetourNavMeshQuery::new(&mesh, 1024).unwrap();
+        let filter = obstacle_ring_walk_filter();
+
+        // Far outside the fixture, so both `GetPolyByLocation` lookups fail.
+        let start = [10_000.0f32, 0.0, 10_000.0];
+        let end = [10_100.0f32, 0.0, 10_100.0];
+
+        // A ground creature keeps the plain `PATHFIND_NOPATH` C++ assigns at
+        // `PathGenerator.cpp:207`.
+        let ground = build_straight_poly_path_like_cpp(
+            &query,
+            &filter,
+            start,
+            end,
+            DetourOwnerCapabilitiesLikeCpp::default(),
+            &[],
+        )
+        .unwrap();
+        assert_eq!(ground.point_path.path_type, DetourPathType::NOPATH);
+
+        // `CanFly()` turns the same hole into the launchable shortcut
+        // (`PathGenerator.cpp:180,198-202`).
+        let flying = build_straight_poly_path_like_cpp(
+            &query,
+            &filter,
+            start,
+            end,
+            DetourOwnerCapabilitiesLikeCpp {
+                can_fly: true,
+                ..DetourOwnerCapabilitiesLikeCpp::default()
+            },
+            &[],
+        )
+        .unwrap();
+        assert_eq!(
+            flying.point_path.path_type,
+            DetourPathType::NORMAL | DetourPathType::NOT_USING_PATH
+        );
+        assert_eq!(flying.point_path.points, vec![start, end]);
+        assert!(flying.poly_refs.is_empty());
+
+        // Falling alone is not the no-poly exception — C++ only consults
+        // `IsFalling()` in the far-from-poly branch.
+        let falling = build_straight_poly_path_like_cpp(
+            &query,
+            &filter,
+            start,
+            end,
+            DetourOwnerCapabilitiesLikeCpp {
+                is_falling: true,
+                ..DetourOwnerCapabilitiesLikeCpp::default()
+            },
+            &[],
+        )
+        .unwrap();
+        assert_eq!(falling.point_path.path_type, DetourPathType::NOPATH);
+    }
+
+    #[test]
+    fn detour_far_from_poly_shortcuts_for_flying_and_falling_owners_like_cpp() {
+        let mesh = obstacle_ring_nav_mesh();
+        let query = DetourNavMeshQuery::new(&mesh, 1024).unwrap();
+        let filter = obstacle_ring_walk_filter();
+        let half = OBSTACLE_TILE_CELL_SIZE / 2.0;
+
+        // Start on a ring polygon; end high above another one so
+        // `GetPolyByLocation` still resolves a polygon (its search box grows to
+        // 50 on Y) while `distToEndPoly > 7.0f`.
+        let start = [half, 0.0, half];
+        let end = [half + 2.0 * OBSTACLE_TILE_CELL_SIZE, 40.0, half];
+
+        let ground = build_straight_poly_path_like_cpp(
+            &query,
+            &filter,
+            start,
+            end,
+            DetourOwnerCapabilitiesLikeCpp::default(),
+            &[],
+        )
+        .unwrap();
+        assert!(
+            ground.end_far_from_poly,
+            "fixture must actually trip the 7.0 yard far-from-poly test"
+        );
+        assert!(
+            ground
+                .point_path
+                .path_type
+                .contains(DetourPathType::INCOMPLETE),
+            "a ground creature takes the clamp + INCOMPLETE arm, got {:?}",
+            ground.point_path.path_type
+        );
+        assert!(
+            ground.point_path.points.is_empty(),
+            "the corridor still falls through to BuildPointPath"
+        );
+
+        // C++ `PathGenerator.cpp:232-239`: a flying owner shortcuts instead.
+        let flying = build_straight_poly_path_like_cpp(
+            &query,
+            &filter,
+            start,
+            end,
+            DetourOwnerCapabilitiesLikeCpp {
+                can_fly: true,
+                ..DetourOwnerCapabilitiesLikeCpp::default()
+            },
+            &[],
+        )
+        .unwrap();
+        assert_eq!(
+            flying.point_path.path_type,
+            DetourPathType::NORMAL
+                | DetourPathType::NOT_USING_PATH
+                | DetourPathType::FARFROMPOLY_END
+        );
+        assert_eq!(flying.point_path.points, vec![start, end]);
+
+        // A falling owner only shortcuts while moving *downwards*; here the end
+        // is above the start, so the INCOMPLETE arm must stand.
+        let falling_upwards = build_straight_poly_path_like_cpp(
+            &query,
+            &filter,
+            start,
+            end,
+            DetourOwnerCapabilitiesLikeCpp {
+                is_falling: true,
+                ..DetourOwnerCapabilitiesLikeCpp::default()
+            },
+            &[],
+        )
+        .unwrap();
+        assert!(
+            falling_upwards
+                .point_path
+                .path_type
+                .contains(DetourPathType::INCOMPLETE)
+        );
+
+        // Falling towards a lower destination is the C++ charge exception.
+        let falling_downwards = build_straight_poly_path_like_cpp(
+            &query,
+            &filter,
+            [half, 40.0, half],
+            [half + 2.0 * OBSTACLE_TILE_CELL_SIZE, 0.0, half],
+            DetourOwnerCapabilitiesLikeCpp {
+                is_falling: true,
+                ..DetourOwnerCapabilitiesLikeCpp::default()
+            },
+            &[],
+        )
+        .unwrap();
+        assert!(
+            falling_downwards
+                .point_path
+                .path_type
+                .contains(DetourPathType::NOT_USING_PATH),
+            "got {:?}",
+            falling_downwards.point_path.path_type
+        );
+    }
+
+    #[test]
+    fn detour_point_path_over_the_limit_reports_only_shortcut_short_like_cpp() {
+        let mesh = obstacle_ring_nav_mesh();
+        let query = DetourNavMeshQuery::new(&mesh, 1024).unwrap();
+        let filter = obstacle_ring_walk_filter();
+        let half = OBSTACLE_TILE_CELL_SIZE / 2.0;
+        let mid = half + OBSTACLE_TILE_CELL_SIZE;
+
+        let start_wow = [mid, half, 0.0];
+        let end_wow = [mid, half + 2.0 * OBSTACLE_TILE_CELL_SIZE, 0.0];
+
+        // The route around the obstacle needs more points than this, so C++
+        // `BuildPointPath` takes its `pointCount >= _pointPathLimit` branch:
+        // `BuildShortcut()` then `_type |= PATHFIND_SHORT`
+        // (`PathGenerator.cpp:585-590`). Because `BuildShortcut()` assigns
+        // `PATHFIND_SHORTCUT`, the corridor's `PATHFIND_NORMAL` must not
+        // survive — a `NORMAL | SHORTCUT | SHORT` result would mean a second,
+        // discarded point-path pass leaked its flags in.
+        let path = calculate_detour_path_like_cpp(
+            &mesh,
+            &query,
+            &filter,
+            start_wow,
+            end_wow,
+            DetourPathOptions {
+                point_path_limit: 3,
+                ..DetourPathOptions::default()
+            },
+        )
+        .unwrap();
+
+        assert_eq!(
+            path.point_path.path_type,
+            DetourPathType::SHORTCUT | DetourPathType::SHORT
+        );
+        assert_eq!(path.point_path.points.len(), 2);
+        assert!(
+            path.poly_refs.is_empty(),
+            "C++ BuildShortcut calls Clear(), including the point-limit branch"
+        );
+    }
+
+    #[test]
+    fn detour_far_force_destination_shortcut_clears_the_corridor_like_cpp() {
+        let mesh = obstacle_ring_nav_mesh();
+        let query = DetourNavMeshQuery::new(&mesh, 1024).unwrap();
+        let filter = obstacle_ring_walk_filter();
+        let half = OBSTACLE_TILE_CELL_SIZE / 2.0;
+
+        // Detour `(x, y, z)` maps back to WoW `(z, x, y)`. The requested
+        // destination is forty yards above its polygon, so BuildPolyPath clamps
+        // it and marks the route incomplete. With forceDestination enabled the
+        // clamped suffix is far enough from the request for C++ to call
+        // BuildShortcut(), which must also Clear() the polygon corridor.
+        let start_wow = [half, half, 0.0];
+        let end_wow = [half, half + 2.0 * OBSTACLE_TILE_CELL_SIZE, 40.0];
+        let path = calculate_detour_path_like_cpp(
+            &mesh,
+            &query,
+            &filter,
+            start_wow,
+            end_wow,
+            DetourPathOptions {
+                force_destination: true,
+                ..DetourPathOptions::default()
+            },
+        )
+        .unwrap();
+
+        assert_eq!(
+            path.point_path.path_type,
+            DetourPathType::NORMAL | DetourPathType::NOT_USING_PATH
+        );
+        assert_eq!(path.point_path.points, vec![start_wow, end_wow]);
+        assert!(
+            path.poly_refs.is_empty(),
+            "the forceDestination BuildShortcut branch must not leak its old corridor"
+        );
     }
 }

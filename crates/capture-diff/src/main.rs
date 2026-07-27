@@ -225,10 +225,15 @@ fn validate_ignored_opcodes(opts: &Opts) -> Result<()> {
         {
             bail!("--ignore-opcode {ignored} cannot remove an action boundary");
         }
-        if !APPROVED_AMBIENT_IGNORES.contains(ignored) {
-            bail!(
-                "--ignore-opcode {ignored} is not approved ambient traffic; reviewed filters are s2c:0x2DD2, c2s:0x3A3D, and s2c:0x2DD4"
-            );
+        let reviewed_detour_combat_values = opts.positional.as_deref()
+            == Some("detour-chase-around-obstacle")
+            && *ignored
+                == (PacketBoundary {
+                    direction: Some(Direction::S2C),
+                    opcode: 0x27CB,
+                });
+        if !APPROVED_AMBIENT_IGNORES.contains(ignored) && !reviewed_detour_combat_values {
+            bail!("--ignore-opcode {ignored} is not approved ambient traffic for this flow");
         }
     }
     for (index, ignored) in opts.ignored_opcodes.iter().enumerate() {
@@ -695,8 +700,8 @@ fn cmd_verify_required(args: &[String]) -> Result<ExitCode> {
 
     let cpp = load_capture(&pinned.golden_pkt)?;
     let rust = load_capture(&pinned.reference_rust)?;
-    requirement.validate_capture(&cpp)?;
-    requirement.validate_capture(&rust)?;
+    requirement.validate_capture_for_side(&cpp, flow::RequiredCaptureSide::Cpp)?;
+    requirement.validate_capture_for_side(&rust, flow::RequiredCaptureSide::Rust)?;
 
     let expected_text = std::fs::read_to_string(&pinned.expected)
         .with_context(|| format!("reading baseline {}", pinned.expected.display()))?;
@@ -769,6 +774,7 @@ fn cmd_import(args: &[String]) -> Result<ExitCode> {
     if opts.strict {
         validate_required_import(name, &directions, &opts, &cpp, &rust)?;
     }
+    lineage::validate_bot_report_capture_binding(name, &raw, &cpp, &rust)?;
     let report = DiffReport::compute(&cpp, &rust, &directions);
     if opts.strict && !report.is_clean() {
         print!("{}", report.render_text());
@@ -854,8 +860,8 @@ fn validate_required_import(
         &opts.ignored_opcodes,
         opts.strict,
     )?;
-    requirement.validate_capture(cpp)?;
-    requirement.validate_capture(rust)?;
+    requirement.validate_capture_for_side(cpp, flow::RequiredCaptureSide::Cpp)?;
+    requirement.validate_capture_for_side(rust, flow::RequiredCaptureSide::Rust)?;
     Ok(())
 }
 
@@ -1448,6 +1454,30 @@ mod tests {
                 .unwrap_err()
                 .to_string()
                 .contains("duplicated")
+        );
+    }
+
+    #[test]
+    fn combat_values_ignore_is_scoped_to_detour_chase_flow() {
+        let detour = parse_opts(&[
+            "detour-chase-around-obstacle".into(),
+            "--ignore-opcode".into(),
+            "s2c:0x27CB".into(),
+        ])
+        .unwrap();
+        apply_capture_selection(Capture::new("capture", Vec::new()), &detour).unwrap();
+
+        let unrelated = parse_opts(&[
+            "stand-state".into(),
+            "--ignore-opcode".into(),
+            "s2c:0x27CB".into(),
+        ])
+        .unwrap();
+        assert!(
+            apply_capture_selection(Capture::new("capture", Vec::new()), &unrelated)
+                .unwrap_err()
+                .to_string()
+                .contains("not approved ambient traffic")
         );
     }
 
