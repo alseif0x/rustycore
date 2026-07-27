@@ -38,6 +38,12 @@ pub const SMSG_UPDATE_OBJECT: u16 = 0x27CB;
 /// `CMSG_PING` used as the deterministic end fence of the issue-#106 flow.
 pub const CMSG_PING: u16 = 0x3768;
 
+/// `CMSG_MOVE_HEARTBEAT`, the action boundary for the issue-#24 live chase.
+pub const CMSG_MOVE_HEARTBEAT: u16 = 0x3A10;
+
+/// `SMSG_ON_MONSTER_MOVE`, carrying the creature's Detour-backed chase spline.
+pub const SMSG_ON_MONSTER_MOVE: u16 = 0x2DD4;
+
 const OBJECT_GUID_COUNTER_MASK: u64 = 0x0000_00FF_FFFF_FFFF;
 const HIGH_GUID_CREATURE: u8 = 8;
 const HIGH_GUID_ITEM: u8 = 3;
@@ -79,6 +85,44 @@ const ISSUE_108_VENDOR_IDENTITY: StableObjectGuid = StableObjectGuid {
 const ISSUE_108_VENDOR_MUID: u32 = 59;
 const ISSUE_108_VENDOR_NEW_QUANTITY: i32 = -1;
 const ISSUE_108_VENDOR_QUANTITY_BOUGHT: u32 = 1;
+const ISSUE_24_CREATURE_IDENTITY: StableObjectGuid = StableObjectGuid {
+    high_type: HIGH_GUID_CREATURE,
+    realm_id: 1,
+    map_id: 1,
+    entry: 15_271,
+    subtype: 0,
+    server_id: 0,
+};
+pub const ISSUE_24_PING_FENCE_WIRE: [u8; 4] = *b"DTOR";
+pub const ISSUE_24_PING_FENCE_SERIAL: u32 = u32::from_le_bytes(ISSUE_24_PING_FENCE_WIRE);
+const ISSUE_24_PING_BODY: [u8; 8] = [
+    ISSUE_24_PING_FENCE_WIRE[0],
+    ISSUE_24_PING_FENCE_WIRE[1],
+    ISSUE_24_PING_FENCE_WIRE[2],
+    ISSUE_24_PING_FENCE_WIRE[3],
+    0,
+    0,
+    0,
+    0,
+];
+const ISSUE_24_CAPTURE_PLAYER_LOW: u64 = 15;
+const ISSUE_24_CAPTURE_PLAYER_HIGH: u64 = 0x0800_0400_0000_0000;
+const ISSUE_24_CREATURE_START: WirePosition = WirePosition::new(
+    (-10_118.333_f32).to_bits(),
+    2_671.667_f32.to_bits(),
+    218.490_f32.to_bits(),
+);
+const ISSUE_24_PLAYER_DESTINATION: WirePosition = WirePosition::new(
+    (-10_118.333_f32).to_bits(),
+    2_691.667_f32.to_bits(),
+    218.490_f32.to_bits(),
+);
+const ISSUE_24_PLAYER_DESTINATION_ORIENTATION_BITS: u32 = (-std::f32::consts::FRAC_PI_2).to_bits();
+const ISSUE_24_OBSTACLE_MIN_X: f32 = -10_123.333;
+const ISSUE_24_OBSTACLE_MAX_X: f32 = -10_113.333;
+const ISSUE_24_OBSTACLE_MIN_Y: f32 = 2_676.667;
+const ISSUE_24_OBSTACLE_MAX_Y: f32 = 2_686.667;
+const ISSUE_24_POSITION_EPSILON: f32 = 0.05;
 
 /// Stable identity fields of a world-object `ObjectGuid` whose map-runtime
 /// counter has one narrowly reviewed normalization.
@@ -181,6 +225,135 @@ pub struct UpdateObjectInvSlotsBody {
     pub inv_slots: Vec<InvSlotValue>,
 }
 
+/// Exact IEEE-754 wire bits for one XYZ value.
+///
+/// The capture comparator intentionally does not apply an epsilon. An epsilon
+/// is used only by the independent fixture-containment checks in the required
+/// issue-#24 contract.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WirePosition {
+    pub x_bits: u32,
+    pub y_bits: u32,
+    pub z_bits: u32,
+}
+
+impl WirePosition {
+    const fn new(x_bits: u32, y_bits: u32, z_bits: u32) -> Self {
+        Self {
+            x_bits,
+            y_bits,
+            z_bits,
+        }
+    }
+
+    #[must_use]
+    pub fn xyz(self) -> [f32; 3] {
+        [
+            f32::from_bits(self.x_bits),
+            f32::from_bits(self.y_bits),
+            f32::from_bits(self.z_bits),
+        ]
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MonsterSplineFilterKeyBody {
+    pub index: i16,
+    pub speed: u16,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MonsterSplineFilterBody {
+    pub base_speed_bits: u32,
+    pub start_offset: i16,
+    pub distance_to_previous_key_bits: u32,
+    pub added_to_start: i16,
+    pub keys: Vec<MonsterSplineFilterKeyBody>,
+    pub flags: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum MonsterMoveFaceBody {
+    Normal,
+    Spot {
+        position: WirePosition,
+    },
+    Target {
+        direction_bits: u32,
+        target: ExactObjectGuid,
+    },
+    Angle {
+        direction_bits: u32,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MonsterSplineSpellEffectExtraBody {
+    pub target: ExactObjectGuid,
+    pub spell_visual_id: u32,
+    pub progress_curve_id: u32,
+    pub parabolic_curve_id: u32,
+    pub jump_gravity_bits: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MonsterSplineJumpExtraBody {
+    pub jump_gravity_bits: u32,
+    pub start_time: u32,
+    pub duration: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MonsterSplineAnimTierTransitionBody {
+    pub tier_transition_id: i32,
+    pub start_time: u32,
+    pub end_time: u32,
+    pub animation_tier: u8,
+}
+
+/// Stable semantic representation of a complete 3.4.3
+/// `SMSG_ON_MONSTER_MOVE` body.
+///
+/// The process-global spline ID is the only absent field. The fixture validator
+/// pins the mover's lower 40-bit counter to its persistent C++ spawn GUID before
+/// this representation is eligible for comparison. Every other decoded bit remains exact,
+/// including packed-delta integers rather than their lossy reconstructed
+/// floating-point values.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MonsterMoveBody {
+    pub mover: StableObjectGuid,
+    pub current_position: WirePosition,
+    pub destination: WirePosition,
+    pub crz_teleport: bool,
+    pub stop_distance_tolerance: u8,
+    pub flags: u32,
+    pub elapsed: i32,
+    pub move_time: u32,
+    pub fade_object_time: u32,
+    pub mode: u8,
+    pub transport: ExactObjectGuid,
+    pub vehicle_seat: i8,
+    pub face: MonsterMoveFaceBody,
+    pub vehicle_exit_voluntary: bool,
+    pub interpolate: bool,
+    pub points: Vec<WirePosition>,
+    pub packed_deltas: Vec<u32>,
+    pub spline_filter: Option<MonsterSplineFilterBody>,
+    pub spell_effect_extra: Option<MonsterSplineSpellEffectExtraBody>,
+    pub jump_extra: Option<MonsterSplineJumpExtraBody>,
+    pub anim_tier_transition: Option<MonsterSplineAnimTierTransitionBody>,
+}
+
+/// Full decode result retaining the pinned mover counter and the intentionally
+/// normalized spline allocation ID for independent bot/report validation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DecodedMonsterMoveBody {
+    pub body: MonsterMoveBody,
+    pub mover_runtime_counter: u64,
+    pub spline_id: u32,
+}
+
 /// One side of a semantic comparison. A malformed body remains an explicit
 /// divergence even when both sides happen to contain the same malformed bytes.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -195,6 +368,8 @@ pub struct SemanticBodySide {
     pub send_known_spells: Option<SendKnownSpellsBody>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub update_object_inv_slots: Option<UpdateObjectInvSlotsBody>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub monster_move: Option<MonsterMoveBody>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub decode_error: Option<String>,
     /// Strict identity for a raw body that is not eligible for runtime-counter
@@ -222,6 +397,7 @@ impl SemanticBodySide {
                     buy_succeeded: None,
                     send_known_spells: None,
                     update_object_inv_slots: None,
+                    monster_move: None,
                     decode_error: Some(
                         "kill XP creature victim has a zero runtime GUID counter".to_string(),
                     ),
@@ -234,6 +410,7 @@ impl SemanticBodySide {
                 buy_succeeded: None,
                 send_known_spells: None,
                 update_object_inv_slots: None,
+                monster_move: None,
                 decode_error: None,
                 raw_body_sha256: (!decoded.is_creature_kill()).then(|| raw_body_sha256(raw_body)),
             },
@@ -243,6 +420,7 @@ impl SemanticBodySide {
                 buy_succeeded: None,
                 send_known_spells: None,
                 update_object_inv_slots: None,
+                monster_move: None,
                 decode_error: Some(error),
                 raw_body_sha256: Some(raw_body_sha256(raw_body)),
             },
@@ -263,6 +441,7 @@ impl SemanticBodySide {
                     buy_succeeded: None,
                     send_known_spells: None,
                     update_object_inv_slots: None,
+                    monster_move: None,
                     decode_error: shape_error,
                     // Only the exact issue-#106 Doctor/LootObject/list shape may
                     // omit the Creature runtime counter. A different Creature
@@ -277,6 +456,7 @@ impl SemanticBodySide {
                 buy_succeeded: None,
                 send_known_spells: None,
                 update_object_inv_slots: None,
+                monster_move: None,
                 decode_error: Some(error),
                 raw_body_sha256: Some(raw_body_sha256(raw_body)),
             },
@@ -297,6 +477,7 @@ impl SemanticBodySide {
                     buy_succeeded: Some(decoded.body),
                     send_known_spells: None,
                     update_object_inv_slots: None,
+                    monster_move: None,
                     decode_error: shape_error,
                     raw_body_sha256: (!reviewed_shape).then(|| raw_body_sha256(raw_body)),
                 }
@@ -307,6 +488,7 @@ impl SemanticBodySide {
                 buy_succeeded: None,
                 send_known_spells: None,
                 update_object_inv_slots: None,
+                monster_move: None,
                 decode_error: Some(error),
                 raw_body_sha256: Some(raw_body_sha256(raw_body)),
             },
@@ -324,6 +506,7 @@ impl SemanticBodySide {
                 buy_succeeded: None,
                 send_known_spells: Some(decoded),
                 update_object_inv_slots: None,
+                monster_move: None,
                 decode_error: None,
                 raw_body_sha256: None,
             },
@@ -333,6 +516,7 @@ impl SemanticBodySide {
                 buy_succeeded: None,
                 send_known_spells: None,
                 update_object_inv_slots: None,
+                monster_move: None,
                 decode_error: Some(error),
                 raw_body_sha256: Some(raw_body_sha256(raw_body)),
             },
@@ -350,6 +534,7 @@ impl SemanticBodySide {
                 buy_succeeded: None,
                 send_known_spells: None,
                 update_object_inv_slots: Some(decoded.body),
+                monster_move: None,
                 decode_error: None,
                 raw_body_sha256: None,
             },
@@ -359,6 +544,7 @@ impl SemanticBodySide {
                 buy_succeeded: None,
                 send_known_spells: None,
                 update_object_inv_slots: None,
+                monster_move: None,
                 decode_error: Some(format!(
                     "not the reviewed single-player InvSlots VALUES shape: {reason}"
                 )),
@@ -370,6 +556,46 @@ impl SemanticBodySide {
                 buy_succeeded: None,
                 send_known_spells: None,
                 update_object_inv_slots: None,
+                monster_move: None,
+                decode_error: Some(error),
+                raw_body_sha256: Some(raw_body_sha256(raw_body)),
+            },
+        }
+    }
+
+    fn from_decoded_monster_move(
+        decoded: Result<DecodedMonsterMoveBody, String>,
+        raw_body: &[u8],
+        fixture_eligible: bool,
+    ) -> Self {
+        match decoded {
+            Ok(decoded) => {
+                let fixture_error = (!fixture_eligible).then(|| {
+                    validate_detour_chase_monster_move(&decoded)
+                        .expect_err("ineligible decoded movement must fail the fixture contract")
+                });
+                Self {
+                    log_xp_gain: None,
+                    loot_removed: None,
+                    buy_succeeded: None,
+                    send_known_spells: None,
+                    update_object_inv_slots: None,
+                    monster_move: Some(decoded.body),
+                    decode_error: fixture_error
+                        .map(|error| format!("not the reviewed issue-#24 movement: {error}")),
+                    // The whole independently validated fixture contract,
+                    // including the exact persistent spawn counter, is required
+                    // before omitting the process-local spline allocation ID.
+                    raw_body_sha256: (!fixture_eligible).then(|| raw_body_sha256(raw_body)),
+                }
+            }
+            Err(error) => Self {
+                log_xp_gain: None,
+                loot_removed: None,
+                buy_succeeded: None,
+                send_known_spells: None,
+                update_object_inv_slots: None,
+                monster_move: None,
                 decode_error: Some(error),
                 raw_body_sha256: Some(raw_body_sha256(raw_body)),
             },
@@ -401,6 +627,7 @@ impl SemanticBodyDiff {
             && self.cpp.buy_succeeded == self.rust.buy_succeeded
             && self.cpp.send_known_spells == self.rust.send_known_spells
             && self.cpp.update_object_inv_slots == self.rust.update_object_inv_slots
+            && self.cpp.monster_move == self.rust.monster_move
             && self.cpp.raw_body_sha256 == self.rust.raw_body_sha256
     }
 
@@ -440,7 +667,96 @@ impl SemanticBodyDiff {
             return mismatch_update_object_inv_slots(cpp, rust);
         }
 
+        if let (Some(cpp), Some(rust)) = (
+            self.cpp.monster_move.as_ref(),
+            self.rust.monster_move.as_ref(),
+        ) {
+            return mismatch_monster_move(cpp, rust, &self.cpp, &self.rust);
+        }
+
         "semantic body shape differs or is missing".to_string()
+    }
+}
+
+fn mismatch_monster_move(
+    cpp: &MonsterMoveBody,
+    rust: &MonsterMoveBody,
+    cpp_side: &SemanticBodySide,
+    rust_side: &SemanticBodySide,
+) -> String {
+    let mut fields = Vec::new();
+    if cpp.mover != rust.mover {
+        fields.push("mover");
+    }
+    if cpp.current_position != rust.current_position {
+        fields.push("current_position");
+    }
+    if cpp.destination != rust.destination {
+        fields.push("destination");
+    }
+    if cpp.crz_teleport != rust.crz_teleport {
+        fields.push("crz_teleport");
+    }
+    if cpp.stop_distance_tolerance != rust.stop_distance_tolerance {
+        fields.push("stop_distance_tolerance");
+    }
+    if cpp.flags != rust.flags {
+        fields.push("flags");
+    }
+    if cpp.elapsed != rust.elapsed {
+        fields.push("elapsed");
+    }
+    if cpp.move_time != rust.move_time {
+        fields.push("move_time");
+    }
+    if cpp.fade_object_time != rust.fade_object_time {
+        fields.push("fade_object_time");
+    }
+    if cpp.mode != rust.mode {
+        fields.push("mode");
+    }
+    if cpp.transport != rust.transport {
+        fields.push("transport");
+    }
+    if cpp.vehicle_seat != rust.vehicle_seat {
+        fields.push("vehicle_seat");
+    }
+    if cpp.face != rust.face {
+        fields.push("face");
+    }
+    if cpp.vehicle_exit_voluntary != rust.vehicle_exit_voluntary {
+        fields.push("vehicle_exit_voluntary");
+    }
+    if cpp.interpolate != rust.interpolate {
+        fields.push("interpolate");
+    }
+    if cpp.points != rust.points {
+        fields.push("points");
+    }
+    if cpp.packed_deltas != rust.packed_deltas {
+        fields.push("packed_deltas");
+    }
+    if cpp.spline_filter != rust.spline_filter {
+        fields.push("spline_filter");
+    }
+    if cpp.spell_effect_extra != rust.spell_effect_extra {
+        fields.push("spell_effect_extra");
+    }
+    if cpp.jump_extra != rust.jump_extra {
+        fields.push("jump_extra");
+    }
+    if cpp.anim_tier_transition != rust.anim_tier_transition {
+        fields.push("anim_tier_transition");
+    }
+
+    if fields.is_empty() {
+        if cpp_side.raw_body_sha256 == rust_side.raw_body_sha256 {
+            "semantic values are equal".to_string()
+        } else {
+            "raw body identity differs outside the reviewed issue-#24 fixture shape".to_string()
+        }
+    } else {
+        format!("mismatched field(s): {}", fields.join(", "))
     }
 }
 
@@ -651,8 +967,60 @@ pub fn compare_packet_bodies(
         SMSG_BUY_SUCCEEDED => compare_buy_succeeded_bodies(cpp, rust),
         SMSG_SEND_KNOWN_SPELLS => Some(compare_send_known_spells_bodies(cpp, rust)),
         SMSG_UPDATE_OBJECT => compare_update_object_inv_slots_bodies(cpp, rust),
+        SMSG_ON_MONSTER_MOVE => compare_monster_move_bodies(cpp, rust),
         _ => None,
     }
+}
+
+fn compare_monster_move_bodies(cpp: &[u8], rust: &[u8]) -> Option<SemanticBodyDiff> {
+    let mut cpp_decoded = decode_monster_move_body(cpp);
+    let mut rust_decoded = decode_monster_move_body(rust);
+    let cpp_is_legacy_fixture = cpp_decoded
+        .as_ref()
+        .is_ok_and(|decoded| validate_legacy_cpp_detour_chase_monster_move(decoded).is_ok());
+    let cpp_is_repaired_fixture = cpp_decoded
+        .as_ref()
+        .is_ok_and(|decoded| validate_detour_chase_monster_move(decoded).is_ok());
+    let cpp_is_fixture = cpp_is_legacy_fixture || cpp_is_repaired_fixture;
+    let rust_is_repaired_fixture = rust_decoded
+        .as_ref()
+        .is_ok_and(|decoded| validate_detour_chase_monster_move(decoded).is_ok());
+    let rust_is_legacy_fixture = rust_decoded
+        .as_ref()
+        .is_ok_and(|decoded| validate_legacy_cpp_detour_chase_monster_move(decoded).is_ok());
+    let rust_is_fixture = rust_is_repaired_fixture || rust_is_legacy_fixture;
+
+    // This comparator is intentionally not a generic movement normalization.
+    // If neither side satisfies the complete issue-#24 identity, position,
+    // topology, and facing contract, ordinary byte comparison remains
+    // authoritative.
+    if !cpp_is_fixture && !rust_is_fixture {
+        return None;
+    }
+
+    if cpp_is_fixture && rust_is_fixture {
+        for decoded in [&mut cpp_decoded, &mut rust_decoded]
+            .into_iter()
+            .filter_map(|decoded| decoded.as_mut().ok())
+        {
+            decoded.body.current_position = ISSUE_24_CREATURE_START;
+            decoded.body.move_time = 0;
+            decoded.body.points.clear();
+            decoded.body.packed_deltas.clear();
+            if let MonsterMoveFaceBody::Target { direction_bits, .. } = &mut decoded.body.face {
+                // The direction is derived from the final segment. The reviewed
+                // repair may route around the opposite side, but the exact
+                // target GUID remains authoritative.
+                *direction_bits = 0;
+            }
+        }
+    }
+
+    Some(SemanticBodyDiff {
+        comparator: "smsg_on_monster_move_issue_24_process_local_route_fields".to_string(),
+        cpp: SemanticBodySide::from_decoded_monster_move(cpp_decoded, cpp, cpp_is_fixture),
+        rust: SemanticBodySide::from_decoded_monster_move(rust_decoded, rust, rust_is_fixture),
+    })
 }
 
 fn compare_send_known_spells_bodies(cpp: &[u8], rust: &[u8]) -> SemanticBodyDiff {
@@ -1208,6 +1576,351 @@ struct DecodedIssue106ItemCreate {
     stack_count: u32,
 }
 
+/// Reconstruct the compressed linear spline represented by one MonsterMove.
+///
+/// C++ emits only the final point plus signed quarter-yard deltas from the
+/// midpoint of the first/current and final points. The returned vector is
+/// `[current, intermediates..., final]`.
+pub fn reconstruct_monster_move_path(body: &MonsterMoveBody) -> Result<Vec<[f32; 3]>, String> {
+    let [final_point] = body.points.as_slice() else {
+        return Err(format!(
+            "compressed issue-#24 movement requires exactly one endpoint, found {}",
+            body.points.len()
+        ));
+    };
+    let start = body.current_position.xyz();
+    let end = final_point.xyz();
+    let middle = [
+        (start[0] + end[0]) * 0.5,
+        (start[1] + end[1]) * 0.5,
+        (start[2] + end[2]) * 0.5,
+    ];
+    let mut path = Vec::with_capacity(body.packed_deltas.len() + 2);
+    path.push(start);
+    for packed in &body.packed_deltas {
+        let delta = unpack_monster_move_delta(*packed);
+        path.push([
+            middle[0] - delta[0],
+            middle[1] - delta[1],
+            middle[2] - delta[2],
+        ]);
+    }
+    path.push(end);
+    Ok(path)
+}
+
+/// Validate one issue-#24 movement body independently of cross-runtime diff.
+///
+/// This proves that the packet belongs to the reserved map-1 Tender fixture
+/// and carries a compressed path around (not through) the declared missing
+/// navmesh square.
+pub fn validate_detour_chase_monster_move(
+    decoded: &DecodedMonsterMoveBody,
+) -> Result<Vec<[f32; 3]>, String> {
+    validate_detour_chase_monster_move_for_side(decoded, false)
+}
+
+pub fn validate_legacy_cpp_detour_chase_monster_move(
+    decoded: &DecodedMonsterMoveBody,
+) -> Result<Vec<[f32; 3]>, String> {
+    validate_detour_chase_monster_move_for_side(decoded, true)
+}
+
+fn validate_detour_chase_monster_move_for_side(
+    decoded: &DecodedMonsterMoveBody,
+    legacy_cpp: bool,
+) -> Result<Vec<[f32; 3]>, String> {
+    let movement = &decoded.body;
+    if movement.mover != ISSUE_24_CREATURE_IDENTITY {
+        return Err(format!(
+            "MonsterMove mover {:?} is not the issue-#24 fixture {:?}",
+            movement.mover, ISSUE_24_CREATURE_IDENTITY
+        ));
+    }
+    if decoded.mover_runtime_counter == 0 {
+        return Err("issue-#24 fixture movement has zero runtime GUID counter".to_string());
+    }
+    if decoded.spline_id == 0 {
+        return Err("issue-#24 fixture movement has zero spline ID".to_string());
+    }
+    require_position_near(
+        movement.current_position,
+        ISSUE_24_CREATURE_START,
+        ISSUE_24_POSITION_EPSILON,
+        "MonsterMove current position",
+    )?;
+    if movement.destination != WirePosition::new(0, 0, 0) {
+        return Err(format!(
+            "outer MovementMonsterSpline destination is {:?}, expected exact positive-zero C++ default",
+            movement.destination
+        ));
+    }
+    if movement.crz_teleport
+        || movement.stop_distance_tolerance != 0
+        || movement.flags & 0x0040_0000 != 0
+        || movement.elapsed != 0
+        || movement.move_time == 0
+        || movement.fade_object_time != 0
+        || movement.mode != 0
+        || movement.transport != (ExactObjectGuid { low: 0, high: 0 })
+        || movement.vehicle_seat != -1
+        || movement.vehicle_exit_voluntary
+        || movement.interpolate
+        || movement.spline_filter.is_some()
+        || movement.spell_effect_extra.is_some()
+        || movement.jump_extra.is_some()
+        || movement.anim_tier_transition.is_some()
+    {
+        return Err(
+            "MonsterMove is not the plain, compressed, non-transport chase shape".to_string(),
+        );
+    }
+    let MonsterMoveFaceBody::Target {
+        direction_bits,
+        target,
+    } = &movement.face
+    else {
+        return Err("MonsterMove does not face the chase target like C++".to_string());
+    };
+    if *target
+        != (ExactObjectGuid {
+            low: ISSUE_24_CAPTURE_PLAYER_LOW,
+            high: ISSUE_24_CAPTURE_PLAYER_HIGH,
+        })
+    {
+        return Err(format!(
+            "MonsterMove facing target {target:?} is not disposable character 15 in realm 1"
+        ));
+    }
+    let direction = f32::from_bits(*direction_bits);
+    if (direction - std::f32::consts::FRAC_PI_2).abs() > 0.05 {
+        return Err(format!(
+            "MonsterMove target-facing direction {direction} is not approximately +pi/2"
+        ));
+    }
+    if movement.packed_deltas.is_empty() {
+        return Err(
+            "MonsterMove has no packed intermediate; a straight path cannot prove the detour"
+                .to_string(),
+        );
+    }
+
+    let path = reconstruct_monster_move_path(movement)?;
+    let destination = ISSUE_24_PLAYER_DESTINATION.xyz();
+    let endpoint = *path
+        .last()
+        .expect("reconstruction always includes start and endpoint");
+    let endpoint_distance_2d =
+        ((endpoint[0] - destination[0]).powi(2) + (endpoint[1] - destination[1]).powi(2)).sqrt();
+    let endpoint_distance_3d =
+        (endpoint_distance_2d.powi(2) + (endpoint[2] - destination[2]).powi(2)).sqrt();
+    let endpoint_invalid = if legacy_cpp {
+        endpoint_distance_2d > 6.0
+            || destination[2] - endpoint[2] < 20.0
+            || (endpoint[2] - 190.721_01).abs() > 1.0
+    } else {
+        endpoint_distance_3d > 6.0
+    };
+    if endpoint[1] <= ISSUE_24_OBSTACLE_MAX_Y || endpoint_invalid {
+        return Err(format!(
+            "{} chase endpoint {endpoint:?} does not satisfy the reviewed destination contract for {destination:?}",
+            if legacy_cpp {
+                "legacy C++"
+            } else {
+                "repaired Rust"
+            }
+        ));
+    }
+    if !segment_intersects_issue_24_obstacle(path[0], destination) {
+        return Err(
+            "fixture start-to-player line does not cross the declared obstacle".to_string(),
+        );
+    }
+    if !path[1..path.len() - 1].iter().any(|point| {
+        point[0] < ISSUE_24_OBSTACLE_MIN_X - 0.1 || point[0] > ISSUE_24_OBSTACLE_MAX_X + 0.1
+    }) {
+        return Err(format!(
+            "compressed path {path:?} has no lateral bend outside the obstacle"
+        ));
+    }
+    if path
+        .windows(2)
+        .any(|segment| segment_intersects_issue_24_obstacle(segment[0], segment[1]))
+    {
+        return Err(format!(
+            "compressed path {path:?} intersects the missing navmesh square"
+        ));
+    }
+    Ok(path)
+}
+
+/// Validate the complete three-packet issue-#24 capture contract.
+pub fn validate_detour_chase_capture(capture: &Capture) -> Result<(), String> {
+    validate_detour_chase_capture_for_side(capture, false)
+}
+
+pub fn validate_legacy_cpp_detour_chase_capture(capture: &Capture) -> Result<(), String> {
+    validate_detour_chase_capture_for_side(capture, true)
+}
+
+fn validate_detour_chase_capture_for_side(
+    capture: &Capture,
+    legacy_cpp: bool,
+) -> Result<(), String> {
+    const EXPECTED: [(Direction, u32, u16); 3] = [
+        (Direction::C2S, 1, CMSG_MOVE_HEARTBEAT),
+        (Direction::S2C, 1, SMSG_ON_MONSTER_MOVE),
+        (Direction::C2S, 1, CMSG_PING),
+    ];
+    if capture.packets.len() != EXPECTED.len() {
+        return Err(format!(
+            "{} contains {} packet(s); detour-chase contract requires exactly {}",
+            capture.source,
+            capture.packets.len(),
+            EXPECTED.len()
+        ));
+    }
+    for (index, (packet, (direction, connection_id, opcode))) in
+        capture.packets.iter().zip(EXPECTED).enumerate()
+    {
+        if packet.direction != direction
+            || packet.connection_id != connection_id
+            || packet.opcode != opcode
+        {
+            return Err(format!(
+                "{} packet {index} is {} conn={} 0x{:04X}; detour contract requires {} conn={} 0x{opcode:04X}",
+                capture.source,
+                packet.direction,
+                packet.connection_id,
+                packet.opcode,
+                direction,
+                connection_id
+            ));
+        }
+    }
+    validate_issue_24_heartbeat(&capture.packets[0].body)?;
+    let movement = decode_monster_move_body(&capture.packets[1].body)?;
+    if legacy_cpp {
+        validate_legacy_cpp_detour_chase_monster_move(&movement)?;
+    } else {
+        validate_detour_chase_monster_move(&movement)?;
+    }
+    if capture.packets[2].body != ISSUE_24_PING_BODY {
+        return Err(format!(
+            "CMSG_PING fence body is {:02X?}, expected fixed DTOR/zero-latency body {:02X?}",
+            capture.packets[2].body, ISSUE_24_PING_BODY
+        ));
+    }
+    Ok(())
+}
+
+fn validate_issue_24_heartbeat(body: &[u8]) -> Result<(), String> {
+    let mut cursor = 0usize;
+    let (player_low, player_high) = read_packed_guid(body, &mut cursor, "MovementInfo.Guid")?;
+    if (player_low, player_high) != (ISSUE_24_CAPTURE_PLAYER_LOW, ISSUE_24_CAPTURE_PLAYER_HIGH) {
+        return Err(format!(
+            "heartbeat player GUID is ({player_low:#018X}, {player_high:#018X}), expected disposable character 15 in realm 1"
+        ));
+    }
+    for label in ["MovementFlags", "MovementFlags2", "MovementFlags3"] {
+        if read_u32(body, &mut cursor, label)? != 0 {
+            return Err(format!("{label} is nonzero in deterministic heartbeat"));
+        }
+    }
+    if read_u32(body, &mut cursor, "Time")? != 0 {
+        return Err("heartbeat client time is not deterministic zero".to_string());
+    }
+    let position = read_wire_position(body, &mut cursor, "Position")?;
+    if position != ISSUE_24_PLAYER_DESTINATION {
+        return Err(format!(
+            "heartbeat destination {:?} differs from fixture destination {:?}",
+            position.xyz(),
+            ISSUE_24_PLAYER_DESTINATION.xyz()
+        ));
+    }
+    let orientation = read_f32_bits(body, &mut cursor, "Orientation")?;
+    if orientation != ISSUE_24_PLAYER_DESTINATION_ORIENTATION_BITS {
+        return Err(format!(
+            "heartbeat orientation is 0x{orientation:08X}, expected fixture orientation 0x{ISSUE_24_PLAYER_DESTINATION_ORIENTATION_BITS:08X}"
+        ));
+    }
+    for label in ["Pitch", "StepUpStartElevation"] {
+        if read_f32_bits(body, &mut cursor, label)? != 0 {
+            return Err(format!("{label} is nonzero in deterministic heartbeat"));
+        }
+    }
+    if read_u32(body, &mut cursor, "RemoveMovementForcesCount")? != 0
+        || read_u32(body, &mut cursor, "MoveIndex")? != 0
+    {
+        return Err("heartbeat force count or move index is nonzero".to_string());
+    }
+    let optional_bits = read_u8(body, &mut cursor, "MovementInfo optional bit byte")?;
+    if optional_bits != 0 {
+        return Err(format!(
+            "heartbeat optional movement bit byte is 0x{optional_bits:02X}, expected zero"
+        ));
+    }
+    if cursor != body.len() {
+        return Err(format!(
+            "trailing bytes after deterministic heartbeat: decoded {cursor} of {}",
+            body.len()
+        ));
+    }
+    Ok(())
+}
+
+fn require_position_near(
+    actual: WirePosition,
+    expected: WirePosition,
+    epsilon: f32,
+    label: &str,
+) -> Result<(), String> {
+    let actual = actual.xyz();
+    let expected = expected.xyz();
+    if actual
+        .into_iter()
+        .zip(expected)
+        .any(|(actual, expected)| (actual - expected).abs() > epsilon)
+    {
+        return Err(format!(
+            "{label} {actual:?} differs from expected {expected:?} by more than {epsilon}"
+        ));
+    }
+    Ok(())
+}
+
+fn segment_intersects_issue_24_obstacle(start: [f32; 3], end: [f32; 3]) -> bool {
+    // Shrink the open rectangle slightly so a Detour segment along its exact
+    // boundary is accepted while a segment through its interior fails.
+    let min_x = ISSUE_24_OBSTACLE_MIN_X + 0.05;
+    let max_x = ISSUE_24_OBSTACLE_MAX_X - 0.05;
+    let min_y = ISSUE_24_OBSTACLE_MIN_Y + 0.05;
+    let max_y = ISSUE_24_OBSTACLE_MAX_Y - 0.05;
+    let mut t_min = 0.0f32;
+    let mut t_max = 1.0f32;
+    for (origin, delta, min, max) in [
+        (start[0], end[0] - start[0], min_x, max_x),
+        (start[1], end[1] - start[1], min_y, max_y),
+    ] {
+        if delta.abs() <= f32::EPSILON {
+            if origin <= min || origin >= max {
+                return false;
+            }
+            continue;
+        }
+        let first = (min - origin) / delta;
+        let second = (max - origin) / delta;
+        let enter = first.min(second);
+        let leave = first.max(second);
+        t_min = t_min.max(enter);
+        t_max = t_max.min(leave);
+        if t_min >= t_max {
+            return false;
+        }
+    }
+    t_max > 0.0 && t_min < 1.0
+}
+
 /// Validate the complete, correlated payload contract of the issue-#106
 /// single-item capture.
 ///
@@ -1696,6 +2409,214 @@ fn issue_106_item_guid_error(item_guid: ExactObjectGuid) -> Option<String> {
     None
 }
 
+/// Decode the complete opcode-less body emitted by C++
+/// `WorldPackets::Movement::MonsterMove::Write`.
+///
+/// This follows `MovementPackets.cpp` field order exactly and rejects
+/// non-canonical packed GUIDs, nonzero bit padding, non-finite floats, trailing
+/// bytes, and truncated optional sections. The returned allocation fields are
+/// retained for the bot/report contract. The fixture mover counter must equal
+/// the persistent spawn GUID; only the process-global spline ID is normalized.
+pub fn decode_monster_move_body(body: &[u8]) -> Result<DecodedMonsterMoveBody, String> {
+    let mut cursor = 0usize;
+    let (mover_low, mover_high) = read_packed_guid(body, &mut cursor, "MoverGUID")?;
+    if mover_low == 0 && mover_high == 0 {
+        return Err("MoverGUID is empty".to_string());
+    }
+    let current_position = read_wire_position(body, &mut cursor, "Pos")?;
+    let spline_id = read_u32(body, &mut cursor, "SplineData.ID")?;
+    let destination = read_wire_position(body, &mut cursor, "SplineData.Destination")?;
+
+    let spline_bits = read_u8(body, &mut cursor, "CrzTeleport/tolerance bit byte")?;
+    if spline_bits & 0x0F != 0 {
+        return Err(format!(
+            "CrzTeleport/tolerance byte has non-canonical padding bits: 0x{spline_bits:02X}"
+        ));
+    }
+    let crz_teleport = spline_bits & 0x80 != 0;
+    let stop_distance_tolerance = (spline_bits >> 4) & 0x07;
+
+    let flags = read_u32(body, &mut cursor, "Move.Flags")?;
+    let elapsed = read_i32(body, &mut cursor, "Move.Elapsed")?;
+    let move_time = read_u32(body, &mut cursor, "Move.MoveTime")?;
+    let fade_object_time = read_u32(body, &mut cursor, "Move.FadeObjectTime")?;
+    let mode = read_u8(body, &mut cursor, "Move.Mode")?;
+    let (transport_low, transport_high) =
+        read_packed_guid(body, &mut cursor, "Move.TransportGUID")?;
+    let vehicle_seat = read_i8(body, &mut cursor, "Move.VehicleSeat")?;
+
+    let header_bytes: [u8; 5] = read_array(body, &mut cursor, "Move bit header")?;
+    let header = header_bytes
+        .into_iter()
+        .fold(0u64, |value, byte| (value << 8) | u64::from(byte));
+    let face_kind = ((header >> 38) & 0x03) as u8;
+    let point_count = ((header >> 22) & 0xFFFF) as usize;
+    let vehicle_exit_voluntary = header & (1 << 21) != 0;
+    let interpolate = header & (1 << 20) != 0;
+    let packed_delta_count = ((header >> 4) & 0xFFFF) as usize;
+    let has_spline_filter = header & (1 << 3) != 0;
+    let has_spell_effect_extra = header & (1 << 2) != 0;
+    let has_jump_extra = header & (1 << 1) != 0;
+    let has_anim_tier_transition = header & 1 != 0;
+
+    let spline_filter = if has_spline_filter {
+        let key_count = read_u32(body, &mut cursor, "SplineFilter key count")? as usize;
+        let base_speed_bits = read_f32_bits(body, &mut cursor, "SplineFilter BaseSpeed")?;
+        let start_offset = read_i16(body, &mut cursor, "SplineFilter StartOffset")?;
+        let distance_to_previous_key_bits =
+            read_f32_bits(body, &mut cursor, "SplineFilter DistToPrevFilterKey")?;
+        let added_to_start = read_i16(body, &mut cursor, "SplineFilter AddedToStart")?;
+        let mut keys = Vec::with_capacity(key_count.min(body.len() / 4));
+        for index in 0..key_count {
+            keys.push(MonsterSplineFilterKeyBody {
+                index: read_i16(body, &mut cursor, &format!("SplineFilter key[{index}].Idx"))?,
+                speed: read_u16(
+                    body,
+                    &mut cursor,
+                    &format!("SplineFilter key[{index}].Speed"),
+                )?,
+            });
+        }
+        let flag_byte = read_u8(body, &mut cursor, "SplineFilter flags bit byte")?;
+        if flag_byte & 0x3F != 0 {
+            return Err(format!(
+                "SplineFilter flags byte has non-canonical padding bits: 0x{flag_byte:02X}"
+            ));
+        }
+        Some(MonsterSplineFilterBody {
+            base_speed_bits,
+            start_offset,
+            distance_to_previous_key_bits,
+            added_to_start,
+            keys,
+            flags: flag_byte >> 6,
+        })
+    } else {
+        None
+    };
+
+    let face = match face_kind {
+        0 => MonsterMoveFaceBody::Normal,
+        1 => MonsterMoveFaceBody::Spot {
+            position: read_wire_position(body, &mut cursor, "Move.FaceSpot")?,
+        },
+        2 => {
+            let direction_bits = read_f32_bits(body, &mut cursor, "Move.FaceDirection")?;
+            let (low, high) = read_packed_guid(body, &mut cursor, "Move.FaceGUID")?;
+            MonsterMoveFaceBody::Target {
+                direction_bits,
+                target: ExactObjectGuid { low, high },
+            }
+        }
+        3 => MonsterMoveFaceBody::Angle {
+            direction_bits: read_f32_bits(body, &mut cursor, "Move.FaceDirection")?,
+        },
+        _ => unreachable!("two-bit face kind"),
+    };
+
+    let mut points = Vec::with_capacity(point_count.min(body.len() / 12));
+    for index in 0..point_count {
+        points.push(read_wire_position(
+            body,
+            &mut cursor,
+            &format!("Move.Points[{index}]"),
+        )?);
+    }
+    let mut packed_deltas = Vec::with_capacity(packed_delta_count.min(body.len() / 4));
+    for index in 0..packed_delta_count {
+        packed_deltas.push(read_u32(
+            body,
+            &mut cursor,
+            &format!("Move.PackedDeltas[{index}]"),
+        )?);
+    }
+
+    let spell_effect_extra = if has_spell_effect_extra {
+        let (low, high) = read_packed_guid(body, &mut cursor, "SpellEffectExtra.TargetGUID")?;
+        Some(MonsterSplineSpellEffectExtraBody {
+            target: ExactObjectGuid { low, high },
+            spell_visual_id: read_u32(body, &mut cursor, "SpellEffectExtra.SpellVisualID")?,
+            progress_curve_id: read_u32(body, &mut cursor, "SpellEffectExtra.ProgressCurveID")?,
+            parabolic_curve_id: read_u32(body, &mut cursor, "SpellEffectExtra.ParabolicCurveID")?,
+            jump_gravity_bits: read_f32_bits(body, &mut cursor, "SpellEffectExtra.JumpGravity")?,
+        })
+    } else {
+        None
+    };
+    let jump_extra = if has_jump_extra {
+        Some(MonsterSplineJumpExtraBody {
+            jump_gravity_bits: read_f32_bits(body, &mut cursor, "JumpExtra.JumpGravity")?,
+            start_time: read_u32(body, &mut cursor, "JumpExtra.StartTime")?,
+            duration: read_u32(body, &mut cursor, "JumpExtra.Duration")?,
+        })
+    } else {
+        None
+    };
+    let anim_tier_transition = if has_anim_tier_transition {
+        Some(MonsterSplineAnimTierTransitionBody {
+            tier_transition_id: read_i32(body, &mut cursor, "AnimTier.TierTransitionID")?,
+            start_time: read_u32(body, &mut cursor, "AnimTier.StartTime")?,
+            end_time: read_u32(body, &mut cursor, "AnimTier.EndTime")?,
+            animation_tier: read_u8(body, &mut cursor, "AnimTier.AnimTier")?,
+        })
+    } else {
+        None
+    };
+
+    if cursor != body.len() {
+        return Err(format!(
+            "trailing bytes after MovementMonsterSpline: decoded {cursor} of {} bytes",
+            body.len()
+        ));
+    }
+
+    Ok(DecodedMonsterMoveBody {
+        body: MonsterMoveBody {
+            mover: stable_object_guid(mover_low, mover_high),
+            current_position,
+            destination,
+            crz_teleport,
+            stop_distance_tolerance,
+            flags,
+            elapsed,
+            move_time,
+            fade_object_time,
+            mode,
+            transport: ExactObjectGuid {
+                low: transport_low,
+                high: transport_high,
+            },
+            vehicle_seat,
+            face,
+            vehicle_exit_voluntary,
+            interpolate,
+            points,
+            packed_deltas,
+            spline_filter,
+            spell_effect_extra,
+            jump_extra,
+            anim_tier_transition,
+        },
+        mover_runtime_counter: mover_low & OBJECT_GUID_COUNTER_MASK,
+        spline_id,
+    })
+}
+
+/// Decode TrinityCore's signed quarter-yard `PackedXYZ` representation.
+#[must_use]
+pub fn unpack_monster_move_delta(packed: u32) -> [f32; 3] {
+    fn sign_extend(value: u32, bits: u32) -> i32 {
+        let shift = 32 - bits;
+        ((value << shift) as i32) >> shift
+    }
+
+    [
+        sign_extend(packed & 0x7FF, 11) as f32 * 0.25,
+        sign_extend((packed >> 11) & 0x7FF, 11) as f32 * 0.25,
+        sign_extend((packed >> 22) & 0x3FF, 10) as f32 * 0.25,
+    ]
+}
+
 /// Decode the opcode-less body emitted by C++
 /// `WorldPackets::Character::LogXPGain::Write`.
 ///
@@ -1940,6 +2861,14 @@ fn read_u8(body: &[u8], cursor: &mut usize, field: &str) -> Result<u8, String> {
     Ok(value)
 }
 
+fn read_i8(body: &[u8], cursor: &mut usize, field: &str) -> Result<i8, String> {
+    Ok(read_u8(body, cursor, field)? as i8)
+}
+
+fn read_i16(body: &[u8], cursor: &mut usize, field: &str) -> Result<i16, String> {
+    Ok(i16::from_le_bytes(read_array(body, cursor, field)?))
+}
+
 fn read_i32(body: &[u8], cursor: &mut usize, field: &str) -> Result<i32, String> {
     Ok(i32::from_le_bytes(read_array(body, cursor, field)?))
 }
@@ -1958,6 +2887,26 @@ fn read_u32(body: &[u8], cursor: &mut usize, field: &str) -> Result<u32, String>
 
 fn read_u32_be(body: &[u8], cursor: &mut usize, field: &str) -> Result<u32, String> {
     Ok(u32::from_be_bytes(read_array(body, cursor, field)?))
+}
+
+fn read_f32_bits(body: &[u8], cursor: &mut usize, field: &str) -> Result<u32, String> {
+    let bits = read_u32(body, cursor, field)?;
+    if !f32::from_bits(bits).is_finite() {
+        return Err(format!("{field} is not finite"));
+    }
+    Ok(bits)
+}
+
+fn read_wire_position(
+    body: &[u8],
+    cursor: &mut usize,
+    field: &str,
+) -> Result<WirePosition, String> {
+    Ok(WirePosition {
+        x_bits: read_f32_bits(body, cursor, &format!("{field}.x"))?,
+        y_bits: read_f32_bits(body, cursor, &format!("{field}.y"))?,
+        z_bits: read_f32_bits(body, cursor, &format!("{field}.z"))?,
+    })
 }
 
 fn read_array<const N: usize>(

@@ -48,6 +48,10 @@
 #                   loot-single-item-claim and vendor evidence
 #   WOW_BOT_REPORT  fresh absolute bot JSON report path for that exact flow;
 #                   mandatory for vendor-extended-cost-purchase
+#   DETOUR_CAPTURE_ACK_FIXTURE_MUTATION must be 1 for
+#                   detour-chase-around-obstacle. That flow uses the bot
+#                   journal path as a shell-owned DB recovery journal and a
+#                   private synthetic-MMap DataDir
 #
 # This stops the live RustyCore world server (disconnecting players). It refuses
 # to run without confirmation; pass --yes to skip the prompt.
@@ -111,6 +115,7 @@ CPP_CAPTURE_EXPECTED_EXEC=""
 CPP_CAPTURE_EXPECTED_SHA256=""
 CPP_CAPTURE_SOURCE_EXEC=""
 CPP_CAPTURE_SOURCE_SHA256=""
+CPP_CAPTURE_EXEC_SOURCE_HEAD=""
 CPP_CAPTURE_HARNESS_REPO_HEAD=""
 CPP_CAPTURE_SOURCE_REPO_HEAD=""
 CPP_CAPTURE_HARNESS_WORKTREE_CLEAN=0
@@ -138,11 +143,31 @@ CPP_CAPTURE_BOT_REPORT_SHA256=""
 CPP_CONF_BACKUP_IDENTITY=""
 CPP_CONF_BACKUP_SHA256=""
 
+cpp_capture_embedded_source_head() {
+  local executable="$1"
+  local output matches revision
+  output="$("$executable" --version 2>&1)" || return 1
+  matches="$(printf '%s\n' "$output" | sed -nE \
+    's/^TrinityCore rev\. ([0-9a-f]{40}|[0-9a-f]{64}) .*/\1/p')" \
+    || return 1
+  [ -n "$matches" ] && [[ "$matches" != *$'\n'* ]] || return 1
+  revision="$matches"
+  [[ "$revision" =~ ^[0-9a-f]{40}$|^[0-9a-f]{64}$ ]] || return 1
+  printf '%s\n' "$revision"
+}
+
 # shellcheck source=loot-fixture-common.sh
 source "$(dirname "${BASH_SOURCE[0]}")/loot-fixture-common.sh"
 # shellcheck source=capture-service-common.sh
 source "$(dirname "${BASH_SOURCE[0]}")/capture-service-common.sh"
+# shellcheck source=detour-chase-fixture-common.sh
+source "$(dirname "${BASH_SOURCE[0]}")/detour-chase-fixture-common.sh"
 capture_validate_world_timeouts || exit 2
+
+if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
+  LOOT_FIXTURE_GUARD_ENABLED=1
+  DETOUR_FIXTURE_DB_CONF="$CPP_CAPTURE_DB_CONF"
+fi
 
 [[ "$CPP_WORLD_PORT" =~ ^[1-9][0-9]*$ ]] \
   && ((CPP_WORLD_PORT <= 65535)) || {
@@ -244,6 +269,13 @@ if [ "$FLOW" = "vendor-extended-cost-purchase" ]; then
   }
 fi
 
+if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
+  [ -n "$CPP_CAPTURE_EXEC" ] && [ -n "$CPP_CAPTURE_EXEC_SHA256" ] || {
+    echo "error: detour evidence requires CPP_CAPTURE_EXEC and CPP_CAPTURE_EXEC_SHA256" >&2
+    exit 2
+  }
+fi
+
 if [ -n "$CPP_CAPTURE_EXEC" ]; then
   [[ "$CPP_CAPTURE_EXEC_SHA256" =~ ^[0-9A-Fa-f]{64}$ ]] || {
     echo "error: CPP_CAPTURE_EXEC_SHA256 must contain exactly 64 hexadecimal characters" >&2
@@ -263,6 +295,13 @@ for dependency in awk chmod cp date dirname flock git grep id jq mkdir mktemp mv
     exit 2
   }
 done
+if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
+  command -v mysql >/dev/null 2>&1 || {
+    echo "error: mysql is required by the detour fixture guard" >&2
+    exit 2
+  }
+  load_loot_fixture_database_credentials || exit 2
+fi
 
 CPP_CAPTURE_HARNESS_REPO_HEAD="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null)" || {
   echo "error: cannot resolve RustyCore harness repository HEAD" >&2
@@ -291,6 +330,10 @@ CPP_CAPTURE_SOURCE_WORKTREE_SHA256="$(
   exit 2
 }
 if capture_git_repo_is_dirty "$CPP_CAPTURE_SOURCE_REPO"; then
+  if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
+    echo "error: capture evidence requires a clean committed legacy C++ source worktree (including untracked files)" >&2
+    exit 2
+  fi
   CPP_CAPTURE_SOURCE_WORKTREE_DIRTY=1
 fi
 if [ "$CPP_CAPTURE_HARNESS_WORKTREE_CLEAN" -ne 1 ]; then
@@ -308,6 +351,18 @@ if [ "$CPP_CAPTURE_PINNED" -eq 1 ]; then
   CPP_CAPTURE_EXPECTED_SHA256="$CPP_CAPTURE_EXEC_SHA256"
   CPP_CAPTURE_SOURCE_EXEC="$CPP_CAPTURE_EXEC"
   CPP_CAPTURE_SOURCE_SHA256="$CPP_CAPTURE_EXEC_SHA256"
+fi
+if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
+  CPP_CAPTURE_EXEC_SOURCE_HEAD="$(
+    cpp_capture_embedded_source_head "$CPP_CAPTURE_EXEC"
+  )" || {
+    echo "error: pinned C++ worldserver does not expose one embedded Git revision via --version" >&2
+    exit 2
+  }
+  [ "$CPP_CAPTURE_EXEC_SOURCE_HEAD" = "$CPP_CAPTURE_SOURCE_REPO_HEAD" ] || {
+    echo "error: pinned C++ binary revision ${CPP_CAPTURE_EXEC_SOURCE_HEAD} does not match clean source HEAD ${CPP_CAPTURE_SOURCE_REPO_HEAD}" >&2
+    exit 2
+  }
 fi
 
 CPP_CONF_CANONICAL="$(realpath -e -- "$CPP_CONF" 2>/dev/null)" || {
@@ -331,6 +386,10 @@ CPP_CAPTURE_PM2_PROFILE_SHA256="$(capture_pm2_profile_redacted_sha256 "$PM2_CPP_
   echo "error: cannot hash the stable redacted C++ PM2 profile" >&2
   exit 2
 }
+if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
+  detour_chase_validate_capture_orchestration \
+    "$REPO_ROOT" "$CPP_CONF" cpp || exit 2
+fi
 
 if [ -z "${CPP_LOGS_DIR+x}" ]; then
   CONFIGURED_LOGS_DIR="$({
@@ -416,6 +475,7 @@ cpp_capture_effective_config_sha256() {
 capture.instance_port=${CPP_INSTANCE_PORT}
 capture.packet_log=enabled" \
     PacketLogFile LogsDir Bot.AccountPrefix WorldServerPort InstanceServerPort \
+    DataDir \
     LoginDatabaseInfo WorldDatabaseInfo CharacterDatabaseInfo \
     Rate.Drop.Item.Poor Rate.Drop.Item.Normal Rate.Drop.Item.Uncommon \
     Rate.Drop.Item.Rare Rate.Drop.Item.Epic Rate.Drop.Item.Legendary \
@@ -447,9 +507,13 @@ finalize_cpp_capture_artifact() {
   [ "$CAPTURE_ARTIFACT_READY" -eq 1 ] && [ -f "$OUT_PKT_STAGE" ] || return 1
 
   local bot_evidence="" capture_evidence created_at manifest_stage packet_sha packet_size
+  local fixture_guard_enabled="$CPP_CAPTURE_LOOT_FIXTURE_GUARD"
   [ "$CPP_CAPTURE_NORMAL_RUNTIME_RESTORED" -eq 1 ] || return 1
+  if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
+    fixture_guard_enabled=1
+  fi
   capture_fixture_cleanup_verified_for_publication \
-    "$CPP_CAPTURE_LOOT_FIXTURE_GUARD" \
+    "$fixture_guard_enabled" \
     "$CPP_CAPTURE_FIXTURE_CLEANUP_VERIFIED" || return 1
   case "$FLOW" in
     loot-single-item-claim)
@@ -465,9 +529,13 @@ finalize_cpp_capture_artifact() {
     IFS=$'\t' read -r CPP_CAPTURE_BOT_EXEC CPP_CAPTURE_BOT_EXEC_SHA256 \
       CPP_CAPTURE_BOT_REPORT CPP_CAPTURE_BOT_REPORT_SHA256 <<<"$bot_evidence"
   fi
-  capture_evidence="$(capture_bot_manifest_evidence \
-    "$FLOW" "$CPP_CAPTURE_BOT_EXEC" "$CPP_CAPTURE_BOT_EXEC_SHA256" \
-    "$CPP_CAPTURE_BOT_REPORT" "$CPP_CAPTURE_BOT_REPORT_SHA256")" || return 1
+  if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
+    capture_evidence="$(detour_chase_capture_evidence)" || return 1
+  else
+    capture_evidence="$(capture_bot_manifest_evidence \
+      "$FLOW" "$CPP_CAPTURE_BOT_EXEC" "$CPP_CAPTURE_BOT_EXEC_SHA256" \
+      "$CPP_CAPTURE_BOT_REPORT" "$CPP_CAPTURE_BOT_REPORT_SHA256")" || return 1
+  fi
   packet_sha="$(capture_sha256_of_file "$OUT_PKT_STAGE")" || return 1
   packet_size="$(stat -c '%s' -- "$OUT_PKT_STAGE")" || return 1
   created_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" || return 1
@@ -476,6 +544,9 @@ finalize_cpp_capture_artifact() {
       = "$CPP_CAPTURE_HARNESS_WORKTREE_SHA256" ] \
     && [ "$(git -C "$CPP_CAPTURE_SOURCE_REPO" rev-parse HEAD 2>/dev/null)" \
       = "$CPP_CAPTURE_SOURCE_REPO_HEAD" ] \
+    && { [ "$FLOW" != "detour-chase-around-obstacle" ] \
+      || [ "$(cpp_capture_embedded_source_head "$CPP_CAPTURE_EXEC")" \
+        = "$CPP_CAPTURE_EXEC_SOURCE_HEAD" ]; } \
     && [ "$(capture_git_worktree_state_sha256 "$CPP_CAPTURE_SOURCE_REPO")" \
       = "$CPP_CAPTURE_SOURCE_WORKTREE_SHA256" ] || return 1
   capture_require_canonical_directory "$OUT_DIR" \
@@ -488,6 +559,7 @@ finalize_cpp_capture_artifact() {
       --arg created_at "$created_at" \
       --arg harness_repo_head "$CPP_CAPTURE_HARNESS_REPO_HEAD" \
       --arg source_repo_head "$CPP_CAPTURE_SOURCE_REPO_HEAD" \
+      --arg source_exec_revision "$CPP_CAPTURE_EXEC_SOURCE_HEAD" \
       --arg harness_worktree_sha256 "$CPP_CAPTURE_HARNESS_WORKTREE_SHA256" \
       --arg source_worktree_sha256 "$CPP_CAPTURE_SOURCE_WORKTREE_SHA256" \
       --arg expected_exec_path "$CPP_CAPTURE_EXPECTED_EXEC" \
@@ -524,6 +596,8 @@ finalize_cpp_capture_artifact() {
         created_at: $created_at,
         harness_repo_head: $harness_repo_head,
         source_repo_head: $source_repo_head,
+        source_exec_revision:
+          (if $source_exec_revision == "" then null else $source_exec_revision end),
         harness_worktree_clean: true,
         harness_worktree_state_sha256: $harness_worktree_sha256,
         source_worktree_dirty: $source_worktree_dirty,
@@ -612,6 +686,12 @@ capture_git_repo_clean_at_head "$REPO_ROOT" "$CPP_CAPTURE_HARNESS_REPO_HEAD" \
     = "$CPP_CAPTURE_HARNESS_WORKTREE_SHA256" ] \
   && [ "$(git -C "$CPP_CAPTURE_SOURCE_REPO" rev-parse HEAD 2>/dev/null)" \
     = "$CPP_CAPTURE_SOURCE_REPO_HEAD" ] \
+  && { [ "$FLOW" != "detour-chase-around-obstacle" ] \
+    || capture_git_repo_clean_at_head \
+      "$CPP_CAPTURE_SOURCE_REPO" "$CPP_CAPTURE_SOURCE_REPO_HEAD"; } \
+  && { [ "$FLOW" != "detour-chase-around-obstacle" ] \
+    || [ "$(cpp_capture_embedded_source_head "$CPP_CAPTURE_EXEC")" \
+      = "$CPP_CAPTURE_EXEC_SOURCE_HEAD" ]; } \
   && [ "$(capture_git_worktree_state_sha256 "$CPP_CAPTURE_SOURCE_REPO")" \
     = "$CPP_CAPTURE_SOURCE_WORKTREE_SHA256" ] || {
   echo "error: harness/source worktree provenance changed before service mutation" >&2
@@ -681,6 +761,13 @@ restore() {
       restore_status=1
     fi
     if [ "$restore_status" -eq 0 ] \
+        && [ "$FLOW" = "detour-chase-around-obstacle" ] \
+        && ! detour_chase_restore_fixture_guard; then
+      echo "WARNING: failed to restore the guarded detour creature/character fixture" >&2
+      restore_status=1
+    fi
+    if [ "$restore_status" -eq 0 ] \
+        && [ "$FLOW" != "detour-chase-around-obstacle" ] \
         && ! loot_fixture_bot_cleanup_safe_for_capture_state \
           "$CPP_CAPTURE_BOT_READY"; then
       echo "WARNING: bot fixture cleanup is unproven; the normal Rust world will remain stopped" >&2
@@ -712,6 +799,26 @@ restore() {
     echo "WARNING: restored ${CPP_CONF} does not match the accredited backup; normal Rust will remain stopped" >&2
     restore_status=1
   fi
+  if [ "$restore_status" -eq 0 ] \
+      && [ "$FLOW" = "detour-chase-around-obstacle" ] \
+      && [ -e "$WOW_BOT_FIXTURE_JOURNAL" ]; then
+    if [ "$DETOUR_FIXTURE_DB_APPLIED" = 0 ]; then
+      if ! detour_chase_discard_unarmed_private_data_dir; then
+        echo "WARNING: failed to discard the unarmed private detour DataDir; normal Rust will remain stopped" >&2
+        restore_status=1
+      fi
+    elif ! detour_chase_remove_private_data_dir; then
+      echo "WARNING: failed to remove the private detour DataDir; normal Rust will remain stopped" >&2
+      restore_status=1
+    fi
+  fi
+  if [ "$restore_status" -eq 0 ] \
+      && [ "$FLOW" = "detour-chase-around-obstacle" ] \
+      && [ -e "$WOW_BOT_FIXTURE_JOURNAL" ] \
+      && ! detour_chase_mark_filesystem_restored; then
+    echo "WARNING: failed to durably mark detour filesystem recovery; normal Rust will remain stopped" >&2
+    restore_status=1
+  fi
   if [ "$CAPTURE_SWAPPED" -eq 1 ] && [ "$restore_status" -eq 0 ]; then
     if ! pm2 start "$PM2_RUST_WORLD" >/dev/null 2>&1; then
       echo "WARNING: failed to restart ${PM2_RUST_WORLD}; inspect PM2 before another capture" >&2
@@ -724,8 +831,27 @@ restore() {
     fi
   fi
   if [ "$restore_status" -eq 0 ] \
+      && [ "$FLOW" = "detour-chase-around-obstacle" ]; then
+    if [ "$CAPTURE_SWAPPED" -eq 0 ] \
+        && ! capture_wait_for_world_ready "$PM2_RUST_WORLD" >/dev/null; then
+      echo "WARNING: normal Rust changed during pre-mutation detour cleanup" >&2
+      restore_status=1
+    elif ! detour_chase_mark_normal_runtime_restored; then
+      echo "WARNING: normal Rust is online but detour recovery phase could not be persisted" >&2
+      restore_status=1
+    elif ! detour_chase_complete_fixture_journal \
+        || ! loot_fixture_bot_cleanup_complete; then
+      echo "WARNING: detour recovery journal could not be completed after normal runtime restoration" >&2
+      restore_status=1
+    else
+      DETOUR_FIXTURE_CLEANUP_VERIFIED=1
+      CPP_CAPTURE_FIXTURE_CLEANUP_VERIFIED=1
+    fi
+  fi
+  if [ "$restore_status" -eq 0 ] \
       && [ "$CAPTURE_SWAPPED" -eq 1 ] \
-      && [ "$CPP_CAPTURE_LOOT_FIXTURE_GUARD" = "1" ] \
+      && { [ "$CPP_CAPTURE_LOOT_FIXTURE_GUARD" = "1" ] \
+        || [ "$FLOW" = "detour-chase-around-obstacle" ]; } \
       && ! rm -f -- "$LOOT_FIXTURE_CLEANUP_MARKER"; then
     echo "WARNING: failed to remove the consumed bot cleanup marker" >&2
     restore_status=1
@@ -752,6 +878,53 @@ trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
+  detour_chase_allocate_private_data_dir
+  DETOUR_FIXTURE_DB_APPLIED=0
+  # Arm recovery before the active C++ config or either service changes. The
+  # pristine backup is the pinned DB-credential source for a fresh-shell
+  # recovery; it is never necessary to trust the subsequently edited config.
+  CPP_CAPTURE_DB_CONF_PATH="$(realpath -e -- "$CPP_CAPTURE_DB_CONF")"
+  if [ "$CPP_CAPTURE_DB_CONF_PATH" = "$CPP_CONF" ]; then
+    DETOUR_FIXTURE_DB_CONF="$(realpath -e -- "$CONF_BAK")"
+    DETOUR_FIXTURE_DB_CONF_SHA256="$CPP_CONF_BACKUP_SHA256"
+    DETOUR_FIXTURE_DB_CONF_IDENTITY="$CPP_CONF_BACKUP_IDENTITY"
+  else
+    DETOUR_FIXTURE_DB_CONF="$CPP_CAPTURE_DB_CONF_PATH"
+    DETOUR_FIXTURE_DB_CONF_SHA256="$(
+      capture_sha256_of_file "$DETOUR_FIXTURE_DB_CONF"
+    )"
+    DETOUR_FIXTURE_DB_CONF_IDENTITY="$(
+      stat -c '%d:%i' -- "$DETOUR_FIXTURE_DB_CONF"
+    )"
+  fi
+  DETOUR_FIXTURE_ORCHESTRATION_LOCK="$CAPTURE_ORCHESTRATION_LOCK"
+  DETOUR_FIXTURE_PM2_RUST_WORLD="$PM2_RUST_WORLD"
+  DETOUR_FIXTURE_PM2_CPP_WORLD="$PM2_CPP_WORLD"
+  DETOUR_FIXTURE_NORMAL_RUST_PM2_PROFILE_SHA256="$(
+    capture_pm2_profile_redacted_sha256 "$PM2_RUST_WORLD"
+  )"
+  DETOUR_FIXTURE_NORMAL_RUST_CONFIG="$(
+    capture_pm2_effective_config_path "$PM2_RUST_WORLD"
+  )"
+  DETOUR_FIXTURE_NORMAL_RUST_CONFIG_SHA256="$(
+    capture_sha256_of_file "$DETOUR_FIXTURE_NORMAL_RUST_CONFIG"
+  )"
+  DETOUR_FIXTURE_NORMAL_RUST_CONFIG_IDENTITY="$(
+    stat -c '%d:%i' -- "$DETOUR_FIXTURE_NORMAL_RUST_CONFIG"
+  )"
+  DETOUR_FIXTURE_WORLD_PORT="$CPP_WORLD_PORT"
+  DETOUR_FIXTURE_INSTANCE_PORT="$CPP_INSTANCE_PORT"
+  DETOUR_FIXTURE_CPP_CONFIG="$CPP_CONF"
+  DETOUR_FIXTURE_CPP_CONFIG_BACKUP="$CONF_BAK"
+  DETOUR_FIXTURE_CPP_CONFIG_BACKUP_IDENTITY="$CPP_CONF_BACKUP_IDENTITY"
+  DETOUR_FIXTURE_CPP_CONFIG_BACKUP_SHA256="$CPP_CONF_BACKUP_SHA256"
+  detour_chase_arm_filesystem_recovery_journal
+  detour_chase_populate_private_data_dir
+  detour_chase_patch_config_data_dir \
+    "$CPP_CONF" "$DETOUR_FIXTURE_PRIVATE_DATA_DIR"
+fi
+
 # Enable PacketLogFile in the conf (replace existing line or append).
 if grep -qE '^[[:space:]]*PacketLogFile' "$CPP_CONF"; then
   sed -i -E "s|^[[:space:]]*PacketLogFile.*|PacketLogFile = \"${PKT_NAME}\"|" "$CPP_CONF"
@@ -777,7 +950,6 @@ CPP_CAPTURE_EFFECTIVE_CONFIG_SHA256="$(cpp_capture_effective_config_sha256)" || 
   echo "error: cannot hash the canonical redacted effective C++ capture config" >&2
   exit 1
 }
-
 rm -f "${CPP_LOGS_DIR}/${PKT_NAME}"
 
 echo "swapping to C++ world server..."
@@ -787,9 +959,16 @@ capture_wait_for_world_stopped "$PM2_RUST_WORLD" "$RUST_ORIGINAL_IDENTITY" || {
   echo "error: ${PM2_RUST_WORLD} PID/PM2 entry or ports ${CPP_WORLD_PORT}/${CPP_INSTANCE_PORT} remain active after stop" >&2
   exit 1
 }
+capture_pm2_process_stopped "$PM2_CPP_WORLD" || {
+  echo "error: ${PM2_CPP_WORLD} changed state before fixture mutation" >&2
+  exit 1
+}
 if [ "$CPP_CAPTURE_LOOT_FIXTURE_GUARD" = "1" ]; then
   loot_fixture_wait_until_all_characters_offline
   apply_creature_health_fixture_guard
+fi
+if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
+  detour_chase_apply_fixture_guard
 fi
 pm2 start "$PM2_CPP_WORLD"
 CPP_CAPTURE_IDENTITY="$(capture_wait_for_world_ready "$PM2_CPP_WORLD")" || {
@@ -809,6 +988,9 @@ accredit_cpp_capture_executable || {
 }
 
 CPP_CAPTURE_BOT_READY=1
+if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
+  DETOUR_FIXTURE_BOT_READY=1
+fi
 echo
 echo ">>> Perform the '${FLOW}' flow with the client now."
 read -r -p ">>> Press ENTER when the flow is complete to collect the capture... " _

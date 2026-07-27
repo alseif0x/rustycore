@@ -72,6 +72,7 @@ pub enum RequirementStatus {
 #[serde(rename_all = "kebab-case")]
 pub enum RequirementSemanticContract {
     LootSingleItemClaimV1,
+    ChaseAroundObstacleV1,
 }
 
 /// One routing/order anchor that must occur in a required capture.
@@ -295,15 +296,38 @@ impl FlowRequirement {
     /// Validate both the exact wire topology and the action's correlated
     /// payload semantics.
     pub fn validate_capture(&self, capture: &Capture) -> Result<()> {
+        self.validate_capture_for_side(capture, RequiredCaptureSide::Rust)
+    }
+
+    pub fn validate_capture_for_side(
+        &self,
+        capture: &Capture,
+        side: RequiredCaptureSide,
+    ) -> Result<()> {
         self.validate_capture_shape(capture)?;
         match self.semantic_contract {
             RequirementSemanticContract::LootSingleItemClaimV1 => {
                 semantic::validate_loot_single_item_claim_capture(capture)
                     .map_err(anyhow::Error::msg)?;
             }
+            RequirementSemanticContract::ChaseAroundObstacleV1 => {
+                match side {
+                    RequiredCaptureSide::Cpp => {
+                        semantic::validate_legacy_cpp_detour_chase_capture(capture)
+                    }
+                    RequiredCaptureSide::Rust => semantic::validate_detour_chase_capture(capture),
+                }
+                .map_err(anyhow::Error::msg)?;
+            }
         }
         Ok(())
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RequiredCaptureSide {
+    Cpp,
+    Rust,
 }
 
 /// Load a flow by name from the committed fixtures root.

@@ -4,8 +4,10 @@
 use anyhow::{anyhow, bail, Context, Result};
 use flate2::{Decompress, FlushDecompress};
 use rand::RngCore;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::net::IpAddr;
+use std::path::Path;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
@@ -35,6 +37,7 @@ const SMSG_SEND_KNOWN_SPELLS: u16 = 0x2C27;
 const SMSG_TIME_SYNC_REQUEST: u16 = 0x2DD2;
 const CMSG_TIME_SYNC_RESPONSE: u16 = 0x3A3D;
 const SMSG_ON_MONSTER_MOVE: u16 = 0x2DD4;
+const SMSG_ATTACK_START: u16 = 0x293D;
 const SMSG_ATTACK_STOP: u16 = 0x293E;
 const CMSG_BANKER_ACTIVATE: u16 = 0x34B3;
 const CMSG_BINDER_ACTIVATE: u16 = 0x34B2;
@@ -135,6 +138,20 @@ const MAX_RESTED_XP_TARGET_RESPAWN_SECS: u32 = 600;
 const RESTED_XP_RESPAWN_GRACE_SECS: u64 = 15;
 const MAX_RESTED_XP_RESPAWN_CLEANUP_WAIT_SECS: u64 = 900;
 const ACK_DISPOSABLE_RESTED_XP_FLAG: &str = "--ack-disposable-rested-xp";
+const ACK_DISPOSABLE_DETOUR_FIXTURE_FLAG: &str = "--ack-disposable-detour-fixture";
+const DETOUR_CHASE_FIXTURE_ACCOUNT: &str = "TESTBOT2@bot.local";
+const DETOUR_CHASE_FIXTURE_ACCOUNT_ID: u32 = 9;
+const DETOUR_CHASE_FIXTURE_CHARACTER_GUID: u64 = 15;
+const DETOUR_CHASE_FIXTURE_FLOW: &str = "detour-chase-around-obstacle";
+const DEFAULT_DETOUR_CHASE_TIMEOUT_SECS: u64 = 30;
+const DETOUR_CHASE_TARGET_MATCH_RADIUS: f32 = 0.5;
+const DETOUR_CHASE_QUIET_PERIOD: Duration = Duration::from_millis(350);
+const DETOUR_CHASE_MAP_ASSET_SHA256: &str =
+    "3ff3365bbd0aafb383f4c2984389d07df133dd86cdb0b9340c25361db32d8f5a";
+const DETOUR_CHASE_TILE_ASSET_SHA256: &str =
+    "693b93ac3ac605fea8b846a0e1fcf6ca2d0b0dce2f8c5d9c34739febc3731f47";
+const ISSUE_24_PING_FENCE_WIRE: [u8; 4] = *b"DTOR";
+const ISSUE_24_PING_FENCE_SERIAL: u32 = u32::from_le_bytes(ISSUE_24_PING_FENCE_WIRE);
 const REST_STATE_RESTED: u8 = 1;
 const REST_STATE_NORMAL: u8 = 2;
 const PLAYER_FLAGS_RESTING: u32 = 0x0000_0020;
@@ -297,6 +314,10 @@ struct CliOptions {
     rested_xp_runtime_counter: Option<u64>,
     rested_xp_offline_secs: u64,
     rested_xp_timeout_secs: u64,
+    detour_chase_capture: bool,
+    ack_disposable_detour_fixture: bool,
+    detour_fixture_manifest: Option<String>,
+    detour_chase_timeout_secs: u64,
     loot_race_smoke: bool,
     loot_item_capture: bool,
     ack_disposable_overworld_loot_race: bool,
@@ -340,8 +361,7 @@ struct CliOptions {
     report_path: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
-#[cfg_attr(test, derive(Default))]
+#[derive(Debug, Clone, Default, Serialize)]
 struct BotRunResult {
     account: String,
     account_id: u32,
@@ -463,6 +483,28 @@ struct BotRunResult {
     rested_xp_db_rest_after: Option<f32>,
     rested_xp_relog_verified: bool,
     rested_xp_failure: Option<String>,
+    detour_chase_capture: bool,
+    detour_chase_capture_passed: Option<bool>,
+    detour_chase_target_entry: Option<u32>,
+    detour_chase_target_spawn_guid: Option<u64>,
+    detour_chase_target_runtime_counter: Option<u64>,
+    detour_chase_target_discovered: bool,
+    detour_chase_active_mover_ack_sent: bool,
+    detour_chase_attack_start_confirmed: bool,
+    detour_chase_first_swing_confirmed: bool,
+    detour_chase_prewindow_target_moves: u32,
+    detour_chase_heartbeat_sent: bool,
+    detour_chase_heartbeat_sha256: Option<String>,
+    detour_chase_window_target_moves: u32,
+    detour_chase_monster_move_sha256: Option<String>,
+    detour_chase_monster_move_bytes: Option<usize>,
+    detour_chase_ping_serial: Option<u32>,
+    detour_chase_pong_confirmed: bool,
+    detour_chase_time_sync_before_window: u32,
+    detour_chase_time_sync_during_window: u32,
+    detour_chase_time_sync_after_fence: u32,
+    detour_chase_logout_confirmed: bool,
+    detour_chase_failure: Option<String>,
     loot_race_smoke: bool,
     loot_race_smoke_passed: Option<bool>,
     loot_race_target_entry: Option<u32>,
@@ -598,6 +640,24 @@ impl BotRunResult {
                 && self.player_login_verified
                 && self.rested_xp_smoke_passed.unwrap_or(false);
         }
+        if self.detour_chase_capture {
+            return self.world_auth
+                && self.enum_characters
+                && self.player_login_verified
+                && self.detour_chase_capture_passed.unwrap_or(false)
+                && self.detour_chase_target_discovered
+                && self.detour_chase_active_mover_ack_sent
+                && self.detour_chase_attack_start_confirmed
+                && self.detour_chase_first_swing_confirmed
+                && self.detour_chase_heartbeat_sent
+                && self.detour_chase_heartbeat_sha256.is_some()
+                && self.detour_chase_window_target_moves == 1
+                && self.detour_chase_monster_move_sha256.is_some()
+                && self.detour_chase_monster_move_bytes.unwrap_or(0) > 0
+                && self.detour_chase_ping_serial == Some(ISSUE_24_PING_FENCE_SERIAL)
+                && self.detour_chase_pong_confirmed
+                && self.detour_chase_logout_confirmed;
+        }
         if self.loot_race_smoke {
             return self.world_auth
                 && self.enum_characters
@@ -638,6 +698,7 @@ struct RunReport {
     vendor_smoke: bool,
     equipment_set_race_smoke: bool,
     rested_xp_smoke: bool,
+    detour_chase_capture: bool,
     loot_race_smoke: bool,
     loot_item_capture: bool,
     group_capacity_race_smoke: bool,
@@ -1320,6 +1381,19 @@ fn parse_cli() -> Result<CliOptions> {
             .map(|value| value.parse::<u64>())
             .transpose()?
             .unwrap_or(DEFAULT_RESTED_XP_TIMEOUT_SECS),
+        detour_chase_capture: std::env::var("WOW_BOT_DETOUR_CHASE_CAPTURE")
+            .ok()
+            .map(|value| is_truthy(&value))
+            .unwrap_or(false),
+        // Deliberately CLI-only: an inherited environment must never
+        // acknowledge mutation of a disposable deterministic fixture.
+        ack_disposable_detour_fixture: false,
+        detour_fixture_manifest: std::env::var("WOW_BOT_DETOUR_FIXTURE_MANIFEST").ok(),
+        detour_chase_timeout_secs: std::env::var("WOW_BOT_DETOUR_CHASE_TIMEOUT_SECS")
+            .ok()
+            .map(|value| value.parse::<u64>())
+            .transpose()?
+            .unwrap_or(DEFAULT_DETOUR_CHASE_TIMEOUT_SECS),
         loot_race_smoke: std::env::var("WOW_BOT_LOOT_RACE_SMOKE")
             .ok()
             .is_some_and(|value| is_truthy(&value)),
@@ -1606,6 +1680,19 @@ fn parse_cli() -> Result<CliOptions> {
                 opts.rested_xp_timeout_secs =
                     next_arg(&mut args, "--rested-xp-timeout")?.parse()?;
             }
+            "--detour-chase-capture" => opts.detour_chase_capture = true,
+            arg if parse_ack_disposable_detour_fixture_arg(
+                arg,
+                &mut opts.ack_disposable_detour_fixture,
+            ) => {}
+            "--detour-fixture-manifest" => {
+                opts.detour_fixture_manifest =
+                    Some(next_arg(&mut args, "--detour-fixture-manifest")?);
+            }
+            "--detour-chase-timeout" => {
+                opts.detour_chase_timeout_secs =
+                    next_arg(&mut args, "--detour-chase-timeout")?.parse()?;
+            }
             "--loot-race-smoke" => opts.loot_race_smoke = true,
             "--loot-item-capture" => opts.loot_item_capture = true,
             arg if arg == loot_race::ACK_FLAG => opts.ack_disposable_overworld_loot_race = true,
@@ -1754,6 +1841,454 @@ fn parse_ack_disposable_rested_xp_arg(arg: &str, acknowledged: &mut bool) -> boo
 
     *acknowledged = true;
     true
+}
+
+fn parse_ack_disposable_detour_fixture_arg(arg: &str, acknowledged: &mut bool) -> bool {
+    if arg != ACK_DISPOSABLE_DETOUR_FIXTURE_FLAG {
+        return false;
+    }
+
+    *acknowledged = true;
+    true
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+struct DetourFixtureManifest {
+    schema_version: u32,
+    flow: String,
+    generator: DetourFixtureGenerator,
+    map: DetourFixtureMap,
+    geometry: DetourFixtureGeometry,
+    creature: DetourFixtureCreature,
+    character: DetourFixtureCharacter,
+    assets: Vec<DetourFixtureAsset>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+struct DetourFixtureGenerator {
+    #[serde(rename = "crate")]
+    crate_name: String,
+    example: String,
+    feature: String,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+struct DetourFixtureMap {
+    id: u16,
+    grid_x: u32,
+    grid_y: u32,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+struct DetourFixtureGeometry {
+    centre: DetourFixturePosition,
+    creature_start: DetourFixturePosition,
+    player_start: DetourFixtureOrientedPosition,
+    player_destination: DetourFixtureOrientedPosition,
+    obstacle: DetourFixtureObstacle,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+struct DetourFixturePosition {
+    x: f32,
+    y: f32,
+    z: f32,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+struct DetourFixtureOrientedPosition {
+    x: f32,
+    y: f32,
+    z: f32,
+    orientation: f32,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+struct DetourFixtureObstacle {
+    min_x: f32,
+    max_x: f32,
+    min_y: f32,
+    max_y: f32,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+struct DetourFixtureCreature {
+    entry: u32,
+    spawn_guid: u64,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+struct DetourFixtureCharacter {
+    guid: u64,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+struct DetourFixtureAsset {
+    path: String,
+    bytes: u64,
+    sha256: String,
+}
+
+#[derive(Debug, Clone)]
+struct DetourChaseCaptureOptions {
+    map_id: u16,
+    target_entry: u32,
+    target_spawn_guid: u64,
+    target_x: f32,
+    target_y: f32,
+    target_z: f32,
+    player_start_x: f32,
+    player_start_y: f32,
+    player_start_z: f32,
+    player_start_orientation: f32,
+    destination_x: f32,
+    destination_y: f32,
+    destination_z: f32,
+    destination_orientation: f32,
+    timeout_secs: u64,
+}
+
+fn detour_chase_options_from_pinned_manifest(
+    manifest: &DetourFixtureManifest,
+    timeout_secs: u64,
+) -> Result<DetourChaseCaptureOptions> {
+    if manifest != &expected_detour_fixture_manifest() {
+        bail!("detour chase runner requires the exact pinned issue #24 fixture manifest");
+    }
+    if timeout_secs == 0 {
+        bail!("detour chase runner timeout must be greater than zero");
+    }
+    Ok(DetourChaseCaptureOptions {
+        map_id: manifest.map.id,
+        target_entry: manifest.creature.entry,
+        target_spawn_guid: manifest.creature.spawn_guid,
+        target_x: manifest.geometry.creature_start.x,
+        target_y: manifest.geometry.creature_start.y,
+        target_z: manifest.geometry.creature_start.z,
+        player_start_x: manifest.geometry.player_start.x,
+        player_start_y: manifest.geometry.player_start.y,
+        player_start_z: manifest.geometry.player_start.z,
+        player_start_orientation: manifest.geometry.player_start.orientation,
+        destination_x: manifest.geometry.player_destination.x,
+        destination_y: manifest.geometry.player_destination.y,
+        destination_z: manifest.geometry.player_destination.z,
+        destination_orientation: manifest.geometry.player_destination.orientation,
+        timeout_secs,
+    })
+}
+
+fn expected_detour_fixture_manifest() -> DetourFixtureManifest {
+    DetourFixtureManifest {
+        schema_version: 1,
+        flow: DETOUR_CHASE_FIXTURE_FLOW.to_string(),
+        generator: DetourFixtureGenerator {
+            crate_name: "wow-recastdetour".to_string(),
+            example: "generate_detour_chase_fixture".to_string(),
+            feature: "test-fixtures".to_string(),
+        },
+        map: DetourFixtureMap {
+            id: 1,
+            grid_x: 50,
+            grid_y: 26,
+        },
+        geometry: DetourFixtureGeometry {
+            centre: DetourFixturePosition {
+                x: -10_118.333,
+                y: 2_681.667,
+                z: 218.49,
+            },
+            creature_start: DetourFixturePosition {
+                x: -10_118.333,
+                y: 2_671.667,
+                z: 218.49,
+            },
+            player_start: DetourFixtureOrientedPosition {
+                x: -10_118.333,
+                y: 2_670.667,
+                z: 218.49,
+                orientation: std::f32::consts::FRAC_PI_2,
+            },
+            player_destination: DetourFixtureOrientedPosition {
+                x: -10_118.333,
+                y: 2_691.667,
+                z: 218.49,
+                orientation: -std::f32::consts::FRAC_PI_2,
+            },
+            obstacle: DetourFixtureObstacle {
+                min_x: -10_123.333,
+                max_x: -10_113.333,
+                min_y: 2_676.667,
+                max_y: 2_686.667,
+            },
+        },
+        creature: DetourFixtureCreature {
+            entry: 15_271,
+            spawn_guid: 9_102_401,
+        },
+        character: DetourFixtureCharacter { guid: 15 },
+        assets: vec![
+            DetourFixtureAsset {
+                path: "mmaps/0001.mmap".to_string(),
+                bytes: 28,
+                sha256: DETOUR_CHASE_MAP_ASSET_SHA256.to_string(),
+            },
+            DetourFixtureAsset {
+                path: "mmaps/00015026.mmtile".to_string(),
+                bytes: 1_496,
+                sha256: DETOUR_CHASE_TILE_ASSET_SHA256.to_string(),
+            },
+        ],
+    }
+}
+
+fn validate_detour_chase_cli_values(
+    enabled: bool,
+    acknowledged_disposable: bool,
+    single_account: Option<&str>,
+    timeout_secs: u64,
+    manifest: Option<&str>,
+) -> Result<()> {
+    if !enabled {
+        if acknowledged_disposable {
+            bail!("{ACK_DISPOSABLE_DETOUR_FIXTURE_FLAG} is only valid with --detour-chase-capture");
+        }
+        return Ok(());
+    }
+    if !acknowledged_disposable {
+        bail!(
+            "--detour-chase-capture requires {ACK_DISPOSABLE_DETOUR_FIXTURE_FLAG}; this acknowledges that the deterministic map, creature, and character are disposable QA fixtures"
+        );
+    }
+    if !single_account
+        .is_some_and(|account| account.eq_ignore_ascii_case(DETOUR_CHASE_FIXTURE_ACCOUNT))
+    {
+        bail!("--detour-chase-capture requires --single {DETOUR_CHASE_FIXTURE_ACCOUNT}");
+    }
+    if timeout_secs == 0 {
+        bail!("--detour-chase-timeout must be greater than zero");
+    }
+    if !manifest.is_some_and(|path| !path.trim().is_empty()) {
+        bail!("--detour-chase-capture requires --detour-fixture-manifest <path>");
+    }
+    Ok(())
+}
+
+fn validate_detour_fixture_identity(account: &str, character_guid: u64) -> Result<()> {
+    if !account.eq_ignore_ascii_case(DETOUR_CHASE_FIXTURE_ACCOUNT) || character_guid != 15 {
+        bail!(
+            "detour chase fixture requires account {DETOUR_CHASE_FIXTURE_ACCOUNT} with character guid 15; selected account={account} guid={character_guid}"
+        );
+    }
+    Ok(())
+}
+
+fn detour_fixture_float_matches(actual: f64, expected: f32) -> bool {
+    (actual - f64::from(expected)).abs() <= 0.02
+}
+
+fn validate_detour_live_fixture_before_login(
+    bot: &config::BotConfig,
+    options: &DetourChaseCaptureOptions,
+) -> Result<()> {
+    use mysql::prelude::Queryable;
+
+    validate_detour_fixture_identity(&bot.account, bot.character_guid)?;
+
+    let auth_opts = mysql::Opts::from_url(&auth_db_url()?)
+        .map_err(|error| anyhow!("Bad auth DB URL: {error}"))?;
+    let mut auth = mysql::Conn::new(auth_opts)
+        .map_err(|error| anyhow!("Connect to auth DB for detour fixture: {error}"))?;
+    let auth_identity: Option<(Option<String>, u8)> = auth
+        .exec_first(
+            "SELECT ba.email, a.online \
+             FROM account a LEFT JOIN battlenet_accounts ba ON ba.id = a.battlenet_account \
+             WHERE a.id = ?",
+            (bot.account_id,),
+        )
+        .map_err(|error| anyhow!("Validate detour fixture auth identity: {error}"))?;
+    let (email, game_account_online) = auth_identity
+        .ok_or_else(|| anyhow!("No auth.account row for detour bot id {}", bot.account_id))?;
+    if game_account_online != 0
+        || !email
+            .as_deref()
+            .is_some_and(|email| email.eq_ignore_ascii_case(&bot.account))
+    {
+        bail!(
+            "detour fixture game account {} is online or not linked to configured identity {}",
+            bot.account_id,
+            bot.account
+        );
+    }
+
+    let character_opts = mysql::Opts::from_url(&characters_db_url()?)
+        .map_err(|error| anyhow!("Bad characters DB URL: {error}"))?;
+    let mut characters = mysql::Conn::new(character_opts)
+        .map_err(|error| anyhow!("Connect to characters DB for detour fixture: {error}"))?;
+    let character: Option<(u32, u32, f64, f64, f64, f64, u8)> = characters
+        .exec_first(
+            "SELECT account, map, position_x, position_y, position_z, orientation, online \
+             FROM characters WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Validate detour fixture character: {error}"))?;
+    let (account_id, map_id, x, y, z, orientation, online) = character
+        .ok_or_else(|| anyhow!("No characters row for detour guid {}", bot.character_guid))?;
+    if account_id != bot.account_id
+        || map_id != u32::from(options.map_id)
+        || online != 0
+        || !detour_fixture_float_matches(x, options.player_start_x)
+        || !detour_fixture_float_matches(y, options.player_start_y)
+        || !detour_fixture_float_matches(z, options.player_start_z)
+        || !detour_fixture_float_matches(orientation, options.player_start_orientation)
+    {
+        bail!(
+            "detour fixture character {} does not match pinned offline account/map/start position",
+            bot.character_guid
+        );
+    }
+
+    let world_opts = mysql::Opts::from_url(&world_db_url()?)
+        .map_err(|error| anyhow!("Bad world DB URL: {error}"))?;
+    let mut world = mysql::Conn::new(world_opts)
+        .map_err(|error| anyhow!("Connect to world DB for detour fixture: {error}"))?;
+    let creature: Option<(u32, u32, f64, f64, f64)> = world
+        .exec_first(
+            "SELECT id, map, position_x, position_y, position_z \
+             FROM creature WHERE guid = ?",
+            (options.target_spawn_guid,),
+        )
+        .map_err(|error| anyhow!("Validate detour fixture creature spawn: {error}"))?;
+    let (entry, map_id, x, y, z) = creature.ok_or_else(|| {
+        anyhow!(
+            "No world.creature row for detour spawn {}",
+            options.target_spawn_guid
+        )
+    })?;
+    if entry != options.target_entry
+        || map_id != u32::from(options.map_id)
+        || !detour_fixture_float_matches(x, options.target_x)
+        || !detour_fixture_float_matches(y, options.target_y)
+        || !detour_fixture_float_matches(z, options.target_z)
+    {
+        bail!(
+            "detour creature spawn {} does not match pinned entry/map/start position",
+            options.target_spawn_guid
+        );
+    }
+    let nearby: Vec<u64> = world
+        .exec(
+            "SELECT guid FROM creature \
+             WHERE id = ? AND map = ? \
+               AND SQRT(POW(position_x - ?, 2) + POW(position_y - ?, 2) + POW(position_z - ?, 2)) <= ? \
+             ORDER BY guid",
+            (
+                options.target_entry,
+                u32::from(options.map_id),
+                options.target_x,
+                options.target_y,
+                options.target_z,
+                DETOUR_CHASE_TARGET_MATCH_RADIUS,
+            ),
+        )
+        .map_err(|error| anyhow!("Validate isolated detour creature radius: {error}"))?;
+    if nearby != [options.target_spawn_guid] {
+        bail!(
+            "detour fixture radius is ambiguous: expected only spawn {}, found {:?}",
+            options.target_spawn_guid,
+            nearby
+        );
+    }
+    Ok(())
+}
+
+fn validate_detour_fixture_manifest(path: &Path) -> Result<()> {
+    let metadata = std::fs::symlink_metadata(path)
+        .with_context(|| format!("Read detour fixture manifest metadata {}", path.display()))?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        bail!(
+            "Detour fixture manifest must be a regular file and not a symlink: {}",
+            path.display()
+        );
+    }
+    let canonical_manifest = path
+        .canonicalize()
+        .with_context(|| format!("Canonicalize detour fixture manifest {}", path.display()))?;
+    let bytes = std::fs::read(&canonical_manifest).with_context(|| {
+        format!(
+            "Read detour fixture manifest {}",
+            canonical_manifest.display()
+        )
+    })?;
+    let manifest: DetourFixtureManifest = serde_json::from_slice(&bytes).with_context(|| {
+        format!(
+            "Decode detour fixture manifest {}",
+            canonical_manifest.display()
+        )
+    })?;
+    if manifest != expected_detour_fixture_manifest() {
+        bail!(
+            "Detour fixture manifest does not match the pinned issue #24 contract: {}",
+            canonical_manifest.display()
+        );
+    }
+
+    let fixture_dir = canonical_manifest
+        .parent()
+        .context("Detour fixture manifest has no parent directory")?;
+    for asset in &manifest.assets {
+        let asset_path = fixture_dir.join(&asset.path);
+        let metadata = std::fs::symlink_metadata(&asset_path).with_context(|| {
+            format!(
+                "Read detour fixture asset metadata {}",
+                asset_path.display()
+            )
+        })?;
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            bail!(
+                "Detour fixture asset must be a regular file and not a symlink: {}",
+                asset_path.display()
+            );
+        }
+        let canonical_asset = asset_path.canonicalize().with_context(|| {
+            format!("Canonicalize detour fixture asset {}", asset_path.display())
+        })?;
+        if canonical_asset != asset_path {
+            bail!(
+                "Detour fixture asset path must not traverse symlinks: {}",
+                asset_path.display()
+            );
+        }
+        if metadata.len() != asset.bytes {
+            bail!(
+                "Detour fixture asset {} has {} bytes, expected {}",
+                asset.path,
+                metadata.len(),
+                asset.bytes
+            );
+        }
+        let asset_bytes = std::fs::read(&canonical_asset)
+            .with_context(|| format!("Read detour fixture asset {}", canonical_asset.display()))?;
+        let digest = format!("{:x}", Sha256::digest(&asset_bytes));
+        if digest != asset.sha256 {
+            bail!(
+                "Detour fixture asset {} SHA-256 mismatch: got {}, expected {}",
+                asset.path,
+                digest,
+                asset.sha256
+            );
+        }
+    }
+    Ok(())
 }
 
 fn is_truthy(value: &str) -> bool {
@@ -2173,6 +2708,19 @@ fn print_help() {
         "                           Env: WOW_BOT_RESTED_XP_SMOKE, WOW_BOT_RESTED_XP_CREATURE_ENTRY, WOW_BOT_RESTED_XP_CREATURE_GUID, WOW_BOT_RESTED_XP_RUNTIME_COUNTER, WOW_BOT_RESTED_XP_OFFLINE_SECS, WOW_BOT_RESTED_XP_TIMEOUT_SECS"
     );
     println!(
+        "  --detour-chase-capture  Run the pinned issue #24 heartbeat→chase-spline→ping capture window"
+    );
+    println!(
+        "  {ACK_DISPOSABLE_DETOUR_FIXTURE_FLAG}  Acknowledge the map/creature/character fixture is disposable"
+    );
+    println!(
+        "  --detour-fixture-manifest <path>  Exact generated fixture.json beside the pinned mmaps"
+    );
+    println!("  --detour-chase-timeout <secs>  Capture deadline (default: 30)");
+    println!(
+        "                           Env: WOW_BOT_DETOUR_CHASE_CAPTURE, WOW_BOT_DETOUR_FIXTURE_MANIFEST, WOW_BOT_DETOUR_CHASE_TIMEOUT_SECS"
+    );
+    println!(
         "  --loot-race-smoke       Race ITEM and MONEY claims on one shared chest from two real sessions"
     );
     println!(
@@ -2257,6 +2805,30 @@ fn apply_password_overrides(bots: &mut [config::BotConfig]) {
             }
         }
     }
+}
+
+fn add_pinned_detour_fixture_bot_if_missing(
+    bots: &mut Vec<config::BotConfig>,
+    detour_chase_capture: bool,
+) {
+    if !detour_chase_capture || !bots.is_empty() {
+        return;
+    }
+
+    // The committed bot config intentionally need not contain the disposable
+    // TESTBOT2 identity or a credential. The explicit acknowledgement, exact
+    // --single gate, read-only DB preflight, and pinned manifest select this
+    // bounded identity. Its password still comes only from the environment.
+    bots.push(config::BotConfig {
+        account: DETOUR_CHASE_FIXTURE_ACCOUNT.to_string(),
+        password: String::new(),
+        character_guid: DETOUR_CHASE_FIXTURE_CHARACTER_GUID,
+        account_id: DETOUR_CHASE_FIXTURE_ACCOUNT_ID,
+        lfg_role: 4,
+        class: "priest".to_string(),
+        enabled: true,
+        session_key_bnet: String::new(),
+    });
 }
 
 fn password_env_name(account: &str) -> String {
@@ -2828,6 +3400,13 @@ async fn main() -> Result<()> {
     info!("═══════════════════════════════════════════════════");
 
     let cli = parse_cli()?;
+    validate_detour_chase_cli_values(
+        cli.detour_chase_capture,
+        cli.ack_disposable_detour_fixture,
+        cli.single_account.as_deref(),
+        cli.detour_chase_timeout_secs,
+        cli.detour_fixture_manifest.as_deref(),
+    )?;
     if cli.recover_loot_fixture {
         let conflicting_mode = cli.ensure_test_accounts
             || cli.login_only
@@ -2840,6 +3419,7 @@ async fn main() -> Result<()> {
             || cli.vendor_smoke
             || cli.equipment_set_race_smoke
             || cli.rested_xp_smoke
+            || cli.detour_chase_capture
             || cli.loot_race_smoke
             || cli.loot_item_capture
             || cli.group_capacity_race_smoke
@@ -2852,6 +3432,19 @@ async fn main() -> Result<()> {
         info!("Pending loot fixture recovered and cleanup marker written");
         return Ok(());
     }
+    let detour_chase_options = if cli.detour_chase_capture {
+        let manifest = cli
+            .detour_fixture_manifest
+            .as_deref()
+            .context("Validated detour capture is missing its fixture manifest")?;
+        validate_detour_fixture_manifest(Path::new(manifest))?;
+        Some(detour_chase_options_from_pinned_manifest(
+            &expected_detour_fixture_manifest(),
+            cli.detour_chase_timeout_secs,
+        )?)
+    } else {
+        None
+    };
     let app_config = config::AppConfig::load_or_create(&cli.config_path)?;
     let mut bots: Vec<config::BotConfig> =
         app_config.get_enabled_bots().into_iter().cloned().collect();
@@ -2859,6 +3452,7 @@ async fn main() -> Result<()> {
     if let Some(account) = &cli.single_account {
         bots.retain(|bot| bot.account.eq_ignore_ascii_case(account));
     }
+    add_pinned_detour_fixture_bot_if_missing(&mut bots, cli.detour_chase_capture);
     if cli.loot_race_smoke || cli.loot_item_capture {
         if cli.single_account.is_some() {
             bail!(
@@ -2902,6 +3496,9 @@ async fn main() -> Result<()> {
     if bots.is_empty() {
         bail!("No enabled bots matched the current config/filter");
     }
+    if cli.detour_chase_capture && bots.len() != 1 {
+        bail!("--detour-chase-capture requires exactly one pinned fixture bot");
+    }
     let missing_passwords: Vec<&str> = bots
         .iter()
         .filter(|bot| {
@@ -2919,8 +3516,10 @@ async fn main() -> Result<()> {
         );
     }
     let loot_mode = cli.loot_race_smoke || cli.loot_item_capture;
-    let guarded_identity_mode =
-        loot_mode || cli.group_capacity_race_smoke || cli.equipment_set_race_smoke;
+    let guarded_identity_mode = loot_mode
+        || cli.detour_chase_capture
+        || cli.group_capacity_race_smoke
+        || cli.equipment_set_race_smoke;
     validate_provisioning_mode(guarded_identity_mode, cli.ensure_test_accounts)?;
     let post_login_mode_count = [
         cli.stand_state_smoke,
@@ -2932,6 +3531,7 @@ async fn main() -> Result<()> {
         cli.vendor_smoke,
         cli.equipment_set_race_smoke,
         cli.rested_xp_smoke,
+        cli.detour_chase_capture,
         cli.loot_race_smoke,
         cli.loot_item_capture,
         cli.group_capacity_race_smoke,
@@ -2941,7 +3541,9 @@ async fn main() -> Result<()> {
     .filter(|enabled| *enabled)
     .count();
     if post_login_mode_count > 1 {
-        bail!("stand-state, bank, void-storage, homebind, inventory-swap, vendor, equipment-set-race, rested-xp, loot-race, loot-item-capture, group-capacity-race, and quest smoke are separate post-login modes");
+        bail!(
+            "stand-state, bank, void-storage, homebind, inventory-swap, vendor, equipment-set-race, rested-xp, detour-chase-capture, loot-race, loot-item-capture, group-capacity-race, and quest smoke are separate post-login modes"
+        );
     }
     if cli.bank_smoke && bots.len() != 1 {
         bail!("--bank-smoke requires exactly one bot; select it with --single");
@@ -3119,6 +3721,8 @@ async fn main() -> Result<()> {
             "equipment-set-race-smoke"
         } else if cli.rested_xp_smoke {
             "rested-xp-smoke"
+        } else if cli.detour_chase_capture {
+            "detour-chase-capture"
         } else if cli.loot_race_smoke {
             "loot-race-smoke"
         } else if cli.loot_item_capture {
@@ -3150,6 +3754,7 @@ async fn main() -> Result<()> {
         && !cli.vendor_smoke
         && !cli.equipment_set_race_smoke
         && !cli.rested_xp_smoke
+        && !cli.detour_chase_capture
         && !cli.loot_race_smoke
         && !cli.loot_item_capture
         && !cli.group_capacity_race_smoke
@@ -3224,6 +3829,7 @@ async fn main() -> Result<()> {
     } else if cli.sequential || bots.len() == 1 {
         for bot in bots {
             info!("\n[Bot {}] Starting...", bot.account);
+            let detour_failure_bot = cli.detour_chase_capture.then(|| bot.clone());
             let run = if cli.bank_smoke {
                 run_bank_smoke_workflow(
                     bot,
@@ -3308,6 +3914,9 @@ async fn main() -> Result<()> {
                     cli.rested_xp_timeout_secs,
                 )
                 .await
+            } else if let Some(options) = detour_chase_options.clone() {
+                run_bot_with_detour_chase(bot, dungeon_id, timeout_secs, auto_teleport, options)
+                    .await
             } else {
                 run_bot(
                     bot,
@@ -3333,7 +3942,22 @@ async fn main() -> Result<()> {
                     log_bot_summary(&result, require_proposal, require_group, cli.login_only);
                     results.push(result);
                 }
-                Err(e) => error!("❌ Bot run ERROR: {}", e),
+                Err(error) => {
+                    if let (Some(bot), Some(options)) =
+                        (detour_failure_bot, detour_chase_options.as_ref())
+                    {
+                        let result = detour_chase_failure_result(
+                            &bot,
+                            dungeon_id,
+                            options,
+                            error.to_string(),
+                        );
+                        log_bot_summary(&result, require_proposal, require_group, cli.login_only);
+                        results.push(result);
+                    } else {
+                        error!("❌ Bot run ERROR: {}", error);
+                    }
+                }
             }
         }
     } else {
@@ -3402,6 +4026,7 @@ async fn main() -> Result<()> {
         cli.vendor_smoke,
         cli.equipment_set_race_smoke,
         cli.rested_xp_smoke,
+        cli.detour_chase_capture,
         cli.loot_race_smoke,
         cli.loot_item_capture,
         cli.group_capacity_race_smoke,
@@ -3553,8 +4178,68 @@ async fn run_bot(
         equipment_set_options,
         quest_options,
         None,
+        None,
     )
     .await
+}
+
+async fn run_bot_with_detour_chase(
+    bot: config::BotConfig,
+    dungeon_id: u32,
+    lfg_secs: u64,
+    auto_teleport: bool,
+    detour_chase_options: DetourChaseCaptureOptions,
+) -> Result<BotRunResult> {
+    let bot_for_preflight = bot.clone();
+    let options_for_preflight = detour_chase_options.clone();
+    tokio::task::spawn_blocking(move || {
+        validate_detour_live_fixture_before_login(&bot_for_preflight, &options_for_preflight)
+    })
+    .await
+    .map_err(|error| anyhow!("Detour fixture DB preflight worker failed: {error}"))??;
+    info!("Pinned detour account/character/spawn fixture passed read-only DB preflight");
+
+    run_bot_with_void_storage(
+        bot,
+        dungeon_id,
+        lfg_secs,
+        auto_teleport,
+        false,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some(detour_chase_options),
+    )
+    .await
+}
+
+fn detour_chase_failure_result(
+    bot: &config::BotConfig,
+    dungeon_id: u32,
+    options: &DetourChaseCaptureOptions,
+    failure: String,
+) -> BotRunResult {
+    BotRunResult {
+        account: bot.account.clone(),
+        account_id: bot.account_id,
+        character_guid: bot.character_guid,
+        dungeon_id,
+        role: bot.lfg_role,
+        detour_chase_capture: true,
+        detour_chase_capture_passed: Some(false),
+        detour_chase_target_entry: Some(options.target_entry),
+        detour_chase_target_spawn_guid: Some(options.target_spawn_guid),
+        detour_chase_failure: Some(failure),
+        ..BotRunResult::default()
+    }
 }
 
 async fn run_bot_with_void_storage(
@@ -3574,6 +4259,7 @@ async fn run_bot_with_void_storage(
     equipment_set_options: Option<EquipmentSetSmokeOptions>,
     quest_options: Option<QuestSmokeOptions>,
     mut void_storage_options: Option<VoidStorageSmokeOptions>,
+    detour_chase_options: Option<DetourChaseCaptureOptions>,
 ) -> Result<BotRunResult> {
     let bot_index = bot.account_id as usize;
     let void_storage_query_capture = void_storage_options
@@ -3743,6 +4429,32 @@ async fn run_bot_with_void_storage(
         rested_xp_db_rest_after: None,
         rested_xp_relog_verified: false,
         rested_xp_failure: None,
+        detour_chase_capture: detour_chase_options.is_some(),
+        detour_chase_capture_passed: None,
+        detour_chase_target_entry: detour_chase_options
+            .as_ref()
+            .map(|options| options.target_entry),
+        detour_chase_target_spawn_guid: detour_chase_options
+            .as_ref()
+            .map(|options| options.target_spawn_guid),
+        detour_chase_target_runtime_counter: None,
+        detour_chase_target_discovered: false,
+        detour_chase_active_mover_ack_sent: false,
+        detour_chase_attack_start_confirmed: false,
+        detour_chase_first_swing_confirmed: false,
+        detour_chase_prewindow_target_moves: 0,
+        detour_chase_heartbeat_sent: false,
+        detour_chase_heartbeat_sha256: None,
+        detour_chase_window_target_moves: 0,
+        detour_chase_monster_move_sha256: None,
+        detour_chase_monster_move_bytes: None,
+        detour_chase_ping_serial: None,
+        detour_chase_pong_confirmed: false,
+        detour_chase_time_sync_before_window: 0,
+        detour_chase_time_sync_during_window: 0,
+        detour_chase_time_sync_after_fence: 0,
+        detour_chase_logout_confirmed: false,
+        detour_chase_failure: None,
         loot_race_smoke: loot_race_options.is_some(),
         loot_race_smoke_passed: None,
         loot_race_target_entry: loot_race_options
@@ -4159,6 +4871,7 @@ async fn run_bot_with_void_storage(
         || inventory_swap_options.is_some()
         || vendor_options.is_some()
         || rested_xp_options.is_some()
+        || detour_chase_options.is_some()
         || loot_race_options.is_some()
         || group_capacity_options.is_some()
         || equipment_set_options.is_some()
@@ -4166,6 +4879,7 @@ async fn run_bot_with_void_storage(
     let mut loot_race_target_seen = false;
     let mut vendor_target_seen: Option<DiscoveredCreatureGuid> = None;
     let mut void_storage_target_seen: Option<DiscoveredCreatureGuid> = None;
+    let mut detour_chase_target_seen: Option<DiscoveredCreatureGuid> = None;
     let login_budget = LoginVerifyBudget::new(LOGIN_VERIFY_TIMEOUT);
     while let Some(read_timeout) = login_budget.next_read_timeout() {
         match tokio::time::timeout(
@@ -4266,6 +4980,42 @@ async fn run_bot_with_void_storage(
                                 );
                             }
                             _ => void_storage_target_seen = Some(candidate),
+                        }
+                    }
+                }
+                if let Some(options) = detour_chase_options.as_ref() {
+                    let candidates = (op == SMSG_UPDATE_OBJECT)
+                        .then(|| {
+                            find_creature_guids_near_position_in_update_object(
+                                &payload,
+                                options.map_id,
+                                options.target_entry,
+                                options.target_x,
+                                options.target_y,
+                                options.target_z,
+                                DETOUR_CHASE_TARGET_MATCH_RADIUS,
+                                None,
+                            )
+                        })
+                        .unwrap_or_default();
+                    if candidates.len() > 1 {
+                        bail!(
+                            "detour login discovery found {} same-entry live candidates inside the pinned spawn radius",
+                            candidates.len()
+                        );
+                    }
+                    if let Some(candidate) = candidates.into_iter().next() {
+                        match detour_chase_target_seen {
+                            Some(previous)
+                                if (previous.low, previous.high)
+                                    != (candidate.low, candidate.high) =>
+                            {
+                                bail!(
+                                    "detour login discovery produced two different live candidates for pinned spawn {}",
+                                    options.target_spawn_guid
+                                );
+                            }
+                            _ => detour_chase_target_seen = Some(candidate),
                         }
                     }
                 }
@@ -4597,6 +5347,47 @@ async fn run_bot_with_void_storage(
         {
             result.rested_xp_failure = Some(error.to_string());
             result.rested_xp_smoke_passed = Some(false);
+        }
+        return Ok(result);
+    }
+
+    if let Some(detour_chase_options) = detour_chase_options {
+        if let Err(error) = run_detour_chase_capture_phase(
+            bot_index,
+            &bot,
+            &mut stream,
+            &mut crypt,
+            &mut server_inflater,
+            &mut realm_connection,
+            &detour_chase_options,
+            detour_chase_target_seen,
+            &mut result,
+        )
+        .await
+        {
+            result.detour_chase_failure = Some(error.to_string());
+            result.detour_chase_capture_passed = Some(false);
+            if !result.detour_chase_logout_confirmed {
+                match loot_race::logout_and_wait_routed_like_cpp(
+                    bot_index,
+                    &mut stream,
+                    &mut crypt,
+                    &mut server_inflater,
+                    realm_connection.as_mut(),
+                    bot.character_guid,
+                    &mut result,
+                )
+                .await
+                {
+                    Ok(_) => result.detour_chase_logout_confirmed = true,
+                    Err(logout_error) => {
+                        let failure = result.detour_chase_failure.get_or_insert_with(String::new);
+                        failure.push_str(&format!(
+                            "; graceful logout after failure also failed: {logout_error}"
+                        ));
+                    }
+                }
+            }
         }
         return Ok(result);
     }
@@ -5019,6 +5810,29 @@ fn log_bot_summary(
             );
             return;
         }
+        if result.detour_chase_capture {
+            info!(
+                "✅ Bot {}: SUCCESS detour_chase target={:?}/{:?}/counter={:?} attack_start={} first_swing={} prewindow_moves={} heartbeat={} window_moves={} move_sha256={:?} ping={:?}/pong={} time_sync={}/{}/{} logout={} failure={:?}",
+                result.account,
+                result.detour_chase_target_entry,
+                result.detour_chase_target_spawn_guid,
+                result.detour_chase_target_runtime_counter,
+                result.detour_chase_attack_start_confirmed,
+                result.detour_chase_first_swing_confirmed,
+                result.detour_chase_prewindow_target_moves,
+                result.detour_chase_heartbeat_sent,
+                result.detour_chase_window_target_moves,
+                result.detour_chase_monster_move_sha256,
+                result.detour_chase_ping_serial,
+                result.detour_chase_pong_confirmed,
+                result.detour_chase_time_sync_before_window,
+                result.detour_chase_time_sync_during_window,
+                result.detour_chase_time_sync_after_fence,
+                result.detour_chase_logout_confirmed,
+                result.detour_chase_failure,
+            );
+            return;
+        }
         if result.loot_race_smoke {
             info!(
                 "✅ Bot {}: SUCCESS loot_race target={:?}/{:?}/counter={:?} party={} discovered={} opened={} list={:?} coins={:?} item_push={} removed={} money_notify={:?} coin_removed={} db_item={:?} db_money_delta={:?} relog={} failure={:?}",
@@ -5231,6 +6045,31 @@ fn log_bot_summary(
             );
             return;
         }
+        if result.detour_chase_capture {
+            error!(
+                "❌ Bot {}: FAILED detour_chase target={:?}/{:?}/counter={:?} discovered={} active_mover={} attack_start={} first_swing={} prewindow_moves={} heartbeat={} window_moves={} move_sha256={:?} ping={:?}/pong={} time_sync={}/{}/{} logout={} failure={:?}",
+                result.account,
+                result.detour_chase_target_entry,
+                result.detour_chase_target_spawn_guid,
+                result.detour_chase_target_runtime_counter,
+                result.detour_chase_target_discovered,
+                result.detour_chase_active_mover_ack_sent,
+                result.detour_chase_attack_start_confirmed,
+                result.detour_chase_first_swing_confirmed,
+                result.detour_chase_prewindow_target_moves,
+                result.detour_chase_heartbeat_sent,
+                result.detour_chase_window_target_moves,
+                result.detour_chase_monster_move_sha256,
+                result.detour_chase_ping_serial,
+                result.detour_chase_pong_confirmed,
+                result.detour_chase_time_sync_before_window,
+                result.detour_chase_time_sync_during_window,
+                result.detour_chase_time_sync_after_fence,
+                result.detour_chase_logout_confirmed,
+                result.detour_chase_failure,
+            );
+            return;
+        }
         if result.loot_race_smoke {
             error!(
                 "❌ Bot {}: FAILED loot_race target={:?}/{:?}/counter={:?} party={} discovered={} opened={} list={:?} coins={:?} item_push={} removed={} money_notify={:?} coin_removed={} db_item={:?} db_money_delta={:?} relog={} failure={:?}",
@@ -5297,6 +6136,7 @@ fn write_report_if_requested(
     vendor_smoke: bool,
     equipment_set_race_smoke: bool,
     rested_xp_smoke: bool,
+    detour_chase_capture: bool,
     loot_race_smoke: bool,
     loot_item_capture: bool,
     group_capacity_race_smoke: bool,
@@ -5325,6 +6165,7 @@ fn write_report_if_requested(
         vendor_smoke,
         equipment_set_race_smoke,
         rested_xp_smoke,
+        detour_chase_capture,
         loot_race_smoke,
         loot_item_capture,
         group_capacity_race_smoke,
@@ -7385,6 +8226,7 @@ async fn run_void_storage_smoke_workflow(
             None,
             None,
             Some(unlock_deposit),
+            None,
         )
         .await?;
         if !combined.void_storage_smoke_passed.unwrap_or(false) {
@@ -7428,6 +8270,7 @@ async fn run_void_storage_smoke_workflow(
                 None,
                 None,
                 Some(options),
+                None,
             )
             .await?;
             combined.world_auth &= next.world_auth;
@@ -7520,6 +8363,7 @@ async fn run_void_storage_query_capture_workflow(
         None,
         None,
         Some(fixture.options.clone()),
+        None,
     )
     .await;
 
@@ -7934,6 +8778,533 @@ async fn run_homebind_smoke_phase(
 
     logout_and_wait(bot_index, stream, crypt, server_inflater, result).await?;
     result.homebind_smoke_passed = Some(true);
+    Ok(())
+}
+
+fn parse_attack_start_guids_like_cpp(payload: &[u8]) -> Result<((u64, u64), (u64, u64))> {
+    // C++ `WorldPackets::Combat::AttackStart::Write` serializes two
+    // ObjectGuids in attacker/victim order.
+    let (attacker_len, attacker_low, attacker_high) =
+        parse_packed_guid(payload).context("SMSG_ATTACK_START missing attacker ObjectGuid")?;
+    let (victim_len, victim_low, victim_high) = parse_packed_guid(
+        payload
+            .get(attacker_len..)
+            .context("SMSG_ATTACK_START attacker length exceeds payload")?,
+    )
+    .context("SMSG_ATTACK_START missing victim ObjectGuid")?;
+    if attacker_len + victim_len != payload.len() {
+        bail!(
+            "SMSG_ATTACK_START has {} trailing bytes after its two C++ ObjectGuids",
+            payload.len() - attacker_len - victim_len
+        );
+    }
+    Ok(((attacker_low, attacker_high), (victim_low, victim_high)))
+}
+
+fn monster_move_mover_guid_like_cpp(payload: &[u8]) -> Result<(u64, u64)> {
+    // C++ `MonsterMove::Write` starts with MoverGUID, followed by Position and
+    // MonsterMoveSpline. Parsing the leading packed GUID is sufficient to
+    // prove that this movement belongs to the selected live fixture object;
+    // capture-diff performs the full spline semantic validation.
+    let (_, low, high) =
+        parse_packed_guid(payload).context("SMSG_ON_MONSTER_MOVE missing MoverGUID")?;
+    Ok((low, high))
+}
+
+fn parse_pong_serial_like_cpp(payload: &[u8]) -> Result<u32> {
+    let bytes: [u8; 4] = payload
+        .try_into()
+        .map_err(|_| anyhow!("SMSG_PONG payload must contain exactly one uint32 serial"))?;
+    Ok(u32::from_le_bytes(bytes))
+}
+
+async fn respond_to_detour_time_sync_like_cpp(
+    bot_index: usize,
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    payload: &[u8],
+    clock_origin: tokio::time::Instant,
+    phase: &str,
+) -> Result<()> {
+    let sequence = parse_time_sync_request_sequence(payload)?;
+    let client_time = u32::try_from(clock_origin.elapsed().as_millis()).unwrap_or(u32::MAX);
+    let response = build_time_sync_response_payload(sequence, client_time);
+    send_encrypted_packet(stream, crypt, CMSG_TIME_SYNC_RESPONSE, &response).await?;
+    info!(
+        "[Bot {}] ✅ detour {} CMSG_TIME_SYNC_RESPONSE sequence={} client_time={}",
+        bot_index, phase, sequence, client_time
+    );
+    Ok(())
+}
+
+async fn drain_detour_instance_until_quiet(
+    bot_index: usize,
+    label: &str,
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    server_inflater: &mut ServerPacketInflater,
+    target_guid: (u64, u64),
+    deadline: tokio::time::Instant,
+    clock_origin: tokio::time::Instant,
+    result: &mut BotRunResult,
+) -> Result<()> {
+    let mut quiet_deadline = tokio::time::Instant::now() + DETOUR_CHASE_QUIET_PERIOD;
+    loop {
+        let now = tokio::time::Instant::now();
+        if now >= quiet_deadline {
+            return Ok(());
+        }
+        if now >= deadline {
+            bail!("timed out draining {label} before the detour capture window");
+        }
+        let wait = quiet_deadline
+            .saturating_duration_since(now)
+            .min(deadline.saturating_duration_since(now));
+        let packet = read_encrypted_packet_if_ready(
+            stream,
+            crypt,
+            server_inflater,
+            wait,
+            deadline.saturating_duration_since(now),
+            label,
+        )
+        .await?;
+        let Some((opcode, payload)) = packet else {
+            continue;
+        };
+        quiet_deadline = tokio::time::Instant::now() + DETOUR_CHASE_QUIET_PERIOD;
+        result.seen_opcodes.push(format!("0x{opcode:04X}"));
+        info!(
+            "[Bot {}] 📦 instance detour {} {}",
+            bot_index,
+            label,
+            parse_packet(opcode, &payload)
+        );
+        match opcode {
+            SMSG_TIME_SYNC_REQUEST => {
+                respond_to_detour_time_sync_like_cpp(
+                    bot_index,
+                    stream,
+                    crypt,
+                    &payload,
+                    clock_origin,
+                    "pre-window",
+                )
+                .await?;
+                result.detour_chase_time_sync_before_window += 1;
+            }
+            SMSG_ON_MONSTER_MOVE if monster_move_mover_guid_like_cpp(&payload)? == target_guid => {
+                result.detour_chase_prewindow_target_moves += 1;
+            }
+            _ => {}
+        }
+    }
+}
+
+async fn run_detour_chase_capture_phase(
+    bot_index: usize,
+    bot: &config::BotConfig,
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    server_inflater: &mut ServerPacketInflater,
+    realm_connection: &mut Option<EncryptedWorldConnection>,
+    options: &DetourChaseCaptureOptions,
+    login_target: Option<DiscoveredCreatureGuid>,
+    result: &mut BotRunResult,
+) -> Result<()> {
+    if realm_connection.is_none() {
+        bail!("detour chase capture requires distinct authenticated realm/instance sockets");
+    }
+    validate_detour_fixture_identity(&bot.account, bot.character_guid)?;
+
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(options.timeout_secs.max(1));
+    let clock_origin = tokio::time::Instant::now();
+    let active_mover_complete = build_move_init_active_mover_complete_payload(0);
+    send_encrypted_packet(
+        stream,
+        crypt,
+        CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE,
+        &active_mover_complete,
+    )
+    .await?;
+    result.detour_chase_active_mover_ack_sent = true;
+    info!(
+        "[Bot {}] ✅ detour CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE sent",
+        bot_index
+    );
+
+    let mut target = login_target;
+    let mut discovery_quiet_deadline = tokio::time::Instant::now() + DETOUR_CHASE_QUIET_PERIOD;
+    while tokio::time::Instant::now() < deadline {
+        let now = tokio::time::Instant::now();
+        if target.is_some() && now >= discovery_quiet_deadline {
+            break;
+        }
+        let readiness = if target.is_some() {
+            discovery_quiet_deadline.saturating_duration_since(now)
+        } else {
+            Duration::from_millis(250)
+        }
+        .min(deadline.saturating_duration_since(now));
+        let Some((opcode, payload)) = read_encrypted_packet_if_ready(
+            stream,
+            crypt,
+            server_inflater,
+            readiness,
+            deadline.saturating_duration_since(now),
+            "detour target discovery",
+        )
+        .await?
+        else {
+            continue;
+        };
+        discovery_quiet_deadline = tokio::time::Instant::now() + DETOUR_CHASE_QUIET_PERIOD;
+        result.seen_opcodes.push(format!("0x{opcode:04X}"));
+        info!(
+            "[Bot {}] 📦 instance detour discovery {}",
+            bot_index,
+            parse_packet(opcode, &payload)
+        );
+        if opcode == SMSG_TIME_SYNC_REQUEST {
+            respond_to_detour_time_sync_like_cpp(
+                bot_index,
+                stream,
+                crypt,
+                &payload,
+                clock_origin,
+                "discovery",
+            )
+            .await?;
+            result.detour_chase_time_sync_before_window += 1;
+            continue;
+        }
+        if opcode != SMSG_UPDATE_OBJECT {
+            continue;
+        }
+        let candidates = find_creature_guids_near_position_in_update_object(
+            &payload,
+            options.map_id,
+            options.target_entry,
+            options.target_x,
+            options.target_y,
+            options.target_z,
+            DETOUR_CHASE_TARGET_MATCH_RADIUS,
+            None,
+        );
+        if candidates.len() > 1 {
+            bail!(
+                "detour fixture discovery found {} same-entry live candidates inside the pinned spawn radius",
+                candidates.len()
+            );
+        }
+        let Some(candidate) = candidates.into_iter().next() else {
+            continue;
+        };
+        if let Some(previous) = target {
+            if (previous.low, previous.high) != (candidate.low, candidate.high) {
+                bail!(
+                    "detour fixture discovery produced more than one live target for spawn {}",
+                    options.target_spawn_guid
+                );
+            }
+        }
+        target = Some(candidate);
+    }
+    let target = target.ok_or_else(|| {
+        anyhow!(
+            "did not discover exact detour fixture creature entry={} spawn={} within {:.2} yards of ({:.3},{:.3},{:.3})",
+            options.target_entry,
+            options.target_spawn_guid,
+            DETOUR_CHASE_TARGET_MATCH_RADIUS,
+            options.target_x,
+            options.target_y,
+            options.target_z
+        )
+    })?;
+    // Creature::LoadFromDB keeps the persistent spawnId in m_spawnId but calls
+    // Map::GenerateLowGuid<HighGuid::Creature>() for the network ObjectGuid
+    // counter (legacy Creature.cpp). Therefore the runtime counter is evidence,
+    // not a DB identity. The fixture identity is established independently by
+    // the guarded spawn row plus the unique entry/map/position match above.
+    result.detour_chase_target_runtime_counter = Some(target.low);
+    result.detour_chase_target_discovered = true;
+    let target_guid = (target.low, target.high);
+    let player_guid = create_player_guid_raw(bot.character_guid, realm_id());
+    info!(
+        "[Bot {}] ✅ exact detour target discovered entry={} spawn={} counter={} at ({:.3},{:.3},{:.3})",
+        bot_index,
+        options.target_entry,
+        options.target_spawn_guid,
+        target.low,
+        target.x,
+        target.y,
+        target.z
+    );
+
+    let packed_target = build_packed_guid(target.low, target.high);
+    send_encrypted_packet(stream, crypt, CMSG_ATTACK_SWING, &packed_target).await?;
+    info!(
+        "[Bot {}] ✅ detour CMSG_ATTACK_SWING sent to exact fixture target",
+        bot_index
+    );
+    let mut first_swing_confirmed = false;
+    while tokio::time::Instant::now() < deadline {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        let (opcode, payload) = tokio::time::timeout(
+            remaining,
+            read_encrypted_packet(stream, crypt, server_inflater),
+        )
+        .await
+        .map_err(|_| anyhow!("timed out waiting for matching SMSG_ATTACK_START"))??;
+        result.seen_opcodes.push(format!("0x{opcode:04X}"));
+        info!(
+            "[Bot {}] 📦 instance detour attack confirmation {}",
+            bot_index,
+            parse_packet(opcode, &payload)
+        );
+        match opcode {
+            SMSG_TIME_SYNC_REQUEST => {
+                respond_to_detour_time_sync_like_cpp(
+                    bot_index,
+                    stream,
+                    crypt,
+                    &payload,
+                    clock_origin,
+                    "attack confirmation",
+                )
+                .await?;
+                result.detour_chase_time_sync_before_window += 1;
+            }
+            SMSG_ON_MONSTER_MOVE if monster_move_mover_guid_like_cpp(&payload)? == target_guid => {
+                result.detour_chase_prewindow_target_moves += 1;
+            }
+            SMSG_ATTACKER_STATE_UPDATE => {
+                let update = parse_attacker_state_update_summary(&payload)
+                    .context("malformed detour SMSG_ATTACKER_STATE_UPDATE")?;
+                first_swing_confirmed |= (update.attacker_guid_low, update.attacker_guid_high)
+                    == player_guid
+                    && (update.victim_guid_low, update.victim_guid_high) == target_guid;
+            }
+            SMSG_ATTACK_START => {
+                let (attacker, victim) = parse_attack_start_guids_like_cpp(&payload)?;
+                if attacker == player_guid && victim == target_guid {
+                    result.detour_chase_attack_start_confirmed = true;
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    if !result.detour_chase_attack_start_confirmed {
+        bail!("matching SMSG_ATTACK_START was not observed before the detour deadline");
+    }
+
+    while !first_swing_confirmed {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if remaining.is_zero() {
+            bail!("timed out waiting for the first accepted detour player swing");
+        }
+        let (opcode, payload) = tokio::time::timeout(
+            remaining,
+            read_encrypted_packet(stream, crypt, server_inflater),
+        )
+        .await
+        .map_err(|_| anyhow!("timed out waiting for the first accepted detour player swing"))??;
+        result.seen_opcodes.push(format!("0x{opcode:04X}"));
+        info!(
+            "[Bot {}] 📦 instance detour first-swing wait {}",
+            bot_index,
+            parse_packet(opcode, &payload)
+        );
+        match opcode {
+            SMSG_TIME_SYNC_REQUEST => {
+                respond_to_detour_time_sync_like_cpp(
+                    bot_index,
+                    stream,
+                    crypt,
+                    &payload,
+                    clock_origin,
+                    "first-swing wait",
+                )
+                .await?;
+                result.detour_chase_time_sync_before_window += 1;
+            }
+            SMSG_ON_MONSTER_MOVE if monster_move_mover_guid_like_cpp(&payload)? == target_guid => {
+                result.detour_chase_prewindow_target_moves += 1;
+            }
+            SMSG_ATTACKER_STATE_UPDATE => {
+                let update = parse_attacker_state_update_summary(&payload)
+                    .context("malformed detour SMSG_ATTACKER_STATE_UPDATE")?;
+                first_swing_confirmed |= (update.attacker_guid_low, update.attacker_guid_high)
+                    == player_guid
+                    && (update.victim_guid_low, update.victim_guid_high) == target_guid;
+            }
+            _ => {}
+        }
+    }
+    result.detour_chase_first_swing_confirmed = true;
+
+    // Drain the accepted swing's immediate combat/chase side effects. The
+    // capture starts only after a complete quiet period, so no pre-action
+    // MonsterMove can be mistaken for the response to the pinned heartbeat.
+    drain_detour_instance_until_quiet(
+        bot_index,
+        "accepted swing / initial chase",
+        stream,
+        crypt,
+        server_inflater,
+        target_guid,
+        deadline,
+        clock_origin,
+        result,
+    )
+    .await?;
+
+    let heartbeat = build_move_heartbeat_payload(
+        player_guid.0,
+        player_guid.1,
+        options.destination_x,
+        options.destination_y,
+        options.destination_z,
+        options.destination_orientation,
+    );
+    send_encrypted_packet(stream, crypt, CMSG_MOVE_HEARTBEAT, &heartbeat).await?;
+    result.detour_chase_heartbeat_sent = true;
+    result.detour_chase_heartbeat_sha256 = Some(format!("{:x}", Sha256::digest(&heartbeat)));
+    info!(
+        "[Bot {}] ✅ detour capture anchor CMSG_MOVE_HEARTBEAT sent exactly once to ({:.3},{:.3},{:.3},{:.6})",
+        bot_index,
+        options.destination_x,
+        options.destination_y,
+        options.destination_z,
+        options.destination_orientation
+    );
+
+    // Exact capture window: after removing only the documented periodic
+    // time-sync pair, the next server packet must be one target MonsterMove.
+    loop {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if remaining.is_zero() {
+            bail!("timed out waiting for detour SMSG_ON_MONSTER_MOVE capture anchor");
+        }
+        let (opcode, payload) = tokio::time::timeout(
+            remaining,
+            read_encrypted_packet(stream, crypt, server_inflater),
+        )
+        .await
+        .map_err(|_| anyhow!("timed out waiting for detour movement anchor"))??;
+        result.seen_opcodes.push(format!("0x{opcode:04X}"));
+        info!(
+            "[Bot {}] 📦 instance detour isolated window {}",
+            bot_index,
+            parse_packet(opcode, &payload)
+        );
+        if opcode == SMSG_TIME_SYNC_REQUEST {
+            respond_to_detour_time_sync_like_cpp(
+                bot_index,
+                stream,
+                crypt,
+                &payload,
+                clock_origin,
+                "isolated-window",
+            )
+            .await?;
+            result.detour_chase_time_sync_during_window += 1;
+            continue;
+        }
+        if opcode == SMSG_UPDATE_OBJECT {
+            // Combat VALUES fanout is deliberately excluded symmetrically by
+            // the flow import. Its ordering relative to chase movement differs
+            // between runtimes and is not evidence for Detour path geometry.
+            continue;
+        }
+        if opcode != SMSG_ON_MONSTER_MOVE {
+            bail!(
+                "unexpected opcode 0x{opcode:04X} inside detour capture window before movement anchor"
+            );
+        }
+        let mover = monster_move_mover_guid_like_cpp(&payload)?;
+        if mover != target_guid {
+            bail!(
+                "SMSG_ON_MONSTER_MOVE inside detour capture window belonged to another object ({:016X}:{:016X})",
+                mover.1,
+                mover.0
+            );
+        }
+        result.detour_chase_window_target_moves += 1;
+        result.detour_chase_monster_move_sha256 = Some(format!("{:x}", Sha256::digest(&payload)));
+        result.detour_chase_monster_move_bytes = Some(payload.len());
+        break;
+    }
+
+    let ping = build_ping_payload(ISSUE_24_PING_FENCE_SERIAL);
+    send_encrypted_packet(stream, crypt, CMSG_PING, &ping).await?;
+    result.detour_chase_ping_serial = Some(ISSUE_24_PING_FENCE_SERIAL);
+    info!(
+        "[Bot {}] ✅ detour capture fence CMSG_PING serial=0x{:08X}",
+        bot_index, ISSUE_24_PING_FENCE_SERIAL
+    );
+
+    loop {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if remaining.is_zero() {
+            bail!("timed out waiting for detour capture-fence SMSG_PONG");
+        }
+        let (opcode, payload) = tokio::time::timeout(
+            remaining,
+            read_encrypted_packet(stream, crypt, server_inflater),
+        )
+        .await
+        .map_err(|_| anyhow!("timed out waiting for detour capture-fence SMSG_PONG"))??;
+        result.seen_opcodes.push(format!("0x{opcode:04X}"));
+        info!(
+            "[Bot {}] 📦 instance detour post-fence {}",
+            bot_index,
+            parse_packet(opcode, &payload)
+        );
+        match opcode {
+            SMSG_TIME_SYNC_REQUEST => {
+                respond_to_detour_time_sync_like_cpp(
+                    bot_index,
+                    stream,
+                    crypt,
+                    &payload,
+                    clock_origin,
+                    "post-fence",
+                )
+                .await?;
+                result.detour_chase_time_sync_after_fence += 1;
+            }
+            SMSG_PONG => {
+                let serial = parse_pong_serial_like_cpp(&payload)?;
+                if serial != ISSUE_24_PING_FENCE_SERIAL {
+                    bail!(
+                        "detour capture-fence SMSG_PONG serial mismatch: expected 0x{:08X}, got 0x{serial:08X}",
+                        ISSUE_24_PING_FENCE_SERIAL
+                    );
+                }
+                result.detour_chase_pong_confirmed = true;
+                break;
+            }
+            // CMSG_PING is the exclusive end fence selected by capture-diff.
+            // Packets observed after it are outside the imported window; keep
+            // draining them until the correlated PONG proves server receipt.
+            _ => {}
+        }
+    }
+
+    loot_race::logout_and_wait_routed_like_cpp(
+        bot_index,
+        stream,
+        crypt,
+        server_inflater,
+        realm_connection.as_mut(),
+        bot.character_guid,
+        result,
+    )
+    .await?;
+    result.detour_chase_logout_confirmed = true;
+    result.detour_chase_capture_passed = Some(true);
     Ok(())
 }
 
@@ -15746,7 +17117,7 @@ fn record_issue20_item_create_evidence(
     Ok(())
 }
 
-fn find_creature_guid_near_position_in_update_object(
+fn find_creature_guids_near_position_in_update_object(
     payload: &[u8],
     map_id: u16,
     entry: u32,
@@ -15755,8 +17126,8 @@ fn find_creature_guid_near_position_in_update_object(
     expected_z: f32,
     max_distance: f32,
     expected_counter: Option<u64>,
-) -> Option<DiscoveredCreatureGuid> {
-    let mut nearest: Option<(f32, DiscoveredCreatureGuid)> = None;
+) -> Vec<DiscoveredCreatureGuid> {
+    let mut candidates: Vec<(f32, DiscoveredCreatureGuid)> = Vec::new();
     for offset in 0..payload.len().saturating_sub(2) {
         if !matches!(payload[offset], 1 | 2) {
             continue;
@@ -15815,14 +17186,46 @@ fn find_creature_guid_near_position_in_update_object(
             continue;
         }
         let candidate = DiscoveredCreatureGuid { low, high, x, y, z };
-        if nearest
-            .as_ref()
-            .is_none_or(|(nearest_distance, _)| distance < *nearest_distance)
+        if let Some(existing) = candidates
+            .iter_mut()
+            .find(|(_, existing)| (existing.low, existing.high) == (low, high))
         {
-            nearest = Some((distance, candidate));
+            if distance < existing.0 {
+                *existing = (distance, candidate);
+            }
+        } else {
+            candidates.push((distance, candidate));
         }
     }
-    nearest.map(|(_, candidate)| candidate)
+    candidates.sort_by(|left, right| left.0.total_cmp(&right.0));
+    candidates
+        .into_iter()
+        .map(|(_, candidate)| candidate)
+        .collect()
+}
+
+fn find_creature_guid_near_position_in_update_object(
+    payload: &[u8],
+    map_id: u16,
+    entry: u32,
+    expected_x: f32,
+    expected_y: f32,
+    expected_z: f32,
+    max_distance: f32,
+    expected_counter: Option<u64>,
+) -> Option<DiscoveredCreatureGuid> {
+    find_creature_guids_near_position_in_update_object(
+        payload,
+        map_id,
+        entry,
+        expected_x,
+        expected_y,
+        expected_z,
+        max_distance,
+        expected_counter,
+    )
+    .into_iter()
+    .next()
 }
 
 fn read_f32_at(data: &[u8], position: usize) -> Option<f32> {
@@ -17098,6 +18501,302 @@ mod tests {
             &mut acknowledged,
         ));
         assert!(acknowledged);
+    }
+
+    #[test]
+    fn detour_chase_capture_cli_is_explicit_and_pinned() {
+        let manifest = "/fixture/fixture.json";
+        assert!(validate_detour_chase_cli_values(false, false, None, 0, None).is_ok());
+        assert!(validate_detour_chase_cli_values(
+            true,
+            true,
+            Some(DETOUR_CHASE_FIXTURE_ACCOUNT),
+            30,
+            Some(manifest),
+        )
+        .is_ok());
+
+        let stray_ack = validate_detour_chase_cli_values(false, true, None, 0, None)
+            .expect_err("the destructive acknowledgement must not leak into another mode");
+        assert!(stray_ack.to_string().contains("only valid"));
+
+        let missing_ack = validate_detour_chase_cli_values(
+            true,
+            false,
+            Some(DETOUR_CHASE_FIXTURE_ACCOUNT),
+            30,
+            Some(manifest),
+        )
+        .expect_err("capture must require explicit disposable-fixture acknowledgement");
+        assert!(missing_ack
+            .to_string()
+            .contains(ACK_DISPOSABLE_DETOUR_FIXTURE_FLAG));
+
+        let wrong_account = validate_detour_chase_cli_values(
+            true,
+            true,
+            Some("TESTBOT1@bot.local"),
+            30,
+            Some(manifest),
+        )
+        .expect_err("the fixture character must remain bound to its pinned bot");
+        assert!(wrong_account
+            .to_string()
+            .contains(DETOUR_CHASE_FIXTURE_ACCOUNT));
+
+        let zero_timeout = validate_detour_chase_cli_values(
+            true,
+            true,
+            Some(DETOUR_CHASE_FIXTURE_ACCOUNT),
+            0,
+            Some(manifest),
+        )
+        .expect_err("capture must have a positive deadline");
+        assert!(zero_timeout.to_string().contains("greater than zero"));
+
+        let missing_manifest = validate_detour_chase_cli_values(
+            true,
+            true,
+            Some(DETOUR_CHASE_FIXTURE_ACCOUNT),
+            30,
+            None,
+        )
+        .expect_err("capture must pin an on-disk fixture manifest");
+        assert!(missing_manifest
+            .to_string()
+            .contains("--detour-fixture-manifest"));
+    }
+
+    #[test]
+    fn detour_chase_destructive_ack_parser_accepts_only_exact_cli_flag() {
+        let mut acknowledged = false;
+        assert!(!parse_ack_disposable_detour_fixture_arg(
+            "--ack-disposable-detour-fixture=true",
+            &mut acknowledged,
+        ));
+        assert!(!acknowledged);
+        assert!(parse_ack_disposable_detour_fixture_arg(
+            ACK_DISPOSABLE_DETOUR_FIXTURE_FLAG,
+            &mut acknowledged,
+        ));
+        assert!(acknowledged);
+    }
+
+    #[test]
+    fn committed_detour_chase_manifest_and_assets_match_pinned_contract() {
+        let manifest = Path::new(env!("CARGO_MANIFEST_DIR")).join(
+            "../../crates/capture-diff/flows/detour-chase-around-obstacle/fixture/fixture.json",
+        );
+        validate_detour_fixture_manifest(&manifest)
+            .expect("committed issue #24 fixture manifest/assets must remain exact");
+    }
+
+    #[test]
+    fn detour_chase_identity_gate_pins_account_and_character() {
+        assert!(validate_detour_fixture_identity(DETOUR_CHASE_FIXTURE_ACCOUNT, 15).is_ok());
+        assert!(validate_detour_fixture_identity("testbot2@BOT.LOCAL", 15).is_ok());
+
+        let account = validate_detour_fixture_identity("TESTBOT1@bot.local", 15).unwrap_err();
+        assert!(account.to_string().contains(DETOUR_CHASE_FIXTURE_ACCOUNT));
+        let guid = validate_detour_fixture_identity(DETOUR_CHASE_FIXTURE_ACCOUNT, 14).unwrap_err();
+        assert!(guid.to_string().contains("guid 15"));
+    }
+
+    #[test]
+    fn detour_chase_can_use_pinned_testbot2_without_committing_a_credential() {
+        let mut bots = Vec::new();
+        add_pinned_detour_fixture_bot_if_missing(&mut bots, true);
+        assert_eq!(bots.len(), 1);
+        assert_eq!(bots[0].account, DETOUR_CHASE_FIXTURE_ACCOUNT);
+        assert_eq!(bots[0].account_id, DETOUR_CHASE_FIXTURE_ACCOUNT_ID);
+        assert_eq!(bots[0].character_guid, DETOUR_CHASE_FIXTURE_CHARACTER_GUID);
+        assert!(bots[0].password.is_empty());
+        assert_eq!(
+            password_env_name(&bots[0].account),
+            "WOW_BOT_PASSWORD_TESTBOT2_BOT_LOCAL"
+        );
+
+        let mut configured = vec![config::BotConfig {
+            account: DETOUR_CHASE_FIXTURE_ACCOUNT.to_string(),
+            password: "local-only".to_string(),
+            character_guid: DETOUR_CHASE_FIXTURE_CHARACTER_GUID,
+            account_id: DETOUR_CHASE_FIXTURE_ACCOUNT_ID,
+            lfg_role: 4,
+            class: "priest".to_string(),
+            enabled: true,
+            session_key_bnet: String::new(),
+        }];
+        add_pinned_detour_fixture_bot_if_missing(&mut configured, true);
+        assert_eq!(configured.len(), 1);
+
+        let mut ordinary = Vec::new();
+        add_pinned_detour_fixture_bot_if_missing(&mut ordinary, false);
+        assert!(ordinary.is_empty());
+    }
+
+    #[test]
+    fn detour_chase_options_are_derived_only_from_the_pinned_manifest() {
+        let manifest = expected_detour_fixture_manifest();
+        let options =
+            detour_chase_options_from_pinned_manifest(&manifest, 30).expect("pinned options");
+        assert_eq!(options.map_id, 1);
+        assert_eq!(options.target_entry, 15_271);
+        assert_eq!(options.target_spawn_guid, 9_102_401);
+        assert_eq!(options.target_y, 2_671.667);
+        assert_eq!(options.destination_y, 2_691.667);
+        assert_eq!(
+            options.destination_orientation,
+            -std::f32::consts::FRAC_PI_2
+        );
+
+        let mut changed = manifest;
+        changed.creature.spawn_guid += 1;
+        assert!(detour_chase_options_from_pinned_manifest(&changed, 30).is_err());
+        assert!(
+            detour_chase_options_from_pinned_manifest(&expected_detour_fixture_manifest(), 0)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn detour_chase_combat_movement_and_pong_helpers_match_cpp_layouts() {
+        let player = create_player_guid_raw(15, 1);
+        let creature = create_creature_guid_raw(1, 15_271, 9_102_401);
+        let mut attack_start = build_packed_guid(player.0, player.1);
+        attack_start.extend(build_packed_guid(creature.0, creature.1));
+        assert_eq!(
+            parse_attack_start_guids_like_cpp(&attack_start).unwrap(),
+            (player, creature)
+        );
+        let mut trailing_attack = attack_start;
+        trailing_attack.push(0);
+        assert!(parse_attack_start_guids_like_cpp(&trailing_attack).is_err());
+
+        let mut monster_move = build_packed_guid(creature.0, creature.1);
+        monster_move.extend_from_slice(&[0; 16]);
+        assert_eq!(
+            monster_move_mover_guid_like_cpp(&monster_move).unwrap(),
+            creature
+        );
+        assert!(monster_move_mover_guid_like_cpp(&[]).is_err());
+
+        assert_eq!(
+            parse_pong_serial_like_cpp(&ISSUE_24_PING_FENCE_SERIAL.to_le_bytes()).unwrap(),
+            ISSUE_24_PING_FENCE_SERIAL
+        );
+        assert!(parse_pong_serial_like_cpp(&[0; 3]).is_err());
+        assert_eq!(
+            build_ping_payload(ISSUE_24_PING_FENCE_SERIAL),
+            [
+                ISSUE_24_PING_FENCE_WIRE[0],
+                ISSUE_24_PING_FENCE_WIRE[1],
+                ISSUE_24_PING_FENCE_WIRE[2],
+                ISSUE_24_PING_FENCE_WIRE[3],
+                0,
+                0,
+                0,
+                0,
+            ]
+        );
+        assert_eq!(ISSUE_24_PING_FENCE_WIRE, *b"DTOR");
+        assert_eq!(
+            ISSUE_24_PING_FENCE_SERIAL,
+            u32::from_le_bytes(ISSUE_24_PING_FENCE_WIRE)
+        );
+    }
+
+    #[test]
+    fn detour_chase_success_and_json_require_complete_capture_evidence() {
+        let mut result = BotRunResult {
+            detour_chase_capture: true,
+            detour_chase_capture_passed: Some(true),
+            world_auth: true,
+            enum_characters: true,
+            player_login_verified: true,
+            detour_chase_target_discovered: true,
+            detour_chase_active_mover_ack_sent: true,
+            detour_chase_attack_start_confirmed: true,
+            detour_chase_first_swing_confirmed: true,
+            detour_chase_heartbeat_sent: true,
+            detour_chase_heartbeat_sha256: Some("cd".repeat(32)),
+            detour_chase_window_target_moves: 1,
+            detour_chase_monster_move_sha256: Some("ab".repeat(32)),
+            detour_chase_monster_move_bytes: Some(96),
+            detour_chase_ping_serial: Some(ISSUE_24_PING_FENCE_SERIAL),
+            detour_chase_pong_confirmed: true,
+            ..BotRunResult::default()
+        };
+        assert!(
+            !result.success(false, false, false),
+            "clean logout is part of the end-to-end capture proof"
+        );
+        result.detour_chase_logout_confirmed = true;
+        assert!(result.success(false, false, false));
+
+        result.detour_chase_failure = Some("fixture failure".to_string());
+        let json = serde_json::to_value(&result).expect("serialize detour evidence");
+        assert_eq!(json["detour_chase_window_target_moves"], 1);
+        assert_eq!(json["detour_chase_monster_move_bytes"], 96);
+        assert_eq!(json["detour_chase_ping_serial"], ISSUE_24_PING_FENCE_SERIAL);
+        assert_eq!(json["detour_chase_failure"], "fixture failure");
+    }
+
+    #[test]
+    fn detour_chase_discovery_exposes_spatial_ambiguity_instead_of_picking_nearest() {
+        let mut payload =
+            rested_xp_create_object_fixture(1, 15_271, 71, -10_118.333, 2_671.667, 218.49);
+        payload.extend(rested_xp_create_object_fixture(
+            1,
+            15_271,
+            72,
+            -10_118.233,
+            2_671.667,
+            218.49,
+        ));
+        let candidates = find_creature_guids_near_position_in_update_object(
+            &payload,
+            1,
+            15_271,
+            -10_118.333,
+            2_671.667,
+            218.49,
+            DETOUR_CHASE_TARGET_MATCH_RADIUS,
+            None,
+        );
+        assert_eq!(
+            candidates
+                .iter()
+                .map(|candidate| candidate.low)
+                .collect::<Vec<_>>(),
+            [71, 72]
+        );
+    }
+
+    #[test]
+    fn detour_chase_prelogin_failures_still_serialize_a_result() {
+        let bot = config::BotConfig {
+            account: DETOUR_CHASE_FIXTURE_ACCOUNT.to_string(),
+            password: String::new(),
+            character_guid: 15,
+            account_id: 2,
+            lfg_role: 2,
+            class: "WARRIOR".to_string(),
+            enabled: true,
+            session_key_bnet: String::new(),
+        };
+        let options = detour_chase_options_from_pinned_manifest(
+            &expected_detour_fixture_manifest(),
+            DEFAULT_DETOUR_CHASE_TIMEOUT_SECS,
+        )
+        .unwrap();
+        let result =
+            detour_chase_failure_result(&bot, 259, &options, "preflight failed".to_string());
+        assert!(!result.success(false, false, false));
+        let json = serde_json::to_value(result).unwrap();
+        assert_eq!(json["account"], DETOUR_CHASE_FIXTURE_ACCOUNT);
+        assert_eq!(json["character_guid"], 15);
+        assert_eq!(json["detour_chase_target_spawn_guid"], 9_102_401);
+        assert_eq!(json["detour_chase_failure"], "preflight failed");
     }
 
     #[test]

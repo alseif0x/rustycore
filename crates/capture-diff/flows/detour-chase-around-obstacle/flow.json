@@ -1,0 +1,7 @@
+{
+  "description": "One connected client crosses the centre hole in a pinned synthetic map-1 navmesh, causing the reserved hostile creature to publish a compressed Detour chase spline around the obstacle.",
+  "directions": [
+    "s2c",
+    "c2s"
+  ]
+}

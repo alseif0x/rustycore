@@ -167,6 +167,11 @@ pub struct CreatureAiOwnershipState {
     pub terrain_swap_map: i32,
     pub last_movement_inform: Option<CreatureMovementInform>,
     pub last_spell_click_inform: Option<CreatureSpellClickInform>,
+    /// C++ `CreatureAI::JustReachedHome()`, fired only from
+    /// `HomeMovementGenerator<Creature>::DoFinalize` when the generator ended
+    /// naturally (`HomeMovementGenerator.cpp:145-157`). It is a distinct AI
+    /// callback, not a `MovementInform`.
+    pub just_reached_home_pending: bool,
 }
 
 impl Default for CreatureAiOwnershipState {
@@ -209,6 +214,7 @@ impl Default for CreatureAiOwnershipState {
             phase_group_id: 0,
             terrain_swap_map: -1,
             last_movement_inform: None,
+            just_reached_home_pending: false,
             last_spell_click_inform: None,
         }
     }
@@ -1281,6 +1287,14 @@ impl Creature {
         };
 
         self.set_template_rooted_like_cpp(init_entry_rooted);
+
+        // C++ `Creature::Create` (`Creature.cpp:1154-1155`) adds
+        // `UNIT_STATE_IGNORE_PATHFINDING` for templates carrying
+        // `CREATURE_FLAG_EXTRA_IGNORE_PATHFINDING` (0x20000000), and
+        // `PathGenerator::CalculatePath` then skips the navmesh entirely for
+        // them (`PathGenerator.cpp:80`).
+        self.refresh_ignore_pathfinding_state_like_cpp();
+
         self.refresh_threat_list_capability_like_cpp();
         self.clear_data_changes();
     }
@@ -1434,6 +1448,30 @@ impl Creature {
             return true;
         }
         unit_flags.intersects(UnitFlags::RENAME | UnitFlags::CAN_SWIM)
+    }
+
+    /// C++ `Creature::RefreshCanSwimFlag`: remember whether `UNIT_FLAG_CAN_SWIM`
+    /// was absent out of combat, then add it while engaged when the movement
+    /// template otherwise allows the creature to enter water.
+    pub fn refresh_can_swim_flag_like_cpp(&mut self, recheck: bool) {
+        if !self.is_missing_can_swim_flag_out_of_combat || recheck {
+            self.is_missing_can_swim_flag_out_of_combat = !self
+                .unit
+                .unit_flags_like_cpp()
+                .contains(UnitFlags::CAN_SWIM);
+        }
+
+        if self.is_missing_can_swim_flag_out_of_combat && self.can_enter_water_like_cpp() {
+            let flags = self.unit.unit_flags_like_cpp() | UnitFlags::CAN_SWIM;
+            self.unit.set_unit_flags_like_cpp(flags);
+        }
+    }
+
+    pub fn restore_can_swim_flag_after_home_like_cpp(&mut self) {
+        if self.is_missing_can_swim_flag_out_of_combat {
+            let flags = self.unit.unit_flags_like_cpp() & !UnitFlags::CAN_SWIM;
+            self.unit.set_unit_flags_like_cpp(flags);
+        }
     }
 
     /// C++ `Creature::CanFly()` returns true when the movement template allows
@@ -1779,6 +1817,16 @@ impl Creature {
         self.ai_ownership.last_movement_inform.take()
     }
 
+    /// Records C++ `CreatureAI::JustReachedHome()`
+    /// (`HomeMovementGenerator.cpp:156`).
+    pub fn record_ai_just_reached_home(&mut self) {
+        self.ai_ownership.just_reached_home_pending = true;
+    }
+
+    pub fn take_ai_just_reached_home(&mut self) -> bool {
+        std::mem::take(&mut self.ai_ownership.just_reached_home_pending)
+    }
+
     pub fn record_ai_spell_click_inform(&mut self, clicker: ObjectGuid, spell_click_handled: bool) {
         self.ai_ownership.last_spell_click_inform = Some(CreatureSpellClickInform {
             clicker,
@@ -1833,6 +1881,9 @@ impl Creature {
     }
 
     pub fn enter_ai_combat(&mut self, attacker: ObjectGuid) {
+        // C++ `Creature::AtEngage` refreshes this before any chase spline is
+        // built, so `MoveSplineInit` observes the effective combat capability.
+        self.refresh_can_swim_flag_like_cpp(false);
         self.ai_ownership.state = CreatureAiState::InCombat;
         self.ai_ownership.combat_target = Some(attacker);
         self.ai_ownership.move_target = None;
@@ -2150,6 +2201,30 @@ impl Creature {
 
     pub fn set_flags_extra_runtime_like_cpp(&mut self, flags_extra: u32) {
         self.lifecycle_metadata.flags_extra = flags_extra;
+        // C++ derives `UNIT_STATE_IGNORE_PATHFINDING` from
+        // `CREATURE_FLAG_EXTRA_IGNORE_PATHFINDING` once, in `Creature::Create`
+        // (`Creature.cpp:1154-1155`). This setter is the runtime seam through
+        // which legacy registrations apply template `flags_extra` without going
+        // through the create lifecycle, so it has to reach the same state —
+        // otherwise the same template would use the navmesh on one path and skip
+        // it on the other.
+        self.refresh_ignore_pathfinding_state_like_cpp();
+    }
+
+    /// Applies the `CREATURE_FLAG_EXTRA_IGNORE_PATHFINDING` →
+    /// `UNIT_STATE_IGNORE_PATHFINDING` derivation of C++ `Creature::Create`
+    /// (`Creature.cpp:1154-1155`).
+    ///
+    /// C++ only ever *adds* the state there, and deliberately excludes it from
+    /// `UNIT_STATE_ALL_ERASABLE` so it survives respawn, so this never clears a
+    /// state the flag does not ask for.
+    fn refresh_ignore_pathfinding_state_like_cpp(&mut self) {
+        if CreatureFlagsExtra::from_bits_truncate(self.lifecycle_metadata.flags_extra)
+            .contains(CreatureFlagsExtra::IGNORE_PATHFINDING)
+        {
+            self.unit
+                .add_unit_state(UnitState::IGNORE_PATHFINDING.bits());
+        }
     }
 
     pub fn set_static_flags_runtime_like_cpp(&mut self, static_flags: [u32; 8]) {
@@ -4502,6 +4577,28 @@ mod tests {
     }
 
     #[test]
+    fn creature_engage_temporarily_adds_template_swim_capability_like_cpp() {
+        let mut creature = Creature::new(false);
+        creature.set_swim_allowed_runtime_like_cpp(true);
+        assert!(!creature.can_swim_like_cpp());
+
+        creature.enter_ai_combat(ObjectGuid::create_player(1, 7));
+        assert!(creature.can_swim_like_cpp());
+        assert!(creature.is_missing_can_swim_flag_out_of_combat());
+
+        creature.restore_can_swim_flag_after_home_like_cpp();
+        assert!(!creature.can_swim_like_cpp());
+
+        creature
+            .unit_mut()
+            .set_unit_flags_like_cpp(UnitFlags::CAN_SWIM);
+        creature.refresh_can_swim_flag_like_cpp(true);
+        assert!(!creature.is_missing_can_swim_flag_out_of_combat());
+        creature.restore_can_swim_flag_after_home_like_cpp();
+        assert!(creature.can_swim_like_cpp());
+    }
+
+    #[test]
     fn creature_try_ai_aggro_rejects_civilian_like_cpp() {
         let mut creature = Creature::new(false);
         let player = ObjectGuid::create_player(1, 7);
@@ -4822,6 +4919,33 @@ mod tests {
             ignore_corpse_decay_ratio: true,
             addon: None,
         }
+    }
+
+    #[test]
+    fn creature_lifecycle_create_sets_ignore_pathfinding_from_flags_extra_like_cpp() {
+        // C++ `Creature::Create` (`Creature.cpp:1154-1155`).
+        let baseline = Creature::create_from_lifecycle(creature_lifecycle_create_record());
+        assert!(
+            !baseline
+                .unit()
+                .has_unit_state(UnitState::IGNORE_PATHFINDING.bits()),
+            "a template without the flag must keep using the navmesh"
+        );
+
+        let mut record = creature_lifecycle_create_record();
+        record.template.flags_extra |= CreatureFlagsExtra::IGNORE_PATHFINDING.bits();
+        let ignoring = Creature::create_from_lifecycle(record);
+        assert!(
+            ignoring
+                .unit()
+                .has_unit_state(UnitState::IGNORE_PATHFINDING.bits()),
+            "CREATURE_FLAG_EXTRA_IGNORE_PATHFINDING must add UNIT_STATE_IGNORE_PATHFINDING"
+        );
+        assert_eq!(
+            CreatureFlagsExtra::IGNORE_PATHFINDING.bits(),
+            0x2000_0000,
+            "flag value must match CreatureData.h:363"
+        );
     }
 
     #[test]

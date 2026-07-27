@@ -282,6 +282,58 @@ extern "C"
         dtFree(ptr);
     }
 
+    // Test-only tile builder that accepts an already-assembled Recast poly mesh
+    // (verts plus the `rcPolyMesh` vertex/neighbour layout) so callers can
+    // describe navmesh shapes the fixed single-square helper below cannot, such
+    // as a walkable ring around an unwalkable hole.
+    bool rustycore_dt_create_poly_mesh_tile_data(
+        int tile_x,
+        int tile_y,
+        unsigned short const* verts,
+        int vert_count,
+        unsigned short const* polys,
+        int poly_count,
+        int nvp,
+        unsigned short const* poly_flags,
+        unsigned char const* poly_areas,
+        float const* bmin,
+        float const* bmax,
+        float cs,
+        float ch,
+        float walkable_height,
+        float walkable_radius,
+        float walkable_climb,
+        unsigned char** out_data,
+        int* out_data_size)
+    {
+        dtNavMeshCreateParams params;
+        memset(&params, 0, sizeof(params));
+        params.verts = verts;
+        params.vertCount = vert_count;
+        params.polys = polys;
+        params.polyFlags = poly_flags;
+        params.polyAreas = poly_areas;
+        params.polyCount = poly_count;
+        params.nvp = nvp;
+        params.tileX = tile_x;
+        params.tileY = tile_y;
+        params.tileLayer = 0;
+        params.bmin[0] = bmin[0];
+        params.bmin[1] = bmin[1];
+        params.bmin[2] = bmin[2];
+        params.bmax[0] = bmax[0];
+        params.bmax[1] = bmax[1];
+        params.bmax[2] = bmax[2];
+        params.walkableHeight = walkable_height;
+        params.walkableRadius = walkable_radius;
+        params.walkableClimb = walkable_climb;
+        params.cs = cs;
+        params.ch = ch;
+        params.buildBvTree = true;
+
+        return dtCreateNavMeshData(&params, out_data, out_data_size);
+    }
+
     bool rustycore_dt_create_square_tile_data(int tile_x, int tile_y, unsigned char** out_data, int* out_data_size)
     {
         unsigned short verts[] = {

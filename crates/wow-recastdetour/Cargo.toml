@@ -6,6 +6,12 @@ rust-version.workspace = true
 license.workspace = true
 build = "build.rs"
 
+[features]
+# Exposes `test_fixtures`, which builds real Detour navmesh tiles in memory so
+# downstream crates can query a known mesh. Enabled through dev-dependencies
+# only; never part of a production build.
+test-fixtures = []
+
 [dependencies]
 bitflags = { workspace = true }
 thiserror = { workspace = true }

@@ -28,9 +28,9 @@ use wow_entities::{
 use wow_map::{GridMapTerrain, SharedStaticVMapLineOfSightProvider, SpawnObjectType};
 use wow_movement::generators::CreatureRandomMovementType as MovementCreatureRandomMovementType;
 use wow_movement::{
-    ChaseMovementGenerator, IdleMovementGenerator, MotionMaster, MoveSpline, MoveSplineInit,
-    MoveSplineLaunchInput, MoveSplineStopInput, MoveSplineStopResult,
-    MovementGenerator as RuntimeMovementGenerator,
+    ChaseMovementGenerator, HomeMovementGenerator, IdleMovementGenerator, MotionMaster, MoveSpline,
+    MoveSplineFlag, MoveSplineInit, MoveSplineLaunchInput, MoveSplineStopInput,
+    MoveSplineStopResult, MovementGenerator as RuntimeMovementGenerator,
     MovementGeneratorFlags as RuntimeMovementGeneratorFlags,
     MovementGeneratorMode as RuntimeMovementGeneratorMode,
     MovementGeneratorPriority as RuntimeMovementGeneratorPriority,
@@ -43,11 +43,11 @@ use wow_movement::{
 };
 use wow_packet::packets::update::CreatureCreateData;
 use wow_recastdetour::{
-    CENTER_GRID_ID_LIKE_CPP, DetourNavMeshQueryError, DetourPathOptions, DetourPathType,
-    DetourPolyPath, DetourQueryFilterError, MAX_NUMBER_OF_GRIDS_LIKE_CPP,
-    MAX_POINT_PATH_LENGTH_LIKE_CPP, MMapData, MMapManager as DetourMMapManager, MMapManagerError,
-    PathQueryFilterContext, SIZE_OF_GRIDS_LIKE_CPP, ThreadUnsafeMapData,
-    create_path_query_filter_like_cpp,
+    CENTER_GRID_ID_LIKE_CPP, DetourNavMeshQueryError, DetourOwnerCapabilitiesLikeCpp,
+    DetourPathOptions, DetourPathType, DetourPointPath, DetourPolyPath, DetourQueryFilterError,
+    MAX_NUMBER_OF_GRIDS_LIKE_CPP, MAX_POINT_PATH_LENGTH_LIKE_CPP, MMapData,
+    MMapManager as DetourMMapManager, MMapManagerError, PathQueryFilterContext,
+    SIZE_OF_GRIDS_LIKE_CPP, ThreadUnsafeMapData, create_path_query_filter_like_cpp,
 };
 
 use crate::phasing::personal::MultiPersonalPhaseTracker;
@@ -771,6 +771,7 @@ impl WorldMMapPathfinderLikeCpp {
         force_destination: bool,
     ) -> Result<Option<DetourPolyPath>, WorldDetourPathError> {
         let creature_position = creature.position();
+        let owner = creature.detour_owner_capabilities_like_cpp();
         self.calculate_path_from_positions_like_cpp(
             creature_position,
             destination,
@@ -778,6 +779,8 @@ impl WorldMMapPathfinderLikeCpp {
             instance_map_id,
             instance_id,
             filter_context,
+            owner,
+            &[],
             force_destination,
             MAX_POINT_PATH_LENGTH_LIKE_CPP,
         )
@@ -791,6 +794,8 @@ impl WorldMMapPathfinderLikeCpp {
         instance_map_id: u32,
         instance_id: u32,
         filter_context: PathQueryFilterContext,
+        owner: DetourOwnerCapabilitiesLikeCpp,
+        previous_poly_refs: &[u64],
         force_destination: bool,
         point_path_limit: usize,
     ) -> Result<Option<DetourPolyPath>, WorldDetourPathError> {
@@ -812,12 +817,35 @@ impl WorldMMapPathfinderLikeCpp {
             return Ok(None);
         }
 
+        // `PathGenerator::CalculatePath` requires `HaveTile(start)` *and*
+        // `HaveTile(dest)` (`PathGenerator.cpp:80-81`). C++ satisfies both
+        // because `TerrainInfo::LoadMMap` pushes a grid's `.mmtile` into
+        // `MMapManager` as the grid loads (`TerrainMgr.cpp:174-184,237-247`),
+        // whereas RustyCore has no grid-driven mmtile load and resolves tiles on
+        // demand from the path request. Without also demand-loading the
+        // destination tile, any destination in a neighbouring tile would report
+        // "no navmesh" and silently degrade to a straight line.
+        if !self
+            .mmap_manager
+            .load_pathfinding_context_for_wow_position_like_cpp(
+                &self.data_dir,
+                mesh_map_id,
+                instance_map_id,
+                instance_id,
+                destination.x,
+                destination.y,
+            )?
+            .tile_available
+        {
+            return Ok(None);
+        }
+
         let Some(mmap_data) = self.mmap_manager.get_mmap_data(mesh_map_id) else {
             return Ok(None);
         };
         let filter = create_path_query_filter_like_cpp(filter_context)?;
         mmap_data
-            .calculate_path_for_instance_like_cpp(
+            .calculate_path_for_instance_with_previous_path_like_cpp(
                 instance_map_id,
                 instance_id,
                 &filter,
@@ -826,8 +854,10 @@ impl WorldMMapPathfinderLikeCpp {
                 DetourPathOptions {
                     point_path_limit,
                     force_destination,
+                    owner,
                     ..DetourPathOptions::default()
                 },
+                previous_poly_refs,
             )
             .map_err(WorldDetourPathError::from)
     }
@@ -850,6 +880,69 @@ impl WorldMMapPathfinderLikeCpp {
     }
 }
 
+/// Everything a creature path query needs, assembled by the movement bridge at
+/// the moment of the query.
+///
+/// C++ constructs a fresh `PathGenerator` per query and therefore runs
+/// `CreateFilter` — and reads the generator's retained `_pathPolyRefs` — *after*
+/// whatever state transition triggered the movement. Capturing those inputs in
+/// the caller before the bridge runs would sample them one step too early: a
+/// creature entering evade would path without `NAV_GROUND_STEEP`, and a chase
+/// that just switched victim would reuse the previous victim's corridor.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CreaturePathQueryLikeCpp {
+    pub start: Position,
+    pub destination: Position,
+    pub point_path_limit: usize,
+    /// C++ `CalculatePath(x, y, z, forceDest)`.
+    pub force_destination: bool,
+    /// C++ `PathGenerator::CreateFilter` + `UpdateFilter`, sampled now.
+    pub filter_context: PathQueryFilterContext,
+    /// C++ `BuildPolyPath`'s owner reads, sampled now.
+    pub owner: DetourOwnerCapabilitiesLikeCpp,
+    /// The corridor this generator still holds, after any reset this tick.
+    pub previous_poly_refs: Vec<u64>,
+}
+
+/// Live snapshot of a chase victim, taken by the tick driver before the creature
+/// is borrowed mutably. C++ `ChaseMovementGenerator` holds a live `Unit*`; the
+/// Rust runtime has no object accessor inside the creature step, so the caller
+/// supplies the same facts.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ChaseTargetSnapshotLikeCpp {
+    pub guid: ObjectGuid,
+    pub position: Position,
+    pub combat_reach: f32,
+    pub in_world: bool,
+    /// C++ `Unit::isInAccessiblePlaceFor(Creature const*)` branches on the
+    /// victim's `IsInWater()`: in water it asks the chaser's `CanEnterWater()`,
+    /// otherwise `CanWalk() || CanFly()`.
+    ///
+    /// `None` means the runtime cannot answer it for this victim — creature
+    /// entities carry no liquid state and the terrain layer exposes heights
+    /// only. See `chase_unit_snapshot_like_cpp` for how that is degraded.
+    pub in_water: Option<bool>,
+}
+
+/// C++ `NOMINAL_MELEE_RANGE` (`ObjectDefines.h:44`).
+const NOMINAL_MELEE_RANGE_LIKE_CPP: f32 = 5.0;
+
+/// C++ `Position::GetAbsoluteAngle`: the world bearing from `from` to `to`.
+fn absolute_angle_like_cpp(from: Position, to: Position) -> f32 {
+    wow_movement::normalize_orientation_like_cpp((to.y - from.y).atan2(to.x - from.x))
+}
+
+/// What one chase tick produced for the caller to publish.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ChaseTickOutcomeLikeCpp {
+    /// Nothing to send this tick.
+    Idle,
+    /// A superseded spline was stopped; publish `SMSG_ON_MONSTER_MOVE` stop.
+    Stopped(MoveSplineStopResult),
+    /// A new chase spline was launched.
+    Launched(Position, MoveSpline),
+}
+
 #[derive(Debug, Clone)]
 pub struct WorldMMapPathRequestLikeCpp {
     pub start: Position,
@@ -858,6 +951,14 @@ pub struct WorldMMapPathRequestLikeCpp {
     pub instance_map_id: u32,
     pub instance_id: u32,
     pub filter_context: PathQueryFilterContext,
+    /// C++ reads these off `_source` inside `BuildPolyPath`; see
+    /// `WorldCreature::detour_owner_capabilities_like_cpp`.
+    pub owner: DetourOwnerCapabilitiesLikeCpp,
+    /// The corridor this owner's generator still holds, i.e. C++
+    /// `PathGenerator::_pathPolyRefs` on a `PathGenerator` that outlived the
+    /// previous update (`PathGenerator.cpp:291-413`). Empty means "freshly
+    /// constructed generator", which is what `MoveSplineInit::MoveTo` does.
+    pub previous_poly_refs: Vec<u64>,
     pub force_destination: bool,
     pub point_path_limit: usize,
     pub phase_shift: PhaseShift,
@@ -912,6 +1013,8 @@ impl WorldMMapPathfinderWorkerLikeCpp {
                         request.instance_map_id,
                         request.instance_id,
                         request.filter_context,
+                        request.owner,
+                        &request.previous_poly_refs,
                         request.force_destination,
                         request.point_path_limit,
                     );
@@ -953,6 +1056,38 @@ fn random_path_result_from_path_type_like_cpp(path_type: PathType) -> RandomPath
         RandomPathResult::FarFromPoly
     } else {
         RandomPathResult::Success
+    }
+}
+
+/// C++ `PathGenerator::CalculatePath` (`PathGenerator.cpp:79-86`) does **not**
+/// report a failure when the map carries no usable navmesh for this query
+/// (`!_navMesh || !_navMeshQuery || !HaveTile(start) || !HaveTile(dest)`): it
+/// calls `BuildShortcut()` and returns `true` with
+/// `PATHFIND_NORMAL | PATHFIND_NOT_USING_PATH`. Because that type carries
+/// neither `PATHFIND_NOPATH` nor `PATHFIND_SHORTCUT`, callers such as
+/// `RandomMovementGenerator<Creature>::SetRandomLocation`
+/// (`RandomMovementGenerator.cpp:145-153`) still launch the two-point path
+/// instead of standing still.
+///
+/// `BuildShortcut` (`PathGenerator.cpp:630-646`) is exactly "current position →
+/// requested destination, then `NormalizePath()`", so the caller's normalizer
+/// still runs over both points.
+pub fn detour_path_without_navmesh_like_cpp(
+    start: Position,
+    destination: Position,
+) -> DetourPolyPath {
+    DetourPolyPath {
+        poly_refs: Vec::new(),
+        point_path: DetourPointPath {
+            points: vec![
+                position_to_wow_point_like_cpp(start),
+                position_to_wow_point_like_cpp(destination),
+            ],
+            actual_end: position_to_wow_point_like_cpp(destination),
+            path_type: DetourPathType::NORMAL | DetourPathType::NOT_USING_PATH,
+        },
+        start_far_from_poly: false,
+        end_far_from_poly: false,
     }
 }
 
@@ -1024,6 +1159,7 @@ pub fn calculate_creature_detour_path_like_cpp(
             DetourPathOptions {
                 point_path_limit: MAX_POINT_PATH_LENGTH_LIKE_CPP,
                 force_destination,
+                owner: creature.detour_owner_capabilities_like_cpp(),
                 ..DetourPathOptions::default()
             },
         )
@@ -1178,6 +1314,19 @@ pub struct WorldCreature {
     /// `MoveSplineInit`/`MotionMaster` port still owns generalized launch/stop.
     active_move_spline: Option<MoveSpline>,
     active_random_generator: Option<RandomMovementGenerator>,
+    /// Corridor kept by the random generator's `PathGenerator`, which C++
+    /// allocates once per generator lifetime and only drops in `DoInitialize`
+    /// (`RandomMovementGenerator.cpp:95,140-143`). Reusing it is what makes
+    /// `BuildPolyPath`'s subpath/suffix branches reachable
+    /// (`PathGenerator.cpp:291-413`).
+    active_random_path_poly_refs: Vec<u64>,
+    /// Selected home generator, kept so its C++ flags survive ticks.
+    active_home_generator: Option<HomeMovementGenerator>,
+    /// Selected chase generator, kept so its C++ state survives ticks.
+    active_chase_generator: Option<ChaseMovementGenerator>,
+    /// Corridor held by the chase generator's `PathGenerator`, which C++ keeps
+    /// alive across updates (`ChaseMovementGenerator.cpp:174-175`).
+    active_chase_path_poly_refs: Vec<u64>,
     active_waypoint_generator: Option<WaypointMovementGenerator>,
     active_waypoint_random_at_path_end: Option<WaypointRandomAtPathEnd>,
     /// C++ `Unit::i_motionMaster`: the persistent priority stack that selects
@@ -1202,6 +1351,10 @@ impl Clone for WorldCreature {
             create_data: self.create_data.clone(),
             active_move_spline: self.active_move_spline.clone(),
             active_random_generator: self.active_random_generator.clone(),
+            active_random_path_poly_refs: self.active_random_path_poly_refs.clone(),
+            active_home_generator: self.active_home_generator.clone(),
+            active_chase_generator: self.active_chase_generator,
+            active_chase_path_poly_refs: self.active_chase_path_poly_refs.clone(),
             active_waypoint_generator: self.active_waypoint_generator.clone(),
             active_waypoint_random_at_path_end: self.active_waypoint_random_at_path_end,
             runtime_rng_like_cpp: self.runtime_rng_like_cpp.clone(),
@@ -1276,8 +1429,7 @@ impl WorldCreature {
         creature.unit_mut().set_level(level);
         creature.unit_mut().set_max_health(u64::from(hp));
         creature.unit_mut().set_health(u64::from(hp));
-        creature.set_display_id(display_id, true, None);
-        creature.set_faction(faction);
+        creature.set_ai_identity_runtime(display_id, faction, npc_flags, unit_flags);
         creature.unit_mut().set_weapon_damage(
             WeaponAttackType::BaseAttack,
             min_dmg as f32,
@@ -1290,10 +1442,6 @@ impl WorldCreature {
             // random movement spawns get a positive distance from CreatureData.
             ai.wander_radius = 0.0;
             ai.respawn_time_secs = 30;
-            ai.npc_flags = npc_flags;
-            ai.unit_flags = unit_flags;
-            ai.display_id = display_id;
-            ai.faction = faction;
             ai.min_damage = min_dmg;
             ai.max_damage = max_dmg;
         }
@@ -1369,6 +1517,10 @@ impl WorldCreature {
             create_data,
             active_move_spline: None,
             active_random_generator: None,
+            active_random_path_poly_refs: Vec::new(),
+            active_home_generator: None,
+            active_chase_generator: None,
+            active_chase_path_poly_refs: Vec::new(),
             active_waypoint_generator: None,
             active_waypoint_random_at_path_end: None,
             runtime_motion_master,
@@ -2164,6 +2316,14 @@ impl WorldCreature {
         init: &mut MoveSplineInit,
         dst: Position,
     ) -> Option<(Position, MoveSpline)> {
+        // C++ `MoveSplineInit::MoveSplineInit(Unit*)` snapshots `CanSwim()` into
+        // every new spline before the generator customizes it
+        // (`MoveSplineInit.cpp:198-207`).
+        if self.creature.can_swim_like_cpp() {
+            init.args.flags.insert(MoveSplineFlag::CAN_SWIM);
+        } else {
+            init.args.flags.remove(MoveSplineFlag::CAN_SWIM);
+        }
         let spline_id = init.args.spline_id;
         let active_spline_position = self
             .active_move_spline
@@ -2359,6 +2519,10 @@ impl WorldCreature {
         let mut generator = RandomMovementGenerator::new(0.0, None);
         let _ = generator.initialize_like_cpp(true, snapshot);
         self.active_random_generator = Some(generator);
+        // C++ `RandomMovementGenerator<Creature>::DoInitialize` drops the
+        // generator's `PathGenerator` (`RandomMovementGenerator.cpp:95`), so the
+        // next query starts from an empty corridor.
+        self.active_random_path_poly_refs.clear();
         let now_ms = self.now_ms();
         let ai = self.creature.ai_ownership_mut();
         ai.move_target = None;
@@ -2368,6 +2532,636 @@ impl WorldCreature {
         ai.wander_steps_remaining = next_wander_steps_roll;
         ai.state = CreatureAiState::Idle;
         true
+    }
+
+    /// C++ `PathGenerator::CreateFilter` + `PathGenerator::UpdateFilter`
+    /// (`PathGenerator.cpp:648-698`) derive the Detour query filter from the
+    /// *owner*, never from a constant: `Creature::CanWalk()` adds `NAV_GROUND`,
+    /// `Creature::CanEnterWater()` adds `NAV_WATER | NAV_MAGMA_SLIME`, and
+    /// `Unit::IsInCombat() || Creature::IsInEvadeMode()` adds
+    /// `NAV_GROUND_STEEP`.
+    ///
+    /// Boundary: `UpdateFilter` also ORs in
+    /// `Map::GetForceEnabled/DisabledNavMeshFilterFlags()` and, while the owner
+    /// `IsInWater()/IsUnderWater()`, `GetNavTerrain()` from
+    /// `Map::GetLiquidStatus`. Neither map-level source exists in the Rust
+    /// runtime yet, so those stay at their neutral values here.
+    pub fn path_query_filter_context_like_cpp(&self) -> PathQueryFilterContext {
+        // C++ `Unit::IsInCombat()` is `HasUnitFlag(UNIT_FLAG_IN_COMBAT)`, and C++
+        // really does set that flag on entering combat. RustyCore's
+        // `Creature::enter_ai_combat` sets the AI state and the attacking GUID
+        // but not the client-visible flag, so reading the flag alone would leave
+        // every chasing creature without `NAV_GROUND_STEEP`. Both signals are
+        // consulted, so the filter is correct today and still correct once the
+        // flag itself is maintained.
+        //
+        // Boundary: that missing `UNIT_FLAG_IN_COMBAT` is a separate parity
+        // defect with client-visible UpdateField consequences; it is not fixed
+        // here.
+        let in_combat = self
+            .creature
+            .unit()
+            .unit_flags_like_cpp()
+            .contains(wow_constants::unit::UnitFlags::IN_COMBAT)
+            || self.creature.is_in_combat();
+        PathQueryFilterContext::creature(
+            self.creature.can_walk_like_cpp(),
+            self.creature.can_enter_water_like_cpp(),
+            in_combat,
+            self.creature.is_in_evade_mode_like_cpp(),
+        )
+    }
+
+    /// Owner capabilities `PathGenerator::BuildPolyPath` reads off `_source`
+    /// when a position has no navmesh polygon: `Creature::CanFly()`
+    /// (`Creature.h:126`), `Creature::CanSwim()` (`Creature.cpp:2912-2921`) and
+    /// `Unit::IsFalling()` (`Unit.cpp:12173-12176`, movement flags **or** the
+    /// active spline falling).
+    pub fn detour_owner_capabilities_like_cpp(&self) -> DetourOwnerCapabilitiesLikeCpp {
+        let spline_falling = self
+            .active_move_spline
+            .as_ref()
+            .is_some_and(|spline| spline.flags().contains(MoveSplineFlag::FALLING));
+        DetourOwnerCapabilitiesLikeCpp {
+            can_fly: self.creature.can_fly_like_cpp(),
+            can_swim: self.creature.can_swim_like_cpp(),
+            is_falling: self
+                .creature
+                .movement_flags_like_cpp()
+                .intersects(MovementFlag::FALLING | MovementFlag::FALLING_FAR)
+                || spline_falling,
+        }
+    }
+
+    /// Drives the home (evade-return) generator for one frame, mirroring C++
+    /// `HomeMovementGenerator<Creature>` (`HomeMovementGenerator.cpp:48-157`).
+    ///
+    /// C++ `SetTargetLocation` launches `init.MoveTo(home)` with the defaults
+    /// `generatePath = true, forceDestination = false`, so the return trip is a
+    /// real navmesh path — not a teleport.
+    pub fn update_runtime_home_movement_like_cpp(
+        &mut self,
+        should_try_pathfinding: bool,
+        terrain: Option<&LiveTerrainHeights>,
+        mut resolve_path: impl FnMut(CreaturePathQueryLikeCpp) -> Option<DetourPolyPath>,
+    ) -> ChaseTickOutcomeLikeCpp {
+        let snapshot = self.home_unit_snapshot_like_cpp();
+        let from_update = self.active_home_generator.is_some();
+        let action = match self.active_home_generator.as_mut() {
+            Some(generator) => generator.update_like_cpp(true, snapshot),
+            None => {
+                let mut generator = HomeMovementGenerator::new();
+                let action = generator.initialize_like_cpp(true, snapshot);
+                self.active_home_generator = Some(generator);
+                // C++ `CreatureAI::EnterEvadeMode` adds `UNIT_STATE_EVADE`
+                // immediately before `MoveTargetedHome()` (`CreatureAI.cpp:237`),
+                // and `HomeMovementGenerator::DoFinalize` is what clears it
+                // (`HomeMovementGenerator.cpp:143`). The state is what makes the
+                // creature immune to attacks and un-aggroable while it walks
+                // back; without it, this now multi-tick return would let a
+                // player damage and re-aggro a fully reset creature.
+                //
+                // Boundary: C++ sets it one step earlier, in the AI evade entry,
+                // after `_EnterEvadeMode()` bookkeeping and only on the
+                // no-charmer branch. This runtime has no live AI evade entry —
+                // `reset_combat` is the surrogate and is also used by
+                // non-evade paths such as `CMSG_ATTACK_STOP` — so the state is
+                // added where the return actually begins. A full
+                // `CreatureAI::EnterEvadeMode` port stays with M2.5.
+                self.creature
+                    .unit_mut()
+                    .add_unit_state(UnitState::EVADE.bits());
+                action
+            }
+        };
+
+        match action {
+            wow_movement::HomeMovementAction::Continue => ChaseTickOutcomeLikeCpp::Idle,
+            // C++ `SetTargetLocation` sets `MOVEMENTGENERATOR_FLAG_INTERRUPTED`
+            // and returns without launching while ROOT/STUNNED/DISTRACTED; the
+            // generator stays installed and only the *next* `DoUpdate` sets
+            // `INFORM_ENABLED` and finalizes (`HomeMovementGenerator.cpp:53-58,
+            // 117-122`). Finalizing here in the initialize frame would skip that
+            // `INFORM_ENABLED`, suppressing `JustReachedHome` and clearing evade
+            // one frame early. So `Interrupted` from initialization keeps the
+            // generator; only a `Finished` from an update finalizes.
+            wow_movement::HomeMovementAction::Interrupted if !from_update => {
+                ChaseTickOutcomeLikeCpp::Idle
+            }
+            wow_movement::HomeMovementAction::Interrupted
+            | wow_movement::HomeMovementAction::Finished => {
+                self.finish_home_movement_like_cpp();
+                ChaseTickOutcomeLikeCpp::Idle
+            }
+            wow_movement::HomeMovementAction::Launch(plan) => {
+                self.creature
+                    .unit_mut()
+                    .clear_unit_state(plan.clear_unit_state_mask);
+                self.creature.unit_mut().add_unit_state(plan.add_unit_state);
+
+                let destination =
+                    self.normalize_path_position_z_like_cpp(plan.destination, terrain);
+                let detour_path = should_try_pathfinding
+                    .then(|| {
+                        // Built after `UNIT_STATE_EVADE` was added above, which
+                        // is what makes `UpdateFilter` include
+                        // `NAV_GROUND_STEEP` — C++ sets evade before
+                        // `MoveTargetedHome` constructs the path, so sampling the
+                        // filter earlier would path the return without steep
+                        // ground.
+                        resolve_path(CreaturePathQueryLikeCpp {
+                            start: self.position(),
+                            destination,
+                            point_path_limit: MAX_POINT_PATH_LENGTH_LIKE_CPP,
+                            force_destination: false,
+                            filter_context: self.path_query_filter_context_like_cpp(),
+                            owner: self.detour_owner_capabilities_like_cpp(),
+                            // C++ `MoveSplineInit::MoveTo` builds a fresh
+                            // `PathGenerator`, so the home leg has no corridor to
+                            // reuse.
+                            previous_poly_refs: Vec::new(),
+                        })
+                    })
+                    .flatten();
+
+                // C++ goes through `MoveSplineInit::MoveTo(..., generatePath)`,
+                // which falls back to a direct two-point spline whenever the path
+                // is unusable (`MoveSplineInit.cpp:261-277`).
+                let path = detour_path
+                    .as_ref()
+                    .map(|detour_path| {
+                        self.path_generator_from_detour_for_creature_like_cpp(
+                            destination,
+                            detour_path,
+                            false,
+                            terrain,
+                        )
+                    })
+                    .filter(|path| !path.path_type().contains(PathType::NOPATH));
+
+                let spline_id = self.spline_id().saturating_add(1);
+                let mut init = MoveSplineInit::new(spline_id);
+                init.set_walk(plan.walk);
+                match path {
+                    Some(path) => init.move_by_path(path.path_points().to_vec(), 0),
+                    None => init.move_to(destination),
+                }
+                init.set_facing_angle(plan.facing);
+
+                match self.launch_move_spline_init_like_cpp(&mut init, destination) {
+                    Some((from, spline)) => ChaseTickOutcomeLikeCpp::Launched(from, spline),
+                    None => {
+                        self.finish_home_movement_like_cpp();
+                        ChaseTickOutcomeLikeCpp::Idle
+                    }
+                }
+            }
+        }
+    }
+
+    fn home_unit_snapshot_like_cpp(&self) -> wow_movement::HomeUnitSnapshot {
+        wow_movement::HomeUnitSnapshot {
+            owner_alive: self.creature.is_alive(),
+            owner_unit_state: self.creature.unit().unit_state(),
+            home_position: self.creature.ai_ownership().home_position,
+            move_spline_finalized: self
+                .active_move_spline
+                .as_ref()
+                .is_none_or(MoveSpline::finalized),
+            can_swim_out_of_combat: !self.creature.is_missing_can_swim_flag_out_of_combat(),
+            is_vehicle: false,
+        }
+    }
+
+    /// C++ `HomeMovementGenerator<Creature>::DoFinalize` reached-home payload:
+    /// clears `UNIT_STATE_ROAMING_MOVE | UNIT_STATE_EVADE` and reports
+    /// `JustReachedHome` (`HomeMovementGenerator.cpp:141-157`).
+    ///
+    /// Boundary: the spawn-health, creature-addon and sparring-health reloads
+    /// C++ performs there are respawn-owned work in this runtime and stay with
+    /// the lifecycle tick.
+    fn finish_home_movement_like_cpp(&mut self) {
+        let snapshot = self.home_unit_snapshot_like_cpp();
+        let finalize = self
+            .active_home_generator
+            .as_mut()
+            .map(|generator| generator.finalize_like_cpp(true, true, snapshot));
+        if let Some(finalize) = finalize {
+            // C++ clears `UNIT_STATE_ROAMING_MOVE | UNIT_STATE_EVADE` here when
+            // the generator was active (`HomeMovementGenerator.cpp:141-143`).
+            self.creature
+                .unit_mut()
+                .clear_unit_state(finalize.clear_unit_state_mask);
+            if finalize.remove_can_swim_flag {
+                self.creature.restore_can_swim_flag_after_home_like_cpp();
+            }
+            if finalize.just_reached_home {
+                // C++ `AI()->JustReachedHome()` — the last step of the
+                // reached-home payload (`:156`). The spawn-health,
+                // creature-addon and sparring-health reloads that precede it in
+                // C++ are respawn-owned in this runtime.
+                self.creature.record_ai_just_reached_home();
+            }
+        }
+        self.active_home_generator = None;
+        self.creature.ai_ownership_mut().move_target = None;
+        self.creature.set_ai_state(CreatureAiState::Idle);
+    }
+
+    /// The chase generator currently selected for this creature, kept alongside
+    /// the random/waypoint ones so its C++ state (`_lastTargetPosition`,
+    /// `_rangeCheckTimer`, `_movingTowards`, `_path`) survives between ticks.
+    pub fn active_chase_generator_like_cpp(&self) -> Option<&ChaseMovementGenerator> {
+        self.active_chase_generator.as_ref()
+    }
+
+    /// C++ `WorldObject::GetNearPoint2D` + `GetNearPoint`
+    /// (`Object.cpp:3379-3441`): a point `distance_2d` beyond the combined
+    /// combat reaches, at `absolute_angle` around the target, with Z snapped by
+    /// the searcher's `UpdateAllowedPositionZ`.
+    ///
+    /// Boundary: C++ also sweeps the angle in `M_PI/8` steps until the candidate
+    /// is in line of sight when `CONFIG_DETECT_POS_COLLISION` is on. VMap line of
+    /// sight is still a stub here, so the first candidate is taken.
+    fn near_point_like_cpp(
+        &self,
+        target: ChaseTargetSnapshotLikeCpp,
+        distance_2d: f32,
+        absolute_angle: f32,
+        terrain: Option<&LiveTerrainHeights>,
+    ) -> Position {
+        let effective_reach =
+            target.combat_reach + self.creature.unit().data().combat_reach.max(0.0);
+        let radius = effective_reach + distance_2d;
+        let point = Position::new(
+            target.position.x + radius * absolute_angle.cos(),
+            target.position.y + radius * absolute_angle.sin(),
+            target.position.z,
+            0.0,
+        );
+        self.normalize_path_position_z_like_cpp(point, terrain)
+    }
+
+    fn chase_unit_snapshot_like_cpp(
+        &self,
+        target: ChaseTargetSnapshotLikeCpp,
+    ) -> wow_movement::ChaseUnitSnapshot {
+        let unit = self.creature.unit();
+        let owner_combat_reach = unit.data().combat_reach.max(0.0);
+        // C++ `Unit::GetMeleeRange`: reaches plus 4/3, floored at
+        // `NOMINAL_MELEE_RANGE` (`Unit.cpp:664-668`).
+        let owner_melee_range = (owner_combat_reach + target.combat_reach + 4.0 / 3.0)
+            .max(NOMINAL_MELEE_RANGE_LIKE_CPP);
+        let can_enter_water = self.creature.can_enter_water_like_cpp();
+        let can_walk = self.creature.can_walk_like_cpp();
+        let can_fly = self.creature.can_fly_like_cpp();
+        wow_movement::ChaseUnitSnapshot {
+            owner_position: self.position(),
+            target_position: target.position,
+            owner_combat_reach,
+            target_combat_reach: target.combat_reach,
+            owner_melee_range,
+            owner_alive: self.creature.is_alive(),
+            target_in_world: target.in_world,
+            can_move: !unit.has_unit_state(UnitState::NOT_MOVE.bits()),
+            movement_prevented_by_casting: unit.has_unit_state(UnitState::CASTING.bits()),
+            owner_victim_is_target: self.creature.ai_ownership().combat_target == Some(target.guid),
+            owner_has_chase_move: unit.has_unit_state(UnitState::CHASE_MOVE.bits()),
+            owner_movespline_finalized: self
+                .active_move_spline
+                .as_ref()
+                .is_none_or(MoveSpline::finalized),
+            // C++ `IsMutualChase` needs the target's own MotionMaster; only
+            // creatures chase, and the runtime has no cross-object accessor in
+            // this step, so a mutual chase is never detected yet. That only ever
+            // *keeps* the chase angle applied, never drops a real constraint.
+            mutual_chase: false,
+            // VMap line of sight is a stub; C++ `PositionOkay` requires it.
+            owner_has_los: true,
+            // C++ `Unit::isInAccessiblePlaceFor` picks exactly one branch from
+            // the victim's real `IsInWater()`. With no liquid data for creature
+            // victims, taking either branch would be a guess, and guessing
+            // "not in water" is the harmful one: it makes an aquatic,
+            // non-walking chaser report `CannotReachTarget` and freeze on a
+            // victim C++ would let it reach. The unknown case therefore accepts
+            // the union of both branches — the Detour query and its
+            // `PATHFIND_NOPATH` bail-out remain the real gate.
+            target_accessible: match target.in_water {
+                Some(true) => can_enter_water,
+                Some(false) => can_walk || can_fly,
+                None => can_enter_water || can_walk || can_fly,
+            },
+            owner_can_fly: can_fly,
+            owner_is_creature: true,
+            creature_is_pet: self.creature.unit().world().object().guid().is_pet(),
+            creature_chase_walk: match self.creature.chase_movement_type_like_cpp() {
+                value if value == wow_constants::CreatureChaseMovementType::CanWalk as u8 => {
+                    wow_movement::ChaseWalkMode::CanWalk
+                }
+                value if value == wow_constants::CreatureChaseMovementType::AlwaysWalk as u8 => {
+                    wow_movement::ChaseWalkMode::AlwaysWalk
+                }
+                _ => wow_movement::ChaseWalkMode::Default,
+            },
+            owner_is_walking: self
+                .creature
+                .movement_flags_like_cpp()
+                .contains(MovementFlag::WALKING),
+        }
+    }
+
+    /// Advances the selected chase generator for one frame and executes its
+    /// decision, mirroring C++ `ChaseMovementGenerator::Update`
+    /// (`ChaseMovementGenerator.cpp:94-240`).
+    ///
+    /// The path query itself is delegated so the caller keeps ownership of the
+    /// off-thread pathfinder, exactly as the random and waypoint arms do.
+    pub fn update_runtime_chase_movement_like_cpp(
+        &mut self,
+        diff_ms: u32,
+        target: ChaseTargetSnapshotLikeCpp,
+        should_try_pathfinding: bool,
+        terrain: Option<&LiveTerrainHeights>,
+        mut resolve_path: impl FnMut(CreaturePathQueryLikeCpp) -> Option<DetourPolyPath>,
+    ) -> ChaseTickOutcomeLikeCpp {
+        // C++ installs a *new* `ChaseMovementGenerator` per `MoveChase` call and
+        // its `AbstractFollower` is bound to that victim for the generator's
+        // whole life (`ChaseMovementGenerator.cpp:68-76`,
+        // `AbstractFollower.cpp:21-31`). Reusing one across a victim switch
+        // would carry the previous follower, `_lastTargetPosition`,
+        // `_rangeCheckTimer`, `_movingTowards` and the arrival
+        // `MovementInform` counter onto the new target, so the generator is
+        // rebuilt whenever the victim differs.
+        let victim_changed = self
+            .active_chase_generator
+            .as_ref()
+            .is_none_or(|generator| generator.target() != Some(target.guid));
+        if victim_changed {
+            let mut generator = ChaseMovementGenerator::new(target.guid, None, None);
+            generator.initialize_like_cpp();
+            self.active_chase_generator = Some(generator);
+            self.active_chase_path_poly_refs.clear();
+        }
+
+        let snapshot = self.chase_unit_snapshot_like_cpp(target);
+        let action = match self.active_chase_generator.as_mut() {
+            Some(generator) => generator.update_like_cpp(true, target.in_world, diff_ms, snapshot),
+            None => return ChaseTickOutcomeLikeCpp::Idle,
+        };
+
+        match action {
+            wow_movement::ChaseMovementAction::Continue => ChaseTickOutcomeLikeCpp::Idle,
+            // C++ chase `Update` returns false when the victim is gone or has
+            // left the world (`ChaseMovementGenerator.cpp:97,101-103`), which
+            // pops the generator via `MotionMaster::Update` and runs `Finalize`.
+            // Clearing only the corridor would leave the generator,
+            // `UNIT_STATE_CHASE_MOVE` and the in-flight spline intact, so the
+            // creature keeps sliding toward the corpse and is re-selected as
+            // chasing every tick.
+            wow_movement::ChaseMovementAction::Finished => {
+                match self.finalize_runtime_chase_movement_like_cpp() {
+                    Some(stop) => ChaseTickOutcomeLikeCpp::Stopped(stop),
+                    None => ChaseTickOutcomeLikeCpp::Idle,
+                }
+            }
+            // C++ `StopMoving()` clears `UNIT_STATE_MOVING` (which contains
+            // `UNIT_STATE_CHASE_MOVE`) and stops the spline.
+            wow_movement::ChaseMovementAction::StopMoving
+            | wow_movement::ChaseMovementAction::CannotReachTarget => {
+                self.creature
+                    .unit_mut()
+                    .clear_unit_state(UnitState::CHASE_MOVE.bits());
+                self.active_chase_path_poly_refs.clear();
+                match self.stop_move_spline_like_cpp() {
+                    Some(stop) => ChaseTickOutcomeLikeCpp::Stopped(stop),
+                    None => ChaseTickOutcomeLikeCpp::Idle,
+                }
+            }
+            wow_movement::ChaseMovementAction::StopMovingAndFaceInform(inform)
+            | wow_movement::ChaseMovementAction::ClearChaseMoveAndFaceInform(inform) => {
+                // C++ `SetInFront(target)` only turns the owner server-side, and
+                // then reports arrival to the AI.
+                self.creature
+                    .unit_mut()
+                    .clear_unit_state(UnitState::CHASE_MOVE.bits());
+                let mut position = self.position();
+                position.orientation = absolute_angle_like_cpp(position, target.position);
+                self.creature.set_ai_position(position);
+                self.creature.record_ai_movement_inform(
+                    inform.movement_type.trinity_id(),
+                    inform.target_counter,
+                );
+                self.active_chase_path_poly_refs.clear();
+                match self.stop_move_spline_like_cpp() {
+                    Some(stop) => ChaseTickOutcomeLikeCpp::Stopped(stop),
+                    None => ChaseTickOutcomeLikeCpp::Idle,
+                }
+            }
+            wow_movement::ChaseMovementAction::Launch(plan) => {
+                if plan.direction_changed {
+                    // C++ replaces the owned `PathGenerator` before
+                    // `CalculatePath` when chase direction flips
+                    // (`ChaseMovementGenerator.cpp:171-175`). The retained
+                    // Detour corridor belongs to that old path object.
+                    self.active_chase_path_poly_refs.clear();
+                }
+
+                // C++ picks the target centre when closing in without an angle
+                // constraint, otherwise a point on the tolerance ring
+                // (`ChaseMovementGenerator.cpp:177-191`).
+                let destination = if plan.move_toward && plan.desired_relative_angle.is_none() {
+                    target.position
+                } else {
+                    let hitbox_sum =
+                        self.creature.unit().data().combat_reach.max(0.0) + target.combat_reach;
+                    let absolute_angle = match plan.desired_relative_angle {
+                        Some(relative) => wow_movement::normalize_orientation_like_cpp(
+                            target.position.orientation + relative,
+                        ),
+                        None => absolute_angle_like_cpp(target.position, self.position()),
+                    };
+                    self.near_point_like_cpp(
+                        target,
+                        plan.desired_distance - hitbox_sum,
+                        absolute_angle,
+                        terrain,
+                    )
+                };
+
+                // C++ `ChaseMovementGenerator::Update` calls
+                // `CalculatePath(x, y, z, owner->CanFly())`
+                // (`ChaseMovementGenerator.cpp:196`), and `_forceDestination` is
+                // consumed *inside* `BuildPointPath` (`PathGenerator.cpp:603-619`)
+                // — setting it afterwards on the Rust `PathGenerator` would
+                // record the flag without rebuilding the clamped point path, so
+                // it has to travel with the query itself.
+                let mut query_failed = false;
+                let detour_path = if should_try_pathfinding {
+                    // Built here, not by the caller: the victim-change reset
+                    // above may already have dropped the retained corridor, and
+                    // reusing the previous victim's `_pathPolyRefs` would let the
+                    // ~80% prefix branch steer the first spline back toward the
+                    // old target.
+                    let resolved = resolve_path(CreaturePathQueryLikeCpp {
+                        start: self.position(),
+                        destination,
+                        point_path_limit: MAX_POINT_PATH_LENGTH_LIKE_CPP,
+                        force_destination: plan.allow_flying_path,
+                        filter_context: self.path_query_filter_context_like_cpp(),
+                        owner: self.detour_owner_capabilities_like_cpp(),
+                        previous_poly_refs: self.active_chase_path_poly_refs.clone(),
+                    });
+                    // The resolver already answers a missing navmesh/tile with
+                    // the C++ `BuildShortcut()` path, so `None` here means the
+                    // query was attempted and genuinely failed. C++ has no such
+                    // case — its own failures went through `BuildShortcut()` +
+                    // `PATHFIND_NOPATH` — so it must not be confused with
+                    // "there is no navmesh", which is launchable.
+                    query_failed = resolved.is_none();
+                    resolved
+                } else {
+                    None
+                };
+
+                let mut path = match detour_path.as_ref() {
+                    Some(detour_path) => self.path_generator_from_detour_for_creature_like_cpp(
+                        destination,
+                        detour_path,
+                        plan.allow_flying_path,
+                        terrain,
+                    ),
+                    None if query_failed => {
+                        // Reproduce the C++ `PATHFIND_NOPATH` branch so the
+                        // bail-out below stops and retries.
+                        let mut path = PathGenerator::new();
+                        path.apply_detour_path_like_cpp(
+                            self.position(),
+                            destination,
+                            destination,
+                            [],
+                            &[],
+                            PathType::NOPATH,
+                            plan.allow_flying_path,
+                        );
+                        path
+                    }
+                    None => {
+                        // Pathfinding is off for this map/owner: C++
+                        // `CalculatePath` answers with `BuildShortcut()` and
+                        // `PATHFIND_NORMAL | PATHFIND_NOT_USING_PATH`, which
+                        // chase launches (`PathGenerator.cpp:79-86`).
+                        let mut path = PathGenerator::new();
+                        path.calculate_without_navmesh_like_cpp(
+                            self.position(),
+                            destination,
+                            plan.allow_flying_path,
+                        );
+                        path
+                    }
+                };
+
+                // C++ bails out only on `PATHFIND_NOPATH`; SHORTCUT, INCOMPLETE,
+                // SHORT and FARFROMPOLY all proceed
+                // (`ChaseMovementGenerator.cpp:197-203`).
+                if path.path_type().contains(PathType::NOPATH) {
+                    if let Some(generator) = self.active_chase_generator.as_mut() {
+                        generator.cannot_reach_target = true;
+                    }
+                    self.creature
+                        .unit_mut()
+                        .clear_unit_state(UnitState::CHASE_MOVE.bits());
+                    self.active_chase_path_poly_refs.clear();
+                    return match self.stop_move_spline_like_cpp() {
+                        Some(stop) => ChaseTickOutcomeLikeCpp::Stopped(stop),
+                        None => ChaseTickOutcomeLikeCpp::Idle,
+                    };
+                }
+
+                if plan.shorten_path {
+                    // C++ shortens against the target's exact position, using
+                    // line of sight from each candidate; VMap LOS is a stub, so
+                    // every candidate is treated as visible.
+                    path.shorten_path_until_dist_like_cpp(
+                        target.position,
+                        plan.desired_distance,
+                        |_| true,
+                    );
+                }
+
+                if let Some(generator) = self.active_chase_generator.as_mut() {
+                    // C++ clears `CannotReachTarget` after a successful
+                    // `CalculatePath` and enables the next arrival inform
+                    // immediately before launching the spline. A failed query
+                    // must preserve the previous inform lifecycle.
+                    generator.confirm_path_ready_like_cpp();
+                }
+                self.creature
+                    .unit_mut()
+                    .add_unit_state(UnitState::CHASE_MOVE.bits());
+
+                let points = path.path_points().to_vec();
+                let Some(dst) = points.last().copied() else {
+                    return ChaseTickOutcomeLikeCpp::Idle;
+                };
+                let spline_id = self.spline_id().saturating_add(1);
+                let mut init = MoveSplineInit::new(spline_id);
+                init.set_walk(plan.walk);
+                init.move_by_path(points, 0);
+                // C++ `init.SetFacing(target)` is client-side target tracking.
+                init.set_facing_target_with_angle(
+                    target.guid,
+                    absolute_angle_like_cpp(self.position(), target.position),
+                );
+
+                match self.launch_move_spline_init_like_cpp(&mut init, dst) {
+                    Some((from, spline)) => {
+                        if let Some(detour_path) = detour_path.as_ref() {
+                            self.active_chase_path_poly_refs
+                                .clone_from(&detour_path.poly_refs);
+                        } else {
+                            self.active_chase_path_poly_refs.clear();
+                        }
+                        if let Some(generator) = self.active_chase_generator.as_mut() {
+                            generator.confirm_launch_like_cpp(plan);
+                        }
+                        ChaseTickOutcomeLikeCpp::Launched(from, spline)
+                    }
+                    None => ChaseTickOutcomeLikeCpp::Idle,
+                }
+            }
+        }
+    }
+
+    /// The corridor the random generator's `PathGenerator` still holds, for
+    /// callers that build its next path request.
+    pub fn active_random_path_poly_refs_like_cpp(&self) -> &[u64] {
+        &self.active_random_path_poly_refs
+    }
+
+    /// Same, for the chase generator.
+    pub fn active_chase_path_poly_refs_like_cpp(&self) -> &[u64] {
+        &self.active_chase_path_poly_refs
+    }
+
+    /// Retires the chase generator the way C++ `MotionMaster` does when chase
+    /// `Update` returns false: `Finalize` clears `UNIT_STATE_CHASE_MOVE` and
+    /// `SetCannotReachTarget(false)`, and the generator is removed so a lower
+    /// slot resumes (`ChaseMovementGenerator.cpp:251-260`). The superseded
+    /// spline is stopped so the creature does not keep coasting toward a victim
+    /// that is gone.
+    ///
+    /// Boundary: this is the movement half only. C++ also clears the victim
+    /// through the kill/threat path (`UpdateVictim`, evade); the combat target
+    /// and engagement are not reset here — that is M2.5 — so a creature still
+    /// flagged in combat may have chase re-selected next tick, but it no longer
+    /// drives toward the gone target with a stale `UNIT_STATE_CHASE_MOVE`.
+    pub fn finalize_runtime_chase_movement_like_cpp(&mut self) -> Option<MoveSplineStopResult> {
+        self.active_chase_generator = None;
+        self.active_chase_path_poly_refs.clear();
+        self.creature
+            .unit_mut()
+            .clear_unit_state(UnitState::CHASE_MOVE.bits());
+        self.stop_move_spline_like_cpp()
     }
 
     fn allowed_position_z_caps_like_cpp(&self) -> AllowedPositionZCaps {
@@ -2397,7 +3191,18 @@ impl WorldCreature {
             return point;
         };
         let probe_z = point.z + Z_OFFSET_FIND_HEIGHT;
-        let mut ground = terrain.static_height_like_cpp(self.map_id(), point.x, point.y, probe_z);
+        let static_ground =
+            terrain.static_height_like_cpp(self.map_id(), point.x, point.y, probe_z);
+        // C++ GetMapHeight combines terrain and VMap before
+        // UpdateAllowedPositionZ clamps the point. Rust does not yet have the
+        // VMap half, so lowering a valid elevated Detour point to terrain
+        // destroys bridge/platform paths. Preserve elevations; the branch
+        // below still raises points that are under known terrain.
+        let mut ground = if static_ground >= point.z {
+            static_ground
+        } else {
+            INVALID_HEIGHT
+        };
         if ground <= INVALID_HEIGHT {
             let grid_ground = terrain.grid_height_like_cpp(self.map_id(), point.x, point.y);
             if grid_ground > INVALID_HEIGHT
@@ -2436,7 +3241,7 @@ impl WorldCreature {
         &mut self,
         diff_ms: u32,
         should_try_pathfinding: bool,
-        resolve_path: impl FnMut(Position, Position, usize) -> Option<DetourPolyPath>,
+        resolve_path: impl FnMut(CreaturePathQueryLikeCpp) -> Option<DetourPolyPath>,
     ) -> Option<(Position, MoveSpline)> {
         self.update_default_random_movement_with_path_resolver_and_terrain_like_cpp(
             diff_ms,
@@ -2451,7 +3256,7 @@ impl WorldCreature {
         diff_ms: u32,
         should_try_pathfinding: bool,
         terrain: Option<&LiveTerrainHeights>,
-        resolve_path: impl FnMut(Position, Position, usize) -> Option<DetourPolyPath>,
+        resolve_path: impl FnMut(CreaturePathQueryLikeCpp) -> Option<DetourPolyPath>,
     ) -> Option<(Position, MoveSpline)> {
         self.update_default_random_movement_after_optional_spline_like_cpp(
             diff_ms,
@@ -2467,7 +3272,7 @@ impl WorldCreature {
         diff_ms: u32,
         should_try_pathfinding: bool,
         terrain: Option<&LiveTerrainHeights>,
-        resolve_path: impl FnMut(Position, Position, usize) -> Option<DetourPolyPath>,
+        resolve_path: impl FnMut(CreaturePathQueryLikeCpp) -> Option<DetourPolyPath>,
     ) -> Option<(Position, MoveSpline)> {
         self.update_default_random_movement_after_optional_spline_like_cpp(
             diff_ms,
@@ -2484,7 +3289,7 @@ impl WorldCreature {
         should_try_pathfinding: bool,
         terrain: Option<&LiveTerrainHeights>,
         update_spline: bool,
-        mut resolve_path: impl FnMut(Position, Position, usize) -> Option<DetourPolyPath>,
+        mut resolve_path: impl FnMut(CreaturePathQueryLikeCpp) -> Option<DetourPolyPath>,
     ) -> Option<(Position, MoveSpline)> {
         if self.active_random_generator.is_none() {
             if !self.initialize_default_random_movement_like_cpp() {
@@ -2536,10 +3341,27 @@ impl WorldCreature {
             )
             .destination;
             if should_try_pathfinding {
-                detour_path = resolve_path(self.position(), destination, point_path_limit);
+                // Built here so the retained corridor is read after a possible
+                // generator (re)initialization dropped it, and the filter after
+                // any state change this tick — C++ constructs its `PathGenerator`
+                // at exactly this point.
+                detour_path = resolve_path(CreaturePathQueryLikeCpp {
+                    start: self.position(),
+                    destination,
+                    point_path_limit,
+                    force_destination: false,
+                    filter_context: self.path_query_filter_context_like_cpp(),
+                    owner: self.detour_owner_capabilities_like_cpp(),
+                    previous_poly_refs: self.active_random_path_poly_refs.clone(),
+                });
                 if let Some(path) = detour_path.as_ref() {
                     let path_type = path_type_from_detour_like_cpp(path.point_path.path_type);
                     path_result = random_path_result_from_path_type_like_cpp(path_type);
+                    // The generator keeps its `PathGenerator` alive, so the
+                    // corridor this query produced is the one the next one may
+                    // reuse (`PathGenerator.cpp:291-413`).
+                    self.active_random_path_poly_refs
+                        .clone_from(&path.poly_refs);
                 } else {
                     path_result = RandomPathResult::Failed;
                 }
@@ -2579,7 +3401,7 @@ impl WorldCreature {
         &mut self,
         diff_ms: u32,
         should_try_pathfinding: bool,
-        resolve_path: impl FnMut(Position, Position, usize) -> Option<DetourPolyPath>,
+        resolve_path: impl FnMut(CreaturePathQueryLikeCpp) -> Option<DetourPolyPath>,
     ) -> (WaypointMovementAction, Option<(Position, MoveSpline)>) {
         self.update_default_waypoint_movement_with_path_resolver_and_terrain_like_cpp(
             diff_ms,
@@ -2594,7 +3416,7 @@ impl WorldCreature {
         diff_ms: u32,
         should_try_pathfinding: bool,
         terrain: Option<&LiveTerrainHeights>,
-        resolve_path: impl FnMut(Position, Position, usize) -> Option<DetourPolyPath>,
+        resolve_path: impl FnMut(CreaturePathQueryLikeCpp) -> Option<DetourPolyPath>,
     ) -> (WaypointMovementAction, Option<(Position, MoveSpline)>) {
         self.update_default_waypoint_movement_with_wait_roll_path_resolver_and_launch_like_cpp(
             diff_ms,
@@ -2611,7 +3433,7 @@ impl WorldCreature {
         diff_ms: u32,
         should_try_pathfinding: bool,
         terrain: Option<&LiveTerrainHeights>,
-        resolve_path: impl FnMut(Position, Position, usize) -> Option<DetourPolyPath>,
+        resolve_path: impl FnMut(CreaturePathQueryLikeCpp) -> Option<DetourPolyPath>,
     ) -> (WaypointMovementAction, Option<(Position, MoveSpline)>) {
         self.update_default_waypoint_movement_with_wait_roll_path_resolver_and_launch_like_cpp(
             diff_ms,
@@ -2733,7 +3555,7 @@ impl WorldCreature {
             false,
             None,
             true,
-            |_, _, _| None,
+            |_| None,
         )
     }
 
@@ -2748,7 +3570,7 @@ impl WorldCreature {
             false,
             None,
             true,
-            |_, _, _| None,
+            |_| None,
         )
         .0
     }
@@ -2760,7 +3582,7 @@ impl WorldCreature {
         should_try_pathfinding: bool,
         terrain: Option<&LiveTerrainHeights>,
         update_spline: bool,
-        mut resolve_path: impl FnMut(Position, Position, usize) -> Option<DetourPolyPath>,
+        mut resolve_path: impl FnMut(CreaturePathQueryLikeCpp) -> Option<DetourPolyPath>,
     ) -> (WaypointMovementAction, Option<(Position, MoveSpline)>) {
         if let Some(mut random) = self.active_waypoint_random_at_path_end {
             if update_spline {
@@ -2821,7 +3643,7 @@ impl WorldCreature {
         action: WaypointMovementAction,
         should_try_pathfinding: bool,
         terrain: Option<&LiveTerrainHeights>,
-        resolve_path: &mut impl FnMut(Position, Position, usize) -> Option<DetourPolyPath>,
+        resolve_path: &mut impl FnMut(CreaturePathQueryLikeCpp) -> Option<DetourPolyPath>,
     ) -> Option<(Position, MoveSpline)> {
         match action {
             WaypointMovementAction::StopMoving => {
@@ -2868,11 +3690,17 @@ impl WorldCreature {
             WaypointMovementAction::Launch(launch) => {
                 let detour_path = (launch.generate_path && should_try_pathfinding)
                     .then(|| {
-                        resolve_path(
-                            self.position(),
-                            launch.destination,
-                            MAX_POINT_PATH_LENGTH_LIKE_CPP,
-                        )
+                        resolve_path(CreaturePathQueryLikeCpp {
+                            start: self.position(),
+                            destination: launch.destination,
+                            point_path_limit: MAX_POINT_PATH_LENGTH_LIKE_CPP,
+                            force_destination: false,
+                            filter_context: self.path_query_filter_context_like_cpp(),
+                            owner: self.detour_owner_capabilities_like_cpp(),
+                            // C++ `MoveSplineInit::MoveTo` builds a fresh
+                            // `PathGenerator` per waypoint leg.
+                            previous_poly_refs: Vec::new(),
+                        })
                     })
                     .flatten();
                 self.begin_waypoint_launch_with_detour_path_like_cpp(
@@ -5356,6 +6184,34 @@ mod tests {
         )
     }
 
+    fn test_chase_target(victim: ObjectGuid, x: f32) -> ChaseTargetSnapshotLikeCpp {
+        ChaseTargetSnapshotLikeCpp {
+            guid: victim,
+            position: Position::new(x, 10.0, 0.0, 0.0),
+            combat_reach: 1.0,
+            in_world: true,
+            in_water: Some(false),
+        }
+    }
+
+    fn test_chase_corridor(poly_refs: Vec<u64>, end_x: f32) -> DetourPolyPath {
+        let points = vec![
+            [10.0, 10.0, 0.0],
+            [(10.0 + end_x) * 0.5, 10.0, 0.0],
+            [end_x, 10.0, 0.0],
+        ];
+        DetourPolyPath {
+            poly_refs,
+            point_path: DetourPointPath {
+                actual_end: *points.last().expect("test path"),
+                points,
+                path_type: DetourPathType::NORMAL,
+            },
+            start_far_from_poly: false,
+            end_far_from_poly: false,
+        }
+    }
+
     #[test]
     fn world_creature_motion_master_chase_interrupts_random_and_resumes_default_like_cpp() {
         let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 70_009);
@@ -6204,6 +7060,8 @@ mod tests {
             instance_map_id: 571,
             instance_id: 42,
             filter_context: PathQueryFilterContext::creature(true, false, false, false),
+            owner: DetourOwnerCapabilitiesLikeCpp::default(),
+            previous_poly_refs: Vec::new(),
             force_destination: false,
             point_path_limit: MAX_POINT_PATH_LENGTH_LIKE_CPP,
             phase_shift,
@@ -6848,11 +7706,11 @@ mod tests {
             .update_default_waypoint_movement_with_path_resolver_like_cpp(
                 wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP as u32,
                 true,
-                |start, destination_arg, point_path_limit| {
+                |query| {
                     resolver_calls += 1;
-                    assert_eq!(start, Position::new(10.0, 10.0, 0.0, 0.0));
-                    assert_eq!(destination_arg, destination);
-                    assert_eq!(point_path_limit, MAX_POINT_PATH_LENGTH_LIKE_CPP);
+                    assert_eq!(query.start, Position::new(10.0, 10.0, 0.0, 0.0));
+                    assert_eq!(query.destination, destination);
+                    assert_eq!(query.point_path_limit, MAX_POINT_PATH_LENGTH_LIKE_CPP);
                     Some(DetourPolyPath {
                         poly_refs: vec![11, 22, 33],
                         point_path: wow_recastdetour::DetourPointPath {
@@ -6914,7 +7772,7 @@ mod tests {
             .update_default_waypoint_movement_with_path_resolver_like_cpp(
                 wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP as u32,
                 true,
-                |_start, _destination_arg, _point_path_limit| {
+                |_query| {
                     resolver_calls += 1;
                     Some(DetourPolyPath {
                         poly_refs: Vec::new(),
@@ -7585,6 +8443,202 @@ mod tests {
     }
 
     #[test]
+    fn world_creature_detour_path_bridge_preserves_elevated_mmap_points_without_vmap() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54352);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, 30.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            wow_constants::UnitFlags::CAN_SWIM.bits(),
+        );
+        creature
+            .creature
+            .unit_mut()
+            .world_mut()
+            .set_map(1, 0)
+            .expect("bind test creature to terrain map");
+        creature.clock_started_at = Instant::now() - Duration::from_secs(10);
+        let data_dir = temp_dir_with_constant_tile(1, 31, 31, 2.0);
+        let terrain = LiveTerrainHeights::new(&data_dir);
+        let dst = Position::new(15.0, 12.0, 30.0, 0.0);
+        let elevated_path = DetourPolyPath {
+            poly_refs: vec![11, 22],
+            point_path: wow_recastdetour::DetourPointPath {
+                points: vec![[10.0, 10.0, 30.0], [12.0, 11.0, 30.0], [15.0, 12.0, 30.0]],
+                actual_end: [15.0, 12.0, 30.0],
+                path_type: DetourPathType::NORMAL,
+            },
+            start_far_from_poly: false,
+            end_far_from_poly: false,
+        };
+
+        let (_from, spline, path) = creature
+            .begin_random_move_spline_with_detour_path_and_terrain_like_cpp(
+                dst,
+                Some(&elevated_path),
+                false,
+                Some(&terrain),
+            )
+            .expect("elevated detour path launches");
+
+        assert_eq!(
+            path.expect("path generator").path_points(),
+            &[
+                Position::new(10.0, 10.0, 30.0, 0.0),
+                Position::new(12.0, 11.0, 30.0, 0.0),
+                Position::new(15.0, 12.0, 30.0, 0.0),
+            ]
+        );
+        assert_eq!(
+            spline.final_destination(),
+            Some(Position::new(15.0, 12.0, 30.0, 0.0))
+        );
+        assert!(creature.creature.can_swim_like_cpp());
+        assert!(
+            spline.flags().contains(MoveSplineFlag::CAN_SWIM),
+            "MoveSplineInit must snapshot Unit::CanSwim like C++"
+        );
+
+        let _ = std::fs::remove_dir_all(&data_dir);
+    }
+
+    #[test]
+    fn world_creature_detour_path_bridge_does_not_join_unproven_flat_elevated_surfaces() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54353);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, 30.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        creature
+            .creature
+            .unit_mut()
+            .world_mut()
+            .set_map(1, 0)
+            .expect("bind test creature to terrain map");
+        creature.clock_started_at = Instant::now() - Duration::from_secs(10);
+        let data_dir = temp_dir_with_constant_tile(1, 31, 31, 2.0);
+        let terrain = LiveTerrainHeights::new(&data_dir);
+        let dst = Position::new(15.0, 12.0, 30.0, 0.0);
+        let projected_path = DetourPolyPath {
+            poly_refs: vec![11, 22],
+            point_path: wow_recastdetour::DetourPointPath {
+                points: vec![[10.0, 10.0, 2.0], [12.0, 11.0, 2.0], [15.0, 12.0, 2.0]],
+                actual_end: [15.0, 12.0, 2.0],
+                path_type: DetourPathType::NORMAL,
+            },
+            start_far_from_poly: false,
+            end_far_from_poly: false,
+        };
+
+        let (_from, spline, path) = creature
+            .begin_random_move_spline_with_detour_path_and_terrain_like_cpp(
+                dst,
+                Some(&projected_path),
+                false,
+                Some(&terrain),
+            )
+            .expect("projected elevated detour path launches");
+
+        assert_eq!(
+            path.expect("path generator").path_points(),
+            &[
+                Position::new(10.0, 10.0, 2.0, 0.0),
+                Position::new(12.0, 11.0, 2.0, 0.0),
+                Position::new(15.0, 12.0, 2.0, 0.0),
+            ],
+            "equal endpoint heights do not prove one continuous elevated surface"
+        );
+        assert_eq!(
+            spline.final_destination(),
+            Some(Position::new(15.0, 12.0, 2.0, 0.0))
+        );
+
+        let _ = std::fs::remove_dir_all(&data_dir);
+    }
+
+    #[test]
+    fn world_creature_detour_path_bridge_does_not_invent_a_sloped_vmap_surface() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54354);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, 30.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        creature
+            .creature
+            .unit_mut()
+            .world_mut()
+            .set_map(1, 0)
+            .expect("bind test creature to terrain map");
+        creature.clock_started_at = Instant::now() - Duration::from_secs(10);
+        let data_dir = temp_dir_with_constant_tile(1, 31, 31, 2.0);
+        let terrain = LiveTerrainHeights::new(&data_dir);
+        let dst = Position::new(15.0, 12.0, 34.0, 0.0);
+        let projected_path = DetourPolyPath {
+            poly_refs: vec![11, 22],
+            point_path: wow_recastdetour::DetourPointPath {
+                points: vec![[10.0, 10.0, 2.0], [12.0, 11.0, 2.0], [15.0, 12.0, 2.0]],
+                actual_end: [15.0, 12.0, 2.0],
+                path_type: DetourPathType::NORMAL,
+            },
+            start_far_from_poly: false,
+            end_far_from_poly: false,
+        };
+
+        let (_from, spline, path) = creature
+            .begin_random_move_spline_with_detour_path_and_terrain_like_cpp(
+                dst,
+                Some(&projected_path),
+                false,
+                Some(&terrain),
+            )
+            .expect("unproven sloped path still launches");
+
+        assert_eq!(
+            path.expect("path generator").path_points(),
+            &[
+                Position::new(10.0, 10.0, 2.0, 0.0),
+                Position::new(12.0, 11.0, 2.0, 0.0),
+                Position::new(15.0, 12.0, 2.0, 0.0),
+            ],
+            "without VMap height Rust must not guess a changing elevated surface"
+        );
+        assert_eq!(
+            spline.final_destination(),
+            Some(Position::new(15.0, 12.0, 2.0, 0.0))
+        );
+
+        let _ = std::fs::remove_dir_all(&data_dir);
+    }
+
+    #[test]
     fn world_creature_detour_path_bridge_keeps_far_below_points_without_ground_like_cpp() {
         let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54352);
         let mut creature = WorldCreature::new(
@@ -7720,12 +8774,13 @@ mod tests {
             );
         creature.creature.ai_ownership_mut().wander_radius = 8.0;
         creature.clock_started_at = Instant::now() - Duration::from_secs(10);
+        creature.seed_runtime_rng_like_cpp(0x24_5A0);
 
         let mut resolver_called = false;
         let movement = creature.update_default_random_movement_with_path_resolver_like_cpp(
             10,
             true,
-            |_start, _destination, _point_path_limit| {
+            |_query| {
                 resolver_called = true;
                 None
             },
@@ -7744,6 +8799,1127 @@ mod tests {
                 .expect("random generator")
                 .timer_ms(),
             wow_movement::RANDOM_PATH_RETRY_MS_LIKE_CPP
+        );
+    }
+
+    /// C++ `PathGenerator::UpdateFilter` adds `NAV_GROUND_STEEP` while the owner
+    /// `IsInCombat()` (`PathGenerator.cpp:694-696`). `Creature::enter_ai_combat`
+    /// does not set the client-visible `UNIT_FLAG_IN_COMBAT`, so the filter has
+    /// to read the runtime combat state the tick actually maintains.
+    #[test]
+    fn world_creature_chase_filter_includes_ground_steep_while_engaged_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54350);
+        let victim = ObjectGuid::create_world_object(HighGuid::Player, 0, 1, 0, 0, 0, 77);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        creature.creature.set_ground_movement_type_runtime_like_cpp(
+            wow_constants::CreatureGroundMovementType::Run as u8,
+        );
+        creature.creature.set_swim_allowed_runtime_like_cpp(false);
+
+        let idle = create_path_query_filter_like_cpp(creature.path_query_filter_context_like_cpp())
+            .expect("filter");
+        assert_eq!(
+            idle.include_flags(),
+            wow_recastdetour::NavTerrainFlag::GROUND.bits(),
+            "an idle ground creature must not get NAV_GROUND_STEEP"
+        );
+
+        creature.enter_combat(victim);
+        assert!(
+            creature.creature.is_in_combat(),
+            "enter_combat must leave a runtime combat signal the filter can read"
+        );
+        let engaged =
+            create_path_query_filter_like_cpp(creature.path_query_filter_context_like_cpp())
+                .expect("filter");
+        assert_eq!(
+            engaged.include_flags(),
+            (wow_recastdetour::NavTerrainFlag::GROUND
+                | wow_recastdetour::NavTerrainFlag::GROUND_STEEP)
+                .bits(),
+            "C++ UpdateFilter grants steep ground to a creature in combat"
+        );
+    }
+
+    /// C++ `Unit::isInAccessiblePlaceFor` branches on the victim's real
+    /// `IsInWater()`. Creature victims carry no liquid state here, and guessing
+    /// "not in water" would make an aquatic, non-walking chaser report
+    /// `CannotReachTarget` on a victim C++ would let it reach.
+    #[test]
+    fn world_creature_chase_unknown_water_does_not_block_an_aquatic_chaser_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54351);
+        let victim_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54352);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        // A swim-only creature: no ground movement, no flight.
+        creature.creature.set_ground_movement_type_runtime_like_cpp(
+            wow_constants::CreatureGroundMovementType::None as u8,
+        );
+        creature.creature.set_swim_allowed_runtime_like_cpp(true);
+        creature.creature.set_flight_movement_type_runtime_like_cpp(
+            wow_constants::CreatureFlightMovementType::None as u8,
+        );
+        assert!(!creature.creature.can_walk_like_cpp());
+        assert!(creature.creature.can_enter_water_like_cpp());
+
+        let target = |in_water| ChaseTargetSnapshotLikeCpp {
+            guid: victim_guid,
+            position: Position::new(20.0, 10.0, 0.0, 0.0),
+            combat_reach: 1.0,
+            in_world: true,
+            in_water,
+        };
+
+        assert!(
+            creature
+                .chase_unit_snapshot_like_cpp(target(None))
+                .target_accessible,
+            "an unknown water state must not block a chaser that can enter water"
+        );
+        assert!(
+            creature
+                .chase_unit_snapshot_like_cpp(target(Some(true)))
+                .target_accessible,
+            "C++ takes the water branch and asks CanEnterWater()"
+        );
+        assert!(
+            !creature
+                .chase_unit_snapshot_like_cpp(target(Some(false)))
+                .target_accessible,
+            "C++ takes the else branch and asks CanWalk() || CanFly()"
+        );
+    }
+
+    /// C++ installs a new `ChaseMovementGenerator` per `MoveChase`, and its
+    /// `AbstractFollower` is bound to that victim for the generator's life
+    /// (`ChaseMovementGenerator.cpp:68-76`). A victim switch must not inherit the
+    /// previous follower, timers or arrival inform counter.
+    #[test]
+    fn world_creature_chase_rebuilds_the_generator_when_the_victim_changes_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54353);
+        let first = ObjectGuid::create_world_object(HighGuid::Player, 0, 1, 0, 0, 0, 91);
+        let second = ObjectGuid::create_world_object(HighGuid::Player, 0, 1, 0, 0, 0, 92);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+
+        let target = |victim, x| ChaseTargetSnapshotLikeCpp {
+            guid: victim,
+            position: Position::new(x, 10.0, 0.0, 0.0),
+            combat_reach: 1.0,
+            in_world: true,
+            in_water: Some(false),
+        };
+
+        creature.enter_combat(first);
+        let _ = creature.update_runtime_chase_movement_like_cpp(
+            100,
+            target(first, 40.0),
+            false,
+            None,
+            |_| None,
+        );
+        assert_eq!(
+            creature
+                .active_chase_generator_like_cpp()
+                .and_then(wow_movement::ChaseMovementGenerator::target),
+            Some(first)
+        );
+
+        creature.enter_combat(second);
+        let _ = creature.update_runtime_chase_movement_like_cpp(
+            100,
+            target(second, 45.0),
+            false,
+            None,
+            |_| None,
+        );
+        assert_eq!(
+            creature
+                .active_chase_generator_like_cpp()
+                .and_then(wow_movement::ChaseMovementGenerator::target),
+            Some(second),
+            "the generator must follow the new victim, not the previous one"
+        );
+    }
+
+    /// C++ replaces its owned `PathGenerator` before `CalculatePath` when
+    /// `moveToward != _movingTowards`, while keeping it for same-direction
+    /// recalculations (`ChaseMovementGenerator.cpp:170-175`). The retained
+    /// Detour corridor has to follow that exact lifecycle.
+    #[test]
+    fn world_creature_chase_direction_flip_resets_corridor_and_same_direction_reuses_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54361);
+        let victim = ObjectGuid::create_world_object(HighGuid::Player, 0, 1, 0, 0, 0, 98);
+        let mut creature = test_creature(guid);
+        creature.enter_combat(victim);
+
+        let launched = creature.update_runtime_chase_movement_like_cpp(
+            1,
+            test_chase_target(victim, 60.0),
+            true,
+            None,
+            |query| {
+                assert!(query.previous_poly_refs.is_empty());
+                Some(test_chase_corridor(vec![101, 102], 59.0))
+            },
+        );
+        assert!(matches!(launched, ChaseTickOutcomeLikeCpp::Launched(..)));
+        assert_eq!(creature.active_chase_path_poly_refs_like_cpp(), &[101, 102]);
+        assert!(
+            creature
+                .active_chase_generator_like_cpp()
+                .expect("chase generator")
+                .moving_towards()
+        );
+
+        let launched = creature.update_runtime_chase_movement_like_cpp(
+            1,
+            test_chase_target(victim, 65.0),
+            true,
+            None,
+            |query| {
+                assert_eq!(query.previous_poly_refs, vec![101, 102]);
+                Some(test_chase_corridor(vec![201, 202], 64.0))
+            },
+        );
+        assert!(matches!(launched, ChaseTickOutcomeLikeCpp::Launched(..)));
+        assert_eq!(creature.active_chase_path_poly_refs_like_cpp(), &[201, 202]);
+
+        let launched = creature.update_runtime_chase_movement_like_cpp(
+            1,
+            test_chase_target(victim, 10.5),
+            true,
+            None,
+            |query| {
+                assert!(
+                    query.previous_poly_refs.is_empty(),
+                    "a toward-to-away flip must discard the old path object"
+                );
+                Some(test_chase_corridor(vec![301, 302], 7.0))
+            },
+        );
+        assert!(matches!(launched, ChaseTickOutcomeLikeCpp::Launched(..)));
+        assert!(
+            !creature
+                .active_chase_generator_like_cpp()
+                .expect("chase generator")
+                .moving_towards()
+        );
+        assert_eq!(creature.active_chase_path_poly_refs_like_cpp(), &[301, 302]);
+
+        let launched = creature.update_runtime_chase_movement_like_cpp(
+            1,
+            test_chase_target(victim, 70.0),
+            true,
+            None,
+            |query| {
+                assert!(
+                    query.previous_poly_refs.is_empty(),
+                    "an away-to-toward flip must discard the old path object"
+                );
+                Some(test_chase_corridor(vec![401, 402], 69.0))
+            },
+        );
+        assert!(matches!(launched, ChaseTickOutcomeLikeCpp::Launched(..)));
+        assert!(
+            creature
+                .active_chase_generator_like_cpp()
+                .expect("chase generator")
+                .moving_towards()
+        );
+        assert_eq!(creature.active_chase_path_poly_refs_like_cpp(), &[401, 402]);
+    }
+
+    #[test]
+    fn world_creature_failed_direction_flip_does_not_publish_unlaunched_direction() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54362);
+        let victim = ObjectGuid::create_world_object(HighGuid::Player, 0, 1, 0, 0, 0, 99);
+        let mut creature = test_creature(guid);
+        creature.enter_combat(victim);
+
+        assert!(matches!(
+            creature.update_runtime_chase_movement_like_cpp(
+                1,
+                test_chase_target(victim, 60.0),
+                true,
+                None,
+                |_| Some(test_chase_corridor(vec![501, 502], 59.0)),
+            ),
+            ChaseTickOutcomeLikeCpp::Launched(..)
+        ));
+        assert_eq!(creature.active_chase_path_poly_refs_like_cpp(), &[501, 502]);
+
+        let failed = creature.update_runtime_chase_movement_like_cpp(
+            1,
+            test_chase_target(victim, 10.5),
+            true,
+            None,
+            |query| {
+                assert!(
+                    query.previous_poly_refs.is_empty(),
+                    "the old toward corridor must be gone before the away query"
+                );
+                None
+            },
+        );
+        assert!(matches!(
+            failed,
+            ChaseTickOutcomeLikeCpp::Stopped(_) | ChaseTickOutcomeLikeCpp::Idle
+        ));
+        assert!(
+            creature
+                .active_chase_generator_like_cpp()
+                .expect("chase generator")
+                .moving_towards(),
+            "a failed query must not publish a move-away direction that never launched"
+        );
+        assert!(creature.active_chase_path_poly_refs_like_cpp().is_empty());
+        assert!(
+            creature
+                .active_chase_generator_like_cpp()
+                .expect("chase generator")
+                .has_flag(RuntimeMovementGeneratorFlags::INFORM_ENABLED),
+            "failed path handling keeps the existing C++ inform lifecycle"
+        );
+    }
+
+    #[test]
+    fn world_creature_nopath_after_arrival_does_not_reenable_consumed_inform_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54363);
+        let victim = ObjectGuid::create_world_object(HighGuid::Player, 0, 1, 0, 0, 0, 100);
+        let mut creature = test_creature(guid);
+        creature.enter_combat(victim);
+
+        assert!(matches!(
+            creature.update_runtime_chase_movement_like_cpp(
+                1,
+                test_chase_target(victim, 60.0),
+                true,
+                None,
+                |_| Some(test_chase_corridor(vec![601, 602], 59.0)),
+            ),
+            ChaseTickOutcomeLikeCpp::Launched(..)
+        ));
+
+        let duration_ms = creature
+            .active_move_spline_like_cpp()
+            .expect("chase spline")
+            .duration_ms();
+        creature.backdate_runtime_clock_for_test(Duration::from_millis(
+            u64::from(duration_ms as u32) + 50,
+        ));
+        assert!(creature.update_move_spline_like_cpp());
+        let _ = creature.update_runtime_chase_movement_like_cpp(
+            100,
+            test_chase_target(victim, 60.0),
+            true,
+            None,
+            |_| panic!("arrival must not calculate another path"),
+        );
+        assert!(
+            !creature
+                .active_chase_generator_like_cpp()
+                .expect("chase generator")
+                .has_flag(RuntimeMovementGeneratorFlags::INFORM_ENABLED)
+        );
+        assert!(
+            creature.creature.take_ai_movement_inform().is_some(),
+            "the successful spline arrival must consume and publish its inform"
+        );
+
+        let failed = creature.update_runtime_chase_movement_like_cpp(
+            1,
+            test_chase_target(victim, 100.0),
+            true,
+            None,
+            |_| None,
+        );
+        assert!(matches!(
+            failed,
+            ChaseTickOutcomeLikeCpp::Stopped(_) | ChaseTickOutcomeLikeCpp::Idle
+        ));
+        let generator = creature
+            .active_chase_generator_like_cpp()
+            .expect("chase generator");
+        assert!(generator.cannot_reach_target);
+        assert!(
+            !generator.has_flag(RuntimeMovementGeneratorFlags::INFORM_ENABLED),
+            "NOPATH after arrival must preserve the consumed inform state"
+        );
+
+        let owner_position = creature.position();
+        let in_range_target = ChaseTargetSnapshotLikeCpp {
+            guid: victim,
+            position: Position::new(
+                owner_position.x + 3.0,
+                owner_position.y,
+                owner_position.z,
+                0.0,
+            ),
+            combat_reach: 1.0,
+            in_world: true,
+            in_water: Some(false),
+        };
+        let snapshot = creature.chase_unit_snapshot_like_cpp(in_range_target);
+        let bounds = creature
+            .active_chase_generator_like_cpp()
+            .expect("chase generator")
+            .bounds_like_cpp(snapshot);
+        assert!(
+            !snapshot.owner_has_chase_move
+                && wow_movement::generators::chase::position_okay_like_cpp(
+                    snapshot,
+                    Some(bounds.min_range),
+                    Some(bounds.max_range),
+                    None,
+                ),
+            "the final target must exercise the in-range, no-active-spline branch: \
+             snapshot={snapshot:?}, bounds={bounds:?}"
+        );
+        assert_eq!(
+            creature.update_runtime_chase_movement_like_cpp(
+                100,
+                in_range_target,
+                true,
+                None,
+                |_| panic!("an in-range target must not calculate another path"),
+            ),
+            ChaseTickOutcomeLikeCpp::Idle
+        );
+        assert!(
+            creature.creature.take_ai_movement_inform().is_none(),
+            "a route that never launched must not publish a duplicate arrival inform"
+        );
+    }
+
+    /// C++ chase calls `CalculatePath(x, y, z, owner->CanFly())`
+    /// (`ChaseMovementGenerator.cpp:196`), and `_forceDestination` is consumed
+    /// *inside* `BuildPointPath`, so the flag has to reach the query itself.
+    #[test]
+    fn world_creature_chase_passes_can_fly_as_force_destination_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54354);
+        let victim = ObjectGuid::create_world_object(HighGuid::Player, 0, 1, 0, 0, 0, 93);
+
+        for can_fly in [false, true] {
+            let mut creature = WorldCreature::new(
+                guid,
+                1,
+                Position::new(10.0, 10.0, 0.0, 0.0),
+                50,
+                2,
+                5,
+                10,
+                20.0,
+                100,
+                14,
+                0,
+                0,
+            );
+            creature
+                .creature
+                .set_flight_movement_type_runtime_like_cpp(if can_fly {
+                    wow_constants::CreatureFlightMovementType::CanFly as u8
+                } else {
+                    wow_constants::CreatureFlightMovementType::None as u8
+                });
+            assert_eq!(creature.creature.can_fly_like_cpp(), can_fly);
+            creature.enter_combat(victim);
+
+            let mut observed = None;
+            let _ = creature.update_runtime_chase_movement_like_cpp(
+                100,
+                ChaseTargetSnapshotLikeCpp {
+                    guid: victim,
+                    position: Position::new(60.0, 10.0, 0.0, 0.0),
+                    combat_reach: 1.0,
+                    in_world: true,
+                    in_water: Some(false),
+                },
+                true,
+                None,
+                |query| {
+                    observed = Some(query.force_destination);
+                    None
+                },
+            );
+            assert_eq!(
+                observed,
+                Some(can_fly),
+                "the chase query must carry forceDest = CanFly()"
+            );
+        }
+    }
+
+    /// `resolve_creature_detour_path_like_cpp` already answers a missing
+    /// navmesh with the C++ `BuildShortcut()` path, so a `None` from it means the
+    /// query was attempted and failed. C++ has no such case — its own failures
+    /// went through `BuildShortcut()` + `PATHFIND_NOPATH` — so it must stop and
+    /// retry rather than launch a straight line through blocked geometry.
+    #[test]
+    fn world_creature_chase_query_failure_stops_instead_of_straight_lining_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54355);
+        let victim = ObjectGuid::create_world_object(HighGuid::Player, 0, 1, 0, 0, 0, 94);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        creature.enter_combat(victim);
+        let target = ChaseTargetSnapshotLikeCpp {
+            guid: victim,
+            position: Position::new(60.0, 10.0, 0.0, 0.0),
+            combat_reach: 1.0,
+            in_world: true,
+            in_water: Some(false),
+        };
+
+        // Pathfinding attempted and failed: no spline, and cannot-reach is set.
+        let outcome =
+            creature.update_runtime_chase_movement_like_cpp(100, target, true, None, |_| None);
+        assert_eq!(outcome, ChaseTickOutcomeLikeCpp::Idle);
+        assert!(creature.active_move_spline_like_cpp().is_none());
+        assert!(
+            creature
+                .active_chase_generator_like_cpp()
+                .expect("chase generator")
+                .cannot_reach_target,
+            "a failed query must record cannot-reach like the C++ NOPATH branch"
+        );
+
+        // Pathfinding disabled for this map/owner: C++ CalculatePath answers with
+        // BuildShortcut() + NORMAL|NOT_USING_PATH, which chase launches.
+        let mut disabled = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        disabled.enter_combat(victim);
+        let outcome =
+            disabled.update_runtime_chase_movement_like_cpp(100, target, false, None, |_| None);
+        assert!(
+            matches!(outcome, ChaseTickOutcomeLikeCpp::Launched(..)),
+            "with no navmesh C++ still launches the shortcut, got {outcome:?}"
+        );
+        assert!(
+            !disabled
+                .active_chase_generator_like_cpp()
+                .expect("chase generator")
+                .cannot_reach_target,
+            "a disabled navmesh is not a path failure"
+        );
+    }
+
+    /// C++ adds `UNIT_STATE_EVADE` immediately before `MoveTargetedHome()`
+    /// (`CreatureAI.cpp:237`) and only `HomeMovementGenerator::DoFinalize` clears
+    /// it (`HomeMovementGenerator.cpp:143`). It is what makes the creature immune
+    /// to attacks and un-aggroable for the whole walk back, and
+    /// `SetTargetLocation` deliberately preserves it by clearing
+    /// `UNIT_STATE_ALL_ERASABLE & ~UNIT_STATE_EVADE` (`:60`).
+    #[test]
+    fn world_creature_home_return_holds_evade_state_until_finalize_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54356);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(40.0, 10.0, 0.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        creature
+            .creature
+            .set_ai_home_position(Position::new(10.0, 10.0, 0.0, 0.0));
+        assert!(!creature.creature.is_in_evade_mode_like_cpp());
+
+        let outcome = creature.update_runtime_home_movement_like_cpp(false, None, |_| None);
+        assert!(
+            matches!(outcome, ChaseTickOutcomeLikeCpp::Launched(..)),
+            "the home return must launch, got {outcome:?}"
+        );
+        assert!(
+            creature.creature.is_in_evade_mode_like_cpp(),
+            "the creature must be evading for the whole walk home, or a player \
+             can damage and re-aggro a fully reset creature"
+        );
+        assert!(
+            creature.creature.is_evading_attacks_like_cpp(),
+            "C++ IsEvadingAttacks() gates damage while returning"
+        );
+
+        // Advancing while the spline is still running must not drop the state,
+        // and C++ only fires the reached-home payload once `DoUpdate` has seen
+        // the spline finalized (it is what sets `INFORM_ENABLED`).
+        let outcome = creature.update_runtime_home_movement_like_cpp(false, None, |_| None);
+        assert_eq!(outcome, ChaseTickOutcomeLikeCpp::Idle);
+        assert!(creature.creature.is_in_evade_mode_like_cpp());
+        assert!(
+            !creature.creature.take_ai_just_reached_home(),
+            "JustReachedHome must not fire while the creature is still walking"
+        );
+
+        // Let real time pass beyond the spline duration and advance it, exactly
+        // as `Unit::Update` does before `MotionMaster::Update`.
+        let duration_ms = creature
+            .active_move_spline_like_cpp()
+            .expect("home spline")
+            .duration_ms();
+        assert!(duration_ms > 0, "the home spline must have a duration");
+        creature.backdate_runtime_clock_for_test(Duration::from_millis(
+            u64::from(duration_ms as u32) + 50,
+        ));
+        assert!(creature.update_move_spline_like_cpp());
+
+        let outcome = creature.update_runtime_home_movement_like_cpp(false, None, |_| None);
+        assert_eq!(outcome, ChaseTickOutcomeLikeCpp::Idle);
+        assert!(
+            !creature.creature.is_in_evade_mode_like_cpp(),
+            "DoFinalize clears UNIT_STATE_EVADE on arrival"
+        );
+        assert_eq!(
+            creature.state(),
+            CreatureAiState::Idle,
+            "the creature is home and idle again"
+        );
+        assert!(
+            creature.creature.take_ai_just_reached_home(),
+            "C++ AI()->JustReachedHome() must fire on a natural home arrival"
+        );
+        assert!(
+            !creature.creature.take_ai_just_reached_home(),
+            "the callback is consumed once"
+        );
+    }
+
+    /// C++ sets `UNIT_STATE_EVADE` before `MoveTargetedHome()` constructs the
+    /// path (`CreatureAI.cpp:237`), so `UpdateFilter` includes `NAV_GROUND_STEEP`
+    /// for the return route (`PathGenerator.cpp:694-696`). The bridge therefore
+    /// has to build the query *after* it enters evade, not let the caller sample
+    /// the filter one step early.
+    #[test]
+    fn world_creature_home_query_filter_is_sampled_after_entering_evade_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54357);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(40.0, 10.0, 0.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        creature.creature.set_ground_movement_type_runtime_like_cpp(
+            wow_constants::CreatureGroundMovementType::Run as u8,
+        );
+        creature.creature.set_swim_allowed_runtime_like_cpp(false);
+        creature
+            .creature
+            .set_ai_home_position(Position::new(10.0, 10.0, 0.0, 0.0));
+
+        // The creature is neither in combat nor evading when the return starts,
+        // which is exactly the state `reset_combat` leaves behind.
+        assert!(!creature.creature.is_in_combat());
+        assert!(!creature.creature.is_in_evade_mode_like_cpp());
+
+        let mut observed = None;
+        let _ = creature.update_runtime_home_movement_like_cpp(true, None, |query| {
+            observed = Some(query.filter_context);
+            None
+        });
+
+        let filter =
+            create_path_query_filter_like_cpp(observed.expect("home query")).expect("filter");
+        assert_eq!(
+            filter.include_flags(),
+            (wow_recastdetour::NavTerrainFlag::GROUND
+                | wow_recastdetour::NavTerrainFlag::GROUND_STEEP)
+                .bits(),
+            "the home route must be queried with the evade state already applied, \
+             or it excludes steep polygons C++ allows"
+        );
+    }
+
+    /// A chase that just switched victim must query with a fresh corridor. C++
+    /// installs a new `ChaseMovementGenerator` owning a new `PathGenerator`, so
+    /// there is nothing to reuse; feeding the previous victim's `_pathPolyRefs`
+    /// would let `BuildPolyPath`'s ~80% prefix branch steer the first spline back
+    /// toward the old target (`PathGenerator.cpp:339-413`).
+    #[test]
+    fn world_creature_chase_first_query_after_victim_switch_has_no_corridor_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54358);
+        let first = ObjectGuid::create_world_object(HighGuid::Player, 0, 1, 0, 0, 0, 95);
+        let second = ObjectGuid::create_world_object(HighGuid::Player, 0, 1, 0, 0, 0, 96);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+
+        let target = |victim, x| ChaseTargetSnapshotLikeCpp {
+            guid: victim,
+            position: Position::new(x, 10.0, 0.0, 0.0),
+            combat_reach: 1.0,
+            in_world: true,
+            in_water: Some(false),
+        };
+        let corridor = |points: Vec<[f32; 3]>, refs: Vec<u64>| DetourPolyPath {
+            poly_refs: refs,
+            point_path: wow_recastdetour::DetourPointPath {
+                actual_end: *points.last().expect("points"),
+                points,
+                path_type: DetourPathType::NORMAL,
+            },
+            start_far_from_poly: false,
+            end_far_from_poly: false,
+        };
+
+        // First victim: the query produces a corridor the generator retains.
+        creature.enter_combat(first);
+        let mut first_query = None;
+        let _ = creature.update_runtime_chase_movement_like_cpp(
+            100,
+            target(first, 60.0),
+            true,
+            None,
+            |query| {
+                first_query = Some(query.previous_poly_refs.clone());
+                Some(corridor(
+                    vec![[10.0, 10.0, 0.0], [35.0, 10.0, 0.0], [59.0, 10.0, 0.0]],
+                    vec![101, 102, 103],
+                ))
+            },
+        );
+        assert_eq!(
+            first_query.as_deref(),
+            Some(&[][..]),
+            "a brand new generator starts with no corridor"
+        );
+        assert_eq!(
+            creature.active_chase_path_poly_refs_like_cpp(),
+            &[101, 102, 103],
+            "the corridor must be retained for the same victim"
+        );
+
+        // Switching victim must reset it before the next query is built.
+        creature.enter_combat(second);
+        let mut second_query = None;
+        let _ = creature.update_runtime_chase_movement_like_cpp(
+            100,
+            target(second, 65.0),
+            true,
+            None,
+            |query| {
+                second_query = Some(query.previous_poly_refs.clone());
+                None
+            },
+        );
+        assert_eq!(
+            second_query.as_deref(),
+            Some(&[][..]),
+            "the first query for a new victim must not carry the previous corridor"
+        );
+    }
+
+    /// When the victim leaves the world, C++ chase `Update` returns false and
+    /// `MotionMaster` finalizes the generator (`ChaseMovementGenerator.cpp:101-103`,
+    /// `:251-260`). The runtime must drop the chase generator and clear
+    /// `UNIT_STATE_CHASE_MOVE`, not merely clear the corridor, or the creature is
+    /// re-selected as chasing and keeps driving toward the corpse every tick.
+    #[test]
+    fn world_creature_chase_finalizes_when_the_victim_leaves_the_world_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54359);
+        let victim = ObjectGuid::create_world_object(HighGuid::Player, 0, 1, 0, 0, 0, 97);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        creature.enter_combat(victim);
+
+        // A live victim far enough to trigger a launch installs the generator and
+        // marks the creature chase-moving.
+        let _ = creature.update_runtime_chase_movement_like_cpp(
+            100,
+            ChaseTargetSnapshotLikeCpp {
+                guid: victim,
+                position: Position::new(60.0, 10.0, 0.0, 0.0),
+                combat_reach: 1.0,
+                in_world: true,
+                in_water: Some(false),
+            },
+            false,
+            None,
+            |_| None,
+        );
+        assert!(creature.active_chase_generator_like_cpp().is_some());
+        assert!(
+            creature
+                .creature
+                .unit()
+                .has_unit_state(wow_constants::UnitState::CHASE_MOVE.bits())
+        );
+
+        // The victim leaves the world: the snapshot reports `in_world: false`.
+        let _ = creature.update_runtime_chase_movement_like_cpp(
+            100,
+            ChaseTargetSnapshotLikeCpp {
+                guid: victim,
+                position: Position::new(60.0, 10.0, 0.0, 0.0),
+                combat_reach: 1.0,
+                in_world: false,
+                in_water: Some(false),
+            },
+            false,
+            None,
+            |_| None,
+        );
+        assert!(
+            creature.active_chase_generator_like_cpp().is_none(),
+            "the chase generator must be retired when the victim leaves the world"
+        );
+        assert!(
+            !creature
+                .creature
+                .unit()
+                .has_unit_state(wow_constants::UnitState::CHASE_MOVE.bits()),
+            "UNIT_STATE_CHASE_MOVE must be cleared on finalize"
+        );
+        assert!(creature.active_chase_path_poly_refs_like_cpp().is_empty());
+    }
+
+    /// C++ `HomeMovementGenerator::SetTargetLocation` sets
+    /// `MOVEMENTGENERATOR_FLAG_INTERRUPTED` and returns without launching while
+    /// ROOT/STUNNED/DISTRACTED (`HomeMovementGenerator.cpp:53-58`); only the next
+    /// `DoUpdate` sets `INFORM_ENABLED` and finalizes (`:117-122`). Finalizing in
+    /// the initialize frame would skip `INFORM_ENABLED`, suppressing
+    /// `JustReachedHome` and clearing evade a frame early.
+    #[test]
+    fn world_creature_home_interrupted_survives_one_frame_before_finalize_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54360);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(40.0, 10.0, 0.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        creature
+            .creature
+            .set_ai_home_position(Position::new(10.0, 10.0, 0.0, 0.0));
+        // The creature is returning (what `reset_combat` leaves behind), but
+        // rooted, so C++ `SetTargetLocation` interrupts instead of launching.
+        creature.creature.set_ai_state(CreatureAiState::Returning);
+        creature
+            .creature
+            .unit_mut()
+            .add_unit_state(wow_constants::UnitState::ROOT.bits());
+
+        // Initialize frame: interrupted, but the generator must stay installed
+        // and evade must be held, and the reached-home callback must NOT fire.
+        let outcome = creature.update_runtime_home_movement_like_cpp(false, None, |_| None);
+        assert_eq!(outcome, ChaseTickOutcomeLikeCpp::Idle);
+        assert!(
+            creature.creature.is_in_evade_mode_like_cpp(),
+            "evade must still be held while interrupted"
+        );
+        assert!(
+            !creature.creature.take_ai_just_reached_home(),
+            "JustReachedHome must not fire in the interrupt frame"
+        );
+        assert_eq!(
+            creature.state(),
+            CreatureAiState::Returning,
+            "the interrupted home generator stays selected for one more tick"
+        );
+
+        // Next frame: the update path sees INTERRUPTED, sets INFORM_ENABLED and
+        // finalizes, clearing evade and firing JustReachedHome.
+        let outcome = creature.update_runtime_home_movement_like_cpp(false, None, |_| None);
+        assert_eq!(outcome, ChaseTickOutcomeLikeCpp::Idle);
+        assert!(
+            !creature.creature.is_in_evade_mode_like_cpp(),
+            "DoFinalize clears UNIT_STATE_EVADE on the update frame"
+        );
+        assert!(
+            creature.creature.take_ai_just_reached_home(),
+            "JustReachedHome fires on the finalize frame, even for an interrupted return"
+        );
+        assert_eq!(creature.state(), CreatureAiState::Idle);
+    }
+
+    #[test]
+    fn detour_path_without_navmesh_matches_cpp_calculate_path_early_return() {
+        let start = Position::new(10.0, 10.0, 3.0, 0.0);
+        let destination = Position::new(25.0, 18.0, 4.0, 1.0);
+
+        let path = detour_path_without_navmesh_like_cpp(start, destination);
+
+        // C++ `BuildShortcut()` is exactly "start -> actual end", and
+        // `CalculatePath` types it `PATHFIND_NORMAL | PATHFIND_NOT_USING_PATH`
+        // (`PathGenerator.cpp:83-85`).
+        assert_eq!(
+            path.point_path.path_type,
+            DetourPathType::NORMAL | DetourPathType::NOT_USING_PATH
+        );
+        assert_eq!(
+            path.point_path.points,
+            vec![[10.0, 10.0, 3.0], [25.0, 18.0, 4.0]]
+        );
+        assert_eq!(path.point_path.actual_end, [25.0, 18.0, 4.0]);
+        assert!(path.poly_refs.is_empty());
+        assert!(!path.start_far_from_poly);
+        assert!(!path.end_far_from_poly);
+
+        // The type must be usable, otherwise the random generator would refuse
+        // to launch it the way it refuses NOPATH/SHORTCUT.
+        let path_type = path_type_from_detour_like_cpp(path.point_path.path_type);
+        assert_eq!(
+            random_path_result_from_path_type_like_cpp(path_type),
+            RandomPathResult::Success
+        );
+        assert!(!path_type.intersects(PathType::NOPATH | PathType::SHORTCUT));
+    }
+
+    #[test]
+    fn world_creature_random_launches_cpp_shortcut_when_navmesh_is_absent() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54341);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        creature
+            .creature
+            .set_default_movement_type_runtime_like_cpp(
+                wow_entities::MovementGeneratorType::Random,
+            );
+        creature.creature.ai_ownership_mut().wander_radius = 8.0;
+        creature.clock_started_at = Instant::now() - Duration::from_secs(10);
+
+        // C++ `CalculatePath` answers a missing navmesh/tile with
+        // `BuildShortcut()` + `PATHFIND_NORMAL | PATHFIND_NOT_USING_PATH`
+        // (`PathGenerator.cpp:79-86`). Neither bit is checked by
+        // `RandomMovementGenerator::SetRandomLocation`
+        // (`RandomMovementGenerator.cpp:146-153`), so the creature launches the
+        // two-point path instead of retrying forever.
+        let mut resolver_called = false;
+        let movement = creature.update_default_random_movement_with_path_resolver_like_cpp(
+            10,
+            true,
+            |query| {
+                resolver_called = true;
+                Some(detour_path_without_navmesh_like_cpp(
+                    query.start,
+                    query.destination,
+                ))
+            },
+        );
+
+        assert!(resolver_called);
+        let (from, spline) =
+            movement.expect("C++ launches the no-navmesh shortcut instead of standing still");
+        assert!(creature.active_move_spline_like_cpp().is_some());
+        assert_eq!(
+            creature.state(),
+            wow_entities::CreatureAiState::WalkingRandom
+        );
+
+        // The launched spline is the C++ `BuildShortcut()` segment: straight
+        // from the creature's position to the rolled wander destination, with
+        // no navmesh waypoints in between.
+        let destination = spline
+            .final_destination()
+            .expect("the launched shortcut has a destination");
+        let shortcut = detour_path_without_navmesh_like_cpp(from, destination);
+        let path = path_generator_from_detour_like_cpp(from, destination, &shortcut, false);
+        assert_eq!(
+            path.path_points(),
+            &[from, destination],
+            "the C++ no-navmesh case is a two-point shortcut"
+        );
+        assert_eq!(
+            path.path_type(),
+            PathType::NORMAL | PathType::NOT_USING_PATH
+        );
+    }
+
+    #[test]
+    fn world_creature_path_query_filter_context_follows_cpp_create_filter() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54342);
+        let mut creature = WorldCreature::new(
+            guid,
+            1,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+
+        // C++ `CreatureMovementData` defaults to `Ground = Run` and
+        // `Swim = true` (`Creature.cpp:58`), so `CanWalk()` and
+        // `CanEnterWater()` both hold and `CreateFilter` includes
+        // NAV_GROUND | NAV_WATER | NAV_MAGMA_SLIME.
+        let context = creature.path_query_filter_context_like_cpp();
+        assert_eq!(
+            context.owner,
+            wow_recastdetour::PathQueryFilterOwner::Creature {
+                can_walk: true,
+                can_enter_water: true,
+                in_combat: false,
+                in_evade_mode: false,
+            }
+        );
+        let filter = create_path_query_filter_like_cpp(context).expect("filter");
+        assert_eq!(
+            filter.include_flags(),
+            (wow_recastdetour::NavTerrainFlag::GROUND
+                | wow_recastdetour::NavTerrainFlag::WATER
+                | wow_recastdetour::NavTerrainFlag::MAGMA_SLIME)
+                .bits()
+        );
+
+        // A ground-only, non-swimming template must lose the water bits, which
+        // the previously hardcoded context could never express.
+        creature.creature.set_ground_movement_type_runtime_like_cpp(
+            wow_constants::CreatureGroundMovementType::None as u8,
+        );
+        creature.creature.set_swim_allowed_runtime_like_cpp(false);
+        let context = creature.path_query_filter_context_like_cpp();
+        assert_eq!(
+            context.owner,
+            wow_recastdetour::PathQueryFilterOwner::Creature {
+                can_walk: false,
+                can_enter_water: false,
+                in_combat: false,
+                in_evade_mode: false,
+            }
+        );
+
+        // C++ `UpdateFilter` adds NAV_GROUND_STEEP while the creature
+        // `IsInCombat()` or `IsInEvadeMode()` (`PathGenerator.cpp:694-696`).
+        creature.creature.set_ground_movement_type_runtime_like_cpp(
+            wow_constants::CreatureGroundMovementType::Run as u8,
+        );
+        creature.creature.set_in_evade_mode_like_cpp(true);
+        let context = creature.path_query_filter_context_like_cpp();
+        assert!(matches!(
+            context.owner,
+            wow_recastdetour::PathQueryFilterOwner::Creature {
+                in_evade_mode: true,
+                ..
+            }
+        ));
+        let filter = create_path_query_filter_like_cpp(context).expect("filter");
+        assert_eq!(
+            filter.include_flags(),
+            (wow_recastdetour::NavTerrainFlag::GROUND
+                | wow_recastdetour::NavTerrainFlag::GROUND_STEEP)
+                .bits()
         );
     }
 
@@ -7800,6 +9976,92 @@ mod tests {
             ),
             Ok(None)
         );
+    }
+
+    /// C++ `PathGenerator::CalculatePath` needs `HaveTile(start)` **and**
+    /// `HaveTile(dest)` (`PathGenerator.cpp:79-86`); it gets both because
+    /// `TerrainInfo::LoadMMap` pushes each grid's `.mmtile` in as the grid
+    /// loads. RustyCore loads tiles on demand from the path request, so the
+    /// pathfinder has to demand-load the destination's tile too — otherwise a
+    /// destination one tile over reports "no navmesh" and the caller degrades to
+    /// a straight line even though the mesh is on disk.
+    #[test]
+    fn world_mmap_pathfinder_demand_loads_the_destination_tile_like_cpp() {
+        use wow_recastdetour::test_fixtures::{
+            OBSTACLE_TILE_CELL_SIZE, write_obstacle_ring_mmaps_like_cpp,
+        };
+
+        const MAP_ID: u32 = 1;
+        let half = OBSTACLE_TILE_CELL_SIZE / 2.0;
+        // WoW y drives the Detour x axis, so stepping y across
+        // `SIZE_OF_GRIDS_LIKE_CPP` moves both the navmesh tile and the grid file
+        // the tile is named after.
+        let start = Position::new(half, half, 0.0, 0.0);
+        let destination = Position::new(half, SIZE_OF_GRIDS_LIKE_CPP + half, 0.0, 0.0);
+        assert_ne!(
+            wow_recastdetour::mmap_tile_coords_for_wow_position_like_cpp(start.x, start.y),
+            wow_recastdetour::mmap_tile_coords_for_wow_position_like_cpp(
+                destination.x,
+                destination.y
+            ),
+            "the fixture must straddle a grid-file seam to be meaningful"
+        );
+
+        let root = unique_test_dir("world-mmap-pathfinder-destination-tile");
+        let _ = std::fs::remove_dir_all(&root);
+        write_obstacle_ring_mmaps_like_cpp(
+            &root,
+            MAP_ID,
+            &[(start.x, start.y), (destination.x, destination.y)],
+        );
+
+        let mut pathfinder = WorldMMapPathfinderLikeCpp::new(&root);
+        let result = pathfinder.calculate_path_from_positions_like_cpp(
+            start,
+            destination,
+            MAP_ID,
+            MAP_ID,
+            0,
+            PathQueryFilterContext::creature(true, false, false, false),
+            DetourOwnerCapabilitiesLikeCpp::default(),
+            &[],
+            false,
+            MAX_POINT_PATH_LENGTH_LIKE_CPP,
+        );
+
+        // The query must actually run: reporting `Ok(None)` here would mean the
+        // destination tile was never loaded and the caller silently
+        // straight-lines.
+        let path = result
+            .expect("query must not error")
+            .expect("both endpoint tiles are on disk, so the query must run");
+
+        // The two fixture tiles are disconnected islands, so `findPath` returns
+        // a partial corridor that never reaches `endPoly`. That is the C++
+        // `PATHFIND_INCOMPLETE` tail in `BuildPolyPath`
+        // (`PathGenerator.cpp:519-522`) — a real navmesh answer, not a shortcut.
+        assert!(
+            path.point_path
+                .path_type
+                .contains(DetourPathType::INCOMPLETE),
+            "expected a partial navmesh corridor, got {:?}",
+            path.point_path.path_type
+        );
+        assert!(
+            !path
+                .point_path
+                .path_type
+                .intersects(DetourPathType::NOT_USING_PATH),
+            "the mesh was queried, so this must not be the no-navmesh shortcut: {:?}",
+            path.point_path.path_type
+        );
+        assert_eq!(
+            pathfinder.mmap_manager().get_loaded_tiles_count(),
+            2,
+            "the start tile and the destination tile must both be resident"
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -7877,6 +10139,8 @@ mod tests {
             instance_map_id: 1,
             instance_id: 42,
             filter_context: PathQueryFilterContext::creature(true, false, false, false),
+            owner: DetourOwnerCapabilitiesLikeCpp::default(),
+            previous_poly_refs: Vec::new(),
             force_destination: false,
             point_path_limit: MAX_POINT_PATH_LENGTH_LIKE_CPP,
             phase_shift: PhaseShift::default(),
