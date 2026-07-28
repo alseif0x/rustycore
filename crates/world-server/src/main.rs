@@ -14090,6 +14090,47 @@ fn deliver_creature_attack_start_commands_like_cpp(
     summary
 }
 
+fn deliver_creature_attack_stop_commands_like_cpp(
+    commands: &[wow_network::player_registry::CreatureAttackStopLikeCppCommand],
+    registry: &wow_network::PlayerRegistry,
+) -> RuntimeCreatureAttackStartDeliverySummaryLikeCpp {
+    let mut summary = RuntimeCreatureAttackStartDeliverySummaryLikeCpp::default();
+    for command in commands {
+        summary.commands_seen += 1;
+        let Some(candidate) = registry.get(&command.victim_guid).map(|entry| {
+            let info = entry.value();
+            (
+                info.command_tx.clone(),
+                info.map_id,
+                info.instance_id,
+                info.is_in_world,
+            )
+        }) else {
+            summary.candidates_skipped_missing_victim += 1;
+            continue;
+        };
+        summary.candidates_seen += 1;
+        if !candidate.3 {
+            summary.candidates_skipped_not_in_world += 1;
+        } else if candidate.1 != command.map_id {
+            summary.candidates_skipped_wrong_map += 1;
+        } else if candidate.2 != command.instance_id {
+            summary.candidates_skipped_wrong_instance += 1;
+        } else if candidate
+            .0
+            .try_send(wow_network::SessionCommand::CreatureAttackStopLikeCpp(
+                command.clone(),
+            ))
+            .is_ok()
+        {
+            summary.candidates_queued += 1;
+        } else {
+            summary.send_failed += 1;
+        }
+    }
+    summary
+}
+
 /// Deliver map-owned creature melee results to their exact victim sessions.
 ///
 /// C++ contrast: `Creature::Update` runs `DoMeleeAttackIfReady()` from the
@@ -14278,7 +14319,18 @@ fn run_legacy_creature_aggro_tick_and_deliver_once_like_cpp(
         &candidates,
         aggro_config,
     );
-    let delivery = deliver_creature_attack_start_commands_like_cpp(&outcome.commands, registry);
+    let mut delivery = deliver_creature_attack_start_commands_like_cpp(&outcome.commands, registry);
+    let stop_delivery =
+        deliver_creature_attack_stop_commands_like_cpp(&outcome.stop_commands, registry);
+    delivery.commands_seen += stop_delivery.commands_seen;
+    delivery.candidates_seen += stop_delivery.candidates_seen;
+    delivery.candidates_queued += stop_delivery.candidates_queued;
+    delivery.candidates_skipped_missing_victim += stop_delivery.candidates_skipped_missing_victim;
+    delivery.candidates_skipped_wrong_map += stop_delivery.candidates_skipped_wrong_map;
+    delivery.candidates_skipped_wrong_instance += stop_delivery.candidates_skipped_wrong_instance;
+    delivery.candidates_skipped_not_in_world += stop_delivery.candidates_skipped_not_in_world;
+    delivery.candidates_skipped_dead += stop_delivery.candidates_skipped_dead;
+    delivery.send_failed += stop_delivery.send_failed;
     let plan_delivery = deliver_runtime_plan_like_cpp(&outcome.plan, registry);
     (outcome, delivery, plan_delivery)
 }

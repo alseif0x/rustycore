@@ -62,12 +62,13 @@ use wow_loot::{
 use wow_network::player_registry::{
     ApplyCreatureMeleeDamageLikeCppCommand, ApplyGroupJoinLikeCppCommand,
     ApplyGroupRemovalLikeCppCommand, CancelRepresentedTradeLikeCppCommand,
-    CreatureAttackStartLikeCppCommand, RefreshVisibleWorldCreaturesLikeCppCommand,
-    SendAddonIfRegisteredLikeCppCommand, SendCreatureLootReleaseValuesUpdateLikeCppCommand,
-    SendIfVisibleLikeCppCommand, SendPartyUpdateLikeCppCommand,
-    SendRepeatableTurnInRequestItemsLikeCppCommand, SendRepresentedDuelCountdownLikeCppCommand,
-    SendRepresentedDuelRequestedLikeCppCommand, SendRepresentedTradeStatusLikeCppCommand,
-    SetQuestSharingInfoAndSendDetailsCommand, SyncChestGameobjectStateAndRefreshLikeCppCommand,
+    CreatureAttackStartLikeCppCommand, CreatureAttackStopLikeCppCommand,
+    RefreshVisibleWorldCreaturesLikeCppCommand, SendAddonIfRegisteredLikeCppCommand,
+    SendCreatureLootReleaseValuesUpdateLikeCppCommand, SendIfVisibleLikeCppCommand,
+    SendPartyUpdateLikeCppCommand, SendRepeatableTurnInRequestItemsLikeCppCommand,
+    SendRepresentedDuelCountdownLikeCppCommand, SendRepresentedDuelRequestedLikeCppCommand,
+    SendRepresentedTradeStatusLikeCppCommand, SetQuestSharingInfoAndSendDetailsCommand,
+    SyncChestGameobjectStateAndRefreshLikeCppCommand,
     SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
     SyncGooberGameobjectStateAndRefreshLikeCppCommand, UnacceptRepresentedTradeLikeCppCommand,
     WorldSessionShutdownFlushResultLikeCpp,
@@ -4323,6 +4324,9 @@ impl WorldSession {
                 SessionCommand::CreatureAttackStartLikeCpp(command) => {
                     self.handle_creature_attack_start_like_cpp_command_like_cpp(command);
                 }
+                SessionCommand::CreatureAttackStopLikeCpp(command) => {
+                    self.handle_creature_attack_stop_like_cpp_command_like_cpp(command);
+                }
                 SessionCommand::ApplyLootMoneyLikeCpp(command) => {
                     self.handle_apply_loot_money_like_cpp_command(command).await;
                 }
@@ -4802,6 +4806,62 @@ impl WorldSession {
             attacker: command.attacker_guid,
             victim: command.victim_guid,
         });
+    }
+
+    fn handle_creature_attack_stop_like_cpp_command_like_cpp(
+        &mut self,
+        command: CreatureAttackStopLikeCppCommand,
+    ) {
+        if self.state() != crate::session::SessionState::LoggedIn
+            || self.player_guid() != Some(command.victim_guid)
+            || self.player_map_id_like_cpp() != command.map_id
+        {
+            return;
+        }
+        let Some(map_key) = self.current_canonical_player_map_key_like_cpp() else {
+            return;
+        };
+        if map_key.instance_id != command.instance_id {
+            return;
+        }
+
+        self.combat_target = None;
+        self.in_combat = false;
+        let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
+            return;
+        };
+        let Ok(mut manager) = manager.lock() else {
+            return;
+        };
+        let Some(managed) = manager.find_map_mut(map_key.map_id, map_key.instance_id) else {
+            return;
+        };
+        let map = managed.map_mut();
+        if let Some(player) = map.get_typed_player_mut(command.victim_guid) {
+            player
+                .unit_mut()
+                .subsystems_mut()
+                .combat
+                .purge_combat_ref_like_cpp(command.attacker_guid);
+            player
+                .unit_mut()
+                .subsystems_mut()
+                .combat
+                .purge_threatened_by_me_ref(command.attacker_guid);
+            player
+                .unit_mut()
+                .remove_attacker_like_cpp(command.attacker_guid);
+        }
+        if let Some(creature) = map.get_typed_creature_mut(command.attacker_guid) {
+            creature
+                .unit_mut()
+                .subsystems_mut()
+                .combat
+                .purge_combat_ref_like_cpp(command.victim_guid);
+            creature
+                .unit_mut()
+                .remove_attacker_like_cpp(command.victim_guid);
+        }
     }
 
     fn handle_send_visible_object_values_update_command_like_cpp(

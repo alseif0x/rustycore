@@ -1384,6 +1384,17 @@ impl Creature {
         &self.lifecycle_metadata
     }
 
+    pub fn set_spawn_health_like_cpp(&mut self) {
+        self.unit.set_health(
+            self.lifecycle_metadata
+                .spawn_health
+                .unwrap_or(self.unit.data().max_health),
+        );
+        if let Some(spawn_mana) = self.lifecycle_metadata.spawn_mana {
+            self.unit.set_power(PowerType::Mana, spawn_mana);
+        }
+    }
+
     pub fn set_required_expansion_runtime_like_cpp(&mut self, required_expansion: u8) {
         self.lifecycle_metadata.required_expansion = required_expansion;
     }
@@ -3316,14 +3327,7 @@ impl Creature {
                 if is_pet {
                     self.unit.set_health(self.unit.data().max_health);
                 } else {
-                    self.unit.set_health(
-                        self.lifecycle_metadata
-                            .spawn_health
-                            .unwrap_or(self.unit.data().max_health),
-                    );
-                    if let Some(spawn_mana) = self.lifecycle_metadata.spawn_mana {
-                        self.unit.set_power(PowerType::Mana, spawn_mana);
-                    }
+                    self.set_spawn_health_like_cpp();
                     self.unit
                         .world_mut()
                         .object_mut()

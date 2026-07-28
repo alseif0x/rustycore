@@ -3551,6 +3551,7 @@ pub(crate) fn sync_canonical_creature_entity_on_map_like_cpp(
         .into_iter()
         .filter(|threat_guid| !incoming_threat_guids.contains(threat_guid))
         .collect();
+    let mirrored_threat_guids: Vec<_> = incoming_threat_guids.iter().copied().collect();
 
     if let Some(current_authority) = map
         .map()
@@ -3586,6 +3587,32 @@ pub(crate) fn sync_canonical_creature_entity_on_map_like_cpp(
         .creature()
         .map(|creature| creature.loot_authority_like_cpp().clone())?;
     map.map_mut().insert_map_object_record(record).ok()?;
+    for added_guid in mirrored_threat_guids {
+        let threat_ref = map.map().get_typed_creature(guid).and_then(|creature| {
+            creature
+                .unit()
+                .subsystems()
+                .combat
+                .threat_ref(added_guid)
+                .copied()
+        });
+        let Some(threat_ref) = threat_ref else {
+            continue;
+        };
+        if let Some(player) = map.map_mut().get_typed_player_mut(added_guid) {
+            player
+                .unit_mut()
+                .subsystems_mut()
+                .combat
+                .put_threatened_by_me_ref(guid, threat_ref);
+        } else if let Some(creature) = map.map_mut().get_typed_creature_mut(added_guid) {
+            creature
+                .unit_mut()
+                .subsystems_mut()
+                .combat
+                .put_threatened_by_me_ref(guid, threat_ref);
+        }
+    }
     for removed_guid in removed_threat_guids {
         if let Some(player) = map.map_mut().get_typed_player_mut(removed_guid) {
             player
@@ -3950,6 +3977,7 @@ pub struct LegacyCreatureAggroTickOutcomeLikeCpp {
     pub plan: crate::map_manager::RuntimePlan,
     pub aggro_starts: usize,
     pub commands: Vec<wow_network::player_registry::CreatureAttackStartLikeCppCommand>,
+    pub stop_commands: Vec<wow_network::player_registry::CreatureAttackStopLikeCppCommand>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -56745,6 +56773,14 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                             }
                             .to_bytes(),
                         });
+                        outcome.stop_commands.push(
+                            wow_network::player_registry::CreatureAttackStopLikeCppCommand {
+                                attacker_guid: guid,
+                                victim_guid: previous_victim,
+                                map_id,
+                                instance_id,
+                            },
+                        );
                     }
                     if !removed_taunt_slots.is_empty() {
                         outcome.plan.events.push(RuntimeEvent {
@@ -57023,6 +57059,10 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                         || assistant
                             .creature
                             .has_react_state(wow_entities::ReactState::Passive)
+                        || assistant
+                            .creature
+                            .unit()
+                            .has_unit_state(wow_constants::UnitState::CONTROLLED.bits())
                         || assistant.creature.is_civilian_like_cpp()
                         || assistant
                             .creature
@@ -61599,7 +61639,7 @@ impl WorldSession {
             .iter()
             .filter(|owner_guid| {
                 self.mutate_world_creature(**owner_guid, |creature| {
-                    !creature.creature.unit().has_unit_state(controlled_mask)
+                    creature.is_alive() && !creature.creature.unit().has_unit_state(controlled_mask)
                 })
                 .unwrap_or(false)
             })
@@ -61613,6 +61653,9 @@ impl WorldSession {
         for owner_guid in owner_guids {
             let threat_value = self
                 .mutate_world_creature(owner_guid, |creature| {
+                    if !creature.is_alive() {
+                        return None;
+                    }
                     let controlled = creature.creature.unit().has_unit_state(controlled_mask);
                     if !controlled {
                         creature.enter_combat(healer_guid);
@@ -96601,6 +96644,40 @@ mod tests {
                 .threatened_by_me_owner_guids()
                 .contains(&guid),
             "syncing an evaded legacy creature must purge the canonical reverse threat ref"
+        );
+        drop(guard);
+
+        let mut reengaged = wow_entities::Creature::new(false);
+        reengaged.unit_mut().world_mut().object_mut().create(guid);
+        reengaged
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .set_entry(9001);
+        reengaged.unit_mut().world_mut().set_map(609, 7).unwrap();
+        reengaged.unit_mut().world_mut().relocate(synced);
+        reengaged
+            .unit_mut()
+            .subsystems_mut()
+            .combat
+            .add_threat(player_guid, 30.0);
+        sync_canonical_creature_entity_on_map_like_cpp(&canonical, 609, 7, reengaged)
+            .expect("reengaged creature sync");
+        assert!(
+            canonical
+                .lock()
+                .unwrap()
+                .find_map(609, 7)
+                .unwrap()
+                .map()
+                .get_typed_player(player_guid)
+                .unwrap()
+                .unit()
+                .subsystems()
+                .combat
+                .threatened_by_me_owner_guids()
+                .contains(&guid),
+            "a proximity-acquired forward threat ref must create the player's inverse ref"
         );
     }
 
@@ -142942,6 +143019,8 @@ mod tests {
         );
 
         assert_eq!(outcome.evades_started, 1);
+        assert_eq!(outcome.stop_commands.len(), 1);
+        assert_eq!(outcome.stop_commands[0].victim_guid, vanished);
         assert_eq!(outcome.plan.events.len(), 1);
         let mut stop_packet =
             wow_packet::WorldPacket::from_bytes(&outcome.plan.events[0].packet_bytes);
@@ -142979,10 +143058,17 @@ mod tests {
         let caller_guid = test_creature_guid(91_216);
         let assistant_guid = test_creature_guid(91_217);
         let dead_assistant_guid = test_creature_guid(91_219);
+        let controlled_assistant_guid = test_creature_guid(91_220);
         let victim = ObjectGuid::create_player(1, 91_218);
         register_test_creature(&mut session, manager.clone(), caller_guid, 100);
         register_test_creature(&mut session, manager.clone(), assistant_guid, 100);
         register_test_creature(&mut session, manager.clone(), dead_assistant_guid, 100);
+        register_test_creature(
+            &mut session,
+            manager.clone(),
+            controlled_assistant_guid,
+            100,
+        );
         session
             .mutate_world_creature(caller_guid, |creature| {
                 creature.creature.ai_ownership_mut().aggro_radius = 5.0;
@@ -143005,6 +143091,17 @@ mod tests {
                 creature.creature.ai_ownership_mut().aggro_radius = 0.0;
                 creature.creature.unit_mut().set_level(25);
                 creature.creature.set_faction(14);
+            })
+            .unwrap();
+        session
+            .mutate_world_creature(controlled_assistant_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 0.0;
+                creature.creature.unit_mut().set_level(25);
+                creature.creature.set_faction(14);
+                creature
+                    .creature
+                    .unit_mut()
+                    .add_unit_state(wow_constants::UnitState::STUNNED.bits());
             })
             .unwrap();
         manager

@@ -31,6 +31,7 @@ pub enum SessionCommand {
     WorldSessionShutdownFlushLikeCpp(WorldSessionShutdownFlushLikeCppCommand),
     ApplyCreatureMeleeDamageLikeCpp(ApplyCreatureMeleeDamageLikeCppCommand),
     CreatureAttackStartLikeCpp(CreatureAttackStartLikeCppCommand),
+    CreatureAttackStopLikeCpp(CreatureAttackStopLikeCppCommand),
     ApplyLootMoneyLikeCpp(ApplyLootMoneyLikeCppCommand),
     NotifyLootMoneyRemovedLikeCpp(NotifyLootMoneyRemovedLikeCppCommand),
     MasterLootGive(MasterLootGiveCommand),
@@ -219,6 +220,15 @@ pub struct ApplyCreatureMeleeDamageLikeCppCommand {
 /// client receives one `SMSG_ATTACKSTART` and the session mirrors combat state.
 #[derive(Clone, Debug)]
 pub struct CreatureAttackStartLikeCppCommand {
+    pub attacker_guid: ObjectGuid,
+    pub victim_guid: ObjectGuid,
+    pub map_id: u16,
+    pub instance_id: u32,
+}
+
+/// Payload for a map-owned creature evade/combat-stop transition.
+#[derive(Clone, Debug)]
+pub struct CreatureAttackStopLikeCppCommand {
     pub attacker_guid: ObjectGuid,
     pub victim_guid: ObjectGuid,
     pub map_id: u16,

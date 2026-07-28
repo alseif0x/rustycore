@@ -131,11 +131,36 @@ impl WorldSession {
 
         if let Some(target) = self.stop_player_attack_like_cpp() {
             // Reset creature combat if it was fighting us.
-            let _ = self.mutate_world_creature(target, |creature| {
-                if creature.state() == wow_entities::CreatureAiState::InCombat {
-                    creature.reset_combat();
-                }
-            });
+            let removed_taunt_slots = self
+                .mutate_world_creature(target, |creature| {
+                    if creature.state() == wow_entities::CreatureAiState::InCombat {
+                        creature.reset_combat()
+                    } else {
+                        Vec::new()
+                    }
+                })
+                .unwrap_or_default();
+
+            if !removed_taunt_slots.is_empty() {
+                use wow_packet::ServerPacket;
+
+                let aura_update = wow_packet::packets::misc::AuraUpdate {
+                    unit_guid: target,
+                    update_all: false,
+                    auras: removed_taunt_slots
+                        .into_iter()
+                        .map(|slot| wow_packet::packets::misc::AuraInfoLikeCpp {
+                            slot,
+                            aura_data: None,
+                        })
+                        .collect(),
+                };
+                self.send_packet(&aura_update);
+                self.broadcast_creature_packet_to_visible_set_like_cpp(
+                    target,
+                    aura_update.to_bytes(),
+                );
+            }
 
             let stop = SAttackStop {
                 attacker: player_guid.clone(),

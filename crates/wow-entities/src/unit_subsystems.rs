@@ -1742,6 +1742,13 @@ impl CombatSubsystem {
             }
         }
 
+        if let Some(taunter) = self.sorted_threat_guids().into_iter().find(|guid| {
+            self.threat_refs[guid].is_available() && self.threat_refs[guid].is_taunting()
+        }) {
+            self.current_victim_guid = Some(taunter);
+            return Some(taunter);
+        }
+
         let sorted = self.sorted_threat_guids();
         let highest_guid = sorted
             .into_iter()

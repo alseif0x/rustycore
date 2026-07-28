@@ -2932,8 +2932,7 @@ impl WorldCreature {
                 // C++ `SetSpawnHealth()` precedes `AI()->JustReachedHome()`
                 // (`HomeMovementGenerator.cpp:148-156`). Addon/sparring health
                 // overlays remain respawn-owned in this runtime.
-                let max_health = self.creature.unit().data().max_health;
-                self.creature.unit_mut().set_health(max_health);
+                self.creature.set_spawn_health_like_cpp();
                 self.home_health_restored_pending_like_cpp = true;
                 self.creature.record_ai_just_reached_home();
             }
@@ -9569,11 +9568,22 @@ mod tests {
             combat.add_threat(taunter, 10.0);
             combat.add_threat(newer_taunter, 20.0);
             combat.add_threat(tank, 100.0);
+            assert_eq!(combat.reselect_victim(false, false), Some(tank));
         }
 
         assert_eq!(
             creature.apply_taunt_aura_like_cpp(taunter, 100, 1, 2_000),
             Some(0)
+        );
+        assert_eq!(
+            creature
+                .creature
+                .unit_mut()
+                .subsystems_mut()
+                .combat
+                .reselect_victim(false, false),
+            Some(taunter),
+            "an active taunt bypasses ordinary threat-switch thresholds"
         );
         assert_eq!(
             creature.apply_taunt_aura_like_cpp(newer_taunter, 100, 1, 1_000),
