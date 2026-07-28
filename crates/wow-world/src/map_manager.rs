@@ -1334,9 +1334,24 @@ pub struct WorldCreature {
     runtime_motion_master: MotionMaster,
     runtime_chase_target: Option<ObjectGuid>,
     runtime_represented_active: Option<RuntimeRepresentedActiveKeyLikeCpp>,
+    /// Delayed `AssistDelayEvent` payload: victim and map-local due time.
+    pending_assistance_like_cpp: Option<(ObjectGuid, u64)>,
+    /// C++ `m_AlreadyCallAssistance`, reset when combat stops.
+    assistance_called_like_cpp: bool,
+    /// Active `SPELL_AURA_MOD_TAUNT`s in application order: caster and expiry.
+    active_taunts_like_cpp: Vec<ActiveTauntLikeCpp>,
     runtime_motion_master_ticks: u64,
     runtime_rng_like_cpp: StdRng,
     clock_started_at: Instant,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ActiveTauntLikeCpp {
+    caster: ObjectGuid,
+    due_at_ms: u64,
+    spell_id: u32,
+    effect_mask: u32,
+    slot: u8,
 }
 
 impl Clone for WorldCreature {
@@ -1346,6 +1361,9 @@ impl Clone for WorldCreature {
             runtime_motion_master: Self::new_runtime_motion_master_like_cpp(&creature),
             runtime_chase_target: None,
             runtime_represented_active: None,
+            pending_assistance_like_cpp: self.pending_assistance_like_cpp,
+            assistance_called_like_cpp: self.assistance_called_like_cpp,
+            active_taunts_like_cpp: self.active_taunts_like_cpp.clone(),
             runtime_motion_master_ticks: self.runtime_motion_master_ticks,
             creature,
             create_data: self.create_data.clone(),
@@ -1526,6 +1544,9 @@ impl WorldCreature {
             runtime_motion_master,
             runtime_chase_target: None,
             runtime_represented_active: None,
+            pending_assistance_like_cpp: None,
+            assistance_called_like_cpp: false,
+            active_taunts_like_cpp: Vec::new(),
             runtime_motion_master_ticks: 0,
             runtime_rng_like_cpp: StdRng::from_entropy(),
             clock_started_at: Instant::now(),
@@ -1919,9 +1940,156 @@ impl WorldCreature {
         );
     }
 
-    pub fn reset_combat(&mut self) {
+    pub fn schedule_assistance_like_cpp(&mut self, victim: ObjectGuid, delay_ms: u32) -> bool {
+        if self.creature.is_in_combat()
+            || self.pending_assistance_like_cpp.is_some()
+            || !self.is_alive()
+        {
+            return false;
+        }
+        self.pending_assistance_like_cpp =
+            Some((victim, self.now_ms().saturating_add(u64::from(delay_ms))));
+        true
+    }
+
+    pub fn take_assistance_call_like_cpp(&mut self) -> Option<ObjectGuid> {
+        if self.assistance_called_like_cpp
+            || self
+                .creature
+                .unit()
+                .subsystems()
+                .control
+                .charmer_or_owner_guid()
+                .is_some()
+        {
+            return None;
+        }
+        let victim = self.creature.ai_ownership().combat_target?;
+        self.assistance_called_like_cpp = true;
+        Some(victim)
+    }
+
+    pub fn take_due_assistance_like_cpp(&mut self) -> Option<ObjectGuid> {
+        let (victim, due_at_ms) = self.pending_assistance_like_cpp?;
+        if self.now_ms() < due_at_ms {
+            return None;
+        }
+        self.pending_assistance_like_cpp = None;
+        Some(victim)
+    }
+
+    pub fn apply_taunt_aura_like_cpp(
+        &mut self,
+        caster: ObjectGuid,
+        spell_id: u32,
+        effect_mask: u32,
+        duration_ms: u32,
+    ) -> Option<u8> {
+        let due_at_ms = self.now_ms().saturating_add(u64::from(duration_ms));
+        {
+            let combat = &mut self.creature.unit_mut().subsystems_mut().combat;
+            if combat.threat_ref(caster).is_none() {
+                return None;
+            }
+            for active in &self.active_taunts_like_cpp {
+                combat.set_threat_taunt_state(active.caster, wow_entities::ThreatTauntState::None);
+            }
+        }
+        let replaced: Vec<_> = self
+            .active_taunts_like_cpp
+            .iter()
+            .copied()
+            .filter(|active| active.caster == caster && active.spell_id == spell_id)
+            .collect();
+        self.active_taunts_like_cpp
+            .retain(|active| active.caster != caster || active.spell_id != spell_id);
+        let auras = &mut self.creature.unit_mut().subsystems_mut().auras;
+        auras.remove_auras_due_to_spell_like_cpp(spell_id, caster, effect_mask);
+        for active in replaced {
+            auras.clear_visible(active.slot);
+        }
+        if !auras.add_self_cast_addon_aura_application_like_cpp(spell_id, caster, effect_mask, 0) {
+            return None;
+        }
+        let slot = auras.visible_auras.iter().find_map(|(slot, aura)| {
+            (aura.spell_id == spell_id && aura.caster_guid == caster).then_some(*slot)
+        })?;
+        self.active_taunts_like_cpp.push(ActiveTauntLikeCpp {
+            caster,
+            due_at_ms,
+            spell_id,
+            effect_mask,
+            slot,
+        });
+        self.creature
+            .unit_mut()
+            .subsystems_mut()
+            .combat
+            .set_threat_taunt_state(caster, wow_entities::ThreatTauntState::Taunt)
+            .then_some(slot)
+    }
+
+    pub fn expire_taunt_auras_if_due_like_cpp(&mut self) -> Vec<u8> {
+        let now_ms = self.now_ms();
+        if !self
+            .active_taunts_like_cpp
+            .iter()
+            .any(|active| now_ms >= active.due_at_ms)
+        {
+            return Vec::new();
+        }
+        {
+            let combat = &mut self.creature.unit_mut().subsystems_mut().combat;
+            for active in &self.active_taunts_like_cpp {
+                combat.set_threat_taunt_state(active.caster, wow_entities::ThreatTauntState::None);
+            }
+        }
+        let expired: Vec<_> = self
+            .active_taunts_like_cpp
+            .iter()
+            .copied()
+            .filter(|active| now_ms >= active.due_at_ms)
+            .collect();
+        self.active_taunts_like_cpp
+            .retain(|active| now_ms < active.due_at_ms);
+        for active in &expired {
+            let auras = &mut self.creature.unit_mut().subsystems_mut().auras;
+            auras.remove_auras_due_to_spell_like_cpp(
+                active.spell_id,
+                active.caster,
+                active.effect_mask,
+            );
+            auras.clear_visible(active.slot);
+        }
+        if let Some(active) = self.active_taunts_like_cpp.last().copied() {
+            self.creature
+                .unit_mut()
+                .subsystems_mut()
+                .combat
+                .set_threat_taunt_state(active.caster, wow_entities::ThreatTauntState::Taunt);
+        }
+        expired.into_iter().map(|active| active.slot).collect()
+    }
+
+    pub fn reset_combat(&mut self) -> Vec<u8> {
+        let active_taunts = std::mem::take(&mut self.active_taunts_like_cpp);
+        for active in &active_taunts {
+            let auras = &mut self.creature.unit_mut().subsystems_mut().auras;
+            auras.remove_auras_due_to_spell_like_cpp(
+                active.spell_id,
+                active.caster,
+                active.effect_mask,
+            );
+            auras.clear_visible(active.slot);
+        }
+        self.pending_assistance_like_cpp = None;
+        self.assistance_called_like_cpp = false;
         self.creature.reset_ai_combat(self.now_ms());
         self.sync_runtime_motion_master_like_cpp();
+        active_taunts
+            .into_iter()
+            .map(|active| active.slot)
+            .collect()
     }
 
     pub(crate) fn sync_runtime_motion_master_like_cpp(&mut self) {
@@ -2756,10 +2924,11 @@ impl WorldCreature {
                 self.creature.restore_can_swim_flag_after_home_like_cpp();
             }
             if finalize.just_reached_home {
-                // C++ `AI()->JustReachedHome()` — the last step of the
-                // reached-home payload (`:156`). The spawn-health,
-                // creature-addon and sparring-health reloads that precede it in
-                // C++ are respawn-owned in this runtime.
+                // C++ `SetSpawnHealth()` precedes `AI()->JustReachedHome()`
+                // (`HomeMovementGenerator.cpp:148-156`). Addon/sparring health
+                // overlays remain respawn-owned in this runtime.
+                let max_health = self.creature.unit().data().max_health;
+                self.creature.unit_mut().set_health(max_health);
                 self.creature.record_ai_just_reached_home();
             }
         }
@@ -9364,6 +9533,101 @@ mod tests {
         );
     }
 
+    #[test]
+    fn world_creature_taunt_priority_expires_at_aura_duration_like_cpp() {
+        let creature_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54355);
+        let taunter = ObjectGuid::create_player(1, 1);
+        let newer_taunter = ObjectGuid::create_player(1, 3);
+        let tank = ObjectGuid::create_player(1, 2);
+        let mut creature = WorldCreature::new(
+            creature_guid,
+            1,
+            Position::default(),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        {
+            let combat = &mut creature.creature.unit_mut().subsystems_mut().combat;
+            combat.add_threat(taunter, 10.0);
+            combat.add_threat(newer_taunter, 20.0);
+            combat.add_threat(tank, 100.0);
+        }
+
+        assert_eq!(
+            creature.apply_taunt_aura_like_cpp(taunter, 100, 1, 2_000),
+            Some(0)
+        );
+        assert_eq!(
+            creature.apply_taunt_aura_like_cpp(newer_taunter, 101, 1, 1_000),
+            Some(1)
+        );
+        assert_eq!(
+            creature
+                .creature
+                .unit()
+                .subsystems()
+                .combat
+                .sorted_threat_guids()
+                .first(),
+            Some(&newer_taunter)
+        );
+
+        creature.backdate_runtime_clock_for_test(Duration::from_millis(1_200));
+        assert_eq!(creature.expire_taunt_auras_if_due_like_cpp(), vec![1]);
+        assert_eq!(
+            creature
+                .creature
+                .unit()
+                .subsystems()
+                .combat
+                .sorted_threat_guids()
+                .first(),
+            Some(&taunter),
+            "when the newest taunt expires C++ restores the still-active older taunt"
+        );
+
+        creature.backdate_runtime_clock_for_test(Duration::from_millis(2_200));
+        assert_eq!(creature.expire_taunt_auras_if_due_like_cpp(), vec![0]);
+        assert_eq!(
+            creature
+                .creature
+                .unit()
+                .subsystems()
+                .combat
+                .sorted_threat_guids()
+                .first(),
+            Some(&tank)
+        );
+
+        let reset_slot = creature
+            .apply_taunt_aura_like_cpp(taunter, 102, 1, 2_000)
+            .expect("taunt aura slot");
+        assert_eq!(creature.reset_combat(), vec![reset_slot]);
+        assert!(
+            creature
+                .creature
+                .unit()
+                .subsystems()
+                .auras
+                .visible_auras
+                .values()
+                .all(|aura| aura.spell_id != 102),
+            "C++ RemoveAurasOnEvade removes the visible taunt aura during combat reset"
+        );
+        assert!(
+            creature.expire_taunt_auras_if_due_like_cpp().is_empty(),
+            "an evade-removed taunt must not expire a second time"
+        );
+    }
+
     /// C++ adds `UNIT_STATE_EVADE` immediately before `MoveTargetedHome()`
     /// (`CreatureAI.cpp:237`) and only `HomeMovementGenerator::DoFinalize` clears
     /// it (`HomeMovementGenerator.cpp:143`). It is what makes the creature immune
@@ -9390,6 +9654,7 @@ mod tests {
         creature
             .creature
             .set_ai_home_position(Position::new(10.0, 10.0, 0.0, 0.0));
+        creature.creature.unit_mut().set_health(17);
         assert!(!creature.creature.is_in_evade_mode_like_cpp());
 
         let outcome = creature.update_runtime_home_movement_like_cpp(false, None, |_| None);
@@ -9440,6 +9705,11 @@ mod tests {
             creature.state(),
             CreatureAiState::Idle,
             "the creature is home and idle again"
+        );
+        assert_eq!(
+            creature.creature.unit().data().health,
+            creature.creature.unit().data().max_health,
+            "C++ SetSpawnHealth restores health on home finalization"
         );
         assert!(
             creature.creature.take_ai_just_reached_home(),

@@ -14000,6 +14000,12 @@ fn legacy_creature_aggro_config_like_cpp(
             533.0,
             creature_aggro_rate,
         ),
+        family_assistance_radius: world_config_f32(configs, "CreatureFamilyAssistanceRadius", 10.0),
+        family_assistance_delay_ms: world_config_u32(
+            configs,
+            "CreatureFamilyAssistanceDelay",
+            1_500,
+        ),
         faction_template_store: None,
         faction_store: None,
         map_store: None,

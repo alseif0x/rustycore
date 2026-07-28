@@ -1,6 +1,6 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**Date:** 2026-07-24 · **Base:** `3.4.3` @ `30440c39` plus local issue #24 Detour navmesh-query closeout.
+**Date:** 2026-07-28 · **Base:** `3.4.3` @ `26f4058b` plus local issue #25 threat-runtime closeout.
 
 This document replaces the drifting status snapshots in `_INDEX.md` (2026-05-01, "5–15%"),
 the `MIGRATION_ROADMAP.md` §3 inherited table (which tells you not to trust it), and the
@@ -204,9 +204,22 @@ victim's `MotionMaster`), `IsWithinLOS` and `ShortenPathUntilDist`'s LOS test (V
 `CanSwim()` mesh-hole halves and `Map::IsUnderWater` (liquid), `Map::GetForceEnabled/Disabled
 NavMeshFilterFlags`, `_useRaycast`/`_useStraightPath` (no live caller),
 `MovePositionToFirstCollision` + `IsWithinLOS` gating the wander roll, VMAP/liquid-aware
-`NormalizePath`, off-mesh links/transports/formation, the reached-home spawn-health/addon reloads
-(respawn-owned here), and C++'s per-instance pathfinder concurrency — every map still serializes
+`NormalizePath`, off-mesh links/transports/formation, the reached-home addon/sparring-health reloads,
+and C++'s per-instance pathfinder concurrency — every map still serializes
 through one pathfinder thread.
+
+M2.5 / issue #25 replaces spawn-frozen threat with the live C++ ownership path. Nonlethal hostile
+spell damage now engages the creature and adds effective-damage threat; direct healing forwards
+half of effective healing, divided across eligible threatening creatures. `EffectTaunt` matches
+the caster to the available highest threat and `SPELL_AURA_MOD_TAUNT` gives the newest active
+taunt priority until its DB2 duration expires, restoring an older still-active taunt afterward.
+The global creature tick reselects at C++'s 110% melee / 130% ranged thresholds, broadcasts
+`SMSG_ATTACK_STOP` on evade, clears threat/tap state, blocks re-aggro while returning, and restores
+spawn health only when home movement finalizes. `CallAssistance` is once per engagement, delayed
+by the configured family-assistance delay, restricted by C++ `CanAssistTo` gates, and cannot
+chain from an assistant. Focused positive/negative regressions plus the complete `wow-world`
+3119/0 and `wow-entities` 667/0 library suites are clean. Live same-action capture evidence is
+still required before this item can be called capture-clean or merged.
 
 ---
 
