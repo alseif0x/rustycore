@@ -218,8 +218,13 @@ The global creature tick reselects at C++'s 110% melee / 130% ranged thresholds,
 spawn health only when home movement finalizes. `CallAssistance` is once per engagement, delayed
 by the configured family-assistance delay, restricted by C++ `CanAssistTo` gates, and cannot
 chain from an assistant. Focused positive/negative regressions plus the complete `wow-world`
-3119/0 and `wow-entities` 667/0 library suites are clean. Live same-action capture evidence is
-still required before this item can be called capture-clean or merged.
+3119/0 and `wow-entities` 667/0 library suites are clean. A guarded live
+`detour-chase-around-obstacle` recapture from `4535a25a` proves the attack-accepted → target
+acquisition → chase slice byte/opcode-clean against the retained C++ golden (3/3 packets, no
+value/routing/missing/extra differences); the fixture also restored its character, respawn, world
+DB, and private DataDir snapshot exactly. That wire window does not exercise heal, taunt,
+assistance, or evade; those branches remain covered by focused C++-anchored regressions rather
+than dedicated live captures.
 
 ---
 
