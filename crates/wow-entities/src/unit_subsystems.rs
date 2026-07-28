@@ -306,7 +306,11 @@ impl AuraSubsystem {
         effect_mask: u32,
         flags: u32,
     ) -> bool {
-        if self.has_aura_spell_like_cpp(spell_id) {
+        if self
+            .applied_auras
+            .iter()
+            .any(|aura| aura.spell_id == spell_id && aura.caster_guid == caster_guid)
+        {
             return false;
         }
 

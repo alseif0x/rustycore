@@ -3535,6 +3535,22 @@ pub(crate) fn sync_canonical_creature_entity_on_map_like_cpp(
     if map.map().get_creature(guid).is_none() {
         return None;
     }
+    let old_threat_guids = map
+        .map()
+        .get_typed_creature(guid)
+        .map(|current| current.unit().subsystems().combat.sorted_threat_guids())
+        .unwrap_or_default();
+    let incoming_threat_guids: HashSet<_> = creature
+        .unit()
+        .subsystems()
+        .combat
+        .sorted_threat_guids()
+        .into_iter()
+        .collect();
+    let removed_threat_guids: Vec<_> = old_threat_guids
+        .into_iter()
+        .filter(|threat_guid| !incoming_threat_guids.contains(threat_guid))
+        .collect();
 
     if let Some(current_authority) = map
         .map()
@@ -3570,6 +3586,21 @@ pub(crate) fn sync_canonical_creature_entity_on_map_like_cpp(
         .creature()
         .map(|creature| creature.loot_authority_like_cpp().clone())?;
     map.map_mut().insert_map_object_record(record).ok()?;
+    for removed_guid in removed_threat_guids {
+        if let Some(player) = map.map_mut().get_typed_player_mut(removed_guid) {
+            player
+                .unit_mut()
+                .subsystems_mut()
+                .combat
+                .purge_threatened_by_me_ref(guid);
+        } else if let Some(creature) = map.map_mut().get_typed_creature_mut(removed_guid) {
+            creature
+                .unit_mut()
+                .subsystems_mut()
+                .combat
+                .purge_threatened_by_me_ref(guid);
+        }
+    }
     Some(authority)
 }
 
@@ -3955,6 +3986,23 @@ fn legacy_creature_update_threat_victim_like_cpp(
         .iter()
         .map(|candidate| (candidate.player_guid, *candidate))
         .collect();
+    let eligible_candidate_guids: HashSet<_> = candidates
+        .iter()
+        .filter(|candidate| {
+            legacy_creature_aggro_candidate_is_targetable_for_attack_like_cpp(candidate)
+                && matches!(
+                    legacy_creature_aggro_candidate_visibility_decision_like_cpp(
+                        creature,
+                        creature.map_id() as u16,
+                        creature.instance_id(),
+                        candidate,
+                        false,
+                    ),
+                    LegacyCreatureAggroVisibilityDecisionLikeCpp::Allowed
+                )
+        })
+        .map(|candidate| candidate.player_guid)
+        .collect();
     let threat_guids = creature
         .creature
         .unit()
@@ -3962,7 +4010,7 @@ fn legacy_creature_update_threat_victim_like_cpp(
         .combat
         .sorted_threat_guids();
     for threat_guid in threat_guids {
-        let online_state = if candidate_by_guid.contains_key(&threat_guid) {
+        let online_state = if eligible_candidate_guids.contains(&threat_guid) {
             wow_entities::ThreatOnlineState::Online
         } else {
             wow_entities::ThreatOnlineState::Offline
@@ -3982,7 +4030,7 @@ fn legacy_creature_update_threat_victim_like_cpp(
         .combat
         .sorted_threat_guids()
         .into_iter()
-        .find(|guid| candidate_by_guid.contains_key(guid));
+        .find(|guid| eligible_candidate_guids.contains(guid));
     let Some(highest_guid) = highest_guid else {
         let combat = &mut creature.creature.unit_mut().subsystems_mut().combat;
         combat.clear_threat();
@@ -4028,7 +4076,11 @@ fn legacy_creature_update_threat_victim_like_cpp(
             removed_taunt_slots,
         };
     };
-    let Some(candidate) = candidate_by_guid.get(&selected).copied() else {
+    let Some(candidate) = candidate_by_guid
+        .get(&selected)
+        .copied()
+        .filter(|candidate| eligible_candidate_guids.contains(&candidate.player_guid))
+    else {
         let removed_taunt_slots = creature.reset_combat();
         return LegacyCreatureThreatUpdateLikeCpp::Evade {
             previous_victim: old_victim,
@@ -10451,14 +10503,16 @@ impl WorldSession {
         attacker_is_friendly_to_victim: bool,
         victim_is_friendly_to_attacker: bool,
     ) -> bool {
+        let Some(map_key) = self.current_canonical_player_map_key_like_cpp() else {
+            return false;
+        };
         let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
             return false;
         };
         let Ok(mut manager) = manager.lock() else {
             return false;
         };
-        let Some(managed) = manager.find_map_mut(u32::from(self.player_map_id_like_cpp()), 0)
-        else {
+        let Some(managed) = manager.find_map_mut(map_key.map_id, map_key.instance_id) else {
             return false;
         };
         let map = managed.map_mut();
@@ -10561,9 +10615,10 @@ impl WorldSession {
         creature_guid: ObjectGuid,
         attacker_guid: ObjectGuid,
     ) -> Option<f32> {
+        let map_key = self.current_canonical_player_map_key_like_cpp()?;
         let manager = self.canonical_map_manager.as_ref()?.clone();
         let manager = manager.lock().ok()?;
-        let managed = manager.find_map(u32::from(self.player_map_id_like_cpp()), 0)?;
+        let managed = manager.find_map(map_key.map_id, map_key.instance_id)?;
         let creature = managed.map().get_typed_creature(creature_guid)?;
         creature
             .unit()
@@ -10591,14 +10646,16 @@ impl WorldSession {
             return false;
         }
 
+        let Some(map_key) = self.current_canonical_player_map_key_like_cpp() else {
+            return false;
+        };
         let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
             return false;
         };
         let Ok(mut manager) = manager.lock() else {
             return false;
         };
-        let Some(managed) = manager.find_map_mut(u32::from(self.player_map_id_like_cpp()), 0)
-        else {
+        let Some(managed) = manager.find_map_mut(map_key.map_id, map_key.instance_id) else {
             return false;
         };
         let map = managed.map_mut();
@@ -10635,14 +10692,16 @@ impl WorldSession {
     }
 
     fn revalidate_canonical_player_combat_refs_like_cpp(&mut self, player_guid: ObjectGuid) {
+        let Some(map_key) = self.current_canonical_player_map_key_like_cpp() else {
+            return;
+        };
         let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
             return;
         };
         let Ok(mut manager) = manager.lock() else {
             return;
         };
-        let Some(managed) = manager.find_map_mut(u32::from(self.player_map_id_like_cpp()), 0)
-        else {
+        let Some(managed) = manager.find_map_mut(map_key.map_id, map_key.instance_id) else {
             return;
         };
         if managed.map().get_typed_player(player_guid).is_some() {
@@ -55462,6 +55521,7 @@ pub fn run_legacy_creature_movement_tick_once_like_cpp(
     diff_ms: u32,
 ) -> LegacyCreatureMovementTickOutcomeLikeCpp {
     use crate::map_manager::{RecipientRule, RuntimeEvent, RuntimePlan, RuntimeTickOwner};
+    use wow_packet::ServerPacket;
 
     let mut outcome = LegacyCreatureMovementTickOutcomeLikeCpp {
         skipped_owner_not_global: false,
@@ -55540,6 +55600,26 @@ pub fn run_legacy_creature_movement_tick_once_like_cpp(
                     diff_ms,
                 );
                 let source_position = creature.position();
+                if creature.take_home_health_restored_pending_like_cpp()
+                    && let Some(update) = unit_values_update_to_update_object(
+                        guid,
+                        map_id,
+                        &creature.creature.unit().values_update(),
+                    )
+                {
+                    outcome.plan.events.push(RuntimeEvent {
+                        source_guid: guid,
+                        recipients: RecipientRule::NearbyVisible {
+                            source_guid: guid,
+                            map_id,
+                            instance_id,
+                            source_position,
+                            range: creature.visibility_range_like_cpp(),
+                            required_3d: false,
+                        },
+                        packet_bytes: update.to_bytes(),
+                    });
+                }
                 canonical_syncs.push((
                     u32::from(map_id),
                     instance_id,
@@ -56591,9 +56671,10 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                 });
             }
             if let Some(victim_guid) = creature.take_due_assistance_like_cpp() {
-                if map_candidates
-                    .iter()
-                    .any(|candidate| candidate.player_guid == victim_guid)
+                if creature.is_alive()
+                    && map_candidates
+                        .iter()
+                        .any(|candidate| candidate.player_guid == victim_guid)
                 {
                     creature.enter_combat(victim_guid);
                     // C++ `AssistDelayEvent` calls `SetNoCallAssistance(true)`
@@ -56939,9 +57020,9 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                     if !assistant.is_alive()
                         || assistant.creature.is_in_combat()
                         || assistant.creature.is_in_evade_mode_like_cpp()
-                        || !assistant
+                        || assistant
                             .creature
-                            .has_react_state(wow_entities::ReactState::Aggressive)
+                            .has_react_state(wow_entities::ReactState::Passive)
                         || assistant.creature.is_civilian_like_cpp()
                         || assistant
                             .creature
@@ -62207,14 +62288,16 @@ impl WorldSession {
             );
         }
 
+        let Some(map_key) = self.current_canonical_player_map_key_like_cpp() else {
+            return;
+        };
         let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
             return;
         };
         let Ok(mut manager) = manager.lock() else {
             return;
         };
-        let Some(managed) = manager.find_map_mut(u32::from(self.player_map_id_like_cpp()), 0)
-        else {
+        let Some(managed) = manager.find_map_mut(map_key.map_id, map_key.instance_id) else {
             return;
         };
         let map = managed.map_mut();
@@ -62415,13 +62498,16 @@ impl WorldSession {
         &self,
         target_guid: ObjectGuid,
     ) -> Vec<ObjectGuid> {
+        let Some(map_key) = self.current_canonical_player_map_key_like_cpp() else {
+            return Vec::new();
+        };
         let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
             return Vec::new();
         };
         let Ok(manager) = manager.lock() else {
             return Vec::new();
         };
-        let Some(managed) = manager.find_map(u32::from(self.player_map_id_like_cpp()), 0) else {
+        let Some(managed) = manager.find_map(map_key.map_id, map_key.instance_id) else {
             return Vec::new();
         };
         let map = managed.map();
@@ -62447,14 +62533,16 @@ impl WorldSession {
         owner_guid: ObjectGuid,
         target_guid: ObjectGuid,
     ) {
+        let Some(map_key) = self.current_canonical_player_map_key_like_cpp() else {
+            return;
+        };
         let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
             return;
         };
         let Ok(mut manager) = manager.lock() else {
             return;
         };
-        let Some(managed) = manager.find_map_mut(u32::from(self.player_map_id_like_cpp()), 0)
-        else {
+        let Some(managed) = manager.find_map_mut(map_key.map_id, map_key.instance_id) else {
             return;
         };
         let map = managed.map_mut();
@@ -62570,6 +62658,8 @@ impl WorldSession {
             );
         }
         if let (Some(slot), Some(effect_mask)) = (taunt_slot, taunt_effect_mask) {
+            use wow_packet::ServerPacket;
+
             let aura = AuraApplication {
                 spell_id,
                 caster_guid: player_guid,
@@ -62588,7 +62678,7 @@ impl WorldSession {
                 represented_multiplier: 1.0,
                 applied_at: Instant::now(),
             };
-            self.send_packet(&wow_packet::packets::misc::AuraUpdate {
+            let packet = wow_packet::packets::misc::AuraUpdate {
                 unit_guid: target_guid,
                 update_all: false,
                 auras: vec![Self::player_aura_info_like_cpp(
@@ -62596,7 +62686,9 @@ impl WorldSession {
                     self.player_level_like_cpp(),
                     self.player_map_id_like_cpp(),
                 )],
-            });
+            };
+            self.send_packet(&packet);
+            self.broadcast_creature_packet_to_visible_set_like_cpp(target_guid, packet.to_bytes());
         }
 
         // C++ special-cases Hand of Reckoning (62124) by casting 67485 on
@@ -96415,8 +96507,34 @@ mod tests {
     fn canonical_creature_sync_helpers_use_explicit_map_and_instance_like_cpp() {
         let canonical = shared_canonical_map_manager();
         let guid = test_creature_guid(613);
+        let player_guid = ObjectGuid::create_player(1, 613);
         let initial = Position::new(10.0, 20.0, 30.0, 1.0);
         add_canonical_test_creature_on_map(&canonical, guid, 9001, initial, 0, 609, 7);
+        add_canonical_test_player_on_map(&canonical, player_guid, initial, 609, 7);
+        {
+            let mut manager = canonical.lock().unwrap();
+            let map = manager.find_map_mut(609, 7).unwrap().map_mut();
+            let threat_ref = {
+                let creature = map.get_typed_creature_mut(guid).unwrap();
+                creature
+                    .unit_mut()
+                    .subsystems_mut()
+                    .combat
+                    .set_threat(player_guid, 25.0);
+                *creature
+                    .unit()
+                    .subsystems()
+                    .combat
+                    .threat_ref(player_guid)
+                    .unwrap()
+            };
+            map.get_typed_player_mut(player_guid)
+                .unwrap()
+                .unit_mut()
+                .subsystems_mut()
+                .combat
+                .put_threatened_by_me_ref(guid, threat_ref);
+        }
 
         let relocated = Position::new(15.0, 25.0, 35.0, 2.0);
         relocate_canonical_creature_map_object_on_map_like_cpp(&canonical, 609, 7, guid, relocated);
@@ -96469,6 +96587,20 @@ mod tests {
         assert!(
             authority_before.shares_storage_like_cpp(typed.loot_authority_like_cpp()),
             "a whole-entity sync must not replace the canonical loot authority"
+        );
+        assert!(
+            !guard
+                .find_map(609, 7)
+                .unwrap()
+                .map()
+                .get_typed_player(player_guid)
+                .unwrap()
+                .unit()
+                .subsystems()
+                .combat
+                .threatened_by_me_owner_guids()
+                .contains(&guid),
+            "syncing an evaded legacy creature must purge the canonical reverse threat ref"
         );
     }
 
@@ -99994,17 +100126,25 @@ mod tests {
             0,
         ));
         session.set_player_health_like_cpp(50, 100);
-        add_canonical_test_player_on_map(&canonical, player_guid, position, 0, 0);
+        add_canonical_test_player_on_map(&canonical, player_guid, position, 0, 7);
         add_canonical_test_creature_indexed_on_map_with_level(
             &canonical,
             creature_guid,
             9_001,
             position,
             0,
-            0,
+            7,
             80,
         );
         register_test_creature(&mut session, manager.clone(), creature_guid, 100);
+        {
+            let mut legacy = manager.write().unwrap();
+            let creature = legacy
+                .remove_creature_any(0, 0, creature_guid)
+                .expect("move the represented creature into the test instance");
+            let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(position.x, position.y);
+            legacy.add_creature(0, 7, grid_x, grid_y, creature);
+        }
         session
             .mutate_world_creature(creature_guid, |creature| {
                 creature.enter_combat(player_guid);
@@ -100027,7 +100167,7 @@ mod tests {
         let legacy_threat = manager
             .read()
             .unwrap()
-            .find_creature(0, 0, creature_guid)
+            .find_creature(0, 7, creature_guid)
             .unwrap()
             .creature
             .unit()
@@ -106360,6 +106500,15 @@ mod tests {
         let position = Position::new(10.0, 10.0, 0.0, 0.0);
         let manager = shared_map_manager();
         let canonical = shared_canonical_map_manager();
+        let registry = Arc::new(PlayerRegistry::default());
+        let (observer_tx, _observer_rx) = flume::bounded(4);
+        let (observer_command_tx, observer_command_rx) = flume::bounded(4);
+        let observer_guid = ObjectGuid::create_player(1, 2793);
+        let mut observer =
+            broadcast_info_with_command(observer_guid, observer_tx, observer_command_tx);
+        observer.position = position;
+        registry.insert(observer_guid, observer);
+        session.set_player_registry(registry);
         session.set_canonical_map_manager(Arc::clone(&canonical));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
             player_guid,
@@ -106454,6 +106603,19 @@ mod tests {
                 ServerOpcodes::AuraUpdate,
                 ServerOpcodes::CooldownEvent
             ]
+        );
+        let observer_command = observer_command_rx
+            .try_recv()
+            .expect("nearby sessions receive the taunt AuraUpdate command");
+        let SessionCommand::SendIfVisibleLikeCpp(observer_command) = observer_command else {
+            panic!("expected visibility-gated taunt fanout");
+        };
+        assert_eq!(
+            u16::from_le_bytes([
+                observer_command.packet_bytes[0],
+                observer_command.packet_bytes[1],
+            ]),
+            ServerOpcodes::AuraUpdate as u16
         );
     }
 
@@ -142816,9 +142978,11 @@ mod tests {
         let (mut session, _, _) = make_session();
         let caller_guid = test_creature_guid(91_216);
         let assistant_guid = test_creature_guid(91_217);
+        let dead_assistant_guid = test_creature_guid(91_219);
         let victim = ObjectGuid::create_player(1, 91_218);
         register_test_creature(&mut session, manager.clone(), caller_guid, 100);
         register_test_creature(&mut session, manager.clone(), assistant_guid, 100);
+        register_test_creature(&mut session, manager.clone(), dead_assistant_guid, 100);
         session
             .mutate_world_creature(caller_guid, |creature| {
                 creature.creature.ai_ownership_mut().aggro_radius = 5.0;
@@ -142828,6 +142992,16 @@ mod tests {
             .unwrap();
         session
             .mutate_world_creature(assistant_guid, |creature| {
+                creature.creature.ai_ownership_mut().aggro_radius = 0.0;
+                creature.creature.unit_mut().set_level(25);
+                creature.creature.set_faction(14);
+                creature
+                    .creature
+                    .set_react_state(wow_entities::ReactState::Defensive);
+            })
+            .unwrap();
+        session
+            .mutate_world_creature(dead_assistant_guid, |creature| {
                 creature.creature.ai_ownership_mut().aggro_radius = 0.0;
                 creature.creature.unit_mut().set_level(25);
                 creature.creature.set_faction(14);
@@ -142849,7 +143023,7 @@ mod tests {
             config.clone(),
         );
         assert_eq!(scheduled.aggro_starts, 1);
-        assert_eq!(scheduled.assistance_scheduled, 1);
+        assert_eq!(scheduled.assistance_scheduled, 2);
         assert_eq!(
             manager
                 .read()
@@ -142869,6 +143043,17 @@ mod tests {
             .find_creature_mut(0, 0, assistant_guid)
             .unwrap()
             .backdate_runtime_clock_for_test(Duration::from_millis(1_501));
+        {
+            let mut manager = manager.write().unwrap();
+            let dead_assistant = manager
+                .find_creature_mut(0, 0, dead_assistant_guid)
+                .unwrap();
+            dead_assistant.backdate_runtime_clock_for_test(Duration::from_millis(1_501));
+            dead_assistant
+                .creature
+                .unit_mut()
+                .set_death_state(wow_constants::DeathState::JustDied);
+        }
         let assisted =
             run_legacy_creature_aggro_tick_once_with_config_like_cpp(&manager, &candidates, config);
         assert_eq!(assisted.assistance_starts, 1);
@@ -142882,6 +143067,18 @@ mod tests {
                 .ai_ownership()
                 .combat_target,
             Some(victim)
+        );
+        assert_eq!(
+            manager
+                .read()
+                .unwrap()
+                .find_creature(0, 0, dead_assistant_guid)
+                .unwrap()
+                .creature
+                .ai_ownership()
+                .combat_target,
+            None,
+            "AssistDelayEvent must not engage a helper that died before execution"
         );
     }
 

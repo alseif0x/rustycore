@@ -1340,6 +1340,9 @@ pub struct WorldCreature {
     assistance_called_like_cpp: bool,
     /// Active `SPELL_AURA_MOD_TAUNT`s in application order: caster and expiry.
     active_taunts_like_cpp: Vec<ActiveTauntLikeCpp>,
+    /// Set by reached-home finalization until the global movement owner
+    /// publishes the restored health values update.
+    home_health_restored_pending_like_cpp: bool,
     runtime_motion_master_ticks: u64,
     runtime_rng_like_cpp: StdRng,
     clock_started_at: Instant,
@@ -1364,6 +1367,7 @@ impl Clone for WorldCreature {
             pending_assistance_like_cpp: self.pending_assistance_like_cpp,
             assistance_called_like_cpp: self.assistance_called_like_cpp,
             active_taunts_like_cpp: self.active_taunts_like_cpp.clone(),
+            home_health_restored_pending_like_cpp: self.home_health_restored_pending_like_cpp,
             runtime_motion_master_ticks: self.runtime_motion_master_ticks,
             creature,
             create_data: self.create_data.clone(),
@@ -1547,6 +1551,7 @@ impl WorldCreature {
             pending_assistance_like_cpp: None,
             assistance_called_like_cpp: false,
             active_taunts_like_cpp: Vec::new(),
+            home_health_restored_pending_like_cpp: false,
             runtime_motion_master_ticks: 0,
             runtime_rng_like_cpp: StdRng::from_entropy(),
             clock_started_at: Instant::now(),
@@ -2929,12 +2934,17 @@ impl WorldCreature {
                 // overlays remain respawn-owned in this runtime.
                 let max_health = self.creature.unit().data().max_health;
                 self.creature.unit_mut().set_health(max_health);
+                self.home_health_restored_pending_like_cpp = true;
                 self.creature.record_ai_just_reached_home();
             }
         }
         self.active_home_generator = None;
         self.creature.ai_ownership_mut().move_target = None;
         self.creature.set_ai_state(CreatureAiState::Idle);
+    }
+
+    pub fn take_home_health_restored_pending_like_cpp(&mut self) -> bool {
+        std::mem::take(&mut self.home_health_restored_pending_like_cpp)
     }
 
     /// The chase generator currently selected for this creature, kept alongside
@@ -9566,7 +9576,7 @@ mod tests {
             Some(0)
         );
         assert_eq!(
-            creature.apply_taunt_aura_like_cpp(newer_taunter, 101, 1, 1_000),
+            creature.apply_taunt_aura_like_cpp(newer_taunter, 100, 1, 1_000),
             Some(1)
         );
         assert_eq!(
@@ -9710,6 +9720,14 @@ mod tests {
             creature.creature.unit().data().health,
             creature.creature.unit().data().max_health,
             "C++ SetSpawnHealth restores health on home finalization"
+        );
+        assert!(
+            creature.take_home_health_restored_pending_like_cpp(),
+            "the global tick must publish the health restored by home finalization"
+        );
+        assert!(
+            !creature.take_home_health_restored_pending_like_cpp(),
+            "the values update publication marker is consumed once"
         );
         assert!(
             creature.creature.take_ai_just_reached_home(),
