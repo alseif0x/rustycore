@@ -215,9 +215,17 @@ the caster to the available highest threat and `SPELL_AURA_MOD_TAUNT` gives the 
 taunt priority until its DB2 duration expires, restoring an older still-active taunt afterward.
 The global creature tick reselects at C++'s 110% melee / 130% ranged thresholds, broadcasts
 `SMSG_ATTACK_STOP` on evade, clears threat/tap state, blocks re-aggro while returning, and restores
-spawn health only when home movement finalizes. `CallAssistance` is once per engagement, delayed
-by the configured family-assistance delay, restricted by C++ `CanAssistTo` gates, and cannot
-chain from an assistant. Focused positive/negative regressions plus the complete `wow-world`
+spawn health only when home movement finalizes. Threat references now also preserve C++'s distinct
+`Suppressed` state for targets immune to the attacker's melee school, confused, or held by a
+damage-breakable stun; they remain in the threat list but cannot be selected until online again,
+and clearing the aura alone does not expire suppression: only new threat from that target or
+C++'s explicit `TauntUpdate` reevaluation can reactivate it. An active taunt explicitly bypasses
+suppression. `CallAssistance` is once per engagement, delayed by the configured family-assistance
+delay, stored on the caller with assistant GUIDs like C++ `AssistDelayEvent`, re-resolved and
+restricted by C++ `CanAssistTo` gates when due, and cannot chain from an assistant. Focused
+positive/negative regressions also pin ordered, lossless delivery of committed creature combat
+events; its per-session backlog is bounded and disconnects a stalled/desynchronized consumer
+instead of dropping events or growing without limit. The complete `wow-world`
 3119/0 and `wow-entities` 667/0 library suites are clean. A guarded live
 `detour-chase-around-obstacle` recapture from `4535a25a` proves the attack-accepted → target
 acquisition → chase slice byte/opcode-clean against the retained C++ golden (3/3 packets, no

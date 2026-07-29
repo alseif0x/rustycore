@@ -1335,8 +1335,9 @@ pub struct WorldCreature {
     runtime_motion_master: MotionMaster,
     runtime_chase_target: Option<ObjectGuid>,
     runtime_represented_active: Option<RuntimeRepresentedActiveKeyLikeCpp>,
-    /// Delayed `AssistDelayEvent` payload: victim and map-local due time.
-    pending_assistance_like_cpp: Vec<(ObjectGuid, ObjectGuid, u64)>,
+    /// Caller-owned delayed `AssistDelayEvent` payload: victim, assistant
+    /// GUIDs, and map-local due time.
+    pending_assistance_like_cpp: Vec<(ObjectGuid, Vec<ObjectGuid>, u64)>,
     /// C++ `m_AlreadyCallAssistance`, reset when combat stops.
     assistance_called_like_cpp: bool,
     /// Active `SPELL_AURA_MOD_TAUNT`s in application order: caster and expiry.
@@ -1352,7 +1353,8 @@ pub struct WorldCreature {
 #[derive(Debug, Clone, Copy)]
 struct ActiveTauntLikeCpp {
     caster: ObjectGuid,
-    due_at_ms: u64,
+    /// `None` represents C++/DB2's permanent duration sentinel `-1`.
+    due_at_ms: Option<u64>,
     spell_id: u32,
     effect_mask: u32,
     slot: u8,
@@ -1948,19 +1950,23 @@ impl WorldCreature {
 
     pub fn schedule_assistance_like_cpp(
         &mut self,
-        caller: ObjectGuid,
         victim: ObjectGuid,
+        assistants: Vec<ObjectGuid>,
         delay_ms: u32,
     ) -> bool {
-        if self.creature.is_in_combat() || !self.is_alive() {
+        if assistants.is_empty() {
             return false;
         }
         self.pending_assistance_like_cpp.push((
-            caller,
             victim,
+            assistants,
             self.now_ms().saturating_add(u64::from(delay_ms)),
         ));
         true
+    }
+
+    pub fn set_no_call_assistance_like_cpp(&mut self) {
+        self.assistance_called_like_cpp = true;
     }
 
     pub fn take_assistance_call_like_cpp(&mut self) -> Option<ObjectGuid> {
@@ -1980,13 +1986,13 @@ impl WorldCreature {
         Some(victim)
     }
 
-    pub fn take_due_assistance_like_cpp(&mut self) -> Vec<(ObjectGuid, ObjectGuid)> {
+    pub fn take_due_assistance_like_cpp(&mut self) -> Vec<(ObjectGuid, Vec<ObjectGuid>)> {
         let now_ms = self.now_ms();
         let mut due = Vec::new();
         self.pending_assistance_like_cpp
-            .retain(|(caller, victim, due_at_ms)| {
+            .retain(|(victim, assistants, due_at_ms)| {
                 if now_ms >= *due_at_ms {
-                    due.push((*caller, *victim));
+                    due.push((*victim, assistants.clone()));
                     false
                 } else {
                     true
@@ -2000,9 +2006,10 @@ impl WorldCreature {
         caster: ObjectGuid,
         spell_id: u32,
         effect_mask: u32,
-        duration_ms: u32,
+        duration_ms: i32,
     ) -> Option<u8> {
-        let due_at_ms = self.now_ms().saturating_add(u64::from(duration_ms));
+        let due_at_ms =
+            (duration_ms >= 0).then(|| self.now_ms().saturating_add(duration_ms as u64));
         let replaced: Vec<_> = self
             .active_taunts_like_cpp
             .iter()
@@ -2039,21 +2046,25 @@ impl WorldCreature {
 
     pub fn expire_taunt_auras_if_due_like_cpp(&mut self) -> Vec<u8> {
         let now_ms = self.now_ms();
-        if !self
-            .active_taunts_like_cpp
-            .iter()
-            .any(|active| now_ms >= active.due_at_ms)
-        {
+        if !self.active_taunts_like_cpp.iter().any(|active| {
+            active
+                .due_at_ms
+                .is_some_and(|due_at_ms| now_ms >= due_at_ms)
+        }) {
             return Vec::new();
         }
         let expired: Vec<_> = self
             .active_taunts_like_cpp
             .iter()
             .copied()
-            .filter(|active| now_ms >= active.due_at_ms)
+            .filter(|active| {
+                active
+                    .due_at_ms
+                    .is_some_and(|due_at_ms| now_ms >= due_at_ms)
+            })
             .collect();
         self.active_taunts_like_cpp
-            .retain(|active| now_ms < active.due_at_ms);
+            .retain(|active| active.due_at_ms.is_none_or(|due_at_ms| now_ms < due_at_ms));
         for active in &expired {
             let auras = &mut self.creature.unit_mut().subsystems_mut().auras;
             auras.remove_auras_due_to_spell_like_cpp(
@@ -2083,6 +2094,11 @@ impl WorldCreature {
                 wow_entities::ThreatTauntState::Taunt(priority as u32 + 1),
             );
         }
+        // C++ `ThreatManager::TauntUpdate` finishes with
+        // `EvaluateSuppressed(true)`. The runtime tick owns the target aura
+        // snapshots needed for `ShouldBeSuppressed`, so retain that event
+        // until the next selection pass.
+        combat.request_taunt_suppression_reevaluation_like_cpp();
     }
 
     pub fn reset_combat(&mut self) -> Vec<u8> {
@@ -9694,6 +9710,46 @@ mod tests {
         assert!(
             creature.expire_taunt_auras_if_due_like_cpp().is_empty(),
             "an evade-removed taunt must not expire a second time"
+        );
+    }
+
+    #[test]
+    fn world_creature_permanent_taunt_never_expires_like_cpp() {
+        let creature_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54356);
+        let taunter = ObjectGuid::create_player(1, 4);
+        let tank = ObjectGuid::create_player(1, 5);
+        let mut creature = WorldCreature::new(
+            creature_guid,
+            1,
+            Position::default(),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+        let combat = &mut creature.creature.unit_mut().subsystems_mut().combat;
+        combat.add_threat(taunter, 10.0);
+        combat.add_threat(tank, 100.0);
+        assert_eq!(
+            creature.apply_taunt_aura_like_cpp(taunter, 101, 1, -1),
+            Some(0)
+        );
+        creature.backdate_runtime_clock_for_test(Duration::from_secs(86_400));
+        assert!(creature.expire_taunt_auras_if_due_like_cpp().is_empty());
+        assert_eq!(
+            creature
+                .creature
+                .unit_mut()
+                .subsystems_mut()
+                .combat
+                .reselect_victim(&HashSet::new()),
+            Some(taunter)
         );
     }
 

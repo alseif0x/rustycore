@@ -355,6 +355,33 @@ impl AuraSubsystem {
             .sum()
     }
 
+    /// C++ `Unit::GetSchoolImmunityMask` / `GetDamageImmunityMask` reduce
+    /// the misc values of the corresponding aura effects to a school mask.
+    pub fn aura_school_mask_like_cpp(&self, aura_type: i32) -> u32 {
+        self.applied_aura_types
+            .get(&aura_type)
+            .into_iter()
+            .flatten()
+            .fold(0_u32, |mask, aura| {
+                mask | self.applied_aura_amounts.get(aura).copied().unwrap_or(0) as u32
+            })
+    }
+
+    /// C++ `Unit::HasBreakableByDamageAuraType` requires the requested aura
+    /// type and a damage interrupt flag on the same aura application.
+    pub fn has_breakable_by_damage_aura_type_like_cpp(&self, aura_type: i32) -> bool {
+        let damage_flag = wow_constants::SpellAuraInterruptFlags::DAMAGE.bits();
+        self.applied_aura_types
+            .get(&aura_type)
+            .into_iter()
+            .flatten()
+            .any(|aura| {
+                self.aura_interrupt_flags
+                    .get(aura)
+                    .is_some_and(|(flags, _)| flags & damage_flag != 0)
+            })
+    }
+
     pub fn remove_auras_by_type_like_cpp(&mut self, aura_type: i32) -> Vec<AppliedAuraRef> {
         let removed = self
             .applied_aura_types
@@ -1462,6 +1489,11 @@ pub struct CombatSubsystem {
     pub last_damaged_target_guid: Option<ObjectGuid>,
     pub extra_attacks_targets: HashMap<ObjectGuid, u32>,
     pub combat_disallowed: bool,
+    /// C++ `AddThreat` lets only the target that caused new threat leave
+    /// `ONLINE_STATE_SUPPRESSED` once its suppressing condition has cleared.
+    pending_suppressed_threat_like_cpp: HashMap<ObjectGuid, f32>,
+    /// C++ `TauntUpdate` calls `EvaluateSuppressed(true)` for every reference.
+    reevaluate_all_suppressed_like_cpp: bool,
 }
 
 impl Default for CombatSubsystem {
@@ -1482,6 +1514,8 @@ impl Default for CombatSubsystem {
             last_damaged_target_guid: None,
             extra_attacks_targets: HashMap::new(),
             combat_disallowed: false,
+            pending_suppressed_threat_like_cpp: HashMap::new(),
+            reevaluate_all_suppressed_like_cpp: false,
         }
     }
 }
@@ -1539,7 +1573,14 @@ impl CombatSubsystem {
             threat_ref.set_online_state(ThreatOnlineState::Online);
             threat_ref
         });
-        threat_ref.add_threat(amount);
+        if threat_ref.is_suppressed() {
+            *self
+                .pending_suppressed_threat_like_cpp
+                .entry(target)
+                .or_default() += amount;
+        } else if threat_ref.is_online() {
+            threat_ref.add_threat(amount);
+        }
         let value = threat_ref.threat();
         self.threat.insert(target, value);
         self.need_client_update = true;
@@ -1547,6 +1588,19 @@ impl CombatSubsystem {
             self.current_victim_guid = Some(target);
         }
         value
+    }
+
+    pub fn request_taunt_suppression_reevaluation_like_cpp(&mut self) {
+        self.reevaluate_all_suppressed_like_cpp = true;
+    }
+
+    pub fn take_suppressed_reactivation_requests_like_cpp(
+        &mut self,
+    ) -> (bool, HashMap<ObjectGuid, f32>) {
+        (
+            std::mem::take(&mut self.reevaluate_all_suppressed_like_cpp),
+            std::mem::take(&mut self.pending_suppressed_threat_like_cpp),
+        )
     }
 
     pub fn set_threat(&mut self, target: ObjectGuid, value: f32) {
@@ -1733,16 +1787,18 @@ impl CombatSubsystem {
             if self
                 .threat_refs
                 .get(&fixate)
-                .is_some_and(ThreatReferenceState::is_available)
+                .is_some_and(ThreatReferenceState::is_online)
             {
                 self.current_victim_guid = Some(fixate);
                 return Some(fixate);
             }
         }
 
-        if let Some(taunter) = self.sorted_threat_guids().into_iter().find(|guid| {
-            self.threat_refs[guid].is_available() && self.threat_refs[guid].is_taunting()
-        }) {
+        if let Some(taunter) = self
+            .sorted_threat_guids()
+            .into_iter()
+            .find(|guid| self.threat_refs[guid].is_online() && self.threat_refs[guid].is_taunting())
+        {
             self.current_victim_guid = Some(taunter);
             return Some(taunter);
         }
@@ -1751,7 +1807,7 @@ impl CombatSubsystem {
         let highest_guid = sorted
             .iter()
             .copied()
-            .find(|guid| self.threat_refs[guid].is_available())?;
+            .find(|guid| self.threat_refs[guid].is_online())?;
         let Some(old_guid) = self.current_victim_guid else {
             self.current_victim_guid = Some(highest_guid);
             return Some(highest_guid);
@@ -1760,7 +1816,7 @@ impl CombatSubsystem {
             self.current_victim_guid = Some(highest_guid);
             return Some(highest_guid);
         };
-        if !old_ref.is_available() || old_guid == highest_guid {
+        if !old_ref.is_online() || old_guid == highest_guid {
             self.current_victim_guid = Some(highest_guid);
             return Some(highest_guid);
         }
@@ -1778,7 +1834,7 @@ impl CombatSubsystem {
 
         for next_guid in sorted
             .into_iter()
-            .filter(|guid| self.threat_refs[guid].is_available() && *guid != highest_guid)
+            .filter(|guid| self.threat_refs[guid].is_online() && *guid != highest_guid)
         {
             if next_guid == old_guid
                 || old_ref.threat() * 1.1 >= self.threat_refs[&next_guid].threat()
@@ -4811,6 +4867,35 @@ mod unit_subsystems_tests {
     }
 
     #[test]
+    fn aura_immunity_masks_and_breakable_stun_require_cpp_metadata() {
+        let mut auras = AuraSubsystem::default();
+        let caster = guid(1);
+        let first_immunity = AppliedAuraRef::new(410, caster, 0, 0x1);
+        let second_immunity = AppliedAuraRef::new(411, caster, 1, 0x1);
+        let durable_stun = AppliedAuraRef::new(412, caster, 2, 0x1);
+        let breakable_stun = AppliedAuraRef::new(413, caster, 3, 0x1);
+
+        auras.register_applied_aura_modifier_like_cpp(first_immunity, 39, 0x1);
+        auras.register_applied_aura_modifier_like_cpp(second_immunity, 39, 0x4);
+        auras.register_applied_aura_type_like_cpp(durable_stun, 12);
+        auras.register_applied_aura(durable_stun, None, 0, 0);
+        assert_eq!(auras.aura_school_mask_like_cpp(39), 0x5);
+        assert!(
+            !auras.has_breakable_by_damage_aura_type_like_cpp(12),
+            "C++ does not suppress for an unbreakable stun"
+        );
+
+        auras.register_applied_aura_type_like_cpp(breakable_stun, 12);
+        auras.register_applied_aura(
+            breakable_stun,
+            None,
+            wow_constants::SpellAuraInterruptFlags::DAMAGE.bits(),
+            0,
+        );
+        assert!(auras.has_breakable_by_damage_aura_type_like_cpp(12));
+    }
+
+    #[test]
     fn remove_auras_due_to_spell_matches_cpp_filters() {
         let mut auras = AuraSubsystem::default();
         let caster = guid(1);
@@ -5190,6 +5275,15 @@ mod unit_subsystems_tests {
             Some(melee),
             "C++ scans below a ranged 110%-130% leader for the first melee challenger above 110%"
         );
+
+        combat.current_victim_guid = Some(current);
+        assert!(combat.set_threat_online_state(melee, ThreatOnlineState::Suppressed));
+        assert_eq!(
+            combat.reselect_victim(&HashSet::from([melee])),
+            Some(current),
+            "C++ excludes suppressed references from the fallback melee challenger scan"
+        );
+        assert!(combat.set_threat_online_state(melee, ThreatOnlineState::Online));
 
         combat.set_threat(melee, 1.0);
         assert!(combat.fixate_target(Some(melee)));

@@ -3833,6 +3833,10 @@ pub struct LegacyCreatureAggroCandidateLikeCpp {
     pub player_reputation_state_flags: Vec<(u32, u32)>,
     pub player_forced_reputation_ranks: Vec<(u32, wow_data::reputation::ReputationRankLikeCpp)>,
     pub player_forced_reputation_faction_ids: Vec<u32>,
+    pub player_school_immunity_mask: u32,
+    pub player_damage_immunity_mask: u32,
+    pub player_has_confuse_aura: bool,
+    pub player_has_breakable_stun_aura: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -3846,6 +3850,10 @@ struct LegacyCreatureAggroOwnerSnapshotLikeCpp {
     in_evade_mode: bool,
     unit_flags: UnitFlags,
     faction_template_id: Option<u32>,
+    school_immunity_mask: u32,
+    damage_immunity_mask: u32,
+    has_confuse_aura: bool,
+    has_breakable_stun_aura: bool,
 }
 
 const DEFAULT_VISIBILITY_BGARENAS_LIKE_CPP: f32 = 533.0;
@@ -4091,11 +4099,52 @@ fn legacy_creature_update_threat_victim_like_cpp(
         .subsystems()
         .combat
         .sorted_threat_guids();
+    let (reevaluate_all_suppressed, pending_suppressed_threat) = creature
+        .creature
+        .unit_mut()
+        .subsystems_mut()
+        .combat
+        .take_suppressed_reactivation_requests_like_cpp();
+    let melee_school_mask = creature.creature.melee_damage_school_mask();
     for threat_guid in threat_guids {
-        let online_state = if eligible_candidate_guids.contains(&threat_guid) {
-            wow_entities::ThreatOnlineState::Online
-        } else {
-            wow_entities::ThreatOnlineState::Offline
+        let previous_state = creature
+            .creature
+            .unit()
+            .subsystems()
+            .combat
+            .threat_ref(threat_guid)
+            .copied();
+        let is_taunting = previous_state.is_some_and(|reference| reference.is_taunting());
+        let should_be_suppressed = owner_snapshots.get(&threat_guid).is_some_and(|snapshot| {
+            !is_taunting
+                && ((melee_school_mask != 0
+                    && ((snapshot.school_immunity_mask | snapshot.damage_immunity_mask)
+                        & melee_school_mask)
+                        == melee_school_mask)
+                    || snapshot.has_confuse_aura
+                    || snapshot.has_breakable_stun_aura)
+        });
+        let online_state = match previous_state.map(|reference| reference.online_state) {
+            _ if !eligible_candidate_guids.contains(&threat_guid) => {
+                wow_entities::ThreatOnlineState::Offline
+            }
+            Some(wow_entities::ThreatOnlineState::Online) if should_be_suppressed => {
+                wow_entities::ThreatOnlineState::Suppressed
+            }
+            Some(wow_entities::ThreatOnlineState::Suppressed)
+                if !should_be_suppressed
+                    && (reevaluate_all_suppressed
+                        || pending_suppressed_threat.contains_key(&threat_guid)) =>
+            {
+                wow_entities::ThreatOnlineState::Online
+            }
+            Some(wow_entities::ThreatOnlineState::Suppressed) => {
+                wow_entities::ThreatOnlineState::Suppressed
+            }
+            Some(wow_entities::ThreatOnlineState::Offline) if should_be_suppressed => {
+                wow_entities::ThreatOnlineState::Suppressed
+            }
+            _ => wow_entities::ThreatOnlineState::Online,
         };
         creature
             .creature
@@ -4103,6 +4152,16 @@ fn legacy_creature_update_threat_victim_like_cpp(
             .subsystems_mut()
             .combat
             .set_threat_online_state(threat_guid, online_state);
+        if online_state == wow_entities::ThreatOnlineState::Online {
+            if let Some(amount) = pending_suppressed_threat.get(&threat_guid) {
+                creature
+                    .creature
+                    .unit_mut()
+                    .subsystems_mut()
+                    .combat
+                    .add_threat(threat_guid, *amount);
+            }
+        }
     }
 
     let highest_guid = creature
@@ -4112,7 +4171,15 @@ fn legacy_creature_update_threat_victim_like_cpp(
         .combat
         .sorted_threat_guids()
         .into_iter()
-        .find(|guid| eligible_candidate_guids.contains(guid));
+        .find(|guid| {
+            creature
+                .creature
+                .unit()
+                .subsystems()
+                .combat
+                .threat_ref(*guid)
+                .is_some_and(wow_entities::ThreatReferenceState::is_online)
+        });
     if highest_guid.is_none() {
         let participant_guids = creature
             .creature
@@ -4820,6 +4887,8 @@ pub struct WorldSession {
     // Cross-session commands executed by this session's own update loop.
     session_command_tx: flume::Sender<SessionCommand>,
     session_command_rx: flume::Receiver<SessionCommand>,
+    durable_creature_runtime_commands_like_cpp:
+        Arc<std::sync::Mutex<wow_network::DurableCreatureRuntimeCommandsLikeCpp>>,
     visibility_refresh_pending_like_cpp: Arc<AtomicBool>,
 
     // State
@@ -7023,6 +7092,7 @@ impl WorldSession {
             send_write_fence_like_cpp: None,
             session_command_tx,
             session_command_rx,
+            durable_creature_runtime_commands_like_cpp: Default::default(),
             visibility_refresh_pending_like_cpp: Arc::new(AtomicBool::new(false)),
             state: SessionState::Authed,
             last_packet_time: Instant::now(),
@@ -25789,8 +25859,9 @@ impl WorldSession {
 
     /// C++ `Spell::HandleThreatSpells` additive threat before target-count
     /// distribution. Explicit `spell_threat` rows replace the SpellLevel
-    /// fallback; their percentage modifier is applied separately by
-    /// `ThreatManager::CalculateModifiedThreat`.
+    /// fallback. This returns the unmodified flat/AP amount: the positive
+    /// `ForwardThreatForAssistingMe` path applies spell modifiers, while the
+    /// harmful path calls `AddThreat(..., ignoreModifiers = true)`.
     fn spell_initial_threat_like_cpp(
         &self,
         spell_id: u32,
@@ -25843,27 +25914,43 @@ impl WorldSession {
             ) || store.has_attribute2_like_cpp(
                 spell_id,
                 wow_data::spell::attributes::SPELL_ATTR2_NO_INITIAL_THREAT,
-            ) || store.has_attribute4_like_cpp(
-                spell_id,
-                wow_data::spell::attributes::SPELL_ATTR4_NO_HARMFUL_THREAT,
             )
         }) {
             return;
         }
+        if !is_positive
+            && self.spell_store().is_some_and(|store| {
+                store.has_attribute4_like_cpp(
+                    spell_id,
+                    wow_data::spell::attributes::SPELL_ATTR4_NO_HARMFUL_THREAT,
+                )
+            })
+        {
+            return;
+        }
 
         let threat_entry = self.spell_threat_entry_like_cpp(spell_id_u32).copied();
-        let amount = self.spell_initial_threat_like_cpp(spell_id_u32, threat_entry);
-        if amount == 0.0 {
+        let base_amount = self.spell_initial_threat_like_cpp(spell_id_u32, threat_entry);
+        if base_amount == 0.0 {
             return;
         }
         if !is_positive {
             let threat_value = self
                 .mutate_world_creature(target_guid, |creature| {
-                    let combat = &mut creature.creature.unit_mut().subsystems_mut().combat;
-                    if !combat.owner_can_have_threat_list {
+                    if !creature
+                        .creature
+                        .unit()
+                        .subsystems()
+                        .combat
+                        .owner_can_have_threat_list
+                    {
                         return None;
                     }
-                    combat.add_threat(caster_guid, amount);
+                    if !creature.creature.is_in_combat() {
+                        creature.enter_combat(caster_guid);
+                    }
+                    let combat = &mut creature.creature.unit_mut().subsystems_mut().combat;
+                    combat.add_threat(caster_guid, base_amount);
                     combat.threat_value(caster_guid)
                 })
                 .flatten();
@@ -25885,6 +25972,10 @@ impl WorldSession {
                 wow_data::spell::attributes::SPELL_ATTR4_NO_HELPFUL_THREAT,
             )
         }) {
+            return;
+        }
+        let amount = base_amount * threat_entry.map_or(1.0, |entry| entry.pct_mod);
+        if amount == 0.0 {
             return;
         }
         let owner_guids = self.canonical_threatened_by_me_owner_guids_like_cpp(target_guid);
@@ -25930,25 +26021,44 @@ impl WorldSession {
 
     /// Represented C++ `SpellInfo::IsPositive` (`NegativeEffects.none()`).
     /// The current spell model does not yet persist C++'s calculated
-    /// `NegativeEffects` bitset. Direct effects use their represented harmful
-    /// families; auras fail closed as harmful unless they are an explicitly
-    /// represented beneficial family.
+    /// `NegativeEffects` bitset. This mirrors the represented C++ target-check,
+    /// intrinsically harmful effect/aura, and sign-sensitive stat families;
+    /// unknown non-enemy auras remain positive, as in C++'s default branch.
     fn represented_spell_is_positive_like_cpp(spell_info: &wow_data::SpellInfo) -> bool {
-        let effects: Vec<(u32, i32, i32)> = if spell_info.effects().is_empty() {
+        let effects: Vec<(u32, i32, i32, u32, u32)> = if spell_info.effects().is_empty() {
             vec![(
                 spell_info.effect_type,
                 spell_info.aura_type.unwrap_or(0),
                 spell_info.effect_base_points,
+                0,
+                0,
             )]
         } else {
             spell_info
                 .effects()
                 .iter()
-                .map(|effect| (effect.effect, effect.effect_aura, effect.effect_base_points))
+                .map(|effect| {
+                    (
+                        effect.effect,
+                        effect.effect_aura,
+                        effect.effect_base_points,
+                        effect.implicit_target_1,
+                        effect.implicit_target_2,
+                    )
+                })
                 .collect()
         };
 
-        !effects.into_iter().any(|(effect, aura, amount)| {
+        const fn target_checks_enemy_like_cpp(target: u32) -> bool {
+            matches!(
+                target,
+                2 | 6 | 15 | 16 | 24 | 28 | 53 | 54 | 93 | 104 | 108 | 115 | 116 | 129 | 134 | 151
+            )
+        }
+
+        !effects.into_iter().any(|(effect, aura, amount, target_a, target_b)| {
+            let targets_enemy =
+                target_checks_enemy_like_cpp(target_a) || target_checks_enemy_like_cpp(target_b);
             effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_INSTAKILL
                 || effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE
                 || effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_ENVIRONMENTAL_DAMAGE
@@ -25960,26 +26070,27 @@ impl WorldSession {
                 || effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_ATTACK_ME
                 || effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_DISTRACT
                 || (effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA
-                    && !matches!(
-                        aura,
-                        wow_data::spell::aura_types::SPELL_AURA_MOUNTED
-                            | wow_data::spell::aura_types::SPELL_AURA_PROVIDE_SPELL_FOCUS
-                            | wow_data::spell::aura_types::SPELL_AURA_MOD_BATTLE_PET_XP_PCT
-                            | wow_data::spell::aura_types::SPELL_AURA_MOD_RESTED_XP_CONSUMPTION
-                            | wow_data::spell::aura_types::SPELL_AURA_MOD_DETECT_RANGE
-                            | wow_data::spell::aura_types::SPELL_AURA_MOD_DETECTED_RANGE
-                            | wow_data::spell::aura_types::SPELL_AURA_MOD_SPEED_NO_CONTROL
-                            | wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SPEED
-                            | wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED
-                            | wow_data::spell::aura_types::SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED
-                            | wow_data::spell::aura_types::SPELL_AURA_MOD_MINIMUM_SPEED
-                            | wow_data::spell::aura_types::SPELL_AURA_MOD_MINIMUM_SPEED_RATE
-                            | wow_data::spell::aura_types::SPELL_AURA_MOD_SPEED_ALWAYS
-                            | wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED
-                            | wow_data::spell::aura_types::SPELL_AURA_FLY
-                            | wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_FLIGHT_SPEED
-                    )
-                    && !(aura == wow_data::spell::aura_types::SPELL_AURA_MOD_SCALE && amount >= 0))
+                    && (targets_enemy
+                        || matches!(
+                            aura,
+                            wow_data::spell::aura_types::SPELL_AURA_PERIODIC_DAMAGE
+                                | wow_data::spell::aura_types::SPELL_AURA_PERIODIC_DAMAGE_PERCENT
+                                | wow_data::spell::aura_types::SPELL_AURA_MOD_CONFUSE
+                                | wow_data::spell::aura_types::SPELL_AURA_MOD_FEAR
+                                | wow_data::spell::aura_types::SPELL_AURA_MOD_TAUNT
+                                | wow_data::spell::aura_types::SPELL_AURA_MOD_STUN
+                                | wow_data::spell::aura_types::SPELL_AURA_MOD_ROOT
+                                | wow_data::spell::aura_types::SPELL_AURA_MOD_SILENCE
+                                | wow_data::spell::aura_types::SPELL_AURA_MOD_DECREASE_SPEED
+                                | wow_data::spell::aura_types::SPELL_AURA_SCHOOL_HEAL_ABSORB
+                        )
+                        || (matches!(
+                            aura,
+                            wow_data::spell::aura_types::SPELL_AURA_MOD_STAT
+                                | wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_HEALTH
+                                | wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_HEALTH_PERCENT
+                                | wow_data::spell::aura_types::SPELL_AURA_MOD_SCALE
+                        ) && amount < 0)))
         })
     }
 
@@ -33190,6 +33301,9 @@ impl WorldSession {
                 send_tx: self.send_tx.clone(),
                 realm_send_tx: self.realm_send_tx.as_ref().unwrap_or(&self.send_tx).clone(),
                 command_tx: self.session_command_tx.clone(),
+                durable_creature_runtime_commands_like_cpp: Arc::clone(
+                    &self.durable_creature_runtime_commands_like_cpp,
+                ),
                 visibility_refresh_pending_like_cpp: Arc::clone(
                     &self.visibility_refresh_pending_like_cpp,
                 ),
@@ -33733,11 +33847,22 @@ impl WorldSession {
     }
 
     pub(crate) fn drain_session_commands(&self) -> Vec<SessionCommand> {
-        let mut commands = Vec::new();
+        let mut commands = self
+            .durable_creature_runtime_commands_like_cpp
+            .lock()
+            .map(|mut pending| pending.drain_like_cpp())
+            .unwrap_or_default();
         while let Ok(command) = self.session_command_rx.try_recv() {
             commands.push(command);
         }
         commands
+    }
+
+    pub(crate) fn take_durable_creature_runtime_overflow_like_cpp(&self) -> bool {
+        self.durable_creature_runtime_commands_like_cpp
+            .lock()
+            .map(|mut pending| pending.take_overflowed_and_discard_like_cpp())
+            .unwrap_or(true)
     }
 
     pub(crate) fn is_addon_registered_like_cpp(&self, prefix: &str) -> bool {
@@ -56977,6 +57102,10 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                     in_evade_mode: false,
                     unit_flags: UnitFlags::from_bits_truncate(candidate.player_unit_flags),
                     faction_template_id: Some(candidate.player_faction_template_id),
+                    school_immunity_mask: candidate.player_school_immunity_mask,
+                    damage_immunity_mask: candidate.player_damage_immunity_mask,
+                    has_confuse_aura: candidate.player_has_confuse_aura,
+                    has_breakable_stun_aura: candidate.player_has_breakable_stun_aura,
                 },
             )
         })
@@ -57009,6 +57138,38 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                             owner.creature.unit().data().faction_template,
                         )
                         .ok(),
+                        school_immunity_mask: owner
+                            .creature
+                            .unit()
+                            .subsystems()
+                            .auras
+                            .aura_school_mask_like_cpp(
+                                wow_data::spell::aura_types::SPELL_AURA_SCHOOL_IMMUNITY,
+                            ),
+                        damage_immunity_mask: owner
+                            .creature
+                            .unit()
+                            .subsystems()
+                            .auras
+                            .aura_school_mask_like_cpp(
+                                wow_data::spell::aura_types::SPELL_AURA_DAMAGE_IMMUNITY,
+                            ),
+                        has_confuse_aura: owner
+                            .creature
+                            .unit()
+                            .subsystems()
+                            .auras
+                            .has_aura_type_like_cpp(
+                                wow_data::spell::aura_types::SPELL_AURA_MOD_CONFUSE,
+                            ),
+                        has_breakable_stun_aura: owner
+                            .creature
+                            .unit()
+                            .subsystems()
+                            .auras
+                            .has_breakable_by_damage_aura_type_like_cpp(
+                                wow_data::spell::aura_types::SPELL_AURA_MOD_STUN,
+                            ),
                     },
                 );
                 creature_factions
@@ -57049,89 +57210,105 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                     .to_bytes(),
                 });
             }
-            for (caller_guid, victim_guid) in creature.take_due_assistance_like_cpp() {
+            let due_assistance = creature.take_due_assistance_like_cpp();
+            let _ = creature;
+            for (victim_guid, assistant_guids) in due_assistance {
                 let victim = map_candidates
                     .iter()
                     .find(|candidate| candidate.player_guid == victim_guid)
                     .copied();
                 let victim_snapshot = owner_snapshots.get(&victim_guid);
-                let flags = creature.creature.unit().unit_flags_like_cpp();
-                if creature.is_alive()
-                    && !creature.creature.is_in_combat()
-                    && !creature.creature.is_in_evade_mode_like_cpp()
-                    && creature
-                        .creature
-                        .has_react_state(wow_entities::ReactState::Aggressive)
-                    && !creature.creature.is_civilian_like_cpp()
-                    && creature
-                        .creature
-                        .unit()
-                        .subsystems()
-                        .control
-                        .charmer_or_owner_guid()
-                        .is_none()
-                    && !flags.intersects(
-                        UnitFlags::NON_ATTACKABLE
-                            | UnitFlags::IMMUNE_TO_NPC
-                            | UnitFlags::UNINTERACTIBLE,
-                    )
-                    && creature_factions.get(&caller_guid)
-                        == Some(&creature.creature.unit().data().faction_template)
-                    && (victim.is_some_and(|victim| {
-                        legacy_creature_aggro_candidate_is_hostile_to_creature_like_cpp(
-                            creature, victim, &config,
+                if victim.is_none() && victim_snapshot.is_none() {
+                    continue;
+                }
+                for assistant_guid in assistant_guids {
+                    let Some(assistant) =
+                        manager.find_creature_mut(map_id, instance_id, assistant_guid)
+                    else {
+                        continue;
+                    };
+                    let flags = assistant.creature.unit().unit_flags_like_cpp();
+                    if assistant.is_alive()
+                        && !assistant.creature.is_in_combat()
+                        && !assistant.creature.is_in_evade_mode_like_cpp()
+                        && assistant
+                            .creature
+                            .has_react_state(wow_entities::ReactState::Aggressive)
+                        && !assistant.creature.is_civilian_like_cpp()
+                        && assistant
+                            .creature
+                            .unit()
+                            .subsystems()
+                            .control
+                            .charmer_or_owner_guid()
+                            .is_none()
+                        && !flags.intersects(
+                            UnitFlags::NON_ATTACKABLE
+                                | UnitFlags::IMMUNE_TO_NPC
+                                | UnitFlags::UNINTERACTIBLE,
                         )
-                        .unwrap_or(false)
-                    }) || victim_snapshot.is_some_and(|victim| {
-                        !victim.in_evade_mode
-                            && legacy_creature_snapshot_is_hostile_to_creature_like_cpp(
-                                creature, victim, &config,
+                        && creature_factions.get(&guid)
+                            == Some(&assistant.creature.unit().data().faction_template)
+                        && (victim.is_some_and(|victim| {
+                            legacy_creature_aggro_candidate_is_hostile_to_creature_like_cpp(
+                                assistant, victim, &config,
                             )
                             .unwrap_or(false)
-                    }))
-                {
-                    creature.enter_combat(victim_guid);
-                    // C++ `AssistDelayEvent` calls `SetNoCallAssistance(true)`
-                    // before `AI()->AttackStart`, preventing assistance chains.
-                    let _ = creature.take_assistance_call_like_cpp();
-                    creature
-                        .creature
-                        .unit_mut()
-                        .subsystems_mut()
-                        .combat
-                        .add_threat(victim_guid, 0.0);
-                    outcome.assistance_starts += 1;
-                    outcome.aggro_starts += 1;
-                    use crate::map_manager::{RecipientRule, RuntimeEvent};
-                    use wow_packet::ServerPacket;
+                        }) || victim_snapshot.is_some_and(|victim| {
+                            !victim.in_evade_mode
+                                && legacy_creature_snapshot_is_hostile_to_creature_like_cpp(
+                                    assistant, victim, &config,
+                                )
+                                .unwrap_or(false)
+                        }))
+                    {
+                        // C++ `AssistDelayEvent` calls `SetNoCallAssistance(true)`
+                        // only after the delayed `CanAssistTo` revalidation and
+                        // immediately before `EngageWithTarget`.
+                        assistant.set_no_call_assistance_like_cpp();
+                        assistant.enter_combat(victim_guid);
+                        assistant
+                            .creature
+                            .unit_mut()
+                            .subsystems_mut()
+                            .combat
+                            .add_threat(victim_guid, 0.0);
+                        outcome.assistance_starts += 1;
+                        outcome.aggro_starts += 1;
+                        use crate::map_manager::{RecipientRule, RuntimeEvent};
+                        use wow_packet::ServerPacket;
 
-                    outcome.plan.events.push(RuntimeEvent {
-                        source_guid: guid,
-                        recipients: RecipientRule::NearbyVisible {
-                            source_guid: guid,
-                            map_id,
-                            instance_id,
-                            source_position: creature.position(),
-                            range: creature.visibility_range_like_cpp(),
-                            required_3d: false,
-                        },
-                        packet_bytes: wow_packet::packets::combat::AttackStart {
-                            attacker: guid,
-                            victim: victim_guid,
-                        }
-                        .to_bytes(),
-                    });
-                    outcome.commands.push(
-                        wow_network::player_registry::CreatureAttackStartLikeCppCommand {
-                            attacker_guid: guid,
-                            victim_guid,
-                            map_id,
-                            instance_id,
-                            packet_already_broadcast: true,
-                        },
-                    );
+                        outcome.plan.events.push(RuntimeEvent {
+                            source_guid: assistant_guid,
+                            recipients: RecipientRule::NearbyVisible {
+                                source_guid: assistant_guid,
+                                map_id,
+                                instance_id,
+                                source_position: assistant.position(),
+                                range: assistant.visibility_range_like_cpp(),
+                                required_3d: false,
+                            },
+                            packet_bytes: wow_packet::packets::combat::AttackStart {
+                                attacker: assistant_guid,
+                                victim: victim_guid,
+                            }
+                            .to_bytes(),
+                        });
+                        outcome.commands.push(
+                            wow_network::player_registry::CreatureAttackStartLikeCppCommand {
+                                attacker_guid: assistant_guid,
+                                victim_guid,
+                                map_id,
+                                instance_id,
+                                packet_already_broadcast: true,
+                            },
+                        );
+                    }
                 }
             }
+            let Some(creature) = manager.find_creature_mut(map_id, instance_id, guid) else {
+                continue;
+            };
             match legacy_creature_update_threat_victim_like_cpp(
                 creature,
                 &map_candidates,
@@ -57139,31 +57316,12 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                 &owner_snapshots,
             ) {
                 LegacyCreatureThreatUpdateLikeCpp::Unchanged => {}
-                LegacyCreatureThreatUpdateLikeCpp::Switched { previous_victim } => {
+                LegacyCreatureThreatUpdateLikeCpp::Switched { .. } => {
                     outcome.victim_switches += 1;
                     if let Some(victim_guid) = creature.creature.ai_ownership().combat_target {
                         use crate::map_manager::{RecipientRule, RuntimeEvent};
                         use wow_packet::ServerPacket;
 
-                        if !previous_victim.is_empty() {
-                            outcome.plan.events.push(RuntimeEvent {
-                                source_guid: guid,
-                                recipients: RecipientRule::NearbyVisible {
-                                    source_guid: guid,
-                                    map_id,
-                                    instance_id,
-                                    source_position: creature.position(),
-                                    range: creature.visibility_range_like_cpp(),
-                                    required_3d: false,
-                                },
-                                packet_bytes: wow_packet::packets::combat::SAttackStop {
-                                    attacker: guid,
-                                    victim: previous_victim,
-                                    now_dead: false,
-                                }
-                                .to_bytes(),
-                            });
-                        }
                         outcome.plan.events.push(RuntimeEvent {
                             source_guid: guid,
                             recipients: RecipientRule::NearbyVisible {
@@ -57496,6 +57654,7 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                 if victim.is_none() && victim_snapshot.is_none() {
                     continue;
                 }
+                let mut assistant_guids = Vec::new();
                 for assistant_guid in guids.iter().copied().filter(|guid| *guid != caller_guid) {
                     let Some(assistant) =
                         manager.find_creature_mut(map_id, instance_id, assistant_guid)
@@ -57549,12 +57708,18 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                     {
                         continue;
                     }
-                    if assistant.schedule_assistance_like_cpp(
-                        caller_guid,
-                        victim_guid,
-                        config.family_assistance_delay_ms,
-                    ) {
-                        outcome.assistance_scheduled += 1;
+                    assistant_guids.push(assistant_guid);
+                }
+                if !assistant_guids.is_empty() {
+                    outcome.assistance_scheduled += assistant_guids.len();
+                    if let Some(caller) =
+                        manager.find_creature_mut(map_id, instance_id, caller_guid)
+                    {
+                        caller.schedule_assistance_like_cpp(
+                            victim_guid,
+                            assistant_guids,
+                            config.family_assistance_delay_ms,
+                        );
                     }
                 }
             }
@@ -63188,7 +63353,7 @@ impl WorldSession {
                 })
             })
         });
-        let duration_ms = u32::try_from({
+        let duration_ms = {
             let duration_index = self
                 .spell_misc_store
                 .as_deref()
@@ -63201,8 +63366,7 @@ impl WorldSession {
                 .map(|entry| u32::from(entry.duration_index))
                 .unwrap_or(0);
             spell_duration_ms_like_cpp(duration_index, self.spell_duration_store.as_deref())
-        })
-        .unwrap_or(0);
+        };
 
         let Some((threat_value, taunt_slot)) = self
             .mutate_world_creature(target_guid, |creature| {
@@ -63218,7 +63382,7 @@ impl WorldSession {
                     .flatten();
                 let taunt_slot =
                     taunt_effect_mask
-                        .filter(|_| duration_ms > 0)
+                        .filter(|_| duration_ms != 0)
                         .and_then(|effect_mask| {
                             creature.apply_taunt_aura_like_cpp(
                                 player_guid,
@@ -63244,12 +63408,13 @@ impl WorldSession {
         if let (Some(slot), Some(effect_mask)) = (taunt_slot, taunt_effect_mask) {
             use wow_packet::ServerPacket;
 
+            let visible_duration_ms = u32::try_from(duration_ms).unwrap_or(u32::MAX);
             let aura = AuraApplication {
                 spell_id,
                 caster_guid: player_guid,
                 slot,
-                duration_total: duration_ms,
-                duration_remaining: duration_ms,
+                duration_total: visible_duration_ms,
+                duration_remaining: visible_duration_ms,
                 stack_count: 1,
                 aura_flags: 0,
                 effect_mask,
@@ -73972,7 +74137,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn creature_attack_start_command_requires_visible_attacker_like_cpp() {
+    async fn creature_attack_start_command_syncs_combat_when_attacker_is_no_longer_visible_like_cpp()
+     {
         let (mut session, _, send_rx) = make_session();
         let attacker_guid =
             ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1009);
@@ -73997,11 +74163,11 @@ mod tests {
             .process_represented_session_commands_like_cpp()
             .await;
 
-        assert_eq!(session.combat_target, None);
-        assert!(!session.in_combat);
+        assert_eq!(session.combat_target, Some(attacker_guid));
+        assert!(session.in_combat);
         assert!(
             send_rx.try_recv().is_err(),
-            "invisible attacker must not start combat"
+            "an attacker no longer visible to the client must not emit AttackStart"
         );
     }
 
@@ -74086,7 +74252,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn apply_creature_melee_damage_command_requires_visible_attacker_like_cpp() {
+    async fn apply_creature_melee_damage_command_syncs_health_without_visible_attacker_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         let attacker_guid =
             ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1008);
@@ -74115,10 +74281,93 @@ mod tests {
             .process_represented_session_commands_like_cpp()
             .await;
 
-        assert_eq!(session.player_health_like_cpp(), 100);
+        assert_eq!(session.player_health_like_cpp(), 83);
+        let packet = send_rx
+            .try_recv()
+            .expect("authoritative health update is independent of attacker visibility");
+        let opcode = u16::from_le_bytes([packet[0], packet[1]]);
+        assert_eq!(opcode, ServerOpcodes::HealthUpdate as u16);
+        assert!(send_rx.try_recv().is_err(), "no attacker-state packet");
+    }
+
+    #[tokio::test]
+    async fn durable_creature_runtime_rail_is_drained_by_session_update_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let attacker_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1011);
+        let victim_guid = ObjectGuid::create_player(1, 7005);
+        session.state = SessionState::LoggedIn;
+        session.set_player_guid(Some(victim_guid));
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
+        session.set_player_health_like_cpp(100, 100);
         assert!(
-            send_rx.try_recv().is_err(),
-            "invisible attacker must not hit"
+            session
+                .durable_creature_runtime_commands_like_cpp
+                .lock()
+                .unwrap()
+                .publish_melee_damage_like_cpp(ApplyCreatureMeleeDamageLikeCppCommand {
+                    attacker_guid,
+                    victim_guid,
+                    map_id: 571,
+                    instance_id: 0,
+                    damage: 100,
+                    over_damage: 0,
+                    target_level: 80,
+                    victim_health_after: 0,
+                })
+        );
+
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        assert_eq!(session.player_health_like_cpp(), 0);
+        assert!(!session.player_is_alive_like_cpp());
+        let packet = send_rx.recv().unwrap();
+        assert_eq!(
+            u16::from_le_bytes([packet[0], packet[1]]),
+            ServerOpcodes::HealthUpdate as u16
+        );
+    }
+
+    #[tokio::test]
+    async fn durable_creature_runtime_overflow_disconnects_desynchronized_session() {
+        let (mut session, _, _) = make_session();
+        let attacker_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1012);
+        let victim_guid = ObjectGuid::create_player(1, 7006);
+        session.state = SessionState::LoggedIn;
+        session.set_player_guid(Some(victim_guid));
+        let command = CreatureAttackStartLikeCppCommand {
+            attacker_guid,
+            victim_guid,
+            map_id: 571,
+            instance_id: 0,
+            packet_already_broadcast: false,
+        };
+        {
+            let mut pending = session
+                .durable_creature_runtime_commands_like_cpp
+                .lock()
+                .unwrap();
+            for _ in 0..wow_network::MAX_DURABLE_CREATURE_RUNTIME_COMMANDS_LIKE_CPP {
+                assert!(pending.publish_attack_start_like_cpp(command.clone()));
+            }
+            assert!(!pending.publish_attack_start_like_cpp(command));
+        }
+
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        assert!(session.is_disconnecting());
+        assert!(
+            session
+                .durable_creature_runtime_commands_like_cpp
+                .lock()
+                .unwrap()
+                .drain_like_cpp()
+                .is_empty()
         );
     }
 
@@ -98253,6 +98502,7 @@ mod tests {
             realm_send_tx: send_tx.clone(),
             send_tx,
             command_tx,
+            durable_creature_runtime_commands_like_cpp: Default::default(),
             visibility_refresh_pending_like_cpp: Default::default(),
             durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),
@@ -100179,8 +100429,62 @@ mod tests {
             Some(player)
         );
         let combat = &world_creature.creature.unit().subsystems().combat;
-        assert_eq!(combat.threat_value(player), Some(38.0));
+        assert_eq!(
+            combat.threat_value(player),
+            Some(38.0),
+            "C++ damage threat applies pctMod, but harmful cast-level threat bypasses modifiers"
+        );
         assert_eq!(combat.current_victim_guid, Some(player));
+    }
+
+    #[test]
+    fn hostile_cast_level_threat_enters_combat_without_damage_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let manager = shared_map_manager();
+        let creature_guid = test_creature_guid(18_004);
+        let caster_guid = ObjectGuid::create_player(1, 44);
+        let spell_id = 18_004;
+        session.player_guid = Some(caster_guid);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 40);
+        let mut store = wow_data::SpellStore::new();
+        store.insert(
+            spell_id,
+            threat_spell_info_like_cpp(
+                spell_id,
+                wow_data::spell::spell_effect_types::SPELL_EFFECT_THREAT,
+                0,
+            ),
+        );
+        session.set_spell_store(Arc::new(store));
+        session.set_spell_threat_store(Arc::new(wow_data::SpellThreatStoreLikeCpp {
+            entries_by_spell_id: HashMap::from([(
+                spell_id as u32,
+                wow_data::SpellThreatEntryLikeCpp {
+                    flat_mod: 7,
+                    pct_mod: 3.0,
+                    ap_pct_mod: 0.0,
+                },
+            )]),
+        }));
+
+        session.apply_spell_initial_threat_like_cpp(spell_id, caster_guid, creature_guid, false);
+
+        let manager = manager.read().unwrap();
+        let creature = manager.find_creature(0, 0, creature_guid).unwrap();
+        assert!(creature.creature.is_in_combat());
+        assert_eq!(
+            creature.creature.ai_ownership().combat_target,
+            Some(caster_guid)
+        );
+        assert_eq!(
+            creature
+                .creature
+                .unit()
+                .subsystems()
+                .combat
+                .threat_value(caster_guid),
+            Some(7.0)
+        );
     }
 
     #[tokio::test]
@@ -101099,7 +101403,7 @@ mod tests {
             .subsystems()
             .combat
             .threat_value(player_guid);
-        assert_eq!(legacy_threat, Some(34.0));
+        assert_eq!(legacy_threat, Some(38.0));
         assert_eq!(
             manager
                 .read()
@@ -101114,7 +101418,7 @@ mod tests {
         );
         assert_eq!(
             session.canonical_creature_threat_value_like_cpp(creature_guid, player_guid),
-            Some(34.0)
+            Some(38.0)
         );
 
         let no_helpful_threat_spell_id = 18_145;
@@ -101140,7 +101444,7 @@ mod tests {
                 .subsystems()
                 .combat
                 .threat_value(player_guid),
-            Some(34.0),
+            Some(38.0),
             "C++ ForwardThreatForAssistingMe returns before forwarding SPELL_ATTR4_NO_HELPFUL_THREAT heals"
         );
     }
@@ -101277,6 +101581,45 @@ mod tests {
                 ..Default::default()
             }],
         }
+    }
+
+    #[test]
+    fn represented_spell_positivity_covers_common_cpp_buffs_and_debuffs() {
+        let mut periodic_heal = threat_spell_info_like_cpp(
+            18_146,
+            wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            10,
+        );
+        periodic_heal.effects[0].effect_aura =
+            wow_data::spell::aura_types::SPELL_AURA_PERIODIC_HEAL;
+        periodic_heal.effects[0].implicit_target_1 = 21; // TARGET_UNIT_TARGET_ALLY
+        assert!(WorldSession::represented_spell_is_positive_like_cpp(
+            &periodic_heal
+        ));
+
+        let mut absorb = periodic_heal.clone();
+        absorb.effects[0].effect_aura = wow_data::spell::aura_types::SPELL_AURA_SCHOOL_ABSORB;
+        assert!(WorldSession::represented_spell_is_positive_like_cpp(
+            &absorb
+        ));
+
+        let mut stat_buff = periodic_heal.clone();
+        stat_buff.effects[0].effect_aura = wow_data::spell::aura_types::SPELL_AURA_MOD_STAT;
+        assert!(WorldSession::represented_spell_is_positive_like_cpp(
+            &stat_buff
+        ));
+        stat_buff.effects[0].effect_base_points = -10;
+        assert!(!WorldSession::represented_spell_is_positive_like_cpp(
+            &stat_buff
+        ));
+
+        let mut enemy_periodic_damage = periodic_heal;
+        enemy_periodic_damage.effects[0].effect_aura =
+            wow_data::spell::aura_types::SPELL_AURA_PERIODIC_DAMAGE;
+        enemy_periodic_damage.effects[0].implicit_target_1 = 6; // TARGET_UNIT_TARGET_ENEMY
+        assert!(!WorldSession::represented_spell_is_positive_like_cpp(
+            &enemy_periodic_damage
+        ));
     }
 
     fn cooldown_or_charges_spell_info_like_cpp(
@@ -143675,6 +144018,10 @@ mod tests {
             player_reputation_state_flags: Vec::new(),
             player_forced_reputation_ranks: Vec::new(),
             player_forced_reputation_faction_ids: Vec::new(),
+            player_school_immunity_mask: 0,
+            player_damage_immunity_mask: 0,
+            player_has_confuse_aura: false,
+            player_has_breakable_stun_aura: false,
         }
     }
 
@@ -143906,20 +144253,197 @@ mod tests {
             "C++ AttackStop during victim selection preserves threat/combat references; cleanup commands are evade-only"
         );
         assert_eq!(switched.commands[0].victim_guid, challenger);
-        assert_eq!(switched.plan.events.len(), 2);
-        let mut attack_stop =
-            wow_packet::WorldPacket::from_bytes(&switched.plan.events[0].packet_bytes);
-        assert_eq!(
-            attack_stop.read_uint16().expect("opcode"),
-            ServerOpcodes::AttackStop as u16,
-            "C++ victim switches first broadcast AttackStop for the previous victim"
-        );
+        assert_eq!(switched.plan.events.len(), 1);
         let mut attack_start =
-            wow_packet::WorldPacket::from_bytes(&switched.plan.events[1].packet_bytes);
+            wow_packet::WorldPacket::from_bytes(&switched.plan.events[0].packet_bytes);
         assert_eq!(
             attack_start.read_uint16().expect("opcode"),
             ServerOpcodes::AttackStart as u16,
-            "C++ SendMeleeAttackStart broadcasts target switches to nearby observers"
+            "C++ Unit::Attack changes the attacker relationship and broadcasts only SendMeleeAttackStart for the new target"
+        );
+    }
+
+    #[test]
+    fn legacy_creature_suppresses_unattackable_threat_reference_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_217);
+        let suppressed = ObjectGuid::create_player(1, 91_218);
+        let available = ObjectGuid::create_player(1, 91_219);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 100);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.enter_combat(suppressed);
+                let combat = &mut creature.creature.unit_mut().subsystems_mut().combat;
+                combat.add_threat(suppressed, 500.0);
+                combat.add_threat(available, 10.0);
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+        let mut suppressed_candidate =
+            legacy_aggro_candidate_like_cpp(suppressed, Position::new(10.5, 10.0, 0.0, 0.0));
+        suppressed_candidate.player_school_immunity_mask = 0x1;
+        suppressed_candidate.player_has_confuse_aura = true;
+        suppressed_candidate.player_has_breakable_stun_aura = true;
+        let candidates = vec![
+            suppressed_candidate,
+            legacy_aggro_candidate_like_cpp(available, Position::new(10.5, 10.0, 0.0, 0.0)),
+        ];
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_with_rate_like_cpp(3.0),
+        );
+
+        assert_eq!(outcome.victim_switches, 1);
+        let guard = manager.read().unwrap();
+        let creature = guard.find_creature(0, 0, creature_guid).unwrap();
+        assert_eq!(
+            creature.creature.ai_ownership().combat_target,
+            Some(available),
+            "C++ ranks an online target ahead of a higher-threat suppressed reference"
+        );
+        assert!(
+            creature
+                .creature
+                .unit()
+                .subsystems()
+                .combat
+                .threat_ref(suppressed)
+                .is_some_and(wow_entities::ThreatReferenceState::is_suppressed)
+        );
+        drop(guard);
+
+        let candidates_without_suppression = vec![
+            legacy_aggro_candidate_like_cpp(suppressed, Position::new(10.5, 10.0, 0.0, 0.0)),
+            legacy_aggro_candidate_like_cpp(available, Position::new(10.5, 10.0, 0.0, 0.0)),
+        ];
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates_without_suppression,
+            legacy_aggro_hostile_config_with_rate_like_cpp(3.0),
+        );
+        assert_eq!(
+            outcome.victim_switches, 0,
+            "C++ EvaluateSuppressed(false) does not reactivate a reference merely because its suppressing aura disappeared"
+        );
+        let guard = manager.read().unwrap();
+        let creature = guard.find_creature(0, 0, creature_guid).unwrap();
+        assert_eq!(
+            creature.creature.ai_ownership().combat_target,
+            Some(available)
+        );
+        assert!(
+            creature
+                .creature
+                .unit()
+                .subsystems()
+                .combat
+                .threat_ref(suppressed)
+                .is_some_and(wow_entities::ThreatReferenceState::is_suppressed),
+            "only new threat from this target or TauntUpdate may expire C++ suppression"
+        );
+        drop(guard);
+
+        manager
+            .write()
+            .unwrap()
+            .find_creature_mut(0, 0, creature_guid)
+            .unwrap()
+            .creature
+            .unit_mut()
+            .subsystems_mut()
+            .combat
+            .add_threat(suppressed, 1.0);
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates_without_suppression,
+            legacy_aggro_hostile_config_with_rate_like_cpp(3.0),
+        );
+        assert_eq!(
+            outcome.victim_switches, 1,
+            "C++ AddThreat reactivates a formerly suppressed target once ShouldBeSuppressed clears"
+        );
+        let guard = manager.read().unwrap();
+        let creature = guard.find_creature(0, 0, creature_guid).unwrap();
+        assert_eq!(
+            creature.creature.ai_ownership().combat_target,
+            Some(suppressed)
+        );
+        assert!(
+            creature
+                .creature
+                .unit()
+                .subsystems()
+                .combat
+                .threat_ref(suppressed)
+                .is_some_and(wow_entities::ThreatReferenceState::is_online)
+        );
+    }
+
+    #[test]
+    fn legacy_creature_never_suppresses_taunting_victim_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_220);
+        let tank = ObjectGuid::create_player(1, 91_221);
+        let taunter = ObjectGuid::create_player(1, 91_222);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 100);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.enter_combat(tank);
+                let combat = &mut creature.creature.unit_mut().subsystems_mut().combat;
+                combat.add_threat(tank, 100.0);
+                combat.add_threat(taunter, 1.0);
+                creature
+                    .apply_taunt_aura_like_cpp(taunter, 91_220, 1, 5_000)
+                    .expect("apply represented taunt");
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+        let mut taunter_candidate =
+            legacy_aggro_candidate_like_cpp(taunter, Position::new(10.5, 10.0, 0.0, 0.0));
+        taunter_candidate.player_damage_immunity_mask = 0x1;
+        taunter_candidate.player_has_confuse_aura = true;
+        taunter_candidate.player_has_breakable_stun_aura = true;
+        let candidates = vec![
+            legacy_aggro_candidate_like_cpp(tank, Position::new(10.5, 10.0, 0.0, 0.0)),
+            taunter_candidate,
+        ];
+
+        let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+            &manager,
+            &candidates,
+            legacy_aggro_hostile_config_with_rate_like_cpp(3.0),
+        );
+
+        assert_eq!(outcome.victim_switches, 1);
+        let guard = manager.read().unwrap();
+        let creature = guard.find_creature(0, 0, creature_guid).unwrap();
+        assert_eq!(
+            creature.creature.ai_ownership().combat_target,
+            Some(taunter)
+        );
+        assert!(
+            creature
+                .creature
+                .unit()
+                .subsystems()
+                .combat
+                .threat_ref(taunter)
+                .is_some_and(wow_entities::ThreatReferenceState::is_online),
+            "C++ ThreatReference::ShouldBeSuppressed exempts a taunting victim"
         );
     }
 
@@ -144129,7 +144653,7 @@ mod tests {
         manager
             .write()
             .unwrap()
-            .find_creature_mut(0, 0, assistant_guid)
+            .find_creature_mut(0, 0, caller_guid)
             .unwrap()
             .backdate_runtime_clock_for_test(Duration::from_millis(1_501));
         let assisted =
@@ -144273,7 +144797,7 @@ mod tests {
         manager
             .write()
             .unwrap()
-            .find_creature_mut(0, 0, assistant_guid)
+            .find_creature_mut(0, 0, caller_guid)
             .unwrap()
             .backdate_runtime_clock_for_test(Duration::from_millis(1_501));
         {
@@ -144466,20 +144990,49 @@ mod tests {
                 .unwrap();
         }
         session
-            .mutate_world_creature(assistant_guid, |assistant| {
-                assert!(assistant.schedule_assistance_like_cpp(
-                    first_caller_guid,
+            .mutate_world_creature(first_caller_guid, |caller| {
+                assert!(caller.schedule_assistance_like_cpp(
                     missing_first_victim,
+                    vec![assistant_guid],
                     1_500,
                 ));
-                assert!(assistant.schedule_assistance_like_cpp(
-                    second_caller_guid,
+                caller.backdate_runtime_clock_for_test(Duration::from_millis(1_501));
+            })
+            .unwrap();
+        session
+            .mutate_world_creature(second_caller_guid, |caller| {
+                assert!(caller.schedule_assistance_like_cpp(
                     valid_second_victim,
+                    vec![assistant_guid],
                     1_500,
                 ));
+                caller.backdate_runtime_clock_for_test(Duration::from_millis(1_501));
+            })
+            .unwrap();
+        session
+            .mutate_world_creature(assistant_guid, |assistant| {
                 assistant.enter_combat(missing_first_victim);
+                assert_eq!(
+                    assistant.take_assistance_call_like_cpp(),
+                    Some(missing_first_victim),
+                    "C++ does not SetNoCallAssistance until a delayed event revalidates and executes"
+                );
                 let _ = assistant.reset_combat();
-                assistant.backdate_runtime_clock_for_test(Duration::from_millis(1_501));
+            })
+            .unwrap();
+        assert!(
+            manager
+                .write()
+                .unwrap()
+                .remove_creature_any(0, 0, assistant_guid)
+                .is_some()
+        );
+        register_test_creature(&mut session, manager.clone(), assistant_guid, 100);
+        session
+            .mutate_world_creature(assistant_guid, |assistant| {
+                assistant.creature.ai_ownership_mut().aggro_radius = 0.0;
+                assistant.creature.unit_mut().set_level(25);
+                assistant.creature.set_faction(14);
             })
             .unwrap();
         manager
@@ -144507,7 +145060,7 @@ mod tests {
                 .ai_ownership()
                 .combat_target,
             Some(valid_second_victim),
-            "C++ caller-owned AssistDelayEvents survive an assistant's intervening combat reset"
+            "C++ caller-owned AssistDelayEvents resolve an assistant GUID after its runtime object is replaced"
         );
     }
 

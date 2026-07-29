@@ -400,11 +400,14 @@ pub mod spell_effect_types {
 pub mod aura_types {
     pub const SPELL_AURA_CONTROL_VEHICLE: i32 = 236;
     pub const SPELL_AURA_DUMMY: i32 = 0;
-    pub const SPELL_AURA_SCHOOL_ABSORB: i32 = 1;
-    pub const SPELL_AURA_SCHOOL_IMMUNITY: i32 = 2;
+    /// C++ `AuraType::SPELL_AURA_SCHOOL_ABSORB`.
+    pub const SPELL_AURA_SCHOOL_ABSORB: i32 = 69;
+    pub const SPELL_AURA_SCHOOL_IMMUNITY: i32 = 39;
     pub const SPELL_AURA_DUMMY_ABSORB: i32 = 3;
+    pub const SPELL_AURA_PERIODIC_DAMAGE: i32 = 3;
     pub const SPELL_AURA_MOD_CONFUSE: i32 = 5;
     pub const SPELL_AURA_MOD_FEAR: i32 = 7;
+    pub const SPELL_AURA_PERIODIC_HEAL: i32 = 8;
     pub const SPELL_AURA_MOD_THREAT: i32 = 10;
     pub const SPELL_AURA_MOD_TAUNT: i32 = 11;
     pub const SPELL_AURA_MOD_STUN: i32 = 12;
@@ -414,11 +417,14 @@ pub mod aura_types {
     pub const SPELL_AURA_MOD_INVISIBILITY: i32 = 18;
     pub const SPELL_AURA_MOD_RESISTANCE: i32 = 22;
     pub const SPELL_AURA_MOD_ROOT: i32 = 26;
+    pub const SPELL_AURA_MOD_SILENCE: i32 = 27;
+    pub const SPELL_AURA_MOD_STAT: i32 = 29;
     pub const SPELL_AURA_REFLECT_SPELLS: i32 = 28;
     pub const SPELL_AURA_MOD_INCREASE_SPEED: i32 = 31;
     pub const SPELL_AURA_MODIFY_DAMAGE_PERCENT_TAKEN: i32 = 31;
     pub const SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED: i32 = 32;
     pub const SPELL_AURA_MOD_DECREASE_SPEED: i32 = 33;
+    pub const SPELL_AURA_MOD_INCREASE_HEALTH: i32 = 34;
     pub const SPELL_AURA_MOD_SHAPESHIFT: i32 = 36;
     pub const SPELL_AURA_DAMAGE_IMMUNITY: i32 = 40;
     pub const SPELL_AURA_PROC_TRIGGER_SPELL: i32 = 42;
@@ -439,6 +445,7 @@ pub mod aura_types {
     pub const SPELL_AURA_MOUNTED: i32 = 78;
     pub const SPELL_AURA_MOD_DAMAGE_PERCENT_DONE: i32 = 79;
     pub const SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN: i32 = 87;
+    pub const SPELL_AURA_PERIODIC_DAMAGE_PERCENT: i32 = 89;
     pub const SPELL_AURA_MOD_DETECT_RANGE: i32 = 91;
     pub const SPELL_AURA_SPELL_MAGNET: i32 = 96;
     pub const SPELL_AURA_MOD_ATTACK_POWER: i32 = 99;
@@ -450,6 +457,7 @@ pub mod aura_types {
     pub const SPELL_AURA_MOD_MECHANIC_RESISTANCE: i32 = 117;
     pub const SPELL_AURA_RANGED_ATTACK_POWER_ATTACKER_BONUS: i32 = 127;
     pub const SPELL_AURA_MOD_SPEED_ALWAYS: i32 = 129;
+    pub const SPELL_AURA_MOD_INCREASE_HEALTH_PERCENT: i32 = 133;
     pub const SPELL_AURA_MOD_MOUNTED_SPEED_ALWAYS: i32 = 130;
     pub const SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE: i32 = 137;
     pub const SPELL_AURA_MOD_MELEE_HASTE: i32 = 138;
@@ -479,6 +487,7 @@ pub mod aura_types {
     pub const SPELL_AURA_MOD_MINIMUM_SPEED: i32 = 305;
     pub const SPELL_AURA_MOD_MELEE_HASTE_3: i32 = 319;
     pub const SPELL_AURA_MOD_SPEED_NO_CONTROL: i32 = 373;
+    pub const SPELL_AURA_SCHOOL_HEAL_ABSORB: i32 = 301;
     pub const SPELL_AURA_IGNORE_SPELL_COOLDOWN: i32 = 383;
     pub const SPELL_AURA_MOD_BATTLE_PET_XP_PCT: i32 = 420;
     pub const SPELL_AURA_MOD_MINIMUM_SPEED_RATE: i32 = 437;

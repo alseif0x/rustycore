@@ -4304,6 +4304,13 @@ impl WorldSession {
     pub(crate) async fn process_represented_session_commands_like_cpp(&mut self) {
         self.apply_pending_durable_item_loot_completions_like_cpp()
             .await;
+        let creature_runtime_overflowed = self.take_durable_creature_runtime_overflow_like_cpp();
+        if creature_runtime_overflowed {
+            self.kick(
+                "authoritative creature runtime command backlog overflowed; disconnecting desynchronized session",
+            );
+            return;
+        }
         let commands = self.drain_session_commands();
         for command in commands {
             match command {
@@ -4731,30 +4738,31 @@ impl WorldSession {
         if session_instance_id != command.instance_id {
             return;
         }
-        if !self
-            .client_visible_guids_like_cpp
-            .contains(&command.attacker_guid)
-        {
-            return;
-        }
-
         let health_after = command.victim_health_after;
         self.set_player_health_after_runtime_damage_like_cpp(health_after);
 
         use wow_packet::packets::combat::{
             AttackerStateUpdate, HIT_INFO_NORMAL_SWING, HealthUpdate, VICTIM_STATE_HIT,
         };
-        self.send_packet(&AttackerStateUpdate {
-            attacker: command.attacker_guid,
-            victim: command.victim_guid,
-            hit_info: HIT_INFO_NORMAL_SWING,
-            damage: command.damage.min(i32::MAX as u32) as i32,
-            over_damage: command.over_damage,
-            victim_state: VICTIM_STATE_HIT,
-            school_mask: 1,
-            target_level: command.target_level,
-            expansion: 2,
-        });
+        // Visibility can change after the map-owned swing commits. It gates
+        // only the attacker-facing combat packet, never authoritative victim
+        // health/death reconciliation.
+        if self
+            .client_visible_guids_like_cpp
+            .contains(&command.attacker_guid)
+        {
+            self.send_packet(&AttackerStateUpdate {
+                attacker: command.attacker_guid,
+                victim: command.victim_guid,
+                hit_info: HIT_INFO_NORMAL_SWING,
+                damage: command.damage.min(i32::MAX as u32) as i32,
+                over_damage: command.over_damage,
+                victim_state: VICTIM_STATE_HIT,
+                school_mask: 1,
+                target_level: command.target_level,
+                expansion: 2,
+            });
+        }
         self.send_packet(&HealthUpdate {
             guid: command.victim_guid,
             health: command.victim_health_after.min(i64::MAX as u64) as i64,
@@ -4791,12 +4799,9 @@ impl WorldSession {
         if session_instance_id != command.instance_id {
             return;
         }
-        if !self
+        let attacker_is_visible = self
             .client_visible_guids_like_cpp
-            .contains(&command.attacker_guid)
-        {
-            return;
-        }
+            .contains(&command.attacker_guid);
 
         if let Some(manager) = self.canonical_map_manager.as_ref().cloned()
             && let Ok(mut manager) = manager.lock()
@@ -4826,7 +4831,7 @@ impl WorldSession {
         self.combat_target = Some(command.attacker_guid);
         self.in_combat = true;
 
-        if !command.packet_already_broadcast {
+        if attacker_is_visible && !command.packet_already_broadcast {
             use wow_packet::packets::combat::AttackStart;
             self.send_packet(&AttackStart {
                 attacker: command.attacker_guid,
@@ -18058,6 +18063,7 @@ mod tests {
             realm_send_tx: send_tx.clone(),
             send_tx,
             command_tx,
+            durable_creature_runtime_commands_like_cpp: Default::default(),
             visibility_refresh_pending_like_cpp: Default::default(),
             durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),
