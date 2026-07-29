@@ -2115,7 +2115,8 @@ impl WorldCreature {
         // C++ `AssistDelayEvent` is owned by the caller, not by an assistant's
         // combat state. Preserve represented pending requests across this
         // assistant's independent combat/evade reset; execution revalidates
-        // `CanAssistTo` when the delay expires.
+        // `CanAssistTo` when the delay expires. A real `Unit::AttackStop`
+        // resets `m_AlreadyCallAssistance` for the next engagement.
         self.assistance_called_like_cpp = false;
         self.creature.reset_ai_combat(self.now_ms());
         self.sync_runtime_motion_master_like_cpp();
@@ -5064,6 +5065,16 @@ pub enum RecipientRule {
     /// Broadcast to all sessions whose visible range overlaps the source
     /// position.  Mirrors C++ `MessageDistDeliverer` with a range constraint.
     NearbyVisible {
+        source_guid: ObjectGuid,
+        map_id: u16,
+        instance_id: u32,
+        source_position: Position,
+        range: f32,
+        required_3d: bool,
+    },
+    /// Same visibility fanout as `NearbyVisible`, but committed combat
+    /// transitions are queued on each session's durable FIFO rail.
+    NearbyVisibleDurable {
         source_guid: ObjectGuid,
         map_id: u16,
         instance_id: u32,

@@ -13790,6 +13790,64 @@ fn resolve_runtime_event_candidates_like_cpp(
                 }
             }
         }
+        RecipientRule::NearbyVisibleDurable {
+            source_guid: _,
+            map_id,
+            instance_id,
+            source_position,
+            range,
+            required_3d,
+        } => {
+            let range_sq = range * range;
+            struct Candidate {
+                durable: Arc<std::sync::Mutex<wow_network::DurableCreatureRuntimeCommandsLikeCpp>>,
+                eligible: bool,
+            }
+            let candidates: Vec<Candidate> = registry
+                .iter()
+                .map(|entry| {
+                    let info = entry.value();
+                    let dx = info.position.x - source_position.x;
+                    let dy = info.position.y - source_position.y;
+                    let dz = info.position.z - source_position.z;
+                    let distance_sq = if *required_3d {
+                        dx * dx + dy * dy + dz * dz
+                    } else {
+                        dx * dx + dy * dy
+                    };
+                    Candidate {
+                        durable: Arc::clone(&info.durable_creature_runtime_commands_like_cpp),
+                        eligible: info.is_in_world
+                            && info.map_id == *map_id
+                            && info.instance_id == *instance_id
+                            && distance_sq <= range_sq,
+                    }
+                })
+                .collect();
+            for candidate in candidates {
+                summary.candidates_seen += 1;
+                if !candidate.eligible {
+                    summary.candidates_skipped_distance += 1;
+                    continue;
+                }
+                let command = wow_network::player_registry::SendIfVisibleLikeCppCommand {
+                    queued_at: Instant::now(),
+                    source_guid: event.source_guid,
+                    map_id: *map_id,
+                    instance_id: *instance_id,
+                    packet_bytes: event.packet_bytes.clone(),
+                };
+                if candidate
+                    .durable
+                    .lock()
+                    .is_ok_and(|mut durable| durable.publish_send_if_visible_like_cpp(command))
+                {
+                    summary.candidates_queued += 1;
+                } else {
+                    summary.send_failed += 1;
+                }
+            }
+        }
     }
 }
 
@@ -14151,6 +14209,17 @@ fn apply_canonical_creature_attack_starts_like_cpp(
             || map.get_typed_creature(command.victim_guid).is_none()
         {
             continue;
+        }
+        if let Some(previous_victim) = command.previous_victim_guid {
+            if let Some(player) = map.get_typed_player_mut(previous_victim) {
+                player
+                    .unit_mut()
+                    .remove_attacker_like_cpp(command.attacker_guid);
+            } else if let Some(creature) = map.get_typed_creature_mut(previous_victim) {
+                creature
+                    .unit_mut()
+                    .remove_attacker_like_cpp(command.attacker_guid);
+            }
         }
         if let Some(attacker) = map.get_typed_creature_mut(command.attacker_guid) {
             attacker
@@ -25211,6 +25280,41 @@ mmap.enablePathFinding = 0
         assert!(near_3d_rx.try_recv().is_ok(), "3D-near player included");
     }
 
+    #[test]
+    fn nearby_visible_durable_uses_committed_fifo_instead_of_bounded_queue() {
+        let registry = PlayerRegistry::default();
+        let guid = ObjectGuid::create_player(1, 8);
+        let (info, command_rx) = make_registry_player_like_cpp(571, 0, Position::ZERO, true);
+        let durable = Arc::clone(&info.durable_creature_runtime_commands_like_cpp);
+        registry.insert(guid, info);
+
+        let event = wow_world::map_manager::RuntimeEvent {
+            source_guid: make_source_guid(),
+            recipients: wow_world::map_manager::RecipientRule::NearbyVisibleDurable {
+                source_guid: make_source_guid(),
+                map_id: 571,
+                instance_id: 0,
+                source_position: Position::ZERO,
+                range: 100.0,
+                required_3d: false,
+            },
+            packet_bytes: vec![0xAA],
+        };
+        let plan = wow_world::map_manager::RuntimePlan {
+            events: vec![event],
+        };
+        let summary = deliver_runtime_plan_like_cpp(&plan, &registry);
+
+        assert_eq!(summary.candidates_queued, 1);
+        assert!(command_rx.try_recv().is_err());
+        let drained = durable.lock().unwrap().drain_like_cpp();
+        assert!(matches!(
+            drained.as_slice(),
+            [SessionCommand::SendIfVisibleLikeCpp(command)]
+                if command.packet_bytes == vec![0xAA]
+        ));
+    }
+
     /// (6) MapBroadcastVisible: enqueues all players on the same map/instance
     /// regardless of distance, but respects map/instance/in_world.
     /// C++ anchor: WorldObject::SendMessageToSet map-wide broadcast path.
@@ -25528,9 +25632,10 @@ mmap.enablePathFinding = 0
                 .unit_mut()
                 .subsystems_mut()
                 .auras
-                .register_applied_aura_modifier_like_cpp(
+                .register_applied_aura_effect_like_cpp(
                     school_immunity,
                     wow_data::spell::aura_types::SPELL_AURA_SCHOOL_IMMUNITY,
+                    99,
                     0x1,
                 );
             let confuse = wow_entities::AppliedAuraRef::new(91_138, player_guid, 2, 0x1);
@@ -25590,6 +25695,7 @@ mmap.enablePathFinding = 0
             wow_network::player_registry::CreatureAttackStartLikeCppCommand {
                 attacker_guid: attacker,
                 victim_guid: victim,
+                previous_victim_guid: None,
                 map_id: 571,
                 instance_id: 4,
                 packet_already_broadcast: false,
@@ -25643,6 +25749,7 @@ mmap.enablePathFinding = 0
             wow_network::player_registry::CreatureAttackStartLikeCppCommand {
                 attacker_guid: attacker,
                 victim_guid: victim,
+                previous_victim_guid: None,
                 map_id: 571,
                 instance_id: 4,
                 packet_already_broadcast: true,
@@ -25689,6 +25796,7 @@ mmap.enablePathFinding = 0
             wow_network::player_registry::CreatureAttackStartLikeCppCommand {
                 attacker_guid: attacker,
                 victim_guid: victim,
+                previous_victim_guid: None,
                 map_id: 571,
                 instance_id: 4,
                 packet_already_broadcast: true,
@@ -25753,6 +25861,7 @@ mmap.enablePathFinding = 0
             |victim_guid| wow_network::player_registry::CreatureAttackStartLikeCppCommand {
                 attacker_guid: attacker,
                 victim_guid,
+                previous_victim_guid: None,
                 map_id: 571,
                 instance_id: 0,
                 packet_already_broadcast: false,
@@ -25798,6 +25907,7 @@ mmap.enablePathFinding = 0
         let command = wow_network::player_registry::CreatureAttackStartLikeCppCommand {
             attacker_guid: attacker,
             victim_guid: victim,
+            previous_victim_guid: None,
             map_id: 571,
             instance_id: 0,
             packet_already_broadcast: false,

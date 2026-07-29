@@ -21,6 +21,8 @@ pub struct AuraSubsystem {
     pub applied_auras: Vec<AppliedAuraRef>,
     pub applied_aura_types: HashMap<i32, Vec<AppliedAuraRef>>,
     pub applied_aura_amounts: HashMap<AppliedAuraRef, i32>,
+    /// C++ `AuraEffect::GetMiscValue()`; distinct from effect amount.
+    pub applied_aura_misc_values: HashMap<AppliedAuraRef, i32>,
     pub loaded_aura_states_like_cpp: HashMap<AuraRef, LoadedAuraStateLikeCpp>,
     pub visible_auras: HashMap<u8, AuraRef>,
     pub visible_aura_applications_like_cpp: HashMap<u8, VisibleAuraApplicationLikeCpp>,
@@ -261,6 +263,17 @@ impl AuraSubsystem {
         self.applied_aura_amounts.insert(aura, amount);
     }
 
+    pub fn register_applied_aura_effect_like_cpp(
+        &mut self,
+        aura: AppliedAuraRef,
+        aura_type: i32,
+        amount: i32,
+        misc_value: i32,
+    ) {
+        self.register_applied_aura_modifier_like_cpp(aura, aura_type, amount);
+        self.applied_aura_misc_values.insert(aura, misc_value);
+    }
+
     pub fn remove_applied(&mut self, aura: AppliedAuraRef) -> bool {
         let before = self.applied_auras.len();
         self.applied_auras.retain(|known| *known != aura);
@@ -276,6 +289,7 @@ impl AuraSubsystem {
         }
         self.aura_state_auras.retain(|_, auras| !auras.is_empty());
         self.applied_aura_amounts.remove(&aura);
+        self.applied_aura_misc_values.remove(&aura);
         self.loaded_aura_states_like_cpp.remove(&aura.aura_ref());
         self.update_interrupt_masks();
         before != self.applied_auras.len()
@@ -363,7 +377,33 @@ impl AuraSubsystem {
             .into_iter()
             .flatten()
             .fold(0_u32, |mask, aura| {
-                mask | self.applied_aura_amounts.get(aura).copied().unwrap_or(0) as u32
+                mask | self
+                    .applied_aura_misc_values
+                    .get(aura)
+                    .copied()
+                    .unwrap_or(0) as u32
+            })
+    }
+
+    /// C++ `GetTotalAuraMultiplierByMiscMask`: multiply percentage aura
+    /// amounts whose `MiscValue` intersects the requested school mask.
+    pub fn total_aura_multiplier_by_misc_mask_like_cpp(
+        &self,
+        aura_type: i32,
+        misc_mask: u32,
+    ) -> f32 {
+        self.applied_aura_types
+            .get(&aura_type)
+            .into_iter()
+            .flatten()
+            .filter(|aura| {
+                self.applied_aura_misc_values
+                    .get(aura)
+                    .is_some_and(|value| (*value as u32) & misc_mask != 0)
+            })
+            .fold(1.0_f32, |multiplier, aura| {
+                let amount = self.applied_aura_amounts.get(aura).copied().unwrap_or(0);
+                multiplier * (1.0 + amount as f32 / 100.0)
             })
     }
 
@@ -1568,6 +1608,13 @@ impl CombatSubsystem {
     }
 
     pub fn add_threat(&mut self, target: ObjectGuid, amount: f32) -> f32 {
+        // C++ ThreatManager::AddThreat is a no-op for owners which cannot
+        // own a threat list (triggers, pets, totems, minions and guardians),
+        // but it still establishes the owner's combat reference.
+        if !self.owner_can_have_threat_list {
+            self.set_in_combat_with(target, false, false);
+            return 0.0;
+        }
         let threat_ref = self.threat_refs.entry(target).or_insert_with(|| {
             let mut threat_ref = ThreatReferenceState::default();
             threat_ref.set_online_state(ThreatOnlineState::Online);
@@ -1622,6 +1669,7 @@ impl CombatSubsystem {
         let removed = self.threat_refs.remove(&target).map(|state| state.threat());
         self.threat.remove(&target);
         self.threatened_by_me.remove(&target);
+        self.pending_suppressed_threat_like_cpp.remove(&target);
         if self.current_victim_guid == Some(target) {
             self.current_victim_guid = None;
         }
@@ -1636,6 +1684,8 @@ impl CombatSubsystem {
         self.threat_refs.clear();
         self.current_victim_guid = None;
         self.fixate_guid = None;
+        self.pending_suppressed_threat_like_cpp.clear();
+        self.reevaluate_all_suppressed_like_cpp = false;
         self.need_client_update = true;
     }
 
@@ -4874,9 +4924,10 @@ mod unit_subsystems_tests {
         let second_immunity = AppliedAuraRef::new(411, caster, 1, 0x1);
         let durable_stun = AppliedAuraRef::new(412, caster, 2, 0x1);
         let breakable_stun = AppliedAuraRef::new(413, caster, 3, 0x1);
+        let fire_threat = AppliedAuraRef::new(414, caster, 4, 0x1);
 
-        auras.register_applied_aura_modifier_like_cpp(first_immunity, 39, 0x1);
-        auras.register_applied_aura_modifier_like_cpp(second_immunity, 39, 0x4);
+        auras.register_applied_aura_effect_like_cpp(first_immunity, 39, 99, 0x1);
+        auras.register_applied_aura_effect_like_cpp(second_immunity, 39, 77, 0x4);
         auras.register_applied_aura_type_like_cpp(durable_stun, 12);
         auras.register_applied_aura(durable_stun, None, 0, 0);
         assert_eq!(auras.aura_school_mask_like_cpp(39), 0x5);
@@ -4893,6 +4944,15 @@ mod unit_subsystems_tests {
             0,
         );
         assert!(auras.has_breakable_by_damage_aura_type_like_cpp(12));
+        auras.register_applied_aura_effect_like_cpp(fire_threat, 10, -30, 0x4);
+        assert_eq!(
+            auras.total_aura_multiplier_by_misc_mask_like_cpp(10, 0x4),
+            0.7
+        );
+        assert_eq!(
+            auras.total_aura_multiplier_by_misc_mask_like_cpp(10, 0x2),
+            1.0
+        );
     }
 
     #[test]
@@ -5143,6 +5203,7 @@ mod unit_subsystems_tests {
     #[test]
     fn threat_combat_helpers_roundtrip() {
         let mut combat = CombatSubsystem::default();
+        combat.initialize_threat_list_capability(true);
         let attacker = guid(10);
 
         assert!(!combat.combat_disallowed);
@@ -5164,6 +5225,16 @@ mod unit_subsystems_tests {
         combat.clear_attackers();
         assert!(combat.attackers.is_empty());
         assert_eq!(combat.attacking_guid, None);
+    }
+
+    #[test]
+    fn add_threat_rejects_incapable_owners_like_cpp() {
+        let mut combat = CombatSubsystem::default();
+        let target = guid(11);
+
+        assert_eq!(combat.add_threat(target, 5.0), 0.0);
+        assert_eq!(combat.threat_value(target), None);
+        assert!(combat.is_in_combat_with(target));
     }
 
     #[test]
@@ -5208,6 +5279,7 @@ mod unit_subsystems_tests {
     #[test]
     fn match_unit_threat_to_highest_threat_matches_cpp_taunt_skip_shape() {
         let mut combat = CombatSubsystem::default();
+        combat.initialize_threat_list_capability(true);
         let caster = guid(24);
         let taunter = guid(25);
         let high = guid(26);
@@ -5226,6 +5298,7 @@ mod unit_subsystems_tests {
     #[test]
     fn match_unit_threat_to_highest_threat_uses_available_highest_like_cpp() {
         let mut combat = CombatSubsystem::default();
+        combat.initialize_threat_list_capability(true);
         let caster = guid(27);
         let offline = guid(28);
         let high = guid(29);
@@ -5244,6 +5317,7 @@ mod unit_subsystems_tests {
     #[test]
     fn threat_reselect_victim_matches_cpp_110_130_and_fixate_shape() {
         let mut combat = CombatSubsystem::default();
+        combat.initialize_threat_list_capability(true);
         let current = guid(30);
         let ranged = guid(31);
         let melee = guid(32);
@@ -5409,6 +5483,7 @@ mod unit_subsystems_tests {
     #[test]
     fn combat_revalidate_removes_invalid_refs_and_related_threat_like_cpp() {
         let mut combat = CombatSubsystem::default();
+        combat.initialize_threat_list_capability(true);
         let valid_pve = guid(42);
         let invalid_pve = guid(43);
         let invalid_pvp = guid(44);
@@ -5437,6 +5512,7 @@ mod unit_subsystems_tests {
     #[test]
     fn combat_purge_ref_removes_ref_and_related_threat_like_cpp_end_combat_side() {
         let mut combat = CombatSubsystem::default();
+        combat.initialize_threat_list_capability(true);
         let target = guid(45);
         combat.set_in_combat_with(target, false, false);
         combat.add_threat(target, 30.0);

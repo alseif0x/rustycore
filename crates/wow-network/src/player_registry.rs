@@ -222,6 +222,10 @@ pub struct ApplyCreatureMeleeDamageLikeCppCommand {
 pub struct CreatureAttackStartLikeCppCommand {
     pub attacker_guid: ObjectGuid,
     pub victim_guid: ObjectGuid,
+    /// Previous melee victim, if this start switches an existing attack.
+    /// C++ `Unit::Attack` removes only the old victim's attacker relation
+    /// while retaining its combat/threat references.
+    pub previous_victim_guid: Option<ObjectGuid>,
     pub map_id: u16,
     pub instance_id: u32,
     /// `true` when the global runtime already queued `SMSG_ATTACKSTART` through
@@ -285,6 +289,13 @@ impl DurableCreatureRuntimeCommandsLikeCpp {
         command: ApplyCreatureMeleeDamageLikeCppCommand,
     ) -> bool {
         self.publish_like_cpp(SessionCommand::ApplyCreatureMeleeDamageLikeCpp(command))
+    }
+
+    pub fn publish_send_if_visible_like_cpp(
+        &mut self,
+        command: SendIfVisibleLikeCppCommand,
+    ) -> bool {
+        self.publish_like_cpp(SessionCommand::SendIfVisibleLikeCpp(command))
     }
 
     pub fn drain_like_cpp(&mut self) -> Vec<SessionCommand> {
@@ -1306,6 +1317,7 @@ mod tests {
         let cmd = CreatureAttackStartLikeCppCommand {
             attacker_guid: attacker,
             victim_guid: victim,
+            previous_victim_guid: None,
             map_id: 571,
             instance_id: 4,
             packet_already_broadcast: false,
@@ -1426,6 +1438,7 @@ mod tests {
             pending.publish_attack_start_like_cpp(CreatureAttackStartLikeCppCommand {
                 attacker_guid: attacker,
                 victim_guid: victim,
+                previous_victim_guid: None,
                 map_id: 571,
                 instance_id: 0,
                 packet_already_broadcast: false,
@@ -1490,6 +1503,7 @@ mod tests {
         let command = CreatureAttackStartLikeCppCommand {
             attacker_guid: attacker,
             victim_guid: victim,
+            previous_victim_guid: None,
             map_id: 571,
             instance_id: 0,
             packet_already_broadcast: false,

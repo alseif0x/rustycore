@@ -4809,6 +4809,17 @@ impl WorldSession {
                 manager.find_map_mut(u32::from(command.map_id), command.instance_id)
         {
             let map = managed.map_mut();
+            if let Some(previous_victim) = command.previous_victim_guid {
+                if let Some(player) = map.get_typed_player_mut(previous_victim) {
+                    player
+                        .unit_mut()
+                        .remove_attacker_like_cpp(command.attacker_guid);
+                } else if let Some(creature) = map.get_typed_creature_mut(previous_victim) {
+                    creature
+                        .unit_mut()
+                        .remove_attacker_like_cpp(command.attacker_guid);
+                }
+            }
             if let Some(player) = map.get_typed_player_mut(command.victim_guid) {
                 player
                     .unit_mut()
@@ -4820,15 +4831,26 @@ impl WorldSession {
                     .add_attacker_like_cpp(command.attacker_guid);
             }
             if let Some(creature) = map.get_typed_creature_mut(command.attacker_guid) {
-                creature
-                    .unit_mut()
-                    .subsystems_mut()
-                    .combat
-                    .set_in_combat_with(command.victim_guid, false, false);
+                let combat = &mut creature.unit_mut().subsystems_mut().combat;
+                combat.set_in_combat_with(command.victim_guid, false, false);
+                if combat.threat_ref(command.victim_guid).is_none() {
+                    combat.set_threat(command.victim_guid, 0.0);
+                }
+                let threat_ref = combat.threat_ref(command.victim_guid).copied();
+                if let Some(threat_ref) = threat_ref
+                    && let Some(player) = map.get_typed_player_mut(command.victim_guid)
+                {
+                    player
+                        .unit_mut()
+                        .subsystems_mut()
+                        .combat
+                        .put_threatened_by_me_ref(command.attacker_guid, threat_ref);
+                }
             }
         }
 
-        self.combat_target = Some(command.attacker_guid);
+        // Incoming attackers do not become the player's own melee target.
+        // C++ keeps that direction solely in `m_attackers`/combat references.
         self.in_combat = true;
 
         if attacker_is_visible && !command.packet_already_broadcast {
