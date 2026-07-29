@@ -26099,6 +26099,17 @@ impl WorldSession {
             victim: victim_guid,
         }
         .to_bytes();
+        let Some((source_position, source_combat_reach, visibility_range)) = self
+            .mutate_world_creature(attacker_guid, |creature| {
+                (
+                    creature.position(),
+                    creature.creature.unit().world().combat_reach(),
+                    creature.visibility_range_like_cpp(),
+                )
+            })
+        else {
+            return;
+        };
         let Some(registry) = self.player_registry.as_ref() else {
             return;
         };
@@ -26108,6 +26119,13 @@ impl WorldSession {
                 || !info.is_in_world
                 || info.map_id != map_id
                 || info.instance_id != instance_id
+                || !Self::visibility_distance_allows_like_cpp(
+                    &source_position,
+                    source_combat_reach,
+                    &info.position,
+                    info.combat_reach,
+                    visibility_range,
+                )
             {
                 continue;
             }
@@ -34564,6 +34582,27 @@ impl WorldSession {
         represented_effect_amounts: &[RepresentedAuraEffectAmountLikeCpp],
         apply: bool,
     ) {
+        if !apply {
+            let Ok(spell_id) = u32::try_from(spell_id) else {
+                return;
+            };
+            let _ = self.mutate_canonical_player_like_cpp(|player| {
+                for effect_index in 0..u32::BITS {
+                    let effect_bit = 1u32 << effect_index;
+                    if effect_mask & effect_bit != 0 {
+                        player.unit_mut().subsystems_mut().auras.remove_applied(
+                            wow_entities::AppliedAuraRef::new(
+                                spell_id,
+                                caster_guid,
+                                slot,
+                                effect_bit,
+                            ),
+                        );
+                    }
+                }
+            });
+            return;
+        }
         let difficulty = self.current_map_difficulty_id_like_cpp();
         let interrupt_flags = self
             .spell_store()
@@ -34622,18 +34661,9 @@ impl WorldSession {
             for (effect_bit, aura_type, amount, misc_value) in effects {
                 let aura =
                     wow_entities::AppliedAuraRef::new(spell_id, caster_guid, slot, effect_bit);
-                if apply {
-                    let auras = &mut player.unit_mut().subsystems_mut().auras;
-                    auras.register_applied_aura(aura, None, interrupt_flags[0], interrupt_flags[1]);
-                    auras
-                        .register_applied_aura_effect_like_cpp(aura, aura_type, amount, misc_value);
-                } else {
-                    player
-                        .unit_mut()
-                        .subsystems_mut()
-                        .auras
-                        .remove_applied(aura);
-                }
+                let auras = &mut player.unit_mut().subsystems_mut().auras;
+                auras.register_applied_aura(aura, None, interrupt_flags[0], interrupt_flags[1]);
+                auras.register_applied_aura_effect_like_cpp(aura, aura_type, amount, misc_value);
             }
         });
     }
@@ -57420,7 +57450,7 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
 
                 outcome.plan.events.push(RuntimeEvent {
                     source_guid: guid,
-                    recipients: RecipientRule::NearbyVisible {
+                    recipients: RecipientRule::NearbyVisibleDurable {
                         source_guid: guid,
                         map_id,
                         instance_id,
@@ -57629,7 +57659,7 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                     if !removed_taunt_slots.is_empty() {
                         outcome.plan.events.push(RuntimeEvent {
                             source_guid: guid,
-                            recipients: RecipientRule::NearbyVisible {
+                            recipients: RecipientRule::NearbyVisibleDurable {
                                 source_guid: guid,
                                 map_id,
                                 instance_id,
@@ -63628,15 +63658,24 @@ impl WorldSession {
         enforce_effect_taunt_current_victim_gate: bool,
     ) -> Result<(), &'static str> {
         let player_guid = self.player_guid().ok_or("No player GUID")?;
+        let difficulty = self.current_map_difficulty_id_like_cpp();
         let taunt_effect_mask = self.spell_store().and_then(|store| {
-            store.get(spell_id).and_then(|spell| {
-                spell.effects().iter().find_map(|effect| {
-                    (effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA
-                        && effect.effect_aura == wow_data::spell::aura_types::SPELL_AURA_MOD_TAUNT)
-                        .then(|| 1u32.checked_shl(effect.effect_index))
-                        .flatten()
+            store
+                .effects_for_difficulty_like_cpp(
+                    spell_id,
+                    difficulty,
+                    self.difficulty_store().map(AsRef::as_ref),
+                )
+                .and_then(|effects| {
+                    effects.iter().find_map(|effect| {
+                        (effect.effect
+                            == wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA
+                            && effect.effect_aura
+                                == wow_data::spell::aura_types::SPELL_AURA_MOD_TAUNT)
+                            .then(|| 1u32.checked_shl(effect.effect_index))
+                            .flatten()
+                    })
                 })
-            })
         });
         let duration_ms = {
             let duration_index = self
@@ -64238,6 +64277,11 @@ impl WorldSession {
                     .creature
                     .set_tapped_by_player(player_guid, &tap_group_guids);
                 let died = creature.take_damage_before_death_state_like_cpp(damage_amount);
+                let newly_engaged = !died
+                    && damage_amount > 0
+                    && !suppress_harmful_threat
+                    && !(no_initial_threat && !creature.creature.is_in_combat())
+                    && creature.creature.ai_ownership().combat_target.is_none();
                 let threat_value = if !died
                     && damage_amount > 0
                     && !suppress_harmful_threat
@@ -64288,10 +64332,12 @@ impl WorldSession {
                     kill_info,
                     creature.creature.unit().values_update(),
                     threat_value,
+                    newly_engaged,
                 ))
             })
             .ok_or("Target creature not found")?;
-        let Some((kill_info, mut values_update, threat_value)) = damage_outcome else {
+        let Some((kill_info, mut values_update, threat_value, newly_engaged)) = damage_outcome
+        else {
             return Ok(());
         };
         if let Some(threat_value) = threat_value {
@@ -64300,6 +64346,9 @@ impl WorldSession {
                 player_guid,
                 threat_value,
             );
+        }
+        if newly_engaged {
+            self.publish_spell_pull_attack_start_like_cpp(target_guid, player_guid);
         }
 
         // Process creature death outside the mutable borrow
