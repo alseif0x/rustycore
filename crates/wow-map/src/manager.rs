@@ -520,6 +520,10 @@ impl ManagedMap {
                 .update_creatures_like_cpp(diff_ms, now_secs, |_guid, _creature| {
                     CreatureRuntimeUpdateContext::default()
                 });
+        // C++ Unit::Update advances timed PvP combat references for both
+        // players and creatures. The canonical map owns both sides here, so
+        // expire them once per map tick and purge the reciprocal relation.
+        let _ = self.map.update_all_pvp_combat_refs_like_cpp(diff_ms);
         // Partial C++ ObjectUpdater seam: after Creature, visit represented
         // map-owned GameObject records. C++ real order is TypeContainerVisitor
         // nearby-cell/active-object traversal; this Rust insertion only adds the
