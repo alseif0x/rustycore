@@ -60012,8 +60012,13 @@ impl WorldSession {
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL => {
                     if let Ok(heal_amount) = u32::try_from(direct_effect_base_points) {
-                        self.apply_heal(Some(spell_id), target_guid, heal_amount)
-                            .await?;
+                        self.apply_heal_from_caster_like_cpp(
+                            Some(spell_id),
+                            caster_guid,
+                            target_guid,
+                            heal_amount,
+                        )
+                        .await?;
                     } else {
                         debug!(
                             account = self.account_id,
@@ -60026,8 +60031,13 @@ impl WorldSession {
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_HEAL_MECHANICAL => {
                     if let Ok(heal_amount) = u32::try_from(direct_effect_base_points) {
-                        self.apply_heal(Some(spell_id), target_guid, heal_amount)
-                            .await?;
+                        self.apply_heal_from_caster_like_cpp(
+                            Some(spell_id),
+                            caster_guid,
+                            target_guid,
+                            heal_amount,
+                        )
+                        .await?;
                     } else {
                         debug!(
                             account = self.account_id,
@@ -62594,7 +62604,18 @@ impl WorldSession {
         heal_amount: u32,
     ) -> Result<(), &'static str> {
         let player_guid = self.player_guid().ok_or("No player GUID")?;
+        self.apply_heal_from_caster_like_cpp(spell_id, player_guid, target_guid, heal_amount)
+            .await
+    }
 
+    async fn apply_heal_from_caster_like_cpp(
+        &mut self,
+        spell_id: Option<i32>,
+        healer_guid: ObjectGuid,
+        target_guid: ObjectGuid,
+        heal_amount: u32,
+    ) -> Result<(), &'static str> {
+        let player_guid = self.player_guid().ok_or("No player GUID")?;
         // Si target es el mismo jugador
         if target_guid == player_guid {
             if !self.player_alive_like_cpp {
@@ -62622,7 +62643,7 @@ impl WorldSession {
                 self.sync_player_registry_state_like_cpp();
                 self.send_player_health_values_update_like_cpp(player_guid, u64::from(healed));
             }
-            self.forward_heal_threat_like_cpp(spell_id, target_guid, effective_heal);
+            self.forward_heal_threat_like_cpp(spell_id, healer_guid, target_guid, effective_heal);
             return Ok(());
         }
 
@@ -62661,7 +62682,7 @@ impl WorldSession {
         let Some((values_update, effective_heal)) = heal_outcome else {
             return Ok(());
         };
-        self.forward_heal_threat_like_cpp(spell_id, target_guid, effective_heal);
+        self.forward_heal_threat_like_cpp(spell_id, healer_guid, target_guid, effective_heal);
 
         if self.client_visible_guids_like_cpp.contains(&target_guid)
             && let Some(update) = self.represented_unit_values_update_to_update_object_like_cpp(
@@ -62684,6 +62705,7 @@ impl WorldSession {
     fn forward_heal_threat_like_cpp(
         &mut self,
         spell_id: Option<i32>,
+        healer_guid: ObjectGuid,
         target_guid: ObjectGuid,
         effective_heal: u32,
     ) {
@@ -62727,9 +62749,9 @@ impl WorldSession {
                 })
             })
             .map_or(1, |spell| u32::from(spell.school_mask));
-        self.hydrate_canonical_threat_relevant_auras_like_cpp();
-        let caster_school_threat_mod = self
-            .mutate_canonical_player_like_cpp(|player| {
+        let caster_school_threat_mod = if self.player_guid() == Some(healer_guid) {
+            self.hydrate_canonical_threat_relevant_auras_like_cpp();
+            self.mutate_canonical_player_like_cpp(|player| {
                 player
                     .unit()
                     .subsystems()
@@ -62739,7 +62761,10 @@ impl WorldSession {
                         spell_school_mask,
                     )
             })
-            .unwrap_or(1.0);
+            .unwrap_or(1.0)
+        } else {
+            1.0
+        };
         let no_initial_threat = spell_id.is_some_and(|spell_id| {
             self.spell_store().is_some_and(|store| {
                 store.has_attribute_for_difficulty_like_cpp(
@@ -62751,10 +62776,6 @@ impl WorldSession {
                 )
             })
         });
-        let healer_guid = match self.player_guid() {
-            Some(guid) => guid,
-            None => return,
-        };
         let owner_guids = self.canonical_threatened_by_me_owner_guids_like_cpp(target_guid);
         if owner_guids.is_empty() {
             return;
@@ -63460,13 +63481,15 @@ impl WorldSession {
     ) {
         // C++ `AddThreat(..., 0.0f)` still creates the reciprocal combat
         // reference (notably for controlled heal-threat owners).
-        let _ = self.begin_canonical_player_combat_ref_like_cpp(
-            attacker_guid,
-            creature_guid,
-            false,
-            false,
-            false,
-        );
+        if attacker_guid.is_player() {
+            let _ = self.begin_canonical_player_combat_ref_like_cpp(
+                attacker_guid,
+                creature_guid,
+                false,
+                false,
+                false,
+            );
+        }
 
         let Some(map_key) = self.current_canonical_player_map_key_like_cpp() else {
             return;
@@ -63481,6 +63504,23 @@ impl WorldSession {
             return;
         };
         let map = managed.map_mut();
+
+        if attacker_guid.is_creature() {
+            if let Some(attacker) = map.get_typed_creature_mut(attacker_guid) {
+                attacker
+                    .unit_mut()
+                    .subsystems_mut()
+                    .combat
+                    .set_in_combat_with(creature_guid, false, false);
+            }
+            if let Some(creature) = map.get_typed_creature_mut(creature_guid) {
+                creature
+                    .unit_mut()
+                    .subsystems_mut()
+                    .combat
+                    .set_in_combat_with(attacker_guid, false, false);
+            }
+        }
 
         let threat_ref = {
             let Some(creature) = map.get_typed_creature_mut(creature_guid) else {
@@ -63499,14 +63539,20 @@ impl WorldSession {
                 .copied()
         };
 
-        if let Some(threat_ref) = threat_ref
-            && let Some(attacker) = map.get_typed_player_mut(attacker_guid)
-        {
-            attacker
-                .unit_mut()
-                .subsystems_mut()
-                .combat
-                .put_threatened_by_me_ref(creature_guid, threat_ref);
+        if let Some(threat_ref) = threat_ref {
+            if let Some(attacker) = map.get_typed_player_mut(attacker_guid) {
+                attacker
+                    .unit_mut()
+                    .subsystems_mut()
+                    .combat
+                    .put_threatened_by_me_ref(creature_guid, threat_ref);
+            } else if let Some(attacker) = map.get_typed_creature_mut(attacker_guid) {
+                attacker
+                    .unit_mut()
+                    .subsystems_mut()
+                    .combat
+                    .put_threatened_by_me_ref(creature_guid, threat_ref);
+            }
         }
     }
 
@@ -64340,7 +64386,22 @@ impl WorldSession {
         let player_guid = self.player_guid().ok_or("No player GUID")?;
         let account_id = self.account_id;
         let caster_is_session_player = caster_guid == player_guid;
-        let tap_group_guids = caster_is_session_player
+        let controlling_player_guid = if caster_guid.is_player() {
+            Some(caster_guid)
+        } else {
+            self.mutate_world_creature(caster_guid, |creature| {
+                creature
+                    .creature
+                    .unit()
+                    .subsystems()
+                    .control
+                    .charmer_or_owner_guid()
+                    .filter(|guid| guid.is_player())
+            })
+            .flatten()
+        };
+        let caster_rewards_session_player = controlling_player_guid == Some(player_guid);
+        let tap_group_guids = caster_rewards_session_player
             .then(|| self.current_group_member_guids_for_tap_like_cpp(player_guid))
             .unwrap_or_default();
         let difficulty = self.current_map_difficulty_id_like_cpp();
@@ -64425,7 +64486,7 @@ impl WorldSession {
                     "Dealt damage to creature"
                 );
 
-                if caster_is_session_player {
+                if caster_rewards_session_player {
                     creature
                         .creature
                         .set_tapped_by_player(player_guid, &tap_group_guids);
@@ -64524,13 +64585,13 @@ impl WorldSession {
             let xp = can_give_experience
                 .then(|| self.creature_kill_xp(mob_level))
                 .unwrap_or(0);
-            if caster_is_session_player && xp > 0 {
+            if caster_rewards_session_player && xp > 0 {
                 // This direct spell-damage kill path has no represented
                 // KillRewarder group fanout yet; do not advertise a group
                 // rate until the XP amount is scaled per member like C++.
                 self.give_xp(xp, guid, 1.0).await;
             }
-            if caster_is_session_player {
+            if caster_rewards_session_player {
                 let reputation_rate =
                     self.represented_creature_kill_reputation_rate_like_cpp(player_guid, guid);
                 self.reward_reputation_from_creature_kill_like_cpp(
