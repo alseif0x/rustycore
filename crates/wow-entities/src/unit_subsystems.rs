@@ -1625,7 +1625,10 @@ impl CombatSubsystem {
                 .pending_suppressed_threat_like_cpp
                 .entry(target)
                 .or_default() += amount;
-        } else if threat_ref.is_online() {
+        } else {
+            // C++ ThreatReference::AddThreat continues accumulating the base
+            // value while an otherwise valid reference is temporarily
+            // offline. Offline only excludes it from victim selection.
             threat_ref.add_threat(amount);
         }
         let value = threat_ref.threat();
@@ -5312,6 +5315,25 @@ mod unit_subsystems_tests {
             Some(80.0)
         );
         assert_eq!(combat.threat_value(caster), Some(80.0));
+    }
+
+    #[test]
+    fn offline_threat_reference_accumulates_without_becoming_available_like_cpp() {
+        let mut combat = CombatSubsystem::default();
+        combat.initialize_threat_list_capability(true);
+        let target = guid(298);
+
+        assert_eq!(combat.add_threat(target, 25.0), 25.0);
+        assert!(combat.set_threat_online_state(target, ThreatOnlineState::Offline));
+        assert_eq!(combat.add_threat(target, 15.0), 40.0);
+        assert_eq!(combat.threat_value(target), Some(40.0));
+        assert!(
+            combat
+                .threat_ref(target)
+                .is_some_and(|state| state.is_offline())
+        );
+        assert!(!combat.is_threatened_by(target));
+        assert!(combat.is_threatened_by_with_offline(target, true));
     }
 
     #[test]

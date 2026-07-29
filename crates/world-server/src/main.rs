@@ -14221,19 +14221,20 @@ fn apply_canonical_creature_attack_starts_like_cpp(
                     .remove_attacker_like_cpp(command.attacker_guid);
             }
         }
-        if let Some(attacker) = map.get_typed_creature_mut(command.attacker_guid) {
-            attacker
-                .unit_mut()
-                .subsystems_mut()
-                .combat
-                .set_in_combat_with(command.victim_guid, false, false);
-        }
+        let threat_ref = if let Some(attacker) = map.get_typed_creature_mut(command.attacker_guid) {
+            let combat = &mut attacker.unit_mut().subsystems_mut().combat;
+            combat.set_in_combat_with(command.victim_guid, false, false);
+            combat.add_threat(command.victim_guid, 0.0);
+            combat.threat_ref(command.victim_guid).copied()
+        } else {
+            None
+        };
         if let Some(victim) = map.get_typed_creature_mut(command.victim_guid) {
-            victim
-                .unit_mut()
-                .subsystems_mut()
-                .combat
-                .set_in_combat_with(command.attacker_guid, false, false);
+            let combat = &mut victim.unit_mut().subsystems_mut().combat;
+            combat.set_in_combat_with(command.attacker_guid, false, false);
+            if let Some(threat_ref) = threat_ref {
+                combat.put_threatened_by_me_ref(command.attacker_guid, threat_ref);
+            }
             victim
                 .unit_mut()
                 .add_attacker_like_cpp(command.attacker_guid);
@@ -25766,6 +25767,19 @@ mmap.enablePathFinding = 0
         let victim_unit = map.get_typed_creature(victim).unwrap().unit();
         assert!(attacker_unit.subsystems().combat.is_in_combat_with(victim));
         assert!(victim_unit.subsystems().combat.is_in_combat_with(attacker));
+        assert_eq!(
+            attacker_unit.subsystems().combat.threat_value(victim),
+            Some(0.0),
+            "C++ EngageWithTarget creates the assistant's zero-threat forward reference"
+        );
+        assert!(
+            victim_unit
+                .subsystems()
+                .combat
+                .threatened_by_me_owner_guids()
+                .contains(&attacker),
+            "the victim must carry the reciprocal reference used by helpful-threat fanout"
+        );
     }
 
     #[test]

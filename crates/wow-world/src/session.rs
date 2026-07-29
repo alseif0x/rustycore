@@ -25996,7 +25996,12 @@ impl WorldSession {
         }
         let spell_school_mask = self
             .spell_misc_store()
-            .and_then(|store| store.get_by_spell_id(spell_id_u32))
+            .and_then(|store| {
+                store.entry_for_spell_difficulty_like_cpp(
+                    spell_id_u32,
+                    self.current_map_difficulty_id_like_cpp(),
+                )
+            })
             .map_or(1, |spell| u32::from(spell.school_mask));
         self.hydrate_canonical_threat_relevant_auras_like_cpp();
         let caster_school_threat_mod = self
@@ -26023,7 +26028,7 @@ impl WorldSession {
             .iter()
             .filter(|owner_guid| {
                 self.mutate_world_creature(**owner_guid, |creature| {
-                    !creature.creature.unit().has_unit_state(controlled_mask)
+                    creature.is_alive() && !creature.creature.unit().has_unit_state(controlled_mask)
                 })
                 .unwrap_or(false)
             })
@@ -34416,7 +34421,7 @@ impl WorldSession {
         } else {
             (None, 0, None, 1.0)
         };
-        let represented_effect_amounts = total_stat_percentage_effects
+        let represented_effect_amounts: Vec<_> = total_stat_percentage_effects
             .iter()
             .filter_map(|(effect_index, amount, _, _)| {
                 u8::try_from(*effect_index).ok().map(|effect_index| {
@@ -34442,7 +34447,7 @@ impl WorldSession {
             aura_interrupt_flags2: 0,
             represented_effect,
             represented_amount,
-            represented_effect_amounts,
+            represented_effect_amounts: represented_effect_amounts.clone(),
             represented_misc_value,
             represented_multiplier,
             applied_at: Instant::now(),
@@ -34454,6 +34459,7 @@ impl WorldSession {
             caster_guid,
             slot,
             effect_mask,
+            &represented_effect_amounts,
             true,
         );
 
@@ -34487,11 +34493,19 @@ impl WorldSession {
         caster_guid: ObjectGuid,
         slot: u8,
         effect_mask: u32,
+        represented_effect_amounts: &[RepresentedAuraEffectAmountLikeCpp],
         apply: bool,
     ) {
+        let difficulty = self.current_map_difficulty_id_like_cpp();
         let interrupt_flags = self
             .spell_store()
-            .and_then(|store| store.aura_interrupt_flags_like_cpp(spell_id))
+            .and_then(|store| {
+                store.aura_interrupt_flags_for_difficulty_like_cpp(
+                    spell_id,
+                    difficulty,
+                    self.difficulty_store().map(AsRef::as_ref),
+                )
+            })
             .unwrap_or([0; 2]);
         let effects = self
             .spell_store()
@@ -34513,12 +34527,16 @@ impl WorldSession {
                                     | wow_data::spell::aura_types::SPELL_AURA_MOD_STUN
                             ))
                         .then(|| {
-                            (
-                                bit,
-                                aura_type,
-                                effect.calc_value_no_caster_like_cpp(),
-                                effect.effect_misc_value_1,
-                            )
+                            let amount = represented_effect_amounts
+                                .iter()
+                                .find(|represented| {
+                                    represented.effect_index == effect.effect_index as u8
+                                })
+                                .map_or_else(
+                                    || effect.calc_value_no_caster_like_cpp(),
+                                    |represented| represented.amount,
+                                );
+                            (bit, aura_type, amount, effect.effect_misc_value_1)
                         })
                     })
                     .collect::<Vec<_>>()
@@ -34555,6 +34573,7 @@ impl WorldSession {
                 aura.caster_guid,
                 aura.slot,
                 aura.effect_mask,
+                &aura.represented_effect_amounts,
                 true,
             );
         }
@@ -35587,6 +35606,7 @@ impl WorldSession {
             aura.caster_guid,
             aura.slot,
             aura.effect_mask,
+            &aura.represented_effect_amounts,
             false,
         );
 
@@ -56136,7 +56156,7 @@ pub fn run_legacy_creature_movement_tick_once_like_cpp(
                 {
                     outcome.plan.events.push(RuntimeEvent {
                         source_guid: guid,
-                        recipients: RecipientRule::NearbyVisible {
+                        recipients: RecipientRule::NearbyVisibleDurable {
                             source_guid: guid,
                             map_id,
                             instance_id,
@@ -57464,7 +57484,6 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                     if let Some(victim_guid) = creature.creature.ai_ownership().combat_target {
                         use crate::map_manager::{RecipientRule, RuntimeEvent};
                         use wow_packet::ServerPacket;
-
                         outcome.plan.events.push(RuntimeEvent {
                             source_guid: guid,
                             recipients: RecipientRule::NearbyVisibleDurable {
@@ -62476,8 +62495,12 @@ impl WorldSession {
         let spell_school_mask = spell_id
             .and_then(|spell_id| u32::try_from(spell_id).ok())
             .and_then(|spell_id| {
-                self.spell_misc_store()
-                    .and_then(|store| store.get_by_spell_id(spell_id))
+                self.spell_misc_store().and_then(|store| {
+                    store.entry_for_spell_difficulty_like_cpp(
+                        spell_id,
+                        self.current_map_difficulty_id_like_cpp(),
+                    )
+                })
             })
             .map_or(1, |spell| u32::from(spell.school_mask));
         self.hydrate_canonical_threat_relevant_auras_like_cpp();
@@ -64096,8 +64119,12 @@ impl WorldSession {
         let spell_school_mask = spell_id
             .and_then(|spell_id| u32::try_from(spell_id).ok())
             .and_then(|spell_id| {
-                self.spell_misc_store()
-                    .and_then(|store| store.get_by_spell_id(spell_id))
+                self.spell_misc_store().and_then(|store| {
+                    store.entry_for_spell_difficulty_like_cpp(
+                        spell_id,
+                        self.current_map_difficulty_id_like_cpp(),
+                    )
+                })
             })
             .map_or(1, |spell| u32::from(spell.school_mask));
         self.hydrate_canonical_threat_relevant_auras_like_cpp();
