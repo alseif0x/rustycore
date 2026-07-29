@@ -14777,7 +14777,7 @@ fn spawn_legacy_creature_runtime_update_loop_like_cpp(
                 + outcome.aggro.aggro_starts
                 + outcome.melee.canonical_hits;
             if touched_creatures > 0 {
-                info!(
+                debug!(
                     lifecycle_corpses_despawned = outcome.lifecycle.corpses_despawned,
                     lifecycle_respawns_processed = outcome.lifecycle.respawns_processed,
                     lifecycle_refresh_commands = outcome.lifecycle_delivery.candidates_queued,
