@@ -25952,7 +25952,7 @@ impl WorldSession {
             return;
         }
         if !is_positive {
-            let threat_value = self
+            let threat_outcome = self
                 .mutate_world_creature(target_guid, |creature| {
                     if !creature.is_alive() {
                         return None;
@@ -25966,20 +25966,26 @@ impl WorldSession {
                     {
                         return None;
                     }
-                    if !creature.creature.is_in_combat() {
+                    let newly_engaged = !creature.creature.is_in_combat();
+                    if newly_engaged {
                         creature.enter_combat(caster_guid);
                     }
                     let combat = &mut creature.creature.unit_mut().subsystems_mut().combat;
                     combat.add_threat(caster_guid, base_amount);
-                    combat.threat_value(caster_guid)
+                    combat
+                        .threat_value(caster_guid)
+                        .map(|threat_value| (threat_value, newly_engaged))
                 })
                 .flatten();
-            if let Some(threat_value) = threat_value {
+            if let Some((threat_value, newly_engaged)) = threat_outcome {
                 self.sync_represented_creature_threat_to_canonical_like_cpp(
                     target_guid,
                     caster_guid,
                     threat_value,
                 );
+                if newly_engaged {
+                    self.publish_spell_pull_attack_start_like_cpp(target_guid, caster_guid);
+                }
             }
             return;
         }
@@ -26059,6 +26065,60 @@ impl WorldSession {
                     caster_guid,
                     threat_value,
                 );
+            }
+        }
+    }
+
+    fn publish_spell_pull_attack_start_like_cpp(
+        &mut self,
+        attacker_guid: ObjectGuid,
+        victim_guid: ObjectGuid,
+    ) {
+        use wow_network::player_registry::{
+            CreatureAttackStartLikeCppCommand, SendIfVisibleLikeCppCommand,
+        };
+        use wow_packet::ServerPacket;
+
+        let map_id = self.player_map_id_like_cpp();
+        let instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let command = CreatureAttackStartLikeCppCommand {
+            attacker_guid,
+            victim_guid,
+            previous_victim_guid: None,
+            map_id,
+            instance_id,
+            packet_already_broadcast: false,
+        };
+        self.handle_creature_attack_start_like_cpp_command_like_cpp(command);
+
+        let packet_bytes = wow_packet::packets::combat::AttackStart {
+            attacker: attacker_guid,
+            victim: victim_guid,
+        }
+        .to_bytes();
+        let Some(registry) = self.player_registry.as_ref() else {
+            return;
+        };
+        for entry in registry.iter() {
+            let (guid, info) = entry.pair();
+            if *guid == victim_guid
+                || !info.is_in_world
+                || info.map_id != map_id
+                || info.instance_id != instance_id
+            {
+                continue;
+            }
+            if let Ok(mut durable) = info.durable_creature_runtime_commands_like_cpp.lock() {
+                let _ = durable.publish_send_if_visible_like_cpp(SendIfVisibleLikeCppCommand {
+                    queued_at: Instant::now(),
+                    source_guid: attacker_guid,
+                    map_id,
+                    instance_id,
+                    packet_bytes: packet_bytes.clone(),
+                });
             }
         }
     }
@@ -33891,14 +33951,22 @@ impl WorldSession {
     }
 
     pub(crate) fn drain_session_commands(&self) -> Vec<SessionCommand> {
-        let mut commands = self
+        let durable_commands = self
             .durable_creature_runtime_commands_like_cpp
             .lock()
             .map(|mut pending| pending.drain_like_cpp())
             .unwrap_or_default();
+        // Visibility-gated packets must not overtake an older refresh queued
+        // on the bounded general rail. Keep authoritative combat mutations in
+        // durable FIFO order, but defer only their presentation packet until
+        // after the refresh backlog has been consumed.
+        let (mut commands, deferred_visible): (Vec<_>, Vec<_>) = durable_commands
+            .into_iter()
+            .partition(|command| !matches!(command, SessionCommand::SendIfVisibleLikeCpp(_)));
         while let Ok(command) = self.session_command_rx.try_recv() {
             commands.push(command);
         }
+        commands.extend(deferred_visible);
         commands
     }
 
@@ -34509,10 +34577,15 @@ impl WorldSession {
             .unwrap_or([0; 2]);
         let effects = self
             .spell_store()
-            .and_then(|store| store.get(spell_id))
-            .map(|spell| {
-                spell
-                    .effects()
+            .and_then(|store| {
+                store.effects_for_difficulty_like_cpp(
+                    spell_id,
+                    difficulty,
+                    self.difficulty_store().map(AsRef::as_ref),
+                )
+            })
+            .map(|effects| {
+                effects
                     .iter()
                     .filter_map(|effect| {
                         let bit = 1u32.checked_shl(effect.effect_index)?;
@@ -57417,7 +57490,8 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                             )
                             .unwrap_or(false)
                         }) || victim_snapshot.is_some_and(|victim| {
-                            !victim.in_evade_mode
+                            victim.alive
+                                && !victim.in_evade_mode
                                 && legacy_creature_snapshot_is_hostile_to_creature_like_cpp(
                                     assistant, victim, &config,
                                 )
@@ -74582,6 +74656,42 @@ mod tests {
             u16::from_le_bytes([packet[0], packet[1]]),
             ServerOpcodes::HealthUpdate as u16
         );
+    }
+
+    #[test]
+    fn visibility_gated_durable_packets_follow_older_general_refresh_like_cpp() {
+        let (session, _, _) = make_session();
+        let creature_guid = test_creature_guid(1012);
+        session
+            .durable_creature_runtime_commands_like_cpp
+            .lock()
+            .unwrap()
+            .publish_send_if_visible_like_cpp(SendIfVisibleLikeCppCommand {
+                queued_at: Instant::now(),
+                source_guid: creature_guid,
+                map_id: 571,
+                instance_id: 0,
+                packet_bytes: vec![1, 2, 3],
+            });
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::RefreshVisibleWorldCreaturesLikeCpp(
+                RefreshVisibleWorldCreaturesLikeCppCommand {
+                    map_id: 571,
+                    instance_id: 0,
+                },
+            ))
+            .expect("refresh queued");
+
+        let commands = session.drain_session_commands();
+        assert!(matches!(
+            commands.first(),
+            Some(SessionCommand::RefreshVisibleWorldCreaturesLikeCpp(_))
+        ));
+        assert!(matches!(
+            commands.get(1),
+            Some(SessionCommand::SendIfVisibleLikeCpp(_))
+        ));
     }
 
     #[tokio::test]
@@ -100694,12 +100804,14 @@ mod tests {
 
     #[test]
     fn hostile_cast_level_threat_enters_combat_without_damage_like_cpp() {
-        let (mut session, _, _) = make_session();
+        let (mut session, _, send_rx) = make_session();
         let manager = shared_map_manager();
         let creature_guid = test_creature_guid(18_004);
         let caster_guid = ObjectGuid::create_player(1, 44);
         let spell_id = 18_004;
         session.player_guid = Some(caster_guid);
+        session.state = SessionState::LoggedIn;
+        session.client_visible_guids_like_cpp.insert(creature_guid);
         register_test_creature(&mut session, manager.clone(), creature_guid, 40);
         let mut store = wow_data::SpellStore::new();
         store.insert(
@@ -100739,6 +100851,11 @@ mod tests {
                 .combat
                 .threat_value(caster_guid),
             Some(7.0)
+        );
+        let packet = send_rx.try_recv().expect("spell pull attack-start");
+        assert_eq!(
+            u16::from_le_bytes([packet[0], packet[1]]),
+            ServerOpcodes::AttackStart as u16
         );
     }
 

@@ -4776,7 +4776,7 @@ impl WorldSession {
     /// is visible to the client through `Unit::SendMeleeAttackStart`. The map
     /// runtime owns the aggro decision; this handler only gates the victim
     /// session and sends one `AttackStart` packet.
-    fn handle_creature_attack_start_like_cpp_command_like_cpp(
+    pub(crate) fn handle_creature_attack_start_like_cpp_command_like_cpp(
         &mut self,
         command: CreatureAttackStartLikeCppCommand,
     ) {

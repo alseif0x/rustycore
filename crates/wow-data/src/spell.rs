@@ -12,7 +12,7 @@
 //! - Effect type (heal, damage, apply aura, etc.)
 //! - Effect parameters (base points, bonus coefficients)
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::f32::consts::TAU;
 
 use anyhow::Result;
@@ -5336,6 +5336,7 @@ struct SpellInterruptRowLikeCpp {
 #[derive(Default)]
 pub struct SpellStore {
     spells: HashMap<i32, SpellInfo>,
+    spell_effects_by_difficulty: HashMap<(i32, u8), Vec<SpellEffectInfo>>,
     spell_misc_attributes: HashMap<i32, [u32; 15]>,
     spell_interrupt_flags: HashMap<(i32, u8), ([u32; 2], [u32; 2])>,
     spell_interrupt_rows_by_id: BTreeMap<u32, SpellInterruptRowLikeCpp>,
@@ -5348,6 +5349,7 @@ impl SpellStore {
     pub fn new() -> Self {
         Self {
             spells: HashMap::new(),
+            spell_effects_by_difficulty: HashMap::new(),
             spell_misc_attributes: HashMap::new(),
             spell_interrupt_flags: HashMap::new(),
             spell_interrupt_rows_by_id: BTreeMap::new(),
@@ -5358,6 +5360,31 @@ impl SpellStore {
 
     fn make_pair64_like_cpp(low: i32, high: i32) -> u64 {
         u64::from(low as u32) | (u64::from(high as u32) << 32)
+    }
+
+    pub fn effects_for_difficulty_like_cpp(
+        &self,
+        spell_id: i32,
+        requested_difficulty_id: u8,
+        difficulty_store: Option<&crate::difficulty::DifficultyStore>,
+    ) -> Option<&[SpellEffectInfo]> {
+        let mut difficulty_id = requested_difficulty_id;
+        let mut visited = HashSet::new();
+        loop {
+            if let Some(effects) = self
+                .spell_effects_by_difficulty
+                .get(&(spell_id, difficulty_id))
+            {
+                return Some(effects);
+            }
+            if difficulty_id == 0 || !visited.insert(difficulty_id) {
+                break;
+            }
+            difficulty_id = difficulty_store
+                .and_then(|store| store.get(u32::from(difficulty_id)))
+                .map_or(0, |difficulty| difficulty.fallback_difficulty_id);
+        }
+        self.spells.get(&spell_id).map(|spell| spell.effects())
     }
 
     fn empty_spell_info_like_cpp(spell_id: i32) -> SpellInfo {
@@ -5524,19 +5551,29 @@ impl SpellStore {
         }
 
         for effect in spell_effect_store.entries_like_cpp() {
-            if effect.difficulty_id != 0 || effect.effect == 0 {
+            if effect.effect == 0 {
                 continue;
             }
             let Ok(spell_id) = i32::try_from(effect.spell_id) else {
                 continue;
             };
+            let Ok(difficulty_id) = u8::try_from(effect.difficulty_id) else {
+                continue;
+            };
+            let converted = Self::spell_effect_from_db2_like_cpp(effect);
+            store
+                .spell_effects_by_difficulty
+                .entry((spell_id, difficulty_id))
+                .or_default()
+                .push(converted.clone());
+            if difficulty_id != 0 {
+                continue;
+            }
             let spell = store
                 .spells
                 .entry(spell_id)
                 .or_insert_with(|| Self::empty_spell_info_like_cpp(spell_id));
-            spell
-                .effects
-                .push(Self::spell_effect_from_db2_like_cpp(effect));
+            spell.effects.push(converted);
         }
 
         for shapeshift in spell_shapeshift_store.entries_like_cpp() {
