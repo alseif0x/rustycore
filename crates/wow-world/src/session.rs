@@ -25892,14 +25892,17 @@ impl WorldSession {
         &self,
         spell_id: u32,
         threat_entry: Option<SpellThreatEntryLikeCpp>,
+        caster_guid: ObjectGuid,
     ) -> f32 {
         if let Some(entry) = threat_entry {
-            return entry.flat_mod as f32
-                + entry.ap_pct_mod
-                    * self
-                        .represented_item_bonus_state_like_cpp
+            let caster_attack_power = (self.player_guid() == Some(caster_guid))
+                .then_some(
+                    self.represented_item_bonus_state_like_cpp
                         .attack_power_total
-                        .max(0) as f32;
+                        .max(0),
+                )
+                .unwrap_or(0);
+            return entry.flat_mod as f32 + entry.ap_pct_mod * caster_attack_power as f32;
         }
 
         let difficulty = self.current_map_difficulty_id_like_cpp();
@@ -25912,7 +25915,24 @@ impl WorldSession {
 
         self.spell_levels_store
             .as_deref()
-            .and_then(|store| store.entry_for_spell_difficulty_like_cpp(spell_id, difficulty))
+            .and_then(|store| {
+                let mut difficulty_id = difficulty;
+                let mut visited = HashSet::new();
+                loop {
+                    if let Some(entry) =
+                        store.entry_for_spell_difficulty_like_cpp(spell_id, difficulty_id)
+                    {
+                        break Some(entry);
+                    }
+                    if difficulty_id == 0 || !visited.insert(difficulty_id) {
+                        break None;
+                    }
+                    difficulty_id = self
+                        .difficulty_store()
+                        .and_then(|difficulties| difficulties.get(u32::from(difficulty_id)))
+                        .map_or(0, |difficulty| difficulty.fallback_difficulty_id);
+                }
+            })
             .map_or(0.0, |entry| f32::from(entry.spell_level.max(0)))
     }
 
@@ -25967,7 +25987,8 @@ impl WorldSession {
         }
 
         let threat_entry = self.spell_threat_entry_like_cpp(spell_id_u32).copied();
-        let base_amount = self.spell_initial_threat_like_cpp(spell_id_u32, threat_entry);
+        let base_amount =
+            self.spell_initial_threat_like_cpp(spell_id_u32, threat_entry, caster_guid);
         if base_amount == 0.0 {
             return;
         }
@@ -26032,9 +26053,9 @@ impl WorldSession {
                 )
             })
             .map_or(1, |spell| u32::from(spell.school_mask));
-        self.hydrate_canonical_threat_relevant_auras_like_cpp();
-        let caster_school_threat_mod = self
-            .mutate_canonical_player_like_cpp(|player| {
+        let caster_school_threat_mod = if self.player_guid() == Some(caster_guid) {
+            self.hydrate_canonical_threat_relevant_auras_like_cpp();
+            self.mutate_canonical_player_like_cpp(|player| {
                 player
                     .unit()
                     .subsystems()
@@ -26044,7 +26065,10 @@ impl WorldSession {
                         spell_school_mask,
                     )
             })
-            .unwrap_or(1.0);
+            .unwrap_or(1.0)
+        } else {
+            1.0
+        };
         let amount = base_amount
             * threat_entry.map_or(1.0, |entry| entry.pct_mod)
             * caster_school_threat_mod;
@@ -34596,6 +34620,69 @@ impl WorldSession {
         Ok(())
     }
 
+    fn canonical_threat_aura_snapshot_for_difficulty_like_cpp(
+        &self,
+        spell_id: i32,
+        difficulty: u8,
+        effect_mask: u32,
+        represented_effect_amounts: &[RepresentedAuraEffectAmountLikeCpp],
+    ) -> CanonicalThreatAuraSnapshotLikeCpp {
+        let interrupt_flags = self
+            .spell_store()
+            .and_then(|store| {
+                store.aura_interrupt_flags_for_difficulty_like_cpp(
+                    spell_id,
+                    difficulty,
+                    self.difficulty_store().map(AsRef::as_ref),
+                )
+            })
+            .unwrap_or([0; 2]);
+        let effects = self
+            .spell_store()
+            .and_then(|store| {
+                store.effects_for_difficulty_like_cpp(
+                    spell_id,
+                    difficulty,
+                    self.difficulty_store().map(AsRef::as_ref),
+                )
+            })
+            .map(|effects| {
+                effects
+                    .iter()
+                    .filter_map(|effect| {
+                        let bit = 1u32.checked_shl(effect.effect_index)?;
+                        let aura_type = effect.effect_aura;
+                        (effect_mask & bit != 0
+                            && matches!(
+                                aura_type,
+                                wow_data::spell::aura_types::SPELL_AURA_MOD_THREAT
+                                    | wow_data::spell::aura_types::SPELL_AURA_SCHOOL_IMMUNITY
+                                    | wow_data::spell::aura_types::SPELL_AURA_DAMAGE_IMMUNITY
+                                    | wow_data::spell::aura_types::SPELL_AURA_MOD_CONFUSE
+                                    | wow_data::spell::aura_types::SPELL_AURA_MOD_STUN
+                            ))
+                        .then(|| {
+                            let amount = represented_effect_amounts
+                                .iter()
+                                .find(|represented| {
+                                    represented.effect_index == effect.effect_index as u8
+                                })
+                                .map_or_else(
+                                    || effect.calc_value_no_caster_like_cpp(),
+                                    |represented| represented.amount,
+                                );
+                            (bit, aura_type, amount, effect.effect_misc_value_1)
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        CanonicalThreatAuraSnapshotLikeCpp {
+            interrupt_flags,
+            effects,
+        }
+    }
+
     fn sync_canonical_threat_relevant_aura_like_cpp(
         &mut self,
         spell_id: i32,
@@ -34635,60 +34722,12 @@ impl WorldSession {
             snapshot
         } else {
             let difficulty = self.current_map_difficulty_id_like_cpp();
-            let interrupt_flags = self
-                .spell_store()
-                .and_then(|store| {
-                    store.aura_interrupt_flags_for_difficulty_like_cpp(
-                        spell_id,
-                        difficulty,
-                        self.difficulty_store().map(AsRef::as_ref),
-                    )
-                })
-                .unwrap_or([0; 2]);
-            let effects = self
-                .spell_store()
-                .and_then(|store| {
-                    store.effects_for_difficulty_like_cpp(
-                        spell_id,
-                        difficulty,
-                        self.difficulty_store().map(AsRef::as_ref),
-                    )
-                })
-                .map(|effects| {
-                    effects
-                        .iter()
-                        .filter_map(|effect| {
-                            let bit = 1u32.checked_shl(effect.effect_index)?;
-                            let aura_type = effect.effect_aura;
-                            (effect_mask & bit != 0
-                                && matches!(
-                                    aura_type,
-                                    wow_data::spell::aura_types::SPELL_AURA_MOD_THREAT
-                                        | wow_data::spell::aura_types::SPELL_AURA_SCHOOL_IMMUNITY
-                                        | wow_data::spell::aura_types::SPELL_AURA_DAMAGE_IMMUNITY
-                                        | wow_data::spell::aura_types::SPELL_AURA_MOD_CONFUSE
-                                        | wow_data::spell::aura_types::SPELL_AURA_MOD_STUN
-                                ))
-                            .then(|| {
-                                let amount = represented_effect_amounts
-                                    .iter()
-                                    .find(|represented| {
-                                        represented.effect_index == effect.effect_index as u8
-                                    })
-                                    .map_or_else(
-                                        || effect.calc_value_no_caster_like_cpp(),
-                                        |represented| represented.amount,
-                                    );
-                                (bit, aura_type, amount, effect.effect_misc_value_1)
-                            })
-                        })
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default();
-            let snapshot = CanonicalThreatAuraSnapshotLikeCpp {
-                interrupt_flags,
-                effects,
-            };
+            let snapshot = self.canonical_threat_aura_snapshot_for_difficulty_like_cpp(
+                spell_id,
+                difficulty,
+                effect_mask,
+                represented_effect_amounts,
+            );
             self.canonical_threat_aura_snapshots_like_cpp
                 .insert(slot, snapshot.clone());
             snapshot
@@ -41102,6 +41141,14 @@ impl WorldSession {
             let duration_remaining = u32::try_from(row.remain_time_ms).unwrap_or(0);
             let spell_id = i32::try_from(row.spell_id).unwrap_or(i32::MAX);
             let aura_flags = AFLAG_NOCASTER_LIKE_CPP | 0x0000_0100;
+            let canonical_snapshot = self.canonical_threat_aura_snapshot_for_difficulty_like_cpp(
+                spell_id,
+                row.difficulty,
+                row.effect_mask,
+                &represented_effect_amounts,
+            );
+            self.canonical_threat_aura_snapshots_like_cpp
+                .insert(slot, canonical_snapshot);
             self.visible_auras.insert(
                 slot,
                 AuraApplication {
