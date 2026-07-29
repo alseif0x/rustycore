@@ -60052,6 +60052,7 @@ impl WorldSession {
                     self.apply_heal_max_health_like_cpp(
                         spell_id,
                         direct_effect_base_points,
+                        caster_guid,
                         target_guid,
                     )
                     .await?;
@@ -60060,6 +60061,7 @@ impl WorldSession {
                     self.apply_heal_pct_like_cpp(
                         spell_id,
                         direct_effect_base_points,
+                        caster_guid,
                         target_guid,
                     )
                     .await?;
@@ -62830,6 +62832,7 @@ impl WorldSession {
         &mut self,
         spell_id: i32,
         damage: i32,
+        healer_guid: ObjectGuid,
         target_guid: ObjectGuid,
     ) -> Result<(), &'static str> {
         let player_guid = self.player_guid().ok_or("No player GUID")?;
@@ -62863,7 +62866,7 @@ impl WorldSession {
         if heal_amount == 0 {
             return Ok(());
         }
-        self.apply_heal(Some(spell_id), target_guid, heal_amount)
+        self.apply_heal_from_caster_like_cpp(Some(spell_id), healer_guid, target_guid, heal_amount)
             .await
     }
 
@@ -62871,6 +62874,7 @@ impl WorldSession {
         &mut self,
         spell_id: i32,
         damage: i32,
+        healer_guid: ObjectGuid,
         target_guid: ObjectGuid,
     ) -> Result<(), &'static str> {
         if damage < 0 {
@@ -62904,7 +62908,7 @@ impl WorldSession {
         if heal_amount == 0 {
             return Ok(());
         }
-        self.apply_heal(Some(spell_id), target_guid, heal_amount)
+        self.apply_heal_from_caster_like_cpp(Some(spell_id), healer_guid, target_guid, heal_amount)
             .await
     }
 
@@ -63506,19 +63510,27 @@ impl WorldSession {
         let map = managed.map_mut();
 
         if attacker_guid.is_creature() {
+            let both_player_controlled = map
+                .get_typed_creature(attacker_guid)
+                .is_some_and(|creature| creature.is_charmed_owned_by_player_or_player_like_cpp())
+                && map
+                    .get_typed_creature(creature_guid)
+                    .is_some_and(|creature| {
+                        creature.is_charmed_owned_by_player_or_player_like_cpp()
+                    });
             if let Some(attacker) = map.get_typed_creature_mut(attacker_guid) {
                 attacker
                     .unit_mut()
                     .subsystems_mut()
                     .combat
-                    .set_in_combat_with(creature_guid, false, false);
+                    .set_in_combat_with(creature_guid, both_player_controlled, false);
             }
             if let Some(creature) = map.get_typed_creature_mut(creature_guid) {
                 creature
                     .unit_mut()
                     .subsystems_mut()
                     .combat
-                    .set_in_combat_with(attacker_guid, false, false);
+                    .set_in_combat_with(attacker_guid, both_player_controlled, false);
             }
         }
 
@@ -109325,7 +109337,7 @@ mod tests {
         session.set_player_health_like_cpp(65, 100);
 
         session
-            .apply_heal_max_health_like_cpp(0, 0, missing_creature_guid)
+            .apply_heal_max_health_like_cpp(0, 0, player_guid, missing_creature_guid)
             .await
             .expect("C++ !unitTarget guard makes heal-max-health a no-op");
 
