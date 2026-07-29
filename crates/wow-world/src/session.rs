@@ -5822,6 +5822,8 @@ pub struct WorldSession {
     // ── Aura system ───────────────────────────────────────────────
     /// All visible auras on the player: slot (0-254) → AuraApplication
     pub(crate) visible_auras: HashMap<u8, AuraApplication>,
+    /// Difficulty-selected C++ `AuraEffect` identity captured when the aura is applied.
+    canonical_threat_aura_snapshots_like_cpp: HashMap<u8, CanonicalThreatAuraSnapshotLikeCpp>,
 
     // ── Spell casting ──────────────────────────────────────────────
     /// Spell store (metadata for all known spells: cast time, cooldown, effects, etc.)
@@ -6711,6 +6713,12 @@ pub struct AuraApplication {
     pub applied_at: Instant,
 }
 
+#[derive(Debug, Clone)]
+struct CanonicalThreatAuraSnapshotLikeCpp {
+    interrupt_flags: [u32; 2],
+    effects: Vec<(u32, i32, i32, i32)>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RepresentedAuraEffectAmountLikeCpp {
     pub effect_index: u8,
@@ -7584,6 +7592,7 @@ impl WorldSession {
             movement_force_mod_magnitude_like_cpp: 1.0,
             movement_speed_ack_events_like_cpp: Vec::new(),
             visible_auras: HashMap::new(),
+            canonical_threat_aura_snapshots_like_cpp: HashMap::new(),
             spell_store: None,
             spell_levels_store: None,
             talent_store: None,
@@ -34597,6 +34606,7 @@ impl WorldSession {
         apply: bool,
     ) {
         if !apply {
+            self.canonical_threat_aura_snapshots_like_cpp.remove(&slot);
             let Ok(spell_id) = u32::try_from(spell_id) else {
                 return;
             };
@@ -34617,66 +34627,86 @@ impl WorldSession {
             });
             return;
         }
-        let difficulty = self.current_map_difficulty_id_like_cpp();
-        let interrupt_flags = self
-            .spell_store()
-            .and_then(|store| {
-                store.aura_interrupt_flags_for_difficulty_like_cpp(
-                    spell_id,
-                    difficulty,
-                    self.difficulty_store().map(AsRef::as_ref),
-                )
-            })
-            .unwrap_or([0; 2]);
-        let effects = self
-            .spell_store()
-            .and_then(|store| {
-                store.effects_for_difficulty_like_cpp(
-                    spell_id,
-                    difficulty,
-                    self.difficulty_store().map(AsRef::as_ref),
-                )
-            })
-            .map(|effects| {
-                effects
-                    .iter()
-                    .filter_map(|effect| {
-                        let bit = 1u32.checked_shl(effect.effect_index)?;
-                        let aura_type = effect.effect_aura;
-                        (effect_mask & bit != 0
-                            && matches!(
-                                aura_type,
-                                wow_data::spell::aura_types::SPELL_AURA_MOD_THREAT
-                                    | wow_data::spell::aura_types::SPELL_AURA_SCHOOL_IMMUNITY
-                                    | wow_data::spell::aura_types::SPELL_AURA_DAMAGE_IMMUNITY
-                                    | wow_data::spell::aura_types::SPELL_AURA_MOD_CONFUSE
-                                    | wow_data::spell::aura_types::SPELL_AURA_MOD_STUN
-                            ))
-                        .then(|| {
-                            let amount = represented_effect_amounts
-                                .iter()
-                                .find(|represented| {
-                                    represented.effect_index == effect.effect_index as u8
-                                })
-                                .map_or_else(
-                                    || effect.calc_value_no_caster_like_cpp(),
-                                    |represented| represented.amount,
-                                );
-                            (bit, aura_type, amount, effect.effect_misc_value_1)
+        let snapshot = if let Some(snapshot) = self
+            .canonical_threat_aura_snapshots_like_cpp
+            .get(&slot)
+            .cloned()
+        {
+            snapshot
+        } else {
+            let difficulty = self.current_map_difficulty_id_like_cpp();
+            let interrupt_flags = self
+                .spell_store()
+                .and_then(|store| {
+                    store.aura_interrupt_flags_for_difficulty_like_cpp(
+                        spell_id,
+                        difficulty,
+                        self.difficulty_store().map(AsRef::as_ref),
+                    )
+                })
+                .unwrap_or([0; 2]);
+            let effects = self
+                .spell_store()
+                .and_then(|store| {
+                    store.effects_for_difficulty_like_cpp(
+                        spell_id,
+                        difficulty,
+                        self.difficulty_store().map(AsRef::as_ref),
+                    )
+                })
+                .map(|effects| {
+                    effects
+                        .iter()
+                        .filter_map(|effect| {
+                            let bit = 1u32.checked_shl(effect.effect_index)?;
+                            let aura_type = effect.effect_aura;
+                            (effect_mask & bit != 0
+                                && matches!(
+                                    aura_type,
+                                    wow_data::spell::aura_types::SPELL_AURA_MOD_THREAT
+                                        | wow_data::spell::aura_types::SPELL_AURA_SCHOOL_IMMUNITY
+                                        | wow_data::spell::aura_types::SPELL_AURA_DAMAGE_IMMUNITY
+                                        | wow_data::spell::aura_types::SPELL_AURA_MOD_CONFUSE
+                                        | wow_data::spell::aura_types::SPELL_AURA_MOD_STUN
+                                ))
+                            .then(|| {
+                                let amount = represented_effect_amounts
+                                    .iter()
+                                    .find(|represented| {
+                                        represented.effect_index == effect.effect_index as u8
+                                    })
+                                    .map_or_else(
+                                        || effect.calc_value_no_caster_like_cpp(),
+                                        |represented| represented.amount,
+                                    );
+                                (bit, aura_type, amount, effect.effect_misc_value_1)
+                            })
                         })
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+            let snapshot = CanonicalThreatAuraSnapshotLikeCpp {
+                interrupt_flags,
+                effects,
+            };
+            self.canonical_threat_aura_snapshots_like_cpp
+                .insert(slot, snapshot.clone());
+            snapshot
+        };
         let Ok(spell_id) = u32::try_from(spell_id) else {
             return;
         };
         let _ = self.mutate_canonical_player_like_cpp(|player| {
-            for (effect_bit, aura_type, amount, misc_value) in effects {
+            for (effect_bit, aura_type, amount, misc_value) in snapshot.effects {
                 let aura =
                     wow_entities::AppliedAuraRef::new(spell_id, caster_guid, slot, effect_bit);
                 let auras = &mut player.unit_mut().subsystems_mut().auras;
-                auras.register_applied_aura(aura, None, interrupt_flags[0], interrupt_flags[1]);
+                auras.register_applied_aura(
+                    aura,
+                    None,
+                    snapshot.interrupt_flags[0],
+                    snapshot.interrupt_flags[1],
+                );
                 auras.register_applied_aura_effect_like_cpp(aura, aura_type, amount, misc_value);
             }
         });
@@ -57529,7 +57559,9 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                         && creature_factions.get(&guid)
                             == Some(&assistant.creature.unit().data().faction_template)
                         && (victim.is_some_and(|victim| {
-                            legacy_creature_aggro_candidate_is_hostile_to_creature_like_cpp(
+                            legacy_creature_aggro_candidate_is_targetable_for_attack_like_cpp(
+                                victim,
+                            ) && legacy_creature_aggro_candidate_is_hostile_to_creature_like_cpp(
                                 assistant, victim, &config,
                             )
                             .unwrap_or(false)
@@ -57965,6 +57997,9 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                     if !assistant.is_alive()
                         || assistant.creature.is_in_combat()
                         || assistant.creature.is_in_evade_mode_like_cpp()
+                        || assistant.creature.unit().has_unit_state(
+                            (UnitState::STUNNED | UnitState::CONFUSED | UnitState::FLEEING).bits(),
+                        )
                         || !assistant
                             .creature
                             .has_react_state(wow_entities::ReactState::Aggressive)
@@ -60577,11 +60612,22 @@ impl WorldSession {
             }
         }
 
+        let mut threat_spell_info = spell_info.clone();
+        let difficulty = self.current_map_difficulty_id_like_cpp();
+        if let Some(effects) = self.spell_store().and_then(|store| {
+            store.effects_for_difficulty_like_cpp(
+                spell_id,
+                difficulty,
+                self.difficulty_store().map(AsRef::as_ref),
+            )
+        }) {
+            threat_spell_info.effects = effects.to_vec();
+        }
         self.apply_spell_initial_threat_like_cpp(
             spell_id,
             caster_guid,
             target_guid,
-            Self::represented_spell_is_positive_like_cpp(&spell_info),
+            Self::represented_spell_is_positive_like_cpp(&threat_spell_info),
         );
 
         if caster_guid == player_guid {
@@ -145240,7 +145286,7 @@ mod tests {
             config.clone(),
         );
         assert_eq!(scheduled.aggro_starts, 1);
-        assert_eq!(scheduled.assistance_scheduled, 4);
+        assert_eq!(scheduled.assistance_scheduled, 3);
         assert_eq!(
             manager
                 .read()
@@ -145300,7 +145346,7 @@ mod tests {
         }
         let assisted =
             run_legacy_creature_aggro_tick_once_with_config_like_cpp(&manager, &candidates, config);
-        assert_eq!(assisted.assistance_starts, 2);
+        assert_eq!(assisted.assistance_starts, 1);
         assert_eq!(
             assisted
                 .plan
@@ -145311,7 +145357,7 @@ mod tests {
                         == Some(ServerOpcodes::AttackStart)
                 })
                 .count(),
-            2,
+            1,
             "C++ SendMeleeAttackStart broadcasts each delayed assistance engagement"
         );
         assert!(
@@ -145364,8 +145410,8 @@ mod tests {
                 .creature
                 .ai_ownership()
                 .combat_target,
-            Some(victim),
-            "C++ CanAssistTo schedules an aggressive stunned helper and revalidates it after the state clears"
+            None,
+            "C++ CanAssistTo rejects a stunned helper during initial selection"
         );
     }
 
