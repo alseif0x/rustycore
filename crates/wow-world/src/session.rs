@@ -60263,8 +60263,13 @@ impl WorldSession {
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE => {
                     if let Ok(damage_amount) = u32::try_from(direct_effect_base_points) {
-                        self.apply_damage(Some(spell_id), target_guid, damage_amount)
-                            .await?;
+                        self.apply_damage_from_caster_like_cpp(
+                            Some(spell_id),
+                            caster_guid,
+                            target_guid,
+                            damage_amount,
+                        )
+                        .await?;
                     } else {
                         debug!(
                             account = self.account_id,
@@ -64317,12 +64322,27 @@ impl WorldSession {
         target_guid: ObjectGuid,
         damage_amount: u32,
     ) -> Result<(), &'static str> {
+        let player_guid = self.player_guid().ok_or("No player GUID")?;
+        self.apply_damage_from_caster_like_cpp(spell_id, player_guid, target_guid, damage_amount)
+            .await
+    }
+
+    async fn apply_damage_from_caster_like_cpp(
+        &mut self,
+        spell_id: Option<i32>,
+        caster_guid: ObjectGuid,
+        target_guid: ObjectGuid,
+        damage_amount: u32,
+    ) -> Result<(), &'static str> {
         use wow_packet::ServerPacket;
         use wow_packet::packets::movement::MonsterMoveStop;
 
         let player_guid = self.player_guid().ok_or("No player GUID")?;
         let account_id = self.account_id;
-        let tap_group_guids = self.current_group_member_guids_for_tap_like_cpp(player_guid);
+        let caster_is_session_player = caster_guid == player_guid;
+        let tap_group_guids = caster_is_session_player
+            .then(|| self.current_group_member_guids_for_tap_like_cpp(player_guid))
+            .unwrap_or_default();
         let difficulty = self.current_map_difficulty_id_like_cpp();
         let difficulty_store = self.difficulty_store().cloned();
         let suppress_harmful_threat = spell_id.is_some_and(|spell_id| {
@@ -64369,9 +64389,9 @@ impl WorldSession {
                 })
             })
             .map_or(1, |spell| u32::from(spell.school_mask));
-        self.hydrate_canonical_threat_relevant_auras_like_cpp();
-        let caster_school_threat_mod = self
-            .mutate_canonical_player_like_cpp(|player| {
+        let caster_school_threat_mod = if caster_is_session_player {
+            self.hydrate_canonical_threat_relevant_auras_like_cpp();
+            self.mutate_canonical_player_like_cpp(|player| {
                 player
                     .unit()
                     .subsystems()
@@ -64381,7 +64401,10 @@ impl WorldSession {
                         spell_school_mask,
                     )
             })
-            .unwrap_or(1.0);
+            .unwrap_or(1.0)
+        } else {
+            1.0
+        };
 
         // Si target es otra criatura — mutate canonical shared map state.
         let damage_outcome = self
@@ -64402,9 +64425,11 @@ impl WorldSession {
                     "Dealt damage to creature"
                 );
 
-                creature
-                    .creature
-                    .set_tapped_by_player(player_guid, &tap_group_guids);
+                if caster_is_session_player {
+                    creature
+                        .creature
+                        .set_tapped_by_player(player_guid, &tap_group_guids);
+                }
                 let died = creature.take_damage_before_death_state_like_cpp(damage_amount);
                 let newly_engaged = !died
                     && damage_amount > 0
@@ -64419,7 +64444,7 @@ impl WorldSession {
                     // C++ `Spell::DoAllEffectOnTarget` calls `Unit::AtTargetAttacked`, then
                     // `Unit::DealDamage` adds threat for non-player hostile victims.
                     if creature.creature.ai_ownership().combat_target.is_none() {
-                        creature.enter_combat(player_guid);
+                        creature.enter_combat(caster_guid);
                     }
                     creature
                         .creature
@@ -64427,7 +64452,7 @@ impl WorldSession {
                         .subsystems_mut()
                         .combat
                         .add_threat(
-                            player_guid,
+                            caster_guid,
                             damage_amount as f32 * spell_threat_pct_mod * caster_school_threat_mod,
                         );
                     creature
@@ -64435,7 +64460,7 @@ impl WorldSession {
                         .unit()
                         .subsystems()
                         .combat
-                        .threat_value(player_guid)
+                        .threat_value(caster_guid)
                 } else {
                     None
                 };
@@ -64472,12 +64497,12 @@ impl WorldSession {
         if let Some(threat_value) = threat_value {
             self.sync_represented_creature_threat_to_canonical_like_cpp(
                 target_guid,
-                player_guid,
+                caster_guid,
                 threat_value,
             );
         }
         if newly_engaged {
-            self.publish_spell_pull_attack_start_like_cpp(target_guid, player_guid);
+            self.publish_spell_pull_attack_start_like_cpp(target_guid, caster_guid);
         }
 
         // Process creature death outside the mutable borrow
@@ -64499,25 +64524,27 @@ impl WorldSession {
             let xp = can_give_experience
                 .then(|| self.creature_kill_xp(mob_level))
                 .unwrap_or(0);
-            if xp > 0 {
+            if caster_is_session_player && xp > 0 {
                 // This direct spell-damage kill path has no represented
                 // KillRewarder group fanout yet; do not advertise a group
                 // rate until the XP amount is scaled per member like C++.
                 self.give_xp(xp, guid, 1.0).await;
             }
-            let reputation_rate =
-                self.represented_creature_kill_reputation_rate_like_cpp(player_guid, guid);
-            self.reward_reputation_from_creature_kill_like_cpp(
-                entry,
-                guid,
-                mob_level,
-                reputation_rate,
-            );
-            self.on_creature_killed(entry, guid).await;
-            self.record_represented_creature_kill_hooks_like_cpp(player_guid, guid);
+            if caster_is_session_player {
+                let reputation_rate =
+                    self.represented_creature_kill_reputation_rate_like_cpp(player_guid, guid);
+                self.reward_reputation_from_creature_kill_like_cpp(
+                    entry,
+                    guid,
+                    mob_level,
+                    reputation_rate,
+                );
+                self.on_creature_killed(entry, guid).await;
+                self.record_represented_creature_kill_hooks_like_cpp(player_guid, guid);
+            }
             if let Some(death_values_update) = self
                 .complete_represented_creature_death_state_after_kill_hooks_like_cpp(
-                    player_guid,
+                    caster_guid,
                     guid,
                 )
             {
