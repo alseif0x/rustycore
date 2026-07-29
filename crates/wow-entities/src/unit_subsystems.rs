@@ -1296,11 +1296,10 @@ pub enum ThreatOnlineState {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[repr(u8)]
 pub enum ThreatTauntState {
-    Detaunt = 0,
-    None = 1,
-    Taunt = 2,
+    Detaunt,
+    None,
+    Taunt(u32),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -1344,7 +1343,7 @@ impl ThreatReferenceState {
     }
 
     pub const fn is_taunting(&self) -> bool {
-        matches!(self.taunt_state, ThreatTauntState::Taunt)
+        matches!(self.taunt_state, ThreatTauntState::Taunt(_))
     }
 
     pub const fn is_detaunted(&self) -> bool {
@@ -1728,8 +1727,7 @@ impl CombatSubsystem {
 
     pub fn reselect_victim(
         &mut self,
-        old_victim_is_melee: bool,
-        highest_is_melee: bool,
+        melee_candidate_guids: &HashSet<ObjectGuid>,
     ) -> Option<ObjectGuid> {
         if let Some(fixate) = self.fixate_guid {
             if self
@@ -1751,7 +1749,8 @@ impl CombatSubsystem {
 
         let sorted = self.sorted_threat_guids();
         let highest_guid = sorted
-            .into_iter()
+            .iter()
+            .copied()
             .find(|guid| self.threat_refs[guid].is_available())?;
         let Some(old_guid) = self.current_victim_guid else {
             self.current_victim_guid = Some(highest_guid);
@@ -1767,13 +1766,29 @@ impl CombatSubsystem {
         }
 
         let highest_ref = self.threat_refs[&highest_guid];
-        let threshold = if old_victim_is_melee || highest_is_melee {
-            1.1
-        } else {
-            1.3
-        };
-        if old_ref.threat() * threshold < highest_ref.threat() {
+        if old_ref.threat() * 1.1 >= highest_ref.threat() {
+            return self.current_victim_guid;
+        }
+        if old_ref.threat() * 1.3 < highest_ref.threat()
+            || melee_candidate_guids.contains(&highest_guid)
+        {
             self.current_victim_guid = Some(highest_guid);
+            return self.current_victim_guid;
+        }
+
+        for next_guid in sorted
+            .into_iter()
+            .filter(|guid| self.threat_refs[guid].is_available() && *guid != highest_guid)
+        {
+            if next_guid == old_guid
+                || old_ref.threat() * 1.1 >= self.threat_refs[&next_guid].threat()
+            {
+                break;
+            }
+            if melee_candidate_guids.contains(&next_guid) {
+                self.current_victim_guid = Some(next_guid);
+                break;
+            }
         }
         self.current_victim_guid
     }
@@ -5080,7 +5095,7 @@ mod unit_subsystems_tests {
         assert_eq!(combat.add_threat(high, 120.0), 120.0);
         assert_eq!(combat.add_threat(taunter, 1.0), 1.0);
         assert_eq!(combat.add_threat(offline, 999.0), 999.0);
-        assert!(combat.set_threat_taunt_state(taunter, ThreatTauntState::Taunt));
+        assert!(combat.set_threat_taunt_state(taunter, ThreatTauntState::Taunt(1)));
         assert!(combat.set_threat_online_state(offline, ThreatOnlineState::Offline));
 
         assert_eq!(
@@ -5113,7 +5128,7 @@ mod unit_subsystems_tests {
         let high = guid(26);
 
         combat.add_threat(taunter, 100.0);
-        assert!(combat.set_threat_taunt_state(taunter, ThreatTauntState::Taunt));
+        assert!(combat.set_threat_taunt_state(taunter, ThreatTauntState::Taunt(1)));
         combat.add_threat(high, 150.0);
 
         assert_eq!(
@@ -5151,18 +5166,34 @@ mod unit_subsystems_tests {
         combat.add_threat(current, 100.0);
         combat.current_victim_guid = Some(current);
         combat.add_threat(ranged, 120.0);
-        assert_eq!(combat.reselect_victim(false, false), Some(current));
+        assert_eq!(combat.reselect_victim(&HashSet::new()), Some(current));
 
         combat.set_threat(ranged, 131.0);
-        assert_eq!(combat.reselect_victim(false, false), Some(ranged));
+        assert_eq!(combat.reselect_victim(&HashSet::new()), Some(ranged));
 
         combat.current_victim_guid = Some(current);
         combat.set_threat(ranged, 120.0);
-        assert_eq!(combat.reselect_victim(false, true), Some(ranged));
+        assert_eq!(
+            combat.reselect_victim(&HashSet::from([current])),
+            Some(current),
+            "C++ tests the challenger's melee range; the old victim being in melee does not lower the ranged threshold"
+        );
+        assert_eq!(
+            combat.reselect_victim(&HashSet::from([ranged])),
+            Some(ranged)
+        );
 
-        combat.add_threat(melee, 1.0);
+        combat.current_victim_guid = Some(current);
+        combat.add_threat(melee, 115.0);
+        assert_eq!(
+            combat.reselect_victim(&HashSet::from([melee])),
+            Some(melee),
+            "C++ scans below a ranged 110%-130% leader for the first melee challenger above 110%"
+        );
+
+        combat.set_threat(melee, 1.0);
         assert!(combat.fixate_target(Some(melee)));
-        assert_eq!(combat.reselect_victim(false, false), Some(melee));
+        assert_eq!(combat.reselect_victim(&HashSet::new()), Some(melee));
         assert!(combat.fixate_target(None));
         assert!(!combat.fixate_target(Some(guid(99))));
     }

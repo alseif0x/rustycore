@@ -25,6 +25,7 @@ use wow_entities::{
     PointMovementInform, RotateMovementUpdate, Z_OFFSET_FIND_HEIGHT,
     allowed_position_z_from_ground_like_cpp, game_time_secs_like_cpp,
 };
+use wow_map::map::MapWorldObjectEnvironment;
 use wow_map::{GridMapTerrain, SharedStaticVMapLineOfSightProvider, SpawnObjectType};
 use wow_movement::generators::CreatureRandomMovementType as MovementCreatureRandomMovementType;
 use wow_movement::{
@@ -1335,7 +1336,7 @@ pub struct WorldCreature {
     runtime_chase_target: Option<ObjectGuid>,
     runtime_represented_active: Option<RuntimeRepresentedActiveKeyLikeCpp>,
     /// Delayed `AssistDelayEvent` payload: victim and map-local due time.
-    pending_assistance_like_cpp: Option<(ObjectGuid, u64)>,
+    pending_assistance_like_cpp: Vec<(ObjectGuid, ObjectGuid, u64)>,
     /// C++ `m_AlreadyCallAssistance`, reset when combat stops.
     assistance_called_like_cpp: bool,
     /// Active `SPELL_AURA_MOD_TAUNT`s in application order: caster and expiry.
@@ -1364,7 +1365,7 @@ impl Clone for WorldCreature {
             runtime_motion_master: Self::new_runtime_motion_master_like_cpp(&creature),
             runtime_chase_target: None,
             runtime_represented_active: None,
-            pending_assistance_like_cpp: self.pending_assistance_like_cpp,
+            pending_assistance_like_cpp: self.pending_assistance_like_cpp.clone(),
             assistance_called_like_cpp: self.assistance_called_like_cpp,
             active_taunts_like_cpp: self.active_taunts_like_cpp.clone(),
             home_health_restored_pending_like_cpp: self.home_health_restored_pending_like_cpp,
@@ -1548,7 +1549,7 @@ impl WorldCreature {
             runtime_motion_master,
             runtime_chase_target: None,
             runtime_represented_active: None,
-            pending_assistance_like_cpp: None,
+            pending_assistance_like_cpp: Vec::new(),
             assistance_called_like_cpp: false,
             active_taunts_like_cpp: Vec::new(),
             home_health_restored_pending_like_cpp: false,
@@ -1945,15 +1946,20 @@ impl WorldCreature {
         );
     }
 
-    pub fn schedule_assistance_like_cpp(&mut self, victim: ObjectGuid, delay_ms: u32) -> bool {
-        if self.creature.is_in_combat()
-            || self.pending_assistance_like_cpp.is_some()
-            || !self.is_alive()
-        {
+    pub fn schedule_assistance_like_cpp(
+        &mut self,
+        caller: ObjectGuid,
+        victim: ObjectGuid,
+        delay_ms: u32,
+    ) -> bool {
+        if self.creature.is_in_combat() || !self.is_alive() {
             return false;
         }
-        self.pending_assistance_like_cpp =
-            Some((victim, self.now_ms().saturating_add(u64::from(delay_ms))));
+        self.pending_assistance_like_cpp.push((
+            caller,
+            victim,
+            self.now_ms().saturating_add(u64::from(delay_ms)),
+        ));
         true
     }
 
@@ -1974,13 +1980,19 @@ impl WorldCreature {
         Some(victim)
     }
 
-    pub fn take_due_assistance_like_cpp(&mut self) -> Option<ObjectGuid> {
-        let (victim, due_at_ms) = self.pending_assistance_like_cpp?;
-        if self.now_ms() < due_at_ms {
-            return None;
-        }
-        self.pending_assistance_like_cpp = None;
-        Some(victim)
+    pub fn take_due_assistance_like_cpp(&mut self) -> Vec<(ObjectGuid, ObjectGuid)> {
+        let now_ms = self.now_ms();
+        let mut due = Vec::new();
+        self.pending_assistance_like_cpp
+            .retain(|(caller, victim, due_at_ms)| {
+                if now_ms >= *due_at_ms {
+                    due.push((*caller, *victim));
+                    false
+                } else {
+                    true
+                }
+            });
+        due
     }
 
     pub fn apply_taunt_aura_like_cpp(
@@ -1991,15 +2003,6 @@ impl WorldCreature {
         duration_ms: u32,
     ) -> Option<u8> {
         let due_at_ms = self.now_ms().saturating_add(u64::from(duration_ms));
-        {
-            let combat = &mut self.creature.unit_mut().subsystems_mut().combat;
-            if combat.threat_ref(caster).is_none() {
-                return None;
-            }
-            for active in &self.active_taunts_like_cpp {
-                combat.set_threat_taunt_state(active.caster, wow_entities::ThreatTauntState::None);
-            }
-        }
         let replaced: Vec<_> = self
             .active_taunts_like_cpp
             .iter()
@@ -2019,6 +2022,10 @@ impl WorldCreature {
         let slot = auras.visible_auras.iter().find_map(|(slot, aura)| {
             (aura.spell_id == spell_id && aura.caster_guid == caster).then_some(*slot)
         })?;
+        auras.register_applied_aura_type_like_cpp(
+            wow_entities::AppliedAuraRef::new(spell_id, caster, slot, effect_mask),
+            wow_data::spell::aura_types::SPELL_AURA_MOD_TAUNT,
+        );
         self.active_taunts_like_cpp.push(ActiveTauntLikeCpp {
             caster,
             due_at_ms,
@@ -2026,12 +2033,8 @@ impl WorldCreature {
             effect_mask,
             slot,
         });
-        self.creature
-            .unit_mut()
-            .subsystems_mut()
-            .combat
-            .set_threat_taunt_state(caster, wow_entities::ThreatTauntState::Taunt)
-            .then_some(slot)
+        self.refresh_active_taunt_states_like_cpp();
+        Some(slot)
     }
 
     pub fn expire_taunt_auras_if_due_like_cpp(&mut self) -> Vec<u8> {
@@ -2042,12 +2045,6 @@ impl WorldCreature {
             .any(|active| now_ms >= active.due_at_ms)
         {
             return Vec::new();
-        }
-        {
-            let combat = &mut self.creature.unit_mut().subsystems_mut().combat;
-            for active in &self.active_taunts_like_cpp {
-                combat.set_threat_taunt_state(active.caster, wow_entities::ThreatTauntState::None);
-            }
         }
         let expired: Vec<_> = self
             .active_taunts_like_cpp
@@ -2066,14 +2063,26 @@ impl WorldCreature {
             );
             auras.clear_visible(active.slot);
         }
-        if let Some(active) = self.active_taunts_like_cpp.last().copied() {
-            self.creature
-                .unit_mut()
-                .subsystems_mut()
-                .combat
-                .set_threat_taunt_state(active.caster, wow_entities::ThreatTauntState::Taunt);
-        }
+        self.refresh_active_taunt_states_like_cpp();
         expired.into_iter().map(|active| active.slot).collect()
+    }
+
+    fn refresh_active_taunt_states_like_cpp(&mut self) {
+        let active_casters: Vec<_> = self
+            .active_taunts_like_cpp
+            .iter()
+            .map(|active| active.caster)
+            .collect();
+        let combat = &mut self.creature.unit_mut().subsystems_mut().combat;
+        for guid in combat.sorted_threat_guids() {
+            combat.set_threat_taunt_state(guid, wow_entities::ThreatTauntState::None);
+        }
+        for (priority, caster) in active_casters.into_iter().enumerate() {
+            combat.set_threat_taunt_state(
+                caster,
+                wow_entities::ThreatTauntState::Taunt(priority as u32 + 1),
+            );
+        }
     }
 
     pub fn reset_combat(&mut self) -> Vec<u8> {
@@ -2087,7 +2096,10 @@ impl WorldCreature {
             );
             auras.clear_visible(active.slot);
         }
-        self.pending_assistance_like_cpp = None;
+        // C++ `AssistDelayEvent` is owned by the caller, not by an assistant's
+        // combat state. Preserve represented pending requests across this
+        // assistant's independent combat/evade reset; execution revalidates
+        // `CanAssistTo` when the delay expires.
         self.assistance_called_like_cpp = false;
         self.creature.reset_ai_combat(self.now_ms());
         self.sync_runtime_motion_master_like_cpp();
@@ -2796,11 +2808,9 @@ impl WorldCreature {
                 //
                 // Boundary: C++ sets it one step earlier, in the AI evade entry,
                 // after `_EnterEvadeMode()` bookkeeping and only on the
-                // no-charmer branch. This runtime has no live AI evade entry —
-                // `reset_combat` is the surrogate and is also used by
-                // non-evade paths such as `CMSG_ATTACK_STOP` — so the state is
-                // added where the return actually begins. A full
-                // `CreatureAI::EnterEvadeMode` port stays with M2.5.
+                // no-charmer branch. This runtime has no live AI evade entry,
+                // so the state is added where the return actually begins. A
+                // full `CreatureAI::EnterEvadeMode` port stays with M2.5.
                 self.creature
                     .unit_mut()
                     .add_unit_state(UnitState::EVADE.bits());
@@ -5176,6 +5186,24 @@ impl LiveTerrainHeights {
     #[must_use]
     pub fn grid_height_like_cpp(&self, map_id: u32, x: f32, y: f32) -> f32 {
         self.terrain_for_map(map_id).grid_height(x, y)
+    }
+
+    /// C++ `WorldObject::IsWithinLOSInMap` static-VMAP portion for two objects
+    /// already known to belong to the same legacy map instance.
+    #[must_use]
+    pub fn is_within_los_like_cpp(
+        &self,
+        map_id: u32,
+        source: &wow_entities::WorldObject,
+        target: &wow_entities::WorldObject,
+    ) -> bool {
+        self.terrain_for_map(map_id).line_of_sight(
+            wow_entities::LineOfSightQuery::to_object_like_cpp(
+                source,
+                target,
+                wow_entities::LineOfSightOptions::default(),
+            ),
+        )
     }
 }
 
@@ -9568,7 +9596,7 @@ mod tests {
             combat.add_threat(taunter, 10.0);
             combat.add_threat(newer_taunter, 20.0);
             combat.add_threat(tank, 100.0);
-            assert_eq!(combat.reselect_victim(false, false), Some(tank));
+            assert_eq!(combat.reselect_victim(&HashSet::new()), Some(tank));
         }
 
         assert_eq!(
@@ -9581,7 +9609,7 @@ mod tests {
                 .unit_mut()
                 .subsystems_mut()
                 .combat
-                .reselect_victim(false, false),
+                .reselect_victim(&HashSet::new()),
             Some(taunter),
             "an active taunt bypasses ordinary threat-switch thresholds"
         );
@@ -9599,6 +9627,27 @@ mod tests {
                 .first(),
             Some(&newer_taunter)
         );
+        {
+            let combat = &mut creature.creature.unit_mut().subsystems_mut().combat;
+            assert_eq!(combat.reselect_victim(&HashSet::new()), Some(newer_taunter));
+            assert!(
+                combat.set_threat_online_state(
+                    newer_taunter,
+                    wow_entities::ThreatOnlineState::Offline,
+                )
+            );
+            assert_eq!(
+                combat.reselect_victim(&HashSet::new()),
+                Some(taunter),
+                "C++ falls back to the older active taunt while the newest taunter is unavailable"
+            );
+            assert!(
+                combat.set_threat_online_state(
+                    newer_taunter,
+                    wow_entities::ThreatOnlineState::Online,
+                )
+            );
+        }
 
         creature.backdate_runtime_clock_for_test(Duration::from_millis(1_200));
         assert_eq!(creature.expire_taunt_auras_if_due_like_cpp(), vec![1]);
@@ -9645,6 +9694,49 @@ mod tests {
         assert!(
             creature.expire_taunt_auras_if_due_like_cpp().is_empty(),
             "an evade-removed taunt must not expire a second time"
+        );
+    }
+
+    #[test]
+    fn world_creature_taunt_aura_persists_without_threat_reference_like_cpp() {
+        let creature_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54356);
+        let caster = ObjectGuid::create_player(1, 4);
+        let mut creature = WorldCreature::new(
+            creature_guid,
+            1,
+            Position::default(),
+            50,
+            2,
+            5,
+            10,
+            20.0,
+            100,
+            14,
+            0,
+            0,
+        );
+
+        let slot = creature
+            .apply_taunt_aura_like_cpp(caster, 355, 1, 2_000)
+            .expect("C++ still applies MOD_TAUNT when EffectTaunt sees an empty threat list");
+
+        assert!(
+            creature
+                .creature
+                .unit()
+                .subsystems()
+                .combat
+                .is_threat_list_empty(true)
+        );
+        assert!(
+            creature
+                .creature
+                .unit()
+                .subsystems()
+                .auras
+                .visible_auras
+                .contains_key(&slot)
         );
     }
 

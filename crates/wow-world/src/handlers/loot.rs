@@ -4726,7 +4726,7 @@ impl WorldSession {
         }
         let session_instance_id = self
             .current_canonical_player_map_key_like_cpp()
-            .map(|k| k.instance_id)
+            .map(|key| key.instance_id)
             .unwrap_or(0);
         if session_instance_id != command.instance_id {
             return;
@@ -4786,7 +4786,7 @@ impl WorldSession {
         }
         let session_instance_id = self
             .current_canonical_player_map_key_like_cpp()
-            .map(|k| k.instance_id)
+            .map(|key| key.instance_id)
             .unwrap_or(0);
         if session_instance_id != command.instance_id {
             return;
@@ -4798,20 +4798,52 @@ impl WorldSession {
             return;
         }
 
+        if let Some(manager) = self.canonical_map_manager.as_ref().cloned()
+            && let Ok(mut manager) = manager.lock()
+            && let Some(managed) =
+                manager.find_map_mut(u32::from(command.map_id), command.instance_id)
+        {
+            let map = managed.map_mut();
+            if let Some(player) = map.get_typed_player_mut(command.victim_guid) {
+                player
+                    .unit_mut()
+                    .subsystems_mut()
+                    .combat
+                    .set_in_combat_with(command.attacker_guid, false, false);
+                player
+                    .unit_mut()
+                    .add_attacker_like_cpp(command.attacker_guid);
+            }
+            if let Some(creature) = map.get_typed_creature_mut(command.attacker_guid) {
+                creature
+                    .unit_mut()
+                    .subsystems_mut()
+                    .combat
+                    .set_in_combat_with(command.victim_guid, false, false);
+            }
+        }
+
         self.combat_target = Some(command.attacker_guid);
         self.in_combat = true;
 
-        use wow_packet::packets::combat::AttackStart;
-        self.send_packet(&AttackStart {
-            attacker: command.attacker_guid,
-            victim: command.victim_guid,
-        });
+        if !command.packet_already_broadcast {
+            use wow_packet::packets::combat::AttackStart;
+            self.send_packet(&AttackStart {
+                attacker: command.attacker_guid,
+                victim: command.victim_guid,
+            });
+        }
     }
 
     fn handle_creature_attack_stop_like_cpp_command_like_cpp(
         &mut self,
         command: CreatureAttackStopLikeCppCommand,
     ) {
+        // This cleanup command is emitted only by the full
+        // `LegacyCreatureThreatUpdateLikeCpp::Evade` path. Ordinary victim
+        // switches fan out `SMSG_ATTACKSTOP` directly but deliberately do not
+        // enqueue this command, matching C++ `Unit::AttackStop()` preserving
+        // threat and combat references.
         if self.state() != crate::session::SessionState::LoggedIn
             || self.player_guid() != Some(command.victim_guid)
             || self.player_map_id_like_cpp() != command.map_id
@@ -4825,8 +4857,6 @@ impl WorldSession {
             return;
         }
 
-        self.combat_target = None;
-        self.in_combat = false;
         let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
             return;
         };
@@ -4837,7 +4867,7 @@ impl WorldSession {
             return;
         };
         let map = managed.map_mut();
-        if let Some(player) = map.get_typed_player_mut(command.victim_guid) {
+        let still_in_combat = if let Some(player) = map.get_typed_player_mut(command.victim_guid) {
             player
                 .unit_mut()
                 .subsystems_mut()
@@ -4851,7 +4881,10 @@ impl WorldSession {
             player
                 .unit_mut()
                 .remove_attacker_like_cpp(command.attacker_guid);
-        }
+            player.unit().subsystems().combat.has_combat()
+        } else {
+            false
+        };
         if let Some(creature) = map.get_typed_creature_mut(command.attacker_guid) {
             creature
                 .unit_mut()
@@ -4862,6 +4895,10 @@ impl WorldSession {
                 .unit_mut()
                 .remove_attacker_like_cpp(command.victim_guid);
         }
+        if self.combat_target == Some(command.attacker_guid) {
+            self.combat_target = None;
+        }
+        self.in_combat = still_in_combat;
     }
 
     fn handle_send_visible_object_values_update_command_like_cpp(

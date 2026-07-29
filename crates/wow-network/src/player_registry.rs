@@ -224,6 +224,9 @@ pub struct CreatureAttackStartLikeCppCommand {
     pub victim_guid: ObjectGuid,
     pub map_id: u16,
     pub instance_id: u32,
+    /// `true` when the global runtime already queued `SMSG_ATTACKSTART` through
+    /// nearby-visible fanout and this command only mirrors session state.
+    pub packet_already_broadcast: bool,
 }
 
 /// Payload for a map-owned creature evade/combat-stop transition.
@@ -1239,6 +1242,7 @@ mod tests {
             victim_guid: victim,
             map_id: 571,
             instance_id: 4,
+            packet_already_broadcast: false,
         };
 
         assert_eq!(cmd.attacker_guid, attacker);

@@ -14116,9 +14116,14 @@ fn deliver_creature_attack_stop_commands_like_cpp(
             summary.candidates_skipped_wrong_map += 1;
         } else if candidate.2 != command.instance_id {
             summary.candidates_skipped_wrong_instance += 1;
+        // Evade cleanup is a one-shot authoritative transition. Unlike
+        // movement/visual fanout it cannot be dropped on transient bounded
+        // queue backpressure: C++ tears these combat references down
+        // synchronously. This bridge already runs in the runtime's
+        // `spawn_blocking` tick task, so a blocking send does not stall Tokio.
         } else if candidate
             .0
-            .try_send(wow_network::SessionCommand::CreatureAttackStopLikeCpp(
+            .send(wow_network::SessionCommand::CreatureAttackStopLikeCpp(
                 command.clone(),
             ))
             .is_ok()
@@ -25385,6 +25390,7 @@ mmap.enablePathFinding = 0
                 victim_guid: victim,
                 map_id: 571,
                 instance_id: 4,
+                packet_already_broadcast: false,
             },
         ];
         let summary = deliver_creature_attack_start_commands_like_cpp(&commands, &registry);
@@ -25434,6 +25440,7 @@ mmap.enablePathFinding = 0
                 victim_guid,
                 map_id: 571,
                 instance_id: 0,
+                packet_already_broadcast: false,
             };
         let commands = vec![
             make_command(wrong_map),

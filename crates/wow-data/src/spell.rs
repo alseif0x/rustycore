@@ -524,6 +524,8 @@ pub mod attributes {
 
     /// C++ `SPELL_ATTR1_IS_CHANNELLED` (`SharedDefines.h`).
     pub const SPELL_ATTR1_IS_CHANNELLED: u32 = 0x0000_0004;
+    /// C++ `SPELL_ATTR1_NO_THREAT` (`SharedDefines.h`).
+    pub const SPELL_ATTR1_NO_THREAT: u32 = 0x0000_0400;
 
     /// C++ `SPELL_ATTR1_IS_SELF_CHANNELLED` (`SharedDefines.h`).
     pub const SPELL_ATTR1_IS_SELF_CHANNELLED: u32 = 0x0000_0040;
@@ -533,10 +535,16 @@ pub mod attributes {
     pub const SPELL_ATTR1_NO_AURA_ICON: u32 = 0x1000_0000;
     /// C++ `SPELL_ATTR2_ALLOW_WHILE_NOT_SHAPESHIFTED_CASTER_FORM` (`SharedDefines.h`).
     pub const SPELL_ATTR2_ALLOW_WHILE_NOT_SHAPESHIFTED_CASTER_FORM: u32 = 0x0008_0000;
+    /// C++ `SPELL_ATTR2_NO_INITIAL_THREAT` (`SharedDefines.h`).
+    pub const SPELL_ATTR2_NO_INITIAL_THREAT: u32 = 0x0040_0000;
     /// C++ `SPELL_ATTR3_CAN_PROC_FROM_PROCS` (`SharedDefines.h`).
     pub const SPELL_ATTR3_CAN_PROC_FROM_PROCS: u32 = 0x0400_0000;
     /// C++ `SPELL_ATTR4_AURA_EXPIRES_OFFLINE` (`SharedDefines.h`).
     pub const SPELL_ATTR4_AURA_EXPIRES_OFFLINE: u32 = 0x0000_0004;
+    /// C++ `SPELL_ATTR4_NO_HELPFUL_THREAT` (`SharedDefines.h`).
+    pub const SPELL_ATTR4_NO_HELPFUL_THREAT: u32 = 0x0000_0008;
+    /// C++ `SPELL_ATTR4_NO_HARMFUL_THREAT` (`SharedDefines.h`).
+    pub const SPELL_ATTR4_NO_HARMFUL_THREAT: u32 = 0x0000_0010;
     pub const SPELL_ATTR4_USE_FACING_FROM_SPELL: u32 = 0x8000_0000;
 }
 
@@ -5977,6 +5985,13 @@ ORDER BY sm.ID, se.EffectIndex
         self.spell_misc_attributes
             .get(&spell_id)
             .is_some_and(|attributes| attributes[2] & attribute != 0)
+    }
+
+    /// C++ `SpellInfo::HasAttribute(SpellAttr4)` for attributes hydrated from `SpellMisc.db2`.
+    pub fn has_attribute4_like_cpp(&self, spell_id: i32, attribute: u32) -> bool {
+        self.spell_misc_attributes
+            .get(&spell_id)
+            .is_some_and(|attributes| attributes[4] & attribute != 0)
     }
 
     /// C++ `SpellInfo::HasAttribute(SpellAttr8)` for attributes hydrated from `SpellMisc.db2`.
