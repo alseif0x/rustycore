@@ -25920,16 +25920,24 @@ impl WorldSession {
         let Ok(spell_id_u32) = u32::try_from(spell_id) else {
             return;
         };
+        let difficulty = self.current_map_difficulty_id_like_cpp();
+        let difficulty_store = self.difficulty_store().cloned();
         // C++ `Spell::HandleThreatSpells` performs this unconditional
         // `!SpellInfo::HasInitialAggro()` return before calling
         // `ThreatManager::AddThreat`. The latter's engaged-owner exception
         // applies to per-effect damage threat, not this cast-level bonus.
         if self.spell_store().is_some_and(|store| {
-            store.has_attribute1_like_cpp(
+            store.has_attribute_for_difficulty_like_cpp(
                 spell_id,
+                difficulty,
+                difficulty_store.as_deref(),
+                1,
                 wow_data::spell::attributes::SPELL_ATTR1_NO_THREAT,
-            ) || store.has_attribute2_like_cpp(
+            ) || store.has_attribute_for_difficulty_like_cpp(
                 spell_id,
+                difficulty,
+                difficulty_store.as_deref(),
+                2,
                 wow_data::spell::attributes::SPELL_ATTR2_NO_INITIAL_THREAT,
             )
         }) {
@@ -25937,8 +25945,11 @@ impl WorldSession {
         }
         if !is_positive
             && self.spell_store().is_some_and(|store| {
-                store.has_attribute4_like_cpp(
+                store.has_attribute_for_difficulty_like_cpp(
                     spell_id,
+                    difficulty,
+                    difficulty_store.as_deref(),
+                    4,
                     wow_data::spell::attributes::SPELL_ATTR4_NO_HARMFUL_THREAT,
                 )
             })
@@ -25993,8 +26004,11 @@ impl WorldSession {
         // C++ positive-spell path:
         // `target->GetThreatManager().ForwardThreatForAssistingMe`.
         if self.spell_store().is_some_and(|store| {
-            store.has_attribute4_like_cpp(
+            store.has_attribute_for_difficulty_like_cpp(
                 spell_id,
+                difficulty,
+                difficulty_store.as_deref(),
+                4,
                 wow_data::spell::attributes::SPELL_ATTR4_NO_HELPFUL_THREAT,
             )
         }) {
@@ -62578,13 +62592,21 @@ impl WorldSession {
         if effective_heal == 0 {
             return;
         }
+        let difficulty = self.current_map_difficulty_id_like_cpp();
+        let difficulty_store = self.difficulty_store().cloned();
         if spell_id.is_some_and(|spell_id| {
             self.spell_store().is_some_and(|store| {
-                store.has_attribute1_like_cpp(
+                store.has_attribute_for_difficulty_like_cpp(
                     spell_id,
+                    difficulty,
+                    difficulty_store.as_deref(),
+                    1,
                     wow_data::spell::attributes::SPELL_ATTR1_NO_THREAT,
-                ) || store.has_attribute4_like_cpp(
+                ) || store.has_attribute_for_difficulty_like_cpp(
                     spell_id,
+                    difficulty,
+                    difficulty_store.as_deref(),
+                    4,
                     wow_data::spell::attributes::SPELL_ATTR4_NO_HELPFUL_THREAT,
                 )
             })
@@ -62622,8 +62644,11 @@ impl WorldSession {
             .unwrap_or(1.0);
         let no_initial_threat = spell_id.is_some_and(|spell_id| {
             self.spell_store().is_some_and(|store| {
-                store.has_attribute2_like_cpp(
+                store.has_attribute_for_difficulty_like_cpp(
                     spell_id,
+                    difficulty,
+                    difficulty_store.as_deref(),
+                    2,
                     wow_data::spell::attributes::SPELL_ATTR2_NO_INITIAL_THREAT,
                 )
             })
@@ -64205,21 +64230,32 @@ impl WorldSession {
         let player_guid = self.player_guid().ok_or("No player GUID")?;
         let account_id = self.account_id;
         let tap_group_guids = self.current_group_member_guids_for_tap_like_cpp(player_guid);
+        let difficulty = self.current_map_difficulty_id_like_cpp();
+        let difficulty_store = self.difficulty_store().cloned();
         let suppress_harmful_threat = spell_id.is_some_and(|spell_id| {
             self.spell_store().is_some_and(|store| {
-                store.has_attribute1_like_cpp(
+                store.has_attribute_for_difficulty_like_cpp(
                     spell_id,
+                    difficulty,
+                    difficulty_store.as_deref(),
+                    1,
                     wow_data::spell::attributes::SPELL_ATTR1_NO_THREAT,
-                ) || store.has_attribute4_like_cpp(
+                ) || store.has_attribute_for_difficulty_like_cpp(
                     spell_id,
+                    difficulty,
+                    difficulty_store.as_deref(),
+                    4,
                     wow_data::spell::attributes::SPELL_ATTR4_NO_HARMFUL_THREAT,
                 )
             })
         });
         let no_initial_threat = spell_id.is_some_and(|spell_id| {
             self.spell_store().is_some_and(|store| {
-                store.has_attribute2_like_cpp(
+                store.has_attribute_for_difficulty_like_cpp(
                     spell_id,
+                    difficulty,
+                    difficulty_store.as_deref(),
+                    2,
                     wow_data::spell::attributes::SPELL_ATTR2_NO_INITIAL_THREAT,
                 )
             })

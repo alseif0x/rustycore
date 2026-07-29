@@ -5338,6 +5338,7 @@ pub struct SpellStore {
     spells: HashMap<i32, SpellInfo>,
     spell_effects_by_difficulty: HashMap<(i32, u8), Vec<SpellEffectInfo>>,
     spell_misc_attributes: HashMap<i32, [u32; 15]>,
+    spell_misc_attributes_by_difficulty: HashMap<(i32, u8), [u32; 15]>,
     spell_interrupt_flags: HashMap<(i32, u8), ([u32; 2], [u32; 2])>,
     spell_interrupt_rows_by_id: BTreeMap<u32, SpellInterruptRowLikeCpp>,
     spell_shapeshift_masks: HashMap<i32, (u64, u64)>,
@@ -5351,6 +5352,7 @@ impl SpellStore {
             spells: HashMap::new(),
             spell_effects_by_difficulty: HashMap::new(),
             spell_misc_attributes: HashMap::new(),
+            spell_misc_attributes_by_difficulty: HashMap::new(),
             spell_interrupt_flags: HashMap::new(),
             spell_interrupt_rows_by_id: BTreeMap::new(),
             spell_shapeshift_masks: HashMap::new(),
@@ -5450,7 +5452,8 @@ impl SpellStore {
             entry.power_costs = incoming.power_costs;
         }
 
-        if !incoming.effects.is_empty() {
+        let overlays_effects = !incoming.effects.is_empty();
+        if overlays_effects {
             for hotfix_effect in incoming.effects {
                 entry
                     .effects
@@ -5460,11 +5463,17 @@ impl SpellStore {
         }
 
         Self::hydrate_primary_effect_like_cpp(entry);
+        if overlays_effects {
+            self.spell_effects_by_difficulty
+                .insert((entry.spell_id, 0), entry.effects.clone());
+        }
     }
 
     fn merge_spell_misc_attributes_like_cpp(&mut self, incoming: HashMap<i32, [u32; 15]>) {
         for (spell_id, attributes) in incoming {
             self.spell_misc_attributes.insert(spell_id, attributes);
+            self.spell_misc_attributes_by_difficulty
+                .insert((spell_id, 0), attributes);
         }
     }
 
@@ -5535,19 +5544,22 @@ impl SpellStore {
         let mut store = Self::new();
 
         for misc in spell_misc_store.entries_like_cpp() {
-            if misc.difficulty_id != 0 {
-                continue;
-            }
             let Ok(spell_id) = i32::try_from(misc.spell_id) else {
                 continue;
             };
+            let difficulty_id = misc.difficulty_id;
+            let attributes = misc.attributes.map(|attribute| attribute as u32);
+            store
+                .spell_misc_attributes_by_difficulty
+                .insert((spell_id, difficulty_id), attributes);
+            if difficulty_id != 0 {
+                continue;
+            }
             store
                 .spells
                 .entry(spell_id)
                 .or_insert_with(|| Self::empty_spell_info_like_cpp(spell_id));
-            store
-                .spell_misc_attributes
-                .insert(spell_id, misc.attributes.map(|attribute| attribute as u32));
+            store.spell_misc_attributes.insert(spell_id, attributes);
         }
 
         for effect in spell_effect_store.entries_like_cpp() {
@@ -6012,6 +6024,51 @@ ORDER BY sm.ID, se.EffectIndex
         self.spells.get(&spell_id)
     }
 
+    /// Resolve the `SpellMisc` attributes owned by the same difficulty-specific
+    /// C++ `SpellInfo` selected by `SpellMgr::GetSpellInfo`.
+    pub fn misc_attributes_for_difficulty_like_cpp(
+        &self,
+        spell_id: i32,
+        requested_difficulty_id: u8,
+        difficulty_store: Option<&crate::difficulty::DifficultyStore>,
+    ) -> Option<[u32; 15]> {
+        let mut difficulty_id = requested_difficulty_id;
+        let mut visited = HashSet::new();
+        loop {
+            if let Some(attributes) = self
+                .spell_misc_attributes_by_difficulty
+                .get(&(spell_id, difficulty_id))
+                .copied()
+            {
+                return Some(attributes);
+            }
+            if difficulty_id == 0 || !visited.insert(difficulty_id) {
+                break;
+            }
+            difficulty_id = difficulty_store
+                .and_then(|store| store.get(u32::from(difficulty_id)))
+                .map_or(0, |difficulty| difficulty.fallback_difficulty_id);
+        }
+        self.spell_misc_attributes.get(&spell_id).copied()
+    }
+
+    pub fn has_attribute_for_difficulty_like_cpp(
+        &self,
+        spell_id: i32,
+        requested_difficulty_id: u8,
+        difficulty_store: Option<&crate::difficulty::DifficultyStore>,
+        attribute_word: usize,
+        attribute: u32,
+    ) -> bool {
+        self.misc_attributes_for_difficulty_like_cpp(
+            spell_id,
+            requested_difficulty_id,
+            difficulty_store,
+        )
+        .and_then(|attributes| attributes.get(attribute_word).copied())
+        .is_some_and(|attributes| attributes & attribute != 0)
+    }
+
     /// C++ `SpellInfo::HasAttribute` for attributes hydrated from `SpellMisc.db2`.
     pub fn has_attribute0_like_cpp(&self, spell_id: i32, attribute: u32) -> bool {
         self.spell_misc_attributes
@@ -6286,6 +6343,22 @@ ORDER BY sm.ID, se.EffectIndex
     #[allow(dead_code)]
     pub fn insert_spell_misc_attributes_like_cpp(&mut self, spell_id: i32, attributes: [u32; 15]) {
         self.spell_misc_attributes.insert(spell_id, attributes);
+        self.spell_misc_attributes_by_difficulty
+            .insert((spell_id, 0), attributes);
+    }
+
+    #[allow(dead_code)]
+    pub fn insert_spell_misc_attributes_for_difficulty_like_cpp(
+        &mut self,
+        spell_id: i32,
+        difficulty_id: u8,
+        attributes: [u32; 15],
+    ) {
+        self.spell_misc_attributes_by_difficulty
+            .insert((spell_id, difficulty_id), attributes);
+        if difficulty_id == 0 {
+            self.spell_misc_attributes.insert(spell_id, attributes);
+        }
     }
 
     #[allow(dead_code)]
@@ -6342,6 +6415,79 @@ ORDER BY sm.ID, se.EffectIndex
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn test_effect_like_cpp(effect_index: u32, effect_aura: i32) -> SpellEffectInfo {
+        SpellEffectInfo {
+            effect_index,
+            effect: spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura,
+            effect_base_points: 0,
+            effect_die_sides: 0,
+            effect_spell_class_mask: [0; 4],
+            effect_misc_value_1: 0,
+            effect_misc_value_2: 0,
+            effect_trigger_spell: 0,
+            effect_radius_index_1: 0,
+            position_facing: 0.0,
+            chain_targets: 0,
+            implicit_target_1: 0,
+            implicit_target_2: 0,
+        }
+    }
+
+    #[test]
+    fn hotfix_base_effect_replaces_difficulty_zero_lookup_like_cpp() {
+        let mut store = SpellStore::new();
+        let mut base = SpellStore::empty_spell_info_like_cpp(100);
+        base.effects
+            .push(test_effect_like_cpp(0, aura_types::SPELL_AURA_MOD_THREAT));
+        store.merge_spell_info_like_cpp(base);
+
+        let mut hotfix = SpellStore::empty_spell_info_like_cpp(100);
+        hotfix
+            .effects
+            .push(test_effect_like_cpp(0, aura_types::SPELL_AURA_MOD_TAUNT));
+        store.merge_spell_info_like_cpp(hotfix);
+
+        let effects = store
+            .effects_for_difficulty_like_cpp(100, 0, None)
+            .expect("hotfixed base effect");
+        assert_eq!(effects.len(), 1);
+        assert_eq!(effects[0].effect_aura, aura_types::SPELL_AURA_MOD_TAUNT);
+    }
+
+    #[test]
+    fn misc_attributes_resolve_exact_difficulty_then_base_like_cpp() {
+        let mut store = SpellStore::new();
+        let mut base = [0; 15];
+        base[1] = attributes::SPELL_ATTR1_NO_THREAT;
+        store.insert_spell_misc_attributes_like_cpp(100, base);
+        let mut heroic = [0; 15];
+        heroic[4] = attributes::SPELL_ATTR4_NO_HARMFUL_THREAT;
+        store.insert_spell_misc_attributes_for_difficulty_like_cpp(100, 2, heroic);
+
+        assert!(store.has_attribute_for_difficulty_like_cpp(
+            100,
+            2,
+            None,
+            4,
+            attributes::SPELL_ATTR4_NO_HARMFUL_THREAT,
+        ));
+        assert!(!store.has_attribute_for_difficulty_like_cpp(
+            100,
+            2,
+            None,
+            1,
+            attributes::SPELL_ATTR1_NO_THREAT,
+        ));
+        assert!(store.has_attribute_for_difficulty_like_cpp(
+            100,
+            3,
+            None,
+            1,
+            attributes::SPELL_ATTR1_NO_THREAT,
+        ));
+    }
     use crate::{Condition, ConditionEntriesByTypeStore};
     use wow_constants::{ConditionSourceType, ConditionType};
 
