@@ -29,9 +29,9 @@ Use commands like:
 ```bash
 git status --short --branch
 git log --oneline --decorate -8
-find crates -path '*/src/*.rs' -type f -print0 | xargs -0 wc -l | sort -nr | head -40
+rg --files -0 crates -g '**/src/**/*.rs' | xargs -0r wc -l | sort -nr | head -40
 for d in crates/*; do
-  total=$(find "$d/src" -type f -name '*.rs' -print0 | xargs -0 cat | wc -l)
+  total=$(rg --files -0 "$d/src" -g '*.rs' | xargs -0r cat | wc -l)
   printf '%8d %s\n' "$total" "$d"
 done | sort -nr
 cargo metadata --format-version 1 --no-deps

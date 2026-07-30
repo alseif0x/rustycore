@@ -45,9 +45,15 @@ skills/
 wiki/
 skills-lock.json
 
-# Repository-scoped agent skills shared by the RustyCore team.
+# Repository-scoped agent skills shared by the RustyCore team. Keep this as an
+# allowlist: future scripts/assets need an intentional exception so local
+# credentials, certificates, logs, and generated files stay ignored.
 !.agents/skills/
-!.agents/skills/**
+.agents/skills/**
+!.agents/skills/**/
+!.agents/skills/*/SKILL.md
+!.agents/skills/*/agents/openai.yaml
+!.agents/skills/*/references/**/*.md
 
 # OpenClaw workspace files (private)
 SOUL.md

@@ -8,6 +8,20 @@ description: Implement or review behavior-preserving RustyCore restructuring wit
 Execute one small structural slice while preserving runtime ownership, database atomicity, packet
 bytes/routing, C++ phase order, and public behavior.
 
+## Select review or execution mode
+
+Choose the mode from the user's requested outcome before any mutation:
+
+- **Review mode:** inspect and report only. Do not edit, stage, commit, push, publish, reply to
+  reviews, or resolve threads. Report prioritized findings with a narrow file/line range, the
+  frozen contract that would be violated, supporting Rust/C++ or capture evidence, and the smallest
+  safe correction. Separate patch-caused defects from pre-existing debt. Stop after the findings
+  unless the user explicitly asks to implement them.
+- **Execution mode:** the user asked to change or refactor code. Follow the implementation workflow
+  below and remain within the authorized issue and worktree scope.
+
+If the request is ambiguous between inspection and mutation, use review mode.
+
 ## Load the required context
 
 1. Read the repository `AGENTS.md` completely and run its session kickoff.
@@ -38,7 +52,7 @@ Choose exactly one dominant class:
 Do not combine class 4 with classes 1–3. Prefer separate PRs for relocation, boundary change, and
 ownership migration when the diff would otherwise obscure review.
 
-## Refactor workflow
+## Refactor workflow (execution mode)
 
 ### 1. Freeze the contract
 
@@ -98,8 +112,19 @@ explicitly for protobuf-dependent crates. Run:
 cargo fmt --all -- --check
 git diff --check
 PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo check -p <affected-crate>
-PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p <affected-crate> <focused-test> --lib
 ./tools/pr-preflight.sh quick origin/3.4.3
+```
+
+Choose the focused test target from `cargo metadata` instead of assuming every package has a
+library:
+
+```bash
+# Library target:
+PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p <package> <focused-test> --lib
+# Binary target such as world-server or bnet-server:
+PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p <package> <focused-test> --bin <binary>
+# Integration-test target:
+PROTOC=/home/cdmonio/.local/protoc/bin/protoc cargo test -p <package> <focused-test> --test <target>
 ```
 
 After committing to a clean HEAD and before an authorized push, run:
