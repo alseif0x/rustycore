@@ -36,7 +36,7 @@ Thumbs.db
 
 # OpenClaw agent internal dirs (not for public repo)
 .agent/
-.agents/
+.agents/*
 .claude/
 .openclaw/
 .trae/
@@ -44,6 +44,10 @@ memory/
 skills/
 wiki/
 skills-lock.json
+
+# Repository-scoped agent skills shared by the RustyCore team.
+!.agents/skills/
+!.agents/skills/**
 
 # OpenClaw workspace files (private)
 SOUL.md

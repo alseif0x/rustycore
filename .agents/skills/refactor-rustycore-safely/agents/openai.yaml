@@ -1,0 +1,4 @@
+interface:
+  display_name: "Refactor RustyCore Safely"
+  short_description: "Execute capture-clean Rust refactors safely"
+  default_prompt: "Use $refactor-rustycore-safely to implement this behavior-preserving RustyCore refactor and validate it."
