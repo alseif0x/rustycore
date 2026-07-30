@@ -5560,6 +5560,39 @@ impl SpellStore {
             .contains_exact_like_cpp(spell_id, difficulty_id)
     }
 
+    /// Whether C++ `GetSpellInfo(id, DIFFICULTY_NONE)` would find a regular
+    /// or server-side spell.
+    ///
+    /// The shipped DB2 has no difficulty-zero row, but C++ permits SQL
+    /// overlays to add one and then follows its `FallbackDifficultyID` chain.
+    /// Keep that behavior for loader foreign-key checks while stopping an
+    /// invalid custom cycle instead of hanging startup forever.
+    pub fn contains_spell_info_difficulty_none_like_cpp(
+        &self,
+        serverside_spells: &ServersideSpellStoreLikeCpp,
+        difficulty_store: &crate::difficulty::DifficultyStore,
+        spell_id: u32,
+    ) -> bool {
+        let mut difficulty_id = 0u8;
+        let mut visited = HashSet::new();
+        loop {
+            if !visited.insert(difficulty_id) {
+                return false;
+            }
+            if self.contains_spell_info_exact_like_cpp(spell_id, difficulty_id)
+                || serverside_spells
+                    .get_serverside_spell_like_cpp(spell_id, u32::from(difficulty_id))
+                    .is_some()
+            {
+                return true;
+            }
+            let Some(difficulty) = difficulty_store.get(u32::from(difficulty_id)) else {
+                return false;
+            };
+            difficulty_id = difficulty.fallback_difficulty_id;
+        }
+    }
+
     /// Whether C++ `_GetSpellInfo(id)` would find any regular difficulty.
     pub fn contains_spell_info_any_difficulty_like_cpp(&self, spell_id: u32) -> bool {
         self.spell_info_keys_like_cpp
@@ -6542,6 +6575,148 @@ mod tests {
 
         assert!(store.contains_spell_info_exact_like_cpp(100, 0));
         assert!(store.get(100).is_none());
+    }
+
+    #[test]
+    fn difficulty_none_existence_composes_exact_regular_and_serverside_keys_like_cpp() {
+        let mut regular = SpellStore::new();
+        regular.spell_info_keys_like_cpp =
+            crate::spell_info_keys::SpellInfoKeyStoreLikeCpp::from_candidate_keys_like_cpp(
+                [(100, 0), (101, 2), (300, 2)],
+                &HashSet::from([100, 101, 300]),
+            );
+        let serverside = ServersideSpellStoreLikeCpp::from_rows_like_cpp(
+            [
+                serverside_spell_row(200, 0),
+                serverside_spell_row(201, 2),
+                serverside_spell_row(400, 3),
+            ],
+            &ServersideSpellEffectStoreLikeCpp::default(),
+            |_| false,
+        );
+        assert!(serverside.errors.is_empty());
+        let no_fallback = crate::DifficultyStore::from_entries([]);
+
+        assert!(
+            regular.contains_spell_info_difficulty_none_like_cpp(
+                &serverside.store,
+                &no_fallback,
+                100
+            ),
+            "an exact regular difficulty-zero key is visible even without hydrated payload"
+        );
+        assert!(
+            !regular.contains_spell_info_difficulty_none_like_cpp(
+                &serverside.store,
+                &no_fallback,
+                101
+            ),
+            "a regular key that exists only at another difficulty is not a trainer spell"
+        );
+        assert!(
+            regular.contains_spell_info_difficulty_none_like_cpp(
+                &serverside.store,
+                &no_fallback,
+                200
+            ),
+            "an exact server-side difficulty-zero key shares C++ GetSpellInfo authority"
+        );
+        assert!(
+            !regular.contains_spell_info_difficulty_none_like_cpp(
+                &serverside.store,
+                &no_fallback,
+                201
+            ),
+            "a server-side key that exists only at another difficulty is not a trainer spell"
+        );
+
+        let trainer = crate::trainer::TrainerStoreLikeCpp::from_rows_like_cpp(
+            [crate::trainer::TrainerRowLikeCpp {
+                id: 10,
+                trainer_type: crate::trainer::TRAINER_TYPE_TRADESKILL_LIKE_CPP,
+                greeting: String::new(),
+            }],
+            [100, 101, 200, 201].map(|spell_id| crate::trainer::TrainerSpellRowLikeCpp {
+                trainer_id: 10,
+                spell: crate::trainer::TrainerSpellLikeCpp {
+                    spell_id,
+                    money_cost: 0,
+                    req_skill_line: 0,
+                    req_skill_rank: 0,
+                    req_ability: [0; 3],
+                    req_level: 0,
+                },
+            }),
+            [],
+            [],
+            |spell_id| {
+                regular.contains_spell_info_difficulty_none_like_cpp(
+                    &serverside.store,
+                    &no_fallback,
+                    spell_id,
+                )
+            },
+            |_| true,
+            |_| true,
+            |_, _| true,
+        );
+        let loaded = trainer.store.get_trainer_like_cpp(10).unwrap();
+        assert!(loaded.get_spell_like_cpp(100).is_some());
+        assert!(loaded.get_spell_like_cpp(200).is_some());
+        assert!(loaded.get_spell_like_cpp(101).is_none());
+        assert!(loaded.get_spell_like_cpp(201).is_none());
+        assert_eq!(
+            trainer.report.skipped_spells_missing_spell,
+            vec![(10, 101), (10, 201)]
+        );
+
+        let difficulty_fallbacks = crate::DifficultyStore::from_entries([
+            crate::DifficultyEntry {
+                id: 0,
+                instance_type: 0,
+                flags: 0,
+                fallback_difficulty_id: 2,
+                toggle_difficulty_id: 0,
+            },
+            crate::DifficultyEntry {
+                id: 2,
+                instance_type: 0,
+                flags: 0,
+                fallback_difficulty_id: 3,
+                toggle_difficulty_id: 0,
+            },
+            crate::DifficultyEntry {
+                id: 3,
+                instance_type: 0,
+                flags: 0,
+                fallback_difficulty_id: 0,
+                toggle_difficulty_id: 0,
+            },
+        ]);
+        assert!(
+            regular.contains_spell_info_difficulty_none_like_cpp(
+                &serverside.store,
+                &difficulty_fallbacks,
+                300
+            ),
+            "a custom Difficulty(0) fallback reaches a regular spell like C++"
+        );
+        assert!(
+            regular.contains_spell_info_difficulty_none_like_cpp(
+                &serverside.store,
+                &difficulty_fallbacks,
+                400
+            ),
+            "the fallback chain reaches a server-side spell like C++"
+        );
+        assert!(
+            !regular.contains_spell_info_difficulty_none_like_cpp(
+                &serverside.store,
+                &difficulty_fallbacks,
+                999
+            ),
+            "invalid custom fallback cycles terminate instead of hanging startup"
+        );
     }
 
     #[test]

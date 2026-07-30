@@ -529,9 +529,9 @@ pub use trainer::{
     CreatureTrainerRowLikeCpp, TRAINER_SPELL_STATE_AVAILABLE_LIKE_CPP,
     TRAINER_SPELL_STATE_KNOWN_LIKE_CPP, TRAINER_SPELL_STATE_UNAVAILABLE_LIKE_CPP,
     TRAINER_TYPE_NONE_LIKE_CPP, TRAINER_TYPE_PET_LIKE_CPP, TRAINER_TYPE_TALENT_LIKE_CPP,
-    TRAINER_TYPE_TRADESKILL_LIKE_CPP, TrainerLikeCpp, TrainerLoadOutcomeLikeCpp,
-    TrainerLoadReportLikeCpp, TrainerLocaleRowLikeCpp, TrainerRowLikeCpp, TrainerSpellLikeCpp,
-    TrainerSpellRowLikeCpp, TrainerStoreLikeCpp,
+    TRAINER_TYPE_TRADESKILL_LIKE_CPP, TrainerLikeCpp, TrainerLoadDiagnosticLikeCpp,
+    TrainerLoadOutcomeLikeCpp, TrainerLoadReportLikeCpp, TrainerLocaleRowLikeCpp,
+    TrainerRowLikeCpp, TrainerSpellLikeCpp, TrainerSpellRowLikeCpp, TrainerStoreLikeCpp,
 };
 pub use trinity_string::{
     LANG_LEVEL_MINREQUIRED_AND_ITEM_LIKE_CPP, LANG_LEVEL_MINREQUIRED_LIKE_CPP,

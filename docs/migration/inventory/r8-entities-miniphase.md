@@ -1,3 +1,55 @@
+# `#NEXT.R8.ENTITIES.1243` — faithful trainer-catalog reference validation.
+
+Issue #144 closes the last catalog-safety prerequisite before activating trainer purchases.
+C++ validates every `trainer_spell` row while building the process-wide immutable trainer
+catalog (`ObjectMgr.cpp:9246-9349`): it requires
+`GetSpellInfo(id, DIFFICULTY_NONE)` for the main spell, then a nonzero effective `SkillLine`, then
+checks all three nonzero required abilities and rejects the complete row if any is missing.
+Only validated spells are grouped, so the later orphan-trainer diagnostic also excludes rows
+that were already invalid. `LoadCreatureTrainers` then requires, in order, the creature
+template, the trainer and—unless both selector fields are zero—the exact gossip
+`(MenuID, OrderIndex)` option before publishing the mapping
+(`ObjectMgr.cpp:9358-9406`). `Trainer::SendSpells` and `TeachSpell` consume that catalog;
+they do not repeat these world-data foreign-key checks per request
+(`Trainer.cpp:36-179`, `Trainer.h:35-83`).
+
+`TrainerStoreLikeCpp` now makes the four read-only existence authorities mandatory inputs to
+both its pure builder and database loader. It applies the checks in the same observable C++
+order, skips every optional zero without querying its authority, reports every missing
+`ReqAbility1..3` before rejecting the row, and preserves C++'s first `emplace` result for a
+duplicate trainer definition. Creature mappings short-circuit in creature → trainer → gossip
+order; `(0, 0)` remains the lookup-free default while either nonzero selector requires the
+selected option. Each rejection has a reason-specific load-report entry and the startup
+diagnostic stream retains validation/row order instead of regrouping failures by category.
+
+The composition root supplies already loaded immutable stores only: exact regular or
+server-side `SpellInfo` membership through C++'s effective `Difficulty` fallback chain starting
+at `DIFFICULTY_NONE`, the effective `SkillLine` identity from issue #148, creature-template
+membership and gossip-menu `OrderIndex` membership. The canonical `DifficultyStore` now composes
+WDC4, official SQL, custom SQL and final `hotfix_data` removals in C++ order; it retains the real
+WDC4 table hash (`0xCB297E3A` in the 3.4.3 fixture, distinct from layout hash `0x3FE0C298`).
+The shipped DB2 has no ID-zero row, but a valid custom ID-zero overlay can therefore redirect
+the lookup to a nonzero spell difficulty exactly as C++ permits. Rust additionally detects an
+invalid custom fallback cycle and rejects the lookup instead of reproducing C++'s unbounded
+startup loop. No request path performs a world database query and no second trainer cache or
+mutable mirror is introduced.
+
+Focused regressions cover C++ short-circuit order, all main/skill/three-required-spell
+rejections, whole-row rejection with all missing required spells reported, every zero
+exception, validated-only orphan diagnostics, duplicate-trainer `emplace` behavior, missing
+creature/trainer/gossip mappings, all selector-zero combinations, diagnostics interleaved in
+C++ load order, regular/server-side difficulty-zero and custom ID-zero fallback composition,
+cycle protection, effective Difficulty overlay/removal order and table hash, and
+effective-vs-payload SkillLine identity. All 14 trainer-focused tests and the complete
+`wow-data` suite (615/0) pass; format and whitespace checks are clean.
+
+This remains `represented-partial`: it validates the immutable catalog that existing trainer
+list code and the dormant buy handler consume, but deliberately does not register or activate
+`TrainerBuySpell` (#142), change prices or player prerequisites, implement `TeachSpell`, alter
+packets, charge money or persist learned spells. Full preflight, CI, current-HEAD GitHub Codex
+review and merge remain closeout gates; no new client-visible behavior or manual-client
+readiness is claimed.
+
 # `#NEXT.R8.ENTITIES.1242` — exact effective SkillLine record authority.
 
 Issue #148 closes the second key-level prerequisite found while auditing trainer catalog
