@@ -75,9 +75,60 @@ pub struct TrainerLoadReportLikeCpp {
     pub trainer_locale_entries: usize,
     pub creature_trainer_rows_seen: usize,
     pub creature_trainer_entries: usize,
+    pub skipped_spells_missing_spell: Vec<(u32, u32)>,
+    pub skipped_spells_missing_skill_line: Vec<(u32, u32, u32)>,
+    pub skipped_spells_missing_required_spell: Vec<(u32, u32, u8, u32)>,
     pub skipped_spells_missing_trainer: Vec<(u32, u32)>,
     pub skipped_locales_missing_trainer: Vec<(u32, String)>,
+    pub skipped_creature_trainers_missing_creature_template: Vec<(u32, u32, u32, u32)>,
     pub skipped_creature_trainers_missing_trainer: Vec<(u32, u32, u32, u32)>,
+    pub skipped_creature_trainers_missing_gossip_option: Vec<(u32, u32, u32, u32)>,
+    /// C++ writes loader diagnostics as each row is validated. Keep the
+    /// category buckets above for counts/tests, but use this stream when
+    /// publishing diagnostics so independent categories are not regrouped.
+    pub diagnostics_in_load_order_like_cpp: Vec<TrainerLoadDiagnosticLikeCpp>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TrainerLoadDiagnosticLikeCpp {
+    TrainerSpellMissingSpell {
+        trainer_id: u32,
+        spell_id: u32,
+    },
+    TrainerSpellMissingSkillLine {
+        trainer_id: u32,
+        spell_id: u32,
+        skill_line_id: u32,
+    },
+    TrainerSpellMissingRequiredSpell {
+        trainer_id: u32,
+        spell_id: u32,
+        required_index: u8,
+        required_spell_id: u32,
+    },
+    TrainerSpellMissingTrainer {
+        trainer_id: u32,
+        spell_id: u32,
+    },
+    TrainerLocaleMissingTrainer {
+        trainer_id: u32,
+        locale: String,
+    },
+    CreatureTrainerMissingCreatureTemplate {
+        creature_id: u32,
+    },
+    CreatureTrainerMissingTrainer {
+        creature_id: u32,
+        trainer_id: u32,
+        menu_id: u32,
+        option_id: u32,
+    },
+    CreatureTrainerMissingGossipOption {
+        creature_id: u32,
+        trainer_id: u32,
+        menu_id: u32,
+        option_id: u32,
+    },
 }
 
 #[derive(Debug, Clone, Default)]
@@ -132,16 +183,96 @@ impl TrainerLikeCpp {
 }
 
 impl TrainerStoreLikeCpp {
-    pub fn from_rows_like_cpp(
+    /// Builds the immutable trainer catalog after applying the external
+    /// `SpellMgr`/DB2/ObjectMgr/gossip existence checks owned by the caller.
+    ///
+    /// The callbacks are required so no production call site can accidentally
+    /// publish unvalidated rows.
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_rows_like_cpp<
+        SpellExists,
+        SkillLineExists,
+        CreatureTemplateExists,
+        GossipOptionExists,
+    >(
         trainer_rows: impl IntoIterator<Item = TrainerRowLikeCpp>,
         trainer_spell_rows: impl IntoIterator<Item = TrainerSpellRowLikeCpp>,
         trainer_locale_rows: impl IntoIterator<Item = TrainerLocaleRowLikeCpp>,
         creature_trainer_rows: impl IntoIterator<Item = CreatureTrainerRowLikeCpp>,
-    ) -> TrainerLoadOutcomeLikeCpp {
+        mut spell_exists: SpellExists,
+        mut skill_line_exists: SkillLineExists,
+        mut creature_template_exists: CreatureTemplateExists,
+        mut gossip_option_exists: GossipOptionExists,
+    ) -> TrainerLoadOutcomeLikeCpp
+    where
+        SpellExists: FnMut(u32) -> bool,
+        SkillLineExists: FnMut(u32) -> bool,
+        CreatureTemplateExists: FnMut(u32) -> bool,
+        GossipOptionExists: FnMut(u32, u32) -> bool,
+    {
         let trainer_spell_rows: Vec<TrainerSpellRowLikeCpp> =
             trainer_spell_rows.into_iter().collect();
+        let mut report = TrainerLoadReportLikeCpp {
+            trainer_spell_rows: trainer_spell_rows.len(),
+            ..TrainerLoadReportLikeCpp::default()
+        };
         let mut spells_by_trainer: HashMap<u32, Vec<TrainerSpellLikeCpp>> = HashMap::new();
         for row in &trainer_spell_rows {
+            if !spell_exists(row.spell.spell_id) {
+                report
+                    .skipped_spells_missing_spell
+                    .push((row.trainer_id, row.spell.spell_id));
+                report.diagnostics_in_load_order_like_cpp.push(
+                    TrainerLoadDiagnosticLikeCpp::TrainerSpellMissingSpell {
+                        trainer_id: row.trainer_id,
+                        spell_id: row.spell.spell_id,
+                    },
+                );
+                continue;
+            }
+
+            if row.spell.req_skill_line != 0 && !skill_line_exists(row.spell.req_skill_line) {
+                report.skipped_spells_missing_skill_line.push((
+                    row.trainer_id,
+                    row.spell.spell_id,
+                    row.spell.req_skill_line,
+                ));
+                report.diagnostics_in_load_order_like_cpp.push(
+                    TrainerLoadDiagnosticLikeCpp::TrainerSpellMissingSkillLine {
+                        trainer_id: row.trainer_id,
+                        spell_id: row.spell.spell_id,
+                        skill_line_id: row.spell.req_skill_line,
+                    },
+                );
+                continue;
+            }
+
+            let mut all_required_spells_valid = true;
+            for (index, required_spell) in row.spell.req_ability.iter().copied().enumerate() {
+                if required_spell != 0 && !spell_exists(required_spell) {
+                    let required_index =
+                        u8::try_from(index + 1).expect("trainer required-spell index fits u8");
+                    report.skipped_spells_missing_required_spell.push((
+                        row.trainer_id,
+                        row.spell.spell_id,
+                        required_index,
+                        required_spell,
+                    ));
+                    report.diagnostics_in_load_order_like_cpp.push(
+                        TrainerLoadDiagnosticLikeCpp::TrainerSpellMissingRequiredSpell {
+                            trainer_id: row.trainer_id,
+                            spell_id: row.spell.spell_id,
+                            required_index,
+                            required_spell_id: required_spell,
+                        },
+                    );
+                    all_required_spells_valid = false;
+                }
+            }
+            if !all_required_spells_valid {
+                continue;
+            }
+
             spells_by_trainer
                 .entry(row.trainer_id)
                 .or_default()
@@ -149,23 +280,19 @@ impl TrainerStoreLikeCpp {
         }
 
         let mut store = Self::default();
-        let mut report = TrainerLoadReportLikeCpp {
-            trainer_spell_rows: trainer_spell_rows.len(),
-            ..TrainerLoadReportLikeCpp::default()
-        };
 
         for row in trainer_rows {
             let spells = spells_by_trainer.remove(&row.id).unwrap_or_default();
-            store.trainers.insert(
-                row.id,
-                TrainerLikeCpp {
+            store
+                .trainers
+                .entry(row.id)
+                .or_insert_with(|| TrainerLikeCpp {
                     id: row.id,
                     trainer_type: row.trainer_type,
                     spells,
                     greeting: row.greeting,
                     greeting_locales: HashMap::new(),
-                },
-            );
+                });
             report.trainer_rows += 1;
         }
 
@@ -174,6 +301,12 @@ impl TrainerStoreLikeCpp {
                 report
                     .skipped_spells_missing_trainer
                     .push((trainer_id, spell.spell_id));
+                report.diagnostics_in_load_order_like_cpp.push(
+                    TrainerLoadDiagnosticLikeCpp::TrainerSpellMissingTrainer {
+                        trainer_id,
+                        spell_id: spell.spell_id,
+                    },
+                );
             }
         }
 
@@ -192,12 +325,30 @@ impl TrainerStoreLikeCpp {
             } else {
                 report
                     .skipped_locales_missing_trainer
-                    .push((row.id, row.locale));
+                    .push((row.id, row.locale.clone()));
+                report.diagnostics_in_load_order_like_cpp.push(
+                    TrainerLoadDiagnosticLikeCpp::TrainerLocaleMissingTrainer {
+                        trainer_id: row.id,
+                        locale: row.locale,
+                    },
+                );
             }
         }
 
         for row in creature_trainer_rows {
             report.creature_trainer_rows_seen += 1;
+            if !creature_template_exists(row.creature_id) {
+                report
+                    .skipped_creature_trainers_missing_creature_template
+                    .push((row.creature_id, row.trainer_id, row.menu_id, row.option_id));
+                report.diagnostics_in_load_order_like_cpp.push(
+                    TrainerLoadDiagnosticLikeCpp::CreatureTrainerMissingCreatureTemplate {
+                        creature_id: row.creature_id,
+                    },
+                );
+                continue;
+            }
+
             if !store.trainers.contains_key(&row.trainer_id) {
                 report.skipped_creature_trainers_missing_trainer.push((
                     row.creature_id,
@@ -205,6 +356,31 @@ impl TrainerStoreLikeCpp {
                     row.menu_id,
                     row.option_id,
                 ));
+                report.diagnostics_in_load_order_like_cpp.push(
+                    TrainerLoadDiagnosticLikeCpp::CreatureTrainerMissingTrainer {
+                        creature_id: row.creature_id,
+                        trainer_id: row.trainer_id,
+                        menu_id: row.menu_id,
+                        option_id: row.option_id,
+                    },
+                );
+                continue;
+            }
+
+            if (row.menu_id != 0 || row.option_id != 0)
+                && !gossip_option_exists(row.menu_id, row.option_id)
+            {
+                report
+                    .skipped_creature_trainers_missing_gossip_option
+                    .push((row.creature_id, row.trainer_id, row.menu_id, row.option_id));
+                report.diagnostics_in_load_order_like_cpp.push(
+                    TrainerLoadDiagnosticLikeCpp::CreatureTrainerMissingGossipOption {
+                        creature_id: row.creature_id,
+                        trainer_id: row.trainer_id,
+                        menu_id: row.menu_id,
+                        option_id: row.option_id,
+                    },
+                );
                 continue;
             }
 
@@ -219,7 +395,24 @@ impl TrainerStoreLikeCpp {
     }
 
     /// C++ `ObjectMgr::LoadTrainers` + `LoadCreatureTrainers`.
-    pub async fn load_like_cpp(db: &WorldDatabase) -> Result<TrainerLoadOutcomeLikeCpp> {
+    pub async fn load_like_cpp<
+        SpellExists,
+        SkillLineExists,
+        CreatureTemplateExists,
+        GossipOptionExists,
+    >(
+        db: &WorldDatabase,
+        spell_exists: SpellExists,
+        skill_line_exists: SkillLineExists,
+        creature_template_exists: CreatureTemplateExists,
+        gossip_option_exists: GossipOptionExists,
+    ) -> Result<TrainerLoadOutcomeLikeCpp>
+    where
+        SpellExists: FnMut(u32) -> bool,
+        SkillLineExists: FnMut(u32) -> bool,
+        CreatureTemplateExists: FnMut(u32) -> bool,
+        GossipOptionExists: FnMut(u32, u32) -> bool,
+    {
         let stmt = db.prepare(WorldStatements::SEL_TRAINER_SPELLS_ALL);
         let mut result = db.query(&stmt).await?;
         let mut spell_rows = Vec::new();
@@ -296,6 +489,10 @@ impl TrainerStoreLikeCpp {
             spell_rows,
             locale_rows,
             creature_trainer_rows,
+            spell_exists,
+            skill_line_exists,
+            creature_template_exists,
+            gossip_option_exists,
         ))
     }
 
@@ -358,6 +555,8 @@ fn locale_from_name_like_cpp(name: &str) -> Option<Locale> {
 
 #[cfg(test)]
 mod tests {
+    use std::cell::RefCell;
+
     use super::*;
 
     fn spell_row(trainer_id: u32, spell_id: u32) -> TrainerSpellRowLikeCpp {
@@ -382,9 +581,27 @@ mod tests {
         }
     }
 
+    fn from_rows_with_existing_references(
+        trainer_rows: impl IntoIterator<Item = TrainerRowLikeCpp>,
+        trainer_spell_rows: impl IntoIterator<Item = TrainerSpellRowLikeCpp>,
+        trainer_locale_rows: impl IntoIterator<Item = TrainerLocaleRowLikeCpp>,
+        creature_trainer_rows: impl IntoIterator<Item = CreatureTrainerRowLikeCpp>,
+    ) -> TrainerLoadOutcomeLikeCpp {
+        TrainerStoreLikeCpp::from_rows_like_cpp(
+            trainer_rows,
+            trainer_spell_rows,
+            trainer_locale_rows,
+            creature_trainer_rows,
+            |_| true,
+            |_| true,
+            |_| true,
+            |_, _| true,
+        )
+    }
+
     #[test]
     fn trainer_store_groups_spells_after_trainer_rows_like_cpp() {
-        let outcome = TrainerStoreLikeCpp::from_rows_like_cpp(
+        let outcome = from_rows_with_existing_references(
             [trainer_row(10), trainer_row(11)],
             [
                 spell_row(10, 1000),
@@ -415,12 +632,8 @@ mod tests {
 
     #[test]
     fn trainer_store_reports_spells_without_existing_trainer_like_cpp() {
-        let outcome = TrainerStoreLikeCpp::from_rows_like_cpp(
-            [trainer_row(10)],
-            [spell_row(99, 3000)],
-            [],
-            [],
-        );
+        let outcome =
+            from_rows_with_existing_references([trainer_row(10)], [spell_row(99, 3000)], [], []);
 
         assert_eq!(outcome.store.spell_count_like_cpp(), 0);
         assert_eq!(
@@ -431,7 +644,7 @@ mod tests {
 
     #[test]
     fn trainer_locales_skip_enus_and_fallback_to_default_like_cpp() {
-        let outcome = TrainerStoreLikeCpp::from_rows_like_cpp(
+        let outcome = from_rows_with_existing_references(
             [trainer_row(10)],
             [],
             [
@@ -472,7 +685,7 @@ mod tests {
 
     #[test]
     fn trainer_locales_report_missing_trainer_like_cpp() {
-        let outcome = TrainerStoreLikeCpp::from_rows_like_cpp(
+        let outcome = from_rows_with_existing_references(
             [],
             [],
             [TrainerLocaleRowLikeCpp {
@@ -491,7 +704,7 @@ mod tests {
 
     #[test]
     fn creature_trainer_map_matches_cpp_lookup_shape() {
-        let outcome = TrainerStoreLikeCpp::from_rows_like_cpp(
+        let outcome = from_rows_with_existing_references(
             [trainer_row(10), trainer_row(20)],
             [],
             [],
@@ -523,7 +736,7 @@ mod tests {
 
     #[test]
     fn creature_trainer_skips_missing_trainer_like_cpp() {
-        let outcome = TrainerStoreLikeCpp::from_rows_like_cpp(
+        let outcome = from_rows_with_existing_references(
             [],
             [],
             [],
@@ -539,6 +752,410 @@ mod tests {
         assert_eq!(
             outcome.report.skipped_creature_trainers_missing_trainer,
             vec![(100, 99, 7, 2)]
+        );
+    }
+
+    #[test]
+    fn trainer_spell_validation_short_circuits_in_cpp_order() {
+        let mut missing_main_spell = spell_row(10, 1000);
+        missing_main_spell.spell.req_skill_line = 2000;
+        missing_main_spell.spell.req_ability = [3000, 0, 4000];
+
+        let main_spell_calls = RefCell::new(Vec::new());
+        let outcome = TrainerStoreLikeCpp::from_rows_like_cpp(
+            [trainer_row(10)],
+            [missing_main_spell],
+            [],
+            [],
+            |spell_id| {
+                main_spell_calls.borrow_mut().push(spell_id);
+                false
+            },
+            |_| panic!("missing main SpellId must short-circuit ReqSkillLine"),
+            |_| true,
+            |_, _| true,
+        );
+        assert_eq!(*main_spell_calls.borrow(), vec![1000]);
+        assert_eq!(
+            outcome.report.skipped_spells_missing_spell,
+            vec![(10, 1000)]
+        );
+        assert!(outcome.report.skipped_spells_missing_skill_line.is_empty());
+        assert!(
+            outcome
+                .report
+                .skipped_spells_missing_required_spell
+                .is_empty()
+        );
+
+        let mut missing_skill_line = spell_row(10, 1000);
+        missing_skill_line.spell.req_skill_line = 2000;
+        missing_skill_line.spell.req_ability = [3000, 0, 4000];
+
+        let spell_calls = RefCell::new(Vec::new());
+        let outcome = TrainerStoreLikeCpp::from_rows_like_cpp(
+            [trainer_row(10)],
+            [missing_skill_line],
+            [],
+            [],
+            |spell_id| {
+                spell_calls.borrow_mut().push(spell_id);
+                true
+            },
+            |_| false,
+            |_| true,
+            |_, _| true,
+        );
+        assert_eq!(*spell_calls.borrow(), vec![1000]);
+        assert!(outcome.report.skipped_spells_missing_spell.is_empty());
+        assert_eq!(
+            outcome.report.skipped_spells_missing_skill_line,
+            vec![(10, 1000, 2000)]
+        );
+        assert!(
+            outcome
+                .report
+                .skipped_spells_missing_required_spell
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn trainer_spell_accepts_existing_skill_and_required_spells_like_cpp() {
+        let mut row = spell_row(10, 1000);
+        row.spell.req_skill_line = 2000;
+        row.spell.req_ability = [3000, 0, 4000];
+
+        let spell_calls = RefCell::new(Vec::new());
+        let skill_calls = RefCell::new(Vec::new());
+        let outcome = TrainerStoreLikeCpp::from_rows_like_cpp(
+            [trainer_row(10)],
+            [row],
+            [],
+            [],
+            |spell_id| {
+                spell_calls.borrow_mut().push(spell_id);
+                matches!(spell_id, 1000 | 3000 | 4000)
+            },
+            |skill_line_id| {
+                skill_calls.borrow_mut().push(skill_line_id);
+                skill_line_id == 2000
+            },
+            |_| true,
+            |_, _| true,
+        );
+
+        assert_eq!(*spell_calls.borrow(), vec![1000, 3000, 4000]);
+        assert_eq!(*skill_calls.borrow(), vec![2000]);
+        assert!(
+            outcome
+                .store
+                .get_trainer_like_cpp(10)
+                .unwrap()
+                .get_spell_like_cpp(1000)
+                .is_some()
+        );
+        assert!(outcome.report.skipped_spells_missing_spell.is_empty());
+        assert!(outcome.report.skipped_spells_missing_skill_line.is_empty());
+        assert!(
+            outcome
+                .report
+                .skipped_spells_missing_required_spell
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn trainer_spell_rejects_whole_row_and_reports_every_missing_required_spell_like_cpp() {
+        let mut row = spell_row(10, 1000);
+        row.spell.req_skill_line = 2000;
+        row.spell.req_ability = [3000, 0, 4000];
+        let mut one_missing_requirement = spell_row(10, 1001);
+        one_missing_requirement.spell.req_skill_line = 2000;
+        one_missing_requirement.spell.req_ability = [0, 3001, 0];
+
+        let spell_calls = RefCell::new(Vec::new());
+        let outcome = TrainerStoreLikeCpp::from_rows_like_cpp(
+            [trainer_row(10)],
+            [row, one_missing_requirement],
+            [],
+            [],
+            |spell_id| {
+                spell_calls.borrow_mut().push(spell_id);
+                matches!(spell_id, 1000 | 1001)
+            },
+            |skill_line_id| skill_line_id == 2000,
+            |_| true,
+            |_, _| true,
+        );
+
+        assert_eq!(*spell_calls.borrow(), vec![1000, 3000, 4000, 1001, 3001]);
+        assert_eq!(
+            outcome.report.skipped_spells_missing_required_spell,
+            vec![
+                (10, 1000, 1, 3000),
+                (10, 1000, 3, 4000),
+                (10, 1001, 2, 3001)
+            ]
+        );
+        assert_eq!(outcome.store.spell_count_like_cpp(), 0);
+        assert!(outcome.report.skipped_spells_missing_trainer.is_empty());
+    }
+
+    #[test]
+    fn trainer_spell_zero_fields_skip_optional_lookups_like_cpp() {
+        let mut row = spell_row(10, 1000);
+        row.spell.money_cost = 0;
+        row.spell.req_skill_line = 0;
+        row.spell.req_skill_rank = 999;
+        row.spell.req_ability = [0, 0, 0];
+        row.spell.req_level = 0;
+
+        let outcome = TrainerStoreLikeCpp::from_rows_like_cpp(
+            [trainer_row(10)],
+            [row, spell_row(10, 0)],
+            [],
+            [],
+            |spell_id| spell_id == 1000,
+            |_| panic!("ReqSkillLine zero must not be looked up"),
+            |_| true,
+            |_, _| true,
+        );
+
+        let spell = outcome
+            .store
+            .get_trainer_like_cpp(10)
+            .unwrap()
+            .get_spell_like_cpp(1000)
+            .unwrap();
+        assert_eq!(spell.money_cost, 0);
+        assert_eq!(spell.req_skill_rank, 999);
+        assert_eq!(spell.req_level, 0);
+        assert_eq!(outcome.report.skipped_spells_missing_spell, vec![(10, 0)]);
+    }
+
+    #[test]
+    fn only_validated_orphan_trainer_spells_are_reported_like_cpp() {
+        let outcome = TrainerStoreLikeCpp::from_rows_like_cpp(
+            [],
+            [spell_row(90, 1000), spell_row(91, 1001)],
+            [],
+            [],
+            |spell_id| spell_id == 1000,
+            |_| true,
+            |_| true,
+            |_, _| true,
+        );
+
+        assert_eq!(
+            outcome.report.skipped_spells_missing_spell,
+            vec![(91, 1001)]
+        );
+        assert_eq!(
+            outcome.report.skipped_spells_missing_trainer,
+            vec![(90, 1000)]
+        );
+    }
+
+    #[test]
+    fn duplicate_trainer_rows_keep_first_definition_like_cpp() {
+        let first = TrainerRowLikeCpp {
+            id: 10,
+            trainer_type: TRAINER_TYPE_TRADESKILL_LIKE_CPP,
+            greeting: "First".to_string(),
+        };
+        let second = TrainerRowLikeCpp {
+            id: 10,
+            trainer_type: TRAINER_TYPE_PET_LIKE_CPP,
+            greeting: "Second".to_string(),
+        };
+        let outcome =
+            from_rows_with_existing_references([first, second], [spell_row(10, 1000)], [], []);
+
+        let trainer = outcome.store.get_trainer_like_cpp(10).unwrap();
+        assert_eq!(
+            trainer.trainer_type_like_cpp(),
+            TRAINER_TYPE_TRADESKILL_LIKE_CPP
+        );
+        assert_eq!(trainer.greeting_like_cpp(Locale::EnUS), "First");
+        assert!(trainer.get_spell_like_cpp(1000).is_some());
+        assert_eq!(outcome.store.len(), 1);
+    }
+
+    #[test]
+    fn creature_trainer_validation_short_circuits_and_preserves_zero_matrix_like_cpp() {
+        let gossip_calls = RefCell::new(Vec::new());
+        let outcome = TrainerStoreLikeCpp::from_rows_like_cpp(
+            [trainer_row(10)],
+            [],
+            [],
+            [
+                CreatureTrainerRowLikeCpp {
+                    creature_id: 100,
+                    trainer_id: 99,
+                    menu_id: 7,
+                    option_id: 2,
+                },
+                CreatureTrainerRowLikeCpp {
+                    creature_id: 101,
+                    trainer_id: 99,
+                    menu_id: 7,
+                    option_id: 2,
+                },
+                CreatureTrainerRowLikeCpp {
+                    creature_id: 102,
+                    trainer_id: 10,
+                    menu_id: 7,
+                    option_id: 9,
+                },
+                CreatureTrainerRowLikeCpp {
+                    creature_id: 103,
+                    trainer_id: 10,
+                    menu_id: 0,
+                    option_id: 0,
+                },
+                CreatureTrainerRowLikeCpp {
+                    creature_id: 104,
+                    trainer_id: 10,
+                    menu_id: 7,
+                    option_id: 2,
+                },
+                CreatureTrainerRowLikeCpp {
+                    creature_id: 105,
+                    trainer_id: 10,
+                    menu_id: 8,
+                    option_id: 0,
+                },
+                CreatureTrainerRowLikeCpp {
+                    creature_id: 106,
+                    trainer_id: 10,
+                    menu_id: 0,
+                    option_id: 3,
+                },
+            ],
+            |_| true,
+            |_| true,
+            |creature_id| creature_id != 100,
+            |menu_id, option_id| {
+                gossip_calls.borrow_mut().push((menu_id, option_id));
+                matches!((menu_id, option_id), (7, 2) | (8, 0) | (0, 3))
+            },
+        );
+
+        assert_eq!(
+            outcome
+                .report
+                .skipped_creature_trainers_missing_creature_template,
+            vec![(100, 99, 7, 2)]
+        );
+        assert_eq!(
+            outcome.report.skipped_creature_trainers_missing_trainer,
+            vec![(101, 99, 7, 2)]
+        );
+        assert_eq!(
+            outcome
+                .report
+                .skipped_creature_trainers_missing_gossip_option,
+            vec![(102, 10, 7, 9)]
+        );
+        assert_eq!(*gossip_calls.borrow(), vec![(7, 9), (7, 2), (8, 0), (0, 3)]);
+        assert_eq!(outcome.store.get_creature_default_trainer_like_cpp(103), 10);
+        assert_eq!(
+            outcome
+                .store
+                .get_creature_trainer_for_gossip_option_like_cpp(104, 7, 2),
+            10
+        );
+        assert_eq!(
+            outcome
+                .store
+                .get_creature_trainer_for_gossip_option_like_cpp(105, 8, 0),
+            10
+        );
+        assert_eq!(
+            outcome
+                .store
+                .get_creature_trainer_for_gossip_option_like_cpp(106, 0, 3),
+            10
+        );
+        assert_eq!(outcome.store.creature_trainer_count_like_cpp(), 4);
+    }
+
+    #[test]
+    fn trainer_load_diagnostics_preserve_cpp_phase_and_row_order() {
+        let mut missing_skill = spell_row(10, 1000);
+        missing_skill.spell.req_skill_line = 2000;
+
+        let outcome = TrainerStoreLikeCpp::from_rows_like_cpp(
+            [trainer_row(10)],
+            [missing_skill, spell_row(10, 1001), spell_row(99, 1002)],
+            [TrainerLocaleRowLikeCpp {
+                id: 99,
+                locale: "frFR".to_string(),
+                greeting: "bonjour".to_string(),
+            }],
+            [
+                CreatureTrainerRowLikeCpp {
+                    creature_id: 100,
+                    trainer_id: 10,
+                    menu_id: 0,
+                    option_id: 0,
+                },
+                CreatureTrainerRowLikeCpp {
+                    creature_id: 101,
+                    trainer_id: 99,
+                    menu_id: 0,
+                    option_id: 0,
+                },
+                CreatureTrainerRowLikeCpp {
+                    creature_id: 102,
+                    trainer_id: 10,
+                    menu_id: 7,
+                    option_id: 9,
+                },
+            ],
+            |spell_id| matches!(spell_id, 1000 | 1002),
+            |_| false,
+            |creature_id| creature_id != 100,
+            |_, _| false,
+        );
+
+        assert_eq!(
+            outcome.report.diagnostics_in_load_order_like_cpp,
+            vec![
+                TrainerLoadDiagnosticLikeCpp::TrainerSpellMissingSkillLine {
+                    trainer_id: 10,
+                    spell_id: 1000,
+                    skill_line_id: 2000,
+                },
+                TrainerLoadDiagnosticLikeCpp::TrainerSpellMissingSpell {
+                    trainer_id: 10,
+                    spell_id: 1001,
+                },
+                TrainerLoadDiagnosticLikeCpp::TrainerSpellMissingTrainer {
+                    trainer_id: 99,
+                    spell_id: 1002,
+                },
+                TrainerLoadDiagnosticLikeCpp::TrainerLocaleMissingTrainer {
+                    trainer_id: 99,
+                    locale: "frFR".to_string(),
+                },
+                TrainerLoadDiagnosticLikeCpp::CreatureTrainerMissingCreatureTemplate {
+                    creature_id: 100,
+                },
+                TrainerLoadDiagnosticLikeCpp::CreatureTrainerMissingTrainer {
+                    creature_id: 101,
+                    trainer_id: 99,
+                    menu_id: 0,
+                    option_id: 0,
+                },
+                TrainerLoadDiagnosticLikeCpp::CreatureTrainerMissingGossipOption {
+                    creature_id: 102,
+                    trainer_id: 10,
+                    menu_id: 7,
+                    option_id: 9,
+                },
+            ]
         );
     }
 }

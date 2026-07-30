@@ -27837,6 +27837,10 @@ mod tests {
                     menu_id: 0,
                     option_id: 0,
                 }],
+                |_| true,
+                |_| true,
+                |_| true,
+                |_, _| true,
             )
             .store,
         ));
