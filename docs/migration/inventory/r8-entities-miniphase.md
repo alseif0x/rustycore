@@ -1,3 +1,47 @@
+# `#NEXT.R8.ENTITIES.1242` — exact effective SkillLine record authority.
+
+Issue #148 closes the second key-level prerequisite found while auditing trainer catalog
+validation. C++ `ObjectMgr::LoadTrainers` accepts a nonzero `ReqSkillLine` only when
+`sSkillLineStore.LookupEntry(id)` succeeds (`ObjectMgr.cpp:9271-9293`). That lookup sees the
+effective DB2 store, not the client file alone: `SkillLine.db2` is loaded first, official SQL
+rows where `VerifiedBuild > 0` replace/add records, custom SQL rows where
+`VerifiedBuild <= 0` replace/add records, and the final `hotfix_data` decision can erase the
+record (`DB2Store.cpp:88-144`, `DB2DatabaseLoader.cpp:28-182`,
+`DB2Stores.cpp:1539-1607`). Rust previously loaded only WDC4 payloads, so it had no faithful
+existence authority for issue #144.
+
+`SkillLineStore` now owns both truths without creating a second runtime cache. Its existing
+`entries` remain the payload Rust has actually hydrated. A private effective-ID set starts from
+the WDC4 record IDs, incorporates the official and custom SQL identity passes in C++ order, then
+applies the shared final-removal store. `contains_effective_record_like_cpp` exposes only the
+direct `LookupEntry` question; an SQL-only identity can therefore be present while `get(id)`
+correctly remains absent instead of manufacturing an empty `SkillLineEntry`.
+
+The removal key uses the **table hash read from the WDC4 header**. For the audited 3.4.3 fixture,
+the FileDataID is `1240935`, the table hash is `0xB53DC9D6`, and the layout hash is
+`0x5CB7F941`; these are distinct identities. Production does not hardcode either hash. A fixture
+regression pins the observed table hash so a future implementation cannot accidentally use the
+layout hash. The process-wide `Db2HotfixRemovalStoreLikeCpp` is now loaded once before
+`SkillLineStore` and reused later by the effective SpellName/SpellInfo loaders.
+
+Focused regressions prove base/official/custom identity union and deduplication, an overlay-only
+identity without fabricated payload, matching-table removals of both base and SQL identities,
+foreign-table isolation, and both removed-to-valid and valid-to-removed final-status sequences.
+The real 3.4.3 DB2 fixture passes its table-hash assertion. The complete local preflight passes
+with `RUST_MIN_STACK=8589934592` after Rust 1.88 requested the larger stack: `wow-data` 601/0,
+`wow-packet` 717/0, `wow-loot` 69/0, `wow-entities` 670/0, `wow-map` 688/0 with one ignored,
+`wow-network` 106/0, `wow-world` 3158/0 with one ignored, the production handler contract,
+bot-harness tests and the required capture-diff flow are clean. The committed-diff Codex review
+also reports no findings.
+
+This remains `represented-partial`: it makes the direct SkillLine identity lookup exact, but does
+not hydrate SQL-only SkillLine payload fields or locale overlays for other consumers. Issue #144
+owns use of this seam for trainer foreign-key validation, and #142 owns handler activation. The
+legacy's derived SkillLine indices can retain stale pointers because C++ builds them before the
+later removal pass; this slice intentionally models the direct `LookupEntry` authority used by
+the trainer loader rather than reproducing that unrelated inconsistency. No packets, gameplay
+handlers, persistence paths or client-visible behavior are activated here.
+
 # `#NEXT.R8.ENTITIES.1241` — exact effective regular SpellInfo key authority.
 
 Issue #146 closes the key-level prerequisite discovered while auditing the trainer catalog.
