@@ -5225,6 +5225,7 @@ async fn main() -> Result<ExitCode> {
         char_db: Some(Arc::clone(&char_db)),
         login_db: Some(Arc::clone(&login_db)),
         world_db: Some(Arc::clone(&world_db)),
+        trainer_store: Some(Arc::clone(&trainer_data_store)),
         guid_generator: Some(Arc::clone(&guid_generator)),
         item_guid_generator: Some(Arc::clone(&item_guid_generator)),
         equipment_set_guid_generator: Some(Arc::clone(&equipment_set_guid_generator)),
@@ -12737,6 +12738,9 @@ async fn create_session(
     }
     if let Some(ref db) = resources.world_db {
         session.set_world_db(Arc::clone(db));
+    }
+    if let Some(ref store) = resources.trainer_store {
+        session.set_trainer_store_like_cpp(Arc::clone(store));
     }
     if let Some(ref store) = resources.bank_bag_slot_prices_store {
         session.set_bank_bag_slot_prices_store(Arc::clone(store));
