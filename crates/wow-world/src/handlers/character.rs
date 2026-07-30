@@ -80,6 +80,8 @@ use crate::session::{
     RepresentedHomebindLikeCpp, RepresentedQuestObjectiveProgressEventLikeCpp,
     RepresentedVoidStorageItemLikeCpp, SpellCastMetadata,
 };
+#[cfg(test)]
+use wow_entities::GAMEOBJECT_TYPE_GOOBER;
 
 // ── Handler registration ────────────────────────────────────────────
 
@@ -10271,28 +10273,42 @@ impl WorldSession {
 
         const GOSSIP_FLAG: u32 = 0x1;
 
-        let (npc_flags, entry) = self
-            .mutate_world_creature(hello.unit, |creature| {
-                creature.pause_interaction_movement_like_cpp();
-                (creature.npc_flags(), creature.entry())
-            })
-            .unwrap_or((0, 0));
-
-        info!(
-            "GossipHello npc_flags=0x{:X} entry={} for {:?}",
-            npc_flags, entry, hello.unit
-        );
-
         // C++ `HandleGossipHelloOpcode` resolves the creature through
         // `GetNPCIfCanInteractWith(..., UNIT_NPC_FLAG_GOSSIP, ...)` before
         // preparing DB-backed gossip, including quest text synthesized from a
         // gossip menu with no options.
         let gossip_access =
             self.represented_npc_can_interact_with_like_cpp(hello.unit, GOSSIP_FLAG, 0);
-        let (resolved_npc_flags, resolved_entry) = gossip_access
-            .as_ref()
-            .map(|access| (access.npc_flags, access.entry))
-            .unwrap_or((npc_flags, entry));
+        let trainer_access = match gossip_access {
+            Some(access) if access.npc_flags & TRAINER_NPC_FLAGS_MASK_LIKE_CPP != 0 => Some(access),
+            Some(_) => None,
+            None => self.represented_npc_can_interact_with_like_cpp(
+                hello.unit,
+                TRAINER_NPC_FLAGS_MASK_LIKE_CPP,
+                0,
+            ),
+        };
+        let Some(validated_access) = gossip_access.as_ref().or(trainer_access.as_ref()) else {
+            debug!(
+                account = self.account_id,
+                source = ?hello.unit,
+                "GossipHello rejected before clearing or publishing player-menu state"
+            );
+            return;
+        };
+        let (resolved_npc_flags, resolved_entry) =
+            (validated_access.npc_flags, validated_access.entry);
+        info!(
+            "GossipHello npc_flags=0x{:X} entry={} for {:?}",
+            resolved_npc_flags, resolved_entry, hello.unit
+        );
+
+        // C++ pauses the creature and clears PlayerMenu only after
+        // GetNPCIfCanInteractWith has accepted the source.
+        self.mutate_world_creature(hello.unit, |creature| {
+            creature.pause_interaction_movement_like_cpp();
+        });
+        self.gossip_options.clear();
 
         if let Some(access) = gossip_access.as_ref() {
             if let Some(world_db) = self.world_db().map(Arc::clone) {
@@ -10312,11 +10328,7 @@ impl WorldSession {
             }
         }
 
-        if let Some(access) = self.represented_npc_can_interact_with_like_cpp(
-            hello.unit,
-            TRAINER_NPC_FLAGS_MASK_LIKE_CPP,
-            0,
-        ) {
+        if let Some(access) = trainer_access {
             if self.send_represented_creature_trainer_gossip_menu_like_cpp(
                 hello.unit,
                 access.entry,
@@ -10833,7 +10845,7 @@ impl WorldSession {
 
         // Store gossip state for when the player selects an option.
         self.gossip_options = stored_options;
-        self.gossip_source_guid = Some(npc_guid);
+        self.set_player_interaction_source_like_cpp(npc_guid);
 
         Some(GossipMessage {
             gossip_guid: npc_guid,
@@ -10869,7 +10881,7 @@ impl WorldSession {
         };
 
         self.gossip_options = stored_options;
-        self.gossip_source_guid = Some(npc_guid);
+        self.set_player_interaction_source_like_cpp(npc_guid);
         self.send_packet(&GossipMessage {
             gossip_guid: npc_guid,
             gossip_id: 0,
@@ -10882,9 +10894,39 @@ impl WorldSession {
         true
     }
 
+    fn send_show_bank_like_cpp(&mut self, banker_guid: ObjectGuid) {
+        use wow_packet::packets::misc::NpcInteractionOpenResult;
+
+        // C++ `WorldSession::SendShowBank` resets PlayerMenu::InteractionData
+        // and stores the banker as the sole active interaction source.
+        self.set_player_interaction_source_like_cpp(banker_guid);
+        self.send_packet(&NpcInteractionOpenResult::new(banker_guid, 8));
+    }
+
+    pub(crate) fn send_close_gossip_like_cpp(&mut self) {
+        self.reset_player_interaction_data_like_cpp();
+        self.send_packet_realm(&GossipComplete {
+            suppress_sound: false,
+        });
+    }
+
     /// Direct interaction for NPCs without gossip menus (banker, auctioneer, etc.).
     async fn handle_npc_direct_interaction(&mut self, hello: Hello, npc_flags: u32) {
         use wow_packet::packets::misc::{AuctionHelloResponse, NpcInteractionOpenResult};
+
+        // This is Rust's shortcut for C++ `PrepareGossipMenu` followed by a
+        // built-in gossip option. C++ `SendGossipMenu` first replaces the
+        // complete InteractionData with this validated source, even when the
+        // service subsequently emits a dedicated packet.
+        self.set_player_interaction_source_like_cpp(hello.unit);
+
+        // This shortcut represents selecting one of C++'s built-in gossip
+        // options immediately after publishing it. `HandleGossipSelectOptionOpcode`
+        // removes fake death after source validation and before dispatching the
+        // service. Keep the empty-menu fallback out of that transition.
+        if npc_has_direct_interaction_like_cpp(npc_flags) {
+            self.remove_represented_feign_death_if_needed_like_cpp();
+        }
 
         if npc_flags & DIRECT_VENDOR_MASK_LIKE_CPP != 0 {
             self.handle_list_inventory(hello).await;
@@ -10893,7 +10935,7 @@ impl WorldSession {
         } else if npc_flags & DIRECT_AUCTIONEER_LIKE_CPP != 0 {
             self.send_packet(&AuctionHelloResponse::open(hello.unit));
         } else if npc_flags & DIRECT_BANKER_LIKE_CPP != 0 {
-            self.send_packet(&NpcInteractionOpenResult::new(hello.unit, 8));
+            self.send_show_bank_like_cpp(hello.unit);
         } else if npc_flags & DIRECT_FLIGHT_MASTER_LIKE_CPP != 0 {
             self.send_packet(&NpcInteractionOpenResult::new(hello.unit, 6));
         } else if npc_flags & DIRECT_TABARD_DESIGNER_LIKE_CPP != 0 {
@@ -10940,7 +10982,62 @@ impl WorldSession {
         };
         let (option_npc, _action_menu_id) = (opt.option_npc, opt.action_menu_id);
 
-        let npc_guid = self.gossip_source_guid.unwrap_or(select.gossip_unit);
+        if self.player_interaction_source_guid_like_cpp() != Some(select.gossip_unit) {
+            warn!(
+                account = self.account_id,
+                requested_source = ?select.gossip_unit,
+                active_source = ?self.player_interaction_source_guid_like_cpp(),
+                "GossipSelectOption rejected: interaction source mismatch"
+            );
+            return;
+        }
+        let npc_guid = select.gossip_unit;
+        let source_is_interactable = if npc_guid.is_any_type_creature() {
+            let required_flags = if option_npc == GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP {
+                NPCFlags1::GOSSIP.bits() | TRAINER_NPC_FLAGS_MASK_LIKE_CPP
+            } else {
+                NPCFlags1::GOSSIP.bits()
+            };
+            self.represented_npc_can_interact_with_like_cpp(npc_guid, required_flags, 0)
+                .is_some()
+        } else if npc_guid.is_game_object() {
+            self.represented_gameobject_gossip_can_interact_with_like_cpp(npc_guid)
+                .is_some()
+        } else {
+            false
+        };
+        if !source_is_interactable {
+            warn!(
+                account = self.account_id,
+                source = ?npc_guid,
+                option_npc = option_npc,
+                "GossipSelectOption rejected: source no longer interactable"
+            );
+            return;
+        }
+        // C++ removes fake death after revalidating the interaction source and
+        // before `Player::OnGossipSelect` validates the menu ID.
+        self.remove_represented_feign_death_if_needed_like_cpp();
+        // The C++ base gossip path rejects a packet menu that is not the
+        // currently published menu before executing its built-in action.
+        if opt.menu_id != select.gossip_id as u32 {
+            warn!(
+                account = self.account_id,
+                requested_menu_id = select.gossip_id,
+                active_menu_id = opt.menu_id,
+                "GossipSelectOption rejected: active menu mismatch"
+            );
+            return;
+        }
+        if npc_guid.is_game_object() && option_npc != 0 {
+            warn!(
+                account = self.account_id,
+                source = ?npc_guid,
+                option_npc,
+                "GossipSelectOption rejected: GameObject option is not C++ OptionNpc::None"
+            );
+            return;
+        }
         info!(
             "GossipSelectOption: OptionNpc={} for {:?}",
             option_npc, npc_guid
@@ -10971,7 +11068,7 @@ impl WorldSession {
             }
             6 => {
                 // Banker
-                self.send_packet(&NpcInteractionOpenResult::new(npc_guid, 8));
+                self.send_show_bank_like_cpp(npc_guid);
             }
             8 => {
                 // Guild Tabard Vendor
@@ -11020,7 +11117,6 @@ impl WorldSession {
     /// C++ ref: `HandleBankerActivateOpcode`
     /// (`Handlers/BankHandler.cpp:60-65`) opens banker interaction UI.
     pub async fn handle_banker_activate(&mut self, hello: Hello) {
-        use wow_packet::packets::misc::NpcInteractionOpenResult;
         info!(
             "BankerActivate {:?} account {}",
             hello.unit, self.account_id
@@ -11038,8 +11134,10 @@ impl WorldSession {
             return;
         };
 
-        self.set_represented_current_banker_guid_like_cpp(hello.unit);
-        self.send_packet(&NpcInteractionOpenResult::new(hello.unit, 8)); // Banker
+        // C++ removes fake death only after GetNPCIfCanInteractWith accepts the
+        // banker and before SendShowBank replaces InteractionData.
+        self.remove_represented_feign_death_if_needed_like_cpp();
+        self.send_show_bank_like_cpp(hello.unit);
     }
 
     fn plan_inventory_storage_move_like_cpp(
@@ -11961,9 +12059,7 @@ impl WorldSession {
         }
         // C++ closes gossip after attempting the triggered cast, even if the
         // spell execution itself cannot complete.
-        self.send_packet_realm(&GossipComplete {
-            suppress_sound: false,
-        });
+        self.send_close_gossip_like_cpp();
     }
 
     /// CMSG_TABARD_VENDOR_ACTIVATE — player talks to a tabard designer.
@@ -25135,6 +25231,48 @@ mod tests {
             .unwrap();
     }
 
+    fn seed_represented_feign_death_like_cpp(session: &mut WorldSession, slot: u8) {
+        let player_guid = session.player_guid().expect("player guid");
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player
+                    .unit_mut()
+                    .add_unit_state(wow_constants::unit::UnitState::DIED.bits());
+            })
+            .expect("canonical player");
+        session.visible_auras.insert(
+            slot,
+            AuraApplication {
+                spell_id: 5384,
+                caster_guid: player_guid,
+                slot,
+                duration_total: 0,
+                duration_remaining: 0,
+                stack_count: 1,
+                aura_flags: 0,
+                effect_mask: 1,
+                aura_interrupt_flags: 0,
+                aura_interrupt_flags2: 0,
+                represented_effect: Some(RepresentedAuraEffectLikeCpp::FeignDeath),
+                represented_amount: 0,
+                represented_effect_amounts: Vec::new(),
+                represented_misc_value: None,
+                represented_multiplier: 1.0,
+                applied_at: std::time::Instant::now(),
+            },
+        );
+    }
+
+    fn canonical_player_has_died_state_like_cpp(session: &mut WorldSession) -> bool {
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player
+                    .unit()
+                    .has_unit_state(wow_constants::unit::UnitState::DIED.bits())
+            })
+            .expect("canonical player")
+    }
+
     fn install_bind_spell_fixture(session: &mut WorldSession) {
         let mut spell_store = wow_data::SpellStore::new();
         spell_store.insert(
@@ -26312,6 +26450,7 @@ mod tests {
         insert_banker_creature(&canonical, innkeeper, NPCFlags1::INNKEEPER.bits());
         session.set_player_zone_area_like_cpp(12, 34);
         install_bind_spell_fixture(&mut session);
+        session.set_player_trainer_interaction_like_cpp(innkeeper, 77);
         let _ = WorldSession::game_time_ms_like_cpp();
         std::thread::sleep(std::time::Duration::from_millis(2));
         let cast_time_lower_bound = WorldSession::game_time_ms_like_cpp();
@@ -26345,6 +26484,11 @@ mod tests {
             vec![ServerOpcodes::PlayerBound, ServerOpcodes::GossipComplete],
             "C++ routes PlayerBound and GossipComplete on realm"
         );
+        assert!(
+            session.player_interaction_source_guid_like_cpp().is_none(),
+            "C++ PlayerMenu::SendCloseGossip resets interaction provenance"
+        );
+        assert_eq!(session.player_interaction_trainer_id_like_cpp(), 0);
         let mut spell_go = WorldPacket::from_bytes(&packets[0]);
         assert_eq!(
             spell_go.read_uint16().expect("SpellGo opcode"),
@@ -26612,6 +26756,63 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn banker_activate_removes_feign_after_validation_before_open_like_cpp() {
+        const FEIGN_SLOT: u8 = 17;
+        let (mut session, send_rx, canonical) = make_bank_slot_session(4);
+        insert_bank_test_player_in_world(&session, &canonical);
+        let banker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 37);
+        insert_banker_creature(&canonical, banker, NPCFlags1::BANKER.bits());
+        session.set_player_trainer_interaction_like_cpp(banker, 77);
+        seed_represented_feign_death_like_cpp(&mut session, FEIGN_SLOT);
+
+        session.handle_banker_activate(Hello { unit: banker }).await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![
+                ServerOpcodes::AuraUpdate,
+                ServerOpcodes::NpcInteractionOpenResult,
+            ],
+            "C++ removes feign death before SendShowBank"
+        );
+        assert!(!session.visible_auras.contains_key(&FEIGN_SLOT));
+        assert!(!canonical_player_has_died_state_like_cpp(&mut session));
+        assert_eq!(
+            session.player_interaction_source_guid_like_cpp(),
+            Some(banker)
+        );
+        assert_eq!(session.player_interaction_trainer_id_like_cpp(), 0);
+    }
+
+    #[tokio::test]
+    async fn banker_activate_invalid_source_preserves_feign_and_provenance_like_cpp() {
+        const FEIGN_SLOT: u8 = 18;
+        let (mut session, send_rx, canonical) = make_bank_slot_session(2);
+        insert_bank_test_player_in_world(&session, &canonical);
+        let invalid_banker =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 38);
+        let active_source =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 39);
+        insert_banker_creature(&canonical, invalid_banker, NPCFlags1::VENDOR.bits());
+        session.set_player_trainer_interaction_like_cpp(active_source, 77);
+        seed_represented_feign_death_like_cpp(&mut session, FEIGN_SLOT);
+
+        session
+            .handle_banker_activate(Hello {
+                unit: invalid_banker,
+            })
+            .await;
+
+        assert!(send_rx.try_recv().is_err());
+        assert!(session.visible_auras.contains_key(&FEIGN_SLOT));
+        assert!(canonical_player_has_died_state_like_cpp(&mut session));
+        assert!(
+            session.player_trainer_interaction_matches_like_cpp(active_source, 77),
+            "invalid banker must return before fake-death removal and SendShowBank"
+        );
+    }
+
+    #[tokio::test]
     async fn autobank_item_without_persistence_keeps_runtime_unchanged_like_cpp() {
         let (mut session, send_rx, canonical) = make_bank_slot_session(4);
         let banker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 40);
@@ -26622,6 +26823,11 @@ mod tests {
 
         session.handle_banker_activate(Hello { unit: banker }).await;
         assert!(send_rx.try_recv().is_ok(), "bank open should be sent");
+        assert_eq!(
+            session.player_interaction_source_guid_like_cpp(),
+            Some(banker)
+        );
+        assert_eq!(session.player_interaction_trainer_id_like_cpp(), 0);
 
         session
             .handle_autobank_item(AutoBankItem {
@@ -26642,6 +26848,29 @@ mod tests {
         );
         assert!(session.represented_bank_item_moves_like_cpp().is_empty());
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn bank_authorization_reads_the_single_interaction_source_like_cpp() {
+        let (mut session, _send_rx, canonical) = make_bank_slot_session(2);
+        let banker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 140);
+        let vendor = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 141);
+        insert_banker_creature(&canonical, banker, NPCFlags1::BANKER.bits());
+        insert_banker_creature(&canonical, vendor, NPCFlags1::VENDOR.bits());
+
+        session.set_player_trainer_interaction_like_cpp(banker, 77);
+        assert!(
+            session.represented_can_use_current_bank_like_cpp(),
+            "C++ CanUseBank reads SourceGuid and does not impose an interaction kind or TrainerId gate"
+        );
+
+        session.set_player_interaction_source_like_cpp(vendor);
+        assert!(!session.represented_can_use_current_bank_like_cpp());
+
+        session.set_player_interaction_source_like_cpp(banker);
+        assert!(session.represented_can_use_current_bank_like_cpp());
+        assert!(session.reset_player_interaction_if_source_like_cpp(banker));
+        assert!(!session.represented_can_use_current_bank_like_cpp());
     }
 
     #[tokio::test]
@@ -27033,6 +27262,34 @@ mod tests {
             .unwrap();
     }
 
+    fn insert_gossip_gameobject(
+        manager: &Arc<std::sync::Mutex<wow_map::MapManager>>,
+        guid: ObjectGuid,
+        entry: u32,
+        position: Position,
+        go_type: u8,
+        is_in_world: bool,
+    ) {
+        let mut gameobject = wow_entities::GameObject::new();
+        gameobject.world_mut().object_mut().create(guid);
+        gameobject.world_mut().object_mut().set_entry(entry);
+        gameobject.world_mut().set_map(571, 0).unwrap();
+        gameobject.world_mut().relocate(position);
+        gameobject.set_go_type(go_type);
+        if is_in_world {
+            gameobject.world_mut().object_mut().add_to_world();
+        }
+        manager
+            .lock()
+            .unwrap()
+            .create_world_map(571, 0)
+            .map_mut()
+            .insert_map_object_record(
+                wow_entities::MapObjectRecord::new_game_object(gameobject).unwrap(),
+            )
+            .unwrap();
+    }
+
     fn insert_area_spirit_healer_creature(
         manager: &Arc<std::sync::Mutex<wow_map::MapManager>>,
         guid: ObjectGuid,
@@ -27244,13 +27501,110 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn invalid_gossip_hello_preserves_active_player_menu_state_like_cpp() {
+        let (mut session, send_rx) = make_quest_status_session();
+        let active_source = creature_guid(9306, 305);
+        let invalid_source = creature_guid(9306, 999);
+        session.set_player_trainer_interaction_like_cpp(active_source, 77);
+        session
+            .gossip_options
+            .push(crate::session::GossipOptionInfo {
+                gossip_option_id: 31,
+                menu_id: 32,
+                order_index: 33,
+                option_npc: 6,
+                action_menu_id: 0,
+            });
+
+        session
+            .handle_gossip_hello(Hello {
+                unit: invalid_source,
+            })
+            .await;
+
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ returns before publishing when GetNPCIfCanInteractWith rejects the source"
+        );
+        assert!(
+            session.player_trainer_interaction_matches_like_cpp(active_source, 77),
+            "invalid hello must not replace InteractionData"
+        );
+        assert_eq!(
+            session.gossip_options.len(),
+            1,
+            "C++ clears PlayerMenu only after validating the source"
+        );
+    }
+
+    #[tokio::test]
+    async fn valid_direct_service_hello_replaces_stale_trainer_provenance_like_cpp() {
+        const FEIGN_SLOT: u8 = 24;
+        let (mut session, send_rx, canonical) = make_bank_slot_session(4);
+        insert_bank_test_player_in_world(&session, &canonical);
+        let old_trainer = creature_guid(9306, 304);
+        let vendor = creature_guid(2456, 305);
+        insert_banker_creature(
+            &canonical,
+            vendor,
+            NPCFlags1::GOSSIP.bits() | NPCFlags1::VENDOR.bits(),
+        );
+        session.set_player_trainer_interaction_like_cpp(old_trainer, 77);
+        session
+            .gossip_options
+            .push(crate::session::GossipOptionInfo {
+                gossip_option_id: 21,
+                menu_id: 22,
+                order_index: 23,
+                option_npc: GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP,
+                action_menu_id: 0,
+            });
+        seed_represented_feign_death_like_cpp(&mut session, FEIGN_SLOT);
+
+        session.handle_gossip_hello(Hello { unit: vendor }).await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::AuraUpdate],
+            "C++ removes fake death before dispatching the selected direct service"
+        );
+        assert!(
+            !session.visible_auras.contains_key(&FEIGN_SLOT),
+            "the direct-service shortcut represents a successful C++ gossip selection"
+        );
+        assert!(!canonical_player_has_died_state_like_cpp(&mut session));
+        assert_eq!(
+            session.player_interaction_source_guid_like_cpp(),
+            Some(vendor),
+            "Rust's direct-service shortcut must preserve C++ SendGossipMenu source ownership"
+        );
+        assert_eq!(
+            session.player_interaction_trainer_id_like_cpp(),
+            0,
+            "opening another valid service invalidates an earlier trainer window"
+        );
+        assert!(session.gossip_options.is_empty());
+    }
+
+    #[tokio::test]
     async fn gossip_hello_mixed_direct_service_keeps_service_like_cpp() {
         let (mut session, send_rx) = make_quest_status_session();
         let entry = 9309;
         let guid = creature_guid(entry, 309);
+        let stale_source = creature_guid(entry, 999);
         let mut store = store_with_quests(&[3009]);
         store.starter_quests.entry(entry).or_default().push(3009);
         session.set_quest_store(Arc::new(store));
+        session.set_player_trainer_interaction_like_cpp(stale_source, 77);
+        session
+            .gossip_options
+            .push(crate::session::GossipOptionInfo {
+                gossip_option_id: 91,
+                menu_id: 92,
+                order_index: 93,
+                option_npc: 94,
+                action_menu_id: 95,
+            });
         attach_legacy_creature(
             &mut session,
             guid,
@@ -27263,6 +27617,15 @@ mod tests {
         assert_eq!(
             drain_server_opcodes(&send_rx),
             vec![ServerOpcodes::NpcInteractionOpenResult]
+        );
+        assert_eq!(
+            session.player_interaction_source_guid_like_cpp(),
+            Some(guid)
+        );
+        assert_eq!(session.player_interaction_trainer_id_like_cpp(), 0);
+        assert!(
+            session.gossip_options.is_empty(),
+            "C++ HandleGossipHelloOpcode clears the prior menu before opening a direct service"
         );
     }
 
@@ -27287,6 +27650,11 @@ mod tests {
             vec![ServerOpcodes::NpcInteractionOpenResult],
             "C++-resolved canonical NPC flags must drive fallback interactions when the legacy mirror has no creature"
         );
+        assert_eq!(
+            session.player_interaction_source_guid_like_cpp(),
+            Some(guid)
+        );
+        assert_eq!(session.player_interaction_trainer_id_like_cpp(), 0);
     }
 
     #[tokio::test]
@@ -27358,7 +27726,11 @@ mod tests {
 
         let bytes = send_rx.try_recv().expect("canonical trainer gossip menu");
         assert_eq!(gossip_message_counts(&bytes, guid), (1, 0));
-        assert_eq!(session.gossip_source_guid, Some(guid));
+        assert_eq!(
+            session.player_interaction_source_guid_like_cpp(),
+            Some(guid)
+        );
+        assert_eq!(session.player_interaction_trainer_id_like_cpp(), 0);
         assert_eq!(
             session.gossip_options[0].option_npc,
             GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP
@@ -27425,7 +27797,11 @@ mod tests {
 
         let bytes = send_rx.try_recv().expect("mixed prepared gossip menu");
         assert_eq!(gossip_message_counts(&bytes, guid), (1, 1));
-        assert_eq!(session.gossip_source_guid, Some(guid));
+        assert_eq!(
+            session.player_interaction_source_guid_like_cpp(),
+            Some(guid)
+        );
+        assert_eq!(session.player_interaction_trainer_id_like_cpp(), 0);
         assert_eq!(session.gossip_options.len(), 1);
         assert_eq!(
             session.gossip_options[0].gossip_option_id,
@@ -27439,33 +27815,489 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn gossip_select_trainer_does_not_close_before_trainer_like_cpp() {
-        let (mut session, send_rx) = make_session_with_send_capacity(2);
-        let guid = creature_guid(15_513, 513);
-        let gossip_option_id = -1_702_912;
-        session.gossip_source_guid = Some(guid);
+    async fn gossip_select_trainer_only_source_opens_resolved_trainer_without_close_like_cpp() {
+        const TRAINER_ID: u32 = 77;
+        const FEIGN_SLOT: u8 = 21;
+        let (mut session, send_rx, canonical) = make_bank_slot_session(4);
+        insert_bank_test_player_in_world(&session, &canonical);
+        let guid = creature_guid(2_456, 513);
+        insert_banker_creature(&canonical, guid, NPCFlags1::TRAINER.bits());
+        session.set_trainer_store_like_cpp(Arc::new(
+            wow_data::TrainerStoreLikeCpp::from_rows_like_cpp(
+                [wow_data::TrainerRowLikeCpp {
+                    id: TRAINER_ID,
+                    trainer_type: wow_data::TRAINER_TYPE_TRADESKILL_LIKE_CPP,
+                    greeting: "Train".to_string(),
+                }],
+                [],
+                [],
+                [wow_data::CreatureTrainerRowLikeCpp {
+                    creature_id: 2_456,
+                    trainer_id: TRAINER_ID,
+                    menu_id: 0,
+                    option_id: 0,
+                }],
+            )
+            .store,
+        ));
+
+        session.handle_gossip_hello(Hello { unit: guid }).await;
+
+        let menu_packet = send_rx.try_recv().expect("generated trainer-only menu");
+        assert_eq!(
+            WorldPacket::from_bytes(&menu_packet).server_opcode(),
+            Some(ServerOpcodes::GossipMessage)
+        );
+        assert_eq!(gossip_message_counts(&menu_packet, guid), (1, 0));
+        let option = session
+            .gossip_options
+            .first()
+            .cloned()
+            .expect("generated trainer option");
+        assert_eq!(option.menu_id, 0);
+        assert_eq!(option.order_index, 0);
+        assert_eq!(
+            option.gossip_option_id,
+            GOSSIP_OPTION_ID_AUTO_TRAINER_LIKE_CPP
+        );
+        assert_eq!(option.option_npc, GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP);
+        assert_eq!(
+            session.player_interaction_source_guid_like_cpp(),
+            Some(guid)
+        );
+        assert_eq!(session.player_interaction_trainer_id_like_cpp(), 0);
+
+        seed_represented_feign_death_like_cpp(&mut session, FEIGN_SLOT);
+
+        session
+            .handle_gossip_select_option(wow_packet::packets::gossip::GossipSelectOption {
+                gossip_unit: guid,
+                gossip_id: option.menu_id as i32,
+                gossip_option_id: option.gossip_option_id,
+                promotion_code: String::new(),
+            })
+            .await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::AuraUpdate, ServerOpcodes::TrainerList],
+            "the target fork's trainer-only generated option must be usable and must not pre-send GossipComplete"
+        );
+        assert!(session.player_trainer_interaction_matches_like_cpp(guid, TRAINER_ID as i32));
+        assert!(!session.visible_auras.contains_key(&FEIGN_SLOT));
+        assert!(!canonical_player_has_died_state_like_cpp(&mut session));
+    }
+
+    #[tokio::test]
+    async fn gossip_select_requires_exact_active_source_and_routes_exact_match_like_cpp() {
+        let requested = creature_guid(15_513, 520);
+        let other = creature_guid(15_513, 521);
+        for (active_source, expected_opcodes) in [
+            (None, Vec::new()),
+            (Some(other), Vec::new()),
+            (
+                Some(requested),
+                vec![ServerOpcodes::NpcInteractionOpenResult],
+            ),
+        ] {
+            let (mut session, send_rx) = make_quest_status_session();
+            attach_legacy_creature(
+                &mut session,
+                requested,
+                15_513,
+                NPCFlags1::GOSSIP.bits() | NPCFlags1::BANKER.bits(),
+            );
+            if let Some(active_source) = active_source {
+                session.set_player_trainer_interaction_like_cpp(active_source, 77);
+            }
+            session
+                .gossip_options
+                .push(crate::session::GossipOptionInfo {
+                    gossip_option_id: 41,
+                    menu_id: 42,
+                    order_index: 43,
+                    option_npc: 6, // Banker gives an observable packet if routed.
+                    action_menu_id: 0,
+                });
+
+            session
+                .handle_gossip_select_option(wow_packet::packets::gossip::GossipSelectOption {
+                    gossip_unit: requested,
+                    gossip_id: 42,
+                    gossip_option_id: 41,
+                    promotion_code: String::new(),
+                })
+                .await;
+
+            assert_eq!(drain_server_opcodes(&send_rx), expected_opcodes);
+            assert_eq!(session.gossip_options.len(), 1);
+            if active_source == Some(requested) {
+                assert_eq!(
+                    session.player_interaction_source_guid_like_cpp(),
+                    Some(requested)
+                );
+                assert_eq!(session.player_interaction_trainer_id_like_cpp(), 0);
+            } else {
+                assert_eq!(
+                    session.player_interaction_source_guid_like_cpp(),
+                    active_source
+                );
+                assert_eq!(
+                    session.player_interaction_trainer_id_like_cpp(),
+                    if active_source.is_some() { 77 } else { 0 }
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn gossip_select_requires_exact_active_menu_id_like_cpp() {
+        const FEIGN_SLOT: u8 = 22;
+        let (mut session, send_rx, canonical) = make_bank_slot_session(2);
+        insert_bank_test_player_in_world(&session, &canonical);
+        let banker = creature_guid(15_513, 523);
+        insert_banker_creature(
+            &canonical,
+            banker,
+            NPCFlags1::GOSSIP.bits() | NPCFlags1::BANKER.bits(),
+        );
+        session.set_player_trainer_interaction_like_cpp(banker, 77);
         session
             .gossip_options
             .push(crate::session::GossipOptionInfo {
-                gossip_option_id,
-                menu_id: 6_652,
+                gossip_option_id: 61,
+                menu_id: 62,
+                order_index: 63,
+                option_npc: 6,
+                action_menu_id: 0,
+            });
+        seed_represented_feign_death_like_cpp(&mut session, FEIGN_SLOT);
+
+        session
+            .handle_gossip_select_option(wow_packet::packets::gossip::GossipSelectOption {
+                gossip_unit: banker,
+                gossip_id: 999,
+                gossip_option_id: 61,
+                promotion_code: String::new(),
+            })
+            .await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::AuraUpdate],
+            "C++ removes fake death before Player::OnGossipSelect rejects a mismatched GossipID"
+        );
+        assert!(
+            session.player_trainer_interaction_matches_like_cpp(banker, 77),
+            "a mismatched packet GossipID must not route or replace InteractionData"
+        );
+        assert_eq!(session.gossip_options.len(), 1);
+        assert!(!session.visible_auras.contains_key(&FEIGN_SLOT));
+        assert!(!canonical_player_has_died_state_like_cpp(&mut session));
+    }
+
+    #[tokio::test]
+    async fn gossip_select_accepts_represented_goober_menu_and_removes_feign_like_cpp() {
+        const FEIGN_SLOT: u8 = 19;
+        const GOSSIP_ID: u32 = 72;
+        let (mut session, send_rx, canonical) = make_bank_slot_session(2);
+        insert_bank_test_player_in_world(&session, &canonical);
+        let goober = gameobject_guid(9304, 304);
+        insert_gossip_gameobject(
+            &canonical,
+            goober,
+            9304,
+            Position::new(1.0, 0.0, 0.0, 0.0),
+            GAMEOBJECT_TYPE_GOOBER as u8,
+            true,
+        );
+        session.represented_gameobject_use_states.insert(
+            goober,
+            RepresentedGameObjectUseState {
+                map_id: Some(571),
+                position: Some(Position::new(1.0, 0.0, 0.0, 0.0)),
+                go_type: Some(GAMEOBJECT_TYPE_GOOBER as u8),
+                icon_name_allows_interaction_like_cpp: Some(true),
+                ..Default::default()
+            },
+        );
+        session.set_player_interaction_source_like_cpp(goober);
+        session
+            .gossip_options
+            .push(crate::session::GossipOptionInfo {
+                gossip_option_id: 71,
+                menu_id: GOSSIP_ID,
                 order_index: 0,
-                option_npc: GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP,
+                option_npc: 0,
+                action_menu_id: 0,
+            });
+        seed_represented_feign_death_like_cpp(&mut session, FEIGN_SLOT);
+
+        session
+            .handle_gossip_select_option(wow_packet::packets::gossip::GossipSelectOption {
+                gossip_unit: goober,
+                gossip_id: GOSSIP_ID as i32,
+                gossip_option_id: 71,
+                promotion_code: String::new(),
+            })
+            .await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::AuraUpdate],
+            "a valid GOOBER follows the C++ generic GameObject interaction path"
+        );
+        assert!(!session.visible_auras.contains_key(&FEIGN_SLOT));
+        assert!(!canonical_player_has_died_state_like_cpp(&mut session));
+    }
+
+    #[tokio::test]
+    async fn gossip_select_gameobject_revalidates_cpp_interaction_boundaries() {
+        const FEIGN_SLOT: u8 = 20;
+        const GOSSIP_ID: u32 = 82;
+        for (case, go_type, recorded_type, position, in_world, icon_allows, in_taxi, same_phase) in [
+            (
+                "point-icon",
+                GAMEOBJECT_TYPE_GOOBER as u8,
+                true,
+                Position::new(1.0, 0.0, 0.0, 0.0),
+                true,
+                Some(false),
+                false,
+                true,
+            ),
+            (
+                "missing-icon-evidence",
+                GAMEOBJECT_TYPE_GOOBER as u8,
+                true,
+                Position::new(1.0, 0.0, 0.0, 0.0),
+                true,
+                None,
+                false,
+                true,
+            ),
+            (
+                "missing-runtime-type",
+                GAMEOBJECT_TYPE_GOOBER as u8,
+                false,
+                Position::new(1.0, 0.0, 0.0, 0.0),
+                true,
+                Some(true),
+                false,
+                true,
+            ),
+            (
+                "gameobject-not-in-world",
+                GAMEOBJECT_TYPE_GOOBER as u8,
+                true,
+                Position::new(1.0, 0.0, 0.0, 0.0),
+                false,
+                Some(true),
+                false,
+                true,
+            ),
+            (
+                "outside-interaction-distance",
+                GAMEOBJECT_TYPE_GOOBER as u8,
+                true,
+                Position::new(50.0, 0.0, 0.0, 0.0),
+                true,
+                Some(true),
+                false,
+                true,
+            ),
+            (
+                "player-in-taxi-flight",
+                GAMEOBJECT_TYPE_GOOBER as u8,
+                true,
+                Position::new(1.0, 0.0, 0.0, 0.0),
+                true,
+                Some(true),
+                true,
+                true,
+            ),
+            (
+                "incompatible-phase",
+                GAMEOBJECT_TYPE_GOOBER as u8,
+                true,
+                Position::new(1.0, 0.0, 0.0, 0.0),
+                true,
+                Some(true),
+                false,
+                false,
+            ),
+        ] {
+            let (mut session, send_rx, canonical) = make_bank_slot_session(2);
+            insert_bank_test_player_in_world(&session, &canonical);
+            let gameobject = gameobject_guid(9305, 305);
+            insert_gossip_gameobject(&canonical, gameobject, 9305, position, go_type, in_world);
+            session.represented_gameobject_use_states.insert(
+                gameobject,
+                RepresentedGameObjectUseState {
+                    map_id: Some(571),
+                    position: Some(position),
+                    go_type: recorded_type.then_some(go_type),
+                    icon_name_allows_interaction_like_cpp: icon_allows,
+                    ..Default::default()
+                },
+            );
+            session.set_player_interaction_source_like_cpp(gameobject);
+            session
+                .gossip_options
+                .push(crate::session::GossipOptionInfo {
+                    gossip_option_id: 81,
+                    menu_id: GOSSIP_ID,
+                    order_index: 0,
+                    option_npc: 0,
+                    action_menu_id: 0,
+                });
+            seed_represented_feign_death_like_cpp(&mut session, FEIGN_SLOT);
+            if in_taxi {
+                session.set_taxi_flight_state_like_cpp(
+                    RepresentedTaxiFlightNodeLikeCpp {
+                        map_id: 571,
+                        position: Position::new(1.0, 0.0, 0.0, 0.0),
+                        teleport_flag: false,
+                    },
+                    None,
+                );
+            }
+            if !same_phase {
+                session.set_represented_player_phase_shift_like_cpp(
+                    wow_entities::PhaseShift::from_phases([10]),
+                );
+                session.record_represented_gameobject_phase_shift_like_cpp(
+                    gameobject,
+                    wow_entities::PhaseShift::from_phases([20]),
+                );
+            }
+
+            session
+                .handle_gossip_select_option(wow_packet::packets::gossip::GossipSelectOption {
+                    gossip_unit: gameobject,
+                    gossip_id: GOSSIP_ID as i32,
+                    gossip_option_id: 81,
+                    promotion_code: String::new(),
+                })
+                .await;
+
+            assert!(
+                send_rx.try_recv().is_err(),
+                "{case}: rejection must precede fake-death removal and action routing"
+            );
+            assert!(
+                session.visible_auras.contains_key(&FEIGN_SLOT),
+                "{case}: rejected source must preserve fake death"
+            );
+            assert!(
+                canonical_player_has_died_state_like_cpp(&mut session),
+                "{case}: rejected source must preserve DIED state"
+            );
+            assert_eq!(
+                session.player_interaction_source_guid_like_cpp(),
+                Some(gameobject)
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn gossip_select_gameobject_rejects_npc_service_option_after_feign_like_cpp() {
+        const FEIGN_SLOT: u8 = 23;
+        const GOSSIP_ID: u32 = 92;
+        let (mut session, send_rx, canonical) = make_bank_slot_session(2);
+        insert_bank_test_player_in_world(&session, &canonical);
+        let goober = gameobject_guid(9306, 306);
+        insert_gossip_gameobject(
+            &canonical,
+            goober,
+            9306,
+            Position::new(1.0, 0.0, 0.0, 0.0),
+            GAMEOBJECT_TYPE_GOOBER as u8,
+            true,
+        );
+        session.represented_gameobject_use_states.insert(
+            goober,
+            RepresentedGameObjectUseState {
+                map_id: Some(571),
+                position: Some(Position::new(1.0, 0.0, 0.0, 0.0)),
+                go_type: Some(GAMEOBJECT_TYPE_GOOBER as u8),
+                icon_name_allows_interaction_like_cpp: Some(true),
+                ..Default::default()
+            },
+        );
+        session.set_player_interaction_source_like_cpp(goober);
+        session
+            .gossip_options
+            .push(crate::session::GossipOptionInfo {
+                gossip_option_id: 91,
+                menu_id: GOSSIP_ID,
+                order_index: 0,
+                option_npc: 6, // Banker is invalid for every C++ GameObject menu.
+                action_menu_id: 0,
+            });
+        seed_represented_feign_death_like_cpp(&mut session, FEIGN_SLOT);
+
+        session
+            .handle_gossip_select_option(wow_packet::packets::gossip::GossipSelectOption {
+                gossip_unit: goober,
+                gossip_id: GOSSIP_ID as i32,
+                gossip_option_id: 91,
+                promotion_code: String::new(),
+            })
+            .await;
+
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::AuraUpdate],
+            "C++ revalidates the GO and removes fake death before rejecting its NPC service option"
+        );
+        assert_eq!(
+            session.player_interaction_source_guid_like_cpp(),
+            Some(goober)
+        );
+        assert!(!session.visible_auras.contains_key(&FEIGN_SLOT));
+        assert!(!canonical_player_has_died_state_like_cpp(&mut session));
+    }
+
+    #[tokio::test]
+    async fn gossip_banker_selection_replaces_trainer_provenance_like_cpp() {
+        let (mut session, send_rx) = make_quest_status_session();
+        let banker = creature_guid(15_513, 522);
+        attach_legacy_creature(
+            &mut session,
+            banker,
+            15_513,
+            NPCFlags1::GOSSIP.bits() | NPCFlags1::BANKER.bits(),
+        );
+        session.set_player_trainer_interaction_like_cpp(banker, 77);
+        session
+            .gossip_options
+            .push(crate::session::GossipOptionInfo {
+                gossip_option_id: 51,
+                menu_id: 52,
+                order_index: 53,
+                option_npc: 6,
                 action_menu_id: 0,
             });
 
         session
             .handle_gossip_select_option(wow_packet::packets::gossip::GossipSelectOption {
-                gossip_unit: guid,
-                gossip_id: 6_652,
-                gossip_option_id,
+                gossip_unit: banker,
+                gossip_id: 52,
+                gossip_option_id: 51,
                 promotion_code: String::new(),
             })
             .await;
 
-        // C++ dedicated trainer open flow sends TrainerList if it can resolve a trainer,
-        // but it does not pre-send `SMSG_GOSSIP_COMPLETE`.
-        assert!(send_rx.try_recv().is_err());
+        assert_eq!(
+            WorldPacket::from_bytes(&send_rx.try_recv().unwrap()).server_opcode(),
+            Some(ServerOpcodes::NpcInteractionOpenResult)
+        );
+        assert_eq!(
+            session.player_interaction_source_guid_like_cpp(),
+            Some(banker)
+        );
+        assert_eq!(session.player_interaction_trainer_id_like_cpp(), 0);
     }
 
     #[tokio::test]

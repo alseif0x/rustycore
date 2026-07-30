@@ -111,6 +111,12 @@ enum RepresentedInstanceResetMethodLikeCpp {
     OnChangeDifficulty,
 }
 
+fn represented_gameobject_icon_allows_interaction_like_cpp(icon_name: &str) -> bool {
+    // C++ `Player::GetGameObjectIfCanInteractWith` rejects exactly this
+    // template sentinel before applying the distance check.
+    icon_name != "Point"
+}
+
 // ── inventory registrations ───────────────────────────────────────────────────
 
 inventory::submit! {
@@ -6793,7 +6799,13 @@ impl crate::session::WorldSession {
             &template,
         );
         let icon_name: String = result.read_string(4);
-        if icon_name == "Point" {
+        let icon_allows_interaction =
+            represented_gameobject_icon_allows_interaction_like_cpp(&icon_name);
+        self.record_represented_gameobject_icon_interaction_like_cpp(
+            gameobject_guid,
+            icon_allows_interaction,
+        );
+        if !icon_allows_interaction {
             return;
         }
         let interact_distance = represented_gameobject_interaction_distance_like_cpp(
@@ -7214,6 +7226,61 @@ impl crate::session::WorldSession {
         }
     }
 
+    pub(crate) fn represented_gameobject_gossip_can_interact_with_like_cpp(
+        &self,
+        gameobject_guid: ObjectGuid,
+    ) -> Option<RepresentedGameObjectAccessLikeCpp> {
+        // The caller separately requires the current server-owned
+        // InteractionData source and menu item. This helper revalidates the
+        // represented GameObject half; constructing full scripted GO gossip
+        // menus remains an explicit runtime boundary.
+        if !gameobject_guid.is_game_object()
+            || self.is_in_taxi_flight_like_cpp()
+            || !self.player_is_strictly_in_world_like_cpp()
+        {
+            return None;
+        }
+
+        let state = self
+            .represented_gameobject_use_states
+            .get(&gameobject_guid)?;
+        let go_type = state.go_type?;
+
+        // C++ checks the immutable template icon on every lookup. Rust records
+        // that fact while reading the same template in HandleGameObjectUse;
+        // missing evidence fails closed rather than trusting historical
+        // effects or canonical existence alone.
+        if state.icon_name_allows_interaction_like_cpp != Some(true) {
+            return None;
+        }
+
+        let map_key = self.current_canonical_player_map_key_like_cpp()?;
+        {
+            let manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
+            let map = manager.find_map(map_key.map_id, map_key.instance_id)?;
+            let gameobject = map.map().get_typed_game_object(gameobject_guid)?;
+            if !gameobject.world().object().is_in_world() {
+                return None;
+            }
+            let gameobject_phase_shift = self
+                .represented_gameobject_phase_shifts
+                .get(&gameobject_guid)
+                .unwrap_or_else(|| gameobject.world().phase_shift());
+            if !self.can_see_phase_shift_like_cpp(gameobject_phase_shift) {
+                return None;
+            }
+        }
+
+        let interaction_distance = represented_gameobject_interaction_distance_like_cpp(
+            Some(go_type),
+            state.interact_radius_override,
+        );
+        self.represented_gameobject_can_interact_with_like_cpp(
+            gameobject_guid,
+            interaction_distance,
+        )
+    }
+
     /// CMSG_CLOSE_INTERACTION — player closed an NPC interaction window.
     /// C++ ref: `WorldSession::HandleCloseInteraction`.
     pub async fn handle_close_interaction(&mut self, mut pkt: wow_packet::WorldPacket) {
@@ -7228,10 +7295,7 @@ impl crate::session::WorldSession {
             }
         };
 
-        if self.gossip_source_guid == Some(request.source_guid) {
-            self.gossip_source_guid = None;
-            self.gossip_options.clear();
-        }
+        self.reset_player_interaction_if_source_like_cpp(request.source_guid);
 
         // C++ also clears Player::StableMaster when it matches SourceGuid. Rust
         // does not expose represented stable-master state yet.
@@ -7403,6 +7467,17 @@ mod tests {
             bytes,
         )
         .expect("write test map");
+    }
+
+    #[test]
+    fn gameobject_point_icon_is_not_interactable_like_cpp() {
+        assert!(!represented_gameobject_icon_allows_interaction_like_cpp(
+            "Point"
+        ));
+        assert!(represented_gameobject_icon_allows_interaction_like_cpp(
+            "Gossip"
+        ));
+        assert!(represented_gameobject_icon_allows_interaction_like_cpp(""));
     }
 
     #[test]
@@ -16397,10 +16472,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn close_interaction_matching_source_clears_gossip_like_cpp() {
+    async fn close_interaction_matching_source_resets_provenance_not_menu_like_cpp() {
         let (mut session, send_rx) = make_session();
         let source_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 1, 42);
-        session.gossip_source_guid = Some(source_guid);
+        session.set_player_trainer_interaction_like_cpp(source_guid, 77);
         session
             .gossip_options
             .push(crate::session::GossipOptionInfo {
@@ -16416,8 +16491,13 @@ mod tests {
 
         session.handle_close_interaction(pkt).await;
 
-        assert!(session.gossip_source_guid.is_none());
-        assert!(session.gossip_options.is_empty());
+        assert!(session.player_interaction_source_guid_like_cpp().is_none());
+        assert_eq!(session.player_interaction_trainer_id_like_cpp(), 0);
+        assert_eq!(
+            session.gossip_options.len(),
+            1,
+            "C++ InteractionData::Reset is distinct from PlayerMenu::ClearMenus"
+        );
         assert!(send_rx.try_recv().is_err());
     }
 
@@ -16426,7 +16506,7 @@ mod tests {
         let (mut session, send_rx) = make_session();
         let active_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 1, 43);
         let other_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 1, 44);
-        session.gossip_source_guid = Some(active_guid);
+        session.set_player_trainer_interaction_like_cpp(active_guid, 77);
         session
             .gossip_options
             .push(crate::session::GossipOptionInfo {
@@ -16442,7 +16522,11 @@ mod tests {
 
         session.handle_close_interaction(pkt).await;
 
-        assert_eq!(session.gossip_source_guid, Some(active_guid));
+        assert_eq!(
+            session.player_interaction_source_guid_like_cpp(),
+            Some(active_guid)
+        );
+        assert_eq!(session.player_interaction_trainer_id_like_cpp(), 77);
         assert_eq!(session.gossip_options.len(), 1);
         assert!(send_rx.try_recv().is_err());
     }
