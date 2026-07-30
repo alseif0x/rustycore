@@ -20,6 +20,7 @@ pub mod creature_equipment;
 pub mod creature_model_info;
 pub mod creature_template;
 pub mod currency;
+pub mod db2_hotfix;
 pub mod db2_id_store;
 pub mod difficulty;
 pub mod disable_mgr;
@@ -79,6 +80,7 @@ pub mod spawn_group;
 pub mod spell;
 pub mod spell_click;
 pub mod spell_db2;
+mod spell_info_keys;
 pub mod spell_item_enchantment;
 pub mod terrain_swap;
 pub mod trainer;
@@ -164,6 +166,7 @@ pub use creature_template::{
     MAX_CREATURE_SPELLS_LIKE_CPP,
 };
 pub use currency::{CurrencyTypesEntry, CurrencyTypesStore};
+pub use db2_hotfix::Db2HotfixRemovalStoreLikeCpp;
 pub use db2_id_store::Db2IdStore;
 pub use difficulty::{DifficultyEntry, DifficultyStore};
 pub use disable_mgr::{
@@ -504,10 +507,10 @@ pub use spell_db2::{
     SpellInterruptsStore, SpellItemEnchantmentConditionEntry, SpellItemEnchantmentConditionStore,
     SpellKeyboundOverrideEntry, SpellKeyboundOverrideStore, SpellLabelEntry, SpellLabelStore,
     SpellLearnSpellEntry, SpellLearnSpellStore, SpellLevelsEntry, SpellLevelsStore, SpellMiscEntry,
-    SpellMiscStore, SpellNameEntry, SpellNameStore, SpellPowerDifficultyEntry,
-    SpellPowerDifficultyStore, SpellPowerEntry, SpellPowerStore, SpellProcsPerMinuteEntry,
-    SpellProcsPerMinuteModEntry, SpellProcsPerMinuteModStore, SpellProcsPerMinuteStore,
-    SpellRadiusEntry, SpellRadiusStore, SpellRangeEntry, SpellRangeStore,
+    SpellMiscStore, SpellNameEffectiveLoadReportLikeCpp, SpellNameEntry, SpellNameStore,
+    SpellPowerDifficultyEntry, SpellPowerDifficultyStore, SpellPowerEntry, SpellPowerStore,
+    SpellProcsPerMinuteEntry, SpellProcsPerMinuteModEntry, SpellProcsPerMinuteModStore,
+    SpellProcsPerMinuteStore, SpellRadiusEntry, SpellRadiusStore, SpellRangeEntry, SpellRangeStore,
     SpellReagentsCurrencyEntry, SpellReagentsCurrencyStore, SpellReagentsEntry, SpellReagentsStore,
     SpellScalingEntry, SpellScalingStore, SpellShapeshiftEntry, SpellShapeshiftFormEntry,
     SpellShapeshiftFormStore, SpellShapeshiftStore, SpellTargetRestrictionsEntry,

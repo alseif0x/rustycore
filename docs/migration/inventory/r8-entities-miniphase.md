@@ -1,3 +1,50 @@
+# `#NEXT.R8.ENTITIES.1241` — exact effective regular SpellInfo key authority.
+
+Issue #146 closes the key-level prerequisite discovered while auditing the trainer catalog.
+`SpellStore::get` remains an intentionally partial Rust payload view, whereas C++
+`SpellMgr::LoadSpellInfoStore` (`SpellMgr.cpp:2487-2691`) constructs regular
+`(SpellID, DifficultyID)` entries from twenty independent effective DB2 stores before requiring
+an effective `SpellName` row. Using the payload subset as an existence check therefore rejected
+keys C++ had constructed; using `SpellName` alone would accept names with no contributor.
+
+Rust now keeps a private `SpellInfoKeyStoreLikeCpp` inside `SpellStore`. It composes exactly the
+C++ contributors — Effect, AuraOptions, AuraRestrictions, CastingRequirements, Categories,
+ClassOptions, Cooldowns, EquippedItems, Interrupts, Label, Levels, Misc, Power,
+Reagents, ReagentsCurrency, Scaling, Shapeshift, TargetRestrictions, Totems and XSpellVisual —
+and joins `SpellPowerDifficulty` through the `SpellPower` DB2 record ID. Every source is reduced
+by source record ID in C++ load order: client DB2, official SQL replacements, custom SQL
+replacements, then final `hotfix_data` erasure. `SpellNameStore::load_effective_like_cpp`
+performs the same lifecycle once and the resulting store is shared by the key builder and
+server-side spell-name validation.
+
+The final hotfix decision deliberately uses replacement, not sticky-removal, semantics. C++
+`DB2Manager::LoadHotfixData` assigns
+`deletedRecords[{ tableHash, recordId }] = status == RecordRemoved` for every row in its
+`ORDER BY Id` query, then erases only entries whose final mapped boolean is true
+(`DB2Stores.cpp:1539-1607`). The Rust map assignment and focused regression reproduce both
+removed-to-valid and valid-to-removed sequences.
+
+The public seam exposes exact-difficulty membership for future C++ `GetSpellInfo` validation and
+any-difficulty membership for existing `_GetSpellInfo(id)` behavior. The latter replaces the
+partial-payload test in server-side-spell collision validation. Neither API manufactures
+placeholder payloads: a key-only regression proves `contains_spell_info_exact_like_cpp` can be
+true while `SpellStore::get` remains absent.
+
+Validation is bounded but concrete: all 13 key-composition tests, the removal/name/payload
+regressions and full `wow-data` library suite pass (599/0); an isolated
+`cargo check -p world-server`, the complete local PR preflight (architecture and handler
+guardrails, locked checks/builds, focused suites, required capture-diff and local Codex review)
+and whitespace/format checks are clean. A real local DB2/hotfix smoke loaded 49,376 hydrated
+payloads, 84,805 exact keys and 49,353 exact difficulty-zero keys in about 2.5 seconds with
+roughly 90 MB runtime RSS.
+
+This remains `represented-partial`: it closes exact regular key existence, not hydration of all
+twenty C++ `SpellInfo` field groups; server-side spell payloads remain separate; issue #144 owns
+trainer catalog validation and #142 owns handler activation. No packet layout changes or handler
+activation occur here; the startup server-side collision decision is intentionally corrected.
+The committed capture suite is regression evidence rather than a new paired capture, and no
+manual-client readiness is claimed.
+
 # `#NEXT.R8.ENTITIES.1240` — issue #24 live Detour navmesh query for creature movement.
 
 C++ source-of-truth was re-checked in `PathGenerator.cpp` (constructor `:31-50`, `CalculatePath`

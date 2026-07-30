@@ -2150,22 +2150,39 @@ async fn main() -> Result<ExitCode> {
         "Loaded {} SpellLearnSpell.db2 rows",
         spell_learn_spell_db2_store.len()
     );
-    let mut spell_name_store = wow_data::SpellNameStore::load(&data_dir, &locale)
-        .context("Failed to load SpellName.db2")?;
-    let spell_name_hotfix_rows = spell_name_store
-        .apply_hotfix_overlays_like_cpp(&hotfix_db)
+    let db2_hotfix_removals = wow_data::Db2HotfixRemovalStoreLikeCpp::load_like_cpp(&hotfix_db)
         .await
-        .context("Failed to apply SpellName hotfix overlays")?;
+        .context("Failed to load effective DB2 hotfix removals")?;
+    let (spell_name_store, spell_name_load_report) =
+        wow_data::SpellNameStore::load_effective_like_cpp(
+            &data_dir,
+            &locale,
+            &hotfix_db,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellName store")?;
     info!(
-        "Loaded {} effective SpellName rows ({} SQL overlay rows)",
+        "Loaded {} effective SpellName rows ({} SQL overlay rows; {} removed rows; {} final DB2 removals total)",
         spell_name_store.len(),
-        spell_name_hotfix_rows
+        spell_name_load_report.overlay_rows,
+        spell_name_load_report.removed_rows,
+        db2_hotfix_removals.len()
     );
-    let mut spell_store =
-        wow_data::SpellStore::load_with_db2_and_hotfixes(&data_dir, &locale, &hotfix_db)
-            .await
-            .context("Failed to load SpellStore")?;
-    info!("Loaded {} spells from SpellStore", spell_store.len());
+    let mut spell_store = wow_data::SpellStore::load_with_db2_and_hotfixes(
+        &data_dir,
+        &locale,
+        &hotfix_db,
+        &spell_name_store,
+        &db2_hotfix_removals,
+    )
+    .await
+    .context("Failed to load SpellStore")?;
+    info!(
+        "Loaded {} hydrated spells and {} exact regular SpellInfo keys from SpellStore",
+        spell_store.len(),
+        spell_store.spell_info_key_count_like_cpp()
+    );
     let spell_chain_store = Arc::new(
         wow_data::SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
             skill_store
@@ -3512,11 +3529,7 @@ async fn main() -> Result<ExitCode> {
     let serverside_spell_effect_outcome =
         wow_data::ServersideSpellEffectStoreLikeCpp::load_like_cpp(
             world_db.as_ref(),
-            |spell_id| {
-                spell_store
-                    .get(i32::try_from(spell_id).unwrap_or(-1))
-                    .is_some()
-            },
+            |spell_id| spell_store.contains_spell_info_any_difficulty_like_cpp(spell_id),
             |difficulty_id| difficulty_store.get(difficulty_id).is_some(),
             |radius_id| spell_radius_store.get(radius_id).is_some(),
         )

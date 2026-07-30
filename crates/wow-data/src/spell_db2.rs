@@ -258,6 +258,12 @@ pub struct SpellNameEntry {
     pub name: String,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct SpellNameEffectiveLoadReportLikeCpp {
+    pub overlay_rows: usize,
+    pub removed_rows: usize,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct SpellPowerEntry {
     pub id: u32,
@@ -478,16 +484,22 @@ pub struct SpellXSpellVisualEntry {
     pub spell_id: u32,
 }
 
+pub(crate) trait Db2StoreTableHashLikeCpp {
+    fn table_hash_like_cpp(&self) -> Option<u32>;
+}
+
 macro_rules! db2_store {
     ($store:ident, $entry:ty) => {
         pub struct $store {
             entries: HashMap<u32, $entry>,
+            table_hash_like_cpp: Option<u32>,
         }
 
         impl $store {
             pub fn from_entries(entries: impl IntoIterator<Item = $entry>) -> Self {
                 Self {
                     entries: entries.into_iter().map(|entry| (entry.id, entry)).collect(),
+                    table_hash_like_cpp: None,
                 }
             }
 
@@ -495,6 +507,24 @@ macro_rules! db2_store {
                 self.entries.get(&id)
             }
 
+            /// Iterate every effective row currently held by this DB2 store.
+            ///
+            /// C++ DB2 storages are iterable regardless of the concrete
+            /// `Spell*Entry` type. Keeping that capability on the common Rust
+            /// store wrapper avoids adding one-off iterator APIs whenever a
+            /// loader needs to compose several Spell DB2 sources.
+            pub fn entries_like_cpp(&self) -> impl Iterator<Item = &$entry> {
+                self.entries.values()
+            }
+        }
+
+        impl Db2StoreTableHashLikeCpp for $store {
+            fn table_hash_like_cpp(&self) -> Option<u32> {
+                self.table_hash_like_cpp
+            }
+        }
+
+        impl $store {
             pub fn len(&self) -> usize {
                 self.entries.len()
             }
@@ -709,12 +739,6 @@ impl SpellClassOptionsStore {
 }
 
 impl SpellCooldownsStore {
-    /// Iterate all cooldown rows (keyed internally by DB2 row id; each row carries
-    /// its `spell_id` relationship).
-    pub fn entries_like_cpp(&self) -> impl Iterator<Item = &SpellCooldownsEntry> {
-        self.entries.values()
-    }
-
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SpellCooldowns.db2", |id, idx, r| {
             SpellCooldownsEntry {
@@ -783,16 +807,49 @@ impl SpellNameStore {
         Ok(count)
     }
 
+    /// Load the effective C++ `sSpellNameStore` used by `SpellMgr`.
+    ///
+    /// This keeps the full DB2 lifecycle in one API: file rows, official SQL
+    /// replacements, custom SQL replacements, then final `hotfix_data`
+    /// removals by `(TableHash, RecordID)`.
+    pub async fn load_effective_like_cpp(
+        data_dir: &str,
+        locale: &str,
+        db: &HotfixDatabase,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) -> Result<(Self, SpellNameEffectiveLoadReportLikeCpp)> {
+        let mut store = Self::load(data_dir, locale)?;
+        let overlay_rows = store.apply_hotfix_overlays_like_cpp(db).await?;
+        let removed_rows = store.apply_hotfix_removals_like_cpp(removals)?;
+
+        Ok((
+            store,
+            SpellNameEffectiveLoadReportLikeCpp {
+                overlay_rows,
+                removed_rows,
+            },
+        ))
+    }
+
+    fn apply_hotfix_removals_like_cpp(
+        &mut self,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) -> Result<usize> {
+        let table_hash = self
+            .table_hash_like_cpp()
+            .context("SpellName.db2 store is missing its WDC4 table hash")?;
+        let before_removals = self.entries.len();
+        self.entries
+            .retain(|id, _| !removals.contains_like_cpp(table_hash, *id as i32));
+        Ok(before_removals.saturating_sub(self.entries.len()))
+    }
+
     fn overlay_hotfix_row_like_cpp(&mut self, id: u32, name: String) {
         self.entries.insert(id, SpellNameEntry { id, name });
     }
 }
 
 impl SpellPowerStore {
-    pub fn entries_like_cpp(&self) -> impl Iterator<Item = &SpellPowerEntry> {
-        self.entries.values()
-    }
-
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SpellPower.db2", |_id, idx, r| {
             SpellPowerEntry {
@@ -961,10 +1018,6 @@ impl SpellReagentsCurrencyStore {
 }
 
 impl SpellEffectDb2Store {
-    pub fn entries_like_cpp(&self) -> impl Iterator<Item = &SpellEffectDb2Entry> {
-        self.entries.values()
-    }
-
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SpellEffect.db2", |id, idx, r| {
             SpellEffectDb2Entry {
@@ -1041,14 +1094,6 @@ impl SpellFocusObjectStore {
 }
 
 impl SpellInterruptsStore {
-    /// Iterate interrupt rows keyed internally by DB2 row id. C++ indexes all
-    /// difficulties and resolves fallback during SpellInfo construction; the
-    /// Rust `SpellStore` likewise retains every `(SpellID, DifficultyID)` row
-    /// and resolves the active difficulty through its fallback chain.
-    pub fn entries_like_cpp(&self) -> impl Iterator<Item = &SpellInterruptsEntry> {
-        self.entries.values()
-    }
-
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SpellInterrupts.db2", |id, idx, r| {
             SpellInterruptsEntry {
@@ -1126,10 +1171,6 @@ impl SpellLearnSpellStore {
             }
         })
     }
-
-    pub fn entries_like_cpp(&self) -> impl Iterator<Item = &SpellLearnSpellEntry> {
-        self.entries.values()
-    }
 }
 
 impl SpellLevelsStore {
@@ -1156,17 +1197,9 @@ impl SpellLevelsStore {
             .values()
             .find(|entry| entry.spell_id == spell_id && entry.difficulty_id == difficulty_id)
     }
-
-    pub fn entries_like_cpp(&self) -> impl Iterator<Item = &SpellLevelsEntry> {
-        self.entries.values()
-    }
 }
 
 impl SpellMiscStore {
-    pub fn entries_like_cpp(&self) -> impl Iterator<Item = &SpellMiscEntry> {
-        self.entries.values()
-    }
-
     pub fn get_by_spell_id(&self, spell_id: u32) -> Option<&SpellMiscEntry> {
         self.entries
             .values()
@@ -1219,12 +1252,6 @@ impl SpellScalingStore {
                 scales_from_item_level: r.get_field_i16(idx, 4),
             }
         })
-    }
-}
-
-impl SpellShapeshiftStore {
-    pub fn entries_like_cpp(&self) -> impl Iterator<Item = &SpellShapeshiftEntry> {
-        self.entries.values()
     }
 }
 
@@ -1433,7 +1460,8 @@ where
         entries.push(read(id, idx, &reader));
     }
 
-    let store = S::from_entries(entries);
+    let mut store = S::from_entries(entries);
+    store.set_table_hash_like_cpp(reader.table_hash());
     info!("Loaded {} rows from {}", store.len(), path.display());
     Ok(store)
 }
@@ -1448,6 +1476,7 @@ fn f32_array<const N: usize>(reader: &Wdc4Reader, record_idx: usize, field: usiz
 
 trait FromEntries<T> {
     fn from_entries(entries: impl IntoIterator<Item = T>) -> Self;
+    fn set_table_hash_like_cpp(&mut self, table_hash: u32);
     fn len(&self) -> usize;
 }
 
@@ -1456,6 +1485,10 @@ macro_rules! impl_from_entries {
         impl FromEntries<$entry> for $store {
             fn from_entries(entries: impl IntoIterator<Item = $entry>) -> Self {
                 Self::from_entries(entries)
+            }
+
+            fn set_table_hash_like_cpp(&mut self, table_hash: u32) {
+                self.table_hash_like_cpp = Some(table_hash);
             }
 
             fn len(&self) -> usize {
@@ -1786,5 +1819,33 @@ mod tests {
         assert_eq!(row.mana_cost, 0);
         assert_eq!(row.power_cost_pct, 18.0);
         assert_eq!(row.power_cost_max_pct, 0.0);
+    }
+
+    #[test]
+    fn spell_name_removals_apply_to_shared_effective_store() {
+        let mut store = SpellNameStore::from_entries([
+            SpellNameEntry {
+                id: 100,
+                name: String::new(),
+            },
+            SpellNameEntry {
+                id: 200,
+                name: String::new(),
+            },
+        ]);
+        store.table_hash_like_cpp = Some(0xAABB_CCDD);
+        let removals = crate::Db2HotfixRemovalStoreLikeCpp::from_status_rows_like_cpp([
+            (0xAABB_CCDD, 100, 2),
+            (0x1122_3344, 200, 2),
+        ]);
+
+        assert_eq!(
+            store
+                .apply_hotfix_removals_like_cpp(&removals)
+                .expect("synthetic table hash"),
+            1
+        );
+        assert!(store.get(100).is_none());
+        assert_eq!(store.get(200).map(|entry| entry.name.as_str()), Some(""));
     }
 }
