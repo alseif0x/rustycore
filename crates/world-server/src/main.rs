@@ -2048,9 +2048,23 @@ async fn main() -> Result<ExitCode> {
         wow_data::SkillStore::load(&data_dir, &locale)
             .context("Failed to load SkillLineAbility/SkillRaceClassInfo DB2 files")?,
     );
+    let db2_hotfix_removals = wow_data::Db2HotfixRemovalStoreLikeCpp::load_like_cpp(&hotfix_db)
+        .await
+        .context("Failed to load effective DB2 hotfix removals")?;
     let skill_line_store = Arc::new(
-        wow_data::SkillLineStore::load(&data_dir, &locale)
-            .context("Failed to load SkillLine.db2")?,
+        wow_data::SkillLineStore::load_effective_like_cpp(
+            &data_dir,
+            &locale,
+            &hotfix_db,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SkillLine store")?,
+    );
+    info!(
+        "Loaded {} hydrated SkillLine rows and {} effective C++ lookup identities",
+        skill_line_store.len(),
+        skill_line_store.effective_record_count_like_cpp()
     );
     let trait_definition_store = Arc::new(
         wow_data::trait_tree::TraitDefinitionStore::load(&data_dir, &locale)
@@ -2150,9 +2164,6 @@ async fn main() -> Result<ExitCode> {
         "Loaded {} SpellLearnSpell.db2 rows",
         spell_learn_spell_db2_store.len()
     );
-    let db2_hotfix_removals = wow_data::Db2HotfixRemovalStoreLikeCpp::load_like_cpp(&hotfix_db)
-        .await
-        .context("Failed to load effective DB2 hotfix removals")?;
     let (spell_name_store, spell_name_load_report) =
         wow_data::SpellNameStore::load_effective_like_cpp(
             &data_dir,

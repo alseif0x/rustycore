@@ -1,11 +1,13 @@
 //! Skill, talent, PvP, glyph and journal DB2 readers.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use anyhow::{Context, Result};
 use tracing::info;
+use wow_database::{HotfixDatabase, HotfixStatements, SqlResult};
 
+use crate::Db2HotfixRemovalStoreLikeCpp;
 use crate::wdc4::Wdc4Reader;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -240,10 +242,58 @@ db2_store!(PvpTalentStore, PvpTalentEntry);
 db2_store!(PvpTalentCategoryStore, PvpTalentCategoryEntry);
 db2_store!(PvpTalentSlotUnlockStore, PvpTalentSlotUnlockEntry);
 db2_store!(PvpTierStore, PvpTierEntry);
-db2_store!(SkillLineStore, SkillLineEntry);
 db2_store!(SkillLineXTraitTreeStore, SkillLineXTraitTreeEntry);
 db2_store!(TalentStore, TalentEntry);
 db2_store!(TalentTabStore, TalentTabEntry);
+
+/// Hydrated SkillLine payload plus the exact identities visible through C++
+/// `sSkillLineStore.LookupEntry`.
+///
+/// SQL-only records are deliberately represented only in
+/// `effective_record_ids_like_cpp`: Rust does not manufacture payload fields
+/// that it has not loaded, but startup foreign-key validation can still use
+/// the same record authority as C++.
+pub struct SkillLineStore {
+    entries: HashMap<u32, SkillLineEntry>,
+    effective_record_ids_like_cpp: HashSet<u32>,
+    table_hash_like_cpp: Option<u32>,
+}
+
+impl SkillLineStore {
+    pub fn from_entries(entries: impl IntoIterator<Item = SkillLineEntry>) -> Self {
+        let entries: HashMap<_, _> = entries.into_iter().map(|entry| (entry.id, entry)).collect();
+        let effective_record_ids_like_cpp = entries.keys().copied().collect();
+        Self {
+            entries,
+            effective_record_ids_like_cpp,
+            table_hash_like_cpp: None,
+        }
+    }
+
+    pub fn get(&self, id: u32) -> Option<&SkillLineEntry> {
+        self.entries.get(&id)
+    }
+
+    pub fn contains_effective_record_like_cpp(&self, id: u32) -> bool {
+        self.effective_record_ids_like_cpp.contains(&id)
+    }
+
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    pub fn effective_record_count_like_cpp(&self) -> usize {
+        self.effective_record_ids_like_cpp.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    pub fn table_hash_like_cpp(&self) -> Option<u32> {
+        self.table_hash_like_cpp
+    }
+}
 
 impl GlyphBindableSpellStore {
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
@@ -448,23 +498,77 @@ impl PvpTierStore {
 
 impl SkillLineStore {
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
-        load_store(data_dir, locale, "SkillLine.db2", |id, idx, r| {
-            SkillLineEntry {
-                id,
-                display_name: r.get_field_string(idx, 0),
-                alternate_verb: r.get_field_string(idx, 1),
-                description: r.get_field_string(idx, 2),
-                horde_display_name: r.get_field_string(idx, 3),
-                override_source_info_display_name: r.get_field_string(idx, 4),
-                category_id: r.get_field_i8(idx, 6),
-                spell_icon_file_id: r.get_field_i32(idx, 7),
-                can_link: r.get_field_i8(idx, 8),
-                parent_skill_line_id: r.get_field_u32(idx, 9),
-                parent_tier_index: r.get_field_i32(idx, 10),
-                flags: r.get_field_u16(idx, 11),
-                spell_book_spell_id: r.get_field_i32(idx, 12),
+        let path = Path::new(data_dir)
+            .join("dbc")
+            .join(locale)
+            .join("SkillLine.db2");
+        let reader = Wdc4Reader::open(&path)
+            .with_context(|| format!("failed to open {}", path.display()))?;
+        let table_hash = reader.table_hash();
+        let mut entries = Vec::with_capacity(reader.total_count());
+        for (id, idx) in reader.iter_records() {
+            entries.push(skill_line_entry_from_wdc4_like_cpp(id, idx, &reader));
+        }
+
+        let mut store = Self::from_entries(entries);
+        store.table_hash_like_cpp = Some(table_hash);
+        info!("Loaded {} rows from {}", store.len(), path.display());
+        Ok(store)
+    }
+
+    /// Loads the direct-record authority C++ exposes through
+    /// `sSkillLineStore.LookupEntry`.
+    ///
+    /// Payload hydration remains the WDC4 subset above. Identity composition
+    /// follows C++ `DB2StorageBase::LoadFromDB` and
+    /// `DB2Manager::LoadHotfixData`: DB2, official SQL, custom SQL, then final
+    /// record removals.
+    pub async fn load_effective_like_cpp(
+        data_dir: &str,
+        locale: &str,
+        hotfix_db: &HotfixDatabase,
+        removed_records: &Db2HotfixRemovalStoreLikeCpp,
+    ) -> Result<Self> {
+        const SKILL_LINE_OVERLAY_IDS_SQL: &str =
+            "SELECT ID FROM skill_line WHERE (`VerifiedBuild` > 0) = ?";
+
+        let mut store = Self::load(data_dir, locale)?;
+        let table_hash = store
+            .table_hash_like_cpp
+            .context("SkillLine.db2 is missing its WDC4 table hash")?;
+        let mut overlay_batches = [Vec::new(), Vec::new()];
+
+        // C++ passes !custom into the predicate: true (official) first,
+        // false (VerifiedBuild <= 0 custom rows) second.
+        for (batch_index, official) in [true, false].into_iter().enumerate() {
+            let mut statement =
+                hotfix_db.prepare(HotfixStatements::base(SKILL_LINE_OVERLAY_IDS_SQL));
+            statement.set_bool(0, official);
+            let mut result = hotfix_db
+                .query(&statement)
+                .await
+                .context("failed to load SkillLine.db2 SQL identity overlay")?;
+            if result.is_empty() {
+                continue;
             }
-        })
+
+            loop {
+                overlay_batches[batch_index].push(read_u32_like_cpp(&result, 0));
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        let [official_overlay_ids, custom_overlay_ids] = overlay_batches;
+        store.effective_record_ids_like_cpp = compose_effective_skill_line_ids_like_cpp(
+            store.entries.keys().copied(),
+            official_overlay_ids,
+            custom_overlay_ids,
+            table_hash,
+            removed_records,
+        );
+        Ok(store)
     }
 
     /// C++ `Player::GetProfessionSkillForExp`.
@@ -567,6 +671,52 @@ impl TalentTabStore {
     }
 }
 
+fn skill_line_entry_from_wdc4_like_cpp(
+    id: u32,
+    record_idx: usize,
+    reader: &Wdc4Reader,
+) -> SkillLineEntry {
+    SkillLineEntry {
+        id,
+        display_name: reader.get_field_string(record_idx, 0),
+        alternate_verb: reader.get_field_string(record_idx, 1),
+        description: reader.get_field_string(record_idx, 2),
+        horde_display_name: reader.get_field_string(record_idx, 3),
+        override_source_info_display_name: reader.get_field_string(record_idx, 4),
+        category_id: reader.get_field_i8(record_idx, 6),
+        spell_icon_file_id: reader.get_field_i32(record_idx, 7),
+        can_link: reader.get_field_i8(record_idx, 8),
+        parent_skill_line_id: reader.get_field_u32(record_idx, 9),
+        parent_tier_index: reader.get_field_i32(record_idx, 10),
+        flags: reader.get_field_u16(record_idx, 11),
+        spell_book_spell_id: reader.get_field_i32(record_idx, 12),
+    }
+}
+
+fn compose_effective_skill_line_ids_like_cpp(
+    base_ids: impl IntoIterator<Item = u32>,
+    official_overlay_ids: impl IntoIterator<Item = u32>,
+    custom_overlay_ids: impl IntoIterator<Item = u32>,
+    table_hash: u32,
+    removed_records: &Db2HotfixRemovalStoreLikeCpp,
+) -> HashSet<u32> {
+    let mut effective_ids: HashSet<_> = base_ids.into_iter().collect();
+    effective_ids.extend(official_overlay_ids);
+    effective_ids.extend(custom_overlay_ids);
+    effective_ids
+        .retain(|record_id| !removed_records.contains_like_cpp(table_hash, *record_id as i32));
+    effective_ids
+}
+
+fn read_u32_like_cpp(result: &SqlResult, column: usize) -> u32 {
+    result
+        .try_read::<u32>(column)
+        .or_else(|| result.try_read::<i32>(column).map(|value| value as u32))
+        .or_else(|| result.try_read::<u64>(column).map(|value| value as u32))
+        .or_else(|| result.try_read::<i64>(column).map(|value| value as u32))
+        .unwrap_or(0)
+}
+
 fn load_store<T, S>(
     data_dir: &str,
     locale: &str,
@@ -626,7 +776,6 @@ impl_from_entries!(PvpTalentStore, PvpTalentEntry);
 impl_from_entries!(PvpTalentCategoryStore, PvpTalentCategoryEntry);
 impl_from_entries!(PvpTalentSlotUnlockStore, PvpTalentSlotUnlockEntry);
 impl_from_entries!(PvpTierStore, PvpTierEntry);
-impl_from_entries!(SkillLineStore, SkillLineEntry);
 impl_from_entries!(SkillLineXTraitTreeStore, SkillLineXTraitTreeEntry);
 impl_from_entries!(TalentStore, TalentEntry);
 impl_from_entries!(TalentTabStore, TalentTabEntry);
@@ -697,6 +846,67 @@ mod tests {
     }
 
     #[test]
+    fn effective_skill_line_ids_include_overlay_only_records_without_payload() {
+        let table_hash = 0xB53D_C9D6;
+        let removals = Db2HotfixRemovalStoreLikeCpp::default();
+        let effective_ids = compose_effective_skill_line_ids_like_cpp(
+            [100, 101],
+            [101, 200],
+            [200, 300],
+            table_hash,
+            &removals,
+        );
+        let mut store =
+            SkillLineStore::from_entries([skill_line(100, 9, 0, 0), skill_line(101, 9, 0, 0)]);
+        store.effective_record_ids_like_cpp = effective_ids;
+
+        assert_eq!(store.effective_record_count_like_cpp(), 4);
+        assert!(store.contains_effective_record_like_cpp(100));
+        assert!(store.contains_effective_record_like_cpp(200));
+        assert!(store.contains_effective_record_like_cpp(300));
+        assert!(
+            store.get(200).is_none(),
+            "SQL-only identity must not manufacture a hydrated payload"
+        );
+    }
+
+    #[test]
+    fn effective_skill_line_ids_apply_only_final_matching_table_removals() {
+        let table_hash = 0xB53D_C9D6;
+        let other_table_hash = 0xAABB_CCDD;
+        let removals = Db2HotfixRemovalStoreLikeCpp::from_status_rows_like_cpp([
+            (table_hash, 100, 2),
+            (table_hash, 100, 1),
+            (table_hash, 101, 1),
+            (table_hash, 101, 2),
+            (other_table_hash, 102, 2),
+            (table_hash, 200, 2),
+        ]);
+
+        let effective_ids = compose_effective_skill_line_ids_like_cpp(
+            [100, 101, 102],
+            [200],
+            [],
+            table_hash,
+            &removals,
+        );
+
+        assert!(
+            effective_ids.contains(&100),
+            "a later non-removal status cancels the earlier removal"
+        );
+        assert!(!effective_ids.contains(&101));
+        assert!(
+            effective_ids.contains(&102),
+            "another DB2 table hash must not erase SkillLine"
+        );
+        assert!(
+            !effective_ids.contains(&200),
+            "final removals also erase SQL-only records"
+        );
+    }
+
+    #[test]
     fn load_skill_talent_db2_subbatch_when_fixtures_exist() {
         let data_dir = "/home/server/woltk-server-core/Data";
         let locale = "esES";
@@ -731,7 +941,15 @@ mod tests {
         load_if_exists!("PvpTalentCategory.db2", PvpTalentCategoryStore);
         load_if_exists!("PvpTalentSlotUnlock.db2", PvpTalentSlotUnlockStore);
         load_if_exists!("PvpTier.db2", PvpTierStore);
-        load_if_exists!("SkillLine.db2", SkillLineStore);
+        if dbc_dir.join("SkillLine.db2").exists() {
+            let store = SkillLineStore::load(data_dir, locale)
+                .unwrap_or_else(|error| panic!("failed to load SkillLine.db2: {error:#}"));
+            assert_eq!(
+                store.table_hash_like_cpp(),
+                Some(0xB53D_C9D6),
+                "the 3.4.3 fixture must expose the WDC4 table hash, not layout hash 0x5CB7F941"
+            );
+        }
         load_if_exists!("SkillLineXTraitTree.db2", SkillLineXTraitTreeStore);
         load_if_exists!("Talent.db2", TalentStore);
         load_if_exists!("TalentTab.db2", TalentTabStore);
