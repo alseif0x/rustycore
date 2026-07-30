@@ -1,0 +1,8 @@
+{
+  "name": "world application may not add a direct HTTP client",
+  "source": "wow-world",
+  "target": "reqwest",
+  "scope": "external",
+  "kind": "normal",
+  "expected": "forbidden"
+}

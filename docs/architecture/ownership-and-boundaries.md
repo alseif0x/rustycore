@@ -46,7 +46,34 @@ Three mixed boundary packages have a stricter direct-dependency allowlist:
 `wow-network`, `wow-packet`, and `wow-data`. This prevents their current surfaces from growing
 while responsibilities are extracted.
 
-The policy's `exceptions` are a **ratchet, not an endorsement**. Each exception:
+The inward `foundation`, `domain-runtime`, and `application` categories also have an exact
+per-package allowlist for direct third-party `normal` and `build` dependencies. The same external
+ratchet protects the deliberately narrow `wow-network`, `wow-packet`, and `wow-data` adapters, so,
+for example, raw network code cannot bypass its workspace allowlist by importing `sqlx` directly.
+This is deliberately not a global taxonomy of crates.io: Cargo metadata cannot say whether an
+arbitrary package is SQL, networking, configuration, process, or runtime infrastructure.
+Instead, every new direct external dependency on a protected surface requires a reviewed policy
+change. Existing utility libraries such as `rand` and adapter-owned infrastructure such as
+`wow-network → tokio` remain explicitly allowed, while current inward `sqlx`/`tokio` leaks are
+issue-linked exceptions. Other adapter and composition packages may integrate concrete
+infrastructure; the workspace-edge policy still constrains which RustyCore layers they consume.
+Development-only dependencies are outside this production boundary. The checker uses Cargo's
+resolved package IDs with all features enabled and no platform filter rather than package-name
+equality. It validates package/source/version identity for every resolved external edge and
+globally rejects duplicate JSON keys, duplicate Cargo package/node/member IDs, and multiple direct
+package IDs collapsing to the same package/source/kind identity. On a protected surface, the
+allowlist additionally requires the exact canonical crates.io registry source recorded in the
+policy; a same-named path, Git, or alternate-registry package is a different edge and fails. Thus
+renames, source substitution, malformed or ambiguous metadata, and inactive target-specific
+dependencies cannot bypass the boundary. Workspace members themselves must be source-null
+`path+…` packages with coherent name/version identity, so registry or Git packages cannot be
+mislabelled as internal members. The self-test pins the exact
+`cargo metadata --locked --all-features --format-version 1` command, and the checker also fails
+closed if Cargo's `workspace.default-members` stops covering every member, because
+`--all-features` would no longer prove optional dependencies of omitted packages.
+
+The policy's workspace and external `exceptions` are a **ratchet, not an endorsement**. Each
+exception:
 
 - describes an edge present in the current Cargo graph;
 - names the issue responsible for deciding or removing it;
@@ -58,9 +85,10 @@ When several ordered slices retire distinct uses of the same Cargo edge, `tracki
 the final slice that can remove the dependency and the reason lists every intermediate slice.
 Closing an earlier slice must not leave an exception pointing at an already completed issue.
 
-A new package, new upward edge, undeclared restricted-package edge, duplicate classification, or
-obsolete exception fails the architecture check. A deliberate baseline change must update this
-document and the JSON policy in the same reviewed commit.
+A new package, new upward edge, undeclared restricted-package edge, undeclared direct external
+dependency in an inward package, duplicate classification, stale allowed dependency, or obsolete
+exception fails the architecture check. A deliberate baseline change must update this document
+and the JSON policy in the same reviewed commit.
 
 ## Current ownership and mirror ledger
 
@@ -79,7 +107,7 @@ last-writer-wins policy.
 | Canonical map runtime | `wow_map::MapManager` | canonical global map loop, grid/spawn/respawn paths, explicit selected legacy-result adapters | world-server orchestration and session map/player bridges | process lifetime; canonical loop uses the configured map interval; preserves the C++ `Map::Update` phase order represented by the ADR | Becomes the sole map/entity authority only after every migrated method has parity tests and the corresponding legacy writer is removed. |
 | Creature legacy/canonical mirror | canonical loaded-grid records are mirrored into `wow_world::MapManager`; selected lifecycle, movement, aggro, attack-stop, melee, health, and respawn outcomes are explicitly bridged back to canonical state | named bridge functions in `world-server`, including `mirror_loaded_grid_creature_to_legacy_like_cpp` and the `run_legacy_creature_*_and_deliver_once_like_cpp` family | both runtimes and post-lock packet/command delivery | load/respawn synchronization begins canonical → legacy; only explicitly modelled runtime outcomes travel legacy → canonical; delivery occurs after map locks are released | Remove one bridge only when its destination runtime becomes authoritative for that whole transition. Never add a generic bidirectional sync. |
 | Represented player gameplay state | mostly fields on `wow_world::WorldSession`; canonical value types and partial state also exist in `wow_entities::Player` | session handlers and session update code | packet builders, persistence helpers, `PlayerRegistry` summaries, canonical snapshot bridges | connection/selected-character lifetime; `canonical_player_entity_snapshot_*_like_cpp` currently rebuilds a `Player` snapshot from represented session fields | #133's later ownership work must migrate one complete responsibility at a time until `Player` is the mutable gameplay owner and `WorldSession` is only the connection/session bridge. |
-| Handler registration contract | link-time `inventory::iter<PacketHandlerEntry>` consumed by `wow_handler`/`WorldSession` | static `inventory::submit!` declarations | dispatch table and session update driver | compile/link lifetime; no mutable clock | The distribution across modules may change. The exact opcode set, opcode value, `SessionStatus`, `PacketProcessing`, and handler name are snapshot-guarded and must change deliberately. |
+| Handler registration and dispatch-arm contract | the sole `inventory::collect!(PacketHandlerEntry)` in `wow-handler`, link-time `inventory::iter<PacketHandlerEntry>` consumed by `wow_handler`/`WorldSession`, and the concrete `WorldSession::dispatch_packet` opcode arms | unconditional module-item `inventory::submit!` declarations owned logically by `wow_world::handlers`, plus the dispatcher implementation | dispatch table and session update driver | compile/link lifetime; no mutable clock | The distribution inside `crate::handlers` may change. The exact opcode set, opcode value, `SessionStatus`, `PacketProcessing`, handler name, and presence on both sides of dispatch are guarded and must change deliberately. This proves arm presence, not the semantics of each arm body. The three pre-existing one-sided entries are removal-ratcheted to #142. |
 
 ## Non-negotiable runtime invariants
 
@@ -89,8 +117,8 @@ The refactor campaign must preserve:
 - C++ update ordering, especially session/map phases and creature `Unit` → threat → AI → melee
   sequencing;
 - no packet or cross-session command delivery while a map lock is held;
-- exact active handler registration metadata: opcode value/name, `SessionStatus`,
-  `PacketProcessing`, and handler name;
+- exact active handler registration metadata and dispatch-arm coverage: opcode value/name,
+  `SessionStatus`, `PacketProcessing`, handler name, registration, and concrete opcode arm;
 - persistence mutation order and failure semantics;
 - packet bytes, connection choice, and capture-diff behavior unless an intentional compatibility
   deviation is separately approved and documented;
@@ -106,15 +134,74 @@ python3 tools/architecture/check_architecture.py hotspots --limit 20
 ./tools/pr-preflight.sh architecture
 ```
 
-`self-test` proves both a permitted downward edge (`wow-combat → wow-math`) and a rejected upward
-edge (`wow-map → wow-network`). `check` evaluates the real locked Cargo workspace, rejects stale
-exceptions, and prints informational source hotspots.
+`self-test` pins the locked/all-features Cargo metadata command and proves a permitted downward
+workspace edge (`wow-combat → wow-math`), a rejected
+upward edge (`wow-map → wow-network`), a reviewed domain utility (`wow-map → rand`), concrete SQL
+inside its adapter (`wow-database → sqlx`), and rejection of direct SQL, network, configuration,
+process, and async-runtime additions to `wow-map`. It also exercises stale workspace exceptions,
+external exceptions, external allowlist entries, and the raw-network rejection of direct SQL
+(`wow-network → sqlx`) while retaining its reviewed Tokio runtime. Malformed/duplicate JSON and
+Cargo identities, canonical/path/Git/alternate-registry origins, both valid Cargo Git-ID forms,
+inactive target-specific dependencies, and ambiguous external identities are adversarially
+covered. `check` evaluates the real locked Cargo workspace, including direct third-party
+`normal`/`build` dependencies, rejects stale policy entries, and prints informational source
+hotspots.
 
 The exact handler snapshot is `tools/architecture/world-handler-contract.tsv`. Its Rust test
-enumerates the linked `inventory` registry instead of parsing source text, so macro-generated
-registrations are included. The existing C++ metadata regression remains the semantic authority;
-the new snapshot prevents an unreviewed Rust registration addition, removal, rename, or metadata
-change.
+enumerates the linked `inventory` registry, so macro-generated registrations are included. A
+production integration test enumerates the same registry with the library compiled without
+`cfg(test)`, preventing test-only submissions from entering the reviewed contract. The four
+`wow-handler` registry API tests are also integration tests so their `Ping` submission is not part
+of a production library source.
+
+The standalone Rust tool under `tools/architecture/handler-contract-check` parses source without
+compiling `wow-world`. Full locked Cargo metadata with all features enabled supplies the reverse
+normal-dependency closure of `wow-handler`; every production `lib`/`bin` module tree in that
+workspace closure is audited, including optional, renamed, transitive, and target-specific normal
+edges. Development/build-only edges are excluded. An unknown dependency kind or a non-workspace
+package in that reverse closure fails closed because its production source cannot be proved by the
+workspace audit. Independently, every production module graph in all workspace packages is scanned
+for definitions, invocations, aliases, exports, and includes capable of emitting, forwarding, or
+mounting hidden registration source. The cross-package surface is a closed baseline: exactly the
+23 existing declarative exports in `wow-logging`, the six generated protobuf `include!` bodies in
+`wow-proto`, and the seven existing non-handler inventory calls in `wow-script` are pinned by
+package and source (exported names exactly; include/inventory bodies exactly). Any new export,
+include, inventory call, meta-macro, or macro body that can synthesize `mod`, `macro_rules!`,
+`PacketHandlerEntry`, an inventory registration path, or one of the audited registration macros
+fails. This prevents an upstream workspace crate outside the reverse closure from exporting or
+mounting a hidden generator that is later invoked by a handler-linked crate.
+
+Ownership is logical, not a path-prefix convention: only sources mounted as
+`wow_world::handlers` or descendants may submit `PacketHandlerEntry`. A file physically below
+`src/handlers` but mounted as `crate::shadow` remains outside the owner. The cfg-independent module
+walk follows explicit `#[path]` files, requires regular non-symlink `.rs` files inside their package
+root, and rejects conditional `cfg_attr(path)`, `#[path]` in/under inline modules, and module
+declarations nested in block/item bodies. These closed rules keep the ownership walk and handler
+grammar on the same exact source set.
+
+Inside the owner, direct submissions and the six audited one-entry registration macros must be
+unconditional, private module items. `#[macro_export]`, reexports, unknown item macros, nested
+handler-capable calls, macro-path or metavariable forwarders, aliases of inventory registration
+macros, repetitions, and multi-arm generators fail closed. Outside the owner, `include!`,
+handler-capable macro definitions/calls, and every `collect`, `submit`, or `__do_submit` inventory
+registration-macro path/import/alias are rejected except for the exact non-handler/generated
+surfaces pinned above. The only handler-registry exception is exactly one unconditional module-level
+`inventory::collect!(PacketHandlerEntry)` at the `wow-handler` production Cargo `lib` target root
+(not a file merely named `lib.rs` or a nested conditional module). The checker scans declarative
+macro definitions and calls in all workspace production sources, but deliberately does not claim
+arbitrary expansion inside third-party crates or external procedural macros; such
+source-generation grammar must be made inspectable and added to the guard before use.
+
+The checker also parses the active `dispatch_packet` method and compares its top-level
+`ClientOpcodes` patterns with the snapshot; conditional or guarded arms are rejected and the sole
+wildcard must be an independent final arm. It permits exactly the three pre-existing
+one-sided entries owned by #142 (`TrainerBuySpell`, `MoveSetVehicleRecIdAck`, and
+`PartyUninvite`) and fails both on new drift and on an obsolete exception after a repair. This is
+a registration-to-arm coverage check; it intentionally does not infer correctness from names
+mentioned in an arm body.
+The existing C++ metadata regression remains the semantic authority. Together, these guards
+prevent an unreviewed registration addition, removal, rename, metadata change, conditionally
+compiled registration, or dispatch-arm loss.
 
 ## Deliberate baseline updates
 
@@ -123,10 +210,13 @@ Do not regenerate a baseline merely to make CI green.
 1. Identify the semantic owner and contrast any behavior-affecting change with C++.
 2. Explain why the dependency or handler-contract change is intentional in the issue and PR.
 3. Add or update focused positive/negative tests before changing the baseline.
-4. For a dependency exception, provide a concrete tracking issue and reason. Remove an exception
-   in the same commit that removes its final edge.
-5. For a handler snapshot, inspect the exact added/removed/changed row and retain the C++ metadata
-   contrast test.
+4. For a legitimate external library in an inward package, add only that exact package/kind to
+   its allowlist and explain the architectural role. For workspace or infrastructure-debt
+   exceptions, provide a concrete tracking issue and reason. Remove an exception or stale
+   allowlist entry in the same commit that removes its final edge.
+5. For a handler snapshot or dispatch-side exception, inspect the exact added/removed/changed row
+   or arm, retain the C++ metadata contrast test, and assign any temporary one-sided wiring to a
+   concrete removal issue.
 6. Run the architecture self-test, architecture check, focused Rust tests, and full PR preflight.
 
 ## Refactor sequence
@@ -134,12 +224,13 @@ Do not regenerate a baseline merely to make CI green.
 The child issues of #133 execute in semantic order, regardless of their GitHub creation number:
 
 1. #135 — executable boundary guardrails (this baseline);
-2. #134 — remove gameplay `SessionResources` from the listener;
-3. #136 — private world-server session factory;
-4. #138 — session mailbox/player registry ownership;
-5. #137 — group registry ownership;
-6. #139 — extract Calendar handlers from `misc.rs`;
-7. #140 — extract the `WorldSession` update/dispatch driver.
+2. #142 — reconcile the three pre-existing dispatcher/registration mismatches;
+3. #134 — remove gameplay `SessionResources` from the listener;
+4. #136 — private world-server session factory;
+5. #138 — session mailbox/player registry ownership;
+6. #137 — group registry ownership;
+7. #139 — extract Calendar handlers from `misc.rs`;
+8. #140 — extract the `WorldSession` update/dispatch driver.
 
 Each issue is one branch and one PR. The next issue starts only after the current PR is
 capture-clean where applicable, all actionable review is resolved, required CI is green on the

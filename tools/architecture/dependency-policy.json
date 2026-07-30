@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "categories": {
     "foundation": [
       "wow-collections",
@@ -225,5 +225,205 @@
       "tracking_issue": 133,
       "reason": "The mixed world application crate still reaches the concrete pathfinding adapter."
     }
-  ]
+  ],
+  "external_dependencies": {
+    "canonical_registry_source": "registry+https://github.com/rust-lang/crates.io-index",
+    "protected_categories": [
+      "foundation",
+      "domain-runtime",
+      "application"
+    ],
+    "protected_packages": [
+      "wow-data",
+      "wow-network",
+      "wow-packet"
+    ],
+    "allowed": {
+      "wow-achievement": {
+        "normal": [],
+        "build": []
+      },
+      "wow-ai": {
+        "normal": [
+          "rand"
+        ],
+        "build": []
+      },
+      "wow-anticheat": {
+        "normal": [],
+        "build": []
+      },
+      "wow-chat": {
+        "normal": [],
+        "build": []
+      },
+      "wow-collections": {
+        "normal": [
+          "smallvec"
+        ],
+        "build": []
+      },
+      "wow-combat": {
+        "normal": [],
+        "build": []
+      },
+      "wow-constants": {
+        "normal": [
+          "bitflags",
+          "num-derive",
+          "num-traits",
+          "serde",
+          "strum"
+        ],
+        "build": []
+      },
+      "wow-core": {
+        "normal": [
+          "bitflags",
+          "libc",
+          "num-derive",
+          "num-traits",
+          "rand",
+          "serde",
+          "thiserror"
+        ],
+        "build": []
+      },
+      "wow-data": {
+        "normal": [
+          "anyhow",
+          "bitflags",
+          "num-traits",
+          "rand",
+          "tracing"
+        ],
+        "build": []
+      },
+      "wow-ecs": {
+        "normal": [
+          "hecs"
+        ],
+        "build": []
+      },
+      "wow-entities": {
+        "normal": [
+          "bitflags"
+        ],
+        "build": []
+      },
+      "wow-instances": {
+        "normal": [
+          "serde_json"
+        ],
+        "build": []
+      },
+      "wow-loot": {
+        "normal": [
+          "rand"
+        ],
+        "build": []
+      },
+      "wow-map": {
+        "normal": [
+          "bumpalo",
+          "parking_lot",
+          "rand",
+          "smallvec"
+        ],
+        "build": []
+      },
+      "wow-math": {
+        "normal": [
+          "glam"
+        ],
+        "build": []
+      },
+      "wow-movement": {
+        "normal": [
+          "bitflags"
+        ],
+        "build": []
+      },
+      "wow-network": {
+        "normal": [
+          "bytes",
+          "dashmap",
+          "ed25519-dalek",
+          "flume",
+          "num-traits",
+          "rand",
+          "sha2",
+          "thiserror",
+          "tokio",
+          "tracing"
+        ],
+        "build": []
+      },
+      "wow-packet": {
+        "normal": [
+          "bytes",
+          "flate2",
+          "num-traits",
+          "thiserror",
+          "tracing"
+        ],
+        "build": []
+      },
+      "wow-pvp": {
+        "normal": [],
+        "build": []
+      },
+      "wow-script": {
+        "normal": [
+          "inventory"
+        ],
+        "build": []
+      },
+      "wow-social": {
+        "normal": [],
+        "build": []
+      },
+      "wow-spell": {
+        "normal": [
+          "bitflags"
+        ],
+        "build": []
+      },
+      "wow-world": {
+        "normal": [
+          "dashmap",
+          "flume",
+          "inventory",
+          "num-traits",
+          "parking_lot",
+          "rand",
+          "tracing"
+        ],
+        "build": []
+      }
+    },
+    "exceptions": [
+      {
+        "from": "wow-loot",
+        "to": "tokio",
+        "kind": "normal",
+        "tracking_issue": 133,
+        "reason": "Loot authority still exposes Tokio watch-based asynchronous coordination from a domain/runtime crate."
+      },
+      {
+        "from": "wow-world",
+        "to": "sqlx",
+        "kind": "normal",
+        "tracking_issue": 133,
+        "reason": "The mixed world application crate still performs concrete SQL persistence directly."
+      },
+      {
+        "from": "wow-world",
+        "to": "tokio",
+        "kind": "normal",
+        "tracking_issue": 133,
+        "reason": "The mixed world application crate still owns Tokio tasks, timers, and channels that must move behind application ports or composition adapters incrementally."
+      }
+    ]
+  }
 }

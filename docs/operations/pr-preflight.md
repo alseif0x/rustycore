@@ -25,7 +25,7 @@ Printing `review` or `full` with `--dry-run` does not require Codex or its execu
 | `self-test` | Test harness parsing and pinned-version invariants | No |
 | `architecture` | Enforce workspace dependency direction and report source hotspots | No |
 | `diff [BASE]` | Whitespace-check committed, staged, and unstaged changes | No |
-| `format` | Run harness self-tests and both formatting checks from CI | No |
+| `format` | Run harness self-tests and all three formatting checks from CI | No |
 | `check` | Run locked core checks, bot check, and server builds from CI | No |
 | `test` | Run focused suites, loot-race tests, and the required capture gate from CI | No |
 | `ci` | Run `architecture`, `format`, `check`, and `test` | No |
@@ -44,12 +44,47 @@ commands without executing them or provisioning optional review tools.
 The `architecture` profile evaluates locked `cargo metadata` against
 `tools/architecture/dependency-policy.json`. Known current violations are explicit, issue-linked
 baseline exceptions: a new edge still fails, and an exception whose edge has disappeared also
-fails until the obsolete allowance is removed. It additionally prints an informational split of
-the largest Rust source files into production and trailing inline-test lines. File size is not a
-gate by itself. Run `python3 tools/architecture/check_architecture.py self-test` to exercise the
-allowed-downward and forbidden-upward fixtures. Ownership, mirror rules, handler snapshot updates,
-and the deliberate baseline-change procedure are documented in
+fails until the obsolete allowance is removed. Direct third-party `normal`/`build` dependencies
+of foundation, domain/runtime, and application packages are pinned per package, so direct SQL,
+network, configuration, process, or async-runtime infrastructure cannot enter an inward layer
+silently. The intentionally narrow `wow-network`, `wow-packet`, and `wow-data` adapters are pinned
+the same way; other adapters remain free to integrate their concrete infrastructure. Legitimate
+external libraries require an explicit reviewed allowlist entry. Protected entries are also tied
+to the policy's canonical crates.io source: same-named path, Git, or alternate-registry
+dependencies fail closed. Metadata identity is validated globally; duplicate JSON keys,
+package/node/member IDs, and ambiguous multi-ID direct dependencies also fail closed. The
+self-test pins the exact locked/all-features Cargo metadata command. The profile additionally
+prints an informational split of the largest Rust source files into production and trailing
+inline-test lines. File size is not a gate by itself. Run
+`python3 tools/architecture/check_architecture.py self-test` to exercise the workspace and
+third-party dependency fixtures. Ownership, mirror rules, handler snapshot updates, and the
+deliberate baseline-change procedure are documented in
 `docs/architecture/ownership-and-boundaries.md`.
+
+The `architecture` profile also runs the locked tests and repository check for the standalone
+`tools/architecture/handler-contract-check` crate. It derives every production workspace package
+that can normally link `wow-handler` from full locked Cargo metadata, walks each `lib`/`bin` module
+graph without evaluating `cfg`, and enforces logical `wow_world::handlers` ownership. It also
+walks every workspace production module graph to reject declarative macro definitions,
+invocations, aliases, exports, or includes capable of emitting, forwarding, or mounting hidden
+registrations from outside that closure. The existing 23 `wow-logging` exports, six `wow-proto`
+generated includes, and seven `wow-script` non-handler inventory calls are exact removal/addition
+ratchets; no neighboring source-generation capability is implied. Explicit module paths are
+restricted to unconditional, in-package, non-symlink `.rs` files declared from file modules.
+Inventory `collect`/`submit` aliases, nested or conditional registration grammar, macro-path or
+metavariable forwarders, and registrations outside the owner fail closed; the sole handler
+collector is the exact unconditional `inventory::collect!(PacketHandlerEntry)` at the
+Cargo-declared `wow-handler` production `lib` root. Arbitrary expansion inside third-party crates
+or external procedural macros is not claimed and must be made inspectable before use. The tool
+also parses `WorldSession::dispatch_packet` and ratchets registration-to-dispatch-arm coverage
+against the checked-in snapshot.
+
+The focused test profile separately runs both the four-test `wow-handler` integration suite and
+the production-linked `wow-world` snapshot. Integration targets can exercise their own registry
+submissions without adding `cfg(test)` registrations to production library sources. The formatting
+profile checks the standalone crate explicitly because its own `[workspace]` keeps it outside the
+root workspace; its local `.gitignore` prevents that crate's `target/` from dirtying architecture
+or full preflight.
 
 `qa-login` is intentionally outside `full`. It requires running services, may create missing
 local QA auth rows, and writes normal login/session data, so it refuses to run without explicit

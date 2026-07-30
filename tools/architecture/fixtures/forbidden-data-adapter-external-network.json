@@ -1,0 +1,8 @@
+{
+  "name": "static-data adapter may not add direct network infrastructure",
+  "source": "wow-data",
+  "target": "reqwest",
+  "scope": "external",
+  "kind": "normal",
+  "expected": "forbidden"
+}

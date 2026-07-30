@@ -1,0 +1,8 @@
+{
+  "name": "registry package cannot impersonate an allowed workspace dependency by name",
+  "source": "wow-map",
+  "target": "wow-math",
+  "scope": "external",
+  "kind": "normal",
+  "expected": "forbidden"
+}

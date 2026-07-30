@@ -5,6 +5,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 POLICY_FILE="$REPO_ROOT/tools/codex-review-policy.md"
 SCHEMA_FILE="$REPO_ROOT/tools/codex-review-schema.json"
 ARCHITECTURE_CHECKER="$REPO_ROOT/tools/architecture/check_architecture.py"
+HANDLER_CONTRACT_CHECK_MANIFEST="$REPO_ROOT/tools/architecture/handler-contract-check/Cargo.toml"
 PROTOC_VERSION_FILE="$REPO_ROOT/.protoc-version"
 DEFAULT_BASE="origin/3.4.3"
 DEFAULT_RUST_MIN_STACK=268435456
@@ -40,7 +41,7 @@ Options:
 Commands:
   self-test           Test harness parsing and pinned-version invariants.
   architecture        Check dependency boundaries and report source hotspots.
-  format              Run the two formatting checks used by GitHub Actions.
+  format              Run the three formatting checks used by GitHub Actions.
   check               Run the locked core checks and server builds used by CI.
   test                Run focused suites, loot-race tests, and required capture gate used by CI.
   ci                  Run architecture, format, check, and test.
@@ -455,12 +456,15 @@ run_format() {
   log "Format (same commands as GitHub Actions)"
   cargo_cmd fmt --all --check
   cargo_cmd fmt --manifest-path tools/wow-test-bot/Cargo.toml -- --check
+  cargo_cmd fmt --manifest-path "$HANDLER_CONTRACT_CHECK_MANIFEST" -- --check
 }
 
 run_architecture() {
   log "Architecture dependency boundaries and source hotspots"
   ((DRY_RUN)) || require_command python3
   run_cmd python3 "$ARCHITECTURE_CHECKER" check
+  cargo_cmd test --locked --manifest-path "$HANDLER_CONTRACT_CHECK_MANIFEST"
+  cargo_cmd run --locked --manifest-path "$HANDLER_CONTRACT_CHECK_MANIFEST" -- check
 }
 
 run_check() {
@@ -492,12 +496,14 @@ run_test() {
   log "Focused library tests (same commands as GitHub Actions)"
   resolve_protoc
   cargo_cmd test --locked -p wow-data --lib
+  cargo_cmd test --locked -p wow-handler --test inventory_registry
   cargo_cmd test --locked -p wow-packet --lib
   cargo_cmd test --locked -p wow-loot --lib
   cargo_cmd test --locked -p wow-entities --lib
   cargo_cmd test --locked -p wow-map --lib
   cargo_cmd test --locked -p wow-network --lib
   cargo_cmd test --locked -p wow-world --lib
+  cargo_cmd test --locked -p wow-world --test production_handler_registry_contract
   cargo_cmd test --locked --manifest-path tools/wow-test-bot/Cargo.toml loot_race::tests
   run_capture
 }
@@ -856,6 +862,9 @@ run_self_test() {
   python3 -m json.tool "$SCHEMA_FILE" >/dev/null || die "invalid Codex review JSON schema"
   python3 "$ARCHITECTURE_CHECKER" self-test >/dev/null || die \
     "architecture policy self-test failed"
+  git -C "$REPO_ROOT" check-ignore --quiet \
+    tools/architecture/handler-contract-check/target/preflight-ignore-probe || die \
+    "standalone handler-contract checker target directory is not gitignored"
 
   artifacts="$(mktemp -d "${TMPDIR:-/tmp}/rustycore-preflight-self-test.XXXXXX")"
   trap 'self_test_cleanup "${qa_world_pid:-}" "${artifacts:-}"' EXIT
@@ -977,6 +986,15 @@ run_self_test() {
   require_exact_occurrences "$ci_dry_run_output" \
     "tools/architecture/check_architecture.py check" 1 \
     "local CI architecture check"
+  require_exact_occurrences "$ci_dry_run_output" \
+    "test --locked --manifest-path $HANDLER_CONTRACT_CHECK_MANIFEST" 1 \
+    "local CI handler-contract checker tests"
+  require_exact_occurrences "$ci_dry_run_output" \
+    "run --locked --manifest-path $HANDLER_CONTRACT_CHECK_MANIFEST -- check" 1 \
+    "local CI handler-contract repository check"
+  require_exact_occurrences "$ci_dry_run_output" \
+    "fmt --manifest-path $HANDLER_CONTRACT_CHECK_MANIFEST -- --check" 1 \
+    "local CI handler-contract checker formatting"
   [[ "$ci_dry_run_output" == *"clippy --locked --no-deps --message-format short -p wow-loot"* ]] || die \
     "CI profile did not print the loot-authority clippy command"
   [[ "$ci_dry_run_output" == *"clippy --locked --no-deps --message-format short -p wow-world --lib -- --cap-lints warn"* ]] || die \
@@ -987,6 +1005,10 @@ run_self_test() {
     "CI profile did not print the wow-entities tests"
   [[ "$ci_dry_run_output" == *"test --locked -p wow-network --lib"* ]] || die \
     "CI profile did not print the wow-network tests"
+  [[ "$ci_dry_run_output" == *"test --locked -p wow-handler --test inventory_registry"* ]] || die \
+    "CI profile did not print the wow-handler inventory registry integration tests"
+  [[ "$ci_dry_run_output" == *"test --locked -p wow-world --test production_handler_registry_contract"* ]] || die \
+    "CI profile did not print the production-linked handler registry contract"
   [[ "$ci_dry_run_output" == *"--manifest-path tools/wow-test-bot/Cargo.toml loot_race::tests"* ]] || die \
     "CI profile did not print the focused loot-race harness tests"
   [[ "$ci_dry_run_output" == *"+ env CARGO_INCREMENTAL=0 cargo +1.88.0 test --locked -p wow-world --lib"* ]] || die \
@@ -1005,11 +1027,26 @@ run_self_test() {
     "python3 tools/architecture/check_architecture.py check" 1 \
     "GitHub workflow architecture check"
   require_exact_occurrences "$github_workflow_text" \
+    "cargo +1.88.0 test --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml" 1 \
+    "GitHub workflow handler-contract checker tests"
+  require_exact_occurrences "$github_workflow_text" \
+    "cargo +1.88.0 run --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml -- check" 1 \
+    "GitHub workflow handler-contract repository check"
+  require_exact_occurrences "$github_workflow_text" \
+    "cargo +1.88.0 fmt --manifest-path tools/architecture/handler-contract-check/Cargo.toml -- --check" 1 \
+    "GitHub workflow handler-contract checker formatting"
+  require_exact_occurrences "$github_workflow_text" \
     'CARGO_INCREMENTAL: "0"' 2 \
     "GitHub workflow non-incremental Rust 1.88 contract"
   require_exact_occurrences "$github_workflow_text" \
     "cargo +1.88.0 test --locked -p capture-diff" 1 \
     "GitHub workflow capture-diff test command"
+  require_exact_occurrences "$github_workflow_text" \
+    "cargo +1.88.0 test --locked -p wow-world --test production_handler_registry_contract" 1 \
+    "GitHub workflow production-linked handler registry contract"
+  require_exact_occurrences "$github_workflow_text" \
+    "cargo +1.88.0 test --locked -p wow-handler --test inventory_registry" 1 \
+    "GitHub workflow wow-handler inventory registry integration tests"
   require_exact_occurrences "$github_workflow_text" \
     "cargo +1.88.0 run --locked -p capture-diff -- verify-required loot-single-item-claim" 1 \
     "GitHub workflow required-flow command"

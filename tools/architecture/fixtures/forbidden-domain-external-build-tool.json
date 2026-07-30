@@ -1,0 +1,8 @@
+{
+  "name": "map runtime may not add an undeclared external build tool",
+  "source": "wow-map",
+  "target": "cc",
+  "scope": "external",
+  "kind": "build",
+  "expected": "forbidden"
+}

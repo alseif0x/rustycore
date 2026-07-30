@@ -46,6 +46,7 @@ jobs:
         run: |
           cargo +1.88.0 fmt --all --check
           cargo +1.88.0 fmt --manifest-path tools/wow-test-bot/Cargo.toml -- --check
+          cargo +1.88.0 fmt --manifest-path tools/architecture/handler-contract-check/Cargo.toml -- --check
 
   check:
     name: Check core crates
@@ -76,7 +77,10 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Check architecture boundaries
-        run: python3 tools/architecture/check_architecture.py check
+        run: |
+          python3 tools/architecture/check_architecture.py check
+          cargo +1.88.0 test --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml
+          cargo +1.88.0 run --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml -- check
 
       - name: Cargo check
         run: |
@@ -119,12 +123,14 @@ jobs:
       - name: Run focused library and loot-race harness tests
         run: |
           cargo +1.88.0 test --locked -p wow-data --lib
+          cargo +1.88.0 test --locked -p wow-handler --test inventory_registry
           cargo +1.88.0 test --locked -p wow-packet --lib
           cargo +1.88.0 test --locked -p wow-loot --lib
           cargo +1.88.0 test --locked -p wow-entities --lib
           cargo +1.88.0 test --locked -p wow-map --lib
           cargo +1.88.0 test --locked -p wow-network --lib
           cargo +1.88.0 test --locked -p wow-world --lib
+          cargo +1.88.0 test --locked -p wow-world --test production_handler_registry_contract
           cargo +1.88.0 test --locked --manifest-path tools/wow-test-bot/Cargo.toml loot_race::tests
           cargo +1.88.0 test --locked -p capture-diff
           cargo +1.88.0 run --locked -p capture-diff -- verify-required loot-single-item-claim

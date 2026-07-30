@@ -1,0 +1,8 @@
+{
+  "name": "network adapter may use its reviewed async socket runtime",
+  "source": "wow-network",
+  "target": "tokio",
+  "scope": "external",
+  "kind": "normal",
+  "expected": "allowed"
+}

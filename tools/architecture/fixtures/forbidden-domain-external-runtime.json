@@ -1,0 +1,8 @@
+{
+  "name": "map runtime may not add a direct async runtime",
+  "source": "wow-map",
+  "target": "tokio",
+  "scope": "external",
+  "kind": "normal",
+  "expected": "forbidden"
+}
