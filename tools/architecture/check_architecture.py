@@ -107,6 +107,7 @@ def validate_policy(policy: Any) -> dict[str, Any]:
                 f"{source_category} allows unknown categories: {sorted(unknown)}"
             )
 
+    restricted_allowed_edges: set[tuple[str, str]] = set()
     for package, direct_dependencies in restricted.items():
         if package not in package_categories:
             raise ArchitectureError(f"restricted package {package} is not classified")
@@ -114,11 +115,25 @@ def validate_policy(policy: Any) -> dict[str, Any]:
             raise ArchitectureError(
                 f"restricted package {package} must contain an array"
             )
+        if not all(
+            isinstance(dependency, str) and dependency
+            for dependency in direct_dependencies
+        ):
+            raise ArchitectureError(
+                f"restricted package {package} dependencies must be non-empty strings"
+            )
+        if len(direct_dependencies) != len(set(direct_dependencies)):
+            raise ArchitectureError(
+                f"restricted package {package} dependencies contain duplicates"
+            )
         unknown = set(direct_dependencies) - set(package_categories)
         if unknown:
             raise ArchitectureError(
                 f"{package} directly allows unknown packages: {sorted(unknown)}"
             )
+        restricted_allowed_edges.update(
+            (package, dependency) for dependency in direct_dependencies
+        )
 
     exception_map: dict[tuple[str, str], dict[str, Any]] = {}
     for index, exception in enumerate(exceptions):
@@ -316,6 +331,7 @@ def validate_policy(policy: Any) -> dict[str, Any]:
         external_exception_map[key] = exception
 
     policy["_package_categories"] = package_categories
+    policy["_restricted_allowed_edges"] = restricted_allowed_edges
     policy["_exception_map"] = exception_map
     policy["_external_protected_categories"] = set(protected_categories)
     policy["_external_protected_packages"] = protected_packages
@@ -728,13 +744,26 @@ def check_dependencies(
     if stale:
         errors.append(f"classified packages no longer in workspace: {', '.join(stale)}")
 
+    used_restricted_allowed: set[tuple[str, str]] = set()
     used_exceptions: set[tuple[str, str]] = set()
     for source, target, kind in sorted(workspace_edges):
         decision, reason = classify_edge(policy, source, target)
-        if decision == "exception":
+        edge = (source, target)
+        if decision == "allowed" and edge in policy["_restricted_allowed_edges"]:
+            used_restricted_allowed.add(edge)
+        elif decision == "exception":
             used_exceptions.add((source, target))
         elif decision == "forbidden":
             errors.append(f"forbidden {kind} edge {source} -> {target}: {reason}")
+
+    stale_restricted_allowed = sorted(
+        policy["_restricted_allowed_edges"] - used_restricted_allowed
+    )
+    for source, target in stale_restricted_allowed:
+        errors.append(
+            f"obsolete restricted-package allowance {source} -> {target}; "
+            "remove it from the policy"
+        )
 
     stale_exceptions = obsolete_exception_edges(policy, used_exceptions)
     for source, target in stale_exceptions:
@@ -1558,6 +1587,55 @@ def run_fixture_self_tests(policy: dict[str, Any]) -> None:
             ) from exc
     else:
         raise ArchitectureError("obsolete-exception ratchet self-test failed")
+
+    stale_restricted_policy = validate_policy(
+        {
+            "schema_version": 2,
+            "categories": {
+                "adapter-platform": ["fixture-network", "fixture-core"]
+            },
+            "allowed_category_dependencies": {
+                "adapter-platform": ["adapter-platform"]
+            },
+            "restricted_packages": {
+                "fixture-network": ["fixture-core"]
+            },
+            "exceptions": [],
+            "external_dependencies": {
+                "canonical_registry_source": CRATES_IO_SOURCE,
+                "protected_categories": ["adapter-platform"],
+                "protected_packages": [],
+                "allowed": {
+                    "fixture-core": {"normal": [], "build": []},
+                    "fixture-network": {"normal": [], "build": []},
+                },
+                "exceptions": [],
+            },
+        }
+    )
+    active_restricted_metadata = synthetic_metadata(
+        {"fixture-network", "fixture-core"},
+        {("fixture-network", "fixture-core", "normal")},
+    )
+    check_dependencies(stale_restricted_policy, active_restricted_metadata)
+    try:
+        check_dependencies(
+            stale_restricted_policy,
+            synthetic_metadata({"fixture-network", "fixture-core"}, set()),
+        )
+    except ArchitectureError as exc:
+        expected_error = (
+            "obsolete restricted-package allowance "
+            "fixture-network -> fixture-core"
+        )
+        if expected_error not in str(exc):
+            raise ArchitectureError(
+                f"restricted-package allowance ratchet returned the wrong failure: {exc}"
+            ) from exc
+    else:
+        raise ArchitectureError(
+            "restricted-package allowance ratchet self-test failed"
+        )
 
     stale_external_policy = validate_policy(
         {

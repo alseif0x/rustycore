@@ -42,9 +42,11 @@ Every workspace package has one dominant category:
 | `composition` | all production layers; owns process wiring |
 | `tooling` | may consume production layers but production must not consume tooling |
 
-Three mixed boundary packages have a stricter direct-dependency allowlist:
+Three mixed boundary packages have a stricter exact direct-dependency allowlist:
 `wow-network`, `wow-packet`, and `wow-data`. This prevents their current surfaces from growing
-while responsibilities are extracted.
+while responsibilities are extracted. Every listed edge must remain present: once an extraction
+removes it, the checker rejects the obsolete allowance so the dependency cannot later be
+reintroduced without review.
 
 The inward `foundation`, `domain-runtime`, and `application` categories also have an exact
 per-package allowlist for direct third-party `normal` and `build` dependencies. The same external
