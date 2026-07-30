@@ -1,6 +1,6 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**Date:** 2026-07-24 · **Base:** `3.4.3` @ `30440c39` plus local issue #24 Detour navmesh-query closeout.
+**Date:** 2026-07-28 · **Base:** `3.4.3` @ `26f4058b` plus local issue #25 threat-runtime closeout.
 
 This document replaces the drifting status snapshots in `_INDEX.md` (2026-05-01, "5–15%"),
 the `MIGRATION_ROADMAP.md` §3 inherited table (which tells you not to trust it), and the
@@ -204,9 +204,35 @@ victim's `MotionMaster`), `IsWithinLOS` and `ShortenPathUntilDist`'s LOS test (V
 `CanSwim()` mesh-hole halves and `Map::IsUnderWater` (liquid), `Map::GetForceEnabled/Disabled
 NavMeshFilterFlags`, `_useRaycast`/`_useStraightPath` (no live caller),
 `MovePositionToFirstCollision` + `IsWithinLOS` gating the wander roll, VMAP/liquid-aware
-`NormalizePath`, off-mesh links/transports/formation, the reached-home spawn-health/addon reloads
-(respawn-owned here), and C++'s per-instance pathfinder concurrency — every map still serializes
+`NormalizePath`, off-mesh links/transports/formation, the reached-home addon/sparring-health reloads,
+and C++'s per-instance pathfinder concurrency — every map still serializes
 through one pathfinder thread.
+
+M2.5 / issue #25 replaces spawn-frozen threat with the live C++ ownership path. Nonlethal hostile
+spell damage now engages the creature and adds effective-damage threat; direct healing forwards
+half of effective healing, divided across eligible threatening creatures. `EffectTaunt` matches
+the caster to the available highest threat and `SPELL_AURA_MOD_TAUNT` gives the newest active
+taunt priority until its DB2 duration expires, restoring an older still-active taunt afterward.
+The global creature tick reselects at C++'s 110% melee / 130% ranged thresholds, broadcasts
+`SMSG_ATTACK_STOP` on evade, clears threat/tap state, blocks re-aggro while returning, and restores
+spawn health only when home movement finalizes. Threat references now also preserve C++'s distinct
+`Suppressed` state for targets immune to the attacker's melee school, confused, or held by a
+damage-breakable stun; they remain in the threat list but cannot be selected until online again,
+and clearing the aura alone does not expire suppression: only new threat from that target or
+C++'s explicit `TauntUpdate` reevaluation can reactivate it. An active taunt explicitly bypasses
+suppression. `CallAssistance` is once per engagement, delayed by the configured family-assistance
+delay, stored on the caller with assistant GUIDs like C++ `AssistDelayEvent`, re-resolved and
+restricted by C++ `CanAssistTo` gates when due, and cannot chain from an assistant. Focused
+positive/negative regressions also pin ordered, lossless delivery of committed creature combat
+events; its per-session backlog is bounded and disconnects a stalled/desynchronized consumer
+instead of dropping events or growing without limit. The complete `wow-world`
+3119/0 and `wow-entities` 667/0 library suites are clean. A guarded live
+`detour-chase-around-obstacle` recapture from `4535a25a` proves the attack-accepted → target
+acquisition → chase slice byte/opcode-clean against the retained C++ golden (3/3 packets, no
+value/routing/missing/extra differences); the fixture also restored its character, respawn, world
+DB, and private DataDir snapshot exactly. That wire window does not exercise heal, taunt,
+assistance, or evade; those branches remain covered by focused C++-anchored regressions rather
+than dedicated live captures.
 
 ---
 

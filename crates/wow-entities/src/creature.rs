@@ -1384,6 +1384,17 @@ impl Creature {
         &self.lifecycle_metadata
     }
 
+    pub fn set_spawn_health_like_cpp(&mut self) {
+        self.unit.set_health(
+            self.lifecycle_metadata
+                .spawn_health
+                .unwrap_or(self.unit.data().max_health),
+        );
+        if let Some(spawn_mana) = self.lifecycle_metadata.spawn_mana {
+            self.unit.set_power(PowerType::Mana, spawn_mana);
+        }
+    }
+
     pub fn set_required_expansion_runtime_like_cpp(&mut self, required_expansion: u8) {
         self.lifecycle_metadata.required_expansion = required_expansion;
     }
@@ -1904,9 +1915,6 @@ impl Creature {
         self.ai_ownership.death_time_ms = None;
         self.ai_ownership.corpse_despawn_at_ms = None;
         self.unit.set_attacking(None);
-        let max_health = self.unit.data().max_health;
-        self.unit.set_death_state(DeathState::Alive);
-        self.unit.set_health(max_health);
         self.last_damaged_time = 0;
     }
 
@@ -2088,7 +2096,12 @@ impl Creature {
         player_combat_reach: f32,
         effective_aggro_range: f32,
     ) -> bool {
-        if !self.ai_is_alive() || self.ai_ownership.state == CreatureAiState::InCombat {
+        if !self.ai_is_alive()
+            || matches!(
+                self.ai_ownership.state,
+                CreatureAiState::InCombat | CreatureAiState::Returning | CreatureAiState::Dead
+            )
+        {
             return false;
         }
 
@@ -3314,14 +3327,7 @@ impl Creature {
                 if is_pet {
                     self.unit.set_health(self.unit.data().max_health);
                 } else {
-                    self.unit.set_health(
-                        self.lifecycle_metadata
-                            .spawn_health
-                            .unwrap_or(self.unit.data().max_health),
-                    );
-                    if let Some(spawn_mana) = self.lifecycle_metadata.spawn_mana {
-                        self.unit.set_power(PowerType::Mana, spawn_mana);
-                    }
+                    self.set_spawn_health_like_cpp();
                     self.unit
                         .world_mut()
                         .object_mut()
@@ -4102,7 +4108,11 @@ mod tests {
         assert_eq!(creature.ai_state(), CreatureAiState::Returning);
         assert_eq!(creature.ai_ownership().combat_target, None);
         assert_eq!(creature.unit().attacking(), None);
-        assert_eq!(creature.ai_current_health(), 80);
+        assert_eq!(
+            creature.ai_current_health(),
+            34,
+            "C++ restores spawn health only when HomeMovementGenerator finalizes"
+        );
         assert_eq!(creature.ai_ownership().move_target, Some(home));
         assert_eq!(creature.ai_ownership().move_start_ms, 55);
         assert_eq!(creature.last_damaged_time(), 0);

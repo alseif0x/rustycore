@@ -10,7 +10,7 @@
 //! to fan-out packets to nearby players on the same map.
 
 use dashmap::DashMap;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicBool, AtomicU64},
@@ -31,6 +31,8 @@ pub enum SessionCommand {
     WorldSessionShutdownFlushLikeCpp(WorldSessionShutdownFlushLikeCppCommand),
     ApplyCreatureMeleeDamageLikeCpp(ApplyCreatureMeleeDamageLikeCppCommand),
     CreatureAttackStartLikeCpp(CreatureAttackStartLikeCppCommand),
+    CreatureAttackStopLikeCpp(CreatureAttackStopLikeCppCommand),
+    ReconcilePvpCombatExpiryLikeCpp(ReconcilePvpCombatExpiryLikeCppCommand),
     ApplyLootMoneyLikeCpp(ApplyLootMoneyLikeCppCommand),
     NotifyLootMoneyRemovedLikeCpp(NotifyLootMoneyRemovedLikeCppCommand),
     MasterLootGive(MasterLootGiveCommand),
@@ -221,8 +223,108 @@ pub struct ApplyCreatureMeleeDamageLikeCppCommand {
 pub struct CreatureAttackStartLikeCppCommand {
     pub attacker_guid: ObjectGuid,
     pub victim_guid: ObjectGuid,
+    /// Previous melee victim, if this start switches an existing attack.
+    /// C++ `Unit::Attack` removes only the old victim's attacker relation
+    /// while retaining its combat/threat references.
+    pub previous_victim_guid: Option<ObjectGuid>,
     pub map_id: u16,
     pub instance_id: u32,
+    /// `true` when the global runtime already queued `SMSG_ATTACKSTART` through
+    /// nearby-visible fanout and this command only mirrors session state.
+    pub packet_already_broadcast: bool,
+}
+
+/// Payload for a map-owned creature evade/combat-stop transition.
+#[derive(Clone, Debug)]
+pub struct CreatureAttackStopLikeCppCommand {
+    pub attacker_guid: ObjectGuid,
+    pub victim_guid: ObjectGuid,
+    pub map_id: u16,
+    pub instance_id: u32,
+}
+
+/// Session-local mirror of a canonical timed PvP combat-reference expiry.
+#[derive(Clone, Debug)]
+pub struct ReconcilePvpCombatExpiryLikeCppCommand {
+    pub player_guid: ObjectGuid,
+    pub map_id: u16,
+    pub instance_id: u32,
+}
+
+/// Durable FIFO handoff for map-owned creature transitions that have
+/// already committed authoritative state.
+///
+/// The bounded general-purpose session queue may legitimately reject visual
+/// fanout under backpressure. These commands cannot be dropped, but the global
+/// map tick also cannot wait for a stalled session. C++ publishes every melee
+/// swing and attack transition in order, so this rail retains each committed
+/// event until the owning session drains it. A session that cannot drain a
+/// bounded backlog is marked desynchronized and disconnected instead of
+/// silently losing authoritative events or growing memory without limit.
+pub const MAX_DURABLE_CREATURE_RUNTIME_COMMANDS_LIKE_CPP: usize = 4_096;
+
+#[derive(Default)]
+pub struct DurableCreatureRuntimeCommandsLikeCpp {
+    commands: VecDeque<SessionCommand>,
+    overflowed: bool,
+}
+
+impl DurableCreatureRuntimeCommandsLikeCpp {
+    fn publish_like_cpp(&mut self, command: SessionCommand) -> bool {
+        if self.commands.len() >= MAX_DURABLE_CREATURE_RUNTIME_COMMANDS_LIKE_CPP {
+            self.overflowed = true;
+            return false;
+        }
+        self.commands.push_back(command);
+        true
+    }
+
+    pub fn publish_attack_start_like_cpp(
+        &mut self,
+        command: CreatureAttackStartLikeCppCommand,
+    ) -> bool {
+        self.publish_like_cpp(SessionCommand::CreatureAttackStartLikeCpp(command))
+    }
+
+    pub fn publish_attack_stop_like_cpp(
+        &mut self,
+        command: CreatureAttackStopLikeCppCommand,
+    ) -> bool {
+        self.publish_like_cpp(SessionCommand::CreatureAttackStopLikeCpp(command))
+    }
+
+    pub fn publish_pvp_combat_expiry_like_cpp(
+        &mut self,
+        command: ReconcilePvpCombatExpiryLikeCppCommand,
+    ) -> bool {
+        self.publish_like_cpp(SessionCommand::ReconcilePvpCombatExpiryLikeCpp(command))
+    }
+
+    pub fn publish_melee_damage_like_cpp(
+        &mut self,
+        command: ApplyCreatureMeleeDamageLikeCppCommand,
+    ) -> bool {
+        self.publish_like_cpp(SessionCommand::ApplyCreatureMeleeDamageLikeCpp(command))
+    }
+
+    pub fn publish_send_if_visible_like_cpp(
+        &mut self,
+        command: SendIfVisibleLikeCppCommand,
+    ) -> bool {
+        self.publish_like_cpp(SessionCommand::SendIfVisibleLikeCpp(command))
+    }
+
+    pub fn drain_like_cpp(&mut self) -> Vec<SessionCommand> {
+        self.commands.drain(..).collect()
+    }
+
+    pub fn take_overflowed_and_discard_like_cpp(&mut self) -> bool {
+        let overflowed = std::mem::take(&mut self.overflowed);
+        if overflowed {
+            self.commands.clear();
+        }
+        overflowed
+    }
 }
 
 /// Payload for [`SessionCommand::SendIfVisibleLikeCpp`].
@@ -902,6 +1004,9 @@ pub struct PlayerBroadcastInfo {
     pub realm_send_tx: flume::Sender<Vec<u8>>,
     /// Channel used for C++-style cross-session state mutations.
     pub command_tx: flume::Sender<SessionCommand>,
+    /// Durable FIFO rail for authoritative creature combat transitions.
+    pub durable_creature_runtime_commands_like_cpp:
+        Arc<Mutex<DurableCreatureRuntimeCommandsLikeCpp>>,
     /// Durable/coalesced equivalent of C++'s retained visibility notify bit.
     ///
     /// Senders set this before attempting the bounded command queue. The owning
@@ -1078,6 +1183,7 @@ mod tests {
             realm_send_tx: send_tx.clone(),
             send_tx,
             command_tx,
+            durable_creature_runtime_commands_like_cpp: Default::default(),
             visibility_refresh_pending_like_cpp: Default::default(),
             durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),
@@ -1227,8 +1333,10 @@ mod tests {
         let cmd = CreatureAttackStartLikeCppCommand {
             attacker_guid: attacker,
             victim_guid: victim,
+            previous_victim_guid: None,
             map_id: 571,
             instance_id: 4,
+            packet_already_broadcast: false,
         };
 
         assert_eq!(cmd.attacker_guid, attacker);
@@ -1327,5 +1435,113 @@ mod tests {
 
         assert!(tracker.is_indeterminate_like_cpp());
         assert!(tracker.begin_like_cpp().is_err());
+    }
+
+    #[test]
+    fn durable_creature_runtime_commands_preserve_committed_fifo_like_cpp() {
+        let victim = ObjectGuid::create_player(1, 900);
+        let attacker = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Creature,
+            0,
+            1,
+            571,
+            0,
+            9001,
+            901,
+        );
+        let mut pending = DurableCreatureRuntimeCommandsLikeCpp::default();
+        assert!(
+            pending.publish_attack_start_like_cpp(CreatureAttackStartLikeCppCommand {
+                attacker_guid: attacker,
+                victim_guid: victim,
+                previous_victim_guid: None,
+                map_id: 571,
+                instance_id: 0,
+                packet_already_broadcast: false,
+            })
+        );
+        assert!(
+            pending.publish_attack_stop_like_cpp(CreatureAttackStopLikeCppCommand {
+                attacker_guid: attacker,
+                victim_guid: victim,
+                map_id: 571,
+                instance_id: 0,
+            })
+        );
+        assert!(pending.publish_pvp_combat_expiry_like_cpp(
+            ReconcilePvpCombatExpiryLikeCppCommand {
+                player_guid: victim,
+                map_id: 571,
+                instance_id: 0,
+            }
+        ));
+        for victim_health_after in [90, 75] {
+            assert!(pending.publish_melee_damage_like_cpp(
+                ApplyCreatureMeleeDamageLikeCppCommand {
+                    attacker_guid: attacker,
+                    victim_guid: victim,
+                    map_id: 571,
+                    instance_id: 0,
+                    damage: 15,
+                    over_damage: -1,
+                    target_level: 80,
+                    victim_health_after,
+                }
+            ));
+        }
+
+        let commands = pending.drain_like_cpp();
+        assert_eq!(commands.len(), 5);
+        assert!(matches!(
+            commands[0],
+            SessionCommand::CreatureAttackStartLikeCpp(_)
+        ));
+        assert!(matches!(
+            commands[1],
+            SessionCommand::CreatureAttackStopLikeCpp(_)
+        ));
+        assert!(matches!(
+            commands[2],
+            SessionCommand::ReconcilePvpCombatExpiryLikeCpp(_)
+        ));
+        let SessionCommand::ApplyCreatureMeleeDamageLikeCpp(first_melee) = &commands[3] else {
+            panic!("expected first melee event");
+        };
+        let SessionCommand::ApplyCreatureMeleeDamageLikeCpp(second_melee) = &commands[4] else {
+            panic!("expected second melee event");
+        };
+        assert_eq!(first_melee.victim_health_after, 90);
+        assert_eq!(second_melee.victim_health_after, 75);
+        assert!(pending.drain_like_cpp().is_empty());
+    }
+
+    #[test]
+    fn durable_creature_runtime_commands_bound_stalled_session_memory_like_cpp() {
+        let victim = ObjectGuid::create_player(1, 902);
+        let attacker = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Creature,
+            0,
+            1,
+            571,
+            0,
+            9001,
+            903,
+        );
+        let command = CreatureAttackStartLikeCppCommand {
+            attacker_guid: attacker,
+            victim_guid: victim,
+            previous_victim_guid: None,
+            map_id: 571,
+            instance_id: 0,
+            packet_already_broadcast: false,
+        };
+        let mut pending = DurableCreatureRuntimeCommandsLikeCpp::default();
+        for _ in 0..MAX_DURABLE_CREATURE_RUNTIME_COMMANDS_LIKE_CPP {
+            assert!(pending.publish_attack_start_like_cpp(command.clone()));
+        }
+        assert!(!pending.publish_attack_start_like_cpp(command));
+        assert!(pending.take_overflowed_and_discard_like_cpp());
+        assert!(pending.drain_like_cpp().is_empty());
+        assert!(!pending.take_overflowed_and_discard_like_cpp());
     }
 }

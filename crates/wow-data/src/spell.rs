@@ -12,7 +12,7 @@
 //! - Effect type (heal, damage, apply aura, etc.)
 //! - Effect parameters (base points, bonus coefficients)
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::f32::consts::TAU;
 
 use anyhow::Result;
@@ -400,11 +400,14 @@ pub mod spell_effect_types {
 pub mod aura_types {
     pub const SPELL_AURA_CONTROL_VEHICLE: i32 = 236;
     pub const SPELL_AURA_DUMMY: i32 = 0;
-    pub const SPELL_AURA_SCHOOL_ABSORB: i32 = 1;
-    pub const SPELL_AURA_SCHOOL_IMMUNITY: i32 = 2;
+    /// C++ `AuraType::SPELL_AURA_SCHOOL_ABSORB`.
+    pub const SPELL_AURA_SCHOOL_ABSORB: i32 = 69;
+    pub const SPELL_AURA_SCHOOL_IMMUNITY: i32 = 39;
     pub const SPELL_AURA_DUMMY_ABSORB: i32 = 3;
+    pub const SPELL_AURA_PERIODIC_DAMAGE: i32 = 3;
     pub const SPELL_AURA_MOD_CONFUSE: i32 = 5;
     pub const SPELL_AURA_MOD_FEAR: i32 = 7;
+    pub const SPELL_AURA_PERIODIC_HEAL: i32 = 8;
     pub const SPELL_AURA_MOD_THREAT: i32 = 10;
     pub const SPELL_AURA_MOD_TAUNT: i32 = 11;
     pub const SPELL_AURA_MOD_STUN: i32 = 12;
@@ -414,11 +417,14 @@ pub mod aura_types {
     pub const SPELL_AURA_MOD_INVISIBILITY: i32 = 18;
     pub const SPELL_AURA_MOD_RESISTANCE: i32 = 22;
     pub const SPELL_AURA_MOD_ROOT: i32 = 26;
+    pub const SPELL_AURA_MOD_SILENCE: i32 = 27;
+    pub const SPELL_AURA_MOD_STAT: i32 = 29;
     pub const SPELL_AURA_REFLECT_SPELLS: i32 = 28;
     pub const SPELL_AURA_MOD_INCREASE_SPEED: i32 = 31;
     pub const SPELL_AURA_MODIFY_DAMAGE_PERCENT_TAKEN: i32 = 31;
     pub const SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED: i32 = 32;
     pub const SPELL_AURA_MOD_DECREASE_SPEED: i32 = 33;
+    pub const SPELL_AURA_MOD_INCREASE_HEALTH: i32 = 34;
     pub const SPELL_AURA_MOD_SHAPESHIFT: i32 = 36;
     pub const SPELL_AURA_DAMAGE_IMMUNITY: i32 = 40;
     pub const SPELL_AURA_PROC_TRIGGER_SPELL: i32 = 42;
@@ -439,6 +445,7 @@ pub mod aura_types {
     pub const SPELL_AURA_MOUNTED: i32 = 78;
     pub const SPELL_AURA_MOD_DAMAGE_PERCENT_DONE: i32 = 79;
     pub const SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN: i32 = 87;
+    pub const SPELL_AURA_PERIODIC_DAMAGE_PERCENT: i32 = 89;
     pub const SPELL_AURA_MOD_DETECT_RANGE: i32 = 91;
     pub const SPELL_AURA_SPELL_MAGNET: i32 = 96;
     pub const SPELL_AURA_MOD_ATTACK_POWER: i32 = 99;
@@ -450,6 +457,7 @@ pub mod aura_types {
     pub const SPELL_AURA_MOD_MECHANIC_RESISTANCE: i32 = 117;
     pub const SPELL_AURA_RANGED_ATTACK_POWER_ATTACKER_BONUS: i32 = 127;
     pub const SPELL_AURA_MOD_SPEED_ALWAYS: i32 = 129;
+    pub const SPELL_AURA_MOD_INCREASE_HEALTH_PERCENT: i32 = 133;
     pub const SPELL_AURA_MOD_MOUNTED_SPEED_ALWAYS: i32 = 130;
     pub const SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE: i32 = 137;
     pub const SPELL_AURA_MOD_MELEE_HASTE: i32 = 138;
@@ -479,6 +487,7 @@ pub mod aura_types {
     pub const SPELL_AURA_MOD_MINIMUM_SPEED: i32 = 305;
     pub const SPELL_AURA_MOD_MELEE_HASTE_3: i32 = 319;
     pub const SPELL_AURA_MOD_SPEED_NO_CONTROL: i32 = 373;
+    pub const SPELL_AURA_SCHOOL_HEAL_ABSORB: i32 = 301;
     pub const SPELL_AURA_IGNORE_SPELL_COOLDOWN: i32 = 383;
     pub const SPELL_AURA_MOD_BATTLE_PET_XP_PCT: i32 = 420;
     pub const SPELL_AURA_MOD_MINIMUM_SPEED_RATE: i32 = 437;
@@ -524,6 +533,8 @@ pub mod attributes {
 
     /// C++ `SPELL_ATTR1_IS_CHANNELLED` (`SharedDefines.h`).
     pub const SPELL_ATTR1_IS_CHANNELLED: u32 = 0x0000_0004;
+    /// C++ `SPELL_ATTR1_NO_THREAT` (`SharedDefines.h`).
+    pub const SPELL_ATTR1_NO_THREAT: u32 = 0x0000_0400;
 
     /// C++ `SPELL_ATTR1_IS_SELF_CHANNELLED` (`SharedDefines.h`).
     pub const SPELL_ATTR1_IS_SELF_CHANNELLED: u32 = 0x0000_0040;
@@ -533,10 +544,16 @@ pub mod attributes {
     pub const SPELL_ATTR1_NO_AURA_ICON: u32 = 0x1000_0000;
     /// C++ `SPELL_ATTR2_ALLOW_WHILE_NOT_SHAPESHIFTED_CASTER_FORM` (`SharedDefines.h`).
     pub const SPELL_ATTR2_ALLOW_WHILE_NOT_SHAPESHIFTED_CASTER_FORM: u32 = 0x0008_0000;
+    /// C++ `SPELL_ATTR2_NO_INITIAL_THREAT` (`SharedDefines.h`).
+    pub const SPELL_ATTR2_NO_INITIAL_THREAT: u32 = 0x0040_0000;
     /// C++ `SPELL_ATTR3_CAN_PROC_FROM_PROCS` (`SharedDefines.h`).
     pub const SPELL_ATTR3_CAN_PROC_FROM_PROCS: u32 = 0x0400_0000;
     /// C++ `SPELL_ATTR4_AURA_EXPIRES_OFFLINE` (`SharedDefines.h`).
     pub const SPELL_ATTR4_AURA_EXPIRES_OFFLINE: u32 = 0x0000_0004;
+    /// C++ `SPELL_ATTR4_NO_HELPFUL_THREAT` (`SharedDefines.h`).
+    pub const SPELL_ATTR4_NO_HELPFUL_THREAT: u32 = 0x0000_0008;
+    /// C++ `SPELL_ATTR4_NO_HARMFUL_THREAT` (`SharedDefines.h`).
+    pub const SPELL_ATTR4_NO_HARMFUL_THREAT: u32 = 0x0000_0010;
     pub const SPELL_ATTR4_USE_FACING_FROM_SPELL: u32 = 0x8000_0000;
 }
 
@@ -5319,7 +5336,9 @@ struct SpellInterruptRowLikeCpp {
 #[derive(Default)]
 pub struct SpellStore {
     spells: HashMap<i32, SpellInfo>,
+    spell_effects_by_difficulty: HashMap<(i32, u8), Vec<SpellEffectInfo>>,
     spell_misc_attributes: HashMap<i32, [u32; 15]>,
+    spell_misc_attributes_by_difficulty: HashMap<(i32, u8), [u32; 15]>,
     spell_interrupt_flags: HashMap<(i32, u8), ([u32; 2], [u32; 2])>,
     spell_interrupt_rows_by_id: BTreeMap<u32, SpellInterruptRowLikeCpp>,
     spell_shapeshift_masks: HashMap<i32, (u64, u64)>,
@@ -5331,7 +5350,9 @@ impl SpellStore {
     pub fn new() -> Self {
         Self {
             spells: HashMap::new(),
+            spell_effects_by_difficulty: HashMap::new(),
             spell_misc_attributes: HashMap::new(),
+            spell_misc_attributes_by_difficulty: HashMap::new(),
             spell_interrupt_flags: HashMap::new(),
             spell_interrupt_rows_by_id: BTreeMap::new(),
             spell_shapeshift_masks: HashMap::new(),
@@ -5341,6 +5362,31 @@ impl SpellStore {
 
     fn make_pair64_like_cpp(low: i32, high: i32) -> u64 {
         u64::from(low as u32) | (u64::from(high as u32) << 32)
+    }
+
+    pub fn effects_for_difficulty_like_cpp(
+        &self,
+        spell_id: i32,
+        requested_difficulty_id: u8,
+        difficulty_store: Option<&crate::difficulty::DifficultyStore>,
+    ) -> Option<&[SpellEffectInfo]> {
+        let mut difficulty_id = requested_difficulty_id;
+        let mut visited = HashSet::new();
+        loop {
+            if let Some(effects) = self
+                .spell_effects_by_difficulty
+                .get(&(spell_id, difficulty_id))
+            {
+                return Some(effects);
+            }
+            if difficulty_id == 0 || !visited.insert(difficulty_id) {
+                break;
+            }
+            difficulty_id = difficulty_store
+                .and_then(|store| store.get(u32::from(difficulty_id)))
+                .map_or(0, |difficulty| difficulty.fallback_difficulty_id);
+        }
+        self.spells.get(&spell_id).map(|spell| spell.effects())
     }
 
     fn empty_spell_info_like_cpp(spell_id: i32) -> SpellInfo {
@@ -5406,7 +5452,8 @@ impl SpellStore {
             entry.power_costs = incoming.power_costs;
         }
 
-        if !incoming.effects.is_empty() {
+        let overlays_effects = !incoming.effects.is_empty();
+        if overlays_effects {
             for hotfix_effect in incoming.effects {
                 entry
                     .effects
@@ -5416,11 +5463,17 @@ impl SpellStore {
         }
 
         Self::hydrate_primary_effect_like_cpp(entry);
+        if overlays_effects {
+            self.spell_effects_by_difficulty
+                .insert((entry.spell_id, 0), entry.effects.clone());
+        }
     }
 
     fn merge_spell_misc_attributes_like_cpp(&mut self, incoming: HashMap<i32, [u32; 15]>) {
         for (spell_id, attributes) in incoming {
             self.spell_misc_attributes.insert(spell_id, attributes);
+            self.spell_misc_attributes_by_difficulty
+                .insert((spell_id, 0), attributes);
         }
     }
 
@@ -5491,35 +5544,48 @@ impl SpellStore {
         let mut store = Self::new();
 
         for misc in spell_misc_store.entries_like_cpp() {
-            if misc.difficulty_id != 0 {
-                continue;
-            }
             let Ok(spell_id) = i32::try_from(misc.spell_id) else {
                 continue;
             };
+            let difficulty_id = misc.difficulty_id;
+            let attributes = misc.attributes.map(|attribute| attribute as u32);
+            store
+                .spell_misc_attributes_by_difficulty
+                .insert((spell_id, difficulty_id), attributes);
+            if difficulty_id != 0 {
+                continue;
+            }
             store
                 .spells
                 .entry(spell_id)
                 .or_insert_with(|| Self::empty_spell_info_like_cpp(spell_id));
-            store
-                .spell_misc_attributes
-                .insert(spell_id, misc.attributes.map(|attribute| attribute as u32));
+            store.spell_misc_attributes.insert(spell_id, attributes);
         }
 
         for effect in spell_effect_store.entries_like_cpp() {
-            if effect.difficulty_id != 0 || effect.effect == 0 {
+            if effect.effect == 0 {
                 continue;
             }
             let Ok(spell_id) = i32::try_from(effect.spell_id) else {
                 continue;
             };
+            let Ok(difficulty_id) = u8::try_from(effect.difficulty_id) else {
+                continue;
+            };
+            let converted = Self::spell_effect_from_db2_like_cpp(effect);
+            store
+                .spell_effects_by_difficulty
+                .entry((spell_id, difficulty_id))
+                .or_default()
+                .push(converted.clone());
+            if difficulty_id != 0 {
+                continue;
+            }
             let spell = store
                 .spells
                 .entry(spell_id)
                 .or_insert_with(|| Self::empty_spell_info_like_cpp(spell_id));
-            spell
-                .effects
-                .push(Self::spell_effect_from_db2_like_cpp(effect));
+            spell.effects.push(converted);
         }
 
         for shapeshift in spell_shapeshift_store.entries_like_cpp() {
@@ -5958,6 +6024,51 @@ ORDER BY sm.ID, se.EffectIndex
         self.spells.get(&spell_id)
     }
 
+    /// Resolve the `SpellMisc` attributes owned by the same difficulty-specific
+    /// C++ `SpellInfo` selected by `SpellMgr::GetSpellInfo`.
+    pub fn misc_attributes_for_difficulty_like_cpp(
+        &self,
+        spell_id: i32,
+        requested_difficulty_id: u8,
+        difficulty_store: Option<&crate::difficulty::DifficultyStore>,
+    ) -> Option<[u32; 15]> {
+        let mut difficulty_id = requested_difficulty_id;
+        let mut visited = HashSet::new();
+        loop {
+            if let Some(attributes) = self
+                .spell_misc_attributes_by_difficulty
+                .get(&(spell_id, difficulty_id))
+                .copied()
+            {
+                return Some(attributes);
+            }
+            if difficulty_id == 0 || !visited.insert(difficulty_id) {
+                break;
+            }
+            difficulty_id = difficulty_store
+                .and_then(|store| store.get(u32::from(difficulty_id)))
+                .map_or(0, |difficulty| difficulty.fallback_difficulty_id);
+        }
+        self.spell_misc_attributes.get(&spell_id).copied()
+    }
+
+    pub fn has_attribute_for_difficulty_like_cpp(
+        &self,
+        spell_id: i32,
+        requested_difficulty_id: u8,
+        difficulty_store: Option<&crate::difficulty::DifficultyStore>,
+        attribute_word: usize,
+        attribute: u32,
+    ) -> bool {
+        self.misc_attributes_for_difficulty_like_cpp(
+            spell_id,
+            requested_difficulty_id,
+            difficulty_store,
+        )
+        .and_then(|attributes| attributes.get(attribute_word).copied())
+        .is_some_and(|attributes| attributes & attribute != 0)
+    }
+
     /// C++ `SpellInfo::HasAttribute` for attributes hydrated from `SpellMisc.db2`.
     pub fn has_attribute0_like_cpp(&self, spell_id: i32, attribute: u32) -> bool {
         self.spell_misc_attributes
@@ -5977,6 +6088,13 @@ ORDER BY sm.ID, se.EffectIndex
         self.spell_misc_attributes
             .get(&spell_id)
             .is_some_and(|attributes| attributes[2] & attribute != 0)
+    }
+
+    /// C++ `SpellInfo::HasAttribute(SpellAttr4)` for attributes hydrated from `SpellMisc.db2`.
+    pub fn has_attribute4_like_cpp(&self, spell_id: i32, attribute: u32) -> bool {
+        self.spell_misc_attributes
+            .get(&spell_id)
+            .is_some_and(|attributes| attributes[4] & attribute != 0)
     }
 
     /// C++ `SpellInfo::HasAttribute(SpellAttr8)` for attributes hydrated from `SpellMisc.db2`.
@@ -6225,6 +6343,22 @@ ORDER BY sm.ID, se.EffectIndex
     #[allow(dead_code)]
     pub fn insert_spell_misc_attributes_like_cpp(&mut self, spell_id: i32, attributes: [u32; 15]) {
         self.spell_misc_attributes.insert(spell_id, attributes);
+        self.spell_misc_attributes_by_difficulty
+            .insert((spell_id, 0), attributes);
+    }
+
+    #[allow(dead_code)]
+    pub fn insert_spell_misc_attributes_for_difficulty_like_cpp(
+        &mut self,
+        spell_id: i32,
+        difficulty_id: u8,
+        attributes: [u32; 15],
+    ) {
+        self.spell_misc_attributes_by_difficulty
+            .insert((spell_id, difficulty_id), attributes);
+        if difficulty_id == 0 {
+            self.spell_misc_attributes.insert(spell_id, attributes);
+        }
     }
 
     #[allow(dead_code)]
@@ -6281,6 +6415,79 @@ ORDER BY sm.ID, se.EffectIndex
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn test_effect_like_cpp(effect_index: u32, effect_aura: i32) -> SpellEffectInfo {
+        SpellEffectInfo {
+            effect_index,
+            effect: spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_aura,
+            effect_base_points: 0,
+            effect_die_sides: 0,
+            effect_spell_class_mask: [0; 4],
+            effect_misc_value_1: 0,
+            effect_misc_value_2: 0,
+            effect_trigger_spell: 0,
+            effect_radius_index_1: 0,
+            position_facing: 0.0,
+            chain_targets: 0,
+            implicit_target_1: 0,
+            implicit_target_2: 0,
+        }
+    }
+
+    #[test]
+    fn hotfix_base_effect_replaces_difficulty_zero_lookup_like_cpp() {
+        let mut store = SpellStore::new();
+        let mut base = SpellStore::empty_spell_info_like_cpp(100);
+        base.effects
+            .push(test_effect_like_cpp(0, aura_types::SPELL_AURA_MOD_THREAT));
+        store.merge_spell_info_like_cpp(base);
+
+        let mut hotfix = SpellStore::empty_spell_info_like_cpp(100);
+        hotfix
+            .effects
+            .push(test_effect_like_cpp(0, aura_types::SPELL_AURA_MOD_TAUNT));
+        store.merge_spell_info_like_cpp(hotfix);
+
+        let effects = store
+            .effects_for_difficulty_like_cpp(100, 0, None)
+            .expect("hotfixed base effect");
+        assert_eq!(effects.len(), 1);
+        assert_eq!(effects[0].effect_aura, aura_types::SPELL_AURA_MOD_TAUNT);
+    }
+
+    #[test]
+    fn misc_attributes_resolve_exact_difficulty_then_base_like_cpp() {
+        let mut store = SpellStore::new();
+        let mut base = [0; 15];
+        base[1] = attributes::SPELL_ATTR1_NO_THREAT;
+        store.insert_spell_misc_attributes_like_cpp(100, base);
+        let mut heroic = [0; 15];
+        heroic[4] = attributes::SPELL_ATTR4_NO_HARMFUL_THREAT;
+        store.insert_spell_misc_attributes_for_difficulty_like_cpp(100, 2, heroic);
+
+        assert!(store.has_attribute_for_difficulty_like_cpp(
+            100,
+            2,
+            None,
+            4,
+            attributes::SPELL_ATTR4_NO_HARMFUL_THREAT,
+        ));
+        assert!(!store.has_attribute_for_difficulty_like_cpp(
+            100,
+            2,
+            None,
+            1,
+            attributes::SPELL_ATTR1_NO_THREAT,
+        ));
+        assert!(store.has_attribute_for_difficulty_like_cpp(
+            100,
+            3,
+            None,
+            1,
+            attributes::SPELL_ATTR1_NO_THREAT,
+        ));
+    }
     use crate::{Condition, ConditionEntriesByTypeStore};
     use wow_constants::{ConditionSourceType, ConditionType};
 

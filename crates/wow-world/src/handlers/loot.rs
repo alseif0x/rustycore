@@ -62,7 +62,8 @@ use wow_loot::{
 use wow_network::player_registry::{
     ApplyCreatureMeleeDamageLikeCppCommand, ApplyGroupJoinLikeCppCommand,
     ApplyGroupRemovalLikeCppCommand, CancelRepresentedTradeLikeCppCommand,
-    CreatureAttackStartLikeCppCommand, RefreshVisibleWorldCreaturesLikeCppCommand,
+    CreatureAttackStartLikeCppCommand, CreatureAttackStopLikeCppCommand,
+    ReconcilePvpCombatExpiryLikeCppCommand, RefreshVisibleWorldCreaturesLikeCppCommand,
     SendAddonIfRegisteredLikeCppCommand, SendCreatureLootReleaseValuesUpdateLikeCppCommand,
     SendIfVisibleLikeCppCommand, SendPartyUpdateLikeCppCommand,
     SendRepeatableTurnInRequestItemsLikeCppCommand, SendRepresentedDuelCountdownLikeCppCommand,
@@ -4303,6 +4304,13 @@ impl WorldSession {
     pub(crate) async fn process_represented_session_commands_like_cpp(&mut self) {
         self.apply_pending_durable_item_loot_completions_like_cpp()
             .await;
+        let creature_runtime_overflowed = self.take_durable_creature_runtime_overflow_like_cpp();
+        if creature_runtime_overflowed {
+            self.kick(
+                "authoritative creature runtime command backlog overflowed; disconnecting desynchronized session",
+            );
+            return;
+        }
         let commands = self.drain_session_commands();
         for command in commands {
             match command {
@@ -4322,6 +4330,12 @@ impl WorldSession {
                 }
                 SessionCommand::CreatureAttackStartLikeCpp(command) => {
                     self.handle_creature_attack_start_like_cpp_command_like_cpp(command);
+                }
+                SessionCommand::CreatureAttackStopLikeCpp(command) => {
+                    self.handle_creature_attack_stop_like_cpp_command_like_cpp(command);
+                }
+                SessionCommand::ReconcilePvpCombatExpiryLikeCpp(command) => {
+                    self.handle_reconcile_pvp_combat_expiry_like_cpp(command);
                 }
                 SessionCommand::ApplyLootMoneyLikeCpp(command) => {
                     self.handle_apply_loot_money_like_cpp_command(command).await;
@@ -4722,35 +4736,36 @@ impl WorldSession {
         }
         let session_instance_id = self
             .current_canonical_player_map_key_like_cpp()
-            .map(|k| k.instance_id)
+            .map(|key| key.instance_id)
             .unwrap_or(0);
         if session_instance_id != command.instance_id {
             return;
         }
-        if !self
-            .client_visible_guids_like_cpp
-            .contains(&command.attacker_guid)
-        {
-            return;
-        }
-
         let health_after = command.victim_health_after;
         self.set_player_health_after_runtime_damage_like_cpp(health_after);
 
         use wow_packet::packets::combat::{
             AttackerStateUpdate, HIT_INFO_NORMAL_SWING, HealthUpdate, VICTIM_STATE_HIT,
         };
-        self.send_packet(&AttackerStateUpdate {
-            attacker: command.attacker_guid,
-            victim: command.victim_guid,
-            hit_info: HIT_INFO_NORMAL_SWING,
-            damage: command.damage.min(i32::MAX as u32) as i32,
-            over_damage: command.over_damage,
-            victim_state: VICTIM_STATE_HIT,
-            school_mask: 1,
-            target_level: command.target_level,
-            expansion: 2,
-        });
+        // Visibility can change after the map-owned swing commits. It gates
+        // only the attacker-facing combat packet, never authoritative victim
+        // health/death reconciliation.
+        if self
+            .client_visible_guids_like_cpp
+            .contains(&command.attacker_guid)
+        {
+            self.send_packet(&AttackerStateUpdate {
+                attacker: command.attacker_guid,
+                victim: command.victim_guid,
+                hit_info: HIT_INFO_NORMAL_SWING,
+                damage: command.damage.min(i32::MAX as u32) as i32,
+                over_damage: command.over_damage,
+                victim_state: VICTIM_STATE_HIT,
+                school_mask: 1,
+                target_level: command.target_level,
+                expansion: 2,
+            });
+        }
         self.send_packet(&HealthUpdate {
             guid: command.victim_guid,
             health: command.victim_health_after.min(i64::MAX as u64) as i64,
@@ -4764,7 +4779,7 @@ impl WorldSession {
     /// is visible to the client through `Unit::SendMeleeAttackStart`. The map
     /// runtime owns the aggro decision; this handler only gates the victim
     /// session and sends one `AttackStart` packet.
-    fn handle_creature_attack_start_like_cpp_command_like_cpp(
+    pub(crate) fn handle_creature_attack_start_like_cpp_command_like_cpp(
         &mut self,
         command: CreatureAttackStartLikeCppCommand,
     ) {
@@ -4782,26 +4797,168 @@ impl WorldSession {
         }
         let session_instance_id = self
             .current_canonical_player_map_key_like_cpp()
-            .map(|k| k.instance_id)
+            .map(|key| key.instance_id)
             .unwrap_or(0);
         if session_instance_id != command.instance_id {
             return;
         }
-        if !self
+        let attacker_is_visible = self
             .client_visible_guids_like_cpp
-            .contains(&command.attacker_guid)
+            .contains(&command.attacker_guid);
+
+        if let Some(manager) = self.canonical_map_manager.as_ref().cloned()
+            && let Ok(mut manager) = manager.lock()
+            && let Some(managed) =
+                manager.find_map_mut(u32::from(command.map_id), command.instance_id)
+        {
+            let map = managed.map_mut();
+            if let Some(previous_victim) = command.previous_victim_guid {
+                if let Some(player) = map.get_typed_player_mut(previous_victim) {
+                    player
+                        .unit_mut()
+                        .remove_attacker_like_cpp(command.attacker_guid);
+                } else if let Some(creature) = map.get_typed_creature_mut(previous_victim) {
+                    creature
+                        .unit_mut()
+                        .remove_attacker_like_cpp(command.attacker_guid);
+                }
+            }
+            if let Some(player) = map.get_typed_player_mut(command.victim_guid) {
+                player
+                    .unit_mut()
+                    .subsystems_mut()
+                    .combat
+                    .set_in_combat_with(command.attacker_guid, false, false);
+                player
+                    .unit_mut()
+                    .add_attacker_like_cpp(command.attacker_guid);
+            }
+            if let Some(creature) = map.get_typed_creature_mut(command.attacker_guid) {
+                let combat = &mut creature.unit_mut().subsystems_mut().combat;
+                combat.set_in_combat_with(command.victim_guid, false, false);
+                if combat.threat_ref(command.victim_guid).is_none() {
+                    combat.set_threat(command.victim_guid, 0.0);
+                }
+                let threat_ref = combat.threat_ref(command.victim_guid).copied();
+                if let Some(threat_ref) = threat_ref
+                    && let Some(player) = map.get_typed_player_mut(command.victim_guid)
+                {
+                    player
+                        .unit_mut()
+                        .subsystems_mut()
+                        .combat
+                        .put_threatened_by_me_ref(command.attacker_guid, threat_ref);
+                }
+            }
+        }
+
+        // Incoming attackers do not become the player's own melee target.
+        // C++ keeps that direction solely in `m_attackers`/combat references.
+        self.in_combat = true;
+
+        if attacker_is_visible && !command.packet_already_broadcast {
+            use wow_packet::packets::combat::AttackStart;
+            self.send_packet(&AttackStart {
+                attacker: command.attacker_guid,
+                victim: command.victim_guid,
+            });
+        }
+    }
+
+    fn handle_creature_attack_stop_like_cpp_command_like_cpp(
+        &mut self,
+        command: CreatureAttackStopLikeCppCommand,
+    ) {
+        // This cleanup command is emitted only by the full
+        // `LegacyCreatureThreatUpdateLikeCpp::Evade` path. Ordinary victim
+        // switches fan out `SMSG_ATTACKSTOP` directly but deliberately do not
+        // enqueue this command, matching C++ `Unit::AttackStop()` preserving
+        // threat and combat references.
+        if self.state() != crate::session::SessionState::LoggedIn
+            || self.player_guid() != Some(command.victim_guid)
+            || self.player_map_id_like_cpp() != command.map_id
         {
             return;
         }
+        let Some(map_key) = self.current_canonical_player_map_key_like_cpp() else {
+            return;
+        };
+        if map_key.instance_id != command.instance_id {
+            return;
+        }
 
-        self.combat_target = Some(command.attacker_guid);
-        self.in_combat = true;
+        let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
+            return;
+        };
+        let Ok(mut manager) = manager.lock() else {
+            return;
+        };
+        let Some(managed) = manager.find_map_mut(map_key.map_id, map_key.instance_id) else {
+            return;
+        };
+        let map = managed.map_mut();
+        let still_in_combat = if let Some(player) = map.get_typed_player_mut(command.victim_guid) {
+            player
+                .unit_mut()
+                .subsystems_mut()
+                .combat
+                .purge_combat_ref_like_cpp(command.attacker_guid);
+            player
+                .unit_mut()
+                .subsystems_mut()
+                .combat
+                .purge_threatened_by_me_ref(command.attacker_guid);
+            player
+                .unit_mut()
+                .remove_attacker_like_cpp(command.attacker_guid);
+            player.unit().subsystems().combat.has_combat()
+        } else {
+            false
+        };
+        if let Some(creature) = map.get_typed_creature_mut(command.attacker_guid) {
+            creature
+                .unit_mut()
+                .subsystems_mut()
+                .combat
+                .purge_combat_ref_like_cpp(command.victim_guid);
+            creature
+                .unit_mut()
+                .remove_attacker_like_cpp(command.victim_guid);
+        }
+        if self.combat_target == Some(command.attacker_guid) {
+            self.combat_target = None;
+        }
+        self.in_combat = still_in_combat;
+    }
 
-        use wow_packet::packets::combat::AttackStart;
-        self.send_packet(&AttackStart {
-            attacker: command.attacker_guid,
-            victim: command.victim_guid,
-        });
+    fn handle_reconcile_pvp_combat_expiry_like_cpp(
+        &mut self,
+        command: ReconcilePvpCombatExpiryLikeCppCommand,
+    ) {
+        if self.state() != crate::session::SessionState::LoggedIn
+            || self.player_guid() != Some(command.player_guid)
+            || self.player_map_id_like_cpp() != command.map_id
+        {
+            return;
+        }
+        let Some(map_key) = self.current_canonical_player_map_key_like_cpp() else {
+            return;
+        };
+        if map_key.instance_id != command.instance_id {
+            return;
+        }
+        let still_in_combat = self
+            .canonical_map_manager
+            .as_ref()
+            .and_then(|manager| manager.lock().ok())
+            .and_then(|manager| {
+                manager
+                    .find_map(map_key.map_id, map_key.instance_id)
+                    .and_then(|managed| managed.map().get_typed_player(command.player_guid))
+                    .map(|player| player.unit().subsystems().combat.has_combat())
+            })
+            .unwrap_or(false);
+        self.in_combat = still_in_combat;
     }
 
     fn handle_send_visible_object_values_update_command_like_cpp(
@@ -17961,6 +18118,7 @@ mod tests {
             realm_send_tx: send_tx.clone(),
             send_tx,
             command_tx,
+            durable_creature_runtime_commands_like_cpp: Default::default(),
             visibility_refresh_pending_like_cpp: Default::default(),
             durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),
