@@ -3276,6 +3276,9 @@ mod tests {
         let attacker = ObjectGuid::new(1, 14);
         let victim = ObjectGuid::new(1, 15);
         unit.world_mut().object_mut().create(attacker);
+        unit.subsystems_mut()
+            .combat
+            .initialize_threat_list_capability(true);
         unit.set_emote_state_like_cpp(88);
         unit.set_stand_state_like_cpp(UnitStandStateType::Sit);
 
@@ -3373,6 +3376,9 @@ mod tests {
         let mut unit = Unit::new(true);
         let caster = ObjectGuid::new(1, 1);
         let target = ObjectGuid::new(1, 2);
+        unit.subsystems_mut()
+            .combat
+            .initialize_threat_list_capability(true);
 
         unit.clear_unit_data_changes();
         let owned = OwnedAuraRef::new(17, caster, None);

@@ -10971,6 +10971,7 @@ where
 
 #[derive(Debug, Default, Clone)]
 struct CanonicalSpawnGroupConditionTickSummaryLikeCpp {
+    expired_pvp_combat_refs: Vec<(u32, u32, wow_core::ObjectGuid, wow_core::ObjectGuid)>,
     maps_evaluated: usize,
     outcomes: usize,
     applied_set_inactive: usize,
@@ -11629,6 +11630,19 @@ fn canonical_map_update_tick_set_inactive_like_cpp(
     };
     let mut summary = CanonicalSpawnGroupConditionTickSummaryLikeCpp::default();
     manager.do_for_all_maps_mut(|managed_map| {
+        summary.expired_pvp_combat_refs.extend(
+            managed_map
+                .last_expired_pvp_combat_refs_like_cpp()
+                .iter()
+                .map(|(owner, target)| {
+                    (
+                        managed_map.map_id(),
+                        managed_map.instance_id(),
+                        *owner,
+                        *target,
+                    )
+                }),
+        );
         let map_kind = managed_map.kind();
         let map_id = managed_map.map_id();
         let instance_id = managed_map.instance_id();
@@ -11663,7 +11677,9 @@ fn canonical_map_update_tick_set_inactive_like_cpp(
         }
     });
     if !scheduler.update(effective_diff_ms) {
-        return (!summary.respawn_db_saves.is_empty()).then_some(summary);
+        return (!summary.respawn_db_saves.is_empty()
+            || !summary.expired_pvp_combat_refs.is_empty())
+        .then_some(summary);
     }
 
     // C++ `Map::Update` runs `ProcessRespawns()` immediately before
@@ -12056,6 +12072,33 @@ fn spawn_canonical_map_update_loop(
                 drop(manager);
 
                 if let Some(summary) = tick_summary.as_mut() {
+                    let mut reconciled_players = BTreeSet::new();
+                    for (map_id, instance_id, owner_guid, target_guid) in
+                        summary.expired_pvp_combat_refs.drain(..)
+                    {
+                        let Ok(map_id) = u16::try_from(map_id) else {
+                            continue;
+                        };
+                        for player_guid in [owner_guid, target_guid] {
+                            if !reconciled_players.insert((map_id, instance_id, player_guid)) {
+                                continue;
+                            }
+                            let Some(entry) = player_registry.get(&player_guid) else {
+                                continue;
+                            };
+                            let command =
+                                wow_network::player_registry::ReconcilePvpCombatExpiryLikeCppCommand {
+                                    player_guid,
+                                    map_id,
+                                    instance_id,
+                                };
+                            let mut durable = entry
+                                .durable_creature_runtime_commands_like_cpp
+                                .lock()
+                                .unwrap_or_else(|poisoned| poisoned.into_inner());
+                            durable.publish_pvp_combat_expiry_like_cpp(command);
+                        }
+                    }
                     for save in summary.respawn_db_saves.drain(..) {
                         if respawn_db_writer_tx.send(save.statement).is_err() {
                             summary.respawn_db_save_failed += 1;
@@ -13790,6 +13833,64 @@ fn resolve_runtime_event_candidates_like_cpp(
                 }
             }
         }
+        RecipientRule::NearbyVisibleDurable {
+            source_guid: _,
+            map_id,
+            instance_id,
+            source_position,
+            range,
+            required_3d,
+        } => {
+            let range_sq = range * range;
+            struct Candidate {
+                durable: Arc<std::sync::Mutex<wow_network::DurableCreatureRuntimeCommandsLikeCpp>>,
+                eligible: bool,
+            }
+            let candidates: Vec<Candidate> = registry
+                .iter()
+                .map(|entry| {
+                    let info = entry.value();
+                    let dx = info.position.x - source_position.x;
+                    let dy = info.position.y - source_position.y;
+                    let dz = info.position.z - source_position.z;
+                    let distance_sq = if *required_3d {
+                        dx * dx + dy * dy + dz * dz
+                    } else {
+                        dx * dx + dy * dy
+                    };
+                    Candidate {
+                        durable: Arc::clone(&info.durable_creature_runtime_commands_like_cpp),
+                        eligible: info.is_in_world
+                            && info.map_id == *map_id
+                            && info.instance_id == *instance_id
+                            && distance_sq <= range_sq,
+                    }
+                })
+                .collect();
+            for candidate in candidates {
+                summary.candidates_seen += 1;
+                if !candidate.eligible {
+                    summary.candidates_skipped_distance += 1;
+                    continue;
+                }
+                let command = wow_network::player_registry::SendIfVisibleLikeCppCommand {
+                    queued_at: Instant::now(),
+                    source_guid: event.source_guid,
+                    map_id: *map_id,
+                    instance_id: *instance_id,
+                    packet_bytes: event.packet_bytes.clone(),
+                };
+                if candidate
+                    .durable
+                    .lock()
+                    .is_ok_and(|mut durable| durable.publish_send_if_visible_like_cpp(command))
+                {
+                    summary.candidates_queued += 1;
+                } else {
+                    summary.send_failed += 1;
+                }
+            }
+        }
     }
 }
 
@@ -13941,6 +14042,10 @@ fn collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
                     player_forced_reputation_faction_ids: info
                         .forced_reputation_faction_ids
                         .clone(),
+                    player_school_immunity_mask: 0,
+                    player_damage_immunity_mask: 0,
+                    player_has_confuse_aura: false,
+                    player_has_breakable_stun_aura: false,
                 },
             )
         })
@@ -13965,6 +14070,26 @@ fn collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
             candidate.player_detected_range_aura_mod = player.unit().total_aura_modifier_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_DETECTED_RANGE,
             ) as f32;
+            candidate.player_school_immunity_mask =
+                player.unit().subsystems().auras.aura_school_mask_like_cpp(
+                    wow_data::spell::aura_types::SPELL_AURA_SCHOOL_IMMUNITY,
+                );
+            candidate.player_damage_immunity_mask =
+                player.unit().subsystems().auras.aura_school_mask_like_cpp(
+                    wow_data::spell::aura_types::SPELL_AURA_DAMAGE_IMMUNITY,
+                );
+            candidate.player_has_confuse_aura = player
+                .unit()
+                .subsystems()
+                .auras
+                .has_aura_type_like_cpp(wow_data::spell::aura_types::SPELL_AURA_MOD_CONFUSE);
+            candidate.player_has_breakable_stun_aura = player
+                .unit()
+                .subsystems()
+                .auras
+                .has_breakable_by_damage_aura_type_like_cpp(
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_STUN,
+                );
         }
     }
 
@@ -14000,6 +14125,16 @@ fn legacy_creature_aggro_config_like_cpp(
             533.0,
             creature_aggro_rate,
         ),
+        family_assistance_radius: world_config_f32(
+            configs,
+            "CONFIG_CREATURE_FAMILY_ASSISTANCE_RADIUS",
+            10.0,
+        ),
+        family_assistance_delay_ms: world_config_u32(
+            configs,
+            "CONFIG_CREATURE_FAMILY_ASSISTANCE_DELAY",
+            1_500,
+        ),
         faction_template_store: None,
         faction_store: None,
         map_store: None,
@@ -14025,13 +14160,15 @@ fn legacy_visibility_distance_like_cpp(key: &str, default: f32, creature_aggro_r
 /// C++ contrast: `CreatureAI::MoveInLineOfSight`/`Creature::CanStartAttack`
 /// decides the engagement from map state; `Unit::SendMeleeAttackStart` sends
 /// the visible combat-start packet. This helper routes that already-resolved
-/// engagement to the victim session using `try_send`, outside all map locks.
+/// engagement to the victim session outside all map locks. The transition is
+/// authoritative and one-shot, so it is published to the session's durable
+/// FIFO rail without waiting on its bounded visual-command queue.
 fn deliver_creature_attack_start_commands_like_cpp(
     commands: &[wow_network::player_registry::CreatureAttackStartLikeCppCommand],
     registry: &wow_network::PlayerRegistry,
 ) -> RuntimeCreatureAttackStartDeliverySummaryLikeCpp {
     struct Candidate {
-        tx: flume::Sender<wow_network::SessionCommand>,
+        durable: Arc<std::sync::Mutex<wow_network::DurableCreatureRuntimeCommandsLikeCpp>>,
         map_id: u16,
         instance_id: u32,
         is_in_world: bool,
@@ -14045,7 +14182,7 @@ fn deliver_creature_attack_start_commands_like_cpp(
         let Some(candidate) = registry.get(&command.victim_guid).map(|entry| {
             let info = entry.value();
             Candidate {
-                tx: info.command_tx.clone(),
+                durable: Arc::clone(&info.durable_creature_runtime_commands_like_cpp),
                 map_id: info.map_id,
                 instance_id: info.instance_id,
                 is_in_world: info.is_in_world,
@@ -14074,8 +14211,169 @@ fn deliver_creature_attack_start_commands_like_cpp(
             continue;
         }
 
-        let cmd = wow_network::SessionCommand::CreatureAttackStartLikeCpp(command.clone());
-        if candidate.tx.try_send(cmd).is_ok() {
+        if let Ok(mut durable) = candidate.durable.lock() {
+            if !durable.publish_attack_start_like_cpp(command.clone()) {
+                summary.send_failed += 1;
+                continue;
+            }
+            summary.candidates_queued += 1;
+        } else {
+            summary.send_failed += 1;
+        }
+    }
+    summary
+}
+
+/// Apply map-owned creature-vs-creature assistance starts directly to the
+/// canonical map. Player victims use their session command because that
+/// transition also owns session combat state; a creature victim has no
+/// `PlayerRegistry` recipient.
+fn apply_canonical_creature_attack_starts_like_cpp(
+    commands: &[wow_network::player_registry::CreatureAttackStartLikeCppCommand],
+    canonical_map_manager: Option<&SharedCanonicalMapManager>,
+) -> usize {
+    let Some(manager) = canonical_map_manager else {
+        return 0;
+    };
+    let Ok(mut manager) = manager.lock() else {
+        return 0;
+    };
+    let mut applied = 0;
+    for command in commands
+        .iter()
+        .filter(|command| command.victim_guid.is_creature())
+    {
+        let Some(managed) = manager.find_map_mut(u32::from(command.map_id), command.instance_id)
+        else {
+            continue;
+        };
+        let map = managed.map_mut();
+        if map.get_typed_creature(command.attacker_guid).is_none()
+            || map.get_typed_creature(command.victim_guid).is_none()
+        {
+            continue;
+        }
+        if let Some(previous_victim) = command.previous_victim_guid {
+            if let Some(player) = map.get_typed_player_mut(previous_victim) {
+                player
+                    .unit_mut()
+                    .remove_attacker_like_cpp(command.attacker_guid);
+            } else if let Some(creature) = map.get_typed_creature_mut(previous_victim) {
+                creature
+                    .unit_mut()
+                    .remove_attacker_like_cpp(command.attacker_guid);
+            }
+        }
+        let threat_ref = if let Some(attacker) = map.get_typed_creature_mut(command.attacker_guid) {
+            let combat = &mut attacker.unit_mut().subsystems_mut().combat;
+            combat.set_in_combat_with(command.victim_guid, false, false);
+            combat.add_threat(command.victim_guid, 0.0);
+            combat.threat_ref(command.victim_guid).copied()
+        } else {
+            None
+        };
+        if let Some(victim) = map.get_typed_creature_mut(command.victim_guid) {
+            let combat = &mut victim.unit_mut().subsystems_mut().combat;
+            combat.set_in_combat_with(command.attacker_guid, false, false);
+            if let Some(threat_ref) = threat_ref {
+                combat.put_threatened_by_me_ref(command.attacker_guid, threat_ref);
+            }
+            victim
+                .unit_mut()
+                .add_attacker_like_cpp(command.attacker_guid);
+        }
+        applied += 1;
+    }
+    applied
+}
+
+/// Apply the creature half of evade combat-stop directly to the canonical map.
+///
+/// C++ `Unit::CombatStop` removes every attacker and clears the corresponding
+/// `CombatReference` from both participants. Player participants finish that
+/// transition through their session command; creatures have no registry
+/// recipient, so the map-owned bridge must purge the pair here.
+fn apply_canonical_creature_attack_stops_like_cpp(
+    commands: &[wow_network::player_registry::CreatureAttackStopLikeCppCommand],
+    canonical_map_manager: Option<&SharedCanonicalMapManager>,
+) -> usize {
+    let Some(manager) = canonical_map_manager else {
+        return 0;
+    };
+    let Ok(mut manager) = manager.lock() else {
+        return 0;
+    };
+    let mut applied = 0;
+    for command in commands
+        .iter()
+        .filter(|command| command.victim_guid.is_creature())
+    {
+        let Some(managed) = manager.find_map_mut(u32::from(command.map_id), command.instance_id)
+        else {
+            continue;
+        };
+        let map = managed.map_mut();
+        if map.get_typed_creature(command.attacker_guid).is_none()
+            || map.get_typed_creature(command.victim_guid).is_none()
+        {
+            continue;
+        }
+        if let Some(attacker) = map.get_typed_creature_mut(command.attacker_guid) {
+            attacker
+                .unit_mut()
+                .subsystems_mut()
+                .combat
+                .purge_combat_ref_like_cpp(command.victim_guid);
+        }
+        if let Some(victim) = map.get_typed_creature_mut(command.victim_guid) {
+            victim
+                .unit_mut()
+                .subsystems_mut()
+                .combat
+                .purge_combat_ref_like_cpp(command.attacker_guid);
+            victim
+                .unit_mut()
+                .remove_attacker_like_cpp(command.attacker_guid);
+        }
+        applied += 1;
+    }
+    applied
+}
+
+fn deliver_creature_attack_stop_commands_like_cpp(
+    commands: &[wow_network::player_registry::CreatureAttackStopLikeCppCommand],
+    registry: &wow_network::PlayerRegistry,
+) -> RuntimeCreatureAttackStartDeliverySummaryLikeCpp {
+    let mut summary = RuntimeCreatureAttackStartDeliverySummaryLikeCpp::default();
+    for command in commands {
+        summary.commands_seen += 1;
+        let Some(candidate) = registry.get(&command.victim_guid).map(|entry| {
+            let info = entry.value();
+            (
+                Arc::clone(&info.durable_creature_runtime_commands_like_cpp),
+                info.map_id,
+                info.instance_id,
+                info.is_in_world,
+            )
+        }) else {
+            summary.candidates_skipped_missing_victim += 1;
+            continue;
+        };
+        summary.candidates_seen += 1;
+        if !candidate.3 {
+            summary.candidates_skipped_not_in_world += 1;
+        } else if candidate.1 != command.map_id {
+            summary.candidates_skipped_wrong_map += 1;
+        } else if candidate.2 != command.instance_id {
+            summary.candidates_skipped_wrong_instance += 1;
+        // Evade cleanup is a one-shot authoritative transition. Publish it to
+        // the durable FIFO rail so bounded visual backpressure cannot
+        // drop it or block the global creature tick.
+        } else if let Ok(mut durable) = candidate.0.lock() {
+            if !durable.publish_attack_stop_like_cpp(command.clone()) {
+                summary.send_failed += 1;
+                continue;
+            }
             summary.candidates_queued += 1;
         } else {
             summary.send_failed += 1;
@@ -14091,13 +14389,15 @@ fn deliver_creature_attack_start_commands_like_cpp(
 /// mutates the victim, then sends the combat packet. The global Rust driver
 /// mirrors that by producing final-health commands once from the map owner.
 /// This helper only routes those already-resolved results to the victim
-/// session. It never holds map locks and uses `try_send` for backpressure.
+/// session. It never holds map locks; because canonical health is already
+/// committed, it publishes every resolved swing to the durable FIFO session
+/// rail rather than dropping it or blocking the world tick.
 fn deliver_creature_melee_damage_commands_like_cpp(
     commands: &[wow_network::player_registry::ApplyCreatureMeleeDamageLikeCppCommand],
     registry: &wow_network::PlayerRegistry,
 ) -> RuntimeCreatureMeleeDeliverySummaryLikeCpp {
     struct Candidate {
-        tx: flume::Sender<wow_network::SessionCommand>,
+        durable: Arc<std::sync::Mutex<wow_network::DurableCreatureRuntimeCommandsLikeCpp>>,
         map_id: u16,
         instance_id: u32,
         is_in_world: bool,
@@ -14110,7 +14410,7 @@ fn deliver_creature_melee_damage_commands_like_cpp(
         let Some(candidate) = registry.get(&command.victim_guid).map(|entry| {
             let info = entry.value();
             Candidate {
-                tx: info.command_tx.clone(),
+                durable: Arc::clone(&info.durable_creature_runtime_commands_like_cpp),
                 map_id: info.map_id,
                 instance_id: info.instance_id,
                 is_in_world: info.is_in_world,
@@ -14134,8 +14434,11 @@ fn deliver_creature_melee_damage_commands_like_cpp(
             continue;
         }
 
-        let cmd = wow_network::SessionCommand::ApplyCreatureMeleeDamageLikeCpp(command.clone());
-        if candidate.tx.try_send(cmd).is_ok() {
+        if let Ok(mut durable) = candidate.durable.lock() {
+            if !durable.publish_melee_damage_like_cpp(command.clone()) {
+                summary.send_failed += 1;
+                continue;
+            }
             summary.candidates_queued += 1;
         } else {
             summary.send_failed += 1;
@@ -14272,7 +14575,24 @@ fn run_legacy_creature_aggro_tick_and_deliver_once_like_cpp(
         &candidates,
         aggro_config,
     );
-    let delivery = deliver_creature_attack_start_commands_like_cpp(&outcome.commands, registry);
+    let _ =
+        apply_canonical_creature_attack_starts_like_cpp(&outcome.commands, canonical_map_manager);
+    let _ = apply_canonical_creature_attack_stops_like_cpp(
+        &outcome.stop_commands,
+        canonical_map_manager,
+    );
+    let mut delivery = deliver_creature_attack_start_commands_like_cpp(&outcome.commands, registry);
+    let stop_delivery =
+        deliver_creature_attack_stop_commands_like_cpp(&outcome.stop_commands, registry);
+    delivery.commands_seen += stop_delivery.commands_seen;
+    delivery.candidates_seen += stop_delivery.candidates_seen;
+    delivery.candidates_queued += stop_delivery.candidates_queued;
+    delivery.candidates_skipped_missing_victim += stop_delivery.candidates_skipped_missing_victim;
+    delivery.candidates_skipped_wrong_map += stop_delivery.candidates_skipped_wrong_map;
+    delivery.candidates_skipped_wrong_instance += stop_delivery.candidates_skipped_wrong_instance;
+    delivery.candidates_skipped_not_in_world += stop_delivery.candidates_skipped_not_in_world;
+    delivery.candidates_skipped_dead += stop_delivery.candidates_skipped_dead;
+    delivery.send_failed += stop_delivery.send_failed;
     let plan_delivery = deliver_runtime_plan_like_cpp(&outcome.plan, registry);
     (outcome, delivery, plan_delivery)
 }
@@ -14501,7 +14821,7 @@ fn spawn_legacy_creature_runtime_update_loop_like_cpp(
                 + outcome.aggro.aggro_starts
                 + outcome.melee.canonical_hits;
             if touched_creatures > 0 {
-                info!(
+                debug!(
                     lifecycle_corpses_despawned = outcome.lifecycle.corpses_despawned,
                     lifecycle_respawns_processed = outcome.lifecycle.respawns_processed,
                     lifecycle_refresh_commands = outcome.lifecycle_delivery.candidates_queued,
@@ -14558,6 +14878,8 @@ mod tests {
         RespawnDbSaveQueueOutcomeLikeCpp, RespawnDbSubmitErrorLikeCpp,
         RespawnDbWriterSenderLikeCpp, SHUTDOWN_EXIT_CODE_LIKE_CPP, WorldDbVersionLikeCpp,
         WorldRuntimeStateLikeCpp, WorldServerCliLikeCpp, WorldUpdateLoopStepOutcomeLikeCpp,
+        apply_canonical_creature_attack_starts_like_cpp,
+        apply_canonical_creature_attack_stops_like_cpp,
         apply_canonical_spawn_group_condition_update_loaded_grid_records_like_cpp,
         build_loaded_grid_area_trigger_record_like_cpp,
         build_loaded_grid_creature_respawn_record_like_cpp,
@@ -14800,6 +15122,7 @@ mod tests {
             realm_send_tx: send_tx.clone(),
             send_tx,
             command_tx,
+            durable_creature_runtime_commands_like_cpp: Default::default(),
             visibility_refresh_pending_like_cpp: Default::default(),
             durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),
@@ -14868,6 +15191,22 @@ mod tests {
             lifetime_max_rank: 0,
             honor_level: 0,
         }
+    }
+
+    fn drain_durable_creature_runtime_commands_like_cpp(
+        registry: &PlayerRegistry,
+        player_guid: ObjectGuid,
+    ) -> Vec<SessionCommand> {
+        let durable = Arc::clone(
+            &registry
+                .get(&player_guid)
+                .expect("registered player")
+                .durable_creature_runtime_commands_like_cpp,
+        );
+        durable
+            .lock()
+            .expect("durable creature-runtime command lock")
+            .drain_like_cpp()
     }
 
     fn insert_player_broadcast_fixture_with_in_world_like_cpp(
@@ -18251,6 +18590,8 @@ Visibility.Distance.Continents = 20
 Visibility.Distance.Instances = 9999
 Visibility.Distance.BG = 140
 Visibility.Distance.Arenas = 150
+CreatureFamilyAssistanceRadius = 22
+CreatureFamilyAssistanceDelay = 3456
 "#,
         )
         .expect("config should load");
@@ -18270,6 +18611,8 @@ Visibility.Distance.Arenas = 150
         );
         assert_eq!(config.visibility_distance_battlegrounds, 140.0);
         assert_eq!(config.visibility_distance_arenas, 150.0);
+        assert_eq!(config.family_assistance_radius, 22.0);
+        assert_eq!(config.family_assistance_delay_ms, 3_456);
     }
 
     #[test]
@@ -21426,6 +21769,7 @@ mmap.enablePathFinding = 0
                 realm_send_tx: send_tx.clone(),
                 send_tx,
                 command_tx,
+                durable_creature_runtime_commands_like_cpp: Default::default(),
                 visibility_refresh_pending_like_cpp: Default::default(),
                 durable_loot_money_tracker_like_cpp: Default::default(),
                 active_loot_rolls: Vec::new(),
@@ -24980,6 +25324,41 @@ mmap.enablePathFinding = 0
         assert!(near_3d_rx.try_recv().is_ok(), "3D-near player included");
     }
 
+    #[test]
+    fn nearby_visible_durable_uses_committed_fifo_instead_of_bounded_queue() {
+        let registry = PlayerRegistry::default();
+        let guid = ObjectGuid::create_player(1, 8);
+        let (info, command_rx) = make_registry_player_like_cpp(571, 0, Position::ZERO, true);
+        let durable = Arc::clone(&info.durable_creature_runtime_commands_like_cpp);
+        registry.insert(guid, info);
+
+        let event = wow_world::map_manager::RuntimeEvent {
+            source_guid: make_source_guid(),
+            recipients: wow_world::map_manager::RecipientRule::NearbyVisibleDurable {
+                source_guid: make_source_guid(),
+                map_id: 571,
+                instance_id: 0,
+                source_position: Position::ZERO,
+                range: 100.0,
+                required_3d: false,
+            },
+            packet_bytes: vec![0xAA],
+        };
+        let plan = wow_world::map_manager::RuntimePlan {
+            events: vec![event],
+        };
+        let summary = deliver_runtime_plan_like_cpp(&plan, &registry);
+
+        assert_eq!(summary.candidates_queued, 1);
+        assert!(command_rx.try_recv().is_err());
+        let drained = durable.lock().unwrap().drain_like_cpp();
+        assert!(matches!(
+            drained.as_slice(),
+            [SessionCommand::SendIfVisibleLikeCpp(command)]
+                if command.packet_bytes == vec![0xAA]
+        ));
+    }
+
     /// (6) MapBroadcastVisible: enqueues all players on the same map/instance
     /// regardless of distance, but respects map/instance/in_world.
     /// C++ anchor: WorldObject::SendMessageToSet map-wide broadcast path.
@@ -25292,6 +25671,38 @@ mmap.enablePathFinding = 0
                     wow_data::spell::aura_types::SPELL_AURA_MOD_DETECTED_RANGE,
                     6,
                 );
+            let school_immunity = wow_entities::AppliedAuraRef::new(91_137, player_guid, 1, 0x1);
+            player
+                .unit_mut()
+                .subsystems_mut()
+                .auras
+                .register_applied_aura_effect_like_cpp(
+                    school_immunity,
+                    wow_data::spell::aura_types::SPELL_AURA_SCHOOL_IMMUNITY,
+                    99,
+                    0x1,
+                );
+            let confuse = wow_entities::AppliedAuraRef::new(91_138, player_guid, 2, 0x1);
+            player
+                .unit_mut()
+                .subsystems_mut()
+                .auras
+                .register_applied_aura_type_like_cpp(
+                    confuse,
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_CONFUSE,
+                );
+            let breakable_stun = wow_entities::AppliedAuraRef::new(91_139, player_guid, 3, 0x1);
+            let auras = &mut player.unit_mut().subsystems_mut().auras;
+            auras.register_applied_aura_type_like_cpp(
+                breakable_stun,
+                wow_data::spell::aura_types::SPELL_AURA_MOD_STUN,
+            );
+            auras.register_applied_aura(
+                breakable_stun,
+                None,
+                wow_constants::SpellAuraInterruptFlags::DAMAGE.bits(),
+                0,
+            );
         }
 
         let candidates = collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
@@ -25307,6 +25718,9 @@ mmap.enablePathFinding = 0
             wow_entities::UnitVisibilityDetectionStateLikeCpp::default()
         );
         assert_eq!(candidates[0].player_detected_range_aura_mod, 6.0);
+        assert_eq!(candidates[0].player_school_immunity_mask, 0x1);
+        assert!(candidates[0].player_has_confuse_aura);
+        assert!(candidates[0].player_has_breakable_stun_aura);
     }
 
     #[test]
@@ -25316,7 +25730,7 @@ mmap.enablePathFinding = 0
         let other = ObjectGuid::create_player(1, 67);
         let attacker =
             ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9001, 90_060);
-        let (victim_info, victim_rx) = make_registry_player_like_cpp(571, 4, Position::ZERO, true);
+        let (victim_info, _victim_rx) = make_registry_player_like_cpp(571, 4, Position::ZERO, true);
         let (other_info, other_rx) = make_registry_player_like_cpp(571, 4, Position::ZERO, true);
         registry.insert(victim, victim_info);
         registry.insert(other, other_info);
@@ -25325,8 +25739,10 @@ mmap.enablePathFinding = 0
             wow_network::player_registry::CreatureAttackStartLikeCppCommand {
                 attacker_guid: attacker,
                 victim_guid: victim,
+                previous_victim_guid: None,
                 map_id: 571,
                 instance_id: 4,
+                packet_already_broadcast: false,
             },
         ];
         let summary = deliver_creature_attack_start_commands_like_cpp(&commands, &registry);
@@ -25335,7 +25751,9 @@ mmap.enablePathFinding = 0
         assert_eq!(summary.candidates_seen, 1);
         assert_eq!(summary.candidates_queued, 1);
         let SessionCommand::CreatureAttackStartLikeCpp(command) =
-            victim_rx.try_recv().expect("victim receives attack-start")
+            drain_durable_creature_runtime_commands_like_cpp(&registry, victim)
+                .pop()
+                .expect("victim receives attack-start")
         else {
             panic!("expected CreatureAttackStartLikeCpp command");
         };
@@ -25344,6 +25762,132 @@ mmap.enablePathFinding = 0
         assert!(
             other_rx.try_recv().is_err(),
             "non-victim session is untouched"
+        );
+    }
+
+    #[test]
+    fn creature_assistance_start_establishes_canonical_combat_for_both_creatures_like_cpp() {
+        let canonical: wow_world::SharedCanonicalMapManager =
+            Arc::new(Mutex::new(wow_map::MapManager::default()));
+        let attacker =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9001, 90_070);
+        let victim =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9002, 90_071);
+        add_canonical_test_creature_on_map_like_cpp(
+            &canonical,
+            attacker,
+            Position::ZERO,
+            571,
+            4,
+            100,
+        );
+        add_canonical_test_creature_on_map_like_cpp(
+            &canonical,
+            victim,
+            Position::ZERO,
+            571,
+            4,
+            100,
+        );
+        let commands = [
+            wow_network::player_registry::CreatureAttackStartLikeCppCommand {
+                attacker_guid: attacker,
+                victim_guid: victim,
+                previous_victim_guid: None,
+                map_id: 571,
+                instance_id: 4,
+                packet_already_broadcast: true,
+            },
+        ];
+
+        assert_eq!(
+            apply_canonical_creature_attack_starts_like_cpp(&commands, Some(&canonical)),
+            1
+        );
+        let guard = canonical.lock().unwrap();
+        let map = guard.find_map(571, 4).unwrap().map();
+        let attacker_unit = map.get_typed_creature(attacker).unwrap().unit();
+        let victim_unit = map.get_typed_creature(victim).unwrap().unit();
+        assert!(attacker_unit.subsystems().combat.is_in_combat_with(victim));
+        assert!(victim_unit.subsystems().combat.is_in_combat_with(attacker));
+        assert_eq!(
+            attacker_unit.subsystems().combat.threat_value(victim),
+            Some(0.0),
+            "C++ EngageWithTarget creates the assistant's zero-threat forward reference"
+        );
+        assert!(
+            victim_unit
+                .subsystems()
+                .combat
+                .threatened_by_me_owner_guids()
+                .contains(&attacker),
+            "the victim must carry the reciprocal reference used by helpful-threat fanout"
+        );
+    }
+
+    #[test]
+    fn creature_assistance_stop_purges_canonical_combat_for_both_creatures_like_cpp() {
+        let canonical: wow_world::SharedCanonicalMapManager =
+            Arc::new(Mutex::new(wow_map::MapManager::default()));
+        let attacker =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9001, 90_072);
+        let victim =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9002, 90_073);
+        add_canonical_test_creature_on_map_like_cpp(
+            &canonical,
+            attacker,
+            Position::ZERO,
+            571,
+            4,
+            100,
+        );
+        add_canonical_test_creature_on_map_like_cpp(
+            &canonical,
+            victim,
+            Position::ZERO,
+            571,
+            4,
+            100,
+        );
+        let starts = [
+            wow_network::player_registry::CreatureAttackStartLikeCppCommand {
+                attacker_guid: attacker,
+                victim_guid: victim,
+                previous_victim_guid: None,
+                map_id: 571,
+                instance_id: 4,
+                packet_already_broadcast: true,
+            },
+        ];
+        let stops = [
+            wow_network::player_registry::CreatureAttackStopLikeCppCommand {
+                attacker_guid: attacker,
+                victim_guid: victim,
+                map_id: 571,
+                instance_id: 4,
+            },
+        ];
+
+        assert_eq!(
+            apply_canonical_creature_attack_starts_like_cpp(&starts, Some(&canonical)),
+            1
+        );
+        assert_eq!(
+            apply_canonical_creature_attack_stops_like_cpp(&stops, Some(&canonical)),
+            1
+        );
+        let guard = canonical.lock().unwrap();
+        let map = guard.find_map(571, 4).unwrap().map();
+        let attacker_unit = map.get_typed_creature(attacker).unwrap().unit();
+        let victim_unit = map.get_typed_creature(victim).unwrap().unit();
+        assert!(!attacker_unit.subsystems().combat.is_in_combat_with(victim));
+        assert!(!victim_unit.subsystems().combat.is_in_combat_with(attacker));
+        assert!(
+            !victim_unit
+                .subsystems()
+                .combat
+                .attackers
+                .contains(&attacker)
         );
     }
 
@@ -25374,8 +25918,10 @@ mmap.enablePathFinding = 0
             |victim_guid| wow_network::player_registry::CreatureAttackStartLikeCppCommand {
                 attacker_guid: attacker,
                 victim_guid,
+                previous_victim_guid: None,
                 map_id: 571,
                 instance_id: 0,
+                packet_already_broadcast: false,
             };
         let commands = vec![
             make_command(wrong_map),
@@ -25398,6 +25944,45 @@ mmap.enablePathFinding = 0
         assert!(wrong_instance_rx.try_recv().is_err());
         assert!(not_in_world_rx.try_recv().is_err());
         assert!(dead_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn creature_attack_start_delivery_uses_durable_rail_when_general_queue_is_full_like_cpp() {
+        let registry = PlayerRegistry::default();
+        let victim = ObjectGuid::create_player(1, 73);
+        let attacker =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9001, 90_062);
+        let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(1);
+        let (command_tx, command_rx) = flume::bounded::<SessionCommand>(1);
+        let mut info =
+            player_broadcast_info_fixture_like_cpp(send_tx, command_tx.clone(), "AggroFull");
+        info.map_id = 571;
+        info.instance_id = 0;
+        info.is_in_world = true;
+        info.is_alive = true;
+        registry.insert(victim, info);
+        let command = wow_network::player_registry::CreatureAttackStartLikeCppCommand {
+            attacker_guid: attacker,
+            victim_guid: victim,
+            previous_victim_guid: None,
+            map_id: 571,
+            instance_id: 0,
+            packet_already_broadcast: false,
+        };
+        command_tx
+            .send(SessionCommand::CreatureAttackStartLikeCpp(command.clone()))
+            .unwrap();
+
+        let summary = deliver_creature_attack_start_commands_like_cpp(&[command], &registry);
+        assert_eq!(summary.candidates_queued, 1);
+        assert_eq!(summary.send_failed, 0);
+        assert_eq!(command_rx.len(), 1, "bounded general queue remains full");
+        assert!(matches!(
+            drain_durable_creature_runtime_commands_like_cpp(&registry, victim)
+                .pop()
+                .unwrap(),
+            SessionCommand::CreatureAttackStartLikeCpp(_)
+        ));
     }
 
     /// 4C.4 bridge coverage: the combined global runtime body can perform the
@@ -25523,9 +26108,10 @@ mmap.enablePathFinding = 0
         assert_eq!(outcome.movement.movement_packets, 0);
         assert_eq!(outcome.melee.swings_ready, 0);
 
-        let SessionCommand::CreatureAttackStartLikeCpp(command) = victim_rx
-            .try_recv()
-            .expect("victim must receive global aggro attack-start")
+        let SessionCommand::CreatureAttackStartLikeCpp(command) =
+            drain_durable_creature_runtime_commands_like_cpp(&registry, victim)
+                .pop()
+                .expect("victim must receive global aggro attack-start")
         else {
             panic!("expected CreatureAttackStartLikeCpp command");
         };
@@ -25558,7 +26144,7 @@ mmap.enablePathFinding = 0
         let other = ObjectGuid::create_player(1, 57);
         let attacker =
             ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9001, 90_056);
-        let (victim_info, victim_rx) = make_registry_player_like_cpp(571, 3, Position::ZERO, true);
+        let (victim_info, _victim_rx) = make_registry_player_like_cpp(571, 3, Position::ZERO, true);
         let (other_info, other_rx) = make_registry_player_like_cpp(571, 3, Position::ZERO, true);
         registry.insert(victim, victim_info);
         registry.insert(other, other_info);
@@ -25581,7 +26167,9 @@ mmap.enablePathFinding = 0
         assert_eq!(summary.candidates_seen, 1);
         assert_eq!(summary.candidates_queued, 1);
         let SessionCommand::ApplyCreatureMeleeDamageLikeCpp(command) =
-            victim_rx.try_recv().expect("victim receives melee command")
+            drain_durable_creature_runtime_commands_like_cpp(&registry, victim)
+                .pop()
+                .expect("victim receives melee command")
         else {
             panic!("expected ApplyCreatureMeleeDamageLikeCpp command");
         };
@@ -25645,18 +26233,23 @@ mmap.enablePathFinding = 0
     }
 
     #[test]
-    fn creature_melee_damage_delivery_full_channel_counts_send_failed_like_cpp() {
+    fn creature_melee_damage_delivery_poisoned_durable_rail_counts_send_failed_like_cpp() {
         let registry = PlayerRegistry::default();
         let victim = ObjectGuid::create_player(1, 62);
         let attacker =
             ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9001, 90_058);
         let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(1);
-        let (command_tx, command_rx) = flume::bounded::<SessionCommand>(1);
-        drop(command_rx);
+        let (command_tx, _command_rx) = flume::bounded::<SessionCommand>(1);
         let mut info = player_broadcast_info_fixture_like_cpp(send_tx, command_tx, "MeleeFull");
         info.map_id = 571;
         info.instance_id = 0;
         info.is_in_world = true;
+        let durable = Arc::clone(&info.durable_creature_runtime_commands_like_cpp);
+        let _ = std::thread::spawn(move || {
+            let _guard = durable.lock().unwrap();
+            panic!("poison durable rail for delivery failure coverage");
+        })
+        .join();
         registry.insert(victim, info);
 
         let commands = vec![
@@ -25677,6 +26270,59 @@ mmap.enablePathFinding = 0
         assert_eq!(summary.candidates_seen, 1);
         assert_eq!(summary.candidates_queued, 0);
         assert_eq!(summary.send_failed, 1);
+    }
+
+    #[test]
+    fn creature_melee_damage_delivery_preserves_every_swing_when_general_queue_is_full_like_cpp() {
+        let registry = PlayerRegistry::default();
+        let victim = ObjectGuid::create_player(1, 64);
+        let attacker =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 9001, 90_063);
+        let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(1);
+        let (command_tx, command_rx) = flume::bounded::<SessionCommand>(1);
+        let mut info =
+            player_broadcast_info_fixture_like_cpp(send_tx, command_tx.clone(), "MeleeRetry");
+        info.map_id = 571;
+        info.instance_id = 0;
+        info.is_in_world = true;
+        registry.insert(victim, info);
+        let command = wow_network::player_registry::ApplyCreatureMeleeDamageLikeCppCommand {
+            attacker_guid: attacker,
+            victim_guid: victim,
+            map_id: 571,
+            instance_id: 0,
+            damage: 5,
+            over_damage: -1,
+            target_level: 80,
+            victim_health_after: 95,
+        };
+        command_tx
+            .send(SessionCommand::ApplyCreatureMeleeDamageLikeCpp(
+                command.clone(),
+            ))
+            .unwrap();
+
+        let mut latest = command.clone();
+        latest.victim_health_after = 90;
+        let summary =
+            deliver_creature_melee_damage_commands_like_cpp(&[command, latest], &registry);
+        assert_eq!(summary.candidates_queued, 2);
+        assert_eq!(summary.send_failed, 0);
+        assert_eq!(command_rx.len(), 1, "bounded general queue remains full");
+        let commands = drain_durable_creature_runtime_commands_like_cpp(&registry, victim);
+        assert_eq!(
+            commands.len(),
+            2,
+            "every committed swing remains observable"
+        );
+        let SessionCommand::ApplyCreatureMeleeDamageLikeCpp(first) = &commands[0] else {
+            panic!("expected first durable melee command");
+        };
+        let SessionCommand::ApplyCreatureMeleeDamageLikeCpp(second) = &commands[1] else {
+            panic!("expected second durable melee command");
+        };
+        assert_eq!(first.victim_health_after, 95);
+        assert_eq!(second.victim_health_after, 90);
     }
 
     /// 4C.3 bridge: the global creature melee body applies canonical health
@@ -25725,7 +26371,8 @@ mmap.enablePathFinding = 0
         }
 
         let registry = PlayerRegistry::default();
-        let (victim_info, victim_rx) = make_registry_player_like_cpp(0, 0, attacker_position, true);
+        let (victim_info, _victim_rx) =
+            make_registry_player_like_cpp(0, 0, attacker_position, true);
         registry.insert(victim, victim_info);
 
         let (outcome, delivery, plan_delivery) =
@@ -25746,8 +26393,8 @@ mmap.enablePathFinding = 0
         assert_eq!(delivery.candidates_queued, 1);
         assert_eq!(plan_delivery.events_seen, 0);
 
-        let command = match victim_rx
-            .try_recv()
+        let command = match drain_durable_creature_runtime_commands_like_cpp(&registry, victim)
+            .pop()
             .expect("victim session receives final-health melee command")
         {
             SessionCommand::ApplyCreatureMeleeDamageLikeCpp(command) => command,
@@ -26328,9 +26975,10 @@ mmap.enablePathFinding = 0
         };
         assert_eq!(refresh.map_id, 0);
         assert_eq!(refresh.instance_id, 0);
-        let SessionCommand::ApplyCreatureMeleeDamageLikeCpp(melee_command) = victim_rx
-            .try_recv()
-            .expect("victim must receive the creature melee command")
+        let SessionCommand::ApplyCreatureMeleeDamageLikeCpp(melee_command) =
+            drain_durable_creature_runtime_commands_like_cpp(registry.as_ref(), melee_victim)
+                .pop()
+                .expect("victim must receive the creature melee command")
         else {
             panic!("expected ApplyCreatureMeleeDamageLikeCpp command for victim");
         };

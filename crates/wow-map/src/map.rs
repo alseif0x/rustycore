@@ -13217,6 +13217,57 @@ where
         invalid
     }
 
+    /// Tick C++ timed PvP combat references for every canonical combat unit
+    /// and remove the reciprocal reference when one side expires.
+    pub fn update_all_pvp_combat_refs_like_cpp(
+        &mut self,
+        diff_ms: u32,
+    ) -> Vec<(ObjectGuid, ObjectGuid)> {
+        let owner_guids = self.typed_combat_unit_guids_like_cpp();
+        let mut expired = Vec::new();
+
+        for owner_guid in owner_guids {
+            let targets = if let Some(owner) = self.get_typed_player_mut(owner_guid) {
+                owner
+                    .unit_mut()
+                    .subsystems_mut()
+                    .combat
+                    .update_pvp_combat(diff_ms)
+            } else if let Some(owner) = self.get_typed_creature_mut(owner_guid) {
+                owner
+                    .unit_mut()
+                    .subsystems_mut()
+                    .combat
+                    .update_pvp_combat(diff_ms)
+            } else {
+                Vec::new()
+            };
+            expired.extend(
+                targets
+                    .into_iter()
+                    .map(|target_guid| (owner_guid, target_guid)),
+            );
+        }
+
+        for (owner_guid, target_guid) in &expired {
+            if let Some(target) = self.get_typed_player_mut(*target_guid) {
+                target
+                    .unit_mut()
+                    .subsystems_mut()
+                    .combat
+                    .purge_combat_ref_like_cpp(*owner_guid);
+            } else if let Some(target) = self.get_typed_creature_mut(*target_guid) {
+                target
+                    .unit_mut()
+                    .subsystems_mut()
+                    .combat
+                    .purge_combat_ref_like_cpp(*owner_guid);
+            }
+        }
+
+        expired
+    }
+
     pub fn get_transport(&self, guid: ObjectGuid) -> Option<&WorldObject> {
         self.map_object_by_kind(guid, &[AccessorObjectKind::Transport])
     }
@@ -24103,6 +24154,58 @@ mod tests {
                 .subsystems()
                 .combat
                 .is_in_combat_with(dead_player_guid)
+        );
+    }
+
+    #[test]
+    fn map_ticks_pvp_combat_refs_and_purges_reciprocal_like_cpp() {
+        let mut map = test_map();
+        let first_guid = guid(HighGuid::Creature, 504);
+        let second_guid = guid(HighGuid::Creature, 505);
+
+        for guid in [first_guid, second_guid] {
+            let mut creature = Creature::new(false);
+            creature.unit_mut().world_mut().object_mut().create(guid);
+            creature.unit_mut().world_mut().set_map(571, 7).unwrap();
+            creature.unit_mut().world_mut().object_mut().add_to_world();
+            map.insert_map_object_record(MapObjectRecord::new_creature(creature).unwrap())
+                .unwrap();
+        }
+
+        map.get_typed_creature_mut(first_guid)
+            .unwrap()
+            .unit_mut()
+            .subsystems_mut()
+            .combat
+            .set_in_combat_with(second_guid, true, false);
+        map.get_typed_creature_mut(second_guid)
+            .unwrap()
+            .unit_mut()
+            .subsystems_mut()
+            .combat
+            .set_in_combat_with(first_guid, true, false);
+
+        assert!(
+            map.update_all_pvp_combat_refs_like_cpp(wow_entities::PVP_COMBAT_TIMEOUT_MS - 1)
+                .is_empty()
+        );
+        let expired = map.update_all_pvp_combat_refs_like_cpp(1);
+        assert!(!expired.is_empty());
+        assert!(
+            !map.get_typed_creature(first_guid)
+                .unwrap()
+                .unit()
+                .subsystems()
+                .combat
+                .is_in_combat_with(second_guid)
+        );
+        assert!(
+            !map.get_typed_creature(second_guid)
+                .unwrap()
+                .unit()
+                .subsystems()
+                .combat
+                .is_in_combat_with(first_guid)
         );
     }
 

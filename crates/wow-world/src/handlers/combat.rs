@@ -7,7 +7,8 @@
 //!
 //! Handles CMSG_ATTACK_SWING, CMSG_ATTACK_STOP, CMSG_SET_SHEATHED.
 //!
-//! Reference: C# Game/Handlers/CombatHandler.cs
+//! Reference: C++ `WorldSession::HandleAttack*Opcode`
+//! (`src/server/game/Handlers/CombatHandler.cpp`).
 
 use tracing::{debug, warn};
 
@@ -130,15 +131,8 @@ impl WorldSession {
         debug!(account = self.account_id, "CMSG_ATTACK_STOP");
 
         if let Some(target) = self.stop_player_attack_like_cpp() {
-            // Reset creature combat if it was fighting us.
-            let _ = self.mutate_world_creature(target, |creature| {
-                if creature.state() == wow_entities::CreatureAiState::InCombat {
-                    creature.reset_combat();
-                }
-            });
-
             let stop = SAttackStop {
-                attacker: player_guid.clone(),
+                attacker: player_guid,
                 victim: target,
                 now_dead: false,
             };

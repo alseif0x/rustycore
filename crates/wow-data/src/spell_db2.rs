@@ -831,7 +831,7 @@ impl SpellPowerDifficultyStore {
 }
 
 impl SpellMiscStore {
-    pub fn entry_for_spell_difficulty_like_cpp(
+    pub fn exact_entry_for_spell_difficulty_like_cpp(
         &self,
         spell_id: u32,
         difficulty_id: u8,
@@ -839,11 +839,37 @@ impl SpellMiscStore {
         self.entries
             .values()
             .find(|entry| entry.spell_id == spell_id && entry.difficulty_id == difficulty_id)
-            .or_else(|| {
-                self.entries
-                    .values()
-                    .find(|entry| entry.spell_id == spell_id && entry.difficulty_id == 0)
-            })
+    }
+
+    pub fn entry_for_spell_difficulty_like_cpp(
+        &self,
+        spell_id: u32,
+        difficulty_id: u8,
+    ) -> Option<&SpellMiscEntry> {
+        self.exact_entry_for_spell_difficulty_like_cpp(spell_id, difficulty_id)
+            .or_else(|| self.exact_entry_for_spell_difficulty_like_cpp(spell_id, 0))
+    }
+
+    pub fn entry_for_spell_difficulty_with_fallback_like_cpp(
+        &self,
+        spell_id: u32,
+        difficulty_id: u8,
+        difficulties: Option<&crate::DifficultyStore>,
+    ) -> Option<&SpellMiscEntry> {
+        let mut current = difficulty_id;
+        let mut visited = [false; 256];
+        loop {
+            if let Some(entry) = self.exact_entry_for_spell_difficulty_like_cpp(spell_id, current) {
+                return Some(entry);
+            }
+            if current == 0 || visited[usize::from(current)] {
+                return None;
+            }
+            visited[usize::from(current)] = true;
+            current = difficulties
+                .and_then(|store| store.get(u32::from(current)))
+                .map_or(0, |difficulty| difficulty.fallback_difficulty_id);
+        }
     }
 }
 
@@ -1530,6 +1556,58 @@ pub fn spell_effect_radius_like_cpp(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn spell_misc_walks_difficulty_fallback_before_base_like_cpp() {
+        let entry = |id, difficulty_id, school_mask| SpellMiscEntry {
+            id,
+            attributes: [0; 15],
+            difficulty_id,
+            casting_time_index: 0,
+            duration_index: 0,
+            range_index: 0,
+            school_mask,
+            speed: 0.0,
+            launch_delay: 0.0,
+            min_duration: 0.0,
+            spell_icon_file_data_id: 0,
+            active_icon_file_data_id: 0,
+            content_tuning_id: 0,
+            show_future_spell_player_condition_id: 0,
+            spell_id: 42,
+        };
+        let store = SpellMiscStore::from_entries([entry(4200, 0, 1), entry(4201, 1, 4)]);
+        let difficulties = crate::DifficultyStore::from_entries([
+            crate::DifficultyEntry {
+                id: 3,
+                instance_type: 0,
+                flags: 0,
+                fallback_difficulty_id: 2,
+                toggle_difficulty_id: 0,
+            },
+            crate::DifficultyEntry {
+                id: 2,
+                instance_type: 0,
+                flags: 0,
+                fallback_difficulty_id: 1,
+                toggle_difficulty_id: 0,
+            },
+            crate::DifficultyEntry {
+                id: 1,
+                instance_type: 0,
+                flags: 0,
+                fallback_difficulty_id: 0,
+                toggle_difficulty_id: 0,
+            },
+        ]);
+
+        assert_eq!(
+            store
+                .entry_for_spell_difficulty_with_fallback_like_cpp(42, 3, Some(&difficulties))
+                .map(|entry| entry.school_mask),
+            Some(4)
+        );
+    }
 
     #[test]
     fn spell_categories_uses_cpp_parent_relationship() {
