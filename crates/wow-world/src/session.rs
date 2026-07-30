@@ -25883,6 +25883,18 @@ impl WorldSession {
         })
     }
 
+    fn spell_school_mask_for_difficulty_like_cpp(&self, spell_id: u32, difficulty: u8) -> u32 {
+        self.spell_misc_store()
+            .and_then(|store| {
+                store.entry_for_spell_difficulty_with_fallback_like_cpp(
+                    spell_id,
+                    difficulty,
+                    self.difficulty_store().map(AsRef::as_ref),
+                )
+            })
+            .map_or(1, |entry| u32::from(entry.school_mask))
+    }
+
     /// C++ `Spell::HandleThreatSpells` additive threat before target-count
     /// distribution. Explicit `spell_threat` rows replace the SpellLevel
     /// fallback. This returns the unmodified flat/AP amount: the positive
@@ -26044,15 +26056,10 @@ impl WorldSession {
         }) {
             return;
         }
-        let spell_school_mask = self
-            .spell_misc_store()
-            .and_then(|store| {
-                store.entry_for_spell_difficulty_like_cpp(
-                    spell_id_u32,
-                    self.current_map_difficulty_id_like_cpp(),
-                )
-            })
-            .map_or(1, |spell| u32::from(spell.school_mask));
+        let spell_school_mask = self.spell_school_mask_for_difficulty_like_cpp(
+            spell_id_u32,
+            self.current_map_difficulty_id_like_cpp(),
+        );
         let caster_school_threat_mod = if self.player_guid() == Some(caster_guid) {
             self.hydrate_canonical_threat_relevant_auras_like_cpp();
             self.mutate_canonical_player_like_cpp(|player| {
@@ -62742,15 +62749,12 @@ impl WorldSession {
         let spell_threat_pct_mod = spell_threat_entry.map_or(1.0, |entry| entry.pct_mod);
         let spell_school_mask = spell_id
             .and_then(|spell_id| u32::try_from(spell_id).ok())
-            .and_then(|spell_id| {
-                self.spell_misc_store().and_then(|store| {
-                    store.entry_for_spell_difficulty_like_cpp(
-                        spell_id,
-                        self.current_map_difficulty_id_like_cpp(),
-                    )
-                })
-            })
-            .map_or(1, |spell| u32::from(spell.school_mask));
+            .map_or(1, |spell_id| {
+                self.spell_school_mask_for_difficulty_like_cpp(
+                    spell_id,
+                    self.current_map_difficulty_id_like_cpp(),
+                )
+            });
         let caster_school_threat_mod = if self.player_guid() == Some(healer_guid) {
             self.hydrate_canonical_threat_relevant_auras_like_cpp();
             self.mutate_canonical_player_like_cpp(|player| {
@@ -64453,15 +64457,12 @@ impl WorldSession {
         let spell_threat_pct_mod = spell_threat_entry.map_or(1.0, |entry| entry.pct_mod);
         let spell_school_mask = spell_id
             .and_then(|spell_id| u32::try_from(spell_id).ok())
-            .and_then(|spell_id| {
-                self.spell_misc_store().and_then(|store| {
-                    store.entry_for_spell_difficulty_like_cpp(
-                        spell_id,
-                        self.current_map_difficulty_id_like_cpp(),
-                    )
-                })
-            })
-            .map_or(1, |spell| u32::from(spell.school_mask));
+            .map_or(1, |spell_id| {
+                self.spell_school_mask_for_difficulty_like_cpp(
+                    spell_id,
+                    self.current_map_difficulty_id_like_cpp(),
+                )
+            });
         let caster_school_threat_mod = if caster_is_session_player {
             self.hydrate_canonical_threat_relevant_auras_like_cpp();
             self.mutate_canonical_player_like_cpp(|player| {

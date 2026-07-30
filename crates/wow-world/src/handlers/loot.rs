@@ -63,12 +63,12 @@ use wow_network::player_registry::{
     ApplyCreatureMeleeDamageLikeCppCommand, ApplyGroupJoinLikeCppCommand,
     ApplyGroupRemovalLikeCppCommand, CancelRepresentedTradeLikeCppCommand,
     CreatureAttackStartLikeCppCommand, CreatureAttackStopLikeCppCommand,
-    RefreshVisibleWorldCreaturesLikeCppCommand, SendAddonIfRegisteredLikeCppCommand,
-    SendCreatureLootReleaseValuesUpdateLikeCppCommand, SendIfVisibleLikeCppCommand,
-    SendPartyUpdateLikeCppCommand, SendRepeatableTurnInRequestItemsLikeCppCommand,
-    SendRepresentedDuelCountdownLikeCppCommand, SendRepresentedDuelRequestedLikeCppCommand,
-    SendRepresentedTradeStatusLikeCppCommand, SetQuestSharingInfoAndSendDetailsCommand,
-    SyncChestGameobjectStateAndRefreshLikeCppCommand,
+    ReconcilePvpCombatExpiryLikeCppCommand, RefreshVisibleWorldCreaturesLikeCppCommand,
+    SendAddonIfRegisteredLikeCppCommand, SendCreatureLootReleaseValuesUpdateLikeCppCommand,
+    SendIfVisibleLikeCppCommand, SendPartyUpdateLikeCppCommand,
+    SendRepeatableTurnInRequestItemsLikeCppCommand, SendRepresentedDuelCountdownLikeCppCommand,
+    SendRepresentedDuelRequestedLikeCppCommand, SendRepresentedTradeStatusLikeCppCommand,
+    SetQuestSharingInfoAndSendDetailsCommand, SyncChestGameobjectStateAndRefreshLikeCppCommand,
     SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
     SyncGooberGameobjectStateAndRefreshLikeCppCommand, UnacceptRepresentedTradeLikeCppCommand,
     WorldSessionShutdownFlushResultLikeCpp,
@@ -4334,6 +4334,9 @@ impl WorldSession {
                 SessionCommand::CreatureAttackStopLikeCpp(command) => {
                     self.handle_creature_attack_stop_like_cpp_command_like_cpp(command);
                 }
+                SessionCommand::ReconcilePvpCombatExpiryLikeCpp(command) => {
+                    self.handle_reconcile_pvp_combat_expiry_like_cpp(command);
+                }
                 SessionCommand::ApplyLootMoneyLikeCpp(command) => {
                     self.handle_apply_loot_money_like_cpp_command(command).await;
                 }
@@ -4925,6 +4928,36 @@ impl WorldSession {
         if self.combat_target == Some(command.attacker_guid) {
             self.combat_target = None;
         }
+        self.in_combat = still_in_combat;
+    }
+
+    fn handle_reconcile_pvp_combat_expiry_like_cpp(
+        &mut self,
+        command: ReconcilePvpCombatExpiryLikeCppCommand,
+    ) {
+        if self.state() != crate::session::SessionState::LoggedIn
+            || self.player_guid() != Some(command.player_guid)
+            || self.player_map_id_like_cpp() != command.map_id
+        {
+            return;
+        }
+        let Some(map_key) = self.current_canonical_player_map_key_like_cpp() else {
+            return;
+        };
+        if map_key.instance_id != command.instance_id {
+            return;
+        }
+        let still_in_combat = self
+            .canonical_map_manager
+            .as_ref()
+            .and_then(|manager| manager.lock().ok())
+            .and_then(|manager| {
+                manager
+                    .find_map(map_key.map_id, map_key.instance_id)
+                    .and_then(|managed| managed.map().get_typed_player(command.player_guid))
+                    .map(|player| player.unit().subsystems().combat.has_combat())
+            })
+            .unwrap_or(false);
         self.in_combat = still_in_combat;
     }
 

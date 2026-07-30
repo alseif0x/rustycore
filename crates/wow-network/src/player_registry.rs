@@ -32,6 +32,7 @@ pub enum SessionCommand {
     ApplyCreatureMeleeDamageLikeCpp(ApplyCreatureMeleeDamageLikeCppCommand),
     CreatureAttackStartLikeCpp(CreatureAttackStartLikeCppCommand),
     CreatureAttackStopLikeCpp(CreatureAttackStopLikeCppCommand),
+    ReconcilePvpCombatExpiryLikeCpp(ReconcilePvpCombatExpiryLikeCppCommand),
     ApplyLootMoneyLikeCpp(ApplyLootMoneyLikeCppCommand),
     NotifyLootMoneyRemovedLikeCpp(NotifyLootMoneyRemovedLikeCppCommand),
     MasterLootGive(MasterLootGiveCommand),
@@ -242,6 +243,14 @@ pub struct CreatureAttackStopLikeCppCommand {
     pub instance_id: u32,
 }
 
+/// Session-local mirror of a canonical timed PvP combat-reference expiry.
+#[derive(Clone, Debug)]
+pub struct ReconcilePvpCombatExpiryLikeCppCommand {
+    pub player_guid: ObjectGuid,
+    pub map_id: u16,
+    pub instance_id: u32,
+}
+
 /// Durable FIFO handoff for map-owned creature transitions that have
 /// already committed authoritative state.
 ///
@@ -282,6 +291,13 @@ impl DurableCreatureRuntimeCommandsLikeCpp {
         command: CreatureAttackStopLikeCppCommand,
     ) -> bool {
         self.publish_like_cpp(SessionCommand::CreatureAttackStopLikeCpp(command))
+    }
+
+    pub fn publish_pvp_combat_expiry_like_cpp(
+        &mut self,
+        command: ReconcilePvpCombatExpiryLikeCppCommand,
+    ) -> bool {
+        self.publish_like_cpp(SessionCommand::ReconcilePvpCombatExpiryLikeCpp(command))
     }
 
     pub fn publish_melee_damage_like_cpp(
@@ -1452,6 +1468,13 @@ mod tests {
                 instance_id: 0,
             })
         );
+        assert!(pending.publish_pvp_combat_expiry_like_cpp(
+            ReconcilePvpCombatExpiryLikeCppCommand {
+                player_guid: victim,
+                map_id: 571,
+                instance_id: 0,
+            }
+        ));
         for victim_health_after in [90, 75] {
             assert!(pending.publish_melee_damage_like_cpp(
                 ApplyCreatureMeleeDamageLikeCppCommand {
@@ -1468,7 +1491,7 @@ mod tests {
         }
 
         let commands = pending.drain_like_cpp();
-        assert_eq!(commands.len(), 4);
+        assert_eq!(commands.len(), 5);
         assert!(matches!(
             commands[0],
             SessionCommand::CreatureAttackStartLikeCpp(_)
@@ -1477,10 +1500,14 @@ mod tests {
             commands[1],
             SessionCommand::CreatureAttackStopLikeCpp(_)
         ));
-        let SessionCommand::ApplyCreatureMeleeDamageLikeCpp(first_melee) = &commands[2] else {
+        assert!(matches!(
+            commands[2],
+            SessionCommand::ReconcilePvpCombatExpiryLikeCpp(_)
+        ));
+        let SessionCommand::ApplyCreatureMeleeDamageLikeCpp(first_melee) = &commands[3] else {
             panic!("expected first melee event");
         };
-        let SessionCommand::ApplyCreatureMeleeDamageLikeCpp(second_melee) = &commands[3] else {
+        let SessionCommand::ApplyCreatureMeleeDamageLikeCpp(second_melee) = &commands[4] else {
             panic!("expected second melee event");
         };
         assert_eq!(first_melee.victim_health_after, 90);

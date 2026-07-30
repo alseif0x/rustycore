@@ -2011,6 +2011,13 @@ impl CombatSubsystem {
             .collect();
         for guid in &expired {
             self.pvp_refs.remove(guid);
+            // C++ `PvPCombatReference::Update` hands the shared reference to
+            // `CombatReference::EndCombat`, which clears threat on both units
+            // before removing either combat reference. Rust stores each side
+            // independently, so clear the owner-side threat state here before
+            // the map purges the reciprocal side.
+            self.remove_threat(*guid);
+            self.threatened_by_me.remove(guid);
         }
         expired
     }
@@ -5400,6 +5407,9 @@ mod unit_subsystems_tests {
 
         assert!(combat.set_in_combat_with(player, true, false));
         assert!(combat.has_pvp_combat());
+        combat.initialize_threat_list_capability(true);
+        combat.add_threat(player, 10.0);
+        combat.put_threatened_by_me_ref(player, ThreatReferenceState::default());
         assert_eq!(
             combat
                 .pvp_refs
@@ -5420,6 +5430,9 @@ mod unit_subsystems_tests {
         );
         assert_eq!(combat.update_pvp_combat(1), vec![player]);
         assert!(!combat.has_pvp_combat());
+        assert_eq!(combat.threat_value(player), None);
+        assert!(combat.threatened_by_me_owner_guids().is_empty());
+        assert_eq!(combat.current_victim_guid, None);
 
         combat.end_all_pve_combat();
         assert!(!combat.has_pve_combat());

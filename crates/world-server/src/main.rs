@@ -10971,6 +10971,7 @@ where
 
 #[derive(Debug, Default, Clone)]
 struct CanonicalSpawnGroupConditionTickSummaryLikeCpp {
+    expired_pvp_combat_refs: Vec<(u32, u32, wow_core::ObjectGuid, wow_core::ObjectGuid)>,
     maps_evaluated: usize,
     outcomes: usize,
     applied_set_inactive: usize,
@@ -11629,6 +11630,19 @@ fn canonical_map_update_tick_set_inactive_like_cpp(
     };
     let mut summary = CanonicalSpawnGroupConditionTickSummaryLikeCpp::default();
     manager.do_for_all_maps_mut(|managed_map| {
+        summary.expired_pvp_combat_refs.extend(
+            managed_map
+                .last_expired_pvp_combat_refs_like_cpp()
+                .iter()
+                .map(|(owner, target)| {
+                    (
+                        managed_map.map_id(),
+                        managed_map.instance_id(),
+                        *owner,
+                        *target,
+                    )
+                }),
+        );
         let map_kind = managed_map.kind();
         let map_id = managed_map.map_id();
         let instance_id = managed_map.instance_id();
@@ -11663,7 +11677,9 @@ fn canonical_map_update_tick_set_inactive_like_cpp(
         }
     });
     if !scheduler.update(effective_diff_ms) {
-        return (!summary.respawn_db_saves.is_empty()).then_some(summary);
+        return (!summary.respawn_db_saves.is_empty()
+            || !summary.expired_pvp_combat_refs.is_empty())
+        .then_some(summary);
     }
 
     // C++ `Map::Update` runs `ProcessRespawns()` immediately before
@@ -12056,6 +12072,33 @@ fn spawn_canonical_map_update_loop(
                 drop(manager);
 
                 if let Some(summary) = tick_summary.as_mut() {
+                    let mut reconciled_players = BTreeSet::new();
+                    for (map_id, instance_id, owner_guid, target_guid) in
+                        summary.expired_pvp_combat_refs.drain(..)
+                    {
+                        let Ok(map_id) = u16::try_from(map_id) else {
+                            continue;
+                        };
+                        for player_guid in [owner_guid, target_guid] {
+                            if !reconciled_players.insert((map_id, instance_id, player_guid)) {
+                                continue;
+                            }
+                            let Some(entry) = player_registry.get(&player_guid) else {
+                                continue;
+                            };
+                            let command =
+                                wow_network::player_registry::ReconcilePvpCombatExpiryLikeCppCommand {
+                                    player_guid,
+                                    map_id,
+                                    instance_id,
+                                };
+                            let mut durable = entry
+                                .durable_creature_runtime_commands_like_cpp
+                                .lock()
+                                .unwrap_or_else(|poisoned| poisoned.into_inner());
+                            durable.publish_pvp_combat_expiry_like_cpp(command);
+                        }
+                    }
                     for save in summary.respawn_db_saves.drain(..) {
                         if respawn_db_writer_tx.send(save.statement).is_err() {
                             summary.respawn_db_save_failed += 1;
