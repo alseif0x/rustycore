@@ -53,6 +53,11 @@ impl Db2HotfixRemovalStoreLikeCpp {
     ) -> Self {
         let mut final_status_by_record = HashMap::new();
         for (table_hash, record_id, status) in status_rows_in_push_order {
+            // C++ deliberately assigns, rather than ORs, this decision:
+            // `deletedRecords[{ tableHash, recordId }] =
+            //     status == HotfixRecord::Status::RecordRemoved`.
+            // The last accepted row in the `ORDER BY Id` result therefore
+            // controls the post-query `EraseRecord` pass.
             final_status_by_record.insert((table_hash, record_id), status);
         }
 
