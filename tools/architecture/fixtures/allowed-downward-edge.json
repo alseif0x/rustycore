@@ -1,0 +1,6 @@
+{
+  "name": "domain runtime may depend on a foundation crate",
+  "source": "wow-combat",
+  "target": "wow-math",
+  "expected": "allowed"
+}

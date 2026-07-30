@@ -1,0 +1,6 @@
+{
+  "name": "map runtime may not depend on the network adapter",
+  "source": "wow-map",
+  "target": "wow-network",
+  "expected": "forbidden"
+}

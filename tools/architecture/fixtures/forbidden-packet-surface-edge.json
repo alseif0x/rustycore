@@ -1,0 +1,6 @@
+{
+  "name": "packet adapter may not grow into the data adapter",
+  "source": "wow-packet",
+  "target": "wow-data",
+  "expected": "forbidden"
+}

@@ -1,0 +1,8 @@
+{
+  "name": "map runtime may not add direct configuration infrastructure",
+  "source": "wow-map",
+  "target": "config",
+  "scope": "external",
+  "kind": "normal",
+  "expected": "forbidden"
+}

@@ -13,6 +13,9 @@ pub mod phasing;
 pub mod reputation;
 pub mod session;
 
+#[cfg(test)]
+mod handler_contract_tests;
+
 pub use map_manager::{
     ChaseTargetSnapshotLikeCpp, GridCoord, MapManager, SharedMapManager, WorldCreature,
     WorldMMapPathfinderWorkerLikeCpp,

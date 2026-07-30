@@ -1,0 +1,429 @@
+{
+  "schema_version": 2,
+  "categories": {
+    "foundation": [
+      "wow-collections",
+      "wow-constants",
+      "wow-core",
+      "wow-ecs",
+      "wow-math"
+    ],
+    "domain-runtime": [
+      "wow-achievement",
+      "wow-ai",
+      "wow-anticheat",
+      "wow-chat",
+      "wow-combat",
+      "wow-entities",
+      "wow-instances",
+      "wow-loot",
+      "wow-map",
+      "wow-movement",
+      "wow-pvp",
+      "wow-script",
+      "wow-social",
+      "wow-spell"
+    ],
+    "application": [
+      "wow-world"
+    ],
+    "adapter-platform": [
+      "wow-config",
+      "wow-crypto",
+      "wow-data",
+      "wow-database",
+      "wow-handler",
+      "wow-logging",
+      "wow-network",
+      "wow-packet",
+      "wow-proto",
+      "wow-recastdetour",
+      "wow-scripts"
+    ],
+    "composition": [
+      "bnet-server",
+      "world-server"
+    ],
+    "tooling": [
+      "capture-diff"
+    ]
+  },
+  "allowed_category_dependencies": {
+    "foundation": [
+      "foundation"
+    ],
+    "domain-runtime": [
+      "foundation",
+      "domain-runtime"
+    ],
+    "application": [
+      "foundation",
+      "domain-runtime",
+      "application"
+    ],
+    "adapter-platform": [
+      "foundation",
+      "domain-runtime",
+      "application",
+      "adapter-platform"
+    ],
+    "composition": [
+      "foundation",
+      "domain-runtime",
+      "application",
+      "adapter-platform",
+      "composition"
+    ],
+    "tooling": [
+      "foundation",
+      "domain-runtime",
+      "application",
+      "adapter-platform",
+      "tooling"
+    ]
+  },
+  "restricted_packages": {
+    "wow-data": [
+      "wow-constants",
+      "wow-core"
+    ],
+    "wow-network": [
+      "wow-constants",
+      "wow-core",
+      "wow-crypto",
+      "wow-packet"
+    ],
+    "wow-packet": [
+      "wow-constants",
+      "wow-core"
+    ]
+  },
+  "exceptions": [
+    {
+      "from": "wow-anticheat",
+      "to": "wow-packet",
+      "tracking_issue": 133,
+      "reason": "The anticheat domain still consumes transport packet shapes directly."
+    },
+    {
+      "from": "wow-data",
+      "to": "wow-database",
+      "tracking_issue": 133,
+      "reason": "Static-data loaders still own concrete database access."
+    },
+    {
+      "from": "wow-data",
+      "to": "wow-entities",
+      "tracking_issue": 133,
+      "reason": "Static-data rows still reuse mutable entity-domain types."
+    },
+    {
+      "from": "wow-data",
+      "to": "wow-movement",
+      "tracking_issue": 133,
+      "reason": "Static-data loaders still reuse movement runtime types."
+    },
+    {
+      "from": "wow-instances",
+      "to": "wow-data",
+      "tracking_issue": 133,
+      "reason": "Instance state still reads concrete static-data stores."
+    },
+    {
+      "from": "wow-instances",
+      "to": "wow-database",
+      "tracking_issue": 133,
+      "reason": "Instance state still persists through a concrete database adapter."
+    },
+    {
+      "from": "wow-network",
+      "to": "wow-data",
+      "tracking_issue": 137,
+      "reason": "SessionResources plus the network-owned player and group registries still carry gameplay data; issues #134, #138, and #137 retire those uses in order."
+    },
+    {
+      "from": "wow-network",
+      "to": "wow-database",
+      "tracking_issue": 134,
+      "reason": "SessionResources currently makes the listener carry gameplay databases."
+    },
+    {
+      "from": "wow-network",
+      "to": "wow-instances",
+      "tracking_issue": 134,
+      "reason": "SessionResources currently makes the listener carry instance gameplay state."
+    },
+    {
+      "from": "wow-network",
+      "to": "wow-loot",
+      "tracking_issue": 138,
+      "reason": "The network-owned player registry and mailbox still carry loot gameplay commands."
+    },
+    {
+      "from": "wow-packet",
+      "to": "wow-loot",
+      "tracking_issue": 133,
+      "reason": "Wire packet models still reuse loot-domain values."
+    },
+    {
+      "from": "wow-packet",
+      "to": "wow-movement",
+      "tracking_issue": 133,
+      "reason": "Wire packet models still reuse movement-domain values."
+    },
+    {
+      "from": "wow-world",
+      "to": "wow-config",
+      "tracking_issue": 133,
+      "reason": "The mixed world application crate still reads concrete configuration."
+    },
+    {
+      "from": "wow-world",
+      "to": "wow-crypto",
+      "tracking_issue": 133,
+      "reason": "The mixed world application crate still performs protocol crypto work."
+    },
+    {
+      "from": "wow-world",
+      "to": "wow-data",
+      "tracking_issue": 133,
+      "reason": "The mixed world application crate still reads concrete static-data stores."
+    },
+    {
+      "from": "wow-world",
+      "to": "wow-database",
+      "tracking_issue": 133,
+      "reason": "The mixed world application crate still performs concrete persistence."
+    },
+    {
+      "from": "wow-world",
+      "to": "wow-handler",
+      "tracking_issue": 140,
+      "reason": "WorldSession still owns the packet dispatch driver."
+    },
+    {
+      "from": "wow-world",
+      "to": "wow-logging",
+      "tracking_issue": 133,
+      "reason": "The mixed world application crate still consumes logging infrastructure directly."
+    },
+    {
+      "from": "wow-world",
+      "to": "wow-network",
+      "tracking_issue": 137,
+      "reason": "Gameplay still depends on network-owned player/session and group registries."
+    },
+    {
+      "from": "wow-world",
+      "to": "wow-packet",
+      "tracking_issue": 140,
+      "reason": "WorldSession and handlers still own packet-boundary adaptation."
+    },
+    {
+      "from": "wow-world",
+      "to": "wow-recastdetour",
+      "tracking_issue": 133,
+      "reason": "The mixed world application crate still reaches the concrete pathfinding adapter."
+    }
+  ],
+  "external_dependencies": {
+    "canonical_registry_source": "registry+https://github.com/rust-lang/crates.io-index",
+    "protected_categories": [
+      "foundation",
+      "domain-runtime",
+      "application"
+    ],
+    "protected_packages": [
+      "wow-data",
+      "wow-network",
+      "wow-packet"
+    ],
+    "allowed": {
+      "wow-achievement": {
+        "normal": [],
+        "build": []
+      },
+      "wow-ai": {
+        "normal": [
+          "rand"
+        ],
+        "build": []
+      },
+      "wow-anticheat": {
+        "normal": [],
+        "build": []
+      },
+      "wow-chat": {
+        "normal": [],
+        "build": []
+      },
+      "wow-collections": {
+        "normal": [
+          "smallvec"
+        ],
+        "build": []
+      },
+      "wow-combat": {
+        "normal": [],
+        "build": []
+      },
+      "wow-constants": {
+        "normal": [
+          "bitflags",
+          "num-derive",
+          "num-traits",
+          "serde",
+          "strum"
+        ],
+        "build": []
+      },
+      "wow-core": {
+        "normal": [
+          "bitflags",
+          "libc",
+          "num-derive",
+          "num-traits",
+          "rand",
+          "serde",
+          "thiserror"
+        ],
+        "build": []
+      },
+      "wow-data": {
+        "normal": [
+          "anyhow",
+          "bitflags",
+          "num-traits",
+          "rand",
+          "tracing"
+        ],
+        "build": []
+      },
+      "wow-ecs": {
+        "normal": [
+          "hecs"
+        ],
+        "build": []
+      },
+      "wow-entities": {
+        "normal": [
+          "bitflags"
+        ],
+        "build": []
+      },
+      "wow-instances": {
+        "normal": [
+          "serde_json"
+        ],
+        "build": []
+      },
+      "wow-loot": {
+        "normal": [
+          "rand"
+        ],
+        "build": []
+      },
+      "wow-map": {
+        "normal": [
+          "bumpalo",
+          "parking_lot",
+          "rand",
+          "smallvec"
+        ],
+        "build": []
+      },
+      "wow-math": {
+        "normal": [
+          "glam"
+        ],
+        "build": []
+      },
+      "wow-movement": {
+        "normal": [
+          "bitflags"
+        ],
+        "build": []
+      },
+      "wow-network": {
+        "normal": [
+          "bytes",
+          "dashmap",
+          "ed25519-dalek",
+          "flume",
+          "num-traits",
+          "rand",
+          "sha2",
+          "thiserror",
+          "tokio",
+          "tracing"
+        ],
+        "build": []
+      },
+      "wow-packet": {
+        "normal": [
+          "bytes",
+          "flate2",
+          "num-traits",
+          "thiserror",
+          "tracing"
+        ],
+        "build": []
+      },
+      "wow-pvp": {
+        "normal": [],
+        "build": []
+      },
+      "wow-script": {
+        "normal": [
+          "inventory"
+        ],
+        "build": []
+      },
+      "wow-social": {
+        "normal": [],
+        "build": []
+      },
+      "wow-spell": {
+        "normal": [
+          "bitflags"
+        ],
+        "build": []
+      },
+      "wow-world": {
+        "normal": [
+          "dashmap",
+          "flume",
+          "inventory",
+          "num-traits",
+          "parking_lot",
+          "rand",
+          "tracing"
+        ],
+        "build": []
+      }
+    },
+    "exceptions": [
+      {
+        "from": "wow-loot",
+        "to": "tokio",
+        "kind": "normal",
+        "tracking_issue": 133,
+        "reason": "Loot authority still exposes Tokio watch-based asynchronous coordination from a domain/runtime crate."
+      },
+      {
+        "from": "wow-world",
+        "to": "sqlx",
+        "kind": "normal",
+        "tracking_issue": 133,
+        "reason": "The mixed world application crate still performs concrete SQL persistence directly."
+      },
+      {
+        "from": "wow-world",
+        "to": "tokio",
+        "kind": "normal",
+        "tracking_issue": 133,
+        "reason": "The mixed world application crate still owns Tokio tasks, timers, and channels that must move behind application ports or composition adapters incrementally."
+      }
+    ]
+  }
+}

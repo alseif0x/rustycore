@@ -1,0 +1,6 @@
+{
+  "name": "network adapter may not grow into map runtime",
+  "source": "wow-network",
+  "target": "wow-map",
+  "expected": "forbidden"
+}
