@@ -746,6 +746,10 @@ async fn attempt_group_loot_money_transaction_like_cpp(
 pub type AreaTriggerScriptDispatcherLikeCpp =
     Arc<dyn Fn(&mut WorldSession, ScriptIdLikeCpp, u32, bool) -> bool + Send + Sync>;
 
+#[cfg(test)]
+type GivePlayerXpScriptDispatcherLikeCpp =
+    Arc<dyn Fn(wow_script::player::GivePlayerXpContextLikeCpp, &mut u32) + Send + Sync>;
+
 const REST_FLAG_IN_TAVERN_LIKE_CPP: u32 = 0x1;
 const REST_FLAG_IN_CITY_LIKE_CPP: u32 = 0x2;
 const REST_FLAG_IN_FACTION_AREA_LIKE_CPP: u32 = 0x4;
@@ -5106,6 +5110,8 @@ pub struct WorldSession {
     area_trigger_store: Option<Arc<AreaTriggerStore>>,
     area_trigger_script_store: Option<Arc<AreaTriggerScriptStoreLikeCpp>>,
     area_trigger_script_dispatcher_like_cpp: Option<AreaTriggerScriptDispatcherLikeCpp>,
+    #[cfg(test)]
+    give_player_xp_script_dispatcher_like_cpp: Option<GivePlayerXpScriptDispatcherLikeCpp>,
     tavern_area_trigger_store: Option<Arc<TavernAreaTriggerStoreLikeCpp>>,
 
     // C++ ObjectMgr::GraveyardStore loaded from graveyard_zone plus attached conditions.
@@ -7208,6 +7214,8 @@ impl WorldSession {
             area_trigger_store: None,
             area_trigger_script_store: None,
             area_trigger_script_dispatcher_like_cpp: None,
+            #[cfg(test)]
+            give_player_xp_script_dispatcher_like_cpp: None,
             tavern_area_trigger_store: None,
             graveyard_store: None,
             chr_specialization_store: None,
@@ -24605,6 +24613,14 @@ impl WorldSession {
         self.area_trigger_script_dispatcher_like_cpp = Some(dispatcher);
     }
 
+    #[cfg(test)]
+    fn set_give_player_xp_script_dispatcher_like_cpp(
+        &mut self,
+        dispatcher: GivePlayerXpScriptDispatcherLikeCpp,
+    ) {
+        self.give_player_xp_script_dispatcher_like_cpp = Some(dispatcher);
+    }
+
     pub(crate) fn dispatch_area_trigger_script_like_cpp(
         &mut self,
         script_id: ScriptIdLikeCpp,
@@ -31000,13 +31016,18 @@ impl WorldSession {
         // guard after dispatch: C++ continues when a hook changes the amount
         // to zero.
         let old_level = self.player_level_like_cpp();
-        let _ = wow_script::player::on_give_player_xp_like_cpp(
-            wow_script::player::GivePlayerXpContextLikeCpp {
-                player_guid: self.player_guid().unwrap_or(wow_core::ObjectGuid::EMPTY),
-                victim_guid: victim,
-            },
-            &mut xp,
-        );
+        let script_context = wow_script::player::GivePlayerXpContextLikeCpp {
+            player_guid: self.player_guid().unwrap_or(wow_core::ObjectGuid::EMPTY),
+            victim_guid: victim,
+        };
+        #[cfg(test)]
+        if let Some(dispatcher) = &self.give_player_xp_script_dispatcher_like_cpp {
+            dispatcher(script_context, &mut xp);
+        } else {
+            let _ = wow_script::player::on_give_player_xp_like_cpp(script_context, &mut xp);
+        }
+        #[cfg(not(test))]
+        let _ = wow_script::player::on_give_player_xp_like_cpp(script_context, &mut xp);
         if self.player_is_max_level_like_cpp() {
             return false;
         } // max level
@@ -64985,13 +65006,6 @@ mod tests {
         }
     }
 
-    inventory::submit! {
-        wow_script::player::GivePlayerXpHookLikeCpp {
-            name: "represented_test_give_player_xp_hook_like_cpp",
-            callback: represented_test_give_player_xp_hook_like_cpp,
-        }
-    }
-
     fn make_session() -> (
         WorldSession,
         flume::Sender<WorldPacket>,
@@ -65016,6 +65030,18 @@ mod tests {
             PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP,
         );
 
+        (session, pkt_tx, send_rx)
+    }
+
+    fn make_session_with_give_player_xp_hook() -> (
+        WorldSession,
+        flume::Sender<WorldPacket>,
+        flume::Receiver<Vec<u8>>,
+    ) {
+        let (mut session, pkt_tx, send_rx) = make_session();
+        session.set_give_player_xp_script_dispatcher_like_cpp(Arc::new(
+            represented_test_give_player_xp_hook_like_cpp,
+        ));
         (session, pkt_tx, send_rx)
     }
 
@@ -117501,7 +117527,7 @@ mod tests {
 
     #[test]
     fn give_xp_runtime_dispatches_mutable_script_before_rested_bonus_like_cpp() {
-        let (mut session, _, send_rx) = make_session();
+        let (mut session, _, send_rx) = make_session_with_give_player_xp_hook();
         let player = ObjectGuid::create_player(1, XP_HOOK_DOUBLE_PLAYER_COUNTER);
         let victim = test_creature_guid(0xE1D0);
         session.set_player_guid(Some(player));
@@ -117539,7 +117565,7 @@ mod tests {
 
     #[test]
     fn give_xp_runtime_does_not_reapply_zero_guard_after_script_like_cpp() {
-        let (mut session, _, send_rx) = make_session();
+        let (mut session, _, send_rx) = make_session_with_give_player_xp_hook();
         let player = ObjectGuid::create_player(1, XP_HOOK_ZERO_PLAYER_COUNTER);
         let victim = test_creature_guid(0xE1D1);
         session.set_player_guid(Some(player));
@@ -117580,7 +117606,7 @@ mod tests {
 
     #[test]
     fn give_xp_runtime_dispatches_script_before_max_level_return_like_cpp() {
-        let (mut session, _, send_rx) = make_session();
+        let (mut session, _, send_rx) = make_session_with_give_player_xp_hook();
         let player = ObjectGuid::create_player(1, XP_HOOK_MAX_PLAYER_COUNTER);
         let victim = test_creature_guid(0xE1D2);
         session.set_player_guid(Some(player));
@@ -117601,7 +117627,7 @@ mod tests {
 
     #[test]
     fn give_xp_runtime_rejection_guards_run_before_script_like_cpp() {
-        let (mut session, _, send_rx) = make_session();
+        let (mut session, _, send_rx) = make_session_with_give_player_xp_hook();
         let player = ObjectGuid::create_player(1, XP_HOOK_GUARD_PLAYER_COUNTER);
         session.set_player_guid(Some(player));
         session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);

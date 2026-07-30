@@ -1,0 +1,8 @@
+{
+  "name": "raw network adapter may not add direct SQL infrastructure",
+  "source": "wow-network",
+  "target": "sqlx",
+  "scope": "external",
+  "kind": "normal",
+  "expected": "forbidden"
+}

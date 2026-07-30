@@ -1,0 +1,8 @@
+{
+  "name": "map runtime may use its reviewed deterministic utility library",
+  "source": "wow-map",
+  "target": "rand",
+  "scope": "external",
+  "kind": "normal",
+  "expected": "allowed"
+}

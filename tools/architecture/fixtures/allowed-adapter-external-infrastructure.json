@@ -1,0 +1,8 @@
+{
+  "name": "database adapter may integrate its concrete SQL implementation",
+  "source": "wow-database",
+  "target": "sqlx",
+  "scope": "external",
+  "kind": "normal",
+  "expected": "allowed"
+}

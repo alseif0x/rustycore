@@ -1,0 +1,9 @@
+{
+  "name": "target-specific SQL cannot bypass the domain external surface",
+  "source": "wow-map",
+  "target": "sqlx",
+  "scope": "external",
+  "kind": "normal",
+  "target_cfg": "cfg(windows)",
+  "expected": "forbidden"
+}

@@ -13,6 +13,11 @@ findings, 25 open → tracked as GitHub issues #50–#64, index #65; feeds plan 
 Audit docs kept local/uncommitted: `../audits/csharp-reference-audit.md` +
 `../audits/csharp-reference-contrast.md`.
 
+Repository refactors are governed by
+[`docs/architecture/ownership-and-boundaries.md`](../architecture/ownership-and-boundaries.md):
+one mutable owner per concept, private modules before crates, explicit mirror retirement, and
+executable Cargo/handler-contract guardrails.
+
 ### Fidelity policy for proven legacy defects
 
 The legacy C++ server is the behavioral baseline, not an instruction to reproduce undefined

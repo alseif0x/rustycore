@@ -1,0 +1,8 @@
+{
+  "name": "map runtime may not add direct network infrastructure",
+  "source": "wow-map",
+  "target": "axum",
+  "scope": "external",
+  "kind": "normal",
+  "expected": "forbidden"
+}
