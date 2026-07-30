@@ -5336,6 +5336,7 @@ struct SpellInterruptRowLikeCpp {
 #[derive(Default)]
 pub struct SpellStore {
     spells: HashMap<i32, SpellInfo>,
+    spell_info_keys_like_cpp: crate::spell_info_keys::SpellInfoKeyStoreLikeCpp,
     spell_effects_by_difficulty: HashMap<(i32, u8), Vec<SpellEffectInfo>>,
     spell_misc_attributes: HashMap<i32, [u32; 15]>,
     spell_misc_attributes_by_difficulty: HashMap<(i32, u8), [u32; 15]>,
@@ -5350,6 +5351,7 @@ impl SpellStore {
     pub fn new() -> Self {
         Self {
             spells: HashMap::new(),
+            spell_info_keys_like_cpp: crate::spell_info_keys::SpellInfoKeyStoreLikeCpp::default(),
             spell_effects_by_difficulty: HashMap::new(),
             spell_misc_attributes: HashMap::new(),
             spell_misc_attributes_by_difficulty: HashMap::new(),
@@ -5488,7 +5490,18 @@ impl SpellStore {
         data_dir: &str,
         locale: &str,
         hotfix_db: &HotfixDatabase,
+        spell_name_store: &crate::spell_db2::SpellNameStore,
+        hotfix_removals: &crate::Db2HotfixRemovalStoreLikeCpp,
     ) -> Result<Self> {
+        let spell_info_keys_like_cpp =
+            crate::spell_info_keys::SpellInfoKeyStoreLikeCpp::load_like_cpp(
+                data_dir,
+                locale,
+                hotfix_db,
+                spell_name_store,
+                hotfix_removals,
+            )
+            .await?;
         let spell_misc_store = crate::spell_db2::SpellMiscStore::load(data_dir, locale)?;
         let spell_effect_store = crate::spell_db2::SpellEffectDb2Store::load(data_dir, locale)?;
         let spell_shapeshift_store =
@@ -5500,6 +5513,7 @@ impl SpellStore {
             &spell_effect_store,
             &spell_shapeshift_store,
         );
+        store.spell_info_keys_like_cpp = spell_info_keys_like_cpp;
         store.apply_db2_interrupts_like_cpp(&spell_interrupts_store);
         let hotfix_interrupt_rows = store.apply_hotfix_interrupts_like_cpp(hotfix_db).await?;
         if hotfix_interrupt_rows != 0 {
@@ -5534,6 +5548,26 @@ impl SpellStore {
             store.spells.len()
         );
         Ok(store)
+    }
+
+    /// Whether C++ `SpellMgr::GetSpellInfo` has an exact regular-spell key.
+    ///
+    /// This is deliberately separate from [`Self::get`]. `get` exposes the
+    /// subset of `SpellInfo` payload fields Rust currently hydrates, whereas
+    /// C++ creates existence keys from twenty DB2 contributors.
+    pub fn contains_spell_info_exact_like_cpp(&self, spell_id: u32, difficulty_id: u8) -> bool {
+        self.spell_info_keys_like_cpp
+            .contains_exact_like_cpp(spell_id, difficulty_id)
+    }
+
+    /// Whether C++ `_GetSpellInfo(id)` would find any regular difficulty.
+    pub fn contains_spell_info_any_difficulty_like_cpp(&self, spell_id: u32) -> bool {
+        self.spell_info_keys_like_cpp
+            .contains_any_difficulty_like_cpp(spell_id)
+    }
+
+    pub fn spell_info_key_count_like_cpp(&self) -> usize {
+        self.spell_info_keys_like_cpp.len()
     }
 
     fn from_spell_db2_stores_like_cpp(
@@ -6495,6 +6529,19 @@ mod tests {
     fn test_spell_store_creation() {
         let store = SpellStore::new();
         assert!(store.is_empty(), "new store should be empty");
+    }
+
+    #[test]
+    fn exact_spell_info_key_does_not_fabricate_hydrated_payload() {
+        let mut store = SpellStore::new();
+        store.spell_info_keys_like_cpp =
+            crate::spell_info_keys::SpellInfoKeyStoreLikeCpp::from_candidate_keys_like_cpp(
+                [(100, 0)],
+                &HashSet::from([100]),
+            );
+
+        assert!(store.contains_spell_info_exact_like_cpp(100, 0));
+        assert!(store.get(100).is_none());
     }
 
     #[test]
