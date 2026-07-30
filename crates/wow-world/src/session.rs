@@ -112,9 +112,9 @@ use wow_data::{
     SpellRadiusStore, SpellRangeStore, SpellRequiredStoreLikeCpp, SpellShapeshiftFormStore,
     SpellStore, SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp,
     SpellTotemModelStoreLikeCpp, SummonPropertiesEntry, TactKeyStore, TalentStore, TalentTabStore,
-    TavernAreaTriggerStoreLikeCpp, ToyStore, TransmogSetEntry, TransmogSetItemStore,
-    TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK, VehicleAccessoryStoreLikeCpp,
-    VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
+    TavernAreaTriggerStoreLikeCpp, ToyStore, TrainerStoreLikeCpp, TransmogSetEntry,
+    TransmogSetItemStore, TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK,
+    VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
     calculate_battle_pet_stats_like_cpp, is_player_meeting_condition_like_cpp,
     progression_rewards::{
         ContentTuningStore, CurvePointStore, CurveStore, FactionEntry, FactionStore,
@@ -2272,6 +2272,9 @@ pub(crate) struct RepresentedGameObjectUseState {
     pub go_type: Option<u8>,
     pub faction_template: Option<u32>,
     pub interact_radius_override: Option<u32>,
+    /// Immutable template evidence for C++
+    /// `GameObjectTemplate::IconName != "Point"`.
+    pub icon_name_allows_interaction_like_cpp: Option<bool>,
     pub condition_id1: Option<u32>,
     pub lock_id: Option<u32>,
     pub fishing_hole_max_opens: Option<u32>,
@@ -3109,6 +3112,7 @@ impl Default for RepresentedGameObjectUseState {
             go_type: None,
             faction_template: None,
             interact_radius_override: None,
+            icon_name_allows_interaction_like_cpp: None,
             condition_id1: None,
             lock_id: None,
             fishing_hole_max_opens: None,
@@ -4944,6 +4948,9 @@ pub struct WorldSession {
     // World database (for creature templates, spawns, etc.)
     world_db: Option<Arc<WorldDatabase>>,
 
+    // C++ ObjectMgr trainer definitions and creature bindings.
+    trainer_store_like_cpp: Option<Arc<TrainerStoreLikeCpp>>,
+
     // BankBagSlotPrices.db2 store used by C++ HandleBuyBankSlotOpcode.
     bank_bag_slot_prices_store: Option<Arc<BankBagSlotPricesStore>>,
 
@@ -5327,7 +5334,6 @@ pub struct WorldSession {
     /// C++ `UnitData::BaseMana` known by represented runtime.
     represented_player_base_mana_like_cpp: i32,
     represented_bank_bag_slot_flags_like_cpp: [u32; 7],
-    represented_current_banker_guid_like_cpp: Option<ObjectGuid>,
     represented_bank_item_moves_like_cpp: Vec<RepresentedBankItemMoveLikeCpp>,
     represented_guild_bank_inventory_moves_like_cpp: Vec<RepresentedGuildBankInventoryMoveLikeCpp>,
     represented_guild_bank_list_requests_like_cpp: Vec<RepresentedGuildBankListRequestLikeCpp>,
@@ -6235,12 +6241,17 @@ pub struct WorldSession {
     /// Position at which visibility was last fully recalculated.
     pub(crate) last_visibility_pos: Option<wow_core::Position>,
 
-    // ── Gossip state ──────────────────────────────────────────────
+    // ── Player-menu interaction state ─────────────────────────────
+    /// The represented subset of C++ `PlayerMenu::InteractionData`.
+    ///
+    /// `PlayerChoiceId` remains unrepresented until the corresponding
+    /// player-choice runtime lands. Gossip options deliberately remain
+    /// separate because C++ `InteractionData::Reset` and
+    /// `PlayerMenu::ClearMenus` are different operations.
+    player_interaction_data_like_cpp: PlayerInteractionDataLikeCpp,
     /// Active gossip options for the NPC the player is talking to.
     /// Stored when SMSG_GOSSIP_MESSAGE is sent, used when CMSG_GOSSIP_SELECT_OPTION arrives.
     pub(crate) gossip_options: Vec<GossipOptionInfo>,
-    /// GUID of the NPC the current gossip menu belongs to.
-    pub(crate) gossip_source_guid: Option<wow_core::ObjectGuid>,
 
     // ── Area trigger tracking ──────────────────────────────────────
     /// Currently active area trigger ID (to prevent retriggering on same position).
@@ -6264,6 +6275,60 @@ pub struct GossipOptionInfo {
     pub order_index: u32,
     pub option_npc: u8,
     pub action_menu_id: u32,
+}
+
+/// Represented C++ `PlayerMenu::InteractionData`.
+///
+/// C++ keeps this provenance separate from the gossip menu contents. The
+/// unrepresented `PlayerChoiceId` member must join this owner when player
+/// choices become live rather than creating another session-side mirror.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PlayerInteractionDataLikeCpp {
+    source_guid: ObjectGuid,
+    trainer_id: u32,
+}
+
+impl Default for PlayerInteractionDataLikeCpp {
+    fn default() -> Self {
+        Self {
+            source_guid: ObjectGuid::EMPTY,
+            trainer_id: 0,
+        }
+    }
+}
+
+impl PlayerInteractionDataLikeCpp {
+    fn reset(&mut self) {
+        *self = Self::default();
+    }
+
+    fn set_source(&mut self, source_guid: ObjectGuid) {
+        *self = Self {
+            source_guid,
+            trainer_id: 0,
+        };
+    }
+
+    fn set_trainer(&mut self, source_guid: ObjectGuid, trainer_id: u32) {
+        *self = Self {
+            source_guid,
+            trainer_id,
+        };
+    }
+
+    fn reset_if_source(&mut self, source_guid: ObjectGuid) -> bool {
+        if self.source_guid != source_guid {
+            return false;
+        }
+        self.reset();
+        true
+    }
+
+    fn trainer_matches(&self, source_guid: ObjectGuid, trainer_id: i32) -> bool {
+        self.trainer_id != 0
+            && self.source_guid == source_guid
+            && self.trainer_id == trainer_id as u32
+    }
 }
 
 /// An item tracked in the session's in-memory inventory.
@@ -7141,6 +7206,7 @@ impl WorldSession {
             homebind_persistence_tx_like_cpp: None,
             login_db: None,
             world_db: None,
+            trainer_store_like_cpp: None,
             bank_bag_slot_prices_store: None,
             currency_types_store: None,
             import_price_stores: None,
@@ -7340,7 +7406,6 @@ impl WorldSession {
             represented_player_max_powers_like_cpp: empty_character_power_snapshot_like_cpp(),
             represented_player_base_mana_like_cpp: 0,
             represented_bank_bag_slot_flags_like_cpp: [0; 7],
-            represented_current_banker_guid_like_cpp: None,
             represented_bank_item_moves_like_cpp: Vec::new(),
             represented_guild_bank_inventory_moves_like_cpp: Vec::new(),
             represented_guild_bank_list_requests_like_cpp: Vec::new(),
@@ -7809,8 +7874,8 @@ impl WorldSession {
             represented_gameobject_phase_shifts: std::collections::HashMap::new(),
             represented_player_phase_shift: PhaseShift::default(),
             last_visibility_pos: None,
+            player_interaction_data_like_cpp: PlayerInteractionDataLikeCpp::default(),
             gossip_options: Vec::new(),
-            gossip_source_guid: None,
             active_area_trigger: None,
             pending_teleport: None,
             creature_query_cache: std::collections::HashSet::new(),
@@ -12634,6 +12699,17 @@ impl WorldSession {
             (interact_radius_override != 0).then_some(interact_radius_override);
     }
 
+    pub(crate) fn record_represented_gameobject_icon_interaction_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+        allows_interaction: bool,
+    ) {
+        self.represented_gameobject_use_states
+            .entry(guid)
+            .or_default()
+            .icon_name_allows_interaction_like_cpp = Some(allows_interaction);
+    }
+
     pub(crate) fn record_represented_gameobject_lock_id_like_cpp(
         &mut self,
         guid: ObjectGuid,
@@ -15940,6 +16016,18 @@ impl WorldSession {
     /// Get the world database reference.
     pub fn world_db(&self) -> Option<&Arc<WorldDatabase>> {
         self.world_db.as_ref()
+    }
+
+    pub fn set_trainer_store_like_cpp(&mut self, store: Arc<TrainerStoreLikeCpp>) {
+        self.trainer_store_like_cpp = Some(store);
+    }
+
+    pub(crate) fn trainer_store_like_cpp(&self) -> Option<&Arc<TrainerStoreLikeCpp>> {
+        self.trainer_store_like_cpp.as_ref()
+    }
+
+    pub(crate) fn session_locale_name_like_cpp(&self) -> &str {
+        &self.locale
     }
 
     /// Set the C++ BankBagSlotPrices.db2 store for this session.
@@ -39645,7 +39733,15 @@ impl WorldSession {
 
     /// Set the logged-in player GUID.
     pub fn set_player_guid(&mut self, guid: Option<ObjectGuid>) {
+        let player_changed = self.player_guid != guid;
         self.player_guid = guid;
+        if player_changed {
+            // C++ owns PlayerMenu (and therefore both InteractionData and its
+            // menus) under Player. A WorldSession can survive character
+            // logout, so no player-menu state may cross that lifetime here.
+            self.reset_player_interaction_data_like_cpp();
+            self.gossip_options.clear();
+        }
         if let Some(guid) = guid {
             self.recent_player_guid_low_like_cpp = guid.counter() as u64;
             self.represented_seer_guid_like_cpp = Some(guid);
@@ -40095,7 +40191,7 @@ impl WorldSession {
         controller.set_known_spells(self.known_spells.clone());
         controller.set_currencies(self.player_currencies.clone());
         controller.set_inventory(self.session_player_inventory_runtime_like_cpp());
-        self.player_guid = Some(controller.guid());
+        self.set_player_guid(Some(controller.guid()));
         self.player_name = Some(controller.name().to_string());
         self.player_position = Some(controller_position);
         self.current_map_id = controller.map_id();
@@ -40237,16 +40333,52 @@ impl WorldSession {
         }
     }
 
-    pub(crate) fn set_represented_current_banker_guid_like_cpp(&mut self, guid: ObjectGuid) {
-        self.represented_current_banker_guid_like_cpp = Some(guid);
+    pub(crate) fn reset_player_interaction_data_like_cpp(&mut self) {
+        self.player_interaction_data_like_cpp.reset();
     }
 
-    pub(crate) fn represented_current_banker_guid_like_cpp(&self) -> Option<ObjectGuid> {
-        self.represented_current_banker_guid_like_cpp
+    pub(crate) fn set_player_interaction_source_like_cpp(&mut self, source_guid: ObjectGuid) {
+        self.player_interaction_data_like_cpp
+            .set_source(source_guid);
+    }
+
+    pub(crate) fn set_player_trainer_interaction_like_cpp(
+        &mut self,
+        source_guid: ObjectGuid,
+        trainer_id: u32,
+    ) {
+        self.player_interaction_data_like_cpp
+            .set_trainer(source_guid, trainer_id);
+    }
+
+    pub(crate) fn reset_player_interaction_if_source_like_cpp(
+        &mut self,
+        source_guid: ObjectGuid,
+    ) -> bool {
+        self.player_interaction_data_like_cpp
+            .reset_if_source(source_guid)
+    }
+
+    pub(crate) fn player_interaction_source_guid_like_cpp(&self) -> Option<ObjectGuid> {
+        (!self.player_interaction_data_like_cpp.source_guid.is_empty())
+            .then_some(self.player_interaction_data_like_cpp.source_guid)
+    }
+
+    pub(crate) fn player_interaction_trainer_id_like_cpp(&self) -> u32 {
+        self.player_interaction_data_like_cpp.trainer_id
+    }
+
+    pub(crate) fn player_trainer_interaction_matches_like_cpp(
+        &self,
+        source_guid: ObjectGuid,
+        trainer_id: i32,
+    ) -> bool {
+        self.player_interaction_data_like_cpp
+            .trainer_matches(source_guid, trainer_id)
     }
 
     pub(crate) fn represented_can_use_current_bank_like_cpp(&self) -> bool {
-        let Some(banker_guid) = self.represented_current_banker_guid_like_cpp() else {
+        let Some(banker_guid) = self.player_interaction_source_guid_like_cpp() else {
             return false;
         };
 
@@ -65031,6 +65163,76 @@ mod tests {
         );
 
         (session, pkt_tx, send_rx)
+    }
+
+    #[test]
+    fn player_interaction_data_has_one_exact_reset_and_match_owner_like_cpp() {
+        let trainer_a = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 100, 1);
+        let trainer_b = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 101, 1);
+        let mut interaction = PlayerInteractionDataLikeCpp::default();
+
+        assert!(interaction.source_guid.is_empty());
+        assert_eq!(interaction.trainer_id, 0);
+        assert!(!interaction.trainer_matches(trainer_a, 0));
+
+        interaction.set_trainer(trainer_a, 10);
+        assert!(interaction.trainer_matches(trainer_a, 10));
+        assert!(!interaction.trainer_matches(trainer_b, 10));
+        assert!(!interaction.trainer_matches(trainer_a, 11));
+
+        interaction.set_trainer(trainer_a, u32::MAX);
+        assert!(interaction.trainer_matches(trainer_a, -1));
+        interaction.set_trainer(trainer_a, 0x8000_0000);
+        assert!(interaction.trainer_matches(trainer_a, i32::MIN));
+
+        interaction.set_source(trainer_b);
+        assert_eq!(interaction.source_guid, trainer_b);
+        assert_eq!(
+            interaction.trainer_id, 0,
+            "a generic C++ interaction replaces the complete prior trainer provenance"
+        );
+        assert!(
+            !interaction.trainer_matches(trainer_b, 0),
+            "a generic source with C++'s reset TrainerId=0 is not an active trainer window"
+        );
+        assert!(!interaction.reset_if_source(trainer_a));
+        assert_eq!(interaction.source_guid, trainer_b);
+        assert!(interaction.reset_if_source(trainer_b));
+        assert_eq!(interaction, PlayerInteractionDataLikeCpp::default());
+    }
+
+    #[test]
+    fn player_menu_state_does_not_survive_character_lifetime_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let first_player = ObjectGuid::create_player(1, 70_001);
+        let second_player = ObjectGuid::create_player(1, 70_002);
+        let trainer = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 100, 1);
+        session.set_player_guid(Some(first_player));
+        session.set_player_trainer_interaction_like_cpp(trainer, 77);
+        session.gossip_options.push(GossipOptionInfo {
+            gossip_option_id: 1,
+            menu_id: 2,
+            order_index: 3,
+            option_npc: 4,
+            action_menu_id: 5,
+        });
+
+        session.set_player_guid(Some(first_player));
+        assert!(
+            session.player_trainer_interaction_matches_like_cpp(trainer, 77),
+            "reasserting the same Player identity must not reset its PlayerMenu"
+        );
+        assert_eq!(session.gossip_options.len(), 1);
+
+        session.set_player_guid(None);
+
+        assert!(session.player_interaction_source_guid_like_cpp().is_none());
+        assert_eq!(session.player_interaction_trainer_id_like_cpp(), 0);
+        assert!(session.gossip_options.is_empty());
+
+        session.set_player_guid(Some(second_player));
+        assert!(session.player_interaction_source_guid_like_cpp().is_none());
+        assert!(session.gossip_options.is_empty());
     }
 
     fn make_session_with_give_player_xp_hook() -> (

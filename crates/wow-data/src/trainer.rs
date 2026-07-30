@@ -117,6 +117,14 @@ impl TrainerLikeCpp {
             .unwrap_or(&self.greeting)
     }
 
+    /// C++ `Trainer::GetGreeting(WorldSession::GetSessionDbLocaleIndex())`.
+    pub fn greeting_for_locale_name_like_cpp(&self, locale_name: &str) -> &str {
+        let locale = locale_from_name_like_cpp(locale_name)
+            .filter(|locale| *locale != Locale::None)
+            .unwrap_or(Locale::EnUS);
+        self.greeting_like_cpp(locale)
+    }
+
     /// C++ `Trainer::AddGreetingLocale`.
     pub fn add_greeting_locale_like_cpp(&mut self, locale: Locale, greeting: String) {
         self.greeting_locales.insert(locale, greeting);
@@ -174,7 +182,7 @@ impl TrainerStoreLikeCpp {
             let Some(locale) = locale_from_name_like_cpp(&row.locale) else {
                 continue;
             };
-            if locale == Locale::EnUS {
+            if matches!(locale, Locale::EnUS | Locale::None) {
                 continue;
             }
 
@@ -437,6 +445,11 @@ mod tests {
                     locale: "esES".to_string(),
                     greeting: "Hola".to_string(),
                 },
+                TrainerLocaleRowLikeCpp {
+                    id: 10,
+                    locale: "none".to_string(),
+                    greeting: "Invalid locale ignored".to_string(),
+                },
             ],
             [],
         );
@@ -445,6 +458,15 @@ mod tests {
         assert_eq!(trainer.greeting_like_cpp(Locale::EnUS), "Hello 10");
         assert_eq!(trainer.greeting_like_cpp(Locale::EsES), "Hola");
         assert_eq!(trainer.greeting_like_cpp(Locale::FrFR), "Hello 10");
+        assert_eq!(trainer.greeting_for_locale_name_like_cpp("esES"), "Hola");
+        assert_eq!(
+            trainer.greeting_for_locale_name_like_cpp("unsupported"),
+            "Hello 10"
+        );
+        assert_eq!(
+            trainer.greeting_for_locale_name_like_cpp("none"),
+            "Hello 10"
+        );
         assert_eq!(outcome.report.trainer_locale_entries, 1);
     }
 

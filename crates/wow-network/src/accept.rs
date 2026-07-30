@@ -191,6 +191,9 @@ pub struct SessionResources {
     pub char_db: Option<Arc<wow_database::CharacterDatabase>>,
     pub login_db: Option<Arc<wow_database::LoginDatabase>>,
     pub world_db: Option<Arc<wow_database::WorldDatabase>>,
+    /// Process-wide C++ `ObjectMgr::_trainers` /
+    /// `_creatureDefaultTrainers` snapshot.
+    pub trainer_store: Option<Arc<wow_data::TrainerStoreLikeCpp>>,
     pub guid_generator: Option<Arc<wow_core::ObjectGuidGenerator>>,
     /// Process-wide C++ `sObjectMgr->GetGenerator<HighGuid::Item>()` mirror.
     /// Every session must share this allocator so concurrent item creation
