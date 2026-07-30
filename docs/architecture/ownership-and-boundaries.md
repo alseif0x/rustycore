@@ -54,6 +54,10 @@ The policy's `exceptions` are a **ratchet, not an endorsement**. Each exception:
 - becomes an error as soon as the underlying dependency disappears, so obsolete debt cannot stay
   silently allowlisted.
 
+When several ordered slices retire distinct uses of the same Cargo edge, `tracking_issue` names
+the final slice that can remove the dependency and the reason lists every intermediate slice.
+Closing an earlier slice must not leave an exception pointing at an already completed issue.
+
 A new package, new upward edge, undeclared restricted-package edge, duplicate classification, or
 obsolete exception fails the architecture check. A deliberate baseline change must update this
 document and the JSON policy in the same reviewed commit.

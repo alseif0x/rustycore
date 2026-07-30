@@ -138,8 +138,8 @@
     {
       "from": "wow-network",
       "to": "wow-data",
-      "tracking_issue": 134,
-      "reason": "SessionResources currently makes the listener carry gameplay stores."
+      "tracking_issue": 137,
+      "reason": "SessionResources plus the network-owned player and group registries still carry gameplay data; issues #134, #138, and #137 retire those uses in order."
     },
     {
       "from": "wow-network",
