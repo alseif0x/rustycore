@@ -907,6 +907,70 @@ mod tests {
     }
 
     #[test]
+    fn trainer_validation_uses_effective_skill_line_identity_instead_of_payload() {
+        let table_hash = 0xB53D_C9D6;
+        let removals =
+            Db2HotfixRemovalStoreLikeCpp::from_status_rows_like_cpp([(table_hash, 100, 2)]);
+        let effective_ids =
+            compose_effective_skill_line_ids_like_cpp([100], [200], [], table_hash, &removals);
+        let mut skill_lines = SkillLineStore::from_entries([skill_line(100, 9, 0, 0)]);
+        skill_lines.effective_record_ids_like_cpp = effective_ids;
+
+        let trainer = crate::trainer::TrainerStoreLikeCpp::from_rows_like_cpp(
+            [crate::trainer::TrainerRowLikeCpp {
+                id: 10,
+                trainer_type: crate::trainer::TRAINER_TYPE_TRADESKILL_LIKE_CPP,
+                greeting: String::new(),
+            }],
+            [
+                crate::trainer::TrainerSpellRowLikeCpp {
+                    trainer_id: 10,
+                    spell: crate::trainer::TrainerSpellLikeCpp {
+                        spell_id: 1_000,
+                        money_cost: 0,
+                        req_skill_line: 100,
+                        req_skill_rank: 0,
+                        req_ability: [0; 3],
+                        req_level: 0,
+                    },
+                },
+                crate::trainer::TrainerSpellRowLikeCpp {
+                    trainer_id: 10,
+                    spell: crate::trainer::TrainerSpellLikeCpp {
+                        spell_id: 1_001,
+                        money_cost: 0,
+                        req_skill_line: 200,
+                        req_skill_rank: 0,
+                        req_ability: [0; 3],
+                        req_level: 0,
+                    },
+                },
+            ],
+            [],
+            [],
+            |_| true,
+            |skill_line_id| skill_lines.contains_effective_record_like_cpp(skill_line_id),
+            |_| true,
+            |_, _| true,
+        );
+
+        let loaded = trainer.store.get_trainer_like_cpp(10).unwrap();
+        assert!(
+            loaded.get_spell_like_cpp(1_000).is_none(),
+            "a hydrated SkillLine removed by hotfix_data is not a valid trainer requirement"
+        );
+        assert!(
+            loaded.get_spell_like_cpp(1_001).is_some(),
+            "an SQL-only effective SkillLine identity is valid without fabricated payload"
+        );
+        assert_eq!(
+            trainer.report.skipped_spells_missing_skill_line,
+            vec![(10, 1_000, 100)]
+        );
+        assert!(skill_lines.get(200).is_none());
+    }
+
+    #[test]
     fn load_skill_talent_db2_subbatch_when_fixtures_exist() {
         let data_dir = "/home/server/woltk-server-core/Data";
         let locale = "esES";

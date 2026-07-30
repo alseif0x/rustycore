@@ -1880,12 +1880,23 @@ async fn main() -> Result<ExitCode> {
         trivial: world_config_f32(&world_configs, "Rate.Creature.Health.Trivial", 1.0),
         minus_mob: world_config_f32(&world_configs, "Rate.Creature.Health.MinusMob", 1.0),
     };
+    let db2_hotfix_removals = wow_data::Db2HotfixRemovalStoreLikeCpp::load_like_cpp(&hotfix_db)
+        .await
+        .context("Failed to load effective DB2 hotfix removals")?;
     let difficulty_store = Arc::new(
-        wow_data::DifficultyStore::load(&data_dir, &locale)
-            .context("Failed to load Difficulty.db2 — check DataDir and DBC.Locale config")?,
+        wow_data::DifficultyStore::load_effective_like_cpp(
+            &data_dir,
+            &locale,
+            &hotfix_db,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context(
+            "Failed to load effective Difficulty store — check DataDir and DBC.Locale config",
+        )?,
     );
     info!(
-        "Loaded {} difficulties from Difficulty.db2",
+        "Loaded {} effective difficulties from Difficulty.db2 and SQL overlays",
         difficulty_store.len()
     );
     let creature_difficulty_store = Arc::new(
@@ -2048,9 +2059,6 @@ async fn main() -> Result<ExitCode> {
         wow_data::SkillStore::load(&data_dir, &locale)
             .context("Failed to load SkillLineAbility/SkillRaceClassInfo DB2 files")?,
     );
-    let db2_hotfix_removals = wow_data::Db2HotfixRemovalStoreLikeCpp::load_like_cpp(&hotfix_db)
-        .await
-        .context("Failed to load effective DB2 hotfix removals")?;
     let skill_line_store = Arc::new(
         wow_data::SkillLineStore::load_effective_like_cpp(
             &data_dir,
@@ -3884,34 +3892,107 @@ async fn main() -> Result<ExitCode> {
         npc_vendor_store.len(),
         npc_vendor_outcome.report.reference_rows_seen
     );
-    let trainer_data_outcome = wow_data::TrainerStoreLikeCpp::load_like_cpp(world_db.as_ref())
-        .await
-        .context("Failed to load C++ trainer cache")?;
-    for (trainer_id, spell_id) in &trainer_data_outcome.report.skipped_spells_missing_trainer {
-        tracing::error!(
-            "Table `trainer_spell` references non-existing trainer (TrainerId: {}) for SpellId {}, ignoring",
-            trainer_id,
-            spell_id
-        );
-    }
-    for (trainer_id, locale) in &trainer_data_outcome.report.skipped_locales_missing_trainer {
-        tracing::error!(
-            "Table `trainer_locale` references non-existing trainer (TrainerId: {}) for locale {}, ignoring",
-            trainer_id,
-            locale
-        );
-    }
-    for (creature_id, trainer_id, menu_id, option_id) in &trainer_data_outcome
+    let trainer_data_outcome = wow_data::TrainerStoreLikeCpp::load_like_cpp(
+        world_db.as_ref(),
+        |spell_id| {
+            spell_store.contains_spell_info_difficulty_none_like_cpp(
+                serverside_spell_store.as_ref(),
+                difficulty_store.as_ref(),
+                spell_id,
+            )
+        },
+        |skill_line_id| skill_line_store.contains_effective_record_like_cpp(skill_line_id),
+        |creature_id| creature_template_store.contains(creature_id),
+        |menu_id, option_id| {
+            gossip_store
+                .menu_items_for_id(menu_id)
+                .is_some_and(|items| items.iter().any(|item| item.order_index == option_id))
+        },
+    )
+    .await
+    .context("Failed to load C++ trainer cache")?;
+    for diagnostic in &trainer_data_outcome
         .report
-        .skipped_creature_trainers_missing_trainer
+        .diagnostics_in_load_order_like_cpp
     {
-        tracing::error!(
-            "Table `creature_trainer` references non-existing trainer (TrainerID: {}) for CreatureID {} MenuID {} OptionID {}, ignoring",
-            trainer_id,
-            creature_id,
-            menu_id,
-            option_id
-        );
+        match diagnostic {
+            wow_data::TrainerLoadDiagnosticLikeCpp::TrainerSpellMissingSpell {
+                trainer_id,
+                spell_id,
+            } => tracing::error!(
+                "Table `trainer_spell` references non-existing spell (SpellId: {}) for TrainerId {}, ignoring",
+                spell_id,
+                trainer_id
+            ),
+            wow_data::TrainerLoadDiagnosticLikeCpp::TrainerSpellMissingSkillLine {
+                trainer_id,
+                spell_id,
+                skill_line_id,
+            } => tracing::error!(
+                "Table `trainer_spell` references non-existing skill (ReqSkillLine: {}) for TrainerId {} and SpellId {}, ignoring",
+                skill_line_id,
+                trainer_id,
+                spell_id
+            ),
+            wow_data::TrainerLoadDiagnosticLikeCpp::TrainerSpellMissingRequiredSpell {
+                trainer_id,
+                spell_id,
+                required_index,
+                required_spell_id,
+            } => tracing::error!(
+                "Table `trainer_spell` references non-existing spell (ReqAbility{}: {}) for TrainerId {} and SpellId {}, ignoring",
+                required_index,
+                required_spell_id,
+                trainer_id,
+                spell_id
+            ),
+            wow_data::TrainerLoadDiagnosticLikeCpp::TrainerSpellMissingTrainer {
+                trainer_id,
+                spell_id,
+            } => tracing::error!(
+                "Table `trainer_spell` references non-existing trainer (TrainerId: {}) for SpellId {}, ignoring",
+                trainer_id,
+                spell_id
+            ),
+            wow_data::TrainerLoadDiagnosticLikeCpp::TrainerLocaleMissingTrainer {
+                trainer_id,
+                locale,
+            } => tracing::error!(
+                "Table `trainer_locale` references non-existing trainer (TrainerId: {}) for locale {}, ignoring",
+                trainer_id,
+                locale
+            ),
+            wow_data::TrainerLoadDiagnosticLikeCpp::CreatureTrainerMissingCreatureTemplate {
+                creature_id,
+            } => tracing::error!(
+                "Table `creature_trainer` references non-existing creature template (CreatureID: {}), ignoring",
+                creature_id
+            ),
+            wow_data::TrainerLoadDiagnosticLikeCpp::CreatureTrainerMissingTrainer {
+                creature_id,
+                trainer_id,
+                menu_id,
+                option_id,
+            } => tracing::error!(
+                "Table `creature_trainer` references non-existing trainer (TrainerID: {}) for CreatureID {} MenuID {} OptionID {}, ignoring",
+                trainer_id,
+                creature_id,
+                menu_id,
+                option_id
+            ),
+            wow_data::TrainerLoadDiagnosticLikeCpp::CreatureTrainerMissingGossipOption {
+                creature_id,
+                trainer_id,
+                menu_id,
+                option_id,
+            } => tracing::error!(
+                "Table `creature_trainer` references non-existing gossip menu option (MenuID {} OptionID {}) for CreatureID {} and TrainerID {}, ignoring",
+                menu_id,
+                option_id,
+                creature_id,
+                trainer_id
+            ),
+        }
     }
     let trainer_data_store = Arc::new(trainer_data_outcome.store);
     info!(

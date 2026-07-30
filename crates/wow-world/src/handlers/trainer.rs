@@ -570,6 +570,10 @@ mod tests {
                 spell_rows,
                 locale_rows,
                 creature_rows,
+                |_| true,
+                |_| true,
+                |_| true,
+                |_, _| true,
             )
             .store,
         )
@@ -823,6 +827,10 @@ mod tests {
                     option_id: 0,
                 },
             ],
+            |_| true,
+            |_| true,
+            |_| true,
+            |_, _| true,
         );
         assert_eq!(
             dangling.report.skipped_creature_trainers_missing_trainer,
