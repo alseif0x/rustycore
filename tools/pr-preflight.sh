@@ -4,6 +4,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 POLICY_FILE="$REPO_ROOT/tools/codex-review-policy.md"
 SCHEMA_FILE="$REPO_ROOT/tools/codex-review-schema.json"
+ARCHITECTURE_CHECKER="$REPO_ROOT/tools/architecture/check_architecture.py"
 PROTOC_VERSION_FILE="$REPO_ROOT/.protoc-version"
 DEFAULT_BASE="origin/3.4.3"
 DEFAULT_RUST_MIN_STACK=268435456
@@ -38,16 +39,17 @@ Options:
 
 Commands:
   self-test           Test harness parsing and pinned-version invariants.
+  architecture        Check dependency boundaries and report source hotspots.
   format              Run the two formatting checks used by GitHub Actions.
   check               Run the locked core checks and server builds used by CI.
   test                Run focused suites, loot-race tests, and required capture gate used by CI.
-  ci                  Run format, check, and test (the required Rust CI jobs).
+  ci                  Run architecture, format, check, and test.
   diff [BASE]         Check committed, staged, and unstaged diffs for whitespace errors.
-  quick [BASE]        Run diff, format, and check.
+  quick [BASE]        Run diff, architecture, format, and check.
   capture             Run capture-diff regression tests (protoc not required).
   review [BASE]       Review the clean committed diff with local Codex.
   review-uncommitted  Review staged, unstaged, and untracked changes with local Codex.
-  full [BASE]         Run diff, CI (including capture), and review on a clean committed HEAD.
+  full [BASE]         Run diff, CI (including architecture/capture), and review on a clean HEAD.
   stable              Check/build the server binaries with latest stable Rust.
   qa-login            Run the existing live login bot; requires --allow-runtime-qa.
   qa-loot-race        Run destructive live two-session loot QA; requires both QA flags.
@@ -455,6 +457,12 @@ run_format() {
   cargo_cmd fmt --manifest-path tools/wow-test-bot/Cargo.toml -- --check
 }
 
+run_architecture() {
+  log "Architecture dependency boundaries and source hotspots"
+  ((DRY_RUN)) || require_command python3
+  run_cmd python3 "$ARCHITECTURE_CHECKER" check
+}
+
 run_check() {
   log "Core checks and linked server builds (same commands as GitHub Actions)"
   resolve_protoc
@@ -495,6 +503,7 @@ run_test() {
 }
 
 run_ci() {
+  run_architecture
   run_format
   run_check
   run_test
@@ -514,6 +523,7 @@ run_diff() {
 run_quick() {
   local base="$1"
   run_diff "$base"
+  run_architecture
   run_format
   run_check
 }
@@ -830,6 +840,7 @@ run_self_test() {
   if ((DRY_RUN)); then
     log "Preflight self-test (dry-run)"
     print_command python3 -m json.tool "$SCHEMA_FILE"
+    print_command python3 "$ARCHITECTURE_CHECKER" self-test
     printf '+ validate Codex review parser exit codes 0, 10, and 65\n'
     return
   fi
@@ -843,6 +854,8 @@ run_self_test() {
   fi
   project_protoc_version >/dev/null
   python3 -m json.tool "$SCHEMA_FILE" >/dev/null || die "invalid Codex review JSON schema"
+  python3 "$ARCHITECTURE_CHECKER" self-test >/dev/null || die \
+    "architecture policy self-test failed"
 
   artifacts="$(mktemp -d "${TMPDIR:-/tmp}/rustycore-preflight-self-test.XXXXXX")"
   trap 'self_test_cleanup "${qa_world_pid:-}" "${artifacts:-}"' EXIT
@@ -961,6 +974,9 @@ run_self_test() {
   ci_dry_run_output="$(PATH="$artifacts/bin" \
     "$BASH" "$REPO_ROOT/tools/pr-preflight.sh" --dry-run ci 2>&1)" || die \
     "CI dry-run unexpectedly requires optional execution tools"
+  require_exact_occurrences "$ci_dry_run_output" \
+    "tools/architecture/check_architecture.py check" 1 \
+    "local CI architecture check"
   [[ "$ci_dry_run_output" == *"clippy --locked --no-deps --message-format short -p wow-loot"* ]] || die \
     "CI profile did not print the loot-authority clippy command"
   [[ "$ci_dry_run_output" == *"clippy --locked --no-deps --message-format short -p wow-world --lib -- --cap-lints warn"* ]] || die \
@@ -985,6 +1001,9 @@ run_self_test() {
     "normal CI profile must never activate destructive live loot-race QA"
 
   github_workflow_text="$(<"$REPO_ROOT/.github/workflows/rust-ci.yml")"
+  require_exact_occurrences "$github_workflow_text" \
+    "python3 tools/architecture/check_architecture.py check" 1 \
+    "GitHub workflow architecture check"
   require_exact_occurrences "$github_workflow_text" \
     'CARGO_INCREMENTAL: "0"' 2 \
     "GitHub workflow non-incremental Rust 1.88 contract"
@@ -3191,6 +3210,10 @@ case "$COMMAND" in
   self-test)
     (($# == 0)) || die "self-test does not accept arguments"
     run_self_test
+    ;;
+  architecture)
+    (($# == 0)) || die "architecture does not accept arguments"
+    run_architecture
     ;;
   format)
     (($# == 0)) || die "format does not accept arguments"

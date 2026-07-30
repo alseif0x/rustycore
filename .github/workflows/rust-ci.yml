@@ -75,6 +75,9 @@ jobs:
           chmod +x "$HOME/.local/bin/protoc"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
+      - name: Check architecture boundaries
+        run: python3 tools/architecture/check_architecture.py check
+
       - name: Cargo check
         run: |
           cargo +1.88.0 check --locked -p wow-data -p wow-database -p wow-network -p wow-world -p bnet-server -p world-server

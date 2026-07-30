@@ -23,22 +23,33 @@ Printing `review` or `full` with `--dry-run` does not require Codex or its execu
 | Command | Purpose | Starts services or mutates a database? |
 |---|---|---:|
 | `self-test` | Test harness parsing and pinned-version invariants | No |
+| `architecture` | Enforce workspace dependency direction and report source hotspots | No |
 | `diff [BASE]` | Whitespace-check committed, staged, and unstaged changes | No |
 | `format` | Run harness self-tests and both formatting checks from CI | No |
 | `check` | Run locked core checks, bot check, and server builds from CI | No |
 | `test` | Run focused suites, loot-race tests, and the required capture gate from CI | No |
-| `ci` | Run `format`, `check`, and `test` | No |
-| `quick [BASE]` | Run `diff`, `format`, and `check` during iteration | No |
+| `ci` | Run `architecture`, `format`, `check`, and `test` | No |
+| `quick [BASE]` | Run `diff`, `architecture`, `format`, and `check` during iteration | No |
 | `capture` | Test committed captures and enforce required capture contracts without `protoc` | No |
 | `review [BASE]` | Review a clean committed diff with Codex in read-only mode | No |
 | `review-uncommitted` | Review staged, unstaged, and untracked work during iteration | No |
-| `full [BASE]` | Run `diff`, CI (including the capture gate), and `review` | No |
+| `full [BASE]` | Run `diff`, CI (including architecture/capture), and `review` | No |
 | `stable` | Check/build server binaries with latest stable Rust | No |
 | `qa-login` | Run the integrated live login bot | **Yes** |
 | `qa-loot-race` | Run the destructive two-session atomic-loot bot | **Yes** |
 
 `BASE` defaults to `origin/3.4.3`. Use `--dry-run` before a command to print its underlying
 commands without executing them or provisioning optional review tools.
+
+The `architecture` profile evaluates locked `cargo metadata` against
+`tools/architecture/dependency-policy.json`. Known current violations are explicit, issue-linked
+baseline exceptions: a new edge still fails, and an exception whose edge has disappeared also
+fails until the obsolete allowance is removed. It additionally prints an informational split of
+the largest Rust source files into production and trailing inline-test lines. File size is not a
+gate by itself. Run `python3 tools/architecture/check_architecture.py self-test` to exercise the
+allowed-downward and forbidden-upward fixtures. Ownership, mirror rules, handler snapshot updates,
+and the deliberate baseline-change procedure are documented in
+`docs/architecture/ownership-and-boundaries.md`.
 
 `qa-login` is intentionally outside `full`. It requires running services, may create missing
 local QA auth rows, and writes normal login/session data, so it refuses to run without explicit
@@ -213,6 +224,7 @@ Set `CODEX_REVIEW_KEEP_ARTIFACTS=1` to retain them after a clean review as well.
 profiles mirror the workflow-owned command lists:
 
 ```text
+Architecture boundaries <-> ./tools/pr-preflight.sh architecture
 Format                <-> ./tools/pr-preflight.sh format
 Check core crates     <-> ./tools/pr-preflight.sh check
 Focused library tests <-> ./tools/pr-preflight.sh test
@@ -220,5 +232,7 @@ Latest stable         <-> ./tools/pr-preflight.sh stable
 ```
 
 When a required command changes, update the workflow and its matching local profile together. The
-workflow is authoritative for branch protection; `Format` also runs the harness self-test, but no
-required job trusts the pull request's wrapper as its sole enforcement path.
+workflow is authoritative for branch protection; `Check core crates` executes the architecture
+checker directly and `Format` also runs the harness self-test, but no required job trusts the pull
+request's wrapper as its sole enforcement path. The `quick`, `ci`, and `full` aggregate profiles
+include `architecture`.
