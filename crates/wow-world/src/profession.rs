@@ -706,18 +706,22 @@ mod tests {
                 100,
                 RepresentedPlayerSkillLikeCpp {
                     skill_id: 100,
+                    step: 1,
                     value: 1,
                     max: 75,
                     profession_slot: 0,
+                    state: crate::session::RepresentedPlayerSkillStateLikeCpp::Unchanged,
                 },
             ),
             (
                 200,
                 RepresentedPlayerSkillLikeCpp {
                     skill_id: 200,
+                    step: 1,
                     value: 1,
                     max: 75,
                     profession_slot: 1,
+                    state: crate::session::RepresentedPlayerSkillStateLikeCpp::Unchanged,
                 },
             ),
         ]));
