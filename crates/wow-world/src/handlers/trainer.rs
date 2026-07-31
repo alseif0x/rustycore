@@ -46,7 +46,7 @@ use crate::session::WorldSession;
 use crate::trainer_offer::{
     TrainerAdmissionProofLikeCpp, TrainerBattlePetProofLikeCpp, TrainerOfferDecisionLikeCpp,
     TrainerOfferInputLikeCpp, TrainerProductLikeCpp, decide_trainer_offer_like_cpp,
-    trainer_price_like_cpp_hardened,
+    trainer_price_like_cpp,
 };
 
 const TRAINER_LIST_NPC_FLAGS_LIKE_CPP: u32 = NPCFlags1::TRAINER.bits();
@@ -320,7 +320,7 @@ impl WorldSession {
                 TrainerBattlePetProofLikeCpp::Indeterminate
             }
         };
-        let effective_price = trainer_price_like_cpp_hardened(
+        let effective_price = trainer_price_like_cpp(
             trainer_spell.money_cost,
             self.trainer_price_reputation_rank_like_cpp(faction_template_id),
         );
@@ -432,14 +432,14 @@ impl WorldSession {
                 TrainerOfferDecisionLikeCpp::Hidden(_) => continue,
                 TrainerOfferDecisionLikeCpp::Known(_) => (
                     TRAINER_SPELL_STATE_KNOWN_LIKE_CPP,
-                    trainer_price_like_cpp_hardened(
+                    trainer_price_like_cpp(
                         trainer_spell.money_cost,
                         self.trainer_price_reputation_rank_like_cpp(access.faction_template_id),
                     ),
                 ),
                 TrainerOfferDecisionLikeCpp::Unavailable(_) => (
                     TRAINER_SPELL_STATE_UNAVAILABLE_LIKE_CPP,
-                    trainer_price_like_cpp_hardened(
+                    trainer_price_like_cpp(
                         trainer_spell.money_cost,
                         self.trainer_price_reputation_rank_like_cpp(access.faction_template_id),
                     ),

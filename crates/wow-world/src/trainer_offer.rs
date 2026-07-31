@@ -262,19 +262,19 @@ where
     })
 }
 
-/// Deterministic replacement for C++ `MoneyCost * float discount`.
-pub(crate) fn trainer_price_like_cpp_hardened(base_cost: u32, rank: ReputationRankLikeCpp) -> u32 {
-    let percent = match rank {
-        ReputationRankLikeCpp::Friendly => 95_u64,
-        ReputationRankLikeCpp::Honored => 90,
-        ReputationRankLikeCpp::Revered => 85,
-        ReputationRankLikeCpp::Exalted => 80,
-        ReputationRankLikeCpp::Hated
-        | ReputationRankLikeCpp::Hostile
-        | ReputationRankLikeCpp::Unfriendly
-        | ReputationRankLikeCpp::Neutral => 100,
+/// C++ `MoneyCost * float reputationDiscount`, including its observable f32 rounding.
+pub(crate) fn trainer_price_like_cpp(base_cost: u32, rank: ReputationRankLikeCpp) -> u32 {
+    let discount = if rank <= ReputationRankLikeCpp::Neutral {
+        1.0_f32
+    } else {
+        1.0_f32
+            - 0.05_f32
+                * f32::from(
+                    rank.as_u8()
+                        .saturating_sub(ReputationRankLikeCpp::Neutral.as_u8()),
+                )
     };
-    ((u64::from(base_cost) * percent) / 100) as u32
+    (base_cost as f32 * discount) as u32
 }
 
 #[cfg(test)]
@@ -367,29 +367,20 @@ mod tests {
     }
 
     #[test]
-    fn integer_price_covers_every_rank_and_float_divergence_edges() {
+    fn price_preserves_every_cpp_rank_and_float_rounding_edges() {
         use ReputationRankLikeCpp::*;
         assert_eq!(
             [
                 Hated, Hostile, Unfriendly, Neutral, Friendly, Honored, Revered, Exalted
             ]
-            .map(|rank| trainer_price_like_cpp_hardened(100, rank)),
+            .map(|rank| trainer_price_like_cpp(100, rank)),
             [100, 100, 100, 100, 95, 90, 85, 80]
         );
-        assert_eq!(trainer_price_like_cpp_hardened(0, Friendly), 0);
-        assert_eq!(trainer_price_like_cpp_hardened(1, Friendly), 0);
-        assert_eq!(
-            trainer_price_like_cpp_hardened(2_207_541, Friendly),
-            2_097_163
-        );
-        assert_eq!(
-            trainer_price_like_cpp_hardened(16_777_217, Neutral),
-            16_777_217
-        );
-        assert_eq!(
-            trainer_price_like_cpp_hardened(u32::MAX, Exalted),
-            3_435_973_836
-        );
+        assert_eq!(trainer_price_like_cpp(0, Friendly), 0);
+        assert_eq!(trainer_price_like_cpp(1, Friendly), 0);
+        assert_eq!(trainer_price_like_cpp(2_207_541, Friendly), 2_097_164);
+        assert_eq!(trainer_price_like_cpp(16_777_217, Neutral), 16_777_216);
+        assert_eq!(trainer_price_like_cpp(u32::MAX, Exalted), 3_435_973_888);
     }
 
     #[test]

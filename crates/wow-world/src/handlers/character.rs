@@ -6856,6 +6856,7 @@ impl WorldSession {
         let mut known_spells: Vec<i32> = Vec::new();
         let mut loaded_spell_side_effect_spells: Vec<i32> = Vec::new();
         let mut favorite_spell_rows: HashSet<i32> = HashSet::new();
+        let mut loaded_player_spell_rows = Vec::new();
         {
             let mut spell_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_SPELL);
             spell_stmt.set_u64(0, guid.counter() as u64);
@@ -6866,6 +6867,20 @@ impl WorldSession {
                             let spell_id: u32 = spell_result.try_read(0).unwrap_or(0);
                             let active: u8 = spell_result.try_read(1).unwrap_or(1);
                             let disabled: u8 = spell_result.try_read(2).unwrap_or(0);
+                            if let Ok(spell_id) = i32::try_from(spell_id)
+                                && spell_id > 0
+                            {
+                                loaded_player_spell_rows.push(
+                                    crate::session::RepresentedPlayerSpellLikeCpp {
+                                        spell_id,
+                                        active: active != 0,
+                                        disabled: disabled != 0,
+                                        dependent: false,
+                                        favorite: false,
+                                        state: crate::session::RepresentedPlayerSpellStateLikeCpp::Unchanged,
+                                    },
+                                );
+                            }
                             if let Some(spell_id_i32) =
                                 loaded_spell_for_add_spell_side_effects_like_cpp(spell_id, disabled)
                             {
@@ -7456,6 +7471,46 @@ impl WorldSession {
         self.apply_login_passive_known_spell_auras_like_cpp();
         self.apply_loaded_known_spell_previous_rank_passive_auras_like_cpp(&known_spells);
         self.promote_loaded_character_mount_spells_like_cpp(&known_spells);
+
+        // Retain the raw inactive/disabled DB rows and merge spells introduced by
+        // represented AddSpell work. Trainer/acquisition decisions need the full
+        // logical PlayerSpellMap, not the active-only client projection.
+        let mut final_player_spell_rows = loaded_player_spell_rows
+            .into_iter()
+            .map(|mut row| {
+                row.favorite = favorite_spell_rows.contains(&row.spell_id);
+                (row.spell_id, row)
+            })
+            .collect::<std::collections::BTreeMap<_, _>>();
+        for &spell_id in &known_spells {
+            final_player_spell_rows
+                .entry(spell_id)
+                .and_modify(|row| {
+                    row.disabled = false;
+                    row.favorite = favorite_spell_rows.contains(&spell_id);
+                })
+                .or_insert(crate::session::RepresentedPlayerSpellLikeCpp {
+                    spell_id,
+                    active: true,
+                    disabled: false,
+                    dependent: self
+                        .represented_dependent_known_spells_like_cpp()
+                        .contains(&spell_id),
+                    favorite: favorite_spell_rows.contains(&spell_id),
+                    state: crate::session::RepresentedPlayerSpellStateLikeCpp::Unchanged,
+                });
+        }
+        let complete_spell_rows = self.set_complete_represented_player_spell_rows_like_cpp(
+            final_player_spell_rows.into_values(),
+        );
+        if complete_spell_rows {
+            self.mark_represented_spell_acquisition_snapshot_complete_like_cpp();
+        } else {
+            warn!(
+                player_guid = guid.counter(),
+                "Could not authorize represented post-login PlayerSpellMap"
+            );
+        }
 
         info!(
             player_guid = guid.counter(),

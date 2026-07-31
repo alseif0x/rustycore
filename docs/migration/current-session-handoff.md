@@ -6,12 +6,14 @@
   `Available` conserva el plan de adquisición, todas las profesiones raíz, el plan ordenado de
   capacidad y el precio, pero no reserva ni muta. La compra continúa registrada y fuera del
   dispatcher hasta #142; además se han retirado el cargo, SQL, mutación de spell runtime y
-  publicación de éxito prematuros, que pertenecen a #158/#159. Rust corrige explícitamente tres
-  defectos legacy: revalida condiciones al comprar, aplica capacidad al cierre transitivo y usa
-  `(u64(base_cost) * percent) / 100` en vez del `f32` de C++. Las divergencias conocidas
-  (`2_207_541 @ 95% -> 2_097_163`, `16_777_217 @ 100%` y `u32::MAX`) quedan fijadas por tests;
-  metadatos incompletos, IDs estrechados, battle pets y proyecciones indeterminadas fallan
-  cerrados. Formato, guardrails de arquitectura/handlers, check de `wow-world`, focales y la
+  publicación de éxito prematuros, que pertenecen a #158/#159. Rust corrige explícitamente dos
+  defectos legacy: revalida condiciones al comprar y aplica capacidad al cierre transitivo; el
+  precio conserva en cambio el `f32` observable de C++, incluidos sus redondeos límite. El login
+  retiene y autoriza el `PlayerSpellMap` completo (incluidas filas DB inactivas/deshabilitadas)
+  después del trabajo representado de `AddSpell`, para que el adaptador de adquisición funcione
+  también en producción y no solo con fixtures. Metadatos incompletos, IDs estrechados, battle
+  pets y proyecciones indeterminadas fallan cerrados. Formato, guardrails de
+  arquitectura/handlers, check de `wow-world`, focales y la
   suite completa `wow-world` (`3248/0`, uno ignorado) pasan; el quick preflight alcanzó el check
   agregado y chocó con el ICE/SIGSEGV local ya conocido dentro de `icu_properties`. Falta aún
   preflight completo/capture-diff en un runner estable, CI, revisión current-HEAD y merge.

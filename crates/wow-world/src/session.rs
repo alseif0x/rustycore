@@ -40906,7 +40906,6 @@ impl WorldSession {
         self.represented_override_spells_complete_like_cpp = false;
     }
 
-    #[cfg(test)]
     pub(crate) fn set_complete_represented_player_spell_rows_like_cpp(
         &mut self,
         rows: impl IntoIterator<Item = RepresentedPlayerSpellLikeCpp>,
@@ -40914,7 +40913,6 @@ impl WorldSession {
         self.replace_loaded_represented_player_spell_rows_like_cpp(rows, true)
     }
 
-    #[cfg(test)]
     pub(crate) fn replace_loaded_represented_player_spell_rows_like_cpp(
         &mut self,
         rows: impl IntoIterator<Item = RepresentedPlayerSpellLikeCpp>,
@@ -40936,6 +40934,14 @@ impl WorldSession {
         self.represented_player_spell_rows_loaded_like_cpp = true;
         self.represented_player_spell_rows_complete_like_cpp = complete;
         true
+    }
+
+    /// Authorizes the current post-login spell, trait and override mirrors as one
+    /// coherent acquisition snapshot. Call only after all represented `AddSpell`
+    /// work for character login has completed.
+    pub(crate) fn mark_represented_spell_acquisition_snapshot_complete_like_cpp(&mut self) {
+        self.represented_spell_trait_definition_ids_complete_like_cpp = true;
+        self.represented_override_spells_complete_like_cpp = true;
     }
 
     pub(crate) fn set_account_mounts_like_cpp(&mut self, mounts: Vec<AccountMount>) {
@@ -43290,7 +43296,6 @@ impl WorldSession {
             .unwrap_or(&self.known_spells)
     }
 
-    #[cfg(test)]
     pub(crate) fn represented_dependent_known_spells_like_cpp(&self) -> &HashSet<i32> {
         &self.represented_dependent_known_spells_like_cpp
     }
