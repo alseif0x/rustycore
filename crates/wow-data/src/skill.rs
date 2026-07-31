@@ -160,6 +160,28 @@ pub enum SkillLineAbilityCoverageLikeCpp<'a> {
     Indeterminate(&'a [SkillStoreLoadDiagnosticLikeCpp]),
 }
 
+/// Rank-specific projection of every final effective
+/// `SkillLineAbility` identity.
+///
+/// C++ `SpellMgr::LoadSpellRanks` reads only `Spell` and
+/// `SupercedesSpell`. Keeping these endpoints independently from the richer
+/// hydrated row preserves a valid rank edge when an unrelated field is
+/// malformed, while retaining unrepresentable endpoints for fail-closed
+/// chain coverage.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SkillLineAbilityRankRowLikeCpp {
+    Edge {
+        record_id: u32,
+        spell_id: u32,
+        supercedes_spell_id: u32,
+    },
+    Indeterminate {
+        record_id: u32,
+        spell_raw: i128,
+        supercedes_spell_raw: i128,
+    },
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SkillRaceClassInfoCoverageLikeCpp<'a> {
     CoveredZero,
@@ -695,6 +717,7 @@ pub struct SkillStore {
     invalid_abilities_by_spell_like_cpp: HashMap<i32, Vec<SkillStoreLoadDiagnosticLikeCpp>>,
     invalid_abilities_by_skill_like_cpp: HashMap<u16, Vec<SkillStoreLoadDiagnosticLikeCpp>>,
     invalid_race_class_by_skill_like_cpp: HashMap<u16, Vec<SkillStoreLoadDiagnosticLikeCpp>>,
+    rank_rows_like_cpp: Vec<SkillLineAbilityRankRowLikeCpp>,
     /// Total number of SkillLineAbility records loaded.
     total_abilities: usize,
     /// Total number of SkillRaceClassInfo records loaded.
@@ -716,6 +739,7 @@ impl SkillStore {
             invalid_abilities_by_spell_like_cpp: HashMap::new(),
             invalid_abilities_by_skill_like_cpp: HashMap::new(),
             invalid_race_class_by_skill_like_cpp: HashMap::new(),
+            rank_rows_like_cpp: Vec::new(),
             total_abilities: 0,
             total_race_class: 0,
         }
@@ -729,9 +753,13 @@ impl SkillStore {
         let mut abilities_by_spell_like_cpp: HashMap<i32, Vec<SkillLineAbilityRecord>> =
             HashMap::new();
         let mut abilities_like_cpp = Vec::new();
+        let mut rank_rows_like_cpp = Vec::new();
         let mut total_abilities = 0usize;
 
         for ability in abilities {
+            if let Some(rank_row) = skill_line_ability_rank_row_from_hydrated_like_cpp(&ability) {
+                rank_rows_like_cpp.push(rank_row);
+            }
             abilities_like_cpp.push(ability.clone());
             let skillup_skill_line = u16::try_from(ability.skillup_skill_line_id)
                 .ok()
@@ -757,6 +785,7 @@ impl SkillStore {
             invalid_abilities_by_spell_like_cpp: HashMap::new(),
             invalid_abilities_by_skill_like_cpp: HashMap::new(),
             invalid_race_class_by_skill_like_cpp: HashMap::new(),
+            rank_rows_like_cpp,
             total_abilities,
             total_race_class: 0,
         }
@@ -940,6 +969,10 @@ impl SkillStore {
             total_abilities, skill_count, total_race_class
         );
 
+        let rank_rows_like_cpp = abilities_like_cpp
+            .iter()
+            .filter_map(skill_line_ability_rank_row_from_hydrated_like_cpp)
+            .collect();
         Ok(Self {
             abilities_like_cpp,
             abilities_by_skill,
@@ -949,6 +982,7 @@ impl SkillStore {
             invalid_abilities_by_spell_like_cpp: HashMap::new(),
             invalid_abilities_by_skill_like_cpp: HashMap::new(),
             invalid_race_class_by_skill_like_cpp: HashMap::new(),
+            rank_rows_like_cpp,
             total_abilities,
             total_race_class,
         })
@@ -1526,6 +1560,12 @@ impl SkillStore {
         &self.abilities_like_cpp
     }
 
+    /// Final RecordID-ordered rank endpoints, including rows whose unrelated
+    /// acquisition fields could not be hydrated.
+    pub fn skill_line_ability_rank_rows_like_cpp(&self) -> &[SkillLineAbilityRankRowLikeCpp] {
+        &self.rank_rows_like_cpp
+    }
+
     /// Number of SkillRaceClassInfo records loaded.
     pub fn race_class_count(&self) -> usize {
         self.total_race_class
@@ -1740,6 +1780,10 @@ fn compose_effective_skill_store_like_cpp(
     report.skill_line_ability_removed_rows =
         abilities_before_removal - abilities_by_record_id.len();
     report.skill_line_ability_effective_rows = abilities_by_record_id.len();
+    let rank_rows_like_cpp = abilities_by_record_id
+        .values()
+        .filter_map(skill_line_ability_rank_row_from_source_like_cpp)
+        .collect::<Vec<_>>();
 
     let mut abilities = Vec::new();
     let mut invalid_abilities_by_spell_like_cpp =
@@ -1864,6 +1908,7 @@ fn compose_effective_skill_store_like_cpp(
     store.invalid_abilities_by_spell_like_cpp = invalid_abilities_by_spell_like_cpp;
     store.invalid_abilities_by_skill_like_cpp = invalid_abilities_by_skill_like_cpp;
     store.invalid_race_class_by_skill_like_cpp = invalid_race_class_by_skill_like_cpp;
+    store.rank_rows_like_cpp = rank_rows_like_cpp;
     SkillStoreEffectiveLoadOutcomeLikeCpp { store, report }
 }
 
@@ -1875,6 +1920,53 @@ fn record_removed_like_cpp(
     // C++ hotfix keys store the signed `RecordID` bit pattern even though DB2
     // storage exposes the ID as `uint32`.
     removed_records.contains_like_cpp(table_hash, record_id as i32)
+}
+
+fn skill_line_ability_rank_row_from_hydrated_like_cpp(
+    record: &SkillLineAbilityRecord,
+) -> Option<SkillLineAbilityRankRowLikeCpp> {
+    skill_line_ability_rank_row_from_raw_like_cpp(
+        record.id,
+        i128::from(record.spell),
+        i128::from(record.supercedes_spell),
+    )
+}
+
+fn skill_line_ability_rank_row_from_source_like_cpp(
+    record: &SkillLineAbilitySourceRecordLikeCpp,
+) -> Option<SkillLineAbilityRankRowLikeCpp> {
+    skill_line_ability_rank_row_from_raw_like_cpp(record.id, record.spell, record.supercedes_spell)
+}
+
+fn skill_line_ability_rank_row_from_raw_like_cpp(
+    record_id: u32,
+    spell_raw: i128,
+    supercedes_spell_raw: i128,
+) -> Option<SkillLineAbilityRankRowLikeCpp> {
+    if i32::try_from(supercedes_spell_raw).ok() == Some(0) {
+        return None;
+    }
+
+    // Both DB2 members are signed `int32`, but `LoadSpellRanks` passes them
+    // to `GetSpellInfo(uint32)` and stores them in `std::map<uint32, uint32>`.
+    // Preserve that defined modulo-2^32 conversion for every representable
+    // source value; only a value outside C++'s `int32` domain is ambiguous.
+    let spell_id = i32::try_from(spell_raw).ok().map(|value| value as u32);
+    let supercedes_spell_id = i32::try_from(supercedes_spell_raw)
+        .ok()
+        .map(|value| value as u32);
+    match (spell_id, supercedes_spell_id) {
+        (Some(spell_id), Some(supercedes_spell_id)) => Some(SkillLineAbilityRankRowLikeCpp::Edge {
+            record_id,
+            spell_id,
+            supercedes_spell_id,
+        }),
+        _ => Some(SkillLineAbilityRankRowLikeCpp::Indeterminate {
+            record_id,
+            spell_raw,
+            supercedes_spell_raw,
+        }),
+    }
 }
 
 fn skill_line_ability_from_source_like_cpp(
@@ -2382,6 +2474,138 @@ mod tests {
                 ]
             );
         }
+    }
+
+    #[test]
+    fn effective_rank_projection_preserves_only_rank_fields_and_final_removals() {
+        const ABILITY_TABLE_HASH: u32 = 0xA100_0001;
+        const RACE_CLASS_TABLE_HASH: u32 = 0xB200_0002;
+        let skill_lines =
+            SkillLineStore::from_entries([skill_line(100, SKILL_CATEGORY_PROFESSION_LIKE_CPP)]);
+
+        let mut unrelated_invalid =
+            ability_source(ability(1, 100, 3), SkillStoreLoadSourceLikeCpp::CustomSql);
+        unrelated_invalid.supercedes_spell = 2;
+        unrelated_invalid.race_mask = i128::from(i64::MAX) + 1;
+
+        let mut invalid_supercedes =
+            ability_source(ability(2, 100, 4), SkillStoreLoadSourceLikeCpp::CustomSql);
+        invalid_supercedes.supercedes_spell = i128::from(i32::MAX) + 1;
+
+        let mut invalid_spell =
+            ability_source(ability(3, 100, 5), SkillStoreLoadSourceLikeCpp::CustomSql);
+        invalid_spell.spell = i128::from(i32::MAX) + 1;
+        invalid_spell.supercedes_spell = 2;
+
+        let mut one_signed_endpoint =
+            ability_source(ability(4, 100, 6), SkillStoreLoadSourceLikeCpp::CustomSql);
+        one_signed_endpoint.spell = i128::from(i32::MAX) + 1;
+        one_signed_endpoint.supercedes_spell = -1;
+
+        let mut no_rank =
+            ability_source(ability(5, 100, 7), SkillStoreLoadSourceLikeCpp::CustomSql);
+        no_rank.race_mask = i128::from(i64::MAX) + 1;
+
+        let mut removed_rank =
+            ability_source(ability(6, 100, 8), SkillStoreLoadSourceLikeCpp::CustomSql);
+        removed_rank.supercedes_spell = 7;
+        let removals =
+            Db2HotfixRemovalStoreLikeCpp::from_status_rows_like_cpp([(ABILITY_TABLE_HASH, 6, 2)]);
+
+        let mut signed_endpoints =
+            ability_source(ability(7, 100, -2), SkillStoreLoadSourceLikeCpp::CustomSql);
+        signed_endpoints.supercedes_spell = -1;
+
+        let mut base_replaced_rank =
+            ability_source(ability(8, 100, 20), SkillStoreLoadSourceLikeCpp::Wdc4);
+        base_replaced_rank.supercedes_spell = 19;
+        let mut official_replaced_rank = ability_source(
+            ability(8, 100, 30),
+            SkillStoreLoadSourceLikeCpp::OfficialSql,
+        );
+        official_replaced_rank.supercedes_spell = 29;
+        let mut final_overlay_rank =
+            ability_source(ability(8, 100, 40), SkillStoreLoadSourceLikeCpp::CustomSql);
+        final_overlay_rank.supercedes_spell = 39;
+        final_overlay_rank.race_mask = i128::from(i64::MAX) + 1;
+
+        let mut no_representable_endpoint =
+            ability_source(ability(9, 100, 50), SkillStoreLoadSourceLikeCpp::CustomSql);
+        no_representable_endpoint.spell = i128::from(i32::MAX) + 1;
+        no_representable_endpoint.supercedes_spell = i128::from(i32::MAX) + 2;
+
+        let outcome = compose_effective_skill_store_like_cpp(
+            [base_replaced_rank],
+            [official_replaced_rank],
+            [
+                unrelated_invalid,
+                invalid_supercedes,
+                invalid_spell,
+                one_signed_endpoint,
+                no_rank,
+                removed_rank,
+                signed_endpoints,
+                final_overlay_rank,
+                no_representable_endpoint,
+            ],
+            ABILITY_TABLE_HASH,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            RACE_CLASS_TABLE_HASH,
+            &removals,
+            &skill_lines,
+        );
+
+        assert_eq!(
+            outcome.store.skill_line_ability_rank_rows_like_cpp(),
+            [
+                SkillLineAbilityRankRowLikeCpp::Edge {
+                    record_id: 1,
+                    spell_id: 3,
+                    supercedes_spell_id: 2,
+                },
+                SkillLineAbilityRankRowLikeCpp::Indeterminate {
+                    record_id: 2,
+                    spell_raw: 4,
+                    supercedes_spell_raw: i128::from(i32::MAX) + 1,
+                },
+                SkillLineAbilityRankRowLikeCpp::Indeterminate {
+                    record_id: 3,
+                    spell_raw: i128::from(i32::MAX) + 1,
+                    supercedes_spell_raw: 2,
+                },
+                SkillLineAbilityRankRowLikeCpp::Indeterminate {
+                    record_id: 4,
+                    spell_raw: i128::from(i32::MAX) + 1,
+                    supercedes_spell_raw: -1,
+                },
+                SkillLineAbilityRankRowLikeCpp::Edge {
+                    record_id: 7,
+                    spell_id: u32::MAX - 1,
+                    supercedes_spell_id: u32::MAX,
+                },
+                SkillLineAbilityRankRowLikeCpp::Edge {
+                    record_id: 8,
+                    spell_id: 40,
+                    supercedes_spell_id: 39,
+                },
+                SkillLineAbilityRankRowLikeCpp::Indeterminate {
+                    record_id: 9,
+                    spell_raw: i128::from(i32::MAX) + 1,
+                    supercedes_spell_raw: i128::from(i32::MAX) + 2,
+                },
+            ]
+        );
+        assert!(
+            matches!(
+                outcome
+                    .store
+                    .skill_line_ability_coverage_by_spell_like_cpp(3),
+                SkillLineAbilityCoverageLikeCpp::Indeterminate(_)
+            ),
+            "the richer acquisition row remains invalid even though its rank edge is valid"
+        );
     }
 
     #[test]

@@ -26,6 +26,7 @@ use wow_entities::PetAuraLikeCpp;
 use crate::{
     ConditionEntriesByTypeStore, ConditionsReference,
     conditions::RACEMASK_ALL_PLAYABLE_LIKE_CPP,
+    skill::SkillLineAbilityRankRowLikeCpp,
     spell_acquisition::{
         AcquisitionValueDomainLikeCpp, SpellAcquisitionIndeterminateReasonLikeCpp,
     },
@@ -613,6 +614,9 @@ pub enum PrimaryProfessionSpellClassificationErrorLikeCpp {
     MissingSkillLinePayload {
         spell_id: i32,
         skill_id: u32,
+    },
+    RankChainIndeterminate {
+        spell_id: u32,
     },
 }
 
@@ -2442,6 +2446,12 @@ pub enum SpellChainLoadDiagnosticLikeCpp {
         spell_id: u32,
         rank: usize,
     },
+    InvalidEffectiveSkillLineAbilityRankEndpoints {
+        record_id: u32,
+        spell_raw: i128,
+        supercedes_spell_raw: i128,
+        affected_spell_ids: Vec<u32>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2456,12 +2466,128 @@ pub struct SpellChainStoreLikeCpp {
     pub chains_by_spell_id: BTreeMap<u32, SpellChainNodeLikeCpp>,
     indeterminate_by_spell_id_like_cpp:
         BTreeMap<u32, std::sync::Arc<[SpellChainLoadDiagnosticLikeCpp]>>,
+    global_indeterminate_like_cpp: Option<std::sync::Arc<[SpellChainLoadDiagnosticLikeCpp]>>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SpellChainLoadOutcomeLikeCpp {
     pub store: SpellChainStoreLikeCpp,
     pub diagnostics_in_order_like_cpp: Vec<SpellChainLoadDiagnosticLikeCpp>,
+}
+
+impl SpellChainLoadOutcomeLikeCpp {
+    /// Fail every known weak component touched by one invalid effective rank
+    /// row closed. If neither raw endpoint fits C++'s signed `int32` source
+    /// domain, the complete rank projection becomes indeterminate.
+    fn mark_invalid_skill_line_ability_rank_row_like_cpp(
+        &mut self,
+        record_id: u32,
+        spell_raw: i128,
+        supercedes_spell_raw: i128,
+        affected_spell_ids: &[u32],
+    ) {
+        let diagnostic =
+            SpellChainLoadDiagnosticLikeCpp::InvalidEffectiveSkillLineAbilityRankEndpoints {
+                record_id,
+                spell_raw,
+                supercedes_spell_raw,
+                affected_spell_ids: affected_spell_ids.to_vec(),
+            };
+
+        if affected_spell_ids.is_empty() || self.store.global_indeterminate_like_cpp.is_some() {
+            let mut global_diagnostics = self
+                .store
+                .global_indeterminate_like_cpp
+                .as_ref()
+                .map(|diagnostics| diagnostics.to_vec())
+                .unwrap_or_default();
+            if self.store.global_indeterminate_like_cpp.is_none() {
+                for local_diagnostics in self.store.indeterminate_by_spell_id_like_cpp.values() {
+                    for local_diagnostic in local_diagnostics.iter() {
+                        if !global_diagnostics.contains(local_diagnostic) {
+                            global_diagnostics.push(local_diagnostic.clone());
+                        }
+                    }
+                }
+            }
+            if !global_diagnostics.contains(&diagnostic) {
+                global_diagnostics.push(diagnostic.clone());
+            }
+            self.store.global_indeterminate_like_cpp = Some(global_diagnostics.into());
+            self.store.chains_by_spell_id.clear();
+            self.store.indeterminate_by_spell_id_like_cpp.clear();
+            if !self.diagnostics_in_order_like_cpp.contains(&diagnostic) {
+                self.diagnostics_in_order_like_cpp.push(diagnostic);
+            }
+            return;
+        }
+
+        let mut complete_affected_spell_ids = BTreeSet::new();
+        let mut combined_diagnostics = Vec::new();
+        for spell_id in affected_spell_ids {
+            if let Some(node) = self.store.chains_by_spell_id.get(spell_id) {
+                let first_spell_id = node.first_spell_id;
+                complete_affected_spell_ids.extend(
+                    self.store.chains_by_spell_id.iter().filter_map(
+                        |(candidate_spell_id, candidate)| {
+                            (candidate.first_spell_id == first_spell_id)
+                                .then_some(*candidate_spell_id)
+                        },
+                    ),
+                );
+                continue;
+            }
+
+            if let Some(existing) = self
+                .store
+                .indeterminate_by_spell_id_like_cpp
+                .get(spell_id)
+                .cloned()
+            {
+                combined_diagnostics.extend(existing.iter().cloned());
+                complete_affected_spell_ids.extend(
+                    self.store
+                        .indeterminate_by_spell_id_like_cpp
+                        .iter()
+                        .filter_map(|(candidate_spell_id, candidate)| {
+                            std::sync::Arc::ptr_eq(candidate, &existing)
+                                .then_some(*candidate_spell_id)
+                        }),
+                );
+                continue;
+            }
+
+            complete_affected_spell_ids.insert(*spell_id);
+        }
+
+        // Diagnostics are inserted in deterministic effective RecordID order;
+        // deduplication preserves the first occurrence.
+        let mut deduplicated_diagnostics = Vec::new();
+        for existing in combined_diagnostics {
+            if !deduplicated_diagnostics.contains(&existing) {
+                deduplicated_diagnostics.push(existing);
+            }
+        }
+        if !deduplicated_diagnostics.contains(&diagnostic) {
+            deduplicated_diagnostics.push(diagnostic.clone());
+        }
+        let shared_diagnostics: std::sync::Arc<[SpellChainLoadDiagnosticLikeCpp]> =
+            deduplicated_diagnostics.into();
+
+        for affected_spell_id in complete_affected_spell_ids {
+            self.store.chains_by_spell_id.remove(&affected_spell_id);
+            self.store
+                .indeterminate_by_spell_id_like_cpp
+                .insert(affected_spell_id, shared_diagnostics.clone());
+        }
+        if !self.diagnostics_in_order_like_cpp.contains(&diagnostic) {
+            self.diagnostics_in_order_like_cpp.push(diagnostic);
+        }
+    }
+}
+
+fn spell_rank_endpoint_id_from_raw_like_cpp(raw: i128) -> Option<u32> {
+    i32::try_from(raw).ok().map(|value| value as u32)
 }
 
 impl SpellChainStoreLikeCpp {
@@ -2474,6 +2600,180 @@ impl SpellChainStoreLikeCpp {
         SpellExists: FnMut(u32) -> bool,
     {
         Self::from_skill_line_ability_supercedes_with_diagnostics_like_cpp(rows, spell_exists).store
+    }
+
+    /// Build ranks from the final rank-specific raw authority. Valid
+    /// endpoints remain usable even when unrelated `SkillLineAbility` fields
+    /// failed hydration; invalid endpoints become explicit component/global
+    /// indeterminacy.
+    pub fn from_skill_line_ability_rank_rows_with_diagnostics_like_cpp<I, SpellExists>(
+        rows: I,
+        mut spell_exists: SpellExists,
+    ) -> SpellChainLoadOutcomeLikeCpp
+    where
+        I: IntoIterator<Item = SkillLineAbilityRankRowLikeCpp>,
+        SpellExists: FnMut(u32) -> bool,
+    {
+        struct PendingIndeterminateRankRowLikeCpp {
+            source_order: usize,
+            record_id: u32,
+            spell_raw: i128,
+            supercedes_spell_raw: i128,
+            affected_spell_ids: Vec<u32>,
+        }
+
+        enum EffectiveRankCandidateLikeCpp {
+            Edge(SpellRankEdgeLikeCpp),
+            Indeterminate(PendingIndeterminateRankRowLikeCpp),
+        }
+
+        let mut existence_by_spell_id = BTreeMap::new();
+        let mut candidate_by_predecessor = BTreeMap::new();
+        let mut unkeyed_indeterminate_rows = Vec::new();
+        let mut malformed_source_diagnostics = Vec::new();
+
+        for (source_order, row) in rows.into_iter().enumerate() {
+            match row {
+                SkillLineAbilityRankRowLikeCpp::Edge {
+                    spell_id,
+                    supercedes_spell_id,
+                    ..
+                } => {
+                    if supercedes_spell_id == 0 {
+                        continue;
+                    }
+                    let has_spell = *existence_by_spell_id
+                        .entry(spell_id)
+                        .or_insert_with(|| spell_exists(spell_id));
+                    let has_supercedes = *existence_by_spell_id
+                        .entry(supercedes_spell_id)
+                        .or_insert_with(|| spell_exists(supercedes_spell_id));
+                    if has_spell && has_supercedes {
+                        candidate_by_predecessor.insert(
+                            supercedes_spell_id,
+                            EffectiveRankCandidateLikeCpp::Edge(SpellRankEdgeLikeCpp {
+                                spell_id,
+                                supercedes_spell_id,
+                            }),
+                        );
+                    }
+                }
+                SkillLineAbilityRankRowLikeCpp::Indeterminate {
+                    record_id,
+                    spell_raw,
+                    supercedes_spell_raw,
+                } => {
+                    let spell_id = spell_rank_endpoint_id_from_raw_like_cpp(spell_raw);
+                    let supercedes_spell_id =
+                        spell_rank_endpoint_id_from_raw_like_cpp(supercedes_spell_raw);
+                    if supercedes_spell_id == Some(0) {
+                        continue;
+                    }
+
+                    let mut affected_spell_ids = [spell_id, supercedes_spell_id]
+                        .into_iter()
+                        .flatten()
+                        .collect::<Vec<_>>();
+                    affected_spell_ids.sort_unstable();
+                    affected_spell_ids.dedup();
+
+                    // C++ skips a row unless both endpoint lookups succeed. If
+                    // any representable endpoint is proven absent, an
+                    // unrepresentable endpoint cannot make the row relevant.
+                    let mut every_representable_endpoint_exists = true;
+                    for affected_spell_id in &affected_spell_ids {
+                        let exists = *existence_by_spell_id
+                            .entry(*affected_spell_id)
+                            .or_insert_with(|| spell_exists(*affected_spell_id));
+                        every_representable_endpoint_exists &= exists;
+                    }
+                    if !affected_spell_ids.is_empty() && !every_representable_endpoint_exists {
+                        continue;
+                    }
+
+                    // Normalize a manually constructed but fully
+                    // representable variant instead of letting it bypass the
+                    // same predecessor authority as `Edge`.
+                    if let (Some(spell_id), Some(supercedes_spell_id)) =
+                        (spell_id, supercedes_spell_id)
+                    {
+                        candidate_by_predecessor.insert(
+                            supercedes_spell_id,
+                            EffectiveRankCandidateLikeCpp::Edge(SpellRankEdgeLikeCpp {
+                                spell_id,
+                                supercedes_spell_id,
+                            }),
+                        );
+                        continue;
+                    }
+
+                    let diagnostic =
+                        SpellChainLoadDiagnosticLikeCpp::InvalidEffectiveSkillLineAbilityRankEndpoints {
+                            record_id,
+                            spell_raw,
+                            supercedes_spell_raw,
+                            affected_spell_ids: affected_spell_ids.clone(),
+                        };
+                    if !malformed_source_diagnostics.contains(&diagnostic) {
+                        malformed_source_diagnostics.push(diagnostic);
+                    }
+                    let pending = PendingIndeterminateRankRowLikeCpp {
+                        source_order,
+                        record_id,
+                        spell_raw,
+                        supercedes_spell_raw,
+                        affected_spell_ids,
+                    };
+
+                    if let Some(supercedes_spell_id) = supercedes_spell_id {
+                        // This candidate participates in the exact same
+                        // last-wins predecessor authority as a valid edge. A
+                        // later valid row can repair it; a later ambiguous row
+                        // can eclipse an earlier valid edge.
+                        candidate_by_predecessor.insert(
+                            supercedes_spell_id,
+                            EffectiveRankCandidateLikeCpp::Indeterminate(pending),
+                        );
+                    } else {
+                        unkeyed_indeterminate_rows.push(pending);
+                    }
+                }
+            }
+        }
+
+        let mut filtered_edges = Vec::new();
+        let mut indeterminate_rows = unkeyed_indeterminate_rows;
+        for candidate in candidate_by_predecessor.into_values() {
+            match candidate {
+                EffectiveRankCandidateLikeCpp::Edge(edge) => filtered_edges.push(edge),
+                EffectiveRankCandidateLikeCpp::Indeterminate(row) => {
+                    indeterminate_rows.push(row);
+                }
+            }
+        }
+        indeterminate_rows.sort_by_key(|row| row.source_order);
+
+        let mut outcome = Self::from_skill_line_ability_supercedes_with_diagnostics_like_cpp(
+            filtered_edges,
+            |_| true,
+        );
+        let graph_diagnostics = std::mem::take(&mut outcome.diagnostics_in_order_like_cpp);
+        outcome.diagnostics_in_order_like_cpp = malformed_source_diagnostics;
+        for diagnostic in graph_diagnostics {
+            if !outcome.diagnostics_in_order_like_cpp.contains(&diagnostic) {
+                outcome.diagnostics_in_order_like_cpp.push(diagnostic);
+            }
+        }
+
+        for row in indeterminate_rows {
+            outcome.mark_invalid_skill_line_ability_rank_row_like_cpp(
+                row.record_id,
+                row.spell_raw,
+                row.supercedes_spell_raw,
+                &row.affected_spell_ids,
+            );
+        }
+        outcome
     }
 
     /// Builds the effective `SpellMgr::LoadSpellRanks` projection and retains
@@ -2658,6 +2958,9 @@ impl SpellChainStoreLikeCpp {
     }
 
     pub fn spell_chain_lookup_like_cpp(&self, spell_id: u32) -> SpellChainLookupLikeCpp<'_> {
+        if let Some(diagnostics) = &self.global_indeterminate_like_cpp {
+            return SpellChainLookupLikeCpp::Indeterminate(diagnostics);
+        }
         if let Some(diagnostics) = self.indeterminate_by_spell_id_like_cpp.get(&spell_id) {
             return SpellChainLookupLikeCpp::Indeterminate(diagnostics);
         }
@@ -2672,6 +2975,9 @@ impl SpellChainStoreLikeCpp {
         &self,
         spell_id: u32,
     ) -> Option<&[SpellChainLoadDiagnosticLikeCpp]> {
+        if let Some(diagnostics) = &self.global_indeterminate_like_cpp {
+            return Some(diagnostics);
+        }
         self.indeterminate_by_spell_id_like_cpp
             .get(&spell_id)
             .map(AsRef::as_ref)
@@ -5567,10 +5873,23 @@ impl SpellInfo {
                 spell_id: self.spell_id,
             }
         })?;
-        let rank = spell_chains
-            .spell_chain_node_like_cpp(spell_id)
-            .map(|node| node.rank)
-            .unwrap_or(1);
+        let rank = match spell_chains.spell_chain_lookup_like_cpp(spell_id) {
+            SpellChainLookupLikeCpp::Node(node) => node.rank,
+            SpellChainLookupLikeCpp::Unranked => 1,
+            SpellChainLookupLikeCpp::Indeterminate(_) => {
+                // Preserve the other safe short-circuit in C++'s
+                // `IsPrimaryProfession() && GetRank() == 1`: a spell proven
+                // non-primary is false regardless of an ambiguous rank.
+                return match self.is_primary_profession_like_cpp(skill_lines) {
+                    Ok(false) => Ok(false),
+                    Ok(true) | Err(_) => Err(
+                        PrimaryProfessionSpellClassificationErrorLikeCpp::RankChainIndeterminate {
+                            spell_id,
+                        },
+                    ),
+                };
+            }
+        };
         // With complete C++ data this is equivalent to the original
         // `IsPrimaryProfession() && GetRank() == 1`. Resolving rank first also
         // avoids requiring partial SkillLine payload when rank already proves
@@ -7225,6 +7544,64 @@ mod tests {
                     skill_id: 999,
                 }
             )
+        );
+    }
+
+    #[test]
+    fn primary_profession_first_rank_preserves_safe_indeterminate_short_circuits() {
+        let skill_lines = crate::skill_talent::SkillLineStore::from_entries([
+            test_skill_line_like_cpp(100, 11, 0),
+            test_skill_line_like_cpp(200, 9, 0),
+        ]);
+        let mut primary_spell = SpellStore::empty_spell_info_like_cpp(1_000);
+        primary_spell.effects = vec![test_skill_effect_like_cpp(0, 100)];
+        let mut non_primary_spell = SpellStore::empty_spell_info_like_cpp(1_001);
+        non_primary_spell.effects = vec![test_skill_effect_like_cpp(0, 200)];
+
+        let local_indeterminate =
+            SpellChainStoreLikeCpp::from_skill_line_ability_rank_rows_with_diagnostics_like_cpp(
+                [SkillLineAbilityRankRowLikeCpp::Indeterminate {
+                    record_id: 90,
+                    spell_raw: 1_000,
+                    supercedes_spell_raw: i128::from(i32::MAX) + 1,
+                }],
+                |spell_id| spell_id == 1_000,
+            )
+            .store;
+        assert_eq!(
+            primary_spell
+                .is_primary_profession_first_rank_like_cpp(&skill_lines, &local_indeterminate,),
+            Err(
+                PrimaryProfessionSpellClassificationErrorLikeCpp::RankChainIndeterminate {
+                    spell_id: 1_000,
+                }
+            )
+        );
+
+        let global_indeterminate =
+            SpellChainStoreLikeCpp::from_skill_line_ability_rank_rows_with_diagnostics_like_cpp(
+                [SkillLineAbilityRankRowLikeCpp::Indeterminate {
+                    record_id: 91,
+                    spell_raw: i128::from(i32::MAX) + 1,
+                    supercedes_spell_raw: i128::from(i32::MAX) + 2,
+                }],
+                |_| false,
+            )
+            .store;
+        assert_eq!(
+            primary_spell
+                .is_primary_profession_first_rank_like_cpp(&skill_lines, &global_indeterminate,),
+            Err(
+                PrimaryProfessionSpellClassificationErrorLikeCpp::RankChainIndeterminate {
+                    spell_id: 1_000,
+                }
+            )
+        );
+        assert_eq!(
+            non_primary_spell
+                .is_primary_profession_first_rank_like_cpp(&skill_lines, &global_indeterminate,),
+            Ok(false),
+            "C++'s false primary-profession operand decides the conjunction without rank"
         );
     }
 
@@ -10166,6 +10543,351 @@ mod tests {
             outcome.store.spell_chain_lookup_like_cpp(99),
             SpellChainLookupLikeCpp::Unranked
         );
+    }
+
+    #[test]
+    fn spell_chain_store_propagates_invalid_effective_rows_to_the_whole_component() {
+        let outcome =
+            SpellChainStoreLikeCpp::from_skill_line_ability_rank_rows_with_diagnostics_like_cpp(
+                [
+                    SkillLineAbilityRankRowLikeCpp::Edge {
+                        record_id: 1,
+                        spell_id: 2,
+                        supercedes_spell_id: 1,
+                    },
+                    SkillLineAbilityRankRowLikeCpp::Edge {
+                        record_id: 2,
+                        spell_id: 3,
+                        supercedes_spell_id: 2,
+                    },
+                    SkillLineAbilityRankRowLikeCpp::Indeterminate {
+                        record_id: 90,
+                        spell_raw: 2,
+                        supercedes_spell_raw: i128::from(i32::MAX) + 1,
+                    },
+                ],
+                |spell_id| matches!(spell_id, 1 | 2 | 3),
+            );
+
+        assert!(outcome.store.chains_by_spell_id.is_empty());
+        for spell_id in 1..=3 {
+            assert!(matches!(
+                outcome.store.spell_chain_lookup_like_cpp(spell_id),
+                SpellChainLookupLikeCpp::Indeterminate(diagnostics)
+                    if diagnostics == [SpellChainLoadDiagnosticLikeCpp::InvalidEffectiveSkillLineAbilityRankEndpoints {
+                        record_id: 90,
+                        spell_raw: 2,
+                        supercedes_spell_raw: i128::from(i32::MAX) + 1,
+                        affected_spell_ids: vec![2],
+                    }]
+            ));
+        }
+        assert_eq!(
+            outcome.store.spell_chain_lookup_like_cpp(10),
+            SpellChainLookupLikeCpp::Unranked
+        );
+    }
+
+    #[test]
+    fn spell_chain_store_propagates_invalid_spell_endpoint_from_the_predecessor() {
+        let outcome =
+            SpellChainStoreLikeCpp::from_skill_line_ability_rank_rows_with_diagnostics_like_cpp(
+                [
+                    SkillLineAbilityRankRowLikeCpp::Edge {
+                        record_id: 1,
+                        spell_id: 2,
+                        supercedes_spell_id: 1,
+                    },
+                    SkillLineAbilityRankRowLikeCpp::Edge {
+                        record_id: 2,
+                        spell_id: 3,
+                        supercedes_spell_id: 2,
+                    },
+                    SkillLineAbilityRankRowLikeCpp::Indeterminate {
+                        record_id: 91,
+                        spell_raw: i128::from(i32::MAX) + 1,
+                        supercedes_spell_raw: 2,
+                    },
+                ],
+                |spell_id| matches!(spell_id, 1 | 2 | 3),
+            );
+
+        assert!(outcome.store.chains_by_spell_id.is_empty());
+        for spell_id in 1..=2 {
+            assert!(matches!(
+                outcome.store.spell_chain_lookup_like_cpp(spell_id),
+                SpellChainLookupLikeCpp::Indeterminate(_)
+            ));
+        }
+        assert_eq!(
+            outcome.store.spell_chain_lookup_like_cpp(3),
+            SpellChainLookupLikeCpp::Unranked,
+            "the invalid final candidate eclipses the former 2→3 edge before components form"
+        );
+    }
+
+    #[test]
+    fn spell_chain_store_skips_invalid_row_with_a_proven_absent_endpoint() {
+        let outcome =
+            SpellChainStoreLikeCpp::from_skill_line_ability_rank_rows_with_diagnostics_like_cpp(
+                [
+                    SkillLineAbilityRankRowLikeCpp::Edge {
+                        record_id: 1,
+                        spell_id: 2,
+                        supercedes_spell_id: 1,
+                    },
+                    SkillLineAbilityRankRowLikeCpp::Indeterminate {
+                        record_id: 92,
+                        spell_raw: 999_999,
+                        supercedes_spell_raw: i128::from(i32::MAX) + 1,
+                    },
+                ],
+                |spell_id| matches!(spell_id, 1 | 2),
+            );
+
+        assert!(outcome.diagnostics_in_order_like_cpp.is_empty());
+        assert_eq!(outcome.store.chains_by_spell_id.len(), 2);
+        assert!(matches!(
+            outcome.store.spell_chain_lookup_like_cpp(1),
+            SpellChainLookupLikeCpp::Node(node) if node.rank == 1
+        ));
+        assert!(matches!(
+            outcome.store.spell_chain_lookup_like_cpp(2),
+            SpellChainLookupLikeCpp::Node(node) if node.rank == 2
+        ));
+    }
+
+    #[test]
+    fn spell_chain_rank_authority_is_last_wins_across_valid_and_invalid_rows() {
+        let repaired =
+            SpellChainStoreLikeCpp::from_skill_line_ability_rank_rows_with_diagnostics_like_cpp(
+                [
+                    SkillLineAbilityRankRowLikeCpp::Indeterminate {
+                        record_id: 10,
+                        spell_raw: i128::from(i32::MAX) + 1,
+                        supercedes_spell_raw: 1,
+                    },
+                    SkillLineAbilityRankRowLikeCpp::Edge {
+                        record_id: 20,
+                        spell_id: 2,
+                        supercedes_spell_id: 1,
+                    },
+                ],
+                |spell_id| matches!(spell_id, 1 | 2),
+            );
+
+        assert!(matches!(
+            repaired.store.spell_chain_lookup_like_cpp(1),
+            SpellChainLookupLikeCpp::Node(node)
+                if node.rank == 1 && node.next_spell_id == Some(2)
+        ));
+        assert!(matches!(
+            repaired.store.spell_chain_lookup_like_cpp(2),
+            SpellChainLookupLikeCpp::Node(node)
+                if node.rank == 2 && node.prev_spell_id == Some(1)
+        ));
+        assert_eq!(
+            repaired
+                .diagnostics_in_order_like_cpp
+                .iter()
+                .filter(|diagnostic| matches!(
+                    diagnostic,
+                    SpellChainLoadDiagnosticLikeCpp::InvalidEffectiveSkillLineAbilityRankEndpoints {
+                        record_id: 10,
+                        ..
+                    }
+                ))
+                .count(),
+            1,
+            "an eclipsed malformed source remains observable without poisoning final authority"
+        );
+
+        let eclipsed =
+            SpellChainStoreLikeCpp::from_skill_line_ability_rank_rows_with_diagnostics_like_cpp(
+                [
+                    SkillLineAbilityRankRowLikeCpp::Edge {
+                        record_id: 10,
+                        spell_id: 2,
+                        supercedes_spell_id: 1,
+                    },
+                    SkillLineAbilityRankRowLikeCpp::Indeterminate {
+                        record_id: 20,
+                        spell_raw: i128::from(i32::MAX) + 1,
+                        supercedes_spell_raw: 1,
+                    },
+                ],
+                |spell_id| matches!(spell_id, 1 | 2),
+            );
+
+        assert!(matches!(
+            eclipsed.store.spell_chain_lookup_like_cpp(1),
+            SpellChainLookupLikeCpp::Indeterminate(diagnostics)
+                if diagnostics == [SpellChainLoadDiagnosticLikeCpp::InvalidEffectiveSkillLineAbilityRankEndpoints {
+                    record_id: 20,
+                    spell_raw: i128::from(i32::MAX) + 1,
+                    supercedes_spell_raw: 1,
+                    affected_spell_ids: vec![1],
+                }]
+        ));
+        assert_eq!(
+            eclipsed.store.spell_chain_lookup_like_cpp(2),
+            SpellChainLookupLikeCpp::Unranked,
+            "the destination of an eclipsed edge must not remain in the ambiguous component"
+        );
+    }
+
+    #[test]
+    fn invalid_rank_seed_unites_every_touched_valid_component() {
+        let mut outcome =
+            SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_with_diagnostics_like_cpp(
+                [
+                    SpellRankEdgeLikeCpp {
+                        spell_id: 2,
+                        supercedes_spell_id: 1,
+                    },
+                    SpellRankEdgeLikeCpp {
+                        spell_id: 11,
+                        supercedes_spell_id: 10,
+                    },
+                ],
+                |_| true,
+            );
+
+        outcome.mark_invalid_skill_line_ability_rank_row_like_cpp(
+            93,
+            i128::from(i32::MAX) + 1,
+            i128::from(i32::MAX) + 2,
+            &[2, 11],
+        );
+
+        assert!(outcome.store.chains_by_spell_id.is_empty());
+        for spell_id in [1, 2, 10, 11] {
+            assert!(matches!(
+                outcome.store.spell_chain_lookup_like_cpp(spell_id),
+                SpellChainLookupLikeCpp::Indeterminate(diagnostics)
+                    if diagnostics == [SpellChainLoadDiagnosticLikeCpp::InvalidEffectiveSkillLineAbilityRankEndpoints {
+                        record_id: 93,
+                        spell_raw: i128::from(i32::MAX) + 1,
+                        supercedes_spell_raw: i128::from(i32::MAX) + 2,
+                        affected_spell_ids: vec![2, 11],
+                    }]
+            ));
+        }
+    }
+
+    #[test]
+    fn invalid_rank_seed_preserves_existing_component_diagnostics() {
+        let mut outcome =
+            SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_with_diagnostics_like_cpp(
+                [
+                    SpellRankEdgeLikeCpp {
+                        spell_id: 2,
+                        supercedes_spell_id: 1,
+                    },
+                    SpellRankEdgeLikeCpp {
+                        spell_id: 1,
+                        supercedes_spell_id: 2,
+                    },
+                ],
+                |_| true,
+            );
+
+        outcome.mark_invalid_skill_line_ability_rank_row_like_cpp(
+            94,
+            1,
+            i128::from(i32::MAX) + 1,
+            &[1],
+        );
+
+        for spell_id in [1, 2] {
+            assert!(matches!(
+                outcome.store.spell_chain_lookup_like_cpp(spell_id),
+                SpellChainLookupLikeCpp::Indeterminate(diagnostics)
+                    if diagnostics == [
+                        SpellChainLoadDiagnosticLikeCpp::Cycle {
+                            spell_ids: vec![1, 2],
+                        },
+                        SpellChainLoadDiagnosticLikeCpp::InvalidEffectiveSkillLineAbilityRankEndpoints {
+                            record_id: 94,
+                            spell_raw: 1,
+                            supercedes_spell_raw: i128::from(i32::MAX) + 1,
+                            affected_spell_ids: vec![1],
+                        },
+                    ]
+            ));
+        }
+    }
+
+    #[test]
+    fn global_rank_seed_preserves_existing_component_diagnostics() {
+        let mut outcome =
+            SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_with_diagnostics_like_cpp(
+                [
+                    SpellRankEdgeLikeCpp {
+                        spell_id: 2,
+                        supercedes_spell_id: 1,
+                    },
+                    SpellRankEdgeLikeCpp {
+                        spell_id: 1,
+                        supercedes_spell_id: 2,
+                    },
+                ],
+                |_| true,
+            );
+
+        outcome.mark_invalid_skill_line_ability_rank_row_like_cpp(
+            95,
+            i128::from(i32::MAX) + 1,
+            i128::from(i32::MAX) + 2,
+            &[],
+        );
+
+        for spell_id in [1, 2, 999] {
+            assert!(matches!(
+                outcome.store.spell_chain_lookup_like_cpp(spell_id),
+                SpellChainLookupLikeCpp::Indeterminate(diagnostics)
+                    if diagnostics == [
+                        SpellChainLoadDiagnosticLikeCpp::Cycle {
+                            spell_ids: vec![1, 2],
+                        },
+                        SpellChainLoadDiagnosticLikeCpp::InvalidEffectiveSkillLineAbilityRankEndpoints {
+                            record_id: 95,
+                            spell_raw: i128::from(i32::MAX) + 1,
+                            supercedes_spell_raw: i128::from(i32::MAX) + 2,
+                            affected_spell_ids: Vec::new(),
+                        },
+                    ]
+            ));
+        }
+        assert!(outcome.store.indeterminate_by_spell_id_like_cpp.is_empty());
+    }
+
+    #[test]
+    fn spell_chain_store_global_seed_fails_every_lookup_closed() {
+        let outcome =
+            SpellChainStoreLikeCpp::from_skill_line_ability_rank_rows_with_diagnostics_like_cpp(
+                [
+                    SkillLineAbilityRankRowLikeCpp::Edge {
+                        record_id: 1,
+                        spell_id: 2,
+                        supercedes_spell_id: 1,
+                    },
+                    SkillLineAbilityRankRowLikeCpp::Indeterminate {
+                        record_id: 91,
+                        spell_raw: i128::from(i32::MAX) + 1,
+                        supercedes_spell_raw: i128::from(i32::MAX) + 2,
+                    },
+                ],
+                |spell_id| matches!(spell_id, 1 | 2),
+            );
+
+        assert!(outcome.store.chains_by_spell_id.is_empty());
+        for spell_id in [1, 2, 999] {
+            assert!(matches!(
+                outcome.store.spell_chain_lookup_like_cpp(spell_id),
+                SpellChainLookupLikeCpp::Indeterminate(_)
+            ));
+        }
     }
 
     #[test]

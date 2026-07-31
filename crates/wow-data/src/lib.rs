@@ -420,12 +420,12 @@ pub use skill::{
     PetLevelupSpellInfoLikeCpp, PetLevelupSpellSetLikeCpp, PetLevelupSpellStoreLikeCpp,
     SKILL_CATEGORY_ARMOR_LIKE_CPP, SKILL_CATEGORY_LANGUAGES_LIKE_CPP,
     SKILL_FLAG_ALWAYS_MAX_VALUE_LIKE_CPP, SKILL_RUNEFORGING_LIKE_CPP, SkillInfoEntry,
-    SkillLineAbilityCoverageLikeCpp, SkillLineAbilityRecord, SkillRaceClassInfoCoverageLikeCpp,
-    SkillRaceClassInfoMatchCoverageLikeCpp, SkillRaceClassInfoRecord, SkillRangeTypeLikeCpp,
-    SkillRewardedSpellChangesLikeCpp, SkillStore, SkillStoreEffectiveLoadOutcomeLikeCpp,
-    SkillStoreEffectiveLoadReportLikeCpp, SkillStoreLoadDiagnosticLikeCpp,
-    SkillStoreLoadSourceLikeCpp, SkillStoreTableLikeCpp, SkillTiersEntryLikeCpp,
-    SkillTiersRowLikeCpp, SkillTiersStoreLikeCpp,
+    SkillLineAbilityCoverageLikeCpp, SkillLineAbilityRankRowLikeCpp, SkillLineAbilityRecord,
+    SkillRaceClassInfoCoverageLikeCpp, SkillRaceClassInfoMatchCoverageLikeCpp,
+    SkillRaceClassInfoRecord, SkillRangeTypeLikeCpp, SkillRewardedSpellChangesLikeCpp, SkillStore,
+    SkillStoreEffectiveLoadOutcomeLikeCpp, SkillStoreEffectiveLoadReportLikeCpp,
+    SkillStoreLoadDiagnosticLikeCpp, SkillStoreLoadSourceLikeCpp, SkillStoreTableLikeCpp,
+    SkillTiersEntryLikeCpp, SkillTiersRowLikeCpp, SkillTiersStoreLikeCpp,
 };
 pub use skill_talent::{
     GlyphBindableSpellEntry, GlyphBindableSpellStore, GlyphPropertiesEntry, GlyphPropertiesStore,

@@ -29,7 +29,7 @@ use wow_data::{
     SpellCustomAttributeStoreLikeCpp, SpellLearnSkillEffectLikeCpp,
     SpellLearnSkillIndeterminateReasonLikeCpp, SpellLearnSkillSourceSpellInfoLikeCpp,
     SpellLearnSkillStoreLikeCpp, SpellLearnSourceSpellInfoLikeCpp, SpellLearnSpellEffectLikeCpp,
-    SpellLearnSpellEntry, SpellLearnSpellStoreLikeCpp, SpellRankEdgeLikeCpp, SpellStore,
+    SpellLearnSpellEntry, SpellLearnSpellStoreLikeCpp, SpellStore,
 };
 use wow_database::{HotfixDatabase, WorldDatabase};
 
@@ -159,6 +159,10 @@ pub(crate) async fn load_like_cpp(
     );
     let custom_attribute_store = Arc::new(custom_attribute_outcome.store);
 
+    let regular_difficulty_none_ids = regular_keys
+        .iter()
+        .filter_map(|(spell_id, difficulty_id)| (*difficulty_id == 0).then_some(*spell_id))
+        .collect::<BTreeSet<_>>();
     let spell_exists_at_difficulty_none = |spell_id| {
         resolved_difficulty_none_like_cpp(
             spell_store,
@@ -170,30 +174,33 @@ pub(crate) async fn load_like_cpp(
     };
 
     let chain_outcome =
-        SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_with_diagnostics_like_cpp(
+        SpellChainStoreLikeCpp::from_skill_line_ability_rank_rows_with_diagnostics_like_cpp(
             skill_store
-                .skill_line_abilities_like_cpp()
+                .skill_line_ability_rank_rows_like_cpp()
                 .iter()
-                .filter_map(|ability| {
-                    Some(SpellRankEdgeLikeCpp {
-                        spell_id: u32::try_from(ability.spell).ok()?,
-                        supercedes_spell_id: u32::try_from(ability.supercedes_spell).ok()?,
-                    })
-                }),
+                .cloned(),
             spell_exists_at_difficulty_none,
         );
+    let invalid_rank_source_count = chain_outcome
+        .diagnostics_in_order_like_cpp
+        .iter()
+        .filter(|diagnostic| {
+            matches!(
+                diagnostic,
+                wow_data::SpellChainLoadDiagnosticLikeCpp::InvalidEffectiveSkillLineAbilityRankEndpoints {
+                    ..
+                }
+            )
+        })
+        .count();
     info!(
         node_count = chain_outcome.store.chains_by_spell_id.len(),
-        indeterminate_component_diagnostic_count =
-            chain_outcome.diagnostics_in_order_like_cpp.len(),
+        rank_load_diagnostic_count = chain_outcome.diagnostics_in_order_like_cpp.len(),
+        invalid_effective_source_count = invalid_rank_source_count,
         "Loaded represented C++ spell rank-chain nodes from effective SkillLineAbility rows"
     );
     let chain_store = Arc::new(chain_outcome.store);
 
-    let regular_difficulty_none_ids = regular_keys
-        .iter()
-        .filter_map(|(spell_id, difficulty_id)| (*difficulty_id == 0).then_some(*spell_id))
-        .collect::<BTreeSet<_>>();
     let serverside_difficulty_none_count = serverside_keys
         .iter()
         .filter(|key| key.difficulty_id == 0)

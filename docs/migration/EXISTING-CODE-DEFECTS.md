@@ -52,9 +52,17 @@ remain real; "sends the packet and mutates DB" still does not imply full gamepla
   unranked spells.** Legacy `SpellMgr::LoadSpellRanks` follows `SupercedesSpell` without cycle
   detection (`SpellMgr.cpp:812-902`); a custom/hotfix graph with a reachable cycle can loop
   forever, while merges and stale predecessor bookkeeping can construct incoherent chains. Rust
-  resolves the final last-wins edges first, rejects the complete ambiguous component for
-  self-loops, cycles, multiple predecessors, or ranks outside `uint8`, and retains a tri-state
-  diagnostic lookup so later acquisition planning fails closed.
+  builds a rank-specific projection from every final effective `SkillLineAbility` identity before
+  hydrating unrelated acquisition fields, so an invalid race/skill mask neither erases a valid
+  rank edge nor hides an invalid rank endpoint. Final hotfix removals still win. Rust then resolves
+  valid and indeterminate candidates through one RecordID-ordered, last-wins authority per
+  predecessor, rejects the complete ambiguous component for self-loops, cycles, multiple
+  predecessors, ranks outside `uint8`, or unrepresentable endpoints, and retains a tri-state
+  diagnostic lookup so later acquisition planning fails closed. A later valid candidate can
+  repair an earlier malformed candidate for the same predecessor. If a representable endpoint is
+  absent from exact spell authority, Rust skips the row just as C++'s paired `GetSpellInfo` gate
+  does. Only a row with neither endpoint representable in C++'s `int32` source domain makes the
+  rank projection globally indeterminate rather than inventing `Unranked`.
 - [x] **Issue #163 — sign-extend narrow WDC4 signed-immediate fields.** The generic Rust WDC4
   reader previously returned an unextended `u32` payload from `get_field_i32` when a signed field
   occupied fewer than 32 bits. C++ explicitly extends `SignedImmediate` values before copying them
