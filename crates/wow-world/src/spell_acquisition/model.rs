@@ -317,6 +317,8 @@ pub(crate) struct SpellAcquisitionPlanLikeCpp {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum SpellAcquisitionIndeterminateLikeCpp {
+    SnapshotAdapter(SpellAcquisitionSnapshotAdapterErrorLikeCpp),
+    MissingTrainerProjectionMetadata,
     InvalidSnapshot {
         field: &'static str,
         value: i128,

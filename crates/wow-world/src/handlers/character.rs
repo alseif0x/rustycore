@@ -25836,19 +25836,7 @@ mod tests {
         }
 
         let character = include_str!("character.rs");
-        let trainer = include_str!("trainer.rs");
         let session = include_str!("../session.rs");
-
-        assert_publication_segment(
-            trainer,
-            "trainer spell purchase",
-            "self.stage_player_money_change_like_cpp",
-            &[
-                "self.learn_known_spell_like_cpp(spell_id);",
-                "self.sync_object_accessor_player();",
-                "self.sync_player_registry_state_like_cpp();",
-            ],
-        );
         assert_publication_segment(
             character,
             "bank-slot purchase",

@@ -19917,6 +19917,40 @@ impl WorldSession {
         1.0 - 0.05 * f32::from(rank.as_u8() - ReputationRankLikeCpp::Neutral.as_u8())
     }
 
+    /// Reputation rank used by deterministic trainer pricing. Missing/zero
+    /// faction references retain C++'s full-price fallback (`Neutral`).
+    pub(crate) fn trainer_price_reputation_rank_like_cpp(
+        &self,
+        faction_template_id: u32,
+    ) -> wow_data::reputation::ReputationRankLikeCpp {
+        use wow_data::reputation::ReputationRankLikeCpp;
+
+        let Some(faction_template) = self
+            .faction_template_store
+            .as_ref()
+            .and_then(|store| store.get(faction_template_id))
+        else {
+            return ReputationRankLikeCpp::Neutral;
+        };
+        if faction_template.faction == 0 {
+            return ReputationRankLikeCpp::Neutral;
+        }
+        let Some(faction_entry) = self
+            .faction_store
+            .as_ref()
+            .and_then(|store| store.get(u32::from(faction_template.faction)))
+        else {
+            return ReputationRankLikeCpp::Neutral;
+        };
+        self.reputation_mgr_like_cpp
+            .rank_for_faction_entry_like_cpp(
+                faction_entry,
+                self.friendship_rep_reaction_store.as_deref(),
+                self.player_race_like_cpp(),
+                self.player_class_like_cpp(),
+            )
+    }
+
     pub(crate) fn reputation_rates_like_cpp(&self) -> ReputationRatesLikeCpp {
         self.reputation_rates
     }
@@ -25885,6 +25919,12 @@ impl WorldSession {
             .unwrap_or(0)
     }
 
+    pub(crate) fn spell_custom_attribute_store_like_cpp(
+        &self,
+    ) -> Option<&Arc<SpellCustomAttributeStoreLikeCpp>> {
+        self.spell_custom_attribute_store.as_ref()
+    }
+
     pub fn set_serverside_spell_store(&mut self, store: Arc<ServersideSpellStoreLikeCpp>) {
         self.serverside_spell_store = Some(store);
     }
@@ -25901,6 +25941,12 @@ impl WorldSession {
 
     pub fn set_spell_learn_skill_store(&mut self, store: Arc<SpellLearnSkillStoreLikeCpp>) {
         self.spell_learn_skill_store = Some(store);
+    }
+
+    pub(crate) fn spell_learn_skill_store_like_cpp(
+        &self,
+    ) -> Option<&Arc<SpellLearnSkillStoreLikeCpp>> {
+        self.spell_learn_skill_store.as_ref()
     }
 
     pub(crate) fn spell_learn_skill_like_cpp(
@@ -25927,6 +25973,12 @@ impl WorldSession {
 
     pub fn set_spell_learn_spell_store(&mut self, store: Arc<SpellLearnSpellStoreLikeCpp>) {
         self.spell_learn_spell_store = Some(store);
+    }
+
+    pub(crate) fn spell_learn_spell_store_like_cpp(
+        &self,
+    ) -> Option<&Arc<SpellLearnSpellStoreLikeCpp>> {
+        self.spell_learn_spell_store.as_ref()
     }
 
     pub(crate) fn spell_learn_spell_map_bounds_like_cpp(
@@ -26012,6 +26064,10 @@ impl WorldSession {
 
     pub fn set_spell_required_store(&mut self, store: Arc<SpellRequiredStoreLikeCpp>) {
         self.spell_required_store = Some(store);
+    }
+
+    pub(crate) fn spell_required_store_like_cpp(&self) -> Option<&Arc<SpellRequiredStoreLikeCpp>> {
+        self.spell_required_store.as_ref()
     }
 
     pub(crate) fn spells_required_for_spell_like_cpp(&self, spell_id: u32) -> &[u32] {

@@ -1,3 +1,21 @@
+- `#NEXT.R8.ENTITIES.1237` — issue #157 unifica `Trainer::SendSpells`,
+  `CanTeachSpell` y `GetSpellState` detrás de una decisión inmutable
+  `Hidden/Known/Unavailable/Available`. Lista y compra vuelven a evaluar el mismo snapshot
+  efectivo (membresía, clase/raza, `TRAINER_SPELL` conditions, skill/rank, las tres abilities,
+  nivel, wrapper-known, battle-pet tri-state, proyección transitiva #164 y capacidad #156).
+  `Available` conserva el plan de adquisición, todas las profesiones raíz, el plan ordenado de
+  capacidad y el precio, pero no reserva ni muta. La compra continúa registrada y fuera del
+  dispatcher hasta #142; además se han retirado el cargo, SQL, mutación de spell runtime y
+  publicación de éxito prematuros, que pertenecen a #158/#159. Rust corrige explícitamente tres
+  defectos legacy: revalida condiciones al comprar, aplica capacidad al cierre transitivo y usa
+  `(u64(base_cost) * percent) / 100` en vez del `f32` de C++. Las divergencias conocidas
+  (`2_207_541 @ 95% -> 2_097_163`, `16_777_217 @ 100%` y `u32::MAX`) quedan fijadas por tests;
+  metadatos incompletos, IDs estrechados, battle pets y proyecciones indeterminadas fallan
+  cerrados. Formato, guardrails de arquitectura/handlers, check de `wow-world`, focales y la
+  suite completa `wow-world` (`3248/0`, uno ignorado) pasan; el quick preflight alcanzó el check
+  agregado y chocó con el ICE/SIGSEGV local ya conocido dentro de `icu_properties`. Falta aún
+  preflight completo/capture-diff en un runner estable, CI, revisión current-HEAD y merge.
+
 - `#NEXT.R8.ENTITIES.1236` — issue #11 re-audits world-entry visibility rows 1221–1227
   against C++ `Map::AddPlayerToMap`/`SendInitTransports`,
   `Player::UpdateVisibilityForPlayer`, `VisibleNotifier`, `_IsWithinDist`, and the exact
