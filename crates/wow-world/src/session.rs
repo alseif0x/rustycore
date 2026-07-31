@@ -41954,10 +41954,10 @@ impl WorldSession {
     }
 
     pub(crate) fn learn_known_spell_like_cpp(&mut self, spell_id: i32) {
-        let preserve_complete = self.represented_player_spell_rows_complete_like_cpp;
-        if !preserve_complete {
-            self.invalidate_represented_player_spell_rows_like_cpp();
-        }
+        // This low-level helper does not run the complete C++ AddSpell closure
+        // (ranks, dependencies, skills, traits and overrides). Retaining exact
+        // acquisition authority after it would make those mirrors stale.
+        self.invalidate_represented_player_spell_rows_like_cpp();
         if !self.known_spells.contains(&spell_id) {
             self.known_spells.push(spell_id);
         }
@@ -41965,35 +41965,6 @@ impl WorldSession {
             .remove(&spell_id);
         if let Some(controller) = &mut self.player_controller {
             controller.learn_spell(spell_id);
-        }
-        if preserve_complete {
-            self.represented_player_spell_rows_like_cpp
-                .entry(spell_id)
-                .and_modify(|row| {
-                    let was_disabled = row.disabled;
-                    let persisted_flags_changed = !row.active || was_disabled;
-                    if !was_disabled {
-                        row.active = true;
-                    }
-                    row.disabled = false;
-                    if persisted_flags_changed
-                        && matches!(
-                            row.state,
-                            RepresentedPlayerSpellStateLikeCpp::Unchanged
-                                | RepresentedPlayerSpellStateLikeCpp::Removed
-                        )
-                    {
-                        row.state = RepresentedPlayerSpellStateLikeCpp::Changed;
-                    }
-                })
-                .or_insert(RepresentedPlayerSpellLikeCpp {
-                    spell_id,
-                    active: true,
-                    disabled: false,
-                    dependent: false,
-                    favorite: false,
-                    state: RepresentedPlayerSpellStateLikeCpp::New,
-                });
         }
     }
 
@@ -120179,21 +120150,8 @@ mod tests {
         assert!(
             session
                 .complete_represented_player_spell_rows_like_cpp()
-                .is_some_and(|rows| {
-                    rows[&200].active
-                        && !rows[&200].disabled
-                        && rows[&200].state == RepresentedPlayerSpellStateLikeCpp::Changed
-                })
-        );
-        session.learn_known_spell_like_cpp(250);
-        assert!(
-            session
-                .complete_represented_player_spell_rows_like_cpp()
-                .is_some_and(|rows| {
-                    !rows[&250].active
-                        && !rows[&250].disabled
-                        && rows[&250].state == RepresentedPlayerSpellStateLikeCpp::Changed
-                })
+                .is_none(),
+            "a low-level runtime learn cannot preserve authority without the full AddSpell closure"
         );
 
         assert!(session.set_complete_represented_spell_trait_definition_ids_like_cpp([]));
@@ -120216,15 +120174,14 @@ mod tests {
         assert!(
             session
                 .complete_represented_player_spell_rows_like_cpp()
-                .is_some_and(|rows| rows[&400].state == RepresentedPlayerSpellStateLikeCpp::New),
-            "runtime learns must update rather than invalidate an authoritative PlayerSpellMap"
+                .is_none(),
+            "partial runtime learns must fail closed instead of retaining stale auxiliary authority"
         );
         session.remove_known_spell_like_cpp(400);
         assert!(
             session
                 .complete_represented_player_spell_rows_like_cpp()
-                .is_some_and(|rows| rows[&400].state == RepresentedPlayerSpellStateLikeCpp::Removed),
-            "runtime removals must retain an authoritative removed row"
+                .is_none()
         );
 
         session.set_known_spells_like_cpp(vec![100, 400]);
