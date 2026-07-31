@@ -44,6 +44,14 @@ remain real; "sends the packet and mutates DB" still does not imply full gamepla
   resolves the final last-wins edges first, rejects the complete ambiguous component for
   self-loops, cycles, multiple predecessors, or ranks outside `uint8`, and retains a tri-state
   diagnostic lookup so later acquisition planning fails closed.
+- [x] **Issue #163 — sign-extend narrow WDC4 signed-immediate fields.** The generic Rust WDC4
+  reader previously returned an unextended `u32` payload from `get_field_i32` when a signed field
+  occupied fewer than 32 bits. C++ explicitly extends `SignedImmediate` values before copying them
+  into the requested signed type (`DB2FileLoader.cpp:858-869`). Rust now does the same while
+  preserving raw unsigned access; synthetic bit-width fixtures and the real 3.4.3
+  `SpellEffect.EffectBasePoints` data pin both paths. This fixes signed acquisition payloads and
+  other existing `i32` consumers without treating the separate floating-point
+  `world.serverside_spell_effect` source as regular DB2 metadata.
 
 ---
 

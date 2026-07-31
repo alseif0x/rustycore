@@ -35,6 +35,12 @@ const SPELL_ATTR1_CAST_WHEN_LEARNED_LIKE_CPP: u32 = 0x8000_0000;
 const SUMMON_SLOT_MINIPET_LIKE_CPP: i64 = 5;
 const SUMMON_FROM_BATTLE_PET_JOURNAL_LIKE_CPP: u32 = 0x0020_0000;
 
+// C++ `SpellEffectEntry::EffectBasePoints` is `int32`
+// (`DB2Structure.h` / `SpellEffectLoadInfo`), and the hotfix
+// `spell_effect.EffectBasePoints` column has the same signed integer domain.
+// Do not confuse it with `world.serverside_spell_effect.EffectBasePoints`,
+// which is a float source outside this catalog: server-side spell keys are
+// explicitly seeded as `ServerSideMetadataUnavailable`.
 const SPELL_EFFECT_SQL: &str = concat!(
     "SELECT ID, DifficultyID, EffectIndex, Effect, EffectBasePoints, EffectDieSides, ",
     "EffectTriggerSpell, EffectMiscValue1, EffectMiscValue2, ImplicitTarget1, ",
@@ -292,6 +298,11 @@ pub struct SpellAcquisitionEffectLikeCpp {
     pub difficulty_id_raw: i64,
     pub effect_index_raw: i64,
     pub effect_type_raw: i64,
+    /// Raw regular DB2/hotfix `SpellEffectEntry::EffectBasePoints` (`int32`).
+    ///
+    /// C++ promotes this integer into `SpellEffectInfo::BasePoints` only
+    /// after loading; `base_points_die_sides_domain_checked` mirrors that
+    /// promotion and the subsequent `CalcBaseValue(nullptr)` rounding.
     pub effect_base_points_raw: i64,
     pub effect_die_sides_raw: i64,
     /// Exact IEEE-754 payloads. Keeping bits avoids normalizing NaNs while

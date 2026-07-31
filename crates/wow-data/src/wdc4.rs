@@ -523,7 +523,13 @@ impl Wdc4Reader {
 
     /// Read a field as i32 from a record index.
     pub fn get_field_i32(&self, record_idx: usize, field: usize) -> i32 {
-        self.read_field(record_idx, field) as i32
+        let info = &self.field_info[field];
+        let raw = self.read_field(record_idx, field);
+        if info.compression == CompressionType::BitpackedSigned {
+            sign_extend(raw, u32::from(info.field_size_bits))
+        } else {
+            raw as i32
+        }
     }
 
     /// Read a field as f32 from a record index.
@@ -1141,6 +1147,122 @@ mod tests {
         assert_eq!(sign_extend(0xFF, 8), -1);
         // 8-bit value 0x7F → 127
         assert_eq!(sign_extend(0x7F, 8), 127);
+        // Zero-width fields have no sign bit.
+        assert_eq!(sign_extend(0, 0), 0);
+        // A full-width signed field already has the correct two's-complement bits.
+        assert_eq!(sign_extend(0x8000_0000, 32), i32::MIN);
+    }
+
+    #[test]
+    fn get_field_i32_sign_extends_narrow_bitpacked_signed_like_cpp() {
+        let reader = Wdc4Reader {
+            header: Wdc4Header {
+                record_count: 2,
+                field_count: 2,
+                record_size: 1,
+                string_table_size: 0,
+                table_hash: 0,
+                _layout_hash: 0,
+                min_id: 1,
+                max_id: 2,
+                _locale: 0,
+                flags: 0,
+                id_index: 0,
+                total_field_count: 2,
+                _packed_data_offset: 0,
+                _lookup_column_count: 0,
+                field_storage_info_size: (2 * FIELD_STORAGE_INFO_SIZE) as u32,
+                common_data_size: 0,
+                pallet_data_size: 0,
+                section_count: 1,
+            },
+            field_info: vec![
+                FieldStorageInfo {
+                    field_offset_bits: 0,
+                    field_size_bits: 5,
+                    additional_data_size: 0,
+                    compression: CompressionType::BitpackedSigned,
+                    val1: 0,
+                    val2: 0,
+                    val3: 0,
+                },
+                FieldStorageInfo {
+                    field_offset_bits: 0,
+                    field_size_bits: 5,
+                    additional_data_size: 0,
+                    compression: CompressionType::Bitpacked,
+                    val1: 0,
+                    val2: 0,
+                    val3: 0,
+                },
+            ],
+            pallet_data: vec![Vec::new(), Vec::new()],
+            common_data: vec![HashMap::new(), HashMap::new()],
+            // 0b0_1111 is +15; 0b1_1111 is -1 in a signed five-bit field.
+            record_data: vec![0x0F, 0x1F],
+            record_ids: vec![1, 2],
+            copy_table: Vec::new(),
+            id_to_index: HashMap::from([(1, 0), (2, 1)]),
+            relationship_ids: vec![None, None],
+            record_offsets: Vec::new(),
+            record_sizes: vec![1, 1],
+            string_tables: Vec::new(),
+            record_string_table_indices: vec![None, None],
+        };
+
+        assert_eq!(reader.get_field_i32(0, 0), 15);
+        assert_eq!(reader.get_field_i32(1, 0), -1);
+        assert_eq!(
+            reader.get_field_i32(1, 1),
+            31,
+            "narrow unsigned Bitpacked fields must not be sign-extended"
+        );
+        assert_eq!(
+            reader.get_field_u32(1, 0),
+            0x1F,
+            "unsigned access must continue exposing the raw payload"
+        );
+    }
+
+    #[test]
+    fn real_spell_effect_base_points_decode_negative_int32_like_cpp() {
+        let path = [
+            "/home/server/woltk-server-core/Data/dbc/enUS/SpellEffect.db2",
+            "/home/server/woltk-server-core/Data/dbc/esES/SpellEffect.db2",
+        ]
+        .into_iter()
+        .map(std::path::Path::new)
+        .find(|path| path.exists());
+        let Some(path) = path else {
+            eprintln!("Skipping test: SpellEffect.db2 not found");
+            return;
+        };
+
+        let reader = Wdc4Reader::open(path).expect("failed to parse SpellEffect.db2");
+        let base_points = &reader.field_info[7];
+        assert_eq!(
+            base_points.compression,
+            CompressionType::BitpackedSigned,
+            "the 3.4.3 fixture stores regular SpellEffect.EffectBasePoints as a signed integer"
+        );
+
+        let (record_id, index, value) = reader
+            .iter_records()
+            .find_map(|(record_id, index)| {
+                let value = reader.get_field_i32(index, 7);
+                (value < 0).then_some((record_id, index, value))
+            })
+            .expect("the 3.4.3 SpellEffect fixture must contain negative base points");
+        let raw = reader.get_field_u32(index, 7);
+        assert_eq!(
+            value,
+            sign_extend(raw, u32::from(base_points.field_size_bits)),
+            "record {record_id} must retain its signed EffectBasePoints payload"
+        );
+        assert_ne!(
+            raw as i32, value,
+            "the fixture must exercise an actually narrow negative payload"
+        );
     }
 
     #[test]

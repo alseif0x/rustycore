@@ -1559,6 +1559,11 @@ fn skill_line_ability_source_from_wdc4_like_cpp(
     record_idx: usize,
     reader: &Wdc4Reader,
 ) -> SkillLineAbilitySourceRecordLikeCpp {
+    // Pinned 3.4.3 C++ declares `SkillLineAbilityEntry::SkillLine` and
+    // `SkillupSkillLineID` as `int16` (`DB2Structure.h`) and marks both
+    // `FT_SHORT` fields signed (`DB2LoadInfo.h`). The hotfix columns are
+    // signed `smallint` too. Preserve that source domain here: raw `0x8000`
+    // is `-32768`, not skill 32768.
     SkillLineAbilitySourceRecordLikeCpp {
         source: SkillStoreLoadSourceLikeCpp::Wdc4,
         id,
@@ -1582,6 +1587,10 @@ fn skill_race_class_info_source_from_wdc4_like_cpp(
     record_idx: usize,
     reader: &Wdc4Reader,
 ) -> SkillRaceClassInfoSourceRecordLikeCpp {
+    // Pinned 3.4.3 C++ declares `SkillRaceClassInfoEntry::SkillID` as
+    // `int16`; its DB2 load metadata and hotfix SQL `smallint` column are
+    // signed as well. Do not reinterpret a negative source bit pattern as
+    // an unsigned skill ID.
     SkillRaceClassInfoSourceRecordLikeCpp {
         source: SkillStoreLoadSourceLikeCpp::Wdc4,
         id,
@@ -1872,6 +1881,9 @@ fn skill_line_ability_from_source_like_cpp(
     record: SkillLineAbilitySourceRecordLikeCpp,
     diagnostics: &mut Vec<SkillStoreLoadDiagnosticLikeCpp>,
 ) -> Option<SkillLineAbilityRecord> {
+    // Source records retain SQL values in i128 so out-of-schema overlays can
+    // be diagnosed. Enforce C++'s signed-i16 source domain first, then expose
+    // only a nonnegative, validated identifier through the public u16 field.
     let skill_line = i16::try_from(record.skill_line)
         .ok()
         .and_then(|value| u16::try_from(value).ok());
@@ -1996,6 +2008,8 @@ fn skill_race_class_info_from_source_like_cpp(
     record: SkillRaceClassInfoSourceRecordLikeCpp,
     diagnostics: &mut Vec<SkillStoreLoadDiagnosticLikeCpp>,
 ) -> Option<SkillRaceClassInfoRecord> {
+    // As above, the public u16 is a post-validation representation; it does
+    // not widen C++ `SkillRaceClassInfoEntry::SkillID` beyond signed i16.
     let Some(skill_id) = i16::try_from(record.skill_id)
         .ok()
         .and_then(|value| u16::try_from(value).ok())
@@ -2313,6 +2327,61 @@ mod tests {
 
     fn skill_tier_row(id: u32, value: [u32; MAX_SKILL_STEP_LIKE_CPP]) -> SkillTiersRowLikeCpp {
         SkillTiersRowLikeCpp { id, value }
+    }
+
+    #[test]
+    fn signed_skill_identifier_0x8000_is_rejected_without_unsigned_reinterpretation() {
+        let signed_raw_0x8000 = i128::from(i16::MIN);
+        assert_eq!(u16::from_ne_bytes(i16::MIN.to_ne_bytes()), 0x8000);
+
+        for source in [
+            SkillStoreLoadSourceLikeCpp::Wdc4,
+            SkillStoreLoadSourceLikeCpp::OfficialSql,
+            SkillStoreLoadSourceLikeCpp::CustomSql,
+        ] {
+            let mut ability = ability_source(ability(1, 100, 1_000), source);
+            ability.skill_line = signed_raw_0x8000;
+            assert_eq!(
+                skill_line_ability_skill_key_from_source_like_cpp(&ability),
+                None,
+                "the signed DB2/SQL bit pattern must not become skill 32768"
+            );
+
+            let mut diagnostics = Vec::new();
+            assert!(skill_line_ability_from_source_like_cpp(ability, &mut diagnostics).is_none());
+            assert_eq!(
+                diagnostics,
+                [
+                    SkillStoreLoadDiagnosticLikeCpp::InvalidSkillLineAbilityIdentifier {
+                        source,
+                        record_id: 1,
+                        spell: 1_000,
+                        skill_line: signed_raw_0x8000,
+                        skillup_skill_line_id: 0,
+                    }
+                ]
+            );
+
+            let mut race_class = race_class_source(race_class_info(2, 100, 0, 1, 0, 0), source);
+            race_class.skill_id = signed_raw_0x8000;
+
+            let mut diagnostics = Vec::new();
+            assert!(
+                skill_race_class_info_from_source_like_cpp(race_class, &mut diagnostics).is_none()
+            );
+            assert_eq!(
+                diagnostics,
+                [
+                    SkillStoreLoadDiagnosticLikeCpp::InvalidSkillRaceClassInfoIdentifier {
+                        source,
+                        record_id: 2,
+                        race_mask: 1,
+                        skill_id: signed_raw_0x8000,
+                        class_mask: 1,
+                    }
+                ]
+            );
+        }
     }
 
     #[test]
