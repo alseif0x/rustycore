@@ -594,6 +594,24 @@ pub struct SpellInfo {
     pub effects: Vec<SpellEffectInfo>,
 }
 
+/// Missing or malformed data that prevents safe C++ primary-profession
+/// classification.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PrimaryProfessionSpellClassificationErrorLikeCpp {
+    InvalidSpellId {
+        spell_id: i32,
+    },
+    InvalidSkillId {
+        spell_id: i32,
+        effect_index: u32,
+        skill_id: i32,
+    },
+    MissingSkillLinePayload {
+        spell_id: i32,
+        skill_id: u32,
+    },
+}
+
 /// Represented subset of C++ `SpellPowerEntry` stored on `SpellInfo::PowerCosts`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SpellPowerCostInfoLikeCpp {
@@ -4989,6 +5007,138 @@ impl SpellInfo {
             .any(|effect| effect.effect == effect_type)
     }
 
+    /// Returns every distinct primary-profession skill line referenced by a
+    /// C++ `SPELL_EFFECT_SKILL` effect.
+    ///
+    /// C++ treats a missing `SkillLine` as non-primary. Rust's effective store
+    /// can know an SQL-only record identity without hydrating category/parent
+    /// payload, so an authorization caller must distinguish that case and fail
+    /// closed rather than silently granting capacity.
+    ///
+    /// This returns ordered effect metadata only. It is not the set of skills
+    /// learned by `Player::AddSpell`, whose C++ `SpellLearnSkillNode` selects
+    /// a narrower outcome; the caller must resolve the actual learn path.
+    ///
+    /// The caller must first resolve this `SpellInfo` through the effective
+    /// spell-key authority. This payload-only predicate cannot prove that a
+    /// formerly hydrated spell remains effective after SQL/hotfix removal.
+    pub fn primary_profession_skill_effect_ids_like_cpp(
+        &self,
+        skill_lines: &crate::skill_talent::SkillLineStore,
+    ) -> Result<Vec<u32>, PrimaryProfessionSpellClassificationErrorLikeCpp> {
+        let mut skill_effects: Vec<_> = self
+            .effects
+            .iter()
+            .filter(|effect| effect.effect == spell_effect_types::SPELL_EFFECT_SKILL)
+            .collect();
+        skill_effects.sort_by_key(|effect| effect.effect_index);
+
+        let mut seen_primary_skills = BTreeSet::new();
+        let mut primary_skills = Vec::new();
+        for effect in skill_effects {
+            let skill_id = u32::try_from(effect.effect_misc_value_1).map_err(|_| {
+                PrimaryProfessionSpellClassificationErrorLikeCpp::InvalidSkillId {
+                    spell_id: self.spell_id,
+                    effect_index: effect.effect_index,
+                    skill_id: effect.effect_misc_value_1,
+                }
+            })?;
+            let Some(is_primary) = skill_lines.is_primary_profession_skill_like_cpp(skill_id)
+            else {
+                return Err(
+                    PrimaryProfessionSpellClassificationErrorLikeCpp::MissingSkillLinePayload {
+                        spell_id: self.spell_id,
+                        skill_id,
+                    },
+                );
+            };
+            if is_primary && seen_primary_skills.insert(skill_id) {
+                primary_skills.push(skill_id);
+            }
+        }
+
+        Ok(primary_skills)
+    }
+
+    /// C++ `SpellInfo::IsPrimaryProfession`.
+    ///
+    /// This is a boolean property of the spell's effects, not a description
+    /// of which skills `Player::AddSpell` will learn. If partial metadata
+    /// makes one effect undecidable, a later hydrated primary effect still
+    /// proves the boolean result; otherwise the missing payload fails closed.
+    pub fn is_primary_profession_like_cpp(
+        &self,
+        skill_lines: &crate::skill_talent::SkillLineStore,
+    ) -> Result<bool, PrimaryProfessionSpellClassificationErrorLikeCpp> {
+        let mut skill_effects: Vec<_> = self
+            .effects
+            .iter()
+            .filter(|effect| effect.effect == spell_effect_types::SPELL_EFFECT_SKILL)
+            .collect();
+        skill_effects.sort_by_key(|effect| effect.effect_index);
+
+        let mut undecidable = None;
+        for effect in skill_effects {
+            let skill_id = match u32::try_from(effect.effect_misc_value_1) {
+                Ok(skill_id) => skill_id,
+                Err(_) => {
+                    undecidable.get_or_insert(
+                        PrimaryProfessionSpellClassificationErrorLikeCpp::InvalidSkillId {
+                            spell_id: self.spell_id,
+                            effect_index: effect.effect_index,
+                            skill_id: effect.effect_misc_value_1,
+                        },
+                    );
+                    continue;
+                }
+            };
+            match skill_lines.is_primary_profession_skill_like_cpp(skill_id) {
+                Some(true) => return Ok(true),
+                Some(false) => {}
+                None => {
+                    undecidable.get_or_insert(
+                        PrimaryProfessionSpellClassificationErrorLikeCpp::MissingSkillLinePayload {
+                            spell_id: self.spell_id,
+                            skill_id,
+                        },
+                    );
+                }
+            }
+        }
+
+        undecidable.map_or(Ok(false), Err)
+    }
+
+    /// C++ `SpellInfo::IsPrimaryProfessionFirstRank`.
+    ///
+    /// `SpellInfo::GetRank()` returns one for an unranked spell. That differs
+    /// intentionally from Rust's existing `SpellMgr::GetSpellRank`-shaped
+    /// accessor, which returns zero when no chain node exists.
+    pub fn is_primary_profession_first_rank_like_cpp(
+        &self,
+        skill_lines: &crate::skill_talent::SkillLineStore,
+        spell_chains: &SpellChainStoreLikeCpp,
+    ) -> Result<bool, PrimaryProfessionSpellClassificationErrorLikeCpp> {
+        let spell_id = u32::try_from(self.spell_id).map_err(|_| {
+            PrimaryProfessionSpellClassificationErrorLikeCpp::InvalidSpellId {
+                spell_id: self.spell_id,
+            }
+        })?;
+        let rank = spell_chains
+            .spell_chain_node_like_cpp(spell_id)
+            .map(|node| node.rank)
+            .unwrap_or(1);
+        // With complete C++ data this is equivalent to the original
+        // `IsPrimaryProfession() && GetRank() == 1`. Resolving rank first also
+        // avoids requiring partial SkillLine payload when rank already proves
+        // the result false.
+        if rank != 1 {
+            return Ok(false);
+        }
+
+        self.is_primary_profession_like_cpp(skill_lines)
+    }
+
     pub fn requires_spell_focus_like_cpp(&self) -> bool {
         self.requires_spell_focus != 0
     }
@@ -6483,6 +6633,37 @@ ORDER BY sm.ID, se.EffectIndex
 mod tests {
     use super::*;
 
+    fn test_skill_line_like_cpp(
+        id: u32,
+        category_id: i8,
+        parent_skill_line_id: u32,
+    ) -> crate::skill_talent::SkillLineEntry {
+        crate::skill_talent::SkillLineEntry {
+            id,
+            display_name: String::new(),
+            alternate_verb: String::new(),
+            description: String::new(),
+            horde_display_name: String::new(),
+            override_source_info_display_name: String::new(),
+            category_id,
+            spell_icon_file_id: 0,
+            can_link: 0,
+            parent_skill_line_id,
+            parent_tier_index: 0,
+            flags: 0,
+            spell_book_spell_id: 0,
+        }
+    }
+
+    fn test_skill_effect_like_cpp(effect_index: u32, skill_id: i32) -> SpellEffectInfo {
+        SpellEffectInfo {
+            effect_index,
+            effect: spell_effect_types::SPELL_EFFECT_SKILL,
+            effect_misc_value_1: skill_id,
+            ..Default::default()
+        }
+    }
+
     fn test_effect_like_cpp(effect_index: u32, effect_aura: i32) -> SpellEffectInfo {
         SpellEffectInfo {
             effect_index,
@@ -6500,6 +6681,154 @@ mod tests {
             implicit_target_1: 0,
             implicit_target_2: 0,
         }
+    }
+
+    #[test]
+    fn primary_profession_spell_classifier_matches_cpp_root_and_rank_rules() {
+        let skill_lines = crate::skill_talent::SkillLineStore::from_entries([
+            test_skill_line_like_cpp(100, 11, 0),
+            test_skill_line_like_cpp(101, 11, 100),
+            test_skill_line_like_cpp(200, 9, 0),
+            test_skill_line_like_cpp(300, 11, 0),
+        ]);
+        let mut spell = SpellStore::empty_spell_info_like_cpp(1_000);
+        spell.effects = vec![
+            test_skill_effect_like_cpp(2, 100),
+            test_skill_effect_like_cpp(1, 300),
+            test_skill_effect_like_cpp(2, 101),
+            test_skill_effect_like_cpp(3, 200),
+            test_skill_effect_like_cpp(4, 300),
+        ];
+
+        assert_eq!(
+            spell
+                .primary_profession_skill_effect_ids_like_cpp(&skill_lines)
+                .unwrap(),
+            vec![300, 100],
+            "primary lines follow C++ effect-index order and deduplicate at first appearance"
+        );
+        assert!(
+            spell
+                .is_primary_profession_first_rank_like_cpp(
+                    &skill_lines,
+                    &SpellChainStoreLikeCpp::default(),
+                )
+                .unwrap(),
+            "C++ SpellInfo::GetRank returns one without a ChainEntry"
+        );
+
+        let rank_two = SpellChainStoreLikeCpp {
+            chains_by_spell_id: BTreeMap::from([(
+                1_000,
+                SpellChainNodeLikeCpp {
+                    prev_spell_id: Some(999),
+                    next_spell_id: None,
+                    first_spell_id: 999,
+                    last_spell_id: 1_000,
+                    rank: 2,
+                },
+            )]),
+        };
+        assert!(
+            !spell
+                .is_primary_profession_first_rank_like_cpp(&skill_lines, &rank_two)
+                .unwrap()
+        );
+
+        let mut unhydrated_rank_two = SpellStore::empty_spell_info_like_cpp(1_000);
+        unhydrated_rank_two.effects = vec![test_skill_effect_like_cpp(0, 999)];
+        let partial_skill_lines =
+            crate::skill_talent::SkillLineStore::from_hydrated_entries_and_effective_ids_like_cpp(
+                [test_skill_line_like_cpp(100, 11, 0)],
+                [100, 999],
+            );
+        assert_eq!(
+            unhydrated_rank_two
+                .is_primary_profession_first_rank_like_cpp(&partial_skill_lines, &rank_two,),
+            Ok(false),
+            "rank two is decidably false without requiring unrelated partial payload"
+        );
+
+        let mut partly_hydrated_rank_one = SpellStore::empty_spell_info_like_cpp(1_001);
+        partly_hydrated_rank_one.effects = vec![
+            test_skill_effect_like_cpp(0, 999),
+            test_skill_effect_like_cpp(1, 100),
+        ];
+        assert_eq!(
+            partly_hydrated_rank_one.is_primary_profession_first_rank_like_cpp(
+                &partial_skill_lines,
+                &SpellChainStoreLikeCpp::default(),
+            ),
+            Ok(true),
+            "one hydrated primary effect proves C++'s boolean result"
+        );
+
+        let mut only_unhydrated_rank_one = SpellStore::empty_spell_info_like_cpp(1_002);
+        only_unhydrated_rank_one.effects = vec![test_skill_effect_like_cpp(0, 999)];
+        assert_eq!(
+            only_unhydrated_rank_one.is_primary_profession_first_rank_like_cpp(
+                &partial_skill_lines,
+                &SpellChainStoreLikeCpp::default(),
+            ),
+            Err(
+                PrimaryProfessionSpellClassificationErrorLikeCpp::MissingSkillLinePayload {
+                    spell_id: 1_002,
+                    skill_id: 999,
+                }
+            )
+        );
+    }
+
+    #[test]
+    fn primary_profession_spell_classifier_distinguishes_absent_unhydrated_and_invalid_skill() {
+        let skill_lines =
+            crate::skill_talent::SkillLineStore::from_hydrated_entries_and_effective_ids_like_cpp(
+                [test_skill_line_like_cpp(100, 11, 0)],
+                [100, 999],
+            );
+        let mut unhydrated = SpellStore::empty_spell_info_like_cpp(1_000);
+        unhydrated.effects = vec![test_skill_effect_like_cpp(0, 999)];
+        assert_eq!(
+            unhydrated.primary_profession_skill_effect_ids_like_cpp(&skill_lines),
+            Err(
+                PrimaryProfessionSpellClassificationErrorLikeCpp::MissingSkillLinePayload {
+                    spell_id: 1_000,
+                    skill_id: 999,
+                }
+            )
+        );
+
+        let mut absent = SpellStore::empty_spell_info_like_cpp(1_001);
+        absent.effects = vec![test_skill_effect_like_cpp(0, 998)];
+        assert_eq!(
+            absent.primary_profession_skill_effect_ids_like_cpp(&skill_lines),
+            Ok(Vec::new()),
+            "a failed C++ LookupEntry is non-primary"
+        );
+
+        let mut invalid = SpellStore::empty_spell_info_like_cpp(1_002);
+        invalid.effects = vec![test_skill_effect_like_cpp(2, -1)];
+        assert_eq!(
+            invalid.primary_profession_skill_effect_ids_like_cpp(&skill_lines),
+            Err(
+                PrimaryProfessionSpellClassificationErrorLikeCpp::InvalidSkillId {
+                    spell_id: 1_002,
+                    effect_index: 2,
+                    skill_id: -1,
+                }
+            )
+        );
+
+        let mut invalid_spell = SpellStore::empty_spell_info_like_cpp(1_003);
+        invalid_spell.spell_id = -1;
+        invalid_spell.effects = vec![test_skill_effect_like_cpp(0, 100)];
+        assert_eq!(
+            invalid_spell.is_primary_profession_first_rank_like_cpp(
+                &skill_lines,
+                &SpellChainStoreLikeCpp::default(),
+            ),
+            Err(PrimaryProfessionSpellClassificationErrorLikeCpp::InvalidSpellId { spell_id: -1 })
+        );
     }
 
     #[test]

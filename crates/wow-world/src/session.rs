@@ -5280,6 +5280,9 @@ pub struct WorldSession {
     /// C++ `CONFIG_MAX_PLAYER_LEVEL`. `RestMgr::SetRestBonus` reads this value
     /// directly; `Player::IsMaxLevel` reads the expansion-bounded active field.
     max_player_level_config_like_cpp: u32,
+    /// C++ `CONFIG_MAX_PRIMARY_TRADE_SKILL`, kept independent from talent
+    /// `CharacterPoints` and from the two physical profession associations.
+    max_primary_trade_skills_like_cpp: u8,
     /// C++ `World::IsPvPRealm()` classification.
     is_pvp_realm_like_cpp: bool,
     /// C++ `World::IsFFAPvPRealm()` classification.
@@ -7378,6 +7381,8 @@ impl WorldSession {
             total_played_time: 0,
             level_played_time: 0,
             max_player_level_config_like_cpp: 80,
+            max_primary_trade_skills_like_cpp:
+                crate::profession::DEFAULT_MAX_PRIMARY_TRADE_SKILLS_LIKE_CPP,
             is_pvp_realm_like_cpp: false,
             is_ffa_pvp_realm_like_cpp: false,
             max_recruit_a_friend_bonus_player_level_like_cpp: 85,
@@ -32932,6 +32937,19 @@ impl WorldSession {
         self.rest_offline_wilderness_rate_like_cpp = rest_offline_wilderness_rate;
         self.rest_offline_tavern_or_city_rate_like_cpp = rest_offline_tavern_or_city_rate;
         self.rest_ingame_rate_like_cpp = rest_ingame_rate;
+    }
+
+    pub fn set_max_primary_trade_skills_like_cpp(&mut self, configured: u8) {
+        self.max_primary_trade_skills_like_cpp =
+            if configured <= crate::profession::MAX_PRIMARY_TRADE_SKILLS_CONFIG_LIKE_CPP {
+                configured
+            } else {
+                crate::profession::DEFAULT_MAX_PRIMARY_TRADE_SKILLS_LIKE_CPP
+            };
+    }
+
+    pub(crate) fn max_primary_trade_skills_like_cpp(&self) -> u8 {
+        self.max_primary_trade_skills_like_cpp
     }
 
     pub fn set_recruit_a_friend_xp_config_like_cpp(

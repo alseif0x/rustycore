@@ -25,6 +25,12 @@ use std::str::FromStr;
 const WORLD_CONFIG_REGISTRY_TSV: &str =
     include_str!("../../../docs/migration/inventory/cpp-world-config-registry.tsv");
 
+/// `MaxPrimaryTradeSkill` default from C++ `World.cpp` and
+/// `worldserver.conf.dist`.
+pub const DEFAULT_MAX_PRIMARY_TRADE_SKILLS_LIKE_CPP: u8 = 2;
+/// Documented inclusive upper bound for `MaxPrimaryTradeSkill`.
+pub const MAX_PRIMARY_TRADE_SKILLS_CONFIG_LIKE_CPP: u8 = 11;
+
 // ---------------------------------------------------------------------------
 // Error type
 // ---------------------------------------------------------------------------
@@ -777,6 +783,16 @@ fn apply_world_config_validations(values: &mut WorldConfigSet) {
 
     int_above_to(values, "CONFIG_DAILY_QUEST_RESET_TIME_HOUR", 23, 3);
     int_above_to(values, "CONFIG_WEEKLY_QUEST_RESET_TIME_WDAY", 6, 3);
+    // `worldserver.conf.dist` documents 0..11. The target C++ reads the
+    // value without validating it, but Rust must reject negative values
+    // (represented as wrapped u32 here) before downstream u8 conversion.
+    int_outside_to(
+        values,
+        "CONFIG_MAX_PRIMARY_TRADE_SKILL",
+        0,
+        u32::from(MAX_PRIMARY_TRADE_SKILLS_CONFIG_LIKE_CPP),
+        u32::from(DEFAULT_MAX_PRIMARY_TRADE_SKILLS_LIKE_CPP),
+    );
     int_above_to(values, "CONFIG_MIN_PETITION_SIGNS", 4, 4);
 
     if let (Some(gm_level), Some(start_level)) = (
@@ -1672,6 +1688,7 @@ Rate.Rest.Offline.InWilderness = 0.5
             values.get_float("RATE_REST_OFFLINE_IN_WILDERNESS"),
             Some(0.5)
         );
+        assert_eq!(values.get_int("CONFIG_MAX_PRIMARY_TRADE_SKILL"), Some(2));
     }
 
     #[test]
@@ -1713,6 +1730,7 @@ Currency.ResetInterval = 0
 RecruitAFriend.MaxLevel = 91
 Quests.DailyResetTime = 24
 Quests.WeeklyResetWDay = 7
+MaxPrimaryTradeSkill = 12
 MinPetitionSigns = 5
 GM.StartLevel = 0
 CleanOldMailTime = 24
@@ -1809,6 +1827,7 @@ PacketSpoof.BanMode = 1
             values.get_int("CONFIG_WEEKLY_QUEST_RESET_TIME_WDAY"),
             Some(3)
         );
+        assert_eq!(values.get_int("CONFIG_MAX_PRIMARY_TRADE_SKILL"), Some(2));
         assert_eq!(values.get_int("CONFIG_MIN_PETITION_SIGNS"), Some(4));
         assert_eq!(values.get_int("CONFIG_START_GM_LEVEL"), Some(1));
         assert_eq!(values.get_int("CONFIG_CLEAN_OLD_MAIL_TIME"), Some(4));
@@ -1858,6 +1877,21 @@ PacketSpoof.BanMode = 1
         );
         assert_eq!(values.get_int("CONFIG_PVP_TOKEN_COUNT"), Some(1));
         assert_eq!(values.get_int("CONFIG_PACKET_SPOOF_BANMODE"), Some(0));
+    }
+
+    #[test]
+    fn test_max_primary_trade_skill_accepts_documented_range_and_repairs_negative() {
+        let _guard = global_config_lock();
+
+        for (configured, expected) in [("0", 0), ("1", 1), ("2", 2), ("11", 11), ("-1", 2)] {
+            load_config_from_str(&format!("MaxPrimaryTradeSkill = {configured}\n"))
+                .expect("load failed");
+            assert_eq!(
+                load_world_config_values().get_int("CONFIG_MAX_PRIMARY_TRADE_SKILL"),
+                Some(expected),
+                "configured value {configured}"
+            );
+        }
     }
 
     #[test]

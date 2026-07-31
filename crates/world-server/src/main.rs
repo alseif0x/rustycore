@@ -5511,6 +5511,7 @@ async fn main() -> Result<ExitCode> {
         // `WorldConfigSet` resolves the external `MaxPlayerLevel` key and indexes
         // the validated value by the matching C++ enum name.
         max_player_level_config: world_config_u32(&world_configs, "CONFIG_MAX_PLAYER_LEVEL", 80),
+        max_primary_trade_skills: max_primary_trade_skills_like_cpp(&world_configs),
         is_pvp_realm: is_pvp_realm_type_like_cpp(world_config_u32(
             &world_configs,
             "CONFIG_GAME_TYPE",
@@ -7013,6 +7014,16 @@ fn world_config_u8(configs: &WorldConfigSet, enum_name: &str, default: u8) -> u8
         .get_int(enum_name)
         .map(|value| value as u8)
         .unwrap_or(default)
+}
+
+fn max_primary_trade_skills_like_cpp(configs: &WorldConfigSet) -> u8 {
+    configs
+        .get_int("CONFIG_MAX_PRIMARY_TRADE_SKILL")
+        .filter(|configured| {
+            *configured <= u32::from(wow_config::MAX_PRIMARY_TRADE_SKILLS_CONFIG_LIKE_CPP)
+        })
+        .and_then(|configured| u8::try_from(configured).ok())
+        .unwrap_or(wow_config::DEFAULT_MAX_PRIMARY_TRADE_SKILLS_LIKE_CPP)
 }
 
 fn world_config_u32(configs: &WorldConfigSet, enum_name: &str, default: u32) -> u32 {
@@ -13343,6 +13354,7 @@ async fn create_session(
         resources.rest_offline_tavern_or_city_rate,
         resources.rest_ingame_rate,
     );
+    session.set_max_primary_trade_skills_like_cpp(resources.max_primary_trade_skills);
     session.set_pvp_realm_like_cpp(resources.is_pvp_realm);
     session.set_ffa_pvp_realm_like_cpp(resources.is_ffa_pvp_realm);
     session.set_recruit_a_friend_xp_config_like_cpp(
@@ -15028,8 +15040,9 @@ mod tests {
         materialize_game_event_quest_complete_db_bridge_like_cpp,
         materialize_game_event_world_event_state_db_bridge_like_cpp,
         max_core_stuck_time_ms_like_cpp, max_core_stuck_time_secs_like_cpp,
-        min_world_update_time_ms_like_cpp, mmap_runtime_config_like_cpp,
-        next_equipment_set_guid_allocator_start_like_cpp, next_item_guid_allocator_start_like_cpp,
+        max_primary_trade_skills_like_cpp, min_world_update_time_ms_like_cpp,
+        mmap_runtime_config_like_cpp, next_equipment_set_guid_allocator_start_like_cpp,
+        next_item_guid_allocator_start_like_cpp,
         next_void_storage_item_id_allocator_start_like_cpp,
         normalize_realm_security_level_like_cpp, normalize_realm_type_like_cpp,
         normalized_realm_name_like_cpp, persisted_respawn_info_from_row_like_cpp,
@@ -18451,6 +18464,54 @@ Expansion = 9
             4465
         );
         assert_eq!(world_config_u8(&configs, "CONFIG_EXPANSION", 2), 9);
+    }
+
+    #[test]
+    fn primary_profession_capacity_config_and_session_resource_wiring_are_pinned() {
+        let _guard = TEST_LOCK.lock().expect("test lock poisoned");
+
+        for (configured, expected) in [
+            (None, 2),
+            (Some("0"), 0),
+            (Some("1"), 1),
+            (Some("2"), 2),
+            (Some("11"), 11),
+            (Some("-1"), 2),
+            (Some("12"), 2),
+        ] {
+            let source = configured
+                .map(|value| format!("MaxPrimaryTradeSkill = {value}\n"))
+                .unwrap_or_default();
+            wow_config::load_config_from_str(&source).expect("config should load");
+            let configs = wow_config::load_world_config_values();
+            assert_eq!(
+                max_primary_trade_skills_like_cpp(&configs),
+                expected,
+                "configured value {configured:?}"
+            );
+        }
+
+        let source =
+            fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/main.rs"))
+                .expect("world-server source should be readable");
+        let materialization_needle = [
+            "max_primary_trade_skills:",
+            " max_primary_trade_skills_like_cpp(&world_configs),",
+        ]
+        .concat();
+        let propagation_needle = [
+            "session.set_max_primary_trade_skills_like_cpp(",
+            "resources.max_primary_trade_skills);",
+        ]
+        .concat();
+        assert!(
+            source.contains(&materialization_needle),
+            "SessionResources must materialize the validated configuration"
+        );
+        assert!(
+            source.contains(&propagation_needle),
+            "create_session must propagate SessionResources into WorldSession"
+        );
     }
 
     #[test]
