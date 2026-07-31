@@ -100,12 +100,13 @@ use wow_data::{
     PlayerCreateInfoCustomSpellStoreLikeCpp, PlayerCreateInfoStoreLikeCpp, PlayerStatsStore,
     PvpItemStore, RandPropPointsStore, ScriptIdLikeCpp, ScriptNameInternerLikeCpp,
     ServersideSpellInfoLikeCpp, ServersideSpellStoreLikeCpp, ShieldBlockRegularGameTableLikeCpp,
-    SkillLineStore, SkillRangeTypeLikeCpp, SkillStore, SkillTiersStoreLikeCpp, SpellAreaLikeCpp,
-    SpellAreaStoreLikeCpp, SpellAuraOptionsStore, SpellAuraRestrictionsStore, SpellCategoryStore,
-    SpellChainStoreLikeCpp, SpellCustomAttributeStoreLikeCpp, SpellDurationStore,
-    SpellEnchantProcEntryLikeCpp, SpellEnchantProcStoreLikeCpp, SpellEquippedItemsEntry,
-    SpellEquippedItemsStore, SpellGroupStackRuleLikeCpp, SpellGroupStackRuleStoreLikeCpp,
-    SpellGroupStoreLikeCpp, SpellItemEnchantmentConditionStore, SpellItemEnchantmentStore,
+    SkillLineStore, SkillRangeTypeLikeCpp, SkillStore, SkillTiersStoreLikeCpp,
+    SpellAcquisitionCatalogLikeCpp, SpellAreaLikeCpp, SpellAreaStoreLikeCpp, SpellAuraOptionsStore,
+    SpellAuraRestrictionsStore, SpellCategoryStore, SpellChainStoreLikeCpp,
+    SpellCustomAttributeStoreLikeCpp, SpellDurationStore, SpellEnchantProcEntryLikeCpp,
+    SpellEnchantProcStoreLikeCpp, SpellEquippedItemsEntry, SpellEquippedItemsStore,
+    SpellGroupStackRuleLikeCpp, SpellGroupStackRuleStoreLikeCpp, SpellGroupStoreLikeCpp,
+    SpellItemEnchantmentConditionStore, SpellItemEnchantmentStore, SpellLearnSkillLookupLikeCpp,
     SpellLearnSkillNodeLikeCpp, SpellLearnSkillStoreLikeCpp, SpellLearnSpellNodeLikeCpp,
     SpellLearnSpellStoreLikeCpp, SpellLevelsStore, SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp,
     SpellMiscStore, SpellPetAuraStoreLikeCpp, SpellProcEntryLikeCpp, SpellProcStoreLikeCpp,
@@ -5843,6 +5844,7 @@ pub struct WorldSession {
     // ── Spell casting ──────────────────────────────────────────────
     /// Spell store (metadata for all known spells: cast time, cooldown, effects, etc.)
     pub spell_store: Option<Arc<SpellStore>>,
+    spell_acquisition_catalog: Option<Arc<SpellAcquisitionCatalogLikeCpp>>,
     spell_levels_store: Option<Arc<SpellLevelsStore>>,
     talent_store: Option<Arc<TalentStore>>,
     talent_tab_store: Option<Arc<TalentTabStore>>,
@@ -7672,6 +7674,7 @@ impl WorldSession {
             visible_auras: HashMap::new(),
             canonical_threat_aura_snapshots_like_cpp: HashMap::new(),
             spell_store: None,
+            spell_acquisition_catalog: None,
             spell_levels_store: None,
             talent_store: None,
             talent_tab_store: None,
@@ -25535,6 +25538,14 @@ impl WorldSession {
         self.spell_store.as_ref()
     }
 
+    pub fn set_spell_acquisition_catalog(&mut self, catalog: Arc<SpellAcquisitionCatalogLikeCpp>) {
+        self.spell_acquisition_catalog = Some(catalog);
+    }
+
+    pub(crate) fn spell_acquisition_catalog(&self) -> Option<&Arc<SpellAcquisitionCatalogLikeCpp>> {
+        self.spell_acquisition_catalog.as_ref()
+    }
+
     pub fn set_spell_levels_store(&mut self, store: Arc<SpellLevelsStore>) {
         self.spell_levels_store = Some(store);
     }
@@ -25860,9 +25871,22 @@ impl WorldSession {
         &self,
         spell_id: u32,
     ) -> Option<&SpellLearnSkillNodeLikeCpp> {
+        match self.spell_learn_skill_lookup_like_cpp(spell_id) {
+            SpellLearnSkillLookupLikeCpp::Present(node) => Some(node),
+            SpellLearnSkillLookupLikeCpp::CoveredWithoutNode
+            | SpellLearnSkillLookupLikeCpp::Indeterminate(_)
+            | SpellLearnSkillLookupLikeCpp::MissingCoverage => None,
+        }
+    }
+
+    pub(crate) fn spell_learn_skill_lookup_like_cpp(
+        &self,
+        spell_id: u32,
+    ) -> SpellLearnSkillLookupLikeCpp<'_> {
         self.spell_learn_skill_store
             .as_ref()
-            .and_then(|store| store.get_spell_learn_skill_like_cpp(spell_id))
+            .map(|store| store.spell_learn_skill_lookup_like_cpp(spell_id))
+            .unwrap_or(SpellLearnSkillLookupLikeCpp::MissingCoverage)
     }
 
     pub fn set_spell_learn_spell_store(&mut self, store: Arc<SpellLearnSpellStoreLikeCpp>) {
@@ -65184,6 +65208,28 @@ mod tests {
     }
 
     #[test]
+    fn spell_acquisition_catalog_arc_is_shared_with_session() {
+        let (mut session, _, _) = make_session();
+        let catalog = Arc::new(
+            SpellAcquisitionCatalogLikeCpp::from_effective_rows_like_cpp(
+                std::iter::empty(),
+                wow_data::EffectiveSpellAcquisitionRowsLikeCpp::default(),
+                wow_data::SpellAcquisitionTableHashesLikeCpp::default(),
+                Vec::new(),
+            ),
+        );
+
+        session.set_spell_acquisition_catalog(Arc::clone(&catalog));
+
+        assert!(Arc::ptr_eq(
+            &catalog,
+            session
+                .spell_acquisition_catalog()
+                .expect("the process-wide catalog must be installed")
+        ));
+    }
+
+    #[test]
     fn player_interaction_data_has_one_exact_reset_and_match_owner_like_cpp() {
         let trainer_a = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 100, 1);
         let trainer_b = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 101, 1);
@@ -65847,6 +65893,7 @@ mod tests {
                     },
                 ),
             ]),
+            ..Default::default()
         }
     }
 
@@ -66594,6 +66641,7 @@ mod tests {
                     },
                 ),
             ]),
+            ..Default::default()
         }));
         session.set_player_skill_records_like_cpp(HashMap::from([(
             755,
@@ -66642,6 +66690,7 @@ mod tests {
                     maxvalue: 150,
                 },
             )]),
+            ..Default::default()
         }));
         session.set_player_skill_records_like_cpp(HashMap::from([(
             755,
@@ -71220,6 +71269,10 @@ mod tests {
         let (session, _, _) = make_session();
 
         assert!(session.spell_learn_skill_like_cpp(10).is_none());
+        assert_eq!(
+            session.spell_learn_skill_lookup_like_cpp(10),
+            wow_data::SpellLearnSkillLookupLikeCpp::MissingCoverage
+        );
     }
 
     #[test]
@@ -71246,6 +71299,10 @@ mod tests {
             })
         );
         assert!(session.spell_learn_skill_like_cpp(21).is_none());
+        assert_eq!(
+            session.spell_learn_skill_lookup_like_cpp(21),
+            wow_data::SpellLearnSkillLookupLikeCpp::MissingCoverage
+        );
     }
 
     #[test]

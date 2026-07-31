@@ -109,6 +109,8 @@ last-writer-wins policy.
 | Canonical map runtime | `wow_map::MapManager` | canonical global map loop, grid/spawn/respawn paths, explicit selected legacy-result adapters | world-server orchestration and session map/player bridges | process lifetime; canonical loop uses the configured map interval; preserves the C++ `Map::Update` phase order represented by the ADR | Becomes the sole map/entity authority only after every migrated method has parity tests and the corresponding legacy writer is removed. |
 | Creature legacy/canonical mirror | canonical loaded-grid records are mirrored into `wow_world::MapManager`; selected lifecycle, movement, aggro, attack-stop, melee, health, and respawn outcomes are explicitly bridged back to canonical state | named bridge functions in `world-server`, including `mirror_loaded_grid_creature_to_legacy_like_cpp` and the `run_legacy_creature_*_and_deliver_once_like_cpp` family | both runtimes and post-lock packet/command delivery | load/respawn synchronization begins canonical → legacy; only explicitly modelled runtime outcomes travel legacy → canonical; delivery occurs after map locks are released | Remove one bridge only when its destination runtime becomes authoritative for that whole transition. Never add a generic bidirectional sync. |
 | Represented player gameplay state | mostly fields on `wow_world::WorldSession`; canonical value types and partial state also exist in `wow_entities::Player` | session handlers and session update code | packet builders, persistence helpers, `PlayerRegistry` summaries, canonical snapshot bridges | connection/selected-character lifetime; `canonical_player_entity_snapshot_*_like_cpp` currently rebuilds a `Player` snapshot from represented session fields | #133's later ownership work must migrate one complete responsibility at a time until `Player` is the mutable gameplay owner and `WorldSession` is only the connection/session bridge. |
+| Effective skill metadata | `wow_data::SkillLineStore` owns final `SkillLine` identity/acquisition fields; `wow_data::SkillStore` owns final `SkillLineAbility` and `SkillRaceClassInfo` rows plus their derived indexes | `world-server` bootstrap composes WDC4 → official SQL → custom SQL → final removals once; no runtime writer | spell loaders and gameplay validation read immutable stores shared with sessions | process lifetime; `SkillLine` is composed first, then dependent rows are filtered and every index is rebuilt from final records in ascending ID order | Retire the specialized acquisition projections only when the general effective DB2 authority carries the same checked payload and coverage states. Never reactivate the raw WDC-only `SkillStore::load` path in production. |
+| Effective spell-acquisition metadata | `wow_data::SpellAcquisitionCatalogLikeCpp`, a compact immutable projection of the seven acquisition source families | `world-server` bootstrap composes and publishes one `Arc`; no handler or session mutates it | derived spell-learning loaders now; trainer planning in #164; sessions receive the same `Arc`, not the seven raw stores | process lifetime; exact regular SpellInfo keys seed covered/zero distinction, while server-side keys without validated acquisition payload are explicitly indeterminate | Remove the specialized catalog, or feed it from the general store, once full effective `SpellInfo` payload authority exists. This row does not authorize packet, persistence, spell, skill, money, or battle-pet mutation. |
 | Handler registration and dispatch-arm contract | the sole `inventory::collect!(PacketHandlerEntry)` in `wow-handler`, link-time `inventory::iter<PacketHandlerEntry>` consumed by `wow_handler`/`WorldSession`, and the concrete `WorldSession::dispatch_packet` opcode arms | unconditional module-item `inventory::submit!` declarations owned logically by `wow_world::handlers`, plus the dispatcher implementation | dispatch table and session update driver | compile/link lifetime; no mutable clock | The distribution inside `crate::handlers` may change. The exact opcode set, opcode value, `SessionStatus`, `PacketProcessing`, handler name, and presence on both sides of dispatch are guarded and must change deliberately. This proves arm presence, not the semantics of each arm body. The three pre-existing one-sided entries are removal-ratcheted to #142. |
 
 ## Non-negotiable runtime invariants
@@ -226,13 +228,16 @@ Do not regenerate a baseline merely to make CI green.
 The child issues of #133 execute in semantic order, regardless of their GitHub creation number:
 
 1. #135 — executable boundary guardrails (this baseline);
-2. #142 — reconcile the three pre-existing dispatcher/registration mismatches;
-3. #134 — remove gameplay `SessionResources` from the listener;
-4. #136 — private world-server session factory;
-5. #138 — session mailbox/player registry ownership;
-6. #137 — group registry ownership;
-7. #139 — extract Calendar handlers from `misc.rs`;
-8. #140 — extract the `WorldSession` update/dispatch driver.
+2. #163 — compose effective spell-acquisition metadata;
+3. #164 — freeze a complete trainer acquisition plan;
+4. #157, #158, #159, #160 and #161 — apply the trainer plan in bounded behavioral slices;
+5. #142 — reconcile the three pre-existing dispatcher/registration mismatches;
+6. #134 — remove gameplay `SessionResources` from the listener;
+7. #136 — private world-server session factory;
+8. #138 — session mailbox/player registry ownership;
+9. #137 — group registry ownership;
+10. #139 — extract Calendar handlers from `misc.rs`;
+11. #140 — extract the `WorldSession` update/dispatch driver.
 
 Each issue is one branch and one PR. The next issue starts only after the current PR is
 capture-clean where applicable, all actionable review is resolved, required CI is green on the

@@ -48,6 +48,16 @@ impl Db2HotfixRemovalStoreLikeCpp {
         self.removed_records.len()
     }
 
+    /// Stable evidence iterator for specialized effective-store projections.
+    ///
+    /// Callers must not infer a relation owner for a tombstone whose payload
+    /// was absent; this only exposes the final `(TableHash, RecordID)` status.
+    pub fn removed_records_in_order_like_cpp(&self) -> Vec<(u32, i32)> {
+        let mut records = self.removed_records.iter().copied().collect::<Vec<_>>();
+        records.sort_unstable();
+        records
+    }
+
     pub(crate) fn from_status_rows_like_cpp(
         status_rows_in_push_order: impl IntoIterator<Item = (u32, i32, u8)>,
     ) -> Self {
@@ -113,5 +123,19 @@ mod tests {
         assert!(!removals.contains_like_cpp(0xAAAA, 7));
         assert!(removals.contains_like_cpp(0xBBBB, 8));
         assert_eq!(removals.len(), 1);
+    }
+
+    #[test]
+    fn final_removal_evidence_is_stably_ordered() {
+        let removals = Db2HotfixRemovalStoreLikeCpp::from_status_rows_like_cpp([
+            (0xBBBB, 8, 2),
+            (0xAAAA, -1, 2),
+            (0xAAAA, 7, 2),
+        ]);
+
+        assert_eq!(
+            removals.removed_records_in_order_like_cpp(),
+            vec![(0xAAAA, -1), (0xAAAA, 7), (0xBBBB, 8)]
+        );
     }
 }

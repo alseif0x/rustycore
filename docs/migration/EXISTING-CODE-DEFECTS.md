@@ -15,6 +15,63 @@ identical bytes otherwise. Severity reflects my judgment after that filter.
 Headline: the scoped **D-C1…D-C9 CRIT integrity track is closed**. The HIGH/MED defects below
 remain real; "sends the packet and mutates DB" still does not imply full gameplay parity.
 
+## Bounded legacy repairs accepted during the port
+
+- [x] **Issue #163 — rebuild skill indexes after final hotfix removals.** Legacy C++ builds
+  selected `SkillLineAbility` / `SkillRaceClassInfo` derived indexes before
+  `DB2Manager::LoadHotfixData` performs its final `RecordRemoved` pass
+  (`DB2Stores.cpp:1328-1334,1539-1607`). That can leave a removed record reachable through a
+  stale index. Rust composes WDC4 → official SQL → custom SQL → final removal first, then rebuilds
+  every acquisition index from the surviving rows in ascending record-ID order. Focused fixtures
+  distinguish this repair from both the stale C++ outcome and an unrelated rewrite.
+- [x] **Issue #163 — an empty world `spell_learn_spell` table no longer erases canonical
+  learning edges.** Legacy `SpellMgr::LoadSpellLearnSpells` returns before scanning
+  `SpellEffect` and `SpellLearnSpell.db2` when the custom world query has no rows
+  (`SpellMgr.cpp:990-1135`). Rust treats that result as zero custom rows and still builds the
+  canonical graph. The loader test pins both effective edge families with an empty SQL input.
+- [x] **Issue #163 — reject lossy acquisition narrowing.** Legacy
+  `SpellMgr::LoadSpellLearnSkills` implicitly narrows effect-derived skill and step values to
+  `uint16`, and DB-backed difficulty values to the `uint8` `Difficulty` enum
+  (`SpellMgr.cpp:947-988,2730-2940`). Rust preserves checked source values in the immutable
+  acquisition catalog and omits an unrepresentable compatibility node instead of authorizing a
+  wrapped identifier. It also rejects an `EffectBasePoints` value whose C++ `float` round-trip
+  would fall outside `int32`, rather than inheriting an undefined C++ cast or Rust saturation.
+  Positive and negative fixtures pin the first-final-effect rule.
+- [x] **Issue #163 — ranged learn-skill tiers are explicit instead of restart-random.** Legacy
+  `SpellMgr::LoadSpellLearnSkills` calls `SpellEffectInfo::CalcValue()` once during startup
+  (`SpellMgr.cpp:947-988`, `SpellInfo.cpp:495-559`), so a custom `SPELL_EFFECT_SKILL` with
+  variance or ranged `DieSides` can select a different skill tier, tier maximum and durable
+  player state after a restart whenever its rounded result domain has multiple values. The audited
+  effective 3.4.3 data has 98 such effects and all are deterministic (`DieSides = 1`, zero
+  variance/coefficient), so Rust preserves every official node and step. For custom/future
+  ambiguous metadata it retains the complete checked value domain—including `frand`'s exclusive
+  upper endpoint—and publishes a typed indeterminate lookup instead of silently treating the
+  spell as having no learn-skill effect or inventing a minimum/maximum/average. The pure
+  acquisition planner in #164 must consume that lookup and fail before mutation.
+- [x] **Issue #163 — malformed effective rank graphs cannot hang startup or masquerade as
+  unranked spells.** Legacy `SpellMgr::LoadSpellRanks` follows `SupercedesSpell` without cycle
+  detection (`SpellMgr.cpp:812-902`); a custom/hotfix graph with a reachable cycle can loop
+  forever, while merges and stale predecessor bookkeeping can construct incoherent chains. Rust
+  builds a rank-specific projection from every final effective `SkillLineAbility` identity before
+  hydrating unrelated acquisition fields, so an invalid race/skill mask neither erases a valid
+  rank edge nor hides an invalid rank endpoint. Final hotfix removals still win. Rust then resolves
+  valid and indeterminate candidates through one RecordID-ordered, last-wins authority per
+  predecessor, rejects the complete ambiguous component for self-loops, cycles, multiple
+  predecessors, ranks outside `uint8`, or unrepresentable endpoints, and retains a tri-state
+  diagnostic lookup so later acquisition planning fails closed. A later valid candidate can
+  repair an earlier malformed candidate for the same predecessor. If a representable endpoint is
+  absent from exact spell authority, Rust skips the row just as C++'s paired `GetSpellInfo` gate
+  does. Only a row with neither endpoint representable in C++'s `int32` source domain makes the
+  rank projection globally indeterminate rather than inventing `Unranked`.
+- [x] **Issue #163 — sign-extend narrow WDC4 signed-immediate fields.** The generic Rust WDC4
+  reader previously returned an unextended `u32` payload from `get_field_i32` when a signed field
+  occupied fewer than 32 bits. C++ explicitly extends `SignedImmediate` values before copying them
+  into the requested signed type (`DB2FileLoader.cpp:858-869`). Rust now does the same while
+  preserving raw unsigned access; synthetic bit-width fixtures and the real 3.4.3
+  `SpellEffect.EffectBasePoints` data pin both paths. This fixes signed acquisition payloads and
+  other existing `i32` consumers without treating the separate floating-point
+  `world.serverside_spell_effect` source as regular DB2 metadata.
+
 ---
 
 ## CRIT — data loss / duplication / corruption (fix before trusting the server with real chars)

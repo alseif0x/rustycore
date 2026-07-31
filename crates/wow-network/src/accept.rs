@@ -296,6 +296,9 @@ pub struct SessionResources {
     pub power_type_store: Option<Arc<wow_data::character_progression::PowerTypeStore>>,
     pub spell_chain_store: Option<Arc<wow_data::SpellChainStoreLikeCpp>>,
     pub spell_store: Option<Arc<wow_data::SpellStore>>,
+    /// Process-wide immutable acquisition projection composed from the
+    /// effective spell metadata sources.
+    pub spell_acquisition_catalog: Option<Arc<wow_data::SpellAcquisitionCatalogLikeCpp>>,
     pub spell_levels_store: Option<Arc<wow_data::SpellLevelsStore>>,
     pub spell_category_store: Option<Arc<wow_data::SpellCategoryStore>>,
     pub npc_spell_click_store: Option<Arc<wow_data::NpcSpellClickStoreLikeCpp>>,
