@@ -406,44 +406,51 @@ impl SpellAcquisitionEffectLikeCpp {
             rounded as i32
         };
         let die = source_i32(self.effect_die_sides_raw, "SpellEffect.EffectDieSides")?;
-        let (minimum_delta, maximum_delta) = match die {
-            0 => (0_i64, 0_i64),
-            1 => (1, 1),
-            value if value > 1 => (1, i64::from(value)),
-            value => (i64::from(value), 1),
+        let (minimum_die, maximum_die) = match die {
+            0 => (0.0_f64, 0.0_f64),
+            1 => (1.0, 1.0),
+            value if value > 1 => (1.0, f64::from(value)),
+            value => (f64::from(value), 1.0),
         };
-        let minimum = i64::from(base)
-            .checked_add(minimum_delta)
-            .and_then(|value| i32::try_from(value).ok())
-            .ok_or_else(|| {
-                invalid(
-                    "SpellEffect.EffectBasePoints+EffectDieSides",
-                    self.effect_base_points_raw,
-                    "i32 result",
-                )
-            })?;
-        let maximum = i64::from(base)
-            .checked_add(maximum_delta)
-            .and_then(|value| i32::try_from(value).ok())
-            .ok_or_else(|| {
-                invalid(
-                    "SpellEffect.EffectBasePoints+EffectDieSides",
-                    self.effect_base_points_raw,
-                    "i32 result",
-                )
-            })?;
-        if variance != 0.0 && base != 0 {
-            // C++ samples a continuous variance before adding DieSides. The
-            // exact range is intentionally not guessed here; a non-singleton
-            // checked domain is enough for the pure planner to reject it as
-            // nondeterministic.
-            return Ok(AcquisitionValueDomainLikeCpp {
-                minimum: minimum.saturating_sub(1),
-                maximum: maximum.saturating_add(1),
-            });
-        }
+        // C++ computes `delta` in f32 and `frand(-delta, delta)` uses
+        // `uniform_real_distribution<float>`, whose upper bound is exclusive.
+        // Promote the actual reachable f32 endpoints to double, apply
+        // DieSides, and only then round the final value like CalcValue().
+        let variance_delta = (variance * 0.5).abs();
+        let (minimum_with_variance, maximum_with_variance) = if variance_delta == 0.0 {
+            (f64::from(base), f64::from(base))
+        } else {
+            let lower_sample = -variance_delta;
+            let upper_sample = f32::from_bits(variance_delta.to_bits() - 1);
+            let lower_value = f64::from(base) + f64::from(base) * f64::from(lower_sample);
+            let upper_value = f64::from(base) + f64::from(base) * f64::from(upper_sample);
+            (lower_value.min(upper_value), lower_value.max(upper_value))
+        };
+        let minimum = checked_rounded_i32(
+            minimum_with_variance + minimum_die,
+            self.effect_base_points_raw,
+        )?;
+        let maximum = checked_rounded_i32(
+            maximum_with_variance + maximum_die,
+            self.effect_base_points_raw,
+        )?;
         Ok(AcquisitionValueDomainLikeCpp { minimum, maximum })
     }
+}
+
+fn checked_rounded_i32(
+    value: f64,
+    raw_base_points: i64,
+) -> Result<i32, InvalidAcquisitionValueLikeCpp> {
+    let rounded = value.round();
+    if rounded.is_finite() && (f64::from(i32::MIN)..=f64::from(i32::MAX)).contains(&rounded) {
+        return Ok(rounded as i32);
+    }
+    Err(invalid(
+        "SpellEffect.EffectBasePoints+EffectDieSides+Variance",
+        raw_base_points,
+        "i32 result",
+    ))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -3219,12 +3226,30 @@ mod tests {
 
         row.effect_coefficient_bits = 0.0_f32.to_bits();
         row.effect_variance_bits = 0.25_f32.to_bits();
-        assert!(
-            row.base_points_die_sides_domain_checked()
-                .is_ok_and(|domain| domain.deterministic_value().is_none()),
-            "nonzero variance over a nonzero base must not be guessed"
+        assert_eq!(
+            row.base_points_die_sides_domain_checked(),
+            Ok(AcquisitionValueDomainLikeCpp {
+                minimum: 5,
+                maximum: 5,
+            }),
+            "frand's exclusive upper endpoint keeps the final value singleton"
         );
 
+        row.effect_base_points_raw = 8;
+        row.effect_die_sides_raw = 0;
+        row.effect_variance_bits = 0.5_f32.to_bits();
+        assert_eq!(
+            row.base_points_die_sides_domain_checked(),
+            Ok(AcquisitionValueDomainLikeCpp {
+                minimum: 6,
+                maximum: 10,
+            }),
+            "a variance whose rounded outcomes differ remains explicitly ranged"
+        );
+
+        row.effect_base_points_raw = 4;
+        row.effect_die_sides_raw = 1;
+        row.effect_variance_bits = 0.25_f32.to_bits();
         row.effect_coefficient_bits = 1.0_f32.to_bits();
         assert_eq!(
             row.base_points_die_sides_domain_checked()
@@ -3233,6 +3258,30 @@ mod tests {
                     .ok_or_else(|| { invalid("test", 0, "deterministic") })),
             Ok(1),
             "variance over the coefficient-forced zero base remains inert"
+        );
+
+        row.effect_coefficient_bits = 0.0_f32.to_bits();
+        row.effect_base_points_raw = -4;
+        assert_eq!(
+            row.base_points_die_sides_domain_checked(),
+            Ok(AcquisitionValueDomainLikeCpp {
+                minimum: -3,
+                maximum: -3,
+            }),
+            "a negative base reverses which variance endpoint is open"
+        );
+
+        row.effect_base_points_raw = 4;
+        row.effect_coefficient_bits = 0.0_f32.to_bits();
+        row.effect_variance_bits = 0.0_f32.to_bits();
+        row.effect_die_sides_raw = -3;
+        assert_eq!(
+            row.base_points_die_sides_domain_checked(),
+            Ok(AcquisitionValueDomainLikeCpp {
+                minimum: 1,
+                maximum: 5,
+            }),
+            "negative DieSides uses C++'s inclusive [DieSides, 1] range"
         );
 
         row.effect_coefficient_bits = f32::NAN.to_bits();

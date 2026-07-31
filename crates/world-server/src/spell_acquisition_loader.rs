@@ -27,9 +27,9 @@ use wow_data::{
     SpellChainStoreLikeCpp, SpellCustomAttributeKeyLikeCpp,
     SpellCustomAttributeLoadErrorKindLikeCpp, SpellCustomAttributeSourceVariantLikeCpp,
     SpellCustomAttributeStoreLikeCpp, SpellLearnSkillEffectLikeCpp,
-    SpellLearnSkillSourceSpellInfoLikeCpp, SpellLearnSkillStoreLikeCpp,
-    SpellLearnSourceSpellInfoLikeCpp, SpellLearnSpellEffectLikeCpp, SpellLearnSpellEntry,
-    SpellLearnSpellStoreLikeCpp, SpellRankEdgeLikeCpp, SpellStore,
+    SpellLearnSkillIndeterminateReasonLikeCpp, SpellLearnSkillSourceSpellInfoLikeCpp,
+    SpellLearnSkillStoreLikeCpp, SpellLearnSourceSpellInfoLikeCpp, SpellLearnSpellEffectLikeCpp,
+    SpellLearnSpellEntry, SpellLearnSpellStoreLikeCpp, SpellRankEdgeLikeCpp, SpellStore,
 };
 use wow_database::{HotfixDatabase, WorldDatabase};
 
@@ -48,6 +48,12 @@ pub(crate) struct SpellAcquisitionBootstrapLikeCpp {
     pub(crate) learn_skill_store: Arc<SpellLearnSkillStoreLikeCpp>,
     pub(crate) learn_spell_store: Arc<SpellLearnSpellStoreLikeCpp>,
     pub(crate) custom_attribute_store: Arc<SpellCustomAttributeStoreLikeCpp>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum LearnSkillProjectionLikeCpp {
+    Covered(SpellLearnSkillSourceSpellInfoLikeCpp),
+    Indeterminate(SpellLearnSkillIndeterminateReasonLikeCpp),
 }
 
 /// Compose the effective spell-acquisition stores in C++ startup order.
@@ -192,32 +198,57 @@ pub(crate) async fn load_like_cpp(
         .iter()
         .filter(|key| key.difficulty_id == 0)
         .count();
-
     let mut learn_skill_sources = Vec::new();
-    let mut learn_skill_indeterminate_sources = serverside_difficulty_none_count;
+    let mut learn_skill_indeterminate_sources = BTreeMap::new();
+    for key in serverside_keys.iter().filter(|key| key.difficulty_id == 0) {
+        learn_skill_indeterminate_sources.insert(
+            key.spell_id,
+            SpellLearnSkillIndeterminateReasonLikeCpp::EffectiveMetadata(vec![
+                SpellAcquisitionIndeterminateReasonLikeCpp::ServerSideMetadataUnavailable,
+            ]),
+        );
+    }
     for spell_id in &regular_difficulty_none_ids {
         let chain = difficulty_chain_like_cpp(difficulty_store, 0);
         let effects = match catalog
             .resolved_effects_for_difficulty_chain_like_cpp(*spell_id, chain.iter().copied())
         {
             SpellAcquisitionResolvedEffectsLookupLikeCpp::Covered(effects) => effects,
-            SpellAcquisitionResolvedEffectsLookupLikeCpp::MissingCoverage { .. }
-            | SpellAcquisitionResolvedEffectsLookupLikeCpp::Indeterminate(_) => {
-                learn_skill_indeterminate_sources += 1;
+            SpellAcquisitionResolvedEffectsLookupLikeCpp::MissingCoverage { difficulty_id } => {
+                learn_skill_indeterminate_sources.insert(
+                    *spell_id,
+                    SpellLearnSkillIndeterminateReasonLikeCpp::MissingEffectiveCoverage {
+                        difficulty_id,
+                    },
+                );
+                continue;
+            }
+            SpellAcquisitionResolvedEffectsLookupLikeCpp::Indeterminate(reasons) => {
+                learn_skill_indeterminate_sources.insert(
+                    *spell_id,
+                    SpellLearnSkillIndeterminateReasonLikeCpp::EffectiveMetadata(reasons),
+                );
                 continue;
             }
         };
         match project_learn_skill_source_like_cpp(*spell_id, &effects) {
-            Some(source) => learn_skill_sources.push(source),
-            None => learn_skill_indeterminate_sources += 1,
+            LearnSkillProjectionLikeCpp::Covered(source) => learn_skill_sources.push(source),
+            LearnSkillProjectionLikeCpp::Indeterminate(reason) => {
+                learn_skill_indeterminate_sources.insert(*spell_id, reason);
+            }
         }
     }
-    let learn_skill_outcome =
+    let mut learn_skill_outcome =
         SpellLearnSkillStoreLikeCpp::from_spell_infos_like_cpp(learn_skill_sources);
+    for (spell_id, reason) in learn_skill_indeterminate_sources {
+        learn_skill_outcome
+            .store
+            .mark_spell_learn_skill_indeterminate_like_cpp(spell_id, reason);
+    }
     info!(
-        loaded_node_count = learn_skill_outcome.dbc_loaded_row_count,
+        loaded_node_count = learn_skill_outcome.store.skill_by_spell_id.len(),
         compatibility_error_count = learn_skill_outcome.errors.len(),
-        indeterminate_source_count = learn_skill_indeterminate_sources,
+        indeterminate_source_count = learn_skill_outcome.store.indeterminate_by_spell_id.len(),
         "Loaded C++ spell-learn-skill entries from effective acquisition metadata"
     );
     let learn_skill_store = Arc::new(learn_skill_outcome.store);
@@ -551,17 +582,59 @@ fn effective_talent_like_cpp(
 fn project_learn_skill_source_like_cpp(
     spell_id: u32,
     effects: &[&SpellAcquisitionEffectLikeCpp],
-) -> Option<SpellLearnSkillSourceSpellInfoLikeCpp> {
+) -> LearnSkillProjectionLikeCpp {
     let mut projected_effects = Vec::new();
     for effect in effects {
-        let effect_type = effect.effect_type_checked().ok()?;
+        let effect_type = match effect.effect_type_checked() {
+            Ok(effect_type) => effect_type,
+            Err(invalid) => {
+                return LearnSkillProjectionLikeCpp::Indeterminate(
+                    SpellLearnSkillIndeterminateReasonLikeCpp::InvalidEffectiveValue {
+                        record_id: effect.record_id,
+                        field: invalid.field,
+                        raw: invalid.raw,
+                    },
+                );
+            }
+        };
         match effect_type {
             SPELL_EFFECT_SKILL => {
-                let misc_value = i32::try_from(effect.misc_value_id_checked(0).ok()?).ok()?;
-                let calc_value = effect
-                    .base_points_die_sides_domain_checked()
-                    .ok()?
-                    .deterministic_value()?;
+                let misc_value = match effect
+                    .misc_value_id_checked(0)
+                    .ok()
+                    .and_then(|value| i32::try_from(value).ok())
+                {
+                    Some(value) => value,
+                    None => {
+                        return LearnSkillProjectionLikeCpp::Indeterminate(
+                            SpellLearnSkillIndeterminateReasonLikeCpp::InvalidEffectiveValue {
+                                record_id: effect.record_id,
+                                field: "SpellEffect.EffectMiscValue",
+                                raw: effect.effect_misc_value_raw[0],
+                            },
+                        );
+                    }
+                };
+                let domain = match effect.base_points_die_sides_domain_checked() {
+                    Ok(domain) => domain,
+                    Err(invalid) => {
+                        return LearnSkillProjectionLikeCpp::Indeterminate(
+                            SpellLearnSkillIndeterminateReasonLikeCpp::InvalidEffectiveValue {
+                                record_id: effect.record_id,
+                                field: invalid.field,
+                                raw: invalid.raw,
+                            },
+                        );
+                    }
+                };
+                let Some(calc_value) = domain.deterministic_value() else {
+                    return LearnSkillProjectionLikeCpp::Indeterminate(
+                        SpellLearnSkillIndeterminateReasonLikeCpp::RngDependentCalcValue {
+                            record_id: effect.record_id,
+                            domain,
+                        },
+                    );
+                };
                 projected_effects.push(SpellLearnSkillEffectLikeCpp {
                     effect: effect_type,
                     misc_value,
@@ -580,7 +653,7 @@ fn project_learn_skill_source_like_cpp(
             _ => {}
         }
     }
-    Some(SpellLearnSkillSourceSpellInfoLikeCpp {
+    LearnSkillProjectionLikeCpp::Covered(SpellLearnSkillSourceSpellInfoLikeCpp {
         spell_id,
         difficulty_none: true,
         effects: projected_effects,
@@ -736,8 +809,11 @@ mod tests {
         let mut skill = acquisition_effect(3, 2, SPELL_EFFECT_SKILL, -1, 0);
         skill.effect_base_points_raw = i64::from(i32::MAX) + 1;
 
-        let source =
-            project_learn_skill_source_like_cpp(100, &[&unrelated, &dual_wield, &skill]).unwrap();
+        let LearnSkillProjectionLikeCpp::Covered(source) =
+            project_learn_skill_source_like_cpp(100, &[&unrelated, &dual_wield, &skill])
+        else {
+            panic!("the first qualifying dual-wield effect must remain covered");
+        };
 
         assert_eq!(
             source.effects,
@@ -753,7 +829,51 @@ mod tests {
     fn learn_skill_projection_rejects_zero_skill_id() {
         let skill = acquisition_effect(1, 0, SPELL_EFFECT_SKILL, 0, 0);
 
-        assert!(project_learn_skill_source_like_cpp(100, &[&skill]).is_none());
+        assert_eq!(
+            project_learn_skill_source_like_cpp(100, &[&skill]),
+            LearnSkillProjectionLikeCpp::Indeterminate(
+                SpellLearnSkillIndeterminateReasonLikeCpp::InvalidEffectiveValue {
+                    record_id: 1,
+                    field: "SpellEffect.EffectMiscValue",
+                    raw: 0,
+                }
+            )
+        );
+    }
+
+    #[test]
+    fn rng_dependent_first_skill_is_explicit_and_does_not_fall_through() {
+        let mut ranged_skill = acquisition_effect(1, 0, SPELL_EFFECT_SKILL, 755, 0);
+        ranged_skill.effect_base_points_raw = 4;
+        ranged_skill.effect_die_sides_raw = 3;
+        let dual_wield = acquisition_effect(2, 1, SPELL_EFFECT_DUAL_WIELD, 0, 0);
+
+        assert_eq!(
+            project_learn_skill_source_like_cpp(100, &[&ranged_skill, &dual_wield]),
+            LearnSkillProjectionLikeCpp::Indeterminate(
+                SpellLearnSkillIndeterminateReasonLikeCpp::RngDependentCalcValue {
+                    record_id: 1,
+                    domain: wow_data::AcquisitionValueDomainLikeCpp {
+                        minimum: 5,
+                        maximum: 7,
+                    },
+                }
+            )
+        );
+    }
+
+    #[test]
+    fn covered_spell_without_qualifying_effect_stays_distinct_from_indeterminate() {
+        let unrelated = acquisition_effect(1, 0, 0, 0, 0);
+
+        assert_eq!(
+            project_learn_skill_source_like_cpp(100, &[&unrelated]),
+            LearnSkillProjectionLikeCpp::Covered(SpellLearnSkillSourceSpellInfoLikeCpp {
+                spell_id: 100,
+                difficulty_none: true,
+                effects: Vec::new(),
+            })
+        );
     }
 
     #[test]

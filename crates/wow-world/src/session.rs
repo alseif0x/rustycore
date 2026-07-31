@@ -106,12 +106,12 @@ use wow_data::{
     SpellCustomAttributeStoreLikeCpp, SpellDurationStore, SpellEnchantProcEntryLikeCpp,
     SpellEnchantProcStoreLikeCpp, SpellEquippedItemsEntry, SpellEquippedItemsStore,
     SpellGroupStackRuleLikeCpp, SpellGroupStackRuleStoreLikeCpp, SpellGroupStoreLikeCpp,
-    SpellItemEnchantmentConditionStore, SpellItemEnchantmentStore, SpellLearnSkillNodeLikeCpp,
-    SpellLearnSkillStoreLikeCpp, SpellLearnSpellNodeLikeCpp, SpellLearnSpellStoreLikeCpp,
-    SpellLevelsStore, SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp, SpellMiscStore,
-    SpellPetAuraStoreLikeCpp, SpellProcEntryLikeCpp, SpellProcStoreLikeCpp, SpellRadiusStore,
-    SpellRangeStore, SpellRequiredStoreLikeCpp, SpellShapeshiftFormStore, SpellStore,
-    SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp,
+    SpellItemEnchantmentConditionStore, SpellItemEnchantmentStore, SpellLearnSkillLookupLikeCpp,
+    SpellLearnSkillNodeLikeCpp, SpellLearnSkillStoreLikeCpp, SpellLearnSpellNodeLikeCpp,
+    SpellLearnSpellStoreLikeCpp, SpellLevelsStore, SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp,
+    SpellMiscStore, SpellPetAuraStoreLikeCpp, SpellProcEntryLikeCpp, SpellProcStoreLikeCpp,
+    SpellRadiusStore, SpellRangeStore, SpellRequiredStoreLikeCpp, SpellShapeshiftFormStore,
+    SpellStore, SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp,
     SpellTotemModelStoreLikeCpp, SummonPropertiesEntry, TactKeyStore, TalentStore, TalentTabStore,
     TavernAreaTriggerStoreLikeCpp, ToyStore, TrainerStoreLikeCpp, TransmogSetEntry,
     TransmogSetItemStore, TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK,
@@ -25871,9 +25871,22 @@ impl WorldSession {
         &self,
         spell_id: u32,
     ) -> Option<&SpellLearnSkillNodeLikeCpp> {
+        match self.spell_learn_skill_lookup_like_cpp(spell_id) {
+            SpellLearnSkillLookupLikeCpp::Present(node) => Some(node),
+            SpellLearnSkillLookupLikeCpp::CoveredWithoutNode
+            | SpellLearnSkillLookupLikeCpp::Indeterminate(_)
+            | SpellLearnSkillLookupLikeCpp::MissingCoverage => None,
+        }
+    }
+
+    pub(crate) fn spell_learn_skill_lookup_like_cpp(
+        &self,
+        spell_id: u32,
+    ) -> SpellLearnSkillLookupLikeCpp<'_> {
         self.spell_learn_skill_store
             .as_ref()
-            .and_then(|store| store.get_spell_learn_skill_like_cpp(spell_id))
+            .map(|store| store.spell_learn_skill_lookup_like_cpp(spell_id))
+            .unwrap_or(SpellLearnSkillLookupLikeCpp::MissingCoverage)
     }
 
     pub fn set_spell_learn_spell_store(&mut self, store: Arc<SpellLearnSpellStoreLikeCpp>) {
@@ -65880,6 +65893,7 @@ mod tests {
                     },
                 ),
             ]),
+            ..Default::default()
         }
     }
 
@@ -66627,6 +66641,7 @@ mod tests {
                     },
                 ),
             ]),
+            ..Default::default()
         }));
         session.set_player_skill_records_like_cpp(HashMap::from([(
             755,
@@ -66675,6 +66690,7 @@ mod tests {
                     maxvalue: 150,
                 },
             )]),
+            ..Default::default()
         }));
         session.set_player_skill_records_like_cpp(HashMap::from([(
             755,
@@ -71253,6 +71269,10 @@ mod tests {
         let (session, _, _) = make_session();
 
         assert!(session.spell_learn_skill_like_cpp(10).is_none());
+        assert_eq!(
+            session.spell_learn_skill_lookup_like_cpp(10),
+            wow_data::SpellLearnSkillLookupLikeCpp::MissingCoverage
+        );
     }
 
     #[test]
@@ -71279,6 +71299,10 @@ mod tests {
             })
         );
         assert!(session.spell_learn_skill_like_cpp(21).is_none());
+        assert_eq!(
+            session.spell_learn_skill_lookup_like_cpp(21),
+            wow_data::SpellLearnSkillLookupLikeCpp::MissingCoverage
+        );
     }
 
     #[test]

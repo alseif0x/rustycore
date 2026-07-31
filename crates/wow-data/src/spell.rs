@@ -24,7 +24,11 @@ use wow_database::{
 use wow_entities::PetAuraLikeCpp;
 
 use crate::{
-    ConditionEntriesByTypeStore, ConditionsReference, conditions::RACEMASK_ALL_PLAYABLE_LIKE_CPP,
+    ConditionEntriesByTypeStore, ConditionsReference,
+    conditions::RACEMASK_ALL_PLAYABLE_LIKE_CPP,
+    spell_acquisition::{
+        AcquisitionValueDomainLikeCpp, SpellAcquisitionIndeterminateReasonLikeCpp,
+    },
 };
 
 /// Spell effect types (from SpellEffectType enum)
@@ -2188,8 +2192,9 @@ pub struct SpellLearnSkillNodeLikeCpp {
 pub struct SpellLearnSkillEffectLikeCpp {
     pub effect: u32,
     pub misc_value: i32,
-    /// Precomputed C++ `SpellEffectInfo::CalcValue()` for
-    /// `SPELL_EFFECT_SKILL`.
+    /// Deterministic C++ `SpellEffectInfo::CalcValue()` result for
+    /// `SPELL_EFFECT_SKILL`. Ranged results are retained separately as a
+    /// typed indeterminate source and never enter this compatibility shape.
     pub calc_value: i32,
 }
 
@@ -2200,15 +2205,59 @@ pub struct SpellLearnSkillSourceSpellInfoLikeCpp {
     pub effects: Vec<SpellLearnSkillEffectLikeCpp>,
 }
 
+/// Why the deterministic Rust acquisition authority cannot publish C++'s
+/// compatibility `SpellLearnSkillNode`.
+///
+/// C++ samples `SpellEffectInfo::CalcValue()` once during startup.  A ranged
+/// result can therefore select a different persisted skill tier after a
+/// restart.  The official 3.4.3 `SKILL` data is entirely singleton-valued;
+/// Rust keeps custom/future ranged metadata explicit so the pure acquisition
+/// planner can fail closed instead of confusing it with a covered spell that
+/// has no learn-skill effect.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SpellLearnSkillIndeterminateReasonLikeCpp {
+    MissingEffectiveCoverage {
+        difficulty_id: u32,
+    },
+    EffectiveMetadata(Vec<SpellAcquisitionIndeterminateReasonLikeCpp>),
+    InvalidEffectiveValue {
+        record_id: u32,
+        field: &'static str,
+        raw: i64,
+    },
+    RngDependentCalcValue {
+        record_id: u32,
+        domain: AcquisitionValueDomainLikeCpp,
+    },
+    SkillOutOfRange {
+        value: i32,
+    },
+    StepOutOfRange {
+        value: i32,
+    },
+    DuplicateSourceSpell,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SpellLearnSkillLookupLikeCpp<'a> {
+    Present(&'a SpellLearnSkillNodeLikeCpp),
+    CoveredWithoutNode,
+    Indeterminate(&'a SpellLearnSkillIndeterminateReasonLikeCpp),
+    MissingCoverage,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SpellLearnSkillStoreLikeCpp {
     pub skill_by_spell_id: BTreeMap<u32, SpellLearnSkillNodeLikeCpp>,
+    pub covered_spell_ids: BTreeSet<u32>,
+    pub indeterminate_by_spell_id: BTreeMap<u32, SpellLearnSkillIndeterminateReasonLikeCpp>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SpellLearnSkillLoadErrorKindLikeCpp {
     SkillOutOfRange { value: i32 },
     StepOutOfRange { value: i32 },
+    DuplicateSourceSpell,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2237,10 +2286,34 @@ impl SpellLearnSkillStoreLikeCpp {
                 continue;
             }
 
+            if !store.covered_spell_ids.insert(source_spell.spell_id) {
+                if store
+                    .skill_by_spell_id
+                    .remove(&source_spell.spell_id)
+                    .is_some()
+                {
+                    dbc_loaded_row_count -= 1;
+                }
+                store.indeterminate_by_spell_id.insert(
+                    source_spell.spell_id,
+                    SpellLearnSkillIndeterminateReasonLikeCpp::DuplicateSourceSpell,
+                );
+                errors.push(SpellLearnSkillLoadErrorLikeCpp {
+                    spell_id: source_spell.spell_id,
+                    kind: SpellLearnSkillLoadErrorKindLikeCpp::DuplicateSourceSpell,
+                });
+                continue;
+            }
             for effect in source_spell.effects {
                 let node = match effect.effect {
                     spell_effect_types::SPELL_EFFECT_SKILL => {
                         let Ok(skill) = u16::try_from(effect.misc_value) else {
+                            store.indeterminate_by_spell_id.insert(
+                                source_spell.spell_id,
+                                SpellLearnSkillIndeterminateReasonLikeCpp::SkillOutOfRange {
+                                    value: effect.misc_value,
+                                },
+                            );
                             errors.push(SpellLearnSkillLoadErrorLikeCpp {
                                 spell_id: source_spell.spell_id,
                                 kind: SpellLearnSkillLoadErrorKindLikeCpp::SkillOutOfRange {
@@ -2250,6 +2323,12 @@ impl SpellLearnSkillStoreLikeCpp {
                             break;
                         };
                         let Ok(step) = u16::try_from(effect.calc_value) else {
+                            store.indeterminate_by_spell_id.insert(
+                                source_spell.spell_id,
+                                SpellLearnSkillIndeterminateReasonLikeCpp::StepOutOfRange {
+                                    value: effect.calc_value,
+                                },
+                            );
                             errors.push(SpellLearnSkillLoadErrorLikeCpp {
                                 spell_id: source_spell.spell_id,
                                 kind: SpellLearnSkillLoadErrorKindLikeCpp::StepOutOfRange {
@@ -2274,6 +2353,9 @@ impl SpellLearnSkillStoreLikeCpp {
                     _ => continue,
                 };
 
+                store
+                    .indeterminate_by_spell_id
+                    .remove(&source_spell.spell_id);
                 store.skill_by_spell_id.insert(source_spell.spell_id, node);
                 dbc_loaded_row_count += 1;
                 break;
@@ -2292,6 +2374,32 @@ impl SpellLearnSkillStoreLikeCpp {
         spell_id: u32,
     ) -> Option<&SpellLearnSkillNodeLikeCpp> {
         self.skill_by_spell_id.get(&spell_id)
+    }
+
+    pub fn mark_spell_learn_skill_indeterminate_like_cpp(
+        &mut self,
+        spell_id: u32,
+        reason: SpellLearnSkillIndeterminateReasonLikeCpp,
+    ) {
+        self.skill_by_spell_id.remove(&spell_id);
+        self.indeterminate_by_spell_id.insert(spell_id, reason);
+    }
+
+    pub fn spell_learn_skill_lookup_like_cpp(
+        &self,
+        spell_id: u32,
+    ) -> SpellLearnSkillLookupLikeCpp<'_> {
+        if let Some(reason) = self.indeterminate_by_spell_id.get(&spell_id) {
+            return SpellLearnSkillLookupLikeCpp::Indeterminate(reason);
+        }
+        if let Some(node) = self.skill_by_spell_id.get(&spell_id) {
+            return SpellLearnSkillLookupLikeCpp::Present(node);
+        }
+        if self.covered_spell_ids.contains(&spell_id) {
+            SpellLearnSkillLookupLikeCpp::CoveredWithoutNode
+        } else {
+            SpellLearnSkillLookupLikeCpp::MissingCoverage
+        }
     }
 }
 
@@ -9583,6 +9691,15 @@ mod tests {
                 maxvalue: 0,
             })
         );
+        assert_eq!(
+            outcome.store.spell_learn_skill_lookup_like_cpp(100),
+            SpellLearnSkillLookupLikeCpp::Present(&SpellLearnSkillNodeLikeCpp {
+                skill: 755,
+                step: 4,
+                value: 0,
+                maxvalue: 0,
+            })
+        );
     }
 
     #[test]
@@ -9649,6 +9766,10 @@ mod tests {
         assert!(outcome.errors.is_empty());
         assert!(outcome.store.get_spell_learn_skill_like_cpp(300).is_none());
         assert_eq!(
+            outcome.store.spell_learn_skill_lookup_like_cpp(300),
+            SpellLearnSkillLookupLikeCpp::MissingCoverage
+        );
+        assert_eq!(
             outcome.store.get_spell_learn_skill_like_cpp(301),
             Some(&SpellLearnSkillNodeLikeCpp {
                 skill: SKILL_DUAL_WIELD_LIKE_CPP,
@@ -9657,6 +9778,93 @@ mod tests {
                 maxvalue: 1,
             })
         );
+    }
+
+    #[test]
+    fn spell_learn_skill_lookup_distinguishes_covered_absence_and_indeterminate() {
+        let mut outcome =
+            SpellLearnSkillStoreLikeCpp::from_spell_infos_like_cpp([learn_skill_source(
+                500,
+                true,
+                Vec::new(),
+            )]);
+        outcome.store.mark_spell_learn_skill_indeterminate_like_cpp(
+            501,
+            SpellLearnSkillIndeterminateReasonLikeCpp::RngDependentCalcValue {
+                record_id: 9,
+                domain: AcquisitionValueDomainLikeCpp {
+                    minimum: 2,
+                    maximum: 4,
+                },
+            },
+        );
+
+        assert_eq!(
+            outcome.store.spell_learn_skill_lookup_like_cpp(500),
+            SpellLearnSkillLookupLikeCpp::CoveredWithoutNode
+        );
+        assert!(matches!(
+            outcome.store.spell_learn_skill_lookup_like_cpp(501),
+            SpellLearnSkillLookupLikeCpp::Indeterminate(
+                SpellLearnSkillIndeterminateReasonLikeCpp::RngDependentCalcValue {
+                    record_id: 9,
+                    domain: AcquisitionValueDomainLikeCpp {
+                        minimum: 2,
+                        maximum: 4,
+                    },
+                }
+            )
+        ));
+        assert_eq!(
+            outcome.store.spell_learn_skill_lookup_like_cpp(502),
+            SpellLearnSkillLookupLikeCpp::MissingCoverage
+        );
+    }
+
+    #[test]
+    fn spell_learn_skill_store_rejects_duplicate_source_ids_in_every_order() {
+        let valid = || {
+            learn_skill_source(
+                600,
+                true,
+                vec![SpellLearnSkillEffectLikeCpp {
+                    effect: spell_effect_types::SPELL_EFFECT_SKILL,
+                    misc_value: 755,
+                    calc_value: 4,
+                }],
+            )
+        };
+        let invalid = || {
+            learn_skill_source(
+                600,
+                true,
+                vec![SpellLearnSkillEffectLikeCpp {
+                    effect: spell_effect_types::SPELL_EFFECT_SKILL,
+                    misc_value: -1,
+                    calc_value: 4,
+                }],
+            )
+        };
+
+        for sources in [[valid(), invalid()], [invalid(), valid()]] {
+            let outcome = SpellLearnSkillStoreLikeCpp::from_spell_infos_like_cpp(sources);
+
+            assert_eq!(outcome.dbc_loaded_row_count, 0);
+            assert!(
+                outcome.store.get_spell_learn_skill_like_cpp(600).is_none(),
+                "the legacy getter must not leak a node from either duplicate ordering"
+            );
+            assert_eq!(
+                outcome.store.spell_learn_skill_lookup_like_cpp(600),
+                SpellLearnSkillLookupLikeCpp::Indeterminate(
+                    &SpellLearnSkillIndeterminateReasonLikeCpp::DuplicateSourceSpell
+                )
+            );
+            assert!(outcome.errors.iter().any(|error| {
+                error.spell_id == 600
+                    && error.kind == SpellLearnSkillLoadErrorKindLikeCpp::DuplicateSourceSpell
+            }));
+        }
     }
 
     #[test]
@@ -9682,6 +9890,12 @@ mod tests {
 
             assert_eq!(outcome.dbc_loaded_row_count, 0);
             assert!(outcome.store.get_spell_learn_skill_like_cpp(400).is_none());
+            assert!(matches!(
+                outcome.store.spell_learn_skill_lookup_like_cpp(400),
+                SpellLearnSkillLookupLikeCpp::Indeterminate(
+                    SpellLearnSkillIndeterminateReasonLikeCpp::SkillOutOfRange { value }
+                ) if *value == misc_value
+            ));
             assert_eq!(
                 outcome.errors,
                 vec![SpellLearnSkillLoadErrorLikeCpp {
@@ -9717,6 +9931,12 @@ mod tests {
 
             assert_eq!(outcome.dbc_loaded_row_count, 0);
             assert!(outcome.store.get_spell_learn_skill_like_cpp(401).is_none());
+            assert!(matches!(
+                outcome.store.spell_learn_skill_lookup_like_cpp(401),
+                SpellLearnSkillLookupLikeCpp::Indeterminate(
+                    SpellLearnSkillIndeterminateReasonLikeCpp::StepOutOfRange { value }
+                ) if *value == calc_value
+            ));
             assert_eq!(
                 outcome.errors,
                 vec![SpellLearnSkillLoadErrorLikeCpp {

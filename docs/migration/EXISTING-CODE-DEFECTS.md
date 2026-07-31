@@ -37,6 +37,17 @@ remain real; "sends the packet and mutates DB" still does not imply full gamepla
   wrapped identifier. It also rejects an `EffectBasePoints` value whose C++ `float` round-trip
   would fall outside `int32`, rather than inheriting an undefined C++ cast or Rust saturation.
   Positive and negative fixtures pin the first-final-effect rule.
+- [x] **Issue #163 — ranged learn-skill tiers are explicit instead of restart-random.** Legacy
+  `SpellMgr::LoadSpellLearnSkills` calls `SpellEffectInfo::CalcValue()` once during startup
+  (`SpellMgr.cpp:947-988`, `SpellInfo.cpp:495-559`), so a custom `SPELL_EFFECT_SKILL` with
+  variance or ranged `DieSides` can select a different skill tier, tier maximum and durable
+  player state after a restart whenever its rounded result domain has multiple values. The audited
+  effective 3.4.3 data has 98 such effects and all are deterministic (`DieSides = 1`, zero
+  variance/coefficient), so Rust preserves every official node and step. For custom/future
+  ambiguous metadata it retains the complete checked value domain—including `frand`'s exclusive
+  upper endpoint—and publishes a typed indeterminate lookup instead of silently treating the
+  spell as having no learn-skill effect or inventing a minimum/maximum/average. The pure
+  acquisition planner in #164 must consume that lookup and fail before mutation.
 - [x] **Issue #163 — malformed effective rank graphs cannot hang startup or masquerade as
   unranked spells.** Legacy `SpellMgr::LoadSpellRanks` follows `SupercedesSpell` without cycle
   detection (`SpellMgr.cpp:812-902`); a custom/hotfix graph with a reachable cycle can loop
