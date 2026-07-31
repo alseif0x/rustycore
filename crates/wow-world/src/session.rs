@@ -35025,10 +35025,20 @@ impl WorldSession {
         &mut self,
         known_spells: &mut Vec<i32>,
     ) -> usize {
+        let roots = known_spells.clone();
+        self.apply_loaded_spell_dependencies_from_roots_like_cpp(&roots, known_spells)
+    }
+
+    pub(crate) fn apply_loaded_spell_dependencies_from_roots_like_cpp(
+        &mut self,
+        roots: &[i32],
+        known_spells: &mut Vec<i32>,
+    ) -> usize {
         let mut added = 0usize;
+        let mut pending = roots.to_vec();
         let mut index = 0usize;
-        while index < known_spells.len() {
-            let spell_id = known_spells[index];
+        while index < pending.len() {
+            let spell_id = pending[index];
             index += 1;
 
             let Ok(spell_id_u32) = u32::try_from(spell_id) else {
@@ -35046,6 +35056,7 @@ impl WorldSession {
                     && !known_spells.contains(&learned_spell_id)
                 {
                     known_spells.push(learned_spell_id);
+                    pending.push(learned_spell_id);
                     self.represented_dependent_known_spells_like_cpp
                         .insert(learned_spell_id);
                     self.represented_favorite_known_spells_like_cpp
@@ -41959,8 +41970,11 @@ impl WorldSession {
             self.represented_player_spell_rows_like_cpp
                 .entry(spell_id)
                 .and_modify(|row| {
-                    let persisted_flags_changed = !row.active || row.disabled;
-                    row.active = true;
+                    let was_disabled = row.disabled;
+                    let persisted_flags_changed = !row.active || was_disabled;
+                    if !was_disabled {
+                        row.active = true;
+                    }
                     row.disabled = false;
                     if persisted_flags_changed
                         && matches!(
@@ -66996,6 +67010,22 @@ mod tests {
             session.represented_override_spells_like_cpp(),
             &HashMap::from([(100, BTreeSet::from([20])), (200, BTreeSet::from([30])),]),
             "C++ AddSpell rebuilds active OverridesSpell edges outside the AutoLearned branch"
+        );
+
+        session.reset_represented_talents_like_cpp();
+        let mut active_projection = Vec::new();
+        assert_eq!(
+            session.apply_loaded_spell_dependencies_from_roots_like_cpp(
+                &[10],
+                &mut active_projection,
+            ),
+            1,
+            "an inactive non-disabled loaded root still runs AddSpell dependency expansion"
+        );
+        assert_eq!(active_projection, vec![20]);
+        assert_eq!(
+            session.represented_override_spells_like_cpp(),
+            &HashMap::from([(100, BTreeSet::from([20])), (200, BTreeSet::from([30])),])
         );
     }
 
@@ -120103,6 +120133,14 @@ mod tests {
                 state: RepresentedPlayerSpellStateLikeCpp::Unchanged,
             },
             RepresentedPlayerSpellLikeCpp {
+                spell_id: 250,
+                active: false,
+                disabled: true,
+                dependent: false,
+                favorite: false,
+                state: RepresentedPlayerSpellStateLikeCpp::Unchanged,
+            },
+            RepresentedPlayerSpellLikeCpp {
                 spell_id: 300,
                 active: false,
                 disabled: false,
@@ -120145,6 +120183,16 @@ mod tests {
                     rows[&200].active
                         && !rows[&200].disabled
                         && rows[&200].state == RepresentedPlayerSpellStateLikeCpp::Changed
+                })
+        );
+        session.learn_known_spell_like_cpp(250);
+        assert!(
+            session
+                .complete_represented_player_spell_rows_like_cpp()
+                .is_some_and(|rows| {
+                    !rows[&250].active
+                        && !rows[&250].disabled
+                        && rows[&250].state == RepresentedPlayerSpellStateLikeCpp::Changed
                 })
         );
 

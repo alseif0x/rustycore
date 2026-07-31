@@ -6858,6 +6858,7 @@ impl WorldSession {
         let mut favorite_spell_rows: HashSet<i32> = HashSet::new();
         let mut loaded_player_spell_rows = Vec::new();
         let mut loaded_player_spell_rows_complete_like_cpp = false;
+        let mut favorite_spell_rows_complete_like_cpp = false;
         {
             let mut spell_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_SPELL);
             spell_stmt.set_u64(0, guid.counter() as u64);
@@ -6920,6 +6921,7 @@ impl WorldSession {
                             }
                         }
                     }
+                    favorite_spell_rows_complete_like_cpp = true;
                     info!(
                         "Loaded {} DB favorite spells for {:?}",
                         favorite_spell_rows.len(),
@@ -7107,8 +7109,14 @@ impl WorldSession {
                 "Applied represented C++ Player::LearnCustomSpells / CONFIG_START_ALL_SPELLS"
             );
         }
-        let dependent_spell_count =
-            self.apply_loaded_known_spell_dependencies_like_cpp(&mut known_spells);
+        let mut loaded_dependency_roots = loaded_spell_side_effect_spells.clone();
+        loaded_dependency_roots.extend(known_spells.iter().copied());
+        loaded_dependency_roots.sort_unstable();
+        loaded_dependency_roots.dedup();
+        let dependent_spell_count = self.apply_loaded_spell_dependencies_from_roots_like_cpp(
+            &loaded_dependency_roots,
+            &mut known_spells,
+        );
         if dependent_spell_count > 0 {
             info!(
                 player_guid = guid.counter(),
@@ -7522,7 +7530,7 @@ impl WorldSession {
                     state: crate::session::RepresentedPlayerSpellStateLikeCpp::Unchanged,
                 });
         }
-        if loaded_player_spell_rows_complete_like_cpp {
+        if loaded_player_spell_rows_complete_like_cpp && favorite_spell_rows_complete_like_cpp {
             let complete_spell_rows = self.set_complete_represented_player_spell_rows_like_cpp(
                 final_player_spell_rows.into_values(),
             );
@@ -7537,7 +7545,7 @@ impl WorldSession {
         } else {
             warn!(
                 player_guid = guid.counter(),
-                "Keeping represented PlayerSpellMap incomplete after failed DB load"
+                "Keeping represented PlayerSpellMap incomplete after failed spell/favorite DB load"
             );
         }
 
