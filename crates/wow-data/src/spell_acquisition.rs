@@ -44,9 +44,16 @@ const SUMMON_FROM_BATTLE_PET_JOURNAL_LIKE_CPP: u32 = 0x0020_0000;
 const SPELL_EFFECT_SQL: &str = concat!(
     "SELECT ID, DifficultyID, EffectIndex, Effect, EffectBasePoints, EffectDieSides, ",
     "EffectTriggerSpell, EffectMiscValue1, EffectMiscValue2, ImplicitTarget1, ",
-    "ImplicitTarget2, Coefficient, Variance, SpellID FROM spell_effect ",
+    "ImplicitTarget2, Coefficient, Variance, SpellID, EffectChainTargets, ",
+    "EffectPointsPerResource, EffectRealPointsPerLevel FROM spell_effect ",
     "WHERE (`VerifiedBuild` > 0) = ?"
 );
+const SPELL_EFFECT_WDC_CHAIN_TARGETS_FIELD: usize = 10;
+const SPELL_EFFECT_WDC_POINTS_PER_RESOURCE_FIELD: usize = 14;
+const SPELL_EFFECT_WDC_REAL_POINTS_PER_LEVEL_FIELD: usize = 16;
+const SPELL_EFFECT_SQL_CHAIN_TARGETS_COLUMN: usize = 14;
+const SPELL_EFFECT_SQL_POINTS_PER_RESOURCE_COLUMN: usize = 15;
+const SPELL_EFFECT_SQL_REAL_POINTS_PER_LEVEL_COLUMN: usize = 16;
 const SPELL_LEARN_SPELL_SQL: &str = concat!(
     "SELECT ID, SpellID, LearnSpellID, OverridesSpellID FROM spell_learn_spell ",
     "WHERE (`VerifiedBuild` > 0) = ?"
@@ -305,6 +312,9 @@ pub struct SpellAcquisitionEffectLikeCpp {
     /// promotion and the subsequent `CalcBaseValue(nullptr)` rounding.
     pub effect_base_points_raw: i64,
     pub effect_die_sides_raw: i64,
+    pub effect_chain_targets_raw: i64,
+    pub effect_points_per_resource_bits: u32,
+    pub effect_real_points_per_level_bits: u32,
     /// Exact IEEE-754 payloads. Keeping bits avoids normalizing NaNs while
     /// retaining `Eq` for deterministic plans and fixtures.
     pub effect_coefficient_bits: u32,
@@ -816,6 +826,19 @@ pub enum BattlePetIndeterminateReasonLikeCpp {
 }
 
 impl SpellAcquisitionCatalogLikeCpp {
+    /// Whether the canonical spell-info key exists, independently of whether
+    /// every acquisition table for that key is hydrated.  This is the narrow
+    /// equivalent needed for C++ `GetSpellInfo` short-circuits before later
+    /// gates decide whether full metadata is required.
+    pub fn contains_spell_difficulty_key_like_cpp(
+        &self,
+        spell_id: u32,
+        difficulty_id: u32,
+    ) -> bool {
+        self.coverage_by_key
+            .contains_key(&(spell_id, difficulty_id))
+    }
+
     /// Build every derived index from already-final effective rows.
     ///
     /// Rows are sorted by record id before projection. For duplicate
@@ -2003,6 +2026,126 @@ fn diagnostic_from_invalid(
     }
 }
 
+fn spell_acquisition_effect_from_wdc_like_cpp(
+    record_id: u32,
+    index: usize,
+    reader: &Wdc4Reader,
+) -> SpellAcquisitionEffectLikeCpp {
+    SpellAcquisitionEffectLikeCpp {
+        record_id,
+        spell_id_raw: i64::from(reader.get_relationship_id(index).unwrap_or(0)),
+        difficulty_id_raw: i64::from(reader.get_field_i32(index, 0)),
+        effect_index_raw: i64::from(reader.get_field_i32(index, 1)),
+        effect_type_raw: i64::from(reader.get_field_u32(index, 2)),
+        effect_base_points_raw: i64::from(reader.get_field_i32(index, 7)),
+        effect_die_sides_raw: i64::from(reader.get_field_i32(index, 11)),
+        effect_chain_targets_raw: i64::from(
+            reader.get_field_i32(index, SPELL_EFFECT_WDC_CHAIN_TARGETS_FIELD),
+        ),
+        effect_points_per_resource_bits: reader
+            .get_field_f32(index, SPELL_EFFECT_WDC_POINTS_PER_RESOURCE_FIELD)
+            .to_bits(),
+        effect_real_points_per_level_bits: reader
+            .get_field_f32(index, SPELL_EFFECT_WDC_REAL_POINTS_PER_LEVEL_FIELD)
+            .to_bits(),
+        effect_coefficient_bits: reader.get_field_f32(index, 20).to_bits(),
+        effect_variance_bits: reader.get_field_f32(index, 21).to_bits(),
+        effect_trigger_spell_raw: i64::from(reader.get_field_i32(index, 17)),
+        effect_misc_value_raw: std::array::from_fn(|array_index| {
+            i64::from(reader.get_array_element(index, 24, array_index, 32) as i32)
+        }),
+        implicit_target_raw: std::array::from_fn(|array_index| {
+            i64::from(reader.get_array_element(index, 27, array_index, 16) as i16)
+        }),
+    }
+}
+
+trait SpellEffectSqlFieldSourceLikeCpp {
+    fn raw(&mut self, column: usize, field: &'static str) -> i64;
+    fn f32_bits(&mut self, column: usize, field: &'static str) -> u32;
+}
+
+struct SpellEffectSqlResultSourceLikeCpp<'a> {
+    result: &'a SqlResult,
+    diagnostics: &'a mut Vec<SpellAcquisitionDiagnosticLikeCpp>,
+    record_id: u32,
+}
+
+impl SpellEffectSqlFieldSourceLikeCpp for SpellEffectSqlResultSourceLikeCpp<'_> {
+    fn raw(&mut self, column: usize, field: &'static str) -> i64 {
+        sql_raw_or_invalid(
+            self.result,
+            column,
+            field,
+            SpellAcquisitionTableLikeCpp::SpellEffect,
+            self.record_id,
+            self.diagnostics,
+        )
+    }
+
+    fn f32_bits(&mut self, column: usize, field: &'static str) -> u32 {
+        sql_f32_bits_or_invalid(
+            self.result,
+            column,
+            field,
+            SpellAcquisitionTableLikeCpp::SpellEffect,
+            self.record_id,
+            self.diagnostics,
+        )
+    }
+}
+
+fn spell_acquisition_effect_from_sql_source_like_cpp(
+    record_id: u32,
+    source: &mut impl SpellEffectSqlFieldSourceLikeCpp,
+) -> SpellAcquisitionEffectLikeCpp {
+    SpellAcquisitionEffectLikeCpp {
+        record_id,
+        difficulty_id_raw: source.raw(1, "SpellEffect.DifficultyID"),
+        effect_index_raw: source.raw(2, "SpellEffect.EffectIndex"),
+        effect_type_raw: source.raw(3, "SpellEffect.Effect"),
+        effect_base_points_raw: source.raw(4, "SpellEffect.EffectBasePoints"),
+        effect_die_sides_raw: source.raw(5, "SpellEffect.EffectDieSides"),
+        effect_chain_targets_raw: source.raw(
+            SPELL_EFFECT_SQL_CHAIN_TARGETS_COLUMN,
+            "SpellEffect.EffectChainTargets",
+        ),
+        effect_points_per_resource_bits: source.f32_bits(
+            SPELL_EFFECT_SQL_POINTS_PER_RESOURCE_COLUMN,
+            "SpellEffect.EffectPointsPerResource",
+        ),
+        effect_real_points_per_level_bits: source.f32_bits(
+            SPELL_EFFECT_SQL_REAL_POINTS_PER_LEVEL_COLUMN,
+            "SpellEffect.EffectRealPointsPerLevel",
+        ),
+        effect_coefficient_bits: source.f32_bits(11, "SpellEffect.Coefficient"),
+        effect_variance_bits: source.f32_bits(12, "SpellEffect.Variance"),
+        effect_trigger_spell_raw: source.raw(6, "SpellEffect.EffectTriggerSpell"),
+        effect_misc_value_raw: [
+            source.raw(7, "SpellEffect.EffectMiscValue1"),
+            source.raw(8, "SpellEffect.EffectMiscValue2"),
+        ],
+        implicit_target_raw: [
+            source.raw(9, "SpellEffect.ImplicitTarget1"),
+            source.raw(10, "SpellEffect.ImplicitTarget2"),
+        ],
+        spell_id_raw: source.raw(13, "SpellEffect.SpellID"),
+    }
+}
+
+fn spell_acquisition_effect_from_sql_like_cpp(
+    record_id: u32,
+    result: &SqlResult,
+    diagnostics: &mut Vec<SpellAcquisitionDiagnosticLikeCpp>,
+) -> SpellAcquisitionEffectLikeCpp {
+    let mut source = SpellEffectSqlResultSourceLikeCpp {
+        result,
+        diagnostics,
+        record_id,
+    };
+    spell_acquisition_effect_from_sql_source_like_cpp(record_id, &mut source)
+}
+
 impl SpellAcquisitionCatalogLikeCpp {
     /// Load and compose the seven acquisition source families.
     ///
@@ -2026,141 +2169,14 @@ impl SpellAcquisitionCatalogLikeCpp {
             data_dir,
             locale,
             SpellAcquisitionTableLikeCpp::SpellEffect,
-            |record_id, index, reader| SpellAcquisitionEffectLikeCpp {
-                record_id,
-                spell_id_raw: i64::from(reader.get_relationship_id(index).unwrap_or(0)),
-                difficulty_id_raw: i64::from(reader.get_field_i32(index, 0)),
-                effect_index_raw: i64::from(reader.get_field_i32(index, 1)),
-                effect_type_raw: i64::from(reader.get_field_u32(index, 2)),
-                effect_base_points_raw: i64::from(reader.get_field_i32(index, 7)),
-                effect_die_sides_raw: i64::from(reader.get_field_i32(index, 11)),
-                effect_coefficient_bits: reader.get_field_f32(index, 20).to_bits(),
-                effect_variance_bits: reader.get_field_f32(index, 21).to_bits(),
-                effect_trigger_spell_raw: i64::from(reader.get_field_i32(index, 17)),
-                effect_misc_value_raw: std::array::from_fn(|array_index| {
-                    i64::from(reader.get_array_element(index, 24, array_index, 32) as i32)
-                }),
-                implicit_target_raw: std::array::from_fn(|array_index| {
-                    i64::from(reader.get_array_element(index, 27, array_index, 16) as i16)
-                }),
-            },
+            spell_acquisition_effect_from_wdc_like_cpp,
         )?;
         let [spell_effect_official, spell_effect_custom] = load_sql_overlays_like_cpp(
             hotfix_db,
             SpellAcquisitionTableLikeCpp::SpellEffect,
             SPELL_EFFECT_SQL,
             &mut diagnostics,
-            |record_id, result, diagnostics| SpellAcquisitionEffectLikeCpp {
-                record_id,
-                difficulty_id_raw: sql_raw_or_invalid(
-                    result,
-                    1,
-                    "SpellEffect.DifficultyID",
-                    SpellAcquisitionTableLikeCpp::SpellEffect,
-                    record_id,
-                    diagnostics,
-                ),
-                effect_index_raw: sql_raw_or_invalid(
-                    result,
-                    2,
-                    "SpellEffect.EffectIndex",
-                    SpellAcquisitionTableLikeCpp::SpellEffect,
-                    record_id,
-                    diagnostics,
-                ),
-                effect_type_raw: sql_raw_or_invalid(
-                    result,
-                    3,
-                    "SpellEffect.Effect",
-                    SpellAcquisitionTableLikeCpp::SpellEffect,
-                    record_id,
-                    diagnostics,
-                ),
-                effect_base_points_raw: sql_raw_or_invalid(
-                    result,
-                    4,
-                    "SpellEffect.EffectBasePoints",
-                    SpellAcquisitionTableLikeCpp::SpellEffect,
-                    record_id,
-                    diagnostics,
-                ),
-                effect_die_sides_raw: sql_raw_or_invalid(
-                    result,
-                    5,
-                    "SpellEffect.EffectDieSides",
-                    SpellAcquisitionTableLikeCpp::SpellEffect,
-                    record_id,
-                    diagnostics,
-                ),
-                effect_coefficient_bits: sql_f32_bits_or_invalid(
-                    result,
-                    11,
-                    "SpellEffect.Coefficient",
-                    SpellAcquisitionTableLikeCpp::SpellEffect,
-                    record_id,
-                    diagnostics,
-                ),
-                effect_variance_bits: sql_f32_bits_or_invalid(
-                    result,
-                    12,
-                    "SpellEffect.Variance",
-                    SpellAcquisitionTableLikeCpp::SpellEffect,
-                    record_id,
-                    diagnostics,
-                ),
-                effect_trigger_spell_raw: sql_raw_or_invalid(
-                    result,
-                    6,
-                    "SpellEffect.EffectTriggerSpell",
-                    SpellAcquisitionTableLikeCpp::SpellEffect,
-                    record_id,
-                    diagnostics,
-                ),
-                effect_misc_value_raw: [
-                    sql_raw_or_invalid(
-                        result,
-                        7,
-                        "SpellEffect.EffectMiscValue1",
-                        SpellAcquisitionTableLikeCpp::SpellEffect,
-                        record_id,
-                        diagnostics,
-                    ),
-                    sql_raw_or_invalid(
-                        result,
-                        8,
-                        "SpellEffect.EffectMiscValue2",
-                        SpellAcquisitionTableLikeCpp::SpellEffect,
-                        record_id,
-                        diagnostics,
-                    ),
-                ],
-                implicit_target_raw: [
-                    sql_raw_or_invalid(
-                        result,
-                        9,
-                        "SpellEffect.ImplicitTarget1",
-                        SpellAcquisitionTableLikeCpp::SpellEffect,
-                        record_id,
-                        diagnostics,
-                    ),
-                    sql_raw_or_invalid(
-                        result,
-                        10,
-                        "SpellEffect.ImplicitTarget2",
-                        SpellAcquisitionTableLikeCpp::SpellEffect,
-                        record_id,
-                        diagnostics,
-                    ),
-                ],
-                spell_id_raw: sql_raw_or_invalid(
-                    result,
-                    13,
-                    "SpellEffect.SpellID",
-                    SpellAcquisitionTableLikeCpp::SpellEffect,
-                    record_id,
-                    diagnostics,
-                ),
-            },
+            spell_acquisition_effect_from_sql_like_cpp,
         )
         .await?;
         let composed_spell_effects = compose_effective_table_with_removed_like_cpp(
@@ -2788,6 +2804,107 @@ fn finite_f32_from_bits(
 mod tests {
     use super::*;
 
+    fn push_u16_le(bytes: &mut Vec<u8>, value: u16) {
+        bytes.extend_from_slice(&value.to_le_bytes());
+    }
+
+    fn push_u32_le(bytes: &mut Vec<u8>, value: u32) {
+        bytes.extend_from_slice(&value.to_le_bytes());
+    }
+
+    fn push_u64_le(bytes: &mut Vec<u8>, value: u64) {
+        bytes.extend_from_slice(&value.to_le_bytes());
+    }
+
+    fn minimal_spell_effect_wdc4() -> Vec<u8> {
+        const FIELD_COUNT: u32 = 29;
+        const RECORD_SIZE: u32 = FIELD_COUNT * 4;
+        const HEADER_SIZE: u32 = 72;
+        const SECTION_HEADER_SIZE: u32 = 40;
+        const FIELD_META_SIZE: u32 = 4;
+        const FIELD_STORAGE_INFO_SIZE: u32 = 24;
+        const RECORD_OFFSET: u32 = HEADER_SIZE
+            + SECTION_HEADER_SIZE
+            + FIELD_COUNT * FIELD_META_SIZE
+            + FIELD_COUNT * FIELD_STORAGE_INFO_SIZE;
+
+        let mut bytes = Vec::new();
+        push_u32_le(&mut bytes, 0x3443_4457); // WDC4
+        push_u32_le(&mut bytes, 1); // record_count
+        push_u32_le(&mut bytes, FIELD_COUNT);
+        push_u32_le(&mut bytes, RECORD_SIZE);
+        push_u32_le(&mut bytes, 0); // string_table_size
+        push_u32_le(&mut bytes, 0); // table_hash
+        push_u32_le(&mut bytes, 0x6B64_DD7A); // C++ SpellEffectMeta layout
+        push_u32_le(&mut bytes, 77);
+        push_u32_le(&mut bytes, 77);
+        push_u32_le(&mut bytes, 0); // locale
+        push_u16_le(&mut bytes, 0x04); // external ID list
+        push_u16_le(&mut bytes, u16::MAX); // no inline ID field
+        push_u32_le(&mut bytes, FIELD_COUNT);
+        push_u32_le(&mut bytes, 0); // packed_data_offset
+        push_u32_le(&mut bytes, 0); // lookup_column_count
+        push_u32_le(&mut bytes, FIELD_COUNT * FIELD_STORAGE_INFO_SIZE);
+        push_u32_le(&mut bytes, 0); // common_data_size
+        push_u32_le(&mut bytes, 0); // pallet_data_size
+        push_u32_le(&mut bytes, 1); // section_count
+
+        push_u64_le(&mut bytes, 0); // tact_key_hash
+        push_u32_le(&mut bytes, RECORD_OFFSET);
+        push_u32_le(&mut bytes, 1); // record_count
+        push_u32_le(&mut bytes, 0); // string_table_size
+        push_u32_le(&mut bytes, RECORD_OFFSET + RECORD_SIZE);
+        push_u32_le(&mut bytes, 4); // id_list_size
+        push_u32_le(&mut bytes, 0); // relationship_data_size
+        push_u32_le(&mut bytes, 0); // offset_map_id_count
+        push_u32_le(&mut bytes, 0); // copy_table_count
+
+        bytes.resize(
+            bytes.len() + FIELD_COUNT as usize * FIELD_META_SIZE as usize,
+            0,
+        );
+        for field in 0..FIELD_COUNT {
+            push_u16_le(&mut bytes, (field * 32) as u16);
+            push_u16_le(&mut bytes, 32);
+            push_u32_le(&mut bytes, 0); // additional_data_size
+            push_u32_le(&mut bytes, 0); // CompressionType::None
+            push_u32_le(&mut bytes, 0);
+            push_u32_le(&mut bytes, 0);
+            push_u32_le(&mut bytes, 0);
+        }
+        assert_eq!(bytes.len(), RECORD_OFFSET as usize);
+
+        let mut fields = [0_u32; FIELD_COUNT as usize];
+        fields[9] = 9;
+        fields[10] = 17; // EffectChainTargets
+        fields[11] = 11;
+        fields[13] = 13.0_f32.to_bits();
+        fields[14] = 1.75_f32.to_bits(); // EffectPointsPerResource
+        fields[15] = 15.0_f32.to_bits();
+        fields[16] = (-2.5_f32).to_bits(); // EffectRealPointsPerLevel
+        fields[17] = 17.0_f32.to_bits();
+        for field in fields {
+            push_u32_le(&mut bytes, field);
+        }
+        push_u32_le(&mut bytes, 77); // external record ID
+        bytes
+    }
+
+    struct SentinelSpellEffectSqlSource {
+        raw: [i64; 17],
+        f32_bits: [u32; 17],
+    }
+
+    impl SpellEffectSqlFieldSourceLikeCpp for SentinelSpellEffectSqlSource {
+        fn raw(&mut self, column: usize, _field: &'static str) -> i64 {
+            self.raw[column]
+        }
+
+        fn f32_bits(&mut self, column: usize, _field: &'static str) -> u32 {
+            self.f32_bits[column]
+        }
+    }
+
     fn effect(
         record_id: u32,
         spell_id: i64,
@@ -2803,6 +2920,9 @@ mod tests {
             effect_type_raw: effect_type,
             effect_base_points_raw: 0,
             effect_die_sides_raw: 0,
+            effect_chain_targets_raw: 0,
+            effect_points_per_resource_bits: 0.0_f32.to_bits(),
+            effect_real_points_per_level_bits: 0.0_f32.to_bits(),
             effect_coefficient_bits: 0.0_f32.to_bits(),
             effect_variance_bits: 0.0_f32.to_bits(),
             effect_trigger_spell_raw: 0,
@@ -2854,6 +2974,65 @@ mod tests {
             SpellAcquisitionTableHashesLikeCpp::default(),
             Vec::new(),
         )
+    }
+
+    #[test]
+    fn spell_effect_wdc_hydrates_planner_fields_from_cpp_physical_indices() {
+        assert_eq!(
+            [
+                SPELL_EFFECT_WDC_CHAIN_TARGETS_FIELD,
+                SPELL_EFFECT_WDC_POINTS_PER_RESOURCE_FIELD,
+                SPELL_EFFECT_WDC_REAL_POINTS_PER_LEVEL_FIELD,
+            ],
+            [10, 14, 16]
+        );
+
+        let path = std::env::temp_dir().join(format!(
+            "rustycore-spell-effect-planner-fields-{}.db2",
+            std::process::id()
+        ));
+        std::fs::write(&path, minimal_spell_effect_wdc4()).expect("write SpellEffect WDC4 fixture");
+        let reader = Wdc4Reader::open(&path).expect("open SpellEffect WDC4 fixture");
+        let row = spell_acquisition_effect_from_wdc_like_cpp(77, 0, &reader);
+        std::fs::remove_file(path).expect("remove SpellEffect WDC4 fixture");
+
+        assert_eq!(row.effect_chain_targets_raw, 17);
+        assert_eq!(row.effect_points_per_resource_bits, 1.75_f32.to_bits());
+        assert_eq!(row.effect_real_points_per_level_bits, (-2.5_f32).to_bits());
+    }
+
+    #[test]
+    fn spell_effect_sql_hydrates_planner_fields_from_projection_columns() {
+        let projection = SPELL_EFFECT_SQL
+            .strip_prefix("SELECT ")
+            .and_then(|sql| sql.split_once(" FROM spell_effect "))
+            .map(|(columns, _)| columns.split(", ").collect::<Vec<_>>())
+            .expect("SpellEffect SQL projection");
+        assert_eq!(projection.len(), 17);
+        assert_eq!(
+            [
+                SPELL_EFFECT_SQL_CHAIN_TARGETS_COLUMN,
+                SPELL_EFFECT_SQL_POINTS_PER_RESOURCE_COLUMN,
+                SPELL_EFFECT_SQL_REAL_POINTS_PER_LEVEL_COLUMN,
+            ],
+            [14, 15, 16]
+        );
+        assert_eq!(projection[14], "EffectChainTargets");
+        assert_eq!(projection[15], "EffectPointsPerResource");
+        assert_eq!(projection[16], "EffectRealPointsPerLevel");
+
+        let mut source = SentinelSpellEffectSqlSource {
+            raw: [0; 17],
+            f32_bits: [0; 17],
+        };
+        source.raw[14] = 23;
+        source.f32_bits[15] = 3.25_f32.to_bits();
+        source.f32_bits[16] = (-4.5_f32).to_bits();
+        let row = spell_acquisition_effect_from_sql_source_like_cpp(88, &mut source);
+
+        assert_eq!(row.effect_chain_targets_raw, 23);
+        assert_eq!(row.effect_points_per_resource_bits, 3.25_f32.to_bits());
+        assert_eq!(row.effect_real_points_per_level_bits, (-4.5_f32).to_bits());
     }
 
     #[test]
