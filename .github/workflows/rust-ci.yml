@@ -86,7 +86,7 @@ jobs:
         run: |
           cargo +1.88.0 check --locked -p wow-data -p wow-database -p wow-network -p wow-world -p bnet-server -p world-server
           cargo +1.88.0 check --locked --manifest-path tools/wow-test-bot/Cargo.toml
-          cargo +1.88.0 build --locked -p bnet-server -p world-server
+          cargo +1.88.0 build --locked -j1 -p bnet-server -p world-server
 
       - name: Clippy loot authority boundary
         run: cargo +1.88.0 clippy --locked --no-deps --message-format short -p wow-loot -p wow-entities -p wow-map -p wow-network --lib

@@ -4323,11 +4323,21 @@ fn represented_pet_aura_slot_like_cpp(index: usize) -> Option<u8> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RepresentedPlayerSkillStateLikeCpp {
+    Unchanged,
+    Changed,
+    New,
+    Deleted,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedPlayerSkillLikeCpp {
     pub skill_id: u16,
+    pub step: u16,
     pub value: u16,
     pub max: u16,
     pub profession_slot: i8,
+    pub state: RepresentedPlayerSkillStateLikeCpp,
 }
 
 #[allow(dead_code)]
@@ -4420,9 +4430,11 @@ fn represented_skill_records_from_values_like_cpp(
                 skill_id,
                 RepresentedPlayerSkillLikeCpp {
                     skill_id,
+                    step: 0,
                     value,
                     max: value,
                     profession_slot: -1,
+                    state: RepresentedPlayerSkillStateLikeCpp::Unchanged,
                 },
             )
         })
@@ -5202,6 +5214,8 @@ pub struct WorldSession {
     player_skill_values_like_cpp: HashMap<u16, u16>,
     player_skill_records_like_cpp: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
     player_skill_records_loaded_like_cpp: bool,
+    player_skill_records_complete_like_cpp: bool,
+    player_skill_occupied_slots_like_cpp: Option<u16>,
     represented_gray_level_script_overrides_like_cpp: HashMap<u8, u8>,
 
     // Realm ID for GUID creation
@@ -5455,6 +5469,15 @@ pub struct WorldSession {
     represented_primary_specialization_id_like_cpp: u32,
     /// All known spell IDs for the logged-in character (DB + DBC merged).
     known_spells: Vec<i32>,
+    /// Complete represented C++ `PlayerSpellMap`, retained independently from
+    /// the active-only `known_spells` client projection.
+    represented_player_spell_rows_like_cpp: BTreeMap<i32, RepresentedPlayerSpellLikeCpp>,
+    /// True when the backing spell queries or another explicit row source
+    /// were retained losslessly.
+    represented_player_spell_rows_loaded_like_cpp: bool,
+    /// True only when the retained rows represent the final post-`AddSpell`
+    /// logical map, not merely the raw DB rows.
+    represented_player_spell_rows_complete_like_cpp: bool,
     /// Represented C++ `PlayerSpell::dependent` for known spells that must not
     /// be persisted by `_SaveSpells`.
     represented_dependent_known_spells_like_cpp: HashSet<i32>,
@@ -5466,6 +5489,9 @@ pub struct WorldSession {
     represented_favorite_known_spells_like_cpp: HashSet<i32>,
     /// Represented C++ `PlayerSpell::TraitDefinitionId`, keyed by learned spell id.
     represented_spell_trait_definition_ids_like_cpp: HashMap<i32, i32>,
+    /// True only when trait-definition IDs were replaced from a complete source.
+    /// An empty represented map is otherwise indistinguishable from an unloaded one.
+    represented_spell_trait_definition_ids_complete_like_cpp: bool,
     /// C++ `Player::m_weaponProficiency`; `Spell::EffectProficiency` ORs into it.
     represented_weapon_proficiency_like_cpp: u32,
     /// C++ `Player::m_armorProficiency`; `Spell::EffectProficiency` ORs into it.
@@ -5808,6 +5834,9 @@ pub struct WorldSession {
     /// C++ `Player::m_overrideSpells`, represented until active player spell
     /// cast resolution owns override lookup.
     represented_override_spells_like_cpp: HashMap<i32, BTreeSet<i32>>,
+    /// True only when all C++ `Player::m_overrideSpells` edges were replaced
+    /// from a complete source rather than accumulated opportunistically.
+    represented_override_spells_complete_like_cpp: bool,
     /// C++ `CONFIG_CAST_UNSTUCK` represented until World config is injected into spell effects.
     represented_cast_unstuck_enabled_like_cpp: bool,
     /// C++ `Player::GetDeathTimer()` represented for `Spell::EffectStuck`.
@@ -7348,6 +7377,8 @@ impl WorldSession {
             player_skill_values_like_cpp: HashMap::new(),
             player_skill_records_like_cpp: HashMap::new(),
             player_skill_records_loaded_like_cpp: false,
+            player_skill_records_complete_like_cpp: false,
+            player_skill_occupied_slots_like_cpp: None,
             represented_gray_level_script_overrides_like_cpp: HashMap::new(),
             realm_id: 1,
             realm_region: 1,
@@ -7501,10 +7532,14 @@ impl WorldSession {
             loot_specialization_id: 0,
             represented_primary_specialization_id_like_cpp: 0,
             known_spells: Vec::new(),
+            represented_player_spell_rows_like_cpp: BTreeMap::new(),
+            represented_player_spell_rows_loaded_like_cpp: false,
+            represented_player_spell_rows_complete_like_cpp: false,
             represented_dependent_known_spells_like_cpp: HashSet::new(),
             represented_removed_known_spells_like_cpp: HashSet::new(),
             represented_favorite_known_spells_like_cpp: HashSet::new(),
             represented_spell_trait_definition_ids_like_cpp: HashMap::new(),
+            represented_spell_trait_definition_ids_complete_like_cpp: false,
             represented_weapon_proficiency_like_cpp: 0,
             represented_armor_proficiency_like_cpp: 0,
             account_mounts_like_cpp: HashMap::new(),
@@ -7658,6 +7693,7 @@ impl WorldSession {
             represented_delayed_resurrection_after_teleport_like_cpp: None,
             represented_self_res_spells_like_cpp: BTreeSet::new(),
             represented_override_spells_like_cpp: HashMap::new(),
+            represented_override_spells_complete_like_cpp: false,
             represented_cast_unstuck_enabled_like_cpp: true,
             represented_death_timer_active_like_cpp: false,
             move_teleport_ack_events_like_cpp: Vec::new(),
@@ -28929,6 +28965,12 @@ impl WorldSession {
             talents.clear();
         }
         self.represented_talents_loaded_like_cpp = false;
+        // Login reconstructs a fresh C++ Player after this reset. Retaining the
+        // previous character's runtime edges would affect GetCastSpellInfo, and
+        // retaining per-spell traits could contaminate a coincident spell ID.
+        self.represented_override_spells_like_cpp.clear();
+        self.represented_spell_trait_definition_ids_like_cpp.clear();
+        self.invalidate_represented_spell_acquisition_auxiliary_authority_like_cpp();
     }
 
     pub(crate) fn reset_represented_active_talents_like_cpp(&mut self) -> bool {
@@ -34940,23 +34982,24 @@ impl WorldSession {
                 .spell_learn_spell_map_bounds_like_cpp(spell_id_u32)
                 .to_vec();
             for learned_spell in learned_spells {
-                if learned_spell.auto_learned || !learned_spell.active {
-                    continue;
-                }
                 let Ok(learned_spell_id) = i32::try_from(learned_spell.spell) else {
                     continue;
                 };
-                if known_spells.contains(&learned_spell_id) {
-                    continue;
+                if !learned_spell.auto_learned
+                    && learned_spell.active
+                    && !known_spells.contains(&learned_spell_id)
+                {
+                    known_spells.push(learned_spell_id);
+                    self.represented_dependent_known_spells_like_cpp
+                        .insert(learned_spell_id);
+                    self.represented_favorite_known_spells_like_cpp
+                        .remove(&learned_spell_id);
+                    added += 1;
                 }
-                known_spells.push(learned_spell_id);
-                self.represented_dependent_known_spells_like_cpp
-                    .insert(learned_spell_id);
-                self.represented_favorite_known_spells_like_cpp
-                    .remove(&learned_spell_id);
-                added += 1;
 
-                if learned_spell.overrides_spell != 0 {
+                // C++ AddSpell rebuilds this edge for every active dependency,
+                // including auto-learned and already-known spells.
+                if learned_spell.active && learned_spell.overrides_spell != 0 {
                     if let Ok(overrides_spell_id) = i32::try_from(learned_spell.overrides_spell) {
                         self.add_represented_override_spell_like_cpp(
                             overrides_spell_id,
@@ -40231,6 +40274,7 @@ impl WorldSession {
         controller.set_next_level_xp(self.player_next_level_xp);
         controller.set_selection_guid(self.selection_guid);
         controller.set_known_spells(self.known_spells.clone());
+        controller.set_skill_records(self.player_skill_records_like_cpp.clone());
         controller.set_currencies(self.player_currencies.clone());
         controller.set_inventory(self.session_player_inventory_runtime_like_cpp());
         self.set_player_guid(Some(controller.guid()));
@@ -40779,6 +40823,7 @@ impl WorldSession {
     }
 
     pub(crate) fn set_known_spells_like_cpp(&mut self, spells: Vec<i32>) {
+        self.invalidate_represented_player_spell_rows_like_cpp();
         self.known_spells = spells;
         self.represented_removed_known_spells_like_cpp.clear();
         self.represented_dependent_known_spells_like_cpp
@@ -40791,6 +40836,50 @@ impl WorldSession {
         if let Some(controller) = &mut self.player_controller {
             controller.set_known_spells(self.known_spells.clone());
         }
+    }
+
+    fn invalidate_represented_player_spell_rows_like_cpp(&mut self) {
+        self.represented_player_spell_rows_like_cpp.clear();
+        self.represented_player_spell_rows_loaded_like_cpp = false;
+        self.represented_player_spell_rows_complete_like_cpp = false;
+        self.invalidate_represented_spell_acquisition_auxiliary_authority_like_cpp();
+    }
+
+    fn invalidate_represented_spell_acquisition_auxiliary_authority_like_cpp(&mut self) {
+        self.represented_spell_trait_definition_ids_complete_like_cpp = false;
+        self.represented_override_spells_complete_like_cpp = false;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_complete_represented_player_spell_rows_like_cpp(
+        &mut self,
+        rows: impl IntoIterator<Item = RepresentedPlayerSpellLikeCpp>,
+    ) -> bool {
+        self.replace_loaded_represented_player_spell_rows_like_cpp(rows, true)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn replace_loaded_represented_player_spell_rows_like_cpp(
+        &mut self,
+        rows: impl IntoIterator<Item = RepresentedPlayerSpellLikeCpp>,
+        complete: bool,
+    ) -> bool {
+        // A replacement can describe another logical PlayerSpellMap. Existing
+        // trait/override mirrors must be re-authorized even when spell IDs happen
+        // to overlap, otherwise residual state can be attributed to the new map.
+        self.invalidate_represented_spell_acquisition_auxiliary_authority_like_cpp();
+        let mut exact_rows = BTreeMap::new();
+        for row in rows {
+            if row.spell_id <= 0 || exact_rows.insert(row.spell_id, row).is_some() {
+                self.invalidate_represented_player_spell_rows_like_cpp();
+                return false;
+            }
+        }
+
+        self.represented_player_spell_rows_like_cpp = exact_rows;
+        self.represented_player_spell_rows_loaded_like_cpp = true;
+        self.represented_player_spell_rows_complete_like_cpp = complete;
+        true
     }
 
     pub(crate) fn set_account_mounts_like_cpp(&mut self, mounts: Vec<AccountMount>) {
@@ -41533,22 +41622,50 @@ impl WorldSession {
     #[allow(dead_code)]
     pub(crate) fn set_player_skill_values_like_cpp(&mut self, skill_values: HashMap<u16, u16>) {
         let skill_records = represented_skill_records_from_values_like_cpp(&skill_values);
-        self.player_skill_values_like_cpp = skill_values.clone();
-        self.player_skill_records_like_cpp = skill_records.clone();
-        self.player_skill_records_loaded_like_cpp = true;
-        if let Some(controller) = &mut self.player_controller {
-            controller.set_skill_records(skill_records);
-        }
+        self.replace_player_skill_records_like_cpp(skill_records, true, false);
     }
 
     pub(crate) fn set_player_skill_records_like_cpp(
         &mut self,
         skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
     ) {
+        // This represented runtime map does not expose the exact occupied
+        // ActivePlayerData::Skill slots. Never infer that authority from the
+        // number of map rows.
+        self.replace_player_skill_records_like_cpp(skill_records, true, false);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_complete_player_skill_records_like_cpp(
+        &mut self,
+        skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
+        occupied_slots: u16,
+    ) -> bool {
+        self.replace_player_skill_records_like_cpp(skill_records, true, true);
+        self.set_player_skill_occupied_slots_like_cpp(occupied_slots)
+    }
+
+    pub(crate) fn replace_player_skill_records_like_cpp(
+        &mut self,
+        skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
+        loaded: bool,
+        complete: bool,
+    ) {
+        let rows_are_structurally_complete = skill_records.iter().all(|(skill_id, skill)| {
+            *skill_id == skill.skill_id
+                && (skill.state != RepresentedPlayerSkillStateLikeCpp::Deleted
+                    || (skill.step == 0
+                        && skill.value == 0
+                        && skill.max == 0
+                        && skill.profession_slot == -1))
+        });
         self.player_skill_values_like_cpp =
             represented_skill_values_from_records_like_cpp(&skill_records);
         self.player_skill_records_like_cpp = skill_records.clone();
-        self.player_skill_records_loaded_like_cpp = true;
+        self.player_skill_records_loaded_like_cpp = loaded;
+        self.player_skill_records_complete_like_cpp =
+            loaded && complete && rows_are_structurally_complete;
+        self.player_skill_occupied_slots_like_cpp = None;
         if let Some(controller) = &mut self.player_controller {
             controller.set_skill_records(skill_records);
         }
@@ -41558,23 +41675,94 @@ impl WorldSession {
         self.player_skill_records_loaded_like_cpp
     }
 
-    fn set_represented_player_skill_like_cpp(&mut self, skill_id: u16, value: u16, max: u16) {
-        let profession_slot = self
-            .player_skill_records_like_cpp()
-            .get(&skill_id)
-            .map(|skill| skill.profession_slot)
-            .unwrap_or(-1);
+    pub(crate) fn set_player_skill_occupied_slots_like_cpp(&mut self, occupied_slots: u16) -> bool {
+        // C++ `SetSkill(..., 0)` clears step/rank/max but retains the
+        // SkillLineID in its update-field slot until that slot is explicitly
+        // reused. A represented SKILL_DELETED row therefore still counts.
+        let exact = self.player_skill_records_like_cpp.len();
+        if !self.player_skill_records_complete_like_cpp
+            || usize::from(occupied_slots) != exact
+            || usize::from(occupied_slots) > 256
+        {
+            self.player_skill_occupied_slots_like_cpp = None;
+            return false;
+        }
+        self.player_skill_occupied_slots_like_cpp = Some(occupied_slots);
+        true
+    }
+
+    pub(crate) fn complete_player_skill_occupied_slots_like_cpp(&self) -> Option<u16> {
+        self.player_skill_records_complete_like_cpp
+            .then_some(self.player_skill_occupied_slots_like_cpp)
+            .flatten()
+    }
+
+    pub(crate) fn complete_player_skill_records_like_cpp(
+        &self,
+    ) -> Option<&HashMap<u16, RepresentedPlayerSkillLikeCpp>> {
+        self.player_skill_records_complete_like_cpp
+            .then(|| self.player_skill_records_like_cpp())
+    }
+
+    fn set_represented_player_skill_like_cpp(
+        &mut self,
+        skill_id: u16,
+        step: u16,
+        value: u16,
+        max: u16,
+    ) {
+        let step = if value == 0 { 0 } else { step };
+        let previous = self.player_skill_records_like_cpp().get(&skill_id).copied();
+        // Preserve the existing DB-facing profession association exactly as
+        // the former active-only representation did. Persistence still
+        // ignores the shadow lifecycle state in this projection-only PR.
+        let profession_slot = previous.map(|skill| skill.profession_slot).unwrap_or(-1);
+        let state = match previous {
+            None => RepresentedPlayerSkillStateLikeCpp::New,
+            Some(previous) if value == 0 && previous.value != 0 => {
+                if previous.state == RepresentedPlayerSkillStateLikeCpp::New {
+                    RepresentedPlayerSkillStateLikeCpp::Unchanged
+                } else {
+                    RepresentedPlayerSkillStateLikeCpp::Deleted
+                }
+            }
+            Some(previous) if value == 0 => previous.state,
+            Some(previous)
+                if matches!(
+                    previous.state,
+                    RepresentedPlayerSkillStateLikeCpp::Unchanged
+                        | RepresentedPlayerSkillStateLikeCpp::Deleted
+                ) =>
+            {
+                if previous.value == 0 {
+                    if previous.state == RepresentedPlayerSkillStateLikeCpp::Deleted {
+                        RepresentedPlayerSkillStateLikeCpp::Changed
+                    } else {
+                        RepresentedPlayerSkillStateLikeCpp::New
+                    }
+                } else {
+                    RepresentedPlayerSkillStateLikeCpp::Changed
+                }
+            }
+            Some(previous) => previous.state,
+        };
         let mut skill_records = self.player_skill_records_like_cpp().clone();
         skill_records.insert(
             skill_id,
             RepresentedPlayerSkillLikeCpp {
                 skill_id,
+                step,
                 value,
                 max,
                 profession_slot,
+                state,
             },
         );
-        self.set_player_skill_records_like_cpp(skill_records);
+        // Preserve the pre-#164 persistence contract: every represented
+        // mutation makes the skill map saveable even when its source load was
+        // incomplete. The mutation path cannot prove exact update-field slot
+        // occupancy, so it must invalidate planner completeness separately.
+        self.replace_player_skill_records_like_cpp(skill_records, true, false);
     }
 
     fn player_skill_max_value_like_cpp(&self, skill_id: u16) -> u16 {
@@ -41608,12 +41796,12 @@ impl WorldSession {
     ) {
         let prev_spell = self.prev_spell_in_chain_like_cpp(current_spell_id);
         if prev_spell == 0 {
-            self.set_represented_player_skill_like_cpp(learned_skill.skill, 0, 0);
+            self.set_represented_player_skill_like_cpp(learned_skill.skill, 0, 0, 0);
             return;
         }
 
         let Some(prev_skill) = self.previous_spell_learn_skill_like_cpp(prev_spell) else {
-            self.set_represented_player_skill_like_cpp(learned_skill.skill, 0, 0);
+            self.set_represented_player_skill_like_cpp(learned_skill.skill, 0, 0, 0);
             return;
         };
 
@@ -41680,10 +41868,16 @@ impl WorldSession {
             skill_value = new_skill_max_value;
         }
 
-        self.set_represented_player_skill_like_cpp(prev_skill.skill, skill_value, skill_max_value);
+        self.set_represented_player_skill_like_cpp(
+            prev_skill.skill,
+            prev_skill.step,
+            skill_value,
+            skill_max_value,
+        );
     }
 
     pub(crate) fn learn_known_spell_like_cpp(&mut self, spell_id: i32) {
+        self.invalidate_represented_player_spell_rows_like_cpp();
         if !self.known_spells.contains(&spell_id) {
             self.known_spells.push(spell_id);
         }
@@ -41736,6 +41930,8 @@ impl WorldSession {
         if !self.known_spells.contains(&spell_id) {
             return;
         }
+
+        self.invalidate_represented_player_spell_rows_like_cpp();
 
         if !seen.insert(spell_id) {
             return;
@@ -42743,9 +42939,71 @@ impl WorldSession {
         spell_info.clone()
     }
 
-    #[cfg(test)]
     pub(crate) fn represented_override_spells_like_cpp(&self) -> &HashMap<i32, BTreeSet<i32>> {
         &self.represented_override_spells_like_cpp
+    }
+
+    pub(crate) fn represented_spell_trait_definition_ids_like_cpp(&self) -> &HashMap<i32, i32> {
+        &self.represented_spell_trait_definition_ids_like_cpp
+    }
+
+    pub(crate) fn complete_represented_override_spells_like_cpp(
+        &self,
+    ) -> Option<&HashMap<i32, BTreeSet<i32>>> {
+        self.represented_override_spells_complete_like_cpp
+            .then_some(&self.represented_override_spells_like_cpp)
+    }
+
+    pub(crate) fn complete_represented_spell_trait_definition_ids_like_cpp(
+        &self,
+    ) -> Option<&HashMap<i32, i32>> {
+        self.represented_spell_trait_definition_ids_complete_like_cpp
+            .then_some(&self.represented_spell_trait_definition_ids_like_cpp)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_complete_represented_spell_trait_definition_ids_like_cpp(
+        &mut self,
+        traits: impl IntoIterator<Item = (i32, i32)>,
+    ) -> bool {
+        let mut exact_traits = HashMap::new();
+        for (spell_id, trait_definition_id) in traits {
+            if spell_id <= 0
+                || trait_definition_id <= 0
+                || exact_traits.insert(spell_id, trait_definition_id).is_some()
+            {
+                self.represented_spell_trait_definition_ids_like_cpp.clear();
+                self.represented_spell_trait_definition_ids_complete_like_cpp = false;
+                return false;
+            }
+        }
+
+        self.represented_spell_trait_definition_ids_like_cpp = exact_traits;
+        self.represented_spell_trait_definition_ids_complete_like_cpp = true;
+        true
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_complete_represented_override_spells_like_cpp(
+        &mut self,
+        overrides: impl IntoIterator<Item = (i32, i32)>,
+    ) -> bool {
+        let mut exact_overrides = HashMap::<i32, BTreeSet<i32>>::new();
+        for (overridden_spell_id, overriding_spell_id) in overrides {
+            if overridden_spell_id <= 0 || overriding_spell_id <= 0 {
+                self.represented_override_spells_like_cpp.clear();
+                self.represented_override_spells_complete_like_cpp = false;
+                return false;
+            }
+            exact_overrides
+                .entry(overridden_spell_id)
+                .or_default()
+                .insert(overriding_spell_id);
+        }
+
+        self.represented_override_spells_like_cpp = exact_overrides;
+        self.represented_override_spells_complete_like_cpp = true;
+        true
     }
 
     pub(crate) fn sync_player_currencies_like_cpp(&mut self) {
@@ -42985,6 +43243,7 @@ impl WorldSession {
         &mut self,
         favorite_spells: HashSet<i32>,
     ) {
+        self.invalidate_represented_player_spell_rows_like_cpp();
         self.represented_favorite_known_spells_like_cpp = favorite_spells
             .into_iter()
             .filter(|spell_id| self.known_spells.contains(spell_id))
@@ -43028,6 +43287,19 @@ impl WorldSession {
         );
         rows.sort_by_key(|spell| spell.spell_id);
         rows
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_player_spell_rows_loaded_like_cpp(&self) -> bool {
+        self.represented_player_spell_rows_loaded_like_cpp
+    }
+
+    pub(crate) fn complete_represented_player_spell_rows_like_cpp(
+        &self,
+    ) -> Option<&BTreeMap<i32, RepresentedPlayerSpellLikeCpp>> {
+        (self.represented_player_spell_rows_loaded_like_cpp
+            && self.represented_player_spell_rows_complete_like_cpp)
+            .then_some(&self.represented_player_spell_rows_like_cpp)
     }
 
     pub(crate) fn represented_favorite_known_spells_like_cpp(&self) -> &HashSet<i32> {
@@ -65973,9 +66245,11 @@ mod tests {
             skill_id,
             RepresentedPlayerSkillLikeCpp {
                 skill_id,
+                step: 3,
                 value: skill_value,
                 max: skill_max,
                 profession_slot: 0,
+                state: RepresentedPlayerSkillStateLikeCpp::Unchanged,
             },
         )]));
         session.set_known_spells_like_cpp(vec![20]);
@@ -66557,18 +66831,64 @@ mod tests {
     }
 
     #[test]
+    fn loaded_known_spell_dependencies_rebuild_all_active_override_edges_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_spell_learn_spell_store(Arc::new(wow_data::SpellLearnSpellStoreLikeCpp {
+            learned_by_spell_id: BTreeMap::from([(
+                10,
+                vec![
+                    wow_data::SpellLearnSpellNodeLikeCpp {
+                        spell: 20,
+                        overrides_spell: 100,
+                        active: true,
+                        auto_learned: false,
+                    },
+                    wow_data::SpellLearnSpellNodeLikeCpp {
+                        spell: 30,
+                        overrides_spell: 200,
+                        active: true,
+                        auto_learned: true,
+                    },
+                ],
+            )]),
+        }));
+        session.add_represented_override_spell_like_cpp(999, 888);
+        session.reset_represented_talents_like_cpp();
+
+        let mut known_spells = vec![10, 20];
+        assert_eq!(
+            session.apply_loaded_known_spell_dependencies_like_cpp(&mut known_spells),
+            0,
+            "an already-persisted dependency and an auto-learned dependency do not append spell rows"
+        );
+        assert_eq!(known_spells, vec![10, 20]);
+        assert_eq!(
+            session.represented_override_spells_like_cpp(),
+            &HashMap::from([(100, BTreeSet::from([20])), (200, BTreeSet::from([30])),]),
+            "C++ AddSpell rebuilds active OverridesSpell edges outside the AutoLearned branch"
+        );
+    }
+
+    #[test]
     fn remove_known_spell_removes_first_rank_learned_skill_like_cpp() {
         let (mut session, _, _) = make_session();
         session.set_spell_learn_skill_store(Arc::new(test_spell_learn_skill_store_like_cpp()));
-        session.set_player_skill_records_like_cpp(HashMap::from([(
-            755,
-            RepresentedPlayerSkillLikeCpp {
-                skill_id: 755,
-                value: 150,
-                max: 225,
-                profession_slot: 0,
-            },
-        )]));
+        session.replace_player_skill_records_like_cpp(
+            HashMap::from([(
+                755,
+                RepresentedPlayerSkillLikeCpp {
+                    skill_id: 755,
+                    step: 4,
+                    value: 150,
+                    max: 225,
+                    profession_slot: 0,
+                    state: RepresentedPlayerSkillStateLikeCpp::Unchanged,
+                },
+            )]),
+            false,
+            false,
+        );
+        assert!(!session.player_skill_records_loaded_like_cpp());
         session.set_known_spells_like_cpp(vec![10, 30]);
 
         session.remove_known_spell_like_cpp(10);
@@ -66582,11 +66902,21 @@ mod tests {
             session.player_skill_records_like_cpp().get(&755),
             Some(&RepresentedPlayerSkillLikeCpp {
                 skill_id: 755,
+                step: 0,
                 value: 0,
                 max: 0,
                 profession_slot: 0,
+                state: RepresentedPlayerSkillStateLikeCpp::Deleted,
             }),
             "C++ SetSkill(skill, 0, 0, 0) resets the learned skill for first-rank SpellLearnSkill nodes"
+        );
+        assert!(
+            session.player_skill_records_loaded_like_cpp(),
+            "the pre-#164 mutation path always made the represented map eligible for persistence"
+        );
+        assert!(
+            session.complete_player_skill_records_like_cpp().is_none(),
+            "a runtime mutation does not manufacture exact slot-occupancy authority"
         );
 
         let statements = session.character_skill_save_statements_like_cpp(42);
@@ -66647,9 +66977,11 @@ mod tests {
             755,
             RepresentedPlayerSkillLikeCpp {
                 skill_id: 755,
+                step: 2,
                 value: 180,
                 max: 225,
                 profession_slot: 0,
+                state: RepresentedPlayerSkillStateLikeCpp::Unchanged,
             },
         )]));
         session.set_known_spells_like_cpp(vec![20]);
@@ -66660,9 +66992,11 @@ mod tests {
             session.player_skill_records_like_cpp().get(&755),
             Some(&RepresentedPlayerSkillLikeCpp {
                 skill_id: 755,
+                step: 1,
                 value: 75,
                 max: 75,
                 profession_slot: 0,
+                state: RepresentedPlayerSkillStateLikeCpp::Changed,
             }),
             "C++ clamps GetPureSkillValue/GetPureMaxSkillValue to the previous SpellLearnSkill explicit value/maxvalue before SetSkill"
         );
@@ -66696,9 +67030,11 @@ mod tests {
             755,
             RepresentedPlayerSkillLikeCpp {
                 skill_id: 755,
+                step: 2,
                 value: 150,
                 max: 225,
                 profession_slot: 0,
+                state: RepresentedPlayerSkillStateLikeCpp::Unchanged,
             },
         )]));
         session.set_known_spells_like_cpp(vec![20]);
@@ -66709,9 +67045,11 @@ mod tests {
             session.player_skill_records_like_cpp().get(&755),
             Some(&RepresentedPlayerSkillLikeCpp {
                 skill_id: 755,
+                step: 0,
                 value: 0,
                 max: 0,
                 profession_slot: 0,
+                state: RepresentedPlayerSkillStateLikeCpp::Deleted,
             }),
             "C++ removes the current learned skill when no previous SpellLearnSkill setting is found"
         );
@@ -70820,9 +71158,11 @@ mod tests {
             session.player_skill_records_like_cpp().get(&777),
             Some(&RepresentedPlayerSkillLikeCpp {
                 skill_id: 777,
+                step: 2,
                 value: 300,
                 max: 75,
                 profession_slot: 0,
+                state: RepresentedPlayerSkillStateLikeCpp::Changed,
             }),
             "C++ GetSkillRangeType LANGUAGE forces value to 300 but only clamps existing max downward, so max is not raised when it was already below 300"
         );
@@ -70848,9 +71188,11 @@ mod tests {
             session.player_skill_records_like_cpp().get(&778),
             Some(&RepresentedPlayerSkillLikeCpp {
                 skill_id: 778,
+                step: 2,
                 value: 60,
                 max: 60,
                 profession_slot: 0,
+                state: RepresentedPlayerSkillStateLikeCpp::Changed,
             }),
             "C++ LEVEL range uses GetMaxSkillValueForLevel (level * 5) and then clamps current value/max"
         );
@@ -70876,9 +71218,11 @@ mod tests {
             session.player_skill_records_like_cpp().get(&779),
             Some(&RepresentedPlayerSkillLikeCpp {
                 skill_id: 779,
+                step: 2,
                 value: 60,
                 max: 60,
                 profession_slot: 0,
+                state: RepresentedPlayerSkillStateLikeCpp::Changed,
             }),
             "C++ SKILL_FLAG_ALWAYS_MAX_VALUE sets value to the computed max before SetSkill"
         );
@@ -70904,9 +71248,11 @@ mod tests {
             session.player_skill_records_like_cpp().get(&780),
             Some(&RepresentedPlayerSkillLikeCpp {
                 skill_id: 780,
+                step: 2,
                 value: 1,
                 max: 1,
                 profession_slot: 0,
+                state: RepresentedPlayerSkillStateLikeCpp::Changed,
             }),
             "C++ MONO range caps the downgraded learned skill to 1"
         );
@@ -70937,9 +71283,11 @@ mod tests {
             session.player_skill_records_like_cpp().get(&781),
             Some(&RepresentedPlayerSkillLikeCpp {
                 skill_id: 781,
+                step: 2,
                 value: 150,
                 max: 150,
                 profession_slot: 0,
+                state: RepresentedPlayerSkillStateLikeCpp::Changed,
             }),
             "C++ RANK range resolves SkillTiers[prevSkill.step - 1] when previous SpellLearnSkill maxvalue is 0"
         );
@@ -70974,9 +71322,11 @@ mod tests {
             782,
             RepresentedPlayerSkillLikeCpp {
                 skill_id: 782,
+                step: 3,
                 value: 80,
                 max: 100,
                 profession_slot: 0,
+                state: RepresentedPlayerSkillStateLikeCpp::Unchanged,
             },
         )]));
         session.set_known_spells_like_cpp(vec![20]);
@@ -70987,9 +71337,11 @@ mod tests {
             session.player_skill_records_like_cpp().get(&782),
             Some(&RepresentedPlayerSkillLikeCpp {
                 skill_id: 782,
+                step: 0,
                 value: 0,
                 max: 0,
                 profession_slot: 0,
+                state: RepresentedPlayerSkillStateLikeCpp::Deleted,
             }),
             "C++ leaves new_skill_max_value at 0 when SkillRaceClassInfo is missing, then clamps value/max to 0"
         );
@@ -115967,9 +116319,11 @@ mod tests {
             762,
             RepresentedPlayerSkillLikeCpp {
                 skill_id: 762,
+                step: 1,
                 value: 75,
                 max: 75,
                 profession_slot: -1,
+                state: RepresentedPlayerSkillStateLikeCpp::Unchanged,
             },
         )]));
         session.player_quests.insert(
@@ -119571,17 +119925,439 @@ mod tests {
         session.set_player_skill_values_like_cpp(HashMap::from([(762, 75), (333, 150)]));
 
         assert!(session.player_skill_records_loaded_like_cpp());
+        assert!(
+            session.complete_player_skill_records_like_cpp().is_none(),
+            "an active-only value map has no authority for C++ step or SkillUpdateState"
+        );
         let riding = session.player_skill_records_like_cpp().get(&762).unwrap();
         assert_eq!(
             *riding,
             RepresentedPlayerSkillLikeCpp {
                 skill_id: 762,
+                step: 0,
                 value: 75,
                 max: 75,
                 profession_slot: -1,
+                state: RepresentedPlayerSkillStateLikeCpp::Unchanged,
             }
         );
         assert_eq!(session.player_skill_value_like_cpp(333), 150);
+    }
+
+    #[test]
+    fn exact_player_spell_rows_preserve_flags_and_active_only_updates_fail_closed() {
+        let (mut session, _, _) = make_session();
+        session.set_known_spells_like_cpp(vec![100]);
+        assert!(
+            session
+                .complete_represented_player_spell_rows_like_cpp()
+                .is_none(),
+            "known_spells has no inactive, disabled, favorite or persistence-state authority"
+        );
+
+        let exact_rows = vec![
+            RepresentedPlayerSpellLikeCpp {
+                spell_id: 100,
+                active: true,
+                disabled: false,
+                dependent: true,
+                favorite: false,
+                state: RepresentedPlayerSpellStateLikeCpp::Changed,
+            },
+            RepresentedPlayerSpellLikeCpp {
+                spell_id: 200,
+                active: true,
+                disabled: true,
+                dependent: false,
+                favorite: true,
+                state: RepresentedPlayerSpellStateLikeCpp::Unchanged,
+            },
+            RepresentedPlayerSpellLikeCpp {
+                spell_id: 300,
+                active: false,
+                disabled: false,
+                dependent: false,
+                favorite: true,
+                state: RepresentedPlayerSpellStateLikeCpp::Removed,
+            },
+        ];
+        assert!(
+            session
+                .replace_loaded_represented_player_spell_rows_like_cpp(exact_rows.clone(), false,)
+        );
+        assert!(session.represented_player_spell_rows_loaded_like_cpp());
+        assert!(
+            session
+                .complete_represented_player_spell_rows_like_cpp()
+                .is_none(),
+            "lossless retained rows are not automatically a complete post-AddSpell snapshot"
+        );
+
+        assert!(session.set_complete_represented_player_spell_rows_like_cpp(exact_rows.clone()));
+        assert_eq!(
+            session
+                .complete_represented_player_spell_rows_like_cpp()
+                .map(|rows| rows.values().copied().collect::<Vec<_>>()),
+            Some(exact_rows.clone())
+        );
+        assert!(
+            session
+                .complete_represented_player_spell_rows_like_cpp()
+                .is_some_and(|rows| rows[&200].active && rows[&200].disabled),
+            "disabled rows retain their persisted active bit; it is not inferred from the client projection"
+        );
+
+        assert!(session.set_complete_represented_spell_trait_definition_ids_like_cpp([]));
+        assert!(session.set_complete_represented_override_spells_like_cpp([]));
+        assert!(session.set_complete_represented_player_spell_rows_like_cpp(exact_rows));
+        assert!(
+            session
+                .complete_represented_spell_trait_definition_ids_like_cpp()
+                .is_none()
+        );
+        assert!(
+            session
+                .complete_represented_override_spells_like_cpp()
+                .is_none(),
+            "replacing PlayerSpellMap rows must not attribute an older auxiliary snapshot to the new map"
+        );
+
+        session.set_known_spells_like_cpp(vec![100, 400]);
+        assert!(
+            session
+                .complete_represented_player_spell_rows_like_cpp()
+                .is_none(),
+            "a bulk active-only replacement must invalidate rather than fabricate exact row flags"
+        );
+    }
+
+    #[test]
+    fn spell_acquisition_snapshot_adapter_is_exact_or_fails_closed() {
+        use crate::spell_acquisition::{
+            PlayerAcquisitionLifecycleLikeCpp, PlayerCastAcquisitionResolutionLikeCpp,
+            PlayerFuturePlayerConditionResolutionLikeCpp, PlayerSkillPersistenceStateLikeCpp,
+            PlayerSpellPersistenceStateLikeCpp, SpellAcquisitionSnapshotAdapterErrorLikeCpp,
+        };
+
+        let (mut session, _, _) = make_session();
+        session.player_race = 1;
+        session.set_player_class_like_cpp(1);
+        session.set_player_level_like_cpp(40);
+        assert!(
+            session.set_complete_represented_player_spell_rows_like_cpp([
+                RepresentedPlayerSpellLikeCpp {
+                    spell_id: 100,
+                    active: true,
+                    disabled: false,
+                    dependent: true,
+                    favorite: true,
+                    state: RepresentedPlayerSpellStateLikeCpp::Changed,
+                },
+                RepresentedPlayerSpellLikeCpp {
+                    spell_id: 200,
+                    active: false,
+                    disabled: true,
+                    dependent: false,
+                    favorite: false,
+                    state: RepresentedPlayerSpellStateLikeCpp::Removed,
+                },
+            ])
+        );
+        session
+            .represented_spell_trait_definition_ids_like_cpp
+            .insert(100, 7);
+        session
+            .represented_override_spells_like_cpp
+            .entry(90)
+            .or_default()
+            .insert(100);
+        assert!(session.set_complete_player_skill_records_like_cpp(
+            HashMap::from([
+                (
+                    333,
+                    RepresentedPlayerSkillLikeCpp {
+                        skill_id: 333,
+                        step: 2,
+                        value: 150,
+                        max: 225,
+                        profession_slot: 0,
+                        state: RepresentedPlayerSkillStateLikeCpp::Changed,
+                    },
+                ),
+                (
+                    755,
+                    RepresentedPlayerSkillLikeCpp {
+                        skill_id: 755,
+                        step: 0,
+                        value: 0,
+                        max: 0,
+                        profession_slot: -1,
+                        state: RepresentedPlayerSkillStateLikeCpp::Deleted,
+                    },
+                ),
+            ]),
+            2,
+        ));
+        assert!(
+            !session.set_player_skill_occupied_slots_like_cpp(3),
+            "a complete snapshot cannot hide an occupied SkillLine identity"
+        );
+        assert_eq!(
+            session.spell_acquisition_snapshot_like_cpp(
+                PlayerAcquisitionLifecycleLikeCpp::InWorld,
+                Vec::new(),
+                BTreeMap::new(),
+            ),
+            Err(SpellAcquisitionSnapshotAdapterErrorLikeCpp::MissingSkillSlotOccupancy)
+        );
+        assert!(session.set_player_skill_occupied_slots_like_cpp(2));
+        assert_eq!(
+            session.spell_acquisition_snapshot_like_cpp(
+                PlayerAcquisitionLifecycleLikeCpp::InWorld,
+                Vec::new(),
+                BTreeMap::new(),
+            ),
+            Err(SpellAcquisitionSnapshotAdapterErrorLikeCpp::IncompleteTraitDefinitions),
+            "a populated mirror is not proof that every C++ PlayerSpell trait ID was loaded"
+        );
+        assert!(session.set_complete_represented_spell_trait_definition_ids_like_cpp([(100, 7)]));
+        assert_eq!(
+            session.spell_acquisition_snapshot_like_cpp(
+                PlayerAcquisitionLifecycleLikeCpp::InWorld,
+                Vec::new(),
+                BTreeMap::new(),
+            ),
+            Err(SpellAcquisitionSnapshotAdapterErrorLikeCpp::IncompleteOverrides),
+            "a populated m_overrideSpells mirror remains untrusted until its full source is replaced"
+        );
+        assert!(session.set_complete_represented_override_spells_like_cpp([(90, 100)]));
+        let cast_resolutions = BTreeMap::from([(
+            500,
+            PlayerCastAcquisitionResolutionLikeCpp {
+                reached_immediate_phase: true,
+                executed_hit_target_effect_mask: 0b101,
+            },
+        )]);
+        let future_player_condition_resolutions =
+            vec![PlayerFuturePlayerConditionResolutionLikeCpp {
+                condition_id: 55,
+                allowed: true,
+            }];
+
+        let snapshot = session
+            .spell_acquisition_snapshot_like_cpp(
+                PlayerAcquisitionLifecycleLikeCpp::InWorld,
+                future_player_condition_resolutions.clone(),
+                cast_resolutions.clone(),
+            )
+            .expect("explicit complete session state");
+        assert_eq!(snapshot.race, 1);
+        assert_eq!(snapshot.class, 1);
+        assert_eq!(snapshot.level, 40);
+        assert_eq!(snapshot.occupied_skill_slots, 2);
+        assert_eq!(snapshot.overrides, vec![(90, 100)]);
+        assert_eq!(
+            snapshot.future_player_condition_resolutions,
+            future_player_condition_resolutions
+        );
+        assert_eq!(snapshot.cast_resolutions, cast_resolutions);
+        assert_eq!(
+            snapshot.spells[0].state,
+            PlayerSpellPersistenceStateLikeCpp::Changed
+        );
+        assert_eq!(snapshot.spells[0].trait_definition_id, Some(7));
+        assert_eq!(
+            snapshot.skills[0].state,
+            PlayerSkillPersistenceStateLikeCpp::Changed
+        );
+        assert_eq!(
+            snapshot.skills[1].state,
+            PlayerSkillPersistenceStateLikeCpp::Deleted,
+            "a C++ SKILL_DELETED row still owns its SkillLineID update-field slot"
+        );
+
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            ObjectGuid::create_player(1, 42),
+            "SnapshotOwner".to_string(),
+            Position::ZERO,
+            0,
+            1,
+            1,
+            40,
+            0,
+        ));
+        assert_eq!(
+            session.complete_player_skill_occupied_slots_like_cpp(),
+            Some(2),
+            "attaching the runtime owner must retain exact slot occupancy authority"
+        );
+        assert_eq!(
+            session
+                .spell_acquisition_snapshot_like_cpp(
+                    PlayerAcquisitionLifecycleLikeCpp::InWorld,
+                    future_player_condition_resolutions,
+                    cast_resolutions.clone(),
+                )
+                .expect("controller attach preserves the complete immutable snapshot"),
+            snapshot,
+            "the controller receives the exact skill rows before becoming the getter owner"
+        );
+
+        session.player_skill_records_complete_like_cpp = false;
+        assert_eq!(
+            session.spell_acquisition_snapshot_like_cpp(
+                PlayerAcquisitionLifecycleLikeCpp::InWorld,
+                Vec::new(),
+                BTreeMap::new(),
+            ),
+            Err(SpellAcquisitionSnapshotAdapterErrorLikeCpp::IncompleteSkillRows)
+        );
+        session.player_skill_records_complete_like_cpp = true;
+
+        session.player_skill_occupied_slots_like_cpp = None;
+        assert_eq!(
+            session.spell_acquisition_snapshot_like_cpp(
+                PlayerAcquisitionLifecycleLikeCpp::InWorld,
+                Vec::new(),
+                BTreeMap::new(),
+            ),
+            Err(SpellAcquisitionSnapshotAdapterErrorLikeCpp::MissingSkillSlotOccupancy)
+        );
+        session.player_skill_occupied_slots_like_cpp = Some(2);
+
+        session
+            .represented_spell_trait_definition_ids_like_cpp
+            .insert(999, 8);
+        session
+            .represented_spell_trait_definition_ids_like_cpp
+            .insert(998, 9);
+        assert_eq!(
+            session.spell_acquisition_snapshot_like_cpp(
+                PlayerAcquisitionLifecycleLikeCpp::InWorld,
+                Vec::new(),
+                BTreeMap::new(),
+            ),
+            Err(
+                SpellAcquisitionSnapshotAdapterErrorLikeCpp::OrphanTraitDefinition {
+                    spell_id: 998,
+                }
+            )
+        );
+        session
+            .represented_spell_trait_definition_ids_like_cpp
+            .remove(&999);
+        session
+            .represented_spell_trait_definition_ids_like_cpp
+            .remove(&998);
+
+        session
+            .represented_spell_trait_definition_ids_like_cpp
+            .insert(100, 0);
+        assert_eq!(
+            session.spell_acquisition_snapshot_like_cpp(
+                PlayerAcquisitionLifecycleLikeCpp::InWorld,
+                Vec::new(),
+                BTreeMap::new(),
+            ),
+            Err(
+                SpellAcquisitionSnapshotAdapterErrorLikeCpp::InvalidTraitDefinitionId {
+                    spell_id: 100,
+                    trait_definition_id: 0,
+                }
+            )
+        );
+        session
+            .represented_spell_trait_definition_ids_like_cpp
+            .insert(100, 7);
+
+        session
+            .represented_override_spells_like_cpp
+            .entry(-1)
+            .or_default()
+            .insert(100);
+        session
+            .represented_override_spells_like_cpp
+            .entry(-2)
+            .or_default()
+            .insert(200);
+        assert_eq!(
+            session.spell_acquisition_snapshot_like_cpp(
+                PlayerAcquisitionLifecycleLikeCpp::InWorld,
+                Vec::new(),
+                BTreeMap::new(),
+            ),
+            Err(
+                SpellAcquisitionSnapshotAdapterErrorLikeCpp::InvalidOverride {
+                    overridden_spell_id: -2,
+                    overriding_spell_id: 200,
+                }
+            )
+        );
+        session.represented_override_spells_like_cpp.remove(&-1);
+        session.represented_override_spells_like_cpp.remove(&-2);
+
+        session.reset_represented_talents_like_cpp();
+        assert!(
+            session.represented_override_spells_like_cpp().is_empty(),
+            "a fresh character load cannot retain the previous C++ Player's runtime override edges"
+        );
+        assert!(
+            session
+                .represented_spell_trait_definition_ids_like_cpp()
+                .is_empty(),
+            "a fresh character load cannot retain the previous C++ PlayerSpell trait IDs"
+        );
+        assert_eq!(
+            session.spell_acquisition_snapshot_like_cpp(
+                PlayerAcquisitionLifecycleLikeCpp::InWorld,
+                Vec::new(),
+                BTreeMap::new(),
+            ),
+            Err(SpellAcquisitionSnapshotAdapterErrorLikeCpp::IncompleteTraitDefinitions),
+            "character-owned trait and override state is reconstructed after reset"
+        );
+        assert!(session.set_complete_represented_override_spells_like_cpp([]));
+        assert!(session.set_complete_represented_spell_trait_definition_ids_like_cpp([]));
+        let exact_empty_auxiliary_snapshot = session
+            .spell_acquisition_snapshot_like_cpp(
+                PlayerAcquisitionLifecycleLikeCpp::InWorld,
+                Vec::new(),
+                BTreeMap::new(),
+            )
+            .expect("explicitly complete empty auxiliary maps are exact");
+        assert!(exact_empty_auxiliary_snapshot.overrides.is_empty());
+        assert!(
+            exact_empty_auxiliary_snapshot
+                .spells
+                .iter()
+                .all(|spell| spell.trait_definition_id.is_none())
+        );
+        assert!(session.represented_override_spells_like_cpp().is_empty());
+        assert!(
+            session
+                .represented_spell_trait_definition_ids_like_cpp()
+                .is_empty()
+        );
+
+        session.set_known_spells_like_cpp(vec![100]);
+        assert_eq!(
+            session.spell_acquisition_snapshot_like_cpp(
+                PlayerAcquisitionLifecycleLikeCpp::InWorld,
+                Vec::new(),
+                BTreeMap::new(),
+            ),
+            Err(SpellAcquisitionSnapshotAdapterErrorLikeCpp::IncompleteSpellRows)
+        );
+        assert!(
+            session
+                .complete_represented_spell_trait_definition_ids_like_cpp()
+                .is_none()
+        );
+        assert!(
+            session
+                .complete_represented_override_spells_like_cpp()
+                .is_none()
+        );
     }
 
     #[test]
@@ -119592,21 +120368,35 @@ mod tests {
                 333,
                 RepresentedPlayerSkillLikeCpp {
                     skill_id: 333,
+                    step: 2,
                     value: 150,
                     max: 225,
                     profession_slot: 0,
+                    state: RepresentedPlayerSkillStateLikeCpp::Unchanged,
                 },
             ),
             (
                 762,
                 RepresentedPlayerSkillLikeCpp {
                     skill_id: 762,
+                    step: 1,
                     value: 75,
                     max: 75,
                     profession_slot: -1,
+                    state: RepresentedPlayerSkillStateLikeCpp::Unchanged,
                 },
             ),
         ]));
+        let records = session.player_skill_records_like_cpp();
+        assert_eq!(records[&333].step, 2);
+        assert_eq!(
+            records[&333].state,
+            RepresentedPlayerSkillStateLikeCpp::Unchanged
+        );
+        assert!(
+            session.complete_player_skill_records_like_cpp().is_none(),
+            "runtime rows alone do not prove exact update-field slot occupancy"
+        );
 
         let statements = session.character_skill_save_statements_like_cpp(42);
 

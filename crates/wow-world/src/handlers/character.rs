@@ -6937,9 +6937,11 @@ impl WorldSession {
                                     skill_id,
                                     crate::session::RepresentedPlayerSkillLikeCpp {
                                         skill_id,
+                                        step: 0,
                                         value: skill_value,
                                         max: skill_max,
                                         profession_slot,
+                                        state: crate::session::RepresentedPlayerSkillStateLikeCpp::Unchanged,
                                     },
                                 );
                             }
@@ -6991,6 +6993,7 @@ impl WorldSession {
                     );
                     continue;
                 };
+                skill_record.step = entry.step;
                 skill_record.value = entry.rank;
                 skill_record.max = entry.max_rank;
                 // Pinned 3.4.3 C++ `_LoadSkills` also inserts a status and
@@ -7009,7 +7012,7 @@ impl WorldSession {
         }
 
         if loaded_skill_records_like_cpp {
-            self.set_player_skill_records_like_cpp(skill_records.clone());
+            self.replace_player_skill_records_like_cpp(skill_records.clone(), true, false);
         }
         for entry in skill_info_by_id.values() {
             let mut changes = self.skill_rewarded_spell_changes_for_login_like_cpp(
@@ -7390,19 +7393,33 @@ impl WorldSession {
                     .get(&entry.skill_id)
                     .map(|skill| skill.profession_slot)
                     .unwrap_or(-1);
+                let state = skill_records
+                    .get(&entry.skill_id)
+                    .map(|skill| {
+                        if skill.state
+                            == crate::session::RepresentedPlayerSkillStateLikeCpp::Deleted
+                        {
+                            crate::session::RepresentedPlayerSkillStateLikeCpp::Changed
+                        } else {
+                            crate::session::RepresentedPlayerSkillStateLikeCpp::New
+                        }
+                    })
+                    .unwrap_or(crate::session::RepresentedPlayerSkillStateLikeCpp::New);
                 skill_records.insert(
                     entry.skill_id,
                     crate::session::RepresentedPlayerSkillLikeCpp {
                         skill_id: entry.skill_id,
+                        step: entry.step,
                         value: entry.rank,
                         max: entry.max_rank,
                         profession_slot,
+                        state,
                     },
                 );
                 skill_info_by_id.insert(entry.skill_id, entry);
                 default_skill_entries.push(entry);
             }
-            self.set_player_skill_records_like_cpp(skill_records.clone());
+            self.replace_player_skill_records_like_cpp(skill_records.clone(), true, false);
         }
 
         for entry in &default_skill_entries {
@@ -20864,18 +20881,22 @@ mod tests {
                 SKILL_UNARMED_LIKE_CPP,
                 crate::session::RepresentedPlayerSkillLikeCpp {
                     skill_id: SKILL_UNARMED_LIKE_CPP,
+                    step: 0,
                     value: 37,
                     max: 400,
                     profession_slot: -1,
+                    state: crate::session::RepresentedPlayerSkillStateLikeCpp::Unchanged,
                 },
             ),
             (
                 SKILL_FIST_WEAPONS_LIKE_CPP,
                 crate::session::RepresentedPlayerSkillLikeCpp {
                     skill_id: SKILL_FIST_WEAPONS_LIKE_CPP,
+                    step: 0,
                     value: 12,
                     max: 400,
                     profession_slot: -1,
+                    state: crate::session::RepresentedPlayerSkillStateLikeCpp::Unchanged,
                 },
             ),
         ]);
@@ -20914,9 +20935,11 @@ mod tests {
             SKILL_FIST_WEAPONS_LIKE_CPP,
             crate::session::RepresentedPlayerSkillLikeCpp {
                 skill_id: SKILL_FIST_WEAPONS_LIKE_CPP,
+                step: 0,
                 value: 12,
                 max: 400,
                 profession_slot: -1,
+                state: crate::session::RepresentedPlayerSkillStateLikeCpp::Unchanged,
             },
         )]);
         let mut skill_info_by_id = BTreeMap::from([(

@@ -14,6 +14,8 @@ pub mod phasing;
 pub(crate) mod profession;
 pub mod reputation;
 pub mod session;
+#[allow(dead_code)] // Private prerequisite seam consumed by trainer issue #157.
+pub(crate) mod spell_acquisition;
 
 #[cfg(test)]
 mod handler_contract_tests;

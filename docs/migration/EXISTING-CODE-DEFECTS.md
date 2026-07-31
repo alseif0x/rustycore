@@ -71,6 +71,22 @@ remain real; "sends the packet and mutates DB" still does not imply full gamepla
   `SpellEffect.EffectBasePoints` data pin both paths. This fixes signed acquisition payloads and
   other existing `i32` consumers without treating the separate floating-point
   `world.serverside_spell_effect` source as regular DB2 metadata.
+- [x] **Issue #164 — do not publish a newly inserted lower rank as active.** Legacy
+  `Player::AddSpell` demotes a newly learned lower rank when a higher rank is already active, but
+  returns the stale local `active` argument rather than the final `PlayerSpell::active` value
+  (`Player.cpp:2855-2897,3135-3137`). `Player::LearnSpell` can consequently emit both
+  `SMSG_SUPERCEDED_SPELL(low, high)` and a contradictory learned-spell publication
+  (`Player.cpp:3192-3214`). The immutable Rust plan uses the final row state, retains the
+  supersede intent, and deliberately omits the contradictory learned intent. A focused fixture
+  distinguishes this bounded repair from ordinary higher-rank replacement.
+- [x] **Issue #164 — reject skill-slot alias/capacity corruption instead of reproducing it.**
+  Legacy `Player::SetSkill` uses `0` both as a valid array index and as “no free slot”, then
+  activates parent/child skills after selecting but before claiming the slot
+  (`Player.cpp:5799-5856`). Near capacity this can reject a genuinely free slot or let recursive
+  activation reuse a stale position. Rust requires exact occupied-slot authority, activates
+  causal parents/children, rechecks capacity, and returns a structured indeterminate outcome
+  without exposing partial state. This is an intentional safety repair, not a claim that the
+  legacy sentinel behavior was desirable protocol semantics.
 
 ---
 
