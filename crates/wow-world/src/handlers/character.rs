@@ -6857,6 +6857,7 @@ impl WorldSession {
         let mut loaded_spell_side_effect_spells: Vec<i32> = Vec::new();
         let mut favorite_spell_rows: HashSet<i32> = HashSet::new();
         let mut loaded_player_spell_rows = Vec::new();
+        let mut loaded_player_spell_rows_complete_like_cpp = false;
         {
             let mut spell_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_SPELL);
             spell_stmt.set_u64(0, guid.counter() as u64);
@@ -6896,6 +6897,7 @@ impl WorldSession {
                             }
                         }
                     }
+                    loaded_player_spell_rows_complete_like_cpp = true;
                     info!("Loaded {} DB spells for {:?}", known_spells.len(), guid);
                 }
                 Err(e) => {
@@ -7114,8 +7116,7 @@ impl WorldSession {
                 "Applied represented C++ Player::_LoadSpells/AddSpell spell_learn_spell dependencies"
             );
         }
-        let canonical_known_spells = self.known_spells_like_cpp().to_vec();
-        for spell_id in canonical_known_spells {
+        for &spell_id in &known_spells {
             if !loaded_spell_side_effect_spells.contains(&spell_id) {
                 loaded_spell_side_effect_spells.push(spell_id);
             }
@@ -7488,14 +7489,22 @@ impl WorldSession {
         // Retain the raw inactive/disabled DB rows and merge spells introduced by
         // represented AddSpell work. Trainer/acquisition decisions need the full
         // logical PlayerSpellMap, not the active-only client projection.
+        let canonical_known_spells = self.known_spells_like_cpp().to_vec();
+        let canonical_known_spell_ids = canonical_known_spells
+            .iter()
+            .copied()
+            .collect::<HashSet<_>>();
         let mut final_player_spell_rows = loaded_player_spell_rows
             .into_iter()
             .map(|mut row| {
                 row.favorite = favorite_spell_rows.contains(&row.spell_id);
+                if !row.disabled {
+                    row.active = canonical_known_spell_ids.contains(&row.spell_id);
+                }
                 (row.spell_id, row)
             })
             .collect::<std::collections::BTreeMap<_, _>>();
-        for &spell_id in &known_spells {
+        for spell_id in canonical_known_spells {
             final_player_spell_rows
                 .entry(spell_id)
                 .and_modify(|row| {
@@ -7513,15 +7522,22 @@ impl WorldSession {
                     state: crate::session::RepresentedPlayerSpellStateLikeCpp::Unchanged,
                 });
         }
-        let complete_spell_rows = self.set_complete_represented_player_spell_rows_like_cpp(
-            final_player_spell_rows.into_values(),
-        );
-        if complete_spell_rows {
-            self.mark_represented_spell_acquisition_snapshot_complete_like_cpp();
+        if loaded_player_spell_rows_complete_like_cpp {
+            let complete_spell_rows = self.set_complete_represented_player_spell_rows_like_cpp(
+                final_player_spell_rows.into_values(),
+            );
+            if complete_spell_rows {
+                self.mark_represented_spell_acquisition_snapshot_complete_like_cpp();
+            } else {
+                warn!(
+                    player_guid = guid.counter(),
+                    "Could not authorize represented post-login PlayerSpellMap"
+                );
+            }
         } else {
             warn!(
                 player_guid = guid.counter(),
-                "Could not authorize represented post-login PlayerSpellMap"
+                "Keeping represented PlayerSpellMap incomplete after failed DB load"
             );
         }
 

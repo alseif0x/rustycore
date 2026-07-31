@@ -41959,9 +41959,16 @@ impl WorldSession {
             self.represented_player_spell_rows_like_cpp
                 .entry(spell_id)
                 .and_modify(|row| {
+                    let persisted_flags_changed = !row.active || row.disabled;
                     row.active = true;
                     row.disabled = false;
-                    if row.state == RepresentedPlayerSpellStateLikeCpp::Removed {
+                    if persisted_flags_changed
+                        && matches!(
+                            row.state,
+                            RepresentedPlayerSpellStateLikeCpp::Unchanged
+                                | RepresentedPlayerSpellStateLikeCpp::Removed
+                        )
+                    {
                         row.state = RepresentedPlayerSpellStateLikeCpp::Changed;
                     }
                 })
@@ -120128,6 +120135,17 @@ mod tests {
                 .complete_represented_player_spell_rows_like_cpp()
                 .is_some_and(|rows| rows[&200].active && rows[&200].disabled),
             "disabled rows retain their persisted active bit; it is not inferred from the client projection"
+        );
+
+        session.learn_known_spell_like_cpp(200);
+        assert!(
+            session
+                .complete_represented_player_spell_rows_like_cpp()
+                .is_some_and(|rows| {
+                    rows[&200].active
+                        && !rows[&200].disabled
+                        && rows[&200].state == RepresentedPlayerSpellStateLikeCpp::Changed
+                })
         );
 
         assert!(session.set_complete_represented_spell_trait_definition_ids_like_cpp([]));
