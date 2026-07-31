@@ -54,6 +54,11 @@ This allows the same condition to be false before an earlier reward mutates spel
 when evaluated again afterwards. The resulting snapshot retains the original immutable tape so
 #159 can repeat the same projection under the canonical owner.
 
+Reward race gates use C++ `Trinity::RaceMask::GetMaskForRace`, including its compact mapping for
+non-contiguous race IDs (for example 34 -> bit 11 and 70 -> bit 15), rather than shifting by
+`race_id - 1` (`RaceMask.h:93-140`). Unknown race IDs and classes outside the C++ `Classes`
+range fail closed before any closure is projected.
+
 ## Static safety and live-player cast results are different facts
 
 A triggered self-cast is not equivalent to “all effects execute”. `TRIGGERED_FULL_MASK` still
@@ -130,7 +135,8 @@ Both deviations have focused regression fixtures and are also recorded in
 - #158 applies the exact immutable plan and owns durable statements/publication intents.
 - #159 compares the same snapshot, effective metadata identity, and cast resolutions under the
   owner before applying anything.
-- Any missing complete spell/skill rows, exact skill-slot occupancy, causal future-condition
+- Any missing complete spell/skill rows, complete per-spell trait-definition IDs, complete
+  `Player::m_overrideSpells` edges, exact skill-slot occupancy, causal future-condition
   resolution, complete parentage for every effective `SkillLine` identity,
   static cast proof, live cast resolution, or non-mount proof fails before money, DB, player, or
   packet mutation.

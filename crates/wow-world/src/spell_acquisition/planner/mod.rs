@@ -94,13 +94,13 @@ impl<'a> SpellAcquisitionPlannerLikeCpp<'a> {
         metadata: SpellAcquisitionMetadataLikeCpp<'a>,
         root: SpellAcquisitionRootLikeCpp,
     ) -> Result<Self, SpellAcquisitionIndeterminateLikeCpp> {
-        if snapshot.race == 0 || snapshot.race > 64 {
+        if race_mask_for_race_like_cpp(snapshot.race) == 0 {
             return Err(SpellAcquisitionIndeterminateLikeCpp::InvalidSnapshot {
                 field: "race",
                 value: i128::from(snapshot.race),
             });
         }
-        if snapshot.class == 0 || snapshot.class > 32 {
+        if !(CLASS_WARRIOR_LIKE_CPP..MAX_CLASSES_LIKE_CPP).contains(&snapshot.class) {
             return Err(SpellAcquisitionIndeterminateLikeCpp::InvalidSnapshot {
                 field: "class",
                 value: i128::from(snapshot.class),

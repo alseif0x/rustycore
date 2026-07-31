@@ -22,8 +22,15 @@ impl crate::session::WorldSession {
         let occupied_skill_slots = self
             .complete_player_skill_occupied_slots_like_cpp()
             .ok_or(SpellAcquisitionSnapshotAdapterErrorLikeCpp::MissingSkillSlotOccupancy)?;
-        let traits = self.represented_spell_trait_definition_ids_like_cpp();
-        for &spell_id in traits.keys() {
+        let traits = self
+            .complete_represented_spell_trait_definition_ids_like_cpp()
+            .ok_or(SpellAcquisitionSnapshotAdapterErrorLikeCpp::IncompleteTraitDefinitions)?;
+        let represented_overrides = self
+            .complete_represented_override_spells_like_cpp()
+            .ok_or(SpellAcquisitionSnapshotAdapterErrorLikeCpp::IncompleteOverrides)?;
+        let mut trait_spell_ids = traits.keys().copied().collect::<Vec<_>>();
+        trait_spell_ids.sort_unstable();
+        for spell_id in trait_spell_ids {
             if !spell_rows.contains_key(&spell_id) {
                 return Err(
                     SpellAcquisitionSnapshotAdapterErrorLikeCpp::OrphanTraitDefinition { spell_id },
@@ -103,26 +110,30 @@ impl crate::session::WorldSession {
             .collect::<Vec<_>>();
         skills.sort_by_key(|skill| skill.skill_id);
 
-        let mut overrides = Vec::new();
-        for (&overridden_spell_id, overriding_spell_ids) in
-            self.represented_override_spells_like_cpp()
-        {
-            for &overriding_spell_id in overriding_spell_ids {
-                let (Ok(overridden_spell_id_u32), Ok(overriding_spell_id_u32)) = (
-                    u32::try_from(overridden_spell_id),
-                    u32::try_from(overriding_spell_id),
-                ) else {
-                    return Err(
-                        SpellAcquisitionSnapshotAdapterErrorLikeCpp::InvalidOverride {
-                            overridden_spell_id,
-                            overriding_spell_id,
-                        },
-                    );
-                };
-                overrides.push((overridden_spell_id_u32, overriding_spell_id_u32));
-            }
+        let mut represented_override_pairs = represented_overrides
+            .iter()
+            .flat_map(|(&overridden_spell_id, overriding_spell_ids)| {
+                overriding_spell_ids
+                    .iter()
+                    .map(move |&overriding_spell_id| (overridden_spell_id, overriding_spell_id))
+            })
+            .collect::<Vec<_>>();
+        represented_override_pairs.sort_unstable();
+        let mut overrides = Vec::with_capacity(represented_override_pairs.len());
+        for (overridden_spell_id, overriding_spell_id) in represented_override_pairs {
+            let (Ok(overridden_spell_id_u32), Ok(overriding_spell_id_u32)) = (
+                u32::try_from(overridden_spell_id),
+                u32::try_from(overriding_spell_id),
+            ) else {
+                return Err(
+                    SpellAcquisitionSnapshotAdapterErrorLikeCpp::InvalidOverride {
+                        overridden_spell_id,
+                        overriding_spell_id,
+                    },
+                );
+            };
+            overrides.push((overridden_spell_id_u32, overriding_spell_id_u32));
         }
-        overrides.sort_unstable();
 
         Ok(PlayerSpellAcquisitionSnapshotLikeCpp {
             spells,

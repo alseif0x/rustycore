@@ -919,7 +919,7 @@ impl SpellAcquisitionPlannerLikeCpp<'_> {
 }
 
 fn race_mask_matches_like_cpp(mask: i64, race: u8) -> bool {
-    mask == 0 || (mask & (1_i64 << (race - 1))) != 0
+    mask == 0 || (mask & race_mask_for_race_like_cpp(race)) != 0
 }
 
 fn class_mask_matches_like_cpp(mask: i32, class: u8) -> bool {

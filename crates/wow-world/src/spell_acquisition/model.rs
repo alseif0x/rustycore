@@ -486,6 +486,8 @@ pub(crate) enum SpellAcquisitionSnapshotAdapterErrorLikeCpp {
     IncompleteSpellRows,
     IncompleteSkillRows,
     MissingSkillSlotOccupancy,
+    IncompleteTraitDefinitions,
+    IncompleteOverrides,
     InvalidSpellId(i32),
     InvalidTraitDefinitionId {
         spell_id: i32,

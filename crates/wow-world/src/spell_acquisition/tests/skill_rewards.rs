@@ -301,6 +301,114 @@ fn reward_gate_matrix_pins_accept_and_reject_pairs_for_each_cpp_gate() {
 }
 
 #[test]
+fn skill_reward_race_gates_use_cpp_race_mask_bits() {
+    const ROOT: u32 = 500;
+    const SKILL: u32 = 164;
+    const RACE_34_CANONICAL: u32 = 601;
+    const RACE_34_NON_CANONICAL: u32 = 602;
+    const RACE_70_CANONICAL: u32 = 603;
+
+    let mut race_34_canonical = ability(
+        1,
+        SKILL as u16,
+        RACE_34_CANONICAL,
+        SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP,
+    );
+    // C++ `RaceMask::GetRaceBit(34)` maps Dark Iron Dwarf to bit 11.
+    race_34_canonical.race_mask = 1_i64 << 11;
+    let mut race_34_non_canonical = ability(
+        2,
+        SKILL as u16,
+        RACE_34_NON_CANONICAL,
+        SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP,
+    );
+    // A direct `race - 1` shift would incorrectly accept this bit.
+    race_34_non_canonical.race_mask = 1_i64 << 33;
+    let mut race_70_canonical = ability(
+        3,
+        SKILL as u16,
+        RACE_70_CANONICAL,
+        SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP,
+    );
+    // C++ `RaceMask::GetRaceBit(70)` maps Horde Dracthyr to bit 15.
+    race_70_canonical.race_mask = 1_i64 << 15;
+
+    let metadata = MetadataFixture::new(FixtureInput {
+        spell_ids: vec![
+            ROOT,
+            RACE_34_CANONICAL,
+            RACE_34_NON_CANONICAL,
+            RACE_70_CANONICAL,
+        ],
+        learn_skills: vec![(
+            ROOT,
+            SpellLearnSkillNodeLikeCpp {
+                skill: SKILL as u16,
+                step: 1,
+                value: 1,
+                maxvalue: 75,
+            },
+        )],
+        skill_lines: vec![skill_line(SKILL, 0, 0)],
+        skill_abilities: vec![race_34_canonical, race_34_non_canonical, race_70_canonical],
+        ..Default::default()
+    });
+
+    for (race, expected_spell) in [(34, RACE_34_CANONICAL), (70, RACE_70_CANONICAL)] {
+        let mut input = snapshot();
+        input.race = race;
+        let plan = deterministic(project_spell_acquisition_like_cpp(
+            &input,
+            metadata.metadata(),
+            SpellAcquisitionRootLikeCpp::DirectLearn(ROOT),
+        ));
+        let rewarded_spells = plan
+            .spell_transitions
+            .iter()
+            .filter_map(|transition| match &transition.provenance {
+                SpellAcquisitionProvenanceLikeCpp::SkillReward { .. } => Some(transition.spell_id),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(rewarded_spells, vec![expected_spell]);
+        assert!(!rewarded_spells.contains(&RACE_34_NON_CANONICAL));
+    }
+}
+
+#[test]
+fn non_player_race_and_class_ids_fail_closed_before_planning() {
+    const ROOT: u32 = 500;
+    let metadata = MetadataFixture::new(FixtureInput {
+        spell_ids: vec![ROOT],
+        ..Default::default()
+    });
+
+    for (field, value, input) in [
+        ("race", 33, {
+            let mut input = snapshot();
+            input.race = 33;
+            input
+        }),
+        ("class", 15, {
+            let mut input = snapshot();
+            input.class = 15;
+            input
+        }),
+    ] {
+        assert_eq!(
+            project_spell_acquisition_like_cpp(
+                &input,
+                metadata.metadata(),
+                SpellAcquisitionRootLikeCpp::DirectLearn(ROOT),
+            ),
+            SpellAcquisitionOutcomeLikeCpp::Indeterminate(
+                SpellAcquisitionIndeterminateLikeCpp::InvalidSnapshot { field, value },
+            )
+        );
+    }
+}
+
+#[test]
 fn multiple_skill_rewards_follow_effective_record_id_order() {
     const ROOT: u32 = 500;
     const SKILL: u32 = 164;
