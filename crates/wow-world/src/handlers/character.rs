@@ -7082,6 +7082,7 @@ impl WorldSession {
                                 rank,
                                 talent_group,
                                 &mut known_spells,
+                                &mut skill_rewarded_dependent_spells,
                             ) {
                                 loaded += 1;
                             } else {

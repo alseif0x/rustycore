@@ -168,7 +168,7 @@ fn trainer_spell_product_like_cpp(session: &WorldSession, spell_id: u32) -> Trai
         saw_learn = true;
         // C++ casts the wrapper on the player. Pet and other explicit target
         // families are not valid player-learning evidence.
-        if effect.targets_unit_pet_like_cpp() || !matches!(effect.implicit_target_raw[0], 0 | 1) {
+        if effect.targets_unit_pet_like_cpp() || !effect.targets_player_like_cpp() {
             return TrainerProductLikeCpp::InvalidOrUnsupportedWrapper;
         }
         let Ok(target) = effect.trigger_spell_id_checked() else {

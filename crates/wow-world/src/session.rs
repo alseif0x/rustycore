@@ -29896,6 +29896,7 @@ impl WorldSession {
         rank: u8,
         talent_group: u8,
         known_spells: &mut Vec<i32>,
+        dependent_spells: &mut HashSet<i32>,
     ) -> bool {
         let previous_rank = self
             .represented_talents_like_cpp
@@ -29915,10 +29916,12 @@ impl WorldSession {
                 self.represented_talent_spell_id_like_cpp(talent_id, previous_rank)
             {
                 known_spells.retain(|known_spell| *known_spell != previous_spell_id);
+                dependent_spells.remove(&previous_spell_id);
                 for trigger_spell in
                     self.represented_direct_learn_spell_triggers_like_cpp(previous_spell_id)
                 {
                     known_spells.retain(|known_spell| *known_spell != trigger_spell);
+                    dependent_spells.remove(&trigger_spell);
                 }
             }
         }
@@ -29927,10 +29930,12 @@ impl WorldSession {
             if !known_spells.contains(&spell_id) {
                 known_spells.push(spell_id);
             }
+            dependent_spells.insert(spell_id);
             for trigger_spell in self.represented_direct_learn_spell_triggers_like_cpp(spell_id) {
                 if !known_spells.contains(&trigger_spell) {
                     known_spells.push(trigger_spell);
                 }
+                dependent_spells.insert(trigger_spell);
             }
         }
 
@@ -121131,17 +121136,20 @@ mod tests {
         install_test_talent_tab_store_like_cpp(&mut session);
 
         let mut known_spells = vec![14_914];
+        let mut dependent_spells = HashSet::new();
         assert!(
             session.load_represented_talent_row_with_spell_side_effects_like_cpp(
                 406,
                 0,
                 0,
                 &mut known_spells,
+                &mut dependent_spells,
             ),
             "C++ _LoadTalents calls AddTalent before _LoadSpells"
         );
         assert!(known_spells.contains(&14_908));
         assert!(known_spells.contains(&60_100));
+        assert_eq!(dependent_spells, HashSet::from([14_908, 60_100]));
         assert!(
             session
                 .represented_override_spells_like_cpp()

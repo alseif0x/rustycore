@@ -12,14 +12,15 @@
   retiene y autoriza el `PlayerSpellMap` completo (incluidas filas DB inactivas/deshabilitadas y
   mounts de cuenta) y los slots exactos de skills después del trabajo representado de `AddSpell`;
   esa autoridad solo se publica cuando spell/favorite/talent/account-mount/reputation han cargado
-  correctamente, conserva como dependientes los spell rewards de skills y se invalida ante un
-  aprendizaje runtime que todavía no ejecute el cierre completo de `AddSpell`. Los
+  correctamente, conserva como dependientes los spells de talentos y los rewards de skills, y se
+  invalida ante un aprendizaje runtime que todavía no ejecute el cierre completo de `AddSpell`.
+  Trainer y el planner comparten el conjunto de targets de jugador (`NONE`, `CASTER`, `ALLY`). Los
   `ElseGroup` soportados que prueban el OR de conditions prevalecen sobre incertidumbre en ramas
   irrelevantes. Así el adaptador de adquisición funciona también en producción y no solo con
   fixtures. Metadatos incompletos, IDs estrechados, battle
   pets y proyecciones indeterminadas fallan cerrados. Formato, guardrails de
   arquitectura/handlers, check de `wow-world`, focales y la
-  suite completa `wow-world` (`3251/0`, uno ignorado) pasan; el quick preflight alcanzó el check
+  suites completas `wow-data` (`681/0`) y `wow-world` (`3251/0`, uno ignorado) pasan; el quick preflight alcanzó el check
   agregado y chocó con el ICE/SIGSEGV local ya conocido dentro de `icu_properties`. Falta aún
   preflight completo/capture-diff en un runner estable, CI, revisión current-HEAD y merge.
 
