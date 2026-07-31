@@ -14,16 +14,17 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use tracing::info;
-use wow_database::{WorldDatabase, WorldStatements};
+use wow_database::{HotfixDatabase, HotfixStatements, SqlResult, WorldDatabase, WorldStatements};
 
+use crate::Db2HotfixRemovalStoreLikeCpp;
 use crate::entities_movement::CreatureFamilyEntry;
-use crate::skill_talent::SkillLineStore;
+use crate::skill_talent::{SkillLineAcquisitionPayloadLikeCpp, SkillLineStore};
 use crate::wdc4::Wdc4Reader;
 
 // ── Records ─────────────────────────────────────────────────────────
 
 /// A single record from SkillLineAbility.db2.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SkillLineAbilityRecord {
     pub id: u32,
     pub race_mask: i64,
@@ -55,9 +56,13 @@ pub const SKILL_CATEGORY_LANGUAGES_LIKE_CPP: i8 = 10;
 pub const SKILL_CATEGORY_SECONDARY_LIKE_CPP: i8 = 9;
 pub const SKILL_CATEGORY_PROFESSION_LIKE_CPP: i8 = 11;
 pub const CLASS_DEATH_KNIGHT_LIKE_CPP: u8 = 6;
+const RACE_HUMAN_LIKE_CPP: u8 = 1;
+const MAX_RACES_LIKE_CPP: u8 = 78;
+const CLASS_WARRIOR_LIKE_CPP: u8 = 1;
+const MAX_CLASSES_LIKE_CPP: u8 = 15;
 
 /// A single record from SkillRaceClassInfo.db2.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SkillRaceClassInfoRecord {
     pub id: u32,
     pub race_mask: i64,
@@ -68,6 +73,136 @@ pub struct SkillRaceClassInfoRecord {
     pub availability: i8,
     pub min_level: i8,
     pub skill_tier_id: i16,
+}
+
+/// Input layer that supplied an effective DB2 record.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SkillStoreLoadSourceLikeCpp {
+    Wdc4,
+    OfficialSql,
+    CustomSql,
+}
+
+/// Source table associated with an effective-skill diagnostic.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SkillStoreTableLikeCpp {
+    SkillLineAbility,
+    SkillRaceClassInfo,
+}
+
+/// Fail-closed diagnostics retained while composing effective skill metadata.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SkillStoreLoadDiagnosticLikeCpp {
+    InvalidSkillLineAbilityIdentifier {
+        source: SkillStoreLoadSourceLikeCpp,
+        record_id: u32,
+        spell: i128,
+        skill_line: i128,
+        skillup_skill_line_id: i128,
+    },
+    InvalidSkillRaceClassInfoIdentifier {
+        source: SkillStoreLoadSourceLikeCpp,
+        record_id: u32,
+        race_mask: i128,
+        skill_id: i128,
+        class_mask: i128,
+    },
+    InvalidSourceField {
+        table: SkillStoreTableLikeCpp,
+        source: SkillStoreLoadSourceLikeCpp,
+        record_id: u32,
+        field: &'static str,
+        value: i128,
+    },
+    MissingEffectiveSkillLine {
+        record_id: u32,
+        skill_id: u16,
+    },
+    ConflictingRaceClassInfo {
+        skill_id: u16,
+        first_record_id: u32,
+        second_record_id: u32,
+    },
+}
+
+/// Production evidence for WDC4/SQL/removal composition.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SkillStoreEffectiveLoadReportLikeCpp {
+    pub skill_line_ability_wdc4_rows: usize,
+    pub skill_line_ability_official_sql_rows: usize,
+    pub skill_line_ability_custom_sql_rows: usize,
+    pub skill_line_ability_removed_rows: usize,
+    /// Final identities after overlays and removals, including invalid payload.
+    pub skill_line_ability_effective_rows: usize,
+    pub skill_line_ability_indexed_rows: usize,
+    pub skill_line_ability_invalid_rows: usize,
+    pub skill_race_class_info_wdc4_rows: usize,
+    pub skill_race_class_info_official_sql_rows: usize,
+    pub skill_race_class_info_custom_sql_rows: usize,
+    pub skill_race_class_info_removed_rows: usize,
+    /// Final identities after overlays and removals, including invalid payload.
+    pub skill_race_class_info_effective_rows: usize,
+    pub skill_race_class_info_indexed_rows: usize,
+    pub skill_race_class_info_invalid_rows: usize,
+    pub skill_race_class_info_missing_skill_line_rows: usize,
+    pub diagnostics_in_record_order_like_cpp: Vec<SkillStoreLoadDiagnosticLikeCpp>,
+}
+
+pub struct SkillStoreEffectiveLoadOutcomeLikeCpp {
+    pub store: SkillStore,
+    pub report: SkillStoreEffectiveLoadReportLikeCpp,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SkillLineAbilityCoverageLikeCpp<'a> {
+    CoveredZero,
+    Rows(&'a [SkillLineAbilityRecord]),
+    Indeterminate(&'a [SkillStoreLoadDiagnosticLikeCpp]),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SkillRaceClassInfoCoverageLikeCpp<'a> {
+    CoveredZero,
+    Rows(&'a [SkillRaceClassInfoRecord]),
+    Indeterminate(&'a [SkillStoreLoadDiagnosticLikeCpp]),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SkillRaceClassInfoMatchCoverageLikeCpp<'a> {
+    CoveredZero,
+    Row(&'a SkillRaceClassInfoRecord),
+    Indeterminate(&'a [SkillStoreLoadDiagnosticLikeCpp]),
+}
+
+#[derive(Debug, Clone)]
+struct SkillLineAbilitySourceRecordLikeCpp {
+    source: SkillStoreLoadSourceLikeCpp,
+    id: u32,
+    race_mask: i128,
+    skill_line: i128,
+    spell: i128,
+    min_skill_line_rank: i128,
+    class_mask: i128,
+    supercedes_spell: i128,
+    acquire_method: i128,
+    trivial_rank_high: i128,
+    trivial_rank_low: i128,
+    flags: i128,
+    num_skill_ups: i128,
+    skillup_skill_line_id: i128,
+}
+
+#[derive(Debug, Clone)]
+struct SkillRaceClassInfoSourceRecordLikeCpp {
+    source: SkillStoreLoadSourceLikeCpp,
+    id: u32,
+    race_mask: i128,
+    skill_id: i128,
+    class_mask: i128,
+    flags: i128,
+    availability: i128,
+    min_level: i128,
+    skill_tier_id: i128,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -557,6 +692,9 @@ pub struct SkillStore {
     starting_skills: HashMap<(u8, u8), Vec<SkillRaceClassInfoRecord>>,
     /// C++ `_skillRaceClassInfoBySkill`, preserving DB2 iteration order.
     race_class_by_skill: HashMap<u16, Vec<SkillRaceClassInfoRecord>>,
+    invalid_abilities_by_spell_like_cpp: HashMap<i32, Vec<SkillStoreLoadDiagnosticLikeCpp>>,
+    invalid_abilities_by_skill_like_cpp: HashMap<u16, Vec<SkillStoreLoadDiagnosticLikeCpp>>,
+    invalid_race_class_by_skill_like_cpp: HashMap<u16, Vec<SkillStoreLoadDiagnosticLikeCpp>>,
     /// Total number of SkillLineAbility records loaded.
     total_abilities: usize,
     /// Total number of SkillRaceClassInfo records loaded.
@@ -575,6 +713,9 @@ impl SkillStore {
             abilities_by_spell_like_cpp: HashMap::new(),
             starting_skills: HashMap::new(),
             race_class_by_skill: HashMap::new(),
+            invalid_abilities_by_spell_like_cpp: HashMap::new(),
+            invalid_abilities_by_skill_like_cpp: HashMap::new(),
+            invalid_race_class_by_skill_like_cpp: HashMap::new(),
             total_abilities: 0,
             total_race_class: 0,
         }
@@ -613,6 +754,9 @@ impl SkillStore {
             abilities_by_spell_like_cpp,
             starting_skills: HashMap::new(),
             race_class_by_skill: HashMap::new(),
+            invalid_abilities_by_spell_like_cpp: HashMap::new(),
+            invalid_abilities_by_skill_like_cpp: HashMap::new(),
+            invalid_race_class_by_skill_like_cpp: HashMap::new(),
             total_abilities,
             total_race_class: 0,
         }
@@ -633,11 +777,14 @@ impl SkillStore {
                 .push(record.clone());
 
             if record.availability == 1 {
-                for race in 1u8..=11 {
+                for race in RACE_HUMAN_LIKE_CPP..MAX_RACES_LIKE_CPP {
+                    if race_mask_for_race_like_cpp(race) == 0 {
+                        continue;
+                    }
                     if !matches_race(record.race_mask, race) {
                         continue;
                     }
-                    for class in 1u8..=11 {
+                    for class in CLASS_WARRIOR_LIKE_CPP..MAX_CLASSES_LIKE_CPP {
                         if !matches_class(record.class_mask, class) {
                             continue;
                         }
@@ -761,18 +908,21 @@ impl SkillStore {
                 .push(record.clone());
         }
 
-        // Index by (race, class) — expand masks into individual (race, class) pairs
-        // for all 10 races × 11 classes
+        // Index by (race, class) using the full C++ race/class enum ranges and
+        // the non-contiguous RaceMask bit mapping.
         let mut starting_skills: HashMap<(u8, u8), Vec<SkillRaceClassInfoRecord>> = HashMap::new();
         for record in &all_records {
             // C++ `ObjectMgr::LoadPlayerInfo` only adds Availability == 1
             // records to `PlayerInfo::skills`.
             if record.availability == 1 {
-                for race in 1u8..=11 {
+                for race in RACE_HUMAN_LIKE_CPP..MAX_RACES_LIKE_CPP {
+                    if race_mask_for_race_like_cpp(race) == 0 {
+                        continue;
+                    }
                     if !matches_race(record.race_mask, race) {
                         continue;
                     }
-                    for class in 1u8..=11 {
+                    for class in CLASS_WARRIOR_LIKE_CPP..MAX_CLASSES_LIKE_CPP {
                         if !matches_class(record.class_mask, class) {
                             continue;
                         }
@@ -796,25 +946,180 @@ impl SkillStore {
             abilities_by_spell_like_cpp,
             starting_skills,
             race_class_by_skill,
+            invalid_abilities_by_spell_like_cpp: HashMap::new(),
+            invalid_abilities_by_skill_like_cpp: HashMap::new(),
+            invalid_race_class_by_skill_like_cpp: HashMap::new(),
             total_abilities,
             total_race_class,
         })
     }
 
-    /// C++ `DB2Manager::GetSkillRaceClassInfo(skill, race, class)`.
+    /// Load the final effective C++ skill authority.
+    ///
+    /// Composition follows `DB2StorageBase::LoadFromDB` and
+    /// `DB2Manager::LoadHotfixData`: WDC4, official SQL, custom SQL, then the
+    /// final removal status. Unlike C++'s historical initialization order,
+    /// every derived index is rebuilt only after removal.
+    pub async fn load_effective_like_cpp(
+        data_dir: &str,
+        locale: &str,
+        hotfix_db: &HotfixDatabase,
+        removed_records: &Db2HotfixRemovalStoreLikeCpp,
+        skill_line_store: &SkillLineStore,
+    ) -> Result<SkillStoreEffectiveLoadOutcomeLikeCpp> {
+        const SKILL_LINE_ABILITY_OVERLAY_SQL: &str = concat!(
+            "SELECT RaceMask, ID, SkillLine, Spell, MinSkillLineRank, ClassMask, ",
+            "SupercedesSpell, AcquireMethod, TrivialSkillLineRankHigh, ",
+            "TrivialSkillLineRankLow, Flags, NumSkillUps, UniqueBit, ",
+            "TradeSkillCategoryID, SkillupSkillLineID, CharacterPoints1, ",
+            "CharacterPoints2 FROM skill_line_ability ",
+            "WHERE (`VerifiedBuild` > 0) = ?"
+        );
+        const SKILL_RACE_CLASS_INFO_OVERLAY_SQL: &str = concat!(
+            "SELECT ID, RaceMask, SkillID, ClassMask, Flags, Availability, ",
+            "MinLevel, SkillTierID FROM skill_race_class_info ",
+            "WHERE (`VerifiedBuild` > 0) = ?"
+        );
+
+        let dbc_dir = Path::new(data_dir).join("dbc").join(locale);
+        let sla_path = dbc_dir.join("SkillLineAbility.db2");
+        let sla_reader = Wdc4Reader::open(&sla_path)
+            .with_context(|| format!("failed to open {}", sla_path.display()))?;
+        let sla_table_hash = sla_reader.table_hash();
+        let base_abilities = sla_reader
+            .iter_records()
+            .map(|(id, idx)| skill_line_ability_source_from_wdc4_like_cpp(id, idx, &sla_reader))
+            .collect::<Vec<_>>();
+
+        let srci_path = dbc_dir.join("SkillRaceClassInfo.db2");
+        let srci_reader = Wdc4Reader::open(&srci_path)
+            .with_context(|| format!("failed to open {}", srci_path.display()))?;
+        let srci_table_hash = srci_reader.table_hash();
+        let base_race_class_infos = srci_reader
+            .iter_records()
+            .map(|(id, idx)| skill_race_class_info_source_from_wdc4_like_cpp(id, idx, &srci_reader))
+            .collect::<Vec<_>>();
+
+        let mut ability_overlay_batches = [Vec::new(), Vec::new()];
+        let mut race_class_overlay_batches = [Vec::new(), Vec::new()];
+        for (batch_index, (source, official)) in [
+            (SkillStoreLoadSourceLikeCpp::OfficialSql, true),
+            (SkillStoreLoadSourceLikeCpp::CustomSql, false),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let mut statement =
+                hotfix_db.prepare(HotfixStatements::base(SKILL_LINE_ABILITY_OVERLAY_SQL));
+            statement.set_bool(0, official);
+            let mut result = hotfix_db
+                .query(&statement)
+                .await
+                .context("failed to load SkillLineAbility.db2 SQL overlay")?;
+            if !result.is_empty() {
+                loop {
+                    ability_overlay_batches[batch_index].push(
+                        skill_line_ability_source_from_sql_like_cpp(&result, source)?,
+                    );
+                    if !result.next_row() {
+                        break;
+                    }
+                }
+            }
+
+            let mut statement =
+                hotfix_db.prepare(HotfixStatements::base(SKILL_RACE_CLASS_INFO_OVERLAY_SQL));
+            statement.set_bool(0, official);
+            let mut result = hotfix_db
+                .query(&statement)
+                .await
+                .context("failed to load SkillRaceClassInfo.db2 SQL overlay")?;
+            if !result.is_empty() {
+                loop {
+                    race_class_overlay_batches[batch_index].push(
+                        skill_race_class_info_source_from_sql_like_cpp(&result, source)?,
+                    );
+                    if !result.next_row() {
+                        break;
+                    }
+                }
+            }
+        }
+
+        let [official_abilities, custom_abilities] = ability_overlay_batches;
+        let [official_race_class_infos, custom_race_class_infos] = race_class_overlay_batches;
+        let outcome = compose_effective_skill_store_like_cpp(
+            base_abilities,
+            official_abilities,
+            custom_abilities,
+            sla_table_hash,
+            base_race_class_infos,
+            official_race_class_infos,
+            custom_race_class_infos,
+            srci_table_hash,
+            removed_records,
+            skill_line_store,
+        );
+
+        info!(
+            "Loaded {}/{} effective/indexed skill line abilities and {}/{} effective/indexed \
+             race/class skill rows ({} diagnostics)",
+            outcome.report.skill_line_ability_effective_rows,
+            outcome.report.skill_line_ability_indexed_rows,
+            outcome.report.skill_race_class_info_effective_rows,
+            outcome.report.skill_race_class_info_indexed_rows,
+            outcome.report.diagnostics_in_record_order_like_cpp.len()
+        );
+        Ok(outcome)
+    }
+
+    /// C++ `DB2Manager::GetSkillRaceClassInfo(skill, race, class)`, with a
+    /// bounded fail-closed repair for overlapping rows whose acquisition
+    /// payloads disagree. C++ returns whichever `unordered_multimap` entry is
+    /// visited first in that corrupt/ambiguous case.
     pub fn skill_race_class_info_like_cpp(
         &self,
         skill_id: u16,
         race: u8,
         class: u8,
     ) -> Option<&SkillRaceClassInfoRecord> {
-        self.race_class_by_skill
-            .get(&skill_id)?
-            .iter()
-            .find(|record| {
-                (record.race_mask == 0 || matches_race(record.race_mask, race))
-                    && (record.class_mask == 0 || matches_class(record.class_mask, class))
-            })
+        match self.skill_race_class_info_coverage_for_player_like_cpp(skill_id, race, class) {
+            SkillRaceClassInfoMatchCoverageLikeCpp::Row(record) => Some(record),
+            SkillRaceClassInfoMatchCoverageLikeCpp::CoveredZero
+            | SkillRaceClassInfoMatchCoverageLikeCpp::Indeterminate(_) => None,
+        }
+    }
+
+    /// Exact coverage for the C++ first-match race/class lookup.
+    pub fn skill_race_class_info_coverage_for_player_like_cpp(
+        &self,
+        skill_id: u16,
+        race: u8,
+        class: u8,
+    ) -> SkillRaceClassInfoMatchCoverageLikeCpp<'_> {
+        if let Some(diagnostics) = self.invalid_race_class_by_skill_like_cpp.get(&skill_id) {
+            return SkillRaceClassInfoMatchCoverageLikeCpp::Indeterminate(diagnostics);
+        }
+
+        let Some(records) = self.race_class_by_skill.get(&skill_id) else {
+            return SkillRaceClassInfoMatchCoverageLikeCpp::CoveredZero;
+        };
+        let mut candidates = records.iter().filter(|record| {
+            (record.race_mask == 0 || matches_race(record.race_mask, race))
+                && (record.class_mask == 0 || matches_class(record.class_mask, class))
+        });
+        let Some(first) = candidates.next() else {
+            return SkillRaceClassInfoMatchCoverageLikeCpp::CoveredZero;
+        };
+        if candidates.any(|candidate| !same_race_class_payload_like_cpp(first, candidate)) {
+            let diagnostics = self
+                .invalid_race_class_by_skill_like_cpp
+                .get(&skill_id)
+                .map(Vec::as_slice)
+                .unwrap_or(&[]);
+            return SkillRaceClassInfoMatchCoverageLikeCpp::Indeterminate(diagnostics);
+        }
+        SkillRaceClassInfoMatchCoverageLikeCpp::Row(first)
     }
 
     /// C++ free function `GetSkillRangeType(SkillRaceClassInfoEntry const*)`.
@@ -824,7 +1129,9 @@ impl SkillStore {
         skill_line_store: &SkillLineStore,
         skill_tiers_store: &SkillTiersStoreLikeCpp,
     ) -> SkillRangeTypeLikeCpp {
-        let Some(skill) = skill_line_store.get(u32::from(rc_info.skill_id)) else {
+        let SkillLineAcquisitionPayloadLikeCpp::Complete(skill) =
+            skill_line_store.acquisition_payload_like_cpp(u32::from(rc_info.skill_id))
+        else {
             return SkillRangeTypeLikeCpp::None;
         };
 
@@ -870,6 +1177,16 @@ impl SkillStore {
                 || i16::from(skill_info.min_level) > i16::from(level)
                 || seen_skills.contains(&skill_id)
             {
+                continue;
+            }
+
+            let Some(resolved_skill_info) =
+                self.skill_race_class_info_like_cpp(skill_id, race, class)
+            else {
+                seen_skills.insert(skill_id);
+                continue;
+            };
+            if resolved_skill_info.id != skill_info.id {
                 continue;
             }
 
@@ -982,19 +1299,20 @@ impl SkillStore {
             SkillRangeTypeLikeCpp::Rank | SkillRangeTypeLikeCpp::None => {}
         }
 
-        let step = skill_line_store
-            .get(u32::from(skill_id))
-            .filter(|skill| {
-                matches!(
+        let step = match skill_line_store.acquisition_payload_like_cpp(u32::from(skill_id)) {
+            SkillLineAcquisitionPayloadLikeCpp::Complete(skill)
+                if matches!(
                     skill.category_id,
                     SKILL_CATEGORY_SECONDARY_LIKE_CPP | SKILL_CATEGORY_PROFESSION_LIKE_CPP
-                )
-            })
+                ) =>
             // Pinned 3.4.3 C++ `Player::_LoadSkills` computes both secondary
             // and profession steps as `max / 75`. It does not reverse-map
             // custom `SkillTiersEntry::Value` rows on this load path.
-            .map(|_| max_rank / 75)
-            .unwrap_or(0);
+            {
+                max_rank / 75
+            }
+            _ => 0,
+        };
 
         Some(SkillInfoEntry {
             skill_id,
@@ -1034,13 +1352,6 @@ impl SkillStore {
         self.abilities_by_skill.len()
     }
 
-    /// C++ `sSkillLineStore.LookupEntry(skillId)` existence check for loaded skill lines.
-    pub fn contains_skill_line_like_cpp(&self, skill_id: u32) -> bool {
-        u16::try_from(skill_id)
-            .ok()
-            .is_some_and(|skill_id| self.abilities_by_skill.contains_key(&skill_id))
-    }
-
     /// C++ `SpellMgr::GetSkillLineAbilityMapBounds(spell_id)`.
     pub fn get_skill_line_ability_map_bounds_like_cpp(
         &self,
@@ -1052,12 +1363,60 @@ impl SkillStore {
             .unwrap_or(&[])
     }
 
+    /// Acquisition-authority coverage for one spell's final
+    /// `SkillLineAbility` rows.
+    pub fn skill_line_ability_coverage_by_spell_like_cpp(
+        &self,
+        spell_id: i32,
+    ) -> SkillLineAbilityCoverageLikeCpp<'_> {
+        if let Some(diagnostics) = self.invalid_abilities_by_spell_like_cpp.get(&spell_id) {
+            return SkillLineAbilityCoverageLikeCpp::Indeterminate(diagnostics);
+        }
+
+        match self.abilities_by_spell_like_cpp.get(&spell_id) {
+            Some(rows) => SkillLineAbilityCoverageLikeCpp::Rows(rows),
+            None => SkillLineAbilityCoverageLikeCpp::CoveredZero,
+        }
+    }
+
     /// C++ `DB2Manager::GetSkillLineAbilitiesBySkill(skillId)`.
     pub fn skill_line_abilities_by_skill_like_cpp(
         &self,
         skill_id: u16,
     ) -> Option<&[SkillLineAbilityRecord]> {
         self.abilities_by_skill.get(&skill_id).map(Vec::as_slice)
+    }
+
+    /// Acquisition-authority coverage for one skill's final
+    /// `SkillLineAbility` rows.
+    pub fn skill_line_ability_coverage_by_skill_like_cpp(
+        &self,
+        skill_id: u16,
+    ) -> SkillLineAbilityCoverageLikeCpp<'_> {
+        if let Some(diagnostics) = self.invalid_abilities_by_skill_like_cpp.get(&skill_id) {
+            return SkillLineAbilityCoverageLikeCpp::Indeterminate(diagnostics);
+        }
+
+        match self.abilities_by_skill.get(&skill_id) {
+            Some(rows) => SkillLineAbilityCoverageLikeCpp::Rows(rows),
+            None => SkillLineAbilityCoverageLikeCpp::CoveredZero,
+        }
+    }
+
+    /// Acquisition-authority coverage for one skill's final
+    /// `SkillRaceClassInfo` rows.
+    pub fn skill_race_class_info_coverage_by_skill_like_cpp(
+        &self,
+        skill_id: u16,
+    ) -> SkillRaceClassInfoCoverageLikeCpp<'_> {
+        if let Some(diagnostics) = self.invalid_race_class_by_skill_like_cpp.get(&skill_id) {
+            return SkillRaceClassInfoCoverageLikeCpp::Indeterminate(diagnostics);
+        }
+
+        match self.race_class_by_skill.get(&skill_id) {
+            Some(rows) => SkillRaceClassInfoCoverageLikeCpp::Rows(rows),
+            None => SkillRaceClassInfoCoverageLikeCpp::CoveredZero,
+        }
     }
 
     /// Represented C++ `Player::LearnSkillRewardedSpells`.
@@ -1171,16 +1530,641 @@ impl SkillStore {
     pub fn race_class_count(&self) -> usize {
         self.total_race_class
     }
+
+    /// All effective candidates C++ could select for this skill/race/class.
+    ///
+    /// C++ returns the first entry from an `unordered_multimap`. Callers that
+    /// authorize acquisition can use this complete, RecordID-ordered set to
+    /// fail closed when overlapping rows disagree.
+    pub fn skill_race_class_info_candidates_like_cpp(
+        &self,
+        skill_id: u16,
+        race: u8,
+        class: u8,
+    ) -> Vec<&SkillRaceClassInfoRecord> {
+        self.race_class_by_skill
+            .get(&skill_id)
+            .into_iter()
+            .flatten()
+            .filter(|record| {
+                (record.race_mask == 0 || matches_race(record.race_mask, race))
+                    && (record.class_mask == 0 || matches_class(record.class_mask, class))
+            })
+            .collect()
+    }
+}
+
+fn skill_line_ability_source_from_wdc4_like_cpp(
+    id: u32,
+    record_idx: usize,
+    reader: &Wdc4Reader,
+) -> SkillLineAbilitySourceRecordLikeCpp {
+    SkillLineAbilitySourceRecordLikeCpp {
+        source: SkillStoreLoadSourceLikeCpp::Wdc4,
+        id,
+        race_mask: i128::from(reader.get_field_i64(record_idx, 0)),
+        skill_line: i128::from(reader.get_field_i16(record_idx, 2)),
+        spell: i128::from(reader.get_field_i32(record_idx, 3)),
+        min_skill_line_rank: i128::from(reader.get_field_i16(record_idx, 4)),
+        class_mask: i128::from(reader.get_field_i32(record_idx, 5)),
+        supercedes_spell: i128::from(reader.get_field_i32(record_idx, 6)),
+        acquire_method: i128::from(reader.get_field_i8(record_idx, 7)),
+        trivial_rank_high: i128::from(reader.get_field_i16(record_idx, 8)),
+        trivial_rank_low: i128::from(reader.get_field_i16(record_idx, 9)),
+        flags: i128::from(reader.get_field_i8(record_idx, 10)),
+        num_skill_ups: i128::from(reader.get_field_i8(record_idx, 11)),
+        skillup_skill_line_id: i128::from(reader.get_field_i16(record_idx, 14)),
+    }
+}
+
+fn skill_race_class_info_source_from_wdc4_like_cpp(
+    id: u32,
+    record_idx: usize,
+    reader: &Wdc4Reader,
+) -> SkillRaceClassInfoSourceRecordLikeCpp {
+    SkillRaceClassInfoSourceRecordLikeCpp {
+        source: SkillStoreLoadSourceLikeCpp::Wdc4,
+        id,
+        race_mask: i128::from(reader.get_field_i64(record_idx, 0)),
+        skill_id: i128::from(reader.get_field_i16(record_idx, 1)),
+        class_mask: i128::from(reader.get_field_i32(record_idx, 2)),
+        flags: i128::from(reader.get_field_u16(record_idx, 3)),
+        availability: i128::from(reader.get_field_i8(record_idx, 4)),
+        min_level: i128::from(reader.get_field_i8(record_idx, 5)),
+        skill_tier_id: i128::from(reader.get_field_i16(record_idx, 6)),
+    }
+}
+
+fn skill_line_ability_source_from_sql_like_cpp(
+    result: &SqlResult,
+    source: SkillStoreLoadSourceLikeCpp,
+) -> Result<SkillLineAbilitySourceRecordLikeCpp> {
+    let id =
+        read_sql_source_field_like_cpp(result, 1, "SkillLineAbility.ID").and_then(|value| {
+            u32::try_from(value)
+                .with_context(|| format!("SkillLineAbility SQL ID {value} is not u32"))
+        })?;
+    Ok(SkillLineAbilitySourceRecordLikeCpp {
+        source,
+        id,
+        race_mask: read_sql_source_field_like_cpp(result, 0, "SkillLineAbility.RaceMask")?,
+        skill_line: read_sql_source_field_like_cpp(result, 2, "SkillLineAbility.SkillLine")?,
+        spell: read_sql_source_field_like_cpp(result, 3, "SkillLineAbility.Spell")?,
+        min_skill_line_rank: read_sql_source_field_like_cpp(
+            result,
+            4,
+            "SkillLineAbility.MinSkillLineRank",
+        )?,
+        class_mask: read_sql_source_field_like_cpp(result, 5, "SkillLineAbility.ClassMask")?,
+        supercedes_spell: read_sql_source_field_like_cpp(
+            result,
+            6,
+            "SkillLineAbility.SupercedesSpell",
+        )?,
+        acquire_method: read_sql_source_field_like_cpp(
+            result,
+            7,
+            "SkillLineAbility.AcquireMethod",
+        )?,
+        trivial_rank_high: read_sql_source_field_like_cpp(
+            result,
+            8,
+            "SkillLineAbility.TrivialSkillLineRankHigh",
+        )?,
+        trivial_rank_low: read_sql_source_field_like_cpp(
+            result,
+            9,
+            "SkillLineAbility.TrivialSkillLineRankLow",
+        )?,
+        flags: read_sql_source_field_like_cpp(result, 10, "SkillLineAbility.Flags")?,
+        num_skill_ups: read_sql_source_field_like_cpp(result, 11, "SkillLineAbility.NumSkillUps")?,
+        skillup_skill_line_id: read_sql_source_field_like_cpp(
+            result,
+            14,
+            "SkillLineAbility.SkillupSkillLineID",
+        )?,
+    })
+}
+
+fn skill_race_class_info_source_from_sql_like_cpp(
+    result: &SqlResult,
+    source: SkillStoreLoadSourceLikeCpp,
+) -> Result<SkillRaceClassInfoSourceRecordLikeCpp> {
+    let id =
+        read_sql_source_field_like_cpp(result, 0, "SkillRaceClassInfo.ID").and_then(|value| {
+            u32::try_from(value)
+                .with_context(|| format!("SkillRaceClassInfo SQL ID {value} is not u32"))
+        })?;
+    Ok(SkillRaceClassInfoSourceRecordLikeCpp {
+        source,
+        id,
+        race_mask: read_sql_source_field_like_cpp(result, 1, "SkillRaceClassInfo.RaceMask")?,
+        skill_id: read_sql_source_field_like_cpp(result, 2, "SkillRaceClassInfo.SkillID")?,
+        class_mask: read_sql_source_field_like_cpp(result, 3, "SkillRaceClassInfo.ClassMask")?,
+        flags: read_sql_source_field_like_cpp(result, 4, "SkillRaceClassInfo.Flags")?,
+        availability: read_sql_source_field_like_cpp(result, 5, "SkillRaceClassInfo.Availability")?,
+        min_level: read_sql_source_field_like_cpp(result, 6, "SkillRaceClassInfo.MinLevel")?,
+        skill_tier_id: read_sql_source_field_like_cpp(result, 7, "SkillRaceClassInfo.SkillTierID")?,
+    })
+}
+
+fn read_sql_source_field_like_cpp(
+    result: &SqlResult,
+    column: usize,
+    field: &'static str,
+) -> Result<i128> {
+    result
+        .try_read::<i64>(column)
+        .map(i128::from)
+        .or_else(|| result.try_read::<u64>(column).map(i128::from))
+        .or_else(|| result.try_read::<i32>(column).map(i128::from))
+        .or_else(|| result.try_read::<u32>(column).map(i128::from))
+        .or_else(|| result.try_read::<i16>(column).map(i128::from))
+        .or_else(|| result.try_read::<u16>(column).map(i128::from))
+        .or_else(|| result.try_read::<i8>(column).map(i128::from))
+        .or_else(|| result.try_read::<u8>(column).map(i128::from))
+        .with_context(|| format!("missing or non-integer {field} SQL column {column}"))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn compose_effective_skill_store_like_cpp(
+    base_abilities: impl IntoIterator<Item = SkillLineAbilitySourceRecordLikeCpp>,
+    official_abilities: impl IntoIterator<Item = SkillLineAbilitySourceRecordLikeCpp>,
+    custom_abilities: impl IntoIterator<Item = SkillLineAbilitySourceRecordLikeCpp>,
+    ability_table_hash: u32,
+    base_race_class_infos: impl IntoIterator<Item = SkillRaceClassInfoSourceRecordLikeCpp>,
+    official_race_class_infos: impl IntoIterator<Item = SkillRaceClassInfoSourceRecordLikeCpp>,
+    custom_race_class_infos: impl IntoIterator<Item = SkillRaceClassInfoSourceRecordLikeCpp>,
+    race_class_table_hash: u32,
+    removed_records: &Db2HotfixRemovalStoreLikeCpp,
+    skill_line_store: &SkillLineStore,
+) -> SkillStoreEffectiveLoadOutcomeLikeCpp {
+    let base_abilities = base_abilities.into_iter().collect::<Vec<_>>();
+    let official_abilities = official_abilities.into_iter().collect::<Vec<_>>();
+    let custom_abilities = custom_abilities.into_iter().collect::<Vec<_>>();
+    let base_race_class_infos = base_race_class_infos.into_iter().collect::<Vec<_>>();
+    let official_race_class_infos = official_race_class_infos.into_iter().collect::<Vec<_>>();
+    let custom_race_class_infos = custom_race_class_infos.into_iter().collect::<Vec<_>>();
+
+    let mut report = SkillStoreEffectiveLoadReportLikeCpp {
+        skill_line_ability_wdc4_rows: base_abilities.len(),
+        skill_line_ability_official_sql_rows: official_abilities.len(),
+        skill_line_ability_custom_sql_rows: custom_abilities.len(),
+        skill_race_class_info_wdc4_rows: base_race_class_infos.len(),
+        skill_race_class_info_official_sql_rows: official_race_class_infos.len(),
+        skill_race_class_info_custom_sql_rows: custom_race_class_infos.len(),
+        ..SkillStoreEffectiveLoadReportLikeCpp::default()
+    };
+
+    let mut abilities_by_record_id = BTreeMap::new();
+    for record in base_abilities
+        .into_iter()
+        .chain(official_abilities)
+        .chain(custom_abilities)
+    {
+        abilities_by_record_id.insert(record.id, record);
+    }
+    let abilities_before_removal = abilities_by_record_id.len();
+    abilities_by_record_id.retain(|record_id, _| {
+        !record_removed_like_cpp(removed_records, ability_table_hash, *record_id)
+    });
+    report.skill_line_ability_removed_rows =
+        abilities_before_removal - abilities_by_record_id.len();
+    report.skill_line_ability_effective_rows = abilities_by_record_id.len();
+
+    let mut abilities = Vec::new();
+    let mut invalid_abilities_by_spell_like_cpp =
+        HashMap::<i32, Vec<SkillStoreLoadDiagnosticLikeCpp>>::new();
+    let mut invalid_abilities_by_skill_like_cpp =
+        HashMap::<u16, Vec<SkillStoreLoadDiagnosticLikeCpp>>::new();
+    for record in abilities_by_record_id.into_values() {
+        let spell_key = i32::try_from(record.spell).ok();
+        let skill_key = skill_line_ability_skill_key_from_source_like_cpp(&record);
+        let diagnostics_start = report.diagnostics_in_record_order_like_cpp.len();
+        match skill_line_ability_from_source_like_cpp(
+            record,
+            &mut report.diagnostics_in_record_order_like_cpp,
+        ) {
+            Some(record) => abilities.push(record),
+            None => {
+                report.skill_line_ability_invalid_rows += 1;
+                if let Some(spell_key) = spell_key {
+                    invalid_abilities_by_spell_like_cpp
+                        .entry(spell_key)
+                        .or_default()
+                        .extend_from_slice(
+                            &report.diagnostics_in_record_order_like_cpp[diagnostics_start..],
+                        );
+                }
+                if let Some(skill_key) = skill_key {
+                    invalid_abilities_by_skill_like_cpp
+                        .entry(skill_key)
+                        .or_default()
+                        .extend_from_slice(
+                            &report.diagnostics_in_record_order_like_cpp[diagnostics_start..],
+                        );
+                }
+            }
+        }
+    }
+    report.skill_line_ability_indexed_rows = abilities.len();
+
+    let mut race_class_by_record_id = BTreeMap::new();
+    for record in base_race_class_infos
+        .into_iter()
+        .chain(official_race_class_infos)
+        .chain(custom_race_class_infos)
+    {
+        race_class_by_record_id.insert(record.id, record);
+    }
+    let race_class_before_removal = race_class_by_record_id.len();
+    race_class_by_record_id.retain(|record_id, _| {
+        !record_removed_like_cpp(removed_records, race_class_table_hash, *record_id)
+    });
+    report.skill_race_class_info_removed_rows =
+        race_class_before_removal - race_class_by_record_id.len();
+    report.skill_race_class_info_effective_rows = race_class_by_record_id.len();
+
+    let mut converted_race_class_infos = Vec::new();
+    let mut invalid_race_class_by_skill_like_cpp =
+        HashMap::<u16, Vec<SkillStoreLoadDiagnosticLikeCpp>>::new();
+    for record in race_class_by_record_id.into_values() {
+        let skill_key = i16::try_from(record.skill_id)
+            .ok()
+            .and_then(|value| u16::try_from(value).ok());
+        let diagnostics_start = report.diagnostics_in_record_order_like_cpp.len();
+        match skill_race_class_info_from_source_like_cpp(
+            record,
+            &mut report.diagnostics_in_record_order_like_cpp,
+        ) {
+            Some(record) => converted_race_class_infos.push(record),
+            None => {
+                report.skill_race_class_info_invalid_rows += 1;
+                if let Some(skill_key) = skill_key {
+                    invalid_race_class_by_skill_like_cpp
+                        .entry(skill_key)
+                        .or_default()
+                        .extend_from_slice(
+                            &report.diagnostics_in_record_order_like_cpp[diagnostics_start..],
+                        );
+                }
+            }
+        }
+    }
+
+    let mut race_class_infos = Vec::new();
+    for record in converted_race_class_infos {
+        if skill_line_store.contains_effective_record_like_cpp(u32::from(record.skill_id)) {
+            race_class_infos.push(record);
+            continue;
+        }
+
+        let diagnostic = SkillStoreLoadDiagnosticLikeCpp::MissingEffectiveSkillLine {
+            record_id: record.id,
+            skill_id: record.skill_id,
+        };
+        report.skill_race_class_info_missing_skill_line_rows += 1;
+        report
+            .diagnostics_in_record_order_like_cpp
+            .push(diagnostic.clone());
+        invalid_race_class_by_skill_like_cpp
+            .entry(record.skill_id)
+            .or_default()
+            .push(diagnostic);
+    }
+    report.skill_race_class_info_indexed_rows = race_class_infos.len();
+
+    let conflict_diagnostics_start = report.diagnostics_in_record_order_like_cpp.len();
+    append_conflicting_race_class_diagnostics_like_cpp(
+        &race_class_infos,
+        &mut report.diagnostics_in_record_order_like_cpp,
+    );
+    for diagnostic in &report.diagnostics_in_record_order_like_cpp[conflict_diagnostics_start..] {
+        let SkillStoreLoadDiagnosticLikeCpp::ConflictingRaceClassInfo { skill_id, .. } = diagnostic
+        else {
+            continue;
+        };
+        invalid_race_class_by_skill_like_cpp
+            .entry(*skill_id)
+            .or_default()
+            .push(diagnostic.clone());
+    }
+
+    let mut store =
+        SkillStore::from_skill_line_abilities_and_race_class_like_cpp(abilities, race_class_infos);
+    store.invalid_abilities_by_spell_like_cpp = invalid_abilities_by_spell_like_cpp;
+    store.invalid_abilities_by_skill_like_cpp = invalid_abilities_by_skill_like_cpp;
+    store.invalid_race_class_by_skill_like_cpp = invalid_race_class_by_skill_like_cpp;
+    SkillStoreEffectiveLoadOutcomeLikeCpp { store, report }
+}
+
+fn record_removed_like_cpp(
+    removed_records: &Db2HotfixRemovalStoreLikeCpp,
+    table_hash: u32,
+    record_id: u32,
+) -> bool {
+    // C++ hotfix keys store the signed `RecordID` bit pattern even though DB2
+    // storage exposes the ID as `uint32`.
+    removed_records.contains_like_cpp(table_hash, record_id as i32)
+}
+
+fn skill_line_ability_from_source_like_cpp(
+    record: SkillLineAbilitySourceRecordLikeCpp,
+    diagnostics: &mut Vec<SkillStoreLoadDiagnosticLikeCpp>,
+) -> Option<SkillLineAbilityRecord> {
+    let skill_line = i16::try_from(record.skill_line)
+        .ok()
+        .and_then(|value| u16::try_from(value).ok());
+    let skillup_skill_line_id = i16::try_from(record.skillup_skill_line_id)
+        .ok()
+        .filter(|value| *value >= 0);
+    let (Some(skill_line), Some(skillup_skill_line_id)) = (skill_line, skillup_skill_line_id)
+    else {
+        diagnostics.push(
+            SkillStoreLoadDiagnosticLikeCpp::InvalidSkillLineAbilityIdentifier {
+                source: record.source,
+                record_id: record.id,
+                spell: record.spell,
+                skill_line: record.skill_line,
+                skillup_skill_line_id: record.skillup_skill_line_id,
+            },
+        );
+        return None;
+    };
+
+    Some(SkillLineAbilityRecord {
+        id: record.id,
+        race_mask: checked_source_field_like_cpp(
+            SkillStoreTableLikeCpp::SkillLineAbility,
+            record.source,
+            record.id,
+            "RaceMask",
+            record.race_mask,
+            diagnostics,
+        )?,
+        skill_line,
+        spell: checked_source_field_like_cpp(
+            SkillStoreTableLikeCpp::SkillLineAbility,
+            record.source,
+            record.id,
+            "Spell",
+            record.spell,
+            diagnostics,
+        )?,
+        min_skill_line_rank: checked_source_field_like_cpp(
+            SkillStoreTableLikeCpp::SkillLineAbility,
+            record.source,
+            record.id,
+            "MinSkillLineRank",
+            record.min_skill_line_rank,
+            diagnostics,
+        )?,
+        class_mask: checked_source_field_like_cpp(
+            SkillStoreTableLikeCpp::SkillLineAbility,
+            record.source,
+            record.id,
+            "ClassMask",
+            record.class_mask,
+            diagnostics,
+        )?,
+        supercedes_spell: checked_source_field_like_cpp(
+            SkillStoreTableLikeCpp::SkillLineAbility,
+            record.source,
+            record.id,
+            "SupercedesSpell",
+            record.supercedes_spell,
+            diagnostics,
+        )?,
+        acquire_method: checked_source_field_like_cpp(
+            SkillStoreTableLikeCpp::SkillLineAbility,
+            record.source,
+            record.id,
+            "AcquireMethod",
+            record.acquire_method,
+            diagnostics,
+        )?,
+        trivial_rank_high: checked_source_field_like_cpp(
+            SkillStoreTableLikeCpp::SkillLineAbility,
+            record.source,
+            record.id,
+            "TrivialSkillLineRankHigh",
+            record.trivial_rank_high,
+            diagnostics,
+        )?,
+        trivial_rank_low: checked_source_field_like_cpp(
+            SkillStoreTableLikeCpp::SkillLineAbility,
+            record.source,
+            record.id,
+            "TrivialSkillLineRankLow",
+            record.trivial_rank_low,
+            diagnostics,
+        )?,
+        flags: checked_source_field_like_cpp(
+            SkillStoreTableLikeCpp::SkillLineAbility,
+            record.source,
+            record.id,
+            "Flags",
+            record.flags,
+            diagnostics,
+        )?,
+        num_skill_ups: checked_source_field_like_cpp(
+            SkillStoreTableLikeCpp::SkillLineAbility,
+            record.source,
+            record.id,
+            "NumSkillUps",
+            record.num_skill_ups,
+            diagnostics,
+        )?,
+        skillup_skill_line_id,
+    })
+}
+
+fn skill_line_ability_skill_key_from_source_like_cpp(
+    record: &SkillLineAbilitySourceRecordLikeCpp,
+) -> Option<u16> {
+    let skillup_skill_line_id = i16::try_from(record.skillup_skill_line_id).ok()?;
+    if skillup_skill_line_id != 0 {
+        return u16::try_from(skillup_skill_line_id).ok();
+    }
+
+    i16::try_from(record.skill_line)
+        .ok()
+        .and_then(|skill_line| u16::try_from(skill_line).ok())
+}
+
+fn skill_race_class_info_from_source_like_cpp(
+    record: SkillRaceClassInfoSourceRecordLikeCpp,
+    diagnostics: &mut Vec<SkillStoreLoadDiagnosticLikeCpp>,
+) -> Option<SkillRaceClassInfoRecord> {
+    let Some(skill_id) = i16::try_from(record.skill_id)
+        .ok()
+        .and_then(|value| u16::try_from(value).ok())
+    else {
+        diagnostics.push(
+            SkillStoreLoadDiagnosticLikeCpp::InvalidSkillRaceClassInfoIdentifier {
+                source: record.source,
+                record_id: record.id,
+                race_mask: record.race_mask,
+                skill_id: record.skill_id,
+                class_mask: record.class_mask,
+            },
+        );
+        return None;
+    };
+
+    Some(SkillRaceClassInfoRecord {
+        id: record.id,
+        race_mask: checked_source_field_like_cpp(
+            SkillStoreTableLikeCpp::SkillRaceClassInfo,
+            record.source,
+            record.id,
+            "RaceMask",
+            record.race_mask,
+            diagnostics,
+        )?,
+        skill_id,
+        class_mask: checked_source_field_like_cpp(
+            SkillStoreTableLikeCpp::SkillRaceClassInfo,
+            record.source,
+            record.id,
+            "ClassMask",
+            record.class_mask,
+            diagnostics,
+        )?,
+        flags: checked_source_field_like_cpp(
+            SkillStoreTableLikeCpp::SkillRaceClassInfo,
+            record.source,
+            record.id,
+            "Flags",
+            record.flags,
+            diagnostics,
+        )?,
+        availability: checked_source_field_like_cpp(
+            SkillStoreTableLikeCpp::SkillRaceClassInfo,
+            record.source,
+            record.id,
+            "Availability",
+            record.availability,
+            diagnostics,
+        )?,
+        min_level: checked_source_field_like_cpp(
+            SkillStoreTableLikeCpp::SkillRaceClassInfo,
+            record.source,
+            record.id,
+            "MinLevel",
+            record.min_level,
+            diagnostics,
+        )?,
+        skill_tier_id: checked_source_field_like_cpp(
+            SkillStoreTableLikeCpp::SkillRaceClassInfo,
+            record.source,
+            record.id,
+            "SkillTierID",
+            record.skill_tier_id,
+            diagnostics,
+        )?,
+    })
+}
+
+fn checked_source_field_like_cpp<T>(
+    table: SkillStoreTableLikeCpp,
+    source: SkillStoreLoadSourceLikeCpp,
+    record_id: u32,
+    field: &'static str,
+    value: i128,
+    diagnostics: &mut Vec<SkillStoreLoadDiagnosticLikeCpp>,
+) -> Option<T>
+where
+    T: TryFrom<i128>,
+{
+    match T::try_from(value) {
+        Ok(value) => Some(value),
+        Err(_) => {
+            diagnostics.push(SkillStoreLoadDiagnosticLikeCpp::InvalidSourceField {
+                table,
+                source,
+                record_id,
+                field,
+                value,
+            });
+            None
+        }
+    }
+}
+
+fn append_conflicting_race_class_diagnostics_like_cpp(
+    records: &[SkillRaceClassInfoRecord],
+    diagnostics: &mut Vec<SkillStoreLoadDiagnosticLikeCpp>,
+) {
+    for (index, first) in records.iter().enumerate() {
+        for second in &records[index + 1..] {
+            if first.skill_id != second.skill_id
+                || !race_masks_overlap_like_cpp(first.race_mask, second.race_mask)
+                || !class_masks_overlap_like_cpp(first.class_mask, second.class_mask)
+            {
+                continue;
+            }
+
+            if same_race_class_payload_like_cpp(first, second) {
+                continue;
+            }
+
+            diagnostics.push(SkillStoreLoadDiagnosticLikeCpp::ConflictingRaceClassInfo {
+                skill_id: first.skill_id,
+                first_record_id: first.id,
+                second_record_id: second.id,
+            });
+        }
+    }
+}
+
+fn same_race_class_payload_like_cpp(
+    first: &SkillRaceClassInfoRecord,
+    second: &SkillRaceClassInfoRecord,
+) -> bool {
+    first.flags == second.flags
+        && first.availability == second.availability
+        && first.min_level == second.min_level
+        && first.skill_tier_id == second.skill_tier_id
+}
+
+fn race_masks_overlap_like_cpp(first: i64, second: i64) -> bool {
+    first == 0 || second == 0 || first & second != 0
+}
+
+fn class_masks_overlap_like_cpp(first: i32, second: i32) -> bool {
+    matches!(first, -1 | 0) || matches!(second, -1 | 0) || first & second != 0
 }
 
 /// Check if a race matches a race mask. Mask of 0 means "all races".
 fn matches_race(mask: i64, race: u8) -> bool {
-    mask == 0 || (mask & (1i64 << (race as i64 - 1))) != 0
+    mask == 0 || (mask & race_mask_for_race_like_cpp(race)) != 0
+}
+
+/// C++ `Trinity::RaceMask::GetMaskForRace`.
+fn race_mask_for_race_like_cpp(race: u8) -> i64 {
+    let bit = match race {
+        1..=11 | 22 | 24..=32 => Some(race - 1),
+        34 => Some(11),
+        35 => Some(12),
+        36 => Some(13),
+        37 => Some(14),
+        52 => Some(16),
+        70 => Some(15),
+        _ => None,
+    };
+    bit.map(|bit| 1_i64 << bit).unwrap_or(0)
 }
 
 /// Check if a class matches a class mask. Mask of 0 means "all classes".
 fn matches_class(mask: i32, class: u8) -> bool {
-    mask == 0 || (mask & (1i32 << (class as i32 - 1))) != 0
+    if matches!(mask, -1 | 0) {
+        return true;
+    }
+    if !(CLASS_WARRIOR_LIKE_CPP..MAX_CLASSES_LIKE_CPP).contains(&class) {
+        return false;
+    }
+    mask & (1_i32 << (class - 1)) != 0
 }
 
 // ── Tests ────────────────────────────────────────────────────────────
@@ -1260,6 +2244,45 @@ mod tests {
         }
     }
 
+    fn ability_source(
+        record: SkillLineAbilityRecord,
+        source: SkillStoreLoadSourceLikeCpp,
+    ) -> SkillLineAbilitySourceRecordLikeCpp {
+        SkillLineAbilitySourceRecordLikeCpp {
+            source,
+            id: record.id,
+            race_mask: i128::from(record.race_mask),
+            skill_line: i128::from(record.skill_line),
+            spell: i128::from(record.spell),
+            min_skill_line_rank: i128::from(record.min_skill_line_rank),
+            class_mask: i128::from(record.class_mask),
+            supercedes_spell: i128::from(record.supercedes_spell),
+            acquire_method: i128::from(record.acquire_method),
+            trivial_rank_high: i128::from(record.trivial_rank_high),
+            trivial_rank_low: i128::from(record.trivial_rank_low),
+            flags: i128::from(record.flags),
+            num_skill_ups: i128::from(record.num_skill_ups),
+            skillup_skill_line_id: i128::from(record.skillup_skill_line_id),
+        }
+    }
+
+    fn race_class_source(
+        record: SkillRaceClassInfoRecord,
+        source: SkillStoreLoadSourceLikeCpp,
+    ) -> SkillRaceClassInfoSourceRecordLikeCpp {
+        SkillRaceClassInfoSourceRecordLikeCpp {
+            source,
+            id: record.id,
+            race_mask: i128::from(record.race_mask),
+            skill_id: i128::from(record.skill_id),
+            class_mask: i128::from(record.class_mask),
+            flags: i128::from(record.flags),
+            availability: i128::from(record.availability),
+            min_level: i128::from(record.min_level),
+            skill_tier_id: i128::from(record.skill_tier_id),
+        }
+    }
+
     fn pet_ability(
         id: u32,
         skill_line: u16,
@@ -1290,6 +2313,477 @@ mod tests {
 
     fn skill_tier_row(id: u32, value: [u32; MAX_SKILL_STEP_LIKE_CPP]) -> SkillTiersRowLikeCpp {
         SkillTiersRowLikeCpp { id, value }
+    }
+
+    #[test]
+    fn effective_skill_store_composes_collisions_sql_only_rows_and_removals_by_record_id() {
+        const ABILITY_TABLE_HASH: u32 = 0xA100_0001;
+        const RACE_CLASS_TABLE_HASH: u32 = 0xB200_0002;
+        let skill_lines = SkillLineStore::from_entries([
+            skill_line(100, SKILL_CATEGORY_PROFESSION_LIKE_CPP),
+            skill_line(200, SKILL_CATEGORY_SECONDARY_LIKE_CPP),
+        ]);
+        let removals = Db2HotfixRemovalStoreLikeCpp::from_status_rows_like_cpp([
+            (ABILITY_TABLE_HASH, 30, 2),
+            (ABILITY_TABLE_HASH, 40, 2),
+            (ABILITY_TABLE_HASH, 40, 1),
+            (RACE_CLASS_TABLE_HASH, 60, 2),
+            (RACE_CLASS_TABLE_HASH, 55, 2),
+            (RACE_CLASS_TABLE_HASH, 55, 1),
+        ]);
+
+        let outcome = compose_effective_skill_store_like_cpp(
+            [
+                ability_source(ability(20, 100, 1000), SkillStoreLoadSourceLikeCpp::Wdc4),
+                ability_source(ability(10, 100, 900), SkillStoreLoadSourceLikeCpp::Wdc4),
+            ],
+            [
+                ability_source(
+                    ability(20, 100, 2000),
+                    SkillStoreLoadSourceLikeCpp::OfficialSql,
+                ),
+                ability_source(
+                    ability(30, 100, 3000),
+                    SkillStoreLoadSourceLikeCpp::OfficialSql,
+                ),
+            ],
+            [
+                ability_source(
+                    ability(20, 100, 4000),
+                    SkillStoreLoadSourceLikeCpp::CustomSql,
+                ),
+                ability_source(
+                    ability(40, 200, 5000),
+                    SkillStoreLoadSourceLikeCpp::CustomSql,
+                ),
+            ],
+            ABILITY_TABLE_HASH,
+            [race_class_source(
+                race_class_info(50, 100, 1, 1, 0, 0),
+                SkillStoreLoadSourceLikeCpp::Wdc4,
+            )],
+            [
+                race_class_source(
+                    race_class_info(50, 100, 2, 1, 0, 0),
+                    SkillStoreLoadSourceLikeCpp::OfficialSql,
+                ),
+                race_class_source(
+                    race_class_info(60, 100, 4, 1, 0, 0),
+                    SkillStoreLoadSourceLikeCpp::OfficialSql,
+                ),
+            ],
+            [
+                race_class_source(
+                    race_class_info(50, 100, 8, 1, 0, 0),
+                    SkillStoreLoadSourceLikeCpp::CustomSql,
+                ),
+                race_class_source(
+                    race_class_info(55, 200, 16, 1, 0, 0),
+                    SkillStoreLoadSourceLikeCpp::CustomSql,
+                ),
+            ],
+            RACE_CLASS_TABLE_HASH,
+            &removals,
+            &skill_lines,
+        );
+
+        assert_eq!(
+            outcome
+                .store
+                .skill_line_abilities_like_cpp()
+                .iter()
+                .map(|record| (record.id, record.spell))
+                .collect::<Vec<_>>(),
+            vec![(10, 900), (20, 4000), (40, 5000)],
+            "custom replaces official/base, SQL-only survives, removed rows vanish, and final IDs sort"
+        );
+        assert_eq!(
+            outcome
+                .store
+                .skill_race_class_info_candidates_like_cpp(100, 1, 1)
+                .iter()
+                .map(|record| (record.id, record.flags))
+                .collect::<Vec<_>>(),
+            vec![(50, 8)]
+        );
+        assert_eq!(
+            outcome
+                .store
+                .skill_race_class_info_candidates_like_cpp(200, 1, 1)
+                .iter()
+                .map(|record| record.id)
+                .collect::<Vec<_>>(),
+            vec![55]
+        );
+        assert_eq!(
+            outcome.report,
+            SkillStoreEffectiveLoadReportLikeCpp {
+                skill_line_ability_wdc4_rows: 2,
+                skill_line_ability_official_sql_rows: 2,
+                skill_line_ability_custom_sql_rows: 2,
+                skill_line_ability_removed_rows: 1,
+                skill_line_ability_effective_rows: 3,
+                skill_line_ability_indexed_rows: 3,
+                skill_line_ability_invalid_rows: 0,
+                skill_race_class_info_wdc4_rows: 1,
+                skill_race_class_info_official_sql_rows: 2,
+                skill_race_class_info_custom_sql_rows: 2,
+                skill_race_class_info_removed_rows: 1,
+                skill_race_class_info_effective_rows: 2,
+                skill_race_class_info_indexed_rows: 2,
+                skill_race_class_info_invalid_rows: 0,
+                skill_race_class_info_missing_skill_line_rows: 0,
+                diagnostics_in_record_order_like_cpp: Vec::new(),
+            }
+        );
+    }
+
+    #[test]
+    fn final_invalid_overlay_replaces_stale_payload_and_valid_custom_can_repair_it() {
+        const ABILITY_TABLE_HASH: u32 = 0xA100_0001;
+        const RACE_CLASS_TABLE_HASH: u32 = 0xB200_0002;
+        let skill_lines = SkillLineStore::from_entries([
+            skill_line(100, SKILL_CATEGORY_PROFESSION_LIKE_CPP),
+            skill_line(200, SKILL_CATEGORY_SECONDARY_LIKE_CPP),
+        ]);
+
+        let mut invalid_final_ability = ability_source(
+            ability(1, 100, 1000),
+            SkillStoreLoadSourceLikeCpp::CustomSql,
+        );
+        invalid_final_ability.skill_line = -1;
+        let mut repaired_official_ability = ability_source(
+            ability(2, 100, 2000),
+            SkillStoreLoadSourceLikeCpp::OfficialSql,
+        );
+        repaired_official_ability.skill_line = -2;
+        let mut invalid_skillup_ability = ability_source(
+            ability(3, 100, 3000),
+            SkillStoreLoadSourceLikeCpp::CustomSql,
+        );
+        invalid_skillup_ability.skillup_skill_line_id = -1;
+        let mut invalid_payload_ability = ability_source(
+            ability(4, 200, 2222),
+            SkillStoreLoadSourceLikeCpp::CustomSql,
+        );
+        invalid_payload_ability.race_mask = i128::MAX;
+
+        let mut invalid_final_race_class = race_class_source(
+            race_class_info(10, 100, 0, 1, 0, 0),
+            SkillStoreLoadSourceLikeCpp::CustomSql,
+        );
+        invalid_final_race_class.skill_id = -3;
+        let mut repaired_official_race_class = race_class_source(
+            race_class_info(11, 100, 0, 1, 0, 0),
+            SkillStoreLoadSourceLikeCpp::OfficialSql,
+        );
+        repaired_official_race_class.skill_id = -4;
+
+        let outcome = compose_effective_skill_store_like_cpp(
+            [
+                ability_source(ability(1, 100, 1000), SkillStoreLoadSourceLikeCpp::Wdc4),
+                ability_source(ability(2, 100, 2000), SkillStoreLoadSourceLikeCpp::Wdc4),
+            ],
+            [repaired_official_ability],
+            [
+                invalid_final_ability,
+                ability_source(
+                    ability(2, 200, 2222),
+                    SkillStoreLoadSourceLikeCpp::CustomSql,
+                ),
+                invalid_skillup_ability,
+                invalid_payload_ability,
+            ],
+            ABILITY_TABLE_HASH,
+            [
+                race_class_source(
+                    race_class_info(10, 100, 0, 1, 0, 0),
+                    SkillStoreLoadSourceLikeCpp::Wdc4,
+                ),
+                race_class_source(
+                    race_class_info(11, 100, 0, 1, 0, 0),
+                    SkillStoreLoadSourceLikeCpp::Wdc4,
+                ),
+            ],
+            [repaired_official_race_class],
+            [
+                invalid_final_race_class,
+                race_class_source(
+                    race_class_info(11, 200, 0, 1, 0, 0),
+                    SkillStoreLoadSourceLikeCpp::CustomSql,
+                ),
+            ],
+            RACE_CLASS_TABLE_HASH,
+            &Db2HotfixRemovalStoreLikeCpp::default(),
+            &skill_lines,
+        );
+
+        assert_eq!(
+            outcome
+                .store
+                .skill_line_abilities_like_cpp()
+                .iter()
+                .map(|record| (record.id, record.skill_line, record.spell))
+                .collect::<Vec<_>>(),
+            vec![(2, 200, 2222)],
+            "an invalid final custom row must not uncover the stale WDC4 record"
+        );
+        assert!(matches!(
+            outcome
+                .store
+                .skill_line_ability_coverage_by_spell_like_cpp(1000),
+            SkillLineAbilityCoverageLikeCpp::Indeterminate(diagnostics)
+                if diagnostics.iter().any(|diagnostic| matches!(
+                    diagnostic,
+                    SkillStoreLoadDiagnosticLikeCpp::InvalidSkillLineAbilityIdentifier {
+                        record_id: 1,
+                        ..
+                    }
+                ))
+        ));
+        assert!(matches!(
+            outcome
+                .store
+                .skill_line_ability_coverage_by_spell_like_cpp(2222),
+            SkillLineAbilityCoverageLikeCpp::Indeterminate(diagnostics)
+                if diagnostics.iter().any(|diagnostic| matches!(
+                    diagnostic,
+                    SkillStoreLoadDiagnosticLikeCpp::InvalidSourceField {
+                        record_id: 4,
+                        field: "RaceMask",
+                        ..
+                    }
+                ))
+        ));
+        assert!(matches!(
+            outcome
+                .store
+                .skill_line_ability_coverage_by_skill_like_cpp(200),
+            SkillLineAbilityCoverageLikeCpp::Indeterminate(diagnostics)
+                if diagnostics.iter().any(|diagnostic| matches!(
+                    diagnostic,
+                    SkillStoreLoadDiagnosticLikeCpp::InvalidSourceField {
+                        record_id: 4,
+                        field: "RaceMask",
+                        ..
+                    }
+                ))
+        ));
+        assert_eq!(
+            outcome
+                .store
+                .skill_line_ability_coverage_by_spell_like_cpp(9999),
+            SkillLineAbilityCoverageLikeCpp::CoveredZero
+        );
+        assert_eq!(
+            outcome
+                .store
+                .skill_line_ability_coverage_by_skill_like_cpp(999),
+            SkillLineAbilityCoverageLikeCpp::CoveredZero
+        );
+        assert_eq!(outcome.store.race_class_count(), 1);
+        assert_eq!(
+            outcome
+                .store
+                .skill_race_class_info_candidates_like_cpp(200, 1, 1)[0]
+                .id,
+            11
+        );
+        assert!(
+            outcome
+                .report
+                .diagnostics_in_record_order_like_cpp
+                .contains(
+                    &SkillStoreLoadDiagnosticLikeCpp::InvalidSkillLineAbilityIdentifier {
+                        source: SkillStoreLoadSourceLikeCpp::CustomSql,
+                        record_id: 1,
+                        spell: 1000,
+                        skill_line: -1,
+                        skillup_skill_line_id: 0,
+                    }
+                )
+        );
+        assert!(
+            outcome
+                .report
+                .diagnostics_in_record_order_like_cpp
+                .contains(
+                    &SkillStoreLoadDiagnosticLikeCpp::InvalidSkillLineAbilityIdentifier {
+                        source: SkillStoreLoadSourceLikeCpp::CustomSql,
+                        record_id: 3,
+                        spell: 3000,
+                        skill_line: 100,
+                        skillup_skill_line_id: -1,
+                    }
+                )
+        );
+        assert!(
+            outcome
+                .report
+                .diagnostics_in_record_order_like_cpp
+                .contains(
+                    &SkillStoreLoadDiagnosticLikeCpp::InvalidSkillRaceClassInfoIdentifier {
+                        source: SkillStoreLoadSourceLikeCpp::CustomSql,
+                        record_id: 10,
+                        race_mask: 1,
+                        skill_id: -3,
+                        class_mask: 1,
+                    }
+                )
+        );
+    }
+
+    #[test]
+    fn missing_skill_lines_and_conflicting_race_class_payloads_fail_closed_with_diagnostics() {
+        let skill_lines =
+            SkillLineStore::from_entries([skill_line(100, SKILL_CATEGORY_PROFESSION_LIKE_CPP)]);
+        let outcome = compose_effective_skill_store_like_cpp(
+            [],
+            [],
+            [],
+            1,
+            [
+                race_class_source(
+                    race_class_info(1, 999, 0, 1, 0, 0),
+                    SkillStoreLoadSourceLikeCpp::Wdc4,
+                ),
+                race_class_source(
+                    race_class_info(2, 100, 0, 1, 0, 0),
+                    SkillStoreLoadSourceLikeCpp::Wdc4,
+                ),
+                race_class_source(
+                    race_class_info(3, 100, 1, 1, 0, 0),
+                    SkillStoreLoadSourceLikeCpp::Wdc4,
+                ),
+            ],
+            [],
+            [],
+            2,
+            &Db2HotfixRemovalStoreLikeCpp::default(),
+            &skill_lines,
+        );
+
+        assert_eq!(outcome.store.race_class_count(), 2);
+        assert!(matches!(
+            outcome
+                .store
+                .skill_race_class_info_coverage_by_skill_like_cpp(999),
+            SkillRaceClassInfoCoverageLikeCpp::Indeterminate(diagnostics)
+                if diagnostics == [SkillStoreLoadDiagnosticLikeCpp::MissingEffectiveSkillLine {
+                    record_id: 1,
+                    skill_id: 999,
+                }]
+        ));
+        assert!(matches!(
+            outcome
+                .store
+                .skill_race_class_info_coverage_by_skill_like_cpp(100),
+            SkillRaceClassInfoCoverageLikeCpp::Indeterminate(diagnostics)
+                if diagnostics == [SkillStoreLoadDiagnosticLikeCpp::ConflictingRaceClassInfo {
+                    skill_id: 100,
+                    first_record_id: 2,
+                    second_record_id: 3,
+                }]
+        ));
+        assert!(matches!(
+            outcome
+                .store
+                .skill_race_class_info_coverage_for_player_like_cpp(100, 1, 1),
+            SkillRaceClassInfoMatchCoverageLikeCpp::Indeterminate(diagnostics)
+                if diagnostics == [SkillStoreLoadDiagnosticLikeCpp::ConflictingRaceClassInfo {
+                    skill_id: 100,
+                    first_record_id: 2,
+                    second_record_id: 3,
+                }]
+        ));
+        assert!(
+            outcome
+                .store
+                .skill_race_class_info_like_cpp(100, 1, 1)
+                .is_none(),
+            "an unordered C++ first-match conflict must fail closed"
+        );
+        assert!(
+            outcome
+                .store
+                .default_starting_skill_info_like_cpp(
+                    1,
+                    1,
+                    80,
+                    &skill_lines,
+                    &SkillTiersStoreLikeCpp::default(),
+                )
+                .is_empty(),
+            "the starting-skill consumer must not bypass the ambiguity guard"
+        );
+        assert!(
+            !outcome.store.starting_skills.contains_key(&(1, 1))
+                || outcome.store.starting_skills[&(1, 1)]
+                    .iter()
+                    .all(|record| record.skill_id != 999),
+            "the #163 fail-closed hardening also excludes missing SkillLine rows from starting skills"
+        );
+        assert!(
+            outcome
+                .report
+                .diagnostics_in_record_order_like_cpp
+                .contains(
+                    &SkillStoreLoadDiagnosticLikeCpp::MissingEffectiveSkillLine {
+                        record_id: 1,
+                        skill_id: 999,
+                    }
+                )
+        );
+        assert!(
+            outcome
+                .report
+                .diagnostics_in_record_order_like_cpp
+                .contains(&SkillStoreLoadDiagnosticLikeCpp::ConflictingRaceClassInfo {
+                    skill_id: 100,
+                    first_record_id: 2,
+                    second_record_id: 3,
+                })
+        );
+    }
+
+    #[test]
+    fn effective_indices_use_cpp_race_bits_and_full_race_class_ranges() {
+        let mut race_52 = race_class_info(1, 100, 0, 1, 0, 0);
+        race_52.race_mask = 1_i64 << 16;
+        race_52.class_mask = 1_i32 << (13 - 1);
+        let mut race_70 = race_class_info(2, 100, 0, 1, 0, 0);
+        race_70.race_mask = 1_i64 << 15;
+        race_70.class_mask = -1;
+        let store =
+            SkillStore::from_skill_line_abilities_and_race_class_like_cpp([], [race_52, race_70]);
+
+        assert_eq!(
+            store
+                .skill_race_class_info_candidates_like_cpp(100, 52, 13)
+                .iter()
+                .map(|record| record.id)
+                .collect::<Vec<_>>(),
+            vec![1]
+        );
+        assert_eq!(
+            store
+                .skill_race_class_info_candidates_like_cpp(100, 70, 14)
+                .iter()
+                .map(|record| record.id)
+                .collect::<Vec<_>>(),
+            vec![2]
+        );
+        assert!(store.starting_skills.contains_key(&(52, 13)));
+        assert!(store.starting_skills.contains_key(&(70, 14)));
+        assert!(!store.starting_skills.contains_key(&(70, 15)));
+    }
+
+    #[test]
+    fn removal_lookup_preserves_unsigned_record_id_bit_pattern_like_cpp() {
+        let table_hash = 0xA100_0001;
+        let removals =
+            Db2HotfixRemovalStoreLikeCpp::from_status_rows_like_cpp([(table_hash, -1, 2)]);
+        assert!(record_removed_like_cpp(&removals, table_hash, u32::MAX));
     }
 
     #[test]

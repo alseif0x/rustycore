@@ -2205,13 +2205,32 @@ pub struct SpellLearnSkillStoreLikeCpp {
     pub skill_by_spell_id: BTreeMap<u32, SpellLearnSkillNodeLikeCpp>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpellLearnSkillLoadErrorKindLikeCpp {
+    SkillOutOfRange { value: i32 },
+    StepOutOfRange { value: i32 },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellLearnSkillLoadErrorLikeCpp {
+    pub spell_id: u32,
+    pub kind: SpellLearnSkillLoadErrorKindLikeCpp,
+}
+
 impl SpellLearnSkillStoreLikeCpp {
+    /// Build C++'s first matching `SKILL` / `DUAL_WIELD` node.
+    ///
+    /// The selected effect order remains faithful, while Rust deliberately
+    /// rejects values that C++ would narrow into `uint16`: the complete
+    /// acquisition catalog retains the source value so authorization can
+    /// classify the spell as indeterminate instead of accepting a wrapped ID.
     pub fn from_spell_infos_like_cpp<I>(source_spells: I) -> SpellLearnSkillLoadOutcomeLikeCpp
     where
         I: IntoIterator<Item = SpellLearnSkillSourceSpellInfoLikeCpp>,
     {
         let mut store = Self::default();
         let mut dbc_loaded_row_count = 0;
+        let mut errors = Vec::new();
 
         for source_spell in source_spells {
             if !source_spell.difficulty_none {
@@ -2220,12 +2239,32 @@ impl SpellLearnSkillStoreLikeCpp {
 
             for effect in source_spell.effects {
                 let node = match effect.effect {
-                    spell_effect_types::SPELL_EFFECT_SKILL => SpellLearnSkillNodeLikeCpp {
-                        skill: effect.misc_value as u16,
-                        step: effect.calc_value as u16,
-                        value: 0,
-                        maxvalue: 0,
-                    },
+                    spell_effect_types::SPELL_EFFECT_SKILL => {
+                        let Ok(skill) = u16::try_from(effect.misc_value) else {
+                            errors.push(SpellLearnSkillLoadErrorLikeCpp {
+                                spell_id: source_spell.spell_id,
+                                kind: SpellLearnSkillLoadErrorKindLikeCpp::SkillOutOfRange {
+                                    value: effect.misc_value,
+                                },
+                            });
+                            break;
+                        };
+                        let Ok(step) = u16::try_from(effect.calc_value) else {
+                            errors.push(SpellLearnSkillLoadErrorLikeCpp {
+                                spell_id: source_spell.spell_id,
+                                kind: SpellLearnSkillLoadErrorKindLikeCpp::StepOutOfRange {
+                                    value: effect.calc_value,
+                                },
+                            });
+                            break;
+                        };
+                        SpellLearnSkillNodeLikeCpp {
+                            skill,
+                            step,
+                            value: 0,
+                            maxvalue: 0,
+                        }
+                    }
                     spell_effect_types::SPELL_EFFECT_DUAL_WIELD => SpellLearnSkillNodeLikeCpp {
                         skill: SKILL_DUAL_WIELD_LIKE_CPP,
                         step: 1,
@@ -2244,6 +2283,7 @@ impl SpellLearnSkillStoreLikeCpp {
         SpellLearnSkillLoadOutcomeLikeCpp {
             store,
             dbc_loaded_row_count,
+            errors,
         }
     }
 
@@ -2259,6 +2299,7 @@ impl SpellLearnSkillStoreLikeCpp {
 pub struct SpellLearnSkillLoadOutcomeLikeCpp {
     pub store: SpellLearnSkillStoreLikeCpp,
     pub dbc_loaded_row_count: usize,
+    pub errors: Vec<SpellLearnSkillLoadErrorLikeCpp>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2276,22 +2317,74 @@ pub struct SpellChainNodeLikeCpp {
     pub rank: u8,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SpellChainLoadDiagnosticLikeCpp {
+    SelfLoop {
+        spell_id: u32,
+    },
+    MultiplePredecessors {
+        spell_id: u32,
+        predecessor_spell_ids: Vec<u32>,
+    },
+    Cycle {
+        spell_ids: Vec<u32>,
+    },
+    RankOutOfRange {
+        first_spell_id: u32,
+        spell_id: u32,
+        rank: usize,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpellChainLookupLikeCpp<'a> {
+    Unranked,
+    Node(&'a SpellChainNodeLikeCpp),
+    Indeterminate(&'a [SpellChainLoadDiagnosticLikeCpp]),
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SpellChainStoreLikeCpp {
     pub chains_by_spell_id: BTreeMap<u32, SpellChainNodeLikeCpp>,
+    indeterminate_by_spell_id_like_cpp:
+        BTreeMap<u32, std::sync::Arc<[SpellChainLoadDiagnosticLikeCpp]>>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SpellChainLoadOutcomeLikeCpp {
+    pub store: SpellChainStoreLikeCpp,
+    pub diagnostics_in_order_like_cpp: Vec<SpellChainLoadDiagnosticLikeCpp>,
 }
 
 impl SpellChainStoreLikeCpp {
     pub fn from_skill_line_ability_supercedes_like_cpp<I, SpellExists>(
         rows: I,
-        mut spell_exists: SpellExists,
+        spell_exists: SpellExists,
     ) -> Self
     where
         I: IntoIterator<Item = SpellRankEdgeLikeCpp>,
         SpellExists: FnMut(u32) -> bool,
     {
+        Self::from_skill_line_ability_supercedes_with_diagnostics_like_cpp(rows, spell_exists).store
+    }
+
+    /// Builds the effective `SpellMgr::LoadSpellRanks` projection and retains
+    /// malformed custom/hotfix graph evidence instead of inheriting C++'s
+    /// startup hang or silently treating an ambiguous rank as unranked.
+    ///
+    /// Input order is significant for the C++ `std::map::operator[]`
+    /// last-wins rule when multiple records name the same predecessor. The
+    /// production caller supplies final `SkillLineAbility` rows in ascending
+    /// RecordID order.
+    pub fn from_skill_line_ability_supercedes_with_diagnostics_like_cpp<I, SpellExists>(
+        rows: I,
+        mut spell_exists: SpellExists,
+    ) -> SpellChainLoadOutcomeLikeCpp
+    where
+        I: IntoIterator<Item = SpellRankEdgeLikeCpp>,
+        SpellExists: FnMut(u32) -> bool,
+    {
         let mut chain_next_by_spell_id = BTreeMap::new();
-        let mut has_prev = BTreeSet::new();
 
         for row in rows {
             if row.supercedes_spell_id == 0 {
@@ -2303,72 +2396,177 @@ impl SpellChainStoreLikeCpp {
             }
 
             chain_next_by_spell_id.insert(row.supercedes_spell_id, row.spell_id);
-            has_prev.insert(row.spell_id);
         }
 
         let mut store = Self::default();
-        for (spell_id, next_spell_id) in chain_next_by_spell_id.clone() {
-            if has_prev.contains(&spell_id) {
+        let mut diagnostics_in_order_like_cpp = Vec::new();
+        let mut parents_by_spell_id = BTreeMap::<u32, BTreeSet<u32>>::new();
+        let mut adjacent_by_spell_id = BTreeMap::<u32, BTreeSet<u32>>::new();
+        for (&spell_id, &next_spell_id) in &chain_next_by_spell_id {
+            parents_by_spell_id
+                .entry(next_spell_id)
+                .or_default()
+                .insert(spell_id);
+            adjacent_by_spell_id
+                .entry(spell_id)
+                .or_default()
+                .insert(next_spell_id);
+            adjacent_by_spell_id
+                .entry(next_spell_id)
+                .or_default()
+                .insert(spell_id);
+        }
+
+        let mut unvisited = adjacent_by_spell_id
+            .keys()
+            .copied()
+            .collect::<BTreeSet<_>>();
+        while let Some(component_start) = unvisited.first().copied() {
+            let mut pending = vec![component_start];
+            let mut component = BTreeSet::new();
+            while let Some(spell_id) = pending.pop() {
+                if !component.insert(spell_id) {
+                    continue;
+                }
+                unvisited.remove(&spell_id);
+                if let Some(adjacent) = adjacent_by_spell_id.get(&spell_id) {
+                    pending.extend(
+                        adjacent
+                            .iter()
+                            .rev()
+                            .filter(|adjacent_spell_id| !component.contains(adjacent_spell_id))
+                            .copied(),
+                    );
+                }
+            }
+
+            let component_spell_ids = component.iter().copied().collect::<Vec<_>>();
+            let mut component_diagnostics = Vec::new();
+            for &spell_id in &component_spell_ids {
+                if chain_next_by_spell_id.get(&spell_id) == Some(&spell_id) {
+                    component_diagnostics
+                        .push(SpellChainLoadDiagnosticLikeCpp::SelfLoop { spell_id });
+                }
+
+                if let Some(predecessors) = parents_by_spell_id.get(&spell_id)
+                    && predecessors.len() > 1
+                {
+                    component_diagnostics.push(
+                        SpellChainLoadDiagnosticLikeCpp::MultiplePredecessors {
+                            spell_id,
+                            predecessor_spell_ids: predecessors.iter().copied().collect(),
+                        },
+                    );
+                }
+            }
+
+            for spell_ids in
+                spell_chain_cycles_like_cpp(&component_spell_ids, &chain_next_by_spell_id)
+            {
+                if spell_ids.len() > 1 {
+                    component_diagnostics
+                        .push(SpellChainLoadDiagnosticLikeCpp::Cycle { spell_ids });
+                }
+            }
+
+            let roots = component_spell_ids
+                .iter()
+                .copied()
+                .filter(|spell_id| !parents_by_spell_id.contains_key(spell_id))
+                .collect::<Vec<_>>();
+            let mut ordered_chain = Vec::new();
+            if component_diagnostics.is_empty() && roots.len() == 1 {
+                let mut current_spell_id = Some(roots[0]);
+                let mut seen = BTreeSet::new();
+                while let Some(spell_id) = current_spell_id {
+                    if !seen.insert(spell_id) {
+                        break;
+                    }
+                    ordered_chain.push(spell_id);
+                    current_spell_id = chain_next_by_spell_id.get(&spell_id).copied();
+                }
+
+                if let Some(&spell_id) = ordered_chain.get(usize::from(u8::MAX)) {
+                    component_diagnostics.push(SpellChainLoadDiagnosticLikeCpp::RankOutOfRange {
+                        first_spell_id: roots[0],
+                        spell_id,
+                        rank: usize::from(u8::MAX) + 1,
+                    });
+                }
+            }
+
+            if !component_diagnostics.is_empty() {
+                let shared_diagnostics: std::sync::Arc<[SpellChainLoadDiagnosticLikeCpp]> =
+                    component_diagnostics.clone().into();
+                for spell_id in component_spell_ids {
+                    store
+                        .indeterminate_by_spell_id_like_cpp
+                        .insert(spell_id, shared_diagnostics.clone());
+                }
+                diagnostics_in_order_like_cpp.extend(component_diagnostics);
                 continue;
             }
 
-            let first_spell_id = spell_id;
-            store.chains_by_spell_id.insert(
-                spell_id,
-                SpellChainNodeLikeCpp {
-                    prev_spell_id: None,
-                    next_spell_id: Some(next_spell_id),
-                    first_spell_id,
-                    last_spell_id: next_spell_id,
-                    rank: 1,
-                },
-            );
-            store.chains_by_spell_id.insert(
-                next_spell_id,
-                SpellChainNodeLikeCpp {
-                    prev_spell_id: Some(first_spell_id),
-                    next_spell_id: None,
-                    first_spell_id,
-                    last_spell_id: next_spell_id,
-                    rank: 2,
-                },
-            );
-
-            let mut rank = 3;
-            let mut current_spell_id = next_spell_id;
-            while let Some(last_spell_id) = chain_next_by_spell_id.get(&current_spell_id).copied() {
-                if let Some(current_node) = store.chains_by_spell_id.get_mut(&current_spell_id) {
-                    current_node.next_spell_id = Some(last_spell_id);
+            // A weakly connected functional component with no cycle and no
+            // merge has exactly one root and one path covering every node.
+            // Keep a defensive fail-closed guard in case that invariant is
+            // changed by a future graph representation.
+            if roots.len() != 1 || ordered_chain.len() != component_spell_ids.len() {
+                let diagnostic = SpellChainLoadDiagnosticLikeCpp::Cycle {
+                    spell_ids: component_spell_ids.clone(),
+                };
+                let shared_diagnostics: std::sync::Arc<[SpellChainLoadDiagnosticLikeCpp]> =
+                    vec![diagnostic.clone()].into();
+                for spell_id in component_spell_ids {
+                    store
+                        .indeterminate_by_spell_id_like_cpp
+                        .insert(spell_id, shared_diagnostics.clone());
                 }
+                diagnostics_in_order_like_cpp.push(diagnostic);
+                continue;
+            }
 
+            let first_spell_id = ordered_chain[0];
+            let last_spell_id = *ordered_chain.last().expect("non-empty rank chain");
+            for (index, &spell_id) in ordered_chain.iter().enumerate() {
+                let rank = u8::try_from(index + 1).expect("rank overflow diagnosed above");
                 store.chains_by_spell_id.insert(
-                    last_spell_id,
+                    spell_id,
                     SpellChainNodeLikeCpp {
-                        prev_spell_id: Some(current_spell_id),
-                        next_spell_id: None,
+                        prev_spell_id: index.checked_sub(1).map(|previous| ordered_chain[previous]),
+                        next_spell_id: ordered_chain.get(index + 1).copied(),
                         first_spell_id,
                         last_spell_id,
                         rank,
                     },
                 );
-                rank = rank.saturating_add(1);
-
-                let mut prev_to_update = Some(current_spell_id);
-                while let Some(prev_spell_id) = prev_to_update {
-                    prev_to_update = store
-                        .chains_by_spell_id
-                        .get(&prev_spell_id)
-                        .and_then(|node| node.prev_spell_id);
-                    if let Some(prev_node) = store.chains_by_spell_id.get_mut(&prev_spell_id) {
-                        prev_node.last_spell_id = last_spell_id;
-                    }
-                }
-
-                current_spell_id = last_spell_id;
             }
         }
 
-        store
+        SpellChainLoadOutcomeLikeCpp {
+            store,
+            diagnostics_in_order_like_cpp,
+        }
+    }
+
+    pub fn spell_chain_lookup_like_cpp(&self, spell_id: u32) -> SpellChainLookupLikeCpp<'_> {
+        if let Some(diagnostics) = self.indeterminate_by_spell_id_like_cpp.get(&spell_id) {
+            return SpellChainLookupLikeCpp::Indeterminate(diagnostics);
+        }
+
+        self.chains_by_spell_id
+            .get(&spell_id)
+            .map(SpellChainLookupLikeCpp::Node)
+            .unwrap_or(SpellChainLookupLikeCpp::Unranked)
+    }
+
+    pub fn indeterminate_diagnostics_for_spell_like_cpp(
+        &self,
+        spell_id: u32,
+    ) -> Option<&[SpellChainLoadDiagnosticLikeCpp]> {
+        self.indeterminate_by_spell_id_like_cpp
+            .get(&spell_id)
+            .map(AsRef::as_ref)
     }
 
     pub fn spell_chain_node_like_cpp(&self, spell_id: u32) -> Option<&SpellChainNodeLikeCpp> {
@@ -2444,6 +2642,49 @@ impl SpellChainStoreLikeCpp {
             current_spell_id = next_spell_id;
         }
     }
+}
+
+fn spell_chain_cycles_like_cpp(
+    component_spell_ids: &[u32],
+    chain_next_by_spell_id: &BTreeMap<u32, u32>,
+) -> Vec<Vec<u32>> {
+    let mut completed = BTreeSet::new();
+    let mut cycles = Vec::new();
+
+    for &start_spell_id in component_spell_ids {
+        if completed.contains(&start_spell_id) {
+            continue;
+        }
+
+        let mut path = Vec::new();
+        let mut path_index_by_spell_id = BTreeMap::new();
+        let mut current_spell_id = Some(start_spell_id);
+        while let Some(spell_id) = current_spell_id {
+            if completed.contains(&spell_id) {
+                break;
+            }
+            if let Some(&cycle_start) = path_index_by_spell_id.get(&spell_id) {
+                let mut cycle = path[cycle_start..].to_vec();
+                if let Some((minimum_index, _)) = cycle
+                    .iter()
+                    .enumerate()
+                    .min_by_key(|(_, spell_id)| *spell_id)
+                {
+                    cycle.rotate_left(minimum_index);
+                }
+                cycles.push(cycle);
+                break;
+            }
+
+            path_index_by_spell_id.insert(spell_id, path.len());
+            path.push(spell_id);
+            current_spell_id = chain_next_by_spell_id.get(&spell_id).copied();
+        }
+        completed.extend(path);
+    }
+
+    cycles.sort();
+    cycles
 }
 
 pub const SPELL_AREA_FLAG_AUTOCAST_LIKE_CPP: u8 = 0x1;
@@ -2838,11 +3079,31 @@ pub struct SpellCustomAttributeSourceSpellInfoLikeCpp {
 }
 
 impl SpellCustomAttributeSourceSpellInfoLikeCpp {
-    fn has_effect_like_cpp(&self, effect_type: u32) -> bool {
-        self.effects
-            .iter()
-            .any(|effect| effect.effect == effect_type)
+    fn into_source_variant_like_cpp(self) -> SpellCustomAttributeSourceVariantLikeCpp {
+        SpellCustomAttributeSourceVariantLikeCpp {
+            spell_id: self.spell_id,
+            difficulty: self.difficulty,
+            effect_types: Some(
+                self.effects
+                    .into_iter()
+                    .map(|effect| effect.effect)
+                    .collect(),
+            ),
+        }
     }
+}
+
+/// Exact spell variant used while composing SQL custom attributes.
+///
+/// `effect_types == None` means that the variant exists but its effect payload is not represented
+/// by the current source. Attributes that do not depend on an effect type can still be composed;
+/// effect-dependent validation must fail closed instead of treating missing coverage as an empty
+/// effect list.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpellCustomAttributeSourceVariantLikeCpp {
+    pub spell_id: u32,
+    pub difficulty: u32,
+    pub effect_types: Option<Vec<u32>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -2855,12 +3116,16 @@ pub struct SpellCustomAttributeKeyLikeCpp {
 pub enum SpellCustomAttributeLoadErrorKindLikeCpp {
     SpellMissing,
     ShareDamageWithoutSchoolDamage,
+    ShareDamageEffectCoverageUnavailable,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpellCustomAttributeLoadErrorLikeCpp {
     pub spell_id: u32,
     pub difficulty: Option<u32>,
+    /// Raw SQL bits from the rejected row. Consumers can keep uncertainty
+    /// scoped to the attributes that were actually requested.
+    pub attributes: u32,
     pub kind: SpellCustomAttributeLoadErrorKindLikeCpp,
 }
 
@@ -2876,6 +3141,25 @@ impl SpellCustomAttributeStoreLikeCpp {
     ) -> Result<SpellCustomAttributeLoadOutcomeLikeCpp>
     where
         SpellInfosById: FnMut(u32) -> Vec<SpellCustomAttributeSourceSpellInfoLikeCpp>,
+    {
+        let mut spell_infos_by_id = spell_infos_by_id;
+        Self::load_for_variants_like_cpp(db, move |spell_id| {
+            spell_infos_by_id(spell_id)
+                .into_iter()
+                .map(SpellCustomAttributeSourceSpellInfoLikeCpp::into_source_variant_like_cpp)
+                .collect()
+        })
+        .await
+    }
+
+    /// Loads SQL custom attributes over exact spell variants without requiring hydrated
+    /// `SpellEffectInfo` values.
+    pub async fn load_for_variants_like_cpp<VariantsById>(
+        db: &WorldDatabase,
+        variants_by_id: VariantsById,
+    ) -> Result<SpellCustomAttributeLoadOutcomeLikeCpp>
+    where
+        VariantsById: FnMut(u32) -> Vec<SpellCustomAttributeSourceVariantLikeCpp>,
     {
         let mut result = db
             .direct_query(WorldStatements::SEL_SPELL_CUSTOM_ATTR.sql())
@@ -2895,7 +3179,10 @@ impl SpellCustomAttributeStoreLikeCpp {
             }
         }
 
-        Ok(Self::from_sql_rows_like_cpp(rows, spell_infos_by_id))
+        Ok(Self::from_sql_rows_for_variants_like_cpp(
+            rows,
+            variants_by_id,
+        ))
     }
 
     pub fn from_sql_rows_like_cpp<I, SpellInfosById>(
@@ -2906,38 +3193,70 @@ impl SpellCustomAttributeStoreLikeCpp {
         I: IntoIterator<Item = SpellCustomAttributeRowLikeCpp>,
         SpellInfosById: FnMut(u32) -> Vec<SpellCustomAttributeSourceSpellInfoLikeCpp>,
     {
+        Self::from_sql_rows_for_variants_like_cpp(rows, move |spell_id| {
+            spell_infos_by_id(spell_id)
+                .into_iter()
+                .map(SpellCustomAttributeSourceSpellInfoLikeCpp::into_source_variant_like_cpp)
+                .collect()
+        })
+    }
+
+    pub fn from_sql_rows_for_variants_like_cpp<I, VariantsById>(
+        rows: I,
+        mut variants_by_id: VariantsById,
+    ) -> SpellCustomAttributeLoadOutcomeLikeCpp
+    where
+        I: IntoIterator<Item = SpellCustomAttributeRowLikeCpp>,
+        VariantsById: FnMut(u32) -> Vec<SpellCustomAttributeSourceVariantLikeCpp>,
+    {
         let mut store = Self::default();
         let mut loaded_row_count = 0;
         let mut applied_variant_count = 0;
         let mut errors = Vec::new();
 
         for row in rows {
-            let spell_infos = spell_infos_by_id(row.spell_id);
-            if spell_infos.is_empty() {
+            let variants = variants_by_id(row.spell_id);
+            if variants.is_empty() {
                 errors.push(SpellCustomAttributeLoadErrorLikeCpp {
                     spell_id: row.spell_id,
                     difficulty: None,
+                    attributes: row.attributes,
                     kind: SpellCustomAttributeLoadErrorKindLikeCpp::SpellMissing,
                 });
                 continue;
             }
 
-            for spell_info in spell_infos {
-                if row.attributes & SPELL_ATTR0_CU_SHARE_DAMAGE_LIKE_CPP != 0
-                    && !spell_info
-                        .has_effect_like_cpp(spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE)
-                {
-                    errors.push(SpellCustomAttributeLoadErrorLikeCpp {
-                        spell_id: row.spell_id,
-                        difficulty: Some(spell_info.difficulty),
-                        kind: SpellCustomAttributeLoadErrorKindLikeCpp::ShareDamageWithoutSchoolDamage,
-                    });
-                    continue;
+            for variant in variants {
+                if row.attributes & SPELL_ATTR0_CU_SHARE_DAMAGE_LIKE_CPP != 0 {
+                    match variant.effect_types.as_ref() {
+                        None => {
+                            errors.push(SpellCustomAttributeLoadErrorLikeCpp {
+                                spell_id: row.spell_id,
+                                difficulty: Some(variant.difficulty),
+                                attributes: row.attributes,
+                                kind: SpellCustomAttributeLoadErrorKindLikeCpp::ShareDamageEffectCoverageUnavailable,
+                            });
+                            continue;
+                        }
+                        Some(effect_types)
+                            if !effect_types
+                                .contains(&spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE) =>
+                        {
+                            errors.push(SpellCustomAttributeLoadErrorLikeCpp {
+                                spell_id: row.spell_id,
+                                difficulty: Some(variant.difficulty),
+                                attributes: row.attributes,
+                                kind: SpellCustomAttributeLoadErrorKindLikeCpp::ShareDamageWithoutSchoolDamage,
+                            });
+                            continue;
+                        }
+                        Some(_) => {}
+                    }
                 }
 
                 let key = SpellCustomAttributeKeyLikeCpp {
-                    spell_id: spell_info.spell_id,
-                    difficulty: spell_info.difficulty,
+                    spell_id: variant.spell_id,
+                    difficulty: variant.difficulty,
                 };
                 *store
                     .attributes_by_spell_and_difficulty
@@ -2965,6 +3284,26 @@ impl SpellCustomAttributeStoreLikeCpp {
             })
             .copied()
             .unwrap_or(0)
+    }
+
+    pub fn attributes_for_spell_any_difficulty_like_cpp(&self, spell_id: u32) -> u32 {
+        self.attributes_by_spell_and_difficulty
+            .range(
+                SpellCustomAttributeKeyLikeCpp {
+                    spell_id,
+                    difficulty: 0,
+                }..=SpellCustomAttributeKeyLikeCpp {
+                    spell_id,
+                    difficulty: u32::MAX,
+                },
+            )
+            .fold(0, |attributes, (_, variant_attributes)| {
+                attributes | variant_attributes
+            })
+    }
+
+    pub fn has_attribute_any_difficulty_like_cpp(&self, spell_id: u32, attribute: u32) -> bool {
+        self.attributes_for_spell_any_difficulty_like_cpp(spell_id) & attribute != 0
     }
 }
 
@@ -4764,6 +5103,12 @@ impl SpellLearnSpellStoreLikeCpp {
         ))
     }
 
+    /// Compose the represented C++ learning graph.
+    ///
+    /// This intentionally repairs the legacy `SpellMgr::LoadSpellLearnSpells`
+    /// empty-query early return: an empty world table contributes zero custom
+    /// rows but does not suppress canonical `SpellEffect` or
+    /// `SpellLearnSpell.db2` edges.
     pub fn from_sources_like_cpp<SqlRows, SourceSpells, Db2Rows, SpellLookup, SpellExists>(
         sql_rows: SqlRows,
         source_spells: SourceSpells,
@@ -4784,17 +5129,7 @@ impl SpellLearnSpellStoreLikeCpp {
         let mut errors = Vec::new();
         let mut warnings = Vec::new();
         let sql_rows = sql_rows.into_iter().collect::<Vec<_>>();
-
-        if sql_rows.is_empty() {
-            return SpellLearnSpellLoadOutcomeLikeCpp {
-                store,
-                sql_loaded_row_count,
-                dbc_loaded_row_count,
-                sql_result_empty: true,
-                errors,
-                warnings,
-            };
-        }
+        let sql_result_empty = sql_rows.is_empty();
 
         for row in sql_rows {
             let Some(source_spell) = spell_lookup(row.entry) else {
@@ -4930,7 +5265,7 @@ impl SpellLearnSpellStoreLikeCpp {
             store,
             sql_loaded_row_count,
             dbc_loaded_row_count,
-            sql_result_empty: false,
+            sql_result_empty,
             errors,
             warnings,
         }
@@ -5708,6 +6043,11 @@ impl SpellStore {
     pub fn contains_spell_info_exact_like_cpp(&self, spell_id: u32, difficulty_id: u8) -> bool {
         self.spell_info_keys_like_cpp
             .contains_exact_like_cpp(spell_id, difficulty_id)
+    }
+
+    /// Exact regular `SpellInfo` keys in deterministic `(SpellID, Difficulty)` order.
+    pub fn spell_info_keys_in_order_like_cpp(&self) -> Vec<(u32, u8)> {
+        self.spell_info_keys_like_cpp.exact_keys_in_order_like_cpp()
     }
 
     /// Whether C++ `GetSpellInfo(id, DIFFICULTY_NONE)` would find a regular
@@ -6728,6 +7068,7 @@ mod tests {
                     rank: 2,
                 },
             )]),
+            ..SpellChainStoreLikeCpp::default()
         };
         assert!(
             !spell
@@ -6898,12 +7239,16 @@ mod tests {
         let mut store = SpellStore::new();
         store.spell_info_keys_like_cpp =
             crate::spell_info_keys::SpellInfoKeyStoreLikeCpp::from_candidate_keys_like_cpp(
-                [(100, 0)],
-                &HashSet::from([100]),
+                [(200, 2), (100, 0), (200, 1)],
+                &HashSet::from([100, 200]),
             );
 
         assert!(store.contains_spell_info_exact_like_cpp(100, 0));
         assert!(store.get(100).is_none());
+        assert_eq!(
+            store.spell_info_keys_in_order_like_cpp(),
+            [(100, 0), (200, 1), (200, 2)]
+        );
     }
 
     #[test]
@@ -9228,6 +9573,7 @@ mod tests {
         )]);
 
         assert_eq!(outcome.dbc_loaded_row_count, 1);
+        assert!(outcome.errors.is_empty());
         assert_eq!(
             outcome.store.get_spell_learn_skill_like_cpp(100),
             Some(&SpellLearnSkillNodeLikeCpp {
@@ -9252,6 +9598,7 @@ mod tests {
         )]);
 
         assert_eq!(outcome.dbc_loaded_row_count, 1);
+        assert!(outcome.errors.is_empty());
         assert_eq!(
             outcome.store.get_spell_learn_skill_like_cpp(200),
             Some(&SpellLearnSkillNodeLikeCpp {
@@ -9299,6 +9646,7 @@ mod tests {
         ]);
 
         assert_eq!(outcome.dbc_loaded_row_count, 1);
+        assert!(outcome.errors.is_empty());
         assert!(outcome.store.get_spell_learn_skill_like_cpp(300).is_none());
         assert_eq!(
             outcome.store.get_spell_learn_skill_like_cpp(301),
@@ -9309,6 +9657,74 @@ mod tests {
                 maxvalue: 1,
             })
         );
+    }
+
+    #[test]
+    fn spell_learn_skill_store_rejects_out_of_range_skill_without_wrapping() {
+        for misc_value in [-1, i32::from(u16::MAX) + 1] {
+            let outcome =
+                SpellLearnSkillStoreLikeCpp::from_spell_infos_like_cpp([learn_skill_source(
+                    400,
+                    true,
+                    vec![
+                        SpellLearnSkillEffectLikeCpp {
+                            effect: spell_effect_types::SPELL_EFFECT_SKILL,
+                            misc_value,
+                            calc_value: 1,
+                        },
+                        SpellLearnSkillEffectLikeCpp {
+                            effect: spell_effect_types::SPELL_EFFECT_DUAL_WIELD,
+                            misc_value: 0,
+                            calc_value: 0,
+                        },
+                    ],
+                )]);
+
+            assert_eq!(outcome.dbc_loaded_row_count, 0);
+            assert!(outcome.store.get_spell_learn_skill_like_cpp(400).is_none());
+            assert_eq!(
+                outcome.errors,
+                vec![SpellLearnSkillLoadErrorLikeCpp {
+                    spell_id: 400,
+                    kind: SpellLearnSkillLoadErrorKindLikeCpp::SkillOutOfRange {
+                        value: misc_value,
+                    },
+                }]
+            );
+        }
+    }
+
+    #[test]
+    fn spell_learn_skill_store_rejects_out_of_range_step_without_wrapping() {
+        for calc_value in [-1, i32::from(u16::MAX) + 1] {
+            let outcome =
+                SpellLearnSkillStoreLikeCpp::from_spell_infos_like_cpp([learn_skill_source(
+                    401,
+                    true,
+                    vec![
+                        SpellLearnSkillEffectLikeCpp {
+                            effect: spell_effect_types::SPELL_EFFECT_SKILL,
+                            misc_value: 755,
+                            calc_value,
+                        },
+                        SpellLearnSkillEffectLikeCpp {
+                            effect: spell_effect_types::SPELL_EFFECT_DUAL_WIELD,
+                            misc_value: 0,
+                            calc_value: 0,
+                        },
+                    ],
+                )]);
+
+            assert_eq!(outcome.dbc_loaded_row_count, 0);
+            assert!(outcome.store.get_spell_learn_skill_like_cpp(401).is_none());
+            assert_eq!(
+                outcome.errors,
+                vec![SpellLearnSkillLoadErrorLikeCpp {
+                    spell_id: 401,
+                    kind: SpellLearnSkillLoadErrorKindLikeCpp::StepOutOfRange { value: calc_value },
+                }]
+            );
+        }
     }
 
     #[test]
@@ -9357,6 +9773,209 @@ mod tests {
             })
         );
         assert!(store.spell_chain_node_like_cpp(999).is_none());
+    }
+
+    #[test]
+    fn spell_chain_store_derives_predecessors_after_cpp_last_wins_resolution() {
+        let outcome =
+            SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_with_diagnostics_like_cpp(
+                [
+                    SpellRankEdgeLikeCpp {
+                        spell_id: 2,
+                        supercedes_spell_id: 1,
+                    },
+                    SpellRankEdgeLikeCpp {
+                        spell_id: 3,
+                        supercedes_spell_id: 1,
+                    },
+                    SpellRankEdgeLikeCpp {
+                        spell_id: 4,
+                        supercedes_spell_id: 2,
+                    },
+                ],
+                |_| true,
+            );
+
+        assert!(outcome.diagnostics_in_order_like_cpp.is_empty());
+        assert_eq!(
+            outcome.store.spell_chain_node_like_cpp(1),
+            Some(&SpellChainNodeLikeCpp {
+                prev_spell_id: None,
+                next_spell_id: Some(3),
+                first_spell_id: 1,
+                last_spell_id: 3,
+                rank: 1,
+            })
+        );
+        assert_eq!(
+            outcome.store.spell_chain_node_like_cpp(2),
+            Some(&SpellChainNodeLikeCpp {
+                prev_spell_id: None,
+                next_spell_id: Some(4),
+                first_spell_id: 2,
+                last_spell_id: 4,
+                rank: 1,
+            }),
+            "the child of an eclipsed edge must remain a root in the final graph"
+        );
+    }
+
+    #[test]
+    fn spell_chain_store_rejects_self_loops_and_pure_or_reachable_cycles() {
+        let self_loop =
+            SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_with_diagnostics_like_cpp(
+                [SpellRankEdgeLikeCpp {
+                    spell_id: 30,
+                    supercedes_spell_id: 30,
+                }],
+                |_| true,
+            );
+        assert_eq!(
+            self_loop.diagnostics_in_order_like_cpp,
+            vec![SpellChainLoadDiagnosticLikeCpp::SelfLoop { spell_id: 30 }]
+        );
+        assert!(matches!(
+            self_loop.store.spell_chain_lookup_like_cpp(30),
+            SpellChainLookupLikeCpp::Indeterminate(diagnostics)
+                if diagnostics == [SpellChainLoadDiagnosticLikeCpp::SelfLoop { spell_id: 30 }]
+        ));
+
+        let pure_cycle =
+            SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_with_diagnostics_like_cpp(
+                [
+                    SpellRankEdgeLikeCpp {
+                        spell_id: 20,
+                        supercedes_spell_id: 10,
+                    },
+                    SpellRankEdgeLikeCpp {
+                        spell_id: 10,
+                        supercedes_spell_id: 20,
+                    },
+                ],
+                |_| true,
+            );
+        assert_eq!(
+            pure_cycle.diagnostics_in_order_like_cpp,
+            vec![SpellChainLoadDiagnosticLikeCpp::Cycle {
+                spell_ids: vec![10, 20],
+            }]
+        );
+        assert!(matches!(
+            pure_cycle.store.spell_chain_lookup_like_cpp(10),
+            SpellChainLookupLikeCpp::Indeterminate(_)
+        ));
+        assert!(matches!(
+            pure_cycle.store.spell_chain_lookup_like_cpp(20),
+            SpellChainLookupLikeCpp::Indeterminate(_)
+        ));
+
+        let reachable_cycle =
+            SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_with_diagnostics_like_cpp(
+                [
+                    SpellRankEdgeLikeCpp {
+                        spell_id: 2,
+                        supercedes_spell_id: 1,
+                    },
+                    SpellRankEdgeLikeCpp {
+                        spell_id: 3,
+                        supercedes_spell_id: 2,
+                    },
+                    SpellRankEdgeLikeCpp {
+                        spell_id: 2,
+                        supercedes_spell_id: 3,
+                    },
+                ],
+                |_| true,
+            );
+        assert_eq!(
+            reachable_cycle.diagnostics_in_order_like_cpp,
+            vec![
+                SpellChainLoadDiagnosticLikeCpp::MultiplePredecessors {
+                    spell_id: 2,
+                    predecessor_spell_ids: vec![1, 3],
+                },
+                SpellChainLoadDiagnosticLikeCpp::Cycle {
+                    spell_ids: vec![2, 3],
+                },
+            ]
+        );
+        for spell_id in 1..=3 {
+            assert!(matches!(
+                reachable_cycle.store.spell_chain_lookup_like_cpp(spell_id),
+                SpellChainLookupLikeCpp::Indeterminate(_)
+            ));
+        }
+    }
+
+    #[test]
+    fn spell_chain_store_rejects_merge_components_without_partial_links() {
+        let outcome =
+            SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_with_diagnostics_like_cpp(
+                [
+                    SpellRankEdgeLikeCpp {
+                        spell_id: 3,
+                        supercedes_spell_id: 1,
+                    },
+                    SpellRankEdgeLikeCpp {
+                        spell_id: 3,
+                        supercedes_spell_id: 2,
+                    },
+                    SpellRankEdgeLikeCpp {
+                        spell_id: 4,
+                        supercedes_spell_id: 3,
+                    },
+                ],
+                |_| true,
+            );
+
+        assert_eq!(
+            outcome.diagnostics_in_order_like_cpp,
+            vec![SpellChainLoadDiagnosticLikeCpp::MultiplePredecessors {
+                spell_id: 3,
+                predecessor_spell_ids: vec![1, 2],
+            }]
+        );
+        assert!(outcome.store.chains_by_spell_id.is_empty());
+        for spell_id in 1..=4 {
+            assert!(matches!(
+                outcome.store.spell_chain_lookup_like_cpp(spell_id),
+                SpellChainLookupLikeCpp::Indeterminate(_)
+            ));
+        }
+        assert_eq!(
+            outcome.store.spell_chain_lookup_like_cpp(99),
+            SpellChainLookupLikeCpp::Unranked
+        );
+    }
+
+    #[test]
+    fn spell_chain_store_rejects_ranks_wider_than_cpp_uint8() {
+        let outcome =
+            SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_with_diagnostics_like_cpp(
+                (1..=u32::from(u8::MAX)).map(|spell_id| SpellRankEdgeLikeCpp {
+                    spell_id: spell_id + 1,
+                    supercedes_spell_id: spell_id,
+                }),
+                |_| true,
+            );
+
+        assert_eq!(
+            outcome.diagnostics_in_order_like_cpp,
+            vec![SpellChainLoadDiagnosticLikeCpp::RankOutOfRange {
+                first_spell_id: 1,
+                spell_id: 256,
+                rank: 256,
+            }]
+        );
+        assert!(outcome.store.chains_by_spell_id.is_empty());
+        assert!(matches!(
+            outcome.store.spell_chain_lookup_like_cpp(1),
+            SpellChainLookupLikeCpp::Indeterminate(_)
+        ));
+        assert!(matches!(
+            outcome.store.spell_chain_lookup_like_cpp(256),
+            SpellChainLookupLikeCpp::Indeterminate(_)
+        ));
     }
 
     #[test]
@@ -9649,6 +10268,7 @@ mod tests {
             vec![SpellCustomAttributeLoadErrorLikeCpp {
                 spell_id: 999,
                 difficulty: None,
+                attributes: SPELL_ATTR0_CU_CAN_CRIT_LIKE_CPP,
                 kind: SpellCustomAttributeLoadErrorKindLikeCpp::SpellMissing,
             }]
         );
@@ -9696,9 +10316,119 @@ mod tests {
             vec![SpellCustomAttributeLoadErrorLikeCpp {
                 spell_id: 100,
                 difficulty: Some(1),
+                attributes: SPELL_ATTR0_CU_SHARE_DAMAGE_LIKE_CPP,
                 kind: SpellCustomAttributeLoadErrorKindLikeCpp::ShareDamageWithoutSchoolDamage,
             }]
         );
+    }
+
+    #[test]
+    fn spell_custom_attribute_store_applies_non_effect_attribute_with_unknown_effect_coverage() {
+        let outcome = SpellCustomAttributeStoreLikeCpp::from_sql_rows_for_variants_like_cpp(
+            [SpellCustomAttributeRowLikeCpp {
+                spell_id: 100,
+                attributes: SPELL_ATTR0_CU_IS_TALENT_LIKE_CPP,
+            }],
+            |spell_id| {
+                (spell_id == 100)
+                    .then_some(vec![SpellCustomAttributeSourceVariantLikeCpp {
+                        spell_id,
+                        difficulty: 2,
+                        effect_types: None,
+                    }])
+                    .unwrap_or_default()
+            },
+        );
+
+        assert!(outcome.errors.is_empty());
+        assert_eq!(outcome.loaded_row_count, 1);
+        assert_eq!(outcome.applied_variant_count, 1);
+        assert_eq!(
+            outcome
+                .store
+                .attributes_for_spell_difficulty_like_cpp(100, 2),
+            SPELL_ATTR0_CU_IS_TALENT_LIKE_CPP
+        );
+    }
+
+    #[test]
+    fn spell_custom_attribute_store_rejects_share_damage_with_unknown_effect_coverage() {
+        let outcome = SpellCustomAttributeStoreLikeCpp::from_sql_rows_for_variants_like_cpp(
+            [SpellCustomAttributeRowLikeCpp {
+                spell_id: 100,
+                attributes: SPELL_ATTR0_CU_SHARE_DAMAGE_LIKE_CPP,
+            }],
+            |spell_id| {
+                (spell_id == 100)
+                    .then_some(vec![SpellCustomAttributeSourceVariantLikeCpp {
+                        spell_id,
+                        difficulty: 2,
+                        effect_types: None,
+                    }])
+                    .unwrap_or_default()
+            },
+        );
+
+        assert_eq!(outcome.loaded_row_count, 1);
+        assert_eq!(outcome.applied_variant_count, 0);
+        assert_eq!(
+            outcome
+                .store
+                .attributes_for_spell_difficulty_like_cpp(100, 2),
+            0
+        );
+        assert_eq!(
+            outcome.errors,
+            vec![SpellCustomAttributeLoadErrorLikeCpp {
+                spell_id: 100,
+                difficulty: Some(2),
+                attributes: SPELL_ATTR0_CU_SHARE_DAMAGE_LIKE_CPP,
+                kind:
+                    SpellCustomAttributeLoadErrorKindLikeCpp::ShareDamageEffectCoverageUnavailable,
+            }]
+        );
+    }
+
+    #[test]
+    fn spell_custom_attribute_store_queries_attributes_across_exact_difficulties() {
+        let store = SpellCustomAttributeStoreLikeCpp {
+            attributes_by_spell_and_difficulty: BTreeMap::from([
+                (
+                    SpellCustomAttributeKeyLikeCpp {
+                        spell_id: 100,
+                        difficulty: 0,
+                    },
+                    SPELL_ATTR0_CU_CAN_CRIT_LIKE_CPP,
+                ),
+                (
+                    SpellCustomAttributeKeyLikeCpp {
+                        spell_id: 100,
+                        difficulty: 2,
+                    },
+                    SPELL_ATTR0_CU_IS_TALENT_LIKE_CPP,
+                ),
+                (
+                    SpellCustomAttributeKeyLikeCpp {
+                        spell_id: 101,
+                        difficulty: 0,
+                    },
+                    SPELL_ATTR0_CU_DIRECT_DAMAGE_LIKE_CPP,
+                ),
+            ]),
+        };
+
+        assert_eq!(
+            store.attributes_for_spell_any_difficulty_like_cpp(100),
+            SPELL_ATTR0_CU_CAN_CRIT_LIKE_CPP | SPELL_ATTR0_CU_IS_TALENT_LIKE_CPP
+        );
+        assert!(
+            store.has_attribute_any_difficulty_like_cpp(100, SPELL_ATTR0_CU_IS_TALENT_LIKE_CPP)
+        );
+        assert!(
+            !store
+                .has_attribute_any_difficulty_like_cpp(100, SPELL_ATTR0_CU_DIRECT_DAMAGE_LIKE_CPP)
+        );
+        assert_eq!(store.attributes_for_spell_any_difficulty_like_cpp(999), 0);
     }
 
     #[test]
@@ -10990,7 +11720,7 @@ mod tests {
     }
 
     #[test]
-    fn spell_learn_spell_store_preserves_empty_sql_early_return_like_cpp() {
+    fn spell_learn_spell_store_keeps_effect_and_db2_edges_when_world_sql_is_empty() {
         let outcome = SpellLearnSpellStoreLikeCpp::from_sources_like_cpp(
             [],
             [learn_source(
@@ -11015,8 +11745,25 @@ mod tests {
 
         assert!(outcome.sql_result_empty);
         assert_eq!(outcome.sql_loaded_row_count, 0);
-        assert_eq!(outcome.dbc_loaded_row_count, 0);
-        assert!(outcome.store.learned_by_spell_id.is_empty());
+        assert_eq!(outcome.dbc_loaded_row_count, 2);
+        assert_eq!(
+            outcome.store.get_spell_learn_spell_map_bounds_like_cpp(100),
+            &[SpellLearnSpellNodeLikeCpp {
+                spell: 101,
+                overrides_spell: 0,
+                active: true,
+                auto_learned: false,
+            }]
+        );
+        assert_eq!(
+            outcome.store.get_spell_learn_spell_map_bounds_like_cpp(200),
+            &[SpellLearnSpellNodeLikeCpp {
+                spell: 201,
+                overrides_spell: 0,
+                active: true,
+                auto_learned: false,
+            }]
+        );
         assert!(outcome.errors.is_empty());
         assert!(outcome.warnings.is_empty());
     }

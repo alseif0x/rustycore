@@ -15,6 +15,36 @@ identical bytes otherwise. Severity reflects my judgment after that filter.
 Headline: the scoped **D-C1…D-C9 CRIT integrity track is closed**. The HIGH/MED defects below
 remain real; "sends the packet and mutates DB" still does not imply full gameplay parity.
 
+## Bounded legacy repairs accepted during the port
+
+- [x] **Issue #163 — rebuild skill indexes after final hotfix removals.** Legacy C++ builds
+  selected `SkillLineAbility` / `SkillRaceClassInfo` derived indexes before
+  `DB2Manager::LoadHotfixData` performs its final `RecordRemoved` pass
+  (`DB2Stores.cpp:1328-1334,1539-1607`). That can leave a removed record reachable through a
+  stale index. Rust composes WDC4 → official SQL → custom SQL → final removal first, then rebuilds
+  every acquisition index from the surviving rows in ascending record-ID order. Focused fixtures
+  distinguish this repair from both the stale C++ outcome and an unrelated rewrite.
+- [x] **Issue #163 — an empty world `spell_learn_spell` table no longer erases canonical
+  learning edges.** Legacy `SpellMgr::LoadSpellLearnSpells` returns before scanning
+  `SpellEffect` and `SpellLearnSpell.db2` when the custom world query has no rows
+  (`SpellMgr.cpp:990-1135`). Rust treats that result as zero custom rows and still builds the
+  canonical graph. The loader test pins both effective edge families with an empty SQL input.
+- [x] **Issue #163 — reject lossy acquisition narrowing.** Legacy
+  `SpellMgr::LoadSpellLearnSkills` implicitly narrows effect-derived skill and step values to
+  `uint16`, and DB-backed difficulty values to the `uint8` `Difficulty` enum
+  (`SpellMgr.cpp:947-988,2730-2940`). Rust preserves checked source values in the immutable
+  acquisition catalog and omits an unrepresentable compatibility node instead of authorizing a
+  wrapped identifier. It also rejects an `EffectBasePoints` value whose C++ `float` round-trip
+  would fall outside `int32`, rather than inheriting an undefined C++ cast or Rust saturation.
+  Positive and negative fixtures pin the first-final-effect rule.
+- [x] **Issue #163 — malformed effective rank graphs cannot hang startup or masquerade as
+  unranked spells.** Legacy `SpellMgr::LoadSpellRanks` follows `SupercedesSpell` without cycle
+  detection (`SpellMgr.cpp:812-902`); a custom/hotfix graph with a reachable cycle can loop
+  forever, while merges and stale predecessor bookkeeping can construct incoherent chains. Rust
+  resolves the final last-wins edges first, rejects the complete ambiguous component for
+  self-loops, cycles, multiple predecessors, or ranks outside `uint8`, and retains a tri-state
+  diagnostic lookup so later acquisition planning fails closed.
+
 ---
 
 ## CRIT — data loss / duplication / corruption (fix before trusting the server with real chars)
