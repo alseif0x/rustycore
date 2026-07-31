@@ -64,7 +64,7 @@ use wow_core::{
     VoidStorageItemIdGeneratorLikeCpp, guid::HighGuid,
 };
 use wow_data::character_progression::{ChrClassesStore, ChrRacesStore, PowerTypeStore};
-use wow_data::trait_tree::TraitDefinitionStore;
+use wow_data::trait_tree::{TraitDefinitionStore, TraitNodeEntryStore};
 use wow_data::{
     AccessRequirementStoreLikeCpp, AdventureMapPoiStore, AreaTableStore, AreaTriggerDb2Store,
     AreaTriggerScriptStoreLikeCpp, AreaTriggerStore, BankBagSlotPricesStore,
@@ -5112,6 +5112,7 @@ pub struct WorldSession {
 
     // TraitDefinition.db2 store used by represented PlayerSpell::TraitDefinitionId cleanup.
     trait_definition_store: Option<Arc<TraitDefinitionStore>>,
+    trait_node_entry_store: Option<Arc<TraitNodeEntryStore>>,
 
     // SkillLine.db2 store for C++ parent/expansion skill resolution.
     skill_line_store: Option<Arc<SkillLineStore>>,
@@ -7306,6 +7307,7 @@ impl WorldSession {
             tact_key_store: None,
             skill_store: None,
             trait_definition_store: None,
+            trait_node_entry_store: None,
             skill_line_store: None,
             skill_tiers_store: None,
             area_table_store: None,
@@ -25578,6 +25580,14 @@ impl WorldSession {
         self.trait_definition_store = Some(store);
     }
 
+    pub fn set_trait_node_entry_store(&mut self, store: Arc<TraitNodeEntryStore>) {
+        self.trait_node_entry_store = Some(store);
+    }
+
+    pub(crate) fn trait_node_entry_store(&self) -> Option<&Arc<TraitNodeEntryStore>> {
+        self.trait_node_entry_store.as_ref()
+    }
+
     pub(crate) fn trait_definition_store(&self) -> Option<&Arc<TraitDefinitionStore>> {
         self.trait_definition_store.as_ref()
     }
@@ -35056,17 +35066,16 @@ impl WorldSession {
                 let Ok(learned_spell_id) = i32::try_from(learned_spell.spell) else {
                     continue;
                 };
-                if !learned_spell.auto_learned
-                    && learned_spell.active
-                    && !known_spells.contains(&learned_spell_id)
-                {
-                    known_spells.push(learned_spell_id);
-                    pending.push(learned_spell_id);
+                if !learned_spell.auto_learned && learned_spell.active {
                     self.represented_dependent_known_spells_like_cpp
                         .insert(learned_spell_id);
                     self.represented_favorite_known_spells_like_cpp
                         .remove(&learned_spell_id);
-                    added += 1;
+                    if !known_spells.contains(&learned_spell_id) {
+                        known_spells.push(learned_spell_id);
+                        pending.push(learned_spell_id);
+                        added += 1;
+                    }
                 }
 
                 // C++ AddSpell rebuilds this edge for every active dependency,
@@ -40956,7 +40965,6 @@ impl WorldSession {
     /// coherent acquisition snapshot. Call only after all represented `AddSpell`
     /// work for character login has completed.
     pub(crate) fn mark_represented_spell_acquisition_snapshot_complete_like_cpp(&mut self) {
-        self.represented_spell_trait_definition_ids_complete_like_cpp = true;
         self.represented_override_spells_complete_like_cpp = true;
     }
 
@@ -41856,6 +41864,76 @@ impl WorldSession {
 
     fn max_skill_value_for_level_like_cpp(&self) -> u16 {
         u16::from(self.player_level_like_cpp()).saturating_mul(5)
+    }
+
+    pub(crate) fn apply_loaded_spell_learn_skills_like_cpp(&mut self, roots: &[i32]) -> bool {
+        for &spell_id in roots {
+            let Ok(spell_id) = u32::try_from(spell_id) else {
+                return false;
+            };
+            let learned_skill = match self.spell_learn_skill_lookup_like_cpp(spell_id) {
+                SpellLearnSkillLookupLikeCpp::Present(node) => *node,
+                SpellLearnSkillLookupLikeCpp::CoveredWithoutNode => continue,
+                SpellLearnSkillLookupLikeCpp::Indeterminate(_)
+                | SpellLearnSkillLookupLikeCpp::MissingCoverage => return false,
+            };
+            let mut value = self
+                .player_skill_value_like_cpp(learned_skill.skill)
+                .max(learned_skill.value);
+            let current_max = self.player_skill_max_value_like_cpp(learned_skill.skill);
+            let mut new_max = learned_skill.maxvalue;
+            if new_max == 0 {
+                let (Some(skills), Some(lines), Some(tiers)) = (
+                    self.skill_store(),
+                    self.skill_line_store(),
+                    self.skill_tiers_store(),
+                ) else {
+                    return false;
+                };
+                let Some(rc_info) = skills.skill_race_class_info_like_cpp(
+                    learned_skill.skill,
+                    self.player_race_like_cpp(),
+                    self.player_class_like_cpp(),
+                ) else {
+                    return false;
+                };
+                match skills.skill_range_type_like_cpp(rc_info, lines, tiers) {
+                    SkillRangeTypeLikeCpp::Language => {
+                        value = 300;
+                        new_max = 300;
+                    }
+                    SkillRangeTypeLikeCpp::Level => {
+                        new_max = self.max_skill_value_for_level_like_cpp();
+                    }
+                    SkillRangeTypeLikeCpp::Mono => new_max = 1,
+                    SkillRangeTypeLikeCpp::Rank => {
+                        let Some(tier) = u32::try_from(rc_info.skill_tier_id)
+                            .ok()
+                            .and_then(|id| tiers.get_skill_tier_like_cpp(id))
+                        else {
+                            return false;
+                        };
+                        new_max = tier
+                            .get_value_for_tier_index_like_cpp(u32::from(
+                                learned_skill.step.saturating_sub(1),
+                            ))
+                            .try_into()
+                            .unwrap_or(u16::MAX);
+                    }
+                    SkillRangeTypeLikeCpp::None => return false,
+                }
+                if rc_info.flags & wow_data::SKILL_FLAG_ALWAYS_MAX_VALUE_LIKE_CPP != 0 {
+                    value = new_max;
+                }
+            }
+            self.set_represented_player_skill_like_cpp(
+                learned_skill.skill,
+                learned_skill.step,
+                value,
+                current_max.max(new_max),
+            );
+        }
+        true
     }
 
     fn previous_spell_learn_skill_like_cpp(
@@ -43072,7 +43150,6 @@ impl WorldSession {
             .then_some(&self.represented_spell_trait_definition_ids_like_cpp)
     }
 
-    #[cfg(test)]
     pub(crate) fn set_complete_represented_spell_trait_definition_ids_like_cpp(
         &mut self,
         traits: impl IntoIterator<Item = (i32, i32)>,

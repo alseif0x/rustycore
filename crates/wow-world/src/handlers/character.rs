@@ -7457,7 +7457,10 @@ impl WorldSession {
             self.replace_player_skill_records_like_cpp(skill_records.clone(), true, false);
         }
 
-        if loaded_skill_records_like_cpp {
+        let loaded_spell_skills_complete_like_cpp =
+            self.apply_loaded_spell_learn_skills_like_cpp(&loaded_spell_side_effect_spells);
+        if loaded_skill_records_like_cpp && loaded_spell_skills_complete_like_cpp {
+            skill_records = self.player_skill_records_like_cpp().clone();
             let occupied_slots = u16::try_from(skill_records.len()).unwrap_or(u16::MAX);
             if !self
                 .set_complete_player_skill_records_like_cpp(skill_records.clone(), occupied_slots)
@@ -18272,7 +18275,7 @@ impl WorldSession {
     /// C++ `Player::_LoadTraits`: `CHAR_SEL_CHAR_TRAIT_CONFIGS` +
     /// `CHAR_SEL_CHAR_TRAIT_ENTRIES`, serialized in ActivePlayerData::TraitConfigs.
     pub(crate) async fn load_active_player_trait_configs_like_cpp(
-        &self,
+        &mut self,
         guid: ObjectGuid,
     ) -> Vec<TraitConfigCreateData> {
         let Some(char_db) = self.char_db().map(Arc::clone) else {
@@ -18282,8 +18285,10 @@ impl WorldSession {
         let mut entries_stmt = char_db.prepare(CharStatements::SEL_CHAR_TRAIT_ENTRIES);
         entries_stmt.set_u64(0, guid.counter() as u64);
         let mut entries_by_config = BTreeMap::<i32, Vec<TraitEntryCreateData>>::new();
+        let mut entries_complete_like_cpp = false;
         match char_db.query(&entries_stmt).await {
             Ok(mut result) => {
+                entries_complete_like_cpp = true;
                 if !result.is_empty() {
                     loop {
                         let trait_config_id = result.try_read::<i32>(0).unwrap_or(0);
@@ -18312,8 +18317,10 @@ impl WorldSession {
 
         let mut configs_stmt = char_db.prepare(CharStatements::SEL_CHAR_TRAIT_CONFIGS);
         configs_stmt.set_u64(0, guid.counter() as u64);
+        let mut configs_complete_like_cpp = false;
         let configs = match char_db.query(&configs_stmt).await {
             Ok(mut result) => {
+                configs_complete_like_cpp = true;
                 let mut configs = Vec::new();
                 if !result.is_empty() {
                     loop {
@@ -18346,6 +18353,44 @@ impl WorldSession {
                 Vec::new()
             }
         };
+
+        if entries_complete_like_cpp && configs_complete_like_cpp {
+            let exact_traits = self
+                .trait_node_entry_store()
+                .zip(self.trait_definition_store())
+                .map(|(node_entries, definitions)| {
+                    configs
+                        .iter()
+                        .flat_map(|config| config.entries.iter())
+                        .filter(|entry| entry.rank > 0 || entry.granted_ranks > 0)
+                        .filter_map(|entry| {
+                            let node_entry = u32::try_from(entry.trait_node_entry_id)
+                                .ok()
+                                .and_then(|id| node_entries.get(id))?;
+                            let trait_definition_id = node_entry.trait_definition_id;
+                            let definition = u32::try_from(trait_definition_id)
+                                .ok()
+                                .and_then(|id| definitions.get(id))?;
+                            (definition.spell_id > 0)
+                                .then_some((definition.spell_id, trait_definition_id))
+                        })
+                        .collect::<Vec<_>>()
+                });
+            if let Some(exact_traits) = exact_traits {
+                if !self.set_complete_represented_spell_trait_definition_ids_like_cpp(exact_traits)
+                {
+                    warn!(
+                        player_guid = guid.counter(),
+                        "Could not authorize represented trait spell ownership"
+                    );
+                }
+            } else {
+                warn!(
+                    player_guid = guid.counter(),
+                    "Keeping represented trait spell ownership incomplete: missing DB2 stores"
+                );
+            }
+        }
 
         info!(
             player_guid = guid.counter(),
