@@ -10,6 +10,8 @@ pub mod entity_update_bridge;
 pub mod handlers;
 pub mod map_manager;
 pub mod phasing;
+#[allow(dead_code)] // Private prerequisite seam consumed by trainer issue #157.
+pub(crate) mod profession;
 pub mod reputation;
 pub mod session;
 

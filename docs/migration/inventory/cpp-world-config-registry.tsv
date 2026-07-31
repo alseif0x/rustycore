@@ -183,7 +183,7 @@ Int	CONFIG_RESET_SCHEDULE_HOUR	server/game/World/World.h:277	ResetSchedule.Hour	
 Int	CONFIG_INSTANCE_UNLOAD_DELAY	server/game/World/World.h:278	Instance.UnloadDelay	Int	server/game/World/World.cpp:1119	30 * MINUTE * IN_MILLISECONDS		missing_in_rust	-
 Int	CONFIG_DAILY_QUEST_RESET_TIME_HOUR	server/game/World/World.h:279	Quests.DailyResetTime	Int	server/game/World/World.cpp:1121	3		missing_in_rust	-
 Int	CONFIG_WEEKLY_QUEST_RESET_TIME_WDAY	server/game/World/World.h:280	Quests.WeeklyResetWDay	Int	server/game/World/World.cpp:1128	3		missing_in_rust	-
-Int	CONFIG_MAX_PRIMARY_TRADE_SKILL	server/game/World/World.h:281	MaxPrimaryTradeSkill	Int	server/game/World/World.cpp:1135	2		missing_in_rust	-
+Int	CONFIG_MAX_PRIMARY_TRADE_SKILL	server/game/World/World.h:281	MaxPrimaryTradeSkill	Int	server/game/World/World.cpp:1135	2	crates/wow-config/src/lib.rs; crates/world-server/src/main.rs; crates/wow-network/src/accept.rs; crates/wow-world/src/session.rs; crates/wow-world/src/profession.rs	represented_partial	#NEXT.R8.ENTITIES.1244 validates the documented 0..11 range with default 2, propagates it into WorldSession and consumes it in a pure primary-profession CapacityPlan independent from talent CharacterPoints and ProfessionSkillLine[2]; trainer outcome resolution, durable learning and live purchase remain #157-#159/#142.
 Int	CONFIG_MIN_PETITION_SIGNS	server/game/World/World.h:282	MinPetitionSigns	Int	server/game/World/World.cpp:1136	4		missing_in_rust	-
 Int	CONFIG_MIN_QUEST_SCALED_XP_RATIO	server/game/World/World.h:283	MinQuestScaledXPRatio	Int	server/game/World/World.cpp:867	0		missing_in_rust	-
 Int	CONFIG_MIN_CREATURE_SCALED_XP_RATIO	server/game/World/World.h:284	MinCreatureScaledXPRatio	Int	server/game/World/World.cpp:874	0		missing_in_rust	-

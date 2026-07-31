@@ -394,6 +394,8 @@ pub struct SessionResources {
     pub exploration_xp_rate: f32,
     /// C++ `CONFIG_MAX_PLAYER_LEVEL`.
     pub max_player_level_config: u32,
+    /// C++ `CONFIG_MAX_PRIMARY_TRADE_SKILL`.
+    pub max_primary_trade_skills: u8,
     /// C++ PvP/RP-PvP/FFA-PvP `CONFIG_GAME_TYPE` classification.
     pub is_pvp_realm: bool,
     /// C++ `World::IsFFAPvPRealm()` classification.

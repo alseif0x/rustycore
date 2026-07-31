@@ -1,3 +1,63 @@
+# `#NEXT.R8.ENTITIES.1244` — independent primary-profession capacity analysis.
+
+Issue #156 closes the capacity-model prerequisite discovered while auditing the dormant trainer
+purchase handler. C++ documents `MaxPrimaryTradeSkill` as 0-11 with default 2
+(`worldserver.conf.dist:1193-1198`, `World.cpp:1135`), but the target fork stores the free count in
+`ActivePlayerData::CharacterPoints`, the same update field used for talent points
+(`Player.h:1862-1864`, `Player.cpp:23369-23372`). Login and talent work can therefore overwrite
+profession availability. Rust deliberately repairs that proven alias bug: the configured maximum
+is validated and propagated through `SessionResources`, while used capacity is derived from
+distinct active root primary-profession SkillLines and never reads or mutates talent points.
+
+Learned capacity is independent from the two physical profession-equipment associations.
+`ProfessionSkillLine[2]` stores at most two associated SkillLine IDs, and
+`character_skills.professionSlot` is a signed `TINYINT NOT NULL DEFAULT -1`: `-1` means no
+association and `0`/`1` select the two array indices. A configured third or later profession is
+therefore valid with `-1`. C++ loads every non-`-1` database value as an unchecked array index
+(`Player.cpp:25752-25876`); Rust does not reproduce that out-of-bounds defect. A pure analysis
+preserves valid unique slots, clears inactive/non-primary associations, resolves duplicate or
+out-of-range values deterministically, gives free associations to existing professions before
+new ones, and reports typed optional replacements without mutating or persisting them.
+
+`SkillLineStore` now exposes the three states needed for authorization without inventing payload:
+a genuinely absent or hotfix-removed identity matches failed C++ `LookupEntry` and is
+non-primary; an effective SQL/DB2 identity without hydrated category/parent payload is
+undecidable and fails closed; and a hydrated classification uses the exact category-11/root
+predicate from `SpellMgr.cpp:104-108`. Production hydrates those two authorization fields from
+official then custom SQL in C++ replacement order, including collisions with an existing WDC4
+ID (`HotfixDatabase.cpp:1371-1377`, `DB2Store.cpp:127-133`), while leaving the rest of an
+SQL-only payload absent. Its explicit split-authority constructor also permits focused unhydrated
+and removed fixtures without weakening production ownership.
+
+`SpellInfo` classifies ordered `SPELL_EFFECT_SKILL` metadata and reproduces
+`IsPrimaryProfessionFirstRank`, including C++'s rank-1 fallback for spells without a chain node.
+The API explicitly does not treat every SKILL effect as an `AddSpell` outcome:
+`LoadSpellLearnSkills` selects a narrower `SpellLearnSkillNode`, while a castable trainer wrapper
+can execute effects. Issue #157 must resolve that real path through effective SpellInfo authority
+before feeding already-resolved ordered SkillLine IDs to the capacity plan.
+
+The private `wow-world::profession` seam separates immutable analysis from planning. Analysis
+cannot be fabricated by callers; planning borrows it, preserves requested first-occurrence order,
+deduplicates already-active/repeated/non-primary IDs, and either returns the complete typed plan or
+one `CapacityExceeded` error. It does not claim a concurrent reservation. Missing `SkillLineStore`
+or a pre-login player-skill snapshot fails closed, and issue #159 must recompute the plan under its
+atomic mutation boundary.
+
+Focused coverage pins configuration 0/1/2/11 and invalid repair through the
+`SessionResources`/`WorldSession` wiring, root/child/secondary/effective-unhydrated/removed
+SkillLines, official/custom SQL collisions, rank-one/rank-two/unranked spell metadata,
+active-only capacity, ordered batch deduplication, all-or-none overflow, a configured maximum
+above the two associations, holes, inactive/non-primary/duplicate/out-of-range normalization,
+reduced-config preservation, session hydration gates and complete independence from talent
+points. Formatting, whitespace and affected-crate checks are clean; the full preflight, remote CI
+and current-HEAD Codex verdict remain the closeout gates.
+
+This remains `represented-partial`: no skill/spell row or normalization is applied or persisted,
+no trainer wrapper/known-spell outcome is resolved, no money is charged, and
+`TrainerBuySpell` remains dormant. Durable learning belongs to #158, atomic normal teaching to
+#159 and activation to #142. The slice has no new packet or client-visible behavior, so it claims
+neither a fresh action capture nor manual-client readiness.
+
 # `#NEXT.R8.ENTITIES.1243` — faithful trainer-catalog reference validation.
 
 Issue #144 closes the last catalog-safety prerequisite before activating trainer purchases.
