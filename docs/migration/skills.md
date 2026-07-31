@@ -16,7 +16,10 @@ Per-player skill state: which crafting/combat/secondary skills the character kno
 - **Skill-up on use**: weapon skill on melee swing, profession skill on craft, secondary skill on gather. Rate × `RATE_SKILL_DISCOVERY` (and per-skill rates).
 - **Recipe discovery** (`skill_discovery_template`): chance-driven random recipe unlock when an existing recipe is cast (used by alchemy/inscription mostly).
 - **Extra & perfect items** (`skill_extra_item_template`, `skill_perfect_item_template`): proc bonus quantity / quality on craft.
-- **Profession slot bookkeeping**: limit of 2 primary professions; `professionSlot` column = 1 or 2 in `character_skills`.
+- **Primary-profession bookkeeping**: learned capacity is configured independently in the
+  documented range 0-11 (default 2). `professionSlot` is a separate signed physical association:
+  `-1` means unassociated and `0`/`1` select one of the two `ProfessionSkillLine` equipment
+  associations. A valid third or later primary profession therefore uses `-1`.
 
 WoLK 3.4.3 has the classic skill system (skill ranks 0-450 typical, weapon skills max=5×level), pre-Legion "Crafting Quality Tiers" model.
 
@@ -292,7 +295,13 @@ Complejidad: **L** (low, <1h), **M** (med, 1-4h), **H** (high, 4-12h), **XL** (>
 - [ ] **#SKILLS.21** Implement `handle_unlearn_skill(packet)` — validate `SKILL_FLAG_UNLEARNABLE` on the SkillRaceClassInfo, then `set_skill(id, 0, 0, 0)` (L)
 - [ ] **#SKILLS.22** Implement `handle_trade_skill_set_favorite(packet)` — store favorite in player's spell preferences (L; no-op visual on 3.4.3 but persist anyway)
 - [ ] **#SKILLS.23** Implement `handle_show_trade_skill(packet)` — return another player's profession data via `SMSG_SHOW_TRADE_SKILL_RESPONSE` (M)
-- [ ] **#SKILLS.24** Profession slot bookkeeping: enforce `CONFIG_MAX_PRIMARY_TRADE_SKILL` (default 2), populate `professionSlot` column on insert (1 or 2 for primary, NULL for secondary) (M)
+- [~] **#SKILLS.24** Issue #156 validates and propagates
+  `CONFIG_MAX_PRIMARY_TRADE_SKILL` (0-11, default 2), classifies active root primary SkillLines
+  and first-rank profession spell metadata, and provides a pure all-or-none capacity plan
+  independent from talent `CharacterPoints`. It preserves valid `-1/0/1` associations and
+  reports deterministic duplicate, corrupt, inactive and non-primary normalization. #157 still
+  owns trainer outcome/known-spell resolution and #158 owns applying and persisting planned
+  skill rows and associations. (M)
 - [ ] **#SKILLS.25** Equip-error `EQUIP_ERR_CANT_EQUIP_SKILL` integration: on `Player::can_use_item`, check `RequiredSkill > 0 && skillValue < RequiredSkillRank` (depends on Inventory/Item module) (L)
 - [ ] **#SKILLS.26** Lockpicking integration: `Lock.db2` lookup + skill check in spell effect / object interaction (depends on Spells module) (M)
 - [ ] **#SKILLS.27** Quest skill-reward integration: `Quest::RewardSkillId/Value` on quest completion (depends on Quest module) (L)
@@ -384,7 +393,13 @@ Complejidad: **L** (low, <1h), **M** (med, 1-4h), **H** (high, 4-12h), **XL** (>
 - **Faction-change drops language skills**: `DEL_CHAR_SKILL_LANGUAGES` deletes skills 98, 113, 759, 111, 313, 109, 115, 315, 673, 137 (all the racial languages) before re-inserting the new faction's language at 300/300.
 - **`Player::SetSkill` with value=0 is a "delete" intent**: it loops `SkillLineAbility` records for that skill and unlearns each linked spell that the player has, then marks `SKILL_DELETED`. Be careful not to double-unlearn auto-learn spells that originated from a different skill.
 - **Step vs Rank**: `Step` is the tier ordinal (1-6 in WoLK), `Rank` is the integer skill value (1-450). Some old code paths conflate them; use only `Rank` for value comparisons.
-- **`character_skills.professionSlot`** column: 0 or NULL = secondary, 1 = primary slot 1, 2 = primary slot 2. Used by Faction-Change and "unlearn primary profession" logic to know which slot frees up.
+- **`character_skills.professionSlot`**: signed `TINYINT NOT NULL DEFAULT -1`; `-1` means no
+  physical profession-equipment association, while `0` and `1` index
+  `ProfessionSkillLine[2]`. Secondary skills and valid third-or-later primary professions use
+  `-1`. Learned primary-profession capacity instead comes from
+  `CONFIG_MAX_PRIMARY_TRADE_SKILL` (0-11, default 2). C++ trusts corrupt non-`-1` indices; issue
+  #156 deliberately validates and reports a deterministic typed repair plan, whose durable
+  application remains #158.
 - **TrinityCore's `Player::HandleSpellEffect` for SPELL_EFFECT_SKILL_STEP** is what bumps you between tiers (Apprentice→Journeyman). It's NOT a skill-rank gain — it raises `MaxRank` to the next tier value.
 - **Achievement criterion `CRITERIA_TYPE_REACH_SKILL_LEVEL`** fires on every `set_skill` value increase — wire into criteria mgr.
 - **Inspect tradeskill (`SHOW_TRADE_SKILL`)**: in WoLK clients, this includes recipe list + materials of the inspected player's professions. Need full recipe list from their spell book filtered by `SkillLineAbility`.
