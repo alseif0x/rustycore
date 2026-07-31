@@ -9,12 +9,15 @@
   publicación de éxito prematuros, que pertenecen a #158/#159. Rust corrige explícitamente dos
   defectos legacy: revalida condiciones al comprar y aplica capacidad al cierre transitivo; el
   precio conserva en cambio el `f32` observable de C++, incluidos sus redondeos límite. El login
-  retiene y autoriza el `PlayerSpellMap` completo (incluidas filas DB inactivas/deshabilitadas)
-  después del trabajo representado de `AddSpell`, para que el adaptador de adquisición funcione
-  también en producción y no solo con fixtures. Metadatos incompletos, IDs estrechados, battle
+  retiene y autoriza el `PlayerSpellMap` completo (incluidas filas DB inactivas/deshabilitadas y
+  mounts de cuenta) y los slots exactos de skills después del trabajo representado de `AddSpell`;
+  las mutaciones runtime de spell/skill mantienen incrementalmente esa autoridad. Los
+  `ElseGroup` soportados que prueban el OR de conditions prevalecen sobre incertidumbre en ramas
+  irrelevantes. Así el adaptador de adquisición funciona también en producción y no solo con
+  fixtures. Metadatos incompletos, IDs estrechados, battle
   pets y proyecciones indeterminadas fallan cerrados. Formato, guardrails de
   arquitectura/handlers, check de `wow-world`, focales y la
-  suite completa `wow-world` (`3248/0`, uno ignorado) pasan; el quick preflight alcanzó el check
+  suite completa `wow-world` (`3250/0`, uno ignorado) pasan; el quick preflight alcanzó el check
   agregado y chocó con el ICE/SIGSEGV local ya conocido dentro de `icu_properties`. Falta aún
   preflight completo/capture-diff en un runner estable, CI, revisión current-HEAD y merge.
 

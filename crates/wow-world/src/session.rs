@@ -41697,7 +41697,6 @@ impl WorldSession {
         self.replace_player_skill_records_like_cpp(skill_records, true, false);
     }
 
-    #[cfg(test)]
     pub(crate) fn set_complete_player_skill_records_like_cpp(
         &mut self,
         skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
@@ -41775,6 +41774,7 @@ impl WorldSession {
     ) {
         let step = if value == 0 { 0 } else { step };
         let previous = self.player_skill_records_like_cpp().get(&skill_id).copied();
+        let complete_occupied_slots = self.complete_player_skill_occupied_slots_like_cpp();
         // Preserve the existing DB-facing profession association exactly as
         // the former active-only representation did. Persistence still
         // ignores the shadow lifecycle state in this projection-only PR.
@@ -41820,11 +41820,15 @@ impl WorldSession {
                 state,
             },
         );
-        // Preserve the pre-#164 persistence contract: every represented
-        // mutation makes the skill map saveable even when its source load was
-        // incomplete. The mutation path cannot prove exact update-field slot
-        // occupancy, so it must invalidate planner completeness separately.
-        self.replace_player_skill_records_like_cpp(skill_records, true, false);
+        // A mutation of an already-authoritative map preserves exact slot
+        // ownership: existing/tombstone rows retain their slot and a genuinely
+        // new row consumes one. Incomplete sources remain fail-closed.
+        let preserve_complete = complete_occupied_slots.is_some();
+        self.replace_player_skill_records_like_cpp(skill_records, true, preserve_complete);
+        if let Some(occupied_slots) = complete_occupied_slots {
+            let occupied_slots = occupied_slots.saturating_add(u16::from(previous.is_none()));
+            let _ = self.set_player_skill_occupied_slots_like_cpp(occupied_slots);
+        }
     }
 
     fn player_skill_max_value_like_cpp(&self, skill_id: u16) -> u16 {
@@ -41939,7 +41943,10 @@ impl WorldSession {
     }
 
     pub(crate) fn learn_known_spell_like_cpp(&mut self, spell_id: i32) {
-        self.invalidate_represented_player_spell_rows_like_cpp();
+        let preserve_complete = self.represented_player_spell_rows_complete_like_cpp;
+        if !preserve_complete {
+            self.invalidate_represented_player_spell_rows_like_cpp();
+        }
         if !self.known_spells.contains(&spell_id) {
             self.known_spells.push(spell_id);
         }
@@ -41947,6 +41954,25 @@ impl WorldSession {
             .remove(&spell_id);
         if let Some(controller) = &mut self.player_controller {
             controller.learn_spell(spell_id);
+        }
+        if preserve_complete {
+            self.represented_player_spell_rows_like_cpp
+                .entry(spell_id)
+                .and_modify(|row| {
+                    row.active = true;
+                    row.disabled = false;
+                    if row.state == RepresentedPlayerSpellStateLikeCpp::Removed {
+                        row.state = RepresentedPlayerSpellStateLikeCpp::Changed;
+                    }
+                })
+                .or_insert(RepresentedPlayerSpellLikeCpp {
+                    spell_id,
+                    active: true,
+                    disabled: false,
+                    dependent: false,
+                    favorite: false,
+                    state: RepresentedPlayerSpellStateLikeCpp::New,
+                });
         }
     }
 
@@ -41956,6 +41982,14 @@ impl WorldSession {
             .insert(spell_id);
         self.represented_favorite_known_spells_like_cpp
             .remove(&spell_id);
+        if self.represented_player_spell_rows_complete_like_cpp
+            && let Some(row) = self
+                .represented_player_spell_rows_like_cpp
+                .get_mut(&spell_id)
+        {
+            row.dependent = true;
+            row.favorite = false;
+        }
     }
 
     pub(crate) fn set_represented_spell_trait_definition_id_like_cpp(
@@ -41993,7 +42027,10 @@ impl WorldSession {
             return;
         }
 
-        self.invalidate_represented_player_spell_rows_like_cpp();
+        let preserve_complete = self.represented_player_spell_rows_complete_like_cpp;
+        if !preserve_complete {
+            self.invalidate_represented_player_spell_rows_like_cpp();
+        }
 
         if !seen.insert(spell_id) {
             return;
@@ -42047,6 +42084,21 @@ impl WorldSession {
         if was_known && !was_dependent {
             self.represented_removed_known_spells_like_cpp
                 .insert(spell_id);
+        }
+        if preserve_complete {
+            if was_dependent {
+                self.represented_player_spell_rows_like_cpp
+                    .remove(&spell_id);
+            } else if let Some(row) = self
+                .represented_player_spell_rows_like_cpp
+                .get_mut(&spell_id)
+            {
+                row.active = false;
+                row.disabled = false;
+                row.dependent = false;
+                row.favorite = false;
+                row.state = RepresentedPlayerSpellStateLikeCpp::Removed;
+            }
         }
 
         let mut unlearned_spells_packet_like_cpp = None;
@@ -43304,11 +43356,21 @@ impl WorldSession {
         &mut self,
         favorite_spells: HashSet<i32>,
     ) {
-        self.invalidate_represented_player_spell_rows_like_cpp();
+        let preserve_complete = self.represented_player_spell_rows_complete_like_cpp;
+        if !preserve_complete {
+            self.invalidate_represented_player_spell_rows_like_cpp();
+        }
         self.represented_favorite_known_spells_like_cpp = favorite_spells
             .into_iter()
             .filter(|spell_id| self.known_spells.contains(spell_id))
             .collect();
+        if preserve_complete {
+            for row in self.represented_player_spell_rows_like_cpp.values_mut() {
+                row.favorite = self
+                    .represented_favorite_known_spells_like_cpp
+                    .contains(&row.spell_id);
+            }
+        }
     }
 
     #[allow(dead_code)]
@@ -120083,6 +120145,22 @@ mod tests {
             "replacing PlayerSpellMap rows must not attribute an older auxiliary snapshot to the new map"
         );
 
+        session.mark_represented_spell_acquisition_snapshot_complete_like_cpp();
+        session.learn_known_spell_like_cpp(400);
+        assert!(
+            session
+                .complete_represented_player_spell_rows_like_cpp()
+                .is_some_and(|rows| rows[&400].state == RepresentedPlayerSpellStateLikeCpp::New),
+            "runtime learns must update rather than invalidate an authoritative PlayerSpellMap"
+        );
+        session.remove_known_spell_like_cpp(400);
+        assert!(
+            session
+                .complete_represented_player_spell_rows_like_cpp()
+                .is_some_and(|rows| rows[&400].state == RepresentedPlayerSpellStateLikeCpp::Removed),
+            "runtime removals must retain an authoritative removed row"
+        );
+
         session.set_known_spells_like_cpp(vec![100, 400]);
         assert!(
             session
@@ -120418,6 +120496,36 @@ mod tests {
             session
                 .complete_represented_override_spells_like_cpp()
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn authoritative_skill_mutations_preserve_exact_slot_occupancy_like_cpp() {
+        let (mut session, _, _) = make_session();
+        assert!(session.set_complete_player_skill_records_like_cpp(
+            HashMap::from([(
+                333,
+                RepresentedPlayerSkillLikeCpp {
+                    skill_id: 333,
+                    step: 1,
+                    value: 75,
+                    max: 150,
+                    profession_slot: 0,
+                    state: RepresentedPlayerSkillStateLikeCpp::Unchanged,
+                },
+            )]),
+            1,
+        ));
+
+        session.set_represented_player_skill_like_cpp(333, 2, 150, 225);
+        assert_eq!(
+            session.complete_player_skill_occupied_slots_like_cpp(),
+            Some(1)
+        );
+        session.set_represented_player_skill_like_cpp(164, 1, 1, 75);
+        assert_eq!(
+            session.complete_player_skill_occupied_slots_like_cpp(),
+            Some(2)
         );
     }
 

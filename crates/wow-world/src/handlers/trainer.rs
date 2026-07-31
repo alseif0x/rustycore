@@ -187,6 +187,21 @@ fn trainer_spell_product_like_cpp(session: &WorldSession, spell_id: u32) -> Trai
     }
 }
 
+fn trainer_condition_admission_proof_like_cpp(
+    meets: bool,
+    saw_unsupported: bool,
+) -> TrainerAdmissionProofLikeCpp {
+    if meets {
+        // C++ ElseGroups are ORed. A supported passing group proves the
+        // result even when another, irrelevant group is not representable.
+        TrainerAdmissionProofLikeCpp::Proven(true)
+    } else if saw_unsupported {
+        TrainerAdmissionProofLikeCpp::Indeterminate
+    } else {
+        TrainerAdmissionProofLikeCpp::Proven(false)
+    }
+}
+
 // ── Handler registrations ─────────────────────────────────────────────────────
 
 inventory::submit! {
@@ -252,11 +267,7 @@ impl WorldSession {
                 }
             },
         );
-        if unsupported {
-            TrainerAdmissionProofLikeCpp::Indeterminate
-        } else {
-            TrainerAdmissionProofLikeCpp::Proven(meets)
-        }
+        trainer_condition_admission_proof_like_cpp(meets, unsupported)
     }
 
     fn trainer_offer_decision_like_cpp(
@@ -989,6 +1000,22 @@ mod tests {
                 .map(TrainerLikeCpp::id_like_cpp),
             Some(8),
             "a selected mapping discarded at load must fall through to the default"
+        );
+    }
+
+    #[test]
+    fn trainer_condition_supported_or_success_outweighs_irrelevant_uncertainty_like_cpp() {
+        assert_eq!(
+            trainer_condition_admission_proof_like_cpp(true, true),
+            TrainerAdmissionProofLikeCpp::Proven(true)
+        );
+        assert_eq!(
+            trainer_condition_admission_proof_like_cpp(false, true),
+            TrainerAdmissionProofLikeCpp::Indeterminate
+        );
+        assert_eq!(
+            trainer_condition_admission_proof_like_cpp(false, false),
+            TrainerAdmissionProofLikeCpp::Proven(false)
         );
     }
 

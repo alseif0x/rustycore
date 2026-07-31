@@ -7114,7 +7114,8 @@ impl WorldSession {
                 "Applied represented C++ Player::_LoadSpells/AddSpell spell_learn_spell dependencies"
             );
         }
-        for &spell_id in &known_spells {
+        let canonical_known_spells = self.known_spells_like_cpp().to_vec();
+        for spell_id in canonical_known_spells {
             if !loaded_spell_side_effect_spells.contains(&spell_id) {
                 loaded_spell_side_effect_spells.push(spell_id);
             }
@@ -7435,6 +7436,18 @@ impl WorldSession {
                 default_skill_entries.push(entry);
             }
             self.replace_player_skill_records_like_cpp(skill_records.clone(), true, false);
+        }
+
+        if loaded_skill_records_like_cpp {
+            let occupied_slots = u16::try_from(skill_records.len()).unwrap_or(u16::MAX);
+            if !self
+                .set_complete_player_skill_records_like_cpp(skill_records.clone(), occupied_slots)
+            {
+                warn!(
+                    player_guid = guid.counter(),
+                    occupied_slots, "Could not authorize represented post-login player skill slots"
+                );
+            }
         }
 
         for entry in &default_skill_entries {
