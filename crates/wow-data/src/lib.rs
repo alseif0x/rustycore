@@ -78,6 +78,7 @@ pub mod skill;
 pub mod skill_talent;
 pub mod spawn_group;
 pub mod spell;
+pub mod spell_acquisition;
 pub mod spell_click;
 pub mod spell_db2;
 mod spell_info_keys;
@@ -419,9 +420,12 @@ pub use skill::{
     PetLevelupSpellInfoLikeCpp, PetLevelupSpellSetLikeCpp, PetLevelupSpellStoreLikeCpp,
     SKILL_CATEGORY_ARMOR_LIKE_CPP, SKILL_CATEGORY_LANGUAGES_LIKE_CPP,
     SKILL_FLAG_ALWAYS_MAX_VALUE_LIKE_CPP, SKILL_RUNEFORGING_LIKE_CPP, SkillInfoEntry,
-    SkillLineAbilityRecord, SkillRaceClassInfoRecord, SkillRangeTypeLikeCpp,
-    SkillRewardedSpellChangesLikeCpp, SkillStore, SkillTiersEntryLikeCpp, SkillTiersRowLikeCpp,
-    SkillTiersStoreLikeCpp,
+    SkillLineAbilityCoverageLikeCpp, SkillLineAbilityRankRowLikeCpp, SkillLineAbilityRecord,
+    SkillRaceClassInfoCoverageLikeCpp, SkillRaceClassInfoMatchCoverageLikeCpp,
+    SkillRaceClassInfoRecord, SkillRangeTypeLikeCpp, SkillRewardedSpellChangesLikeCpp, SkillStore,
+    SkillStoreEffectiveLoadOutcomeLikeCpp, SkillStoreEffectiveLoadReportLikeCpp,
+    SkillStoreLoadDiagnosticLikeCpp, SkillStoreLoadSourceLikeCpp, SkillStoreTableLikeCpp,
+    SkillTiersEntryLikeCpp, SkillTiersRowLikeCpp, SkillTiersStoreLikeCpp,
 };
 pub use skill_talent::{
     GlyphBindableSpellEntry, GlyphBindableSpellStore, GlyphPropertiesEntry, GlyphPropertiesStore,
@@ -430,9 +434,9 @@ pub use skill_talent::{
     JournalEncounterStore, JournalInstanceEntry, JournalInstanceStore, JournalTierEntry,
     JournalTierStore, PvpSeasonEntry, PvpSeasonStore, PvpTalentCategoryEntry,
     PvpTalentCategoryStore, PvpTalentEntry, PvpTalentSlotUnlockEntry, PvpTalentSlotUnlockStore,
-    PvpTalentStore, PvpTierEntry, PvpTierStore, SkillLineEntry, SkillLineStore,
-    SkillLineXTraitTreeEntry, SkillLineXTraitTreeStore, TalentEntry, TalentStore, TalentTabEntry,
-    TalentTabStore,
+    PvpTalentStore, PvpTierEntry, PvpTierStore, SkillLineAcquisitionFieldsLikeCpp,
+    SkillLineAcquisitionPayloadLikeCpp, SkillLineEntry, SkillLineStore, SkillLineXTraitTreeEntry,
+    SkillLineXTraitTreeStore, TalentEntry, TalentStore, TalentTabEntry, TalentTabStore,
 };
 pub use spawn_group::{
     SpawnGroupTemplate, SpawnGroupTemplateLoadReport, SpawnGroupTemplateRow,
@@ -455,17 +459,21 @@ pub use spell::{
     ServersideSpellLoadErrorKindLikeCpp, ServersideSpellLoadErrorLikeCpp,
     ServersideSpellLoadOutcomeLikeCpp, ServersideSpellRowLikeCpp, ServersideSpellStoreLikeCpp,
     SpellAreaLikeCpp, SpellAreaLoadErrorKindLikeCpp, SpellAreaLoadErrorLikeCpp,
-    SpellAreaLoadOutcomeLikeCpp, SpellAreaRowLikeCpp, SpellAreaStoreLikeCpp, SpellChainNodeLikeCpp,
-    SpellChainStoreLikeCpp, SpellCustomAttributeKeyLikeCpp,
+    SpellAreaLoadOutcomeLikeCpp, SpellAreaRowLikeCpp, SpellAreaStoreLikeCpp,
+    SpellChainLoadDiagnosticLikeCpp, SpellChainLoadOutcomeLikeCpp, SpellChainLookupLikeCpp,
+    SpellChainNodeLikeCpp, SpellChainStoreLikeCpp, SpellCustomAttributeKeyLikeCpp,
     SpellCustomAttributeLoadErrorKindLikeCpp, SpellCustomAttributeLoadErrorLikeCpp,
     SpellCustomAttributeLoadOutcomeLikeCpp, SpellCustomAttributeRowLikeCpp,
-    SpellCustomAttributeSourceSpellInfoLikeCpp, SpellCustomAttributeStoreLikeCpp, SpellEffectInfo,
-    SpellGroupLoadErrorKindLikeCpp, SpellGroupLoadErrorLikeCpp, SpellGroupLoadOutcomeLikeCpp,
-    SpellGroupRowLikeCpp, SpellGroupStackRuleLikeCpp, SpellGroupStackRuleLoadErrorKindLikeCpp,
+    SpellCustomAttributeSourceSpellInfoLikeCpp, SpellCustomAttributeSourceVariantLikeCpp,
+    SpellCustomAttributeStoreLikeCpp, SpellEffectInfo, SpellGroupLoadErrorKindLikeCpp,
+    SpellGroupLoadErrorLikeCpp, SpellGroupLoadOutcomeLikeCpp, SpellGroupRowLikeCpp,
+    SpellGroupStackRuleLikeCpp, SpellGroupStackRuleLoadErrorKindLikeCpp,
     SpellGroupStackRuleLoadErrorLikeCpp, SpellGroupStackRuleLoadOutcomeLikeCpp,
     SpellGroupStackRuleRowLikeCpp, SpellGroupStackRuleStoreLikeCpp, SpellGroupStoreLikeCpp,
-    SpellInfo, SpellLearnSkillEffectLikeCpp, SpellLearnSkillLoadOutcomeLikeCpp,
-    SpellLearnSkillNodeLikeCpp, SpellLearnSkillSourceSpellInfoLikeCpp, SpellLearnSkillStoreLikeCpp,
+    SpellInfo, SpellLearnSkillEffectLikeCpp, SpellLearnSkillIndeterminateReasonLikeCpp,
+    SpellLearnSkillLoadErrorKindLikeCpp, SpellLearnSkillLoadErrorLikeCpp,
+    SpellLearnSkillLoadOutcomeLikeCpp, SpellLearnSkillLookupLikeCpp, SpellLearnSkillNodeLikeCpp,
+    SpellLearnSkillSourceSpellInfoLikeCpp, SpellLearnSkillStoreLikeCpp,
     SpellLearnSourceSpellInfoLikeCpp, SpellLearnSpellEffectLikeCpp,
     SpellLearnSpellLoadErrorKindLikeCpp, SpellLearnSpellLoadErrorLikeCpp,
     SpellLearnSpellLoadOutcomeLikeCpp, SpellLearnSpellLoadWarningKindLikeCpp,
@@ -488,6 +496,24 @@ pub use spell::{
     SpellTotemModelLoadOutcomeLikeCpp, SpellTotemModelRowLikeCpp, SpellTotemModelStoreLikeCpp,
     TARGET_UNIT_PET_LIKE_CPP, TOTAL_AURAS_LIKE_CPP, TOTAL_SPELL_EFFECTS_LIKE_CPP,
     TOTAL_SPELL_TARGETS_LIKE_CPP,
+};
+pub use spell_acquisition::{
+    AcquisitionValueDomainLikeCpp, BattlePetClassificationLikeCpp,
+    BattlePetIndeterminateReasonLikeCpp, ComposedEffectiveTableLikeCpp,
+    EffectiveSpellAcquisitionRowsLikeCpp, InvalidAcquisitionValueLikeCpp,
+    SpellAcquisitionBattlePetSpeciesLikeCpp, SpellAcquisitionCatalogLikeCpp,
+    SpellAcquisitionCoverageSeedLikeCpp, SpellAcquisitionDependenciesLookupLikeCpp,
+    SpellAcquisitionDependencyLikeCpp, SpellAcquisitionDiagnosticKindLikeCpp,
+    SpellAcquisitionDiagnosticLikeCpp, SpellAcquisitionDiagnosticSeverityLikeCpp,
+    SpellAcquisitionEffectLikeCpp, SpellAcquisitionEffectsLookupLikeCpp,
+    SpellAcquisitionIndeterminateReasonLikeCpp, SpellAcquisitionLevelsLikeCpp,
+    SpellAcquisitionMetadataLookupLikeCpp, SpellAcquisitionMiscLikeCpp,
+    SpellAcquisitionRemovedRowLikeCpp, SpellAcquisitionResolvedEffectsLookupLikeCpp,
+    SpellAcquisitionResolvedMetadataLookupLikeCpp, SpellAcquisitionSourceCoverageLikeCpp,
+    SpellAcquisitionSummonPropertiesLikeCpp, SpellAcquisitionTableHashesLikeCpp,
+    SpellAcquisitionTableLikeCpp, SpellAcquisitionTalentLikeCpp,
+    SpellAcquisitionTalentLookupLikeCpp, compose_effective_table_like_cpp,
+    compose_effective_table_with_removed_like_cpp,
 };
 pub use spell_click::{
     NpcSpellClickLoadReportLikeCpp, NpcSpellClickRowLikeCpp, NpcSpellClickStoreLikeCpp,

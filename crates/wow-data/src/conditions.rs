@@ -757,7 +757,7 @@ pub struct ConditionExternalValidationStoresLikeCpp<'a> {
     pub item_store: Option<&'a crate::ItemStore>,
     pub spell_store: Option<&'a crate::SpellStore>,
     pub area_table_store: Option<&'a crate::AreaTableStore>,
-    pub skill_store: Option<&'a crate::SkillStore>,
+    pub skill_line_store: Option<&'a crate::SkillLineStore>,
     pub map_store: Option<&'a crate::MapStore>,
     pub phase_store: Option<&'a crate::PhaseStore>,
     pub quest_store: Option<&'a crate::quest::QuestStore>,
@@ -1114,8 +1114,8 @@ pub fn validate_condition_type_external_like_cpp(
             }
         }
         ConditionType::Skill => {
-            if let Some(store) = stores.skill_store
-                && !store.contains_skill_line_like_cpp(condition.condition_value1)
+            if let Some(store) = stores.skill_line_store
+                && !store.contains_effective_record_like_cpp(condition.condition_value1)
             {
                 return Err(Error::NonExistingSkill(condition.condition_value1));
             }
@@ -3011,7 +3011,25 @@ mod tests {
                 flags: crate::area::AREA_FLAG_IS_SUBZONE_LIKE_CPP,
             },
         ]);
-        let skill_store = crate::SkillStore::from_skill_lines_like_cpp([400]);
+        let skill_line_store =
+            crate::SkillLineStore::from_hydrated_entries_and_effective_ids_like_cpp(
+                [crate::SkillLineEntry {
+                    id: 401,
+                    display_name: String::new(),
+                    alternate_verb: String::new(),
+                    description: String::new(),
+                    horde_display_name: String::new(),
+                    override_source_info_display_name: String::new(),
+                    category_id: 0,
+                    spell_icon_file_id: 0,
+                    can_link: 0,
+                    parent_skill_line_id: 0,
+                    parent_tier_index: 0,
+                    flags: 0,
+                    spell_book_spell_id: 0,
+                }],
+                [400],
+            );
         let map_store = crate::MapStore::from_entries([crate::MapEntry {
             id: 500,
             parent_map_id: -1,
@@ -3054,7 +3072,7 @@ mod tests {
             item_store: Some(&item_store),
             spell_store: Some(&spell_store),
             area_table_store: Some(&area_store),
-            skill_store: Some(&skill_store),
+            skill_line_store: Some(&skill_line_store),
             map_store: Some(&map_store),
             phase_store: Some(&phase_store),
             quest_store: Some(&quest_store),
@@ -3277,6 +3295,18 @@ mod tests {
                     ..
                 }
             )
+        ));
+        assert!(matches!(
+            validate_condition_type_external_like_cpp(
+                &Condition {
+                    condition_type: ConditionType::Skill,
+                    condition_value1: 401,
+                    condition_value2: 1,
+                    ..Condition::default()
+                },
+                stores
+            ),
+            Err(ConditionTypeValidationErrorLikeCpp::NonExistingSkill(401))
         ));
         assert!(matches!(
             validate_condition_type_external_like_cpp(

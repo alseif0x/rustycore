@@ -201,6 +201,12 @@ impl SpellInfoKeyStoreLikeCpp {
         self.keys.len()
     }
 
+    pub(crate) fn exact_keys_in_order_like_cpp(&self) -> Vec<(u32, u8)> {
+        let mut keys = self.keys.iter().copied().collect::<Vec<_>>();
+        keys.sort_unstable();
+        keys
+    }
+
     pub(crate) fn from_candidate_keys_like_cpp(
         candidate_keys: impl IntoIterator<Item = (u32, u8)>,
         effective_spell_name_ids: &HashSet<u32>,

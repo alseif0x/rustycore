@@ -1,10 +1,10 @@
 //! Skill, talent, PvP, glyph and journal DB2 readers.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::Path;
 
 use anyhow::{Context, Result};
-use tracing::info;
+use tracing::{info, warn};
 use wow_database::{HotfixDatabase, HotfixStatements, SqlResult};
 
 use crate::Db2HotfixRemovalStoreLikeCpp;
@@ -162,10 +162,27 @@ pub struct SkillLineEntry {
     pub spell_book_spell_id: i32,
 }
 
+/// Acquisition-relevant C++ `SkillLineEntry` payload.
+///
+/// Keeping this projection separate from [`SkillLineEntry`] lets SQL-only
+/// effective records participate in authorization without manufacturing
+/// localized or otherwise unhydrated fields.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct PrimaryProfessionSkillLineFieldsLikeCpp {
-    category_id: i8,
-    parent_skill_line_id: u32,
+pub struct SkillLineAcquisitionFieldsLikeCpp {
+    pub category_id: i8,
+    pub parent_skill_line_id: u32,
+    pub parent_tier_index: i32,
+}
+
+/// Coverage of the acquisition payload for one `SkillLine` record ID.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SkillLineAcquisitionPayloadLikeCpp {
+    /// The record is absent from the final effective C++ identity set.
+    Absent,
+    /// The identity is effective, but Rust has not hydrated every required field.
+    Incomplete,
+    /// Every field needed by profession classification and parent activation is available.
+    Complete(SkillLineAcquisitionFieldsLikeCpp),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -262,8 +279,8 @@ db2_store!(TalentTabStore, TalentTabEntry);
 pub struct SkillLineStore {
     entries: HashMap<u32, SkillLineEntry>,
     effective_record_ids_like_cpp: HashSet<u32>,
-    primary_profession_fields_by_effective_record_like_cpp:
-        HashMap<u32, PrimaryProfessionSkillLineFieldsLikeCpp>,
+    acquisition_fields_by_effective_record_like_cpp:
+        BTreeMap<u32, SkillLineAcquisitionFieldsLikeCpp>,
     table_hash_like_cpp: Option<u32>,
 }
 
@@ -271,14 +288,15 @@ impl SkillLineStore {
     pub fn from_entries(entries: impl IntoIterator<Item = SkillLineEntry>) -> Self {
         let entries: HashMap<_, _> = entries.into_iter().map(|entry| (entry.id, entry)).collect();
         let effective_record_ids_like_cpp = entries.keys().copied().collect();
-        let primary_profession_fields_by_effective_record_like_cpp = entries
+        let acquisition_fields_by_effective_record_like_cpp = entries
             .iter()
             .map(|(id, entry)| {
                 (
                     *id,
-                    PrimaryProfessionSkillLineFieldsLikeCpp {
+                    SkillLineAcquisitionFieldsLikeCpp {
                         category_id: entry.category_id,
                         parent_skill_line_id: entry.parent_skill_line_id,
+                        parent_tier_index: entry.parent_tier_index,
                     },
                 )
             })
@@ -286,7 +304,7 @@ impl SkillLineStore {
         Self {
             entries,
             effective_record_ids_like_cpp,
-            primary_profession_fields_by_effective_record_like_cpp,
+            acquisition_fields_by_effective_record_like_cpp,
             table_hash_like_cpp: None,
         }
     }
@@ -302,7 +320,7 @@ impl SkillLineStore {
         store.effective_record_ids_like_cpp = effective_record_ids_like_cpp.into_iter().collect();
         let effective_record_ids_like_cpp = &store.effective_record_ids_like_cpp;
         store
-            .primary_profession_fields_by_effective_record_like_cpp
+            .acquisition_fields_by_effective_record_like_cpp
             .retain(|record_id, _| effective_record_ids_like_cpp.contains(record_id));
         store
     }
@@ -313,6 +331,39 @@ impl SkillLineStore {
 
     pub fn contains_effective_record_like_cpp(&self, id: u32) -> bool {
         self.effective_record_ids_like_cpp.contains(&id)
+    }
+
+    /// Effective acquisition payload used by `Player::SetSkill` and
+    /// `IsPrimaryProfessionSkill`.
+    pub fn acquisition_payload_like_cpp(&self, id: u32) -> SkillLineAcquisitionPayloadLikeCpp {
+        if !self.contains_effective_record_like_cpp(id) {
+            return SkillLineAcquisitionPayloadLikeCpp::Absent;
+        }
+
+        self.acquisition_fields_by_effective_record_like_cpp
+            .get(&id)
+            .copied()
+            .map(SkillLineAcquisitionPayloadLikeCpp::Complete)
+            .unwrap_or(SkillLineAcquisitionPayloadLikeCpp::Incomplete)
+    }
+
+    /// Whether every final effective `SkillLine` identity has the payload
+    /// required to project acquisition without guessing.
+    pub fn has_complete_acquisition_payload_like_cpp(&self) -> bool {
+        self.acquisition_fields_by_effective_record_like_cpp.len()
+            == self.effective_record_ids_like_cpp.len()
+    }
+
+    /// C++ `DB2Manager::GetSkillLinesForParentSkill`, projected to the
+    /// acquisition fields and ordered by final `RecordID`.
+    pub fn acquisition_children_for_parent_like_cpp(
+        &self,
+        parent_skill_line_id: u32,
+    ) -> impl Iterator<Item = (u32, SkillLineAcquisitionFieldsLikeCpp)> + '_ {
+        self.acquisition_fields_by_effective_record_like_cpp
+            .iter()
+            .filter(move |(_, fields)| fields.parent_skill_line_id == parent_skill_line_id)
+            .map(|(record_id, fields)| (*record_id, *fields))
     }
 
     pub fn len(&self) -> usize {
@@ -556,10 +607,10 @@ impl SkillLineStore {
     /// Loads the direct-record authority C++ exposes through
     /// `sSkillLineStore.LookupEntry`.
     ///
-    /// Full payload hydration remains the WDC4 subset above. The
-    /// category/parent fields needed for primary-profession authorization are
+    /// Full payload hydration remains the WDC4 subset above. The category,
+    /// parent, and parent-tier fields needed for acquisition authorization are
     /// overlaid exactly, including collisions with WDC4 records. Identity and
-    /// classification composition follow C++ `DB2StorageBase::LoadFromDB` and
+    /// acquisition-payload composition follow C++ `DB2StorageBase::LoadFromDB` and
     /// `DB2Manager::LoadHotfixData`: DB2, official SQL, custom SQL, then final
     /// record removals.
     pub async fn load_effective_like_cpp(
@@ -568,7 +619,7 @@ impl SkillLineStore {
         hotfix_db: &HotfixDatabase,
         removed_records: &Db2HotfixRemovalStoreLikeCpp,
     ) -> Result<Self> {
-        const SKILL_LINE_CLASSIFICATION_OVERLAY_SQL: &str = "SELECT ID, CategoryID, ParentSkillLineID FROM skill_line \
+        const SKILL_LINE_ACQUISITION_OVERLAY_SQL: &str = "SELECT ID, CategoryID, ParentSkillLineID, ParentTierIndex FROM skill_line \
              WHERE (`VerifiedBuild` > 0) = ?";
 
         let mut store = Self::load(data_dir, locale)?;
@@ -580,9 +631,8 @@ impl SkillLineStore {
         // C++ passes !custom into the predicate: true (official) first,
         // false (VerifiedBuild <= 0 custom rows) second.
         for (batch_index, official) in [true, false].into_iter().enumerate() {
-            let mut statement = hotfix_db.prepare(HotfixStatements::base(
-                SKILL_LINE_CLASSIFICATION_OVERLAY_SQL,
-            ));
+            let mut statement =
+                hotfix_db.prepare(HotfixStatements::base(SKILL_LINE_ACQUISITION_OVERLAY_SQL));
             statement.set_bool(0, official);
             let mut result = hotfix_db
                 .query(&statement)
@@ -593,13 +643,37 @@ impl SkillLineStore {
             }
 
             loop {
-                overlay_batches[batch_index].push((
-                    read_u32_like_cpp(&result, 0),
-                    PrimaryProfessionSkillLineFieldsLikeCpp {
-                        category_id: read_i8_like_cpp(&result, 1),
-                        parent_skill_line_id: read_u32_like_cpp(&result, 2),
-                    },
-                ));
+                let record_id =
+                    read_u32_checked_like_cpp(&result, 0).context("invalid SkillLine SQL ID")?;
+                let category_id = read_i128_checked_like_cpp(&result, 1)?;
+                let parent_skill_line_id = read_i128_checked_like_cpp(&result, 2)?;
+                let parent_tier_index = read_i128_checked_like_cpp(&result, 3)?;
+                let acquisition_fields = match (
+                    i8::try_from(category_id),
+                    u32::try_from(parent_skill_line_id),
+                    i32::try_from(parent_tier_index),
+                ) {
+                    (Ok(category_id), Ok(parent_skill_line_id), Ok(parent_tier_index)) => {
+                        Some(SkillLineAcquisitionFieldsLikeCpp {
+                            category_id,
+                            parent_skill_line_id,
+                            parent_tier_index,
+                        })
+                    }
+                    _ => {
+                        warn!(
+                            record_id,
+                            category_id,
+                            parent_skill_line_id,
+                            parent_tier_index,
+                            official,
+                            "SkillLine SQL overlay has an out-of-domain acquisition payload; \
+                             retaining its effective identity as incomplete"
+                        );
+                        None
+                    }
+                };
+                overlay_batches[batch_index].push((record_id, acquisition_fields));
                 if !result.next_row() {
                     break;
                 }
@@ -614,9 +688,9 @@ impl SkillLineStore {
             table_hash,
             removed_records,
         );
-        store.primary_profession_fields_by_effective_record_like_cpp =
-            compose_effective_primary_profession_fields_like_cpp(
-                std::mem::take(&mut store.primary_profession_fields_by_effective_record_like_cpp),
+        store.acquisition_fields_by_effective_record_like_cpp =
+            compose_effective_skill_line_acquisition_payloads_like_cpp(
+                std::mem::take(&mut store.acquisition_fields_by_effective_record_like_cpp),
                 official_overlays,
                 custom_overlays,
                 &store.effective_record_ids_like_cpp,
@@ -631,7 +705,9 @@ impl SkillLineStore {
         const CURRENT_EXPANSION_LIKE_CPP: i32 = 2;
         const BASE_PARENT_TIER_INDEX_LIKE_CPP: i32 = 4;
 
-        let Some(skill) = self.get(skill_id) else {
+        let SkillLineAcquisitionPayloadLikeCpp::Complete(skill) =
+            self.acquisition_payload_like_cpp(skill_id)
+        else {
             return 0;
         };
         if skill.parent_skill_line_id != 0
@@ -647,13 +723,16 @@ impl SkillLineStore {
             expansion = CURRENT_EXPANSION_LIKE_CPP;
         }
 
-        self.entries
-            .values()
-            .find(|child| {
-                child.parent_skill_line_id == skill.id
-                    && child.parent_tier_index - BASE_PARENT_TIER_INDEX_LIKE_CPP == expansion
+        self.acquisition_fields_by_effective_record_like_cpp
+            .iter()
+            .find(|(_, child)| {
+                child.parent_skill_line_id == skill_id
+                    && child
+                        .parent_tier_index
+                        .checked_sub(BASE_PARENT_TIER_INDEX_LIKE_CPP)
+                        == Some(expansion)
             })
-            .map(|child| child.id)
+            .map(|(child_id, _)| *child_id)
             .unwrap_or(0)
     }
 
@@ -669,16 +748,14 @@ impl SkillLineStore {
     pub fn is_primary_profession_skill_like_cpp(&self, skill_id: u32) -> Option<bool> {
         const SKILL_CATEGORY_PROFESSION_LIKE_CPP: i8 = 11;
 
-        if !self.contains_effective_record_like_cpp(skill_id) {
-            return Some(false);
-        }
-
-        self.primary_profession_fields_by_effective_record_like_cpp
-            .get(&skill_id)
-            .map(|fields| {
+        match self.acquisition_payload_like_cpp(skill_id) {
+            SkillLineAcquisitionPayloadLikeCpp::Absent => Some(false),
+            SkillLineAcquisitionPayloadLikeCpp::Incomplete => None,
+            SkillLineAcquisitionPayloadLikeCpp::Complete(fields) => Some(
                 fields.category_id == SKILL_CATEGORY_PROFESSION_LIKE_CPP
-                    && fields.parent_skill_line_id == 0
-            })
+                    && fields.parent_skill_line_id == 0,
+            ),
+        }
     }
 }
 
@@ -785,47 +862,60 @@ fn compose_effective_skill_line_ids_like_cpp(
     effective_ids
 }
 
-fn compose_effective_primary_profession_fields_like_cpp(
-    base_fields: impl IntoIterator<Item = (u32, PrimaryProfessionSkillLineFieldsLikeCpp)>,
-    official_overlays: impl IntoIterator<Item = (u32, PrimaryProfessionSkillLineFieldsLikeCpp)>,
-    custom_overlays: impl IntoIterator<Item = (u32, PrimaryProfessionSkillLineFieldsLikeCpp)>,
+#[cfg(test)]
+fn compose_effective_skill_line_acquisition_fields_like_cpp(
+    base_fields: impl IntoIterator<Item = (u32, SkillLineAcquisitionFieldsLikeCpp)>,
+    official_overlays: impl IntoIterator<Item = (u32, SkillLineAcquisitionFieldsLikeCpp)>,
+    custom_overlays: impl IntoIterator<Item = (u32, SkillLineAcquisitionFieldsLikeCpp)>,
     effective_ids: &HashSet<u32>,
-) -> HashMap<u32, PrimaryProfessionSkillLineFieldsLikeCpp> {
-    let mut fields: HashMap<_, _> = base_fields.into_iter().collect();
-    fields.extend(official_overlays);
-    fields.extend(custom_overlays);
-    fields.retain(|record_id, _| effective_ids.contains(record_id));
-    fields
+) -> BTreeMap<u32, SkillLineAcquisitionFieldsLikeCpp> {
+    compose_effective_skill_line_acquisition_payloads_like_cpp(
+        base_fields,
+        official_overlays
+            .into_iter()
+            .map(|(record_id, fields)| (record_id, Some(fields))),
+        custom_overlays
+            .into_iter()
+            .map(|(record_id, fields)| (record_id, Some(fields))),
+        effective_ids,
+    )
 }
 
-fn read_u32_like_cpp(result: &SqlResult, column: usize) -> u32 {
-    result
-        .try_read::<u32>(column)
-        .or_else(|| result.try_read::<i32>(column).map(|value| value as u32))
-        .or_else(|| result.try_read::<u64>(column).map(|value| value as u32))
-        .or_else(|| result.try_read::<i64>(column).map(|value| value as u32))
-        .unwrap_or(0)
+fn compose_effective_skill_line_acquisition_payloads_like_cpp(
+    base_fields: impl IntoIterator<Item = (u32, SkillLineAcquisitionFieldsLikeCpp)>,
+    official_overlays: impl IntoIterator<Item = (u32, Option<SkillLineAcquisitionFieldsLikeCpp>)>,
+    custom_overlays: impl IntoIterator<Item = (u32, Option<SkillLineAcquisitionFieldsLikeCpp>)>,
+    effective_ids: &HashSet<u32>,
+) -> BTreeMap<u32, SkillLineAcquisitionFieldsLikeCpp> {
+    let mut payloads: BTreeMap<_, _> = base_fields
+        .into_iter()
+        .map(|(record_id, fields)| (record_id, Some(fields)))
+        .collect();
+    payloads.extend(official_overlays);
+    payloads.extend(custom_overlays);
+    payloads
+        .into_iter()
+        .filter_map(|(record_id, fields)| {
+            effective_ids
+                .contains(&record_id)
+                .then_some(fields)
+                .flatten()
+                .map(|fields| (record_id, fields))
+        })
+        .collect()
 }
 
-fn read_i8_like_cpp(result: &SqlResult, column: usize) -> i8 {
+fn read_i128_checked_like_cpp(result: &SqlResult, column: usize) -> Result<i128> {
     result
-        .try_read::<i8>(column)
-        .or_else(|| {
-            result
-                .try_read::<i16>(column)
-                .and_then(|value| i8::try_from(value).ok())
-        })
-        .or_else(|| {
-            result
-                .try_read::<i32>(column)
-                .and_then(|value| i8::try_from(value).ok())
-        })
-        .or_else(|| {
-            result
-                .try_read::<i64>(column)
-                .and_then(|value| i8::try_from(value).ok())
-        })
-        .unwrap_or(0)
+        .try_read::<i64>(column)
+        .map(i128::from)
+        .or_else(|| result.try_read::<u64>(column).map(i128::from))
+        .with_context(|| format!("missing or non-integer SQL column {column}"))
+}
+
+fn read_u32_checked_like_cpp(result: &SqlResult, column: usize) -> Result<u32> {
+    let value = read_i128_checked_like_cpp(result, column)?;
+    u32::try_from(value).with_context(|| format!("SQL column {column} value {value} is not u32"))
 }
 
 fn load_store<T, S>(
@@ -933,6 +1023,7 @@ mod tests {
     fn profession_skill_for_exp_matches_cpp_parent_child_rules() {
         let store = SkillLineStore::from_entries([
             skill_line(356, 9, 0, 0),
+            skill_line(900, 9, 356, i32::MIN),
             skill_line(1_000, 9, 356, 4),
             skill_line(1_001, 9, 356, 5),
             skill_line(777, 11, 0, 0),
@@ -982,9 +1073,18 @@ mod tests {
             "effective identity without hydrated category/parent must remain distinguishable"
         );
         assert_eq!(
+            store.acquisition_payload_like_cpp(300),
+            SkillLineAcquisitionPayloadLikeCpp::Incomplete
+        );
+        assert!(!store.has_complete_acquisition_payload_like_cpp());
+        assert_eq!(
             store.is_primary_profession_skill_like_cpp(999),
             Some(false),
             "C++ LookupEntry failure classifies a genuinely absent ID as non-primary"
+        );
+        assert_eq!(
+            store.acquisition_payload_like_cpp(999),
+            SkillLineAcquisitionPayloadLikeCpp::Absent
         );
     }
 
@@ -1016,44 +1116,49 @@ mod tests {
     #[test]
     fn primary_profession_classification_applies_official_then_custom_sql_collisions() {
         let effective_ids = HashSet::from([100, 200, 300]);
-        let fields = compose_effective_primary_profession_fields_like_cpp(
+        let fields = compose_effective_skill_line_acquisition_fields_like_cpp(
             [
                 (
                     100,
-                    PrimaryProfessionSkillLineFieldsLikeCpp {
+                    SkillLineAcquisitionFieldsLikeCpp {
                         category_id: 9,
                         parent_skill_line_id: 0,
+                        parent_tier_index: 0,
                     },
                 ),
                 (
                     200,
-                    PrimaryProfessionSkillLineFieldsLikeCpp {
+                    SkillLineAcquisitionFieldsLikeCpp {
                         category_id: 11,
                         parent_skill_line_id: 0,
+                        parent_tier_index: 0,
                     },
                 ),
             ],
             [
                 (
                     100,
-                    PrimaryProfessionSkillLineFieldsLikeCpp {
+                    SkillLineAcquisitionFieldsLikeCpp {
                         category_id: 11,
                         parent_skill_line_id: 0,
+                        parent_tier_index: 0,
                     },
                 ),
                 (
                     300,
-                    PrimaryProfessionSkillLineFieldsLikeCpp {
+                    SkillLineAcquisitionFieldsLikeCpp {
                         category_id: 11,
                         parent_skill_line_id: 0,
+                        parent_tier_index: 0,
                     },
                 ),
             ],
             [(
                 200,
-                PrimaryProfessionSkillLineFieldsLikeCpp {
+                SkillLineAcquisitionFieldsLikeCpp {
                     category_id: 11,
                     parent_skill_line_id: 100,
+                    parent_tier_index: 4,
                 },
             )],
             &effective_ids,
@@ -1061,7 +1166,7 @@ mod tests {
         let mut store =
             SkillLineStore::from_entries([skill_line(100, 9, 0, 0), skill_line(200, 11, 0, 0)]);
         store.effective_record_ids_like_cpp = effective_ids;
-        store.primary_profession_fields_by_effective_record_like_cpp = fields;
+        store.acquisition_fields_by_effective_record_like_cpp = fields;
 
         assert_eq!(
             store.is_primary_profession_skill_like_cpp(100),
@@ -1078,10 +1183,89 @@ mod tests {
             Some(true),
             "SQL-only rows are decidable when the exact required fields are hydrated"
         );
+        assert_eq!(
+            store.acquisition_payload_like_cpp(200),
+            SkillLineAcquisitionPayloadLikeCpp::Complete(SkillLineAcquisitionFieldsLikeCpp {
+                category_id: 11,
+                parent_skill_line_id: 100,
+                parent_tier_index: 4,
+            })
+        );
+        assert_eq!(
+            store
+                .acquisition_children_for_parent_like_cpp(100)
+                .collect::<Vec<_>>(),
+            vec![(
+                200,
+                SkillLineAcquisitionFieldsLikeCpp {
+                    category_id: 11,
+                    parent_skill_line_id: 100,
+                    parent_tier_index: 4,
+                }
+            )],
+            "SetSkill parent activation must see final SQL parent/tier payload"
+        );
+        assert_eq!(
+            store.profession_skill_for_exp_like_cpp(100, 0),
+            200,
+            "profession expansion lookup must use the effective parent/tier payload"
+        );
+        assert!(store.has_complete_acquisition_payload_like_cpp());
         assert!(
             store.get(300).is_none(),
             "classification hydration must not fabricate the remaining SkillLine payload"
         );
+    }
+
+    #[test]
+    fn final_invalid_skill_line_overlay_replaces_stale_payload_and_can_be_repaired_or_removed() {
+        let root = SkillLineAcquisitionFieldsLikeCpp {
+            category_id: 11,
+            parent_skill_line_id: 0,
+            parent_tier_index: 0,
+        };
+        let repaired_child = SkillLineAcquisitionFieldsLikeCpp {
+            category_id: 11,
+            parent_skill_line_id: 200,
+            parent_tier_index: 4,
+        };
+        let effective_ids = HashSet::from([100, 200, 300]);
+        let fields = compose_effective_skill_line_acquisition_payloads_like_cpp(
+            [(100, root), (200, root), (300, root), (400, root)],
+            [(100, None), (200, None), (400, None)],
+            [(200, Some(repaired_child)), (300, None)],
+            &effective_ids,
+        );
+        let mut store = SkillLineStore::from_entries([
+            skill_line(100, 11, 0, 0),
+            skill_line(200, 11, 0, 0),
+            skill_line(300, 11, 0, 0),
+            skill_line(400, 11, 0, 0),
+        ]);
+        store.effective_record_ids_like_cpp = effective_ids;
+        store.acquisition_fields_by_effective_record_like_cpp = fields;
+
+        assert_eq!(
+            store.acquisition_payload_like_cpp(100),
+            SkillLineAcquisitionPayloadLikeCpp::Incomplete,
+            "an invalid official overlay must replace the stale WDC4 payload"
+        );
+        assert_eq!(
+            store.acquisition_payload_like_cpp(200),
+            SkillLineAcquisitionPayloadLikeCpp::Complete(repaired_child),
+            "a valid custom overlay must repair an invalid official payload"
+        );
+        assert_eq!(
+            store.acquisition_payload_like_cpp(300),
+            SkillLineAcquisitionPayloadLikeCpp::Incomplete,
+            "an invalid final custom overlay must replace the stale WDC4 payload"
+        );
+        assert_eq!(
+            store.acquisition_payload_like_cpp(400),
+            SkillLineAcquisitionPayloadLikeCpp::Absent,
+            "a final removal must erase even an invalid SQL overlay identity"
+        );
+        assert!(!store.has_complete_acquisition_payload_like_cpp());
     }
 
     #[test]
