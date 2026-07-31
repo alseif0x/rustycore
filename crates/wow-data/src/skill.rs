@@ -2248,7 +2248,9 @@ fn matches_race(mask: i64, race: u8) -> bool {
 }
 
 /// C++ `Trinity::RaceMask::GetMaskForRace`.
-fn race_mask_for_race_like_cpp(race: u8) -> i64 {
+///
+/// Returns zero for IDs that are not player races in C++ `Races`.
+pub fn race_mask_for_race_like_cpp(race: u8) -> i64 {
     let bit = match race {
         1..=11 | 22 | 24..=32 => Some(race - 1),
         34 => Some(11),

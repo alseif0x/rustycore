@@ -355,15 +355,42 @@ impl SkillLineStore {
     }
 
     /// C++ `DB2Manager::GetSkillLinesForParentSkill`, projected to the
-    /// acquisition fields and ordered by final `RecordID`.
+    /// acquisition payload and ordered by final `RecordID`.
+    ///
+    /// An effective identity whose final parent payload is not hydrated is
+    /// returned as [`SkillLineAcquisitionPayloadLikeCpp::Incomplete`] for
+    /// every parent query. Rust cannot prove that such a record is not one of
+    /// C++'s children, so silently filtering it out would turn missing
+    /// authority into a deterministic (and potentially incomplete)
+    /// `Player::SetSkill` projection.
     pub fn acquisition_children_for_parent_like_cpp(
         &self,
         parent_skill_line_id: u32,
-    ) -> impl Iterator<Item = (u32, SkillLineAcquisitionFieldsLikeCpp)> + '_ {
-        self.acquisition_fields_by_effective_record_like_cpp
+    ) -> impl Iterator<Item = (u32, SkillLineAcquisitionPayloadLikeCpp)> {
+        let mut children_or_indeterminate = self
+            .effective_record_ids_like_cpp
             .iter()
-            .filter(move |(_, fields)| fields.parent_skill_line_id == parent_skill_line_id)
-            .map(|(record_id, fields)| (*record_id, *fields))
+            .copied()
+            .filter_map(
+                |record_id| match self.acquisition_payload_like_cpp(record_id) {
+                    SkillLineAcquisitionPayloadLikeCpp::Complete(fields)
+                        if fields.parent_skill_line_id == parent_skill_line_id =>
+                    {
+                        Some((
+                            record_id,
+                            SkillLineAcquisitionPayloadLikeCpp::Complete(fields),
+                        ))
+                    }
+                    SkillLineAcquisitionPayloadLikeCpp::Incomplete => {
+                        Some((record_id, SkillLineAcquisitionPayloadLikeCpp::Incomplete))
+                    }
+                    SkillLineAcquisitionPayloadLikeCpp::Absent
+                    | SkillLineAcquisitionPayloadLikeCpp::Complete(_) => None,
+                },
+            )
+            .collect::<Vec<_>>();
+        children_or_indeterminate.sort_unstable_by_key(|(record_id, _)| *record_id);
+        children_or_indeterminate.into_iter()
     }
 
     pub fn len(&self) -> usize {
@@ -1197,11 +1224,11 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![(
                 200,
-                SkillLineAcquisitionFieldsLikeCpp {
+                SkillLineAcquisitionPayloadLikeCpp::Complete(SkillLineAcquisitionFieldsLikeCpp {
                     category_id: 11,
                     parent_skill_line_id: 100,
                     parent_tier_index: 4,
-                }
+                },)
             )],
             "SetSkill parent activation must see final SQL parent/tier payload"
         );
@@ -1214,6 +1241,56 @@ mod tests {
         assert!(
             store.get(300).is_none(),
             "classification hydration must not fabricate the remaining SkillLine payload"
+        );
+    }
+
+    #[test]
+    fn parent_child_projection_retains_unhydrated_effective_identities() {
+        let store = SkillLineStore::from_hydrated_entries_and_effective_ids_like_cpp(
+            [
+                skill_line(100, 11, 0, 0),
+                skill_line(200, 11, 100, 4),
+                skill_line(300, 11, 999, 4),
+            ],
+            [100, 150, 200, 300],
+        );
+
+        assert_eq!(
+            store
+                .acquisition_children_for_parent_like_cpp(100)
+                .collect::<Vec<_>>(),
+            vec![
+                (150, SkillLineAcquisitionPayloadLikeCpp::Incomplete),
+                (
+                    200,
+                    SkillLineAcquisitionPayloadLikeCpp::Complete(
+                        SkillLineAcquisitionFieldsLikeCpp {
+                            category_id: 11,
+                            parent_skill_line_id: 100,
+                            parent_tier_index: 4,
+                        },
+                    ),
+                ),
+            ],
+            "an effective identity with unknown parentage must not disappear"
+        );
+        assert_eq!(
+            store
+                .acquisition_children_for_parent_like_cpp(999)
+                .collect::<Vec<_>>(),
+            vec![
+                (150, SkillLineAcquisitionPayloadLikeCpp::Incomplete),
+                (
+                    300,
+                    SkillLineAcquisitionPayloadLikeCpp::Complete(
+                        SkillLineAcquisitionFieldsLikeCpp {
+                            category_id: 11,
+                            parent_skill_line_id: 999,
+                            parent_tier_index: 4,
+                        },
+                    ),
+                ),
+            ],
         );
     }
 

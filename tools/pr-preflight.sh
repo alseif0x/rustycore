@@ -478,7 +478,7 @@ run_check() {
     -p bnet-server \
     -p world-server
   cargo_cmd check --locked --manifest-path tools/wow-test-bot/Cargo.toml
-  cargo_cmd build --locked -p bnet-server -p world-server
+  cargo_cmd build --locked -j1 -p bnet-server -p world-server
   cargo_cmd clippy --locked --no-deps --message-format short \
     -p wow-loot \
     -p wow-entities \
@@ -999,6 +999,9 @@ run_self_test() {
     "CI profile did not print the loot-authority clippy command"
   [[ "$ci_dry_run_output" == *"clippy --locked --no-deps --message-format short -p wow-world --lib -- --cap-lints warn"* ]] || die \
     "CI profile did not print the capped wow-world clippy command"
+  require_exact_occurrences "$ci_dry_run_output" \
+    "build --locked -j1 -p bnet-server -p world-server" 1 \
+    "local CI serialized linked-server build"
   [[ "$ci_dry_run_output" == *"test --locked -p wow-loot --lib"* ]] || die \
     "CI profile did not print the wow-loot tests"
   [[ "$ci_dry_run_output" == *"test --locked -p wow-entities --lib"* ]] || die \
@@ -1038,6 +1041,9 @@ run_self_test() {
   require_exact_occurrences "$github_workflow_text" \
     'CARGO_INCREMENTAL: "0"' 2 \
     "GitHub workflow non-incremental Rust 1.88 contract"
+  require_exact_occurrences "$github_workflow_text" \
+    "cargo +1.88.0 build --locked -j1 -p bnet-server -p world-server" 1 \
+    "GitHub workflow serialized linked-server build"
   require_exact_occurrences "$github_workflow_text" \
     "cargo +1.88.0 test --locked -p capture-diff" 1 \
     "GitHub workflow capture-diff test command"

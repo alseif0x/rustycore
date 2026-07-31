@@ -193,6 +193,33 @@ must_use_candidate = "allow"
 missing_errors_doc = "allow"
 missing_panics_doc = "allow"
 
+[profile.dev]
+# This workspace's combined type DWARF exceeds GNU ld's 32-bit debug
+# relocations. Line tables keep useful backtraces without that linker input.
+debug = 1
+
+[profile.test]
+# Keep line tables for useful backtraces without emitting the complete type
+# DWARF that triggers LLVM 20 codegen failures on the large test crates.
+debug = 1
+
+[profile.test.package.wow-world]
+# The monolithic wow-world lib-test still crashes Rust 1.88/LLVM 20 while
+# finalizing even line-table-only debug data. Keep the rest of the workspace
+# at line tables, but compile this one test package without DWARF.
+debug = 0
+
+[profile.dev.package.wow-world]
+# Full dev DWARF for this crate exceeds the linker's 32-bit debug relocation
+# range once linked into world-server. Keep debuginfo for smaller packages.
+debug = 0
+
+[profile.dev.package.world-server]
+# The monolithic server binary crashes Rust 1.88/LLVM 20 during the
+# CI-equivalent linked debug build even with line-table-only DWARF. Keep
+# debuginfo for smaller dependencies, but omit it here until the binary is split.
+debug = 0
+
 [profile.release]
 lto = "thin"
 codegen-units = 1
