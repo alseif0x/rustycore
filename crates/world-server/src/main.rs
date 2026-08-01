@@ -2308,8 +2308,14 @@ async fn main() -> Result<ExitCode> {
         spell_class_options_store.len()
     );
     let spell_equipped_items_store = Arc::new(
-        wow_data::SpellEquippedItemsStore::load(&data_dir, &locale)
-            .context("Failed to load SpellEquippedItems.db2")?,
+        wow_data::SpellEquippedItemsStore::load_effective_like_cpp(
+            &data_dir,
+            &locale,
+            &hotfix_db,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellEquippedItems authority")?,
     );
     info!(
         "Loaded {} spell equipped items rows",

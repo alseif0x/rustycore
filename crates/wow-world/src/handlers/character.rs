@@ -4627,12 +4627,36 @@ impl WorldSession {
     /// to redirect the client to the instance port. The login sequence is sent
     /// after the client reconnects via `handle_continue_player_login`.
     pub async fn handle_player_login(&mut self, pkt: PlayerLogin) {
+        if self.player_loading().is_some() || self.player_guid().is_some() {
+            warn!(
+                account = self.account_id,
+                "Player tried to login while another character is loading or active"
+            );
+            self.kick("WorldSession::HandlePlayerLoginOpcode Another client logging in");
+            return;
+        }
+
         // Verify character ownership
         if !self.is_legit_character(&pkt.guid) {
             warn!(
                 "Account {} tried to login with non-owned character {:?}",
                 self.account_id, pkt.guid
             );
+            return;
+        }
+
+        // C++ exposes one live `Player*` per character GUID through
+        // ObjectAccessor. Claim that ownership before ConnectTo/DB loading so
+        // two sessions cannot become independent save authorities.
+        if !self.try_claim_character_login_like_cpp(pkt.guid) {
+            warn!(
+                account = self.account_id,
+                guid = ?pkt.guid,
+                "Rejecting duplicate live-character login"
+            );
+            self.send_packet(&CharacterLoginFailed {
+                code: LoginFailureReasonLikeCpp::DuplicateCharacter,
+            });
             return;
         }
 
@@ -5111,6 +5135,7 @@ impl WorldSession {
         self.unregister_from_player_registry();
         self.notify_other_players_visibility_changed_like_cpp();
         self.unregister_from_object_accessor();
+        self.release_character_login_claim_like_cpp();
 
         // Send LogoutComplete → client returns to character select
         self.set_state(crate::session::SessionState::Authed);
@@ -5448,6 +5473,7 @@ impl WorldSession {
                 self.account_id
             );
             self.set_player_loading(None);
+            self.release_character_login_claim_like_cpp();
             self.set_connect_to_key(None);
             self.set_connect_to_serial(None);
             self.send_packet(&CharacterLoginFailed {
@@ -5484,6 +5510,7 @@ impl WorldSession {
             Some(db) => Arc::clone(db),
             None => {
                 warn!("No character database for continue login");
+                self.release_character_login_claim_like_cpp();
                 return;
             }
         };
@@ -5495,12 +5522,14 @@ impl WorldSession {
             Ok(r) => r,
             Err(e) => {
                 warn!("Failed to load character {:?}: {e}", guid);
+                self.release_character_login_claim_like_cpp();
                 return;
             }
         };
 
         if result.is_empty() {
             warn!("Character {:?} not found in database", guid);
+            self.release_character_login_claim_like_cpp();
             return;
         }
 

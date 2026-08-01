@@ -23,14 +23,18 @@ adapter share one immutable offer decision. Normal trainer teaching now revalida
 under the exclusive money owner, commits effective money plus the exact #164 spell/skill result in
 one Character DB transaction, attributes unknown COMMIT outcomes with a durable 128-bit operation
 token, installs runtime state, and then publishes money, visual kits 179/362 and acquisition actions
-in C++ success order. Trainer failures and visuals use the Realm connection; creature visual fanout
+in C++ success order. A process-wide pre-ConnectTo character claim rejects a second live session
+for the same GUID, preserving C++'s single `Player*` save authority; ordinary pending spell/skill
+changes are saved before trainer preparation instead of making the trainer unavailable until the
+next autosave. Trainer failures and visuals use the Realm connection; creature visual fanout
 retains the already validated canonical-or-legacy source position. Castable wrappers
 require both a startup audit of effective/world-table blockers and a fresh player effect-mask proof;
 active auras now match covered `EffectAura`/`EffectAttributes` and negative aura-link immunity to the exact wrapper
 effect/spell while startup excludes unsupported mechanic/state shapes; full C++ immunity-map parity
 remains deferred until canonical Unit ownership.
-Aura restrictions and craft reagents compose DB2, official/custom hotfix overlays and final
-removals. Craft startup authority rejects a craft when its created item or any positive reagent
+Aura restrictions, equipped-item restrictions and craft reagents compose DB2,
+official/custom hotfix overlays and final removals. Craft startup authority rejects a craft when
+its created item or any positive reagent
 effective sparse item template is absent, matching
 `SpellMgr::IsSpellValid`.
 Deterministic player `EffectLearnSpell` retains its distinct immediate-runtime/deferred-save timing.

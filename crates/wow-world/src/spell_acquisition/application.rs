@@ -152,6 +152,21 @@ pub(crate) enum PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp {
     PublicationInterrupted,
 }
 
+pub(crate) fn snapshot_has_pending_durable_save_like_cpp(
+    snapshot: &PlayerSpellAcquisitionSnapshotLikeCpp,
+) -> bool {
+    snapshot.spells.iter().any(|spell| {
+        !matches!(
+            spell.state,
+            PlayerSpellPersistenceStateLikeCpp::Unchanged
+                | PlayerSpellPersistenceStateLikeCpp::Temporary
+        )
+    }) || snapshot
+        .skills
+        .iter()
+        .any(|skill| skill.state != PlayerSkillPersistenceStateLikeCpp::Unchanged)
+}
+
 pub(crate) fn prepare_player_spell_acquisition_like_cpp(
     plan: &SpellAcquisitionPlanLikeCpp,
     profession_plan: &PrimaryProfessionCapacityPlanLikeCpp,
@@ -2449,6 +2464,7 @@ mod tests {
         let mut unsaved_spell = source.clone();
         unsaved_spell.spells[0].state = PlayerSpellPersistenceStateLikeCpp::Changed;
         assert!(stable_source_durable_authority_like_cpp(&unsaved_spell).is_none());
+        assert!(snapshot_has_pending_durable_save_like_cpp(&unsaved_spell));
 
         let mut with_temporary_spell = source.clone();
         with_temporary_spell
@@ -2458,10 +2474,14 @@ mod tests {
             stable_source_durable_authority_like_cpp(&with_temporary_spell),
             stable_source_durable_authority_like_cpp(&source)
         );
+        assert!(!snapshot_has_pending_durable_save_like_cpp(
+            &with_temporary_spell
+        ));
 
         let mut unsaved_skill = source;
         unsaved_skill.skills[0].state = PlayerSkillPersistenceStateLikeCpp::New;
         assert!(stable_source_durable_authority_like_cpp(&unsaved_skill).is_none());
+        assert!(snapshot_has_pending_durable_save_like_cpp(&unsaved_skill));
     }
 
     fn direct_learn_actions(

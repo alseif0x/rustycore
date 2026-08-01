@@ -10,7 +10,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 #[cfg(test)]
 use std::sync::atomic::AtomicUsize;
 use std::sync::{
-    Arc, Mutex, OnceLock,
+    Arc, Mutex, OnceLock, Weak,
     atomic::{AtomicBool, AtomicI64, Ordering},
 };
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -285,6 +285,15 @@ pub(crate) struct ExclusivePlayerMoneyPersistenceLikeCpp {
     _save_fence: DurableLootMoneySaveFenceLikeCpp,
     _mutation_lock: tokio::sync::OwnedMutexGuard<()>,
 }
+
+/// Process-wide ownership of a character's live `Player` runtime.
+///
+/// C++ has one `Player*` per GUID in `ObjectAccessor`; accepting a second
+/// session would create two independent save authorities for the same rows.
+/// Reserve the GUID before the asynchronous login pipeline starts. Weak
+/// values make an abandoned session claim recoverable without a global sweep.
+static ACTIVE_CHARACTER_LOGIN_CLAIMS_LIKE_CPP: OnceLock<dashmap::DashMap<ObjectGuid, Weak<()>>> =
+    OnceLock::new();
 
 /// Pure post-reset snapshot used to make the durable talent reset and its
 /// runtime publication describe the same state.
@@ -5252,6 +5261,8 @@ pub struct WorldSession {
     // ── ConnectTo flow ──────────────────────────────────────────
     /// GUID of the character being logged in (set during PlayerLogin).
     player_loading: Option<ObjectGuid>,
+    /// Strong identity for this session's process-wide live-character claim.
+    player_login_claim_like_cpp: Option<(ObjectGuid, Arc<()>)>,
     /// C++ `WorldSession::m_playerLogout`: true only while the logout routine is executing.
     player_logout_like_cpp: bool,
 
@@ -7420,6 +7431,7 @@ impl WorldSession {
             legit_characters: Vec::new(),
             pending_packets: Vec::new(),
             player_loading: None,
+            player_login_claim_like_cpp: None,
             player_logout_like_cpp: false,
             connect_to_key: None,
             connect_to_serial: None,
@@ -34433,6 +34445,7 @@ impl WorldSession {
         self.notify_other_players_visibility_changed_like_cpp();
         self.unregister_canonical_player_from_map_like_cpp();
         self.unregister_from_object_accessor();
+        self.release_character_login_claim_like_cpp();
         self.clear_inventory_items_and_objects_like_cpp();
     }
 
@@ -34591,6 +34604,57 @@ impl WorldSession {
     pub fn set_player_loading(&mut self, guid: Option<ObjectGuid>) {
         self.player_loading = guid;
         self.sync_current_player_session_visibility_detection_like_cpp();
+    }
+
+    /// Atomically reserve the only live runtime authority for `guid`.
+    /// Re-entry by this same session is idempotent; a live foreign claim is
+    /// rejected before either session can load and later save stale rows.
+    pub(crate) fn try_claim_character_login_like_cpp(&mut self, guid: ObjectGuid) -> bool {
+        if self
+            .player_login_claim_like_cpp
+            .as_ref()
+            .is_some_and(|(claimed_guid, _)| *claimed_guid == guid)
+        {
+            return true;
+        }
+        self.release_character_login_claim_like_cpp();
+
+        let claims = ACTIVE_CHARACTER_LOGIN_CLAIMS_LIKE_CPP.get_or_init(Default::default);
+        match claims.entry(guid) {
+            dashmap::mapref::entry::Entry::Vacant(entry) => {
+                let identity = Arc::new(());
+                entry.insert(Arc::downgrade(&identity));
+                self.player_login_claim_like_cpp = Some((guid, identity));
+                true
+            }
+            dashmap::mapref::entry::Entry::Occupied(mut entry) => {
+                if entry.get().upgrade().is_some() {
+                    return false;
+                }
+                let identity = Arc::new(());
+                entry.insert(Arc::downgrade(&identity));
+                self.player_login_claim_like_cpp = Some((guid, identity));
+                true
+            }
+        }
+    }
+
+    pub(crate) fn release_character_login_claim_like_cpp(&mut self) {
+        let Some((guid, identity)) = self.player_login_claim_like_cpp.take() else {
+            return;
+        };
+        let Some(claims) = ACTIVE_CHARACTER_LOGIN_CLAIMS_LIKE_CPP.get() else {
+            return;
+        };
+        if let Some(entry) = claims.get(&guid) {
+            let owns_claim = entry
+                .upgrade()
+                .is_some_and(|current| Arc::ptr_eq(&current, &identity));
+            drop(entry);
+            if owns_claim {
+                claims.remove(&guid);
+            }
+        }
     }
 
     /// Get the player loading GUID.
@@ -66730,6 +66794,21 @@ mod tests {
         );
 
         (session, pkt_tx, send_rx)
+    }
+
+    #[test]
+    fn character_login_claim_allows_only_one_live_session_like_cpp() {
+        let guid = ObjectGuid::create_player(1, 0x7FFF_FF01);
+        let (mut first, _, _) = make_session();
+        let (mut second, _, _) = make_session();
+
+        assert!(first.try_claim_character_login_like_cpp(guid));
+        assert!(first.try_claim_character_login_like_cpp(guid));
+        assert!(!second.try_claim_character_login_like_cpp(guid));
+
+        first.release_character_login_claim_like_cpp();
+        assert!(second.try_claim_character_login_like_cpp(guid));
+        second.release_character_login_claim_like_cpp();
     }
 
     #[test]

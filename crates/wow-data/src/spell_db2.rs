@@ -1129,6 +1129,11 @@ impl SpellEffectDb2Store {
 }
 
 impl SpellEquippedItemsStore {
+    const HOTFIX_OVERLAY_SQL_LIKE_CPP: &'static str = concat!(
+        "SELECT ID, SpellID, EquippedItemClass, EquippedItemInvTypes, ",
+        "EquippedItemSubclass FROM spell_equipped_items WHERE (`VerifiedBuild` > 0) = ?"
+    );
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SpellEquippedItems.db2", |id, idx, r| {
             SpellEquippedItemsEntry {
@@ -1145,6 +1150,59 @@ impl SpellEquippedItemsStore {
         self.entries
             .values()
             .find(|entry| entry.spell_id == spell_id)
+    }
+
+    /// Load the effective C++ `sSpellEquippedItemsStore` authority: file rows,
+    /// official SQL replacements, custom SQL replacements, then final
+    /// `hotfix_data` tombstones.
+    pub async fn load_effective_like_cpp(
+        data_dir: &str,
+        locale: &str,
+        db: &HotfixDatabase,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) -> Result<Self> {
+        let mut store = Self::load(data_dir, locale)?;
+        for official in [true, false] {
+            let mut statement =
+                db.prepare(HotfixStatements::base(Self::HOTFIX_OVERLAY_SQL_LIKE_CPP));
+            statement.set_bool(0, official);
+            let mut result = db.query(&statement).await?;
+            if result.is_empty() {
+                continue;
+            }
+            loop {
+                let entry = SpellEquippedItemsEntry {
+                    id: result.try_read::<u32>(0).unwrap_or(0),
+                    spell_id: result.try_read::<i32>(1).unwrap_or(0),
+                    equipped_item_class: result.try_read::<i8>(2).unwrap_or(0),
+                    equipped_item_inv_types: result.try_read::<i32>(3).unwrap_or(0),
+                    equipped_item_subclass: result.try_read::<i32>(4).unwrap_or(0),
+                };
+                store.overlay_effective_row_like_cpp(entry);
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        let table_hash = store
+            .table_hash_like_cpp()
+            .context("SpellEquippedItems.db2 store is missing its WDC4 table hash")?;
+        store.apply_hotfix_removals_with_table_hash_like_cpp(table_hash, removals);
+        Ok(store)
+    }
+
+    fn overlay_effective_row_like_cpp(&mut self, entry: SpellEquippedItemsEntry) {
+        self.entries.insert(entry.id, entry);
+    }
+
+    fn apply_hotfix_removals_with_table_hash_like_cpp(
+        &mut self,
+        table_hash: u32,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) {
+        self.entries
+            .retain(|record_id, _| !removals.contains_like_cpp(table_hash, *record_id as i32));
     }
 }
 
@@ -1724,6 +1782,44 @@ mod tests {
         }]);
 
         assert_eq!(store.get(1).unwrap().spell_id, 10);
+    }
+
+    #[test]
+    fn spell_equipped_items_effective_overlay_and_removal_order_like_cpp() {
+        let mut store = SpellEquippedItemsStore::from_entries([
+            SpellEquippedItemsEntry {
+                id: 1,
+                spell_id: 100,
+                equipped_item_class: 2,
+                equipped_item_inv_types: 4,
+                equipped_item_subclass: 8,
+            },
+            SpellEquippedItemsEntry {
+                id: 2,
+                spell_id: 200,
+                equipped_item_class: 3,
+                equipped_item_inv_types: 5,
+                equipped_item_subclass: 9,
+            },
+        ]);
+        store.overlay_effective_row_like_cpp(SpellEquippedItemsEntry {
+            id: 1,
+            spell_id: 101,
+            equipped_item_class: 6,
+            equipped_item_inv_types: 7,
+            equipped_item_subclass: 10,
+        });
+        let removals =
+            crate::Db2HotfixRemovalStoreLikeCpp::from_status_rows_like_cpp([(0xAABB_CCDD, 2, 2)]);
+        store.apply_hotfix_removals_with_table_hash_like_cpp(0xAABB_CCDD, &removals);
+
+        let effective = store
+            .entry_for_spell_id_like_cpp(101)
+            .expect("overlay replacement");
+        assert_eq!(effective.id, 1);
+        assert_eq!(effective.equipped_item_class, 6);
+        assert!(store.entry_for_spell_id_like_cpp(100).is_none());
+        assert!(store.entry_for_spell_id_like_cpp(200).is_none());
     }
 
     #[test]

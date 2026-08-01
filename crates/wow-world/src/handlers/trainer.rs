@@ -578,6 +578,22 @@ impl WorldSession {
             });
             return;
         };
+
+        // Ordinary in-world LearnSpell/skill mutations remain dirty until
+        // Player::SaveToDB. Persist that current authority before preparing
+        // the trainer's absolute replacement; rejecting normal dirty state
+        // would make trainers unusable between autosaves. The duplicate-login
+        // claim keeps this save and the following purchase under the same sole
+        // live Player authority, while the purchase revalidates everything
+        // after both awaits.
+        if let Ok(snapshot) = self.spell_acquisition_snapshot_like_cpp(
+            crate::spell_acquisition::PlayerAcquisitionLifecycleLikeCpp::InWorld,
+            Vec::new(),
+            std::collections::BTreeMap::new(),
+        ) && crate::spell_acquisition::snapshot_has_pending_durable_save_like_cpp(&snapshot)
+        {
+            self.save_current_player_to_db_like_cpp().await;
+        }
         // Close detached money admission and reconcile every previously
         // admitted payout before deriving the price, balance or acquisition
         // snapshot that will be persisted.
