@@ -30097,14 +30097,17 @@ impl WorldSession {
         let Some(spell_store) = self.spell_store() else {
             return true;
         };
-        Self::represented_spell_valid_for_talent_with_seen_like_cpp(
-            spell_store,
-            spell_id,
-            &mut HashSet::new(),
-        )
+        Self::represented_spell_valid_with_seen_like_cpp(spell_store, spell_id, &mut HashSet::new())
     }
 
-    fn represented_spell_valid_for_talent_with_seen_like_cpp(
+    fn represented_spell_valid_for_learning_like_cpp(&self, spell_id: i32) -> bool {
+        let Some(spell_store) = self.spell_store() else {
+            return false;
+        };
+        Self::represented_spell_valid_with_seen_like_cpp(spell_store, spell_id, &mut HashSet::new())
+    }
+
+    fn represented_spell_valid_with_seen_like_cpp(
         spell_store: &wow_data::SpellStore,
         spell_id: i32,
         seen: &mut HashSet<i32>,
@@ -30124,7 +30127,7 @@ impl WorldSession {
             if effect.effect_trigger_spell <= 0 {
                 return false;
             }
-            Self::represented_spell_valid_for_talent_with_seen_like_cpp(
+            Self::represented_spell_valid_with_seen_like_cpp(
                 spell_store,
                 effect.effect_trigger_spell,
                 seen,
@@ -64184,6 +64187,13 @@ impl WorldSession {
             return false;
         };
         if target_guid != player_guid || trigger_spell <= 0 {
+            return false;
+        }
+        // C++ `Player::AddSpell` rejects a missing `SpellInfo` or a spell whose
+        // recursive `SPELL_EFFECT_LEARN_SPELL` target is missing before it
+        // mutates or publishes the player's spell map. Richer acquisition
+        // metadata may fall back below, but this base authority may not.
+        if !self.represented_spell_valid_for_learning_like_cpp(trigger_spell) {
             return false;
         }
         let Ok(trigger_spell_id) = u32::try_from(trigger_spell) else {
@@ -111585,6 +111595,23 @@ mod tests {
                 }],
             },
         );
+        spell_store.insert(
+            learned_spell_id,
+            wow_data::SpellInfo {
+                spell_id: learned_spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: Vec::new(),
+            },
+        );
         session.set_spell_store(Arc::new(spell_store));
 
         session
@@ -111661,6 +111688,62 @@ mod tests {
                     Some(wow_database::SqlParam::I32(spell_id)) if *spell_id == learned_spell_id
                 )
         }));
+    }
+
+    #[tokio::test]
+    async fn spell_learn_spell_effect_row_rejects_missing_base_spell_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 755_i32;
+        let missing_spell_id = 13_340_i32;
+        let player_guid = ObjectGuid::create_player(1, 74);
+        session.set_player_guid(Some(player_guid));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_SPELL,
+                    effect_trigger_spell: missing_spell_id,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell(spell_id, player_guid)
+            .await
+            .expect("the parent spell still executes when its broken learn effect no-ops");
+
+        assert!(!session.known_spells_like_cpp().contains(&missing_spell_id));
+        assert!(
+            session
+                .represented_fallback_player_spell_rows_like_cpp
+                .is_empty(),
+            "C++ AddSpell does not leave a dirty row for a missing SpellInfo"
+        );
+        assert!(
+            session
+                .represented_spell_acquisition_post_commit_actions_like_cpp()
+                .is_empty(),
+            "invalid base spell metadata must not publish acquisition actions"
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
     }
 
     #[tokio::test]
