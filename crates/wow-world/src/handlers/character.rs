@@ -2674,19 +2674,25 @@ fn loaded_spell_for_add_spell_side_effects_like_cpp(spell_id: u32, disabled: u8)
 fn apply_skill_rewarded_spell_changes_to_login_like_cpp(
     known_spells: &mut Vec<i32>,
     loaded_spell_side_effect_spells: &mut Vec<i32>,
+    dependent_spells: &mut HashSet<i32>,
+    removed_spells: &mut HashSet<i32>,
     changes: wow_data::SkillRewardedSpellChangesLikeCpp,
 ) {
     for spell_id in changes.remove {
         known_spells.retain(|known_spell| *known_spell != spell_id);
         loaded_spell_side_effect_spells.retain(|known_spell| *known_spell != spell_id);
+        dependent_spells.remove(&spell_id);
+        removed_spells.insert(spell_id);
     }
     for spell_id in changes.learn {
+        removed_spells.remove(&spell_id);
         if !known_spells.contains(&spell_id) {
             known_spells.push(spell_id);
         }
         if !loaded_spell_side_effect_spells.contains(&spell_id) {
             loaded_spell_side_effect_spells.push(spell_id);
         }
+        dependent_spells.insert(spell_id);
     }
 }
 
@@ -6126,7 +6132,7 @@ impl WorldSession {
         self.load_account_heirlooms_like_cpp().await;
         self.load_account_item_appearances_like_cpp().await;
         self.load_account_transmog_illusions_like_cpp().await;
-        self.load_account_mounts_like_cpp().await;
+        let account_mount_rows_complete_like_cpp = self.load_account_mounts_like_cpp().await;
 
         // Load equipped items for visible display + inventory objects
         let mut visible_items = [(0i32, 0u16, 0u16); 19];
@@ -6856,6 +6862,11 @@ impl WorldSession {
         let mut known_spells: Vec<i32> = Vec::new();
         let mut loaded_spell_side_effect_spells: Vec<i32> = Vec::new();
         let mut favorite_spell_rows: HashSet<i32> = HashSet::new();
+        let mut loaded_player_spell_rows = Vec::new();
+        let mut skill_rewarded_dependent_spells = HashSet::new();
+        let mut skill_rewarded_removed_spells = HashSet::new();
+        let mut loaded_player_spell_rows_complete_like_cpp = false;
+        let mut favorite_spell_rows_complete_like_cpp = false;
         {
             let mut spell_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_SPELL);
             spell_stmt.set_u64(0, guid.counter() as u64);
@@ -6866,6 +6877,20 @@ impl WorldSession {
                             let spell_id: u32 = spell_result.try_read(0).unwrap_or(0);
                             let active: u8 = spell_result.try_read(1).unwrap_or(1);
                             let disabled: u8 = spell_result.try_read(2).unwrap_or(0);
+                            if let Ok(spell_id) = i32::try_from(spell_id)
+                                && spell_id > 0
+                            {
+                                loaded_player_spell_rows.push(
+                                    crate::session::RepresentedPlayerSpellLikeCpp {
+                                        spell_id,
+                                        active: active != 0,
+                                        disabled: disabled != 0,
+                                        dependent: false,
+                                        favorite: false,
+                                        state: crate::session::RepresentedPlayerSpellStateLikeCpp::Unchanged,
+                                    },
+                                );
+                            }
                             if let Some(spell_id_i32) =
                                 loaded_spell_for_add_spell_side_effects_like_cpp(spell_id, disabled)
                             {
@@ -6881,6 +6906,7 @@ impl WorldSession {
                             }
                         }
                     }
+                    loaded_player_spell_rows_complete_like_cpp = true;
                     info!("Loaded {} DB spells for {:?}", known_spells.len(), guid);
                 }
                 Err(e) => {
@@ -6903,6 +6929,7 @@ impl WorldSession {
                             }
                         }
                     }
+                    favorite_spell_rows_complete_like_cpp = true;
                     info!(
                         "Loaded {} DB favorite spells for {:?}",
                         favorite_spell_rows.len(),
@@ -7030,6 +7057,8 @@ impl WorldSession {
             apply_skill_rewarded_spell_changes_to_login_like_cpp(
                 &mut known_spells,
                 &mut loaded_spell_side_effect_spells,
+                &mut skill_rewarded_dependent_spells,
+                &mut skill_rewarded_removed_spells,
                 changes,
             );
         }
@@ -7040,6 +7069,7 @@ impl WorldSession {
         // immediately, so passive talent auras must be present before the
         // login AuraUpdate is built.
         self.reset_represented_talents_like_cpp();
+        let mut talent_rows_complete_like_cpp = false;
         {
             let mut talent_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_TALENTS);
             talent_stmt.set_u64(0, guid.counter() as u64);
@@ -7057,6 +7087,7 @@ impl WorldSession {
                                 rank,
                                 talent_group,
                                 &mut known_spells,
+                                &mut skill_rewarded_dependent_spells,
                             ) {
                                 loaded += 1;
                             } else {
@@ -7068,6 +7099,7 @@ impl WorldSession {
                         }
                     }
                     self.mark_represented_talents_loaded_like_cpp();
+                    talent_rows_complete_like_cpp = true;
                     info!(
                         loaded,
                         skipped,
@@ -7090,8 +7122,14 @@ impl WorldSession {
                 "Applied represented C++ Player::LearnCustomSpells / CONFIG_START_ALL_SPELLS"
             );
         }
-        let dependent_spell_count =
-            self.apply_loaded_known_spell_dependencies_like_cpp(&mut known_spells);
+        let mut loaded_dependency_roots = loaded_spell_side_effect_spells.clone();
+        loaded_dependency_roots.extend(known_spells.iter().copied());
+        loaded_dependency_roots.sort_unstable();
+        loaded_dependency_roots.dedup();
+        let dependent_spell_count = self.apply_loaded_spell_dependencies_from_roots_like_cpp(
+            &loaded_dependency_roots,
+            &mut known_spells,
+        );
         if dependent_spell_count > 0 {
             info!(
                 player_guid = guid.counter(),
@@ -7166,6 +7204,7 @@ impl WorldSession {
         // C++ `Player::_LoadGlyphs`: skip invalid talent group/slot and glyph ids
         // missing from GlyphProperties.db2.
         self.reset_represented_glyphs_like_cpp();
+        let mut reputation_rows_complete_like_cpp = false;
         {
             let mut glyph_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_GLYPHS);
             glyph_stmt.set_u64(0, guid.counter() as u64);
@@ -7331,6 +7370,7 @@ impl WorldSession {
                         }
                     }
                     if self.load_character_reputation_rows_like_cpp(rows) {
+                        reputation_rows_complete_like_cpp = true;
                         info!("Loaded character reputation rows for {:?}", guid);
                     } else {
                         warn!(
@@ -7433,6 +7473,8 @@ impl WorldSession {
             apply_skill_rewarded_spell_changes_to_login_like_cpp(
                 &mut known_spells,
                 &mut loaded_spell_side_effect_spells,
+                &mut skill_rewarded_dependent_spells,
+                &mut skill_rewarded_removed_spells,
                 changes,
             );
         }
@@ -7441,11 +7483,21 @@ impl WorldSession {
         // spells. Re-run the idempotent represented side effects so newly
         // learned dependencies, proficiencies, capabilities and passives are
         // present before the initial player CreateObject.
-        let default_dependent_spell_count =
-            self.apply_loaded_known_spell_dependencies_like_cpp(&mut known_spells);
-        for &spell_id in &known_spells {
-            if !loaded_spell_side_effect_spells.contains(&spell_id) {
-                loaded_spell_side_effect_spells.push(spell_id);
+        let (default_dependent_spell_count, loaded_spell_skills_complete_like_cpp) = self
+            .apply_loaded_spell_dependency_skills_like_cpp(
+                &mut known_spells,
+                &mut loaded_spell_side_effect_spells,
+            );
+        if loaded_skill_records_like_cpp && loaded_spell_skills_complete_like_cpp {
+            skill_records = self.player_skill_records_like_cpp().clone();
+            let occupied_slots = u16::try_from(skill_records.len()).unwrap_or(u16::MAX);
+            if !self
+                .set_complete_player_skill_records_like_cpp(skill_records.clone(), occupied_slots)
+            {
+                warn!(
+                    player_guid = guid.counter(),
+                    occupied_slots, "Could not authorize represented post-login player skill slots"
+                );
             }
         }
         let default_inactive_lower_rank_count =
@@ -7456,6 +7508,80 @@ impl WorldSession {
         self.apply_login_passive_known_spell_auras_like_cpp();
         self.apply_loaded_known_spell_previous_rank_passive_auras_like_cpp(&known_spells);
         self.promote_loaded_character_mount_spells_like_cpp(&known_spells);
+
+        // Retain the raw inactive/disabled DB rows and merge spells introduced by
+        // represented AddSpell work. Trainer/acquisition decisions need the full
+        // logical PlayerSpellMap, not the active-only client projection.
+        let canonical_known_spells = self.known_spells_like_cpp().to_vec();
+        let canonical_known_spell_ids = canonical_known_spells
+            .iter()
+            .copied()
+            .collect::<HashSet<_>>();
+        let mut final_player_spell_rows = loaded_player_spell_rows
+            .into_iter()
+            .map(|mut row| {
+                let dependent = self
+                    .represented_dependent_known_spells_like_cpp()
+                    .contains(&row.spell_id)
+                    || skill_rewarded_dependent_spells.contains(&row.spell_id);
+                row.favorite = !dependent && favorite_spell_rows.contains(&row.spell_id);
+                row.dependent |= dependent;
+                if skill_rewarded_removed_spells.contains(&row.spell_id) {
+                    row.active = false;
+                    row.disabled = false;
+                    row.dependent = false;
+                    row.favorite = false;
+                    row.state = crate::session::RepresentedPlayerSpellStateLikeCpp::Removed;
+                    return (row.spell_id, row);
+                }
+                if !row.disabled {
+                    row.active = canonical_known_spell_ids.contains(&row.spell_id);
+                }
+                (row.spell_id, row)
+            })
+            .collect::<std::collections::BTreeMap<_, _>>();
+        for spell_id in canonical_known_spells {
+            final_player_spell_rows
+                .entry(spell_id)
+                .and_modify(|row| {
+                    row.disabled = false;
+                    row.favorite = favorite_spell_rows.contains(&spell_id);
+                })
+                .or_insert(crate::session::RepresentedPlayerSpellLikeCpp {
+                    spell_id,
+                    active: true,
+                    disabled: false,
+                    dependent: self
+                        .represented_dependent_known_spells_like_cpp()
+                        .contains(&spell_id)
+                        || skill_rewarded_dependent_spells.contains(&spell_id),
+                    favorite: favorite_spell_rows.contains(&spell_id),
+                    state: crate::session::RepresentedPlayerSpellStateLikeCpp::Unchanged,
+                });
+        }
+        if loaded_player_spell_rows_complete_like_cpp
+            && favorite_spell_rows_complete_like_cpp
+            && talent_rows_complete_like_cpp
+            && account_mount_rows_complete_like_cpp
+            && reputation_rows_complete_like_cpp
+        {
+            let complete_spell_rows = self.set_complete_represented_player_spell_rows_like_cpp(
+                final_player_spell_rows.into_values(),
+            );
+            if complete_spell_rows {
+                self.mark_represented_spell_acquisition_snapshot_complete_like_cpp();
+            } else {
+                warn!(
+                    player_guid = guid.counter(),
+                    "Could not authorize represented post-login PlayerSpellMap"
+                );
+            }
+        } else {
+            warn!(
+                player_guid = guid.counter(),
+                "Keeping represented PlayerSpellMap incomplete after incomplete login authority"
+            );
+        }
 
         info!(
             player_guid = guid.counter(),
@@ -17894,10 +18020,10 @@ impl WorldSession {
         (history_entries, charge_entries)
     }
 
-    async fn load_account_mounts_like_cpp(&mut self) -> Vec<AccountMount> {
+    async fn load_account_mounts_like_cpp(&mut self) -> bool {
         self.set_account_mounts_like_cpp(Vec::new());
         let Some(login_db) = self.login_db() else {
-            return Vec::new();
+            return false;
         };
 
         let bnet_account_id = self.battlenet_account_id();
@@ -17906,7 +18032,7 @@ impl WorldSession {
                 account = self.account_id,
                 "Skipping account mount load because the game account is not linked to a Battle.net account"
             );
-            return Vec::new();
+            return false;
         }
 
         let mut stmt = login_db.prepare(LoginStatements::SEL_ACCOUNT_MOUNTS);
@@ -17920,7 +18046,7 @@ impl WorldSession {
                     bnet_account = bnet_account_id,
                     "Failed to load account mounts: {e}"
                 );
-                return Vec::new();
+                return false;
             }
         };
 
@@ -17930,7 +18056,7 @@ impl WorldSession {
                 bnet_account = bnet_account_id,
                 "Loaded 0 account mounts from battlenet_account_mounts"
             );
-            return Vec::new();
+            return true;
         }
 
         let mut mounts = Vec::new();
@@ -17973,7 +18099,7 @@ impl WorldSession {
             "Loaded represented account mounts like C++ CollectionMgr"
         );
         self.set_account_mounts_like_cpp(mounts.clone());
-        mounts
+        true
     }
 
     async fn load_account_toys_like_cpp(&mut self) {
@@ -18162,7 +18288,7 @@ impl WorldSession {
     /// C++ `Player::_LoadTraits`: `CHAR_SEL_CHAR_TRAIT_CONFIGS` +
     /// `CHAR_SEL_CHAR_TRAIT_ENTRIES`, serialized in ActivePlayerData::TraitConfigs.
     pub(crate) async fn load_active_player_trait_configs_like_cpp(
-        &self,
+        &mut self,
         guid: ObjectGuid,
     ) -> Vec<TraitConfigCreateData> {
         let Some(char_db) = self.char_db().map(Arc::clone) else {
@@ -18172,8 +18298,10 @@ impl WorldSession {
         let mut entries_stmt = char_db.prepare(CharStatements::SEL_CHAR_TRAIT_ENTRIES);
         entries_stmt.set_u64(0, guid.counter() as u64);
         let mut entries_by_config = BTreeMap::<i32, Vec<TraitEntryCreateData>>::new();
+        let mut entries_complete_like_cpp = false;
         match char_db.query(&entries_stmt).await {
             Ok(mut result) => {
+                entries_complete_like_cpp = true;
                 if !result.is_empty() {
                     loop {
                         let trait_config_id = result.try_read::<i32>(0).unwrap_or(0);
@@ -18202,8 +18330,10 @@ impl WorldSession {
 
         let mut configs_stmt = char_db.prepare(CharStatements::SEL_CHAR_TRAIT_CONFIGS);
         configs_stmt.set_u64(0, guid.counter() as u64);
+        let mut configs_complete_like_cpp = false;
         let configs = match char_db.query(&configs_stmt).await {
             Ok(mut result) => {
+                configs_complete_like_cpp = true;
                 let mut configs = Vec::new();
                 if !result.is_empty() {
                     loop {
@@ -18236,6 +18366,58 @@ impl WorldSession {
                 Vec::new()
             }
         };
+
+        if entries_complete_like_cpp && configs_complete_like_cpp {
+            let exact_traits = self
+                .trait_node_entry_store()
+                .zip(self.trait_definition_store())
+                .map(|(node_entries, definitions)| {
+                    let mut exact = BTreeMap::<i32, i32>::new();
+                    for entry in configs
+                        .iter()
+                        .flat_map(|config| config.entries.iter())
+                        .filter(|entry| entry.rank > 0 || entry.granted_ranks > 0)
+                    {
+                        let Some(node_entry) = u32::try_from(entry.trait_node_entry_id)
+                            .ok()
+                            .and_then(|id| node_entries.get(id))
+                        else {
+                            return None;
+                        };
+                        let trait_definition_id = node_entry.trait_definition_id;
+                        let Some(definition) = u32::try_from(trait_definition_id)
+                            .ok()
+                            .and_then(|id| definitions.get(id))
+                        else {
+                            return None;
+                        };
+                        if definition.spell_id <= 0 {
+                            continue;
+                        }
+                        if exact
+                            .insert(definition.spell_id, trait_definition_id)
+                            .is_some_and(|previous| previous != trait_definition_id)
+                        {
+                            return None;
+                        }
+                    }
+                    Some(exact.into_iter().collect::<Vec<_>>())
+                });
+            if let Some(Some(exact_traits)) = exact_traits {
+                if !self.set_complete_represented_spell_trait_definition_ids_like_cpp(exact_traits)
+                {
+                    warn!(
+                        player_guid = guid.counter(),
+                        "Could not authorize represented trait spell ownership"
+                    );
+                }
+            } else {
+                warn!(
+                    player_guid = guid.counter(),
+                    "Keeping represented trait spell ownership incomplete: missing DB2 stores"
+                );
+            }
+        }
 
         info!(
             player_guid = guid.counter(),
@@ -22645,6 +22827,30 @@ mod tests {
     }
 
     #[test]
+    fn login_skill_reward_spells_retain_cpp_dependent_ownership() {
+        let mut known = vec![100, 200];
+        let mut side_effects = vec![100, 200];
+        let mut dependent = HashSet::from([200]);
+        let mut removed = HashSet::new();
+
+        apply_skill_rewarded_spell_changes_to_login_like_cpp(
+            &mut known,
+            &mut side_effects,
+            &mut dependent,
+            &mut removed,
+            wow_data::SkillRewardedSpellChangesLikeCpp {
+                learn: vec![300],
+                remove: vec![200],
+            },
+        );
+
+        assert_eq!(known, vec![100, 300]);
+        assert_eq!(side_effects, vec![100, 300]);
+        assert_eq!(dependent, HashSet::from([300]));
+        assert_eq!(removed, HashSet::from([200]));
+    }
+
+    #[test]
     fn send_known_spells_favorites_are_subset_of_sent_spells_like_cpp() {
         let favorites = HashSet::from([635, 999]);
 
@@ -25836,19 +26042,7 @@ mod tests {
         }
 
         let character = include_str!("character.rs");
-        let trainer = include_str!("trainer.rs");
         let session = include_str!("../session.rs");
-
-        assert_publication_segment(
-            trainer,
-            "trainer spell purchase",
-            "self.stage_player_money_change_like_cpp",
-            &[
-                "self.learn_known_spell_like_cpp(spell_id);",
-                "self.sync_object_accessor_player();",
-                "self.sync_player_registry_state_like_cpp();",
-            ],
-        );
         assert_publication_segment(
             character,
             "bank-slot purchase",

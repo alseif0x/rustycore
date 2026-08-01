@@ -336,14 +336,7 @@ impl SpellAcquisitionPlannerLikeCpp<'_> {
                 effect_index,
             });
         }
-        if effect.implicit_target_raw.iter().all(|target| {
-            matches!(
-                *target,
-                TARGET_NONE_LIKE_CPP
-                    | TARGET_UNIT_CASTER_LIKE_CPP
-                    | TARGET_UNIT_TARGET_ALLY_LIKE_CPP
-            )
-        }) {
+        if effect.targets_player_like_cpp() {
             return Ok(());
         }
         Err(

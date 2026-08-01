@@ -18,6 +18,11 @@ Repository refactors are governed by
 one mutable owner per concept, private modules before crates, explicit mirror retirement, and
 executable Cargo/handler-contract guardrails.
 
+Trainer architecture note (issue #157): list and the intentionally undispatched buy adapter now
+share one immutable offer decision. Teaching, money mutation, persistence and success publication
+are deliberately staged for issues #158/#159; no current status claim should infer a live trainer
+purchase merely from the retained opcode registration.
+
 ### Fidelity policy for proven legacy defects
 
 The legacy C++ server is the behavioral baseline, not an instruction to reproduce undefined

@@ -1,3 +1,36 @@
+- `#NEXT.R8.ENTITIES.1237` — issue #157 unifica `Trainer::SendSpells`,
+  `CanTeachSpell` y `GetSpellState` detrás de una decisión inmutable
+  `Hidden/Known/Unavailable/Available`. Lista y compra vuelven a evaluar el mismo snapshot
+  efectivo (membresía, clase/raza, `TRAINER_SPELL` conditions, skill/rank, las tres abilities,
+  nivel, wrapper-known, battle-pet tri-state, proyección transitiva #164 y capacidad #156).
+  `Available` conserva el plan de adquisición, todas las profesiones raíz, el plan ordenado de
+  capacidad y el precio, pero no reserva ni muta. La compra continúa registrada y fuera del
+  dispatcher hasta #142; además se han retirado el cargo, SQL, mutación de spell runtime y
+  publicación de éxito prematuros, que pertenecen a #158/#159. Rust corrige explícitamente dos
+  defectos legacy: revalida condiciones al comprar y aplica capacidad al cierre transitivo; el
+  precio conserva en cambio el `f32` observable de C++, incluidos sus redondeos límite. El login
+  retiene y autoriza el `PlayerSpellMap` completo (incluidas filas DB inactivas/deshabilitadas y
+  mounts de cuenta) y los slots exactos de skills después del trabajo representado de `AddSpell`;
+  esa autoridad solo se publica cuando spell/favorite/talent/account-mount/reputation han cargado
+  correctamente, conserva como dependientes los spells de talentos y los rewards de skills, y se
+  invalida ante un aprendizaje runtime que todavía no ejecute el cierre completo de `AddSpell`.
+  La hidratación también aplica `SpellLearnSkill`, conserva ownership dependiente aunque el target
+  ya existiera y solo autoriza `TraitDefinitionId` después de cargar configs/entries y resolver
+  `TraitNodeEntry.db2`; el cierre se repite tras los rewards por defecto, expande primero todas
+  las dependencias recursivas y aplica después sus `SpellLearnSkill` antes de autorizar skills,
+  fusiona dependencias y removals en filas persistidas, deduplica ownership idéntico y rechaza
+  metadata ausente o conflictiva. Fallos de consulta o cobertura mantienen el adaptador
+  fail-closed.
+  Trainer y el planner comparten el conjunto de targets de jugador (`NONE`, `CASTER`, `ALLY`). Los
+  `ElseGroup` soportados que prueban el OR de conditions prevalecen sobre incertidumbre en ramas
+  irrelevantes. Así el adaptador de adquisición funciona también en producción y no solo con
+  fixtures. Metadatos incompletos, IDs estrechados, battle
+  pets y proyecciones indeterminadas fallan cerrados. Formato, guardrails de
+  arquitectura/handlers, check de `wow-world`, focales y la
+  suites completas `wow-data` (`681/0`) y `wow-world` (`3252/0`, uno ignorado) pasan; el quick preflight alcanzó el check
+  agregado y chocó con el ICE/SIGSEGV local ya conocido dentro de `icu_properties`. Falta aún
+  preflight completo/capture-diff en un runner estable, CI, revisión current-HEAD y merge.
+
 - `#NEXT.R8.ENTITIES.1236` — issue #11 re-audits world-entry visibility rows 1221–1227
   against C++ `Map::AddPlayerToMap`/`SendInitTransports`,
   `Player::UpdateVisibilityForPlayer`, `VisibleNotifier`, `_IsWithinDist`, and the exact

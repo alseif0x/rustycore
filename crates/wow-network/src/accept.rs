@@ -284,6 +284,7 @@ pub struct SessionResources {
     pub tact_key_store: Option<Arc<wow_data::TactKeyStore>>,
     pub skill_store: Option<Arc<wow_data::SkillStore>>,
     pub trait_definition_store: Option<Arc<wow_data::trait_tree::TraitDefinitionStore>>,
+    pub trait_node_entry_store: Option<Arc<wow_data::trait_tree::TraitNodeEntryStore>>,
     pub skill_line_store: Option<Arc<wow_data::SkillLineStore>>,
     pub skill_tiers_store: Option<Arc<wow_data::SkillTiersStoreLikeCpp>>,
     pub talent_store: Option<Arc<wow_data::TalentStore>>,
