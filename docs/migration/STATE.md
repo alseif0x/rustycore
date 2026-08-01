@@ -18,14 +18,16 @@ Repository refactors are governed by
 one mutable owner per concept, private modules before crates, explicit mirror retirement, and
 executable Cargo/handler-contract guardrails.
 
-Trainer architecture note (issues #157/#158): list and the intentionally undispatched buy adapter
-share one immutable offer decision. The exact #164 acquisition plan now has an atomic Character DB
-application and post-commit runtime/publication boundary. Deterministic player `EffectLearnSpell`
-uses the same authority with C++'s immediate runtime publication and ordinary deferred
-`Player::SaveToDB` persistence; trainer money, wrapper execution, visuals and activation remain
-#159/#142. No
-current status claim should infer a live trainer purchase merely from the retained opcode
-registration.
+Trainer architecture note (issues #157/#158/#159): list and the intentionally undispatched buy
+adapter share one immutable offer decision. Normal trainer teaching now revalidates that decision
+under the exclusive money owner, commits effective money plus the exact #164 spell/skill result in
+one Character DB transaction, reconciles unknown COMMIT outcomes, installs runtime state, and then
+publishes money, visual kits 179/362 and acquisition actions in C++ success order. Castable wrappers
+require both a startup audit of effective/world-table blockers and a fresh player effect-mask proof;
+active auras remain conservatively unsupported until the full C++ immunity maps are canonical.
+Deterministic player `EffectLearnSpell` retains its distinct immediate-runtime/deferred-save timing.
+Dispatcher activation remains #142, so no status claim should infer a live client purchase merely
+from the retained opcode registration.
 
 ### Fidelity policy for proven legacy defects
 

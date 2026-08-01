@@ -1,3 +1,31 @@
+# `#NEXT.R8.ENTITIES.1246` — atomic normal trainer teaching adapter.
+
+Issue #159 closes the dormant adapter's normal-teaching mutation gap without activating its
+dispatcher. After the C++ early interaction/provenance behavior, the buy path enters the existing
+exclusive player-money boundary and recomputes exact trainer membership, conditions, reputation
+price, current balance and the deterministic #157/#164 outcome. The exact #158 prepared result and
+its guarded fee replace complete spell/favorite/skill rows and money in one Character DB
+transaction. A lost COMMIT response rereads money plus all three acquisition tables: only exact
+post-state publishes, an unchanged charged balance proves rollback, and every other shape
+quarantines/kicks the session. Runtime money/state remain unchanged on definite rollback.
+
+Normal castable wrappers now require two separate proofs. Startup derives an immutable safe set
+from final effective acquisition effects and world script/legacy-script/condition/disable/linked/
+pet-aura plus DB2 aura/equipment blockers; current player resolution supplies the immediate phase
+and exact acquisition effect mask again under the money owner. Because Rust does not yet own C++'s
+complete player spell/effect-immunity maps, any active aura fails wrappers closed rather than
+assuming no immunity. Direct products remain unaffected. Confirmed battle-pet products, unsupported
+wrapper effects, missing DB authority and stale plans fail without charging.
+
+After a confirmed commit, one non-awaiting phase installs complete runtime authority, stages money,
+publishes exact `SMSG_PLAY_SPELL_VISUAL_KIT` 179/362 packets, then replays learned/superseded and
+represented criteria/quest actions in C++ success order while retaining the money exclusion.
+Focused tests cover direct and audited-wrapper success/retry, definite persistence failure, missing
+Character DB, pre-publication owner failure, combined rollback boundaries, reconciliation shapes and
+the exact visual-kit wire layout. This remains `represented-partial`: the buy registration remains
+intentionally absent from dispatch until #142; active-aura wrapper masks await canonical immunity
+ownership; battle pets remain #160/#161; fresh capture/live reload and remote gates remain.
+
 # `#NEXT.R8.ENTITIES.1245` — atomic prepared player spell acquisition.
 
 Issue #158 consumes the deterministic #164 plan without rediscovering ranks, dependencies,

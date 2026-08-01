@@ -15,10 +15,10 @@ static FAIL_CLOSED_CRAFT_AUTHORITY_LIKE_CPP: std::sync::LazyLock<
 impl crate::session::WorldSession {
     /// Projects one trainer product from the complete current player snapshot.
     ///
-    /// Static cast/craft safety is intentionally fail-closed until a later
-    /// runtime owner supplies audited authority. Direct ordinary learns do not
-    /// consult those authorities; wrapper/craft paths that need them remain
-    /// unavailable instead of being guessed.
+    /// Static cast/craft safety and the current player's exact immediate/
+    /// hit-target mask are both mandatory. Direct ordinary learns do not
+    /// consult those authorities; wrapper paths fail closed if either proof is
+    /// absent.
     pub(crate) fn project_trainer_spell_acquisition_like_cpp(
         &self,
         root: SpellAcquisitionRootLikeCpp,
@@ -55,10 +55,23 @@ impl crate::session::WorldSession {
         root: SpellAcquisitionRootLikeCpp,
         defer_unavailable_cast_side_effects: bool,
     ) -> SpellAcquisitionOutcomeLikeCpp {
+        let cast_resolutions = match root {
+            SpellAcquisitionRootLikeCpp::DirectLearn(_) => BTreeMap::new(),
+            SpellAcquisitionRootLikeCpp::TrainerWrapperCast(spell_id) => {
+                let Some(resolution) =
+                    self.resolve_trainer_wrapper_cast_acquisition_like_cpp(spell_id)
+                else {
+                    return SpellAcquisitionOutcomeLikeCpp::Indeterminate(
+                        SpellAcquisitionIndeterminateLikeCpp::MissingCastResolution { spell_id },
+                    );
+                };
+                BTreeMap::from([(spell_id, resolution)])
+            }
+        };
         let snapshot = match self.spell_acquisition_snapshot_like_cpp(
             PlayerAcquisitionLifecycleLikeCpp::InWorld,
             Vec::new(),
-            BTreeMap::new(),
+            cast_resolutions,
         ) {
             Ok(snapshot) => snapshot,
             Err(error) => {
@@ -95,6 +108,14 @@ impl crate::session::WorldSession {
                 SpellAcquisitionIndeterminateLikeCpp::MissingTrainerProjectionMetadata,
             );
         };
+        let cast_authority = self
+            .spell_acquisition_cast_authority_like_cpp
+            .as_deref()
+            .unwrap_or(&FAIL_CLOSED_CAST_AUTHORITY_LIKE_CPP);
+        let craft_validity_authority = self
+            .spell_acquisition_craft_authority_like_cpp
+            .as_deref()
+            .unwrap_or(&FAIL_CLOSED_CRAFT_AUTHORITY_LIKE_CPP);
         let metadata = SpellAcquisitionMetadataLikeCpp {
             catalog,
             spell_chains,
@@ -103,8 +124,8 @@ impl crate::session::WorldSession {
             spell_required,
             spell_custom_attributes,
             trait_definitions,
-            cast_authority: &FAIL_CLOSED_CAST_AUTHORITY_LIKE_CPP,
-            craft_validity_authority: &FAIL_CLOSED_CRAFT_AUTHORITY_LIKE_CPP,
+            cast_authority,
+            craft_validity_authority,
             mounts: self.mount_store().map(AsRef::as_ref),
             skills,
             skill_lines,
@@ -118,6 +139,53 @@ impl crate::session::WorldSession {
         } else {
             project_spell_acquisition_like_cpp(&snapshot, metadata, root)
         }
+    }
+
+    /// Resolve the bounded normal-trainer wrapper against current represented
+    /// player state. The represented aura mirror does not yet prove the full
+    /// C++ spell/effect-immunity maps, so any active aura deliberately prevents
+    /// an "all player effects execute" proof. This is conservative, not an
+    /// assumption that represented aura labels imply absence of immunity.
+    fn resolve_trainer_wrapper_cast_acquisition_like_cpp(
+        &self,
+        spell_id: u32,
+    ) -> Option<PlayerCastAcquisitionResolutionLikeCpp> {
+        if !self.visible_auras.is_empty() {
+            return None;
+        }
+        let effects = match self
+            .spell_acquisition_catalog()?
+            .acquisition_effects_like_cpp(spell_id)
+        {
+            SpellAcquisitionEffectsLookupLikeCpp::Covered(effects) => effects,
+            SpellAcquisitionEffectsLookupLikeCpp::MissingCoverage
+            | SpellAcquisitionEffectsLookupLikeCpp::Indeterminate(_) => return None,
+        };
+        let mut executed_hit_target_effect_mask = 0_u32;
+        let mut executed_dual_wield_effects = Vec::new();
+        for effect in effects {
+            let effect_type = effect.effect_type_checked().ok()?;
+            if !matches!(
+                effect_type,
+                SPELL_EFFECT_LEARN_SPELL | SPELL_EFFECT_SKILL_STEP | SPELL_EFFECT_DUAL_WIELD
+            ) {
+                continue;
+            }
+            let effect_index = effect.effect_index_checked().ok()?;
+            let effect_bit = 1_u32.checked_shl(u32::from(effect_index))?;
+            executed_hit_target_effect_mask |= effect_bit;
+            if effect_type == SPELL_EFFECT_DUAL_WIELD {
+                executed_dual_wield_effects.push(PlayerExecutedDualWieldEffectLikeCpp {
+                    effect_record_id: effect.record_id,
+                    effect_index,
+                });
+            }
+        }
+        Some(PlayerCastAcquisitionResolutionLikeCpp {
+            reached_immediate_phase: true,
+            executed_hit_target_effect_mask,
+            executed_dual_wield_effects,
+        })
     }
 
     pub(crate) fn spell_acquisition_snapshot_like_cpp(

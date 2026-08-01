@@ -17,7 +17,10 @@
 //!   1. Parse trainer GUID, trainer ID, spell ID.
 //!   2. Recompute the same immutable offer from the current snapshot.
 //!   3. Reject an unavailable offer or insufficient exact discounted money.
-//!   4. Stop without mutation; #158/#159 own apply/persistence/publication.
+//!   4. Under the exclusive money boundary, atomically persist the fee and the
+//!      exact prepared spell/skill result.
+//!   5. Install committed runtime state, then publish money, visual kits and
+//!      acquisition actions in C++ success order.
 //!
 //! C++ refs: `WorldSession::HandleTrainerListOpcode` / `SendTrainerList`
 //! (`Handlers/NPCHandler.cpp:98-132`) and `Trainer::SendSpells` /
@@ -36,10 +39,11 @@ use wow_data::{
     TRAINER_SPELL_STATE_UNAVAILABLE_LIKE_CPP, TrainerLikeCpp, TrainerStoreLikeCpp,
 };
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
-use wow_packet::ClientPacket;
+use wow_packet::packets::spell::PlaySpellVisualKit;
 use wow_packet::packets::trainer::{
     TrainerBuyFailed, TrainerBuySpellRequest, TrainerListPacket, TrainerListSpell,
 };
+use wow_packet::{ClientPacket, ServerPacket};
 
 use crate::conditions;
 use crate::session::WorldSession;
@@ -495,9 +499,9 @@ impl WorldSession {
 
     /// Handle `CMSG_TRAINER_BUY_SPELL` (0x34ae).
     ///
-    /// Revalidates and prepares the same immutable offer used by the list.
-    /// Teaching, charging, persistence and success publication belong to
-    /// #158/#159 and are deliberately unreachable in this slice.
+    /// Revalidates the immutable offer under the exclusive character-money
+    /// boundary, commits its fee and prepared acquisition once, then publishes
+    /// the C++ money/visual/learning order from the committed result.
     pub async fn handle_trainer_buy_spell(&mut self, mut pkt: wow_packet::WorldPacket) {
         let req = match TrainerBuySpellRequest::read(&mut pkt) {
             Ok(r) => r,
@@ -521,7 +525,7 @@ impl WorldSession {
             "CMSG_TRAINER_BUY_SPELL"
         );
 
-        let Some(access) = self.represented_npc_can_interact_with_like_cpp(
+        let Some(_access) = self.represented_npc_can_interact_with_like_cpp(
             trainer_guid,
             TRAINER_BUY_NPC_FLAGS_LIKE_CPP,
             0,
@@ -560,7 +564,7 @@ impl WorldSession {
         let Some(trainer) = trainer_store.get_trainer_like_cpp(trainer_id as u32) else {
             return;
         };
-        let Some(trainer_spell) = trainer.get_spell_like_cpp(spell_id as u32).cloned() else {
+        let Some(_trainer_spell) = trainer.get_spell_like_cpp(spell_id as u32).cloned() else {
             warn!(
                 account = self.account_id,
                 trainer_id = trainer_id,
@@ -574,10 +578,46 @@ impl WorldSession {
             });
             return;
         };
+        // Close detached money admission and reconcile every previously
+        // admitted payout before deriving the price, balance or acquisition
+        // snapshot that will be persisted.
+        let Some(money_persistence) = self
+            .begin_exclusive_player_money_persistence_like_cpp()
+            .await
+        else {
+            return;
+        };
+
+        // The await above is an intentional race boundary. Re-resolve every
+        // mutable/current authority rather than trusting the preliminary
+        // membership proof retained only to match the early C++ failure path.
+        let Some(fresh_access) = self.represented_npc_can_interact_with_like_cpp(
+            trainer_guid,
+            TRAINER_BUY_NPC_FLAGS_LIKE_CPP,
+            0,
+        ) else {
+            return;
+        };
+        if !self.player_trainer_interaction_matches_like_cpp(trainer_guid, trainer_id) {
+            return;
+        }
+        let Some(fresh_trainer_spell) = self
+            .trainer_store_like_cpp()
+            .and_then(|store| store.get_trainer_like_cpp(trainer_id as u32))
+            .and_then(|trainer| trainer.get_spell_like_cpp(spell_id as u32))
+            .cloned()
+        else {
+            self.send_packet(&TrainerBuyFailed {
+                trainer_guid,
+                spell_id,
+                reason: 0,
+            });
+            return;
+        };
         let decision = self.trainer_offer_decision_like_cpp(
             trainer_id as u32,
-            &trainer_spell,
-            access.faction_template_id,
+            &fresh_trainer_spell,
+            fresh_access.faction_template_id,
         );
         let TrainerOfferDecisionLikeCpp::Available(offer) = decision else {
             self.send_packet(&TrainerBuyFailed {
@@ -587,7 +627,9 @@ impl WorldSession {
             });
             return;
         };
-        if self.player_gold_like_cpp() < u64::from(offer.effective_price) {
+        let old_money = self.player_gold_like_cpp();
+        let price = u64::from(offer.effective_price);
+        if old_money < price {
             self.send_packet(&TrainerBuyFailed {
                 trainer_guid,
                 spell_id,
@@ -595,13 +637,130 @@ impl WorldSession {
             });
             return;
         }
+        let new_money = old_money - price;
+
+        let Ok(current_snapshot) = self.spell_acquisition_snapshot_like_cpp(
+            crate::spell_acquisition::PlayerAcquisitionLifecycleLikeCpp::InWorld,
+            offer
+                .acquisition_plan
+                .source_snapshot
+                .future_player_condition_resolutions
+                .clone(),
+            offer
+                .acquisition_plan
+                .source_snapshot
+                .cast_resolutions
+                .clone(),
+        ) else {
+            self.send_packet(&TrainerBuyFailed {
+                trainer_guid,
+                spell_id,
+                reason: 0,
+            });
+            return;
+        };
+        let prepared = match crate::spell_acquisition::prepare_player_spell_acquisition_like_cpp(
+            &offer.acquisition_plan,
+            &offer.profession_plan,
+            &current_snapshot,
+        ) {
+            Ok(crate::spell_acquisition::PreparedPlayerSpellAcquisitionOutcomeLikeCpp::Ready(
+                prepared,
+            )) => prepared,
+            Ok(
+                crate::spell_acquisition::PreparedPlayerSpellAcquisitionOutcomeLikeCpp::ActionsOnly(_)
+                | crate::spell_acquisition::PreparedPlayerSpellAcquisitionOutcomeLikeCpp::AlreadyApplied
+                | crate::spell_acquisition::PreparedPlayerSpellAcquisitionOutcomeLikeCpp::NoChange,
+            )
+            | Err(_) => {
+                self.send_packet(&TrainerBuyFailed {
+                    trainer_guid,
+                    spell_id,
+                    reason: 0,
+                });
+                return;
+            }
+        };
+        if crate::spell_acquisition::validate_prepared_player_spell_acquisition_runtime_like_cpp(
+            self, &prepared,
+        )
+        .is_err()
+        {
+            self.send_packet(&TrainerBuyFailed {
+                trainer_guid,
+                spell_id,
+                reason: 0,
+            });
+            return;
+        }
+
+        let character_db = self.char_db().map(Arc::clone);
+        let Some(money_persistence) = self
+            .commit_exclusive_player_money_and_spell_acquisition_like_cpp(
+                money_persistence,
+                character_db.as_deref(),
+                &prepared,
+                old_money,
+                new_money,
+            )
+            .await
+        else {
+            return;
+        };
+
+        // C++ successful observable order: ModifyMoney, trainer visual,
+        // player visual, then the direct LearnSpell/triggered wrapper actions.
+        // Every durable mutation already committed; keep the exclusion until
+        // all covered runtime owners and packets have consumed that result.
+        let player_guid = prepared
+            .character_guid
+            .expect("prepared trainer acquisition has validated player identity");
+        if crate::spell_acquisition::apply_prepared_player_spell_acquisition_with_before_actions_like_cpp(
+            self,
+            &prepared,
+            |session| {
+                session.stage_player_money_change_like_cpp(old_money, new_money);
+                let trainer_visual = PlaySpellVisualKit {
+                    unit: trainer_guid,
+                    kit_record_id: 179,
+                    kit_type: 0,
+                    duration: 0,
+                    mounted_visual: false,
+                };
+                session.send_packet(&trainer_visual);
+                session.broadcast_creature_packet_to_visible_set_like_cpp(
+                    trainer_guid,
+                    trainer_visual.to_bytes(),
+                );
+                let player_visual = PlaySpellVisualKit {
+                    unit: player_guid,
+                    kit_record_id: 362,
+                    kit_type: 1,
+                    duration: 0,
+                    mounted_visual: false,
+                };
+                session.send_packet(&player_visual);
+                session.broadcast_to_movement_set_like_cpp(player_visual.to_bytes(), true);
+            },
+        )
+        .is_err()
+        {
+            self.kick(
+                "committed trainer acquisition could not publish runtime state; relog required",
+            );
+            return;
+        }
+        drop(money_persistence);
+        self.drain_represented_quest_objective_progress_like_cpp()
+            .await;
 
         info!(
             account = self.account_id,
             trainer_id,
             spell_id,
             effective_price = offer.effective_price,
-            "Trainer offer prepared without mutation; apply belongs to #158/#159"
+            remaining_money = new_money,
+            "Trainer purchase committed and published"
         );
     }
 }
@@ -625,7 +784,7 @@ mod tests {
         EffectiveSpellAcquisitionRowsLikeCpp, MountStore, SkillLineAbilityRecord, SkillLineStore,
         SkillRaceClassInfoRecord, SkillStore, SkillTiersStoreLikeCpp,
         SpellAcquisitionCatalogLikeCpp, SpellAcquisitionCoverageSeedLikeCpp,
-        SpellAcquisitionTableHashesLikeCpp, SpellChainStoreLikeCpp,
+        SpellAcquisitionEffectLikeCpp, SpellAcquisitionTableHashesLikeCpp, SpellChainStoreLikeCpp,
         SpellCustomAttributeStoreLikeCpp, SpellLearnSkillStoreLikeCpp, SpellLearnSpellStoreLikeCpp,
         SpellRequiredStoreLikeCpp, TrainerLocaleRowLikeCpp, TrainerRowLikeCpp, TrainerSpellLikeCpp,
         TrainerSpellRowLikeCpp,
@@ -637,6 +796,32 @@ mod tests {
     const KNOWN_TRAINER_SPELL: i32 = 54_321;
     const AVAILABLE_TRAINER_SPELL: i32 = 54_322;
     const UNAVAILABLE_TRAINER_SPELL: i32 = 54_323;
+    const WRAPPER_TRAINER_SPELL: i32 = 54_324;
+    const WRAPPER_LEARNED_SPELL: i32 = 54_325;
+
+    fn player_learn_effect(
+        record_id: u32,
+        wrapper_spell_id: u32,
+        learned_spell_id: u32,
+    ) -> SpellAcquisitionEffectLikeCpp {
+        SpellAcquisitionEffectLikeCpp {
+            record_id,
+            spell_id_raw: i64::from(wrapper_spell_id),
+            difficulty_id_raw: 0,
+            effect_index_raw: 0,
+            effect_type_raw: 36,
+            effect_base_points_raw: 0,
+            effect_die_sides_raw: 0,
+            effect_chain_targets_raw: 0,
+            effect_points_per_resource_bits: 0.0_f32.to_bits(),
+            effect_real_points_per_level_bits: 0.0_f32.to_bits(),
+            effect_coefficient_bits: 0.0_f32.to_bits(),
+            effect_variance_bits: 0.0_f32.to_bits(),
+            effect_trigger_spell_raw: i64::from(learned_spell_id),
+            effect_misc_value_raw: [0, 0],
+            implicit_target_raw: [1, 0],
+        }
+    }
 
     fn trainer_row(id: u32, trainer_type: u8, greeting: &str) -> TrainerRowLikeCpp {
         TrainerRowLikeCpp {
@@ -880,6 +1065,58 @@ mod tests {
         trainer_fixture_with_store(standard_trainer_store(DEFAULT_TRAINER_ID))
     }
 
+    fn trainer_wrapper_fixture() -> TrainerFixture {
+        let store = trainer_store_from_rows(
+            vec![trainer_row(DEFAULT_TRAINER_ID, 2, "Train")],
+            vec![trainer_spell_row(
+                DEFAULT_TRAINER_ID,
+                WRAPPER_TRAINER_SPELL,
+                25,
+                1,
+            )],
+            Vec::new(),
+            vec![CreatureTrainerRowLikeCpp {
+                creature_id: CREATURE_ENTRY,
+                trainer_id: DEFAULT_TRAINER_ID,
+                menu_id: 0,
+                option_id: 0,
+            }],
+        );
+        let mut fixture = trainer_fixture_with_store(store);
+        let wrapper_id = WRAPPER_TRAINER_SPELL as u32;
+        let learned_id = WRAPPER_LEARNED_SPELL as u32;
+        fixture.session.set_spell_acquisition_catalog(Arc::new(
+            SpellAcquisitionCatalogLikeCpp::from_effective_rows_like_cpp(
+                [wrapper_id, learned_id]
+                    .map(|spell_id| SpellAcquisitionCoverageSeedLikeCpp::covered(spell_id, 0)),
+                EffectiveSpellAcquisitionRowsLikeCpp {
+                    spell_effects: vec![player_learn_effect(1, wrapper_id, learned_id)],
+                    ..Default::default()
+                },
+                SpellAcquisitionTableHashesLikeCpp::default(),
+                Vec::new(),
+            ),
+        ));
+        let mut learn_skills = SpellLearnSkillStoreLikeCpp::default();
+        learn_skills
+            .covered_spell_ids
+            .extend([wrapper_id, learned_id]);
+        fixture
+            .session
+            .set_spell_learn_skill_store(Arc::new(learn_skills));
+        fixture
+            .session
+            .set_spell_acquisition_static_authority_like_cpp([wrapper_id], []);
+        fixture
+            .session
+            .set_player_trainer_interaction_like_cpp(fixture.trainer, DEFAULT_TRAINER_ID);
+        fixture.session.set_player_gold_like_cpp(100);
+        fixture
+            .session
+            .set_loot_money_persistence_test_result_like_cpp(true);
+        fixture
+    }
+
     fn trainer_buy_packet(trainer_guid: ObjectGuid, trainer_id: i32, spell_id: i32) -> WorldPacket {
         let mut packet = WorldPacket::new_empty();
         packet.write_packed_guid(&trainer_guid);
@@ -910,6 +1147,31 @@ mod tests {
                 aura_interrupt_flags: 0,
                 aura_interrupt_flags2: 0,
                 represented_effect: Some(RepresentedAuraEffectLikeCpp::FeignDeath),
+                represented_amount: 0,
+                represented_effect_amounts: Vec::new(),
+                represented_misc_value: None,
+                represented_multiplier: 1.0,
+                applied_at: Instant::now(),
+            },
+        );
+    }
+
+    fn seed_unclassified_active_aura(session: &mut WorldSession, slot: u8) {
+        let player_guid = session.player_guid().expect("active player");
+        session.visible_auras.insert(
+            slot,
+            AuraApplication {
+                spell_id: 999,
+                caster_guid: player_guid,
+                slot,
+                duration_total: 0,
+                duration_remaining: 0,
+                stack_count: 1,
+                aura_flags: 0,
+                effect_mask: 1,
+                aura_interrupt_flags: 0,
+                aura_interrupt_flags2: 0,
+                represented_effect: None,
                 represented_amount: 0,
                 represented_effect_amounts: Vec::new(),
                 represented_misc_value: None,
@@ -1311,25 +1573,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn available_buy_is_recomputed_but_never_mutates_or_publishes_success_in_this_slice() {
+    async fn available_buy_commits_once_then_publishes_cpp_visual_and_learning_order() {
         let mut fixture = trainer_fixture();
         fixture
             .session
             .set_player_trainer_interaction_like_cpp(fixture.trainer, DEFAULT_TRAINER_ID);
         fixture.session.set_player_gold_like_cpp(100);
-        let spells_before = fixture.session.known_spells_like_cpp().to_vec();
-        let decision_before = fixture.session.trainer_offer_decision_like_cpp(
-            DEFAULT_TRAINER_ID,
-            fixture
-                .session
-                .trainer_store_like_cpp()
-                .unwrap()
-                .get_trainer_like_cpp(DEFAULT_TRAINER_ID)
-                .unwrap()
-                .get_spell_like_cpp(AVAILABLE_TRAINER_SPELL as u32)
-                .unwrap(),
-            0,
-        );
+        fixture
+            .session
+            .set_loot_money_persistence_test_result_like_cpp(true);
 
         fixture
             .session
@@ -1340,12 +1592,226 @@ mod tests {
             ))
             .await;
 
-        assert!(matches!(
-            decision_before,
-            TrainerOfferDecisionLikeCpp::Available(_)
-        ));
+        assert_eq!(fixture.session.player_gold_like_cpp(), 80);
+        assert!(
+            fixture
+                .session
+                .known_spells_like_cpp()
+                .contains(&AVAILABLE_TRAINER_SPELL)
+        );
+        let player_guid = fixture.session.player_guid().unwrap();
+        assert_eq!(
+            fixture.send_rx.try_recv().unwrap(),
+            PlaySpellVisualKit {
+                unit: fixture.trainer,
+                kit_record_id: 179,
+                kit_type: 0,
+                duration: 0,
+                mounted_visual: false,
+            }
+            .to_bytes()
+        );
+        assert_eq!(
+            fixture.send_rx.try_recv().unwrap(),
+            PlaySpellVisualKit {
+                unit: player_guid,
+                kit_record_id: 362,
+                kit_type: 1,
+                duration: 0,
+                mounted_visual: false,
+            }
+            .to_bytes()
+        );
+        assert_eq!(
+            fixture.send_rx.try_recv().unwrap(),
+            wow_packet::packets::trainer::LearnedSpells::single(AVAILABLE_TRAINER_SPELL).to_bytes()
+        );
+        assert!(fixture.send_rx.try_recv().is_err());
+
+        fixture
+            .session
+            .handle_trainer_buy_spell(trainer_buy_packet(
+                fixture.trainer,
+                DEFAULT_TRAINER_ID as i32,
+                AVAILABLE_TRAINER_SPELL,
+            ))
+            .await;
+        assert_eq!(fixture.session.player_gold_like_cpp(), 80);
+        assert_eq!(
+            fixture.send_rx.try_recv().unwrap(),
+            TrainerBuyFailed {
+                trainer_guid: fixture.trainer,
+                spell_id: AVAILABLE_TRAINER_SPELL,
+                reason: 0,
+            }
+            .to_bytes()
+        );
+        assert!(fixture.send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn audited_castable_wrapper_commits_its_projected_target_once() {
+        let mut fixture = trainer_wrapper_fixture();
+
+        fixture
+            .session
+            .handle_trainer_buy_spell(trainer_buy_packet(
+                fixture.trainer,
+                DEFAULT_TRAINER_ID as i32,
+                WRAPPER_TRAINER_SPELL,
+            ))
+            .await;
+
+        assert_eq!(fixture.session.player_gold_like_cpp(), 75);
+        assert!(
+            fixture
+                .session
+                .known_spells_like_cpp()
+                .contains(&WRAPPER_LEARNED_SPELL)
+        );
+        assert!(
+            !fixture
+                .session
+                .known_spells_like_cpp()
+                .contains(&WRAPPER_TRAINER_SPELL),
+            "C++ casts a trainer wrapper; it does not learn the wrapper row"
+        );
+        assert_eq!(
+            fixture.send_rx.try_recv().unwrap(),
+            PlaySpellVisualKit {
+                unit: fixture.trainer,
+                kit_record_id: 179,
+                kit_type: 0,
+                duration: 0,
+                mounted_visual: false,
+            }
+            .to_bytes()
+        );
+        assert_eq!(
+            fixture.send_rx.try_recv().unwrap(),
+            PlaySpellVisualKit {
+                unit: fixture.session.player_guid().unwrap(),
+                kit_record_id: 362,
+                kit_type: 1,
+                duration: 0,
+                mounted_visual: false,
+            }
+            .to_bytes()
+        );
+        assert_eq!(
+            fixture.send_rx.try_recv().unwrap(),
+            wow_packet::packets::trainer::LearnedSpells::single(WRAPPER_LEARNED_SPELL).to_bytes()
+        );
+        assert!(fixture.send_rx.try_recv().is_err());
+
+        fixture
+            .session
+            .handle_trainer_buy_spell(trainer_buy_packet(
+                fixture.trainer,
+                DEFAULT_TRAINER_ID as i32,
+                WRAPPER_TRAINER_SPELL,
+            ))
+            .await;
+        assert_eq!(fixture.session.player_gold_like_cpp(), 75);
+        assert_eq!(
+            fixture.send_rx.try_recv().unwrap(),
+            TrainerBuyFailed {
+                trainer_guid: fixture.trainer,
+                spell_id: WRAPPER_TRAINER_SPELL,
+                reason: 0,
+            }
+            .to_bytes()
+        );
+        assert!(fixture.send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn wrapper_with_unproven_live_aura_mask_fails_before_charge_or_publication() {
+        let mut fixture = trainer_wrapper_fixture();
+        seed_unclassified_active_aura(&mut fixture.session, 2);
+
+        fixture
+            .session
+            .handle_trainer_buy_spell(trainer_buy_packet(
+                fixture.trainer,
+                DEFAULT_TRAINER_ID as i32,
+                WRAPPER_TRAINER_SPELL,
+            ))
+            .await;
+
         assert_eq!(fixture.session.player_gold_like_cpp(), 100);
-        assert_eq!(fixture.session.known_spells_like_cpp(), spells_before);
+        assert!(
+            !fixture
+                .session
+                .known_spells_like_cpp()
+                .contains(&WRAPPER_LEARNED_SPELL)
+        );
+        assert_eq!(
+            fixture.send_rx.try_recv().unwrap(),
+            TrainerBuyFailed {
+                trainer_guid: fixture.trainer,
+                spell_id: WRAPPER_TRAINER_SPELL,
+                reason: 0,
+            }
+            .to_bytes()
+        );
+        assert!(fixture.send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn definite_trainer_commit_failure_never_charges_grants_or_publishes() {
+        let mut fixture = trainer_fixture();
+        fixture
+            .session
+            .set_player_trainer_interaction_like_cpp(fixture.trainer, DEFAULT_TRAINER_ID);
+        fixture.session.set_player_gold_like_cpp(100);
+        fixture
+            .session
+            .set_loot_money_persistence_test_result_like_cpp(false);
+
+        fixture
+            .session
+            .handle_trainer_buy_spell(trainer_buy_packet(
+                fixture.trainer,
+                DEFAULT_TRAINER_ID as i32,
+                AVAILABLE_TRAINER_SPELL,
+            ))
+            .await;
+
+        assert_eq!(fixture.session.player_gold_like_cpp(), 100);
+        assert!(
+            !fixture
+                .session
+                .known_spells_like_cpp()
+                .contains(&AVAILABLE_TRAINER_SPELL)
+        );
+        assert!(fixture.send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn missing_character_database_never_charges_grants_or_publishes() {
+        let mut fixture = trainer_fixture();
+        fixture
+            .session
+            .set_player_trainer_interaction_like_cpp(fixture.trainer, DEFAULT_TRAINER_ID);
+        fixture.session.set_player_gold_like_cpp(100);
+
+        fixture
+            .session
+            .handle_trainer_buy_spell(trainer_buy_packet(
+                fixture.trainer,
+                DEFAULT_TRAINER_ID as i32,
+                AVAILABLE_TRAINER_SPELL,
+            ))
+            .await;
+
+        assert_eq!(fixture.session.player_gold_like_cpp(), 100);
+        assert!(
+            !fixture
+                .session
+                .known_spells_like_cpp()
+                .contains(&AVAILABLE_TRAINER_SPELL)
+        );
         assert!(fixture.send_rx.try_recv().is_err());
     }
 
@@ -1380,7 +1846,7 @@ mod tests {
     }
 
     #[test]
-    fn buy_registration_remains_but_dispatch_and_legacy_mutation_are_disabled() {
+    fn buy_registration_remains_while_dispatch_and_legacy_shortcuts_stay_disabled() {
         let trainer = include_str!("trainer.rs");
         let session = include_str!("../session.rs");
         assert!(trainer.contains("opcode: ClientOpcodes::TrainerBuySpell"));
@@ -1402,7 +1868,7 @@ mod tests {
         ] {
             assert!(
                 !buy.contains(forbidden),
-                "#157 must not retain legacy buy mutation/publication `{forbidden}`"
+                "#159 must use the prepared atomic boundary, not legacy shortcut `{forbidden}`"
             );
         }
     }

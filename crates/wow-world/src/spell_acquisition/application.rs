@@ -89,6 +89,13 @@ pub(crate) enum PlayerSpellAcquisitionReconciliationLikeCpp {
     NotCommitted,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PlayerSpellAcquisitionMoneyReconciliationLikeCpp {
+    Committed,
+    RolledBack,
+    Indeterminate,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum PreparedPlayerSpellAcquisitionOutcomeLikeCpp {
     Ready(PreparedPlayerSpellAcquisitionLikeCpp),
@@ -1348,6 +1355,202 @@ pub(crate) async fn persist_prepared_player_spell_acquisition_like_cpp(
     .await
 }
 
+/// Persists one prepared acquisition and its absolute trainer fee in a single
+/// Character DB transaction. The locked money value is an optimistic
+/// idempotency guard: a repeated or cross-session request cannot rewrite the
+/// prepared spell/skill snapshot after another purchase changed the balance.
+pub(crate) async fn persist_prepared_player_spell_acquisition_and_money_like_cpp(
+    character_db: &CharacterDatabase,
+    guid_counter: u64,
+    prepared: &PreparedPlayerSpellAcquisitionLikeCpp,
+    money_before: u64,
+    money_after: u64,
+) -> Result<(), SqlTransactionCommitError> {
+    validate_prepared_character_counter_like_cpp(guid_counter, prepared)
+        .map_err(SqlTransactionCommitError::DefinitelyRolledBack)?;
+    let mut transaction = character_db
+        .pool()
+        .begin()
+        .await
+        .map_err(DatabaseError::from)
+        .map_err(SqlTransactionCommitError::DefinitelyRolledBack)?;
+
+    let locked_money = match sqlx::query_scalar::<_, u64>(
+        "SELECT money FROM characters WHERE guid = ? FOR UPDATE",
+    )
+    .bind(guid_counter)
+    .fetch_optional(&mut *transaction)
+    .await
+    {
+        Ok(money) => money,
+        Err(error) => {
+            let error = DatabaseError::from(error);
+            rollback_player_spell_acquisition_like_cpp(transaction).await;
+            return Err(SqlTransactionCommitError::DefinitelyRolledBack(error));
+        }
+    };
+    if locked_money != Some(money_before) {
+        rollback_player_spell_acquisition_like_cpp(transaction).await;
+        return Err(SqlTransactionCommitError::DefinitelyRolledBack(
+            DatabaseError::Transaction(
+                "trainer acquisition durable money no longer matches the prepared balance"
+                    .to_string(),
+            ),
+        ));
+    }
+
+    for operation in prepared.durable_operations.iter().copied() {
+        if operation == PlayerSpellAcquisitionDurableOperationLikeCpp::LockCharacter {
+            continue;
+        }
+        if let Err(error) = execute_player_spell_acquisition_operation_like_cpp(
+            &mut transaction,
+            guid_counter,
+            operation,
+        )
+        .await
+        {
+            rollback_player_spell_acquisition_like_cpp(transaction).await;
+            return Err(SqlTransactionCommitError::DefinitelyRolledBack(error));
+        }
+    }
+
+    if money_before != money_after {
+        let result =
+            match sqlx::query("UPDATE characters SET money = ? WHERE guid = ? AND money = ?")
+                .bind(money_after)
+                .bind(guid_counter)
+                .bind(money_before)
+                .execute(&mut *transaction)
+                .await
+            {
+                Ok(result) => result,
+                Err(error) => {
+                    let error = DatabaseError::from(error);
+                    rollback_player_spell_acquisition_like_cpp(transaction).await;
+                    return Err(SqlTransactionCommitError::DefinitelyRolledBack(error));
+                }
+            };
+        if result.rows_affected() != 1 {
+            rollback_player_spell_acquisition_like_cpp(transaction).await;
+            return Err(SqlTransactionCommitError::DefinitelyRolledBack(
+                DatabaseError::Transaction(format!(
+                    "trainer acquisition money update affected {} rows; expected exactly 1",
+                    result.rows_affected()
+                )),
+            ));
+        }
+    }
+
+    transaction.commit().await.map_err(|error| {
+        let error = DatabaseError::from(error);
+        if is_database_deadlock_like_cpp(&error) {
+            SqlTransactionCommitError::DefinitelyRolledBack(error)
+        } else {
+            SqlTransactionCommitError::CommitOutcomeUnknown(error)
+        }
+    })
+}
+
+/// Reconciles an ambiguous combined trainer COMMIT. Exact prepared spell,
+/// favorite and skill authority plus the post-purchase money value proves the
+/// transaction committed. A changed-money transaction is provably rolled back
+/// when the old value remains; every other shape is quarantined as unknown.
+pub(crate) async fn reconcile_prepared_player_spell_acquisition_and_money_like_cpp(
+    character_db: &CharacterDatabase,
+    guid_counter: u64,
+    prepared: &PreparedPlayerSpellAcquisitionLikeCpp,
+    money_before: u64,
+    money_after: u64,
+) -> Result<PlayerSpellAcquisitionMoneyReconciliationLikeCpp, DatabaseError> {
+    validate_prepared_character_counter_like_cpp(guid_counter, prepared)?;
+    let mut transaction = character_db
+        .pool()
+        .begin()
+        .await
+        .map_err(DatabaseError::from)?;
+    let observed_money =
+        sqlx::query_scalar::<_, u64>("SELECT money FROM characters WHERE guid = ? FOR UPDATE")
+            .bind(guid_counter)
+            .fetch_optional(&mut *transaction)
+            .await
+            .map_err(DatabaseError::from)?;
+    let Some(observed_money) = observed_money else {
+        rollback_player_spell_acquisition_like_cpp(transaction).await;
+        return Err(DatabaseError::Transaction(
+            "trainer acquisition character vanished during reconciliation".to_string(),
+        ));
+    };
+    let spell_rows = sqlx::query_as::<_, (i32, bool, bool)>(
+        "SELECT spell, active, disabled FROM character_spell WHERE guid = ? ORDER BY spell",
+    )
+    .bind(guid_counter)
+    .fetch_all(&mut *transaction)
+    .await
+    .map_err(DatabaseError::from)?
+    .into_iter()
+    .map(
+        |(spell_id, active, disabled)| DurablePlayerSpellRowLikeCpp {
+            spell_id,
+            active,
+            disabled,
+        },
+    )
+    .collect::<Vec<_>>();
+    let favorite_spell_ids = sqlx::query_scalar::<_, i32>(
+        "SELECT spell FROM character_spell_favorite WHERE guid = ? ORDER BY spell",
+    )
+    .bind(guid_counter)
+    .fetch_all(&mut *transaction)
+    .await
+    .map_err(DatabaseError::from)?;
+    let skill_rows = sqlx::query_as::<_, (u16, u16, u16, i8)>(
+        "SELECT skill, value, max, professionSlot FROM character_skills WHERE guid = ? ORDER BY skill",
+    )
+    .bind(guid_counter)
+    .fetch_all(&mut *transaction)
+    .await
+    .map_err(DatabaseError::from)?
+    .into_iter()
+    .map(
+        |(skill_id, value, maximum, profession_slot)| DurablePlayerSkillRowLikeCpp {
+            skill_id,
+            value,
+            maximum,
+            profession_slot,
+        },
+    )
+    .collect::<Vec<_>>();
+    transaction.commit().await.map_err(DatabaseError::from)?;
+
+    let durable_matches = spell_rows == prepared.durable_spells
+        && favorite_spell_ids == prepared.durable_favorite_spell_ids
+        && skill_rows == prepared.durable_skills;
+    Ok(
+        classify_player_spell_acquisition_money_reconciliation_like_cpp(
+            money_before,
+            money_after,
+            observed_money,
+            durable_matches,
+        ),
+    )
+}
+
+fn classify_player_spell_acquisition_money_reconciliation_like_cpp(
+    money_before: u64,
+    money_after: u64,
+    observed_money: u64,
+    durable_matches: bool,
+) -> PlayerSpellAcquisitionMoneyReconciliationLikeCpp {
+    if observed_money == money_after && durable_matches {
+        PlayerSpellAcquisitionMoneyReconciliationLikeCpp::Committed
+    } else if money_before != money_after && observed_money == money_before {
+        PlayerSpellAcquisitionMoneyReconciliationLikeCpp::RolledBack
+    } else {
+        PlayerSpellAcquisitionMoneyReconciliationLikeCpp::Indeterminate
+    }
+}
+
 /// Re-reads the complete durable authority after a lost COMMIT response.
 /// Exact equality proves that publishing the prepared result is safe; any
 /// other complete state is treated as not committed and is never guessed.
@@ -1604,6 +1807,42 @@ pub(crate) fn apply_prepared_player_spell_acquisition_like_cpp(
     apply_prepared_player_spell_acquisition_with_fault_like_cpp(session, prepared, |_| Ok(()))
 }
 
+/// Applies the committed runtime snapshot, then invokes one infallible
+/// publication hook immediately before the ordered learning actions. Trainer
+/// purchases use the hook for C++'s money and visual publications, after every
+/// runtime owner and replacement has already been proven safe.
+pub(crate) fn apply_prepared_player_spell_acquisition_with_before_actions_like_cpp<Before>(
+    session: &mut crate::session::WorldSession,
+    prepared: &PreparedPlayerSpellAcquisitionLikeCpp,
+    before_actions: Before,
+) -> Result<(), PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp>
+where
+    Before: FnOnce(&mut crate::session::WorldSession),
+{
+    require_prepared_session_character_like_cpp(session, prepared.character_guid)?;
+    apply_player_spell_acquisition_runtime_snapshot_with_before_actions_and_fault_like_cpp(
+        session,
+        &prepared.runtime_snapshot,
+        &prepared.non_durable_skill_tombstone_ids,
+        &prepared.post_commit_actions,
+        before_actions,
+        |_| Ok(()),
+    )
+}
+
+/// Proves every runtime owner needed after COMMIT is available before a
+/// trainer fee or acquisition row becomes durable.
+pub(crate) fn validate_prepared_player_spell_acquisition_runtime_like_cpp(
+    session: &crate::session::WorldSession,
+    prepared: &PreparedPlayerSpellAcquisitionLikeCpp,
+) -> Result<(), PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp> {
+    require_prepared_session_character_like_cpp(session, prepared.character_guid)?;
+    preflight_player_spell_acquisition_runtime_owners_like_cpp(
+        session,
+        &prepared.post_commit_actions,
+    )
+}
+
 /// Applies the exact prepared plan with C++ `Player::LearnSpell` timing. The
 /// runtime and packets change synchronously while the plan's persistence states
 /// remain dirty for the ordinary `Player::SaveToDB` lifecycle.
@@ -1647,6 +1886,31 @@ fn apply_player_spell_acquisition_runtime_snapshot_with_fault_like_cpp<F>(
     fault: F,
 ) -> Result<(), PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp>
 where
+    F: FnMut(PlayerSpellAcquisitionPublicationFaultPointLikeCpp) -> Result<(), ()>,
+{
+    apply_player_spell_acquisition_runtime_snapshot_with_before_actions_and_fault_like_cpp(
+        session,
+        runtime_snapshot,
+        new_non_durable_skill_tombstone_ids,
+        post_commit_actions,
+        |_| {},
+        fault,
+    )
+}
+
+fn apply_player_spell_acquisition_runtime_snapshot_with_before_actions_and_fault_like_cpp<
+    Before,
+    F,
+>(
+    session: &mut crate::session::WorldSession,
+    runtime_snapshot: &PlayerSpellAcquisitionSnapshotLikeCpp,
+    new_non_durable_skill_tombstone_ids: &BTreeSet<u16>,
+    post_commit_actions: &[SpellAcquisitionPostCommitActionLikeCpp],
+    before_actions: Before,
+    fault: F,
+) -> Result<(), PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp>
+where
+    Before: FnOnce(&mut crate::session::WorldSession),
     F: FnMut(PlayerSpellAcquisitionPublicationFaultPointLikeCpp) -> Result<(), ()>,
 {
     preflight_player_spell_acquisition_runtime_owners_like_cpp(session, post_commit_actions)?;
@@ -1765,6 +2029,7 @@ where
     ) {
         return Err(PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp::InvalidPreparedRuntime);
     }
+    before_actions(session);
     publish_player_spell_acquisition_actions_with_fault_like_cpp(
         session,
         runtime_snapshot,
@@ -3181,10 +3446,19 @@ mod tests {
             panic!("expected ready plan")
         };
         let (mut session, send_rx) = make_session();
+        let before_actions_ran = std::cell::Cell::new(false);
 
         assert_eq!(
-            apply_prepared_player_spell_acquisition_like_cpp(&mut session, &prepared),
+            apply_prepared_player_spell_acquisition_with_before_actions_like_cpp(
+                &mut session,
+                &prepared,
+                |_| before_actions_ran.set(true),
+            ),
             Err(PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp::InvalidPreparedRuntime)
+        );
+        assert!(
+            !before_actions_ran.get(),
+            "money and trainer visuals must not start before every runtime owner preflights"
         );
         assert!(
             session
@@ -3201,6 +3475,42 @@ mod tests {
                 .represented_spell_acquisition_post_commit_actions_like_cpp()
                 .is_empty(),
             "a missing required runtime owner is rejected before recording any action"
+        );
+    }
+
+    #[test]
+    fn combined_commit_reconciliation_requires_money_and_exact_durable_result() {
+        use PlayerSpellAcquisitionMoneyReconciliationLikeCpp::{
+            Committed, Indeterminate, RolledBack,
+        };
+
+        assert_eq!(
+            classify_player_spell_acquisition_money_reconciliation_like_cpp(100, 80, 80, true),
+            Committed
+        );
+        assert_eq!(
+            classify_player_spell_acquisition_money_reconciliation_like_cpp(100, 80, 100, false),
+            RolledBack
+        );
+        assert_eq!(
+            classify_player_spell_acquisition_money_reconciliation_like_cpp(100, 80, 100, true),
+            RolledBack,
+            "the unchanged guarded balance proves that the whole transaction rolled back"
+        );
+        assert_eq!(
+            classify_player_spell_acquisition_money_reconciliation_like_cpp(100, 80, 80, false),
+            Indeterminate,
+            "money alone must never authorize publication of an incomplete acquisition"
+        );
+        assert_eq!(
+            classify_player_spell_acquisition_money_reconciliation_like_cpp(100, 100, 100, true),
+            Committed,
+            "a free trainer purchase is proven only by its complete durable result"
+        );
+        assert_eq!(
+            classify_player_spell_acquisition_money_reconciliation_like_cpp(100, 100, 100, false,),
+            Indeterminate,
+            "an unchanged balance cannot prove rollback for a free purchase"
         );
     }
 
@@ -3304,6 +3614,62 @@ mod tests {
                 }],
                 favorites: vec![100],
                 skills: Vec::new(),
+            }
+        );
+    }
+
+    #[test]
+    fn trainer_fee_and_acquisition_share_every_rollback_boundary() {
+        #[derive(Clone, Debug, PartialEq, Eq)]
+        struct CombinedState {
+            money: u64,
+            spells: Vec<i32>,
+            skills: Vec<u16>,
+        }
+
+        fn execute(original: &CombinedState, fail_before_step: Option<usize>) -> CombinedState {
+            let mut transaction = original.clone();
+            // Mirrors the combined transaction's destructive replacement,
+            // deterministic inserts, guarded money update and COMMIT fence.
+            let mut step = 0;
+            macro_rules! transaction_step {
+                ($body:expr) => {{
+                    if fail_before_step == Some(step) {
+                        return original.clone();
+                    }
+                    $body;
+                    step += 1;
+                }};
+            }
+            transaction_step!(transaction.spells.clear());
+            transaction_step!(transaction.skills.clear());
+            transaction_step!(transaction.spells.extend([200, 201]));
+            transaction_step!(transaction.skills.push(164));
+            transaction_step!(transaction.money = 80);
+            if fail_before_step == Some(step) {
+                return original.clone();
+            }
+            transaction
+        }
+
+        let original = CombinedState {
+            money: 100,
+            spells: vec![100],
+            skills: vec![95],
+        };
+        for boundary in 0..=5 {
+            assert_eq!(
+                execute(&original, Some(boundary)),
+                original,
+                "fault boundary {boundary} must expose neither a fee nor an acquisition prefix"
+            );
+        }
+        assert_eq!(
+            execute(&original, None),
+            CombinedState {
+                money: 80,
+                spells: vec![200, 201],
+                skills: vec![164],
             }
         );
     }

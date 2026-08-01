@@ -300,6 +300,10 @@ pub struct SessionResources {
     /// Process-wide immutable acquisition projection composed from the
     /// effective spell metadata sources.
     pub spell_acquisition_catalog: Option<Arc<wow_data::SpellAcquisitionCatalogLikeCpp>>,
+    /// Startup-audited casts/crafts that the immutable acquisition planner may
+    /// execute. Missing authority remains fail-closed in `wow-world`.
+    pub spell_acquisition_safe_cast_spell_ids: Option<Arc<std::collections::BTreeSet<u32>>>,
+    pub spell_acquisition_valid_craft_spell_ids: Option<Arc<std::collections::BTreeSet<u32>>>,
     pub spell_levels_store: Option<Arc<wow_data::SpellLevelsStore>>,
     pub spell_category_store: Option<Arc<wow_data::SpellCategoryStore>>,
     pub npc_spell_click_store: Option<Arc<wow_data::NpcSpellClickStoreLikeCpp>>,

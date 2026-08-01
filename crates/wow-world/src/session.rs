@@ -5894,6 +5894,10 @@ pub struct WorldSession {
     /// Spell store (metadata for all known spells: cast time, cooldown, effects, etc.)
     pub spell_store: Option<Arc<SpellStore>>,
     spell_acquisition_catalog: Option<Arc<SpellAcquisitionCatalogLikeCpp>>,
+    pub(crate) spell_acquisition_cast_authority_like_cpp:
+        Option<Arc<crate::spell_acquisition::SpellAcquisitionCastAuthorityLikeCpp>>,
+    pub(crate) spell_acquisition_craft_authority_like_cpp:
+        Option<Arc<crate::spell_acquisition::SpellAcquisitionCraftValidityAuthorityLikeCpp>>,
     spell_levels_store: Option<Arc<SpellLevelsStore>>,
     talent_store: Option<Arc<TalentStore>>,
     talent_tab_store: Option<Arc<TalentTabStore>>,
@@ -7735,6 +7739,8 @@ impl WorldSession {
             canonical_threat_aura_snapshots_like_cpp: HashMap::new(),
             spell_store: None,
             spell_acquisition_catalog: None,
+            spell_acquisition_cast_authority_like_cpp: None,
+            spell_acquisition_craft_authority_like_cpp: None,
             spell_levels_store: None,
             talent_store: None,
             talent_tab_store: None,
@@ -25644,6 +25650,27 @@ impl WorldSession {
         self.spell_acquisition_catalog = Some(catalog);
     }
 
+    /// Install the process-wide audited static authority consumed by the
+    /// immutable acquisition planner. Absence remains fail-closed.
+    pub fn set_spell_acquisition_static_authority_like_cpp(
+        &mut self,
+        safe_cast_spell_ids: impl IntoIterator<Item = u32>,
+        valid_craft_spell_ids: impl IntoIterator<Item = u32>,
+    ) {
+        self.spell_acquisition_cast_authority_like_cpp = Some(Arc::new(
+            crate::spell_acquisition::SpellAcquisitionCastAuthorityLikeCpp::from_audited_rows_like_cpp(
+                safe_cast_spell_ids,
+                std::iter::empty(),
+            ),
+        ));
+        self.spell_acquisition_craft_authority_like_cpp = Some(Arc::new(
+            crate::spell_acquisition::SpellAcquisitionCraftValidityAuthorityLikeCpp::from_audited_rows_like_cpp(
+                valid_craft_spell_ids,
+                std::iter::empty(),
+            ),
+        ));
+    }
+
     pub(crate) fn spell_acquisition_catalog(&self) -> Option<&Arc<SpellAcquisitionCatalogLikeCpp>> {
         self.spell_acquisition_catalog.as_ref()
     }
@@ -27104,6 +27131,93 @@ impl WorldSession {
                             money_after,
                             ?observed_money,
                             "player-money COMMIT outcome remains indeterminate; quarantined the session"
+                        );
+                        None
+                    }
+                }
+            }
+        }
+    }
+
+    /// Commit one trainer fee and its prepared spell/skill acquisition under
+    /// the same per-character money exclusion. Runtime publication remains the
+    /// caller's responsibility and must complete before the returned guard is
+    /// dropped.
+    pub(crate) async fn commit_exclusive_player_money_and_spell_acquisition_like_cpp(
+        &mut self,
+        money_persistence: ExclusivePlayerMoneyPersistenceLikeCpp,
+        character_db: Option<&CharacterDatabase>,
+        prepared: &crate::spell_acquisition::PreparedPlayerSpellAcquisitionLikeCpp,
+        money_before: u64,
+        money_after: u64,
+    ) -> Option<ExclusivePlayerMoneyPersistenceLikeCpp> {
+        #[cfg(test)]
+        if let Some(success) = self.loot_money_persistence_test_result_like_cpp {
+            return success.then_some(money_persistence);
+        }
+
+        let character_db = character_db?;
+        let player_guid = self.player_guid()?;
+        let guid_counter = player_guid.counter() as u64;
+        let mut cancellation_fence = PlayerMoneyCommitCancellationFenceLikeCpp::new(Arc::clone(
+            &self.durable_loot_money_persistence_like_cpp,
+        ));
+        let commit_result =
+            crate::spell_acquisition::persist_prepared_player_spell_acquisition_and_money_like_cpp(
+                character_db,
+                guid_counter,
+                prepared,
+                money_before,
+                money_after,
+            )
+            .await;
+        match commit_result {
+            Ok(()) => {
+                cancellation_fence.disarm_like_cpp();
+                Some(money_persistence)
+            }
+            Err(SqlTransactionCommitError::DefinitelyRolledBack(error)) => {
+                cancellation_fence.disarm_like_cpp();
+                warn!(%error, "trainer purchase transaction definitely rolled back");
+                None
+            }
+            Err(SqlTransactionCommitError::CommitOutcomeUnknown(error)) => {
+                let reconciliation = crate::spell_acquisition::reconcile_prepared_player_spell_acquisition_and_money_like_cpp(
+                    character_db,
+                    guid_counter,
+                    prepared,
+                    money_before,
+                    money_after,
+                )
+                .await;
+                match reconciliation {
+                    Ok(crate::spell_acquisition::PlayerSpellAcquisitionMoneyReconciliationLikeCpp::Committed) => {
+                        cancellation_fence.disarm_like_cpp();
+                        warn!(
+                            %error,
+                            "trainer COMMIT reply was lost but durable money and acquisition rows prove commit"
+                        );
+                        Some(money_persistence)
+                    }
+                    Ok(crate::spell_acquisition::PlayerSpellAcquisitionMoneyReconciliationLikeCpp::RolledBack) => {
+                        cancellation_fence.disarm_like_cpp();
+                        warn!(
+                            %error,
+                            "trainer COMMIT reply was lost but durable money proves rollback"
+                        );
+                        None
+                    }
+                    Ok(crate::spell_acquisition::PlayerSpellAcquisitionMoneyReconciliationLikeCpp::Indeterminate)
+                    | Err(_) => {
+                        self.durable_loot_money_persistence_like_cpp
+                            .mark_indeterminate_like_cpp();
+                        cancellation_fence.disarm_like_cpp();
+                        self.kick(
+                            "trainer purchase COMMIT outcome is unknown; relog required before another money mutation",
+                        );
+                        warn!(
+                            %error,
+                            "trainer COMMIT outcome remains indeterminate; quarantined the session"
                         );
                         None
                     }

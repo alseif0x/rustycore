@@ -1,3 +1,14 @@
+- `#NEXT.R8.ENTITIES.1246` — issue #159 convierte el adaptador de compra normal, todavía fuera
+  del dispatcher, en una operación atómica: bajo el owner exclusivo de dinero vuelve a resolver
+  interacción, procedencia, membresía, condición, precio y el plan #157/#164; persiste dinero y el
+  resultado #158 completo en una transacción con guardas; reconcilia COMMIT incierto leyendo dinero,
+  spells, favoritos y skills; y solo entonces instala runtime y publica money, visual kits 179/362 y
+  acciones de aprendizaje en orden C++. Los wrappers exigen autoridad estática auditada al arrancar
+  y un effect mask fresco; mientras falten los mapas completos de inmunidad, cualquier aura activa
+  falla cerrado. Directo/wrapper, retry, rollback, DB ausente, pre-publicación, reconciliación y wire
+  visual tienen pruebas focales. Dispatcher #142, battle pets #160/#161, capture/live reload, CI y
+  review current-HEAD siguen pendientes.
+
 - `#NEXT.R8.ENTITIES.1245` — issue #158 convierte el plan inmutable #164 en la única
   entrada semántica para aprendizaje durable. El plan conserva ahora su snapshot fuente exacto;
   aplicación reproduce y valida el stream causal, proyecciones tipadas, resultado, procedencia,

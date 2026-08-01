@@ -24,14 +24,15 @@ use wow_data::{
     ServersideSpellStoreLikeCpp, SkillStore, SpellAcquisitionCatalogLikeCpp,
     SpellAcquisitionCoverageSeedLikeCpp, SpellAcquisitionDiagnosticSeverityLikeCpp,
     SpellAcquisitionIndeterminateReasonLikeCpp, SpellAcquisitionTalentLookupLikeCpp,
-    SpellChainStoreLikeCpp, SpellCustomAttributeKeyLikeCpp,
+    SpellAuraRestrictionsStore, SpellChainStoreLikeCpp, SpellCustomAttributeKeyLikeCpp,
     SpellCustomAttributeLoadErrorKindLikeCpp, SpellCustomAttributeSourceVariantLikeCpp,
-    SpellCustomAttributeStoreLikeCpp, SpellLearnSkillEffectLikeCpp,
+    SpellCustomAttributeStoreLikeCpp, SpellEquippedItemsStore, SpellLearnSkillEffectLikeCpp,
     SpellLearnSkillIndeterminateReasonLikeCpp, SpellLearnSkillSourceSpellInfoLikeCpp,
     SpellLearnSkillStoreLikeCpp, SpellLearnSourceSpellInfoLikeCpp, SpellLearnSpellEffectLikeCpp,
-    SpellLearnSpellEntry, SpellLearnSpellStoreLikeCpp, SpellStore,
+    SpellLearnSpellEntry, SpellLearnSpellStoreLikeCpp, SpellLinkedStoreLikeCpp,
+    SpellLinkedTypeLikeCpp, SpellPetAuraStoreLikeCpp, SpellStore,
 };
-use wow_database::{HotfixDatabase, WorldDatabase};
+use wow_database::{HotfixDatabase, WorldDatabase, WorldStatements};
 
 use wow_data::spell::spell_effect_types::{
     SPELL_EFFECT_DUAL_WIELD, SPELL_EFFECT_LEARN_SPELL, SPELL_EFFECT_SKILL, SPELL_EFFECT_SKILL_STEP,
@@ -48,6 +49,214 @@ pub(crate) struct SpellAcquisitionBootstrapLikeCpp {
     pub(crate) learn_skill_store: Arc<SpellLearnSkillStoreLikeCpp>,
     pub(crate) learn_spell_store: Arc<SpellLearnSpellStoreLikeCpp>,
     pub(crate) custom_attribute_store: Arc<SpellCustomAttributeStoreLikeCpp>,
+}
+
+#[derive(Debug)]
+pub(crate) struct TrainerSpellStaticAuthorityLikeCpp {
+    pub(crate) safe_cast_spell_ids: BTreeSet<u32>,
+    pub(crate) valid_craft_spell_ids: BTreeSet<u32>,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+struct TrainerCastWorldHookAuditLikeCpp {
+    script_binding: bool,
+    legacy_script: bool,
+    condition: bool,
+    disabled: bool,
+    aura_restriction: bool,
+    equipped_item_restriction: bool,
+    linked_spell: bool,
+}
+
+fn trainer_cast_world_hooks_are_static_safe_like_cpp(
+    audit: TrainerCastWorldHookAuditLikeCpp,
+) -> bool {
+    !(audit.script_binding
+        || audit.legacy_script
+        || audit.condition
+        || audit.disabled
+        || audit.aura_restriction
+        || audit.equipped_item_restriction
+        || audit.linked_spell)
+}
+
+fn trainer_cast_effects_are_static_safe_like_cpp(
+    spell_id: u32,
+    effects: &[SpellAcquisitionEffectLikeCpp],
+    mut has_pet_aura: impl FnMut(u8) -> bool,
+) -> bool {
+    let mut has_acquisition_effect = false;
+    for effect in effects {
+        let (Ok(effect_type), Ok(effect_index)) =
+            (effect.effect_type_checked(), effect.effect_index_checked())
+        else {
+            return false;
+        };
+        if has_pet_aura(effect_index) {
+            return false;
+        }
+        match effect_type {
+            SPELL_EFFECT_LEARN_SPELL
+            | SPELL_EFFECT_SKILL
+            | SPELL_EFFECT_SKILL_STEP
+            | SPELL_EFFECT_DUAL_WIELD => {
+                has_acquisition_effect = true;
+                if effect_type != SPELL_EFFECT_SKILL && !effect.targets_player_like_cpp() {
+                    return false;
+                }
+            }
+            0 => {}
+            // The effective 3.4.3 audit found these two inert DUMMY
+            // effects in the otherwise deterministic riding closure.
+            3 if matches!(spell_id, 33_388 | 34_090) => {}
+            other if wow_data::spell::spell_effect_types::is_cpp_null_or_unused_noop(other) => {}
+            _ => return false,
+        }
+    }
+    has_acquisition_effect
+}
+
+/// Build the immutable, process-wide half of trainer wrapper authority.
+///
+/// This deliberately proves only the narrow acquisition-effect closure. Every
+/// world-table hook that can alter a cast is queried from the final DB, and
+/// every unsupported effective effect/target remains absent from the result.
+/// The per-player immunity/effect mask is resolved separately by `wow-world`
+/// immediately before the atomic trainer commit.
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn load_trainer_static_authority_like_cpp(
+    world_db: &WorldDatabase,
+    spell_store: &SpellStore,
+    spell_chains: &SpellChainStoreLikeCpp,
+    catalog: &SpellAcquisitionCatalogLikeCpp,
+    linked: &SpellLinkedStoreLikeCpp,
+    pet_auras: &SpellPetAuraStoreLikeCpp,
+    aura_restrictions: &SpellAuraRestrictionsStore,
+    equipped_items: &SpellEquippedItemsStore,
+    item_exists: impl Fn(u32) -> bool,
+) -> Result<TrainerSpellStaticAuthorityLikeCpp> {
+    let script_bindings = load_signed_spell_id_set_like_cpp(
+        world_db,
+        WorldStatements::SEL_TRAINER_CAST_SCRIPT_BINDING_IDS,
+    )
+    .await
+    .context("Failed to audit spell_script_names for trainer casts")?;
+    let legacy_scripts = load_unsigned_spell_id_set_like_cpp(
+        world_db,
+        WorldStatements::SEL_TRAINER_CAST_LEGACY_SCRIPT_IDS,
+    )
+    .await
+    .context("Failed to audit spell_scripts for trainer casts")?;
+    let conditions = load_signed_spell_id_set_like_cpp(
+        world_db,
+        WorldStatements::SEL_TRAINER_CAST_CONDITION_IDS,
+    )
+    .await
+    .context("Failed to audit spell cast/implicit-target conditions")?;
+    let disabled = load_unsigned_spell_id_set_like_cpp(
+        world_db,
+        WorldStatements::SEL_TRAINER_CAST_DISABLED_IDS,
+    )
+    .await
+    .context("Failed to audit disabled trainer casts")?;
+
+    let mut safe_cast_spell_ids = BTreeSet::new();
+    for (spell_id, difficulty_id) in spell_store.spell_info_keys_in_order_like_cpp() {
+        if difficulty_id != 0 {
+            continue;
+        }
+        let hook_audit = TrainerCastWorldHookAuditLikeCpp {
+            script_binding: script_bindings.contains(&spell_id)
+                || script_bindings.contains(&spell_chains.first_spell_in_chain_like_cpp(spell_id)),
+            legacy_script: legacy_scripts.contains(&spell_id),
+            condition: conditions.contains(&spell_id),
+            disabled: disabled.contains(&spell_id),
+            aura_restriction: aura_restrictions
+                .entries_for_spell_id_like_cpp(spell_id)
+                .next()
+                .is_some(),
+            equipped_item_restriction: equipped_items
+                .entry_for_spell_id_like_cpp(i32::try_from(spell_id).unwrap_or(i32::MAX))
+                .is_some(),
+            linked_spell: [
+                SpellLinkedTypeLikeCpp::Cast,
+                SpellLinkedTypeLikeCpp::Hit,
+                SpellLinkedTypeLikeCpp::Aura,
+            ]
+            .into_iter()
+            .any(|kind| linked.get_spell_linked_like_cpp(kind, spell_id).is_some()),
+        };
+        if !trainer_cast_world_hooks_are_static_safe_like_cpp(hook_audit) {
+            continue;
+        }
+        let effects = match catalog.acquisition_effects_like_cpp(spell_id) {
+            wow_data::SpellAcquisitionEffectsLookupLikeCpp::Covered(effects) => effects,
+            wow_data::SpellAcquisitionEffectsLookupLikeCpp::MissingCoverage
+            | wow_data::SpellAcquisitionEffectsLookupLikeCpp::Indeterminate(_) => continue,
+        };
+        if trainer_cast_effects_are_static_safe_like_cpp(spell_id, effects, |effect_index| {
+            pet_auras
+                .get_pet_aura_like_cpp(spell_id, effect_index)
+                .is_some()
+        }) {
+            safe_cast_spell_ids.insert(spell_id);
+        }
+    }
+
+    // C++ `SpellMgr::IsSpellValid` recursively validates created items and
+    // reagents. The effective 3.4.3 closure has exactly these three crafting
+    // targets; keep the proof pinned to their audited created-item identities.
+    let valid_craft_spell_ids = [(12_716, 10_577), (13_240, 10_577), (22_967, 17_771)]
+        .into_iter()
+        .filter_map(|(spell_id, item_id)| item_exists(item_id).then_some(spell_id))
+        .collect();
+
+    Ok(TrainerSpellStaticAuthorityLikeCpp {
+        safe_cast_spell_ids,
+        valid_craft_spell_ids,
+    })
+}
+
+async fn load_unsigned_spell_id_set_like_cpp(
+    world_db: &WorldDatabase,
+    statement: WorldStatements,
+) -> Result<BTreeSet<u32>> {
+    let prepared = world_db.prepare(statement);
+    let mut result = world_db.query(&prepared).await?;
+    let mut ids = BTreeSet::new();
+    if !result.is_empty() {
+        loop {
+            if let Some(id) = result.try_read::<u32>(0) {
+                ids.insert(id);
+            }
+            if !result.next_row() {
+                break;
+            }
+        }
+    }
+    Ok(ids)
+}
+
+async fn load_signed_spell_id_set_like_cpp(
+    world_db: &WorldDatabase,
+    statement: WorldStatements,
+) -> Result<BTreeSet<u32>> {
+    let prepared = world_db.prepare(statement);
+    let mut result = world_db.query(&prepared).await?;
+    let mut ids = BTreeSet::new();
+    if !result.is_empty() {
+        loop {
+            if let Some(id) = result.try_read::<i32>(0)
+                && let Some(id) = id.checked_abs().and_then(|id| u32::try_from(id).ok())
+            {
+                ids.insert(id);
+            }
+            if !result.next_row() {
+                break;
+            }
+        }
+    }
+    Ok(ids)
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -734,6 +943,107 @@ mod tests {
             effect_misc_value_raw: [misc_value, 0],
             implicit_target_raw: [0, 0],
         }
+    }
+
+    #[test]
+    fn trainer_cast_static_world_hook_audit_fails_closed_for_every_dynamic_hook() {
+        assert!(trainer_cast_world_hooks_are_static_safe_like_cpp(
+            TrainerCastWorldHookAuditLikeCpp::default()
+        ));
+
+        for audit in [
+            TrainerCastWorldHookAuditLikeCpp {
+                script_binding: true,
+                ..Default::default()
+            },
+            TrainerCastWorldHookAuditLikeCpp {
+                legacy_script: true,
+                ..Default::default()
+            },
+            TrainerCastWorldHookAuditLikeCpp {
+                condition: true,
+                ..Default::default()
+            },
+            TrainerCastWorldHookAuditLikeCpp {
+                disabled: true,
+                ..Default::default()
+            },
+            TrainerCastWorldHookAuditLikeCpp {
+                aura_restriction: true,
+                ..Default::default()
+            },
+            TrainerCastWorldHookAuditLikeCpp {
+                equipped_item_restriction: true,
+                ..Default::default()
+            },
+            TrainerCastWorldHookAuditLikeCpp {
+                linked_spell: true,
+                ..Default::default()
+            },
+        ] {
+            assert!(!trainer_cast_world_hooks_are_static_safe_like_cpp(audit));
+        }
+    }
+
+    #[test]
+    fn trainer_cast_static_effect_audit_accepts_only_player_acquisition_closure() {
+        let learn = acquisition_effect(1, 0, SPELL_EFFECT_LEARN_SPELL, 0, 200);
+        let skill = acquisition_effect(2, 1, SPELL_EFFECT_SKILL, 164, 0);
+        let noop = acquisition_effect(3, 2, 0, 0, 0);
+
+        assert!(trainer_cast_effects_are_static_safe_like_cpp(
+            100,
+            &[learn.clone(), skill, noop.clone()],
+            |_| false,
+        ));
+        assert!(!trainer_cast_effects_are_static_safe_like_cpp(
+            100,
+            &[noop],
+            |_| false,
+        ));
+    }
+
+    #[test]
+    fn trainer_cast_static_effect_audit_rejects_target_pet_aura_and_invalid_rows() {
+        let mut pet_target = acquisition_effect(1, 0, SPELL_EFFECT_LEARN_SPELL, 0, 200);
+        pet_target.implicit_target_raw = [5, 0];
+        assert!(!trainer_cast_effects_are_static_safe_like_cpp(
+            100,
+            &[pet_target],
+            |_| false,
+        ));
+
+        let learn = acquisition_effect(2, 1, SPELL_EFFECT_LEARN_SPELL, 0, 200);
+        assert!(!trainer_cast_effects_are_static_safe_like_cpp(
+            100,
+            &[learn],
+            |effect_index| effect_index == 1,
+        ));
+
+        let mut invalid_index = acquisition_effect(3, 256, SPELL_EFFECT_LEARN_SPELL, 0, 200);
+        invalid_index.implicit_target_raw = [1, 0];
+        assert!(!trainer_cast_effects_are_static_safe_like_cpp(
+            100,
+            &[invalid_index],
+            |_| false,
+        ));
+    }
+
+    #[test]
+    fn trainer_cast_static_effect_audit_pins_only_the_audited_riding_dummy() {
+        let learn = acquisition_effect(1, 0, SPELL_EFFECT_LEARN_SPELL, 0, 200);
+        let dummy = acquisition_effect(2, 1, 3, 0, 0);
+
+        assert!(trainer_cast_effects_are_static_safe_like_cpp(
+            33_388,
+            &[learn.clone(), dummy.clone()],
+            |_| false,
+        ));
+        assert!(!trainer_cast_effects_are_static_safe_like_cpp(
+            100,
+            &[learn, dummy],
+            |_| false,
+        ));
     }
 
     #[test]

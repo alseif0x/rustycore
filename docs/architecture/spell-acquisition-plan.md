@@ -184,5 +184,13 @@ dual wield is applied to the existing canonical player owner before packet publi
 missing canonical owner returns a post-commit reconciliation error without emitting packets. The
 generic represented player `EffectLearnSpell` uses the same validated authority, fails closed
 without complete snapshot/metadata, and defers persistence to normal `Player::SaveToDB` like C++;
-pet, item and battle-pet branches remain separate owners. Trainer charge, visuals and dispatcher
-activation remain #159/#142.
+pet, item and battle-pet branches remain separate owners.
+
+Issue #159 extends the database-gated boundary for normal trainer teaching: startup audits
+effective effects plus script, linked-spell, condition, disable, pet-aura, aura-restriction and
+equipment blockers into immutable cast/craft authority; the buy path recomputes the current effect
+mask under the money owner, then commits that exact prepared result and the guarded fee together.
+Until the canonical player owns C++'s complete spell/effect-immunity maps, any active aura makes
+wrapper resolution indeterminate instead of assuming no immunity. After confirmed/reconciled
+commit, money, visual kits and the acquisition stream publish in C++ success order. Dispatcher
+activation remains #142.
