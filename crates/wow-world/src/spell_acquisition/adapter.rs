@@ -249,11 +249,30 @@ impl crate::session::WorldSession {
             overrides.push((overridden_spell_id_u32, overriding_spell_id_u32));
         }
 
+        let mut primary_profession_skill_ids = skills
+            .iter()
+            .filter(|skill| {
+                skill.state != PlayerSkillPersistenceStateLikeCpp::Deleted && skill.value != 0
+            })
+            .filter_map(|skill| {
+                self.skill_line_store()
+                    .and_then(|store| {
+                        store
+                            .is_primary_profession_skill_like_cpp(skill.skill_id)
+                            .map(|is_primary| (skill.skill_id, is_primary))
+                    })
+                    .and_then(|(skill_id, is_primary)| is_primary.then_some(skill_id))
+            })
+            .collect::<Vec<_>>();
+        primary_profession_skill_ids.sort_unstable();
+
         Ok(PlayerSpellAcquisitionSnapshotLikeCpp {
+            character_guid: self.player_guid(),
             spells,
             skills,
             occupied_skill_slots,
             overrides,
+            primary_profession_skill_ids,
             race: self.player_race_like_cpp(),
             class: self.player_class_like_cpp(),
             level: self.player_level_like_cpp(),

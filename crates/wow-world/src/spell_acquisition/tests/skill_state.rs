@@ -84,7 +84,12 @@ fn riding_mount_capability_is_only_refreshed_for_an_existing_skill_increase() {
                 maxvalue: 150,
             },
         )],
-        skill_lines: vec![skill_line(riding, 0, 0)],
+        skill_lines: vec![skill_line_with_category(
+            riding,
+            SKILL_CATEGORY_ARMOR_LIKE_CPP,
+            0,
+            0,
+        )],
         ..Default::default()
     });
 

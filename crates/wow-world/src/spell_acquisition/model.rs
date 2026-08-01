@@ -129,6 +129,10 @@ pub(crate) struct PlayerFuturePlayerConditionResolutionLikeCpp {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PlayerSpellAcquisitionSnapshotLikeCpp {
+    /// Exact selected character that owns every row in this snapshot. Pure
+    /// planner fixtures use `None`; persistence/runtime publication require a
+    /// concrete player GUID and reject any cross-character reuse.
+    pub character_guid: Option<wow_core::ObjectGuid>,
     pub spells: Vec<PlayerSpellAcquisitionRowLikeCpp>,
     pub skills: Vec<PlayerSkillAcquisitionRowLikeCpp>,
     /// Number of occupied C++ `ActivePlayerData::Skill` slots. Tombstoned
@@ -136,6 +140,9 @@ pub(crate) struct PlayerSpellAcquisitionSnapshotLikeCpp {
     pub occupied_skill_slots: u16,
     /// Existing C++ `m_overrideSpells` edges.
     pub overrides: Vec<(u32, u32)>,
+    /// Complete active primary-profession membership derived from SkillLine
+    /// authority for this exact snapshot.
+    pub primary_profession_skill_ids: Vec<u32>,
     pub race: u8,
     pub class: u8,
     pub level: u8,
@@ -341,10 +348,39 @@ pub(crate) struct SpellAcquisitionPlanLikeCpp {
     pub skill_transitions: Vec<PlannedSkillTransitionLikeCpp>,
     pub override_transitions: Vec<PlannedOverrideTransitionLikeCpp>,
     pub root_primary_profession_skill_ids: Vec<u32>,
+    /// Planner-owned causal tape for publications whose necessity cannot be
+    /// reconstructed from the final mutation stream alone (for example an
+    /// exact-known LearnSpell still advances its quest objective). The
+    /// application requires an exact action projection, including order and
+    /// duplicate SkillLineAbility rows.
+    pub publication_requirements: Vec<SpellAcquisitionPublicationRequirementLikeCpp>,
     pub profession_association_inputs: Vec<PlayerSkillAcquisitionRowLikeCpp>,
     pub post_commit_actions: Vec<SpellAcquisitionPostCommitActionLikeCpp>,
     pub diagnostics: Vec<SpellAcquisitionDiagnosticLikeCpp>,
     pub resulting_snapshot: PlayerSpellAcquisitionSnapshotLikeCpp,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum SpellAcquisitionPublicationRequirementLikeCpp {
+    LearnedSpell {
+        spell_id: u32,
+        favorite: bool,
+        suppress_messaging: bool,
+    },
+    UpdateLearnSpellQuestObjective {
+        spell_id: u32,
+    },
+    UpdateLearnTradeskillSkillLineCriteria {
+        source_spell_id: u32,
+        skill_id: u32,
+    },
+    UpdateLearnSpellFromSkillLineCriteria {
+        source_spell_id: u32,
+        skill_id: u32,
+    },
+    UpdateLearnOrKnowSpellCriteria {
+        spell_id: u32,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

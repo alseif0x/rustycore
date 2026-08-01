@@ -32,6 +32,7 @@ fn both_new_and_existing_skill_updates_expand_reward_spells() {
             state: PlayerSkillPersistenceStateLikeCpp::Unchanged,
         });
         existing.occupied_skill_slots = 1;
+        existing.primary_profession_skill_ids = vec![SKILL];
         existing
     }] {
         let had_existing = !input.skills.is_empty();

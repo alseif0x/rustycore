@@ -291,10 +291,12 @@ mod tests {
         professions: Vec<u32>,
     ) -> SpellAcquisitionPlanLikeCpp {
         let source_snapshot = PlayerSpellAcquisitionSnapshotLikeCpp {
+            character_guid: None,
             spells: Vec::new(),
             skills: Vec::new(),
             occupied_skill_slots: 0,
             overrides: Vec::new(),
+            primary_profession_skill_ids: Vec::new(),
             race: 1,
             class: 1,
             level: 80,
@@ -310,6 +312,7 @@ mod tests {
             skill_transitions: Vec::new(),
             override_transitions: Vec::new(),
             root_primary_profession_skill_ids: professions,
+            publication_requirements: Vec::new(),
             profession_association_inputs: Vec::new(),
             post_commit_actions: Vec::new(),
             diagnostics: Vec::new(),

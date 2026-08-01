@@ -37,6 +37,7 @@ pub(crate) struct DurablePlayerSkillRowLikeCpp {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PreparedPlayerSpellAcquisitionLikeCpp {
+    pub character_guid: Option<wow_core::ObjectGuid>,
     pub root: SpellAcquisitionRootLikeCpp,
     pub source_snapshot: PlayerSpellAcquisitionSnapshotLikeCpp,
     /// C++ post-`Player::LearnSpell` state before the ordinary
@@ -98,6 +99,7 @@ pub(crate) enum PreparedPlayerSpellAcquisitionOutcomeLikeCpp {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PreparedPlayerSpellAcquisitionActionsLikeCpp {
+    pub character_guid: Option<wow_core::ObjectGuid>,
     pub runtime_snapshot: PlayerSpellAcquisitionSnapshotLikeCpp,
     pub post_commit_actions: Vec<SpellAcquisitionPostCommitActionLikeCpp>,
 }
@@ -155,6 +157,7 @@ pub(crate) fn prepare_player_spell_acquisition_like_cpp(
         } else {
             Ok(PreparedPlayerSpellAcquisitionOutcomeLikeCpp::ActionsOnly(
                 PreparedPlayerSpellAcquisitionActionsLikeCpp {
+                    character_guid: plan.source_snapshot.character_guid,
                     // No durable mutation occurred, so do not normalize
                     // persistence states or replace runtime authority.
                     runtime_snapshot: plan.resulting_snapshot.clone(),
@@ -364,6 +367,50 @@ fn validate_profession_plan_like_cpp(
 
     let source_skills = skill_map_like_cpp(&acquisition_plan.source_snapshot)?;
     let resulting_skills = skill_map_like_cpp(&acquisition_plan.resulting_snapshot)?;
+    let expected_existing_ids = acquisition_plan
+        .source_snapshot
+        .primary_profession_skill_ids
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>();
+    let expected_resulting_primary_ids = expected_existing_ids
+        .iter()
+        .copied()
+        .chain(
+            acquisition_plan
+                .root_primary_profession_skill_ids
+                .iter()
+                .copied(),
+        )
+        .collect::<BTreeSet<_>>();
+    if acquisition_plan
+        .resulting_snapshot
+        .primary_profession_skill_ids
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>()
+        != expected_resulting_primary_ids
+    {
+        return Err(
+            PlayerSpellAcquisitionPrepareErrorLikeCpp::ProfessionPlanMismatch(
+                "resulting primary profession authority",
+            ),
+        );
+    }
+    let actual_existing_ids = profession_plan
+        .existing_professions
+        .iter()
+        .map(|profession| profession.skill_id)
+        .collect::<BTreeSet<_>>();
+    if actual_existing_ids != expected_existing_ids
+        || actual_existing_ids.len() != profession_plan.existing_professions.len()
+    {
+        return Err(
+            PlayerSpellAcquisitionPrepareErrorLikeCpp::ProfessionPlanMismatch(
+                "complete existing profession membership",
+            ),
+        );
+    }
     let mut assigned_skill_ids = BTreeSet::new();
     let mut assigned_slots = BTreeSet::new();
     for (profession, existing) in profession_plan
@@ -490,22 +537,73 @@ fn validate_provenance_like_cpp(
 fn validate_post_commit_actions_like_cpp(
     plan: &SpellAcquisitionPlanLikeCpp,
 ) -> Result<(), PlayerSpellAcquisitionPrepareErrorLikeCpp> {
+    let actual_publication_requirements = plan
+        .post_commit_actions
+        .iter()
+        .filter_map(|action| match action {
+            SpellAcquisitionPostCommitActionLikeCpp::LearnedSpell {
+                spell_id,
+                favorite,
+                suppress_messaging,
+            } => Some(SpellAcquisitionPublicationRequirementLikeCpp::LearnedSpell {
+                spell_id: *spell_id,
+                favorite: *favorite,
+                suppress_messaging: *suppress_messaging,
+            }),
+            SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnSpellQuestObjective {
+                spell_id,
+            } => Some(
+                SpellAcquisitionPublicationRequirementLikeCpp::UpdateLearnSpellQuestObjective {
+                    spell_id: *spell_id,
+                },
+            ),
+            SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnTradeskillSkillLineCriteria {
+                source_spell_id,
+                skill_id,
+            } => Some(
+                SpellAcquisitionPublicationRequirementLikeCpp::UpdateLearnTradeskillSkillLineCriteria {
+                    source_spell_id: *source_spell_id,
+                    skill_id: *skill_id,
+                },
+            ),
+            SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnSpellFromSkillLineCriteria {
+                source_spell_id,
+                skill_id,
+            } => Some(
+                SpellAcquisitionPublicationRequirementLikeCpp::UpdateLearnSpellFromSkillLineCriteria {
+                    source_spell_id: *source_spell_id,
+                    skill_id: *skill_id,
+                },
+            ),
+            SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnOrKnowSpellCriteria {
+                spell_id,
+            } => Some(
+                SpellAcquisitionPublicationRequirementLikeCpp::UpdateLearnOrKnowSpellCriteria {
+                    spell_id: *spell_id,
+                },
+            ),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if actual_publication_requirements != plan.publication_requirements {
+        return Err(
+            PlayerSpellAcquisitionPrepareErrorLikeCpp::PostCommitActionCausalityMismatch {
+                action: "required publication tape",
+                id: 0,
+            },
+        );
+    }
     let resulting_spells = spell_map_like_cpp(&plan.resulting_snapshot)?;
     let resulting_skills = skill_map_like_cpp(&plan.resulting_snapshot)?;
-    let root_spell_id = match plan.root {
-        SpellAcquisitionRootLikeCpp::DirectLearn(spell_id)
-        | SpellAcquisitionRootLikeCpp::TrainerWrapperCast(spell_id) => spell_id,
-    };
     let mut learned_evidence = BTreeMap::<(u32, bool), usize>::new();
     let mut refresh_evidence = BTreeMap::<u32, usize>::new();
-    let mut quest_evidence = BTreeMap::<u32, usize>::new();
-    let mut spell_criteria_evidence = BTreeMap::<u32, usize>::new();
     let mut spell_transition_evidence = BTreeMap::<u32, usize>::new();
     let mut skill_transition_evidence = BTreeMap::<u32, usize>::new();
     let mut deactivation_evidence = Vec::<(usize, u32)>::new();
     let mut supersede_evidence = BTreeMap::<(u32, u32), Vec<usize>>::new();
     let mut replayed_spells = spell_map_like_cpp(&plan.source_snapshot)?;
-    let mut prior_activations = Vec::<(u32, SpellAcquisitionProvenanceLikeCpp)>::new();
+    let mut prior_activations = Vec::<(usize, u32, SpellAcquisitionProvenanceLikeCpp)>::new();
+    let mut superseding_activations = BTreeSet::<usize>::new();
     for (transition_index, transition) in plan.spell_transitions.iter().enumerate() {
         *spell_transition_evidence
             .entry(transition.spell_id)
@@ -531,15 +629,15 @@ fn validate_post_commit_actions_like_cpp(
                 .entry((transition.spell_id, favorite))
                 .or_default() += 1;
             *refresh_evidence.entry(transition.spell_id).or_default() += 1;
-            *quest_evidence.entry(transition.spell_id).or_default() += 1;
-            *spell_criteria_evidence
-                .entry(transition.spell_id)
-                .or_default() += 1;
-            prior_activations.push((transition.spell_id, transition.provenance.clone()));
+            prior_activations.push((
+                transition_index,
+                transition.spell_id,
+                transition.provenance.clone(),
+            ));
         }
         if before_active && !after_active {
             deactivation_evidence.push((transition_index, transition.spell_id));
-            for (candidate_spell_id, candidate_provenance) in &prior_activations {
+            for (candidate_index, candidate_spell_id, candidate_provenance) in &prior_activations {
                 if *candidate_spell_id != transition.spell_id
                     && *candidate_provenance == transition.provenance
                     && replayed_spells.get(candidate_spell_id).is_some_and(|row| {
@@ -548,6 +646,7 @@ fn validate_post_commit_actions_like_cpp(
                             && !row.disabled
                     })
                 {
+                    superseding_activations.insert(*candidate_index);
                     supersede_evidence
                         .entry((transition.spell_id, *candidate_spell_id))
                         .or_default()
@@ -555,6 +654,18 @@ fn validate_post_commit_actions_like_cpp(
                 }
             }
         }
+    }
+    // C++ AddSpell activates the new rank before it discovers and publishes
+    // the supersede relationship. That activation is causal evidence for the
+    // SupersededSpell packet, not for an additional LearnedSpell packet:
+    // AddSpell returns false to LearnSpell when it replaced an active rank.
+    for transition_index in superseding_activations {
+        let transition = &plan.spell_transitions[transition_index];
+        let favorite = transition.after.is_some_and(|after| after.favorite);
+        let _ = consume_action_evidence_like_cpp(
+            &mut learned_evidence,
+            (transition.spell_id, favorite),
+        );
     }
     for transition in &plan.skill_transitions {
         *skill_transition_evidence
@@ -672,13 +783,7 @@ fn validate_post_commit_actions_like_cpp(
                 spell_id,
             } => {
                 validate_post_commit_id_like_cpp("spell", *spell_id, false)?;
-                let exact_action_only_root = plan.mutations.is_empty()
-                    && root_spell_id == *spell_id
-                    && matches!(plan.root, SpellAcquisitionRootLikeCpp::DirectLearn(_));
-                if !resulting_spell_is_present(*spell_id)
-                    || (!consume_action_evidence_like_cpp(&mut quest_evidence, *spell_id)
-                        && !exact_action_only_root)
-                {
+                if !resulting_spell_is_present(*spell_id) {
                     return mismatch("UpdateLearnSpellQuestObjective", *spell_id);
                 }
             }
@@ -686,9 +791,7 @@ fn validate_post_commit_actions_like_cpp(
                 spell_id,
             } => {
                 validate_post_commit_id_like_cpp("spell", *spell_id, false)?;
-                if !consume_action_evidence_like_cpp(&mut spell_criteria_evidence, *spell_id)
-                    || !resulting_spell_is_present(*spell_id)
-                {
+                if !resulting_spell_is_present(*spell_id) {
                     return mismatch("UpdateLearnOrKnowSpellCriteria", *spell_id);
                 }
             }
@@ -855,6 +958,10 @@ fn validate_snapshot_identity_like_cpp(
     resulting: &PlayerSpellAcquisitionSnapshotLikeCpp,
 ) -> Result<(), PlayerSpellAcquisitionPrepareErrorLikeCpp> {
     for (same, field) in [
+        (
+            source.character_guid == resulting.character_guid,
+            "character_guid",
+        ),
         (source.race == resulting.race, "race"),
         (source.class == resulting.class, "class"),
         (source.level == resulting.level, "level"),
@@ -879,9 +986,36 @@ fn validate_snapshot_identity_like_cpp(
 fn validate_snapshot_like_cpp(
     snapshot: &PlayerSpellAcquisitionSnapshotLikeCpp,
 ) -> Result<(), PlayerSpellAcquisitionPrepareErrorLikeCpp> {
+    if snapshot
+        .character_guid
+        .is_some_and(|guid| !guid.is_player() || guid.counter() == 0)
+    {
+        return Err(
+            PlayerSpellAcquisitionPrepareErrorLikeCpp::SnapshotIdentityChanged("character_guid"),
+        );
+    }
     let spells = spell_map_like_cpp(snapshot)?;
     let skills = skill_map_like_cpp(snapshot)?;
     let _ = override_set_like_cpp(snapshot)?;
+    if snapshot
+        .primary_profession_skill_ids
+        .windows(2)
+        .any(|pair| pair[0] >= pair[1])
+        || snapshot
+            .primary_profession_skill_ids
+            .iter()
+            .any(|skill_id| {
+                !skills.get(skill_id).is_some_and(|skill| {
+                    skill.state != PlayerSkillPersistenceStateLikeCpp::Deleted && skill.value != 0
+                })
+            })
+    {
+        return Err(
+            PlayerSpellAcquisitionPrepareErrorLikeCpp::ProfessionPlanMismatch(
+                "snapshot primary profession authority",
+            ),
+        );
+    }
     if usize::from(snapshot.occupied_skill_slots) != skills.len()
         || snapshot.occupied_skill_slots > 256
     {
@@ -1124,6 +1258,7 @@ fn translate_plan_like_cpp(
     );
 
     Ok(PreparedPlayerSpellAcquisitionLikeCpp {
+        character_guid: plan.source_snapshot.character_guid,
         root: plan.root,
         source_snapshot: plan.source_snapshot.clone(),
         pending_save_runtime_snapshot,
@@ -1149,6 +1284,8 @@ pub(crate) async fn persist_prepared_player_spell_acquisition_like_cpp(
     guid_counter: u64,
     prepared: &PreparedPlayerSpellAcquisitionLikeCpp,
 ) -> Result<(), SqlTransactionCommitError> {
+    validate_prepared_character_counter_like_cpp(guid_counter, prepared)
+        .map_err(SqlTransactionCommitError::DefinitelyRolledBack)?;
     persist_prepared_player_spell_acquisition_with_fault_like_cpp(
         character_db,
         guid_counter,
@@ -1166,6 +1303,7 @@ pub(crate) async fn reconcile_prepared_player_spell_acquisition_like_cpp(
     guid_counter: u64,
     prepared: &PreparedPlayerSpellAcquisitionLikeCpp,
 ) -> Result<PlayerSpellAcquisitionReconciliationLikeCpp, DatabaseError> {
+    validate_prepared_character_counter_like_cpp(guid_counter, prepared)?;
     let mut transaction = character_db
         .pool()
         .begin()
@@ -1248,6 +1386,8 @@ async fn persist_prepared_player_spell_acquisition_with_fault_like_cpp<F>(
 where
     F: FnMut(PlayerSpellAcquisitionPersistenceFaultPointLikeCpp) -> Result<(), DatabaseError>,
 {
+    validate_prepared_character_counter_like_cpp(guid_counter, prepared)
+        .map_err(SqlTransactionCommitError::DefinitelyRolledBack)?;
     let mut transaction = character_db
         .pool()
         .begin()
@@ -1287,6 +1427,21 @@ where
             SqlTransactionCommitError::CommitOutcomeUnknown(error)
         }
     })
+}
+
+fn validate_prepared_character_counter_like_cpp(
+    guid_counter: u64,
+    prepared: &PreparedPlayerSpellAcquisitionLikeCpp,
+) -> Result<(), DatabaseError> {
+    let prepared_counter = prepared
+        .character_guid
+        .and_then(|guid| u64::try_from(guid.counter()).ok());
+    if prepared_counter != Some(guid_counter) {
+        return Err(DatabaseError::Transaction(
+            "prepared player spell acquisition character GUID mismatch".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 async fn rollback_player_spell_acquisition_like_cpp(transaction: Transaction<'_, MySql>) {
@@ -1392,6 +1547,7 @@ pub(crate) fn apply_prepared_player_spell_acquisition_like_cpp(
     session: &mut crate::session::WorldSession,
     prepared: &PreparedPlayerSpellAcquisitionLikeCpp,
 ) -> Result<(), PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp> {
+    require_prepared_session_character_like_cpp(session, prepared.character_guid)?;
     apply_prepared_player_spell_acquisition_with_fault_like_cpp(session, prepared, |_| Ok(()))
 }
 
@@ -1402,6 +1558,7 @@ pub(crate) fn apply_prepared_player_spell_acquisition_before_save_like_cpp(
     session: &mut crate::session::WorldSession,
     prepared: &PreparedPlayerSpellAcquisitionLikeCpp,
 ) -> Result<(), PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp> {
+    require_prepared_session_character_like_cpp(session, prepared.character_guid)?;
     apply_player_spell_acquisition_runtime_snapshot_with_fault_like_cpp(
         session,
         &prepared.pending_save_runtime_snapshot,
@@ -1419,6 +1576,7 @@ fn apply_prepared_player_spell_acquisition_with_fault_like_cpp<F>(
 where
     F: FnMut(PlayerSpellAcquisitionPublicationFaultPointLikeCpp) -> Result<(), ()>,
 {
+    require_prepared_session_character_like_cpp(session, prepared.character_guid)?;
     apply_player_spell_acquisition_runtime_snapshot_with_fault_like_cpp(
         session,
         &prepared.runtime_snapshot,
@@ -1566,6 +1724,7 @@ pub(crate) fn apply_prepared_player_spell_acquisition_actions_like_cpp(
     session: &mut crate::session::WorldSession,
     prepared: &PreparedPlayerSpellAcquisitionActionsLikeCpp,
 ) -> Result<(), PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp> {
+    require_prepared_session_character_like_cpp(session, prepared.character_guid)?;
     preflight_player_spell_acquisition_runtime_owners_like_cpp(
         session,
         &prepared.post_commit_actions,
@@ -1576,6 +1735,16 @@ pub(crate) fn apply_prepared_player_spell_acquisition_actions_like_cpp(
         &prepared.post_commit_actions,
         |_| Ok(()),
     )
+}
+
+fn require_prepared_session_character_like_cpp(
+    session: &crate::session::WorldSession,
+    character_guid: Option<wow_core::ObjectGuid>,
+) -> Result<(), PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp> {
+    if character_guid.is_none() || session.player_guid() != character_guid {
+        return Err(PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp::InvalidPreparedRuntime);
+    }
+    Ok(())
 }
 
 fn preflight_player_spell_acquisition_runtime_owners_like_cpp(
@@ -1701,10 +1870,12 @@ mod tests {
         spells: Vec<PlayerSpellAcquisitionRowLikeCpp>,
     ) -> PlayerSpellAcquisitionSnapshotLikeCpp {
         PlayerSpellAcquisitionSnapshotLikeCpp {
+            character_guid: Some(wow_core::ObjectGuid::create_player(1, 42)),
             spells,
             skills: Vec::new(),
             occupied_skill_slots: 0,
             overrides: Vec::new(),
+            primary_profession_skill_ids: Vec::new(),
             race: 1,
             class: 1,
             level: 80,
@@ -1740,6 +1911,280 @@ mod tests {
         }
     }
 
+    fn direct_learn_actions(
+        spell_id: u32,
+        favorite: bool,
+        suppress_messaging: bool,
+    ) -> Vec<SpellAcquisitionPostCommitActionLikeCpp> {
+        vec![
+            SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnOrKnowSpellCriteria { spell_id },
+            SpellAcquisitionPostCommitActionLikeCpp::LearnedSpell {
+                spell_id,
+                favorite,
+                suppress_messaging,
+            },
+            SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnSpellQuestObjective { spell_id },
+        ]
+    }
+
+    fn direct_learn_requirements(
+        spell_id: u32,
+        favorite: bool,
+        suppress_messaging: bool,
+    ) -> Vec<SpellAcquisitionPublicationRequirementLikeCpp> {
+        vec![
+            SpellAcquisitionPublicationRequirementLikeCpp::UpdateLearnOrKnowSpellCriteria {
+                spell_id,
+            },
+            SpellAcquisitionPublicationRequirementLikeCpp::LearnedSpell {
+                spell_id,
+                favorite,
+                suppress_messaging,
+            },
+            SpellAcquisitionPublicationRequirementLikeCpp::UpdateLearnSpellQuestObjective {
+                spell_id,
+            },
+        ]
+    }
+
+    fn direct_learn_plan() -> (
+        PlayerSpellAcquisitionSnapshotLikeCpp,
+        SpellAcquisitionPlanLikeCpp,
+    ) {
+        let source = snapshot(Vec::new());
+        let learned = spell(100, PlayerSpellPersistenceStateLikeCpp::New);
+        let transition = PlannedSpellTransitionLikeCpp {
+            spell_id: 100,
+            before: None,
+            after: Some(learned),
+            provenance: SpellAcquisitionProvenanceLikeCpp::Root {
+                root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
+            },
+        };
+        let plan = SpellAcquisitionPlanLikeCpp {
+            root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
+            source_snapshot: source.clone(),
+            mutations: vec![PlannedAcquisitionMutationLikeCpp::Spell(transition.clone())],
+            spell_transitions: vec![transition],
+            skill_transitions: Vec::new(),
+            override_transitions: Vec::new(),
+            root_primary_profession_skill_ids: Vec::new(),
+            publication_requirements: direct_learn_requirements(100, false, false),
+            profession_association_inputs: Vec::new(),
+            post_commit_actions: direct_learn_actions(100, false, false),
+            diagnostics: Vec::new(),
+            resulting_snapshot: snapshot(vec![learned]),
+        };
+        (source, plan)
+    }
+
+    #[test]
+    fn required_learning_publications_cannot_be_omitted() {
+        let (source, plan) = direct_learn_plan();
+        prepare_player_spell_acquisition_like_cpp(&plan, &no_profession_changes(), &source)
+            .expect("complete publication tape is valid");
+
+        for omitted_index in 0..plan.post_commit_actions.len() {
+            let mut omitted = plan.clone();
+            omitted.post_commit_actions.remove(omitted_index);
+            assert!(matches!(
+                prepare_player_spell_acquisition_like_cpp(
+                    &omitted,
+                    &no_profession_changes(),
+                    &source,
+                ),
+                Err(
+                    PlayerSpellAcquisitionPrepareErrorLikeCpp::PostCommitActionCausalityMismatch { .. }
+                )
+            ));
+        }
+    }
+
+    #[test]
+    fn skill_line_criteria_require_exact_occurrence_identity_and_cardinality() {
+        let (source, mut plan) = direct_learn_plan();
+        plan.publication_requirements.splice(
+            0..0,
+            [
+                SpellAcquisitionPublicationRequirementLikeCpp::UpdateLearnTradeskillSkillLineCriteria {
+                    source_spell_id: 100,
+                    skill_id: 164,
+                },
+                SpellAcquisitionPublicationRequirementLikeCpp::UpdateLearnSpellFromSkillLineCriteria {
+                    source_spell_id: 100,
+                    skill_id: 164,
+                },
+            ],
+        );
+        plan.post_commit_actions.splice(
+            0..0,
+            [
+                SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnTradeskillSkillLineCriteria {
+                    source_spell_id: 100,
+                    skill_id: 164,
+                },
+                SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnSpellFromSkillLineCriteria {
+                    source_spell_id: 100,
+                    skill_id: 164,
+                },
+            ],
+        );
+        prepare_player_spell_acquisition_like_cpp(&plan, &no_profession_changes(), &source)
+            .expect("the exact C++ SkillLineAbility occurrence is valid");
+
+        let mut wrong_skill = plan.clone();
+        for action in &mut wrong_skill.post_commit_actions[..2] {
+            match action {
+                SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnTradeskillSkillLineCriteria {
+                    skill_id,
+                    ..
+                }
+                | SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnSpellFromSkillLineCriteria {
+                    skill_id,
+                    ..
+                } => *skill_id = 165,
+                _ => unreachable!(),
+            }
+        }
+        assert!(
+            prepare_player_spell_acquisition_like_cpp(
+                &wrong_skill,
+                &no_profession_changes(),
+                &source,
+            )
+            .is_err()
+        );
+
+        let mut duplicated = plan.clone();
+        duplicated
+            .post_commit_actions
+            .splice(2..2, plan.post_commit_actions[..2].iter().cloned());
+        assert!(
+            prepare_player_spell_acquisition_like_cpp(
+                &duplicated,
+                &no_profession_changes(),
+                &source,
+            )
+            .is_err()
+        );
+
+        let mut omitted = plan.clone();
+        omitted.post_commit_actions.drain(..2);
+        assert!(
+            prepare_player_spell_acquisition_like_cpp(&omitted, &no_profession_changes(), &source,)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn profession_plan_cannot_omit_an_existing_primary_profession() {
+        const EXISTING: u32 = 164;
+        const NEW: u32 = 165;
+        let existing = PlayerSkillAcquisitionRowLikeCpp {
+            skill_id: EXISTING,
+            step: 1,
+            value: 75,
+            maximum: 75,
+            profession_association: ProfessionAssociationInputLikeCpp::Slot(0),
+            state: PlayerSkillPersistenceStateLikeCpp::Unchanged,
+        };
+        let learned = PlayerSkillAcquisitionRowLikeCpp {
+            skill_id: NEW,
+            step: 1,
+            value: 1,
+            maximum: 75,
+            profession_association: ProfessionAssociationInputLikeCpp::Slot(1),
+            state: PlayerSkillPersistenceStateLikeCpp::New,
+        };
+        let mut source = snapshot(Vec::new());
+        source.skills = vec![existing];
+        source.occupied_skill_slots = 1;
+        source.primary_profession_skill_ids = vec![EXISTING];
+        let mut resulting = source.clone();
+        resulting.skills.push(learned);
+        resulting.occupied_skill_slots = 2;
+        resulting.primary_profession_skill_ids = vec![EXISTING, NEW];
+        let transition = PlannedSkillTransitionLikeCpp {
+            skill_id: NEW,
+            before: None,
+            after: learned,
+            provenance: SpellAcquisitionProvenanceLikeCpp::Root {
+                root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
+            },
+        };
+        let plan = SpellAcquisitionPlanLikeCpp {
+            root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
+            source_snapshot: source.clone(),
+            mutations: vec![PlannedAcquisitionMutationLikeCpp::Skill(transition.clone())],
+            spell_transitions: Vec::new(),
+            skill_transitions: vec![transition],
+            override_transitions: Vec::new(),
+            root_primary_profession_skill_ids: vec![NEW],
+            publication_requirements: Vec::new(),
+            profession_association_inputs: vec![existing, learned],
+            post_commit_actions: Vec::new(),
+            diagnostics: Vec::new(),
+            resulting_snapshot: resulting,
+        };
+        let omitted_existing = PrimaryProfessionCapacityPlanLikeCpp {
+            configured_max: 2,
+            used_before: 0,
+            free_before: 2,
+            existing_professions: Vec::new(),
+            new_professions: vec![crate::profession::PlannedPrimaryProfessionLikeCpp {
+                skill_id: NEW,
+                equipment_slot: Some(PrimaryProfessionEquipmentSlotLikeCpp::First),
+            }],
+            slot_normalizations: Vec::new(),
+        };
+
+        assert_eq!(
+            prepare_player_spell_acquisition_like_cpp(&plan, &omitted_existing, &source),
+            Err(
+                PlayerSpellAcquisitionPrepareErrorLikeCpp::ProfessionPlanMismatch(
+                    "complete existing profession membership"
+                )
+            )
+        );
+    }
+
+    #[test]
+    fn prepared_acquisition_cannot_cross_character_boundaries() {
+        let (source, plan) = direct_learn_plan();
+        let PreparedPlayerSpellAcquisitionOutcomeLikeCpp::Ready(prepared) =
+            prepare_player_spell_acquisition_like_cpp(&plan, &no_profession_changes(), &source)
+                .expect("valid prepared acquisition")
+        else {
+            panic!("expected durable acquisition")
+        };
+        assert!(validate_prepared_character_counter_like_cpp(43, &prepared).is_err());
+
+        let (mut other_session, send_rx) = make_session();
+        other_session.attach_player_controller_like_cpp(
+            crate::session::SessionPlayerController::new(
+                wow_core::ObjectGuid::create_player(1, 43),
+                "OtherAcquisitionPlayer".to_string(),
+                wow_core::Position::ZERO,
+                0,
+                1,
+                1,
+                80,
+                0,
+            ),
+        );
+        assert_eq!(
+            apply_prepared_player_spell_acquisition_like_cpp(&mut other_session, &prepared),
+            Err(PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp::InvalidPreparedRuntime)
+        );
+        assert!(
+            other_session
+                .complete_represented_player_spell_rows_like_cpp()
+                .is_none(),
+            "cross-character rejection occurs before installing runtime state"
+        );
+        assert!(send_rx.is_empty());
+    }
+
     #[test]
     fn prepared_plan_replays_causal_stream_and_normalizes_post_save_state() {
         let source = snapshot(Vec::new());
@@ -1761,12 +2206,9 @@ mod tests {
             skill_transitions: Vec::new(),
             override_transitions: Vec::new(),
             root_primary_profession_skill_ids: Vec::new(),
+            publication_requirements: direct_learn_requirements(100, false, false),
             profession_association_inputs: Vec::new(),
-            post_commit_actions: vec![SpellAcquisitionPostCommitActionLikeCpp::LearnedSpell {
-                spell_id: 100,
-                favorite: false,
-                suppress_messaging: false,
-            }],
+            post_commit_actions: direct_learn_actions(100, false, false),
             diagnostics: Vec::new(),
             resulting_snapshot: resulting,
         };
@@ -1817,8 +2259,9 @@ mod tests {
             skill_transitions: Vec::new(),
             override_transitions: Vec::new(),
             root_primary_profession_skill_ids: Vec::new(),
+            publication_requirements: direct_learn_requirements(100, false, false),
             profession_association_inputs: Vec::new(),
-            post_commit_actions: Vec::new(),
+            post_commit_actions: direct_learn_actions(100, false, false),
             diagnostics: Vec::new(),
             resulting_snapshot: snapshot(vec![learned]),
         };
@@ -1864,12 +2307,9 @@ mod tests {
             skill_transitions: Vec::new(),
             override_transitions: Vec::new(),
             root_primary_profession_skill_ids: Vec::new(),
+            publication_requirements: direct_learn_requirements(100, true, true),
             profession_association_inputs: Vec::new(),
-            post_commit_actions: vec![SpellAcquisitionPostCommitActionLikeCpp::LearnedSpell {
-                spell_id: 100,
-                favorite: true,
-                suppress_messaging: true,
-            }],
+            post_commit_actions: direct_learn_actions(100, true, true),
             diagnostics: Vec::new(),
             resulting_snapshot: snapshot(vec![learned]),
         };
@@ -1913,11 +2353,7 @@ mod tests {
                 root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
             },
         };
-        let actions = vec![SpellAcquisitionPostCommitActionLikeCpp::LearnedSpell {
-            spell_id: 100,
-            favorite: true,
-            suppress_messaging: false,
-        }];
+        let actions = direct_learn_actions(100, true, false);
         let plan = SpellAcquisitionPlanLikeCpp {
             root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
             source_snapshot: source.clone(),
@@ -1926,6 +2362,7 @@ mod tests {
             skill_transitions: Vec::new(),
             override_transitions: Vec::new(),
             root_primary_profession_skill_ids: Vec::new(),
+            publication_requirements: direct_learn_requirements(100, true, false),
             profession_association_inputs: Vec::new(),
             post_commit_actions: actions.clone(),
             diagnostics: Vec::new(),
@@ -2036,6 +2473,13 @@ mod tests {
             skill_transitions: Vec::new(),
             override_transitions: Vec::new(),
             root_primary_profession_skill_ids: Vec::new(),
+            publication_requirements: vec![
+                SpellAcquisitionPublicationRequirementLikeCpp::LearnedSpell {
+                    spell_id: 100,
+                    favorite: true,
+                    suppress_messaging: false,
+                },
+            ],
             profession_association_inputs: Vec::new(),
             post_commit_actions: vec![SpellAcquisitionPostCommitActionLikeCpp::LearnedSpell {
                 spell_id: 100,
@@ -2063,6 +2507,13 @@ mod tests {
             skill_transitions: Vec::new(),
             override_transitions: Vec::new(),
             root_primary_profession_skill_ids: Vec::new(),
+            publication_requirements: vec![
+                SpellAcquisitionPublicationRequirementLikeCpp::LearnedSpell {
+                    spell_id: 100,
+                    favorite: false,
+                    suppress_messaging: false,
+                },
+            ],
             profession_association_inputs: Vec::new(),
             post_commit_actions: vec![SpellAcquisitionPostCommitActionLikeCpp::LearnedSpell {
                 spell_id: 100,
@@ -2104,6 +2555,18 @@ mod tests {
             skill_transitions: Vec::new(),
             override_transitions: Vec::new(),
             root_primary_profession_skill_ids: Vec::new(),
+            publication_requirements: vec![
+                SpellAcquisitionPublicationRequirementLikeCpp::LearnedSpell {
+                    spell_id: 100,
+                    favorite: false,
+                    suppress_messaging: false,
+                },
+                SpellAcquisitionPublicationRequirementLikeCpp::LearnedSpell {
+                    spell_id: 100,
+                    favorite: false,
+                    suppress_messaging: false,
+                },
+            ],
             profession_association_inputs: Vec::new(),
             post_commit_actions: vec![duplicate.clone(), duplicate],
             diagnostics: Vec::new(),
@@ -2127,6 +2590,7 @@ mod tests {
             skill_transitions: Vec::new(),
             override_transitions: Vec::new(),
             root_primary_profession_skill_ids: Vec::new(),
+            publication_requirements: Vec::new(),
             profession_association_inputs: Vec::new(),
             post_commit_actions: vec![SpellAcquisitionPostCommitActionLikeCpp::GrantDualWield {
                 source_spell_id: 100,
@@ -2169,6 +2633,11 @@ mod tests {
             skill_transitions: Vec::new(),
             override_transitions: Vec::new(),
             root_primary_profession_skill_ids: Vec::new(),
+            publication_requirements: vec![
+                SpellAcquisitionPublicationRequirementLikeCpp::UpdateLearnSpellQuestObjective {
+                    spell_id: 100,
+                },
+            ],
             profession_association_inputs: Vec::new(),
             post_commit_actions: vec![action.clone()],
             diagnostics: Vec::new(),
@@ -2219,6 +2688,7 @@ mod tests {
             skill_transitions: Vec::new(),
             override_transitions: Vec::new(),
             root_primary_profession_skill_ids: Vec::new(),
+            publication_requirements: Vec::new(),
             profession_association_inputs: Vec::new(),
             post_commit_actions: Vec::new(),
             diagnostics: Vec::new(),
@@ -2299,6 +2769,7 @@ mod tests {
         let mut resulting = source.clone();
         resulting.skills.push(learned_skill);
         resulting.occupied_skill_slots = 1;
+        resulting.primary_profession_skill_ids = vec![PROFESSION];
         let plan = SpellAcquisitionPlanLikeCpp {
             root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
             source_snapshot: source.clone(),
@@ -2307,6 +2778,7 @@ mod tests {
             skill_transitions: vec![transition],
             override_transitions: Vec::new(),
             root_primary_profession_skill_ids: vec![PROFESSION],
+            publication_requirements: Vec::new(),
             profession_association_inputs: vec![learned_skill],
             post_commit_actions: Vec::new(),
             diagnostics: Vec::new(),
@@ -2376,6 +2848,7 @@ mod tests {
             skill_transitions: vec![transition],
             override_transitions: Vec::new(),
             root_primary_profession_skill_ids: Vec::new(),
+            publication_requirements: Vec::new(),
             profession_association_inputs: vec![deleted],
             post_commit_actions: Vec::new(),
             diagnostics: Vec::new(),
@@ -2437,6 +2910,7 @@ mod tests {
             skill_transitions: vec![relearn_transition],
             override_transitions: Vec::new(),
             root_primary_profession_skill_ids: Vec::new(),
+            publication_requirements: Vec::new(),
             profession_association_inputs: vec![relearned],
             post_commit_actions: Vec::new(),
             diagnostics: Vec::new(),
@@ -2484,6 +2958,7 @@ mod tests {
         let mut resulting = source.clone();
         resulting.skills.push(enchanting);
         resulting.occupied_skill_slots = 1;
+        resulting.primary_profession_skill_ids = vec![enchanting.skill_id];
         let transition = PlannedSkillTransitionLikeCpp {
             skill_id: enchanting.skill_id,
             before: None,
@@ -2500,6 +2975,7 @@ mod tests {
             skill_transitions: vec![transition],
             override_transitions: Vec::new(),
             root_primary_profession_skill_ids: vec![enchanting.skill_id],
+            publication_requirements: Vec::new(),
             profession_association_inputs: vec![enchanting],
             post_commit_actions: Vec::new(),
             diagnostics: Vec::new(),
@@ -2560,12 +3036,19 @@ mod tests {
             skill_transitions: Vec::new(),
             override_transitions: Vec::new(),
             root_primary_profession_skill_ids: Vec::new(),
+            publication_requirements: direct_learn_requirements(100, false, false),
             profession_association_inputs: Vec::new(),
             post_commit_actions: vec![
+                SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnOrKnowSpellCriteria {
+                    spell_id: 100,
+                },
                 SpellAcquisitionPostCommitActionLikeCpp::LearnedSpell {
                     spell_id: 100,
                     favorite: false,
                     suppress_messaging: false,
+                },
+                SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnSpellQuestObjective {
+                    spell_id: 100,
                 },
                 SpellAcquisitionPostCommitActionLikeCpp::GrantDualWield {
                     source_spell_id: 100,

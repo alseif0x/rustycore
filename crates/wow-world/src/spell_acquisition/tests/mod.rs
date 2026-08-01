@@ -180,10 +180,12 @@ impl MetadataFixture {
 
 fn snapshot() -> PlayerSpellAcquisitionSnapshotLikeCpp {
     PlayerSpellAcquisitionSnapshotLikeCpp {
+        character_guid: None,
         spells: Vec::new(),
         skills: Vec::new(),
         occupied_skill_slots: 0,
         overrides: Vec::new(),
+        primary_profession_skill_ids: Vec::new(),
         race: 1,
         class: 1,
         level: 80,

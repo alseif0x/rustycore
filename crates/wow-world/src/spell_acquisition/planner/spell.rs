@@ -33,6 +33,13 @@ impl SpellAcquisitionPlannerLikeCpp<'_> {
         )?;
 
         if learning && self.lifecycle.is_in_world() {
+            self.publication_requirements.push(
+                SpellAcquisitionPublicationRequirementLikeCpp::LearnedSpell {
+                    spell_id,
+                    favorite,
+                    suppress_messaging: false,
+                },
+            );
             self.post_commit_actions
                 .push(SpellAcquisitionPostCommitActionLikeCpp::LearnedSpell {
                     spell_id,
@@ -80,6 +87,11 @@ impl SpellAcquisitionPlannerLikeCpp<'_> {
                 }
             }
         } else {
+            self.publication_requirements.push(
+                SpellAcquisitionPublicationRequirementLikeCpp::UpdateLearnSpellQuestObjective {
+                    spell_id,
+                },
+            );
             self.post_commit_actions.push(
                 SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnSpellQuestObjective {
                     spell_id,
@@ -510,8 +522,20 @@ impl SpellAcquisitionPlannerLikeCpp<'_> {
                 // order; neither filtering nor deduplication is valid here.
                 for row in rows {
                     let skill_id = u32::from(row.skill_line);
+                    self.publication_requirements.push(
+                        SpellAcquisitionPublicationRequirementLikeCpp::UpdateLearnTradeskillSkillLineCriteria {
+                            source_spell_id: spell_id,
+                            skill_id,
+                        },
+                    );
                     self.post_commit_actions.push(
                         SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnTradeskillSkillLineCriteria {
+                            source_spell_id: spell_id,
+                            skill_id,
+                        },
+                    );
+                    self.publication_requirements.push(
+                        SpellAcquisitionPublicationRequirementLikeCpp::UpdateLearnSpellFromSkillLineCriteria {
                             source_spell_id: spell_id,
                             skill_id,
                         },
@@ -532,6 +556,11 @@ impl SpellAcquisitionPlannerLikeCpp<'_> {
                 });
             }
         }
+        self.publication_requirements.push(
+            SpellAcquisitionPublicationRequirementLikeCpp::UpdateLearnOrKnowSpellCriteria {
+                spell_id,
+            },
+        );
         self.post_commit_actions.push(
             SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnOrKnowSpellCriteria { spell_id },
         );

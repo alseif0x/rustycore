@@ -120954,6 +120954,8 @@ mod tests {
             Some(2),
             "attaching the runtime owner must retain exact slot occupancy authority"
         );
+        let mut owner_snapshot = snapshot.clone();
+        owner_snapshot.character_guid = Some(ObjectGuid::create_player(1, 42));
         assert_eq!(
             session
                 .spell_acquisition_snapshot_like_cpp(
@@ -120962,8 +120964,8 @@ mod tests {
                     cast_resolutions.clone(),
                 )
                 .expect("controller attach preserves the complete immutable snapshot"),
-            snapshot,
-            "the controller receives the exact skill rows before becoming the getter owner"
+            owner_snapshot,
+            "the controller receives the exact skill rows and contributes its character identity"
         );
 
         session.player_skill_records_complete_like_cpp = false;
