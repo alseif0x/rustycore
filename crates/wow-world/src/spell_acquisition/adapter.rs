@@ -5,7 +5,85 @@
 
 use super::*;
 
+static FAIL_CLOSED_CAST_AUTHORITY_LIKE_CPP: std::sync::LazyLock<
+    SpellAcquisitionCastAuthorityLikeCpp,
+> = std::sync::LazyLock::new(Default::default);
+static FAIL_CLOSED_CRAFT_AUTHORITY_LIKE_CPP: std::sync::LazyLock<
+    SpellAcquisitionCraftValidityAuthorityLikeCpp,
+> = std::sync::LazyLock::new(Default::default);
+
 impl crate::session::WorldSession {
+    /// Projects one trainer product from the complete current player snapshot.
+    ///
+    /// Static cast/craft safety is intentionally fail-closed until a later
+    /// runtime owner supplies audited authority. Direct ordinary learns do not
+    /// consult those authorities; wrapper/craft paths that need them remain
+    /// unavailable instead of being guessed.
+    pub(crate) fn project_trainer_spell_acquisition_like_cpp(
+        &self,
+        root: SpellAcquisitionRootLikeCpp,
+    ) -> SpellAcquisitionOutcomeLikeCpp {
+        let snapshot = match self.spell_acquisition_snapshot_like_cpp(
+            PlayerAcquisitionLifecycleLikeCpp::InWorld,
+            Vec::new(),
+            BTreeMap::new(),
+        ) {
+            Ok(snapshot) => snapshot,
+            Err(error) => {
+                return SpellAcquisitionOutcomeLikeCpp::Indeterminate(
+                    SpellAcquisitionIndeterminateLikeCpp::SnapshotAdapter(error),
+                );
+            }
+        };
+        let (
+            Some(catalog),
+            Some(spell_chains),
+            Some(spell_learn_skills),
+            Some(spell_learn_spells),
+            Some(spell_required),
+            Some(spell_custom_attributes),
+            Some(trait_definitions),
+            Some(skills),
+            Some(skill_lines),
+            Some(skill_tiers),
+        ) = (
+            self.spell_acquisition_catalog(),
+            self.spell_chain_store(),
+            self.spell_learn_skill_store_like_cpp(),
+            self.spell_learn_spell_store_like_cpp(),
+            self.spell_required_store_like_cpp(),
+            self.spell_custom_attribute_store_like_cpp(),
+            self.trait_definition_store(),
+            self.skill_store(),
+            self.skill_line_store(),
+            self.skill_tiers_store(),
+        )
+        else {
+            return SpellAcquisitionOutcomeLikeCpp::Indeterminate(
+                SpellAcquisitionIndeterminateLikeCpp::MissingTrainerProjectionMetadata,
+            );
+        };
+        project_spell_acquisition_like_cpp(
+            &snapshot,
+            SpellAcquisitionMetadataLikeCpp {
+                catalog,
+                spell_chains,
+                spell_learn_skills,
+                spell_learn_spells,
+                spell_required,
+                spell_custom_attributes,
+                trait_definitions,
+                cast_authority: &FAIL_CLOSED_CAST_AUTHORITY_LIKE_CPP,
+                craft_validity_authority: &FAIL_CLOSED_CRAFT_AUTHORITY_LIKE_CPP,
+                mounts: self.mount_store().map(AsRef::as_ref),
+                skills,
+                skill_lines,
+                skill_tiers,
+            },
+            root,
+        )
+    }
+
     pub(crate) fn spell_acquisition_snapshot_like_cpp(
         &self,
         lifecycle: PlayerAcquisitionLifecycleLikeCpp,

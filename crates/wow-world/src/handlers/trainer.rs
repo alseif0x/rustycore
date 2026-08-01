@@ -15,9 +15,9 @@
 //!
 //! Flow for CMSG_TRAINER_BUY_SPELL:
 //!   1. Parse trainer GUID, trainer ID, spell ID.
-//!   2. Validate: spell not already known, level sufficient, enough gold.
-//!   3. Deduct gold, persist to DB, insert character_spell, update known_spells.
-//!   4. Send SMSG_LEARNED_SPELLS (success) or SMSG_TRAINER_BUY_FAILED (error).
+//!   2. Recompute the same immutable offer from the current snapshot.
+//!   3. Reject an unavailable offer or insufficient exact discounted money.
+//!   4. Stop without mutation; #158/#159 own apply/persistence/publication.
 //!
 //! C++ refs: `WorldSession::HandleTrainerListOpcode` / `SendTrainerList`
 //! (`Handlers/NPCHandler.cpp:98-132`) and `Trainer::SendSpells` /
@@ -30,19 +30,24 @@ use tracing::{info, warn};
 use wow_constants::ClientOpcodes;
 use wow_constants::unit::NPCFlags1;
 use wow_data::{
+    BattlePetClassificationLikeCpp, SkillLineAbilityCoverageLikeCpp,
+    SkillRaceClassInfoMatchCoverageLikeCpp, SpellAcquisitionEffectsLookupLikeCpp,
     TRAINER_SPELL_STATE_AVAILABLE_LIKE_CPP, TRAINER_SPELL_STATE_KNOWN_LIKE_CPP,
     TRAINER_SPELL_STATE_UNAVAILABLE_LIKE_CPP, TrainerLikeCpp, TrainerStoreLikeCpp,
 };
-use wow_database::SqlTransaction;
-use wow_database::statements::character::CharStatements;
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
 use wow_packet::ClientPacket;
 use wow_packet::packets::trainer::{
-    LearnedSpells, TrainerBuyFailed, TrainerBuySpellRequest, TrainerListPacket, TrainerListSpell,
+    TrainerBuyFailed, TrainerBuySpellRequest, TrainerListPacket, TrainerListSpell,
 };
 
 use crate::conditions;
 use crate::session::WorldSession;
+use crate::trainer_offer::{
+    TrainerAdmissionProofLikeCpp, TrainerBattlePetProofLikeCpp, TrainerOfferDecisionLikeCpp,
+    TrainerOfferInputLikeCpp, TrainerProductLikeCpp, decide_trainer_offer_like_cpp,
+    trainer_price_like_cpp,
+};
 
 const TRAINER_LIST_NPC_FLAGS_LIKE_CPP: u32 = NPCFlags1::TRAINER.bits();
 const TRAINER_BUY_NPC_FLAGS_LIKE_CPP: u32 = NPCFlags1::TRAINER.bits()
@@ -84,6 +89,119 @@ fn trainer_list_required_npc_flags_like_cpp(gossip_option: Option<(u32, u32)>) -
     }
 }
 
+fn trainer_spell_class_race_fit_like_cpp(
+    session: &WorldSession,
+    spell_id: u32,
+) -> TrainerAdmissionProofLikeCpp {
+    let Some(skills) = session.skill_store() else {
+        return TrainerAdmissionProofLikeCpp::Indeterminate;
+    };
+    let Ok(spell_id) = i32::try_from(spell_id) else {
+        return TrainerAdmissionProofLikeCpp::Indeterminate;
+    };
+    let rows = match skills.skill_line_ability_coverage_by_spell_like_cpp(spell_id) {
+        SkillLineAbilityCoverageLikeCpp::CoveredZero => {
+            return TrainerAdmissionProofLikeCpp::Proven(true);
+        }
+        SkillLineAbilityCoverageLikeCpp::Indeterminate(_) => {
+            return TrainerAdmissionProofLikeCpp::Indeterminate;
+        }
+        SkillLineAbilityCoverageLikeCpp::Rows(rows) => rows,
+    };
+    let race = session.player_race_like_cpp();
+    let class = session.player_class_like_cpp();
+    let race_mask = wow_data::skill::race_mask_for_race_like_cpp(race);
+    let Some(class_mask) = class
+        .checked_sub(1)
+        .and_then(|bit| 1_i32.checked_shl(bit.into()))
+    else {
+        return TrainerAdmissionProofLikeCpp::Indeterminate;
+    };
+    if race_mask == 0 {
+        return TrainerAdmissionProofLikeCpp::Indeterminate;
+    }
+    let mut indeterminate = false;
+    for row in rows {
+        if row.race_mask != 0 && row.race_mask & race_mask == 0 {
+            continue;
+        }
+        if row.class_mask != 0 && row.class_mask & class_mask == 0 {
+            continue;
+        }
+        match skills.skill_race_class_info_coverage_for_player_like_cpp(row.skill_line, race, class)
+        {
+            SkillRaceClassInfoMatchCoverageLikeCpp::Row(_) => {
+                return TrainerAdmissionProofLikeCpp::Proven(true);
+            }
+            SkillRaceClassInfoMatchCoverageLikeCpp::CoveredZero => {}
+            SkillRaceClassInfoMatchCoverageLikeCpp::Indeterminate(_) => indeterminate = true,
+        }
+    }
+    if indeterminate {
+        TrainerAdmissionProofLikeCpp::Indeterminate
+    } else {
+        TrainerAdmissionProofLikeCpp::Proven(false)
+    }
+}
+
+fn trainer_spell_product_like_cpp(session: &WorldSession, spell_id: u32) -> TrainerProductLikeCpp {
+    const SPELL_EFFECT_LEARN_SPELL_LIKE_CPP: u32 = 36;
+    let Some(catalog) = session.spell_acquisition_catalog() else {
+        return TrainerProductLikeCpp::InvalidOrUnsupportedWrapper;
+    };
+    let effects = match catalog.acquisition_effects_like_cpp(spell_id) {
+        SpellAcquisitionEffectsLookupLikeCpp::Covered(effects) => effects,
+        SpellAcquisitionEffectsLookupLikeCpp::MissingCoverage
+        | SpellAcquisitionEffectsLookupLikeCpp::Indeterminate(_) => {
+            return TrainerProductLikeCpp::InvalidOrUnsupportedWrapper;
+        }
+    };
+    let mut saw_learn = false;
+    let mut targets = Vec::new();
+    for effect in effects {
+        let Ok(effect_type) = effect.effect_type_checked() else {
+            return TrainerProductLikeCpp::InvalidOrUnsupportedWrapper;
+        };
+        if effect_type != SPELL_EFFECT_LEARN_SPELL_LIKE_CPP {
+            continue;
+        }
+        saw_learn = true;
+        // C++ casts the wrapper on the player. Pet and other explicit target
+        // families are not valid player-learning evidence.
+        if effect.targets_unit_pet_like_cpp() || !effect.targets_player_like_cpp() {
+            return TrainerProductLikeCpp::InvalidOrUnsupportedWrapper;
+        }
+        let Ok(target) = effect.trigger_spell_id_checked() else {
+            return TrainerProductLikeCpp::InvalidOrUnsupportedWrapper;
+        };
+        targets.push(target);
+    }
+    targets.sort_unstable();
+    targets.dedup();
+    if saw_learn {
+        TrainerProductLikeCpp::Wrapper {
+            valid_learn_targets: targets,
+        }
+    } else {
+        TrainerProductLikeCpp::Direct
+    }
+}
+
+fn trainer_condition_admission_proof_like_cpp(
+    meets: bool,
+    saw_unsupported: bool,
+) -> TrainerAdmissionProofLikeCpp {
+    if meets {
+        // C++ ElseGroups are ORed. A supported passing group proves the
+        // result even when another, irrelevant group is not representable.
+        TrainerAdmissionProofLikeCpp::Proven(true)
+    } else if saw_unsupported {
+        TrainerAdmissionProofLikeCpp::Indeterminate
+    } else {
+        TrainerAdmissionProofLikeCpp::Proven(false)
+    }
+}
+
 // ── Handler registrations ─────────────────────────────────────────────────────
 
 inventory::submit! {
@@ -107,6 +225,139 @@ inventory::submit! {
 // ── Handler implementations ───────────────────────────────────────────────────
 
 impl WorldSession {
+    fn trainer_spell_condition_proof_like_cpp(
+        &self,
+        trainer_id: u32,
+        spell_id: u32,
+    ) -> TrainerAdmissionProofLikeCpp {
+        let Some(store) = self.condition_store() else {
+            return TrainerAdmissionProofLikeCpp::Indeterminate;
+        };
+        let Some(player_object) = self.build_condition_player_object_like_cpp() else {
+            return TrainerAdmissionProofLikeCpp::Indeterminate;
+        };
+        let player_condition_store = self.player_condition_store();
+        let player_condition_context = self.represented_player_condition_context_like_cpp();
+        let player_unit_snapshot = self.condition_player_unit_snapshot_like_cpp();
+        let player_snapshot = self.condition_player_snapshot_like_cpp();
+        let mut unsupported = false;
+        let meets = conditions::is_object_meeting_trainer_spell_conditions_like_cpp(
+            store.as_ref(),
+            trainer_id,
+            spell_id,
+            Some(&player_object),
+            |condition, source_info| {
+                source_info.set_unit_target_snapshot(0, player_unit_snapshot);
+                source_info.set_player_target_snapshot(0, player_snapshot);
+                if let Some(store) = player_condition_store {
+                    source_info.set_player_condition_store(store.as_ref());
+                    source_info
+                        .set_player_condition_context(0, player_condition_context.as_context(self));
+                }
+                match conditions::condition_meets_basic_like_cpp(
+                    condition,
+                    source_info,
+                    |current_area, required_area| current_area == required_area,
+                ) {
+                    conditions::ConditionMeetResult::Evaluated(value) => value,
+                    conditions::ConditionMeetResult::Unsupported => {
+                        unsupported = true;
+                        false
+                    }
+                }
+            },
+        );
+        trainer_condition_admission_proof_like_cpp(meets, unsupported)
+    }
+
+    fn trainer_offer_decision_like_cpp(
+        &self,
+        trainer_id: u32,
+        trainer_spell: &wow_data::TrainerSpellLikeCpp,
+        faction_template_id: u32,
+    ) -> TrainerOfferDecisionLikeCpp {
+        if i32::try_from(trainer_spell.spell_id).is_err() {
+            return TrainerOfferDecisionLikeCpp::Unavailable(
+                crate::trainer_offer::TrainerUnavailableReasonLikeCpp::InvalidEffectiveMetadata,
+            );
+        }
+        let Some(spell_rows) = self.complete_represented_player_spell_rows_like_cpp() else {
+            return TrainerOfferDecisionLikeCpp::Unavailable(
+                crate::trainer_offer::TrainerUnavailableReasonLikeCpp::InvalidEffectiveMetadata,
+            );
+        };
+        let Some(skill_rows) = self.complete_player_skill_records_like_cpp() else {
+            return TrainerOfferDecisionLikeCpp::Unavailable(
+                crate::trainer_offer::TrainerUnavailableReasonLikeCpp::InvalidEffectiveMetadata,
+            );
+        };
+        let required_skill = if trainer_spell.req_skill_line == 0 {
+            None
+        } else {
+            let (Ok(skill_id), Ok(rank)) = (
+                u16::try_from(trainer_spell.req_skill_line),
+                u16::try_from(trainer_spell.req_skill_rank),
+            ) else {
+                return TrainerOfferDecisionLikeCpp::Unavailable(
+                    crate::trainer_offer::TrainerUnavailableReasonLikeCpp::InvalidEffectiveMetadata,
+                );
+            };
+            Some((u32::from(skill_id), rank))
+        };
+        let skill_value = |skill_id: u32| {
+            u16::try_from(skill_id)
+                .ok()
+                .and_then(|skill_id| skill_rows.get(&skill_id).map(|row| row.value))
+        };
+        let knows_spell = |candidate: u32| {
+            i32::try_from(candidate).ok().is_some_and(|candidate| {
+                spell_rows.get(&candidate).is_some_and(|row| {
+                    row.state != crate::session::RepresentedPlayerSpellStateLikeCpp::Removed
+                        && !row.disabled
+                })
+            })
+        };
+        let battle_pet = match self
+            .spell_acquisition_catalog()
+            .map(|catalog| catalog.battle_pet_classification_like_cpp(trainer_spell.spell_id))
+        {
+            Some(BattlePetClassificationLikeCpp::NotBattlePet) => {
+                TrainerBattlePetProofLikeCpp::NotBattlePet
+            }
+            Some(BattlePetClassificationLikeCpp::Species(species_id)) => {
+                TrainerBattlePetProofLikeCpp::Species(species_id)
+            }
+            Some(BattlePetClassificationLikeCpp::Indeterminate(_)) | None => {
+                TrainerBattlePetProofLikeCpp::Indeterminate
+            }
+        };
+        let effective_price = trainer_price_like_cpp(
+            trainer_spell.money_cost,
+            self.trainer_price_reputation_rank_like_cpp(faction_template_id),
+        );
+        decide_trainer_offer_like_cpp(
+            TrainerOfferInputLikeCpp {
+                source_spell_id: trainer_spell.spell_id,
+                is_exact_member: true,
+                class_race: trainer_spell_class_race_fit_like_cpp(self, trainer_spell.spell_id),
+                condition: self
+                    .trainer_spell_condition_proof_like_cpp(trainer_id, trainer_spell.spell_id),
+                directly_known: knows_spell(trainer_spell.spell_id),
+                required_skill,
+                skill_value: &skill_value,
+                required_abilities: trainer_spell.req_ability,
+                knows_spell: &knows_spell,
+                required_level: trainer_spell.req_level,
+                player_level: self.player_level_like_cpp(),
+                product: trainer_spell_product_like_cpp(self, trainer_spell.spell_id),
+                battle_pet,
+                effective_price,
+            },
+            |root| self.project_trainer_spell_acquisition_like_cpp(root),
+            |skills| self.plan_primary_profession_capacity_like_cpp(skills.iter().copied()),
+        )
+    }
+
     /// Handle `CMSG_TRAINER_LIST` (0x34ad).
     ///
     /// Opens the trainer window: resolves the NPC, reads the loaded trainer store,
@@ -137,12 +388,12 @@ impl WorldSession {
         );
 
         let required_npc_flags = trainer_list_required_npc_flags_like_cpp(gossip_option);
-        let entry = match self.represented_npc_can_interact_with_like_cpp(
+        let access = match self.represented_npc_can_interact_with_like_cpp(
             trainer_guid,
             required_npc_flags,
             0,
         ) {
-            Some(access) => access.entry,
+            Some(access) => access,
             None => {
                 warn!(
                     account = self.account_id,
@@ -152,6 +403,7 @@ impl WorldSession {
                 return;
             }
         };
+        let entry = access.entry;
 
         let trainer_store = match self.trainer_store_like_cpp() {
             Some(store) => Arc::clone(store),
@@ -178,77 +430,40 @@ impl WorldSession {
         // creature trainer ID and before reading the trainer definition.
         self.remove_represented_feign_death_if_needed_like_cpp();
 
-        let player_level = self.player_level_like_cpp();
-        let condition_store = self.condition_store().cloned();
-        let player_condition_store = self.player_condition_store().cloned();
-        let player_condition_context = self.represented_player_condition_context_like_cpp();
-        let player_condition_object = self.build_condition_player_object_like_cpp();
-        let player_unit_snapshot = self.condition_player_unit_snapshot_like_cpp();
-        let player_snapshot = self.condition_player_snapshot_like_cpp();
         let mut spells: Vec<TrainerListSpell> = Vec::new();
 
         for trainer_spell in trainer.spells_like_cpp() {
             let spell_id = trainer_spell.spell_id as i32;
-            if let Some(store) = condition_store.as_ref() {
-                let Some(player_object) = player_condition_object.as_ref() else {
-                    warn!(
-                        account = self.account_id,
-                        trainer_id = trainer_id,
-                        spell_id = spell_id,
-                        "Trainer spell condition check failed closed: missing player object"
-                    );
-                    continue;
-                };
-                let meets = conditions::is_object_meeting_trainer_spell_conditions_like_cpp(
-                    store.as_ref(),
-                    trainer_id,
-                    trainer_spell.spell_id,
-                    Some(player_object),
-                    |condition, source_info| {
-                        source_info.set_unit_target_snapshot(0, player_unit_snapshot);
-                        source_info.set_player_target_snapshot(0, player_snapshot);
-                        if let Some(store) = player_condition_store.as_ref() {
-                            source_info.set_player_condition_store(store.as_ref());
-                            source_info.set_player_condition_context(
-                                0,
-                                player_condition_context.as_context(self),
-                            );
-                        }
-                        match conditions::condition_meets_basic_like_cpp(
-                            condition,
-                            source_info,
-                            |current_area, required_area| current_area == required_area,
-                        ) {
-                            conditions::ConditionMeetResult::Evaluated(value) => value,
-                            conditions::ConditionMeetResult::Unsupported => {
-                                warn!(
-                                    account = self.account_id,
-                                    trainer_id = trainer_id,
-                                    spell_id = spell_id,
-                                    condition_type = ?condition.condition_type,
-                                    "Trainer spell condition check failed closed: unsupported condition type"
-                                );
-                                false
-                            }
-                        }
-                    },
-                );
-                if !meets {
-                    continue;
-                }
-            }
-
-            let usable = if self.known_spells_like_cpp().contains(&spell_id) {
-                TRAINER_SPELL_STATE_KNOWN_LIKE_CPP
-            } else if player_level >= trainer_spell.req_level {
-                TRAINER_SPELL_STATE_AVAILABLE_LIKE_CPP
-            } else {
-                TRAINER_SPELL_STATE_UNAVAILABLE_LIKE_CPP
+            let decision = self.trainer_offer_decision_like_cpp(
+                trainer_id,
+                trainer_spell,
+                access.faction_template_id,
+            );
+            let (usable, money_cost) = match decision {
+                TrainerOfferDecisionLikeCpp::Hidden(_) => continue,
+                TrainerOfferDecisionLikeCpp::Known(_) => (
+                    TRAINER_SPELL_STATE_KNOWN_LIKE_CPP,
+                    trainer_price_like_cpp(
+                        trainer_spell.money_cost,
+                        self.trainer_price_reputation_rank_like_cpp(access.faction_template_id),
+                    ),
+                ),
+                TrainerOfferDecisionLikeCpp::Unavailable(_) => (
+                    TRAINER_SPELL_STATE_UNAVAILABLE_LIKE_CPP,
+                    trainer_price_like_cpp(
+                        trainer_spell.money_cost,
+                        self.trainer_price_reputation_rank_like_cpp(access.faction_template_id),
+                    ),
+                ),
+                TrainerOfferDecisionLikeCpp::Available(offer) => (
+                    TRAINER_SPELL_STATE_AVAILABLE_LIKE_CPP,
+                    offer.effective_price,
+                ),
             };
 
             spells.push(TrainerListSpell {
                 spell_id,
-                money_cost: trainer_spell.money_cost,
+                money_cost,
                 req_skill_line: trainer_spell.req_skill_line as i32,
                 req_skill_rank: trainer_spell.req_skill_rank as i32,
                 req_ability: trainer_spell.req_ability.map(|ability| ability as i32),
@@ -280,8 +495,9 @@ impl WorldSession {
 
     /// Handle `CMSG_TRAINER_BUY_SPELL` (0x34ae).
     ///
-    /// Validates the purchase (level, gold), deducts cost, inserts character_spell,
-    /// updates in-memory state, and sends SMSG_LEARNED_SPELLS on success.
+    /// Revalidates and prepares the same immutable offer used by the list.
+    /// Teaching, charging, persistence and success publication belong to
+    /// #158/#159 and are deliberately unreachable in this slice.
     pub async fn handle_trainer_buy_spell(&mut self, mut pkt: wow_packet::WorldPacket) {
         let req = match TrainerBuySpellRequest::read(&mut pkt) {
             Ok(r) => r,
@@ -305,21 +521,18 @@ impl WorldSession {
             "CMSG_TRAINER_BUY_SPELL"
         );
 
-        if self
-            .represented_npc_can_interact_with_like_cpp(
-                trainer_guid,
-                TRAINER_BUY_NPC_FLAGS_LIKE_CPP,
-                0,
-            )
-            .is_none()
-        {
+        let Some(access) = self.represented_npc_can_interact_with_like_cpp(
+            trainer_guid,
+            TRAINER_BUY_NPC_FLAGS_LIKE_CPP,
+            0,
+        ) else {
             warn!(
                 account = self.account_id,
                 trainer_guid = ?trainer_guid,
                 "Trainer buy rejected: trainer not interactable"
             );
             return;
-        }
+        };
 
         // C++ removes fake death after validating the NPC and before checking
         // the active trainer-window provenance.
@@ -347,7 +560,7 @@ impl WorldSession {
         let Some(trainer) = trainer_store.get_trainer_like_cpp(trainer_id as u32) else {
             return;
         };
-        let Some(trainer_spell) = trainer.get_spell_like_cpp(spell_id as u32) else {
+        let Some(trainer_spell) = trainer.get_spell_like_cpp(spell_id as u32).cloned() else {
             warn!(
                 account = self.account_id,
                 trainer_id = trainer_id,
@@ -361,111 +574,12 @@ impl WorldSession {
             });
             return;
         };
-        let money_cost = trainer_spell.money_cost;
-        let req_level = trainer_spell.req_level;
-
-        let player_guid = match self.player_guid() {
-            Some(g) => g,
-            None => {
-                warn!(
-                    account = self.account_id,
-                    "handle_trainer_buy_spell: no player_guid"
-                );
-                return;
-            }
-        };
-
-        // ── Already known? ─────────────────────────────────────────────────
-        if self.known_spells_like_cpp().contains(&spell_id) {
-            warn!(
-                account = self.account_id,
-                spell_id = spell_id,
-                "Player already knows spell"
-            );
-            self.send_packet(&TrainerBuyFailed {
-                trainer_guid,
-                spell_id,
-                reason: 0, // service unavailable (already known)
-            });
-            return;
-        }
-
-        // ── Validate level ─────────────────────────────────────────────────
-        if self.player_level_like_cpp() < req_level {
-            warn!(
-                account = self.account_id,
-                spell_id = spell_id,
-                player_level = self.player_level_like_cpp(),
-                req_level = req_level,
-                "Player level too low for spell"
-            );
-            self.send_packet(&TrainerBuyFailed {
-                trainer_guid,
-                spell_id,
-                reason: 0,
-            });
-            return;
-        }
-
-        // ── Validate gold ──────────────────────────────────────────────────
-        if self.player_gold_like_cpp() < money_cost as u64 {
-            warn!(
-                account = self.account_id,
-                spell_id = spell_id,
-                player_gold = self.player_gold_like_cpp(),
-                money_cost = money_cost,
-                "Player doesn't have enough gold for spell"
-            );
-            self.send_packet(&TrainerBuyFailed {
-                trainer_guid,
-                spell_id,
-                reason: 1, // not enough money
-            });
-            return;
-        }
-
-        let char_db = match self.char_db() {
-            Some(db) => Arc::clone(db),
-            None => return,
-        };
-
-        let Some(money_persistence) = self
-            .begin_exclusive_player_money_persistence_like_cpp()
-            .await
-        else {
-            return;
-        };
-
-        // ── Deduct gold ────────────────────────────────────────────────────
-        let old_money = self.player_gold_like_cpp();
-        let new_money = old_money.saturating_sub(money_cost as u64);
-        let mut tx = SqlTransaction::new();
-        let mut upd_money = char_db.prepare(CharStatements::UPD_CHAR_MONEY);
-        upd_money.set_u64(0, new_money);
-        upd_money.set_u64(1, player_guid.counter() as u64);
-        tx.append(upd_money);
-
-        // ── Persist spell to character_spell ───────────────────────────────
-        let mut ins_spell = char_db.prepare(CharStatements::INS_CHARACTER_SPELL);
-        ins_spell.set_u64(0, player_guid.counter() as u64);
-        ins_spell.set_i32(1, spell_id);
-        tx.append(ins_spell);
-        let Some(money_persistence) = self
-            .commit_exclusive_player_money_transaction_like_cpp(
-                money_persistence,
-                char_db.as_ref(),
-                tx,
-                old_money,
-                new_money,
-                "trainer spell purchase",
-            )
-            .await
-        else {
-            warn!(
-                account = self.account_id,
-                spell_id = spell_id,
-                "TrainerBuySpell: atomic money/spell transaction did not commit"
-            );
+        let decision = self.trainer_offer_decision_like_cpp(
+            trainer_id as u32,
+            &trainer_spell,
+            access.faction_template_id,
+        );
+        let TrainerOfferDecisionLikeCpp::Available(offer) = decision else {
             self.send_packet(&TrainerBuyFailed {
                 trainer_guid,
                 spell_id,
@@ -473,54 +587,47 @@ impl WorldSession {
             });
             return;
         };
-        // Publish every runtime field represented by the committed money/spell
-        // transaction before reopening money-payout admission. There must be
-        // no cancellation point between COMMIT and this publication.
-        self.stage_player_money_change_like_cpp(old_money, new_money);
-        self.learn_known_spell_like_cpp(spell_id);
-        self.sync_object_accessor_player();
-        self.sync_player_registry_state_like_cpp();
-        drop(money_persistence);
-
-        // ── Update in-memory state ─────────────────────────────────────────
-        self.drain_represented_quest_objective_progress_like_cpp()
-            .await;
+        if self.player_gold_like_cpp() < u64::from(offer.effective_price) {
+            self.send_packet(&TrainerBuyFailed {
+                trainer_guid,
+                spell_id,
+                reason: 1,
+            });
+            return;
+        }
 
         info!(
             account = self.account_id,
-            player_guid = ?player_guid,
-            spell_id = spell_id,
-            money_cost = money_cost,
-            remaining_gold = self.player_gold_like_cpp(),
-            "Player learned spell from trainer"
+            trainer_id,
+            spell_id,
+            effective_price = offer.effective_price,
+            "Trainer offer prepared without mutation; apply belongs to #158/#159"
         );
-
-        // ── Send gold update to client ─────────────────────────────────────
-        self.send_player_values_update_from_entity_bridge(
-            &[],
-            &[],
-            &[],
-            &[],
-            Some(self.player_gold_like_cpp()),
-        );
-
-        // ── Send SMSG_LEARNED_SPELLS ───────────────────────────────────────
-        self.send_packet(&LearnedSpells::single(spell_id));
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
     use std::time::Instant;
 
     use super::*;
-    use crate::session::{AuraApplication, RepresentedAuraEffectLikeCpp, SessionPlayerController};
+    use crate::session::{
+        AuraApplication, RepresentedAuraEffectLikeCpp, RepresentedPlayerSpellLikeCpp,
+        RepresentedPlayerSpellStateLikeCpp, SessionPlayerController,
+    };
     use wow_constants::unit::UnitState;
     use wow_core::guid::HighGuid;
     use wow_core::{ObjectGuid, Position};
     use wow_data::{
-        CreatureTrainerRowLikeCpp, TrainerLocaleRowLikeCpp, TrainerRowLikeCpp, TrainerSpellLikeCpp,
+        ConditionEntriesByTypeStore, CreatureTrainerRowLikeCpp,
+        EffectiveSpellAcquisitionRowsLikeCpp, MountStore, SkillLineAbilityRecord, SkillLineStore,
+        SkillRaceClassInfoRecord, SkillStore, SkillTiersStoreLikeCpp,
+        SpellAcquisitionCatalogLikeCpp, SpellAcquisitionCoverageSeedLikeCpp,
+        SpellAcquisitionTableHashesLikeCpp, SpellChainStoreLikeCpp,
+        SpellCustomAttributeStoreLikeCpp, SpellLearnSkillStoreLikeCpp, SpellLearnSpellStoreLikeCpp,
+        SpellRequiredStoreLikeCpp, TrainerLocaleRowLikeCpp, TrainerRowLikeCpp, TrainerSpellLikeCpp,
         TrainerSpellRowLikeCpp,
     };
     use wow_packet::{ServerPacket, WorldPacket};
@@ -696,6 +803,58 @@ mod tests {
             80,
             0,
         ));
+        session.set_condition_store(Arc::new(ConditionEntriesByTypeStore::default()));
+        session.set_skill_store(Arc::new(
+            SkillStore::from_skill_line_abilities_and_race_class_like_cpp([], []),
+        ));
+        session.set_skill_line_store(Arc::new(SkillLineStore::from_entries([])));
+        session.set_skill_tiers_store(Arc::new(SkillTiersStoreLikeCpp::default()));
+        session.set_trait_definition_store(Arc::new(
+            wow_data::trait_tree::TraitDefinitionStore::from_entries([]),
+        ));
+        session.set_mount_store(Arc::new(MountStore::from_entries([])));
+        session.set_spell_chain_store(Arc::new(SpellChainStoreLikeCpp::default()));
+        session.set_spell_custom_attribute_store(Arc::new(
+            SpellCustomAttributeStoreLikeCpp::default(),
+        ));
+        let mut learn_skills = SpellLearnSkillStoreLikeCpp::default();
+        learn_skills.covered_spell_ids.extend([
+            KNOWN_TRAINER_SPELL as u32,
+            AVAILABLE_TRAINER_SPELL as u32,
+            UNAVAILABLE_TRAINER_SPELL as u32,
+        ]);
+        session.set_spell_learn_skill_store(Arc::new(learn_skills));
+        session.set_spell_learn_spell_store(Arc::new(SpellLearnSpellStoreLikeCpp::default()));
+        session.set_spell_required_store(Arc::new(SpellRequiredStoreLikeCpp::default()));
+        session.set_spell_acquisition_catalog(Arc::new(
+            SpellAcquisitionCatalogLikeCpp::from_effective_rows_like_cpp(
+                [
+                    KNOWN_TRAINER_SPELL as u32,
+                    AVAILABLE_TRAINER_SPELL as u32,
+                    UNAVAILABLE_TRAINER_SPELL as u32,
+                ]
+                .map(|spell_id| SpellAcquisitionCoverageSeedLikeCpp::covered(spell_id, 0)),
+                EffectiveSpellAcquisitionRowsLikeCpp::default(),
+                SpellAcquisitionTableHashesLikeCpp::default(),
+                Vec::new(),
+            ),
+        ));
+        session.set_known_spells_like_cpp(vec![KNOWN_TRAINER_SPELL]);
+        assert!(
+            session.set_complete_represented_player_spell_rows_like_cpp([
+                RepresentedPlayerSpellLikeCpp {
+                    spell_id: KNOWN_TRAINER_SPELL,
+                    active: true,
+                    disabled: false,
+                    dependent: false,
+                    favorite: false,
+                    state: RepresentedPlayerSpellStateLikeCpp::Unchanged,
+                },
+            ])
+        );
+        assert!(session.set_complete_represented_spell_trait_definition_ids_like_cpp([]));
+        assert!(session.set_complete_represented_override_spells_like_cpp([]));
+        assert!(session.set_complete_player_skill_records_like_cpp(HashMap::new(), 0));
         session
             .ensure_canonical_world_map_for_current_player_like_cpp()
             .expect("canonical player map");
@@ -844,6 +1003,84 @@ mod tests {
         );
     }
 
+    #[test]
+    fn trainer_condition_supported_or_success_outweighs_irrelevant_uncertainty_like_cpp() {
+        assert_eq!(
+            trainer_condition_admission_proof_like_cpp(true, true),
+            TrainerAdmissionProofLikeCpp::Proven(true)
+        );
+        assert_eq!(
+            trainer_condition_admission_proof_like_cpp(false, true),
+            TrainerAdmissionProofLikeCpp::Indeterminate
+        );
+        assert_eq!(
+            trainer_condition_admission_proof_like_cpp(false, false),
+            TrainerAdmissionProofLikeCpp::Proven(false)
+        );
+    }
+
+    #[test]
+    fn class_race_fit_uses_effective_ability_and_race_class_rows() {
+        let (mut session, _) = make_session();
+        session.attach_player_controller_like_cpp(SessionPlayerController::new(
+            ObjectGuid::create_player(1, 42),
+            "FitTester".to_string(),
+            Position::new(0.0, 0.0, 0.0, 0.0),
+            0,
+            1,
+            1,
+            80,
+            0,
+        ));
+        let ability = SkillLineAbilityRecord {
+            id: 1,
+            race_mask: 1,
+            skill_line: 164,
+            spell: 500,
+            min_skill_line_rank: 0,
+            class_mask: 1,
+            supercedes_spell: 0,
+            acquire_method: 0,
+            trivial_rank_high: 0,
+            trivial_rank_low: 0,
+            flags: 0,
+            num_skill_ups: 0,
+            skillup_skill_line_id: 0,
+        };
+        let race_class = SkillRaceClassInfoRecord {
+            id: 2,
+            race_mask: 1,
+            skill_id: 164,
+            class_mask: 1,
+            flags: 0,
+            availability: 1,
+            min_level: 1,
+            skill_tier_id: 0,
+        };
+        session.set_skill_store(Arc::new(
+            SkillStore::from_skill_line_abilities_and_race_class_like_cpp(
+                [ability.clone()],
+                [race_class],
+            ),
+        ));
+        assert_eq!(
+            trainer_spell_class_race_fit_like_cpp(&session, 500),
+            TrainerAdmissionProofLikeCpp::Proven(true)
+        );
+
+        let wrong_race = SkillLineAbilityRecord {
+            race_mask: 2,
+            ..ability
+        };
+        session.set_skill_store(Arc::new(
+            SkillStore::from_skill_line_abilities_and_race_class_like_cpp([wrong_race], []),
+        ));
+        assert_eq!(
+            trainer_spell_class_race_fit_like_cpp(&session, 500),
+            TrainerAdmissionProofLikeCpp::Proven(false)
+        );
+    }
+
     #[tokio::test]
     async fn missing_trainer_mapping_preserves_binding_and_feign_like_cpp() {
         let store = trainer_store_from_rows(
@@ -884,9 +1121,6 @@ mod tests {
     #[tokio::test]
     async fn valid_trainer_list_uses_store_states_and_publishes_exact_binding_like_cpp() {
         let mut fixture = trainer_fixture();
-        fixture
-            .session
-            .learn_known_spell_like_cpp(KNOWN_TRAINER_SPELL);
         seed_feign_death(&mut fixture.session, 6);
 
         fixture
@@ -1072,6 +1306,103 @@ mod tests {
                 fixture
                     .session
                     .player_trainer_interaction_matches_like_cpp(fixture.trainer, -1)
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn available_buy_is_recomputed_but_never_mutates_or_publishes_success_in_this_slice() {
+        let mut fixture = trainer_fixture();
+        fixture
+            .session
+            .set_player_trainer_interaction_like_cpp(fixture.trainer, DEFAULT_TRAINER_ID);
+        fixture.session.set_player_gold_like_cpp(100);
+        let spells_before = fixture.session.known_spells_like_cpp().to_vec();
+        let decision_before = fixture.session.trainer_offer_decision_like_cpp(
+            DEFAULT_TRAINER_ID,
+            fixture
+                .session
+                .trainer_store_like_cpp()
+                .unwrap()
+                .get_trainer_like_cpp(DEFAULT_TRAINER_ID)
+                .unwrap()
+                .get_spell_like_cpp(AVAILABLE_TRAINER_SPELL as u32)
+                .unwrap(),
+            0,
+        );
+
+        fixture
+            .session
+            .handle_trainer_buy_spell(trainer_buy_packet(
+                fixture.trainer,
+                DEFAULT_TRAINER_ID as i32,
+                AVAILABLE_TRAINER_SPELL,
+            ))
+            .await;
+
+        assert!(matches!(
+            decision_before,
+            TrainerOfferDecisionLikeCpp::Available(_)
+        ));
+        assert_eq!(fixture.session.player_gold_like_cpp(), 100);
+        assert_eq!(fixture.session.known_spells_like_cpp(), spells_before);
+        assert!(fixture.send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn insufficient_money_uses_prepared_effective_price_without_mutation() {
+        let mut fixture = trainer_fixture();
+        fixture
+            .session
+            .set_player_trainer_interaction_like_cpp(fixture.trainer, DEFAULT_TRAINER_ID);
+        fixture.session.set_player_gold_like_cpp(19);
+
+        fixture
+            .session
+            .handle_trainer_buy_spell(trainer_buy_packet(
+                fixture.trainer,
+                DEFAULT_TRAINER_ID as i32,
+                AVAILABLE_TRAINER_SPELL,
+            ))
+            .await;
+
+        assert_eq!(fixture.session.player_gold_like_cpp(), 19);
+        assert_eq!(
+            fixture.send_rx.try_recv().unwrap(),
+            TrainerBuyFailed {
+                trainer_guid: fixture.trainer,
+                spell_id: AVAILABLE_TRAINER_SPELL,
+                reason: 1,
+            }
+            .to_bytes()
+        );
+        assert!(fixture.send_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn buy_registration_remains_but_dispatch_and_legacy_mutation_are_disabled() {
+        let trainer = include_str!("trainer.rs");
+        let session = include_str!("../session.rs");
+        assert!(trainer.contains("opcode: ClientOpcodes::TrainerBuySpell"));
+        assert!(!session.contains("ClientOpcodes::TrainerBuySpell =>"));
+
+        let buy = trainer
+            .split("pub async fn handle_trainer_buy_spell")
+            .nth(1)
+            .expect("buy handler")
+            .split("\n}\n\n#[cfg(test)]")
+            .next()
+            .expect("buy handler body");
+        for forbidden in [
+            "INS_CHARACTER_SPELL",
+            "UPD_CHAR_MONEY",
+            "set_player_gold_like_cpp",
+            "learn_known_spell_like_cpp",
+            "LearnedSpells::single",
+        ] {
+            assert!(
+                !buy.contains(forbidden),
+                "#157 must not retain legacy buy mutation/publication `{forbidden}`"
             );
         }
     }

@@ -30,6 +30,9 @@ const MAX_SPELL_EFFECTS_LIKE_CPP: i64 = 32;
 const TOTAL_SPELL_EFFECTS_LIKE_CPP: i64 = 316;
 const TOTAL_SPELL_TARGETS_LIKE_CPP: i64 = 153;
 const TARGET_UNIT_PET_LIKE_CPP: i64 = 5;
+const TARGET_NONE_LIKE_CPP: i64 = 0;
+const TARGET_UNIT_CASTER_LIKE_CPP: i64 = 1;
+const TARGET_UNIT_TARGET_ALLY_LIKE_CPP: i64 = 21;
 const SPELL_ATTR0_PASSIVE_LIKE_CPP: u32 = 0x0000_0040;
 const SPELL_ATTR1_CAST_WHEN_LEARNED_LIKE_CPP: u32 = 0x8000_0000;
 const SUMMON_SLOT_MINIPET_LIKE_CPP: i64 = 5;
@@ -380,6 +383,17 @@ impl SpellAcquisitionEffectLikeCpp {
 
     pub fn targets_unit_pet_like_cpp(&self) -> bool {
         self.implicit_target_raw[0] == TARGET_UNIT_PET_LIKE_CPP
+    }
+
+    pub fn targets_player_like_cpp(&self) -> bool {
+        self.implicit_target_raw.iter().all(|target| {
+            matches!(
+                *target,
+                TARGET_NONE_LIKE_CPP
+                    | TARGET_UNIT_CASTER_LIKE_CPP
+                    | TARGET_UNIT_TARGET_ALLY_LIKE_CPP
+            )
+        })
     }
 
     pub fn coefficient_checked(&self) -> Result<f32, InvalidAcquisitionValueLikeCpp> {
@@ -2929,6 +2943,19 @@ mod tests {
             effect_misc_value_raw: [0, 0],
             implicit_target_raw: [0, 0],
         }
+    }
+
+    #[test]
+    fn player_effect_targets_share_the_cpp_none_caster_and_ally_set() {
+        let mut row = effect(1, 100, 0, 0, 36);
+        for targets in [[0, 0], [1, 0], [21, 0], [1, 21]] {
+            row.implicit_target_raw = targets;
+            assert!(row.targets_player_like_cpp());
+        }
+        row.implicit_target_raw = [1, 5];
+        assert!(!row.targets_player_like_cpp());
+        row.implicit_target_raw = [6, 0];
+        assert!(!row.targets_player_like_cpp());
     }
 
     fn summon(
