@@ -5480,7 +5480,7 @@ pub struct WorldSession {
     /// All known spell IDs for the logged-in character (DB + DBC merged).
     known_spells: Vec<i32>,
     /// Complete represented C++ `PlayerSpellMap`, retained independently from
-    /// the active-only `known_spells` client projection.
+    /// the `known_spells` `Player::HasSpell` mirror, including active/persistence flags.
     represented_player_spell_rows_like_cpp: BTreeMap<i32, RepresentedPlayerSpellLikeCpp>,
     /// True when the backing spell queries or another explicit row source
     /// were retained losslessly.
@@ -28928,7 +28928,7 @@ impl WorldSession {
         self.known_spells = self
             .represented_player_spell_rows_like_cpp
             .values()
-            .filter(|spell| spell.active && !spell.disabled)
+            .filter(|spell| !spell.disabled)
             .map(|spell| spell.spell_id)
             .collect();
         if let Some(controller) = &mut self.player_controller {
@@ -43518,9 +43518,7 @@ impl WorldSession {
         let mut known_spells = exact_spells
             .values()
             .filter(|spell| {
-                spell.state != RepresentedPlayerSpellStateLikeCpp::Removed
-                    && spell.active
-                    && !spell.disabled
+                spell.state != RepresentedPlayerSpellStateLikeCpp::Removed && !spell.disabled
             })
             .map(|spell| spell.spell_id)
             .collect::<Vec<_>>();
@@ -121298,6 +121296,66 @@ mod tests {
                 .complete_represented_player_spell_rows_like_cpp()
                 .is_none(),
             "a bulk active-only replacement must invalidate rather than fabricate exact row flags"
+        );
+    }
+
+    #[test]
+    fn acquisition_runtime_preserves_inactive_has_spell_rows_after_apply_and_save_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let rows = [
+            RepresentedPlayerSpellLikeCpp {
+                spell_id: 100,
+                active: false,
+                disabled: false,
+                dependent: false,
+                favorite: false,
+                state: RepresentedPlayerSpellStateLikeCpp::Changed,
+            },
+            RepresentedPlayerSpellLikeCpp {
+                spell_id: 200,
+                active: true,
+                disabled: false,
+                dependent: false,
+                favorite: false,
+                state: RepresentedPlayerSpellStateLikeCpp::Changed,
+            },
+            RepresentedPlayerSpellLikeCpp {
+                spell_id: 300,
+                active: true,
+                disabled: true,
+                dependent: false,
+                favorite: false,
+                state: RepresentedPlayerSpellStateLikeCpp::Changed,
+            },
+            RepresentedPlayerSpellLikeCpp {
+                spell_id: 400,
+                active: false,
+                disabled: false,
+                dependent: false,
+                favorite: false,
+                state: RepresentedPlayerSpellStateLikeCpp::Removed,
+            },
+        ];
+
+        assert!(session.replace_complete_spell_acquisition_runtime_like_cpp(
+            rows,
+            [],
+            [],
+            HashMap::new(),
+            0,
+            BTreeSet::new(),
+        ));
+        assert_eq!(
+            session.known_spells_like_cpp(),
+            &[100, 200],
+            "C++ Player::HasSpell includes inactive non-disabled lower ranks"
+        );
+
+        session.mark_player_spells_saved_like_cpp();
+        assert_eq!(
+            session.known_spells_like_cpp(),
+            &[100, 200],
+            "normalizing PlayerSpell persistence state must not change HasSpell semantics"
         );
     }
 
