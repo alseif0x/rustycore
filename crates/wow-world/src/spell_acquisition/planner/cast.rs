@@ -59,9 +59,6 @@ impl SpellAcquisitionPlannerLikeCpp<'_> {
         let reason = if projection.talent && has_learn_spell {
             Some(PlannedAcquisitionCastReasonLikeCpp::TalentLearnEffect)
         } else if passive {
-            self.metadata
-                .cast_authority
-                .require_safe_like_cpp(spell_id)?;
             if projection
                 .effects
                 .iter()
@@ -82,16 +79,78 @@ impl SpellAcquisitionPlannerLikeCpp<'_> {
 
         let Some(reason) = reason else {
             if refresh_passive_without_projected_acquisition {
-                self.post_commit_actions
-                    .push(SpellAcquisitionPostCommitActionLikeCpp::RefreshPassive { spell_id });
+                if self.require_cast_authority_or_defer_like_cpp(
+                    spell_id,
+                    PlannedAcquisitionCastReasonLikeCpp::PassiveLearn,
+                )? {
+                    self.post_commit_actions
+                        .push(SpellAcquisitionPostCommitActionLikeCpp::RefreshPassive { spell_id });
+                }
             }
             return Ok(AddSpellAutocastResultLikeCpp::None);
         };
-        self.simulate_cast_like_cpp(spell_id, &projection.effects, reason, false)?;
+        self.simulate_or_defer_cast_like_cpp(spell_id, &projection.effects, reason, false)?;
         if has_skill_step {
             Ok(AddSpellAutocastResultLikeCpp::SkillStepReturned)
         } else {
             Ok(AddSpellAutocastResultLikeCpp::Cast)
+        }
+    }
+
+    pub(super) fn require_cast_authority_or_defer_like_cpp(
+        &mut self,
+        spell_id: u32,
+        reason: PlannedAcquisitionCastReasonLikeCpp,
+    ) -> Result<bool, SpellAcquisitionIndeterminateLikeCpp> {
+        match self.metadata.cast_authority.require_safe_like_cpp(spell_id) {
+            Ok(()) => Ok(true),
+            Err(cause)
+                if self.cast_side_effect_policy
+                    == CastSideEffectProjectionPolicyLikeCpp::DeferUnavailable =>
+            {
+                self.diagnostics
+                    .push(SpellAcquisitionDiagnosticLikeCpp::AcquisitionCastDeferred {
+                        spell_id,
+                        reason,
+                        cause: Box::new(cause),
+                    });
+                Ok(false)
+            }
+            Err(cause) => Err(cause),
+        }
+    }
+
+    pub(super) fn simulate_or_defer_cast_like_cpp(
+        &mut self,
+        spell_id: u32,
+        effects: &[SpellAcquisitionEffectLikeCpp],
+        reason: PlannedAcquisitionCastReasonLikeCpp,
+        trainer_wrapper: bool,
+    ) -> Result<bool, SpellAcquisitionIndeterminateLikeCpp> {
+        let mut sandbox = self.clone();
+        match sandbox.simulate_cast_like_cpp(spell_id, effects, reason, trainer_wrapper) {
+            Ok(()) => {
+                *self = sandbox;
+                Ok(true)
+            }
+            Err(cause)
+                if self.cast_side_effect_policy
+                    == CastSideEffectProjectionPolicyLikeCpp::DeferUnavailable =>
+            {
+                // The cast is causally after AddSpell's base row mutation in
+                // C++. Discard every partial nested acquisition from the
+                // failed sandbox, but retain its consumed-work count so a
+                // malformed graph cannot evade the projection bound.
+                self.work_count = self.work_count.max(sandbox.work_count);
+                self.diagnostics
+                    .push(SpellAcquisitionDiagnosticLikeCpp::AcquisitionCastDeferred {
+                        spell_id,
+                        reason,
+                        cause: Box::new(cause),
+                    });
+                Ok(false)
+            }
+            Err(cause) => Err(cause),
         }
     }
 
@@ -189,7 +248,7 @@ impl SpellAcquisitionPlannerLikeCpp<'_> {
         });
         let cast_resolution = if needs_player_cast_resolution {
             let resolution =
-                self.cast_resolutions.get(&spell_id).copied().ok_or(
+                self.cast_resolutions.get(&spell_id).cloned().ok_or(
                     SpellAcquisitionIndeterminateLikeCpp::MissingCastResolution { spell_id },
                 )?;
             let mut known_effect_mask = 0_u32;
@@ -277,6 +336,7 @@ impl SpellAcquisitionPlannerLikeCpp<'_> {
                 },
             )?;
             let resolution = cast_resolution
+                .as_ref()
                 .expect("LEARN_SPELL, SKILL_STEP and DUAL_WIELD require a player cast resolution");
             if resolution.executed_hit_target_effect_mask & effect_bit == 0 {
                 self.diagnostics.push(
@@ -309,9 +369,33 @@ impl SpellAcquisitionPlannerLikeCpp<'_> {
                     self.apply_cast_skill_effect_like_cpp(spell_id, effect, provenance)?;
                 }
                 SPELL_EFFECT_DUAL_WIELD => {
+                    if !resolution
+                        .executed_dual_wield_effects
+                        .iter()
+                        .any(|executed| {
+                            executed.effect_index == effect_index
+                                && executed.effect_record_id == effect.record_id
+                        })
+                    {
+                        return Err(
+                            SpellAcquisitionIndeterminateLikeCpp::InvalidCastResolution {
+                                spell_id,
+                                effect_index: Some(effect_index),
+                            },
+                        );
+                    }
+                    self.diagnostics.push(
+                        SpellAcquisitionDiagnosticLikeCpp::DualWieldEffectProjected {
+                            spell_id,
+                            effect_record_id: effect.record_id,
+                            effect_index,
+                        },
+                    );
                     self.post_commit_actions.push(
                         SpellAcquisitionPostCommitActionLikeCpp::GrantDualWield {
                             source_spell_id: spell_id,
+                            effect_record_id: effect.record_id,
+                            effect_index,
                         },
                     );
                 }

@@ -180,10 +180,13 @@ impl MetadataFixture {
 
 fn snapshot() -> PlayerSpellAcquisitionSnapshotLikeCpp {
     PlayerSpellAcquisitionSnapshotLikeCpp {
+        character_guid: None,
         spells: Vec::new(),
         skills: Vec::new(),
         occupied_skill_slots: 0,
         overrides: Vec::new(),
+        primary_profession_skill_ids: Vec::new(),
+        non_durable_skill_tombstone_ids: Vec::new(),
         race: 1,
         class: 1,
         level: 80,
@@ -209,6 +212,7 @@ fn snapshot_with_cast(
         PlayerCastAcquisitionResolutionLikeCpp {
             reached_immediate_phase,
             executed_hit_target_effect_mask,
+            executed_dual_wield_effects: Vec::new(),
         },
     );
     snapshot

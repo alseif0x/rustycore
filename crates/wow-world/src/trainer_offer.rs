@@ -290,29 +290,26 @@ mod tests {
         root: SpellAcquisitionRootLikeCpp,
         professions: Vec<u32>,
     ) -> SpellAcquisitionPlanLikeCpp {
-        SpellAcquisitionPlanLikeCpp {
+        let source_snapshot = PlayerSpellAcquisitionSnapshotLikeCpp {
+            character_guid: None,
+            spells: Vec::new(),
+            skills: Vec::new(),
+            occupied_skill_slots: 0,
+            overrides: Vec::new(),
+            primary_profession_skill_ids: Vec::new(),
+            non_durable_skill_tombstone_ids: Vec::new(),
+            race: 1,
+            class: 1,
+            level: 80,
+            lifecycle: PlayerAcquisitionLifecycleLikeCpp::InWorld,
+            future_player_condition_resolutions: Vec::new(),
+            cast_resolutions: BTreeMap::new(),
+        };
+        SpellAcquisitionPlanLikeCpp::no_publications_for_test_like_cpp(
             root,
-            mutations: Vec::new(),
-            spell_transitions: Vec::new(),
-            skill_transitions: Vec::new(),
-            override_transitions: Vec::new(),
-            root_primary_profession_skill_ids: professions,
-            profession_association_inputs: Vec::new(),
-            post_commit_actions: Vec::new(),
-            diagnostics: Vec::new(),
-            resulting_snapshot: PlayerSpellAcquisitionSnapshotLikeCpp {
-                spells: Vec::new(),
-                skills: Vec::new(),
-                occupied_skill_slots: 0,
-                overrides: Vec::new(),
-                race: 1,
-                class: 1,
-                level: 80,
-                lifecycle: PlayerAcquisitionLifecycleLikeCpp::InWorld,
-                future_player_condition_resolutions: Vec::new(),
-                cast_resolutions: BTreeMap::new(),
-            },
-        }
+            source_snapshot,
+            professions,
+        )
     }
 
     fn capacity_plan(new_professions: Vec<u32>) -> PrimaryProfessionCapacityPlanLikeCpp {

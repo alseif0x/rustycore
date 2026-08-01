@@ -343,8 +343,9 @@ impl SpellAcquisitionPlannerLikeCpp<'_> {
                 self.learn_skill_rewards_like_cpp(skill_id, new_value)?;
 
                 if skill_id == u32::from(SKILL_RIDING_LIKE_CPP) && new_value > existing.value {
-                    self.post_commit_actions
-                        .push(SpellAcquisitionPostCommitActionLikeCpp::UpdateMountCapability);
+                    self.post_commit_actions.push(
+                        SpellAcquisitionPostCommitActionLikeCpp::UpdateMountCapability { skill_id },
+                    );
                 }
                 self.record_skill_criteria_like_cpp(skill_id);
 

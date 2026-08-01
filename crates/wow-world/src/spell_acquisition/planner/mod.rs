@@ -5,6 +5,7 @@
 
 use super::*;
 
+#[derive(Clone, Copy)]
 pub(crate) struct SpellAcquisitionMetadataLikeCpp<'a> {
     pub catalog: &'a SpellAcquisitionCatalogLikeCpp,
     pub spell_chains: &'a SpellChainStoreLikeCpp,
@@ -35,9 +36,18 @@ struct EffectiveSpellProjectionLikeCpp {
     dependencies: Vec<SpellLearnSpellNodeLikeCpp>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CastSideEffectProjectionPolicyLikeCpp {
+    RequireComplete,
+    DeferUnavailable,
+}
+
+#[derive(Clone)]
 struct SpellAcquisitionPlannerLikeCpp<'a> {
     root: SpellAcquisitionRootLikeCpp,
+    source_snapshot: PlayerSpellAcquisitionSnapshotLikeCpp,
     metadata: SpellAcquisitionMetadataLikeCpp<'a>,
+    cast_side_effect_policy: CastSideEffectProjectionPolicyLikeCpp,
     race: u8,
     class: u8,
     level: u8,
@@ -69,6 +79,7 @@ struct SpellAcquisitionPlannerLikeCpp<'a> {
     override_transitions: Vec<PlannedOverrideTransitionLikeCpp>,
     mutations: Vec<PlannedAcquisitionMutationLikeCpp>,
     root_primary_profession_skill_ids: Vec<u32>,
+    publication_requirements: Vec<SpellAcquisitionPublicationRequirementLikeCpp>,
     post_commit_actions: Vec<SpellAcquisitionPostCommitActionLikeCpp>,
     diagnostics: Vec<SpellAcquisitionDiagnosticLikeCpp>,
     work_count: usize,
@@ -80,8 +91,36 @@ pub(crate) fn project_spell_acquisition_like_cpp(
     metadata: SpellAcquisitionMetadataLikeCpp<'_>,
     root: SpellAcquisitionRootLikeCpp,
 ) -> SpellAcquisitionOutcomeLikeCpp {
-    let result = SpellAcquisitionPlannerLikeCpp::new(snapshot, metadata, root)
-        .and_then(SpellAcquisitionPlannerLikeCpp::project);
+    project_spell_acquisition_with_cast_policy_like_cpp(
+        snapshot,
+        metadata,
+        root,
+        CastSideEffectProjectionPolicyLikeCpp::RequireComplete,
+    )
+}
+
+pub(crate) fn project_effect_learn_spell_acquisition_like_cpp(
+    snapshot: &PlayerSpellAcquisitionSnapshotLikeCpp,
+    metadata: SpellAcquisitionMetadataLikeCpp<'_>,
+    spell_id: u32,
+) -> SpellAcquisitionOutcomeLikeCpp {
+    project_spell_acquisition_with_cast_policy_like_cpp(
+        snapshot,
+        metadata,
+        SpellAcquisitionRootLikeCpp::DirectLearn(spell_id),
+        CastSideEffectProjectionPolicyLikeCpp::DeferUnavailable,
+    )
+}
+
+fn project_spell_acquisition_with_cast_policy_like_cpp(
+    snapshot: &PlayerSpellAcquisitionSnapshotLikeCpp,
+    metadata: SpellAcquisitionMetadataLikeCpp<'_>,
+    root: SpellAcquisitionRootLikeCpp,
+    cast_side_effect_policy: CastSideEffectProjectionPolicyLikeCpp,
+) -> SpellAcquisitionOutcomeLikeCpp {
+    let result =
+        SpellAcquisitionPlannerLikeCpp::new(snapshot, metadata, root, cast_side_effect_policy)
+            .and_then(SpellAcquisitionPlannerLikeCpp::project);
     match result {
         Ok(plan) => SpellAcquisitionOutcomeLikeCpp::Deterministic(plan),
         Err(reason) => SpellAcquisitionOutcomeLikeCpp::Indeterminate(reason),
@@ -93,6 +132,7 @@ impl<'a> SpellAcquisitionPlannerLikeCpp<'a> {
         snapshot: &PlayerSpellAcquisitionSnapshotLikeCpp,
         metadata: SpellAcquisitionMetadataLikeCpp<'a>,
         root: SpellAcquisitionRootLikeCpp,
+        cast_side_effect_policy: CastSideEffectProjectionPolicyLikeCpp,
     ) -> Result<Self, SpellAcquisitionIndeterminateLikeCpp> {
         if race_mask_for_race_like_cpp(snapshot.race) == 0 {
             return Err(SpellAcquisitionIndeterminateLikeCpp::InvalidSnapshot {
@@ -199,6 +239,41 @@ impl<'a> SpellAcquisitionPlannerLikeCpp<'a> {
                 );
             }
         }
+        let mut primary_profession_skill_ids = snapshot.primary_profession_skill_ids.clone();
+        primary_profession_skill_ids.sort_unstable();
+        if primary_profession_skill_ids
+            .windows(2)
+            .any(|pair| pair[0] == pair[1])
+        {
+            return Err(SpellAcquisitionIndeterminateLikeCpp::InvalidSnapshot {
+                field: "primary_profession_skill_ids",
+                value: 0,
+            });
+        }
+        let mut expected_primary_profession_skill_ids = Vec::new();
+        for skill in skills.values().filter(|skill| {
+            skill.state != PlayerSkillPersistenceStateLikeCpp::Deleted && skill.value != 0
+        }) {
+            match metadata
+                .skill_lines
+                .is_primary_profession_skill_like_cpp(skill.skill_id)
+            {
+                Some(true) => expected_primary_profession_skill_ids.push(skill.skill_id),
+                Some(false) => {}
+                None => {
+                    return Err(SpellAcquisitionIndeterminateLikeCpp::MissingSkillLine {
+                        skill_id: skill.skill_id,
+                    });
+                }
+            }
+        }
+        expected_primary_profession_skill_ids.sort_unstable();
+        if primary_profession_skill_ids != expected_primary_profession_skill_ids {
+            return Err(SpellAcquisitionIndeterminateLikeCpp::InvalidSnapshot {
+                field: "primary_profession_skill_ids",
+                value: 0,
+            });
+        }
         if usize::from(snapshot.occupied_skill_slots) > MAX_PLAYER_SKILLS_LIKE_CPP {
             return Err(SpellAcquisitionIndeterminateLikeCpp::PlayerSkillCapacityExceeded);
         }
@@ -225,7 +300,26 @@ impl<'a> SpellAcquisitionPlannerLikeCpp<'a> {
         for (&spell_id, resolution) in &snapshot.cast_resolutions {
             if spell_id == 0
                 || (!resolution.reached_immediate_phase
-                    && resolution.executed_hit_target_effect_mask != 0)
+                    && (resolution.executed_hit_target_effect_mask != 0
+                        || resolution
+                            .executed_dual_wield_effects
+                            .iter()
+                            .next()
+                            .is_some()))
+                || resolution.executed_dual_wield_effects.iter().any(|effect| {
+                    effect.effect_record_id == 0
+                        || effect.effect_index >= 32
+                        || resolution.executed_hit_target_effect_mask
+                            & (1_u32 << u32::from(effect.effect_index))
+                            == 0
+                })
+                || resolution
+                    .executed_dual_wield_effects
+                    .iter()
+                    .map(|effect| (effect.effect_index, effect.effect_record_id))
+                    .collect::<BTreeSet<_>>()
+                    .len()
+                    != resolution.executed_dual_wield_effects.len()
             {
                 return Err(
                     SpellAcquisitionIndeterminateLikeCpp::InvalidCastResolution {
@@ -238,7 +332,9 @@ impl<'a> SpellAcquisitionPlannerLikeCpp<'a> {
 
         Ok(Self {
             root,
+            source_snapshot: snapshot.clone(),
             metadata,
+            cast_side_effect_policy,
             race: snapshot.race,
             class: snapshot.class,
             level: snapshot.level,
@@ -261,6 +357,7 @@ impl<'a> SpellAcquisitionPlannerLikeCpp<'a> {
             override_transitions: Vec::new(),
             mutations: Vec::new(),
             root_primary_profession_skill_ids: Vec::new(),
+            publication_requirements: Vec::new(),
             post_commit_actions: Vec::new(),
             diagnostics: Vec::new(),
             work_count: 0,
@@ -295,10 +392,45 @@ impl<'a> SpellAcquisitionPlannerLikeCpp<'a> {
 
         let profession_association_inputs = self.skills.values().copied().collect::<Vec<_>>();
         let resulting_snapshot = PlayerSpellAcquisitionSnapshotLikeCpp {
+            character_guid: self.source_snapshot.character_guid,
             spells: self.spells.values().copied().collect(),
             skills: self.skills.values().copied().collect(),
             occupied_skill_slots: self.occupied_skill_slots,
             overrides: self.overrides.iter().copied().collect(),
+            primary_profession_skill_ids: self
+                .skills
+                .values()
+                .filter(|skill| {
+                    skill.state != PlayerSkillPersistenceStateLikeCpp::Deleted
+                        && skill.value != 0
+                        && self
+                            .metadata
+                            .skill_lines
+                            .is_primary_profession_skill_like_cpp(skill.skill_id)
+                            == Some(true)
+                })
+                .map(|skill| skill.skill_id)
+                .collect(),
+            non_durable_skill_tombstone_ids: self
+                .source_snapshot
+                .non_durable_skill_tombstone_ids
+                .iter()
+                .copied()
+                .filter(|skill_id| {
+                    self.skills.get(skill_id).is_some_and(|skill| {
+                        skill.step == 0
+                            && skill.value == 0
+                            && skill.maximum == 0
+                            && skill.profession_association
+                                == ProfessionAssociationInputLikeCpp::Unassigned
+                            && matches!(
+                                skill.state,
+                                PlayerSkillPersistenceStateLikeCpp::Unchanged
+                                    | PlayerSkillPersistenceStateLikeCpp::Deleted
+                            )
+                    })
+                })
+                .collect(),
             race: self.race,
             class: self.class,
             level: self.level,
@@ -311,11 +443,13 @@ impl<'a> SpellAcquisitionPlannerLikeCpp<'a> {
 
         Ok(SpellAcquisitionPlanLikeCpp {
             root: self.root,
+            source_snapshot: self.source_snapshot,
             mutations: self.mutations,
             spell_transitions: self.spell_transitions,
             skill_transitions: self.skill_transitions,
             override_transitions: self.override_transitions,
             root_primary_profession_skill_ids: self.root_primary_profession_skill_ids,
+            publication_requirements: self.publication_requirements,
             profession_association_inputs,
             post_commit_actions: self.post_commit_actions,
             diagnostics: self.diagnostics,

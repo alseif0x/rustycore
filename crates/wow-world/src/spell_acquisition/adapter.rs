@@ -23,6 +23,38 @@ impl crate::session::WorldSession {
         &self,
         root: SpellAcquisitionRootLikeCpp,
     ) -> SpellAcquisitionOutcomeLikeCpp {
+        self.project_player_spell_acquisition_like_cpp(root)
+    }
+
+    /// Projects any represented durable player acquisition from the same
+    /// complete authority used by trainer offers. The root selects semantics;
+    /// this adapter never grants a shallower fallback.
+    pub(crate) fn project_player_spell_acquisition_like_cpp(
+        &self,
+        root: SpellAcquisitionRootLikeCpp,
+    ) -> SpellAcquisitionOutcomeLikeCpp {
+        self.project_player_spell_acquisition_with_policy_like_cpp(root, false)
+    }
+
+    /// C++ `Spell::EffectLearnSpell` always reaches `Player::LearnSpell` even
+    /// when AddSpell's subsequent triggered cast cannot yet be represented by
+    /// this immutable planner. Preserve that base mutation while recording a
+    /// typed deferral for the unsupported cast-side work.
+    pub(crate) fn project_effect_learn_spell_acquisition_like_cpp(
+        &self,
+        spell_id: u32,
+    ) -> SpellAcquisitionOutcomeLikeCpp {
+        self.project_player_spell_acquisition_with_policy_like_cpp(
+            SpellAcquisitionRootLikeCpp::DirectLearn(spell_id),
+            true,
+        )
+    }
+
+    fn project_player_spell_acquisition_with_policy_like_cpp(
+        &self,
+        root: SpellAcquisitionRootLikeCpp,
+        defer_unavailable_cast_side_effects: bool,
+    ) -> SpellAcquisitionOutcomeLikeCpp {
         let snapshot = match self.spell_acquisition_snapshot_like_cpp(
             PlayerAcquisitionLifecycleLikeCpp::InWorld,
             Vec::new(),
@@ -63,25 +95,29 @@ impl crate::session::WorldSession {
                 SpellAcquisitionIndeterminateLikeCpp::MissingTrainerProjectionMetadata,
             );
         };
-        project_spell_acquisition_like_cpp(
-            &snapshot,
-            SpellAcquisitionMetadataLikeCpp {
-                catalog,
-                spell_chains,
-                spell_learn_skills,
-                spell_learn_spells,
-                spell_required,
-                spell_custom_attributes,
-                trait_definitions,
-                cast_authority: &FAIL_CLOSED_CAST_AUTHORITY_LIKE_CPP,
-                craft_validity_authority: &FAIL_CLOSED_CRAFT_AUTHORITY_LIKE_CPP,
-                mounts: self.mount_store().map(AsRef::as_ref),
-                skills,
-                skill_lines,
-                skill_tiers,
-            },
-            root,
-        )
+        let metadata = SpellAcquisitionMetadataLikeCpp {
+            catalog,
+            spell_chains,
+            spell_learn_skills,
+            spell_learn_spells,
+            spell_required,
+            spell_custom_attributes,
+            trait_definitions,
+            cast_authority: &FAIL_CLOSED_CAST_AUTHORITY_LIKE_CPP,
+            craft_validity_authority: &FAIL_CLOSED_CRAFT_AUTHORITY_LIKE_CPP,
+            mounts: self.mount_store().map(AsRef::as_ref),
+            skills,
+            skill_lines,
+            skill_tiers,
+        };
+        if defer_unavailable_cast_side_effects {
+            let SpellAcquisitionRootLikeCpp::DirectLearn(spell_id) = root else {
+                unreachable!("cast-side deferral is exclusive to EffectLearnSpell")
+            };
+            project_effect_learn_spell_acquisition_like_cpp(&snapshot, metadata, spell_id)
+        } else {
+            project_spell_acquisition_like_cpp(&snapshot, metadata, root)
+        }
     }
 
     pub(crate) fn spell_acquisition_snapshot_like_cpp(
@@ -213,11 +249,36 @@ impl crate::session::WorldSession {
             overrides.push((overridden_spell_id_u32, overriding_spell_id_u32));
         }
 
+        let mut primary_profession_skill_ids = skills
+            .iter()
+            .filter(|skill| {
+                skill.state != PlayerSkillPersistenceStateLikeCpp::Deleted && skill.value != 0
+            })
+            .filter_map(|skill| {
+                self.skill_line_store()
+                    .and_then(|store| {
+                        store
+                            .is_primary_profession_skill_like_cpp(skill.skill_id)
+                            .map(|is_primary| (skill.skill_id, is_primary))
+                    })
+                    .and_then(|(skill_id, is_primary)| is_primary.then_some(skill_id))
+            })
+            .collect::<Vec<_>>();
+        primary_profession_skill_ids.sort_unstable();
+        let non_durable_skill_tombstone_ids = self
+            .player_skill_non_durable_tombstones_like_cpp()
+            .iter()
+            .map(|skill_id| u32::from(*skill_id))
+            .collect();
+
         Ok(PlayerSpellAcquisitionSnapshotLikeCpp {
+            character_guid: self.player_guid(),
             spells,
             skills,
             occupied_skill_slots,
             overrides,
+            primary_profession_skill_ids,
+            non_durable_skill_tombstone_ids,
             race: self.player_race_like_cpp(),
             class: self.player_class_like_cpp(),
             level: self.player_level_like_cpp(),

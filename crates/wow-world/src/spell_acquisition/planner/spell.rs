@@ -33,6 +33,13 @@ impl SpellAcquisitionPlannerLikeCpp<'_> {
         )?;
 
         if learning && self.lifecycle.is_in_world() {
+            self.publication_requirements.push(
+                SpellAcquisitionPublicationRequirementLikeCpp::LearnedSpell {
+                    spell_id,
+                    favorite,
+                    suppress_messaging: false,
+                },
+            );
             self.post_commit_actions
                 .push(SpellAcquisitionPostCommitActionLikeCpp::LearnedSpell {
                     spell_id,
@@ -80,6 +87,11 @@ impl SpellAcquisitionPlannerLikeCpp<'_> {
                 }
             }
         } else {
+            self.publication_requirements.push(
+                SpellAcquisitionPublicationRequirementLikeCpp::UpdateLearnSpellQuestObjective {
+                    spell_id,
+                },
+            );
             self.post_commit_actions.push(
                 SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnSpellQuestObjective {
                     spell_id,
@@ -220,21 +232,21 @@ impl SpellAcquisitionPlannerLikeCpp<'_> {
                             .transpose()?
                             .unwrap_or(false);
                         if passive {
-                            self.metadata
-                                .cast_authority
-                                .require_safe_like_cpp(spell_id)?;
                             if projection
                                 .effects
                                 .iter()
                                 .any(effect_can_change_acquisition_like_cpp)
                             {
-                                self.simulate_cast_like_cpp(
+                                self.simulate_or_defer_cast_like_cpp(
                                     spell_id,
                                     &projection.effects,
                                     PlannedAcquisitionCastReasonLikeCpp::PassiveLearn,
                                     false,
                                 )?;
-                            } else {
+                            } else if self.require_cast_authority_or_defer_like_cpp(
+                                spell_id,
+                                PlannedAcquisitionCastReasonLikeCpp::PassiveLearn,
+                            )? {
                                 // No acquisition handler was projected, so
                                 // the ordinary passive cast remains the only
                                 // owner of its runtime work.
@@ -510,13 +522,27 @@ impl SpellAcquisitionPlannerLikeCpp<'_> {
                 // order; neither filtering nor deduplication is valid here.
                 for row in rows {
                     let skill_id = u32::from(row.skill_line);
+                    self.publication_requirements.push(
+                        SpellAcquisitionPublicationRequirementLikeCpp::UpdateLearnTradeskillSkillLineCriteria {
+                            source_spell_id: spell_id,
+                            skill_id,
+                        },
+                    );
                     self.post_commit_actions.push(
                         SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnTradeskillSkillLineCriteria {
+                            source_spell_id: spell_id,
+                            skill_id,
+                        },
+                    );
+                    self.publication_requirements.push(
+                        SpellAcquisitionPublicationRequirementLikeCpp::UpdateLearnSpellFromSkillLineCriteria {
+                            source_spell_id: spell_id,
                             skill_id,
                         },
                     );
                     self.post_commit_actions.push(
                         SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnSpellFromSkillLineCriteria {
+                            source_spell_id: spell_id,
                             skill_id,
                         },
                     );
@@ -530,6 +556,11 @@ impl SpellAcquisitionPlannerLikeCpp<'_> {
                 });
             }
         }
+        self.publication_requirements.push(
+            SpellAcquisitionPublicationRequirementLikeCpp::UpdateLearnOrKnowSpellCriteria {
+                spell_id,
+            },
+        );
         self.post_commit_actions.push(
             SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnOrKnowSpellCriteria { spell_id },
         );
