@@ -2675,14 +2675,17 @@ fn apply_skill_rewarded_spell_changes_to_login_like_cpp(
     known_spells: &mut Vec<i32>,
     loaded_spell_side_effect_spells: &mut Vec<i32>,
     dependent_spells: &mut HashSet<i32>,
+    removed_spells: &mut HashSet<i32>,
     changes: wow_data::SkillRewardedSpellChangesLikeCpp,
 ) {
     for spell_id in changes.remove {
         known_spells.retain(|known_spell| *known_spell != spell_id);
         loaded_spell_side_effect_spells.retain(|known_spell| *known_spell != spell_id);
         dependent_spells.remove(&spell_id);
+        removed_spells.insert(spell_id);
     }
     for spell_id in changes.learn {
+        removed_spells.remove(&spell_id);
         if !known_spells.contains(&spell_id) {
             known_spells.push(spell_id);
         }
@@ -6861,6 +6864,7 @@ impl WorldSession {
         let mut favorite_spell_rows: HashSet<i32> = HashSet::new();
         let mut loaded_player_spell_rows = Vec::new();
         let mut skill_rewarded_dependent_spells = HashSet::new();
+        let mut skill_rewarded_removed_spells = HashSet::new();
         let mut loaded_player_spell_rows_complete_like_cpp = false;
         let mut favorite_spell_rows_complete_like_cpp = false;
         {
@@ -7054,6 +7058,7 @@ impl WorldSession {
                 &mut known_spells,
                 &mut loaded_spell_side_effect_spells,
                 &mut skill_rewarded_dependent_spells,
+                &mut skill_rewarded_removed_spells,
                 changes,
             );
         }
@@ -7457,6 +7462,23 @@ impl WorldSession {
             self.replace_player_skill_records_like_cpp(skill_records.clone(), true, false);
         }
 
+        for entry in &default_skill_entries {
+            let changes = self.skill_rewarded_spell_changes_for_login_like_cpp(
+                entry.skill_id,
+                entry.rank,
+                race,
+                class,
+                level,
+            );
+            apply_skill_rewarded_spell_changes_to_login_like_cpp(
+                &mut known_spells,
+                &mut loaded_spell_side_effect_spells,
+                &mut skill_rewarded_dependent_spells,
+                &mut skill_rewarded_removed_spells,
+                changes,
+            );
+        }
+
         let loaded_spell_skills_complete_like_cpp =
             self.apply_loaded_spell_learn_skills_like_cpp(&loaded_spell_side_effect_spells);
         if loaded_skill_records_like_cpp && loaded_spell_skills_complete_like_cpp {
@@ -7470,22 +7492,6 @@ impl WorldSession {
                     occupied_slots, "Could not authorize represented post-login player skill slots"
                 );
             }
-        }
-
-        for entry in &default_skill_entries {
-            let changes = self.skill_rewarded_spell_changes_for_login_like_cpp(
-                entry.skill_id,
-                entry.rank,
-                race,
-                class,
-                level,
-            );
-            apply_skill_rewarded_spell_changes_to_login_like_cpp(
-                &mut known_spells,
-                &mut loaded_spell_side_effect_spells,
-                &mut skill_rewarded_dependent_spells,
-                changes,
-            );
         }
 
         // Default skill spells run through C++ AddSpell just like DB-loaded
@@ -7519,8 +7525,20 @@ impl WorldSession {
         let mut final_player_spell_rows = loaded_player_spell_rows
             .into_iter()
             .map(|mut row| {
-                row.favorite = favorite_spell_rows.contains(&row.spell_id);
-                row.dependent |= skill_rewarded_dependent_spells.contains(&row.spell_id);
+                let dependent = self
+                    .represented_dependent_known_spells_like_cpp()
+                    .contains(&row.spell_id)
+                    || skill_rewarded_dependent_spells.contains(&row.spell_id);
+                row.favorite = !dependent && favorite_spell_rows.contains(&row.spell_id);
+                row.dependent |= dependent;
+                if skill_rewarded_removed_spells.contains(&row.spell_id) {
+                    row.active = false;
+                    row.disabled = false;
+                    row.dependent = false;
+                    row.favorite = false;
+                    row.state = crate::session::RepresentedPlayerSpellStateLikeCpp::Removed;
+                    return (row.spell_id, row);
+                }
                 if !row.disabled {
                     row.active = canonical_known_spell_ids.contains(&row.spell_id);
                 }
@@ -18359,24 +18377,38 @@ impl WorldSession {
                 .trait_node_entry_store()
                 .zip(self.trait_definition_store())
                 .map(|(node_entries, definitions)| {
-                    configs
+                    let mut exact = BTreeMap::<i32, i32>::new();
+                    for entry in configs
                         .iter()
                         .flat_map(|config| config.entries.iter())
                         .filter(|entry| entry.rank > 0 || entry.granted_ranks > 0)
-                        .filter_map(|entry| {
-                            let node_entry = u32::try_from(entry.trait_node_entry_id)
-                                .ok()
-                                .and_then(|id| node_entries.get(id))?;
-                            let trait_definition_id = node_entry.trait_definition_id;
-                            let definition = u32::try_from(trait_definition_id)
-                                .ok()
-                                .and_then(|id| definitions.get(id))?;
-                            (definition.spell_id > 0)
-                                .then_some((definition.spell_id, trait_definition_id))
-                        })
-                        .collect::<Vec<_>>()
+                    {
+                        let Some(node_entry) = u32::try_from(entry.trait_node_entry_id)
+                            .ok()
+                            .and_then(|id| node_entries.get(id))
+                        else {
+                            return None;
+                        };
+                        let trait_definition_id = node_entry.trait_definition_id;
+                        let Some(definition) = u32::try_from(trait_definition_id)
+                            .ok()
+                            .and_then(|id| definitions.get(id))
+                        else {
+                            return None;
+                        };
+                        if definition.spell_id <= 0 {
+                            continue;
+                        }
+                        if exact
+                            .insert(definition.spell_id, trait_definition_id)
+                            .is_some_and(|previous| previous != trait_definition_id)
+                        {
+                            return None;
+                        }
+                    }
+                    Some(exact.into_iter().collect::<Vec<_>>())
                 });
-            if let Some(exact_traits) = exact_traits {
+            if let Some(Some(exact_traits)) = exact_traits {
                 if !self.set_complete_represented_spell_trait_definition_ids_like_cpp(exact_traits)
                 {
                     warn!(
@@ -22804,11 +22836,13 @@ mod tests {
         let mut known = vec![100, 200];
         let mut side_effects = vec![100, 200];
         let mut dependent = HashSet::from([200]);
+        let mut removed = HashSet::new();
 
         apply_skill_rewarded_spell_changes_to_login_like_cpp(
             &mut known,
             &mut side_effects,
             &mut dependent,
+            &mut removed,
             wow_data::SkillRewardedSpellChangesLikeCpp {
                 learn: vec![300],
                 remove: vec![200],
@@ -22818,6 +22852,7 @@ mod tests {
         assert_eq!(known, vec![100, 300]);
         assert_eq!(side_effects, vec![100, 300]);
         assert_eq!(dependent, HashSet::from([300]));
+        assert_eq!(removed, HashSet::from([200]));
     }
 
     #[test]

@@ -16,7 +16,9 @@
   invalida ante un aprendizaje runtime que todavía no ejecute el cierre completo de `AddSpell`.
   La hidratación también aplica `SpellLearnSkill`, conserva ownership dependiente aunque el target
   ya existiera y solo autoriza `TraitDefinitionId` después de cargar configs/entries y resolver
-  `TraitNodeEntry.db2`; fallos de consulta o cobertura mantienen el adaptador fail-closed.
+  `TraitNodeEntry.db2`; el cierre se repite tras los rewards por defecto, fusiona dependencias y
+  removals en filas persistidas, deduplica ownership idéntico y rechaza metadata ausente o
+  conflictiva. Fallos de consulta o cobertura mantienen el adaptador fail-closed.
   Trainer y el planner comparten el conjunto de targets de jugador (`NONE`, `CASTER`, `ALLY`). Los
   `ElseGroup` soportados que prueban el OR de conditions prevalecen sobre incertidumbre en ramas
   irrelevantes. Así el adaptador de adquisición funciona también en producción y no solo con
