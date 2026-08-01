@@ -70,6 +70,10 @@ struct TrainerCastWorldHookAuditLikeCpp {
     linked_spell: bool,
 }
 
+const SPELL_EFFECT_CREATE_ITEM_LIKE_CPP: u32 = 24;
+const SPELL_EFFECT_CREATE_RANDOM_ITEM_LIKE_CPP: u32 = 59;
+const SPELL_EFFECT_CREATE_LOOT_LIKE_CPP: u32 = 157;
+
 fn trainer_cast_world_hooks_are_static_safe_like_cpp(
     audit: TrainerCastWorldHookAuditLikeCpp,
 ) -> bool {
@@ -213,21 +217,26 @@ pub(crate) async fn load_trainer_static_authority_like_cpp(
         }
     }
 
-    // C++ `SpellMgr::IsSpellValid` recursively validates both the created item
-    // and every positive effective reagent. The 3.4.3 closure has exactly
-    // these three crafting targets; their created-item identities are pinned
-    // while reagent rows retain full DB2/SQL/removal overlay semantics.
-    let valid_craft_spell_ids = [(12_716, 10_577), (13_240, 10_577), (22_967, 17_771)]
-        .into_iter()
-        .filter_map(|(spell_id, item_id)| {
-            craft_spell_items_are_valid_like_cpp(
-                item_id,
-                effective_reagents.get(&spell_id),
-                &item_exists,
-            )
-            .then_some(spell_id)
-        })
-        .collect();
+    // C++ `SpellMgr::IsSpellValid` evaluates the final SpellEffect payload,
+    // recursively follows LEARN_SPELL, and validates every created item and
+    // positive reagent. Derive this authority from the same effective catalog
+    // so official/custom overlays cannot leave a stale dataset-specific pin.
+    let mut effective_effects_by_spell = BTreeMap::new();
+    for (spell_id, difficulty_id) in spell_store.spell_info_keys_in_order_like_cpp() {
+        if difficulty_id != 0 {
+            continue;
+        }
+        if let wow_data::SpellAcquisitionEffectsLookupLikeCpp::Covered(effects) =
+            catalog.acquisition_effects_like_cpp(spell_id)
+        {
+            effective_effects_by_spell.insert(spell_id, effects.to_vec());
+        }
+    }
+    let valid_craft_spell_ids = derive_valid_craft_spell_ids_like_cpp(
+        &effective_effects_by_spell,
+        &effective_reagents,
+        item_exists,
+    );
 
     Ok(TrainerSpellStaticAuthorityLikeCpp {
         safe_cast_spell_ids,
@@ -335,15 +344,116 @@ fn compose_effective_spell_reagents_like_cpp(
     reagents_by_spell_id
 }
 
-fn craft_spell_items_are_valid_like_cpp(
-    created_item_id: u32,
-    reagents: Option<&[i32; 8]>,
+fn derive_valid_craft_spell_ids_like_cpp(
+    effects_by_spell: &BTreeMap<u32, Vec<SpellAcquisitionEffectLikeCpp>>,
+    reagents_by_spell: &BTreeMap<u32, [i32; 8]>,
     item_exists: impl Fn(u32) -> bool,
-) -> bool {
-    item_exists(created_item_id)
-        && reagents.into_iter().flatten().all(|reagent_id| {
-            *reagent_id <= 0 || u32::try_from(*reagent_id).ok().is_some_and(&item_exists)
+) -> BTreeSet<u32> {
+    fn is_valid(
+        spell_id: u32,
+        effects_by_spell: &BTreeMap<u32, Vec<SpellAcquisitionEffectLikeCpp>>,
+        reagents_by_spell: &BTreeMap<u32, [i32; 8]>,
+        item_exists: &impl Fn(u32) -> bool,
+        visiting: &mut BTreeSet<u32>,
+        memo: &mut BTreeMap<u32, bool>,
+    ) -> bool {
+        if let Some(valid) = memo.get(&spell_id) {
+            return *valid;
+        }
+        let Some(effects) = effects_by_spell.get(&spell_id) else {
+            return false;
+        };
+        // C++ assumes acyclic LEARN_SPELL data and would recurse forever on a
+        // cycle. The startup authority must fail closed instead.
+        if !visiting.insert(spell_id) {
+            return false;
+        }
+
+        let is_loot_crafting = effects.iter().any(|effect| {
+            matches!(
+                effect.effect_type_checked(),
+                Ok(SPELL_EFFECT_CREATE_RANDOM_ITEM_LIKE_CPP | SPELL_EFFECT_CREATE_LOOT_LIKE_CPP)
+            )
+        });
+        let mut need_check_reagents = false;
+        let mut valid = true;
+        for effect in effects {
+            let Ok(effect_type) = effect.effect_type_checked() else {
+                valid = false;
+                break;
+            };
+            match effect_type {
+                SPELL_EFFECT_CREATE_ITEM_LIKE_CPP | SPELL_EFFECT_CREATE_LOOT_LIKE_CPP => {
+                    need_check_reagents = true;
+                    let Ok(item_id) = effect.item_type_checked() else {
+                        valid = false;
+                        break;
+                    };
+                    if (item_id == 0 && !is_loot_crafting)
+                        || (item_id != 0 && !item_exists(item_id))
+                    {
+                        valid = false;
+                        break;
+                    }
+                }
+                SPELL_EFFECT_LEARN_SPELL => {
+                    let Ok(learned_spell_id) = effect.trigger_spell_id_checked() else {
+                        valid = false;
+                        break;
+                    };
+                    if !is_valid(
+                        learned_spell_id,
+                        effects_by_spell,
+                        reagents_by_spell,
+                        item_exists,
+                        visiting,
+                        memo,
+                    ) {
+                        valid = false;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        if valid && need_check_reagents {
+            valid = reagents_by_spell
+                .get(&spell_id)
+                .into_iter()
+                .flatten()
+                .all(|reagent_id| {
+                    *reagent_id <= 0 || u32::try_from(*reagent_id).ok().is_some_and(item_exists)
+                });
+        }
+        visiting.remove(&spell_id);
+        memo.insert(spell_id, valid);
+        valid
+    }
+
+    let craft_spell_ids = effects_by_spell.iter().filter_map(|(spell_id, effects)| {
+        effects
+            .iter()
+            .any(|effect| {
+                matches!(
+                    effect.effect_type_checked(),
+                    Ok(SPELL_EFFECT_CREATE_ITEM_LIKE_CPP | SPELL_EFFECT_CREATE_LOOT_LIKE_CPP)
+                )
+            })
+            .then_some(*spell_id)
+    });
+    let mut memo = BTreeMap::new();
+    craft_spell_ids
+        .filter(|spell_id| {
+            is_valid(
+                *spell_id,
+                effects_by_spell,
+                reagents_by_spell,
+                &item_exists,
+                &mut BTreeSet::new(),
+                &mut memo,
+            )
         })
+        .collect()
 }
 
 async fn load_unsigned_spell_id_set_like_cpp(
@@ -1069,6 +1179,7 @@ mod tests {
             effect_coefficient_bits: 0.0f32.to_bits(),
             effect_variance_bits: 0.0f32.to_bits(),
             effect_trigger_spell_raw: trigger_spell,
+            effect_item_type_raw: 0,
             effect_misc_value_raw: [misc_value, 0],
             implicit_target_raw: [0, 0],
         }
@@ -1102,30 +1213,78 @@ mod tests {
     }
 
     #[test]
-    fn trainer_craft_authority_requires_output_and_every_positive_reagent() {
-        let existing_items = BTreeSet::from([10_577, 100, 200]);
-        let item_exists = |item_id| existing_items.contains(&item_id);
+    fn trainer_craft_authority_uses_effective_outputs_reagents_and_loot_zero_branch() {
+        let mut create_item = acquisition_effect(1, 0, SPELL_EFFECT_CREATE_ITEM_LIKE_CPP, 0, 0);
+        create_item.spell_id_raw = 700;
+        create_item.effect_item_type_raw = 10_577;
+        let mut missing_output = create_item.clone();
+        missing_output.record_id = 2;
+        missing_output.spell_id_raw = 701;
+        missing_output.effect_item_type_raw = 17_771;
+        let mut loot_zero = acquisition_effect(3, 0, SPELL_EFFECT_CREATE_LOOT_LIKE_CPP, 0, 0);
+        loot_zero.spell_id_raw = 702;
+        let mut create_zero = acquisition_effect(4, 0, SPELL_EFFECT_CREATE_ITEM_LIKE_CPP, 0, 0);
+        create_zero.spell_id_raw = 703;
+        let mut missing_reagent = create_item.clone();
+        missing_reagent.record_id = 5;
+        missing_reagent.spell_id_raw = 704;
 
-        assert!(craft_spell_items_are_valid_like_cpp(
-            10_577,
-            None,
-            item_exists,
-        ));
-        assert!(craft_spell_items_are_valid_like_cpp(
-            10_577,
-            Some(&[100, -1, 200, 0, 0, 0, 0, 0]),
-            item_exists,
-        ));
-        assert!(!craft_spell_items_are_valid_like_cpp(
-            10_577,
-            Some(&[100, 300, 0, 0, 0, 0, 0, 0]),
-            item_exists,
-        ));
-        assert!(!craft_spell_items_are_valid_like_cpp(
-            17_771,
-            None,
-            item_exists,
-        ));
+        let effects = BTreeMap::from([
+            (700, vec![create_item]),
+            (701, vec![missing_output]),
+            (702, vec![loot_zero]),
+            (703, vec![create_zero]),
+            (704, vec![missing_reagent]),
+        ]);
+        let reagents = BTreeMap::from([
+            (700, [100, -1, 200, 0, 0, 0, 0, 0]),
+            (704, [300, 0, 0, 0, 0, 0, 0, 0]),
+        ]);
+        let existing_items = BTreeSet::from([10_577, 100, 200]);
+
+        assert_eq!(
+            derive_valid_craft_spell_ids_like_cpp(&effects, &reagents, |item_id| {
+                existing_items.contains(&item_id)
+            }),
+            BTreeSet::from([700, 702])
+        );
+    }
+
+    #[test]
+    fn trainer_craft_authority_recursively_rejects_invalid_learned_spell_and_cycles() {
+        let mut parent_create = acquisition_effect(1, 0, SPELL_EFFECT_CREATE_ITEM_LIKE_CPP, 0, 0);
+        parent_create.spell_id_raw = 800;
+        parent_create.effect_item_type_raw = 10_577;
+        let mut parent_learn = acquisition_effect(2, 1, SPELL_EFFECT_LEARN_SPELL, 0, 801);
+        parent_learn.spell_id_raw = 800;
+        let mut child_create = acquisition_effect(3, 0, SPELL_EFFECT_CREATE_ITEM_LIKE_CPP, 0, 0);
+        child_create.spell_id_raw = 801;
+        child_create.effect_item_type_raw = 17_771;
+
+        let effects = BTreeMap::from([
+            (800, vec![parent_create, parent_learn]),
+            (801, vec![child_create]),
+        ]);
+        assert!(
+            derive_valid_craft_spell_ids_like_cpp(&effects, &BTreeMap::new(), |item_id| {
+                item_id == 10_577
+            })
+            .is_empty()
+        );
+
+        let mut cycle_create = acquisition_effect(4, 0, SPELL_EFFECT_CREATE_ITEM_LIKE_CPP, 0, 0);
+        cycle_create.spell_id_raw = 900;
+        cycle_create.effect_item_type_raw = 10_577;
+        let mut cycle_learn = acquisition_effect(5, 1, SPELL_EFFECT_LEARN_SPELL, 0, 900);
+        cycle_learn.spell_id_raw = 900;
+        assert!(
+            derive_valid_craft_spell_ids_like_cpp(
+                &BTreeMap::from([(900, vec![cycle_create, cycle_learn])]),
+                &BTreeMap::new(),
+                |item_id| item_id == 10_577,
+            )
+            .is_empty()
+        );
     }
 
     #[test]

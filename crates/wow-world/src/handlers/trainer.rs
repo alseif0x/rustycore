@@ -818,6 +818,7 @@ mod tests {
             effect_coefficient_bits: 0.0_f32.to_bits(),
             effect_variance_bits: 0.0_f32.to_bits(),
             effect_trigger_spell_raw: i64::from(learned_spell_id),
+            effect_item_type_raw: 0,
             effect_misc_value_raw: [0, 0],
             implicit_target_raw: [1, 0],
         }

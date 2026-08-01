@@ -18,10 +18,12 @@ complete player spell/effect-immunity maps, any active aura fails wrappers close
 assuming no immunity. Direct products remain unaffected. Confirmed battle-pet products, unsupported
 wrapper effects, missing DB authority and stale plans fail without charging.
 
-Craft authority also mirrors `SpellMgr::IsSpellValid`: it composes effective reagent rows in
-DB2, official SQL, custom SQL and final-removal order, then requires the created item and every
-positive reagent item to exist. Missing output or reagent templates therefore remove the craft
-spell from immutable startup authority instead of allowing a later partial grant.
+Craft authority also mirrors `SpellMgr::IsSpellValid`: it reads created-item identities from the
+final effective `SpellEffect` payload (DB2, official SQL, custom SQL and final removals), composes
+effective reagent rows in the same order, recursively validates `LEARN_SPELL`, accepts the C++
+zero-item loot-crafting branch, and requires every nonzero output plus every positive reagent item
+to exist. Missing/overlaid output, invalid recursion or missing reagent templates therefore remove
+the craft spell from immutable startup authority instead of allowing a later partial grant.
 
 After a confirmed commit, one non-awaiting phase installs complete runtime authority, stages money,
 publishes exact `SMSG_PLAY_SPELL_VISUAL_KIT` 179/362 packets, then replays learned/superseded and

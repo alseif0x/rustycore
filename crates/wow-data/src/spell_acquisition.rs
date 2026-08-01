@@ -48,7 +48,7 @@ const SPELL_EFFECT_SQL: &str = concat!(
     "SELECT ID, DifficultyID, EffectIndex, Effect, EffectBasePoints, EffectDieSides, ",
     "EffectTriggerSpell, EffectMiscValue1, EffectMiscValue2, ImplicitTarget1, ",
     "ImplicitTarget2, Coefficient, Variance, SpellID, EffectChainTargets, ",
-    "EffectPointsPerResource, EffectRealPointsPerLevel FROM spell_effect ",
+    "EffectPointsPerResource, EffectRealPointsPerLevel, EffectItemType FROM spell_effect ",
     "WHERE (`VerifiedBuild` > 0) = ?"
 );
 const SPELL_EFFECT_WDC_CHAIN_TARGETS_FIELD: usize = 10;
@@ -57,6 +57,7 @@ const SPELL_EFFECT_WDC_REAL_POINTS_PER_LEVEL_FIELD: usize = 16;
 const SPELL_EFFECT_SQL_CHAIN_TARGETS_COLUMN: usize = 14;
 const SPELL_EFFECT_SQL_POINTS_PER_RESOURCE_COLUMN: usize = 15;
 const SPELL_EFFECT_SQL_REAL_POINTS_PER_LEVEL_COLUMN: usize = 16;
+const SPELL_EFFECT_SQL_ITEM_TYPE_COLUMN: usize = 17;
 const SPELL_LEARN_SPELL_SQL: &str = concat!(
     "SELECT ID, SpellID, LearnSpellID, OverridesSpellID FROM spell_learn_spell ",
     "WHERE (`VerifiedBuild` > 0) = ?"
@@ -323,6 +324,8 @@ pub struct SpellAcquisitionEffectLikeCpp {
     pub effect_coefficient_bits: u32,
     pub effect_variance_bits: u32,
     pub effect_trigger_spell_raw: i64,
+    /// Raw regular DB2/hotfix `SpellEffectEntry::EffectItemType` (`int32`).
+    pub effect_item_type_raw: i64,
     pub effect_misc_value_raw: [i64; 2],
     pub implicit_target_raw: [i64; 2],
 }
@@ -370,6 +373,11 @@ impl SpellAcquisitionEffectLikeCpp {
             self.effect_trigger_spell_raw,
             "SpellEffect.EffectTriggerSpell",
         )
+    }
+
+    pub fn item_type_checked(&self) -> Result<u32, InvalidAcquisitionValueLikeCpp> {
+        source_i32(self.effect_item_type_raw, "SpellEffect.EffectItemType")?;
+        nonnegative_u32(self.effect_item_type_raw, "SpellEffect.EffectItemType")
     }
 
     pub fn misc_value_id_checked(
@@ -2065,6 +2073,7 @@ fn spell_acquisition_effect_from_wdc_like_cpp(
         effect_coefficient_bits: reader.get_field_f32(index, 20).to_bits(),
         effect_variance_bits: reader.get_field_f32(index, 21).to_bits(),
         effect_trigger_spell_raw: i64::from(reader.get_field_i32(index, 17)),
+        effect_item_type_raw: i64::from(reader.get_field_i32(index, 12)),
         effect_misc_value_raw: std::array::from_fn(|array_index| {
             i64::from(reader.get_array_element(index, 24, array_index, 32) as i32)
         }),
@@ -2135,6 +2144,10 @@ fn spell_acquisition_effect_from_sql_source_like_cpp(
         effect_coefficient_bits: source.f32_bits(11, "SpellEffect.Coefficient"),
         effect_variance_bits: source.f32_bits(12, "SpellEffect.Variance"),
         effect_trigger_spell_raw: source.raw(6, "SpellEffect.EffectTriggerSpell"),
+        effect_item_type_raw: source.raw(
+            SPELL_EFFECT_SQL_ITEM_TYPE_COLUMN,
+            "SpellEffect.EffectItemType",
+        ),
         effect_misc_value_raw: [
             source.raw(7, "SpellEffect.EffectMiscValue1"),
             source.raw(8, "SpellEffect.EffectMiscValue2"),
@@ -2892,6 +2905,7 @@ mod tests {
         fields[9] = 9;
         fields[10] = 17; // EffectChainTargets
         fields[11] = 11;
+        fields[12] = 12_345; // EffectItemType
         fields[13] = 13.0_f32.to_bits();
         fields[14] = 1.75_f32.to_bits(); // EffectPointsPerResource
         fields[15] = 15.0_f32.to_bits();
@@ -2905,8 +2919,8 @@ mod tests {
     }
 
     struct SentinelSpellEffectSqlSource {
-        raw: [i64; 17],
-        f32_bits: [u32; 17],
+        raw: [i64; 18],
+        f32_bits: [u32; 18],
     }
 
     impl SpellEffectSqlFieldSourceLikeCpp for SentinelSpellEffectSqlSource {
@@ -2940,6 +2954,7 @@ mod tests {
             effect_coefficient_bits: 0.0_f32.to_bits(),
             effect_variance_bits: 0.0_f32.to_bits(),
             effect_trigger_spell_raw: 0,
+            effect_item_type_raw: 0,
             effect_misc_value_raw: [0, 0],
             implicit_target_raw: [0, 0],
         }
@@ -3026,6 +3041,7 @@ mod tests {
         assert_eq!(row.effect_chain_targets_raw, 17);
         assert_eq!(row.effect_points_per_resource_bits, 1.75_f32.to_bits());
         assert_eq!(row.effect_real_points_per_level_bits, (-2.5_f32).to_bits());
+        assert_eq!(row.effect_item_type_raw, 12_345);
     }
 
     #[test]
@@ -3035,31 +3051,35 @@ mod tests {
             .and_then(|sql| sql.split_once(" FROM spell_effect "))
             .map(|(columns, _)| columns.split(", ").collect::<Vec<_>>())
             .expect("SpellEffect SQL projection");
-        assert_eq!(projection.len(), 17);
+        assert_eq!(projection.len(), 18);
         assert_eq!(
             [
                 SPELL_EFFECT_SQL_CHAIN_TARGETS_COLUMN,
                 SPELL_EFFECT_SQL_POINTS_PER_RESOURCE_COLUMN,
                 SPELL_EFFECT_SQL_REAL_POINTS_PER_LEVEL_COLUMN,
+                SPELL_EFFECT_SQL_ITEM_TYPE_COLUMN,
             ],
-            [14, 15, 16]
+            [14, 15, 16, 17]
         );
         assert_eq!(projection[14], "EffectChainTargets");
         assert_eq!(projection[15], "EffectPointsPerResource");
         assert_eq!(projection[16], "EffectRealPointsPerLevel");
+        assert_eq!(projection[17], "EffectItemType");
 
         let mut source = SentinelSpellEffectSqlSource {
-            raw: [0; 17],
-            f32_bits: [0; 17],
+            raw: [0; 18],
+            f32_bits: [0; 18],
         };
         source.raw[14] = 23;
         source.f32_bits[15] = 3.25_f32.to_bits();
         source.f32_bits[16] = (-4.5_f32).to_bits();
+        source.raw[17] = 54_321;
         let row = spell_acquisition_effect_from_sql_source_like_cpp(88, &mut source);
 
         assert_eq!(row.effect_chain_targets_raw, 23);
         assert_eq!(row.effect_points_per_resource_bits, 3.25_f32.to_bits());
         assert_eq!(row.effect_real_points_per_level_bits, (-4.5_f32).to_bits());
+        assert_eq!(row.effect_item_type_raw, 54_321);
     }
 
     #[test]

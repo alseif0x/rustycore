@@ -4,9 +4,10 @@
   resultado #158 completo en una transacción con guardas; reconcilia COMMIT incierto leyendo dinero,
   spells, favoritos y skills, acepta solo el postestado exacto y pone en cuarentena cualquier otra
   forma porque un escritor posterior puede restaurar un saldo anterior; solo entonces instala runtime y publica money, visual kits 179/362 y
-  acciones de aprendizaje en orden C++. La autoridad craft compone `SpellReagents.db2`, overlays
-  hotfix oficiales/custom y borrados finales, y exige que existan tanto el objeto creado como cada
-  reactivo positivo, igual que `SpellMgr::IsSpellValid`. Los wrappers exigen autoridad estática
+  acciones de aprendizaje en orden C++. La autoridad craft deriva cada objeto creado del
+  `SpellEffect` efectivo, compone `SpellReagents.db2`, overlays hotfix oficiales/custom y borrados
+  finales, sigue `LEARN_SPELL` recursivamente, conserva el caso loot con item cero y exige que
+  existan cada salida no nula y cada reactivo positivo, igual que `SpellMgr::IsSpellValid`. Los wrappers exigen autoridad estática
   auditada al arrancar y un effect mask fresco; mientras falten los mapas completos de inmunidad, cualquier aura activa
   falla cerrado. Directo/wrapper, retry, rollback, DB ausente, pre-publicación, reconciliación y wire
   visual tienen pruebas focales. Dispatcher #142, battle pets #160/#161, capture/live reload, CI y
