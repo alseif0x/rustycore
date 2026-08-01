@@ -64333,9 +64333,44 @@ impl WorldSession {
     /// traits, overrides, or triggered casts. The low-level runtime helper is
     /// intentionally shallow. Preserve a dirty row in the complete map when
     /// possible, or in a targeted SaveToDB overlay otherwise, without claiming
-    /// authority over untouched spells. This retains the unconditional
-    /// gameplay grant performed by C++ `Spell::EffectLearnSpell`.
+    /// authority over untouched spells. This retains the base gameplay grant
+    /// performed by C++ `Spell::EffectLearnSpell` whenever the narrow path can
+    /// prove that no multi-rank insertion is required.
     fn apply_base_learn_spell_effect_like_cpp(&mut self, trigger_spell: i32) -> bool {
+        let Some(trigger_spell_id) = u32::try_from(trigger_spell).ok() else {
+            return false;
+        };
+        let Some(spell_chains) = self.spell_chain_store.as_ref() else {
+            return false;
+        };
+        let previous = self
+            .represented_player_spell_rows_like_cpp
+            .get(&trigger_spell)
+            .or_else(|| {
+                self.represented_fallback_player_spell_rows_like_cpp
+                    .get(&trigger_spell)
+            });
+        match spell_chains.spell_chain_lookup_like_cpp(trigger_spell_id) {
+            wow_data::SpellChainLookupLikeCpp::Indeterminate(_) => return false,
+            wow_data::SpellChainLookupLikeCpp::Node(_)
+                if previous.is_none_or(|row| {
+                    matches!(
+                        row.state,
+                        RepresentedPlayerSpellStateLikeCpp::Removed
+                            | RepresentedPlayerSpellStateLikeCpp::Temporary
+                    )
+                }) =>
+            {
+                // Inserting a ranked row makes C++ recursively learn its
+                // previous rank and reconcile every active rank, including
+                // `SMSG_SUPERCEDED_SPELL` publication. The narrow fallback
+                // has no immutable plan for that multi-row mutation, so it
+                // must stop before exposing a partial grant.
+                return false;
+            }
+            wow_data::SpellChainLookupLikeCpp::Unranked
+            | wow_data::SpellChainLookupLikeCpp::Node(_) => {}
+        }
         self.begin_spell_acquisition_post_commit_action_batch_like_cpp();
         self.apply_base_learn_spell_effect_recursive_like_cpp(trigger_spell, &mut BTreeSet::new())
     }
@@ -111735,6 +111770,7 @@ mod tests {
         let (registry_send_tx, _registry_send_rx) = flume::bounded(8);
         session.set_player_guid(Some(player_guid));
         session.set_player_registry(Arc::clone(&player_registry));
+        session.set_spell_chain_store(Arc::new(wow_data::SpellChainStoreLikeCpp::default()));
         player_registry.insert(player_guid, broadcast_info(player_guid, registry_send_tx));
         observer.set_player_guid(Some(observer_guid));
         observer.set_player_registry(Arc::clone(&player_registry));
@@ -112003,6 +112039,7 @@ mod tests {
         let learned_spell_id = 13_343_i32;
         let player_guid = ObjectGuid::create_player(1, 77);
         session.set_player_guid(Some(player_guid));
+        session.set_spell_chain_store(Arc::new(wow_data::SpellChainStoreLikeCpp::default()));
         assert!(session.replace_complete_spell_acquisition_runtime_like_cpp(
             [RepresentedPlayerSpellLikeCpp {
                 spell_id: learned_spell_id,
@@ -112141,6 +112178,52 @@ mod tests {
     }
 
     #[test]
+    fn base_learn_spell_fallback_rejects_ranked_insertion_before_partial_mutation() {
+        let (mut session, _, send_rx) = make_session();
+        let lower_spell_id = 13_352_i32;
+        let higher_spell_id = 13_353_i32;
+        session.set_spell_chain_store(Arc::new(
+            wow_data::SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
+                [wow_data::SpellRankEdgeLikeCpp {
+                    spell_id: higher_spell_id as u32,
+                    supercedes_spell_id: lower_spell_id as u32,
+                }],
+                |_| true,
+            ),
+        ));
+        let lower_row = RepresentedPlayerSpellLikeCpp {
+            spell_id: lower_spell_id,
+            active: true,
+            disabled: false,
+            dependent: false,
+            favorite: false,
+            state: RepresentedPlayerSpellStateLikeCpp::Unchanged,
+        };
+        assert!(session.set_complete_represented_player_spell_rows_like_cpp([lower_row]));
+
+        assert!(!session.apply_base_learn_spell_effect_like_cpp(higher_spell_id));
+
+        assert_eq!(
+            session
+                .represented_player_spell_rows_like_cpp
+                .get(&lower_spell_id),
+            Some(&lower_row)
+        );
+        assert!(
+            !session
+                .represented_player_spell_rows_like_cpp
+                .contains_key(&higher_spell_id)
+        );
+        assert!(
+            session
+                .represented_spell_acquisition_post_commit_actions_like_cpp()
+                .is_empty(),
+            "rank insertion must stop before C++ previous-rank and supersession work becomes partial"
+        );
+        assert!(drain_server_opcodes(&send_rx).is_empty());
+    }
+
+    #[test]
     fn base_learn_spell_fallback_reactivates_disabled_cpp_closure_in_order() {
         let (mut session, _, send_rx) = make_session();
         let root_spell = 13_346_i32;
@@ -112238,6 +112321,7 @@ mod tests {
     fn base_learn_spell_fallback_replaces_temporary_row_with_durable_new_row_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         let spell_id = 13_350_i32;
+        session.set_spell_chain_store(Arc::new(wow_data::SpellChainStoreLikeCpp::default()));
         assert!(
             session.set_complete_represented_player_spell_rows_like_cpp([
                 RepresentedPlayerSpellLikeCpp {
@@ -112293,6 +112377,7 @@ mod tests {
     fn base_learn_spell_fallback_rejects_disabled_row_without_dependency_authority() {
         let (mut session, _, send_rx) = make_session();
         let spell_id = 13_349_i32;
+        session.set_spell_chain_store(Arc::new(wow_data::SpellChainStoreLikeCpp::default()));
         let original_row = RepresentedPlayerSpellLikeCpp {
             spell_id,
             active: true,
@@ -112326,6 +112411,7 @@ mod tests {
         let learned_spell_id = 13_342_i32;
         let player_guid = ObjectGuid::create_player(1, 76);
         session.set_player_guid(Some(player_guid));
+        session.set_spell_chain_store(Arc::new(wow_data::SpellChainStoreLikeCpp::default()));
         let mut spell_store = wow_data::SpellStore::new();
         spell_store.insert(
             learned_spell_id,
