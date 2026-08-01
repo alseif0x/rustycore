@@ -41165,6 +41165,7 @@ impl WorldSession {
         for (&spell_id, &fallback) in &self.represented_fallback_player_spell_rows_like_cpp {
             let reconciled = if let Some(loaded) = exact_rows.get(&spell_id).copied() {
                 let active = if loaded.disabled { loaded.active } else { true };
+                let dependent_promoted = fallback.dependent && !loaded.dependent;
                 RepresentedPlayerSpellLikeCpp {
                     active,
                     disabled: false,
@@ -41178,11 +41179,12 @@ impl WorldSession {
                         RepresentedPlayerSpellStateLikeCpp::Temporary => {
                             RepresentedPlayerSpellStateLikeCpp::New
                         }
-                        _ if loaded.disabled || loaded.active != active => {
+                        _ if loaded.disabled || loaded.active != active || dependent_promoted => {
                             RepresentedPlayerSpellStateLikeCpp::Changed
                         }
                         _ => loaded.state,
                     },
+                    dependent: loaded.dependent || fallback.dependent,
                     ..loaded
                 }
             } else {
@@ -112404,6 +112406,62 @@ mod tests {
             statements[1].params()[2],
             wow_database::SqlParam::Bool(false),
             "a disabled DB row preserves its inactive bit when the pending grant is reconciled"
+        );
+    }
+
+    #[test]
+    fn fallback_reconciliation_preserves_dependent_promotion_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let spell_id = 13_351_i32;
+        let player_guid = ObjectGuid::create_player(1, 78);
+        session
+            .represented_fallback_player_spell_rows_like_cpp
+            .insert(
+                spell_id,
+                RepresentedPlayerSpellLikeCpp {
+                    spell_id,
+                    active: true,
+                    disabled: false,
+                    dependent: true,
+                    favorite: false,
+                    state: RepresentedPlayerSpellStateLikeCpp::New,
+                },
+            );
+
+        assert!(
+            session.set_complete_represented_player_spell_rows_like_cpp([
+                RepresentedPlayerSpellLikeCpp {
+                    spell_id,
+                    active: true,
+                    disabled: false,
+                    dependent: false,
+                    favorite: false,
+                    state: RepresentedPlayerSpellStateLikeCpp::Unchanged,
+                },
+            ])
+        );
+
+        let reconciled = session.represented_player_spell_rows_like_cpp[&spell_id];
+        assert!(reconciled.dependent);
+        assert_eq!(
+            reconciled.state,
+            RepresentedPlayerSpellStateLikeCpp::Changed,
+            "C++ AddSpell promotes an existing independent row and marks it changed"
+        );
+        let statements = WorldSession::character_spell_save_statements_like_cpp(
+            player_guid.counter() as u64,
+            [reconciled],
+        );
+        assert_eq!(
+            statements
+                .iter()
+                .map(|statement| statement.sql())
+                .collect::<Vec<_>>(),
+            vec![
+                CharStatements::DEL_CHAR_SPELL_BY_SPELL.sql(),
+                CharStatements::DEL_CHAR_SPELL_FAVORITE.sql(),
+            ],
+            "C++ _SaveSpells deletes the former durable independent row and does not insert a dependent one"
         );
     }
 
