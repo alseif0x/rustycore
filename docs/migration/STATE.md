@@ -18,10 +18,14 @@ Repository refactors are governed by
 one mutable owner per concept, private modules before crates, explicit mirror retirement, and
 executable Cargo/handler-contract guardrails.
 
-Trainer architecture note (issue #157): list and the intentionally undispatched buy adapter now
-share one immutable offer decision. Teaching, money mutation, persistence and success publication
-are deliberately staged for issues #158/#159; no current status claim should infer a live trainer
-purchase merely from the retained opcode registration.
+Trainer architecture note (issues #157/#158): list and the intentionally undispatched buy adapter
+share one immutable offer decision. The exact #164 acquisition plan now has an atomic Character DB
+application and post-commit runtime/publication boundary. Deterministic player `EffectLearnSpell`
+uses the same authority with C++'s immediate runtime publication and ordinary deferred
+`Player::SaveToDB` persistence; trainer money, wrapper execution, visuals and activation remain
+#159/#142. No
+current status claim should infer a live trainer purchase merely from the retained opcode
+registration.
 
 ### Fidelity policy for proven legacy defects
 

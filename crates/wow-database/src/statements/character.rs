@@ -934,6 +934,9 @@ pub enum CharStatements {
     /// INSERT INTO character_spell (guid, spell, active, disabled) VALUES (?, ?, ?, ?)
     INS_CHAR_SPELL,
 
+    /// DB-safe fallback for a runtime LearnSpell grant made before the complete PlayerSpellMap is available.
+    UPSERT_CHAR_SPELL_LEARN_FALLBACK,
+
     /// DELETE FROM character_spell_favorite WHERE guid = ? AND spell = ?
     DEL_CHAR_SPELL_FAVORITE,
 
@@ -2589,6 +2592,9 @@ impl StatementDef for CharStatements {
             }
             Self::INS_CHAR_SPELL => {
                 "INSERT INTO character_spell (guid, spell, active, disabled) VALUES (?, ?, ?, ?)"
+            }
+            Self::UPSERT_CHAR_SPELL_LEARN_FALLBACK => {
+                "INSERT INTO character_spell (guid, spell, active, disabled) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE active = IF(character_spell.disabled, character_spell.active, VALUES(active)), disabled = VALUES(disabled)"
             }
             Self::DEL_CHAR_SPELL_FAVORITE => {
                 "DELETE FROM character_spell_favorite WHERE guid = ? AND spell = ?"
@@ -4853,6 +4859,10 @@ mod tests {
         assert_eq!(
             CharStatements::INS_CHAR_SPELL.sql(),
             "INSERT INTO character_spell (guid, spell, active, disabled) VALUES (?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::UPSERT_CHAR_SPELL_LEARN_FALLBACK.sql(),
+            "INSERT INTO character_spell (guid, spell, active, disabled) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE active = IF(character_spell.disabled, character_spell.active, VALUES(active)), disabled = VALUES(disabled)"
         );
         assert_eq!(
             CharStatements::DEL_CHAR_SPELL_FAVORITE.sql(),

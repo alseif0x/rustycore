@@ -1,3 +1,30 @@
+# `#NEXT.R8.ENTITIES.1245` — atomic prepared player spell acquisition.
+
+Issue #158 consumes the deterministic #164 plan without rediscovering ranks, dependencies,
+skills or capacity. The plan carries its exact source snapshot and the application boundary
+replays the causal stream, validates typed projections/provenance/actions plus the exact #156
+capacity plan, and applies its normalized physical profession slots before SQL. One
+character-row-locked transaction replaces the complete
+durable spell, favorite and skill sets with strict inserts. Unknown COMMIT outcomes reconcile all
+three tables exactly; runtime/controller mirrors are replaced before the ordered publication
+stream in one non-awaiting phase. Generic deterministic player `EffectLearnSpell` uses this seam
+with C++'s immediate in-memory/publication timing and dirty states consumed later by the ordinary
+`Player::SaveToDB`; it neither requires Character DB during the cast nor has a shallow fallback.
+Exact C++ learned/superseded packet option fields are
+covered, as are every durable fault boundary and pre-publication interruption. Already-known
+action-only learns bypass the durable replacement transaction, and the represented action batch
+is replaced per acquisition and cleared when the WorldSession changes player identity. The
+committed runtime replacement also refreshes the enchanting projection and shared player registry
+before packet publication, so cross-session loot eligibility and known-spell consumers cannot see
+the old snapshot.
+
+This remains `represented-partial`: criteria/quest/passive/mount actions are retained in their
+ordered represented log pending canonical managers, pet/item/battle-pet learning stays with its
+owners, and trainer money/wrapper/visual/dispatch behavior remains #159/#142. Focused application
+12/0 and trainer wire 6/0, complete `wow-world` 3264/0 (one ignored), `world-server` check,
+format and whitespace pass. Full preflight, capture-diff, remote CI/current-HEAD review and merge
+remain closeout gates.
+
 # `#NEXT.R8.ENTITIES.1244` — independent primary-profession capacity analysis.
 
 Issue #156 closes the capacity-model prerequisite discovered while auditing the dormant trainer

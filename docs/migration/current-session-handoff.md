@@ -1,3 +1,27 @@
+- `#NEXT.R8.ENTITIES.1245` — issue #158 convierte el plan inmutable #164 en la única
+  entrada semántica para aprendizaje durable. El plan conserva ahora su snapshot fuente exacto;
+  aplicación reproduce y valida el stream causal, proyecciones tipadas, resultado, procedencia,
+  y el plan #156 de capacidad/asignaciones físicas antes de abrir SQL. Sus slots normalizados se
+  incorporan a las filas finales en vez de persistir profesiones nuevas como `-1`. Una transacción bloquea la fila de personaje y
+  reemplaza de forma determinista spells, favoritos y skills completos con inserts estrictos;
+  un COMMIT incierto relee las tres tablas bajo lock y solo continúa si coinciden exactamente.
+  Tras commit, una fase sin `await` instala filas completas, traits, overrides, skills,
+  profesiones y mirrors antes de publicar acciones ordenadas. `LearnedSpellInfo` ya serializa
+  favorite, opcionales, supersede y trait como C++; reintentos ya aplicados no vuelven a publicar.
+  El `EffectLearnSpell` de jugador usa esta autoridad, aplica/publica inmediatamente sin depender
+  de DB y conserva estados dirty para que el `Player::SaveToDB` ordinario ejecute después la
+  persistencia `_SaveSpells`/`_SaveSkills` como C++; falla cerrado sin snapshot/metadata, mientras
+  pet, item y battle-pet siguen separados. Los intents de criteria/quest/passive/mount permanecen
+  representados como el lote actual, se limpian al cambiar de personaje y no se acumulan entre
+  aprendizajes. Los planes sin mutación durable publican solo ese lote y no reescriben las tres
+  tablas. La instalación runtime actualiza además el skill de enchanting y el registro
+  compartido de spells/skills antes de publicar, para que consumidores entre sesiones no observen
+  el snapshot anterior. Trainer money/wrapper/visual/dispatcher pertenecen a #159/#142. Pruebas
+  focales cubren tampering/stale, orden durable, todos los límites de fallo,
+  runtime-antes-de-paquete, interrupción pre-publicación, retry, registro y layout exacto;
+  `wow-packet` trainer 6/0, `wow-world` 3264/0 (uno ignorado), `world-server` check, formato y
+  whitespace pasan. Pendientes preflight completo, capture-diff, CI, review current-HEAD y merge.
+
 - `#NEXT.R8.ENTITIES.1237` — issue #157 unifica `Trainer::SendSpells`,
   `CanTeachSpell` y `GetSpellState` detrás de una decisión inmutable
   `Hidden/Known/Unavailable/Available`. Lista y compra vuelven a evaluar el mismo snapshot

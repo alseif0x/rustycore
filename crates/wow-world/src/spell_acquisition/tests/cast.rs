@@ -1,6 +1,56 @@
 use super::*;
 
 #[test]
+fn dual_wield_grant_requires_exact_executed_effect_authority() {
+    const WRAPPER: u32 = 200;
+    const EFFECT_RECORD: u32 = 7;
+    let metadata = MetadataFixture::new(FixtureInput {
+        spell_ids: vec![WRAPPER],
+        effects: vec![effect(EFFECT_RECORD, WRAPPER, 0, SPELL_EFFECT_DUAL_WIELD)],
+        cast_safe_spell_ids: vec![WRAPPER],
+        ..Default::default()
+    });
+    let missing_effect_authority = snapshot_with_cast(WRAPPER, true, [0]);
+    assert_eq!(
+        project_spell_acquisition_like_cpp(
+            &missing_effect_authority,
+            metadata.metadata(),
+            SpellAcquisitionRootLikeCpp::TrainerWrapperCast(WRAPPER),
+        ),
+        SpellAcquisitionOutcomeLikeCpp::Indeterminate(
+            SpellAcquisitionIndeterminateLikeCpp::InvalidCastResolution {
+                spell_id: WRAPPER,
+                effect_index: Some(0),
+            }
+        )
+    );
+
+    let mut exact_authority = missing_effect_authority;
+    exact_authority
+        .cast_resolutions
+        .get_mut(&WRAPPER)
+        .expect("cast authority")
+        .executed_dual_wield_effects
+        .push(PlayerExecutedDualWieldEffectLikeCpp {
+            effect_record_id: EFFECT_RECORD,
+            effect_index: 0,
+        });
+    let plan = deterministic(project_spell_acquisition_like_cpp(
+        &exact_authority,
+        metadata.metadata(),
+        SpellAcquisitionRootLikeCpp::TrainerWrapperCast(WRAPPER),
+    ));
+    assert_eq!(
+        plan.post_commit_actions,
+        vec![SpellAcquisitionPostCommitActionLikeCpp::GrantDualWield {
+            source_spell_id: WRAPPER,
+            effect_record_id: EFFECT_RECORD,
+            effect_index: 0,
+        }]
+    );
+}
+
+#[test]
 fn wrapper_runs_skill_step_before_two_causal_learn_effects() {
     const WRAPPER: u32 = 200;
     const SKILL: u32 = 164;
@@ -712,6 +762,70 @@ fn passive_with_projected_acquisition_has_no_runtime_refresh_or_second_cast_owne
             .count(),
         1
     );
+}
+
+#[test]
+fn effect_learn_spell_preserves_base_row_and_defers_unavailable_nested_cast_atomically() {
+    const PASSIVE: u32 = 500;
+    const NESTED: u32 = 600;
+    const SPELL_ATTR0_PASSIVE: i64 = 0x40;
+    let metadata = MetadataFixture::new(FixtureInput {
+        spell_ids: vec![PASSIVE, NESTED],
+        effects: vec![learn_effect(1, PASSIVE, 0, NESTED)],
+        misc_rows: vec![misc(PASSIVE, SPELL_ATTR0_PASSIVE, 0, 0)],
+        ..Default::default()
+    });
+
+    let source = snapshot();
+    let plan = deterministic(project_effect_learn_spell_acquisition_like_cpp(
+        &source,
+        metadata.metadata(),
+        PASSIVE,
+    ));
+
+    assert!(plan.resulting_snapshot.spells.iter().any(|row| {
+        row.spell_id == PASSIVE && row.state != PlayerSpellPersistenceStateLikeCpp::Removed
+    }));
+    assert!(
+        !plan
+            .resulting_snapshot
+            .spells
+            .iter()
+            .any(|row| row.spell_id == NESTED)
+    );
+    assert!(plan.diagnostics.iter().any(|diagnostic| matches!(
+        diagnostic,
+        SpellAcquisitionDiagnosticLikeCpp::AcquisitionCastDeferred {
+            spell_id: PASSIVE,
+            reason: PlannedAcquisitionCastReasonLikeCpp::PassiveLearn,
+            cause,
+        } if matches!(
+            cause.as_ref(),
+            SpellAcquisitionIndeterminateLikeCpp::CastAuthority {
+                spell_id: PASSIVE,
+                ..
+            }
+        )
+    )));
+    assert!(!plan.diagnostics.iter().any(|diagnostic| matches!(
+        diagnostic,
+        SpellAcquisitionDiagnosticLikeCpp::AcquisitionCastProjected {
+            spell_id: PASSIVE,
+            ..
+        }
+    )));
+    let profession_plan = crate::profession::PrimaryProfessionCapacityPlanLikeCpp {
+        configured_max: 2,
+        used_before: 0,
+        free_before: 2,
+        existing_professions: Vec::new(),
+        new_professions: Vec::new(),
+        slot_normalizations: Vec::new(),
+    };
+    assert!(matches!(
+        prepare_player_spell_acquisition_like_cpp(&plan, &profession_plan, &source),
+        Ok(PreparedPlayerSpellAcquisitionOutcomeLikeCpp::Ready(_))
+    ));
 }
 
 #[test]

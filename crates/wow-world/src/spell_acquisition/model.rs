@@ -99,9 +99,20 @@ impl PlayerAcquisitionLifecycleLikeCpp {
 /// `LEARN_SPELL` / `SKILL_STEP` effects. Static spell metadata cannot prove
 /// that outcome for an arbitrary live player.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct PlayerExecutedDualWieldEffectLikeCpp {
+    pub effect_record_id: u32,
+    pub effect_index: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PlayerCastAcquisitionResolutionLikeCpp {
     pub reached_immediate_phase: bool,
     pub executed_hit_target_effect_mask: u32,
+    /// Exact SpellEffect rows proven by the live target/effect pipeline for
+    /// executed `SPELL_EFFECT_DUAL_WIELD` hit-target effects. Keeping these on
+    /// the immutable cast authority prevents post-plan diagnostics from
+    /// inventing a grant.
+    pub executed_dual_wield_effects: Vec<PlayerExecutedDualWieldEffectLikeCpp>,
 }
 
 /// One causal evaluation of C++
@@ -118,6 +129,10 @@ pub(crate) struct PlayerFuturePlayerConditionResolutionLikeCpp {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PlayerSpellAcquisitionSnapshotLikeCpp {
+    /// Exact selected character that owns every row in this snapshot. Pure
+    /// planner fixtures use `None`; persistence/runtime publication require a
+    /// concrete player GUID and reject any cross-character reuse.
+    pub character_guid: Option<wow_core::ObjectGuid>,
     pub spells: Vec<PlayerSpellAcquisitionRowLikeCpp>,
     pub skills: Vec<PlayerSkillAcquisitionRowLikeCpp>,
     /// Number of occupied C++ `ActivePlayerData::Skill` slots. Tombstoned
@@ -125,6 +140,13 @@ pub(crate) struct PlayerSpellAcquisitionSnapshotLikeCpp {
     pub occupied_skill_slots: u16,
     /// Existing C++ `m_overrideSpells` edges.
     pub overrides: Vec<(u32, u32)>,
+    /// Complete active primary-profession membership derived from SkillLine
+    /// authority for this exact snapshot.
+    pub primary_profession_skill_ids: Vec<u32>,
+    /// Sorted identities of C++ skill slots whose `SKILL_DELETED` deletion was
+    /// already saved. Their in-memory zero row is retained as `Unchanged`, but
+    /// must not be recreated in `character_skills` until SetSkill reactivates it.
+    pub non_durable_skill_tombstone_ids: Vec<u32>,
     pub race: u8,
     pub class: u8,
     pub level: u8,
@@ -239,6 +261,8 @@ pub(crate) enum SpellAcquisitionPostCommitActionLikeCpp {
     },
     GrantDualWield {
         source_spell_id: u32,
+        effect_record_id: u32,
+        effect_index: u8,
     },
     RefreshPassive {
         spell_id: u32,
@@ -247,15 +271,19 @@ pub(crate) enum SpellAcquisitionPostCommitActionLikeCpp {
         spell_id: u32,
     },
     UpdateLearnTradeskillSkillLineCriteria {
+        source_spell_id: u32,
         skill_id: u32,
     },
     UpdateLearnSpellFromSkillLineCriteria {
+        source_spell_id: u32,
         skill_id: u32,
     },
     UpdateLearnOrKnowSpellCriteria {
         spell_id: u32,
     },
-    UpdateMountCapability,
+    UpdateMountCapability {
+        skill_id: u32,
+    },
     UpdateSkillRaisedCriteria {
         skill_id: u32,
     },
@@ -289,6 +317,16 @@ pub(crate) enum SpellAcquisitionDiagnosticLikeCpp {
         spell_id: u32,
         reason: PlannedAcquisitionCastReasonLikeCpp,
     },
+    AcquisitionCastDeferred {
+        spell_id: u32,
+        reason: PlannedAcquisitionCastReasonLikeCpp,
+        cause: Box<SpellAcquisitionIndeterminateLikeCpp>,
+    },
+    DualWieldEffectProjected {
+        spell_id: u32,
+        effect_record_id: u32,
+        effect_index: u8,
+    },
     CastStoppedBeforeImmediatePhase {
         spell_id: u32,
     },
@@ -301,6 +339,11 @@ pub(crate) enum SpellAcquisitionDiagnosticLikeCpp {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SpellAcquisitionPlanLikeCpp {
     pub root: SpellAcquisitionRootLikeCpp,
+    /// Exact immutable player authority from which this plan was projected.
+    /// The application boundary compares it byte-for-byte with the current
+    /// snapshot before opening a transaction; transition-local `before`
+    /// values alone cannot prove that untouched rows did not change.
+    pub source_snapshot: PlayerSpellAcquisitionSnapshotLikeCpp,
     /// One cross-domain causal stream. The typed projections below are
     /// retained for focused consumers, but must never be used to reconstruct
     /// ordering between a skill write and a recursively learned spell.
@@ -309,10 +352,72 @@ pub(crate) struct SpellAcquisitionPlanLikeCpp {
     pub skill_transitions: Vec<PlannedSkillTransitionLikeCpp>,
     pub override_transitions: Vec<PlannedOverrideTransitionLikeCpp>,
     pub root_primary_profession_skill_ids: Vec<u32>,
+    /// Planner-owned causal tape for publications whose necessity cannot be
+    /// reconstructed from the final mutation stream alone (for example an
+    /// exact-known LearnSpell still advances its quest objective). The
+    /// application requires an exact action projection, including order and
+    /// duplicate SkillLineAbility rows.
+    // This field is deliberately confined to the spell-acquisition capsule.
+    // Crate callers may tailor ordinary post-commit consumers, but must not be
+    // able to replace both those actions and their planner-owned authority
+    // tape with matching fabricated values. `application` only reads this
+    // tape to validate the public action projection; `planner` is its sole
+    // production writer.
+    pub(super) publication_requirements: Vec<SpellAcquisitionPublicationRequirementLikeCpp>,
     pub profession_association_inputs: Vec<PlayerSkillAcquisitionRowLikeCpp>,
     pub post_commit_actions: Vec<SpellAcquisitionPostCommitActionLikeCpp>,
     pub diagnostics: Vec<SpellAcquisitionDiagnosticLikeCpp>,
     pub resulting_snapshot: PlayerSpellAcquisitionSnapshotLikeCpp,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum SpellAcquisitionPublicationRequirementLikeCpp {
+    LearnedSpell {
+        spell_id: u32,
+        favorite: bool,
+        suppress_messaging: bool,
+    },
+    UpdateLearnSpellQuestObjective {
+        spell_id: u32,
+    },
+    UpdateLearnTradeskillSkillLineCriteria {
+        source_spell_id: u32,
+        skill_id: u32,
+    },
+    UpdateLearnSpellFromSkillLineCriteria {
+        source_spell_id: u32,
+        skill_id: u32,
+    },
+    UpdateLearnOrKnowSpellCriteria {
+        spell_id: u32,
+    },
+}
+
+#[cfg(test)]
+impl SpellAcquisitionPlanLikeCpp {
+    /// Minimal no-op plan fixture for tests outside the spell-acquisition
+    /// module. Production callers intentionally have no constructor or setter
+    /// for the planner-owned publication authority tape.
+    pub(crate) fn no_publications_for_test_like_cpp(
+        root: SpellAcquisitionRootLikeCpp,
+        source_snapshot: PlayerSpellAcquisitionSnapshotLikeCpp,
+        root_primary_profession_skill_ids: Vec<u32>,
+    ) -> Self {
+        Self {
+            root,
+            resulting_snapshot: source_snapshot.clone(),
+            source_snapshot,
+            mutations: Vec::new(),
+            spell_transitions: Vec::new(),
+            skill_transitions: Vec::new(),
+            override_transitions: Vec::new(),
+            root_primary_profession_skill_ids,
+            publication_requirements: Vec::new(),
+            profession_association_inputs: Vec::new(),
+            post_commit_actions: Vec::new(),
+            diagnostics: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -74,15 +74,19 @@ fn spell_and_skill_criteria_intents_preserve_cpp_types_order_and_duplicate_skill
                 skill_id: SKILL,
             },
             SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnTradeskillSkillLineCriteria {
+                source_spell_id: SPELL,
                 skill_id: SKILL,
             },
             SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnSpellFromSkillLineCriteria {
+                source_spell_id: SPELL,
                 skill_id: SKILL,
             },
             SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnTradeskillSkillLineCriteria {
+                source_spell_id: SPELL,
                 skill_id: SKILL,
             },
             SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnSpellFromSkillLineCriteria {
+                source_spell_id: SPELL,
                 skill_id: SKILL,
             },
             SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnOrKnowSpellCriteria {
@@ -184,6 +188,57 @@ fn previous_rank_is_learned_then_superseded_by_requested_rank() {
             .collect::<Vec<_>>(),
         vec![("learned", 100, 0), ("superseded", 100, 101),],
         "C++ uses the supersede packet as the requested rank's publication and AddSpell returns false when it replaced an old active rank"
+    );
+}
+
+#[test]
+fn recursive_three_rank_supersedes_prepare_against_causal_state() {
+    const LOWER: u32 = 100;
+    const MIDDLE: u32 = 101;
+    const HIGHER: u32 = 102;
+    let metadata = MetadataFixture::new(FixtureInput {
+        spell_ids: vec![LOWER, MIDDLE, HIGHER],
+        chains: vec![
+            (LOWER, rank_node(None, Some(MIDDLE), LOWER, HIGHER, 1)),
+            (
+                MIDDLE,
+                rank_node(Some(LOWER), Some(HIGHER), LOWER, HIGHER, 2),
+            ),
+            (HIGHER, rank_node(Some(MIDDLE), None, LOWER, HIGHER, 3)),
+        ],
+        ..Default::default()
+    });
+    let source = snapshot();
+    let plan = deterministic(project_spell_acquisition_like_cpp(
+        &source,
+        metadata.metadata(),
+        SpellAcquisitionRootLikeCpp::DirectLearn(HIGHER),
+    ));
+    let profession_plan = crate::profession::PrimaryProfessionCapacityPlanLikeCpp {
+        configured_max: 2,
+        used_before: 0,
+        free_before: 2,
+        existing_professions: Vec::new(),
+        new_professions: Vec::new(),
+        slot_normalizations: Vec::new(),
+    };
+
+    assert!(matches!(
+        prepare_player_spell_acquisition_like_cpp(&plan, &profession_plan, &source),
+        Ok(PreparedPlayerSpellAcquisitionOutcomeLikeCpp::Ready(_))
+    ));
+    assert_eq!(
+        plan.post_commit_actions
+            .iter()
+            .filter_map(|action| match action {
+                SpellAcquisitionPostCommitActionLikeCpp::SupersededSpell {
+                    old_spell_id,
+                    new_spell_id,
+                } => Some((*old_spell_id, *new_spell_id)),
+                _ => None,
+            })
+            .collect::<Vec<_>>(),
+        vec![(LOWER, MIDDLE), (MIDDLE, HIGHER)]
     );
 }
 

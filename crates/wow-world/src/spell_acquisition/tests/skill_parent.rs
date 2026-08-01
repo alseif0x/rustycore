@@ -27,6 +27,7 @@ fn cyclic_skill_parents_fail_closed_without_exposing_partial_plan() {
         PlayerCastAcquisitionResolutionLikeCpp {
             reached_immediate_phase: true,
             executed_hit_target_effect_mask: 1,
+            executed_dual_wield_effects: Vec::new(),
         },
     );
     let before = input.clone();

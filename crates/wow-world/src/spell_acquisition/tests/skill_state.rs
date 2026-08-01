@@ -84,7 +84,12 @@ fn riding_mount_capability_is_only_refreshed_for_an_existing_skill_increase() {
                 maxvalue: 150,
             },
         )],
-        skill_lines: vec![skill_line(riding, 0, 0)],
+        skill_lines: vec![skill_line_with_category(
+            riding,
+            SKILL_CATEGORY_ARMOR_LIKE_CPP,
+            0,
+            0,
+        )],
         ..Default::default()
     });
 
@@ -93,11 +98,9 @@ fn riding_mount_capability_is_only_refreshed_for_an_existing_skill_increase() {
         metadata.metadata(),
         SpellAcquisitionRootLikeCpp::DirectLearn(ROOT),
     ));
-    assert!(
-        !absent
-            .post_commit_actions
-            .contains(&SpellAcquisitionPostCommitActionLikeCpp::UpdateMountCapability)
-    );
+    assert!(!absent.post_commit_actions.contains(
+        &SpellAcquisitionPostCommitActionLikeCpp::UpdateMountCapability { skill_id: riding }
+    ));
 
     let mut existing_input = snapshot();
     existing_input
@@ -120,7 +123,10 @@ fn riding_mount_capability_is_only_refreshed_for_an_existing_skill_increase() {
         .post_commit_actions
         .iter()
         .position(|action| {
-            *action == SpellAcquisitionPostCommitActionLikeCpp::UpdateMountCapability
+            *action
+                == SpellAcquisitionPostCommitActionLikeCpp::UpdateMountCapability {
+                    skill_id: riding,
+                }
         })
         .expect("existing riding increase refreshes mount capability");
     let raised = existing
