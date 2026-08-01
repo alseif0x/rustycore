@@ -297,6 +297,7 @@ mod tests {
             occupied_skill_slots: 0,
             overrides: Vec::new(),
             primary_profession_skill_ids: Vec::new(),
+            non_durable_skill_tombstone_ids: Vec::new(),
             race: 1,
             class: 1,
             level: 80,

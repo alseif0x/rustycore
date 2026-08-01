@@ -124,6 +124,7 @@ pub(crate) enum PlayerSpellAcquisitionPrepareErrorLikeCpp {
     SnapshotIdentityChanged(&'static str),
     SkillOccupancyMismatch,
     InvalidDeletedSkill(u32),
+    InvalidNonDurableSkillTombstone(u32),
     ProfessionInputsMismatch,
     ProfessionPlanMismatch(&'static str),
     InvalidPostCommitAction { domain: &'static str, id: u32 },
@@ -1016,6 +1017,37 @@ fn validate_snapshot_like_cpp(
             ),
         );
     }
+    if let Some(invalid_skill_id) = snapshot
+        .non_durable_skill_tombstone_ids
+        .windows(2)
+        .find_map(|pair| (pair[0] >= pair[1]).then_some(pair[1]))
+        .or_else(|| {
+            snapshot
+                .non_durable_skill_tombstone_ids
+                .iter()
+                .copied()
+                .find(|skill_id| {
+                    !skills.get(skill_id).is_some_and(|skill| {
+                        skill.step == 0
+                            && skill.value == 0
+                            && skill.maximum == 0
+                            && skill.profession_association
+                                == ProfessionAssociationInputLikeCpp::Unassigned
+                            && matches!(
+                                skill.state,
+                                PlayerSkillPersistenceStateLikeCpp::Unchanged
+                                    | PlayerSkillPersistenceStateLikeCpp::Deleted
+                            )
+                    })
+                })
+        })
+    {
+        return Err(
+            PlayerSpellAcquisitionPrepareErrorLikeCpp::InvalidNonDurableSkillTombstone(
+                invalid_skill_id,
+            ),
+        );
+    }
     if usize::from(snapshot.occupied_skill_slots) != skills.len()
         || snapshot.occupied_skill_slots > 256
     {
@@ -1201,9 +1233,26 @@ fn translate_plan_like_cpp(
     durable_favorite_spell_ids.sort_unstable();
 
     let mut durable_skills = Vec::new();
+    let source_non_durable_skill_tombstone_ids = plan
+        .source_snapshot
+        .non_durable_skill_tombstone_ids
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>();
     let mut non_durable_skill_tombstone_ids = BTreeSet::new();
     for skill in &runtime_snapshot.skills {
-        if skill.state == PlayerSkillPersistenceStateLikeCpp::Deleted {
+        let remains_saved_tombstone = source_non_durable_skill_tombstone_ids
+            .contains(&skill.skill_id)
+            && skill.step == 0
+            && skill.value == 0
+            && skill.maximum == 0
+            && skill.profession_association == ProfessionAssociationInputLikeCpp::Unassigned
+            && matches!(
+                skill.state,
+                PlayerSkillPersistenceStateLikeCpp::Unchanged
+                    | PlayerSkillPersistenceStateLikeCpp::Deleted
+            );
+        if skill.state == PlayerSkillPersistenceStateLikeCpp::Deleted || remains_saved_tombstone {
             non_durable_skill_tombstone_ids.insert(u16::try_from(skill.skill_id).map_err(
                 |_| PlayerSpellAcquisitionPrepareErrorLikeCpp::InvalidSkillId(skill.skill_id),
             )?);
@@ -1219,6 +1268,10 @@ fn translate_plan_like_cpp(
         });
     }
     durable_skills.sort_by_key(|skill| skill.skill_id);
+    runtime_snapshot.non_durable_skill_tombstone_ids = non_durable_skill_tombstone_ids
+        .iter()
+        .map(|skill_id| u32::from(*skill_id))
+        .collect();
 
     runtime_snapshot
         .spells
@@ -1876,6 +1929,7 @@ mod tests {
             occupied_skill_slots: 0,
             overrides: Vec::new(),
             primary_profession_skill_ids: Vec::new(),
+            non_durable_skill_tombstone_ids: Vec::new(),
             race: 1,
             class: 1,
             level: 80,
@@ -2871,6 +2925,10 @@ mod tests {
             PlayerSkillPersistenceStateLikeCpp::Unchanged
         );
         assert_eq!(prepared.runtime_snapshot.skills[0].value, 0);
+        assert_eq!(
+            prepared.runtime_snapshot.non_durable_skill_tombstone_ids,
+            vec![95]
+        );
 
         let (mut session, _) = make_session();
         apply_prepared_player_spell_acquisition_like_cpp(&mut session, &prepared)
@@ -2879,6 +2937,53 @@ mod tests {
             session.character_skill_save_statements_like_cpp(42).len(),
             1,
             "a later full save retains only DELETE ALL and cannot reinsert the normalized tombstone"
+        );
+
+        let saved_tombstone_source = prepared.runtime_snapshot.clone();
+        let learned = spell(200, PlayerSpellPersistenceStateLikeCpp::New);
+        let spell_transition = PlannedSpellTransitionLikeCpp {
+            spell_id: 200,
+            before: None,
+            after: Some(learned),
+            provenance: SpellAcquisitionProvenanceLikeCpp::Root {
+                root: SpellAcquisitionRootLikeCpp::DirectLearn(200),
+            },
+        };
+        let mut saved_tombstone_resulting = saved_tombstone_source.clone();
+        saved_tombstone_resulting.spells.push(learned);
+        let saved_tombstone_plan = SpellAcquisitionPlanLikeCpp {
+            root: SpellAcquisitionRootLikeCpp::DirectLearn(200),
+            source_snapshot: saved_tombstone_source.clone(),
+            mutations: vec![PlannedAcquisitionMutationLikeCpp::Spell(
+                spell_transition.clone(),
+            )],
+            spell_transitions: vec![spell_transition],
+            skill_transitions: Vec::new(),
+            override_transitions: Vec::new(),
+            root_primary_profession_skill_ids: Vec::new(),
+            publication_requirements: Vec::new(),
+            profession_association_inputs: saved_tombstone_source.skills.clone(),
+            post_commit_actions: Vec::new(),
+            diagnostics: Vec::new(),
+            resulting_snapshot: saved_tombstone_resulting,
+        };
+        let PreparedPlayerSpellAcquisitionOutcomeLikeCpp::Ready(saved_tombstone_prepared) =
+            prepare_player_spell_acquisition_like_cpp(
+                &saved_tombstone_plan,
+                &no_profession_changes(),
+                &saved_tombstone_source,
+            )
+            .expect("an unrelated acquisition preserves the saved tombstone")
+        else {
+            panic!("expected ready plan with saved tombstone")
+        };
+        assert!(
+            saved_tombstone_prepared.durable_skills.is_empty(),
+            "an unrelated acquisition must not resurrect an already-saved zero skill row"
+        );
+        assert_eq!(
+            saved_tombstone_prepared.non_durable_skill_tombstone_ids,
+            BTreeSet::from([95])
         );
 
         let relearned = PlayerSkillAcquisitionRowLikeCpp {
@@ -2892,6 +2997,7 @@ mod tests {
         let relearn_source = prepared.runtime_snapshot.clone();
         let mut relearn_resulting = relearn_source.clone();
         relearn_resulting.skills[0] = relearned;
+        relearn_resulting.non_durable_skill_tombstone_ids.clear();
         let relearn_transition = PlannedSkillTransitionLikeCpp {
             skill_id: 95,
             before: Some(relearn_source.skills[0]),

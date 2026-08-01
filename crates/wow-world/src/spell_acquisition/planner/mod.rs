@@ -411,6 +411,26 @@ impl<'a> SpellAcquisitionPlannerLikeCpp<'a> {
                 })
                 .map(|skill| skill.skill_id)
                 .collect(),
+            non_durable_skill_tombstone_ids: self
+                .source_snapshot
+                .non_durable_skill_tombstone_ids
+                .iter()
+                .copied()
+                .filter(|skill_id| {
+                    self.skills.get(skill_id).is_some_and(|skill| {
+                        skill.step == 0
+                            && skill.value == 0
+                            && skill.maximum == 0
+                            && skill.profession_association
+                                == ProfessionAssociationInputLikeCpp::Unassigned
+                            && matches!(
+                                skill.state,
+                                PlayerSkillPersistenceStateLikeCpp::Unchanged
+                                    | PlayerSkillPersistenceStateLikeCpp::Deleted
+                            )
+                    })
+                })
+                .collect(),
             race: self.race,
             class: self.class,
             level: self.level,

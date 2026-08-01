@@ -40045,6 +40045,7 @@ impl WorldSession {
 
     /// Set the logged-in player GUID.
     pub fn set_player_guid(&mut self, guid: Option<ObjectGuid>) {
+        let previous_player_guid = self.player_guid;
         let player_changed = self.player_guid != guid;
         self.player_guid = guid;
         if player_changed {
@@ -40055,10 +40056,14 @@ impl WorldSession {
             self.gossip_options.clear();
             self.represented_spell_acquisition_post_commit_actions_like_cpp
                 .clear();
-            self.represented_fallback_player_spell_rows_like_cpp.clear();
+            if previous_player_guid.is_some() {
+                self.represented_fallback_player_spell_rows_like_cpp.clear();
+            }
             // `_SaveSkills` tombstones belong to the current C++ Player's
             // update-field slots, not to the authenticated WorldSession.
-            self.player_skill_non_durable_tombstones_like_cpp.clear();
+            if previous_player_guid.is_some() {
+                self.player_skill_non_durable_tombstones_like_cpp.clear();
+            }
         }
         if let Some(guid) = guid {
             self.recent_player_guid_low_like_cpp = guid.counter() as u64;

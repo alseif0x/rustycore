@@ -143,6 +143,10 @@ pub(crate) struct PlayerSpellAcquisitionSnapshotLikeCpp {
     /// Complete active primary-profession membership derived from SkillLine
     /// authority for this exact snapshot.
     pub primary_profession_skill_ids: Vec<u32>,
+    /// Sorted identities of C++ skill slots whose `SKILL_DELETED` deletion was
+    /// already saved. Their in-memory zero row is retained as `Unchanged`, but
+    /// must not be recreated in `character_skills` until SetSkill reactivates it.
+    pub non_durable_skill_tombstone_ids: Vec<u32>,
     pub race: u8,
     pub class: u8,
     pub level: u8,
