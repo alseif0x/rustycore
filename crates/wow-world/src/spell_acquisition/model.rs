@@ -353,7 +353,13 @@ pub(crate) struct SpellAcquisitionPlanLikeCpp {
     /// exact-known LearnSpell still advances its quest objective). The
     /// application requires an exact action projection, including order and
     /// duplicate SkillLineAbility rows.
-    pub publication_requirements: Vec<SpellAcquisitionPublicationRequirementLikeCpp>,
+    // This field is deliberately confined to the spell-acquisition capsule.
+    // Crate callers may tailor ordinary post-commit consumers, but must not be
+    // able to replace both those actions and their planner-owned authority
+    // tape with matching fabricated values. `application` only reads this
+    // tape to validate the public action projection; `planner` is its sole
+    // production writer.
+    pub(super) publication_requirements: Vec<SpellAcquisitionPublicationRequirementLikeCpp>,
     pub profession_association_inputs: Vec<PlayerSkillAcquisitionRowLikeCpp>,
     pub post_commit_actions: Vec<SpellAcquisitionPostCommitActionLikeCpp>,
     pub diagnostics: Vec<SpellAcquisitionDiagnosticLikeCpp>,
@@ -361,7 +367,7 @@ pub(crate) struct SpellAcquisitionPlanLikeCpp {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum SpellAcquisitionPublicationRequirementLikeCpp {
+pub(super) enum SpellAcquisitionPublicationRequirementLikeCpp {
     LearnedSpell {
         spell_id: u32,
         favorite: bool,
@@ -381,6 +387,33 @@ pub(crate) enum SpellAcquisitionPublicationRequirementLikeCpp {
     UpdateLearnOrKnowSpellCriteria {
         spell_id: u32,
     },
+}
+
+#[cfg(test)]
+impl SpellAcquisitionPlanLikeCpp {
+    /// Minimal no-op plan fixture for tests outside the spell-acquisition
+    /// module. Production callers intentionally have no constructor or setter
+    /// for the planner-owned publication authority tape.
+    pub(crate) fn no_publications_for_test_like_cpp(
+        root: SpellAcquisitionRootLikeCpp,
+        source_snapshot: PlayerSpellAcquisitionSnapshotLikeCpp,
+        root_primary_profession_skill_ids: Vec<u32>,
+    ) -> Self {
+        Self {
+            root,
+            resulting_snapshot: source_snapshot.clone(),
+            source_snapshot,
+            mutations: Vec::new(),
+            spell_transitions: Vec::new(),
+            skill_transitions: Vec::new(),
+            override_transitions: Vec::new(),
+            root_primary_profession_skill_ids,
+            publication_requirements: Vec::new(),
+            profession_association_inputs: Vec::new(),
+            post_commit_actions: Vec::new(),
+            diagnostics: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

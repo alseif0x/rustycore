@@ -304,20 +304,11 @@ mod tests {
             future_player_condition_resolutions: Vec::new(),
             cast_resolutions: BTreeMap::new(),
         };
-        SpellAcquisitionPlanLikeCpp {
+        SpellAcquisitionPlanLikeCpp::no_publications_for_test_like_cpp(
             root,
-            source_snapshot: source_snapshot.clone(),
-            mutations: Vec::new(),
-            spell_transitions: Vec::new(),
-            skill_transitions: Vec::new(),
-            override_transitions: Vec::new(),
-            root_primary_profession_skill_ids: professions,
-            publication_requirements: Vec::new(),
-            profession_association_inputs: Vec::new(),
-            post_commit_actions: Vec::new(),
-            diagnostics: Vec::new(),
-            resulting_snapshot: source_snapshot,
-        }
+            source_snapshot,
+            professions,
+        )
     }
 
     fn capacity_plan(new_professions: Vec<u32>) -> PrimaryProfessionCapacityPlanLikeCpp {
