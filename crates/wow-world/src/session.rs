@@ -28736,7 +28736,7 @@ impl WorldSession {
             .is_empty()
         {
             plan.statements
-                .extend(Self::character_spell_save_statements_like_cpp(
+                .extend(Self::character_spell_fallback_save_statements_like_cpp(
                     guid_counter,
                     self.represented_fallback_player_spell_rows_like_cpp
                         .values()
@@ -30504,6 +30504,19 @@ impl WorldSession {
         stmt
     }
 
+    fn build_character_spell_fallback_upsert_statement_like_cpp(
+        guid_counter: u64,
+        spell: RepresentedPlayerSpellLikeCpp,
+    ) -> PreparedStatement {
+        let mut stmt =
+            PreparedStatement::new(CharStatements::UPSERT_CHAR_SPELL_LEARN_FALLBACK.sql());
+        stmt.set_u64(0, guid_counter);
+        stmt.set_i32(1, spell.spell_id);
+        stmt.set_bool(2, spell.active);
+        stmt.set_bool(3, false);
+        stmt
+    }
+
     #[allow(dead_code)]
     pub(crate) fn build_character_spell_favorite_delete_statement_like_cpp(
         guid_counter: u64,
@@ -30587,6 +30600,35 @@ impl WorldSession {
         }
 
         statements
+    }
+
+    /// Persist a direct C++ `LearnSpell` result when Rust has not yet hydrated
+    /// the complete `PlayerSpellMap`. The DB row is the missing authority:
+    /// preserve its active bit if it was disabled, activate it otherwise, and
+    /// clear disabled. Favorites are deliberately untouched because learning
+    /// preserves them and the incomplete runtime cannot reconstruct them.
+    fn character_spell_fallback_save_statements_like_cpp(
+        guid_counter: u64,
+        spells: impl IntoIterator<Item = RepresentedPlayerSpellLikeCpp>,
+    ) -> Vec<PreparedStatement> {
+        let mut spells = spells.into_iter().collect::<Vec<_>>();
+        spells.sort_by_key(|spell| spell.spell_id);
+        spells
+            .into_iter()
+            .map(|spell| {
+                if spell.dependent {
+                    Self::build_character_spell_delete_by_spell_statement_like_cpp(
+                        guid_counter,
+                        spell.spell_id,
+                    )
+                } else {
+                    Self::build_character_spell_fallback_upsert_statement_like_cpp(
+                        guid_counter,
+                        spell,
+                    )
+                }
+            })
+            .collect()
     }
 
     pub(crate) fn build_character_spell_cooldown_insert_statement_like_cpp(
@@ -41117,12 +41159,37 @@ impl WorldSession {
 
         // A coherent load must not erase a dirty base grant produced earlier
         // in this same Player lifetime while ancillary planner authority was
-        // unavailable. The dirty row remains pending until SaveToDB commits.
-        exact_rows.extend(
-            self.represented_fallback_player_spell_rows_like_cpp
-                .iter()
-                .map(|(spell_id, row)| (*spell_id, *row)),
-        );
+        // unavailable. Reconcile it against the newly authoritative row using
+        // C++ `Player::LearnSpell`: disabled rows preserve active, other rows
+        // become active, and favorite/dependent state comes from the load.
+        for (&spell_id, &fallback) in &self.represented_fallback_player_spell_rows_like_cpp {
+            let reconciled = if let Some(loaded) = exact_rows.get(&spell_id).copied() {
+                let active = if loaded.disabled { loaded.active } else { true };
+                RepresentedPlayerSpellLikeCpp {
+                    active,
+                    disabled: false,
+                    state: match loaded.state {
+                        RepresentedPlayerSpellStateLikeCpp::New => {
+                            RepresentedPlayerSpellStateLikeCpp::New
+                        }
+                        RepresentedPlayerSpellStateLikeCpp::Removed => {
+                            RepresentedPlayerSpellStateLikeCpp::Changed
+                        }
+                        RepresentedPlayerSpellStateLikeCpp::Temporary => {
+                            RepresentedPlayerSpellStateLikeCpp::New
+                        }
+                        _ if loaded.disabled || loaded.active != active => {
+                            RepresentedPlayerSpellStateLikeCpp::Changed
+                        }
+                        _ => loaded.state,
+                    },
+                    ..loaded
+                }
+            } else {
+                fallback
+            };
+            exact_rows.insert(spell_id, reconciled);
+        }
 
         self.represented_player_spell_rows_like_cpp = exact_rows;
         self.represented_player_spell_rows_loaded_like_cpp = true;
@@ -111680,12 +111747,12 @@ mod tests {
             }],
             "the shallow C++-faithful grant remains dirty without claiming complete map authority"
         );
-        let save_statements = WorldSession::character_spell_save_statements_like_cpp(
+        let save_statements = WorldSession::character_spell_fallback_save_statements_like_cpp(
             player_guid.counter() as u64,
             fallback_rows,
         );
         assert!(save_statements.iter().any(|statement| {
-            statement.sql() == CharStatements::INS_CHAR_SPELL.sql()
+            statement.sql() == CharStatements::UPSERT_CHAR_SPELL_LEARN_FALLBACK.sql()
                 && matches!(
                     statement.params().get(1),
                     Some(wow_database::SqlParam::I32(spell_id)) if *spell_id == learned_spell_id
@@ -111811,6 +111878,95 @@ mod tests {
         assert_eq!(
             drain_server_opcodes(&send_rx),
             vec![ServerOpcodes::LearnedSpells]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_learn_spell_fallback_reconciles_later_complete_row_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let learned_spell_id = 13_342_i32;
+        let player_guid = ObjectGuid::create_player(1, 76);
+        session.set_player_guid(Some(player_guid));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            learned_spell_id,
+            wow_data::SpellInfo {
+                spell_id: learned_spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: Vec::new(),
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+        assert!(
+            session
+                .apply_learn_spell_effect_like_cpp(learned_spell_id, player_guid)
+                .await
+        );
+        assert!(
+            session
+                .represented_fallback_player_spell_rows_like_cpp
+                .contains_key(&learned_spell_id)
+        );
+
+        assert!(
+            session.set_complete_represented_player_spell_rows_like_cpp([
+                RepresentedPlayerSpellLikeCpp {
+                    spell_id: learned_spell_id,
+                    active: false,
+                    disabled: true,
+                    dependent: false,
+                    favorite: true,
+                    state: RepresentedPlayerSpellStateLikeCpp::Unchanged,
+                },
+            ])
+        );
+
+        let reconciled = session
+            .represented_player_spell_rows_like_cpp
+            .get(&learned_spell_id)
+            .copied()
+            .expect("the hydrated DB row must retain the pending runtime grant");
+        assert_eq!(
+            reconciled,
+            RepresentedPlayerSpellLikeCpp {
+                spell_id: learned_spell_id,
+                active: false,
+                disabled: false,
+                dependent: false,
+                favorite: true,
+                state: RepresentedPlayerSpellStateLikeCpp::Changed,
+            }
+        );
+        let statements = WorldSession::character_spell_save_statements_like_cpp(
+            player_guid.counter() as u64,
+            [reconciled],
+        );
+        assert_eq!(
+            statements
+                .iter()
+                .map(|statement| statement.sql())
+                .collect::<Vec<_>>(),
+            vec![
+                CharStatements::DEL_CHAR_SPELL_BY_SPELL.sql(),
+                CharStatements::INS_CHAR_SPELL.sql(),
+                CharStatements::DEL_CHAR_SPELL_FAVORITE.sql(),
+                CharStatements::INS_CHAR_SPELL_FAVORITE.sql(),
+            ],
+            "once hydrated, C++-style delete/insert persistence is safe and preserves favorite"
+        );
+        assert_eq!(
+            statements[1].params()[2],
+            wow_database::SqlParam::Bool(false),
+            "a disabled DB row preserves its inactive bit when the pending grant is reconciled"
         );
     }
 
