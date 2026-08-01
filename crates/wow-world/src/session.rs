@@ -28729,7 +28729,7 @@ impl WorldSession {
             );
         }
 
-        if self.player_skill_records_loaded_like_cpp() {
+        if self.has_complete_player_skill_save_authority_like_cpp() {
             plan.statements
                 .extend(self.character_skill_save_statements_like_cpp(guid_counter));
             plan.player_skills_committed_like_cpp = true;
@@ -28737,7 +28737,7 @@ impl WorldSession {
             warn!(
                 account = self.account_id,
                 player_guid = ?self.player_guid(),
-                "Skipping represented player skill save because character_skills were not loaded coherently"
+                "Skipping represented player skill save because complete character_skills slot authority is unavailable"
             );
         }
 
@@ -31008,11 +31008,11 @@ impl WorldSession {
     }
 
     async fn save_player_skills_like_cpp(&self) {
-        if !self.player_skill_records_loaded_like_cpp() {
+        if !self.has_complete_player_skill_save_authority_like_cpp() {
             warn!(
                 account = self.account_id,
                 player_guid = ?self.player_guid(),
-                "Skipping represented player skill save because character_skills were not loaded coherently"
+                "Skipping represented player skill save because complete character_skills slot authority is unavailable"
             );
             return;
         }
@@ -41928,6 +41928,12 @@ impl WorldSession {
             .then(|| self.player_skill_records_like_cpp())
     }
 
+    fn has_complete_player_skill_save_authority_like_cpp(&self) -> bool {
+        self.complete_player_skill_records_like_cpp()
+            .zip(self.complete_player_skill_occupied_slots_like_cpp())
+            .is_some_and(|(skills, occupied_slots)| skills.len() == usize::from(occupied_slots))
+    }
+
     fn set_represented_player_skill_like_cpp(
         &mut self,
         skill_id: u16,
@@ -43496,6 +43502,10 @@ impl WorldSession {
             player.unit_mut().set_can_dual_wield_like_cpp(true);
         })
         .is_some()
+    }
+
+    pub(crate) fn has_canonical_player_for_spell_acquisition_like_cpp(&self) -> bool {
+        self.canonical_player_snapshot_like_cpp(|_| ()).is_some()
     }
 
     pub(crate) fn sync_player_currencies_like_cpp(&mut self) {
@@ -66099,7 +66109,9 @@ mod tests {
         session.set_player_guid(Some(first_player));
         session.set_player_trainer_interaction_like_cpp(trainer, 77);
         session.record_spell_acquisition_post_commit_action_like_cpp(
-            crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp::UpdateMountCapability,
+            crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp::UpdateMountCapability {
+                skill_id: u32::from(SKILL_RIDING_LIKE_CPP),
+            },
         );
         session.gossip_options.push(GossipOptionInfo {
             gossip_option_id: 1,
@@ -116908,17 +116920,20 @@ mod tests {
         session.set_player_xp_like_cpp(12_345);
         session.set_player_gold_like_cpp(67_890);
         session.set_loaded_player_powers_like_cpp([321, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
-        session.set_player_skill_records_like_cpp(HashMap::from([(
-            762,
-            RepresentedPlayerSkillLikeCpp {
-                skill_id: 762,
-                step: 1,
-                value: 75,
-                max: 75,
-                profession_slot: -1,
-                state: RepresentedPlayerSkillStateLikeCpp::Unchanged,
-            },
-        )]));
+        assert!(session.set_complete_player_skill_records_like_cpp(
+            HashMap::from([(
+                762,
+                RepresentedPlayerSkillLikeCpp {
+                    skill_id: 762,
+                    step: 1,
+                    value: 75,
+                    max: 75,
+                    profession_slot: -1,
+                    state: RepresentedPlayerSkillStateLikeCpp::Unchanged,
+                },
+            )]),
+            1,
+        ));
         session.player_quests.insert(
             8_888,
             crate::handlers::quest::PlayerQuestStatus {
@@ -117217,6 +117232,66 @@ mod tests {
                 .expect("reputation state")
                 .need_save
         );
+    }
+
+    #[test]
+    fn player_save_requires_complete_skill_authority_before_delete_all_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let guid = ObjectGuid::create_player(1, 5012);
+        let snapshot = PlayerSaveToDbSnapshotLikeCpp {
+            guid,
+            map_id: 571,
+            instance_id: 7,
+            position: Position::new(11.0, 22.0, 33.0, 1.5),
+            level: 70,
+            xp: 12_345,
+            money: 67_890,
+            health: 444,
+            max_health: 555,
+            powers: loaded_character_power_snapshot_like_cpp([321, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+        };
+        session.set_player_guid(Some(guid));
+        let skill = RepresentedPlayerSkillLikeCpp {
+            skill_id: 164,
+            step: 1,
+            value: 75,
+            max: 150,
+            profession_slot: -1,
+            state: RepresentedPlayerSkillStateLikeCpp::Changed,
+        };
+        session.set_player_skill_records_like_cpp(HashMap::from([(skill.skill_id, skill)]));
+        assert!(session.player_skill_records_loaded_like_cpp());
+        assert!(session.complete_player_skill_records_like_cpp().is_none());
+
+        let partial_plan = session
+            .current_player_save_to_db_statement_plan_like_cpp(&snapshot, 1_000)
+            .expect("partial skill authority skips the table instead of blocking other saves");
+        assert!(!partial_plan.player_skills_committed_like_cpp);
+        assert!(
+            !partial_plan
+                .statements
+                .iter()
+                .any(|statement| statement.sql() == CharStatements::DEL_CHAR_SKILLS.sql())
+        );
+
+        assert!(session.set_complete_player_skill_records_like_cpp(
+            HashMap::from([(skill.skill_id, skill)]),
+            1,
+        ));
+        let complete_plan = session
+            .current_player_save_to_db_statement_plan_like_cpp(&snapshot, 1_000)
+            .expect("complete skill authority is safe to persist");
+        assert!(complete_plan.player_skills_committed_like_cpp);
+        assert!(
+            complete_plan
+                .statements
+                .iter()
+                .any(|statement| statement.sql() == CharStatements::DEL_CHAR_SKILLS.sql())
+        );
+        assert!(complete_plan.statements.iter().any(|statement| {
+            statement.sql() == CharStatements::INS_CHAR_SKILLS.sql()
+                && statement.params().get(1) == Some(&wow_database::SqlParam::U16(164))
+        }));
     }
 
     #[test]

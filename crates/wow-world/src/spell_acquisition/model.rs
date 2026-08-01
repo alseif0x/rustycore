@@ -239,6 +239,8 @@ pub(crate) enum SpellAcquisitionPostCommitActionLikeCpp {
     },
     GrantDualWield {
         source_spell_id: u32,
+        effect_record_id: u32,
+        effect_index: u8,
     },
     RefreshPassive {
         spell_id: u32,
@@ -247,15 +249,19 @@ pub(crate) enum SpellAcquisitionPostCommitActionLikeCpp {
         spell_id: u32,
     },
     UpdateLearnTradeskillSkillLineCriteria {
+        source_spell_id: u32,
         skill_id: u32,
     },
     UpdateLearnSpellFromSkillLineCriteria {
+        source_spell_id: u32,
         skill_id: u32,
     },
     UpdateLearnOrKnowSpellCriteria {
         spell_id: u32,
     },
-    UpdateMountCapability,
+    UpdateMountCapability {
+        skill_id: u32,
+    },
     UpdateSkillRaisedCriteria {
         skill_id: u32,
     },
@@ -288,6 +294,11 @@ pub(crate) enum SpellAcquisitionDiagnosticLikeCpp {
     AcquisitionCastProjected {
         spell_id: u32,
         reason: PlannedAcquisitionCastReasonLikeCpp,
+    },
+    DualWieldEffectProjected {
+        spell_id: u32,
+        effect_record_id: u32,
+        effect_index: u8,
     },
     CastStoppedBeforeImmediatePhase {
         spell_id: u32,

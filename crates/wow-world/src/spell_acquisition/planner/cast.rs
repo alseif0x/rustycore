@@ -309,9 +309,18 @@ impl SpellAcquisitionPlannerLikeCpp<'_> {
                     self.apply_cast_skill_effect_like_cpp(spell_id, effect, provenance)?;
                 }
                 SPELL_EFFECT_DUAL_WIELD => {
+                    self.diagnostics.push(
+                        SpellAcquisitionDiagnosticLikeCpp::DualWieldEffectProjected {
+                            spell_id,
+                            effect_record_id: effect.record_id,
+                            effect_index,
+                        },
+                    );
                     self.post_commit_actions.push(
                         SpellAcquisitionPostCommitActionLikeCpp::GrantDualWield {
                             source_spell_id: spell_id,
+                            effect_record_id: effect.record_id,
+                            effect_index,
                         },
                     );
                 }

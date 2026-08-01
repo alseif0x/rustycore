@@ -125,6 +125,7 @@ pub(crate) enum PlayerSpellAcquisitionPrepareErrorLikeCpp {
     ProfessionInputsMismatch,
     ProfessionPlanMismatch(&'static str),
     InvalidPostCommitAction { domain: &'static str, id: u32 },
+    PostCommitActionCausalityMismatch { action: &'static str, id: u32 },
     LearnedActionRowMismatch(u32),
     ProvenanceMismatch(&'static str),
 }
@@ -486,8 +487,74 @@ fn validate_post_commit_actions_like_cpp(
     plan: &SpellAcquisitionPlanLikeCpp,
 ) -> Result<(), PlayerSpellAcquisitionPrepareErrorLikeCpp> {
     let resulting_spells = spell_map_like_cpp(&plan.resulting_snapshot)?;
-    for action in &plan.post_commit_actions {
-        let (domain, id, u16_required) = match action {
+    let resulting_skills = skill_map_like_cpp(&plan.resulting_snapshot)?;
+    let root_spell_id = match plan.root {
+        SpellAcquisitionRootLikeCpp::DirectLearn(spell_id)
+        | SpellAcquisitionRootLikeCpp::TrainerWrapperCast(spell_id) => spell_id,
+    };
+    let spell_transition_exists = |spell_id| {
+        plan.spell_transitions
+            .iter()
+            .any(|transition| transition.spell_id == spell_id)
+    };
+    let spell_transition_removes_or_deactivates = |spell_id| {
+        plan.spell_transitions.iter().any(|transition| {
+            transition.spell_id == spell_id
+                && transition.after.is_none_or(|after| {
+                    after.state == PlayerSpellPersistenceStateLikeCpp::Removed
+                        || !after.active
+                        || after.disabled
+                })
+        })
+    };
+    let resulting_spell_is_present = |spell_id| {
+        resulting_spells
+            .get(&spell_id)
+            .is_some_and(|spell| spell.state != PlayerSpellPersistenceStateLikeCpp::Removed)
+    };
+    let resulting_spell_is_active = |spell_id| {
+        resulting_spells.get(&spell_id).is_some_and(|spell| {
+            spell.state != PlayerSpellPersistenceStateLikeCpp::Removed
+                && spell.active
+                && !spell.disabled
+        })
+    };
+    let resulting_spell_is_inactive = |spell_id| {
+        !resulting_spells.get(&spell_id).is_some_and(|spell| {
+            spell.state != PlayerSpellPersistenceStateLikeCpp::Removed
+                && spell.active
+                && !spell.disabled
+        })
+    };
+    let skill_transition_exists = |skill_id| {
+        plan.skill_transitions
+            .iter()
+            .any(|transition| transition.skill_id == skill_id)
+    };
+    let mut dual_wield_effect_evidence = BTreeMap::<(u32, u32, u8), usize>::new();
+    for diagnostic in &plan.diagnostics {
+        if let SpellAcquisitionDiagnosticLikeCpp::DualWieldEffectProjected {
+            spell_id,
+            effect_record_id,
+            effect_index,
+        } = diagnostic
+        {
+            *dual_wield_effect_evidence
+                .entry((*spell_id, *effect_record_id, *effect_index))
+                .or_default() += 1;
+        }
+    }
+
+    for (action_index, action) in plan.post_commit_actions.iter().enumerate() {
+        let mismatch = |action, id| {
+            Err(
+                PlayerSpellAcquisitionPrepareErrorLikeCpp::PostCommitActionCausalityMismatch {
+                    action,
+                    id,
+                },
+            )
+        };
+        match action {
             SpellAcquisitionPostCommitActionLikeCpp::LearnedSpell {
                 spell_id, favorite, ..
             } => {
@@ -513,50 +580,198 @@ fn validate_post_commit_actions_like_cpp(
                         ),
                     );
                 }
-                ("spell", *spell_id, false)
             }
             SpellAcquisitionPostCommitActionLikeCpp::SupersededSpell {
                 old_spell_id,
                 new_spell_id,
             } => {
-                if *old_spell_id == 0 || i32::try_from(*old_spell_id).is_err() {
-                    return Err(
-                        PlayerSpellAcquisitionPrepareErrorLikeCpp::InvalidPostCommitAction {
-                            domain: "spell",
-                            id: *old_spell_id,
-                        },
-                    );
+                for spell_id in [*old_spell_id, *new_spell_id] {
+                    if spell_id == 0 || i32::try_from(spell_id).is_err() {
+                        return Err(
+                            PlayerSpellAcquisitionPrepareErrorLikeCpp::InvalidPostCommitAction {
+                                domain: "spell",
+                                id: spell_id,
+                            },
+                        );
+                    }
                 }
-                ("spell", *new_spell_id, false)
+                if old_spell_id == new_spell_id
+                    || !spell_transition_removes_or_deactivates(*old_spell_id)
+                    || !resulting_spell_is_inactive(*old_spell_id)
+                    || !resulting_spell_is_active(*new_spell_id)
+                {
+                    return mismatch("SupersededSpell", *old_spell_id);
+                }
             }
-            SpellAcquisitionPostCommitActionLikeCpp::UnlearnedSpell { spell_id }
-            | SpellAcquisitionPostCommitActionLikeCpp::RefreshPassive { spell_id }
-            | SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnSpellQuestObjective {
-                spell_id,
+            SpellAcquisitionPostCommitActionLikeCpp::UnlearnedSpell { spell_id } => {
+                validate_post_commit_id_like_cpp("spell", *spell_id, false)?;
+                if !spell_transition_removes_or_deactivates(*spell_id)
+                    || !resulting_spell_is_inactive(*spell_id)
+                {
+                    return mismatch("UnlearnedSpell", *spell_id);
+                }
             }
-            | SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnOrKnowSpellCriteria {
+            SpellAcquisitionPostCommitActionLikeCpp::RefreshPassive { spell_id } => {
+                validate_post_commit_id_like_cpp("spell", *spell_id, false)?;
+                if !spell_transition_exists(*spell_id) || !resulting_spell_is_present(*spell_id) {
+                    return mismatch("RefreshPassive", *spell_id);
+                }
+            }
+            SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnSpellQuestObjective {
                 spell_id,
-            } => ("spell", *spell_id, false),
-            SpellAcquisitionPostCommitActionLikeCpp::GrantDualWield { source_spell_id } => {
-                ("spell", *source_spell_id, false)
+            } => {
+                validate_post_commit_id_like_cpp("spell", *spell_id, false)?;
+                let exact_action_only_root = plan.mutations.is_empty()
+                    && root_spell_id == *spell_id
+                    && matches!(plan.root, SpellAcquisitionRootLikeCpp::DirectLearn(_));
+                if !resulting_spell_is_present(*spell_id)
+                    || (!spell_transition_exists(*spell_id) && !exact_action_only_root)
+                {
+                    return mismatch("UpdateLearnSpellQuestObjective", *spell_id);
+                }
+            }
+            SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnOrKnowSpellCriteria {
+                spell_id,
+            } => {
+                validate_post_commit_id_like_cpp("spell", *spell_id, false)?;
+                if !spell_transition_exists(*spell_id) || !resulting_spell_is_present(*spell_id) {
+                    return mismatch("UpdateLearnOrKnowSpellCriteria", *spell_id);
+                }
+            }
+            SpellAcquisitionPostCommitActionLikeCpp::GrantDualWield {
+                source_spell_id,
+                effect_record_id,
+                effect_index,
+            } => {
+                validate_post_commit_id_like_cpp("spell", *source_spell_id, false)?;
+                let evidence_count = dual_wield_effect_evidence.get_mut(&(
+                    *source_spell_id,
+                    *effect_record_id,
+                    *effect_index,
+                ));
+                if *effect_record_id == 0
+                    || !evidence_count.is_some_and(|count| {
+                        if *count == 0 {
+                            false
+                        } else {
+                            *count -= 1;
+                            true
+                        }
+                    })
+                {
+                    return mismatch("GrantDualWield", *source_spell_id);
+                }
             }
             SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnTradeskillSkillLineCriteria {
+                source_spell_id,
                 skill_id,
+            } => {
+                validate_post_commit_id_like_cpp("spell", *source_spell_id, false)?;
+                validate_post_commit_id_like_cpp("skill", *skill_id, true)?;
+                let paired = plan.post_commit_actions.get(action_index + 1).is_some_and(
+                    |next| {
+                        matches!(
+                            next,
+                            SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnSpellFromSkillLineCriteria {
+                                source_spell_id: next_source_spell_id,
+                                skill_id: next_skill_id,
+                            } if next_source_spell_id == source_spell_id && next_skill_id == skill_id
+                        )
+                    },
+                );
+                if !paired
+                    || !spell_transition_exists(*source_spell_id)
+                    || !resulting_spell_is_present(*source_spell_id)
+                {
+                    return mismatch("tradeskill skill-line criteria", *source_spell_id);
+                }
             }
-            | SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnSpellFromSkillLineCriteria {
+            SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnSpellFromSkillLineCriteria {
+                source_spell_id,
                 skill_id,
+            } => {
+                validate_post_commit_id_like_cpp("spell", *source_spell_id, false)?;
+                validate_post_commit_id_like_cpp("skill", *skill_id, true)?;
+                let paired = action_index.checked_sub(1).is_some_and(|previous_index| {
+                    matches!(
+                        &plan.post_commit_actions[previous_index],
+                        SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnTradeskillSkillLineCriteria {
+                            source_spell_id: previous_source_spell_id,
+                            skill_id: previous_skill_id,
+                        } if previous_source_spell_id == source_spell_id && previous_skill_id == skill_id
+                    )
+                });
+                let continues_same_spell_block = plan
+                    .post_commit_actions
+                    .get(action_index + 1)
+                    .is_some_and(|next| {
+                        matches!(
+                            next,
+                            SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnTradeskillSkillLineCriteria {
+                                source_spell_id: next_source_spell_id,
+                                ..
+                            } | SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnOrKnowSpellCriteria {
+                                spell_id: next_source_spell_id,
+                            } if next_source_spell_id == source_spell_id
+                        )
+                    });
+                if !paired
+                    || !continues_same_spell_block
+                    || !spell_transition_exists(*source_spell_id)
+                    || !resulting_spell_is_present(*source_spell_id)
+                {
+                    return mismatch("learn-spell skill-line criteria", *source_spell_id);
+                }
             }
-            | SpellAcquisitionPostCommitActionLikeCpp::UpdateSkillRaisedCriteria { skill_id }
+            SpellAcquisitionPostCommitActionLikeCpp::UpdateMountCapability { skill_id } => {
+                validate_post_commit_id_like_cpp("skill", *skill_id, true)?;
+                if *skill_id != u32::from(crate::session::SKILL_RIDING_LIKE_CPP)
+                    || !skill_transition_exists(*skill_id)
+                    || !resulting_skills.get(skill_id).is_some_and(|skill| {
+                        skill.state != PlayerSkillPersistenceStateLikeCpp::Deleted
+                    })
+                {
+                    return mismatch("UpdateMountCapability", *skill_id);
+                }
+            }
+            SpellAcquisitionPostCommitActionLikeCpp::UpdateSkillRaisedCriteria { skill_id }
             | SpellAcquisitionPostCommitActionLikeCpp::UpdateAchieveSkillStepCriteria {
                 skill_id,
-            } => ("skill", *skill_id, true),
-            SpellAcquisitionPostCommitActionLikeCpp::UpdateMountCapability => continue,
-        };
-        if id == 0 || i32::try_from(id).is_err() || (u16_required && u16::try_from(id).is_err()) {
-            return Err(
-                PlayerSpellAcquisitionPrepareErrorLikeCpp::InvalidPostCommitAction { domain, id },
-            );
+            } => {
+                validate_post_commit_id_like_cpp("skill", *skill_id, true)?;
+                if !skill_transition_exists(*skill_id)
+                    || !resulting_skills.get(skill_id).is_some_and(|skill| {
+                        skill.state != PlayerSkillPersistenceStateLikeCpp::Deleted
+                    })
+                {
+                    return mismatch("skill action", *skill_id);
+                }
+            }
         }
+    }
+    if let Some((&(spell_id, _, _), _)) = dual_wield_effect_evidence
+        .iter()
+        .find(|(_, count)| **count != 0)
+    {
+        return Err(
+            PlayerSpellAcquisitionPrepareErrorLikeCpp::PostCommitActionCausalityMismatch {
+                action: "DualWieldEffectProjected",
+                id: spell_id,
+            },
+        );
+    }
+    Ok(())
+}
+
+fn validate_post_commit_id_like_cpp(
+    domain: &'static str,
+    id: u32,
+    u16_required: bool,
+) -> Result<(), PlayerSpellAcquisitionPrepareErrorLikeCpp> {
+    if id == 0 || i32::try_from(id).is_err() || (u16_required && u16::try_from(id).is_err()) {
+        return Err(
+            PlayerSpellAcquisitionPrepareErrorLikeCpp::InvalidPostCommitAction { domain, id },
+        );
     }
     Ok(())
 }
@@ -1149,6 +1364,7 @@ fn apply_player_spell_acquisition_runtime_snapshot_with_fault_like_cpp<F>(
 where
     F: FnMut(PlayerSpellAcquisitionPublicationFaultPointLikeCpp) -> Result<(), ()>,
 {
+    preflight_player_spell_acquisition_runtime_owners_like_cpp(session, post_commit_actions)?;
     let spell_rows = runtime_snapshot
         .spells
         .iter()
@@ -1276,12 +1492,32 @@ pub(crate) fn apply_prepared_player_spell_acquisition_actions_like_cpp(
     session: &mut crate::session::WorldSession,
     prepared: &PreparedPlayerSpellAcquisitionActionsLikeCpp,
 ) -> Result<(), PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp> {
+    preflight_player_spell_acquisition_runtime_owners_like_cpp(
+        session,
+        &prepared.post_commit_actions,
+    )?;
     publish_player_spell_acquisition_actions_with_fault_like_cpp(
         session,
         &prepared.runtime_snapshot,
         &prepared.post_commit_actions,
         |_| Ok(()),
     )
+}
+
+fn preflight_player_spell_acquisition_runtime_owners_like_cpp(
+    session: &crate::session::WorldSession,
+    post_commit_actions: &[SpellAcquisitionPostCommitActionLikeCpp],
+) -> Result<(), PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp> {
+    if post_commit_actions.iter().any(|action| {
+        matches!(
+            action,
+            SpellAcquisitionPostCommitActionLikeCpp::GrantDualWield { .. }
+        )
+    }) && !session.has_canonical_player_for_spell_acquisition_like_cpp()
+    {
+        return Err(PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp::InvalidPreparedRuntime);
+    }
+    Ok(())
 }
 
 fn publish_player_spell_acquisition_actions_with_fault_like_cpp<F>(
@@ -1294,16 +1530,6 @@ where
     F: FnMut(PlayerSpellAcquisitionPublicationFaultPointLikeCpp) -> Result<(), ()>,
 {
     session.begin_spell_acquisition_post_commit_action_batch_like_cpp();
-    if post_commit_actions.iter().any(|action| {
-        matches!(
-            action,
-            SpellAcquisitionPostCommitActionLikeCpp::GrantDualWield { .. }
-        )
-    }) && !session.grant_dual_wield_after_spell_acquisition_like_cpp()
-    {
-        return Err(PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp::InvalidPreparedRuntime);
-    }
-
     for (index, action) in post_commit_actions.iter().cloned().enumerate() {
         fault(PlayerSpellAcquisitionPublicationFaultPointLikeCpp::BeforeAction(index))
             .map_err(|()| PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp::PublicationInterrupted)?;
@@ -1341,7 +1567,13 @@ where
                 .send_packet(&wow_packet::packets::trainer::UnlearnedSpells::single(
                     spell_id, false,
                 )),
-            SpellAcquisitionPostCommitActionLikeCpp::GrantDualWield { .. } => {}
+            SpellAcquisitionPostCommitActionLikeCpp::GrantDualWield { .. } => {
+                if !session.grant_dual_wield_after_spell_acquisition_like_cpp() {
+                    return Err(
+                        PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp::InvalidPreparedRuntime,
+                    );
+                }
+            }
             SpellAcquisitionPostCommitActionLikeCpp::RefreshPassive { .. }
             | SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnSpellQuestObjective { .. }
             | SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnTradeskillSkillLineCriteria {
@@ -1351,7 +1583,7 @@ where
                 ..
             }
             | SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnOrKnowSpellCriteria { .. }
-            | SpellAcquisitionPostCommitActionLikeCpp::UpdateMountCapability
+            | SpellAcquisitionPostCommitActionLikeCpp::UpdateMountCapability { .. }
             | SpellAcquisitionPostCommitActionLikeCpp::UpdateSkillRaisedCriteria { .. }
             | SpellAcquisitionPostCommitActionLikeCpp::UpdateAchieveSkillStepCriteria { .. } => {}
         }
@@ -1804,7 +2036,9 @@ mod tests {
 
         let (mut session, send_rx) = make_session();
         session.record_spell_acquisition_post_commit_action_like_cpp(
-            SpellAcquisitionPostCommitActionLikeCpp::UpdateMountCapability,
+            SpellAcquisitionPostCommitActionLikeCpp::UpdateMountCapability {
+                skill_id: u32::from(crate::session::SKILL_RIDING_LIKE_CPP),
+            },
         );
         apply_prepared_player_spell_acquisition_actions_like_cpp(&mut session, &prepared)
             .expect("publish action-only plan");
@@ -1814,6 +2048,83 @@ mod tests {
             "the current acquisition batch replaces earlier retained intent instead of growing forever"
         );
         assert!(send_rx.is_empty());
+    }
+
+    #[test]
+    fn unrelated_publication_actions_are_rejected_before_application() {
+        let source = snapshot(Vec::new());
+        let learned = spell(100, PlayerSpellPersistenceStateLikeCpp::New);
+        let transition = PlannedSpellTransitionLikeCpp {
+            spell_id: 100,
+            before: None,
+            after: Some(learned),
+            provenance: SpellAcquisitionProvenanceLikeCpp::Root {
+                root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
+            },
+        };
+        let base_plan = SpellAcquisitionPlanLikeCpp {
+            root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
+            source_snapshot: source.clone(),
+            mutations: vec![PlannedAcquisitionMutationLikeCpp::Spell(transition.clone())],
+            spell_transitions: vec![transition],
+            skill_transitions: Vec::new(),
+            override_transitions: Vec::new(),
+            root_primary_profession_skill_ids: Vec::new(),
+            profession_association_inputs: Vec::new(),
+            post_commit_actions: Vec::new(),
+            diagnostics: Vec::new(),
+            resulting_snapshot: snapshot(vec![learned]),
+        };
+        let unrelated_actions = [
+            SpellAcquisitionPostCommitActionLikeCpp::UnlearnedSpell { spell_id: 999 },
+            SpellAcquisitionPostCommitActionLikeCpp::SupersededSpell {
+                old_spell_id: 999,
+                new_spell_id: 100,
+            },
+            SpellAcquisitionPostCommitActionLikeCpp::RefreshPassive { spell_id: 999 },
+            SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnSpellQuestObjective {
+                spell_id: 999,
+            },
+            SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnOrKnowSpellCriteria {
+                spell_id: 999,
+            },
+            SpellAcquisitionPostCommitActionLikeCpp::GrantDualWield {
+                source_spell_id: 999,
+                effect_record_id: 1,
+                effect_index: 0,
+            },
+            SpellAcquisitionPostCommitActionLikeCpp::GrantDualWield {
+                source_spell_id: 100,
+                effect_record_id: 1,
+                effect_index: 0,
+            },
+            SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnTradeskillSkillLineCriteria {
+                source_spell_id: 999,
+                skill_id: 164,
+            },
+            SpellAcquisitionPostCommitActionLikeCpp::UpdateMountCapability { skill_id: 164 },
+            SpellAcquisitionPostCommitActionLikeCpp::UpdateSkillRaisedCriteria { skill_id: 164 },
+        ];
+
+        for action in unrelated_actions {
+            let mut plan = base_plan.clone();
+            plan.post_commit_actions = vec![action.clone()];
+            assert!(
+                matches!(
+                    prepare_player_spell_acquisition_like_cpp(
+                        &plan,
+                        &no_profession_changes(),
+                        &source,
+                    ),
+                    Err(
+                        PlayerSpellAcquisitionPrepareErrorLikeCpp::PostCommitActionCausalityMismatch {
+                            ..
+                        }
+                    )
+                ),
+                "unrelated action reached the prepared boundary: {action:?}"
+            );
+        }
     }
 
     #[test]
@@ -2070,7 +2381,7 @@ mod tests {
     }
 
     #[test]
-    fn dual_wield_failure_reconciles_runtime_but_stops_before_packet_publication() {
+    fn dual_wield_missing_owner_stops_before_any_publication() {
         let source = snapshot(Vec::new());
         let learned = spell(100, PlayerSpellPersistenceStateLikeCpp::New);
         let transition = PlannedSpellTransitionLikeCpp {
@@ -2091,16 +2402,24 @@ mod tests {
             root_primary_profession_skill_ids: Vec::new(),
             profession_association_inputs: Vec::new(),
             post_commit_actions: vec![
-                SpellAcquisitionPostCommitActionLikeCpp::GrantDualWield {
-                    source_spell_id: 100,
-                },
                 SpellAcquisitionPostCommitActionLikeCpp::LearnedSpell {
                     spell_id: 100,
                     favorite: false,
                     suppress_messaging: false,
                 },
+                SpellAcquisitionPostCommitActionLikeCpp::GrantDualWield {
+                    source_spell_id: 100,
+                    effect_record_id: 7,
+                    effect_index: 0,
+                },
             ],
-            diagnostics: Vec::new(),
+            diagnostics: vec![
+                SpellAcquisitionDiagnosticLikeCpp::DualWieldEffectProjected {
+                    spell_id: 100,
+                    effect_record_id: 7,
+                    effect_index: 0,
+                },
+            ],
             resulting_snapshot: snapshot(vec![learned]),
         };
         let PreparedPlayerSpellAcquisitionOutcomeLikeCpp::Ready(prepared) =
@@ -2118,10 +2437,19 @@ mod tests {
         assert!(
             session
                 .complete_represented_player_spell_rows_like_cpp()
-                .is_some_and(|rows| rows.contains_key(&100)),
-            "the committed spell snapshot is reconciled even when its canonical side effect fails"
+                .is_none_or(|rows| !rows.contains_key(&100)),
+            "a missing required runtime owner is rejected before replacing spell authority"
         );
-        assert!(send_rx.is_empty());
+        assert!(
+            send_rx.is_empty(),
+            "a missing required runtime owner is rejected before any success packet"
+        );
+        assert!(
+            session
+                .represented_spell_acquisition_post_commit_actions_like_cpp()
+                .is_empty(),
+            "a missing required runtime owner is rejected before recording any action"
+        );
     }
 
     #[test]

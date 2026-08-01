@@ -512,11 +512,13 @@ impl SpellAcquisitionPlannerLikeCpp<'_> {
                     let skill_id = u32::from(row.skill_line);
                     self.post_commit_actions.push(
                         SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnTradeskillSkillLineCriteria {
+                            source_spell_id: spell_id,
                             skill_id,
                         },
                     );
                     self.post_commit_actions.push(
                         SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnSpellFromSkillLineCriteria {
+                            source_spell_id: spell_id,
                             skill_id,
                         },
                     );

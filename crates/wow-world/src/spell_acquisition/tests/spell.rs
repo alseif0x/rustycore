@@ -74,15 +74,19 @@ fn spell_and_skill_criteria_intents_preserve_cpp_types_order_and_duplicate_skill
                 skill_id: SKILL,
             },
             SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnTradeskillSkillLineCriteria {
+                source_spell_id: SPELL,
                 skill_id: SKILL,
             },
             SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnSpellFromSkillLineCriteria {
+                source_spell_id: SPELL,
                 skill_id: SKILL,
             },
             SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnTradeskillSkillLineCriteria {
+                source_spell_id: SPELL,
                 skill_id: SKILL,
             },
             SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnSpellFromSkillLineCriteria {
+                source_spell_id: SPELL,
                 skill_id: SKILL,
             },
             SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnOrKnowSpellCriteria {
