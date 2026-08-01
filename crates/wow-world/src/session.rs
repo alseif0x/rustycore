@@ -64285,9 +64285,12 @@ impl WorldSession {
                 .get(&trigger_spell)
                 .copied();
             let favorite = previous.is_some_and(|row| row.favorite);
+            let active = previous
+                .filter(|row| row.disabled)
+                .is_none_or(|row| row.active);
             let dirty_row = RepresentedPlayerSpellLikeCpp {
                 spell_id: trigger_spell,
-                active: true,
+                active,
                 disabled: false,
                 dependent: previous.is_some_and(|row| row.dependent),
                 favorite,
@@ -111743,6 +111746,71 @@ mod tests {
         assert_eq!(
             drain_server_opcodes(&send_rx),
             vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_learn_spell_fallback_preserves_disabled_inactive_state_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let learned_spell_id = 13_341_i32;
+        let player_guid = ObjectGuid::create_player(1, 75);
+        session.set_player_guid(Some(player_guid));
+        assert!(
+            session.set_complete_represented_player_spell_rows_like_cpp([
+                RepresentedPlayerSpellLikeCpp {
+                    spell_id: learned_spell_id,
+                    active: false,
+                    disabled: true,
+                    dependent: false,
+                    favorite: true,
+                    state: RepresentedPlayerSpellStateLikeCpp::Unchanged,
+                },
+            ])
+        );
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            learned_spell_id,
+            wow_data::SpellInfo {
+                spell_id: learned_spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: Vec::new(),
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        assert!(
+            session
+                .apply_learn_spell_effect_like_cpp(learned_spell_id, player_guid)
+                .await
+        );
+
+        assert!(session.known_spells_like_cpp().contains(&learned_spell_id));
+        assert_eq!(
+            session
+                .represented_player_spell_rows_like_cpp
+                .get(&learned_spell_id),
+            Some(&RepresentedPlayerSpellLikeCpp {
+                spell_id: learned_spell_id,
+                active: false,
+                disabled: false,
+                dependent: false,
+                favorite: true,
+                state: RepresentedPlayerSpellStateLikeCpp::Changed,
+            }),
+            "C++ Player::LearnSpell preserves active only when re-enabling a disabled row"
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::LearnedSpells]
         );
     }
 
