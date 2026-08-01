@@ -1,6 +1,56 @@
 use super::*;
 
 #[test]
+fn dual_wield_grant_requires_exact_executed_effect_authority() {
+    const WRAPPER: u32 = 200;
+    const EFFECT_RECORD: u32 = 7;
+    let metadata = MetadataFixture::new(FixtureInput {
+        spell_ids: vec![WRAPPER],
+        effects: vec![effect(EFFECT_RECORD, WRAPPER, 0, SPELL_EFFECT_DUAL_WIELD)],
+        cast_safe_spell_ids: vec![WRAPPER],
+        ..Default::default()
+    });
+    let missing_effect_authority = snapshot_with_cast(WRAPPER, true, [0]);
+    assert_eq!(
+        project_spell_acquisition_like_cpp(
+            &missing_effect_authority,
+            metadata.metadata(),
+            SpellAcquisitionRootLikeCpp::TrainerWrapperCast(WRAPPER),
+        ),
+        SpellAcquisitionOutcomeLikeCpp::Indeterminate(
+            SpellAcquisitionIndeterminateLikeCpp::InvalidCastResolution {
+                spell_id: WRAPPER,
+                effect_index: Some(0),
+            }
+        )
+    );
+
+    let mut exact_authority = missing_effect_authority;
+    exact_authority
+        .cast_resolutions
+        .get_mut(&WRAPPER)
+        .expect("cast authority")
+        .executed_dual_wield_effects
+        .push(PlayerExecutedDualWieldEffectLikeCpp {
+            effect_record_id: EFFECT_RECORD,
+            effect_index: 0,
+        });
+    let plan = deterministic(project_spell_acquisition_like_cpp(
+        &exact_authority,
+        metadata.metadata(),
+        SpellAcquisitionRootLikeCpp::TrainerWrapperCast(WRAPPER),
+    ));
+    assert_eq!(
+        plan.post_commit_actions,
+        vec![SpellAcquisitionPostCommitActionLikeCpp::GrantDualWield {
+            source_spell_id: WRAPPER,
+            effect_record_id: EFFECT_RECORD,
+            effect_index: 0,
+        }]
+    );
+}
+
+#[test]
 fn wrapper_runs_skill_step_before_two_causal_learn_effects() {
     const WRAPPER: u32 = 200;
     const SKILL: u32 = 164;

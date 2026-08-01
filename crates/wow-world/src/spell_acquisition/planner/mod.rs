@@ -226,7 +226,26 @@ impl<'a> SpellAcquisitionPlannerLikeCpp<'a> {
         for (&spell_id, resolution) in &snapshot.cast_resolutions {
             if spell_id == 0
                 || (!resolution.reached_immediate_phase
-                    && resolution.executed_hit_target_effect_mask != 0)
+                    && (resolution.executed_hit_target_effect_mask != 0
+                        || resolution
+                            .executed_dual_wield_effects
+                            .iter()
+                            .next()
+                            .is_some()))
+                || resolution.executed_dual_wield_effects.iter().any(|effect| {
+                    effect.effect_record_id == 0
+                        || effect.effect_index >= 32
+                        || resolution.executed_hit_target_effect_mask
+                            & (1_u32 << u32::from(effect.effect_index))
+                            == 0
+                })
+                || resolution
+                    .executed_dual_wield_effects
+                    .iter()
+                    .map(|effect| (effect.effect_index, effect.effect_record_id))
+                    .collect::<BTreeSet<_>>()
+                    .len()
+                    != resolution.executed_dual_wield_effects.len()
             {
                 return Err(
                     SpellAcquisitionIndeterminateLikeCpp::InvalidCastResolution {

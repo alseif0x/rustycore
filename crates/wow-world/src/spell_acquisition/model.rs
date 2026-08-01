@@ -99,9 +99,20 @@ impl PlayerAcquisitionLifecycleLikeCpp {
 /// `LEARN_SPELL` / `SKILL_STEP` effects. Static spell metadata cannot prove
 /// that outcome for an arbitrary live player.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct PlayerExecutedDualWieldEffectLikeCpp {
+    pub effect_record_id: u32,
+    pub effect_index: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PlayerCastAcquisitionResolutionLikeCpp {
     pub reached_immediate_phase: bool,
     pub executed_hit_target_effect_mask: u32,
+    /// Exact SpellEffect rows proven by the live target/effect pipeline for
+    /// executed `SPELL_EFFECT_DUAL_WIELD` hit-target effects. Keeping these on
+    /// the immutable cast authority prevents post-plan diagnostics from
+    /// inventing a grant.
+    pub executed_dual_wield_effects: Vec<PlayerExecutedDualWieldEffectLikeCpp>,
 }
 
 /// One causal evaluation of C++

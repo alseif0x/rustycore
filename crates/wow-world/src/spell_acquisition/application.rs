@@ -182,7 +182,6 @@ fn validate_plan_replay_like_cpp(
     validate_snapshot_like_cpp(&plan.source_snapshot)?;
     validate_snapshot_like_cpp(&plan.resulting_snapshot)?;
     validate_snapshot_identity_like_cpp(&plan.source_snapshot, &plan.resulting_snapshot)?;
-    validate_post_commit_actions_like_cpp(plan)?;
 
     let mut spells = spell_map_like_cpp(&plan.source_snapshot)?;
     let mut skills = skill_map_like_cpp(&plan.source_snapshot)?;
@@ -301,6 +300,11 @@ fn validate_plan_replay_like_cpp(
     {
         return Err(PlayerSpellAcquisitionPrepareErrorLikeCpp::ResultingSnapshotMismatch);
     }
+
+    // Action causality is checked only after the complete mutation stream has
+    // replayed successfully. It may then consume transition evidence by
+    // occurrence without trusting malformed typed projections.
+    validate_post_commit_actions_like_cpp(plan)?;
 
     let mut profession_inputs = plan.profession_association_inputs.clone();
     profession_inputs.sort_by_key(|skill| skill.skill_id);
@@ -492,32 +496,79 @@ fn validate_post_commit_actions_like_cpp(
         SpellAcquisitionRootLikeCpp::DirectLearn(spell_id)
         | SpellAcquisitionRootLikeCpp::TrainerWrapperCast(spell_id) => spell_id,
     };
-    let spell_transition_exists = |spell_id| {
-        plan.spell_transitions
-            .iter()
-            .any(|transition| transition.spell_id == spell_id)
-    };
-    let spell_transition_removes_or_deactivates = |spell_id| {
-        plan.spell_transitions.iter().any(|transition| {
-            transition.spell_id == spell_id
-                && transition.after.is_none_or(|after| {
-                    after.state == PlayerSpellPersistenceStateLikeCpp::Removed
-                        || !after.active
-                        || after.disabled
-                })
-        })
-    };
+    let mut learned_evidence = BTreeMap::<(u32, bool), usize>::new();
+    let mut refresh_evidence = BTreeMap::<u32, usize>::new();
+    let mut quest_evidence = BTreeMap::<u32, usize>::new();
+    let mut spell_criteria_evidence = BTreeMap::<u32, usize>::new();
+    let mut spell_transition_evidence = BTreeMap::<u32, usize>::new();
+    let mut skill_transition_evidence = BTreeMap::<u32, usize>::new();
+    let mut deactivation_evidence = Vec::<(usize, u32)>::new();
+    let mut supersede_evidence = BTreeMap::<(u32, u32), Vec<usize>>::new();
+    let mut replayed_spells = spell_map_like_cpp(&plan.source_snapshot)?;
+    let mut prior_activations = Vec::<(u32, SpellAcquisitionProvenanceLikeCpp)>::new();
+    for (transition_index, transition) in plan.spell_transitions.iter().enumerate() {
+        *spell_transition_evidence
+            .entry(transition.spell_id)
+            .or_default() += 1;
+        let before_active = transition.before.is_some_and(|before| {
+            before.state != PlayerSpellPersistenceStateLikeCpp::Removed
+                && before.active
+                && !before.disabled
+        });
+        let after_active = transition.after.is_some_and(|after| {
+            after.state != PlayerSpellPersistenceStateLikeCpp::Removed
+                && after.active
+                && !after.disabled
+        });
+        if let Some(after) = transition.after {
+            replayed_spells.insert(transition.spell_id, after);
+        } else {
+            replayed_spells.remove(&transition.spell_id);
+        }
+        if !before_active && after_active {
+            let favorite = transition.after.is_some_and(|after| after.favorite);
+            *learned_evidence
+                .entry((transition.spell_id, favorite))
+                .or_default() += 1;
+            *refresh_evidence.entry(transition.spell_id).or_default() += 1;
+            *quest_evidence.entry(transition.spell_id).or_default() += 1;
+            *spell_criteria_evidence
+                .entry(transition.spell_id)
+                .or_default() += 1;
+            prior_activations.push((transition.spell_id, transition.provenance.clone()));
+        }
+        if before_active && !after_active {
+            deactivation_evidence.push((transition_index, transition.spell_id));
+            for (candidate_spell_id, candidate_provenance) in &prior_activations {
+                if *candidate_spell_id != transition.spell_id
+                    && *candidate_provenance == transition.provenance
+                    && replayed_spells.get(candidate_spell_id).is_some_and(|row| {
+                        row.state != PlayerSpellPersistenceStateLikeCpp::Removed
+                            && row.active
+                            && !row.disabled
+                    })
+                {
+                    supersede_evidence
+                        .entry((transition.spell_id, *candidate_spell_id))
+                        .or_default()
+                        .push(transition_index);
+                }
+            }
+        }
+    }
+    for transition in &plan.skill_transitions {
+        *skill_transition_evidence
+            .entry(transition.skill_id)
+            .or_default() += 1;
+    }
+    let mut mount_skill_evidence = skill_transition_evidence.clone();
+    let mut raised_skill_evidence = skill_transition_evidence.clone();
+    let mut achieve_skill_evidence = skill_transition_evidence.clone();
+    let mut consumed_deactivations = BTreeSet::<usize>::new();
     let resulting_spell_is_present = |spell_id| {
         resulting_spells
             .get(&spell_id)
             .is_some_and(|spell| spell.state != PlayerSpellPersistenceStateLikeCpp::Removed)
-    };
-    let resulting_spell_is_active = |spell_id| {
-        resulting_spells.get(&spell_id).is_some_and(|spell| {
-            spell.state != PlayerSpellPersistenceStateLikeCpp::Removed
-                && spell.active
-                && !spell.disabled
-        })
     };
     let resulting_spell_is_inactive = |spell_id| {
         !resulting_spells.get(&spell_id).is_some_and(|spell| {
@@ -526,21 +577,14 @@ fn validate_post_commit_actions_like_cpp(
                 && !spell.disabled
         })
     };
-    let skill_transition_exists = |skill_id| {
-        plan.skill_transitions
-            .iter()
-            .any(|transition| transition.skill_id == skill_id)
-    };
     let mut dual_wield_effect_evidence = BTreeMap::<(u32, u32, u8), usize>::new();
-    for diagnostic in &plan.diagnostics {
-        if let SpellAcquisitionDiagnosticLikeCpp::DualWieldEffectProjected {
-            spell_id,
-            effect_record_id,
-            effect_index,
-        } = diagnostic
-        {
+    for (&spell_id, resolution) in &plan.source_snapshot.cast_resolutions {
+        if !resolution.reached_immediate_phase {
+            continue;
+        }
+        for effect in &resolution.executed_dual_wield_effects {
             *dual_wield_effect_evidence
-                .entry((*spell_id, *effect_record_id, *effect_index))
+                .entry((spell_id, effect.effect_record_id, effect.effect_index))
                 .or_default() += 1;
         }
     }
@@ -561,19 +605,12 @@ fn validate_post_commit_actions_like_cpp(
                 let row_matches = resulting_spells
                     .get(spell_id)
                     .is_some_and(|row| row.favorite == *favorite);
-                let transition_matches = plan.spell_transitions.iter().any(|transition| {
-                    transition.spell_id == *spell_id
-                        && transition.after.is_some_and(|after| {
-                            after.active
-                                && !after.disabled
-                                && transition.before.is_none_or(|before| {
-                                    before.state == PlayerSpellPersistenceStateLikeCpp::Removed
-                                        || before.disabled
-                                        || !before.active
-                                })
-                        })
-                });
-                if !row_matches || !transition_matches {
+                if !row_matches
+                    || !consume_action_evidence_like_cpp(
+                        &mut learned_evidence,
+                        (*spell_id, *favorite),
+                    )
+                {
                     return Err(
                         PlayerSpellAcquisitionPrepareErrorLikeCpp::LearnedActionRowMismatch(
                             *spell_id,
@@ -595,25 +632,39 @@ fn validate_post_commit_actions_like_cpp(
                         );
                     }
                 }
-                if old_spell_id == new_spell_id
-                    || !spell_transition_removes_or_deactivates(*old_spell_id)
-                    || !resulting_spell_is_inactive(*old_spell_id)
-                    || !resulting_spell_is_active(*new_spell_id)
-                {
+                let evidence_index = supersede_evidence
+                    .get_mut(&(*old_spell_id, *new_spell_id))
+                    .and_then(|indices| {
+                        indices
+                            .iter()
+                            .copied()
+                            .find(|index| !consumed_deactivations.contains(index))
+                    });
+                if old_spell_id == new_spell_id || evidence_index.is_none() {
                     return mismatch("SupersededSpell", *old_spell_id);
                 }
+                consumed_deactivations.insert(evidence_index.expect("checked above"));
             }
             SpellAcquisitionPostCommitActionLikeCpp::UnlearnedSpell { spell_id } => {
                 validate_post_commit_id_like_cpp("spell", *spell_id, false)?;
-                if !spell_transition_removes_or_deactivates(*spell_id)
-                    || !resulting_spell_is_inactive(*spell_id)
-                {
+                let evidence_index =
+                    deactivation_evidence
+                        .iter()
+                        .find_map(|(index, evidence_spell_id)| {
+                            (*evidence_spell_id == *spell_id
+                                && !consumed_deactivations.contains(index))
+                            .then_some(*index)
+                        });
+                if evidence_index.is_none() || !resulting_spell_is_inactive(*spell_id) {
                     return mismatch("UnlearnedSpell", *spell_id);
                 }
+                consumed_deactivations.insert(evidence_index.expect("checked above"));
             }
             SpellAcquisitionPostCommitActionLikeCpp::RefreshPassive { spell_id } => {
                 validate_post_commit_id_like_cpp("spell", *spell_id, false)?;
-                if !spell_transition_exists(*spell_id) || !resulting_spell_is_present(*spell_id) {
+                if !consume_action_evidence_like_cpp(&mut refresh_evidence, *spell_id)
+                    || !resulting_spell_is_present(*spell_id)
+                {
                     return mismatch("RefreshPassive", *spell_id);
                 }
             }
@@ -625,7 +676,8 @@ fn validate_post_commit_actions_like_cpp(
                     && root_spell_id == *spell_id
                     && matches!(plan.root, SpellAcquisitionRootLikeCpp::DirectLearn(_));
                 if !resulting_spell_is_present(*spell_id)
-                    || (!spell_transition_exists(*spell_id) && !exact_action_only_root)
+                    || (!consume_action_evidence_like_cpp(&mut quest_evidence, *spell_id)
+                        && !exact_action_only_root)
                 {
                     return mismatch("UpdateLearnSpellQuestObjective", *spell_id);
                 }
@@ -634,7 +686,9 @@ fn validate_post_commit_actions_like_cpp(
                 spell_id,
             } => {
                 validate_post_commit_id_like_cpp("spell", *spell_id, false)?;
-                if !spell_transition_exists(*spell_id) || !resulting_spell_is_present(*spell_id) {
+                if !consume_action_evidence_like_cpp(&mut spell_criteria_evidence, *spell_id)
+                    || !resulting_spell_is_present(*spell_id)
+                {
                     return mismatch("UpdateLearnOrKnowSpellCriteria", *spell_id);
                 }
             }
@@ -680,7 +734,7 @@ fn validate_post_commit_actions_like_cpp(
                     },
                 );
                 if !paired
-                    || !spell_transition_exists(*source_spell_id)
+                    || !spell_transition_evidence.contains_key(source_spell_id)
                     || !resulting_spell_is_present(*source_spell_id)
                 {
                     return mismatch("tradeskill skill-line criteria", *source_spell_id);
@@ -717,7 +771,7 @@ fn validate_post_commit_actions_like_cpp(
                     });
                 if !paired
                     || !continues_same_spell_block
-                    || !spell_transition_exists(*source_spell_id)
+                    || !spell_transition_evidence.contains_key(source_spell_id)
                     || !resulting_spell_is_present(*source_spell_id)
                 {
                     return mismatch("learn-spell skill-line criteria", *source_spell_id);
@@ -726,7 +780,7 @@ fn validate_post_commit_actions_like_cpp(
             SpellAcquisitionPostCommitActionLikeCpp::UpdateMountCapability { skill_id } => {
                 validate_post_commit_id_like_cpp("skill", *skill_id, true)?;
                 if *skill_id != u32::from(crate::session::SKILL_RIDING_LIKE_CPP)
-                    || !skill_transition_exists(*skill_id)
+                    || !consume_action_evidence_like_cpp(&mut mount_skill_evidence, *skill_id)
                     || !resulting_skills.get(skill_id).is_some_and(|skill| {
                         skill.state != PlayerSkillPersistenceStateLikeCpp::Deleted
                     })
@@ -734,12 +788,21 @@ fn validate_post_commit_actions_like_cpp(
                     return mismatch("UpdateMountCapability", *skill_id);
                 }
             }
-            SpellAcquisitionPostCommitActionLikeCpp::UpdateSkillRaisedCriteria { skill_id }
-            | SpellAcquisitionPostCommitActionLikeCpp::UpdateAchieveSkillStepCriteria {
+            SpellAcquisitionPostCommitActionLikeCpp::UpdateSkillRaisedCriteria { skill_id } => {
+                validate_post_commit_id_like_cpp("skill", *skill_id, true)?;
+                if !consume_action_evidence_like_cpp(&mut raised_skill_evidence, *skill_id)
+                    || !resulting_skills.get(skill_id).is_some_and(|skill| {
+                        skill.state != PlayerSkillPersistenceStateLikeCpp::Deleted
+                    })
+                {
+                    return mismatch("skill action", *skill_id);
+                }
+            }
+            SpellAcquisitionPostCommitActionLikeCpp::UpdateAchieveSkillStepCriteria {
                 skill_id,
             } => {
                 validate_post_commit_id_like_cpp("skill", *skill_id, true)?;
-                if !skill_transition_exists(*skill_id)
+                if !consume_action_evidence_like_cpp(&mut achieve_skill_evidence, *skill_id)
                     || !resulting_skills.get(skill_id).is_some_and(|skill| {
                         skill.state != PlayerSkillPersistenceStateLikeCpp::Deleted
                     })
@@ -761,6 +824,17 @@ fn validate_post_commit_actions_like_cpp(
         );
     }
     Ok(())
+}
+
+fn consume_action_evidence_like_cpp<K: Ord>(evidence: &mut BTreeMap<K, usize>, key: K) -> bool {
+    evidence.get_mut(&key).is_some_and(|count| {
+        if *count == 0 {
+            false
+        } else {
+            *count -= 1;
+            true
+        }
+    })
 }
 
 fn validate_post_commit_id_like_cpp(
@@ -2006,6 +2080,81 @@ mod tests {
     }
 
     #[test]
+    fn learned_transition_evidence_is_consumed_once() {
+        let source = snapshot(Vec::new());
+        let learned = spell(100, PlayerSpellPersistenceStateLikeCpp::New);
+        let transition = PlannedSpellTransitionLikeCpp {
+            spell_id: 100,
+            before: None,
+            after: Some(learned),
+            provenance: SpellAcquisitionProvenanceLikeCpp::Root {
+                root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
+            },
+        };
+        let duplicate = SpellAcquisitionPostCommitActionLikeCpp::LearnedSpell {
+            spell_id: 100,
+            favorite: false,
+            suppress_messaging: false,
+        };
+        let plan = SpellAcquisitionPlanLikeCpp {
+            root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
+            source_snapshot: source.clone(),
+            mutations: vec![PlannedAcquisitionMutationLikeCpp::Spell(transition.clone())],
+            spell_transitions: vec![transition],
+            skill_transitions: Vec::new(),
+            override_transitions: Vec::new(),
+            root_primary_profession_skill_ids: Vec::new(),
+            profession_association_inputs: Vec::new(),
+            post_commit_actions: vec![duplicate.clone(), duplicate],
+            diagnostics: Vec::new(),
+            resulting_snapshot: snapshot(vec![learned]),
+        };
+
+        assert_eq!(
+            prepare_player_spell_acquisition_like_cpp(&plan, &no_profession_changes(), &source),
+            Err(PlayerSpellAcquisitionPrepareErrorLikeCpp::LearnedActionRowMismatch(100))
+        );
+    }
+
+    #[test]
+    fn dual_wield_diagnostic_cannot_replace_live_cast_effect_authority() {
+        let source = snapshot(Vec::new());
+        let plan = SpellAcquisitionPlanLikeCpp {
+            root: SpellAcquisitionRootLikeCpp::DirectLearn(100),
+            source_snapshot: source.clone(),
+            mutations: Vec::new(),
+            spell_transitions: Vec::new(),
+            skill_transitions: Vec::new(),
+            override_transitions: Vec::new(),
+            root_primary_profession_skill_ids: Vec::new(),
+            profession_association_inputs: Vec::new(),
+            post_commit_actions: vec![SpellAcquisitionPostCommitActionLikeCpp::GrantDualWield {
+                source_spell_id: 100,
+                effect_record_id: 7,
+                effect_index: 0,
+            }],
+            diagnostics: vec![
+                SpellAcquisitionDiagnosticLikeCpp::DualWieldEffectProjected {
+                    spell_id: 100,
+                    effect_record_id: 7,
+                    effect_index: 0,
+                },
+            ],
+            resulting_snapshot: source.clone(),
+        };
+
+        assert_eq!(
+            prepare_player_spell_acquisition_like_cpp(&plan, &no_profession_changes(), &source),
+            Err(
+                PlayerSpellAcquisitionPrepareErrorLikeCpp::PostCommitActionCausalityMismatch {
+                    action: "GrantDualWield",
+                    id: 100,
+                }
+            )
+        );
+    }
+
+    #[test]
     fn action_only_plan_publishes_without_preparing_a_durable_rewrite() {
         let unchanged = spell(100, PlayerSpellPersistenceStateLikeCpp::Unchanged);
         let source = snapshot(vec![unchanged]);
@@ -2382,7 +2531,18 @@ mod tests {
 
     #[test]
     fn dual_wield_missing_owner_stops_before_any_publication() {
-        let source = snapshot(Vec::new());
+        let mut source = snapshot(Vec::new());
+        source.cast_resolutions.insert(
+            100,
+            PlayerCastAcquisitionResolutionLikeCpp {
+                reached_immediate_phase: true,
+                executed_hit_target_effect_mask: 1,
+                executed_dual_wield_effects: vec![PlayerExecutedDualWieldEffectLikeCpp {
+                    effect_record_id: 7,
+                    effect_index: 0,
+                }],
+            },
+        );
         let learned = spell(100, PlayerSpellPersistenceStateLikeCpp::New);
         let transition = PlannedSpellTransitionLikeCpp {
             spell_id: 100,
@@ -2420,7 +2580,10 @@ mod tests {
                     effect_index: 0,
                 },
             ],
-            resulting_snapshot: snapshot(vec![learned]),
+            resulting_snapshot: PlayerSpellAcquisitionSnapshotLikeCpp {
+                spells: vec![learned],
+                ..source.clone()
+            },
         };
         let PreparedPlayerSpellAcquisitionOutcomeLikeCpp::Ready(prepared) =
             prepare_player_spell_acquisition_like_cpp(&plan, &no_profession_changes(), &source)

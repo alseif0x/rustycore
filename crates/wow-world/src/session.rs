@@ -40030,6 +40030,9 @@ impl WorldSession {
             self.gossip_options.clear();
             self.represented_spell_acquisition_post_commit_actions_like_cpp
                 .clear();
+            // `_SaveSkills` tombstones belong to the current C++ Player's
+            // update-field slots, not to the authenticated WorldSession.
+            self.player_skill_non_durable_tombstones_like_cpp.clear();
         }
         if let Some(guid) = guid {
             self.recent_player_guid_low_like_cpp = guid.counter() as u64;
@@ -66107,6 +66110,25 @@ mod tests {
         let second_player = ObjectGuid::create_player(1, 70_002);
         let trainer = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 100, 1);
         session.set_player_guid(Some(first_player));
+        assert!(session.set_complete_player_skill_records_like_cpp(
+            HashMap::from([(
+                95,
+                RepresentedPlayerSkillLikeCpp {
+                    skill_id: 95,
+                    step: 0,
+                    value: 0,
+                    max: 0,
+                    profession_slot: -1,
+                    state: RepresentedPlayerSkillStateLikeCpp::Deleted,
+                },
+            )]),
+            1,
+        ));
+        assert!(
+            session
+                .player_skill_non_durable_tombstones_like_cpp
+                .contains(&95)
+        );
         session.set_player_trainer_interaction_like_cpp(trainer, 77);
         session.record_spell_acquisition_post_commit_action_like_cpp(
             crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp::UpdateMountCapability {
@@ -66127,12 +66149,24 @@ mod tests {
             "reasserting the same Player identity must not reset its PlayerMenu"
         );
         assert_eq!(session.gossip_options.len(), 1);
+        assert!(
+            session
+                .player_skill_non_durable_tombstones_like_cpp
+                .contains(&95),
+            "reasserting the same Player identity retains its skill tombstones"
+        );
 
         session.set_player_guid(None);
 
         assert!(session.player_interaction_source_guid_like_cpp().is_none());
         assert_eq!(session.player_interaction_trainer_id_like_cpp(), 0);
         assert!(session.gossip_options.is_empty());
+        assert!(
+            session
+                .player_skill_non_durable_tombstones_like_cpp
+                .is_empty(),
+            "skill tombstones cannot cross a C++ Player lifetime"
+        );
         assert!(
             session
                 .represented_spell_acquisition_post_commit_actions_like_cpp()
@@ -120868,6 +120902,7 @@ mod tests {
             PlayerCastAcquisitionResolutionLikeCpp {
                 reached_immediate_phase: true,
                 executed_hit_target_effect_mask: 0b101,
+                executed_dual_wield_effects: Vec::new(),
             },
         )]);
         let future_player_condition_resolutions =

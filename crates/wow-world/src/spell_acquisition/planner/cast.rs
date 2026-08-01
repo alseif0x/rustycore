@@ -189,7 +189,7 @@ impl SpellAcquisitionPlannerLikeCpp<'_> {
         });
         let cast_resolution = if needs_player_cast_resolution {
             let resolution =
-                self.cast_resolutions.get(&spell_id).copied().ok_or(
+                self.cast_resolutions.get(&spell_id).cloned().ok_or(
                     SpellAcquisitionIndeterminateLikeCpp::MissingCastResolution { spell_id },
                 )?;
             let mut known_effect_mask = 0_u32;
@@ -277,6 +277,7 @@ impl SpellAcquisitionPlannerLikeCpp<'_> {
                 },
             )?;
             let resolution = cast_resolution
+                .as_ref()
                 .expect("LEARN_SPELL, SKILL_STEP and DUAL_WIELD require a player cast resolution");
             if resolution.executed_hit_target_effect_mask & effect_bit == 0 {
                 self.diagnostics.push(
@@ -309,6 +310,21 @@ impl SpellAcquisitionPlannerLikeCpp<'_> {
                     self.apply_cast_skill_effect_like_cpp(spell_id, effect, provenance)?;
                 }
                 SPELL_EFFECT_DUAL_WIELD => {
+                    if !resolution
+                        .executed_dual_wield_effects
+                        .iter()
+                        .any(|executed| {
+                            executed.effect_index == effect_index
+                                && executed.effect_record_id == effect.record_id
+                        })
+                    {
+                        return Err(
+                            SpellAcquisitionIndeterminateLikeCpp::InvalidCastResolution {
+                                spell_id,
+                                effect_index: Some(effect_index),
+                            },
+                        );
+                    }
                     self.diagnostics.push(
                         SpellAcquisitionDiagnosticLikeCpp::DualWieldEffectProjected {
                             spell_id,
