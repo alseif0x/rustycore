@@ -23,6 +23,16 @@ impl crate::session::WorldSession {
         &self,
         root: SpellAcquisitionRootLikeCpp,
     ) -> SpellAcquisitionOutcomeLikeCpp {
+        self.project_player_spell_acquisition_like_cpp(root)
+    }
+
+    /// Projects any represented durable player acquisition from the same
+    /// complete authority used by trainer offers. The root selects semantics;
+    /// this adapter never grants a shallower fallback.
+    pub(crate) fn project_player_spell_acquisition_like_cpp(
+        &self,
+        root: SpellAcquisitionRootLikeCpp,
+    ) -> SpellAcquisitionOutcomeLikeCpp {
         let snapshot = match self.spell_acquisition_snapshot_like_cpp(
             PlayerAcquisitionLifecycleLikeCpp::InWorld,
             Vec::new(),

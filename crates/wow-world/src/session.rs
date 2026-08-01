@@ -1735,6 +1735,8 @@ pub(crate) struct PlayerSaveToDbSnapshotLikeCpp {
 #[derive(Debug, Default)]
 struct PlayerSaveToDbStatementPlanLikeCpp {
     statements: Vec<PreparedStatement>,
+    player_spells_committed_like_cpp: bool,
+    player_skills_committed_like_cpp: bool,
     tutorials_insert_committed_like_cpp: bool,
     tutorials_changed_committed_like_cpp: bool,
     equipment_sets_committed_like_cpp: bool,
@@ -3496,6 +3498,7 @@ fn heirloom_bonus_for_flags_like_cpp(heirloom: &HeirloomEntry, flags: u32) -> u3
 pub type SharedObjectAccessor = Arc<RwLock<ObjectAccessor>>;
 pub(crate) const SKILL_FISHING_LIKE_CPP: u16 = 356;
 pub(crate) const SKILL_RIDING_LIKE_CPP: u16 = 762;
+pub(crate) const SKILL_ENCHANTING_LIKE_CPP: u16 = 333;
 pub const LIQUID_MAP_IN_WATER_LIKE_CPP: u32 = 0x0000_0004;
 pub const LIQUID_MAP_UNDER_WATER_LIKE_CPP: u32 = 0x0000_0008;
 const TOY_FLAG_FAVORITE_LIKE_CPP: u32 = 0x01;
@@ -5214,6 +5217,11 @@ pub struct WorldSession {
     pub(crate) represented_enchanting_skill: u16,
     player_skill_values_like_cpp: HashMap<u16, u16>,
     player_skill_records_like_cpp: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
+    // C++ `_SaveSkills` keeps deleted update-field slots as UNCHANGED
+    // tombstones after deleting their Character DB rows. Rust's represented
+    // full-save path rewrites the table, so retain their non-durable identity
+    // explicitly and never manufacture zero-valued DB rows on a later save.
+    player_skill_non_durable_tombstones_like_cpp: BTreeSet<u16>,
     player_skill_records_loaded_like_cpp: bool,
     player_skill_records_complete_like_cpp: bool,
     player_skill_occupied_slots_like_cpp: Option<u16>,
@@ -5493,6 +5501,11 @@ pub struct WorldSession {
     /// True only when trait-definition IDs were replaced from a complete source.
     /// An empty represented map is otherwise indistinguishable from an unloaded one.
     represented_spell_trait_definition_ids_complete_like_cpp: bool,
+    /// Ordered post-commit acquisition intents. Packet-producing intents are
+    /// also emitted immediately; criteria/quest/passive owners consume this
+    /// represented causal log until their full managers are ported.
+    represented_spell_acquisition_post_commit_actions_like_cpp:
+        Vec<crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp>,
     /// C++ `Player::m_weaponProficiency`; `Spell::EffectProficiency` ORs into it.
     represented_weapon_proficiency_like_cpp: u32,
     /// C++ `Player::m_armorProficiency`; `Spell::EffectProficiency` ORs into it.
@@ -7378,6 +7391,7 @@ impl WorldSession {
             represented_enchanting_skill: 0,
             player_skill_values_like_cpp: HashMap::new(),
             player_skill_records_like_cpp: HashMap::new(),
+            player_skill_non_durable_tombstones_like_cpp: BTreeSet::new(),
             player_skill_records_loaded_like_cpp: false,
             player_skill_records_complete_like_cpp: false,
             player_skill_occupied_slots_like_cpp: None,
@@ -7542,6 +7556,7 @@ impl WorldSession {
             represented_favorite_known_spells_like_cpp: HashSet::new(),
             represented_spell_trait_definition_ids_like_cpp: HashMap::new(),
             represented_spell_trait_definition_ids_complete_like_cpp: false,
+            represented_spell_acquisition_post_commit_actions_like_cpp: Vec::new(),
             represented_weapon_proficiency_like_cpp: 0,
             represented_armor_proficiency_like_cpp: 0,
             account_mounts_like_cpp: HashMap::new(),
@@ -28698,9 +28713,26 @@ impl WorldSession {
             ),
         );
 
+        if let Some(spells) = self.complete_represented_player_spell_rows_like_cpp() {
+            let spells = spells.values().copied().collect::<Vec<_>>();
+            plan.statements
+                .extend(Self::character_spell_save_statements_like_cpp(
+                    guid_counter,
+                    spells,
+                ));
+            plan.player_spells_committed_like_cpp = true;
+        } else {
+            warn!(
+                account = self.account_id,
+                player_guid = ?self.player_guid(),
+                "Skipping represented player spell save because PlayerSpellMap was not loaded coherently"
+            );
+        }
+
         if self.player_skill_records_loaded_like_cpp() {
             plan.statements
                 .extend(self.character_skill_save_statements_like_cpp(guid_counter));
+            plan.player_skills_committed_like_cpp = true;
         } else {
             warn!(
                 account = self.account_id,
@@ -28842,10 +28874,71 @@ impl WorldSession {
         Some(plan)
     }
 
+    fn mark_player_spells_saved_like_cpp(&mut self) {
+        self.represented_player_spell_rows_like_cpp
+            .retain(|_, spell| {
+                if spell.state == RepresentedPlayerSpellStateLikeCpp::Removed {
+                    return false;
+                }
+                if spell.state != RepresentedPlayerSpellStateLikeCpp::Temporary {
+                    spell.state = RepresentedPlayerSpellStateLikeCpp::Unchanged;
+                }
+                true
+            });
+        self.represented_removed_known_spells_like_cpp.clear();
+        self.represented_spell_trait_definition_ids_like_cpp
+            .retain(|spell_id, _| {
+                self.represented_player_spell_rows_like_cpp
+                    .contains_key(spell_id)
+            });
+        self.represented_dependent_known_spells_like_cpp = self
+            .represented_player_spell_rows_like_cpp
+            .values()
+            .filter(|spell| spell.dependent)
+            .map(|spell| spell.spell_id)
+            .collect();
+        self.represented_favorite_known_spells_like_cpp = self
+            .represented_player_spell_rows_like_cpp
+            .values()
+            .filter(|spell| spell.favorite)
+            .map(|spell| spell.spell_id)
+            .collect();
+        self.known_spells = self
+            .represented_player_spell_rows_like_cpp
+            .values()
+            .filter(|spell| spell.active && !spell.disabled)
+            .map(|spell| spell.spell_id)
+            .collect();
+        if let Some(controller) = &mut self.player_controller {
+            controller.set_known_spells(self.known_spells.clone());
+        }
+        self.sync_player_registry_state_like_cpp();
+    }
+
+    fn mark_player_skills_saved_like_cpp(&mut self) {
+        for skill in self.player_skill_records_like_cpp.values_mut() {
+            if skill.state == RepresentedPlayerSkillStateLikeCpp::Deleted {
+                self.player_skill_non_durable_tombstones_like_cpp
+                    .insert(skill.skill_id);
+            }
+            skill.state = RepresentedPlayerSkillStateLikeCpp::Unchanged;
+        }
+        if let Some(controller) = &mut self.player_controller {
+            controller.set_skill_records(self.player_skill_records_like_cpp.clone());
+        }
+        self.sync_player_registry_state_like_cpp();
+    }
+
     fn mark_current_player_save_to_db_committed_like_cpp(
         &mut self,
         plan: &PlayerSaveToDbStatementPlanLikeCpp,
     ) {
+        if plan.player_spells_committed_like_cpp {
+            self.mark_player_spells_saved_like_cpp();
+        }
+        if plan.player_skills_committed_like_cpp {
+            self.mark_player_skills_saved_like_cpp();
+        }
         if plan.equipment_sets_committed_like_cpp {
             self.mark_equipment_sets_saved_like_cpp();
         }
@@ -30407,9 +30500,9 @@ impl WorldSession {
 
     /// Builds the represented statement sequence for C++ `Player::_SaveSpells`.
     ///
-    /// This is intentionally a plan helper for the represented spell state. The
-    /// runtime logout path must not call it until `PlayerSpellMap` ownership is
-    /// complete enough to preserve inactive/disabled/temporary rows exactly.
+    /// The runtime full-save path calls this only when the complete represented
+    /// `PlayerSpellMap` authority can preserve inactive/disabled/temporary rows
+    /// exactly; incomplete snapshots remain fail-closed.
     #[allow(dead_code)]
     pub(crate) fn character_spell_save_statements_like_cpp(
         guid_counter: u64,
@@ -30585,6 +30678,12 @@ impl WorldSession {
         let mut skills: Vec<RepresentedPlayerSkillLikeCpp> = self
             .player_skill_records_like_cpp()
             .values()
+            .filter(|skill| {
+                skill.state != RepresentedPlayerSkillStateLikeCpp::Deleted
+                    && !self
+                        .player_skill_non_durable_tombstones_like_cpp
+                        .contains(&skill.skill_id)
+            })
             .copied()
             .collect();
         skills.sort_by_key(|skill| skill.skill_id);
@@ -39929,6 +40028,8 @@ impl WorldSession {
             // logout, so no player-menu state may cross that lifetime here.
             self.reset_player_interaction_data_like_cpp();
             self.gossip_options.clear();
+            self.represented_spell_acquisition_post_commit_actions_like_cpp
+                .clear();
         }
         if let Some(guid) = guid {
             self.recent_player_guid_low_like_cpp = guid.counter() as u64;
@@ -41766,8 +41867,24 @@ impl WorldSession {
                         && skill.max == 0
                         && skill.profession_slot == -1))
         });
+        self.player_skill_non_durable_tombstones_like_cpp
+            .retain(|skill_id| {
+                skill_records
+                    .get(skill_id)
+                    .is_some_and(Self::is_non_durable_skill_tombstone_like_cpp)
+            });
+        self.player_skill_non_durable_tombstones_like_cpp.extend(
+            skill_records
+                .values()
+                .filter(|skill| skill.state == RepresentedPlayerSkillStateLikeCpp::Deleted)
+                .map(|skill| skill.skill_id),
+        );
         self.player_skill_values_like_cpp =
             represented_skill_values_from_records_like_cpp(&skill_records);
+        self.represented_enchanting_skill = skill_records
+            .get(&SKILL_ENCHANTING_LIKE_CPP)
+            .map(|skill| skill.value)
+            .unwrap_or(0);
         self.player_skill_records_like_cpp = skill_records.clone();
         self.player_skill_records_loaded_like_cpp = loaded;
         self.player_skill_records_complete_like_cpp =
@@ -43193,7 +43310,6 @@ impl WorldSession {
         true
     }
 
-    #[cfg(test)]
     pub(crate) fn set_complete_represented_override_spells_like_cpp(
         &mut self,
         overrides: impl IntoIterator<Item = (i32, i32)>,
@@ -43214,6 +43330,172 @@ impl WorldSession {
         self.represented_override_spells_like_cpp = exact_overrides;
         self.represented_override_spells_complete_like_cpp = true;
         true
+    }
+
+    /// Installs one validated spell-acquisition snapshot without an await or a
+    /// second semantic walk. It accepts both the dirty post-`LearnSpell`
+    /// snapshot and the normalized post-save snapshot. Inputs are validated
+    /// into temporary maps first so a malformed prepared result cannot
+    /// partially mutate the live player authority.
+    pub(crate) fn replace_complete_spell_acquisition_runtime_like_cpp(
+        &mut self,
+        spell_rows: impl IntoIterator<Item = RepresentedPlayerSpellLikeCpp>,
+        traits: impl IntoIterator<Item = (i32, i32)>,
+        overrides: impl IntoIterator<Item = (i32, i32)>,
+        skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
+        occupied_skill_slots: u16,
+        non_durable_skill_tombstones: BTreeSet<u16>,
+    ) -> bool {
+        let mut exact_spells = BTreeMap::new();
+        for spell in spell_rows {
+            if spell.spell_id <= 0 || exact_spells.insert(spell.spell_id, spell).is_some() {
+                return false;
+            }
+        }
+
+        let mut exact_traits = HashMap::new();
+        for (spell_id, trait_definition_id) in traits {
+            if trait_definition_id <= 0
+                || !exact_spells
+                    .get(&spell_id)
+                    .is_some_and(|spell| spell.state != RepresentedPlayerSpellStateLikeCpp::Removed)
+                || exact_traits.insert(spell_id, trait_definition_id).is_some()
+            {
+                return false;
+            }
+        }
+
+        let mut exact_overrides = HashMap::<i32, BTreeSet<i32>>::new();
+        for (overridden_spell_id, overriding_spell_id) in overrides {
+            if overridden_spell_id <= 0 || overriding_spell_id <= 0 {
+                return false;
+            }
+            exact_overrides
+                .entry(overridden_spell_id)
+                .or_default()
+                .insert(overriding_spell_id);
+        }
+
+        if usize::from(occupied_skill_slots) != skill_records.len()
+            || occupied_skill_slots > 256
+            || !skill_records.iter().all(|(skill_id, skill)| {
+                *skill_id != 0
+                    && *skill_id == skill.skill_id
+                    && (skill.state != RepresentedPlayerSkillStateLikeCpp::Deleted
+                        || (skill.step == 0
+                            && skill.value == 0
+                            && skill.max == 0
+                            && skill.profession_slot == -1))
+            })
+            || !non_durable_skill_tombstones.iter().all(|skill_id| {
+                skill_records
+                    .get(skill_id)
+                    .is_some_and(Self::is_non_durable_skill_tombstone_like_cpp)
+            })
+        {
+            return false;
+        }
+
+        let mut known_spells = exact_spells
+            .values()
+            .filter(|spell| {
+                spell.state != RepresentedPlayerSpellStateLikeCpp::Removed
+                    && spell.active
+                    && !spell.disabled
+            })
+            .map(|spell| spell.spell_id)
+            .collect::<Vec<_>>();
+        known_spells.sort_unstable();
+        let dependent_spells = exact_spells
+            .values()
+            .filter(|spell| {
+                spell.state != RepresentedPlayerSpellStateLikeCpp::Removed && spell.dependent
+            })
+            .map(|spell| spell.spell_id)
+            .collect();
+        let favorite_spells = exact_spells
+            .values()
+            .filter(|spell| {
+                spell.state != RepresentedPlayerSpellStateLikeCpp::Removed && spell.favorite
+            })
+            .map(|spell| spell.spell_id)
+            .collect();
+        let removed_spells = exact_spells
+            .values()
+            .filter(|spell| spell.state == RepresentedPlayerSpellStateLikeCpp::Removed)
+            .map(|spell| spell.spell_id)
+            .collect();
+
+        self.known_spells = known_spells.clone();
+        self.represented_player_spell_rows_like_cpp = exact_spells;
+        self.represented_player_spell_rows_loaded_like_cpp = true;
+        self.represented_player_spell_rows_complete_like_cpp = true;
+        self.represented_dependent_known_spells_like_cpp = dependent_spells;
+        self.represented_removed_known_spells_like_cpp = removed_spells;
+        self.represented_favorite_known_spells_like_cpp = favorite_spells;
+        self.represented_spell_trait_definition_ids_like_cpp = exact_traits;
+        self.represented_spell_trait_definition_ids_complete_like_cpp = true;
+        self.represented_override_spells_like_cpp = exact_overrides;
+        self.represented_override_spells_complete_like_cpp = true;
+        self.player_skill_values_like_cpp =
+            represented_skill_values_from_records_like_cpp(&skill_records);
+        self.represented_enchanting_skill = skill_records
+            .get(&SKILL_ENCHANTING_LIKE_CPP)
+            .map(|skill| skill.value)
+            .unwrap_or(0);
+        self.player_skill_records_like_cpp = skill_records.clone();
+        self.player_skill_non_durable_tombstones_like_cpp = non_durable_skill_tombstones;
+        self.player_skill_records_loaded_like_cpp = true;
+        self.player_skill_records_complete_like_cpp = true;
+        self.player_skill_occupied_slots_like_cpp = Some(occupied_skill_slots);
+        if let Some(controller) = &mut self.player_controller {
+            controller.set_known_spells(known_spells);
+            controller.set_skill_records(skill_records);
+        }
+        // Cross-session consumers (notably disenchant roll eligibility) read
+        // known spells and enchanting rank from the player registry. Publish
+        // the committed snapshot there before any acquisition action packet.
+        self.sync_player_registry_state_like_cpp();
+        true
+    }
+
+    fn is_non_durable_skill_tombstone_like_cpp(skill: &RepresentedPlayerSkillLikeCpp) -> bool {
+        skill.step == 0
+            && skill.value == 0
+            && skill.max == 0
+            && skill.profession_slot == -1
+            && matches!(
+                skill.state,
+                RepresentedPlayerSkillStateLikeCpp::Unchanged
+                    | RepresentedPlayerSkillStateLikeCpp::Deleted
+            )
+    }
+
+    pub(crate) fn record_spell_acquisition_post_commit_action_like_cpp(
+        &mut self,
+        action: crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp,
+    ) {
+        self.represented_spell_acquisition_post_commit_actions_like_cpp
+            .push(action);
+    }
+
+    pub(crate) fn begin_spell_acquisition_post_commit_action_batch_like_cpp(&mut self) {
+        self.represented_spell_acquisition_post_commit_actions_like_cpp
+            .clear();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_spell_acquisition_post_commit_actions_like_cpp(
+        &self,
+    ) -> &[crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp] {
+        &self.represented_spell_acquisition_post_commit_actions_like_cpp
+    }
+
+    pub(crate) fn grant_dual_wield_after_spell_acquisition_like_cpp(&mut self) -> bool {
+        self.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_can_dual_wield_like_cpp(true);
+        })
+        .is_some()
     }
 
     pub(crate) fn sync_player_currencies_like_cpp(&mut self) {
@@ -43539,6 +43821,10 @@ impl WorldSession {
             .as_ref()
             .map(SessionPlayerController::skill_records)
             .unwrap_or(&self.player_skill_records_like_cpp)
+    }
+
+    pub(crate) fn player_skill_non_durable_tombstones_like_cpp(&self) -> &BTreeSet<u16> {
+        &self.player_skill_non_durable_tombstones_like_cpp
     }
 
     pub(crate) fn player_skill_value_like_cpp(&self, skill_id: u16) -> u16 {
@@ -60908,7 +61194,8 @@ impl WorldSession {
                     self.apply_learn_spell_effect_like_cpp(
                         direct_effect_trigger_spell,
                         target_guid,
-                    );
+                    )
+                    .await;
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_TRANSMOG_SET => {
                     self.apply_learn_transmog_set_effect_like_cpp(
@@ -63835,7 +64122,7 @@ impl WorldSession {
     /// only. C++ also has item `ITEM_SPELLTRIGGER_ON_LEARN`, battle-pet and pet
     /// spell branches; those require cast-item/pet runtime that is outside this
     /// bounded spell-effect slice.
-    fn apply_learn_spell_effect_like_cpp(
+    async fn apply_learn_spell_effect_like_cpp(
         &mut self,
         trigger_spell: i32,
         target_guid: ObjectGuid,
@@ -63846,15 +64133,62 @@ impl WorldSession {
         if target_guid != player_guid || trigger_spell <= 0 {
             return false;
         }
-        if self.known_spells_like_cpp().contains(&trigger_spell) {
+        let Ok(trigger_spell_id) = u32::try_from(trigger_spell) else {
             return false;
-        }
-
-        self.learn_known_spell_like_cpp(trigger_spell);
-        self.send_packet(&wow_packet::packets::trainer::LearnedSpells::single(
-            trigger_spell,
-        ));
-        true
+        };
+        let crate::spell_acquisition::SpellAcquisitionOutcomeLikeCpp::Deterministic(plan) = self
+            .project_player_spell_acquisition_like_cpp(
+                crate::spell_acquisition::SpellAcquisitionRootLikeCpp::DirectLearn(
+                    trigger_spell_id,
+                ),
+            )
+        else {
+            return false;
+        };
+        let Ok(current_snapshot) = self.spell_acquisition_snapshot_like_cpp(
+            crate::spell_acquisition::PlayerAcquisitionLifecycleLikeCpp::InWorld,
+            Vec::new(),
+            BTreeMap::new(),
+        ) else {
+            return false;
+        };
+        let Ok(profession_plan) = self.plan_primary_profession_capacity_like_cpp(
+            plan.root_primary_profession_skill_ids.iter().copied(),
+        ) else {
+            return false;
+        };
+        let prepared = match crate::spell_acquisition::prepare_player_spell_acquisition_like_cpp(
+            &plan,
+            &profession_plan,
+            &current_snapshot,
+        ) {
+            Ok(crate::spell_acquisition::PreparedPlayerSpellAcquisitionOutcomeLikeCpp::Ready(
+                prepared,
+            )) => prepared,
+            Ok(
+                crate::spell_acquisition::PreparedPlayerSpellAcquisitionOutcomeLikeCpp::AlreadyApplied
+                | crate::spell_acquisition::PreparedPlayerSpellAcquisitionOutcomeLikeCpp::NoChange,
+            )
+            | Err(_) => return false,
+            Ok(crate::spell_acquisition::PreparedPlayerSpellAcquisitionOutcomeLikeCpp::ActionsOnly(
+                actions,
+            )) => {
+                return crate::spell_acquisition::apply_prepared_player_spell_acquisition_actions_like_cpp(
+                    self,
+                    &actions,
+                )
+                .is_ok();
+            }
+        };
+        // C++ `EffectLearnSpell` mutates `PlayerSpellMap` synchronously and
+        // leaves `_SaveSpells`/`_SaveSkills` dirty-state persistence to the
+        // ordinary `Player::SaveToDB` lifecycle. Reuse the same validated plan
+        // without making a cast depend on Character DB availability or making
+        // unrelated pending player state durable early.
+        crate::spell_acquisition::apply_prepared_player_spell_acquisition_before_save_like_cpp(
+            self, &prepared,
+        )
+        .is_ok()
     }
 
     /// C++ `Spell::EffectDismissPet`.
@@ -65764,6 +66098,9 @@ mod tests {
         let trainer = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 100, 1);
         session.set_player_guid(Some(first_player));
         session.set_player_trainer_interaction_like_cpp(trainer, 77);
+        session.record_spell_acquisition_post_commit_action_like_cpp(
+            crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp::UpdateMountCapability,
+        );
         session.gossip_options.push(GossipOptionInfo {
             gossip_option_id: 1,
             menu_id: 2,
@@ -65784,6 +66121,12 @@ mod tests {
         assert!(session.player_interaction_source_guid_like_cpp().is_none());
         assert_eq!(session.player_interaction_trainer_id_like_cpp(), 0);
         assert!(session.gossip_options.is_empty());
+        assert!(
+            session
+                .represented_spell_acquisition_post_commit_actions_like_cpp()
+                .is_empty(),
+            "post-commit player intents cannot cross a character lifetime"
+        );
 
         session.set_player_guid(Some(second_player));
         assert!(session.player_interaction_source_guid_like_cpp().is_none());
@@ -67199,22 +67542,12 @@ mod tests {
         );
 
         let statements = session.character_skill_save_statements_like_cpp(42);
-        let skill_insert = statements
-            .iter()
-            .find(|stmt| stmt.sql() == CharStatements::INS_CHAR_SKILLS.sql())
-            .expect("skill insert for reset skill");
-        assert!(matches!(
-            skill_insert.params()[1],
-            wow_database::SqlParam::U16(755)
-        ));
-        assert!(matches!(
-            skill_insert.params()[2],
-            wow_database::SqlParam::U16(0)
-        ));
-        assert!(matches!(
-            skill_insert.params()[3],
-            wow_database::SqlParam::U16(0)
-        ));
+        assert_eq!(statements.len(), 1);
+        assert_eq!(
+            statements[0].sql(),
+            CharStatements::DEL_CHAR_SKILLS.sql(),
+            "Rust's full replacement emits its table delete but, like C++ `_SaveSkills`, never persists a SKILL_DELETED tombstone as a zero-valued row"
+        );
     }
 
     #[test]
@@ -111038,7 +111371,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn spell_learn_spell_effect_row_learns_trigger_spell_like_cpp() {
+    async fn spell_learn_spell_effect_row_fails_closed_without_durable_authority_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         let spell_id = 750_i32;
         let learned_spell_id = 13_337_i32;
@@ -111074,7 +111407,7 @@ mod tests {
             .await
             .expect("represented learn-spell row should execute");
 
-        assert!(session.known_spells_like_cpp().contains(&learned_spell_id));
+        assert!(!session.known_spells_like_cpp().contains(&learned_spell_id));
         let packets = drain_server_packet_bytes(&send_rx);
         let opcodes: Vec<_> = packets
             .iter()
@@ -111082,28 +111415,9 @@ mod tests {
             .collect();
         assert_eq!(
             opcodes,
-            vec![
-                ServerOpcodes::SpellGo,
-                ServerOpcodes::LearnedSpells,
-                ServerOpcodes::CooldownEvent,
-            ]
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
         );
-        let mut learned = wow_packet::WorldPacket::from_bytes(&packets[1]);
-        assert_eq!(
-            learned.read_uint16().expect("opcode"),
-            ServerOpcodes::LearnedSpells as u16
-        );
-        assert_eq!(learned.read_int32().expect("count"), 1);
-        assert_eq!(learned.read_uint32().expect("specialization id"), 0);
-        assert!(!learned.read_bit().expect("SuppressMessaging"));
-        learned.flush_bits();
-        assert_eq!(learned.read_int32().expect("SpellID"), learned_spell_id);
-        assert!(!learned.read_bit().expect("IsFavorite"));
-        assert!(!learned.read_bit().expect("field_8.HasValue"));
-        assert!(!learned.read_bit().expect("Superceded.HasValue"));
-        assert!(!learned.read_bit().expect("TraitDefinitionID.HasValue"));
-        learned.flush_bits();
-        assert!(learned.is_empty());
+        assert_eq!(packets.len(), 2);
     }
 
     #[tokio::test]
@@ -116800,6 +117114,18 @@ mod tests {
             powers: loaded_character_power_snapshot_like_cpp([321, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
         };
         session.set_player_guid(Some(guid));
+        assert!(
+            session.set_complete_represented_player_spell_rows_like_cpp([
+                RepresentedPlayerSpellLikeCpp {
+                    spell_id: 13_337,
+                    active: true,
+                    disabled: false,
+                    dependent: false,
+                    favorite: false,
+                    state: RepresentedPlayerSpellStateLikeCpp::New,
+                },
+            ])
+        );
 
         session.tutorials_loaded_coherently_like_cpp = true;
         session.tutorials_loaded_from_db_like_cpp = false;
@@ -116831,10 +117157,23 @@ mod tests {
             .expect("determinate tracker should allow a full-save plan");
 
         assert!(plan.tutorials_changed_committed_like_cpp);
+        assert!(plan.player_spells_committed_like_cpp);
+        assert!(plan.statements.iter().any(|statement| {
+            statement.sql() == CharStatements::INS_CHAR_SPELL.sql()
+                && statement.params().get(1) == Some(&wow_database::SqlParam::I32(13_337))
+        }));
         assert!(plan.equipment_sets_committed_like_cpp);
         assert!(plan.reputation_committed_like_cpp);
         assert!(session.tutorials_changed_like_cpp);
         assert!(!session.tutorials_loaded_from_db_like_cpp);
+        assert_eq!(
+            session
+                .complete_represented_player_spell_rows_like_cpp()
+                .and_then(|rows| rows.get(&13_337))
+                .map(|spell| spell.state),
+            Some(RepresentedPlayerSpellStateLikeCpp::New),
+            "a failed full-save transaction must leave _SaveSpells state dirty for retry"
+        );
         assert_eq!(
             session
                 .represented_equipment_set_like_cpp(900)
@@ -116855,6 +117194,14 @@ mod tests {
         session.mark_current_player_save_to_db_committed_like_cpp(&plan);
 
         assert!(!session.tutorials_changed_like_cpp);
+        assert_eq!(
+            session
+                .complete_represented_player_spell_rows_like_cpp()
+                .and_then(|rows| rows.get(&13_337))
+                .map(|spell| spell.state),
+            Some(RepresentedPlayerSpellStateLikeCpp::Unchanged),
+            "successful Player::SaveToDB consumes the same dirty state as C++ _SaveSpells"
+        );
         assert!(session.tutorials_loaded_from_db_like_cpp);
         assert_eq!(
             session

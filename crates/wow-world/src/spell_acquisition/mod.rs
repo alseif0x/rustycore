@@ -69,10 +69,12 @@ const DEFAULT_ACQUISITION_WORK_LIMIT: usize = 16_384;
 const SPELL_ATTR0_CU_IS_TALENT_LIKE_CPP: u32 = wow_data::SPELL_ATTR0_CU_IS_TALENT_LIKE_CPP;
 
 mod adapter;
+mod application;
 mod authority;
 mod model;
 mod planner;
 
+pub(crate) use application::*;
 pub(crate) use authority::*;
 pub(crate) use model::*;
 #[allow(unused_imports)] // Private prerequisite seam consumed by trainer issue #157.

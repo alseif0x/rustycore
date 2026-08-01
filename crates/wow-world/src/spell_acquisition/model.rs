@@ -301,6 +301,11 @@ pub(crate) enum SpellAcquisitionDiagnosticLikeCpp {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SpellAcquisitionPlanLikeCpp {
     pub root: SpellAcquisitionRootLikeCpp,
+    /// Exact immutable player authority from which this plan was projected.
+    /// The application boundary compares it byte-for-byte with the current
+    /// snapshot before opening a transaction; transition-local `before`
+    /// values alone cannot prove that untouched rows did not change.
+    pub source_snapshot: PlayerSpellAcquisitionSnapshotLikeCpp,
     /// One cross-domain causal stream. The typed projections below are
     /// retained for focused consumers, but must never be used to reconstruct
     /// ordering between a skill write and a recursively learned spell.

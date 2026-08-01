@@ -147,28 +147,30 @@ impl ServerPacket for TrainerBuyFailed {
 /// A single entry in the LearnedSpells packet.
 pub struct LearnedSpellEntry {
     pub spell_id: i32,
+    pub is_favorite: bool,
+    pub field_8: Option<i32>,
     pub superceded: Option<i32>,
+    pub trait_definition_id: Option<i32>,
 }
 
 /// SMSG_LEARNED_SPELLS — sent after a player learns one or more spells.
 ///
-/// TODO(CREATURE-P1): this packet is trainer-adjacent but not yet contrasted
-/// against C++ spell packet code. Do not treat this historical order as
-/// canonical for Creature closure until it has exact C++ refs.
-///
-/// Historical write order:
+/// Exact C++ anchors: `SpellPackets.h::LearnedSpellInfo/LearnedSpells` and
+/// `SpellPackets.cpp::LearnedSpellInfo::Write/LearnedSpells::Write`.
+/// Write order:
 /// ```text
-/// WriteInt32(ClientLearnedSpellData.Count)
+/// WriteUInt32(ClientLearnedSpellData.Count)
 /// WriteUInt32(SpecializationID)
 /// WriteBit(SuppressMessaging)
 /// FlushBits()
 /// foreach spell:
 ///   WriteInt32(SpellID)
-///   WriteBit(IsFavorite)      // false
-///   WriteBit(field_8.HasValue) // false
-///   WriteBit(Superceded.HasValue) // false
-///   WriteBit(TraitDefinitionID.HasValue) // false
+///   WriteBit(IsFavorite)
+///   WriteBit(field_8.HasValue)
+///   WriteBit(Superceded.HasValue)
+///   WriteBit(TraitDefinitionID.HasValue)
 ///   FlushBits()
+///   WriteInt32(each present optional, in the same order)
 /// ```
 pub struct LearnedSpells {
     pub spells: Vec<LearnedSpellEntry>,
@@ -181,7 +183,10 @@ impl LearnedSpells {
         Self {
             spells: vec![LearnedSpellEntry {
                 spell_id,
+                is_favorite: false,
+                field_8: None,
                 superceded: None,
+                trait_definition_id: None,
             }],
             suppress_messaging: false,
         }
@@ -192,13 +197,13 @@ impl ServerPacket for LearnedSpells {
     const OPCODE: ServerOpcodes = ServerOpcodes::LearnedSpells;
 
     fn write(&self, pkt: &mut WorldPacket) {
-        pkt.write_int32(self.spells.len() as i32);
+        pkt.write_uint32(self.spells.len() as u32);
         pkt.write_uint32(0); // SpecializationID = 0
         pkt.write_bit(self.suppress_messaging);
         pkt.flush_bits();
 
         for spell in &self.spells {
-            write_learned_spell_info_like_cpp(pkt, spell.spell_id, spell.superceded);
+            write_learned_spell_info_like_cpp(pkt, spell);
         }
     }
 }
@@ -218,7 +223,10 @@ impl SupercededSpells {
         Self {
             spells: vec![LearnedSpellEntry {
                 spell_id: new_spell_id,
+                is_favorite: false,
+                field_8: None,
                 superceded: Some(old_spell_id),
+                trait_definition_id: None,
             }],
         }
     }
@@ -230,7 +238,7 @@ impl ServerPacket for SupercededSpells {
     fn write(&self, pkt: &mut WorldPacket) {
         pkt.write_uint32(self.spells.len() as u32);
         for spell in &self.spells {
-            write_learned_spell_info_like_cpp(pkt, spell.spell_id, spell.superceded);
+            write_learned_spell_info_like_cpp(pkt, spell);
         }
     }
 }
@@ -274,20 +282,22 @@ impl ServerPacket for UnlearnedSpells {
     }
 }
 
-fn write_learned_spell_info_like_cpp(
-    pkt: &mut WorldPacket,
-    spell_id: i32,
-    superceded: Option<i32>,
-) {
-    pkt.write_int32(spell_id);
-    pkt.write_bit(false); // IsFavorite
-    pkt.write_bit(false); // field_8.HasValue
-    pkt.write_bit(superceded.is_some());
-    pkt.write_bit(false); // TraitDefinitionID.HasValue
+fn write_learned_spell_info_like_cpp(pkt: &mut WorldPacket, spell: &LearnedSpellEntry) {
+    pkt.write_int32(spell.spell_id);
+    pkt.write_bit(spell.is_favorite);
+    pkt.write_bit(spell.field_8.is_some());
+    pkt.write_bit(spell.superceded.is_some());
+    pkt.write_bit(spell.trait_definition_id.is_some());
     pkt.flush_bits();
 
-    if let Some(old_spell_id) = superceded {
+    if let Some(value) = spell.field_8 {
+        pkt.write_int32(value);
+    }
+    if let Some(old_spell_id) = spell.superceded {
         pkt.write_int32(old_spell_id);
+    }
+    if let Some(trait_definition_id) = spell.trait_definition_id {
+        pkt.write_int32(trait_definition_id);
     }
 }
 
@@ -330,6 +340,40 @@ mod tests {
         let bytes = pkt.to_bytes();
         // opcode(2) + count(4) + spec_id(4) + bit/flush(1) + spell_id(4) + bits/flush(1)
         assert!(bytes.len() >= 14);
+    }
+
+    #[test]
+    fn learned_spell_info_serializes_favorite_and_optional_fields_like_cpp() {
+        let pkt = LearnedSpells {
+            spells: vec![LearnedSpellEntry {
+                spell_id: 100,
+                is_favorite: true,
+                field_8: Some(7),
+                superceded: Some(99),
+                trait_definition_id: Some(8),
+            }],
+            suppress_messaging: true,
+        };
+        let mut bytes = WorldPacket::from_bytes(&pkt.to_bytes());
+
+        assert_eq!(
+            bytes.read_uint16().expect("opcode"),
+            ServerOpcodes::LearnedSpells as u16
+        );
+        assert_eq!(bytes.read_uint32().expect("count"), 1);
+        assert_eq!(bytes.read_uint32().expect("specialization"), 0);
+        assert!(bytes.read_bit().expect("SuppressMessaging"));
+        bytes.flush_bits();
+        assert_eq!(bytes.read_int32().expect("spell id"), 100);
+        assert!(bytes.read_bit().expect("IsFavorite"));
+        assert!(bytes.read_bit().expect("field_8.HasValue"));
+        assert!(bytes.read_bit().expect("Superceded.HasValue"));
+        assert!(bytes.read_bit().expect("TraitDefinitionID.HasValue"));
+        bytes.flush_bits();
+        assert_eq!(bytes.read_int32().expect("field_8"), 7);
+        assert_eq!(bytes.read_int32().expect("old spell id"), 99);
+        assert_eq!(bytes.read_int32().expect("trait definition id"), 8);
+        assert!(bytes.is_empty());
     }
 
     #[test]

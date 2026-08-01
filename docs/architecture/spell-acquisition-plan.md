@@ -140,3 +140,49 @@ Both deviations have focused regression fixtures and are also recorded in
   resolution, complete parentage for every effective `SkillLine` identity,
   static cast proof, live cast resolution, or non-mount proof fails before money, DB, player, or
   packet mutation.
+
+## Atomic application boundary (#158)
+
+The plan now carries its exact immutable source snapshot. Application first replays the single
+cross-domain mutation stream, verifies both typed projections, resulting rows, profession inputs,
+identity fields, provenance and every post-commit action, then compares the live authority with
+that source. The separately prepared #156 capacity plan is a mandatory input: its capacity
+arithmetic, ordered new-profession IDs, existing membership, normalizations and unique physical
+slots are validated, then its assignments are applied to the final skill rows before persistence.
+A normalized resulting snapshot is an explicit already-applied retry; it is not reported or
+published as a new learn.
+
+An action-only plan (the C++ already-known `LearnSpell` quest-objective case) has a separate
+validated publication outcome. It neither opens the Character DB transaction nor normalizes or
+replaces runtime persistence state. Each publication replaces the represented pending-action
+batch, and changing the session's player identity clears that batch, so intents cannot accumulate
+without bound or cross character lifetimes.
+
+Durability is one Character DB transaction. It locks the character row, replaces the complete
+durable `character_spell`, `character_spell_favorite` and `character_skills` sets in deterministic
+order, uses strict inserts, and commits before touching runtime state. Dependent and temporary
+spells remain runtime-only as in C++ `_SaveSpells`; favorite maintenance remains independent of
+the dependent-spell insert gate. Skills retain their runtime step and tombstone slot while only
+the C++ DB tuple `(skill, value, max, professionSlot)` is durable. A lost COMMIT response is never
+guessed: the complete three-table state is reread under the same character lock and publication
+continues only on exact equality.
+
+That immediate durability boundary is for consumers whose operation itself is database-gated.
+Generic player `EffectLearnSpell` preserves the distinct C++ timing: it installs the same
+validated plan's dirty post-`LearnSpell` snapshot and publishes synchronously, without awaiting or
+requiring Character DB. The ordinary `Player::SaveToDB` plan now consumes those exact
+`NEW`/`CHANGED`/`REMOVED` spell and skill states through `_SaveSpells`/`_SaveSkills`-shaped
+statements and normalizes them only after a successful full-save commit. This avoids both the old
+shallow grant and making unrelated pending player state durable during a cast.
+
+After a confirmed/reconciled commit, one non-awaiting phase replaces the complete spell, trait,
+override, skill, profession and controller mirrors before processing the ordered action stream.
+Learned/superseded/unlearned packets use the C++ `LearnedSpellInfo` option-bit and payload order,
+including favorite and trait-definition values. Criteria, quest, passive and mount actions are
+retained as an ordered represented intent log until their canonical managers own those effects;
+dual wield is applied to the existing canonical player owner before packet publication, and a
+missing canonical owner returns a post-commit reconciliation error without emitting packets. The
+generic represented player `EffectLearnSpell` uses the same validated authority, fails closed
+without complete snapshot/metadata, and defers persistence to normal `Player::SaveToDB` like C++;
+pet, item and battle-pet branches remain separate owners. Trainer charge, visuals and dispatcher
+activation remain #159/#142.

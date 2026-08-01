@@ -290,8 +290,21 @@ mod tests {
         root: SpellAcquisitionRootLikeCpp,
         professions: Vec<u32>,
     ) -> SpellAcquisitionPlanLikeCpp {
+        let source_snapshot = PlayerSpellAcquisitionSnapshotLikeCpp {
+            spells: Vec::new(),
+            skills: Vec::new(),
+            occupied_skill_slots: 0,
+            overrides: Vec::new(),
+            race: 1,
+            class: 1,
+            level: 80,
+            lifecycle: PlayerAcquisitionLifecycleLikeCpp::InWorld,
+            future_player_condition_resolutions: Vec::new(),
+            cast_resolutions: BTreeMap::new(),
+        };
         SpellAcquisitionPlanLikeCpp {
             root,
+            source_snapshot: source_snapshot.clone(),
             mutations: Vec::new(),
             spell_transitions: Vec::new(),
             skill_transitions: Vec::new(),
@@ -300,18 +313,7 @@ mod tests {
             profession_association_inputs: Vec::new(),
             post_commit_actions: Vec::new(),
             diagnostics: Vec::new(),
-            resulting_snapshot: PlayerSpellAcquisitionSnapshotLikeCpp {
-                spells: Vec::new(),
-                skills: Vec::new(),
-                occupied_skill_slots: 0,
-                overrides: Vec::new(),
-                race: 1,
-                class: 1,
-                level: 80,
-                lifecycle: PlayerAcquisitionLifecycleLikeCpp::InWorld,
-                future_player_condition_resolutions: Vec::new(),
-                cast_resolutions: BTreeMap::new(),
-            },
+            resulting_snapshot: source_snapshot,
         }
     }
 

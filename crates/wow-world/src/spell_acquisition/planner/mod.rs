@@ -37,6 +37,7 @@ struct EffectiveSpellProjectionLikeCpp {
 
 struct SpellAcquisitionPlannerLikeCpp<'a> {
     root: SpellAcquisitionRootLikeCpp,
+    source_snapshot: PlayerSpellAcquisitionSnapshotLikeCpp,
     metadata: SpellAcquisitionMetadataLikeCpp<'a>,
     race: u8,
     class: u8,
@@ -238,6 +239,7 @@ impl<'a> SpellAcquisitionPlannerLikeCpp<'a> {
 
         Ok(Self {
             root,
+            source_snapshot: snapshot.clone(),
             metadata,
             race: snapshot.race,
             class: snapshot.class,
@@ -311,6 +313,7 @@ impl<'a> SpellAcquisitionPlannerLikeCpp<'a> {
 
         Ok(SpellAcquisitionPlanLikeCpp {
             root: self.root,
+            source_snapshot: self.source_snapshot,
             mutations: self.mutations,
             spell_transitions: self.spell_transitions,
             skill_transitions: self.skill_transitions,
