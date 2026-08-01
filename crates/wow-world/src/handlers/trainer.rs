@@ -736,6 +736,15 @@ impl WorldSession {
             &prepared,
             |session| {
                 session.stage_player_money_change_like_cpp(old_money, new_money);
+                if old_money != new_money {
+                    session.send_player_values_update_from_entity_bridge(
+                        &[],
+                        &[],
+                        &[],
+                        &[],
+                        Some(new_money),
+                    );
+                }
                 let trainer_visual = PlaySpellVisualKit {
                     unit: trainer_guid,
                     kit_record_id: 179,
@@ -1702,6 +1711,16 @@ mod tests {
         );
         let player_guid = fixture.session.player_guid().unwrap();
         assert_eq!(
+            fixture.send_rx.try_recv().unwrap(),
+            wow_packet::packets::update::UpdateObject::player_money_update(
+                player_guid,
+                fixture.session.player_map_id_like_cpp(),
+                80,
+                None,
+            )
+            .to_bytes()
+        );
+        assert_eq!(
             realm_rx.try_recv().unwrap(),
             PlaySpellVisualKit {
                 unit: fixture.trainer,
@@ -1778,6 +1797,16 @@ mod tests {
                 .known_spells_like_cpp()
                 .contains(&WRAPPER_TRAINER_SPELL),
             "C++ casts a trainer wrapper; it does not learn the wrapper row"
+        );
+        assert_eq!(
+            fixture.send_rx.try_recv().unwrap(),
+            wow_packet::packets::update::UpdateObject::player_money_update(
+                fixture.session.player_guid().unwrap(),
+                fixture.session.player_map_id_like_cpp(),
+                75,
+                None,
+            )
+            .to_bytes()
         );
         assert_eq!(
             fixture.send_rx.try_recv().unwrap(),
@@ -1913,6 +1942,68 @@ mod tests {
                 .session
                 .known_spells_like_cpp()
                 .contains(&WRAPPER_LEARNED_SPELL)
+        );
+    }
+
+    #[tokio::test]
+    async fn wrapper_effect_immunity_removes_only_its_matching_effect_like_cpp() {
+        let mut fixture = trainer_wrapper_fixture();
+        let wrapper_id = WRAPPER_TRAINER_SPELL as u32;
+        let learned_id = WRAPPER_LEARNED_SPELL as u32;
+        let aura_spell_id = 999;
+        let learn_effect = player_learn_effect(1, wrapper_id, learned_id);
+        let mut dual_wield_effect = player_learn_effect(2, wrapper_id, learned_id);
+        dual_wield_effect.effect_index_raw = 1;
+        dual_wield_effect.effect_type_raw = 40; // SPELL_EFFECT_DUAL_WIELD
+        dual_wield_effect.effect_trigger_spell_raw = 0;
+        fixture.session.set_spell_acquisition_catalog(Arc::new(
+            SpellAcquisitionCatalogLikeCpp::from_effective_rows_like_cpp(
+                [wrapper_id, learned_id, aura_spell_id]
+                    .map(|spell_id| SpellAcquisitionCoverageSeedLikeCpp::covered(spell_id, 0)),
+                EffectiveSpellAcquisitionRowsLikeCpp {
+                    spell_effects: vec![
+                        learn_effect,
+                        dual_wield_effect,
+                        player_aura_effect(
+                            3,
+                            aura_spell_id,
+                            37, // SPELL_AURA_EFFECT_IMMUNITY
+                            40, // SPELL_EFFECT_DUAL_WIELD
+                        ),
+                    ],
+                    ..Default::default()
+                },
+                SpellAcquisitionTableHashesLikeCpp::default(),
+                Vec::new(),
+            ),
+        ));
+        seed_unclassified_active_aura(&mut fixture.session, 2);
+
+        fixture
+            .session
+            .handle_trainer_buy_spell(trainer_buy_packet(
+                fixture.trainer,
+                DEFAULT_TRAINER_ID as i32,
+                WRAPPER_TRAINER_SPELL,
+            ))
+            .await;
+
+        assert_eq!(fixture.session.player_gold_like_cpp(), 75);
+        assert!(
+            fixture
+                .session
+                .known_spells_like_cpp()
+                .contains(&WRAPPER_LEARNED_SPELL),
+            "C++ preserves the non-immunized learn effect bit"
+        );
+        assert!(
+            !fixture
+                .session
+                .mutate_canonical_player_like_cpp(|player| {
+                    player.unit().can_dual_wield_like_cpp()
+                })
+                .expect("canonical player"),
+            "the immunized dual-wield effect bit must not execute"
         );
     }
 

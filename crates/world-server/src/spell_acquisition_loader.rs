@@ -68,6 +68,7 @@ struct TrainerCastWorldHookAuditLikeCpp {
     disabled: bool,
     aura_restriction: bool,
     equipped_item_restriction: bool,
+    spell_focus_requirement: bool,
     linked_spell: bool,
 }
 
@@ -97,6 +98,7 @@ fn trainer_cast_world_hooks_are_static_safe_like_cpp(
         || audit.disabled
         || audit.aura_restriction
         || audit.equipped_item_restriction
+        || audit.spell_focus_requirement
         || audit.linked_spell)
 }
 
@@ -235,6 +237,12 @@ pub(crate) async fn load_trainer_static_authority_like_cpp(
             equipped_item_restriction: equipped_items
                 .entry_for_spell_id_like_cpp(i32::try_from(spell_id).unwrap_or(i32::MAX))
                 .is_some_and(trainer_cast_has_effective_equipped_item_restriction_like_cpp),
+            // The reduced trainer path does not execute C++ `SearchSpellFocus`.
+            // Missing SpellInfo is equally indeterminate and must fail closed.
+            spell_focus_requirement: i32::try_from(spell_id)
+                .ok()
+                .and_then(|spell_id| spell_store.get(spell_id))
+                .is_none_or(|spell_info| spell_info.requires_spell_focus_like_cpp()),
             linked_spell: [
                 SpellLinkedTypeLikeCpp::Cast,
                 SpellLinkedTypeLikeCpp::Hit,
@@ -1402,6 +1410,10 @@ mod tests {
             },
             TrainerCastWorldHookAuditLikeCpp {
                 equipped_item_restriction: true,
+                ..Default::default()
+            },
+            TrainerCastWorldHookAuditLikeCpp {
+                spell_focus_requirement: true,
                 ..Default::default()
             },
             TrainerCastWorldHookAuditLikeCpp {

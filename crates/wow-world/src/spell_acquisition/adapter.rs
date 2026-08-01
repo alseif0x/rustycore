@@ -172,14 +172,12 @@ impl crate::session::WorldSession {
             SpellAcquisitionMetadataLookupLikeCpp::MissingCoverage
             | SpellAcquisitionMetadataLookupLikeCpp::Indeterminate(_) => return None,
         };
-        if self.active_auras_may_immunize_trainer_effects_like_cpp(
+        let immunized_effect_mask = self.active_auras_immunized_trainer_effect_mask_like_cpp(
             catalog,
             spell_id,
             effects,
             no_immunities,
-        )? {
-            return None;
-        }
+        )?;
         let mut executed_hit_target_effect_mask = 0_u32;
         let mut executed_dual_wield_effects = Vec::new();
         for effect in effects {
@@ -192,6 +190,9 @@ impl crate::session::WorldSession {
             }
             let effect_index = effect.effect_index_checked().ok()?;
             let effect_bit = 1_u32.checked_shl(u32::from(effect_index))?;
+            if immunized_effect_mask & effect_bit != 0 {
+                continue;
+            }
             executed_hit_target_effect_mask |= effect_bit;
             if effect_type == SPELL_EFFECT_DUAL_WIELD {
                 executed_dual_wield_effects.push(PlayerExecutedDualWieldEffectLikeCpp {
@@ -207,14 +208,15 @@ impl crate::session::WorldSession {
         })
     }
 
-    fn active_auras_may_immunize_trainer_effects_like_cpp(
+    fn active_auras_immunized_trainer_effect_mask_like_cpp(
         &self,
         catalog: &SpellAcquisitionCatalogLikeCpp,
         trainer_spell_id: u32,
         trainer_effects: &[SpellAcquisitionEffectLikeCpp],
         no_immunities: bool,
-    ) -> Option<bool> {
+    ) -> Option<u32> {
         let linked = self.spell_linked_store_like_cpp()?;
+        let mut immunized_effect_mask = 0_u32;
         for aura in self.visible_auras.values() {
             let aura_spell_id = u32::try_from(aura.spell_id).ok().filter(|id| *id != 0)?;
             if linked
@@ -225,7 +227,8 @@ impl crate::session::WorldSession {
                         .any(|effect| *effect < 0 && effect.unsigned_abs() == trainer_spell_id)
                 })
             {
-                return Some(true);
+                // C++ `IMMUNITY_ID` rejects the spell rather than one effect.
+                return Some(u32::MAX);
             }
             if no_immunities {
                 // C++ checks IMMUNITY_ID before SPELL_ATTR0_NO_IMMUNITIES,
@@ -248,25 +251,30 @@ impl crate::session::WorldSession {
                 unresolved_effect_mask &= !effect_bit;
                 match effect.effect_aura_raw {
                     SPELL_AURA_EFFECT_IMMUNITY_LIKE_CPP => {
-                        if trainer_effects.iter().any(|trainer_effect| {
-                            trainer_effect.effect_attributes_raw
+                        for trainer_effect in trainer_effects {
+                            let trainer_effect_type = trainer_effect.effect_type_checked().ok()?;
+                            if trainer_effect.effect_attributes_raw
                                 & SPELL_EFFECT_ATTRIBUTE_NO_IMMUNITY_LIKE_CPP
                                 == 0
-                                && trainer_effect
-                                    .effect_type_checked()
-                                    .is_ok_and(|effect_type| {
-                                        effect.effect_misc_value_raw[0] == i64::from(effect_type)
-                                    })
-                        }) {
-                            return Some(true);
+                                && effect.effect_misc_value_raw[0] == i64::from(trainer_effect_type)
+                            {
+                                let trainer_effect_index =
+                                    trainer_effect.effect_index_checked().ok()?;
+                                immunized_effect_mask |=
+                                    1_u32.checked_shl(u32::from(trainer_effect_index))?;
+                            }
                         }
                     }
                     SPELL_AURA_STATE_IMMUNITY_LIKE_CPP => {
-                        if trainer_effects.iter().any(|trainer_effect| {
-                            trainer_effect.effect_aura_raw != 0
+                        for trainer_effect in trainer_effects {
+                            if trainer_effect.effect_aura_raw != 0
                                 && effect.effect_misc_value_raw[0] == trainer_effect.effect_aura_raw
-                        }) {
-                            return Some(true);
+                            {
+                                let trainer_effect_index =
+                                    trainer_effect.effect_index_checked().ok()?;
+                                immunized_effect_mask |=
+                                    1_u32.checked_shl(u32::from(trainer_effect_index))?;
+                            }
                         }
                     }
                     SPELL_AURA_MECHANIC_IMMUNITY_LIKE_CPP
@@ -294,7 +302,7 @@ impl crate::session::WorldSession {
                 return None;
             }
         }
-        Some(false)
+        Some(immunized_effect_mask)
     }
 
     pub(crate) fn spell_acquisition_snapshot_like_cpp(
