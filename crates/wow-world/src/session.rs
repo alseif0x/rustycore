@@ -64266,6 +64266,20 @@ impl WorldSession {
         let Ok(trigger_spell_id) = u32::try_from(trigger_spell) else {
             return false;
         };
+        // C++ reaches `CollectionMgr::AddMount` after `Player::AddSpell` for a
+        // Mount.db2 source spell. The shallow fallback cannot atomically
+        // update the account collection or learn a faction counterpart, so it
+        // needs complete mount authority and must leave mount acquisition to
+        // its richer owner instead of persisting only the character spell.
+        let Some(mounts) = self.mount_store() else {
+            return false;
+        };
+        if mounts
+            .get_by_source_spell_id_like_cpp(trigger_spell_id)
+            .is_some()
+        {
+            return false;
+        }
         let plan = match self.project_effect_learn_spell_acquisition_like_cpp(trigger_spell_id) {
             crate::spell_acquisition::SpellAcquisitionOutcomeLikeCpp::Deterministic(plan) => plan,
             crate::spell_acquisition::SpellAcquisitionOutcomeLikeCpp::Indeterminate(_) => {
@@ -64279,10 +64293,16 @@ impl WorldSession {
         ) else {
             return self.apply_base_learn_spell_effect_like_cpp(trigger_spell);
         };
-        let Ok(profession_plan) = self.plan_primary_profession_capacity_like_cpp(
+        let profession_plan = match self.plan_primary_profession_capacity_like_cpp(
             plan.root_primary_profession_skill_ids.iter().copied(),
-        ) else {
-            return self.apply_base_learn_spell_effect_like_cpp(trigger_spell);
+        ) {
+            Ok(plan) => plan,
+            Err(error)
+                if Self::may_shallow_fallback_after_profession_plan_error_like_cpp(error) =>
+            {
+                return self.apply_base_learn_spell_effect_like_cpp(trigger_spell);
+            }
+            Err(_) => return false,
         };
         let prepared = match crate::spell_acquisition::prepare_player_spell_acquisition_like_cpp(
             &plan,
@@ -64328,18 +64348,33 @@ impl WorldSession {
         }
     }
 
+    const fn may_shallow_fallback_after_profession_plan_error_like_cpp(
+        error: crate::profession::PrimaryProfessionCapacityPlanErrorLikeCpp,
+    ) -> bool {
+        matches!(
+            error,
+            crate::profession::PrimaryProfessionCapacityPlanErrorLikeCpp::MissingSkillLineStore
+                | crate::profession::PrimaryProfessionCapacityPlanErrorLikeCpp::MissingPlayerSkillSnapshot
+        )
+    }
+
     /// Minimum C++ `Player::LearnSpell` behavior retained when the richer
-    /// immutable acquisition projection cannot prove ancillary ranks, skills,
-    /// traits, overrides, or triggered casts. The low-level runtime helper is
-    /// intentionally shallow. Preserve a dirty row in the complete map when
-    /// possible, or in a targeted SaveToDB overlay otherwise, without claiming
-    /// authority over untouched spells. This retains the base gameplay grant
-    /// performed by C++ `Spell::EffectLearnSpell` whenever the narrow path can
-    /// prove that no multi-rank insertion is required.
+    /// immutable acquisition projection cannot prove ancillary skills or
+    /// triggered casts. The low-level runtime helper is intentionally shallow
+    /// and requires the complete in-world spell map before mutating it. This
+    /// retains the base gameplay grant performed by C++ `EffectLearnSpell`
+    /// whenever no previous-rank insertion is required.
     fn apply_base_learn_spell_effect_like_cpp(&mut self, trigger_spell: i32) -> bool {
         let Some(trigger_spell_id) = u32::try_from(trigger_spell).ok() else {
             return false;
         };
+        // An in-world C++ Player always owns the complete PlayerSpellMap.
+        // Without that authority a targeted UPSERT cannot distinguish a new
+        // spell from a disabled durable row whose active bit must be
+        // preserved, so publication must wait for hydration.
+        if !self.represented_player_spell_rows_complete_like_cpp {
+            return false;
+        }
         let Some(spell_chains) = self.spell_chain_store.as_ref() else {
             return false;
         };
@@ -64352,14 +64387,15 @@ impl WorldSession {
             });
         match spell_chains.spell_chain_lookup_like_cpp(trigger_spell_id) {
             wow_data::SpellChainLookupLikeCpp::Indeterminate(_) => return false,
-            wow_data::SpellChainLookupLikeCpp::Node(_)
-                if previous.is_none_or(|row| {
-                    matches!(
-                        row.state,
-                        RepresentedPlayerSpellStateLikeCpp::Removed
-                            | RepresentedPlayerSpellStateLikeCpp::Temporary
-                    )
-                }) =>
+            wow_data::SpellChainLookupLikeCpp::Node(node)
+                if node.prev_spell_id.is_some()
+                    && previous.is_none_or(|row| {
+                        matches!(
+                            row.state,
+                            RepresentedPlayerSpellStateLikeCpp::Removed
+                                | RepresentedPlayerSpellStateLikeCpp::Temporary
+                        )
+                    }) =>
             {
                 // Inserting a ranked row makes C++ recursively learn its
                 // previous rank and reconcile every active rank, including
@@ -64371,8 +64407,98 @@ impl WorldSession {
             wow_data::SpellChainLookupLikeCpp::Unranked
             | wow_data::SpellChainLookupLikeCpp::Node(_) => {}
         }
+        if !self.validate_base_learn_spell_fallback_like_cpp(trigger_spell, &mut BTreeSet::new()) {
+            return false;
+        }
         self.begin_spell_acquisition_post_commit_action_batch_like_cpp();
         self.apply_base_learn_spell_effect_recursive_like_cpp(trigger_spell, &mut BTreeSet::new())
+    }
+
+    fn validate_base_learn_spell_fallback_like_cpp(
+        &self,
+        trigger_spell: i32,
+        visiting: &mut BTreeSet<i32>,
+    ) -> bool {
+        if !visiting.insert(trigger_spell) {
+            return true;
+        }
+        let Some(previous) = self
+            .represented_player_spell_rows_like_cpp
+            .get(&trigger_spell)
+            .copied()
+        else {
+            visiting.remove(&trigger_spell);
+            return true;
+        };
+
+        // C++ clears an existing PlayerSpell::TraitDefinitionId and its
+        // OverridesSpell edge before reactivation. Require the two complete
+        // mirrors up front so a recursive disabled-spell closure cannot fail
+        // after an earlier row has already been exposed.
+        if !self.represented_spell_trait_definition_ids_complete_like_cpp
+            || !self.represented_override_spells_complete_like_cpp
+        {
+            visiting.remove(&trigger_spell);
+            return false;
+        }
+        if let Some(&trait_definition_id) = self
+            .represented_spell_trait_definition_ids_like_cpp
+            .get(&trigger_spell)
+        {
+            let Some(definition) = u32::try_from(trait_definition_id).ok().and_then(|id| {
+                self.trait_definition_store()
+                    .and_then(|store| store.get(id))
+            }) else {
+                visiting.remove(&trigger_spell);
+                return false;
+            };
+            if definition.overrides_spell_id < 0 {
+                visiting.remove(&trigger_spell);
+                return false;
+            }
+        }
+
+        if previous.disabled {
+            if self.spell_chain_store.is_none() || self.spell_required_store.is_none() {
+                visiting.remove(&trigger_spell);
+                return false;
+            }
+            if let Some(next_spell) = u32::try_from(trigger_spell)
+                .ok()
+                .map(|spell_id| self.next_spell_in_chain_like_cpp(spell_id))
+                .filter(|spell_id| *spell_id != 0)
+                .and_then(|spell_id| i32::try_from(spell_id).ok())
+                && self
+                    .represented_player_spell_rows_like_cpp
+                    .get(&next_spell)
+                    .is_some_and(|row| row.disabled)
+                && !self.validate_base_learn_spell_fallback_like_cpp(next_spell, visiting)
+            {
+                visiting.remove(&trigger_spell);
+                return false;
+            }
+            if let Ok(trigger_spell_id) = u32::try_from(trigger_spell) {
+                for requiring_spell in self
+                    .spells_requiring_spell_like_cpp(trigger_spell_id)
+                    .iter()
+                    .filter_map(|spell_id| i32::try_from(*spell_id).ok())
+                {
+                    if self
+                        .represented_player_spell_rows_like_cpp
+                        .get(&requiring_spell)
+                        .is_some_and(|row| row.disabled)
+                        && !self
+                            .validate_base_learn_spell_fallback_like_cpp(requiring_spell, visiting)
+                    {
+                        visiting.remove(&trigger_spell);
+                        return false;
+                    }
+                }
+            }
+        }
+
+        visiting.remove(&trigger_spell);
+        true
     }
 
     fn apply_base_learn_spell_effect_recursive_like_cpp(
@@ -64442,6 +64568,20 @@ impl WorldSession {
             );
         }
         if requires_learn {
+            if let Some(trait_definition_id) = self
+                .represented_spell_trait_definition_ids_like_cpp
+                .remove(&trigger_spell)
+                && let Some(overridden_spell_id) = u32::try_from(trait_definition_id)
+                    .ok()
+                    .and_then(|id| {
+                        self.trait_definition_store()
+                            .and_then(|store| store.get(id))
+                    })
+                    .map(|definition| definition.overrides_spell_id)
+                    .filter(|spell_id| *spell_id > 0)
+            {
+                self.remove_represented_override_spell_like_cpp(overridden_spell_id, trigger_spell);
+            }
             let complete_spell_rows = self
                 .represented_player_spell_rows_complete_like_cpp
                 .then(|| self.represented_player_spell_rows_like_cpp.clone());
@@ -111771,6 +111911,15 @@ mod tests {
         session.set_player_guid(Some(player_guid));
         session.set_player_registry(Arc::clone(&player_registry));
         session.set_spell_chain_store(Arc::new(wow_data::SpellChainStoreLikeCpp::default()));
+        session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([])));
+        assert!(session.replace_complete_spell_acquisition_runtime_like_cpp(
+            [],
+            [],
+            [],
+            HashMap::new(),
+            0,
+            BTreeSet::new(),
+        ));
         player_registry.insert(player_guid, broadcast_info(player_guid, registry_send_tx));
         observer.set_player_guid(Some(observer_guid));
         observer.set_player_registry(Arc::clone(&player_registry));
@@ -111872,13 +112021,13 @@ mod tests {
                 },
             ]
         );
-        let fallback_rows = session
-            .represented_fallback_player_spell_rows_like_cpp
+        let spell_rows = session
+            .represented_player_spell_rows_like_cpp
             .values()
             .copied()
             .collect::<Vec<_>>();
         assert_eq!(
-            fallback_rows,
+            spell_rows,
             vec![RepresentedPlayerSpellLikeCpp {
                 spell_id: learned_spell_id,
                 active: true,
@@ -111887,19 +112036,82 @@ mod tests {
                 favorite: false,
                 state: RepresentedPlayerSpellStateLikeCpp::New,
             }],
-            "the shallow C++-faithful grant remains dirty without claiming complete map authority"
+            "the shallow C++-faithful grant remains dirty in the complete in-world spell map"
         );
-        let save_statements = WorldSession::character_spell_fallback_save_statements_like_cpp(
+        let save_statements = WorldSession::character_spell_save_statements_like_cpp(
             player_guid.counter() as u64,
-            fallback_rows,
+            spell_rows,
         );
         assert!(save_statements.iter().any(|statement| {
-            statement.sql() == CharStatements::UPSERT_CHAR_SPELL_LEARN_FALLBACK.sql()
+            statement.sql() == CharStatements::INS_CHAR_SPELL.sql()
                 && matches!(
                     statement.params().get(1),
                     Some(wow_database::SqlParam::I32(spell_id)) if *spell_id == learned_spell_id
                 )
         }));
+    }
+
+    #[tokio::test]
+    async fn spell_learn_spell_fallback_rejects_mount_source_before_character_grant() {
+        let (mut session, _, send_rx) = make_session();
+        let learned_spell_id = 13_358_i32;
+        let player_guid = ObjectGuid::create_player(1, 79);
+        session.set_player_guid(Some(player_guid));
+        session.set_spell_chain_store(Arc::new(wow_data::SpellChainStoreLikeCpp::default()));
+        session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([
+            wow_data::MountEntry {
+                id: 1,
+                mount_type_id: 0,
+                flags: 0,
+                source_type_enum: 0,
+                source_spell_id: learned_spell_id,
+                player_condition_id: 0,
+                mount_fly_ride_height: 0.0,
+                ui_model_scene_id: 0,
+            },
+        ])));
+        assert!(session.replace_complete_spell_acquisition_runtime_like_cpp(
+            [],
+            [],
+            [],
+            HashMap::new(),
+            0,
+            BTreeSet::new(),
+        ));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            learned_spell_id,
+            wow_data::SpellInfo {
+                spell_id: learned_spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: Vec::new(),
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        assert!(
+            !session
+                .apply_learn_spell_effect_like_cpp(learned_spell_id, player_guid)
+                .await
+        );
+
+        assert!(!session.known_spells_like_cpp().contains(&learned_spell_id));
+        assert!(session.represented_player_spell_rows_like_cpp.is_empty());
+        assert!(
+            session
+                .represented_spell_acquisition_post_commit_actions_like_cpp()
+                .is_empty()
+        );
+        assert!(drain_server_opcodes(&send_rx).is_empty());
     }
 
     #[tokio::test]
@@ -111966,6 +112178,7 @@ mod tests {
         session.set_player_guid(Some(player_guid));
         session.set_spell_chain_store(Arc::new(wow_data::SpellChainStoreLikeCpp::default()));
         session.set_spell_required_store(Arc::new(wow_data::SpellRequiredStoreLikeCpp::default()));
+        session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([])));
         assert!(
             session.set_complete_represented_player_spell_rows_like_cpp([
                 RepresentedPlayerSpellLikeCpp {
@@ -111978,6 +112191,8 @@ mod tests {
                 },
             ])
         );
+        assert!(session.set_complete_represented_spell_trait_definition_ids_like_cpp([]));
+        assert!(session.set_complete_represented_override_spells_like_cpp([]));
         let mut spell_store = wow_data::SpellStore::new();
         spell_store.insert(
             learned_spell_id,
@@ -112040,6 +112255,7 @@ mod tests {
         let player_guid = ObjectGuid::create_player(1, 77);
         session.set_player_guid(Some(player_guid));
         session.set_spell_chain_store(Arc::new(wow_data::SpellChainStoreLikeCpp::default()));
+        session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([])));
         assert!(session.replace_complete_spell_acquisition_runtime_like_cpp(
             [RepresentedPlayerSpellLikeCpp {
                 spell_id: learned_spell_id,
@@ -112224,6 +112440,48 @@ mod tests {
     }
 
     #[test]
+    fn base_learn_spell_fallback_allows_first_rank_insertion_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let first_rank = 13_354_i32;
+        let second_rank = 13_355_i32;
+        session.set_spell_chain_store(Arc::new(
+            wow_data::SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
+                [wow_data::SpellRankEdgeLikeCpp {
+                    spell_id: second_rank as u32,
+                    supercedes_spell_id: first_rank as u32,
+                }],
+                |_| true,
+            ),
+        ));
+        assert!(session.replace_complete_spell_acquisition_runtime_like_cpp(
+            [],
+            [],
+            [],
+            HashMap::new(),
+            0,
+            BTreeSet::new(),
+        ));
+
+        assert!(session.apply_base_learn_spell_effect_like_cpp(first_rank));
+
+        assert_eq!(
+            session.represented_player_spell_rows_like_cpp[&first_rank],
+            RepresentedPlayerSpellLikeCpp {
+                spell_id: first_rank,
+                active: true,
+                disabled: false,
+                dependent: false,
+                favorite: false,
+                state: RepresentedPlayerSpellStateLikeCpp::New,
+            }
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::LearnedSpells]
+        );
+    }
+
+    #[test]
     fn base_learn_spell_fallback_reactivates_disabled_cpp_closure_in_order() {
         let (mut session, _, send_rx) = make_session();
         let root_spell = 13_346_i32;
@@ -112318,6 +112576,85 @@ mod tests {
     }
 
     #[test]
+    fn base_learn_spell_fallback_clears_trait_override_before_reactivation_like_cpp() {
+        let (mut session, _, _) = make_session();
+        let spell_id = 13_356_i32;
+        let overridden_spell_id = 13_357_i32;
+        let trait_definition_id = 77_i32;
+        session.set_spell_chain_store(Arc::new(wow_data::SpellChainStoreLikeCpp::default()));
+        session.set_spell_required_store(Arc::new(wow_data::SpellRequiredStoreLikeCpp::default()));
+        session.set_trait_definition_store(Arc::new(
+            wow_data::trait_tree::TraitDefinitionStore::from_entries([
+                wow_data::trait_tree::TraitDefinitionEntry {
+                    id: trait_definition_id as u32,
+                    override_name: String::new(),
+                    override_subtext: String::new(),
+                    override_description: String::new(),
+                    spell_id: 0,
+                    override_icon: 0,
+                    overrides_spell_id: overridden_spell_id,
+                    visible_spell_id: 0,
+                },
+            ]),
+        ));
+        assert!(session.replace_complete_spell_acquisition_runtime_like_cpp(
+            [RepresentedPlayerSpellLikeCpp {
+                spell_id,
+                active: true,
+                disabled: true,
+                dependent: false,
+                favorite: false,
+                state: RepresentedPlayerSpellStateLikeCpp::Unchanged,
+            }],
+            [(spell_id, trait_definition_id)],
+            [(overridden_spell_id, spell_id)],
+            HashMap::new(),
+            0,
+            BTreeSet::new(),
+        ));
+
+        assert!(session.apply_base_learn_spell_effect_like_cpp(spell_id));
+
+        assert!(
+            !session
+                .represented_spell_trait_definition_ids_like_cpp
+                .contains_key(&spell_id)
+        );
+        assert!(
+            !session
+                .represented_override_spells_like_cpp
+                .get(&overridden_spell_id)
+                .is_some_and(|spells| spells.contains(&spell_id))
+        );
+        assert!(!session.represented_player_spell_rows_like_cpp[&spell_id].disabled);
+    }
+
+    #[test]
+    fn learn_spell_capacity_rejection_cannot_enter_shallow_fallback() {
+        assert!(
+            !WorldSession::may_shallow_fallback_after_profession_plan_error_like_cpp(
+                crate::profession::PrimaryProfessionCapacityPlanErrorLikeCpp::CapacityExceeded {
+                    configured_max: 2,
+                    used: 2,
+                    requested_new: 1,
+                },
+            )
+        );
+        assert!(
+            WorldSession::may_shallow_fallback_after_profession_plan_error_like_cpp(
+                crate::profession::PrimaryProfessionCapacityPlanErrorLikeCpp::MissingPlayerSkillSnapshot,
+            )
+        );
+        assert!(
+            !WorldSession::may_shallow_fallback_after_profession_plan_error_like_cpp(
+                crate::profession::PrimaryProfessionCapacityPlanErrorLikeCpp::InvalidConfiguredMaximum {
+                    configured: 3,
+                },
+            )
+        );
+    }
+
+    #[test]
     fn base_learn_spell_fallback_replaces_temporary_row_with_durable_new_row_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         let spell_id = 13_350_i32;
@@ -112334,6 +112671,8 @@ mod tests {
                 },
             ])
         );
+        assert!(session.set_complete_represented_spell_trait_definition_ids_like_cpp([]));
+        assert!(session.set_complete_represented_override_spells_like_cpp([]));
 
         assert!(session.apply_base_learn_spell_effect_like_cpp(spell_id));
 
@@ -112387,6 +112726,8 @@ mod tests {
             state: RepresentedPlayerSpellStateLikeCpp::Unchanged,
         };
         assert!(session.set_complete_represented_player_spell_rows_like_cpp([original_row]));
+        assert!(session.set_complete_represented_spell_trait_definition_ids_like_cpp([]));
+        assert!(session.set_complete_represented_override_spells_like_cpp([]));
 
         assert!(!session.apply_base_learn_spell_effect_like_cpp(spell_id));
 
@@ -112406,12 +112747,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn spell_learn_spell_fallback_reconciles_later_complete_row_like_cpp() {
-        let (mut session, _, _) = make_session();
+    async fn spell_learn_spell_fallback_defers_without_complete_spell_rows_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
         let learned_spell_id = 13_342_i32;
         let player_guid = ObjectGuid::create_player(1, 76);
         session.set_player_guid(Some(player_guid));
         session.set_spell_chain_store(Arc::new(wow_data::SpellChainStoreLikeCpp::default()));
+        session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([])));
         let mut spell_store = wow_data::SpellStore::new();
         spell_store.insert(
             learned_spell_id,
@@ -112432,67 +112774,26 @@ mod tests {
         );
         session.set_spell_store(Arc::new(spell_store));
         assert!(
-            session
+            !session
                 .apply_learn_spell_effect_like_cpp(learned_spell_id, player_guid)
                 .await
         );
         assert!(
             session
                 .represented_fallback_player_spell_rows_like_cpp
-                .contains_key(&learned_spell_id)
+                .is_empty(),
+            "an unknown durable row must not be guessed into a targeted UPSERT overlay"
         );
-
         assert!(
-            session.set_complete_represented_player_spell_rows_like_cpp([
-                RepresentedPlayerSpellLikeCpp {
-                    spell_id: learned_spell_id,
-                    active: false,
-                    disabled: true,
-                    dependent: false,
-                    favorite: true,
-                    state: RepresentedPlayerSpellStateLikeCpp::Unchanged,
-                },
-            ])
+            !session.known_spells_like_cpp().contains(&learned_spell_id),
+            "runtime publication must also wait for the complete C++ PlayerSpellMap authority"
         );
-
-        let reconciled = session
-            .represented_player_spell_rows_like_cpp
-            .get(&learned_spell_id)
-            .copied()
-            .expect("the hydrated DB row must retain the pending runtime grant");
-        assert_eq!(
-            reconciled,
-            RepresentedPlayerSpellLikeCpp {
-                spell_id: learned_spell_id,
-                active: false,
-                disabled: false,
-                dependent: false,
-                favorite: true,
-                state: RepresentedPlayerSpellStateLikeCpp::Changed,
-            }
+        assert!(
+            session
+                .represented_spell_acquisition_post_commit_actions_like_cpp()
+                .is_empty()
         );
-        let statements = WorldSession::character_spell_save_statements_like_cpp(
-            player_guid.counter() as u64,
-            [reconciled],
-        );
-        assert_eq!(
-            statements
-                .iter()
-                .map(|statement| statement.sql())
-                .collect::<Vec<_>>(),
-            vec![
-                CharStatements::DEL_CHAR_SPELL_BY_SPELL.sql(),
-                CharStatements::INS_CHAR_SPELL.sql(),
-                CharStatements::DEL_CHAR_SPELL_FAVORITE.sql(),
-                CharStatements::INS_CHAR_SPELL_FAVORITE.sql(),
-            ],
-            "once hydrated, C++-style delete/insert persistence is safe and preserves favorite"
-        );
-        assert_eq!(
-            statements[1].params()[2],
-            wow_database::SqlParam::Bool(false),
-            "a disabled DB row preserves its inactive bit when the pending grant is reconciled"
-        );
+        assert!(drain_server_opcodes(&send_rx).is_empty());
     }
 
     #[test]
