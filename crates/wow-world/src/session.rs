@@ -27186,7 +27186,6 @@ impl WorldSession {
                     character_db,
                     guid_counter,
                     prepared,
-                    money_before,
                     money_after,
                 )
                 .await;
@@ -27198,14 +27197,6 @@ impl WorldSession {
                             "trainer COMMIT reply was lost but durable money and acquisition rows prove commit"
                         );
                         Some(money_persistence)
-                    }
-                    Ok(crate::spell_acquisition::PlayerSpellAcquisitionMoneyReconciliationLikeCpp::RolledBack) => {
-                        cancellation_fence.disarm_like_cpp();
-                        warn!(
-                            %error,
-                            "trainer COMMIT reply was lost but durable money proves rollback"
-                        );
-                        None
                     }
                     Ok(crate::spell_acquisition::PlayerSpellAcquisitionMoneyReconciliationLikeCpp::Indeterminate)
                     | Err(_) => {

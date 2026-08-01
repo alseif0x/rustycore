@@ -2,7 +2,8 @@
   del dispatcher, en una operación atómica: bajo el owner exclusivo de dinero vuelve a resolver
   interacción, procedencia, membresía, condición, precio y el plan #157/#164; persiste dinero y el
   resultado #158 completo en una transacción con guardas; reconcilia COMMIT incierto leyendo dinero,
-  spells, favoritos y skills; y solo entonces instala runtime y publica money, visual kits 179/362 y
+  spells, favoritos y skills, acepta solo el postestado exacto y pone en cuarentena cualquier otra
+  forma porque un escritor posterior puede restaurar un saldo anterior; solo entonces instala runtime y publica money, visual kits 179/362 y
   acciones de aprendizaje en orden C++. La autoridad craft compone `SpellReagents.db2`, overlays
   hotfix oficiales/custom y borrados finales, y exige que existan tanto el objeto creado como cada
   reactivo positivo, igual que `SpellMgr::IsSpellValid`. Los wrappers exigen autoridad estática

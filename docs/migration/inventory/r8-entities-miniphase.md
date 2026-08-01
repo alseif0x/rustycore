@@ -6,8 +6,9 @@ exclusive player-money boundary and recomputes exact trainer membership, conditi
 price, current balance and the deterministic #157/#164 outcome. The exact #158 prepared result and
 its guarded fee replace complete spell/favorite/skill rows and money in one Character DB
 transaction. A lost COMMIT response rereads money plus all three acquisition tables: only exact
-post-state publishes, an unchanged charged balance proves rollback, and every other shape
-quarantines/kicks the session. Runtime money/state remain unchanged on definite rollback.
+post-state publishes; every other shape quarantines/kicks the session because a later writer can
+restore a prior-looking balance after an ambiguous commit. Runtime money/state remain unchanged on
+definite rollback.
 
 Normal castable wrappers now require two separate proofs. Startup derives an immutable safe set
 from final effective acquisition effects and world script/legacy-script/condition/disable/linked/

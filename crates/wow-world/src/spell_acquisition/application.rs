@@ -92,7 +92,6 @@ pub(crate) enum PlayerSpellAcquisitionReconciliationLikeCpp {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum PlayerSpellAcquisitionMoneyReconciliationLikeCpp {
     Committed,
-    RolledBack,
     Indeterminate,
 }
 
@@ -1454,13 +1453,13 @@ pub(crate) async fn persist_prepared_player_spell_acquisition_and_money_like_cpp
 
 /// Reconciles an ambiguous combined trainer COMMIT. Exact prepared spell,
 /// favorite and skill authority plus the post-purchase money value proves the
-/// transaction committed. A changed-money transaction is provably rolled back
-/// when the old value remains; every other shape is quarantined as unknown.
+/// transaction committed. No current row shape can prove rollback after an
+/// ambiguous COMMIT because a later writer may have restored any prior value;
+/// every non-post-state shape is therefore quarantined as unknown.
 pub(crate) async fn reconcile_prepared_player_spell_acquisition_and_money_like_cpp(
     character_db: &CharacterDatabase,
     guid_counter: u64,
     prepared: &PreparedPlayerSpellAcquisitionLikeCpp,
-    money_before: u64,
     money_after: u64,
 ) -> Result<PlayerSpellAcquisitionMoneyReconciliationLikeCpp, DatabaseError> {
     validate_prepared_character_counter_like_cpp(guid_counter, prepared)?;
@@ -1528,7 +1527,6 @@ pub(crate) async fn reconcile_prepared_player_spell_acquisition_and_money_like_c
         && skill_rows == prepared.durable_skills;
     Ok(
         classify_player_spell_acquisition_money_reconciliation_like_cpp(
-            money_before,
             money_after,
             observed_money,
             durable_matches,
@@ -1537,15 +1535,12 @@ pub(crate) async fn reconcile_prepared_player_spell_acquisition_and_money_like_c
 }
 
 fn classify_player_spell_acquisition_money_reconciliation_like_cpp(
-    money_before: u64,
     money_after: u64,
     observed_money: u64,
     durable_matches: bool,
 ) -> PlayerSpellAcquisitionMoneyReconciliationLikeCpp {
     if observed_money == money_after && durable_matches {
         PlayerSpellAcquisitionMoneyReconciliationLikeCpp::Committed
-    } else if money_before != money_after && observed_money == money_before {
-        PlayerSpellAcquisitionMoneyReconciliationLikeCpp::RolledBack
     } else {
         PlayerSpellAcquisitionMoneyReconciliationLikeCpp::Indeterminate
     }
@@ -3480,35 +3475,34 @@ mod tests {
 
     #[test]
     fn combined_commit_reconciliation_requires_money_and_exact_durable_result() {
-        use PlayerSpellAcquisitionMoneyReconciliationLikeCpp::{
-            Committed, Indeterminate, RolledBack,
-        };
+        use PlayerSpellAcquisitionMoneyReconciliationLikeCpp::{Committed, Indeterminate};
 
         assert_eq!(
-            classify_player_spell_acquisition_money_reconciliation_like_cpp(100, 80, 80, true),
+            classify_player_spell_acquisition_money_reconciliation_like_cpp(80, 80, true),
             Committed
         );
         assert_eq!(
-            classify_player_spell_acquisition_money_reconciliation_like_cpp(100, 80, 100, false),
-            RolledBack
+            classify_player_spell_acquisition_money_reconciliation_like_cpp(80, 100, false),
+            Indeterminate,
+            "the old balance cannot prove rollback after an ambiguous COMMIT"
         );
         assert_eq!(
-            classify_player_spell_acquisition_money_reconciliation_like_cpp(100, 80, 100, true),
-            RolledBack,
-            "the unchanged guarded balance proves that the whole transaction rolled back"
+            classify_player_spell_acquisition_money_reconciliation_like_cpp(80, 100, true),
+            Indeterminate,
+            "a later writer may restore money after the acquisition rows committed"
         );
         assert_eq!(
-            classify_player_spell_acquisition_money_reconciliation_like_cpp(100, 80, 80, false),
+            classify_player_spell_acquisition_money_reconciliation_like_cpp(80, 80, false),
             Indeterminate,
             "money alone must never authorize publication of an incomplete acquisition"
         );
         assert_eq!(
-            classify_player_spell_acquisition_money_reconciliation_like_cpp(100, 100, 100, true),
+            classify_player_spell_acquisition_money_reconciliation_like_cpp(100, 100, true),
             Committed,
             "a free trainer purchase is proven only by its complete durable result"
         );
         assert_eq!(
-            classify_player_spell_acquisition_money_reconciliation_like_cpp(100, 100, 100, false,),
+            classify_player_spell_acquisition_money_reconciliation_like_cpp(100, 100, false,),
             Indeterminate,
             "an unchanged balance cannot prove rollback for a free purchase"
         );
