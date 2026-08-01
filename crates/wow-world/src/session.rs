@@ -64378,6 +64378,9 @@ impl WorldSession {
         let requires_learn = previous.map_or_else(
             || !self.known_spells_like_cpp().contains(&trigger_spell),
             |row| {
+                // C++ `AddSpell` handles `PLAYERSPELL_TEMPORARY` before its
+                // existing-row early returns: it erases the temporary entry
+                // with `RemoveTemporarySpell`, then inserts a durable row.
                 matches!(
                     row.state,
                     RepresentedPlayerSpellStateLikeCpp::Removed
@@ -112224,6 +112227,61 @@ mod tests {
                     spell_id: requiring_spell as u32,
                     favorite: false,
                     suppress_messaging: false,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn base_learn_spell_fallback_replaces_temporary_row_with_durable_new_row_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let spell_id = 13_350_i32;
+        assert!(
+            session.set_complete_represented_player_spell_rows_like_cpp([
+                RepresentedPlayerSpellLikeCpp {
+                    spell_id,
+                    active: true,
+                    disabled: false,
+                    dependent: false,
+                    favorite: true,
+                    state: RepresentedPlayerSpellStateLikeCpp::Temporary,
+                },
+            ])
+        );
+
+        assert!(session.apply_base_learn_spell_effect_like_cpp(spell_id));
+
+        assert_eq!(
+            session
+                .represented_player_spell_rows_like_cpp
+                .get(&spell_id),
+            Some(&RepresentedPlayerSpellLikeCpp {
+                spell_id,
+                active: true,
+                disabled: false,
+                dependent: false,
+                favorite: true,
+                state: RepresentedPlayerSpellStateLikeCpp::New,
+            }),
+            "C++ AddSpell removes PLAYERSPELL_TEMPORARY before inserting a durable new row"
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::LearnedSpells]
+        );
+        assert_eq!(
+            session.represented_spell_acquisition_post_commit_actions_like_cpp(),
+            &[
+                crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnOrKnowSpellCriteria {
+                    spell_id: spell_id as u32,
+                },
+                crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp::LearnedSpell {
+                    spell_id: spell_id as u32,
+                    favorite: true,
+                    suppress_messaging: false,
+                },
+                crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnSpellQuestObjective {
+                    spell_id: spell_id as u32,
                 },
             ]
         );
