@@ -27,7 +27,7 @@ use wow_data::{
     SpellChainStoreLikeCpp, SpellCustomAttributeStoreLikeCpp,
     SpellLearnSkillIndeterminateReasonLikeCpp, SpellLearnSkillLookupLikeCpp,
     SpellLearnSkillNodeLikeCpp, SpellLearnSkillStoreLikeCpp, SpellLearnSpellNodeLikeCpp,
-    SpellLearnSpellStoreLikeCpp, SpellRequiredStoreLikeCpp,
+    SpellLearnSpellStoreLikeCpp, SpellLinkedTypeLikeCpp, SpellRequiredStoreLikeCpp,
 };
 
 use wow_data::skill::{

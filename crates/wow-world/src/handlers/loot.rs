@@ -4412,7 +4412,10 @@ impl WorldSession {
                     self.handle_apply_group_subgroup_command_like_cpp(command);
                 }
                 SessionCommand::SendIfVisibleLikeCpp(command) => {
-                    self.handle_send_if_visible_like_cpp_command_like_cpp(command);
+                    self.handle_send_if_visible_like_cpp_command_like_cpp(command, false);
+                }
+                SessionCommand::SendRealmIfVisibleLikeCpp(command) => {
+                    self.handle_send_if_visible_like_cpp_command_like_cpp(command, true);
                 }
                 SessionCommand::SendAddonIfRegisteredLikeCpp(command) => {
                     self.handle_send_addon_if_registered_like_cpp_command_like_cpp(command);
@@ -4999,6 +5002,7 @@ impl WorldSession {
     fn handle_send_if_visible_like_cpp_command_like_cpp(
         &mut self,
         command: SendIfVisibleLikeCppCommand,
+        realm_connection: bool,
     ) {
         let is_monster_move = command
             .packet_bytes
@@ -5123,7 +5127,11 @@ impl WorldSession {
                 "RUST_MONSTER_MOVE_DELIVERY sent"
             );
         }
-        self.send_raw_packet(&command.packet_bytes);
+        if realm_connection {
+            self.send_raw_packet_realm(&command.packet_bytes);
+        } else {
+            self.send_raw_packet(&command.packet_bytes);
+        }
     }
 
     /// Per-session gate for addon chat delivery.

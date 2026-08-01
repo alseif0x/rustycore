@@ -8,14 +8,20 @@ its guarded fee replace complete spell/favorite/skill rows and money in one Char
 transaction. A lost COMMIT response rereads money plus all three acquisition tables: only exact
 post-state publishes; every other shape quarantines/kicks the session because a later writer can
 restore a prior-looking balance after an ambiguous commit. Runtime money/state remain unchanged on
-definite rollback.
+definite rollback. Before replacing those complete tables, the same character-row-locked transaction
+also compares the exact durable source authority, including for zero-price teaching, so a stale
+second session cannot overwrite a first session's committed acquisition.
 
 Normal castable wrappers now require two separate proofs. Startup derives an immutable safe set
-from final effective acquisition effects and world script/legacy-script/condition/disable/linked/
+from the complete final effective acquisition effects and world script/legacy-script/condition/disable/linked/
 pet-aura plus DB2 aura/equipment blockers; current player resolution supplies the immediate phase
-and exact acquisition effect mask again under the money owner. Because Rust does not yet own C++'s
-complete player spell/effect-immunity maps, any active aura fails wrappers closed rather than
-assuming no immunity. Direct products remain unaffected. Confirmed battle-pet products, unsupported
+and exact acquisition effect mask again under the money owner. Active auras are checked from their
+complete effective `EffectAura`/`EffectMechanic`/`EffectAttributes` rows plus negative aura links: effect immunity and
+ID immunity are matched to the exact wrapper effect/spell, ordinary covered buffs remain neutral,
+and startup excludes acquisition effects needing unrepresented mechanic/state masks. Missing metadata
+still fails closed until the canonical Unit immunity containers exist. Signed `spell_script_names` retain C++ semantics: positive IDs bind exactly
+one spell while negative first-rank IDs cover the chain; zeroed aura rows and equipped-item class
+`-1` remain neutral instead of disabling an otherwise safe wrapper. Direct products remain unaffected. Confirmed battle-pet products, unsupported
 wrapper effects, missing DB authority and stale plans fail without charging.
 
 Craft authority also mirrors `SpellMgr::IsSpellValid`: it reads created-item identities from the
@@ -26,12 +32,13 @@ to exist. Missing/overlaid output, invalid recursion or missing reagent template
 the craft spell from immutable startup authority instead of allowing a later partial grant.
 
 After a confirmed commit, one non-awaiting phase installs complete runtime authority, stages money,
-publishes exact `SMSG_PLAY_SPELL_VISUAL_KIT` 179/362 packets, then replays learned/superseded and
+publishes exact `SMSG_PLAY_SPELL_VISUAL_KIT` 179/362 packets through C++'s Realm connection for the
+buyer and visible observers, then replays learned/superseded and
 represented criteria/quest actions in C++ success order while retaining the money exclusion.
 Focused tests cover direct and audited-wrapper success/retry, definite persistence failure, missing
 Character DB, pre-publication owner failure, combined rollback boundaries, reconciliation shapes and
 the exact visual-kit wire layout. This remains `represented-partial`: the buy registration remains
-intentionally absent from dispatch until #142; active-aura wrapper masks await canonical immunity
+intentionally absent from dispatch until #142; exact active-aura immunity masks await canonical immunity
 ownership; battle pets remain #160/#161; fresh capture/live reload and remote gates remain.
 
 # `#NEXT.R8.ENTITIES.1245` — atomic prepared player spell acquisition.

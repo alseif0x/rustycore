@@ -24,7 +24,9 @@ under the exclusive money owner, commits effective money plus the exact #164 spe
 one Character DB transaction, reconciles unknown COMMIT outcomes, installs runtime state, and then
 publishes money, visual kits 179/362 and acquisition actions in C++ success order. Castable wrappers
 require both a startup audit of effective/world-table blockers and a fresh player effect-mask proof;
-active auras remain conservatively unsupported until the full C++ immunity maps are canonical.
+active auras now match covered `EffectAura`/`EffectAttributes` and negative aura-link immunity to the exact wrapper
+effect/spell while startup excludes unsupported mechanic/state shapes; full C++ immunity-map parity
+remains deferred until canonical Unit ownership.
 Craft startup authority composes effective `SpellReagents` DB2/hotfix/removal rows and rejects a
 craft when its created item or any positive reagent item template is absent, matching
 `SpellMgr::IsSpellValid`.

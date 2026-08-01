@@ -192,7 +192,10 @@ equipment blockers into immutable cast/craft authority. Craft validation compose
 `SpellReagents` rows in DB2/official/custom/final-removal order and requires the created item plus
 every positive reagent item exactly as `SpellMgr::IsSpellValid`; the buy path recomputes the current effect
 mask under the money owner, then commits that exact prepared result and the guarded fee together.
-Until the canonical player owns C++'s complete spell/effect-immunity maps, any active aura makes
+Until the canonical player owns C++'s complete spell/effect-immunity maps, active auras use complete
+effective `EffectAura`/`EffectMechanic`/`EffectAttributes` rows and negative aura links: effect/ID immunity is matched
+to the exact wrapper effect/spell, startup excludes mechanic/state shapes that need unavailable mask
+semantics, covered neutral buffs do not block, and missing metadata makes
 wrapper resolution indeterminate instead of assuming no immunity. After confirmed/reconciled
 commit, money, visual kits and the acquisition stream publish in C++ success order. Dispatcher
 activation remains #142.

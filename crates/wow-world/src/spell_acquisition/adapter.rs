@@ -12,6 +12,13 @@ static FAIL_CLOSED_CRAFT_AUTHORITY_LIKE_CPP: std::sync::LazyLock<
     SpellAcquisitionCraftValidityAuthorityLikeCpp,
 > = std::sync::LazyLock::new(Default::default);
 
+const SPELL_AURA_EFFECT_IMMUNITY_LIKE_CPP: i64 = 37;
+const SPELL_AURA_STATE_IMMUNITY_LIKE_CPP: i64 = 38;
+const SPELL_AURA_MECHANIC_IMMUNITY_LIKE_CPP: i64 = 77;
+const SPELL_AURA_MECHANIC_IMMUNITY_MASK_LIKE_CPP: i64 = 147;
+const SPELL_AURA_MOD_IMMUNE_AURA_APPLY_SCHOOL_LIKE_CPP: i64 = 267;
+const SPELL_EFFECT_ATTRIBUTE_NO_IMMUNITY_LIKE_CPP: i64 = 0x0000_0001;
+
 impl crate::session::WorldSession {
     /// Projects one trainer product from the complete current player snapshot.
     ///
@@ -142,25 +149,37 @@ impl crate::session::WorldSession {
     }
 
     /// Resolve the bounded normal-trainer wrapper against current represented
-    /// player state. The represented aura mirror does not yet prove the full
-    /// C++ spell/effect-immunity maps, so any active aura deliberately prevents
-    /// an "all player effects execute" proof. This is conservative, not an
-    /// assumption that represented aura labels imply absence of immunity.
+    /// player state. C++ checks effect immunity per target in `AddUnitTarget`;
+    /// ordinary buffs do not suppress unrelated trainer effects. Until the
+    /// canonical Unit immunity containers exist, derive the bounded blockers
+    /// from complete active-aura effects and negative `SPELL_LINK_AURA` rows.
+    /// Missing aura/link authority still fails closed.
     fn resolve_trainer_wrapper_cast_acquisition_like_cpp(
         &self,
         spell_id: u32,
     ) -> Option<PlayerCastAcquisitionResolutionLikeCpp> {
-        if !self.visible_auras.is_empty() {
-            return None;
-        }
-        let effects = match self
-            .spell_acquisition_catalog()?
-            .acquisition_effects_like_cpp(spell_id)
-        {
+        let catalog = self.spell_acquisition_catalog()?;
+        let effects = match catalog.acquisition_effects_like_cpp(spell_id) {
             SpellAcquisitionEffectsLookupLikeCpp::Covered(effects) => effects,
             SpellAcquisitionEffectsLookupLikeCpp::MissingCoverage
             | SpellAcquisitionEffectsLookupLikeCpp::Indeterminate(_) => return None,
         };
+        let no_immunities = match catalog.misc_for_spell_like_cpp(spell_id, 0) {
+            SpellAcquisitionMetadataLookupLikeCpp::Present(misc) => {
+                misc.no_immunities_checked().ok()?
+            }
+            SpellAcquisitionMetadataLookupLikeCpp::CoveredWithoutRow => false,
+            SpellAcquisitionMetadataLookupLikeCpp::MissingCoverage
+            | SpellAcquisitionMetadataLookupLikeCpp::Indeterminate(_) => return None,
+        };
+        if self.active_auras_may_immunize_trainer_effects_like_cpp(
+            catalog,
+            spell_id,
+            effects,
+            no_immunities,
+        )? {
+            return None;
+        }
         let mut executed_hit_target_effect_mask = 0_u32;
         let mut executed_dual_wield_effects = Vec::new();
         for effect in effects {
@@ -186,6 +205,96 @@ impl crate::session::WorldSession {
             executed_hit_target_effect_mask,
             executed_dual_wield_effects,
         })
+    }
+
+    fn active_auras_may_immunize_trainer_effects_like_cpp(
+        &self,
+        catalog: &SpellAcquisitionCatalogLikeCpp,
+        trainer_spell_id: u32,
+        trainer_effects: &[SpellAcquisitionEffectLikeCpp],
+        no_immunities: bool,
+    ) -> Option<bool> {
+        let linked = self.spell_linked_store_like_cpp()?;
+        for aura in self.visible_auras.values() {
+            let aura_spell_id = u32::try_from(aura.spell_id).ok().filter(|id| *id != 0)?;
+            if linked
+                .get_spell_linked_like_cpp(SpellLinkedTypeLikeCpp::Aura, aura_spell_id)
+                .is_some_and(|effects| {
+                    effects
+                        .iter()
+                        .any(|effect| *effect < 0 && effect.unsigned_abs() == trainer_spell_id)
+                })
+            {
+                return Some(true);
+            }
+            if no_immunities {
+                // C++ checks IMMUNITY_ID before SPELL_ATTR0_NO_IMMUNITIES,
+                // then bypasses all remaining spell/effect immunities.
+                continue;
+            }
+
+            let effects = match catalog.difficulty_none_effects_like_cpp(aura_spell_id) {
+                SpellAcquisitionEffectsLookupLikeCpp::Covered(effects) => effects,
+                SpellAcquisitionEffectsLookupLikeCpp::MissingCoverage
+                | SpellAcquisitionEffectsLookupLikeCpp::Indeterminate(_) => return None,
+            };
+            let mut unresolved_effect_mask = aura.effect_mask;
+            for effect in effects {
+                let effect_index = effect.effect_index_checked().ok()?;
+                let effect_bit = 1_u32.checked_shl(u32::from(effect_index))?;
+                if unresolved_effect_mask & effect_bit == 0 {
+                    continue;
+                }
+                unresolved_effect_mask &= !effect_bit;
+                match effect.effect_aura_raw {
+                    SPELL_AURA_EFFECT_IMMUNITY_LIKE_CPP => {
+                        if trainer_effects.iter().any(|trainer_effect| {
+                            trainer_effect.effect_attributes_raw
+                                & SPELL_EFFECT_ATTRIBUTE_NO_IMMUNITY_LIKE_CPP
+                                == 0
+                                && trainer_effect
+                                    .effect_type_checked()
+                                    .is_ok_and(|effect_type| {
+                                        effect.effect_misc_value_raw[0] == i64::from(effect_type)
+                                    })
+                        }) {
+                            return Some(true);
+                        }
+                    }
+                    SPELL_AURA_STATE_IMMUNITY_LIKE_CPP => {
+                        if trainer_effects.iter().any(|trainer_effect| {
+                            trainer_effect.effect_aura_raw != 0
+                                && effect.effect_misc_value_raw[0] == trainer_effect.effect_aura_raw
+                        }) {
+                            return Some(true);
+                        }
+                    }
+                    SPELL_AURA_MECHANIC_IMMUNITY_LIKE_CPP
+                    | SPELL_AURA_MECHANIC_IMMUNITY_MASK_LIKE_CPP
+                        if trainer_effects
+                            .iter()
+                            .any(|trainer_effect| trainer_effect.effect_mechanic_raw != 0) =>
+                    {
+                        // Startup authority excludes this shape. If a stale or
+                        // injected catalog violates that invariant, do not
+                        // approximate C++'s mechanic-mask switch table.
+                        return None;
+                    }
+                    SPELL_AURA_MOD_IMMUNE_AURA_APPLY_SCHOOL_LIKE_CPP
+                        if trainer_effects
+                            .iter()
+                            .any(|trainer_effect| trainer_effect.effect_aura_raw != 0) =>
+                    {
+                        return None;
+                    }
+                    _ => {}
+                }
+            }
+            if unresolved_effect_mask != 0 {
+                return None;
+            }
+        }
+        Some(false)
     }
 
     pub(crate) fn spell_acquisition_snapshot_like_cpp(

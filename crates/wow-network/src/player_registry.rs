@@ -80,6 +80,9 @@ pub enum SessionCommand {
     /// world-server; the per-session gate is in
     /// `handle_send_if_visible_like_cpp_command_like_cpp` (Slice 4A.1b).
     SendIfVisibleLikeCpp(SendIfVisibleLikeCppCommand),
+    /// Same visibility/phase/range gate as `SendIfVisibleLikeCpp`, but route
+    /// the accepted packet through the receiver's realm connection.
+    SendRealmIfVisibleLikeCpp(SendIfVisibleLikeCppCommand),
     /// Deliver an already-built addon chat packet only if this session accepts
     /// the addon prefix.
     ///

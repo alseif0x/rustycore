@@ -36,6 +36,13 @@ pub(crate) struct DurablePlayerSkillRowLikeCpp {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+struct DurablePlayerSpellAcquisitionAuthorityLikeCpp {
+    spells: Vec<DurablePlayerSpellRowLikeCpp>,
+    favorite_spell_ids: Vec<i32>,
+    skills: Vec<DurablePlayerSkillRowLikeCpp>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PreparedPlayerSpellAcquisitionLikeCpp {
     pub character_guid: Option<wow_core::ObjectGuid>,
     pub root: SpellAcquisitionRootLikeCpp,
@@ -1355,9 +1362,10 @@ pub(crate) async fn persist_prepared_player_spell_acquisition_like_cpp(
 }
 
 /// Persists one prepared acquisition and its absolute trainer fee in a single
-/// Character DB transaction. The locked money value is an optimistic
-/// idempotency guard: a repeated or cross-session request cannot rewrite the
-/// prepared spell/skill snapshot after another purchase changed the balance.
+/// Character DB transaction. The locked money value plus exact locked durable
+/// spell/favorite/skill source are optimistic idempotency guards: a repeated
+/// or cross-session request cannot rewrite a newer authority, including when
+/// a free purchase leaves the balance unchanged.
 pub(crate) async fn persist_prepared_player_spell_acquisition_and_money_like_cpp(
     character_db: &CharacterDatabase,
     guid_counter: u64,
@@ -1393,6 +1401,38 @@ pub(crate) async fn persist_prepared_player_spell_acquisition_and_money_like_cpp
         return Err(SqlTransactionCommitError::DefinitelyRolledBack(
             DatabaseError::Transaction(
                 "trainer acquisition durable money no longer matches the prepared balance"
+                    .to_string(),
+            ),
+        ));
+    }
+
+    let Some(expected_source_authority) =
+        stable_source_durable_authority_like_cpp(&prepared.source_snapshot)
+    else {
+        rollback_player_spell_acquisition_like_cpp(transaction).await;
+        return Err(SqlTransactionCommitError::DefinitelyRolledBack(
+            DatabaseError::Transaction(
+                "trainer acquisition source contains unsaved persistence state".to_string(),
+            ),
+        ));
+    };
+    let observed_source_authority = match read_durable_authority_in_transaction_like_cpp(
+        &mut transaction,
+        guid_counter,
+    )
+    .await
+    {
+        Ok(authority) => authority,
+        Err(error) => {
+            rollback_player_spell_acquisition_like_cpp(transaction).await;
+            return Err(SqlTransactionCommitError::DefinitelyRolledBack(error));
+        }
+    };
+    if observed_source_authority != expected_source_authority {
+        rollback_player_spell_acquisition_like_cpp(transaction).await;
+        return Err(SqlTransactionCommitError::DefinitelyRolledBack(
+            DatabaseError::Transaction(
+                "trainer acquisition durable source no longer matches the prepared snapshot"
                     .to_string(),
             ),
         ));
@@ -1448,6 +1488,118 @@ pub(crate) async fn persist_prepared_player_spell_acquisition_and_money_like_cpp
         } else {
             SqlTransactionCommitError::CommitOutcomeUnknown(error)
         }
+    })
+}
+
+/// Project the exact Character DB rows represented by a clean runtime source.
+/// Temporary spells have no durable row; any other dirty state is ambiguous
+/// until the ordinary C++ save lifecycle consumes it, so trainer persistence
+/// must fail closed instead of guessing the database pre-state.
+fn stable_source_durable_authority_like_cpp(
+    snapshot: &PlayerSpellAcquisitionSnapshotLikeCpp,
+) -> Option<DurablePlayerSpellAcquisitionAuthorityLikeCpp> {
+    let mut spells = Vec::new();
+    let mut favorite_spell_ids = Vec::new();
+    for spell in &snapshot.spells {
+        if spell.state == PlayerSpellPersistenceStateLikeCpp::Temporary {
+            continue;
+        }
+        if spell.state != PlayerSpellPersistenceStateLikeCpp::Unchanged {
+            return None;
+        }
+        let spell_id = i32::try_from(spell.spell_id).ok()?;
+        if spell.favorite {
+            favorite_spell_ids.push(spell_id);
+        }
+        if !spell.dependent {
+            spells.push(DurablePlayerSpellRowLikeCpp {
+                spell_id,
+                active: spell.active,
+                disabled: spell.disabled,
+            });
+        }
+    }
+    spells.sort_by_key(|spell| spell.spell_id);
+    favorite_spell_ids.sort_unstable();
+
+    let non_durable_tombstones = snapshot
+        .non_durable_skill_tombstone_ids
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>();
+    let mut skills = Vec::new();
+    for skill in &snapshot.skills {
+        if skill.state != PlayerSkillPersistenceStateLikeCpp::Unchanged {
+            return None;
+        }
+        let skill_id = u16::try_from(skill.skill_id).ok()?;
+        if non_durable_tombstones.contains(&skill.skill_id) {
+            continue;
+        }
+        skills.push(DurablePlayerSkillRowLikeCpp {
+            skill_id,
+            value: skill.value,
+            maximum: skill.maximum,
+            profession_slot: skill.profession_association.database_value_like_cpp(),
+        });
+    }
+    skills.sort_by_key(|skill| skill.skill_id);
+
+    Some(DurablePlayerSpellAcquisitionAuthorityLikeCpp {
+        spells,
+        favorite_spell_ids,
+        skills,
+    })
+}
+
+async fn read_durable_authority_in_transaction_like_cpp(
+    transaction: &mut Transaction<'_, MySql>,
+    guid_counter: u64,
+) -> Result<DurablePlayerSpellAcquisitionAuthorityLikeCpp, DatabaseError> {
+    let spells = sqlx::query_as::<_, (i32, bool, bool)>(
+        "SELECT spell, active, disabled FROM character_spell WHERE guid = ? ORDER BY spell FOR UPDATE",
+    )
+    .bind(guid_counter)
+    .fetch_all(&mut **transaction)
+    .await
+    .map_err(DatabaseError::from)?
+    .into_iter()
+    .map(
+        |(spell_id, active, disabled)| DurablePlayerSpellRowLikeCpp {
+            spell_id,
+            active,
+            disabled,
+        },
+    )
+    .collect();
+    let favorite_spell_ids = sqlx::query_scalar::<_, i32>(
+        "SELECT spell FROM character_spell_favorite WHERE guid = ? ORDER BY spell FOR UPDATE",
+    )
+    .bind(guid_counter)
+    .fetch_all(&mut **transaction)
+    .await
+    .map_err(DatabaseError::from)?;
+    let skills = sqlx::query_as::<_, (u16, u16, u16, i8)>(
+        "SELECT skill, value, max, professionSlot FROM character_skills WHERE guid = ? ORDER BY skill FOR UPDATE",
+    )
+    .bind(guid_counter)
+    .fetch_all(&mut **transaction)
+    .await
+    .map_err(DatabaseError::from)?
+    .into_iter()
+    .map(
+        |(skill_id, value, maximum, profession_slot)| DurablePlayerSkillRowLikeCpp {
+            skill_id,
+            value,
+            maximum,
+            profession_slot,
+        },
+    )
+    .collect();
+    Ok(DurablePlayerSpellAcquisitionAuthorityLikeCpp {
+        spells,
+        favorite_spell_ids,
+        skills,
     })
 }
 
@@ -2223,6 +2375,60 @@ mod tests {
             new_professions: Vec::new(),
             slot_normalizations: Vec::new(),
         }
+    }
+
+    #[test]
+    fn stable_source_authority_is_exact_and_rejects_unsaved_state() {
+        let mut favorite = spell(200, PlayerSpellPersistenceStateLikeCpp::Unchanged);
+        favorite.favorite = true;
+        let mut dependent = spell(201, PlayerSpellPersistenceStateLikeCpp::Unchanged);
+        dependent.dependent = true;
+        dependent.favorite = true;
+        let mut source = snapshot(vec![favorite, dependent]);
+        source.skills = vec![PlayerSkillAcquisitionRowLikeCpp {
+            skill_id: 164,
+            step: 1,
+            value: 75,
+            maximum: 150,
+            profession_association: ProfessionAssociationInputLikeCpp::Slot(1),
+            state: PlayerSkillPersistenceStateLikeCpp::Unchanged,
+        }];
+        source.occupied_skill_slots = 1;
+
+        assert_eq!(
+            stable_source_durable_authority_like_cpp(&source),
+            Some(DurablePlayerSpellAcquisitionAuthorityLikeCpp {
+                spells: vec![DurablePlayerSpellRowLikeCpp {
+                    spell_id: 200,
+                    active: true,
+                    disabled: false,
+                }],
+                favorite_spell_ids: vec![200, 201],
+                skills: vec![DurablePlayerSkillRowLikeCpp {
+                    skill_id: 164,
+                    value: 75,
+                    maximum: 150,
+                    profession_slot: 1,
+                }],
+            })
+        );
+
+        let mut unsaved_spell = source.clone();
+        unsaved_spell.spells[0].state = PlayerSpellPersistenceStateLikeCpp::Changed;
+        assert!(stable_source_durable_authority_like_cpp(&unsaved_spell).is_none());
+
+        let mut with_temporary_spell = source.clone();
+        with_temporary_spell
+            .spells
+            .push(spell(202, PlayerSpellPersistenceStateLikeCpp::Temporary));
+        assert_eq!(
+            stable_source_durable_authority_like_cpp(&with_temporary_spell),
+            stable_source_durable_authority_like_cpp(&source)
+        );
+
+        let mut unsaved_skill = source;
+        unsaved_skill.skills[0].state = PlayerSkillPersistenceStateLikeCpp::New;
+        assert!(stable_source_durable_authority_like_cpp(&unsaved_skill).is_none());
     }
 
     fn direct_learn_actions(

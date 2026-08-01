@@ -25,9 +25,10 @@ use wow_data::{
     ServersideSpellStoreLikeCpp, SkillStore, SpellAcquisitionCatalogLikeCpp,
     SpellAcquisitionCoverageSeedLikeCpp, SpellAcquisitionDiagnosticSeverityLikeCpp,
     SpellAcquisitionIndeterminateReasonLikeCpp, SpellAcquisitionTalentLookupLikeCpp,
-    SpellAuraRestrictionsStore, SpellChainStoreLikeCpp, SpellCustomAttributeKeyLikeCpp,
-    SpellCustomAttributeLoadErrorKindLikeCpp, SpellCustomAttributeSourceVariantLikeCpp,
-    SpellCustomAttributeStoreLikeCpp, SpellEquippedItemsStore, SpellLearnSkillEffectLikeCpp,
+    SpellAuraRestrictionsEntry, SpellAuraRestrictionsStore, SpellChainStoreLikeCpp,
+    SpellCustomAttributeKeyLikeCpp, SpellCustomAttributeLoadErrorKindLikeCpp,
+    SpellCustomAttributeSourceVariantLikeCpp, SpellCustomAttributeStoreLikeCpp,
+    SpellEquippedItemsEntry, SpellEquippedItemsStore, SpellLearnSkillEffectLikeCpp,
     SpellLearnSkillIndeterminateReasonLikeCpp, SpellLearnSkillSourceSpellInfoLikeCpp,
     SpellLearnSkillStoreLikeCpp, SpellLearnSourceSpellInfoLikeCpp, SpellLearnSpellEffectLikeCpp,
     SpellLearnSpellEntry, SpellLearnSpellStoreLikeCpp, SpellLinkedStoreLikeCpp,
@@ -70,6 +71,19 @@ struct TrainerCastWorldHookAuditLikeCpp {
     linked_spell: bool,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct TrainerSpellScriptBindingsLikeCpp {
+    exact_spell_ids: BTreeSet<u32>,
+    all_rank_root_spell_ids: BTreeSet<u32>,
+}
+
+impl TrainerSpellScriptBindingsLikeCpp {
+    fn contains_like_cpp(&self, spell_id: u32, first_rank_spell_id: u32) -> bool {
+        self.exact_spell_ids.contains(&spell_id)
+            || self.all_rank_root_spell_ids.contains(&first_rank_spell_id)
+    }
+}
+
 const SPELL_EFFECT_CREATE_ITEM_LIKE_CPP: u32 = 24;
 const SPELL_EFFECT_CREATE_RANDOM_ITEM_LIKE_CPP: u32 = 59;
 const SPELL_EFFECT_CREATE_LOOT_LIKE_CPP: u32 = 157;
@@ -84,6 +98,27 @@ fn trainer_cast_world_hooks_are_static_safe_like_cpp(
         || audit.aura_restriction
         || audit.equipped_item_restriction
         || audit.linked_spell)
+}
+
+fn trainer_cast_has_effective_aura_restriction_like_cpp(
+    entry: &SpellAuraRestrictionsEntry,
+) -> bool {
+    entry.caster_aura_state != 0
+        || entry.target_aura_state != 0
+        || entry.exclude_caster_aura_state != 0
+        || entry.exclude_target_aura_state != 0
+        || entry.caster_aura_spell != 0
+        || entry.target_aura_spell != 0
+        || entry.exclude_caster_aura_spell != 0
+        || entry.exclude_target_aura_spell != 0
+}
+
+fn trainer_cast_has_effective_equipped_item_restriction_like_cpp(
+    entry: &SpellEquippedItemsEntry,
+) -> bool {
+    // C++ `SpellInfo::IsItemFitToSpellRequirements` treats class -1 as item
+    // neutral before consulting either mask.
+    entry.equipped_item_class != -1
 }
 
 fn trainer_cast_effects_are_static_safe_like_cpp(
@@ -107,6 +142,13 @@ fn trainer_cast_effects_are_static_safe_like_cpp(
             | SPELL_EFFECT_SKILL_STEP
             | SPELL_EFFECT_DUAL_WIELD => {
                 has_acquisition_effect = true;
+                // This bounded runtime does not yet own C++'s mechanic/state
+                // immunity containers. Keep accepted trainer effects neutral
+                // in both dimensions so active immunity auras can be compared
+                // exactly rather than guessed at purchase time.
+                if effect.effect_mechanic_raw != 0 || effect.effect_aura_raw != 0 {
+                    return false;
+                }
                 if effect_type != SPELL_EFFECT_SKILL && !effect.targets_player_like_cpp() {
                     return false;
                 }
@@ -145,7 +187,7 @@ pub(crate) async fn load_trainer_static_authority_like_cpp(
     equipped_items: &SpellEquippedItemsStore,
     item_exists: impl Fn(u32) -> bool,
 ) -> Result<TrainerSpellStaticAuthorityLikeCpp> {
-    let script_bindings = load_signed_spell_id_set_like_cpp(
+    let script_bindings = load_spell_script_bindings_like_cpp(
         world_db,
         WorldStatements::SEL_TRAINER_CAST_SCRIPT_BINDING_IDS,
     )
@@ -180,18 +222,19 @@ pub(crate) async fn load_trainer_static_authority_like_cpp(
             continue;
         }
         let hook_audit = TrainerCastWorldHookAuditLikeCpp {
-            script_binding: script_bindings.contains(&spell_id)
-                || script_bindings.contains(&spell_chains.first_spell_in_chain_like_cpp(spell_id)),
+            script_binding: script_bindings.contains_like_cpp(
+                spell_id,
+                spell_chains.first_spell_in_chain_like_cpp(spell_id),
+            ),
             legacy_script: legacy_scripts.contains(&spell_id),
             condition: conditions.contains(&spell_id),
             disabled: disabled.contains(&spell_id),
             aura_restriction: aura_restrictions
                 .entries_for_spell_id_like_cpp(spell_id)
-                .next()
-                .is_some(),
+                .any(trainer_cast_has_effective_aura_restriction_like_cpp),
             equipped_item_restriction: equipped_items
                 .entry_for_spell_id_like_cpp(i32::try_from(spell_id).unwrap_or(i32::MAX))
-                .is_some(),
+                .is_some_and(trainer_cast_has_effective_equipped_item_restriction_like_cpp),
             linked_spell: [
                 SpellLinkedTypeLikeCpp::Cast,
                 SpellLinkedTypeLikeCpp::Hit,
@@ -203,7 +246,7 @@ pub(crate) async fn load_trainer_static_authority_like_cpp(
         if !trainer_cast_world_hooks_are_static_safe_like_cpp(hook_audit) {
             continue;
         }
-        let effects = match catalog.acquisition_effects_like_cpp(spell_id) {
+        let effects = match catalog.difficulty_none_effects_like_cpp(spell_id) {
             wow_data::SpellAcquisitionEffectsLookupLikeCpp::Covered(effects) => effects,
             wow_data::SpellAcquisitionEffectsLookupLikeCpp::MissingCoverage
             | wow_data::SpellAcquisitionEffectsLookupLikeCpp::Indeterminate(_) => continue,
@@ -227,7 +270,7 @@ pub(crate) async fn load_trainer_static_authority_like_cpp(
             continue;
         }
         if let wow_data::SpellAcquisitionEffectsLookupLikeCpp::Covered(effects) =
-            catalog.acquisition_effects_like_cpp(spell_id)
+            catalog.difficulty_none_effects_like_cpp(spell_id)
         {
             effective_effects_by_spell.insert(spell_id, effects.to_vec());
         }
@@ -496,6 +539,32 @@ async fn load_signed_spell_id_set_like_cpp(
         }
     }
     Ok(ids)
+}
+
+async fn load_spell_script_bindings_like_cpp(
+    world_db: &WorldDatabase,
+    statement: WorldStatements,
+) -> Result<TrainerSpellScriptBindingsLikeCpp> {
+    let prepared = world_db.prepare(statement);
+    let mut result = world_db.query(&prepared).await?;
+    let mut bindings = TrainerSpellScriptBindingsLikeCpp::default();
+    if !result.is_empty() {
+        loop {
+            if let Some(id) = result.try_read::<i32>(0) {
+                if id > 0 {
+                    bindings.exact_spell_ids.insert(id as u32);
+                } else if let Some(id) = id.checked_abs().and_then(|id| u32::try_from(id).ok())
+                    && id != 0
+                {
+                    bindings.all_rank_root_spell_ids.insert(id);
+                }
+            }
+            if !result.next_row() {
+                break;
+            }
+        }
+    }
+    Ok(bindings)
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -1171,6 +1240,9 @@ mod tests {
             difficulty_id_raw: 0,
             effect_index_raw: effect_index,
             effect_type_raw: i64::from(effect_type),
+            effect_aura_raw: 0,
+            effect_mechanic_raw: 0,
+            effect_attributes_raw: 0,
             effect_base_points_raw: 0,
             effect_die_sides_raw: 0,
             effect_chain_targets_raw: 0,
@@ -1342,6 +1414,68 @@ mod tests {
     }
 
     #[test]
+    fn trainer_script_bindings_preserve_cpp_signed_rank_semantics() {
+        let bindings = TrainerSpellScriptBindingsLikeCpp {
+            exact_spell_ids: BTreeSet::from([200]),
+            all_rank_root_spell_ids: BTreeSet::from([100]),
+        };
+
+        assert!(bindings.contains_like_cpp(200, 200));
+        assert!(!bindings.contains_like_cpp(201, 200));
+        assert!(bindings.contains_like_cpp(101, 100));
+        assert!(!bindings.contains_like_cpp(301, 300));
+    }
+
+    #[test]
+    fn trainer_cast_static_restriction_audit_ignores_cpp_neutral_db2_rows() {
+        let neutral_aura = SpellAuraRestrictionsEntry {
+            id: 1,
+            difficulty_id: 0,
+            caster_aura_state: 0,
+            target_aura_state: 0,
+            exclude_caster_aura_state: 0,
+            exclude_target_aura_state: 0,
+            caster_aura_spell: 0,
+            target_aura_spell: 0,
+            exclude_caster_aura_spell: 0,
+            exclude_target_aura_spell: 0,
+            spell_id: 100,
+        };
+        assert!(!trainer_cast_has_effective_aura_restriction_like_cpp(
+            &neutral_aura
+        ));
+
+        let mut effective_aura = neutral_aura;
+        effective_aura.target_aura_spell = 200;
+        assert!(trainer_cast_has_effective_aura_restriction_like_cpp(
+            &effective_aura
+        ));
+
+        assert!(
+            !trainer_cast_has_effective_equipped_item_restriction_like_cpp(
+                &SpellEquippedItemsEntry {
+                    id: 2,
+                    spell_id: 100,
+                    equipped_item_class: -1,
+                    equipped_item_inv_types: i32::MAX,
+                    equipped_item_subclass: i32::MAX,
+                }
+            )
+        );
+        assert!(
+            trainer_cast_has_effective_equipped_item_restriction_like_cpp(
+                &SpellEquippedItemsEntry {
+                    id: 3,
+                    spell_id: 100,
+                    equipped_item_class: 2,
+                    equipped_item_inv_types: 0,
+                    equipped_item_subclass: 0,
+                }
+            )
+        );
+    }
+
+    #[test]
     fn trainer_cast_static_effect_audit_accepts_only_player_acquisition_closure() {
         let learn = acquisition_effect(1, 0, SPELL_EFFECT_LEARN_SPELL, 0, 200);
         let skill = acquisition_effect(2, 1, SPELL_EFFECT_SKILL, 164, 0);
@@ -1381,6 +1515,22 @@ mod tests {
         assert!(!trainer_cast_effects_are_static_safe_like_cpp(
             100,
             &[invalid_index],
+            |_| false,
+        ));
+
+        let mut mechanic = acquisition_effect(4, 0, SPELL_EFFECT_LEARN_SPELL, 0, 200);
+        mechanic.effect_mechanic_raw = 3;
+        assert!(!trainer_cast_effects_are_static_safe_like_cpp(
+            100,
+            &[mechanic],
+            |_| false,
+        ));
+
+        let mut aura = acquisition_effect(5, 0, SPELL_EFFECT_LEARN_SPELL, 0, 200);
+        aura.effect_aura_raw = 79;
+        assert!(!trainer_cast_effects_are_static_safe_like_cpp(
+            100,
+            &[aura],
             |_| false,
         ));
     }

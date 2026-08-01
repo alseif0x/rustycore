@@ -3,13 +3,23 @@
   interacción, procedencia, membresía, condición, precio y el plan #157/#164; persiste dinero y el
   resultado #158 completo en una transacción con guardas; reconcilia COMMIT incierto leyendo dinero,
   spells, favoritos y skills, acepta solo el postestado exacto y pone en cuarentena cualquier otra
-  forma porque un escritor posterior puede restaurar un saldo anterior; solo entonces instala runtime y publica money, visual kits 179/362 y
+  forma porque un escritor posterior puede restaurar un saldo anterior. La transacción compara además
+  el preestado durable exacto de spells/favoritos/skills bajo el lock del personaje, incluso con precio
+  cero, por lo que una segunda sesión obsoleta no puede reemplazar autoridad adquirida por la primera;
+  solo entonces instala runtime y publica money, visual kits 179/362 por la conexión Realm y
   acciones de aprendizaje en orden C++. La autoridad craft deriva cada objeto creado del
-  `SpellEffect` efectivo, compone `SpellReagents.db2`, overlays hotfix oficiales/custom y borrados
+  conjunto completo `SpellEffect` efectivo (sin filtrar precisamente CREATE_ITEM/CREATE_LOOT),
+  compone `SpellReagents.db2`, overlays hotfix oficiales/custom y borrados
   finales, sigue `LEARN_SPELL` recursivamente, conserva el caso loot con item cero y exige que
   existan cada salida no nula y cada reactivo positivo, igual que `SpellMgr::IsSpellValid`. Los wrappers exigen autoridad estática
-  auditada al arrancar y un effect mask fresco; mientras falten los mapas completos de inmunidad, cualquier aura activa
-  falla cerrado. Directo/wrapper, retry, rollback, DB ausente, pre-publicación, reconciliación y wire
+  auditada al arrancar, conservando la semántica C++ de IDs positivos exactos y negativos para todos
+  los rangos de `spell_script_names` y distinguiendo filas DB2 neutrales de restricciones de aura/equipo
+  efectivas, y un effect mask fresco. Las auras activas se clasifican con sus filas `EffectAura`
+  y `EffectMechanic`/`EffectAttributes` efectivas completas y enlaces negativos de aura: la inmunidad de efecto/ID se
+  compara con el efecto/spell exacto del wrapper, los buffs cubiertos no relacionados no bloquean,
+  startup excluye efectos de adquisición que necesitarían máscaras mechanic/state aún no representadas,
+  y metadata incompleta falla cerrado hasta tener los contenedores canónicos de Unit. Directo/wrapper,
+  retry, rollback, DB ausente, pre-publicación, reconciliación y wire
   visual tienen pruebas focales. Dispatcher #142, battle pets #160/#161, capture/live reload, CI y
   review current-HEAD siguen pendientes.
 

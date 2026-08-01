@@ -25884,6 +25884,10 @@ impl WorldSession {
         self.spell_linked_store = Some(store);
     }
 
+    pub(crate) fn spell_linked_store_like_cpp(&self) -> Option<&SpellLinkedStoreLikeCpp> {
+        self.spell_linked_store.as_deref()
+    }
+
     pub(crate) fn spell_linked_like_cpp(
         &self,
         link_type: SpellLinkedTypeLikeCpp,
@@ -33540,7 +33544,28 @@ impl WorldSession {
         );
     }
 
+    pub(crate) fn broadcast_to_movement_set_realm_like_cpp(
+        &self,
+        bytes: Vec<u8>,
+        _include_self: bool,
+    ) {
+        self.broadcast_to_movement_set_in_range_and_connection_like_cpp(
+            bytes,
+            crate::map_manager::VISIBILITY_RADIUS,
+            true,
+        );
+    }
+
     pub(crate) fn broadcast_to_movement_set_in_range_like_cpp(&self, bytes: Vec<u8>, range: f32) {
+        self.broadcast_to_movement_set_in_range_and_connection_like_cpp(bytes, range, false);
+    }
+
+    fn broadcast_to_movement_set_in_range_and_connection_like_cpp(
+        &self,
+        bytes: Vec<u8>,
+        range: f32,
+        realm_connection: bool,
+    ) {
         let (Some(guid), Some(registry)) = (self.player_guid(), self.player_registry()) else {
             return;
         };
@@ -33579,15 +33604,19 @@ impl WorldSession {
             .collect();
 
         for command_tx in candidates {
-            let _ = command_tx.try_send(SessionCommand::SendIfVisibleLikeCpp(
-                SendIfVisibleLikeCppCommand {
-                    queued_at: Instant::now(),
-                    source_guid: guid,
-                    map_id,
-                    instance_id,
-                    packet_bytes: bytes.clone(),
-                },
-            ));
+            let command = SendIfVisibleLikeCppCommand {
+                queued_at: Instant::now(),
+                source_guid: guid,
+                map_id,
+                instance_id,
+                packet_bytes: bytes.clone(),
+            };
+            let command = if realm_connection {
+                SessionCommand::SendRealmIfVisibleLikeCpp(command)
+            } else {
+                SessionCommand::SendIfVisibleLikeCpp(command)
+            };
+            let _ = command_tx.try_send(command);
         }
     }
 
@@ -33599,6 +33628,31 @@ impl WorldSession {
         &self,
         source_guid: ObjectGuid,
         bytes: Vec<u8>,
+    ) {
+        self.broadcast_creature_packet_to_visible_set_and_connection_like_cpp(
+            source_guid,
+            bytes,
+            false,
+        );
+    }
+
+    pub(crate) fn broadcast_creature_packet_to_visible_set_realm_like_cpp(
+        &self,
+        source_guid: ObjectGuid,
+        bytes: Vec<u8>,
+    ) {
+        self.broadcast_creature_packet_to_visible_set_and_connection_like_cpp(
+            source_guid,
+            bytes,
+            true,
+        );
+    }
+
+    fn broadcast_creature_packet_to_visible_set_and_connection_like_cpp(
+        &self,
+        source_guid: ObjectGuid,
+        bytes: Vec<u8>,
+        realm_connection: bool,
     ) {
         let (Some(registry), Some(source)) = (
             self.player_registry(),
@@ -33636,15 +33690,19 @@ impl WorldSession {
             .collect();
 
         for command_tx in candidates {
-            let _ = command_tx.try_send(SessionCommand::SendIfVisibleLikeCpp(
-                SendIfVisibleLikeCppCommand {
-                    queued_at: Instant::now(),
-                    source_guid,
-                    map_id,
-                    instance_id,
-                    packet_bytes: bytes.clone(),
-                },
-            ));
+            let command = SendIfVisibleLikeCppCommand {
+                queued_at: Instant::now(),
+                source_guid,
+                map_id,
+                instance_id,
+                packet_bytes: bytes.clone(),
+            };
+            let command = if realm_connection {
+                SessionCommand::SendRealmIfVisibleLikeCpp(command)
+            } else {
+                SessionCommand::SendIfVisibleLikeCpp(command)
+            };
+            let _ = command_tx.try_send(command);
         }
     }
 
@@ -34570,9 +34628,14 @@ impl WorldSession {
         // on the bounded general rail. Keep authoritative combat mutations in
         // durable FIFO order, but defer only their presentation packet until
         // after the refresh backlog has been consumed.
-        let (mut commands, deferred_visible): (Vec<_>, Vec<_>) = durable_commands
-            .into_iter()
-            .partition(|command| !matches!(command, SessionCommand::SendIfVisibleLikeCpp(_)));
+        let (mut commands, deferred_visible): (Vec<_>, Vec<_>) =
+            durable_commands.into_iter().partition(|command| {
+                !matches!(
+                    command,
+                    SessionCommand::SendIfVisibleLikeCpp(_)
+                        | SessionCommand::SendRealmIfVisibleLikeCpp(_)
+                )
+            });
         while let Ok(command) = self.session_command_rx.try_recv() {
             commands.push(command);
         }
@@ -76239,6 +76302,60 @@ mod tests {
             packet_bytes
         );
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn send_realm_if_visible_uses_realm_connection_like_cpp() {
+        let (mut session, _, instance_rx) = make_session();
+        let (realm_tx, realm_rx) = flume::bounded::<Vec<u8>>(8);
+        session.install_realm_send_channel_for_test(realm_tx);
+        let source_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1013);
+        let packet_bytes = vec![0x44, 0x55, 0x67];
+        let manager = shared_map_manager();
+        manager.write().unwrap().add_creature(
+            571,
+            0,
+            0,
+            0,
+            crate::map_manager::WorldCreature::new(
+                source_guid,
+                777,
+                Position::ZERO,
+                100,
+                80,
+                1,
+                2,
+                0.0,
+                1,
+                35,
+                0,
+                0,
+            ),
+        );
+        session.state = SessionState::LoggedIn;
+        session.set_map_manager(manager);
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
+        session.client_visible_guids_like_cpp.insert(source_guid);
+
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::SendRealmIfVisibleLikeCpp(
+                SendIfVisibleLikeCppCommand {
+                    queued_at: Instant::now(),
+                    source_guid,
+                    map_id: 571,
+                    instance_id: 0,
+                    packet_bytes: packet_bytes.clone(),
+                },
+            ))
+            .expect("realm-visible command queued");
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        assert_eq!(realm_rx.try_recv().expect("realm packet"), packet_bytes);
+        assert!(instance_rx.try_recv().is_err());
     }
 
     #[tokio::test]
