@@ -64341,28 +64341,56 @@ impl WorldSession {
             },
         );
 
-        if !self.known_spells_like_cpp().contains(&trigger_spell) {
+        let previous = self
+            .represented_player_spell_rows_like_cpp
+            .get(&trigger_spell)
+            .or_else(|| {
+                self.represented_fallback_player_spell_rows_like_cpp
+                    .get(&trigger_spell)
+            })
+            .copied();
+        // C++ `Player::LearnSpell` preserves the active bit while clearing a
+        // disabled row. Otherwise it requests active=true, after which
+        // `Player::AddSpell` keeps an already-known lower rank inactive.
+        let next_spell = u32::try_from(trigger_spell)
+            .ok()
+            .map(|spell_id| self.next_spell_in_chain_like_cpp(spell_id))
+            .filter(|spell_id| *spell_id != 0)
+            .and_then(|spell_id| i32::try_from(spell_id).ok());
+        let desired_active = previous.filter(|row| row.disabled).map_or_else(
+            || !next_spell.is_some_and(|spell_id| self.known_spells_like_cpp().contains(&spell_id)),
+            |row| row.active,
+        );
+        let requires_learn = previous.map_or_else(
+            || !self.known_spells_like_cpp().contains(&trigger_spell),
+            |row| {
+                matches!(
+                    row.state,
+                    RepresentedPlayerSpellStateLikeCpp::Removed
+                        | RepresentedPlayerSpellStateLikeCpp::Temporary
+                ) || row.disabled
+                    || row.active != desired_active
+            },
+        );
+        if requires_learn {
             let complete_spell_rows = self
                 .represented_player_spell_rows_complete_like_cpp
                 .then(|| self.represented_player_spell_rows_like_cpp.clone());
-            let previous = self
-                .represented_player_spell_rows_like_cpp
-                .get(&trigger_spell)
-                .copied();
             let favorite = previous.is_some_and(|row| row.favorite);
-            let active = previous
-                .filter(|row| row.disabled)
-                .is_none_or(|row| row.active);
             let dirty_row = RepresentedPlayerSpellLikeCpp {
                 spell_id: trigger_spell,
-                active,
+                active: desired_active,
                 disabled: false,
                 dependent: previous.is_some_and(|row| row.dependent),
                 favorite,
-                state: if previous.is_some() {
-                    RepresentedPlayerSpellStateLikeCpp::Changed
-                } else {
-                    RepresentedPlayerSpellStateLikeCpp::New
+                state: match previous.map(|row| row.state) {
+                    None | Some(RepresentedPlayerSpellStateLikeCpp::Temporary) => {
+                        RepresentedPlayerSpellStateLikeCpp::New
+                    }
+                    Some(RepresentedPlayerSpellStateLikeCpp::New) => {
+                        RepresentedPlayerSpellStateLikeCpp::New
+                    }
+                    Some(_) => RepresentedPlayerSpellStateLikeCpp::Changed,
                 },
             };
             self.learn_known_spell_like_cpp(trigger_spell);
@@ -64376,23 +64404,25 @@ impl WorldSession {
                     .insert(trigger_spell, dirty_row);
             }
             self.sync_player_registry_state_like_cpp();
-            self.record_spell_acquisition_post_commit_action_like_cpp(
-                crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp::LearnedSpell {
-                    spell_id: trigger_spell as u32,
-                    favorite,
+            if desired_active {
+                self.record_spell_acquisition_post_commit_action_like_cpp(
+                    crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp::LearnedSpell {
+                        spell_id: trigger_spell as u32,
+                        favorite,
+                        suppress_messaging: false,
+                    },
+                );
+                self.send_packet(&wow_packet::packets::trainer::LearnedSpells {
+                    spells: vec![wow_packet::packets::trainer::LearnedSpellEntry {
+                        spell_id: trigger_spell,
+                        is_favorite: favorite,
+                        field_8: None,
+                        superceded: None,
+                        trait_definition_id: None,
+                    }],
                     suppress_messaging: false,
-                },
-            );
-            self.send_packet(&wow_packet::packets::trainer::LearnedSpells {
-                spells: vec![wow_packet::packets::trainer::LearnedSpellEntry {
-                    spell_id: trigger_spell,
-                    is_favorite: favorite,
-                    field_8: None,
-                    superceded: None,
-                    trait_definition_id: None,
-                }],
-                suppress_messaging: false,
-            });
+                });
+            }
         }
 
         self.record_spell_acquisition_post_commit_action_like_cpp(
@@ -111875,8 +111905,131 @@ mod tests {
         );
         assert_eq!(
             drain_server_opcodes(&send_rx),
-            vec![ServerOpcodes::LearnedSpells]
+            Vec::<ServerOpcodes>::new(),
+            "C++ AddSpell returns false after enabling a row whose preserved active bit is false"
         );
+    }
+
+    #[tokio::test]
+    async fn spell_learn_spell_fallback_reactivates_inactive_known_spell_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let learned_spell_id = 13_343_i32;
+        let player_guid = ObjectGuid::create_player(1, 77);
+        session.set_player_guid(Some(player_guid));
+        assert!(session.replace_complete_spell_acquisition_runtime_like_cpp(
+            [RepresentedPlayerSpellLikeCpp {
+                spell_id: learned_spell_id,
+                active: false,
+                disabled: false,
+                dependent: false,
+                favorite: true,
+                state: RepresentedPlayerSpellStateLikeCpp::Unchanged,
+            }],
+            [],
+            [],
+            HashMap::new(),
+            0,
+            BTreeSet::new(),
+        ));
+        assert!(session.known_spells_like_cpp().contains(&learned_spell_id));
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            learned_spell_id,
+            wow_data::SpellInfo {
+                spell_id: learned_spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: Vec::new(),
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        assert!(
+            session
+                .apply_learn_spell_effect_like_cpp(learned_spell_id, player_guid)
+                .await
+        );
+
+        assert_eq!(
+            session
+                .represented_player_spell_rows_like_cpp
+                .get(&learned_spell_id),
+            Some(&RepresentedPlayerSpellLikeCpp {
+                spell_id: learned_spell_id,
+                active: true,
+                disabled: false,
+                dependent: false,
+                favorite: true,
+                state: RepresentedPlayerSpellStateLikeCpp::Changed,
+            }),
+            "C++ Player::LearnSpell calls AddSpell(active=true) for an inactive non-disabled row"
+        );
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::LearnedSpells],
+            "C++ AddSpell returns true when it reactivates the row"
+        );
+    }
+
+    #[test]
+    fn base_learn_spell_fallback_keeps_known_lower_rank_inactive_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let lower_spell_id = 13_344_i32;
+        let higher_spell_id = 13_345_i32;
+        session.set_spell_chain_store(Arc::new(
+            wow_data::SpellChainStoreLikeCpp::from_skill_line_ability_supercedes_like_cpp(
+                [wow_data::SpellRankEdgeLikeCpp {
+                    spell_id: higher_spell_id as u32,
+                    supercedes_spell_id: lower_spell_id as u32,
+                }],
+                |_| true,
+            ),
+        ));
+        assert!(session.replace_complete_spell_acquisition_runtime_like_cpp(
+            [
+                RepresentedPlayerSpellLikeCpp {
+                    spell_id: lower_spell_id,
+                    active: false,
+                    disabled: false,
+                    dependent: false,
+                    favorite: false,
+                    state: RepresentedPlayerSpellStateLikeCpp::Unchanged,
+                },
+                RepresentedPlayerSpellLikeCpp {
+                    spell_id: higher_spell_id,
+                    active: true,
+                    disabled: false,
+                    dependent: false,
+                    favorite: false,
+                    state: RepresentedPlayerSpellStateLikeCpp::Unchanged,
+                },
+            ],
+            [],
+            [],
+            HashMap::new(),
+            0,
+            BTreeSet::new(),
+        ));
+
+        assert!(session.apply_base_learn_spell_effect_like_cpp(lower_spell_id));
+
+        assert_eq!(
+            session
+                .represented_player_spell_rows_like_cpp
+                .get(&lower_spell_id)
+                .map(|row| (row.active, row.state)),
+            Some((false, RepresentedPlayerSpellStateLikeCpp::Unchanged)),
+            "C++ AddSpell keeps a lower rank inactive when its next rank is known"
+        );
+        assert!(drain_server_opcodes(&send_rx).is_empty());
     }
 
     #[tokio::test]
