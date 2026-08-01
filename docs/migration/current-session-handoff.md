@@ -16,16 +16,18 @@
   invalida ante un aprendizaje runtime que todavía no ejecute el cierre completo de `AddSpell`.
   La hidratación también aplica `SpellLearnSkill`, conserva ownership dependiente aunque el target
   ya existiera y solo autoriza `TraitDefinitionId` después de cargar configs/entries y resolver
-  `TraitNodeEntry.db2`; el cierre se repite tras los rewards por defecto, fusiona dependencias y
-  removals en filas persistidas, deduplica ownership idéntico y rechaza metadata ausente o
-  conflictiva. Fallos de consulta o cobertura mantienen el adaptador fail-closed.
+  `TraitNodeEntry.db2`; el cierre se repite tras los rewards por defecto, expande primero todas
+  las dependencias recursivas y aplica después sus `SpellLearnSkill` antes de autorizar skills,
+  fusiona dependencias y removals en filas persistidas, deduplica ownership idéntico y rechaza
+  metadata ausente o conflictiva. Fallos de consulta o cobertura mantienen el adaptador
+  fail-closed.
   Trainer y el planner comparten el conjunto de targets de jugador (`NONE`, `CASTER`, `ALLY`). Los
   `ElseGroup` soportados que prueban el OR de conditions prevalecen sobre incertidumbre en ramas
   irrelevantes. Así el adaptador de adquisición funciona también en producción y no solo con
   fixtures. Metadatos incompletos, IDs estrechados, battle
   pets y proyecciones indeterminadas fallan cerrados. Formato, guardrails de
   arquitectura/handlers, check de `wow-world`, focales y la
-  suites completas `wow-data` (`681/0`) y `wow-world` (`3251/0`, uno ignorado) pasan; el quick preflight alcanzó el check
+  suites completas `wow-data` (`681/0`) y `wow-world` (`3252/0`, uno ignorado) pasan; el quick preflight alcanzó el check
   agregado y chocó con el ICE/SIGSEGV local ya conocido dentro de `icu_properties`. Falta aún
   preflight completo/capture-diff en un runner estable, CI, revisión current-HEAD y merge.
 

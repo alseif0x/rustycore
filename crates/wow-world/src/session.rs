@@ -35044,6 +35044,28 @@ impl WorldSession {
         self.apply_loaded_spell_dependencies_from_roots_like_cpp(&roots, known_spells)
     }
 
+    pub(crate) fn apply_loaded_spell_dependency_skills_like_cpp(
+        &mut self,
+        known_spells: &mut Vec<i32>,
+        loaded_spell_side_effect_spells: &mut Vec<i32>,
+    ) -> (usize, bool) {
+        // C++ AddSpell applies SpellLearnSkill and recursively AddSpell-s every
+        // non-auto spell_learn_spell target. Expanding the complete closure
+        // first is final-state equivalent only if every reached target then
+        // participates in the SpellLearnSkill pass before skill authority is
+        // published.
+        let dependent_spell_count =
+            self.apply_loaded_known_spell_dependencies_like_cpp(known_spells);
+        for &spell_id in known_spells.iter() {
+            if !loaded_spell_side_effect_spells.contains(&spell_id) {
+                loaded_spell_side_effect_spells.push(spell_id);
+            }
+        }
+        let skills_complete =
+            self.apply_loaded_spell_learn_skills_like_cpp(loaded_spell_side_effect_spells);
+        (dependent_spell_count, skills_complete)
+    }
+
     pub(crate) fn apply_loaded_spell_dependencies_from_roots_like_cpp(
         &mut self,
         roots: &[i32],
@@ -67080,6 +67102,50 @@ mod tests {
             session.represented_override_spells_like_cpp(),
             &HashMap::from([(100, BTreeSet::from([20])), (200, BTreeSet::from([30])),])
         );
+    }
+
+    #[test]
+    fn loaded_dependency_spells_apply_learn_skill_before_authority_like_cpp() {
+        let (mut session, _, _) = make_session();
+        session.set_spell_learn_spell_store(Arc::new(wow_data::SpellLearnSpellStoreLikeCpp {
+            learned_by_spell_id: BTreeMap::from([(
+                30,
+                vec![wow_data::SpellLearnSpellNodeLikeCpp {
+                    spell: 10,
+                    overrides_spell: 0,
+                    active: true,
+                    auto_learned: false,
+                }],
+            )]),
+        }));
+        session.set_spell_learn_skill_store(Arc::new(wow_data::SpellLearnSkillStoreLikeCpp {
+            skill_by_spell_id: BTreeMap::from([(
+                10,
+                wow_data::SpellLearnSkillNodeLikeCpp {
+                    skill: 755,
+                    step: 4,
+                    value: 75,
+                    maxvalue: 150,
+                },
+            )]),
+            covered_spell_ids: BTreeSet::from([10, 30]),
+            ..Default::default()
+        }));
+        session.replace_player_skill_records_like_cpp(HashMap::new(), true, false);
+
+        let mut known_spells = vec![30];
+        let mut side_effect_spells = vec![30];
+        assert_eq!(
+            session.apply_loaded_spell_dependency_skills_like_cpp(
+                &mut known_spells,
+                &mut side_effect_spells,
+            ),
+            (1, true)
+        );
+        assert_eq!(known_spells, vec![30, 10]);
+        assert_eq!(side_effect_spells, vec![30, 10]);
+        assert_eq!(session.player_skill_value_like_cpp(755), 75);
+        assert_eq!(session.player_skill_max_value_like_cpp(755), 150);
     }
 
     #[test]

@@ -7479,8 +7479,15 @@ impl WorldSession {
             );
         }
 
-        let loaded_spell_skills_complete_like_cpp =
-            self.apply_loaded_spell_learn_skills_like_cpp(&loaded_spell_side_effect_spells);
+        // Default skill spells run through C++ AddSpell just like DB-loaded
+        // spells. Re-run the idempotent represented side effects so newly
+        // learned dependencies, proficiencies, capabilities and passives are
+        // present before the initial player CreateObject.
+        let (default_dependent_spell_count, loaded_spell_skills_complete_like_cpp) = self
+            .apply_loaded_spell_dependency_skills_like_cpp(
+                &mut known_spells,
+                &mut loaded_spell_side_effect_spells,
+            );
         if loaded_skill_records_like_cpp && loaded_spell_skills_complete_like_cpp {
             skill_records = self.player_skill_records_like_cpp().clone();
             let occupied_slots = u16::try_from(skill_records.len()).unwrap_or(u16::MAX);
@@ -7491,18 +7498,6 @@ impl WorldSession {
                     player_guid = guid.counter(),
                     occupied_slots, "Could not authorize represented post-login player skill slots"
                 );
-            }
-        }
-
-        // Default skill spells run through C++ AddSpell just like DB-loaded
-        // spells. Re-run the idempotent represented side effects so newly
-        // learned dependencies, proficiencies, capabilities and passives are
-        // present before the initial player CreateObject.
-        let default_dependent_spell_count =
-            self.apply_loaded_known_spell_dependencies_like_cpp(&mut known_spells);
-        for &spell_id in &known_spells {
-            if !loaded_spell_side_effect_spells.contains(&spell_id) {
-                loaded_spell_side_effect_spells.push(spell_id);
             }
         }
         let default_inactive_lower_rank_count =
