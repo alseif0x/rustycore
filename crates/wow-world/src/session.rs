@@ -64335,12 +64335,6 @@ impl WorldSession {
     /// gameplay grant performed by C++ `Spell::EffectLearnSpell`.
     fn apply_base_learn_spell_effect_like_cpp(&mut self, trigger_spell: i32) -> bool {
         self.begin_spell_acquisition_post_commit_action_batch_like_cpp();
-        self.record_spell_acquisition_post_commit_action_like_cpp(
-            crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnOrKnowSpellCriteria {
-                spell_id: trigger_spell as u32,
-            },
-        );
-
         let previous = self
             .represented_player_spell_rows_like_cpp
             .get(&trigger_spell)
@@ -64372,6 +64366,21 @@ impl WorldSession {
                     || row.active != desired_active
             },
         );
+        let reaches_add_spell_tail = previous.map_or(requires_learn, |row| {
+            row.disabled
+                || matches!(
+                    row.state,
+                    RepresentedPlayerSpellStateLikeCpp::Removed
+                        | RepresentedPlayerSpellStateLikeCpp::Temporary
+                )
+        });
+        if reaches_add_spell_tail {
+            self.record_spell_acquisition_post_commit_action_like_cpp(
+                crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnOrKnowSpellCriteria {
+                    spell_id: trigger_spell as u32,
+                },
+            );
+        }
         if requires_learn {
             let complete_spell_rows = self
                 .represented_player_spell_rows_complete_like_cpp
@@ -64425,11 +64434,13 @@ impl WorldSession {
             }
         }
 
-        self.record_spell_acquisition_post_commit_action_like_cpp(
-            crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnSpellQuestObjective {
-                spell_id: trigger_spell as u32,
-            },
-        );
+        if !previous.is_some_and(|row| row.disabled) {
+            self.record_spell_acquisition_post_commit_action_like_cpp(
+                crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnSpellQuestObjective {
+                    spell_id: trigger_spell as u32,
+                },
+            );
+        }
         true
     }
 
@@ -111908,6 +111919,13 @@ mod tests {
             Vec::<ServerOpcodes>::new(),
             "C++ AddSpell returns false after enabling a row whose preserved active bit is false"
         );
+        assert_eq!(
+            session.represented_spell_acquisition_post_commit_actions_like_cpp(),
+            &[crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnOrKnowSpellCriteria {
+                spell_id: learned_spell_id as u32,
+            }],
+            "C++ AddSpell reaches LearnOrKnow after enabling the row, but disabled LearnSpell skips the quest objective"
+        );
     }
 
     #[tokio::test]
@@ -111977,6 +111995,20 @@ mod tests {
             vec![ServerOpcodes::LearnedSpells],
             "C++ AddSpell returns true when it reactivates the row"
         );
+        assert_eq!(
+            session.represented_spell_acquisition_post_commit_actions_like_cpp(),
+            &[
+                crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp::LearnedSpell {
+                    spell_id: learned_spell_id as u32,
+                    favorite: true,
+                    suppress_messaging: false,
+                },
+                crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnSpellQuestObjective {
+                    spell_id: learned_spell_id as u32,
+                },
+            ],
+            "the active-state early return skips AddSpell's LearnOrKnow tail, while non-disabled LearnSpell still advances its quest objective"
+        );
     }
 
     #[test]
@@ -112030,6 +112062,13 @@ mod tests {
             "C++ AddSpell keeps a lower rank inactive when its next rank is known"
         );
         assert!(drain_server_opcodes(&send_rx).is_empty());
+        assert_eq!(
+            session.represented_spell_acquisition_post_commit_actions_like_cpp(),
+            &[crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnSpellQuestObjective {
+                spell_id: lower_spell_id as u32,
+            }],
+            "unchanged AddSpell returns before LearnOrKnow, but non-disabled LearnSpell still advances the quest objective"
+        );
     }
 
     #[tokio::test]
