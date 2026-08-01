@@ -27166,6 +27166,8 @@ impl WorldSession {
         let mut cancellation_fence = PlayerMoneyCommitCancellationFenceLikeCpp::new(Arc::clone(
             &self.durable_loot_money_persistence_like_cpp,
         ));
+        let mut operation_token = [0u8; 16];
+        rand::thread_rng().fill_bytes(&mut operation_token);
         let commit_result =
             crate::spell_acquisition::persist_prepared_player_spell_acquisition_and_money_like_cpp(
                 character_db,
@@ -27173,6 +27175,7 @@ impl WorldSession {
                 prepared,
                 money_before,
                 money_after,
+                &operation_token,
             )
             .await;
         match commit_result {
@@ -27191,6 +27194,7 @@ impl WorldSession {
                     guid_counter,
                     prepared,
                     money_after,
+                    &operation_token,
                 )
                 .await;
                 match reconciliation {
@@ -33648,16 +33652,49 @@ impl WorldSession {
         );
     }
 
+    /// Fan out a creature packet from an interaction snapshot that has
+    /// already been validated against the canonical-or-legacy NPC authority.
+    /// This keeps observer publication working during the transitional map
+    /// split even when the source exists only in the legacy map manager.
+    pub(crate) fn broadcast_creature_packet_from_position_to_visible_set_realm_like_cpp(
+        &self,
+        source_guid: ObjectGuid,
+        source_position: Position,
+        bytes: Vec<u8>,
+    ) {
+        self.broadcast_creature_packet_from_position_to_visible_set_and_connection_like_cpp(
+            source_guid,
+            source_position,
+            bytes,
+            true,
+        );
+    }
+
     fn broadcast_creature_packet_to_visible_set_and_connection_like_cpp(
         &self,
         source_guid: ObjectGuid,
         bytes: Vec<u8>,
         realm_connection: bool,
     ) {
-        let (Some(registry), Some(source)) = (
-            self.player_registry(),
-            self.canonical_creature_access_like_cpp(source_guid),
-        ) else {
+        let Some(source) = self.canonical_creature_access_like_cpp(source_guid) else {
+            return;
+        };
+        self.broadcast_creature_packet_from_position_to_visible_set_and_connection_like_cpp(
+            source_guid,
+            source.position,
+            bytes,
+            realm_connection,
+        );
+    }
+
+    fn broadcast_creature_packet_from_position_to_visible_set_and_connection_like_cpp(
+        &self,
+        source_guid: ObjectGuid,
+        source_position: Position,
+        bytes: Vec<u8>,
+        realm_connection: bool,
+    ) {
+        let Some(registry) = self.player_registry() else {
             return;
         };
         let player_guid = self.player_guid().unwrap_or(ObjectGuid::EMPTY);
@@ -33680,8 +33717,8 @@ impl WorldSession {
                 {
                     return None;
                 }
-                let dx = other_info.position.x - source.position.x;
-                let dy = other_info.position.y - source.position.y;
+                let dx = other_info.position.x - source_position.x;
+                let dy = other_info.position.y - source_position.y;
                 if dx * dx + dy * dy > range_sq {
                     return None;
                 }
@@ -76356,6 +76393,43 @@ mod tests {
 
         assert_eq!(realm_rx.try_recv().expect("realm packet"), packet_bytes);
         assert!(instance_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn creature_realm_fanout_uses_validated_position_without_canonical_mirror() {
+        let (mut source, _, _) = make_session();
+        let source_player = ObjectGuid::create_player(1, 42);
+        let observer = ObjectGuid::create_player(1, 43);
+        let creature = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1014);
+        let source_position = Position::new(10.0, 20.0, 30.0, 0.0);
+        let packet_bytes = vec![0x44, 0x55, 0x68];
+        let registry = Arc::new(PlayerRegistry::default());
+        let (observer_send_tx, _observer_send_rx) = flume::bounded(1);
+        let (observer_command_tx, observer_command_rx) = flume::bounded(1);
+        let mut observer_info =
+            broadcast_info_with_command(observer, observer_send_tx, observer_command_tx);
+        observer_info.map_id = 571;
+        observer_info.instance_id = 0;
+        observer_info.position = source_position;
+        registry.insert(observer, observer_info);
+
+        source.set_player_guid(Some(source_player));
+        source.set_player_map_position_like_cpp(571, Position::ZERO);
+        source.set_player_registry(registry);
+        source.broadcast_creature_packet_from_position_to_visible_set_realm_like_cpp(
+            creature,
+            source_position,
+            packet_bytes.clone(),
+        );
+
+        let command = observer_command_rx.try_recv().expect("observer fanout");
+        let SessionCommand::SendRealmIfVisibleLikeCpp(command) = command else {
+            panic!("creature visual must use the Realm-visible command");
+        };
+        assert_eq!(command.source_guid, creature);
+        assert_eq!(command.map_id, 571);
+        assert_eq!(command.instance_id, 0);
+        assert_eq!(command.packet_bytes, packet_bytes);
     }
 
     #[tokio::test]

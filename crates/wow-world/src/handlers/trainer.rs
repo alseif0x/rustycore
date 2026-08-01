@@ -571,7 +571,7 @@ impl WorldSession {
                 spell_id = spell_id,
                 "Spell not in trainer's loaded C++ spell set"
             );
-            self.send_packet(&TrainerBuyFailed {
+            self.send_packet_realm(&TrainerBuyFailed {
                 trainer_guid,
                 spell_id,
                 reason: 0,
@@ -607,7 +607,7 @@ impl WorldSession {
             .and_then(|trainer| trainer.get_spell_like_cpp(spell_id as u32))
             .cloned()
         else {
-            self.send_packet(&TrainerBuyFailed {
+            self.send_packet_realm(&TrainerBuyFailed {
                 trainer_guid,
                 spell_id,
                 reason: 0,
@@ -620,7 +620,7 @@ impl WorldSession {
             fresh_access.faction_template_id,
         );
         let TrainerOfferDecisionLikeCpp::Available(offer) = decision else {
-            self.send_packet(&TrainerBuyFailed {
+            self.send_packet_realm(&TrainerBuyFailed {
                 trainer_guid,
                 spell_id,
                 reason: 0,
@@ -630,7 +630,7 @@ impl WorldSession {
         let old_money = self.player_gold_like_cpp();
         let price = u64::from(offer.effective_price);
         if old_money < price {
-            self.send_packet(&TrainerBuyFailed {
+            self.send_packet_realm(&TrainerBuyFailed {
                 trainer_guid,
                 spell_id,
                 reason: 1,
@@ -652,7 +652,7 @@ impl WorldSession {
                 .cast_resolutions
                 .clone(),
         ) else {
-            self.send_packet(&TrainerBuyFailed {
+            self.send_packet_realm(&TrainerBuyFailed {
                 trainer_guid,
                 spell_id,
                 reason: 0,
@@ -673,7 +673,7 @@ impl WorldSession {
                 | crate::spell_acquisition::PreparedPlayerSpellAcquisitionOutcomeLikeCpp::NoChange,
             )
             | Err(_) => {
-                self.send_packet(&TrainerBuyFailed {
+                self.send_packet_realm(&TrainerBuyFailed {
                     trainer_guid,
                     spell_id,
                     reason: 0,
@@ -686,7 +686,7 @@ impl WorldSession {
         )
         .is_err()
         {
-            self.send_packet(&TrainerBuyFailed {
+            self.send_packet_realm(&TrainerBuyFailed {
                 trainer_guid,
                 spell_id,
                 reason: 0,
@@ -728,8 +728,9 @@ impl WorldSession {
                     mounted_visual: false,
                 };
                 session.send_packet_realm(&trainer_visual);
-                session.broadcast_creature_packet_to_visible_set_realm_like_cpp(
+                session.broadcast_creature_packet_from_position_to_visible_set_realm_like_cpp(
                     trainer_guid,
+                    fresh_access.position,
                     trainer_visual.to_bytes(),
                 );
                 let player_visual = PlaySpellVisualKit {
@@ -1723,7 +1724,7 @@ mod tests {
             .await;
         assert_eq!(fixture.session.player_gold_like_cpp(), 80);
         assert_eq!(
-            fixture.send_rx.try_recv().unwrap(),
+            realm_rx.try_recv().unwrap(),
             TrainerBuyFailed {
                 trainer_guid: fixture.trainer,
                 spell_id: AVAILABLE_TRAINER_SPELL,
@@ -1731,6 +1732,7 @@ mod tests {
             }
             .to_bytes()
         );
+        assert!(realm_rx.try_recv().is_err());
         assert!(fixture.send_rx.try_recv().is_err());
     }
 

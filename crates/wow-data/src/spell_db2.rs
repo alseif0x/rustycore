@@ -619,6 +619,13 @@ impl SpellAuraOptionsStore {
 }
 
 impl SpellAuraRestrictionsStore {
+    const HOTFIX_OVERLAY_SQL_LIKE_CPP: &'static str = concat!(
+        "SELECT ID, DifficultyID, CasterAuraState, TargetAuraState, ",
+        "ExcludeCasterAuraState, ExcludeTargetAuraState, CasterAuraSpell, ",
+        "TargetAuraSpell, ExcludeCasterAuraSpell, ExcludeTargetAuraSpell, SpellID ",
+        "FROM spell_aura_restrictions WHERE (`VerifiedBuild` > 0) = ?"
+    );
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(
             data_dir,
@@ -638,6 +645,65 @@ impl SpellAuraRestrictionsStore {
                 spell_id: r.get_relationship_id(idx).unwrap_or(0),
             },
         )
+    }
+
+    /// Load the effective C++ `sSpellAuraRestrictionsStore` authority: file
+    /// rows, official SQL replacements, custom SQL replacements, then final
+    /// `hotfix_data` tombstones.
+    pub async fn load_effective_like_cpp(
+        data_dir: &str,
+        locale: &str,
+        db: &HotfixDatabase,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) -> Result<Self> {
+        let mut store = Self::load(data_dir, locale)?;
+        for official in [true, false] {
+            let mut statement =
+                db.prepare(HotfixStatements::base(Self::HOTFIX_OVERLAY_SQL_LIKE_CPP));
+            statement.set_bool(0, official);
+            let mut result = db.query(&statement).await?;
+            if result.is_empty() {
+                continue;
+            }
+            loop {
+                let entry = SpellAuraRestrictionsEntry {
+                    id: result.try_read::<u32>(0).unwrap_or(0),
+                    difficulty_id: result.try_read::<u8>(1).unwrap_or(0),
+                    caster_aura_state: result.try_read::<u8>(2).unwrap_or(0),
+                    target_aura_state: result.try_read::<u8>(3).unwrap_or(0),
+                    exclude_caster_aura_state: result.try_read::<u8>(4).unwrap_or(0),
+                    exclude_target_aura_state: result.try_read::<u8>(5).unwrap_or(0),
+                    caster_aura_spell: result.try_read::<i32>(6).unwrap_or(0),
+                    target_aura_spell: result.try_read::<i32>(7).unwrap_or(0),
+                    exclude_caster_aura_spell: result.try_read::<i32>(8).unwrap_or(0),
+                    exclude_target_aura_spell: result.try_read::<i32>(9).unwrap_or(0),
+                    spell_id: result.try_read::<u32>(10).unwrap_or(0),
+                };
+                store.overlay_effective_row_like_cpp(entry);
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        let table_hash = store
+            .table_hash_like_cpp()
+            .context("SpellAuraRestrictions.db2 store is missing its WDC4 table hash")?;
+        store.apply_hotfix_removals_with_table_hash_like_cpp(table_hash, removals);
+        Ok(store)
+    }
+
+    fn overlay_effective_row_like_cpp(&mut self, entry: SpellAuraRestrictionsEntry) {
+        self.entries.insert(entry.id, entry);
+    }
+
+    fn apply_hotfix_removals_with_table_hash_like_cpp(
+        &mut self,
+        table_hash: u32,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) {
+        self.entries
+            .retain(|record_id, _| !removals.contains_like_cpp(table_hash, *record_id as i32));
     }
 
     pub fn entries_for_spell_id_like_cpp(
@@ -1681,6 +1747,40 @@ mod tests {
             Some("SQL-only name"),
             "a SQL-only SpellName ID must participate in the server-side collision gate"
         );
+    }
+
+    #[test]
+    fn aura_restriction_overlays_then_final_removals_match_cpp_order() {
+        let row = |id, spell_id, caster_aura_spell| SpellAuraRestrictionsEntry {
+            id,
+            difficulty_id: 0,
+            caster_aura_state: 0,
+            target_aura_state: 0,
+            exclude_caster_aura_state: 0,
+            exclude_target_aura_state: 0,
+            caster_aura_spell,
+            target_aura_spell: 0,
+            exclude_caster_aura_spell: 0,
+            exclude_target_aura_spell: 0,
+            spell_id,
+        };
+        let table_hash = 0xAABB_CCDD;
+        let mut store =
+            SpellAuraRestrictionsStore::from_entries([row(1, 100, 10), row(2, 200, 20)]);
+
+        store.overlay_effective_row_like_cpp(row(1, 100, 11));
+        store.overlay_effective_row_like_cpp(row(3, 300, 30));
+        store.overlay_effective_row_like_cpp(row(1, 100, 12));
+        let removals = crate::Db2HotfixRemovalStoreLikeCpp::from_status_rows_like_cpp([
+            (table_hash, 2, 2),
+            (table_hash, 3, 2),
+        ]);
+        store.apply_hotfix_removals_with_table_hash_like_cpp(table_hash, &removals);
+
+        assert_eq!(store.len(), 1);
+        assert_eq!(store.get(1).map(|entry| entry.caster_aura_spell), Some(12));
+        assert!(store.get(2).is_none());
+        assert!(store.get(3).is_none());
     }
 
     #[test]

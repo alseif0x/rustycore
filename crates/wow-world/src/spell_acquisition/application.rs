@@ -1372,6 +1372,7 @@ pub(crate) async fn persist_prepared_player_spell_acquisition_and_money_like_cpp
     prepared: &PreparedPlayerSpellAcquisitionLikeCpp,
     money_before: u64,
     money_after: u64,
+    operation_token: &[u8; 16],
 ) -> Result<(), SqlTransactionCommitError> {
     validate_prepared_character_counter_like_cpp(guid_counter, prepared)
         .map_err(SqlTransactionCommitError::DefinitelyRolledBack)?;
@@ -1479,6 +1480,24 @@ pub(crate) async fn persist_prepared_player_spell_acquisition_and_money_like_cpp
                 )),
             ));
         }
+    }
+
+    // A post-state comparison alone cannot distinguish this COMMIT from a
+    // later identical purchase. Keep the latest opaque attempt token in the
+    // same transaction so an unknown COMMIT is attributable to this exact
+    // operation, including zero-price purchases.
+    if let Err(error) = sqlx::query(
+        "INSERT INTO character_spell_acquisition_operation (guid, operation_token) \
+         VALUES (?, ?) ON DUPLICATE KEY UPDATE operation_token = VALUES(operation_token)",
+    )
+    .bind(guid_counter)
+    .bind(operation_token.as_slice())
+    .execute(&mut *transaction)
+    .await
+    {
+        let error = DatabaseError::from(error);
+        rollback_player_spell_acquisition_like_cpp(transaction).await;
+        return Err(SqlTransactionCommitError::DefinitelyRolledBack(error));
     }
 
     transaction.commit().await.map_err(|error| {
@@ -1613,6 +1632,7 @@ pub(crate) async fn reconcile_prepared_player_spell_acquisition_and_money_like_c
     guid_counter: u64,
     prepared: &PreparedPlayerSpellAcquisitionLikeCpp,
     money_after: u64,
+    operation_token: &[u8; 16],
 ) -> Result<PlayerSpellAcquisitionMoneyReconciliationLikeCpp, DatabaseError> {
     validate_prepared_character_counter_like_cpp(guid_counter, prepared)?;
     let mut transaction = character_db
@@ -1632,6 +1652,14 @@ pub(crate) async fn reconcile_prepared_player_spell_acquisition_and_money_like_c
             "trainer acquisition character vanished during reconciliation".to_string(),
         ));
     };
+    let observed_operation_token = sqlx::query_scalar::<_, Vec<u8>>(
+        "SELECT operation_token FROM character_spell_acquisition_operation \
+         WHERE guid = ? FOR UPDATE",
+    )
+    .bind(guid_counter)
+    .fetch_optional(&mut *transaction)
+    .await
+    .map_err(DatabaseError::from)?;
     let spell_rows = sqlx::query_as::<_, (i32, bool, bool)>(
         "SELECT spell, active, disabled FROM character_spell WHERE guid = ? ORDER BY spell",
     )
@@ -1677,11 +1705,15 @@ pub(crate) async fn reconcile_prepared_player_spell_acquisition_and_money_like_c
     let durable_matches = spell_rows == prepared.durable_spells
         && favorite_spell_ids == prepared.durable_favorite_spell_ids
         && skill_rows == prepared.durable_skills;
+    let operation_matches = observed_operation_token
+        .as_deref()
+        .is_some_and(|observed| observed == operation_token);
     Ok(
         classify_player_spell_acquisition_money_reconciliation_like_cpp(
             money_after,
             observed_money,
             durable_matches,
+            operation_matches,
         ),
     )
 }
@@ -1690,8 +1722,9 @@ fn classify_player_spell_acquisition_money_reconciliation_like_cpp(
     money_after: u64,
     observed_money: u64,
     durable_matches: bool,
+    operation_matches: bool,
 ) -> PlayerSpellAcquisitionMoneyReconciliationLikeCpp {
-    if observed_money == money_after && durable_matches {
+    if observed_money == money_after && durable_matches && operation_matches {
         PlayerSpellAcquisitionMoneyReconciliationLikeCpp::Committed
     } else {
         PlayerSpellAcquisitionMoneyReconciliationLikeCpp::Indeterminate
@@ -3684,33 +3717,38 @@ mod tests {
         use PlayerSpellAcquisitionMoneyReconciliationLikeCpp::{Committed, Indeterminate};
 
         assert_eq!(
-            classify_player_spell_acquisition_money_reconciliation_like_cpp(80, 80, true),
+            classify_player_spell_acquisition_money_reconciliation_like_cpp(80, 80, true, true),
             Committed
         );
         assert_eq!(
-            classify_player_spell_acquisition_money_reconciliation_like_cpp(80, 100, false),
+            classify_player_spell_acquisition_money_reconciliation_like_cpp(80, 100, false, true),
             Indeterminate,
             "the old balance cannot prove rollback after an ambiguous COMMIT"
         );
         assert_eq!(
-            classify_player_spell_acquisition_money_reconciliation_like_cpp(80, 100, true),
+            classify_player_spell_acquisition_money_reconciliation_like_cpp(80, 100, true, true),
             Indeterminate,
             "a later writer may restore money after the acquisition rows committed"
         );
         assert_eq!(
-            classify_player_spell_acquisition_money_reconciliation_like_cpp(80, 80, false),
+            classify_player_spell_acquisition_money_reconciliation_like_cpp(80, 80, false, true),
             Indeterminate,
             "money alone must never authorize publication of an incomplete acquisition"
         );
         assert_eq!(
-            classify_player_spell_acquisition_money_reconciliation_like_cpp(100, 100, true),
+            classify_player_spell_acquisition_money_reconciliation_like_cpp(100, 100, true, true),
             Committed,
             "a free trainer purchase is proven only by its complete durable result"
         );
         assert_eq!(
-            classify_player_spell_acquisition_money_reconciliation_like_cpp(100, 100, false,),
+            classify_player_spell_acquisition_money_reconciliation_like_cpp(100, 100, false, true,),
             Indeterminate,
             "an unchanged balance cannot prove rollback for a free purchase"
+        );
+        assert_eq!(
+            classify_player_spell_acquisition_money_reconciliation_like_cpp(80, 80, true, false,),
+            Indeterminate,
+            "an identical later operation must not authorize this attempt's publication"
         );
     }
 

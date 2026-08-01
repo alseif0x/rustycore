@@ -2286,8 +2286,14 @@ async fn main() -> Result<ExitCode> {
         spell_aura_options_store.len()
     );
     let spell_aura_restrictions_store = Arc::new(
-        wow_data::SpellAuraRestrictionsStore::load(&data_dir, &locale)
-            .context("Failed to load SpellAuraRestrictions.db2")?,
+        wow_data::SpellAuraRestrictionsStore::load_effective_like_cpp(
+            &data_dir,
+            &locale,
+            &hotfix_db,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellAuraRestrictions authority")?,
     );
     info!(
         "Loaded {} spell aura restriction rows",
@@ -4939,7 +4945,7 @@ async fn main() -> Result<ExitCode> {
             spell_pet_aura_store.as_ref(),
             spell_aura_restrictions_store.as_ref(),
             spell_equipped_items_store.as_ref(),
-            |item_id| item_store.get(item_id).is_some(),
+            |item_id| item_stats_store.sparse_template(item_id).is_some(),
         )
         .await
         .context("Failed to audit normal trainer wrapper authority")?;
