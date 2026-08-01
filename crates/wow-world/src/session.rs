@@ -64297,6 +64297,7 @@ impl WorldSession {
                 self.represented_fallback_player_spell_rows_like_cpp
                     .insert(trigger_spell, dirty_row);
             }
+            self.sync_player_registry_state_like_cpp();
             self.record_spell_acquisition_post_commit_action_like_cpp(
                 crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp::LearnedSpell {
                     spell_id: trigger_spell as u32,
@@ -111539,10 +111540,28 @@ mod tests {
     #[tokio::test]
     async fn spell_learn_spell_effect_row_preserves_base_grant_without_richer_authority_like_cpp() {
         let (mut session, _, send_rx) = make_session();
+        let (mut observer, _, _) = make_session();
         let spell_id = 750_i32;
         let learned_spell_id = 13_337_i32;
         let player_guid = ObjectGuid::create_player(1, 68);
+        let observer_guid = ObjectGuid::create_player(1, 69);
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (registry_send_tx, _registry_send_rx) = flume::bounded(8);
         session.set_player_guid(Some(player_guid));
+        session.set_player_registry(Arc::clone(&player_registry));
+        player_registry.insert(player_guid, broadcast_info(player_guid, registry_send_tx));
+        observer.set_player_guid(Some(observer_guid));
+        observer.set_player_registry(Arc::clone(&player_registry));
+        assert!(
+            !observer
+                .player_registry()
+                .expect("observer shares the player registry")
+                .get(&player_guid)
+                .expect("source player is registered")
+                .known_spells
+                .contains(&learned_spell_id),
+            "another session must not observe the fallback grant before it happens"
+        );
         let mut spell_store = wow_data::SpellStore::new();
         spell_store.insert(
             spell_id,
@@ -111574,6 +111593,16 @@ mod tests {
             .expect("represented learn-spell row should execute");
 
         assert!(session.known_spells_like_cpp().contains(&learned_spell_id));
+        assert!(
+            observer
+                .player_registry()
+                .expect("observer shares the player registry")
+                .get(&player_guid)
+                .expect("source player remains registered")
+                .known_spells
+                .contains(&learned_spell_id),
+            "the fallback grant must be visible to other sessions through the shared registry"
+        );
         let packets = drain_server_packet_bytes(&send_rx);
         let opcodes: Vec<_> = packets
             .iter()
