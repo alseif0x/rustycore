@@ -14,6 +14,7 @@
 
 use std::{
     collections::{BTreeMap, BTreeSet},
+    path::Path,
     sync::Arc,
 };
 
@@ -30,9 +31,10 @@ use wow_data::{
     SpellLearnSkillIndeterminateReasonLikeCpp, SpellLearnSkillSourceSpellInfoLikeCpp,
     SpellLearnSkillStoreLikeCpp, SpellLearnSourceSpellInfoLikeCpp, SpellLearnSpellEffectLikeCpp,
     SpellLearnSpellEntry, SpellLearnSpellStoreLikeCpp, SpellLinkedStoreLikeCpp,
-    SpellLinkedTypeLikeCpp, SpellPetAuraStoreLikeCpp, SpellStore,
+    SpellLinkedTypeLikeCpp, SpellPetAuraStoreLikeCpp, SpellReagentsEntry, SpellReagentsStore,
+    SpellStore, wdc4::Wdc4Reader,
 };
-use wow_database::{HotfixDatabase, WorldDatabase, WorldStatements};
+use wow_database::{HotfixDatabase, HotfixStatements, WorldDatabase, WorldStatements};
 
 use wow_data::spell::spell_effect_types::{
     SPELL_EFFECT_DUAL_WIELD, SPELL_EFFECT_LEARN_SPELL, SPELL_EFFECT_SKILL, SPELL_EFFECT_SKILL_STEP,
@@ -125,6 +127,10 @@ fn trainer_cast_effects_are_static_safe_like_cpp(
 /// immediately before the atomic trainer commit.
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn load_trainer_static_authority_like_cpp(
+    data_dir: &str,
+    locale: &str,
+    hotfix_db: &HotfixDatabase,
+    removals: &Db2HotfixRemovalStoreLikeCpp,
     world_db: &WorldDatabase,
     spell_store: &SpellStore,
     spell_chains: &SpellChainStoreLikeCpp,
@@ -159,6 +165,10 @@ pub(crate) async fn load_trainer_static_authority_like_cpp(
     )
     .await
     .context("Failed to audit disabled trainer casts")?;
+    let effective_reagents =
+        load_effective_spell_reagents_like_cpp(data_dir, locale, hotfix_db, removals)
+            .await
+            .context("Failed to compose effective trainer craft reagents")?;
 
     let mut safe_cast_spell_ids = BTreeSet::new();
     for (spell_id, difficulty_id) in spell_store.spell_info_keys_in_order_like_cpp() {
@@ -203,18 +213,137 @@ pub(crate) async fn load_trainer_static_authority_like_cpp(
         }
     }
 
-    // C++ `SpellMgr::IsSpellValid` recursively validates created items and
-    // reagents. The effective 3.4.3 closure has exactly these three crafting
-    // targets; keep the proof pinned to their audited created-item identities.
+    // C++ `SpellMgr::IsSpellValid` recursively validates both the created item
+    // and every positive effective reagent. The 3.4.3 closure has exactly
+    // these three crafting targets; their created-item identities are pinned
+    // while reagent rows retain full DB2/SQL/removal overlay semantics.
     let valid_craft_spell_ids = [(12_716, 10_577), (13_240, 10_577), (22_967, 17_771)]
         .into_iter()
-        .filter_map(|(spell_id, item_id)| item_exists(item_id).then_some(spell_id))
+        .filter_map(|(spell_id, item_id)| {
+            craft_spell_items_are_valid_like_cpp(
+                item_id,
+                effective_reagents.get(&spell_id),
+                &item_exists,
+            )
+            .then_some(spell_id)
+        })
         .collect();
 
     Ok(TrainerSpellStaticAuthorityLikeCpp {
         safe_cast_spell_ids,
         valid_craft_spell_ids,
     })
+}
+
+const SPELL_REAGENTS_OVERLAY_SQL_LIKE_CPP: &str = concat!(
+    "SELECT ID, SpellID, Reagent1, Reagent2, Reagent3, Reagent4, ",
+    "Reagent5, Reagent6, Reagent7, Reagent8, ReagentCount1, ReagentCount2, ",
+    "ReagentCount3, ReagentCount4, ReagentCount5, ReagentCount6, ",
+    "ReagentCount7, ReagentCount8 FROM spell_reagents ",
+    "WHERE (`VerifiedBuild` > 0) = ?"
+);
+
+async fn load_effective_spell_reagents_like_cpp(
+    data_dir: &str,
+    locale: &str,
+    hotfix_db: &HotfixDatabase,
+    removals: &Db2HotfixRemovalStoreLikeCpp,
+) -> Result<BTreeMap<u32, [i32; 8]>> {
+    let db2_path = Path::new(data_dir)
+        .join("dbc")
+        .join(locale)
+        .join("SpellReagents.db2");
+    let table_hash = Wdc4Reader::open(&db2_path)
+        .with_context(|| format!("failed to read table hash from {}", db2_path.display()))?
+        .table_hash();
+    let store =
+        SpellReagentsStore::load(data_dir, locale).context("failed to load SpellReagents.db2")?;
+    let base_rows = store.entries_like_cpp().cloned().collect::<Vec<_>>();
+    let mut overlay_batches = [Vec::new(), Vec::new()];
+    for (batch_index, official) in [true, false].into_iter().enumerate() {
+        let mut statement =
+            hotfix_db.prepare(HotfixStatements::base(SPELL_REAGENTS_OVERLAY_SQL_LIKE_CPP));
+        statement.set_bool(0, official);
+        let mut result = hotfix_db.query(&statement).await?;
+        if result.is_empty() {
+            continue;
+        }
+        loop {
+            overlay_batches[batch_index].push(SpellReagentsEntry {
+                id: result.try_read::<u32>(0).unwrap_or(0),
+                spell_id: result.try_read::<i32>(1).unwrap_or(0),
+                reagent: std::array::from_fn(|index| {
+                    result.try_read::<i32>(2 + index).unwrap_or(0)
+                }),
+                reagent_count: std::array::from_fn(|index| {
+                    result.try_read::<i16>(10 + index).unwrap_or(0)
+                }),
+            });
+            if !result.next_row() {
+                break;
+            }
+        }
+    }
+    let [official_rows, custom_rows] = overlay_batches;
+    let removed_record_ids = removals
+        .removed_records_in_order_like_cpp()
+        .into_iter()
+        .filter_map(|(removed_table_hash, record_id)| {
+            (removed_table_hash == table_hash).then_some(record_id)
+        });
+    Ok(compose_effective_spell_reagents_like_cpp(
+        base_rows,
+        official_rows,
+        custom_rows,
+        removed_record_ids,
+    ))
+}
+
+fn compose_effective_spell_reagents_like_cpp(
+    base_rows: impl IntoIterator<Item = SpellReagentsEntry>,
+    official_rows: impl IntoIterator<Item = SpellReagentsEntry>,
+    custom_rows: impl IntoIterator<Item = SpellReagentsEntry>,
+    removed_record_ids: impl IntoIterator<Item = i32>,
+) -> BTreeMap<u32, [i32; 8]> {
+    let mut rows_by_record_id = BTreeMap::new();
+    for row in base_rows {
+        rows_by_record_id.insert(row.id, row);
+    }
+    for row in official_rows {
+        rows_by_record_id.insert(row.id, row);
+    }
+    for row in custom_rows {
+        rows_by_record_id.insert(row.id, row);
+    }
+    let removed_record_ids = removed_record_ids.into_iter().collect::<BTreeSet<_>>();
+    rows_by_record_id.retain(|record_id, _| {
+        i32::try_from(*record_id)
+            .ok()
+            .is_some_and(|record_id| !removed_record_ids.contains(&record_id))
+    });
+
+    let mut reagents_by_spell_id = BTreeMap::new();
+    for row in rows_by_record_id.into_values() {
+        if let Ok(spell_id) = u32::try_from(row.spell_id)
+            && spell_id != 0
+        {
+            // C++ iterates DB2 storage and assigns the relation; retaining
+            // record-ID order preserves its last-record-wins duplicate shape.
+            reagents_by_spell_id.insert(spell_id, row.reagent);
+        }
+    }
+    reagents_by_spell_id
+}
+
+fn craft_spell_items_are_valid_like_cpp(
+    created_item_id: u32,
+    reagents: Option<&[i32; 8]>,
+    item_exists: impl Fn(u32) -> bool,
+) -> bool {
+    item_exists(created_item_id)
+        && reagents.into_iter().flatten().all(|reagent_id| {
+            *reagent_id <= 0 || u32::try_from(*reagent_id).ok().is_some_and(&item_exists)
+        })
 }
 
 async fn load_unsigned_spell_id_set_like_cpp(
@@ -943,6 +1072,74 @@ mod tests {
             effect_misc_value_raw: [misc_value, 0],
             implicit_target_raw: [0, 0],
         }
+    }
+
+    fn reagent_row(id: u32, spell_id: i32, reagents: [i32; 8]) -> SpellReagentsEntry {
+        SpellReagentsEntry {
+            id,
+            spell_id,
+            reagent: reagents,
+            reagent_count: [0; 8],
+        }
+    }
+
+    #[test]
+    fn trainer_craft_reagents_use_db2_official_custom_then_final_removal_order() {
+        let effective = compose_effective_spell_reagents_like_cpp(
+            [
+                reagent_row(7, 12_716, [1, 0, 0, 0, 0, 0, 0, 0]),
+                reagent_row(8, 13_240, [4, 0, 0, 0, 0, 0, 0, 0]),
+            ],
+            [reagent_row(7, 12_716, [2, 0, 0, 0, 0, 0, 0, 0])],
+            [reagent_row(7, 12_716, [3, 0, 0, 0, 0, 0, 0, 0])],
+            [8],
+        );
+
+        assert_eq!(
+            effective,
+            BTreeMap::from([(12_716, [3, 0, 0, 0, 0, 0, 0, 0])])
+        );
+    }
+
+    #[test]
+    fn trainer_craft_authority_requires_output_and_every_positive_reagent() {
+        let existing_items = BTreeSet::from([10_577, 100, 200]);
+        let item_exists = |item_id| existing_items.contains(&item_id);
+
+        assert!(craft_spell_items_are_valid_like_cpp(
+            10_577,
+            None,
+            item_exists,
+        ));
+        assert!(craft_spell_items_are_valid_like_cpp(
+            10_577,
+            Some(&[100, -1, 200, 0, 0, 0, 0, 0]),
+            item_exists,
+        ));
+        assert!(!craft_spell_items_are_valid_like_cpp(
+            10_577,
+            Some(&[100, 300, 0, 0, 0, 0, 0, 0]),
+            item_exists,
+        ));
+        assert!(!craft_spell_items_are_valid_like_cpp(
+            17_771,
+            None,
+            item_exists,
+        ));
+    }
+
+    #[test]
+    fn trainer_craft_reagent_overlay_query_covers_all_cpp_reagent_slots() {
+        assert_eq!(
+            SPELL_REAGENTS_OVERLAY_SQL_LIKE_CPP,
+            concat!(
+                "SELECT ID, SpellID, Reagent1, Reagent2, Reagent3, Reagent4, ",
+                "Reagent5, Reagent6, Reagent7, Reagent8, ReagentCount1, ReagentCount2, ",
+                "ReagentCount3, ReagentCount4, ReagentCount5, ReagentCount6, ",
+                "ReagentCount7, ReagentCount8 FROM spell_reagents ",
+                "WHERE (`VerifiedBuild` > 0) = ?"
+            )
+        );
     }
 
     #[test]

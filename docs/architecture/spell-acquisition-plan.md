@@ -188,7 +188,9 @@ pet, item and battle-pet branches remain separate owners.
 
 Issue #159 extends the database-gated boundary for normal trainer teaching: startup audits
 effective effects plus script, linked-spell, condition, disable, pet-aura, aura-restriction and
-equipment blockers into immutable cast/craft authority; the buy path recomputes the current effect
+equipment blockers into immutable cast/craft authority. Craft validation composes effective
+`SpellReagents` rows in DB2/official/custom/final-removal order and requires the created item plus
+every positive reagent item exactly as `SpellMgr::IsSpellValid`; the buy path recomputes the current effect
 mask under the money owner, then commits that exact prepared result and the guarded fee together.
 Until the canonical player owns C++'s complete spell/effect-immunity maps, any active aura makes
 wrapper resolution indeterminate instead of assuming no immunity. After confirmed/reconciled

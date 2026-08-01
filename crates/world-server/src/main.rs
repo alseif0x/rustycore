@@ -4927,6 +4927,10 @@ async fn main() -> Result<ExitCode> {
     );
     let trainer_spell_static_authority =
         spell_acquisition_loader::load_trainer_static_authority_like_cpp(
+            &data_dir,
+            &locale,
+            hotfix_db.as_ref(),
+            &db2_hotfix_removals,
             world_db.as_ref(),
             &spell_store,
             spell_chain_store.as_ref(),

@@ -25,6 +25,9 @@ one Character DB transaction, reconciles unknown COMMIT outcomes, installs runti
 publishes money, visual kits 179/362 and acquisition actions in C++ success order. Castable wrappers
 require both a startup audit of effective/world-table blockers and a fresh player effect-mask proof;
 active auras remain conservatively unsupported until the full C++ immunity maps are canonical.
+Craft startup authority composes effective `SpellReagents` DB2/hotfix/removal rows and rejects a
+craft when its created item or any positive reagent item template is absent, matching
+`SpellMgr::IsSpellValid`.
 Deterministic player `EffectLearnSpell` retains its distinct immediate-runtime/deferred-save timing.
 Dispatcher activation remains #142, so no status claim should infer a live client purchase merely
 from the retained opcode registration.
