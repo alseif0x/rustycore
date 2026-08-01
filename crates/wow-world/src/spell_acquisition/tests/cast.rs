@@ -765,6 +765,70 @@ fn passive_with_projected_acquisition_has_no_runtime_refresh_or_second_cast_owne
 }
 
 #[test]
+fn effect_learn_spell_preserves_base_row_and_defers_unavailable_nested_cast_atomically() {
+    const PASSIVE: u32 = 500;
+    const NESTED: u32 = 600;
+    const SPELL_ATTR0_PASSIVE: i64 = 0x40;
+    let metadata = MetadataFixture::new(FixtureInput {
+        spell_ids: vec![PASSIVE, NESTED],
+        effects: vec![learn_effect(1, PASSIVE, 0, NESTED)],
+        misc_rows: vec![misc(PASSIVE, SPELL_ATTR0_PASSIVE, 0, 0)],
+        ..Default::default()
+    });
+
+    let source = snapshot();
+    let plan = deterministic(project_effect_learn_spell_acquisition_like_cpp(
+        &source,
+        metadata.metadata(),
+        PASSIVE,
+    ));
+
+    assert!(plan.resulting_snapshot.spells.iter().any(|row| {
+        row.spell_id == PASSIVE && row.state != PlayerSpellPersistenceStateLikeCpp::Removed
+    }));
+    assert!(
+        !plan
+            .resulting_snapshot
+            .spells
+            .iter()
+            .any(|row| row.spell_id == NESTED)
+    );
+    assert!(plan.diagnostics.iter().any(|diagnostic| matches!(
+        diagnostic,
+        SpellAcquisitionDiagnosticLikeCpp::AcquisitionCastDeferred {
+            spell_id: PASSIVE,
+            reason: PlannedAcquisitionCastReasonLikeCpp::PassiveLearn,
+            cause,
+        } if matches!(
+            cause.as_ref(),
+            SpellAcquisitionIndeterminateLikeCpp::CastAuthority {
+                spell_id: PASSIVE,
+                ..
+            }
+        )
+    )));
+    assert!(!plan.diagnostics.iter().any(|diagnostic| matches!(
+        diagnostic,
+        SpellAcquisitionDiagnosticLikeCpp::AcquisitionCastProjected {
+            spell_id: PASSIVE,
+            ..
+        }
+    )));
+    let profession_plan = crate::profession::PrimaryProfessionCapacityPlanLikeCpp {
+        configured_max: 2,
+        used_before: 0,
+        free_before: 2,
+        existing_professions: Vec::new(),
+        new_professions: Vec::new(),
+        slot_normalizations: Vec::new(),
+    };
+    assert!(matches!(
+        prepare_player_spell_acquisition_like_cpp(&plan, &profession_plan, &source),
+        Ok(PreparedPlayerSpellAcquisitionOutcomeLikeCpp::Ready(_))
+    ));
+}
+
+#[test]
 fn passive_without_projected_acquisition_retains_runtime_refresh_intent() {
     const PASSIVE: u32 = 500;
     const SPELL_ATTR0_PASSIVE: i64 = 0x40;

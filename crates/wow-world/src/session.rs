@@ -64149,12 +64149,8 @@ impl WorldSession {
         let Ok(trigger_spell_id) = u32::try_from(trigger_spell) else {
             return false;
         };
-        let crate::spell_acquisition::SpellAcquisitionOutcomeLikeCpp::Deterministic(plan) = self
-            .project_player_spell_acquisition_like_cpp(
-                crate::spell_acquisition::SpellAcquisitionRootLikeCpp::DirectLearn(
-                    trigger_spell_id,
-                ),
-            )
+        let crate::spell_acquisition::SpellAcquisitionOutcomeLikeCpp::Deterministic(plan) =
+            self.project_effect_learn_spell_acquisition_like_cpp(trigger_spell_id)
         else {
             return false;
         };

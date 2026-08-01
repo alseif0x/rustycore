@@ -5,6 +5,7 @@
 
 use super::*;
 
+#[derive(Clone, Copy)]
 pub(crate) struct SpellAcquisitionMetadataLikeCpp<'a> {
     pub catalog: &'a SpellAcquisitionCatalogLikeCpp,
     pub spell_chains: &'a SpellChainStoreLikeCpp,
@@ -35,10 +36,18 @@ struct EffectiveSpellProjectionLikeCpp {
     dependencies: Vec<SpellLearnSpellNodeLikeCpp>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CastSideEffectProjectionPolicyLikeCpp {
+    RequireComplete,
+    DeferUnavailable,
+}
+
+#[derive(Clone)]
 struct SpellAcquisitionPlannerLikeCpp<'a> {
     root: SpellAcquisitionRootLikeCpp,
     source_snapshot: PlayerSpellAcquisitionSnapshotLikeCpp,
     metadata: SpellAcquisitionMetadataLikeCpp<'a>,
+    cast_side_effect_policy: CastSideEffectProjectionPolicyLikeCpp,
     race: u8,
     class: u8,
     level: u8,
@@ -81,8 +90,36 @@ pub(crate) fn project_spell_acquisition_like_cpp(
     metadata: SpellAcquisitionMetadataLikeCpp<'_>,
     root: SpellAcquisitionRootLikeCpp,
 ) -> SpellAcquisitionOutcomeLikeCpp {
-    let result = SpellAcquisitionPlannerLikeCpp::new(snapshot, metadata, root)
-        .and_then(SpellAcquisitionPlannerLikeCpp::project);
+    project_spell_acquisition_with_cast_policy_like_cpp(
+        snapshot,
+        metadata,
+        root,
+        CastSideEffectProjectionPolicyLikeCpp::RequireComplete,
+    )
+}
+
+pub(crate) fn project_effect_learn_spell_acquisition_like_cpp(
+    snapshot: &PlayerSpellAcquisitionSnapshotLikeCpp,
+    metadata: SpellAcquisitionMetadataLikeCpp<'_>,
+    spell_id: u32,
+) -> SpellAcquisitionOutcomeLikeCpp {
+    project_spell_acquisition_with_cast_policy_like_cpp(
+        snapshot,
+        metadata,
+        SpellAcquisitionRootLikeCpp::DirectLearn(spell_id),
+        CastSideEffectProjectionPolicyLikeCpp::DeferUnavailable,
+    )
+}
+
+fn project_spell_acquisition_with_cast_policy_like_cpp(
+    snapshot: &PlayerSpellAcquisitionSnapshotLikeCpp,
+    metadata: SpellAcquisitionMetadataLikeCpp<'_>,
+    root: SpellAcquisitionRootLikeCpp,
+    cast_side_effect_policy: CastSideEffectProjectionPolicyLikeCpp,
+) -> SpellAcquisitionOutcomeLikeCpp {
+    let result =
+        SpellAcquisitionPlannerLikeCpp::new(snapshot, metadata, root, cast_side_effect_policy)
+            .and_then(SpellAcquisitionPlannerLikeCpp::project);
     match result {
         Ok(plan) => SpellAcquisitionOutcomeLikeCpp::Deterministic(plan),
         Err(reason) => SpellAcquisitionOutcomeLikeCpp::Indeterminate(reason),
@@ -94,6 +131,7 @@ impl<'a> SpellAcquisitionPlannerLikeCpp<'a> {
         snapshot: &PlayerSpellAcquisitionSnapshotLikeCpp,
         metadata: SpellAcquisitionMetadataLikeCpp<'a>,
         root: SpellAcquisitionRootLikeCpp,
+        cast_side_effect_policy: CastSideEffectProjectionPolicyLikeCpp,
     ) -> Result<Self, SpellAcquisitionIndeterminateLikeCpp> {
         if race_mask_for_race_like_cpp(snapshot.race) == 0 {
             return Err(SpellAcquisitionIndeterminateLikeCpp::InvalidSnapshot {
@@ -260,6 +298,7 @@ impl<'a> SpellAcquisitionPlannerLikeCpp<'a> {
             root,
             source_snapshot: snapshot.clone(),
             metadata,
+            cast_side_effect_policy,
             race: snapshot.race,
             class: snapshot.class,
             level: snapshot.level,

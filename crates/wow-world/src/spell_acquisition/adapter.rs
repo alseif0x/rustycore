@@ -33,6 +33,28 @@ impl crate::session::WorldSession {
         &self,
         root: SpellAcquisitionRootLikeCpp,
     ) -> SpellAcquisitionOutcomeLikeCpp {
+        self.project_player_spell_acquisition_with_policy_like_cpp(root, false)
+    }
+
+    /// C++ `Spell::EffectLearnSpell` always reaches `Player::LearnSpell` even
+    /// when AddSpell's subsequent triggered cast cannot yet be represented by
+    /// this immutable planner. Preserve that base mutation while recording a
+    /// typed deferral for the unsupported cast-side work.
+    pub(crate) fn project_effect_learn_spell_acquisition_like_cpp(
+        &self,
+        spell_id: u32,
+    ) -> SpellAcquisitionOutcomeLikeCpp {
+        self.project_player_spell_acquisition_with_policy_like_cpp(
+            SpellAcquisitionRootLikeCpp::DirectLearn(spell_id),
+            true,
+        )
+    }
+
+    fn project_player_spell_acquisition_with_policy_like_cpp(
+        &self,
+        root: SpellAcquisitionRootLikeCpp,
+        defer_unavailable_cast_side_effects: bool,
+    ) -> SpellAcquisitionOutcomeLikeCpp {
         let snapshot = match self.spell_acquisition_snapshot_like_cpp(
             PlayerAcquisitionLifecycleLikeCpp::InWorld,
             Vec::new(),
@@ -73,25 +95,29 @@ impl crate::session::WorldSession {
                 SpellAcquisitionIndeterminateLikeCpp::MissingTrainerProjectionMetadata,
             );
         };
-        project_spell_acquisition_like_cpp(
-            &snapshot,
-            SpellAcquisitionMetadataLikeCpp {
-                catalog,
-                spell_chains,
-                spell_learn_skills,
-                spell_learn_spells,
-                spell_required,
-                spell_custom_attributes,
-                trait_definitions,
-                cast_authority: &FAIL_CLOSED_CAST_AUTHORITY_LIKE_CPP,
-                craft_validity_authority: &FAIL_CLOSED_CRAFT_AUTHORITY_LIKE_CPP,
-                mounts: self.mount_store().map(AsRef::as_ref),
-                skills,
-                skill_lines,
-                skill_tiers,
-            },
-            root,
-        )
+        let metadata = SpellAcquisitionMetadataLikeCpp {
+            catalog,
+            spell_chains,
+            spell_learn_skills,
+            spell_learn_spells,
+            spell_required,
+            spell_custom_attributes,
+            trait_definitions,
+            cast_authority: &FAIL_CLOSED_CAST_AUTHORITY_LIKE_CPP,
+            craft_validity_authority: &FAIL_CLOSED_CRAFT_AUTHORITY_LIKE_CPP,
+            mounts: self.mount_store().map(AsRef::as_ref),
+            skills,
+            skill_lines,
+            skill_tiers,
+        };
+        if defer_unavailable_cast_side_effects {
+            let SpellAcquisitionRootLikeCpp::DirectLearn(spell_id) = root else {
+                unreachable!("cast-side deferral is exclusive to EffectLearnSpell")
+            };
+            project_effect_learn_spell_acquisition_like_cpp(&snapshot, metadata, spell_id)
+        } else {
+            project_spell_acquisition_like_cpp(&snapshot, metadata, root)
+        }
     }
 
     pub(crate) fn spell_acquisition_snapshot_like_cpp(

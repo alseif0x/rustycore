@@ -220,21 +220,21 @@ impl SpellAcquisitionPlannerLikeCpp<'_> {
                             .transpose()?
                             .unwrap_or(false);
                         if passive {
-                            self.metadata
-                                .cast_authority
-                                .require_safe_like_cpp(spell_id)?;
                             if projection
                                 .effects
                                 .iter()
                                 .any(effect_can_change_acquisition_like_cpp)
                             {
-                                self.simulate_cast_like_cpp(
+                                self.simulate_or_defer_cast_like_cpp(
                                     spell_id,
                                     &projection.effects,
                                     PlannedAcquisitionCastReasonLikeCpp::PassiveLearn,
                                     false,
                                 )?;
-                            } else {
+                            } else if self.require_cast_authority_or_defer_like_cpp(
+                                spell_id,
+                                PlannedAcquisitionCastReasonLikeCpp::PassiveLearn,
+                            )? {
                                 // No acquisition handler was projected, so
                                 // the ordinary passive cast remains the only
                                 // owner of its runtime work.

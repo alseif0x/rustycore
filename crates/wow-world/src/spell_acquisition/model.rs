@@ -306,6 +306,11 @@ pub(crate) enum SpellAcquisitionDiagnosticLikeCpp {
         spell_id: u32,
         reason: PlannedAcquisitionCastReasonLikeCpp,
     },
+    AcquisitionCastDeferred {
+        spell_id: u32,
+        reason: PlannedAcquisitionCastReasonLikeCpp,
+        cause: Box<SpellAcquisitionIndeterminateLikeCpp>,
+    },
     DualWieldEffectProjected {
         spell_id: u32,
         effect_record_id: u32,
