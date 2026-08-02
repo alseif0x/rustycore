@@ -36,6 +36,13 @@ pub(crate) struct DurablePlayerSkillRowLikeCpp {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+struct DurablePlayerSpellAcquisitionAuthorityLikeCpp {
+    spells: Vec<DurablePlayerSpellRowLikeCpp>,
+    favorite_spell_ids: Vec<i32>,
+    skills: Vec<DurablePlayerSkillRowLikeCpp>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PreparedPlayerSpellAcquisitionLikeCpp {
     pub character_guid: Option<wow_core::ObjectGuid>,
     pub root: SpellAcquisitionRootLikeCpp,
@@ -89,6 +96,12 @@ pub(crate) enum PlayerSpellAcquisitionReconciliationLikeCpp {
     NotCommitted,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PlayerSpellAcquisitionMoneyReconciliationLikeCpp {
+    Committed,
+    Indeterminate,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum PreparedPlayerSpellAcquisitionOutcomeLikeCpp {
     Ready(PreparedPlayerSpellAcquisitionLikeCpp),
@@ -102,6 +115,7 @@ pub(crate) struct PreparedPlayerSpellAcquisitionActionsLikeCpp {
     pub character_guid: Option<wow_core::ObjectGuid>,
     pub runtime_snapshot: PlayerSpellAcquisitionSnapshotLikeCpp,
     pub post_commit_actions: Vec<SpellAcquisitionPostCommitActionLikeCpp>,
+    runtime_actions_already_applied: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -139,6 +153,21 @@ pub(crate) enum PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp {
     PublicationInterrupted,
 }
 
+pub(crate) fn snapshot_has_pending_durable_save_like_cpp(
+    snapshot: &PlayerSpellAcquisitionSnapshotLikeCpp,
+) -> bool {
+    snapshot.spells.iter().any(|spell| {
+        !matches!(
+            spell.state,
+            PlayerSpellPersistenceStateLikeCpp::Unchanged
+                | PlayerSpellPersistenceStateLikeCpp::Temporary
+        )
+    }) || snapshot
+        .skills
+        .iter()
+        .any(|skill| skill.state != PlayerSkillPersistenceStateLikeCpp::Unchanged)
+}
+
 pub(crate) fn prepare_player_spell_acquisition_like_cpp(
     plan: &SpellAcquisitionPlanLikeCpp,
     profession_plan: &PrimaryProfessionCapacityPlanLikeCpp,
@@ -163,6 +192,7 @@ pub(crate) fn prepare_player_spell_acquisition_like_cpp(
                     // persistence states or replace runtime authority.
                     runtime_snapshot: plan.resulting_snapshot.clone(),
                     post_commit_actions: plan.post_commit_actions.clone(),
+                    runtime_actions_already_applied: false,
                 },
             ))
         };
@@ -1348,6 +1378,376 @@ pub(crate) async fn persist_prepared_player_spell_acquisition_like_cpp(
     .await
 }
 
+/// Persists one prepared acquisition and its absolute trainer fee in a single
+/// Character DB transaction. The locked money value plus exact locked durable
+/// spell/favorite/skill source are optimistic idempotency guards: a repeated
+/// or cross-session request cannot rewrite a newer authority, including when
+/// a free purchase leaves the balance unchanged.
+pub(crate) async fn persist_prepared_player_spell_acquisition_and_money_like_cpp(
+    character_db: &CharacterDatabase,
+    guid_counter: u64,
+    prepared: &PreparedPlayerSpellAcquisitionLikeCpp,
+    money_before: u64,
+    money_after: u64,
+    operation_token: &[u8; 16],
+) -> Result<(), SqlTransactionCommitError> {
+    validate_prepared_character_counter_like_cpp(guid_counter, prepared)
+        .map_err(SqlTransactionCommitError::DefinitelyRolledBack)?;
+    let mut transaction = character_db
+        .pool()
+        .begin()
+        .await
+        .map_err(DatabaseError::from)
+        .map_err(SqlTransactionCommitError::DefinitelyRolledBack)?;
+
+    let locked_money = match sqlx::query_scalar::<_, u64>(
+        "SELECT money FROM characters WHERE guid = ? FOR UPDATE",
+    )
+    .bind(guid_counter)
+    .fetch_optional(&mut *transaction)
+    .await
+    {
+        Ok(money) => money,
+        Err(error) => {
+            let error = DatabaseError::from(error);
+            rollback_player_spell_acquisition_like_cpp(transaction).await;
+            return Err(SqlTransactionCommitError::DefinitelyRolledBack(error));
+        }
+    };
+    if locked_money != Some(money_before) {
+        rollback_player_spell_acquisition_like_cpp(transaction).await;
+        return Err(SqlTransactionCommitError::DefinitelyRolledBack(
+            DatabaseError::Transaction(
+                "trainer acquisition durable money no longer matches the prepared balance"
+                    .to_string(),
+            ),
+        ));
+    }
+
+    let Some(expected_source_authority) =
+        stable_source_durable_authority_like_cpp(&prepared.source_snapshot)
+    else {
+        rollback_player_spell_acquisition_like_cpp(transaction).await;
+        return Err(SqlTransactionCommitError::DefinitelyRolledBack(
+            DatabaseError::Transaction(
+                "trainer acquisition source contains unsaved persistence state".to_string(),
+            ),
+        ));
+    };
+    let observed_source_authority = match read_durable_authority_in_transaction_like_cpp(
+        &mut transaction,
+        guid_counter,
+    )
+    .await
+    {
+        Ok(authority) => authority,
+        Err(error) => {
+            rollback_player_spell_acquisition_like_cpp(transaction).await;
+            return Err(SqlTransactionCommitError::DefinitelyRolledBack(error));
+        }
+    };
+    if observed_source_authority != expected_source_authority {
+        rollback_player_spell_acquisition_like_cpp(transaction).await;
+        return Err(SqlTransactionCommitError::DefinitelyRolledBack(
+            DatabaseError::Transaction(
+                "trainer acquisition durable source no longer matches the prepared snapshot"
+                    .to_string(),
+            ),
+        ));
+    }
+
+    for operation in prepared.durable_operations.iter().copied() {
+        if operation == PlayerSpellAcquisitionDurableOperationLikeCpp::LockCharacter {
+            continue;
+        }
+        if let Err(error) = execute_player_spell_acquisition_operation_like_cpp(
+            &mut transaction,
+            guid_counter,
+            operation,
+        )
+        .await
+        {
+            rollback_player_spell_acquisition_like_cpp(transaction).await;
+            return Err(SqlTransactionCommitError::DefinitelyRolledBack(error));
+        }
+    }
+
+    if money_before != money_after {
+        let result =
+            match sqlx::query("UPDATE characters SET money = ? WHERE guid = ? AND money = ?")
+                .bind(money_after)
+                .bind(guid_counter)
+                .bind(money_before)
+                .execute(&mut *transaction)
+                .await
+            {
+                Ok(result) => result,
+                Err(error) => {
+                    let error = DatabaseError::from(error);
+                    rollback_player_spell_acquisition_like_cpp(transaction).await;
+                    return Err(SqlTransactionCommitError::DefinitelyRolledBack(error));
+                }
+            };
+        if result.rows_affected() != 1 {
+            rollback_player_spell_acquisition_like_cpp(transaction).await;
+            return Err(SqlTransactionCommitError::DefinitelyRolledBack(
+                DatabaseError::Transaction(format!(
+                    "trainer acquisition money update affected {} rows; expected exactly 1",
+                    result.rows_affected()
+                )),
+            ));
+        }
+    }
+
+    // A post-state comparison alone cannot distinguish this COMMIT from a
+    // later identical purchase. Keep the latest opaque attempt token in the
+    // same transaction so an unknown COMMIT is attributable to this exact
+    // operation, including zero-price purchases.
+    if let Err(error) = sqlx::query(
+        "INSERT INTO character_spell_acquisition_operation (guid, operation_token) \
+         VALUES (?, ?) ON DUPLICATE KEY UPDATE operation_token = VALUES(operation_token)",
+    )
+    .bind(guid_counter)
+    .bind(operation_token.as_slice())
+    .execute(&mut *transaction)
+    .await
+    {
+        let error = DatabaseError::from(error);
+        rollback_player_spell_acquisition_like_cpp(transaction).await;
+        return Err(SqlTransactionCommitError::DefinitelyRolledBack(error));
+    }
+
+    transaction.commit().await.map_err(|error| {
+        let error = DatabaseError::from(error);
+        if is_database_deadlock_like_cpp(&error) {
+            SqlTransactionCommitError::DefinitelyRolledBack(error)
+        } else {
+            SqlTransactionCommitError::CommitOutcomeUnknown(error)
+        }
+    })
+}
+
+/// Project the exact Character DB rows represented by a clean runtime source.
+/// Temporary spells have no durable row; any other dirty state is ambiguous
+/// until the ordinary C++ save lifecycle consumes it, so trainer persistence
+/// must fail closed instead of guessing the database pre-state.
+fn stable_source_durable_authority_like_cpp(
+    snapshot: &PlayerSpellAcquisitionSnapshotLikeCpp,
+) -> Option<DurablePlayerSpellAcquisitionAuthorityLikeCpp> {
+    let mut spells = Vec::new();
+    let mut favorite_spell_ids = Vec::new();
+    for spell in &snapshot.spells {
+        if spell.state == PlayerSpellPersistenceStateLikeCpp::Temporary {
+            continue;
+        }
+        if spell.state != PlayerSpellPersistenceStateLikeCpp::Unchanged {
+            return None;
+        }
+        let spell_id = i32::try_from(spell.spell_id).ok()?;
+        if spell.favorite {
+            favorite_spell_ids.push(spell_id);
+        }
+        if !spell.dependent {
+            spells.push(DurablePlayerSpellRowLikeCpp {
+                spell_id,
+                active: spell.active,
+                disabled: spell.disabled,
+            });
+        }
+    }
+    spells.sort_by_key(|spell| spell.spell_id);
+    favorite_spell_ids.sort_unstable();
+
+    let non_durable_tombstones = snapshot
+        .non_durable_skill_tombstone_ids
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>();
+    let mut skills = Vec::new();
+    for skill in &snapshot.skills {
+        if skill.state != PlayerSkillPersistenceStateLikeCpp::Unchanged {
+            return None;
+        }
+        let skill_id = u16::try_from(skill.skill_id).ok()?;
+        if non_durable_tombstones.contains(&skill.skill_id) {
+            continue;
+        }
+        skills.push(DurablePlayerSkillRowLikeCpp {
+            skill_id,
+            value: skill.value,
+            maximum: skill.maximum,
+            profession_slot: skill.profession_association.database_value_like_cpp(),
+        });
+    }
+    skills.sort_by_key(|skill| skill.skill_id);
+
+    Some(DurablePlayerSpellAcquisitionAuthorityLikeCpp {
+        spells,
+        favorite_spell_ids,
+        skills,
+    })
+}
+
+async fn read_durable_authority_in_transaction_like_cpp(
+    transaction: &mut Transaction<'_, MySql>,
+    guid_counter: u64,
+) -> Result<DurablePlayerSpellAcquisitionAuthorityLikeCpp, DatabaseError> {
+    let spells = sqlx::query_as::<_, (i32, bool, bool)>(
+        "SELECT spell, active, disabled FROM character_spell WHERE guid = ? ORDER BY spell FOR UPDATE",
+    )
+    .bind(guid_counter)
+    .fetch_all(&mut **transaction)
+    .await
+    .map_err(DatabaseError::from)?
+    .into_iter()
+    .map(
+        |(spell_id, active, disabled)| DurablePlayerSpellRowLikeCpp {
+            spell_id,
+            active,
+            disabled,
+        },
+    )
+    .collect();
+    let favorite_spell_ids = sqlx::query_scalar::<_, i32>(
+        "SELECT spell FROM character_spell_favorite WHERE guid = ? ORDER BY spell FOR UPDATE",
+    )
+    .bind(guid_counter)
+    .fetch_all(&mut **transaction)
+    .await
+    .map_err(DatabaseError::from)?;
+    let skills = sqlx::query_as::<_, (u16, u16, u16, i8)>(
+        "SELECT skill, value, max, professionSlot FROM character_skills WHERE guid = ? ORDER BY skill FOR UPDATE",
+    )
+    .bind(guid_counter)
+    .fetch_all(&mut **transaction)
+    .await
+    .map_err(DatabaseError::from)?
+    .into_iter()
+    .map(
+        |(skill_id, value, maximum, profession_slot)| DurablePlayerSkillRowLikeCpp {
+            skill_id,
+            value,
+            maximum,
+            profession_slot,
+        },
+    )
+    .collect();
+    Ok(DurablePlayerSpellAcquisitionAuthorityLikeCpp {
+        spells,
+        favorite_spell_ids,
+        skills,
+    })
+}
+
+/// Reconciles an ambiguous combined trainer COMMIT. Exact prepared spell,
+/// favorite and skill authority plus the post-purchase money value proves the
+/// transaction committed. No current row shape can prove rollback after an
+/// ambiguous COMMIT because a later writer may have restored any prior value;
+/// every non-post-state shape is therefore quarantined as unknown.
+pub(crate) async fn reconcile_prepared_player_spell_acquisition_and_money_like_cpp(
+    character_db: &CharacterDatabase,
+    guid_counter: u64,
+    prepared: &PreparedPlayerSpellAcquisitionLikeCpp,
+    money_after: u64,
+    operation_token: &[u8; 16],
+) -> Result<PlayerSpellAcquisitionMoneyReconciliationLikeCpp, DatabaseError> {
+    validate_prepared_character_counter_like_cpp(guid_counter, prepared)?;
+    let mut transaction = character_db
+        .pool()
+        .begin()
+        .await
+        .map_err(DatabaseError::from)?;
+    let observed_money =
+        sqlx::query_scalar::<_, u64>("SELECT money FROM characters WHERE guid = ? FOR UPDATE")
+            .bind(guid_counter)
+            .fetch_optional(&mut *transaction)
+            .await
+            .map_err(DatabaseError::from)?;
+    let Some(observed_money) = observed_money else {
+        rollback_player_spell_acquisition_like_cpp(transaction).await;
+        return Err(DatabaseError::Transaction(
+            "trainer acquisition character vanished during reconciliation".to_string(),
+        ));
+    };
+    let observed_operation_token = sqlx::query_scalar::<_, Vec<u8>>(
+        "SELECT operation_token FROM character_spell_acquisition_operation \
+         WHERE guid = ? FOR UPDATE",
+    )
+    .bind(guid_counter)
+    .fetch_optional(&mut *transaction)
+    .await
+    .map_err(DatabaseError::from)?;
+    let spell_rows = sqlx::query_as::<_, (i32, bool, bool)>(
+        "SELECT spell, active, disabled FROM character_spell WHERE guid = ? ORDER BY spell",
+    )
+    .bind(guid_counter)
+    .fetch_all(&mut *transaction)
+    .await
+    .map_err(DatabaseError::from)?
+    .into_iter()
+    .map(
+        |(spell_id, active, disabled)| DurablePlayerSpellRowLikeCpp {
+            spell_id,
+            active,
+            disabled,
+        },
+    )
+    .collect::<Vec<_>>();
+    let favorite_spell_ids = sqlx::query_scalar::<_, i32>(
+        "SELECT spell FROM character_spell_favorite WHERE guid = ? ORDER BY spell",
+    )
+    .bind(guid_counter)
+    .fetch_all(&mut *transaction)
+    .await
+    .map_err(DatabaseError::from)?;
+    let skill_rows = sqlx::query_as::<_, (u16, u16, u16, i8)>(
+        "SELECT skill, value, max, professionSlot FROM character_skills WHERE guid = ? ORDER BY skill",
+    )
+    .bind(guid_counter)
+    .fetch_all(&mut *transaction)
+    .await
+    .map_err(DatabaseError::from)?
+    .into_iter()
+    .map(
+        |(skill_id, value, maximum, profession_slot)| DurablePlayerSkillRowLikeCpp {
+            skill_id,
+            value,
+            maximum,
+            profession_slot,
+        },
+    )
+    .collect::<Vec<_>>();
+    transaction.commit().await.map_err(DatabaseError::from)?;
+
+    let durable_matches = spell_rows == prepared.durable_spells
+        && favorite_spell_ids == prepared.durable_favorite_spell_ids
+        && skill_rows == prepared.durable_skills;
+    let operation_matches = observed_operation_token
+        .as_deref()
+        .is_some_and(|observed| observed == operation_token);
+    Ok(
+        classify_player_spell_acquisition_money_reconciliation_like_cpp(
+            money_after,
+            observed_money,
+            durable_matches,
+            operation_matches,
+        ),
+    )
+}
+
+fn classify_player_spell_acquisition_money_reconciliation_like_cpp(
+    money_after: u64,
+    observed_money: u64,
+    durable_matches: bool,
+    operation_matches: bool,
+) -> PlayerSpellAcquisitionMoneyReconciliationLikeCpp {
+    if observed_money == money_after && durable_matches && operation_matches {
+        PlayerSpellAcquisitionMoneyReconciliationLikeCpp::Committed
+    } else {
+        PlayerSpellAcquisitionMoneyReconciliationLikeCpp::Indeterminate
+    }
+}
+
 /// Re-reads the complete durable authority after a lost COMMIT response.
 /// Exact equality proves that publishing the prepared result is safe; any
 /// other complete state is treated as not committed and is never guessed.
@@ -1604,6 +2004,107 @@ pub(crate) fn apply_prepared_player_spell_acquisition_like_cpp(
     apply_prepared_player_spell_acquisition_with_fault_like_cpp(session, prepared, |_| Ok(()))
 }
 
+/// Applies the committed runtime snapshot, then invokes one infallible
+/// publication hook immediately before the ordered learning actions. Trainer
+/// purchases use the hook for C++'s money and visual publications, after every
+/// runtime owner and replacement has already been proven safe.
+pub(crate) fn apply_prepared_player_spell_acquisition_with_before_actions_like_cpp<Before>(
+    session: &mut crate::session::WorldSession,
+    prepared: &PreparedPlayerSpellAcquisitionLikeCpp,
+    before_actions: Before,
+) -> Result<(), PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp>
+where
+    Before: FnOnce(&mut crate::session::WorldSession),
+{
+    require_prepared_session_character_like_cpp(session, prepared.character_guid)?;
+    apply_player_spell_acquisition_runtime_snapshot_with_before_actions_and_fault_like_cpp(
+        session,
+        &prepared.runtime_snapshot,
+        &prepared.non_durable_skill_tombstone_ids,
+        &prepared.post_commit_actions,
+        before_actions,
+        |_| Ok(()),
+    )
+}
+
+/// Install an already committed runtime snapshot while deferring every
+/// observable learning action. Cross-socket workflows use the returned action
+/// bundle after their physical writer fences have preserved C++ order.
+pub(crate) fn install_prepared_player_spell_acquisition_runtime_like_cpp(
+    session: &mut crate::session::WorldSession,
+    prepared: &PreparedPlayerSpellAcquisitionLikeCpp,
+) -> Result<
+    PreparedPlayerSpellAcquisitionActionsLikeCpp,
+    PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp,
+> {
+    require_prepared_session_character_like_cpp(session, prepared.character_guid)?;
+    preflight_player_spell_acquisition_runtime_owners_like_cpp(
+        session,
+        &prepared.post_commit_actions,
+    )?;
+    apply_player_spell_acquisition_runtime_snapshot_with_before_actions_and_fault_like_cpp(
+        session,
+        &prepared.runtime_snapshot,
+        &prepared.non_durable_skill_tombstone_ids,
+        &[],
+        |_| {},
+        |_| Ok(()),
+    )?;
+    apply_player_spell_acquisition_non_packet_runtime_actions_like_cpp(
+        session,
+        &prepared.post_commit_actions,
+    )?;
+    Ok(PreparedPlayerSpellAcquisitionActionsLikeCpp {
+        character_guid: prepared.character_guid,
+        runtime_snapshot: prepared.runtime_snapshot.clone(),
+        post_commit_actions: prepared.post_commit_actions.clone(),
+        runtime_actions_already_applied: true,
+    })
+}
+
+/// Proves every runtime owner needed after COMMIT is available before a
+/// trainer fee or acquisition row becomes durable.
+pub(crate) fn validate_prepared_player_spell_acquisition_runtime_like_cpp(
+    session: &crate::session::WorldSession,
+    prepared: &PreparedPlayerSpellAcquisitionLikeCpp,
+) -> Result<(), PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp> {
+    require_prepared_session_character_like_cpp(session, prepared.character_guid)?;
+    preflight_player_spell_acquisition_runtime_owners_like_cpp(
+        session,
+        &prepared.post_commit_actions,
+    )
+}
+
+pub(crate) fn validate_prepared_player_spell_acquisition_actions_runtime_like_cpp(
+    session: &crate::session::WorldSession,
+    prepared: &PreparedPlayerSpellAcquisitionActionsLikeCpp,
+) -> Result<(), PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp> {
+    require_prepared_session_character_like_cpp(session, prepared.character_guid)?;
+    preflight_player_spell_acquisition_runtime_owners_like_cpp(
+        session,
+        &prepared.post_commit_actions,
+    )
+}
+
+/// Apply non-packet effects from an actions-only cast immediately after its
+/// trainer fee commits. Later publication still records the complete causal
+/// action stream, but will not apply these runtime effects a second time.
+pub(crate) fn install_prepared_player_spell_acquisition_actions_runtime_like_cpp(
+    session: &mut crate::session::WorldSession,
+    mut prepared: PreparedPlayerSpellAcquisitionActionsLikeCpp,
+) -> Result<
+    PreparedPlayerSpellAcquisitionActionsLikeCpp,
+    PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp,
+> {
+    validate_prepared_player_spell_acquisition_actions_runtime_like_cpp(session, &prepared)?;
+    apply_player_spell_acquisition_non_packet_runtime_actions_like_cpp(
+        session,
+        &prepared.post_commit_actions,
+    )?;
+    prepared.runtime_actions_already_applied = true;
+    Ok(prepared)
+}
+
 /// Applies the exact prepared plan with C++ `Player::LearnSpell` timing. The
 /// runtime and packets change synchronously while the plan's persistence states
 /// remain dirty for the ordinary `Player::SaveToDB` lifecycle.
@@ -1647,6 +2148,31 @@ fn apply_player_spell_acquisition_runtime_snapshot_with_fault_like_cpp<F>(
     fault: F,
 ) -> Result<(), PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp>
 where
+    F: FnMut(PlayerSpellAcquisitionPublicationFaultPointLikeCpp) -> Result<(), ()>,
+{
+    apply_player_spell_acquisition_runtime_snapshot_with_before_actions_and_fault_like_cpp(
+        session,
+        runtime_snapshot,
+        new_non_durable_skill_tombstone_ids,
+        post_commit_actions,
+        |_| {},
+        fault,
+    )
+}
+
+fn apply_player_spell_acquisition_runtime_snapshot_with_before_actions_and_fault_like_cpp<
+    Before,
+    F,
+>(
+    session: &mut crate::session::WorldSession,
+    runtime_snapshot: &PlayerSpellAcquisitionSnapshotLikeCpp,
+    new_non_durable_skill_tombstone_ids: &BTreeSet<u16>,
+    post_commit_actions: &[SpellAcquisitionPostCommitActionLikeCpp],
+    before_actions: Before,
+    fault: F,
+) -> Result<(), PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp>
+where
+    Before: FnOnce(&mut crate::session::WorldSession),
     F: FnMut(PlayerSpellAcquisitionPublicationFaultPointLikeCpp) -> Result<(), ()>,
 {
     preflight_player_spell_acquisition_runtime_owners_like_cpp(session, post_commit_actions)?;
@@ -1765,10 +2291,12 @@ where
     ) {
         return Err(PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp::InvalidPreparedRuntime);
     }
+    before_actions(session);
     publish_player_spell_acquisition_actions_with_fault_like_cpp(
         session,
         runtime_snapshot,
         post_commit_actions,
+        false,
         fault,
     )
 }
@@ -1786,8 +2314,33 @@ pub(crate) fn apply_prepared_player_spell_acquisition_actions_like_cpp(
         session,
         &prepared.runtime_snapshot,
         &prepared.post_commit_actions,
+        prepared.runtime_actions_already_applied,
         |_| Ok(()),
     )
+}
+
+fn apply_player_spell_acquisition_non_packet_runtime_actions_like_cpp(
+    session: &mut crate::session::WorldSession,
+    post_commit_actions: &[SpellAcquisitionPostCommitActionLikeCpp],
+) -> Result<(), PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp> {
+    // Apply owner mutations before replacing the retained causal batch. The
+    // preflight guarantees every required owner exists, so a successful
+    // durable commit cannot be followed by an unrepresented runtime action
+    // merely because a later socket-ordering fence times out.
+    for action in post_commit_actions {
+        if matches!(
+            action,
+            SpellAcquisitionPostCommitActionLikeCpp::GrantDualWield { .. }
+        ) && !session.grant_dual_wield_after_spell_acquisition_like_cpp()
+        {
+            return Err(PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp::InvalidPreparedRuntime);
+        }
+    }
+    session.begin_spell_acquisition_post_commit_action_batch_like_cpp();
+    for action in post_commit_actions.iter().cloned() {
+        session.record_spell_acquisition_post_commit_action_like_cpp(action);
+    }
+    Ok(())
 }
 
 fn require_prepared_session_character_like_cpp(
@@ -1820,16 +2373,21 @@ fn publish_player_spell_acquisition_actions_with_fault_like_cpp<F>(
     session: &mut crate::session::WorldSession,
     runtime_snapshot: &PlayerSpellAcquisitionSnapshotLikeCpp,
     post_commit_actions: &[SpellAcquisitionPostCommitActionLikeCpp],
+    runtime_actions_already_applied: bool,
     mut fault: F,
 ) -> Result<(), PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp>
 where
     F: FnMut(PlayerSpellAcquisitionPublicationFaultPointLikeCpp) -> Result<(), ()>,
 {
-    session.begin_spell_acquisition_post_commit_action_batch_like_cpp();
+    if !runtime_actions_already_applied {
+        session.begin_spell_acquisition_post_commit_action_batch_like_cpp();
+    }
     for (index, action) in post_commit_actions.iter().cloned().enumerate() {
         fault(PlayerSpellAcquisitionPublicationFaultPointLikeCpp::BeforeAction(index))
             .map_err(|()| PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp::PublicationInterrupted)?;
-        session.record_spell_acquisition_post_commit_action_like_cpp(action.clone());
+        if !runtime_actions_already_applied {
+            session.record_spell_acquisition_post_commit_action_like_cpp(action.clone());
+        }
         match action {
             SpellAcquisitionPostCommitActionLikeCpp::LearnedSpell {
                 spell_id,
@@ -1864,7 +2422,9 @@ where
                     spell_id, false,
                 )),
             SpellAcquisitionPostCommitActionLikeCpp::GrantDualWield { .. } => {
-                if !session.grant_dual_wield_after_spell_acquisition_like_cpp() {
+                if !runtime_actions_already_applied
+                    && !session.grant_dual_wield_after_spell_acquisition_like_cpp()
+                {
                     return Err(
                         PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp::InvalidPreparedRuntime,
                     );
@@ -1963,6 +2523,65 @@ mod tests {
             new_professions: Vec::new(),
             slot_normalizations: Vec::new(),
         }
+    }
+
+    #[test]
+    fn stable_source_authority_is_exact_and_rejects_unsaved_state() {
+        let mut favorite = spell(200, PlayerSpellPersistenceStateLikeCpp::Unchanged);
+        favorite.favorite = true;
+        let mut dependent = spell(201, PlayerSpellPersistenceStateLikeCpp::Unchanged);
+        dependent.dependent = true;
+        dependent.favorite = true;
+        let mut source = snapshot(vec![favorite, dependent]);
+        source.skills = vec![PlayerSkillAcquisitionRowLikeCpp {
+            skill_id: 164,
+            step: 1,
+            value: 75,
+            maximum: 150,
+            profession_association: ProfessionAssociationInputLikeCpp::Slot(1),
+            state: PlayerSkillPersistenceStateLikeCpp::Unchanged,
+        }];
+        source.occupied_skill_slots = 1;
+
+        assert_eq!(
+            stable_source_durable_authority_like_cpp(&source),
+            Some(DurablePlayerSpellAcquisitionAuthorityLikeCpp {
+                spells: vec![DurablePlayerSpellRowLikeCpp {
+                    spell_id: 200,
+                    active: true,
+                    disabled: false,
+                }],
+                favorite_spell_ids: vec![200, 201],
+                skills: vec![DurablePlayerSkillRowLikeCpp {
+                    skill_id: 164,
+                    value: 75,
+                    maximum: 150,
+                    profession_slot: 1,
+                }],
+            })
+        );
+
+        let mut unsaved_spell = source.clone();
+        unsaved_spell.spells[0].state = PlayerSpellPersistenceStateLikeCpp::Changed;
+        assert!(stable_source_durable_authority_like_cpp(&unsaved_spell).is_none());
+        assert!(snapshot_has_pending_durable_save_like_cpp(&unsaved_spell));
+
+        let mut with_temporary_spell = source.clone();
+        with_temporary_spell
+            .spells
+            .push(spell(202, PlayerSpellPersistenceStateLikeCpp::Temporary));
+        assert_eq!(
+            stable_source_durable_authority_like_cpp(&with_temporary_spell),
+            stable_source_durable_authority_like_cpp(&source)
+        );
+        assert!(!snapshot_has_pending_durable_save_like_cpp(
+            &with_temporary_spell
+        ));
+
+        let mut unsaved_skill = source;
+        unsaved_skill.skills[0].state = PlayerSkillPersistenceStateLikeCpp::New;
+        assert!(stable_source_durable_authority_like_cpp(&unsaved_skill).is_none());
+        assert!(snapshot_has_pending_durable_save_like_cpp(&unsaved_skill));
     }
 
     fn direct_learn_actions(
@@ -3119,6 +3738,7 @@ mod tests {
             PlayerCastAcquisitionResolutionLikeCpp {
                 reached_immediate_phase: true,
                 executed_hit_target_effect_mask: 1,
+                effective_effects: Vec::new(),
                 executed_dual_wield_effects: vec![PlayerExecutedDualWieldEffectLikeCpp {
                     effect_record_id: 7,
                     effect_index: 0,
@@ -3181,10 +3801,19 @@ mod tests {
             panic!("expected ready plan")
         };
         let (mut session, send_rx) = make_session();
+        let before_actions_ran = std::cell::Cell::new(false);
 
         assert_eq!(
-            apply_prepared_player_spell_acquisition_like_cpp(&mut session, &prepared),
+            apply_prepared_player_spell_acquisition_with_before_actions_like_cpp(
+                &mut session,
+                &prepared,
+                |_| before_actions_ran.set(true),
+            ),
             Err(PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp::InvalidPreparedRuntime)
+        );
+        assert!(
+            !before_actions_ran.get(),
+            "money and trainer visuals must not start before every runtime owner preflights"
         );
         assert!(
             session
@@ -3201,6 +3830,46 @@ mod tests {
                 .represented_spell_acquisition_post_commit_actions_like_cpp()
                 .is_empty(),
             "a missing required runtime owner is rejected before recording any action"
+        );
+    }
+
+    #[test]
+    fn combined_commit_reconciliation_requires_money_and_exact_durable_result() {
+        use PlayerSpellAcquisitionMoneyReconciliationLikeCpp::{Committed, Indeterminate};
+
+        assert_eq!(
+            classify_player_spell_acquisition_money_reconciliation_like_cpp(80, 80, true, true),
+            Committed
+        );
+        assert_eq!(
+            classify_player_spell_acquisition_money_reconciliation_like_cpp(80, 100, false, true),
+            Indeterminate,
+            "the old balance cannot prove rollback after an ambiguous COMMIT"
+        );
+        assert_eq!(
+            classify_player_spell_acquisition_money_reconciliation_like_cpp(80, 100, true, true),
+            Indeterminate,
+            "a later writer may restore money after the acquisition rows committed"
+        );
+        assert_eq!(
+            classify_player_spell_acquisition_money_reconciliation_like_cpp(80, 80, false, true),
+            Indeterminate,
+            "money alone must never authorize publication of an incomplete acquisition"
+        );
+        assert_eq!(
+            classify_player_spell_acquisition_money_reconciliation_like_cpp(100, 100, true, true),
+            Committed,
+            "a free trainer purchase is proven only by its complete durable result"
+        );
+        assert_eq!(
+            classify_player_spell_acquisition_money_reconciliation_like_cpp(100, 100, false, true,),
+            Indeterminate,
+            "an unchanged balance cannot prove rollback for a free purchase"
+        );
+        assert_eq!(
+            classify_player_spell_acquisition_money_reconciliation_like_cpp(80, 80, true, false,),
+            Indeterminate,
+            "an identical later operation must not authorize this attempt's publication"
         );
     }
 
@@ -3304,6 +3973,62 @@ mod tests {
                 }],
                 favorites: vec![100],
                 skills: Vec::new(),
+            }
+        );
+    }
+
+    #[test]
+    fn trainer_fee_and_acquisition_share_every_rollback_boundary() {
+        #[derive(Clone, Debug, PartialEq, Eq)]
+        struct CombinedState {
+            money: u64,
+            spells: Vec<i32>,
+            skills: Vec<u16>,
+        }
+
+        fn execute(original: &CombinedState, fail_before_step: Option<usize>) -> CombinedState {
+            let mut transaction = original.clone();
+            // Mirrors the combined transaction's destructive replacement,
+            // deterministic inserts, guarded money update and COMMIT fence.
+            let mut step = 0;
+            macro_rules! transaction_step {
+                ($body:expr) => {{
+                    if fail_before_step == Some(step) {
+                        return original.clone();
+                    }
+                    $body;
+                    step += 1;
+                }};
+            }
+            transaction_step!(transaction.spells.clear());
+            transaction_step!(transaction.skills.clear());
+            transaction_step!(transaction.spells.extend([200, 201]));
+            transaction_step!(transaction.skills.push(164));
+            transaction_step!(transaction.money = 80);
+            if fail_before_step == Some(step) {
+                return original.clone();
+            }
+            transaction
+        }
+
+        let original = CombinedState {
+            money: 100,
+            spells: vec![100],
+            skills: vec![95],
+        };
+        for boundary in 0..=5 {
+            assert_eq!(
+                execute(&original, Some(boundary)),
+                original,
+                "fault boundary {boundary} must expose neither a fee nor an acquisition prefix"
+            );
+        }
+        assert_eq!(
+            execute(&original, None),
+            CombinedState {
+                money: 80,
+                spells: vec![200, 201],
+                skills: vec![164],
             }
         );
     }

@@ -283,6 +283,35 @@ impl ServerPacket for PlaySpellVisual {
     }
 }
 
+/// C++ `WorldPackets::Spells::PlaySpellVisualKit`.
+///
+/// Unlike `PlaySpellVisual`, this packet names one unit and one prebuilt
+/// visual-kit record. `Unit::SendPlaySpellVisualKit` sends it to the unit's
+/// visible set, including the controlling player when requested.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlaySpellVisualKit {
+    pub unit: ObjectGuid,
+    pub kit_record_id: i32,
+    pub kit_type: i32,
+    pub duration: u32,
+    pub mounted_visual: bool,
+}
+
+impl ServerPacket for PlaySpellVisualKit {
+    const OPCODE: ServerOpcodes = ServerOpcodes::PlaySpellVisualKit;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        for byte in self.unit.to_raw_bytes() {
+            pkt.write_uint8(byte);
+        }
+        pkt.write_int32(self.kit_record_id);
+        pkt.write_int32(self.kit_type);
+        pkt.write_uint32(self.duration);
+        pkt.write_bit(self.mounted_visual);
+        pkt.flush_bits();
+    }
+}
+
 /// Spell target location payload: transport GUID followed by XYZ only.
 ///
 /// Trinity carries optional orientation separately in `SpellTargetData` rather
@@ -1276,6 +1305,35 @@ mod tests {
         assert_eq!(pkt.read_float().expect("launch delay"), 0.0);
         assert_eq!(pkt.read_float().expect("min duration"), 0.0);
         assert!(!pkt.read_bit().expect("speed as time"));
+        assert!(pkt.is_empty());
+    }
+
+    #[test]
+    fn play_spell_visual_kit_writes_cpp_field_order() {
+        let unit = ObjectGuid::create_player(1, 77);
+        let bytes = PlaySpellVisualKit {
+            unit,
+            kit_record_id: 362,
+            kit_type: 1,
+            duration: 250,
+            mounted_visual: true,
+        }
+        .to_bytes();
+        let mut pkt = WorldPacket::from_bytes(&bytes);
+
+        assert_eq!(
+            pkt.read_uint16().expect("opcode"),
+            ServerOpcodes::PlaySpellVisualKit as u16
+        );
+        let mut raw_unit = [0u8; 16];
+        for byte in &mut raw_unit {
+            *byte = pkt.read_uint8().expect("unit byte");
+        }
+        assert_eq!(ObjectGuid::from_raw_bytes(&raw_unit), unit);
+        assert_eq!(pkt.read_int32().expect("kit record"), 362);
+        assert_eq!(pkt.read_int32().expect("kit type"), 1);
+        assert_eq!(pkt.read_uint32().expect("duration"), 250);
+        assert!(pkt.read_bit().expect("mounted visual"));
         assert!(pkt.is_empty());
     }
 

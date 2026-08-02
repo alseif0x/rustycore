@@ -18,14 +18,40 @@ Repository refactors are governed by
 one mutable owner per concept, private modules before crates, explicit mirror retirement, and
 executable Cargo/handler-contract guardrails.
 
-Trainer architecture note (issues #157/#158): list and the intentionally undispatched buy adapter
-share one immutable offer decision. The exact #164 acquisition plan now has an atomic Character DB
-application and post-commit runtime/publication boundary. Deterministic player `EffectLearnSpell`
-uses the same authority with C++'s immediate runtime publication and ordinary deferred
-`Player::SaveToDB` persistence; trainer money, wrapper execution, visuals and activation remain
-#159/#142. No
-current status claim should infer a live trainer purchase merely from the retained opcode
-registration.
+Trainer architecture note (issues #157/#158/#159): list and the intentionally undispatched buy
+adapter share one immutable offer decision. Normal trainer teaching now revalidates that decision
+under the exclusive money owner, commits effective money plus the exact #164 spell/skill result in
+one Character DB transaction, attributes unknown COMMIT outcomes with a durable 128-bit operation
+token, installs runtime state, and then publishes money, visual kits 179/362 and acquisition actions
+in C++ success order. Non-packet acquisition effects install immediately after commit so a later
+cross-socket fence failure cannot discard them; a valid cast fully suppressed by immunity or
+rejected by the dynamic spell-disable gate still pays and emits both trainer visuals like C++,
+while channeled wrappers remain outside the reduced projection. A process-wide pre-ConnectTo
+character claim rejects a second live session for the same GUID and is released on a failed
+instance handoff or late login packet-ordering fence, preserving C++'s single `Player*` save
+authority; normal logout retains that claim through the account-wide offline write and old Player
+identity teardown. Effective equipped-item and target-restriction duplicates follow C++'s deterministic
+highest-record-ID assignment; ordinary pending spell/skill
+changes are saved before trainer preparation instead of making the trainer unavailable until the
+next autosave. Trainer failures and visuals use the Realm connection; creature visual fanout
+retains the already validated canonical-or-legacy source position. Castable wrappers
+require both a startup audit of effective/world-table blockers and a fresh player effect-mask proof;
+the startup audit intentionally omits shapeshift metadata because C++ trainer wrappers use
+`TRIGGERED_FULL_MASK`, including `TRIGGERED_IGNORE_SHAPESHIFT`;
+the active proof rejects unsupported pet-aura hooks before mutation, replays definite self-target
+and aura-spell cast failures after the C++-ordered fee/visuals, and resolves retained immunity auras
+from their creation difficulty instead of the player's current map difficulty;
+active auras now match covered `EffectAura`/`EffectAttributes` and negative aura-link immunity to the exact wrapper
+effect/spell while startup excludes unsupported mechanic/state shapes; full C++ immunity-map parity
+remains deferred until canonical Unit ownership.
+Aura restrictions, equipped-item restrictions and craft reagents compose DB2,
+official/custom hotfix overlays and final removals. Craft startup authority rejects a craft when
+its created item or any positive reagent
+effective sparse item template is absent, matching
+`SpellMgr::IsSpellValid`.
+Deterministic player `EffectLearnSpell` retains its distinct immediate-runtime/deferred-save timing.
+Dispatcher activation remains #142, so no status claim should infer a live client purchase merely
+from the retained opcode registration.
 
 ### Fidelity policy for proven legacy defects
 

@@ -4627,12 +4627,36 @@ impl WorldSession {
     /// to redirect the client to the instance port. The login sequence is sent
     /// after the client reconnects via `handle_continue_player_login`.
     pub async fn handle_player_login(&mut self, pkt: PlayerLogin) {
+        if self.player_loading().is_some() || self.player_guid().is_some() {
+            warn!(
+                account = self.account_id,
+                "Player tried to login while another character is loading or active"
+            );
+            self.kick("WorldSession::HandlePlayerLoginOpcode Another client logging in");
+            return;
+        }
+
         // Verify character ownership
         if !self.is_legit_character(&pkt.guid) {
             warn!(
                 "Account {} tried to login with non-owned character {:?}",
                 self.account_id, pkt.guid
             );
+            return;
+        }
+
+        // C++ exposes one live `Player*` per character GUID through
+        // ObjectAccessor. Claim that ownership before ConnectTo/DB loading so
+        // two sessions cannot become independent save authorities.
+        if !self.try_claim_character_login_like_cpp(pkt.guid) {
+            warn!(
+                account = self.account_id,
+                guid = ?pkt.guid,
+                "Rejecting duplicate live-character login"
+            );
+            self.send_packet(&CharacterLoginFailed {
+                code: LoginFailureReasonLikeCpp::DuplicateCharacter,
+            });
             return;
         }
 
@@ -5104,12 +5128,12 @@ impl WorldSession {
         // Mark character offline in DB
         self.mark_character_offline().await;
 
-        // C++ removes the Player from the map before nearby players recompute
-        // visibility. Remove the registry record first, then queue the same
-        // full visibility diff used on entry so receiver GUID caches and the
-        // out-of-range packet stay symmetric.
+        // Queue the full visibility diff while the old canonical snapshot can
+        // still identify its map, then retire every shared owner of that
+        // Player before releasing the sole-login claim below.
         self.unregister_from_player_registry();
         self.notify_other_players_visibility_changed_like_cpp();
+        self.unregister_canonical_player_from_map_like_cpp();
         self.unregister_from_object_accessor();
 
         // Send LogoutComplete → client returns to character select
@@ -5117,6 +5141,11 @@ impl WorldSession {
         self.send_packet(&LogoutComplete);
         self.mark_character_account_offline_like_cpp().await;
         self.set_player_guid(None);
+        // Keep the sole character authority until the account-wide offline
+        // write and old Player identity teardown are complete. Otherwise a
+        // new login can publish online=true before this logout's broader
+        // online=false update reaches the database.
+        self.release_character_login_claim_like_cpp();
 
         // Clear inventory state
         self.clear_all_inventory_runtime_like_cpp();
@@ -5448,6 +5477,7 @@ impl WorldSession {
                 self.account_id
             );
             self.set_player_loading(None);
+            self.release_character_login_claim_like_cpp();
             self.set_connect_to_key(None);
             self.set_connect_to_serial(None);
             self.send_packet(&CharacterLoginFailed {
@@ -5484,6 +5514,7 @@ impl WorldSession {
             Some(db) => Arc::clone(db),
             None => {
                 warn!("No character database for continue login");
+                self.release_character_login_claim_like_cpp();
                 return;
             }
         };
@@ -5495,12 +5526,14 @@ impl WorldSession {
             Ok(r) => r,
             Err(e) => {
                 warn!("Failed to load character {:?}: {e}", guid);
+                self.release_character_login_claim_like_cpp();
                 return;
             }
         };
 
         if result.is_empty() {
             warn!("Character {:?} not found in database", guid);
+            self.release_character_login_claim_like_cpp();
             return;
         }
 
@@ -7612,11 +7645,14 @@ impl WorldSession {
         self.load_instance_time_restrictions_like_cpp().await;
         self.load_player_account_data_like_cpp(guid).await;
         {
+            self.set_player_aura_authority_complete_like_cpp(false);
             let mut aura_rows = Vec::new();
+            let mut aura_rows_complete = false;
             let mut aura_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_AURAS);
             aura_stmt.set_u64(0, guid.counter() as u64);
             match char_db.query(&aura_stmt).await {
                 Ok(mut aura_result) => {
+                    aura_rows_complete = true;
                     if !aura_result.is_empty() {
                         loop {
                             aura_rows.push(crate::session::CharacterAuraRowLikeCpp {
@@ -7642,10 +7678,12 @@ impl WorldSession {
             }
 
             let mut aura_effect_rows = Vec::new();
+            let mut aura_effect_rows_complete = false;
             let mut aura_effect_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_AURA_EFFECTS);
             aura_effect_stmt.set_u64(0, guid.counter() as u64);
             match char_db.query(&aura_effect_stmt).await {
                 Ok(mut aura_effect_result) => {
+                    aura_effect_rows_complete = true;
                     if !aura_effect_result.is_empty() {
                         loop {
                             aura_effect_rows.push(crate::session::CharacterAuraEffectRowLikeCpp {
@@ -7673,6 +7711,9 @@ impl WorldSession {
             }
             let loaded_character_auras =
                 self.load_represented_character_auras_like_cpp(aura_rows, aura_effect_rows, 0);
+            self.set_player_aura_authority_complete_like_cpp(
+                aura_rows_complete && aura_effect_rows_complete,
+            );
             info!(
                 loaded_character_auras,
                 player_guid = guid.counter(),
@@ -7786,6 +7827,7 @@ impl WorldSession {
             )
             .await
         {
+            self.abort_partial_login_sequence_like_cpp();
             return;
         }
         self.send_item_time_update_plans(&loaded_item_time_updates);
@@ -19113,6 +19155,16 @@ impl WorldSession {
             .await
     }
 
+    /// A failed cross-socket ordering fence means the successful-login burst
+    /// cannot be completed coherently. C++ loses the socket and destroys the
+    /// partially loaded `Player`; mirror that lifetime boundary immediately
+    /// so the process-wide character claim cannot outlive this failed login.
+    fn abort_partial_login_sequence_like_cpp(&mut self) {
+        self.cleanup_shared_runtime_state();
+        self.set_player_guid(None);
+        self.kick("WorldSession::HandlePlayerLogin login packet sequence failed");
+    }
+
     /// Send the player login packet sequence to the client.
     ///
     /// Follows the C++ login phases:
@@ -21919,6 +21971,34 @@ mod tests {
             assert!(accessor.read().find_connected_player_entity(guid).is_none());
             assert!(send_rx.try_recv().is_err());
         });
+    }
+
+    #[test]
+    fn late_login_sequence_failure_releases_claim_and_partial_player_like_cpp() {
+        let guid = ObjectGuid::create_player(1, 9_001_701);
+        let (mut failed, _failed_rx) = make_session_with_send_capacity(1);
+        assert!(failed.try_claim_character_login_like_cpp(guid));
+        assert!(failed.ensure_login_player_controller_like_cpp(
+            guid,
+            "LateFenceFailure".to_string(),
+            Position::ZERO,
+            1,
+            1,
+            1,
+            10,
+            0,
+        ));
+
+        failed.abort_partial_login_sequence_like_cpp();
+
+        assert_eq!(failed.state(), crate::session::SessionState::Disconnecting);
+        assert!(failed.player_guid().is_none());
+        let (mut retry, _retry_rx) = make_session_with_send_capacity(1);
+        assert!(
+            retry.try_claim_character_login_like_cpp(guid),
+            "the failed login must not retain the only process-wide character claim"
+        );
+        retry.release_character_login_claim_like_cpp();
     }
 
     #[tokio::test]
@@ -25530,6 +25610,7 @@ mod tests {
             slot,
             AuraApplication {
                 spell_id: 5384,
+                difficulty_id: 0,
                 caster_guid: player_guid,
                 slot,
                 duration_total: 0,
@@ -26897,6 +26978,7 @@ mod tests {
             FEIGN_DEATH_SLOT,
             AuraApplication {
                 spell_id: 5384,
+                difficulty_id: 0,
                 caster_guid: player_guid,
                 slot: FEIGN_DEATH_SLOT,
                 duration_total: 0,
@@ -29198,7 +29280,36 @@ mod tests {
         let (mut session, send_rx) = make_session_with_send_capacity(4);
         let player_guid = ObjectGuid::create_player(1, 42);
         let loot_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 19_030);
-        session.set_player_guid(Some(player_guid));
+        let canonical: crate::session::SharedCanonicalMapManager =
+            Arc::new(std::sync::Mutex::new(wow_map::MapManager::default()));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 1,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        assert!(session.ensure_login_player_controller_like_cpp(
+            player_guid,
+            "LogoutOwner".to_string(),
+            Position::ZERO,
+            1,
+            1,
+            1,
+            10,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        assert_eq!(
+            session.current_canonical_player_map_key_like_cpp(),
+            Some(wow_map::MapKey::new(1, 0))
+        );
+        assert!(session.try_claim_character_login_like_cpp(player_guid));
         session.set_active_loot_guid(loot_guid);
         session.loot_table.insert(
             loot_guid,
@@ -29270,6 +29381,24 @@ mod tests {
             !session.loot_table.contains_key(&loot_guid),
             "full logout release retires the session packet-cache copy like C++"
         );
+        assert!(session.player_guid().is_none());
+        assert!(
+            canonical
+                .lock()
+                .unwrap()
+                .find_map(1, 0)
+                .unwrap()
+                .map()
+                .get_typed_player(player_guid)
+                .is_none(),
+            "logout must retire the canonical Player before releasing its login claim"
+        );
+        let (mut replacement, _) = make_session_with_send_capacity(1);
+        assert!(
+            replacement.try_claim_character_login_like_cpp(player_guid),
+            "the claim is released only after logout retired the old Player identity"
+        );
+        replacement.release_character_login_claim_like_cpp();
     }
 
     #[test]

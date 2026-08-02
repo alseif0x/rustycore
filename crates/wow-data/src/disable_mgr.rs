@@ -497,6 +497,10 @@ fn is_spell_disabled_like_cpp(
             return false;
         }
 
+        let contextual_flags = SPELL_DISABLE_ARENAS
+            | SPELL_DISABLE_BATTLEGROUNDS
+            | SPELL_DISABLE_MAP
+            | SPELL_DISABLE_AREA;
         if spell_flags & (SPELL_DISABLE_ARENAS | SPELL_DISABLE_BATTLEGROUNDS) != 0 {
             if spell_flags & SPELL_DISABLE_ARENAS != 0 && object_ref.is_battle_arena {
                 return true;
@@ -519,7 +523,11 @@ fn is_spell_disabled_like_cpp(
             return data.params_1.contains(&object_ref.area_id);
         }
 
-        return true;
+        // Bounded repair of a proven legacy fallthrough: C++ reaches its
+        // unconditional return true when ARENAS/BATTLEGROUNDS is the only
+        // unmatched scope, making a supposedly contextual row global. Treat
+        // all four location scopes uniformly: at least one must match.
+        return spell_flags & contextual_flags == 0;
     }
 
     if spell_flags & SPELL_DISABLE_DEPRECATED_SPELL != 0 {
@@ -674,6 +682,73 @@ mod tests {
             ..player
         };
         assert!(!mgr.is_disabled_for_like_cpp(DISABLE_TYPE_SPELL, 123, Some(other), 0, None));
+    }
+
+    #[test]
+    fn arena_and_battleground_spell_scopes_do_not_fall_through_globally() {
+        let (mgr, report) = DisableMgrLikeCpp::from_rows_like_cpp(
+            [
+                DisableDbRowLikeCpp {
+                    source_type: DISABLE_TYPE_SPELL,
+                    entry: 200,
+                    flags: SPELL_DISABLE_PLAYER | SPELL_DISABLE_ARENAS,
+                    params_0: String::new(),
+                    params_1: String::new(),
+                },
+                DisableDbRowLikeCpp {
+                    source_type: DISABLE_TYPE_SPELL,
+                    entry: 201,
+                    flags: SPELL_DISABLE_PLAYER | SPELL_DISABLE_BATTLEGROUNDS,
+                    params_0: String::new(),
+                    params_1: String::new(),
+                },
+            ],
+            DisableMgrRefsLikeCpp::default(),
+        );
+        assert_eq!(report.loaded_count, 2);
+        let world_player = DisableWorldObjectRefLikeCpp {
+            type_id: TypeId::Player,
+            map_id: 1,
+            area_id: 12,
+            is_pet: false,
+            is_battle_arena: false,
+            is_battleground: false,
+            player_map_difficulty: None,
+        };
+        assert!(!mgr.is_disabled_for_like_cpp(
+            DISABLE_TYPE_SPELL,
+            200,
+            Some(world_player),
+            0,
+            None,
+        ));
+        assert!(!mgr.is_disabled_for_like_cpp(
+            DISABLE_TYPE_SPELL,
+            201,
+            Some(world_player),
+            0,
+            None,
+        ));
+        assert!(mgr.is_disabled_for_like_cpp(
+            DISABLE_TYPE_SPELL,
+            200,
+            Some(DisableWorldObjectRefLikeCpp {
+                is_battle_arena: true,
+                ..world_player
+            }),
+            0,
+            None,
+        ));
+        assert!(mgr.is_disabled_for_like_cpp(
+            DISABLE_TYPE_SPELL,
+            201,
+            Some(DisableWorldObjectRefLikeCpp {
+                is_battleground: true,
+                ..world_player
+            }),
+            0,
+            None,
+        ));
     }
 
     #[test]

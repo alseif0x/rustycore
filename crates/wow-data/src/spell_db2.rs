@@ -387,6 +387,14 @@ pub struct SpellTargetRestrictionsEntry {
     pub spell_id: u32,
 }
 
+impl SpellTargetRestrictionsEntry {
+    /// C++ promotes the signed DB2 `int16` field to `uint32` when evaluating
+    /// `SpellInfo::CheckTargetCreatureType`. Preserve that sign extension.
+    pub fn target_creature_type_mask_like_cpp(&self) -> u32 {
+        i32::from(self.target_creature_type) as u32
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpellTotemsEntry {
     pub id: u32,
@@ -619,6 +627,13 @@ impl SpellAuraOptionsStore {
 }
 
 impl SpellAuraRestrictionsStore {
+    const HOTFIX_OVERLAY_SQL_LIKE_CPP: &'static str = concat!(
+        "SELECT ID, DifficultyID, CasterAuraState, TargetAuraState, ",
+        "ExcludeCasterAuraState, ExcludeTargetAuraState, CasterAuraSpell, ",
+        "TargetAuraSpell, ExcludeCasterAuraSpell, ExcludeTargetAuraSpell, SpellID ",
+        "FROM spell_aura_restrictions WHERE (`VerifiedBuild` > 0) = ?"
+    );
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(
             data_dir,
@@ -640,6 +655,65 @@ impl SpellAuraRestrictionsStore {
         )
     }
 
+    /// Load the effective C++ `sSpellAuraRestrictionsStore` authority: file
+    /// rows, official SQL replacements, custom SQL replacements, then final
+    /// `hotfix_data` tombstones.
+    pub async fn load_effective_like_cpp(
+        data_dir: &str,
+        locale: &str,
+        db: &HotfixDatabase,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) -> Result<Self> {
+        let mut store = Self::load(data_dir, locale)?;
+        for official in [true, false] {
+            let mut statement =
+                db.prepare(HotfixStatements::base(Self::HOTFIX_OVERLAY_SQL_LIKE_CPP));
+            statement.set_bool(0, official);
+            let mut result = db.query(&statement).await?;
+            if result.is_empty() {
+                continue;
+            }
+            loop {
+                let entry = SpellAuraRestrictionsEntry {
+                    id: result.try_read::<u32>(0).unwrap_or(0),
+                    difficulty_id: result.try_read::<u8>(1).unwrap_or(0),
+                    caster_aura_state: result.try_read::<u8>(2).unwrap_or(0),
+                    target_aura_state: result.try_read::<u8>(3).unwrap_or(0),
+                    exclude_caster_aura_state: result.try_read::<u8>(4).unwrap_or(0),
+                    exclude_target_aura_state: result.try_read::<u8>(5).unwrap_or(0),
+                    caster_aura_spell: result.try_read::<i32>(6).unwrap_or(0),
+                    target_aura_spell: result.try_read::<i32>(7).unwrap_or(0),
+                    exclude_caster_aura_spell: result.try_read::<i32>(8).unwrap_or(0),
+                    exclude_target_aura_spell: result.try_read::<i32>(9).unwrap_or(0),
+                    spell_id: result.try_read::<u32>(10).unwrap_or(0),
+                };
+                store.overlay_effective_row_like_cpp(entry);
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        let table_hash = store
+            .table_hash_like_cpp()
+            .context("SpellAuraRestrictions.db2 store is missing its WDC4 table hash")?;
+        store.apply_hotfix_removals_with_table_hash_like_cpp(table_hash, removals);
+        Ok(store)
+    }
+
+    fn overlay_effective_row_like_cpp(&mut self, entry: SpellAuraRestrictionsEntry) {
+        self.entries.insert(entry.id, entry);
+    }
+
+    fn apply_hotfix_removals_with_table_hash_like_cpp(
+        &mut self,
+        table_hash: u32,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) {
+        self.entries
+            .retain(|record_id, _| !removals.contains_like_cpp(table_hash, *record_id as i32));
+    }
+
     pub fn entries_for_spell_id_like_cpp(
         &self,
         spell_id: u32,
@@ -647,6 +721,23 @@ impl SpellAuraRestrictionsStore {
         self.entries
             .values()
             .filter(move |entry| entry.spell_id == spell_id)
+    }
+
+    /// Resolve the single `SpellInfo` row through C++'s requested difficulty
+    /// followed by its `FallbackDifficultyID` chain.
+    pub fn resolved_for_difficulty_chain_like_cpp(
+        &self,
+        spell_id: u32,
+        difficulty_chain: impl IntoIterator<Item = u32>,
+    ) -> Option<&SpellAuraRestrictionsEntry> {
+        difficulty_chain.into_iter().find_map(|difficulty_id| {
+            let difficulty_id = u8::try_from(difficulty_id).ok()?;
+            self.entries_for_spell_id_like_cpp(spell_id)
+                .filter(|entry| entry.difficulty_id == difficulty_id)
+                // C++ iterates DB2 storage in record-ID order and later rows
+                // replace the same SpellInfo difficulty slot.
+                .max_by_key(|entry| entry.id)
+        })
     }
 }
 
@@ -664,6 +755,12 @@ impl SpellCastTimesStore {
 }
 
 impl SpellCastingRequirementsStore {
+    const HOTFIX_OVERLAY_SQL_LIKE_CPP: &'static str = concat!(
+        "SELECT ID, SpellID, FacingCasterFlags, MinFactionID, MinReputation, ",
+        "RequiredAreasID, RequiredAuraVision, RequiresSpellFocus ",
+        "FROM spell_casting_requirements WHERE (`VerifiedBuild` > 0) = ?"
+    );
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(
             data_dir,
@@ -680,6 +777,63 @@ impl SpellCastingRequirementsStore {
                 requires_spell_focus: r.get_field_u16(idx, 6),
             },
         )
+    }
+
+    /// Compose C++'s final `SpellCastingRequirements` authority: DB2 file,
+    /// official/custom SQL replacements, then final hotfix tombstones.
+    pub async fn load_effective_like_cpp(
+        data_dir: &str,
+        locale: &str,
+        db: &HotfixDatabase,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) -> Result<Self> {
+        let mut store = Self::load(data_dir, locale)?;
+        for official in [true, false] {
+            let mut statement =
+                db.prepare(HotfixStatements::base(Self::HOTFIX_OVERLAY_SQL_LIKE_CPP));
+            statement.set_bool(0, official);
+            let mut result = db.query(&statement).await?;
+            if result.is_empty() {
+                continue;
+            }
+            loop {
+                let entry = SpellCastingRequirementsEntry {
+                    id: result.try_read::<u32>(0).unwrap_or(0),
+                    spell_id: result.try_read::<i32>(1).unwrap_or(0),
+                    facing_caster_flags: result.try_read::<u8>(2).unwrap_or(0),
+                    min_faction_id: result.try_read::<u16>(3).unwrap_or(0),
+                    min_reputation: result.try_read::<i32>(4).unwrap_or(0),
+                    required_areas_id: result.try_read::<u16>(5).unwrap_or(0),
+                    required_aura_vision: result.try_read::<u8>(6).unwrap_or(0),
+                    requires_spell_focus: result.try_read::<u16>(7).unwrap_or(0),
+                };
+                store.entries.insert(entry.id, entry);
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        let table_hash = store
+            .table_hash_like_cpp()
+            .context("SpellCastingRequirements.db2 store is missing its WDC4 table hash")?;
+        store
+            .entries
+            .retain(|record_id, _| !removals.contains_like_cpp(table_hash, *record_id as i32));
+        Ok(store)
+    }
+
+    pub fn entry_for_spell_id_like_cpp(
+        &self,
+        spell_id: i32,
+    ) -> Option<&SpellCastingRequirementsEntry> {
+        self.entries
+            .values()
+            .filter(|entry| entry.spell_id == spell_id)
+            // C++'s DB2 iteration assigns this DIFFICULTY_NONE slot in
+            // record-ID order, so a malformed duplicate resolves to the
+            // highest record ID deterministically.
+            .max_by_key(|entry| entry.id)
     }
 }
 
@@ -1063,6 +1217,11 @@ impl SpellEffectDb2Store {
 }
 
 impl SpellEquippedItemsStore {
+    const HOTFIX_OVERLAY_SQL_LIKE_CPP: &'static str = concat!(
+        "SELECT ID, SpellID, EquippedItemClass, EquippedItemInvTypes, ",
+        "EquippedItemSubclass FROM spell_equipped_items WHERE (`VerifiedBuild` > 0) = ?"
+    );
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SpellEquippedItems.db2", |id, idx, r| {
             SpellEquippedItemsEntry {
@@ -1078,7 +1237,64 @@ impl SpellEquippedItemsStore {
     pub fn entry_for_spell_id_like_cpp(&self, spell_id: i32) -> Option<&SpellEquippedItemsEntry> {
         self.entries
             .values()
-            .find(|entry| entry.spell_id == spell_id)
+            .filter(|entry| entry.spell_id == spell_id)
+            // C++ iterates DB2's ID-indexed storage in ascending record order
+            // and assigns this DIFFICULTY_NONE slot for every matching row.
+            // A malformed duplicate therefore resolves to the highest ID.
+            .max_by_key(|entry| entry.id)
+    }
+
+    /// Load the effective C++ `sSpellEquippedItemsStore` authority: file rows,
+    /// official SQL replacements, custom SQL replacements, then final
+    /// `hotfix_data` tombstones.
+    pub async fn load_effective_like_cpp(
+        data_dir: &str,
+        locale: &str,
+        db: &HotfixDatabase,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) -> Result<Self> {
+        let mut store = Self::load(data_dir, locale)?;
+        for official in [true, false] {
+            let mut statement =
+                db.prepare(HotfixStatements::base(Self::HOTFIX_OVERLAY_SQL_LIKE_CPP));
+            statement.set_bool(0, official);
+            let mut result = db.query(&statement).await?;
+            if result.is_empty() {
+                continue;
+            }
+            loop {
+                let entry = SpellEquippedItemsEntry {
+                    id: result.try_read::<u32>(0).unwrap_or(0),
+                    spell_id: result.try_read::<i32>(1).unwrap_or(0),
+                    equipped_item_class: result.try_read::<i8>(2).unwrap_or(0),
+                    equipped_item_inv_types: result.try_read::<i32>(3).unwrap_or(0),
+                    equipped_item_subclass: result.try_read::<i32>(4).unwrap_or(0),
+                };
+                store.overlay_effective_row_like_cpp(entry);
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        let table_hash = store
+            .table_hash_like_cpp()
+            .context("SpellEquippedItems.db2 store is missing its WDC4 table hash")?;
+        store.apply_hotfix_removals_with_table_hash_like_cpp(table_hash, removals);
+        Ok(store)
+    }
+
+    fn overlay_effective_row_like_cpp(&mut self, entry: SpellEquippedItemsEntry) {
+        self.entries.insert(entry.id, entry);
+    }
+
+    fn apply_hotfix_removals_with_table_hash_like_cpp(
+        &mut self,
+        table_hash: u32,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) {
+        self.entries
+            .retain(|record_id, _| !removals.contains_like_cpp(table_hash, *record_id as i32));
     }
 }
 
@@ -1292,6 +1508,12 @@ impl SpellShapeshiftFormStore {
 }
 
 impl SpellTargetRestrictionsStore {
+    const HOTFIX_OVERLAY_SQL_LIKE_CPP: &'static str = concat!(
+        "SELECT ID, DifficultyID, ConeDegrees, MaxTargets, MaxTargetLevel, ",
+        "TargetCreatureType, Targets, Width, SpellID FROM spell_target_restrictions ",
+        "WHERE (`VerifiedBuild` > 0) = ?"
+    );
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(
             data_dir,
@@ -1309,6 +1531,76 @@ impl SpellTargetRestrictionsStore {
                 spell_id: r.get_relationship_id(idx).unwrap_or(0),
             },
         )
+    }
+
+    pub fn entries_for_spell_id_like_cpp(
+        &self,
+        spell_id: u32,
+    ) -> impl Iterator<Item = &SpellTargetRestrictionsEntry> {
+        self.entries
+            .values()
+            .filter(move |entry| entry.spell_id == spell_id)
+    }
+
+    /// Resolve the single `SpellInfo` field through C++'s requested
+    /// difficulty followed by `FallbackDifficultyID` chain.
+    pub fn resolved_for_difficulty_chain_like_cpp(
+        &self,
+        spell_id: u32,
+        difficulty_chain: impl IntoIterator<Item = u32>,
+    ) -> Option<&SpellTargetRestrictionsEntry> {
+        difficulty_chain.into_iter().find_map(|difficulty_id| {
+            let difficulty_id = u8::try_from(difficulty_id).ok()?;
+            self.entries_for_spell_id_like_cpp(spell_id)
+                .filter(|entry| entry.difficulty_id == difficulty_id)
+                // C++'s ID-indexed DB2 iteration overwrites this difficulty
+                // slot in ascending record order, so the highest ID wins.
+                .max_by_key(|entry| entry.id)
+        })
+    }
+
+    /// Compose C++'s final DB2 authority, including SQL replacements and
+    /// final `hotfix_data` tombstones.
+    pub async fn load_effective_like_cpp(
+        data_dir: &str,
+        locale: &str,
+        db: &HotfixDatabase,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) -> Result<Self> {
+        let mut store = Self::load(data_dir, locale)?;
+        for official in [true, false] {
+            let mut statement =
+                db.prepare(HotfixStatements::base(Self::HOTFIX_OVERLAY_SQL_LIKE_CPP));
+            statement.set_bool(0, official);
+            let mut result = db.query(&statement).await?;
+            if result.is_empty() {
+                continue;
+            }
+            loop {
+                let entry = SpellTargetRestrictionsEntry {
+                    id: result.try_read::<u32>(0).unwrap_or(0),
+                    difficulty_id: result.try_read::<u8>(1).unwrap_or(0),
+                    cone_degrees: result.try_read::<f32>(2).unwrap_or(0.0),
+                    max_targets: result.try_read::<u8>(3).unwrap_or(0),
+                    max_target_level: result.try_read::<u32>(4).unwrap_or(0),
+                    target_creature_type: result.try_read::<i16>(5).unwrap_or(0),
+                    targets: result.try_read::<i32>(6).unwrap_or(0),
+                    width: result.try_read::<f32>(7).unwrap_or(0.0),
+                    spell_id: result.try_read::<u32>(8).unwrap_or(0),
+                };
+                store.entries.insert(entry.id, entry);
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+        let table_hash = store
+            .table_hash_like_cpp()
+            .context("SpellTargetRestrictions.db2 store is missing its WDC4 table hash")?;
+        store
+            .entries
+            .retain(|record_id, _| !removals.contains_like_cpp(table_hash, *record_id as i32));
+        Ok(store)
     }
 }
 
@@ -1661,6 +1953,71 @@ mod tests {
     }
 
     #[test]
+    fn spell_equipped_items_effective_overlay_and_removal_order_like_cpp() {
+        let mut store = SpellEquippedItemsStore::from_entries([
+            SpellEquippedItemsEntry {
+                id: 1,
+                spell_id: 100,
+                equipped_item_class: 2,
+                equipped_item_inv_types: 4,
+                equipped_item_subclass: 8,
+            },
+            SpellEquippedItemsEntry {
+                id: 2,
+                spell_id: 200,
+                equipped_item_class: 3,
+                equipped_item_inv_types: 5,
+                equipped_item_subclass: 9,
+            },
+        ]);
+        store.overlay_effective_row_like_cpp(SpellEquippedItemsEntry {
+            id: 1,
+            spell_id: 101,
+            equipped_item_class: 6,
+            equipped_item_inv_types: 7,
+            equipped_item_subclass: 10,
+        });
+        let removals =
+            crate::Db2HotfixRemovalStoreLikeCpp::from_status_rows_like_cpp([(0xAABB_CCDD, 2, 2)]);
+        store.apply_hotfix_removals_with_table_hash_like_cpp(0xAABB_CCDD, &removals);
+
+        let effective = store
+            .entry_for_spell_id_like_cpp(101)
+            .expect("overlay replacement");
+        assert_eq!(effective.id, 1);
+        assert_eq!(effective.equipped_item_class, 6);
+        assert!(store.entry_for_spell_id_like_cpp(100).is_none());
+        assert!(store.entry_for_spell_id_like_cpp(200).is_none());
+    }
+
+    #[test]
+    fn spell_equipped_items_duplicate_spell_uses_highest_record_id_like_cpp() {
+        let store = SpellEquippedItemsStore::from_entries([
+            SpellEquippedItemsEntry {
+                id: 9,
+                spell_id: 100,
+                equipped_item_class: 2,
+                equipped_item_inv_types: 4,
+                equipped_item_subclass: 8,
+            },
+            SpellEquippedItemsEntry {
+                id: 3,
+                spell_id: 100,
+                equipped_item_class: -1,
+                equipped_item_inv_types: 0,
+                equipped_item_subclass: 0,
+            },
+        ]);
+
+        assert_eq!(
+            store
+                .entry_for_spell_id_like_cpp(100)
+                .map(|entry| (entry.id, entry.equipped_item_class)),
+            Some((9, 2))
+        );
+    }
+
+    #[test]
     fn spell_name_hotfix_rows_override_and_add_effective_ids_like_cpp() {
         let mut store = SpellNameStore::from_entries([SpellNameEntry {
             id: 1,
@@ -1681,6 +2038,40 @@ mod tests {
             Some("SQL-only name"),
             "a SQL-only SpellName ID must participate in the server-side collision gate"
         );
+    }
+
+    #[test]
+    fn aura_restriction_overlays_then_final_removals_match_cpp_order() {
+        let row = |id, spell_id, caster_aura_spell| SpellAuraRestrictionsEntry {
+            id,
+            difficulty_id: 0,
+            caster_aura_state: 0,
+            target_aura_state: 0,
+            exclude_caster_aura_state: 0,
+            exclude_target_aura_state: 0,
+            caster_aura_spell,
+            target_aura_spell: 0,
+            exclude_caster_aura_spell: 0,
+            exclude_target_aura_spell: 0,
+            spell_id,
+        };
+        let table_hash = 0xAABB_CCDD;
+        let mut store =
+            SpellAuraRestrictionsStore::from_entries([row(1, 100, 10), row(2, 200, 20)]);
+
+        store.overlay_effective_row_like_cpp(row(1, 100, 11));
+        store.overlay_effective_row_like_cpp(row(3, 300, 30));
+        store.overlay_effective_row_like_cpp(row(1, 100, 12));
+        let removals = crate::Db2HotfixRemovalStoreLikeCpp::from_status_rows_like_cpp([
+            (table_hash, 2, 2),
+            (table_hash, 3, 2),
+        ]);
+        store.apply_hotfix_removals_with_table_hash_like_cpp(table_hash, &removals);
+
+        assert_eq!(store.len(), 1);
+        assert_eq!(store.get(1).map(|entry| entry.caster_aura_spell), Some(12));
+        assert!(store.get(2).is_none());
+        assert!(store.get(3).is_none());
     }
 
     #[test]
@@ -1847,5 +2238,124 @@ mod tests {
         );
         assert!(store.get(100).is_none());
         assert_eq!(store.get(200).map(|entry| entry.name.as_str()), Some(""));
+    }
+
+    #[test]
+    fn target_restrictions_resolve_only_the_active_difficulty_chain_like_cpp() {
+        let row = |id, difficulty_id, target_creature_type| SpellTargetRestrictionsEntry {
+            id,
+            difficulty_id,
+            cone_degrees: 0.0,
+            max_targets: 0,
+            max_target_level: 0,
+            target_creature_type,
+            targets: 0,
+            width: 0.0,
+            spell_id: 100,
+        };
+        let store = SpellTargetRestrictionsStore::from_entries([
+            row(1, 0, 1 << (3 - 1)),
+            row(2, 2, 1 << (7 - 1)),
+            row(9, 2, 1 << (8 - 1)),
+        ]);
+
+        assert_eq!(
+            store
+                .resolved_for_difficulty_chain_like_cpp(100, [2, 0])
+                .map(|entry| entry.id),
+            Some(9)
+        );
+        assert_eq!(
+            store
+                .resolved_for_difficulty_chain_like_cpp(100, [3, 0])
+                .map(|entry| entry.id),
+            Some(1)
+        );
+        assert!(
+            store
+                .resolved_for_difficulty_chain_like_cpp(100, [3])
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn aura_restrictions_resolve_active_difficulty_then_fallback_like_cpp() {
+        let row = |id, difficulty_id, caster_aura_spell| SpellAuraRestrictionsEntry {
+            id,
+            difficulty_id,
+            caster_aura_state: 0,
+            target_aura_state: 0,
+            exclude_caster_aura_state: 0,
+            exclude_target_aura_state: 0,
+            caster_aura_spell,
+            target_aura_spell: 0,
+            exclude_caster_aura_spell: 0,
+            exclude_target_aura_spell: 0,
+            spell_id: 100,
+        };
+        let store =
+            SpellAuraRestrictionsStore::from_entries([row(3, 2, 30), row(1, 0, 10), row(2, 2, 20)]);
+
+        assert_eq!(
+            store
+                .resolved_for_difficulty_chain_like_cpp(100, [2, 0])
+                .map(|entry| (entry.id, entry.caster_aura_spell)),
+            Some((3, 30))
+        );
+        assert_eq!(
+            store
+                .resolved_for_difficulty_chain_like_cpp(100, [3, 0])
+                .map(|entry| entry.id),
+            Some(1)
+        );
+        assert!(
+            store
+                .resolved_for_difficulty_chain_like_cpp(100, [3])
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn casting_requirements_resolve_cpp_record_order_deterministically() {
+        let row = |id, spell_id, required_areas_id| SpellCastingRequirementsEntry {
+            id,
+            spell_id,
+            facing_caster_flags: 0,
+            min_faction_id: 0,
+            min_reputation: 0,
+            required_areas_id,
+            required_aura_vision: 0,
+            requires_spell_focus: 0,
+        };
+        let store = SpellCastingRequirementsStore::from_entries([
+            row(9, 100, 90),
+            row(3, 100, 30),
+            row(7, 200, 70),
+        ]);
+
+        assert_eq!(
+            store
+                .entry_for_spell_id_like_cpp(100)
+                .map(|entry| (entry.id, entry.required_areas_id)),
+            Some((9, 90))
+        );
+        assert!(store.entry_for_spell_id_like_cpp(300).is_none());
+    }
+
+    #[test]
+    fn target_creature_mask_preserves_cpp_signed_integer_promotion() {
+        let entry = SpellTargetRestrictionsEntry {
+            id: 1,
+            difficulty_id: 0,
+            cone_degrees: 0.0,
+            max_targets: 0,
+            max_target_level: 0,
+            target_creature_type: i16::MIN,
+            targets: 0,
+            width: 0.0,
+            spell_id: 100,
+        };
+
+        assert_eq!(entry.target_creature_type_mask_like_cpp(), 0xFFFF_8000);
     }
 }
