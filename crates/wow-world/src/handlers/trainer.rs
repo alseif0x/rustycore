@@ -2603,6 +2603,65 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn definite_target_failure_precedes_unsupported_pet_aura_hook_like_cpp() {
+        let mut fixture = trainer_wrapper_fixture();
+        let wrapper_id = WRAPPER_TRAINER_SPELL as u32;
+        let pet_auras = wow_data::SpellPetAuraStoreLikeCpp::load_spell_pet_auras_like_cpp(
+            [wow_data::SpellPetAuraRowLikeCpp {
+                spell_id: wrapper_id,
+                effect_index: 0,
+                pet_entry: 0,
+                aura_id: 90_002,
+            }],
+            |_, _| {
+                wow_data::SpellPetAuraSourceLookupLikeCpp::Found(
+                    wow_data::SpellPetAuraSourceEffectLikeCpp {
+                        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_DUMMY,
+                        apply_aura_name: 0,
+                        target_a: wow_data::TARGET_UNIT_PET_LIKE_CPP,
+                        calc_value: 0,
+                    },
+                )
+            },
+            |_| true,
+        );
+        assert_eq!(pet_auras.loaded_row_count, 1);
+        fixture
+            .session
+            .set_spell_pet_aura_store(Arc::new(pet_auras.store));
+        fixture
+            .session
+            .set_spell_target_restrictions_store(Arc::new(
+                wow_data::SpellTargetRestrictionsStore::from_entries([
+                    spell_target_restriction_row(
+                        1,
+                        wrapper_id,
+                        0,
+                        1 << (3 - 1), // CREATURE_TYPEMASK_BEAST, not player/humanoid
+                    ),
+                ]),
+            ));
+
+        fixture
+            .session
+            .handle_trainer_buy_spell(trainer_buy_packet(
+                fixture.trainer,
+                DEFAULT_TRAINER_ID as i32,
+                WRAPPER_TRAINER_SPELL,
+            ))
+            .await;
+
+        assert_eq!(fixture.session.player_gold_like_cpp(), 75);
+        assert!(
+            !fixture
+                .session
+                .known_spells_like_cpp()
+                .contains(&WRAPPER_LEARNED_SPELL)
+        );
+        assert_trainer_charge_and_visuals_like_cpp(&mut fixture);
+    }
+
+    #[tokio::test]
     async fn incomplete_persisted_aura_authority_stops_before_charge_like_cpp() {
         let mut fixture = trainer_wrapper_fixture();
         fixture

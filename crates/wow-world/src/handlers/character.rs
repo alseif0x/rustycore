@@ -5128,12 +5128,12 @@ impl WorldSession {
         // Mark character offline in DB
         self.mark_character_offline().await;
 
-        // C++ removes the Player from the map before nearby players recompute
-        // visibility. Remove the registry record first, then queue the same
-        // full visibility diff used on entry so receiver GUID caches and the
-        // out-of-range packet stay symmetric.
+        // Queue the full visibility diff while the old canonical snapshot can
+        // still identify its map, then retire every shared owner of that
+        // Player before releasing the sole-login claim below.
         self.unregister_from_player_registry();
         self.notify_other_players_visibility_changed_like_cpp();
+        self.unregister_canonical_player_from_map_like_cpp();
         self.unregister_from_object_accessor();
 
         // Send LogoutComplete → client returns to character select
@@ -29280,7 +29280,35 @@ mod tests {
         let (mut session, send_rx) = make_session_with_send_capacity(4);
         let player_guid = ObjectGuid::create_player(1, 42);
         let loot_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 19_030);
-        session.set_player_guid(Some(player_guid));
+        let canonical: crate::session::SharedCanonicalMapManager =
+            Arc::new(std::sync::Mutex::new(wow_map::MapManager::default()));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 1,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        assert!(session.ensure_login_player_controller_like_cpp(
+            player_guid,
+            "LogoutOwner".to_string(),
+            Position::ZERO,
+            1,
+            1,
+            1,
+            10,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        assert_eq!(
+            session.current_canonical_player_map_key_like_cpp(),
+            Some(wow_map::MapKey::new(1, 0))
+        );
         assert!(session.try_claim_character_login_like_cpp(player_guid));
         session.set_active_loot_guid(loot_guid);
         session.loot_table.insert(
@@ -29354,6 +29382,17 @@ mod tests {
             "full logout release retires the session packet-cache copy like C++"
         );
         assert!(session.player_guid().is_none());
+        assert!(
+            canonical
+                .lock()
+                .unwrap()
+                .find_map(1, 0)
+                .unwrap()
+                .map()
+                .get_typed_player(player_guid)
+                .is_none(),
+            "logout must retire the canonical Player before releasing its login claim"
+        );
         let (mut replacement, _) = make_session_with_send_capacity(1);
         assert!(
             replacement.try_claim_character_login_like_cpp(player_guid),

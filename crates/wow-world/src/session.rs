@@ -34588,7 +34588,7 @@ impl WorldSession {
         accessor.write().remove_player(guid);
     }
 
-    fn unregister_canonical_player_from_map_like_cpp(&self) {
+    pub(crate) fn unregister_canonical_player_from_map_like_cpp(&self) {
         let Some(guid) = self.player_guid() else {
             return;
         };
@@ -40557,6 +40557,12 @@ impl WorldSession {
         let player_changed = self.player_guid != guid;
         self.player_guid = guid;
         if player_changed {
+            // Visible auras and their completeness proof belong to the C++
+            // Player, not the authenticated WorldSession. Clear both at the
+            // identity boundary so a later character cannot inherit positive
+            // or negative aura-spell authority from the previous one.
+            self.visible_auras.clear();
+            self.player_aura_authority_complete_like_cpp = false;
             // C++ owns PlayerMenu (and therefore both InteractionData and its
             // menus) under Player. A WorldSession can survive character
             // logout, so no player-menu state may cross that lifetime here.
@@ -67098,6 +67104,8 @@ mod tests {
         let second_player = ObjectGuid::create_player(1, 70_002);
         let trainer = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 100, 1);
         session.set_player_guid(Some(first_player));
+        session.visible_auras.insert(0, test_visible_aura(0, 999));
+        session.player_aura_authority_complete_like_cpp = true;
         assert!(session.set_complete_player_skill_records_like_cpp(
             HashMap::from([(
                 95,
@@ -67137,6 +67145,11 @@ mod tests {
             "reasserting the same Player identity must not reset its PlayerMenu"
         );
         assert_eq!(session.gossip_options.len(), 1);
+        assert_eq!(
+            session.visible_auras.get(&0).map(|aura| aura.spell_id),
+            Some(999)
+        );
+        assert!(session.player_aura_authority_complete_like_cpp());
         assert!(
             session
                 .player_skill_non_durable_tombstones_like_cpp
@@ -67149,6 +67162,14 @@ mod tests {
         assert!(session.player_interaction_source_guid_like_cpp().is_none());
         assert_eq!(session.player_interaction_trainer_id_like_cpp(), 0);
         assert!(session.gossip_options.is_empty());
+        assert!(
+            session.visible_auras.is_empty(),
+            "active auras cannot cross a C++ Player lifetime"
+        );
+        assert!(
+            !session.player_aura_authority_complete_like_cpp(),
+            "the next Player must establish its own complete aura authority"
+        );
         assert!(
             session
                 .player_skill_non_durable_tombstones_like_cpp
@@ -67165,6 +67186,8 @@ mod tests {
         session.set_player_guid(Some(second_player));
         assert!(session.player_interaction_source_guid_like_cpp().is_none());
         assert!(session.gossip_options.is_empty());
+        assert!(session.visible_auras.is_empty());
+        assert!(!session.player_aura_authority_complete_like_cpp());
     }
 
     fn make_session_with_give_player_xp_hook() -> (

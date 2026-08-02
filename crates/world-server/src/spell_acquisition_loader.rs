@@ -118,20 +118,16 @@ fn trainer_cast_effective_casting_requirement_audit_like_cpp(
     )
 }
 
-fn trainer_cast_has_effective_aura_restriction_like_cpp(
+fn trainer_cast_has_unsupported_effective_aura_state_restriction_like_cpp(
     entry: &SpellAuraRestrictionsEntry,
 ) -> bool {
     entry.caster_aura_state != 0
         || entry.target_aura_state != 0
         || entry.exclude_caster_aura_state != 0
         || entry.exclude_target_aura_state != 0
-        || entry.caster_aura_spell != 0
-        || entry.target_aura_spell != 0
-        || entry.exclude_caster_aura_spell != 0
-        || entry.exclude_target_aura_spell != 0
 }
 
-fn trainer_cast_has_effective_difficulty_none_aura_restriction_like_cpp(
+fn trainer_cast_has_unsupported_difficulty_none_aura_state_restriction_like_cpp(
     store: &SpellAuraRestrictionsStore,
     spell_id: u32,
 ) -> bool {
@@ -146,7 +142,7 @@ fn trainer_cast_has_effective_difficulty_none_aura_restriction_like_cpp(
     store
         .entries_for_spell_id_like_cpp(spell_id)
         .filter(|entry| entry.difficulty_id == selected_difficulty)
-        .any(trainer_cast_has_effective_aura_restriction_like_cpp)
+        .any(trainer_cast_has_unsupported_effective_aura_state_restriction_like_cpp)
 }
 
 fn trainer_cast_has_effective_equipped_item_restriction_like_cpp(
@@ -281,10 +277,15 @@ pub(crate) async fn load_trainer_static_authority_like_cpp(
             ),
             legacy_script: legacy_scripts.contains(&spell_id),
             condition: conditions.contains(&spell_id),
-            aura_restriction: trainer_cast_has_effective_difficulty_none_aura_restriction_like_cpp(
-                aura_restrictions,
-                spell_id,
-            ),
+            // Aura-spell presence/exclusion gates are resolved from the
+            // complete player aura authority at purchase time. Unit
+            // AuraState remains outside the reduced projection and is the
+            // only SpellAuraRestrictions shape that blocks static authority.
+            aura_restriction:
+                trainer_cast_has_unsupported_difficulty_none_aura_state_restriction_like_cpp(
+                    aura_restrictions,
+                    spell_id,
+                ),
             equipped_item_restriction: equipped_items
                 .entry_for_spell_id_like_cpp(i32::try_from(spell_id).unwrap_or(i32::MAX))
                 .is_some_and(trainer_cast_has_effective_equipped_item_restriction_like_cpp),
@@ -1569,15 +1570,24 @@ mod tests {
             exclude_target_aura_spell: 0,
             spell_id: 100,
         };
-        assert!(!trainer_cast_has_effective_aura_restriction_like_cpp(
-            &neutral_aura
-        ));
+        assert!(
+            !trainer_cast_has_unsupported_effective_aura_state_restriction_like_cpp(&neutral_aura)
+        );
 
-        let mut effective_aura = neutral_aura.clone();
-        effective_aura.target_aura_spell = 200;
-        assert!(trainer_cast_has_effective_aura_restriction_like_cpp(
-            &effective_aura
-        ));
+        let mut aura_spell_only = neutral_aura.clone();
+        aura_spell_only.target_aura_spell = 200;
+        assert!(
+            !trainer_cast_has_unsupported_effective_aura_state_restriction_like_cpp(
+                &aura_spell_only
+            ),
+            "aura-spell gates are resolved from complete runtime player aura authority"
+        );
+
+        let mut effective_aura = aura_spell_only;
+        effective_aura.target_aura_state = 7;
+        assert!(
+            trainer_cast_has_unsupported_effective_aura_state_restriction_like_cpp(&effective_aura)
+        );
 
         let mut raid_restriction = effective_aura.clone();
         raid_restriction.id = 2;
@@ -1588,11 +1598,13 @@ mod tests {
         ]);
         let raid_only = SpellAuraRestrictionsStore::from_entries([raid_restriction.clone()]);
         assert!(
-            !trainer_cast_has_effective_difficulty_none_aura_restriction_like_cpp(&raid_only, 100,),
+            !trainer_cast_has_unsupported_difficulty_none_aura_state_restriction_like_cpp(
+                &raid_only, 100,
+            ),
             "a nonzero-difficulty-only row does not apply to DIFFICULTY_NONE"
         );
         assert!(
-            !trainer_cast_has_effective_difficulty_none_aura_restriction_like_cpp(
+            !trainer_cast_has_unsupported_difficulty_none_aura_state_restriction_like_cpp(
                 &restrictions,
                 100,
             ),
@@ -1605,7 +1617,7 @@ mod tests {
         let wildcard_only =
             SpellAuraRestrictionsStore::from_entries([wildcard_restriction.clone()]);
         assert!(
-            trainer_cast_has_effective_difficulty_none_aura_restriction_like_cpp(
+            trainer_cast_has_unsupported_difficulty_none_aura_state_restriction_like_cpp(
                 &wildcard_only,
                 100,
             ),
@@ -1614,7 +1626,7 @@ mod tests {
         let exact_over_wildcard =
             SpellAuraRestrictionsStore::from_entries([neutral_aura, wildcard_restriction]);
         assert!(
-            !trainer_cast_has_effective_difficulty_none_aura_restriction_like_cpp(
+            !trainer_cast_has_unsupported_difficulty_none_aura_state_restriction_like_cpp(
                 &exact_over_wildcard,
                 100,
             ),

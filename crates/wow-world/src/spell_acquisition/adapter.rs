@@ -260,43 +260,6 @@ impl crate::session::WorldSession {
             SpellAcquisitionResolvedEffectsLookupLikeCpp::MissingCoverage { .. }
             | SpellAcquisitionResolvedEffectsLookupLikeCpp::Indeterminate(_) => return None,
         };
-        // Re-audit the active variant because startup's immutable authority
-        // proves the difficulty-none closure. This prevents a heroic/custom
-        // override from smuggling an unsupported or non-player effect into
-        // the reduced cast path.
-        for effect in &effective_effects {
-            let effect_index = effect.effect_index_checked().ok()?;
-            if pet_auras
-                .get_pet_aura_like_cpp(spell_id, effect_index)
-                .is_some()
-            {
-                return None;
-            }
-            let effect_type = effect.effect_type_checked().ok()?;
-            match effect_type {
-                SPELL_EFFECT_LEARN_SPELL | SPELL_EFFECT_SKILL_STEP | SPELL_EFFECT_DUAL_WIELD => {
-                    if effect.effect_mechanic_raw != 0
-                        || effect.effect_aura_raw != 0
-                        || !effect.targets_player_like_cpp()
-                    {
-                        return None;
-                    }
-                }
-                // C++ `Trainer::TeachSpell` invokes castable wrappers as
-                // `player->CastSpell(player, ...)`. EffectSkill is HANDLE_HIT,
-                // has no implicit target, and mutates that player caster.
-                SPELL_EFFECT_SKILL => {
-                    if effect.effect_mechanic_raw != 0 || effect.effect_aura_raw != 0 {
-                        return None;
-                    }
-                }
-                0 => {}
-                3 if matches!(spell_id, 33_388 | 34_090) => {}
-                other if wow_data::spell::spell_effect_types::is_cpp_null_or_unused_noop(other) => {
-                }
-                _ => return None,
-            }
-        }
         // C++ copies this single SpellInfo field from the first row in the
         // active difficulty/fallback chain, then checks the player target's
         // HUMANOID mask. Do not combine sibling difficulty rows: a heroic
@@ -336,6 +299,44 @@ impl crate::session::WorldSession {
                 return Some(failed_trainer_cast_resolution_like_cpp(effective_effects));
             }
             TrainerAuraRestrictionResultLikeCpp::Indeterminate => return None,
+        }
+        // Re-audit the active variant because startup's immutable authority
+        // proves the difficulty-none closure. C++ reaches these effect and
+        // pet-aura hooks only after CheckCast has accepted the target/aura
+        // gates above, so a definite pre-effect cast failure must win over an
+        // unsupported hook and preserve the paid, visualized no-effect cast.
+        for effect in &effective_effects {
+            let effect_index = effect.effect_index_checked().ok()?;
+            if pet_auras
+                .get_pet_aura_like_cpp(spell_id, effect_index)
+                .is_some()
+            {
+                return None;
+            }
+            let effect_type = effect.effect_type_checked().ok()?;
+            match effect_type {
+                SPELL_EFFECT_LEARN_SPELL | SPELL_EFFECT_SKILL_STEP | SPELL_EFFECT_DUAL_WIELD => {
+                    if effect.effect_mechanic_raw != 0
+                        || effect.effect_aura_raw != 0
+                        || !effect.targets_player_like_cpp()
+                    {
+                        return None;
+                    }
+                }
+                // C++ `Trainer::TeachSpell` invokes castable wrappers as
+                // `player->CastSpell(player, ...)`. EffectSkill is HANDLE_HIT,
+                // has no implicit target, and mutates that player caster.
+                SPELL_EFFECT_SKILL => {
+                    if effect.effect_mechanic_raw != 0 || effect.effect_aura_raw != 0 {
+                        return None;
+                    }
+                }
+                0 => {}
+                3 if matches!(spell_id, 33_388 | 34_090) => {}
+                other if wow_data::spell::spell_effect_types::is_cpp_null_or_unused_noop(other) => {
+                }
+                _ => return None,
+            }
         }
         let map_id = u32::from(self.player_map_id_like_cpp());
         let (_, area_id) = self.player_zone_area_like_cpp();
