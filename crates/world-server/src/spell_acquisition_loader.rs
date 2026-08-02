@@ -115,6 +115,24 @@ fn trainer_cast_has_effective_aura_restriction_like_cpp(
         || entry.exclude_target_aura_spell != 0
 }
 
+fn trainer_cast_has_effective_difficulty_none_aura_restriction_like_cpp(
+    store: &SpellAuraRestrictionsStore,
+    spell_id: u32,
+) -> bool {
+    // C++ attaches SpellAuraRestrictions to the exact `(SpellID,
+    // Difficulty)` SpellInfo key. Preserve Rust's represented wildcard only
+    // when no exact DIFFICULTY_NONE row exists; rows for other difficulties
+    // must not contaminate a normal trainer cast.
+    let has_exact = store
+        .entries_for_spell_id_like_cpp(spell_id)
+        .any(|entry| entry.difficulty_id == 0);
+    let selected_difficulty = if has_exact { 0 } else { u8::MAX };
+    store
+        .entries_for_spell_id_like_cpp(spell_id)
+        .filter(|entry| entry.difficulty_id == selected_difficulty)
+        .any(trainer_cast_has_effective_aura_restriction_like_cpp)
+}
+
 fn trainer_cast_has_effective_equipped_item_restriction_like_cpp(
     entry: &SpellEquippedItemsEntry,
 ) -> bool {
@@ -231,9 +249,10 @@ pub(crate) async fn load_trainer_static_authority_like_cpp(
             legacy_script: legacy_scripts.contains(&spell_id),
             condition: conditions.contains(&spell_id),
             disabled: disabled.contains(&spell_id),
-            aura_restriction: aura_restrictions
-                .entries_for_spell_id_like_cpp(spell_id)
-                .any(trainer_cast_has_effective_aura_restriction_like_cpp),
+            aura_restriction: trainer_cast_has_effective_difficulty_none_aura_restriction_like_cpp(
+                aura_restrictions,
+                spell_id,
+            ),
             equipped_item_restriction: equipped_items
                 .entry_for_spell_id_like_cpp(i32::try_from(spell_id).unwrap_or(i32::MAX))
                 .is_some_and(trainer_cast_has_effective_equipped_item_restriction_like_cpp),
@@ -1457,11 +1476,53 @@ mod tests {
             &neutral_aura
         ));
 
-        let mut effective_aura = neutral_aura;
+        let mut effective_aura = neutral_aura.clone();
         effective_aura.target_aura_spell = 200;
         assert!(trainer_cast_has_effective_aura_restriction_like_cpp(
             &effective_aura
         ));
+
+        let mut raid_restriction = effective_aura.clone();
+        raid_restriction.id = 2;
+        raid_restriction.difficulty_id = 16;
+        let restrictions = SpellAuraRestrictionsStore::from_entries([
+            neutral_aura.clone(),
+            raid_restriction.clone(),
+        ]);
+        let raid_only = SpellAuraRestrictionsStore::from_entries([raid_restriction.clone()]);
+        assert!(
+            !trainer_cast_has_effective_difficulty_none_aura_restriction_like_cpp(&raid_only, 100,),
+            "a nonzero-difficulty-only row does not apply to DIFFICULTY_NONE"
+        );
+        assert!(
+            !trainer_cast_has_effective_difficulty_none_aura_restriction_like_cpp(
+                &restrictions,
+                100,
+            ),
+            "a restriction on another difficulty must not contaminate DIFFICULTY_NONE"
+        );
+
+        let mut wildcard_restriction = raid_restriction;
+        wildcard_restriction.id = 3;
+        wildcard_restriction.difficulty_id = u8::MAX;
+        let wildcard_only =
+            SpellAuraRestrictionsStore::from_entries([wildcard_restriction.clone()]);
+        assert!(
+            trainer_cast_has_effective_difficulty_none_aura_restriction_like_cpp(
+                &wildcard_only,
+                100,
+            ),
+            "the represented wildcard applies when no exact difficulty row exists"
+        );
+        let exact_over_wildcard =
+            SpellAuraRestrictionsStore::from_entries([neutral_aura, wildcard_restriction]);
+        assert!(
+            !trainer_cast_has_effective_difficulty_none_aura_restriction_like_cpp(
+                &exact_over_wildcard,
+                100,
+            ),
+            "an exact DIFFICULTY_NONE row takes precedence over the wildcard"
+        );
 
         assert!(
             !trainer_cast_has_effective_equipped_item_restriction_like_cpp(
