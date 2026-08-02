@@ -35,6 +35,8 @@ changes are saved before trainer preparation instead of making the trainer unava
 next autosave. Trainer failures and visuals use the Realm connection; creature visual fanout
 retains the already validated canonical-or-legacy source position. Castable wrappers
 require both a startup audit of effective/world-table blockers and a fresh player effect-mask proof;
+the startup audit intentionally omits shapeshift metadata because C++ trainer wrappers use
+`TRIGGERED_FULL_MASK`, including `TRIGGERED_IGNORE_SHAPESHIFT`;
 active auras now match covered `EffectAura`/`EffectAttributes` and negative aura-link immunity to the exact wrapper
 effect/spell while startup excludes unsupported mechanic/state shapes; full C++ immunity-map parity
 remains deferred until canonical Unit ownership.

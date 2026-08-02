@@ -268,6 +268,12 @@ pub(crate) async fn load_trainer_static_authority_like_cpp(
                     .is_some(),
                 effective_casting_requirements,
             );
+        // Shapeshift metadata is intentionally absent from this audit. C++
+        // `Trainer::TeachSpell` invokes `CastSpell(..., true)`; the bool
+        // constructor selects `TRIGGERED_FULL_MASK`, which contains
+        // `TRIGGERED_IGNORE_SHAPESHIFT`, so `Spell::CheckCast` does not call
+        // `SpellInfo::CheckShapeshift` for the trainer wrapper. Rejecting
+        // stance-gated wrappers here would therefore be stricter than C++.
         let hook_audit = TrainerCastWorldHookAuditLikeCpp {
             script_binding: script_bindings.contains_like_cpp(
                 spell_id,
