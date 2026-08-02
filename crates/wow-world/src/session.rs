@@ -17950,16 +17950,12 @@ impl WorldSession {
             .contains_key(&item_id)
     }
 
-    /// C++ `std::find_if(item->Effects, spellId)` used by item-backed casts.
-    pub(crate) fn item_has_spell_effect_like_cpp(&self, item_id: u32, spell_id: i32) -> bool {
+    /// C++ `std::find_if(item->Effects, spellId)` in `HandleUseToy`.
+    pub(crate) fn toy_item_has_spell_effect_like_cpp(&self, item_id: u32, spell_id: i32) -> bool {
         self.item_effect_store
             .as_ref()
             .and_then(|store| store.effect_for_item_spell_like_cpp(item_id, spell_id))
             .is_some()
-    }
-
-    pub(crate) fn toy_item_has_spell_effect_like_cpp(&self, item_id: u32, spell_id: i32) -> bool {
-        self.item_has_spell_effect_like_cpp(item_id, spell_id)
     }
 
     /// Bounded C++ `SpellHistory::GetCooldownDurations(spellInfo, itemId)`.
@@ -38394,9 +38390,6 @@ impl WorldSession {
             // ── Spell cast ────────────────────────────────────────────────────
             ClientOpcodes::CastSpell => {
                 self.handle_cast_spell(pkt).await;
-            }
-            ClientOpcodes::UseItem => {
-                self.handle_use_item(pkt).await;
             }
             ClientOpcodes::CancelCast => {
                 self.handle_cancel_cast(pkt).await;
@@ -62944,19 +62937,6 @@ impl WorldSession {
                 fail_arg2: 0,
             });
             return;
-        }
-        if !self
-            .destroy_uncaged_battle_pet_item_like_cpp(modifiers.source_item_guid)
-            .await
-        {
-            // The LoginDB receipt makes the add idempotent. Leaving the item
-            // visible on CharacterDB failure lets the client retry and finish
-            // C++'s post-add DestroyItem without minting another pet.
-            warn!(
-                account = self.account_id,
-                item_guid = modifiers.source_item_guid.counter(),
-                "Battle-pet uncage committed but its source item remains for retry"
-            );
         }
         if let Some(player_guid) = self.player_guid() {
             self.send_packet(&wow_packet::packets::spell::PlaySpellVisual::self_target(

@@ -565,31 +565,6 @@ impl ClientPacket for CastSpellRequest {
     }
 }
 
-/// `CMSG_USE_ITEM` payload.
-///
-/// C++ `WorldPackets::Spells::UseItem::Read` reads the bag and slot first,
-/// followed by the packed cast-item GUID and the ordinary spell request.
-#[derive(Debug, Clone)]
-pub struct UseItem {
-    pub pack_slot: u8,
-    pub slot: u8,
-    pub cast_item: ObjectGuid,
-    pub cast: CastSpellRequest,
-}
-
-impl ClientPacket for UseItem {
-    const OPCODE: ClientOpcodes = ClientOpcodes::UseItem;
-
-    fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
-        Ok(Self {
-            pack_slot: pkt.read_uint8()?,
-            slot: pkt.read_uint8()?,
-            cast_item: pkt.read_packed_guid()?,
-            cast: CastSpellRequest::read(pkt)?,
-        })
-    }
-}
-
 /// CMSG_OPEN_ITEM payload.
 ///
 /// C++ `WorldPackets::Spells::OpenItem::Read` reads `Slot` then `PackSlot`.
@@ -1183,26 +1158,6 @@ mod tests {
         assert_eq!(parsed.misc, [30_000, 9]);
         assert_eq!(parsed.spell_id, 12_345);
         assert!(parsed.move_update.is_none());
-    }
-
-    #[test]
-    fn use_item_reads_cpp_item_identity_before_cast_request() {
-        let item_guid = ObjectGuid::create_item(1, 0x1234);
-        let cast_id = ObjectGuid::create_player(1, 0x5678);
-        let mut pkt = WorldPacket::new_empty();
-        pkt.write_uint8(19);
-        pkt.write_uint8(7);
-        pkt.write_packed_guid(&item_guid);
-        write_minimal_spell_cast_request(&mut pkt, cast_id, [4, 5], 12_345);
-
-        let parsed = UseItem::read(&mut pkt).unwrap();
-        assert_eq!(parsed.pack_slot, 19);
-        assert_eq!(parsed.slot, 7);
-        assert_eq!(parsed.cast_item, item_guid);
-        assert_eq!(parsed.cast.cast_id, cast_id);
-        assert_eq!(parsed.cast.misc, [4, 5]);
-        assert_eq!(parsed.cast.spell_id, 12_345);
-        assert!(pkt.is_empty());
     }
 
     #[test]
