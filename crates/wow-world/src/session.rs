@@ -6826,6 +6826,8 @@ fn currency_max_quantity_cpp(entry: &CurrencyTypesEntry, currency: &PlayerCurren
 pub struct AuraApplication {
     /// Spell ID of the aura
     pub spell_id: i32,
+    /// Difficulty whose C++ `SpellInfo` was selected when the aura was created.
+    pub difficulty_id: u8,
     /// GUID of the unit that cast the aura
     pub caster_guid: ObjectGuid,
     /// Aura slot (0-254)
@@ -26056,6 +26058,10 @@ impl WorldSession {
         self.spell_pet_aura_store = Some(store);
     }
 
+    pub(crate) fn spell_pet_aura_store_like_cpp(&self) -> Option<&SpellPetAuraStoreLikeCpp> {
+        self.spell_pet_aura_store.as_deref()
+    }
+
     pub(crate) fn pet_aura_like_cpp(
         &self,
         spell_id: u32,
@@ -35462,6 +35468,7 @@ impl WorldSession {
         // Create aura
         let aura = AuraApplication {
             spell_id,
+            difficulty_id: self.current_map_difficulty_id_like_cpp(),
             caster_guid,
             slot,
             duration_total: duration_ms,
@@ -36150,6 +36157,7 @@ impl WorldSession {
 
         let aura = AuraApplication {
             spell_id,
+            difficulty_id: self.current_map_difficulty_id_like_cpp(),
             caster_guid,
             slot,
             duration_total: 0,
@@ -36359,6 +36367,7 @@ impl WorldSession {
 
         let aura = AuraApplication {
             spell_id,
+            difficulty_id: self.current_map_difficulty_id_like_cpp(),
             caster_guid,
             slot,
             duration_total: 30_000,
@@ -36400,6 +36409,7 @@ impl WorldSession {
         let multiplier = 1.0 + (effect.effect_base_points as f32 / 100.0);
         let aura = AuraApplication {
             spell_id,
+            difficulty_id: self.current_map_difficulty_id_like_cpp(),
             caster_guid,
             slot,
             duration_total: 30_000,
@@ -36442,6 +36452,7 @@ impl WorldSession {
 
         let aura = AuraApplication {
             spell_id,
+            difficulty_id: self.current_map_difficulty_id_like_cpp(),
             caster_guid,
             slot,
             duration_total: duration_ms,
@@ -37102,6 +37113,7 @@ impl WorldSession {
         };
         let aura = AuraApplication {
             spell_id,
+            difficulty_id: self.current_map_difficulty_id_like_cpp(),
             caster_guid: caster,
             slot,
             duration_total: duration,
@@ -42221,6 +42233,7 @@ impl WorldSession {
                 slot,
                 AuraApplication {
                     spell_id,
+                    difficulty_id: row.difficulty,
                     caster_guid,
                     slot,
                     duration_total,
@@ -65895,6 +65908,7 @@ impl WorldSession {
             let visible_duration_ms = u32::try_from(duration_ms).unwrap_or(u32::MAX);
             let aura = AuraApplication {
                 spell_id,
+                difficulty_id: self.current_map_difficulty_id_like_cpp(),
                 caster_guid: player_guid,
                 slot,
                 duration_total: visible_duration_ms,
@@ -75237,6 +75251,7 @@ mod tests {
                             slot,
                             AuraApplication {
                                 spell_id,
+                                difficulty_id: 0,
                                 caster_guid: source_guid,
                                 slot,
                                 duration_total: 30_000,
@@ -75715,6 +75730,7 @@ mod tests {
                 standing_aura_slot,
                 AuraApplication {
                     spell_id: standing_aura_spell_id,
+                    difficulty_id: 0,
                     caster_guid: player_guid,
                     slot: standing_aura_slot,
                     duration_total: 30_000,
@@ -99404,6 +99420,7 @@ mod tests {
     ) -> AuraApplication {
         AuraApplication {
             spell_id: 69_500 + i32::from(slot),
+            difficulty_id: 0,
             caster_guid: ObjectGuid::EMPTY,
             slot,
             duration_total: 30_000,
@@ -109534,6 +109551,7 @@ mod tests {
                 slot,
                 AuraApplication {
                     spell_id,
+                    difficulty_id: 0,
                     caster_guid: player_guid,
                     slot,
                     duration_total: 30_000,
@@ -123702,6 +123720,7 @@ mod tests {
     fn test_visible_aura(slot: u8, spell_id: i32) -> AuraApplication {
         AuraApplication {
             spell_id,
+            difficulty_id: 0,
             caster_guid: ObjectGuid::EMPTY,
             slot,
             duration_total: 30_000,
@@ -134825,6 +134844,7 @@ mod tests {
             .values()
             .find(|aura| aura.spell_id == 20_600)
             .expect("loaded total-stat aura");
+        assert_eq!(aura.difficulty_id, 0);
         assert_eq!(aura.represented_effect, None);
         let slot = aura.slot;
         session.remove_aura(slot).expect("remove loaded aura");

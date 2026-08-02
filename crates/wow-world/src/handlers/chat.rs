@@ -2005,6 +2005,7 @@ mod tests {
     fn gm_silence_aura(slot: u8) -> AuraApplication {
         AuraApplication {
             spell_id: GM_SILENCE_AURA_LIKE_CPP,
+            difficulty_id: 0,
             caster_guid: ObjectGuid::EMPTY,
             slot,
             duration_total: 30_000,

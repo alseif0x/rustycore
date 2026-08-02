@@ -3611,6 +3611,7 @@ mod tests {
     fn active_shapeshift_aura_for_test(spell_id: i32, caster_guid: ObjectGuid) -> AuraApplication {
         AuraApplication {
             spell_id,
+            difficulty_id: 0,
             caster_guid,
             slot: 0,
             duration_total: 0,

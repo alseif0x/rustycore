@@ -19205,6 +19205,7 @@ mod tests {
             slot,
             AuraApplication {
                 spell_id,
+                difficulty_id: 0,
                 caster_guid,
                 slot,
                 duration_total: 30_000,

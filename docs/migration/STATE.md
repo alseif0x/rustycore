@@ -29,7 +29,8 @@ rejected by the dynamic spell-disable gate still pays and emits both trainer vis
 while channeled wrappers remain outside the reduced projection. A process-wide pre-ConnectTo
 character claim rejects a second live session for the same GUID and is released on a failed
 instance handoff or late login packet-ordering fence, preserving C++'s single `Player*` save
-authority. Effective equipped-item and target-restriction duplicates follow C++'s deterministic
+authority; normal logout retains that claim through the account-wide offline write and old Player
+identity teardown. Effective equipped-item and target-restriction duplicates follow C++'s deterministic
 highest-record-ID assignment; ordinary pending spell/skill
 changes are saved before trainer preparation instead of making the trainer unavailable until the
 next autosave. Trainer failures and visuals use the Realm connection; creature visual fanout
@@ -37,6 +38,9 @@ retains the already validated canonical-or-legacy source position. Castable wrap
 require both a startup audit of effective/world-table blockers and a fresh player effect-mask proof;
 the startup audit intentionally omits shapeshift metadata because C++ trainer wrappers use
 `TRIGGERED_FULL_MASK`, including `TRIGGERED_IGNORE_SHAPESHIFT`;
+the active proof rejects unsupported pet-aura hooks before mutation, replays definite self-target
+and aura-spell cast failures after the C++-ordered fee/visuals, and resolves retained immunity auras
+from their creation difficulty instead of the player's current map difficulty;
 active auras now match covered `EffectAura`/`EffectAttributes` and negative aura-link immunity to the exact wrapper
 effect/spell while startup excludes unsupported mechanic/state shapes; full C++ immunity-map parity
 remains deferred until canonical Unit ownership.

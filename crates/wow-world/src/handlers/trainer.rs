@@ -1107,6 +1107,42 @@ mod tests {
         vendor: ObjectGuid,
     }
 
+    fn assert_trainer_charge_and_visuals_like_cpp(fixture: &mut TrainerFixture) {
+        assert_eq!(
+            fixture.send_rx.try_recv().unwrap(),
+            wow_packet::packets::update::UpdateObject::player_money_update(
+                fixture.session.player_guid().unwrap(),
+                fixture.session.player_map_id_like_cpp(),
+                75,
+                None,
+            )
+            .to_bytes()
+        );
+        assert_eq!(
+            fixture.send_rx.try_recv().unwrap(),
+            PlaySpellVisualKit {
+                unit: fixture.trainer,
+                kit_record_id: 179,
+                kit_type: 0,
+                duration: 0,
+                mounted_visual: false,
+            }
+            .to_bytes()
+        );
+        assert_eq!(
+            fixture.send_rx.try_recv().unwrap(),
+            PlaySpellVisualKit {
+                unit: fixture.session.player_guid().unwrap(),
+                kit_record_id: 362,
+                kit_type: 1,
+                duration: 0,
+                mounted_visual: false,
+            }
+            .to_bytes()
+        );
+        assert!(fixture.send_rx.try_recv().is_err());
+    }
+
     fn trainer_fixture_with_store(store: Arc<TrainerStoreLikeCpp>) -> TrainerFixture {
         trainer_fixture_with_store_and_map_difficulty(store, 0)
     }
@@ -1187,6 +1223,7 @@ mod tests {
         session.set_spell_learn_spell_store(Arc::new(SpellLearnSpellStoreLikeCpp::default()));
         session.set_spell_required_store(Arc::new(SpellRequiredStoreLikeCpp::default()));
         session.set_spell_linked_store(Arc::new(wow_data::SpellLinkedStoreLikeCpp::default()));
+        session.set_spell_pet_aura_store(Arc::new(wow_data::SpellPetAuraStoreLikeCpp::default()));
         session.set_spell_target_restrictions_store(Arc::new(
             wow_data::SpellTargetRestrictionsStore::from_entries([]),
         ));
@@ -1323,6 +1360,7 @@ mod tests {
             slot,
             AuraApplication {
                 spell_id: 5384,
+                difficulty_id: 0,
                 caster_guid: player_guid,
                 slot,
                 duration_total: 0,
@@ -1348,6 +1386,7 @@ mod tests {
             slot,
             AuraApplication {
                 spell_id: 999,
+                difficulty_id: 0,
                 caster_guid: player_guid,
                 slot,
                 duration_total: 0,
@@ -2310,6 +2349,83 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn active_difficulty_pet_aura_hook_fails_closed_before_charge() {
+        const HEROIC_LEARNED_SPELL: u32 = 54_327;
+        let mut fixture = trainer_wrapper_fixture_with_map_difficulty(2);
+        let wrapper_id = WRAPPER_TRAINER_SPELL as u32;
+        let learned_id = WRAPPER_LEARNED_SPELL as u32;
+        let mut heroic_effect = player_learn_effect(2, wrapper_id, HEROIC_LEARNED_SPELL);
+        heroic_effect.difficulty_id_raw = 2;
+        heroic_effect.effect_index_raw = 1;
+        fixture.session.set_spell_acquisition_catalog(Arc::new(
+            SpellAcquisitionCatalogLikeCpp::from_effective_rows_like_cpp(
+                [
+                    SpellAcquisitionCoverageSeedLikeCpp::covered(wrapper_id, 0),
+                    SpellAcquisitionCoverageSeedLikeCpp::covered(wrapper_id, 2),
+                    SpellAcquisitionCoverageSeedLikeCpp::covered(learned_id, 0),
+                    SpellAcquisitionCoverageSeedLikeCpp::covered(HEROIC_LEARNED_SPELL, 0),
+                ],
+                EffectiveSpellAcquisitionRowsLikeCpp {
+                    spell_effects: vec![
+                        player_learn_effect(1, wrapper_id, learned_id),
+                        heroic_effect,
+                    ],
+                    ..Default::default()
+                },
+                SpellAcquisitionTableHashesLikeCpp::default(),
+                Vec::new(),
+            ),
+        ));
+        let mut learn_skills = SpellLearnSkillStoreLikeCpp::default();
+        learn_skills
+            .covered_spell_ids
+            .extend([wrapper_id, learned_id, HEROIC_LEARNED_SPELL]);
+        fixture
+            .session
+            .set_spell_learn_skill_store(Arc::new(learn_skills));
+        let pet_auras = wow_data::SpellPetAuraStoreLikeCpp::load_spell_pet_auras_like_cpp(
+            [wow_data::SpellPetAuraRowLikeCpp {
+                spell_id: wrapper_id,
+                effect_index: 1,
+                pet_entry: 0,
+                aura_id: 90_001,
+            }],
+            |_, _| {
+                wow_data::SpellPetAuraSourceLookupLikeCpp::Found(
+                    wow_data::SpellPetAuraSourceEffectLikeCpp {
+                        effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_DUMMY,
+                        apply_aura_name: 0,
+                        target_a: wow_data::TARGET_UNIT_PET_LIKE_CPP,
+                        calc_value: 0,
+                    },
+                )
+            },
+            |_| true,
+        );
+        assert_eq!(pet_auras.loaded_row_count, 1);
+        fixture
+            .session
+            .set_spell_pet_aura_store(Arc::new(pet_auras.store));
+
+        fixture
+            .session
+            .handle_trainer_buy_spell(trainer_buy_packet(
+                fixture.trainer,
+                DEFAULT_TRAINER_ID as i32,
+                WRAPPER_TRAINER_SPELL,
+            ))
+            .await;
+
+        assert_eq!(fixture.session.player_gold_like_cpp(), 100);
+        assert!(
+            !fixture
+                .session
+                .known_spells_like_cpp()
+                .contains(&(HEROIC_LEARNED_SPELL as i32))
+        );
+    }
+
+    #[tokio::test]
     async fn player_disable_stops_cast_effects_after_charge_and_visuals_like_cpp() {
         let mut fixture = trainer_wrapper_fixture();
         let (disable_mgr, report) = wow_data::DisableMgrLikeCpp::from_rows_like_cpp(
@@ -2380,9 +2496,33 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn active_difficulty_aura_restriction_stops_before_charge_like_cpp() {
+    async fn active_difficulty_aura_restriction_fails_after_charge_like_cpp() {
         let mut fixture = trainer_wrapper_fixture_with_map_difficulty(2);
         let wrapper_id = WRAPPER_TRAINER_SPELL as u32;
+        let learned_id = WRAPPER_LEARNED_SPELL as u32;
+        let mut active_effect = player_learn_effect(2, wrapper_id, learned_id);
+        active_effect.difficulty_id_raw = 2;
+        fixture.session.set_spell_acquisition_catalog(Arc::new(
+            SpellAcquisitionCatalogLikeCpp::from_effective_rows_like_cpp(
+                [
+                    SpellAcquisitionCoverageSeedLikeCpp::covered(wrapper_id, 0),
+                    SpellAcquisitionCoverageSeedLikeCpp::covered(wrapper_id, 2),
+                    SpellAcquisitionCoverageSeedLikeCpp::covered(learned_id, 0),
+                ],
+                EffectiveSpellAcquisitionRowsLikeCpp {
+                    spell_effects: vec![
+                        player_learn_effect(1, wrapper_id, learned_id),
+                        active_effect,
+                    ],
+                    ..Default::default()
+                },
+                SpellAcquisitionTableHashesLikeCpp::default(),
+                Vec::new(),
+            ),
+        ));
+        fixture
+            .session
+            .set_spell_acquisition_static_authority_like_cpp([wrapper_id], []);
         fixture.session.set_spell_aura_restrictions_store(Arc::new(
             wow_data::SpellAuraRestrictionsStore::from_entries([
                 wow_data::SpellAuraRestrictionsEntry {
@@ -2417,13 +2557,49 @@ mod tests {
             ))
             .await;
 
-        assert_eq!(fixture.session.player_gold_like_cpp(), 100);
+        assert_eq!(fixture.session.player_gold_like_cpp(), 75);
         assert!(
             !fixture
                 .session
                 .known_spells_like_cpp()
                 .contains(&WRAPPER_LEARNED_SPELL)
         );
+        assert_trainer_charge_and_visuals_like_cpp(&mut fixture);
+    }
+
+    #[tokio::test]
+    async fn incompatible_wrapper_self_target_fails_after_charge_like_cpp() {
+        let mut fixture = trainer_wrapper_fixture();
+        fixture
+            .session
+            .set_spell_target_restrictions_store(Arc::new(
+                wow_data::SpellTargetRestrictionsStore::from_entries([
+                    spell_target_restriction_row(
+                        1,
+                        WRAPPER_TRAINER_SPELL as u32,
+                        0,
+                        1 << (3 - 1), // CREATURE_TYPEMASK_BEAST, not player/humanoid
+                    ),
+                ]),
+            ));
+
+        fixture
+            .session
+            .handle_trainer_buy_spell(trainer_buy_packet(
+                fixture.trainer,
+                DEFAULT_TRAINER_ID as i32,
+                WRAPPER_TRAINER_SPELL,
+            ))
+            .await;
+
+        assert_eq!(fixture.session.player_gold_like_cpp(), 75);
+        assert!(
+            !fixture
+                .session
+                .known_spells_like_cpp()
+                .contains(&WRAPPER_LEARNED_SPELL)
+        );
+        assert_trainer_charge_and_visuals_like_cpp(&mut fixture);
     }
 
     #[tokio::test]
@@ -2871,7 +3047,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn wrapper_immunity_aura_uses_active_map_difficulty_and_fallback_like_cpp() {
+    async fn wrapper_immunity_aura_preserves_its_creation_difficulty_like_cpp() {
         let store = trainer_store_from_rows(
             vec![trainer_row(DEFAULT_TRAINER_ID, 2, "Train")],
             vec![trainer_spell_row(
@@ -2951,10 +3127,11 @@ mod tests {
         assert_eq!(fixture.session.current_map_difficulty_id_like_cpp(), 2);
         assert_eq!(fixture.session.player_gold_like_cpp(), 75);
         assert!(
-            !fixture
+            fixture
                 .session
                 .known_spells_like_cpp()
-                .contains(&WRAPPER_LEARNED_SPELL)
+                .contains(&WRAPPER_LEARNED_SPELL),
+            "the retained difficulty-0 aura must not acquire its map-difficulty-2 immunity effect"
         );
     }
 

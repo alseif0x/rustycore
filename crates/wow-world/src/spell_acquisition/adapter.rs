@@ -19,17 +19,48 @@ const SPELL_AURA_MECHANIC_IMMUNITY_MASK_LIKE_CPP: i64 = 147;
 const SPELL_AURA_MOD_IMMUNE_AURA_APPLY_SCHOOL_LIKE_CPP: i64 = 267;
 const SPELL_EFFECT_ATTRIBUTE_NO_IMMUNITY_LIKE_CPP: i64 = 0x0000_0001;
 
-fn trainer_cast_has_effective_aura_restriction_like_cpp(
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TrainerAuraRestrictionResultLikeCpp {
+    Pass,
+    Fail,
+    Indeterminate,
+}
+
+fn trainer_aura_restriction_result_like_cpp(
     restriction: &wow_data::SpellAuraRestrictionsEntry,
-) -> bool {
-    restriction.caster_aura_state != 0
+    has_aura_spell: impl Fn(i32) -> bool,
+) -> TrainerAuraRestrictionResultLikeCpp {
+    // `TRIGGERED_FULL_MASK` does not contain the separate debug-only
+    // `TRIGGERED_IGNORE_CASTER_AURASTATE` bit, so C++ still evaluates these
+    // caster fields as well as the target fields. The session model does not
+    // yet own Unit's complete AuraState mask; do not guess their result.
+    if restriction.caster_aura_state != 0
         || restriction.target_aura_state != 0
         || restriction.exclude_caster_aura_state != 0
         || restriction.exclude_target_aura_state != 0
-        || restriction.caster_aura_spell != 0
-        || restriction.target_aura_spell != 0
-        || restriction.exclude_caster_aura_spell != 0
-        || restriction.exclude_target_aura_spell != 0
+    {
+        return TrainerAuraRestrictionResultLikeCpp::Indeterminate;
+    }
+
+    let required = [restriction.caster_aura_spell, restriction.target_aura_spell];
+    if required
+        .into_iter()
+        .any(|spell_id| spell_id != 0 && !has_aura_spell(spell_id))
+    {
+        return TrainerAuraRestrictionResultLikeCpp::Fail;
+    }
+    let excluded = [
+        restriction.exclude_caster_aura_spell,
+        restriction.exclude_target_aura_spell,
+    ];
+    if excluded
+        .into_iter()
+        .any(|spell_id| spell_id != 0 && has_aura_spell(spell_id))
+    {
+        return TrainerAuraRestrictionResultLikeCpp::Fail;
+    }
+
+    TrainerAuraRestrictionResultLikeCpp::Pass
 }
 
 fn trainer_target_restriction_admits_player_like_cpp(
@@ -42,8 +73,39 @@ fn trainer_target_restriction_admits_player_like_cpp(
         .resolved_for_difficulty_chain_like_cpp(spell_id, difficulty_chain)
         .is_none_or(|restriction| {
             let mask = restriction.target_creature_type_mask_like_cpp();
-            mask == 0 || mask & CREATURE_TYPEMASK_HUMANOID_LIKE_CPP != 0
+            if mask != 0 && mask & CREATURE_TYPEMASK_HUMANOID_LIKE_CPP == 0 {
+                return false;
+            }
+
+            // `Trainer::TeachSpell` supplies the player as the object target.
+            // Mirror `SpellInfo::CheckExplicitTarget` rather than treating the
+            // DB2 mask as a type schema: with a non-null Unit target, C++ only
+            // validates this special subset. Self passes ally/party/raid and
+            // fails enemy/minipet/passenger unless one of the passing flags is
+            // also present. Other flags fall through as SPELL_CAST_OK.
+            const UNIT_RAID: u32 = 0x0000_0004;
+            const UNIT_PARTY: u32 = 0x0000_0008;
+            const UNIT_ENEMY: u32 = 0x0000_0080;
+            const UNIT_ALLY: u32 = 0x0000_0100;
+            const UNIT_MINIPET: u32 = 0x0001_0000;
+            const UNIT_PASSENGER: u32 = 0x0010_0000;
+            const SPECIAL_UNIT_FLAGS: u32 =
+                UNIT_RAID | UNIT_PARTY | UNIT_ENEMY | UNIT_ALLY | UNIT_MINIPET | UNIT_PASSENGER;
+            const SELF_ASSIST_FLAGS: u32 = UNIT_RAID | UNIT_PARTY | UNIT_ALLY;
+            let explicit_targets = restriction.targets as u32;
+            explicit_targets & SPECIAL_UNIT_FLAGS == 0 || explicit_targets & SELF_ASSIST_FLAGS != 0
         })
+}
+
+fn failed_trainer_cast_resolution_like_cpp(
+    effective_effects: Vec<SpellAcquisitionEffectLikeCpp>,
+) -> PlayerCastAcquisitionResolutionLikeCpp {
+    PlayerCastAcquisitionResolutionLikeCpp {
+        reached_immediate_phase: false,
+        executed_hit_target_effect_mask: 0,
+        effective_effects,
+        executed_dual_wield_effects: Vec::new(),
+    }
 }
 
 impl crate::session::WorldSession {
@@ -186,6 +248,7 @@ impl crate::session::WorldSession {
         spell_id: u32,
     ) -> Option<PlayerCastAcquisitionResolutionLikeCpp> {
         let catalog = self.spell_acquisition_catalog()?;
+        let pet_auras = self.spell_pet_aura_store_like_cpp()?;
         let difficulty_chain = self.current_map_difficulty_chain_for_acquisition_like_cpp();
         let effective_effects = match catalog.resolved_effects_for_difficulty_chain_like_cpp(
             spell_id,
@@ -202,6 +265,13 @@ impl crate::session::WorldSession {
         // override from smuggling an unsupported or non-player effect into
         // the reduced cast path.
         for effect in &effective_effects {
+            let effect_index = effect.effect_index_checked().ok()?;
+            if pet_auras
+                .get_pet_aura_like_cpp(spell_id, effect_index)
+                .is_some()
+            {
+                return None;
+            }
             let effect_type = effect.effect_type_checked().ok()?;
             match effect_type {
                 SPELL_EFFECT_LEARN_SPELL | SPELL_EFFECT_SKILL_STEP | SPELL_EFFECT_DUAL_WIELD => {
@@ -236,22 +306,36 @@ impl crate::session::WorldSession {
             spell_id,
             difficulty_chain.iter().copied(),
         ) {
-            return None;
+            // C++ charges and publishes both trainer visuals before the
+            // triggered cast reaches CheckExplicitTarget/CheckTarget.
+            return Some(failed_trainer_cast_resolution_like_cpp(effective_effects));
         }
-        // Startup proves only DIFFICULTY_NONE. C++ selects this independent
-        // SpellInfo row from the active map difficulty and runs the caster/
-        // target aura-state gates even for `CastSpell(..., true)`.
-        if self
-            .spell_aura_restrictions_store()?
-            .resolved_for_difficulty_chain_like_cpp(spell_id, difficulty_chain.iter().copied())
-            .is_some_and(trainer_cast_has_effective_aura_restriction_like_cpp)
-        {
-            return None;
-        }
-        // An empty aura map is evidence of no immunities only after both
-        // persisted aura tables completed successfully during login.
+        // An empty aura map proves absence only after both persisted aura
+        // tables completed successfully during login. This authority is also
+        // required before resolving positive/negative aura-spell gates.
         if !self.player_aura_authority_complete_like_cpp() {
             return None;
+        }
+        // Startup proves only DIFFICULTY_NONE. Resolve the active row against
+        // the current self-target where the session owns exact aura-spell
+        // presence. A definite cast failure happens after fee/visuals in C++;
+        // state-based rows remain unavailable until Unit AuraState is owned.
+        let aura_restriction_result = self
+            .spell_aura_restrictions_store()?
+            .resolved_for_difficulty_chain_like_cpp(spell_id, difficulty_chain.iter().copied())
+            .map_or(TrainerAuraRestrictionResultLikeCpp::Pass, |restriction| {
+                trainer_aura_restriction_result_like_cpp(restriction, |required_spell_id| {
+                    self.visible_auras
+                        .values()
+                        .any(|aura| aura.spell_id == required_spell_id)
+                })
+            });
+        match aura_restriction_result {
+            TrainerAuraRestrictionResultLikeCpp::Pass => {}
+            TrainerAuraRestrictionResultLikeCpp::Fail => {
+                return Some(failed_trainer_cast_resolution_like_cpp(effective_effects));
+            }
+            TrainerAuraRestrictionResultLikeCpp::Indeterminate => return None,
         }
         let map_id = u32::from(self.player_map_id_like_cpp());
         let (_, area_id) = self.player_zone_area_like_cpp();
@@ -279,12 +363,7 @@ impl crate::session::WorldSession {
             // both visual kits when the triggered `CastSpell` reaches
             // `Spell::prepare` and DisableMgr rejects it. This is a resolved
             // cast failure, not an unavailable trainer offer.
-            return Some(PlayerCastAcquisitionResolutionLikeCpp {
-                reached_immediate_phase: false,
-                executed_hit_target_effect_mask: 0,
-                effective_effects,
-                executed_dual_wield_effects: Vec::new(),
-            });
+            return Some(failed_trainer_cast_resolution_like_cpp(effective_effects));
         }
         let (no_immunities, is_channeled) = match catalog
             .resolved_misc_for_difficulty_chain_like_cpp(spell_id, difficulty_chain.iter().copied())
@@ -308,7 +387,6 @@ impl crate::session::WorldSession {
             spell_id,
             &effective_effects,
             no_immunities,
-            &difficulty_chain,
         )?;
         let mut executed_hit_target_effect_mask = 0_u32;
         let mut executed_dual_wield_effects = Vec::new();
@@ -344,11 +422,16 @@ impl crate::session::WorldSession {
         })
     }
 
-    /// C++ `WorldObject::CastSpell` resolves both the cast and every active
-    /// aura's `SpellInfo` from `Map::GetDifficultyID`, walking
-    /// `FallbackDifficultyID` exactly as `SpellInfoLoadHelper` does.
+    /// Build the C++ `SpellMgr::GetSpellInfo` fallback chain for a selected
+    /// difficulty. Casts use the current map difficulty; retained auras use
+    /// the difficulty whose `SpellInfo` was selected when they were created.
     fn current_map_difficulty_chain_for_acquisition_like_cpp(&self) -> Vec<u32> {
-        let requested = u32::from(self.current_map_difficulty_id_like_cpp());
+        self.difficulty_chain_for_acquisition_like_cpp(u32::from(
+            self.current_map_difficulty_id_like_cpp(),
+        ))
+    }
+
+    fn difficulty_chain_for_acquisition_like_cpp(&self, requested: u32) -> Vec<u32> {
         let mut chain = vec![requested];
         let mut visited = BTreeSet::from([requested]);
         let mut current = requested;
@@ -369,7 +452,6 @@ impl crate::session::WorldSession {
         trainer_spell_id: u32,
         trainer_effects: &[SpellAcquisitionEffectLikeCpp],
         no_immunities: bool,
-        difficulty_chain: &[u32],
     ) -> Option<u32> {
         let linked = self.spell_linked_store_like_cpp()?;
         let mut immunized_effect_mask = 0_u32;
@@ -392,9 +474,11 @@ impl crate::session::WorldSession {
                 continue;
             }
 
+            let aura_difficulty_chain =
+                self.difficulty_chain_for_acquisition_like_cpp(u32::from(aura.difficulty_id));
             let effects = match catalog.resolved_effects_for_difficulty_chain_like_cpp(
                 aura_spell_id,
-                difficulty_chain.iter().copied(),
+                aura_difficulty_chain,
             ) {
                 SpellAcquisitionResolvedEffectsLookupLikeCpp::Covered(effects) => effects,
                 SpellAcquisitionResolvedEffectsLookupLikeCpp::MissingCoverage { .. }
@@ -635,10 +719,20 @@ impl crate::session::WorldSession {
 
 #[cfg(test)]
 mod tests {
-    use super::trainer_target_restriction_admits_player_like_cpp;
-    use wow_data::{SpellTargetRestrictionsEntry, SpellTargetRestrictionsStore};
+    use super::{
+        TrainerAuraRestrictionResultLikeCpp, trainer_aura_restriction_result_like_cpp,
+        trainer_target_restriction_admits_player_like_cpp,
+    };
+    use wow_data::{
+        SpellAuraRestrictionsEntry, SpellTargetRestrictionsEntry, SpellTargetRestrictionsStore,
+    };
 
-    fn row(id: u32, difficulty_id: u8, target_creature_type: i16) -> SpellTargetRestrictionsEntry {
+    fn row(
+        id: u32,
+        difficulty_id: u8,
+        target_creature_type: i16,
+        targets: i32,
+    ) -> SpellTargetRestrictionsEntry {
         SpellTargetRestrictionsEntry {
             id,
             difficulty_id,
@@ -646,7 +740,7 @@ mod tests {
             max_targets: 0,
             max_target_level: 0,
             target_creature_type,
-            targets: 0,
+            targets,
             width: 0.0,
             spell_id: 100,
         }
@@ -655,8 +749,8 @@ mod tests {
     #[test]
     fn trainer_target_restriction_uses_active_row_without_merging_siblings_like_cpp() {
         let store = SpellTargetRestrictionsStore::from_entries([
-            row(1, 0, 1 << (3 - 1)),
-            row(2, 2, 1 << (7 - 1)),
+            row(1, 0, 1 << (3 - 1), 0),
+            row(2, 2, 1 << (7 - 1), 0),
         ]);
 
         assert!(trainer_target_restriction_admits_player_like_cpp(
@@ -674,5 +768,77 @@ mod tests {
             200,
             [2, 0]
         ));
+    }
+
+    #[test]
+    fn trainer_target_restriction_mirrors_cpp_self_explicit_target_checks() {
+        let item = SpellTargetRestrictionsStore::from_entries([row(
+            1,
+            0,
+            1 << (7 - 1),
+            0x0000_0010, // TARGET_FLAG_ITEM
+        )]);
+        let player_and_destination = SpellTargetRestrictionsStore::from_entries([row(
+            2,
+            0,
+            1 << (7 - 1),
+            0x0000_0002 | 0x0000_0040,
+        )]);
+        let enemy = SpellTargetRestrictionsStore::from_entries([row(
+            3,
+            0,
+            1 << (7 - 1),
+            0x0000_0080, // TARGET_FLAG_UNIT_ENEMY
+        )]);
+
+        // C++ already has a non-null Unit object target here, so item-only
+        // falls through `CheckExplicitTarget` successfully.
+        assert!(trainer_target_restriction_admits_player_like_cpp(
+            &item,
+            100,
+            [0]
+        ));
+        assert!(trainer_target_restriction_admits_player_like_cpp(
+            &player_and_destination,
+            100,
+            [0]
+        ));
+        assert!(!trainer_target_restriction_admits_player_like_cpp(
+            &enemy,
+            100,
+            [0]
+        ));
+    }
+
+    #[test]
+    fn trainer_aura_spell_restrictions_distinguish_pass_fail_and_unknown_state_like_cpp() {
+        let mut restriction = SpellAuraRestrictionsEntry {
+            id: 1,
+            difficulty_id: 0,
+            caster_aura_state: 0,
+            target_aura_state: 0,
+            exclude_caster_aura_state: 0,
+            exclude_target_aura_state: 0,
+            caster_aura_spell: 999,
+            target_aura_spell: 0,
+            exclude_caster_aura_spell: 0,
+            exclude_target_aura_spell: 0,
+            spell_id: 100,
+        };
+
+        assert_eq!(
+            trainer_aura_restriction_result_like_cpp(&restriction, |spell_id| spell_id == 999),
+            TrainerAuraRestrictionResultLikeCpp::Pass
+        );
+        assert_eq!(
+            trainer_aura_restriction_result_like_cpp(&restriction, |_| false),
+            TrainerAuraRestrictionResultLikeCpp::Fail
+        );
+
+        restriction.caster_aura_state = 7;
+        assert_eq!(
+            trainer_aura_restriction_result_like_cpp(&restriction, |spell_id| spell_id == 999),
+            TrainerAuraRestrictionResultLikeCpp::Indeterminate
+        );
     }
 }

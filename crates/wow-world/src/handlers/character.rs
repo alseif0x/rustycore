@@ -5135,13 +5135,17 @@ impl WorldSession {
         self.unregister_from_player_registry();
         self.notify_other_players_visibility_changed_like_cpp();
         self.unregister_from_object_accessor();
-        self.release_character_login_claim_like_cpp();
 
         // Send LogoutComplete → client returns to character select
         self.set_state(crate::session::SessionState::Authed);
         self.send_packet(&LogoutComplete);
         self.mark_character_account_offline_like_cpp().await;
         self.set_player_guid(None);
+        // Keep the sole character authority until the account-wide offline
+        // write and old Player identity teardown are complete. Otherwise a
+        // new login can publish online=true before this logout's broader
+        // online=false update reaches the database.
+        self.release_character_login_claim_like_cpp();
 
         // Clear inventory state
         self.clear_all_inventory_runtime_like_cpp();
@@ -25606,6 +25610,7 @@ mod tests {
             slot,
             AuraApplication {
                 spell_id: 5384,
+                difficulty_id: 0,
                 caster_guid: player_guid,
                 slot,
                 duration_total: 0,
@@ -26973,6 +26978,7 @@ mod tests {
             FEIGN_DEATH_SLOT,
             AuraApplication {
                 spell_id: 5384,
+                difficulty_id: 0,
                 caster_guid: player_guid,
                 slot: FEIGN_DEATH_SLOT,
                 duration_total: 0,
@@ -29275,6 +29281,7 @@ mod tests {
         let player_guid = ObjectGuid::create_player(1, 42);
         let loot_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 19_030);
         session.set_player_guid(Some(player_guid));
+        assert!(session.try_claim_character_login_like_cpp(player_guid));
         session.set_active_loot_guid(loot_guid);
         session.loot_table.insert(
             loot_guid,
@@ -29346,6 +29353,13 @@ mod tests {
             !session.loot_table.contains_key(&loot_guid),
             "full logout release retires the session packet-cache copy like C++"
         );
+        assert!(session.player_guid().is_none());
+        let (mut replacement, _) = make_session_with_send_capacity(1);
+        assert!(
+            replacement.try_claim_character_login_like_cpp(player_guid),
+            "the claim is released only after logout retired the old Player identity"
+        );
+        replacement.release_character_login_claim_like_cpp();
     }
 
     #[test]

@@ -399,6 +399,7 @@ mod tests {
     fn test_visible_aura_like_cpp(slot: u8, spell_id: i32) -> AuraApplication {
         AuraApplication {
             spell_id,
+            difficulty_id: 0,
             caster_guid: ObjectGuid::EMPTY,
             slot,
             duration_total: 0,
@@ -550,6 +551,7 @@ mod tests {
     fn visible_aura(slot: u8, flags2: u32) -> AuraApplication {
         AuraApplication {
             spell_id: 90_000 + i32::from(slot),
+            difficulty_id: 0,
             caster_guid: ObjectGuid::EMPTY,
             slot,
             duration_total: 0,
