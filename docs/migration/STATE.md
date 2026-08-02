@@ -24,11 +24,11 @@ under the exclusive money owner, commits effective money plus the exact #164 spe
 one Character DB transaction, attributes unknown COMMIT outcomes with a durable 128-bit operation
 token, installs runtime state, and then publishes money, visual kits 179/362 and acquisition actions
 in C++ success order. Non-packet acquisition effects install immediately after commit so a later
-cross-socket fence failure cannot discard them; a valid cast fully suppressed by immunity still
-pays and emits both trainer visuals like C++, while channeled wrappers remain outside the reduced
-projection. A process-wide pre-ConnectTo character claim rejects a second live session for the
-same GUID and is released on a failed instance handoff, preserving C++'s single `Player*` save
-authority; ordinary pending spell/skill
+cross-socket fence failure cannot discard them; a valid cast fully suppressed by immunity or
+rejected by the dynamic spell-disable gate still pays and emits both trainer visuals like C++,
+while channeled wrappers remain outside the reduced projection. A process-wide pre-ConnectTo
+character claim rejects a second live session for the same GUID and is released on a failed
+instance handoff, preserving C++'s single `Player*` save authority; ordinary pending spell/skill
 changes are saved before trainer preparation instead of making the trainer unavailable until the
 next autosave. Trainer failures and visuals use the Realm connection; creature visual fanout
 retains the already validated canonical-or-legacy source position. Castable wrappers

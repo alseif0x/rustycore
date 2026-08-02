@@ -275,7 +275,16 @@ impl crate::session::WorldSession {
             0,
             self.map_store().map(AsRef::as_ref),
         ) {
-            return None;
+            // `Trainer::TeachSpell` has already charged the fee and emitted
+            // both visual kits when the triggered `CastSpell` reaches
+            // `Spell::prepare` and DisableMgr rejects it. This is a resolved
+            // cast failure, not an unavailable trainer offer.
+            return Some(PlayerCastAcquisitionResolutionLikeCpp {
+                reached_immediate_phase: false,
+                executed_hit_target_effect_mask: 0,
+                effective_effects,
+                executed_dual_wield_effects: Vec::new(),
+            });
         }
         let (no_immunities, is_channeled) = match catalog
             .resolved_misc_for_difficulty_chain_like_cpp(spell_id, difficulty_chain.iter().copied())

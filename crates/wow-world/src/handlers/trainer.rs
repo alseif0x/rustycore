@@ -2310,7 +2310,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn player_disable_stops_the_player_cast_before_charge_or_grant_like_cpp() {
+    async fn player_disable_stops_cast_effects_after_charge_and_visuals_like_cpp() {
         let mut fixture = trainer_wrapper_fixture();
         let (disable_mgr, report) = wow_data::DisableMgrLikeCpp::from_rows_like_cpp(
             [wow_data::DisableDbRowLikeCpp {
@@ -2337,13 +2337,46 @@ mod tests {
             ))
             .await;
 
-        assert_eq!(fixture.session.player_gold_like_cpp(), 100);
+        assert_eq!(fixture.session.player_gold_like_cpp(), 75);
         assert!(
             !fixture
                 .session
                 .known_spells_like_cpp()
                 .contains(&WRAPPER_LEARNED_SPELL)
         );
+        assert_eq!(
+            fixture.send_rx.try_recv().unwrap(),
+            wow_packet::packets::update::UpdateObject::player_money_update(
+                fixture.session.player_guid().unwrap(),
+                fixture.session.player_map_id_like_cpp(),
+                75,
+                None,
+            )
+            .to_bytes()
+        );
+        assert_eq!(
+            fixture.send_rx.try_recv().unwrap(),
+            PlaySpellVisualKit {
+                unit: fixture.trainer,
+                kit_record_id: 179,
+                kit_type: 0,
+                duration: 0,
+                mounted_visual: false,
+            }
+            .to_bytes()
+        );
+        assert_eq!(
+            fixture.send_rx.try_recv().unwrap(),
+            PlaySpellVisualKit {
+                unit: fixture.session.player_guid().unwrap(),
+                kit_record_id: 362,
+                kit_type: 1,
+                duration: 0,
+                mounted_visual: false,
+            }
+            .to_bytes()
+        );
+        assert!(fixture.send_rx.try_recv().is_err());
     }
 
     #[tokio::test]
@@ -2457,9 +2490,7 @@ mod tests {
 
     #[tokio::test]
     async fn map_scoped_player_disable_only_blocks_matching_trainer_map_like_cpp() {
-        for (disabled_map, expected_gold, expected_known) in
-            [(0_u32, 100_u64, false), (1_u32, 75_u64, true)]
-        {
+        for (disabled_map, expected_known) in [(0_u32, false), (1_u32, true)] {
             let mut fixture = trainer_wrapper_fixture();
             let (disable_mgr, report) = wow_data::DisableMgrLikeCpp::from_rows_like_cpp(
                 [wow_data::DisableDbRowLikeCpp {
@@ -2487,7 +2518,7 @@ mod tests {
                 ))
                 .await;
 
-            assert_eq!(fixture.session.player_gold_like_cpp(), expected_gold);
+            assert_eq!(fixture.session.player_gold_like_cpp(), 75);
             assert_eq!(
                 fixture
                     .session
