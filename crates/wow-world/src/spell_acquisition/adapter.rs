@@ -19,6 +19,20 @@ const SPELL_AURA_MECHANIC_IMMUNITY_MASK_LIKE_CPP: i64 = 147;
 const SPELL_AURA_MOD_IMMUNE_AURA_APPLY_SCHOOL_LIKE_CPP: i64 = 267;
 const SPELL_EFFECT_ATTRIBUTE_NO_IMMUNITY_LIKE_CPP: i64 = 0x0000_0001;
 
+fn trainer_target_restriction_admits_player_like_cpp(
+    store: &wow_data::SpellTargetRestrictionsStore,
+    spell_id: u32,
+    difficulty_chain: impl IntoIterator<Item = u32>,
+) -> bool {
+    const CREATURE_TYPEMASK_HUMANOID_LIKE_CPP: u32 = 1 << (7 - 1);
+    store
+        .resolved_for_difficulty_chain_like_cpp(spell_id, difficulty_chain)
+        .is_none_or(|restriction| {
+            let mask = restriction.target_creature_type_mask_like_cpp();
+            mask == 0 || mask & CREATURE_TYPEMASK_HUMANOID_LIKE_CPP != 0
+        })
+}
+
 impl crate::session::WorldSession {
     /// Projects one trainer product from the complete current player snapshot.
     ///
@@ -200,6 +214,17 @@ impl crate::session::WorldSession {
                 }
                 _ => return None,
             }
+        }
+        // C++ copies this single SpellInfo field from the first row in the
+        // active difficulty/fallback chain, then checks the player target's
+        // HUMANOID mask. Do not combine sibling difficulty rows: a heroic
+        // restriction cannot reject a normal cast (or vice versa).
+        if !trainer_target_restriction_admits_player_like_cpp(
+            self.spell_target_restrictions_store()?,
+            spell_id,
+            difficulty_chain.iter().copied(),
+        ) {
+            return None;
         }
         let map_id = u32::from(self.player_map_id_like_cpp());
         let (_, area_id) = self.player_zone_area_like_cpp();
@@ -558,5 +583,49 @@ impl crate::session::WorldSession {
             future_player_condition_resolutions,
             cast_resolutions,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::trainer_target_restriction_admits_player_like_cpp;
+    use wow_data::{SpellTargetRestrictionsEntry, SpellTargetRestrictionsStore};
+
+    fn row(id: u32, difficulty_id: u8, target_creature_type: i16) -> SpellTargetRestrictionsEntry {
+        SpellTargetRestrictionsEntry {
+            id,
+            difficulty_id,
+            cone_degrees: 0.0,
+            max_targets: 0,
+            max_target_level: 0,
+            target_creature_type,
+            targets: 0,
+            width: 0.0,
+            spell_id: 100,
+        }
+    }
+
+    #[test]
+    fn trainer_target_restriction_uses_active_row_without_merging_siblings_like_cpp() {
+        let store = SpellTargetRestrictionsStore::from_entries([
+            row(1, 0, 1 << (3 - 1)),
+            row(2, 2, 1 << (7 - 1)),
+        ]);
+
+        assert!(trainer_target_restriction_admits_player_like_cpp(
+            &store,
+            100,
+            [2, 0]
+        ));
+        assert!(!trainer_target_restriction_admits_player_like_cpp(
+            &store,
+            100,
+            [0]
+        ));
+        assert!(trainer_target_restriction_admits_player_like_cpp(
+            &store,
+            200,
+            [2, 0]
+        ));
     }
 }

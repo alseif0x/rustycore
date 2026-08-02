@@ -831,6 +831,25 @@ mod tests {
     const WRAPPER_TRAINER_SPELL: i32 = 54_324;
     const WRAPPER_LEARNED_SPELL: i32 = 54_325;
 
+    fn spell_target_restriction_row(
+        id: u32,
+        spell_id: u32,
+        difficulty_id: u8,
+        target_creature_type: i16,
+    ) -> wow_data::SpellTargetRestrictionsEntry {
+        wow_data::SpellTargetRestrictionsEntry {
+            id,
+            difficulty_id,
+            cone_degrees: 0.0,
+            max_targets: 0,
+            max_target_level: 0,
+            target_creature_type,
+            targets: 0,
+            width: 0.0,
+            spell_id,
+        }
+    }
+
     fn player_learn_effect(
         record_id: u32,
         wrapper_spell_id: u32,
@@ -1102,6 +1121,9 @@ mod tests {
         session.set_spell_learn_spell_store(Arc::new(SpellLearnSpellStoreLikeCpp::default()));
         session.set_spell_required_store(Arc::new(SpellRequiredStoreLikeCpp::default()));
         session.set_spell_linked_store(Arc::new(wow_data::SpellLinkedStoreLikeCpp::default()));
+        session.set_spell_target_restrictions_store(Arc::new(
+            wow_data::SpellTargetRestrictionsStore::from_entries([]),
+        ));
         session.set_spell_acquisition_catalog(Arc::new(
             SpellAcquisitionCatalogLikeCpp::from_effective_rows_like_cpp(
                 [
@@ -1942,6 +1964,14 @@ mod tests {
         fixture
             .session
             .set_spell_acquisition_static_authority_like_cpp([wrapper_id], []);
+        fixture
+            .session
+            .set_spell_target_restrictions_store(Arc::new(
+                wow_data::SpellTargetRestrictionsStore::from_entries([
+                    spell_target_restriction_row(1, wrapper_id, 0, 1 << (3 - 1)),
+                    spell_target_restriction_row(2, wrapper_id, 2, 1 << (7 - 1)),
+                ]),
+            ));
         fixture
             .session
             .set_player_trainer_interaction_like_cpp(fixture.trainer, DEFAULT_TRAINER_ID);

@@ -387,6 +387,14 @@ pub struct SpellTargetRestrictionsEntry {
     pub spell_id: u32,
 }
 
+impl SpellTargetRestrictionsEntry {
+    /// C++ promotes the signed DB2 `int16` field to `uint32` when evaluating
+    /// `SpellInfo::CheckTargetCreatureType`. Preserve that sign extension.
+    pub fn target_creature_type_mask_like_cpp(&self) -> u32 {
+        i32::from(self.target_creature_type) as u32
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SpellTotemsEntry {
     pub id: u32,
@@ -1450,6 +1458,21 @@ impl SpellTargetRestrictionsStore {
             .filter(move |entry| entry.spell_id == spell_id)
     }
 
+    /// Resolve the single `SpellInfo` field through C++'s requested
+    /// difficulty followed by `FallbackDifficultyID` chain.
+    pub fn resolved_for_difficulty_chain_like_cpp(
+        &self,
+        spell_id: u32,
+        difficulty_chain: impl IntoIterator<Item = u32>,
+    ) -> Option<&SpellTargetRestrictionsEntry> {
+        difficulty_chain.into_iter().find_map(|difficulty_id| {
+            let difficulty_id = u8::try_from(difficulty_id).ok()?;
+            self.entries_for_spell_id_like_cpp(spell_id)
+                .filter(|entry| entry.difficulty_id == difficulty_id)
+                .last()
+        })
+    }
+
     /// Compose C++'s final DB2 authority, including SQL replacements and
     /// final `hotfix_data` tombstones.
     pub async fn load_effective_like_cpp(
@@ -2102,5 +2125,59 @@ mod tests {
         );
         assert!(store.get(100).is_none());
         assert_eq!(store.get(200).map(|entry| entry.name.as_str()), Some(""));
+    }
+
+    #[test]
+    fn target_restrictions_resolve_only_the_active_difficulty_chain_like_cpp() {
+        let row = |id, difficulty_id, target_creature_type| SpellTargetRestrictionsEntry {
+            id,
+            difficulty_id,
+            cone_degrees: 0.0,
+            max_targets: 0,
+            max_target_level: 0,
+            target_creature_type,
+            targets: 0,
+            width: 0.0,
+            spell_id: 100,
+        };
+        let store = SpellTargetRestrictionsStore::from_entries([
+            row(1, 0, 1 << (3 - 1)),
+            row(2, 2, 1 << (7 - 1)),
+        ]);
+
+        assert_eq!(
+            store
+                .resolved_for_difficulty_chain_like_cpp(100, [2, 0])
+                .map(|entry| entry.id),
+            Some(2)
+        );
+        assert_eq!(
+            store
+                .resolved_for_difficulty_chain_like_cpp(100, [3, 0])
+                .map(|entry| entry.id),
+            Some(1)
+        );
+        assert!(
+            store
+                .resolved_for_difficulty_chain_like_cpp(100, [3])
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn target_creature_mask_preserves_cpp_signed_integer_promotion() {
+        let entry = SpellTargetRestrictionsEntry {
+            id: 1,
+            difficulty_id: 0,
+            cone_degrees: 0.0,
+            max_targets: 0,
+            max_target_level: 0,
+            target_creature_type: i16::MIN,
+            targets: 0,
+            width: 0.0,
+            spell_id: 100,
+        };
+
+        assert_eq!(entry.target_creature_type_mask_like_cpp(), 0xFFFF_8000);
     }
 }

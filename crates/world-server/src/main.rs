@@ -4965,7 +4965,6 @@ async fn main() -> Result<ExitCode> {
             spell_pet_aura_store.as_ref(),
             spell_aura_restrictions_store.as_ref(),
             spell_equipped_items_store.as_ref(),
-            spell_target_restrictions_store.as_ref(),
             spell_area_store.as_ref(),
             |item_id| item_stats_store.sparse_template(item_id).is_some(),
         )
@@ -5388,6 +5387,7 @@ async fn main() -> Result<ExitCode> {
         spell_aura_options_store: Some(Arc::clone(&spell_aura_options_store)),
         spell_class_options_store: Some(Arc::clone(&spell_class_options_store)),
         spell_aura_restrictions_store: Some(Arc::clone(&spell_aura_restrictions_store)),
+        spell_target_restrictions_store: Some(Arc::clone(&spell_target_restrictions_store)),
         spell_equipped_items_store: Some(Arc::clone(&spell_equipped_items_store)),
         spell_misc_store: Some(Arc::clone(&spell_misc_store)),
         spell_group_store: Some(Arc::clone(&spell_group_store)),
@@ -13080,6 +13080,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.spell_aura_restrictions_store {
         session.set_spell_aura_restrictions_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.spell_target_restrictions_store {
+        session.set_spell_target_restrictions_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.spell_equipped_items_store {
         session.set_spell_equipped_items_store(Arc::clone(store));

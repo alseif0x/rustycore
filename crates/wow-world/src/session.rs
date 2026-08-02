@@ -111,8 +111,9 @@ use wow_data::{
     SpellLearnSpellStoreLikeCpp, SpellLevelsStore, SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp,
     SpellMiscStore, SpellPetAuraStoreLikeCpp, SpellProcEntryLikeCpp, SpellProcStoreLikeCpp,
     SpellRadiusStore, SpellRangeStore, SpellRequiredStoreLikeCpp, SpellShapeshiftFormStore,
-    SpellStore, SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp,
-    SpellTotemModelStoreLikeCpp, SummonPropertiesEntry, TactKeyStore, TalentStore, TalentTabStore,
+    SpellStore, SpellTargetPositionStoreLikeCpp, SpellTargetRestrictionsStore,
+    SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp, SpellTotemModelStoreLikeCpp,
+    SummonPropertiesEntry, TactKeyStore, TalentStore, TalentTabStore,
     TavernAreaTriggerStoreLikeCpp, ToyStore, TrainerStoreLikeCpp, TransmogSetEntry,
     TransmogSetItemStore, TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK,
     VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
@@ -5919,6 +5920,7 @@ pub struct WorldSession {
     npc_spell_click_store: Option<Arc<NpcSpellClickStoreLikeCpp>>,
     spell_aura_options_store: Option<Arc<SpellAuraOptionsStore>>,
     spell_aura_restrictions_store: Option<Arc<SpellAuraRestrictionsStore>>,
+    spell_target_restrictions_store: Option<Arc<SpellTargetRestrictionsStore>>,
     spell_equipped_items_store: Option<Arc<SpellEquippedItemsStore>>,
     spell_misc_store: Option<Arc<SpellMiscStore>>,
     spell_group_store: Option<Arc<SpellGroupStoreLikeCpp>>,
@@ -7763,6 +7765,7 @@ impl WorldSession {
             npc_spell_click_store: None,
             spell_aura_options_store: None,
             spell_aura_restrictions_store: None,
+            spell_target_restrictions_store: None,
             spell_equipped_items_store: None,
             spell_misc_store: None,
             spell_group_store: None,
@@ -25889,6 +25892,19 @@ impl WorldSession {
 
     pub fn set_spell_aura_restrictions_store(&mut self, store: Arc<SpellAuraRestrictionsStore>) {
         self.spell_aura_restrictions_store = Some(store);
+    }
+
+    pub fn set_spell_target_restrictions_store(
+        &mut self,
+        store: Arc<SpellTargetRestrictionsStore>,
+    ) {
+        self.spell_target_restrictions_store = Some(store);
+    }
+
+    pub(crate) fn spell_target_restrictions_store(
+        &self,
+    ) -> Option<&Arc<SpellTargetRestrictionsStore>> {
+        self.spell_target_restrictions_store.as_ref()
     }
 
     pub fn set_spell_equipped_items_store(&mut self, store: Arc<SpellEquippedItemsStore>) {

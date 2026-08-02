@@ -33,8 +33,7 @@ use wow_data::{
     SpellLearnSkillSourceSpellInfoLikeCpp, SpellLearnSkillStoreLikeCpp,
     SpellLearnSourceSpellInfoLikeCpp, SpellLearnSpellEffectLikeCpp, SpellLearnSpellEntry,
     SpellLearnSpellStoreLikeCpp, SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp,
-    SpellPetAuraStoreLikeCpp, SpellReagentsEntry, SpellReagentsStore, SpellStore,
-    SpellTargetRestrictionsStore, wdc4::Wdc4Reader,
+    SpellPetAuraStoreLikeCpp, SpellReagentsEntry, SpellReagentsStore, SpellStore, wdc4::Wdc4Reader,
 };
 use wow_database::{HotfixDatabase, HotfixStatements, WorldDatabase, WorldStatements};
 
@@ -70,7 +69,6 @@ struct TrainerCastWorldHookAuditLikeCpp {
     equipped_item_restriction: bool,
     spell_focus_requirement: bool,
     spell_area_requirement: bool,
-    target_creature_restriction: bool,
     linked_spell: bool,
 }
 
@@ -101,7 +99,6 @@ fn trainer_cast_world_hooks_are_static_safe_like_cpp(
         || audit.equipped_item_restriction
         || audit.spell_focus_requirement
         || audit.spell_area_requirement
-        || audit.target_creature_restriction
         || audit.linked_spell)
 }
 
@@ -142,17 +139,6 @@ fn trainer_cast_has_effective_equipped_item_restriction_like_cpp(
     // C++ `SpellInfo::IsItemFitToSpellRequirements` treats class -1 as item
     // neutral before consulting either mask.
     entry.equipped_item_class != -1
-}
-
-fn trainer_cast_has_incompatible_target_creature_restriction_like_cpp(
-    store: &SpellTargetRestrictionsStore,
-    spell_id: u32,
-) -> bool {
-    const CREATURE_TYPEMASK_HUMANOID_LIKE_CPP: u32 = 1 << (7 - 1);
-    store.entries_for_spell_id_like_cpp(spell_id).any(|entry| {
-        let mask = u32::try_from(entry.target_creature_type).unwrap_or(u32::MAX);
-        mask != 0 && mask & CREATURE_TYPEMASK_HUMANOID_LIKE_CPP == 0
-    })
 }
 
 fn trainer_cast_effects_are_static_safe_like_cpp(
@@ -203,8 +189,9 @@ fn trainer_cast_effects_are_static_safe_like_cpp(
 /// This deliberately proves only the narrow acquisition-effect closure. Every
 /// world-table hook that can alter a cast is queried from the final DB, and
 /// every unsupported effective effect/target remains absent from the result.
-/// The per-player immunity/effect mask is resolved separately by `wow-world`
-/// immediately before the atomic trainer commit.
+/// The difficulty-specific target restriction and per-player immunity/effect
+/// mask are resolved separately by `wow-world` immediately before the atomic
+/// trainer commit.
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn load_trainer_static_authority_like_cpp(
     data_dir: &str,
@@ -219,7 +206,6 @@ pub(crate) async fn load_trainer_static_authority_like_cpp(
     pet_auras: &SpellPetAuraStoreLikeCpp,
     aura_restrictions: &SpellAuraRestrictionsStore,
     equipped_items: &SpellEquippedItemsStore,
-    target_restrictions: &SpellTargetRestrictionsStore,
     spell_areas: &SpellAreaStoreLikeCpp,
     item_exists: impl Fn(u32) -> bool,
 ) -> Result<TrainerSpellStaticAuthorityLikeCpp> {
@@ -279,15 +265,6 @@ pub(crate) async fn load_trainer_static_authority_like_cpp(
             spell_area_requirement: !spell_areas
                 .spell_area_map_bounds_like_cpp(spell_id)
                 .is_empty(),
-            // C++ players expose the HUMANOID creature-type bit. The reduced
-            // cast cannot represent the aura that bypasses this restriction,
-            // so every effective row must either be unrestricted or admit
-            // humanoids before the wrapper can be projected.
-            target_creature_restriction:
-                trainer_cast_has_incompatible_target_creature_restriction_like_cpp(
-                    target_restrictions,
-                    spell_id,
-                ),
             linked_spell: [
                 SpellLinkedTypeLikeCpp::Cast,
                 SpellLinkedTypeLikeCpp::Hit,
@@ -1462,39 +1439,12 @@ mod tests {
                 ..Default::default()
             },
             TrainerCastWorldHookAuditLikeCpp {
-                target_creature_restriction: true,
-                ..Default::default()
-            },
-            TrainerCastWorldHookAuditLikeCpp {
                 linked_spell: true,
                 ..Default::default()
             },
         ] {
             assert!(!trainer_cast_world_hooks_are_static_safe_like_cpp(audit));
         }
-    }
-
-    #[test]
-    fn trainer_target_creature_audit_requires_the_player_humanoid_bit_like_cpp() {
-        let row = |id, spell_id, target_creature_type| wow_data::SpellTargetRestrictionsEntry {
-            id,
-            difficulty_id: 0,
-            cone_degrees: 0.0,
-            max_targets: 0,
-            max_target_level: 0,
-            target_creature_type,
-            targets: 0,
-            width: 0.0,
-            spell_id,
-        };
-        let store = SpellTargetRestrictionsStore::from_entries([
-            row(1, 100, 0),
-            row(2, 200, 1 << (7 - 1)),
-            row(3, 300, 1 << (3 - 1)),
-        ]);
-        assert!(!trainer_cast_has_incompatible_target_creature_restriction_like_cpp(&store, 100));
-        assert!(!trainer_cast_has_incompatible_target_creature_restriction_like_cpp(&store, 200));
-        assert!(trainer_cast_has_incompatible_target_creature_restriction_like_cpp(&store, 300));
     }
 
     #[test]
