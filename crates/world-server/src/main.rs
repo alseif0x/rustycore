@@ -2286,12 +2286,32 @@ async fn main() -> Result<ExitCode> {
         spell_aura_options_store.len()
     );
     let spell_aura_restrictions_store = Arc::new(
-        wow_data::SpellAuraRestrictionsStore::load(&data_dir, &locale)
-            .context("Failed to load SpellAuraRestrictions.db2")?,
+        wow_data::SpellAuraRestrictionsStore::load_effective_like_cpp(
+            &data_dir,
+            &locale,
+            &hotfix_db,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellAuraRestrictions authority")?,
     );
     info!(
         "Loaded {} spell aura restriction rows",
         spell_aura_restrictions_store.len()
+    );
+    let spell_casting_requirements_store = Arc::new(
+        wow_data::SpellCastingRequirementsStore::load_effective_like_cpp(
+            &data_dir,
+            &locale,
+            &hotfix_db,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellCastingRequirements authority")?,
+    );
+    info!(
+        "Loaded {} spell casting requirement rows",
+        spell_casting_requirements_store.len()
     );
     let spell_class_options_store = Arc::new(
         wow_data::SpellClassOptionsStore::load(&data_dir, &locale)
@@ -2302,12 +2322,32 @@ async fn main() -> Result<ExitCode> {
         spell_class_options_store.len()
     );
     let spell_equipped_items_store = Arc::new(
-        wow_data::SpellEquippedItemsStore::load(&data_dir, &locale)
-            .context("Failed to load SpellEquippedItems.db2")?,
+        wow_data::SpellEquippedItemsStore::load_effective_like_cpp(
+            &data_dir,
+            &locale,
+            &hotfix_db,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellEquippedItems authority")?,
     );
     info!(
         "Loaded {} spell equipped items rows",
         spell_equipped_items_store.len()
+    );
+    let spell_target_restrictions_store = Arc::new(
+        wow_data::SpellTargetRestrictionsStore::load_effective_like_cpp(
+            &data_dir,
+            &locale,
+            &hotfix_db,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellTargetRestrictions authority")?,
+    );
+    info!(
+        "Loaded {} spell target restriction rows",
+        spell_target_restrictions_store.len()
     );
     let spell_misc_store = Arc::new(
         wow_data::SpellMiscStore::load(&data_dir, &locale)
@@ -4925,6 +4965,35 @@ async fn main() -> Result<ExitCode> {
         spell_pet_aura_outcome.loaded_row_count,
         spell_pet_aura_outcome.errors.len()
     );
+    let trainer_spell_static_authority =
+        spell_acquisition_loader::load_trainer_static_authority_like_cpp(
+            &data_dir,
+            &locale,
+            hotfix_db.as_ref(),
+            &db2_hotfix_removals,
+            world_db.as_ref(),
+            &spell_store,
+            spell_chain_store.as_ref(),
+            spell_acquisition_catalog.as_ref(),
+            spell_linked_store.as_ref(),
+            spell_pet_aura_store.as_ref(),
+            spell_aura_restrictions_store.as_ref(),
+            spell_casting_requirements_store.as_ref(),
+            spell_equipped_items_store.as_ref(),
+            spell_area_store.as_ref(),
+            |item_id| item_stats_store.sparse_template(item_id).is_some(),
+        )
+        .await
+        .context("Failed to audit normal trainer wrapper authority")?;
+    let spell_acquisition_safe_cast_spell_ids =
+        Arc::new(trainer_spell_static_authority.safe_cast_spell_ids);
+    let spell_acquisition_valid_craft_spell_ids =
+        Arc::new(trainer_spell_static_authority.valid_craft_spell_ids);
+    info!(
+        safe_cast_count = spell_acquisition_safe_cast_spell_ids.len(),
+        valid_craft_count = spell_acquisition_valid_craft_spell_ids.len(),
+        "Loaded fail-closed normal trainer spell-acquisition authority"
+    );
     let spell_store = Arc::new(spell_store);
 
     // Shared group registry and pending invites
@@ -5321,12 +5390,19 @@ async fn main() -> Result<ExitCode> {
         spell_chain_store: Some(Arc::clone(&spell_chain_store)),
         spell_store: Some(Arc::clone(&spell_store)),
         spell_acquisition_catalog: Some(Arc::clone(&spell_acquisition_catalog)),
+        spell_acquisition_safe_cast_spell_ids: Some(Arc::clone(
+            &spell_acquisition_safe_cast_spell_ids,
+        )),
+        spell_acquisition_valid_craft_spell_ids: Some(Arc::clone(
+            &spell_acquisition_valid_craft_spell_ids,
+        )),
         spell_levels_store: Some(Arc::clone(&spell_levels_store)),
         spell_category_store: Some(Arc::clone(&spell_category_store)),
         npc_spell_click_store: Some(Arc::clone(&npc_spell_click_store)),
         spell_aura_options_store: Some(Arc::clone(&spell_aura_options_store)),
         spell_class_options_store: Some(Arc::clone(&spell_class_options_store)),
         spell_aura_restrictions_store: Some(Arc::clone(&spell_aura_restrictions_store)),
+        spell_target_restrictions_store: Some(Arc::clone(&spell_target_restrictions_store)),
         spell_equipped_items_store: Some(Arc::clone(&spell_equipped_items_store)),
         spell_misc_store: Some(Arc::clone(&spell_misc_store)),
         spell_group_store: Some(Arc::clone(&spell_group_store)),
@@ -12993,6 +13069,15 @@ async fn create_session(
     if let Some(ref catalog) = resources.spell_acquisition_catalog {
         session.set_spell_acquisition_catalog(Arc::clone(catalog));
     }
+    if let (Some(casts), Some(crafts)) = (
+        resources.spell_acquisition_safe_cast_spell_ids.as_ref(),
+        resources.spell_acquisition_valid_craft_spell_ids.as_ref(),
+    ) {
+        session.set_spell_acquisition_static_authority_like_cpp(
+            casts.iter().copied(),
+            crafts.iter().copied(),
+        );
+    }
     if let Some(ref store) = resources.spell_levels_store {
         session.set_spell_levels_store(Arc::clone(store));
     }
@@ -13010,6 +13095,9 @@ async fn create_session(
     }
     if let Some(ref store) = resources.spell_aura_restrictions_store {
         session.set_spell_aura_restrictions_store(Arc::clone(store));
+    }
+    if let Some(ref store) = resources.spell_target_restrictions_store {
+        session.set_spell_target_restrictions_store(Arc::clone(store));
     }
     if let Some(ref store) = resources.spell_equipped_items_store {
         session.set_spell_equipped_items_store(Arc::clone(store));

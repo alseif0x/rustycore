@@ -311,6 +311,10 @@ pub enum WorldStatements {
     SEL_SPELL_LOOT_TEMPLATE_ALL_ROWS,
     /// C++ SpellMgr::LoadSpellPetAuras startup query.
     SEL_SPELL_PET_AURAS,
+    /// #159 startup audit inputs for deterministic trainer wrapper casts.
+    SEL_TRAINER_CAST_SCRIPT_BINDING_IDS,
+    SEL_TRAINER_CAST_LEGACY_SCRIPT_IDS,
+    SEL_TRAINER_CAST_CONDITION_IDS,
     /// C++ SpellMgr::LoadSpellThreats startup query.
     SEL_SPELL_THREATS,
     /// C++ SpellMgr::LoadSpellEnchantProcData startup query.
@@ -1053,6 +1057,15 @@ impl StatementDef for WorldStatements {
                 "FROM spell_loot_template",
             ),
             Self::SEL_SPELL_PET_AURAS => "SELECT spell, effectId, pet, aura FROM spell_pet_auras",
+            Self::SEL_TRAINER_CAST_SCRIPT_BINDING_IDS => {
+                "SELECT DISTINCT spell_id FROM spell_script_names"
+            }
+            Self::SEL_TRAINER_CAST_LEGACY_SCRIPT_IDS => {
+                "SELECT DISTINCT (id & 16777215) FROM spell_scripts"
+            }
+            Self::SEL_TRAINER_CAST_CONDITION_IDS => {
+                "SELECT DISTINCT SourceEntry FROM conditions WHERE SourceTypeOrReferenceId IN (13, 17)"
+            }
             Self::SEL_SPELL_THREATS => "SELECT entry, flatMod, pctMod, apPctMod FROM spell_threat",
             Self::SEL_SPELL_ENCHANT_PROC_DATA => {
                 "SELECT EnchantID, Chance, ProcsPerMinute, HitMask, AttributesMask FROM spell_enchant_proc_data"
@@ -1544,6 +1557,22 @@ mod tests {
             "SELECT spell, effectId, pet, aura FROM spell_pet_auras"
         );
         assert_eq!(sql.matches('?').count(), 0);
+    }
+
+    #[test]
+    fn trainer_cast_audit_statements_cover_every_world_table_blocker() {
+        assert_eq!(
+            WorldStatements::SEL_TRAINER_CAST_SCRIPT_BINDING_IDS.sql(),
+            "SELECT DISTINCT spell_id FROM spell_script_names"
+        );
+        assert_eq!(
+            WorldStatements::SEL_TRAINER_CAST_LEGACY_SCRIPT_IDS.sql(),
+            "SELECT DISTINCT (id & 16777215) FROM spell_scripts"
+        );
+        assert_eq!(
+            WorldStatements::SEL_TRAINER_CAST_CONDITION_IDS.sql(),
+            "SELECT DISTINCT SourceEntry FROM conditions WHERE SourceTypeOrReferenceId IN (13, 17)"
+        );
     }
 
     #[test]

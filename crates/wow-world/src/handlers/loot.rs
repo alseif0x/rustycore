@@ -4412,7 +4412,13 @@ impl WorldSession {
                     self.handle_apply_group_subgroup_command_like_cpp(command);
                 }
                 SessionCommand::SendIfVisibleLikeCpp(command) => {
-                    self.handle_send_if_visible_like_cpp_command_like_cpp(command);
+                    self.handle_send_if_visible_like_cpp_command_like_cpp(command, false, false);
+                }
+                SessionCommand::SendRealmIfVisibleLikeCpp(command) => {
+                    self.handle_send_if_visible_like_cpp_command_like_cpp(command, true, false);
+                }
+                SessionCommand::SendRealmIfVisibleFromLegacySourceLikeCpp(command) => {
+                    self.handle_send_if_visible_like_cpp_command_like_cpp(command, true, true);
                 }
                 SessionCommand::SendAddonIfRegisteredLikeCpp(command) => {
                     self.handle_send_addon_if_registered_like_cpp_command_like_cpp(command);
@@ -4999,6 +5005,8 @@ impl WorldSession {
     fn handle_send_if_visible_like_cpp_command_like_cpp(
         &mut self,
         command: SendIfVisibleLikeCppCommand,
+        realm_connection: bool,
+        allow_legacy_creature_source: bool,
     ) {
         let is_monster_move = command
             .packet_bytes
@@ -5084,12 +5092,15 @@ impl WorldSession {
         // the current source object and apply C++ Visit(PlayerMapType&): same
         // phase and exact 2D visibility range before SendPacket.
         if command.source_guid.is_creature() {
-            match self.represented_can_receive_creature_message_to_set_by_guid_like_cpp(
-                command.source_guid,
-                command.map_id,
-                command.instance_id,
-                false,
-            ) {
+            match self
+                .represented_can_receive_creature_message_to_set_by_guid_with_legacy_fallback_like_cpp(
+                    command.source_guid,
+                    command.map_id,
+                    command.instance_id,
+                    false,
+                    allow_legacy_creature_source,
+                )
+            {
                 Some(true) => {}
                 Some(false) => {
                     if is_monster_move {
@@ -5123,7 +5134,11 @@ impl WorldSession {
                 "RUST_MONSTER_MOVE_DELIVERY sent"
             );
         }
-        self.send_raw_packet(&command.packet_bytes);
+        if realm_connection {
+            self.send_raw_packet_realm(&command.packet_bytes);
+        } else {
+            self.send_raw_packet(&command.packet_bytes);
+        }
     }
 
     /// Per-session gate for addon chat delivery.
@@ -19190,6 +19205,7 @@ mod tests {
             slot,
             AuraApplication {
                 spell_id,
+                difficulty_id: 0,
                 caster_guid,
                 slot,
                 duration_total: 30_000,

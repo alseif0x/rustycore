@@ -212,6 +212,7 @@ fn snapshot_with_cast(
         PlayerCastAcquisitionResolutionLikeCpp {
             reached_immediate_phase,
             executed_hit_target_effect_mask,
+            effective_effects: Vec::new(),
             executed_dual_wield_effects: Vec::new(),
         },
     );
@@ -253,6 +254,9 @@ fn effect(
         difficulty_id_raw: 0,
         effect_index_raw: i64::from(effect_index),
         effect_type_raw: i64::from(effect_type),
+        effect_aura_raw: 0,
+        effect_mechanic_raw: 0,
+        effect_attributes_raw: 0,
         effect_base_points_raw: 0,
         effect_die_sides_raw: 0,
         effect_chain_targets_raw: 0,
@@ -261,6 +265,7 @@ fn effect(
         effect_coefficient_bits: 0.0_f32.to_bits(),
         effect_variance_bits: 0.0_f32.to_bits(),
         effect_trigger_spell_raw: 0,
+        effect_item_type_raw: 0,
         effect_misc_value_raw: [0, 0],
         implicit_target_raw: [0, 0],
     }

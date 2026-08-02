@@ -10,7 +10,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 #[cfg(test)]
 use std::sync::atomic::AtomicUsize;
 use std::sync::{
-    Arc, Mutex, OnceLock,
+    Arc, Mutex, OnceLock, Weak,
     atomic::{AtomicBool, AtomicI64, Ordering},
 };
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -111,8 +111,9 @@ use wow_data::{
     SpellLearnSpellStoreLikeCpp, SpellLevelsStore, SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp,
     SpellMiscStore, SpellPetAuraStoreLikeCpp, SpellProcEntryLikeCpp, SpellProcStoreLikeCpp,
     SpellRadiusStore, SpellRangeStore, SpellRequiredStoreLikeCpp, SpellShapeshiftFormStore,
-    SpellStore, SpellTargetPositionStoreLikeCpp, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp,
-    SpellTotemModelStoreLikeCpp, SummonPropertiesEntry, TactKeyStore, TalentStore, TalentTabStore,
+    SpellStore, SpellTargetPositionStoreLikeCpp, SpellTargetRestrictionsStore,
+    SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp, SpellTotemModelStoreLikeCpp,
+    SummonPropertiesEntry, TactKeyStore, TalentStore, TalentTabStore,
     TavernAreaTriggerStoreLikeCpp, ToyStore, TrainerStoreLikeCpp, TransmogSetEntry,
     TransmogSetItemStore, TrinityStringStoreLikeCpp, VEHICLE_SEAT_FLAG_CAN_ATTACK,
     VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore, VehicleTemplateStoreLikeCpp,
@@ -285,6 +286,15 @@ pub(crate) struct ExclusivePlayerMoneyPersistenceLikeCpp {
     _save_fence: DurableLootMoneySaveFenceLikeCpp,
     _mutation_lock: tokio::sync::OwnedMutexGuard<()>,
 }
+
+/// Process-wide ownership of a character's live `Player` runtime.
+///
+/// C++ has one `Player*` per GUID in `ObjectAccessor`; accepting a second
+/// session would create two independent save authorities for the same rows.
+/// Reserve the GUID before the asynchronous login pipeline starts. Weak
+/// values make an abandoned session claim recoverable without a global sweep.
+static ACTIVE_CHARACTER_LOGIN_CLAIMS_LIKE_CPP: OnceLock<dashmap::DashMap<ObjectGuid, Weak<()>>> =
+    OnceLock::new();
 
 /// Pure post-reset snapshot used to make the durable talent reset and its
 /// runtime publication describe the same state.
@@ -5252,6 +5262,8 @@ pub struct WorldSession {
     // ── ConnectTo flow ──────────────────────────────────────────
     /// GUID of the character being logged in (set during PlayerLogin).
     player_loading: Option<ObjectGuid>,
+    /// Strong identity for this session's process-wide live-character claim.
+    player_login_claim_like_cpp: Option<(ObjectGuid, Arc<()>)>,
     /// C++ `WorldSession::m_playerLogout`: true only while the logout routine is executing.
     player_logout_like_cpp: bool,
 
@@ -5887,6 +5899,9 @@ pub struct WorldSession {
     // ── Aura system ───────────────────────────────────────────────
     /// All visible auras on the player: slot (0-254) → AuraApplication
     pub(crate) visible_auras: HashMap<u8, AuraApplication>,
+    /// True only after both persisted aura tables were read successfully for
+    /// the active character. Absence is evidence only while this is complete.
+    player_aura_authority_complete_like_cpp: bool,
     /// Difficulty-selected C++ `AuraEffect` identity captured when the aura is applied.
     canonical_threat_aura_snapshots_like_cpp: HashMap<u8, CanonicalThreatAuraSnapshotLikeCpp>,
 
@@ -5894,6 +5909,10 @@ pub struct WorldSession {
     /// Spell store (metadata for all known spells: cast time, cooldown, effects, etc.)
     pub spell_store: Option<Arc<SpellStore>>,
     spell_acquisition_catalog: Option<Arc<SpellAcquisitionCatalogLikeCpp>>,
+    pub(crate) spell_acquisition_cast_authority_like_cpp:
+        Option<Arc<crate::spell_acquisition::SpellAcquisitionCastAuthorityLikeCpp>>,
+    pub(crate) spell_acquisition_craft_authority_like_cpp:
+        Option<Arc<crate::spell_acquisition::SpellAcquisitionCraftValidityAuthorityLikeCpp>>,
     spell_levels_store: Option<Arc<SpellLevelsStore>>,
     talent_store: Option<Arc<TalentStore>>,
     talent_tab_store: Option<Arc<TalentTabStore>>,
@@ -5904,6 +5923,7 @@ pub struct WorldSession {
     npc_spell_click_store: Option<Arc<NpcSpellClickStoreLikeCpp>>,
     spell_aura_options_store: Option<Arc<SpellAuraOptionsStore>>,
     spell_aura_restrictions_store: Option<Arc<SpellAuraRestrictionsStore>>,
+    spell_target_restrictions_store: Option<Arc<SpellTargetRestrictionsStore>>,
     spell_equipped_items_store: Option<Arc<SpellEquippedItemsStore>>,
     spell_misc_store: Option<Arc<SpellMiscStore>>,
     spell_group_store: Option<Arc<SpellGroupStoreLikeCpp>>,
@@ -6806,6 +6826,8 @@ fn currency_max_quantity_cpp(entry: &CurrencyTypesEntry, currency: &PlayerCurren
 pub struct AuraApplication {
     /// Spell ID of the aura
     pub spell_id: i32,
+    /// Difficulty whose C++ `SpellInfo` was selected when the aura was created.
+    pub difficulty_id: u8,
     /// GUID of the unit that cast the aura
     pub caster_guid: ObjectGuid,
     /// Aura slot (0-254)
@@ -7416,6 +7438,7 @@ impl WorldSession {
             legit_characters: Vec::new(),
             pending_packets: Vec::new(),
             player_loading: None,
+            player_login_claim_like_cpp: None,
             player_logout_like_cpp: false,
             connect_to_key: None,
             connect_to_serial: None,
@@ -7732,9 +7755,12 @@ impl WorldSession {
             movement_force_mod_magnitude_like_cpp: 1.0,
             movement_speed_ack_events_like_cpp: Vec::new(),
             visible_auras: HashMap::new(),
+            player_aura_authority_complete_like_cpp: false,
             canonical_threat_aura_snapshots_like_cpp: HashMap::new(),
             spell_store: None,
             spell_acquisition_catalog: None,
+            spell_acquisition_cast_authority_like_cpp: None,
+            spell_acquisition_craft_authority_like_cpp: None,
             spell_levels_store: None,
             talent_store: None,
             talent_tab_store: None,
@@ -7745,6 +7771,7 @@ impl WorldSession {
             npc_spell_click_store: None,
             spell_aura_options_store: None,
             spell_aura_restrictions_store: None,
+            spell_target_restrictions_store: None,
             spell_equipped_items_store: None,
             spell_misc_store: None,
             spell_group_store: None,
@@ -15426,30 +15453,61 @@ impl WorldSession {
         instance_id: u32,
         required_3d: bool,
     ) -> Option<bool> {
+        self.represented_can_receive_creature_message_to_set_by_guid_with_legacy_fallback_like_cpp(
+            guid,
+            map_id,
+            instance_id,
+            required_3d,
+            false,
+        )
+    }
+
+    pub(crate) fn represented_can_receive_creature_message_to_set_by_guid_with_legacy_fallback_like_cpp(
+        &self,
+        guid: ObjectGuid,
+        map_id: u16,
+        instance_id: u32,
+        required_3d: bool,
+        allow_legacy_fallback: bool,
+    ) -> Option<bool> {
         if let Some(manager) = &self.canonical_map_manager {
             let creature = {
                 let manager = manager.lock().ok()?;
-                let map = manager.find_map(u32::from(map_id), instance_id)?;
-                let creature = map.map().get_typed_creature(guid)?;
-                let world = creature.unit().world();
-                if world.map_id() != u32::from(map_id) || world.instance_id() != instance_id {
+                manager
+                    .find_map(u32::from(map_id), instance_id)
+                    .and_then(|map| map.map().get_typed_creature(guid))
+                    .map(|creature| {
+                        let create_data =
+                            crate::map_manager::WorldCreature::create_data_from_canonical_like_cpp(
+                                creature,
+                            );
+                        crate::map_manager::WorldCreature::from_canonical(
+                            creature.clone(),
+                            create_data,
+                        )
+                    })
+            };
+            if let Some(creature) = creature {
+                if creature.map_id() != u32::from(map_id) || creature.instance_id() != instance_id {
                     return Some(false);
                 }
-                let create_data =
-                    crate::map_manager::WorldCreature::create_data_from_canonical_like_cpp(
-                        creature,
-                    );
-                crate::map_manager::WorldCreature::from_canonical(creature.clone(), create_data)
-            };
-            return Some(
-                self.represented_can_receive_creature_message_to_set_like_cpp(
-                    guid,
-                    &creature,
-                    required_3d,
-                ),
-            );
+                return Some(
+                    self.represented_can_receive_creature_message_to_set_like_cpp(
+                        guid,
+                        &creature,
+                        required_3d,
+                    ),
+                );
+            }
+            if !allow_legacy_fallback {
+                return None;
+            }
         }
 
+        // The two map managers coexist during the incremental runtime
+        // migration. A canonical manager being installed does not prove that
+        // it owns a source already validated from the legacy map. Only the
+        // provenance-marked command path may cross this fallback boundary.
         let creature = {
             let manager = self.map_manager.as_ref()?;
             manager
@@ -22638,6 +22696,84 @@ impl WorldSession {
         }
     }
 
+    /// Publish the canonical `ActivePlayerData::Skill` image after a durable
+    /// acquisition commit. The current entity bridge does not yet own these
+    /// 256 complex update-field slots, so serialize their complete coherent
+    /// image instead of leaving the client on its pre-purchase ranks.
+    pub(crate) fn send_complete_player_skill_values_update_like_cpp(&self) {
+        use wow_packet::packets::update::{
+            ActivePlayerDataValuesUpdate, SkillInfoValuesUpdate, UpdateObject,
+        };
+
+        let (Some(guid), Some(skill_store), Some(skill_lines), Some(skill_tiers)) = (
+            self.player_guid(),
+            self.skill_store(),
+            self.skill_line_store(),
+            self.skill_tiers_store(),
+        ) else {
+            return;
+        };
+        let mut records = self
+            .player_skill_records_like_cpp()
+            .values()
+            .collect::<Vec<_>>();
+        records.sort_by_key(|record| record.skill_id);
+        if records.len() > 256 {
+            return;
+        }
+
+        let mut skill = SkillInfoValuesUpdate::default();
+        let mut set_skill_bit = |bit: usize| {
+            skill.skill_info_mask[bit / 32] |= 1 << (bit % 32);
+        };
+        set_skill_bit(0);
+        for index in 0..256 {
+            for bit in [
+                1 + index,
+                257 + index,
+                513 + index,
+                769 + index,
+                1025 + index,
+                1281 + index,
+                1537 + index,
+            ] {
+                set_skill_bit(bit);
+            }
+        }
+        for (index, record) in records.into_iter().enumerate() {
+            if let Some(entry) = skill_store.loaded_skill_info_like_cpp(
+                record.skill_id,
+                self.player_race_like_cpp(),
+                self.player_class_like_cpp(),
+                self.player_level_like_cpp(),
+                record.value,
+                record.max,
+                skill_lines,
+                skill_tiers,
+            ) {
+                skill.skill_line_id[index] = entry.skill_id;
+                skill.skill_step[index] = record.step.max(entry.step);
+                skill.skill_rank[index] = entry.rank;
+                skill.skill_starting_rank[index] = entry.starting_rank;
+                skill.skill_max_rank[index] = entry.max_rank;
+                skill.skill_temp_bonus[index] = entry.temp_bonus;
+                skill.skill_perm_bonus[index] = entry.perm_bonus;
+            }
+        }
+
+        let mut data = ActivePlayerDataValuesUpdate {
+            skill,
+            ..Default::default()
+        };
+        data.active_player_data_mask[0] |= 1;
+        data.active_player_data_mask[1] |= 1;
+        self.send_packet(&UpdateObject::full_active_player_values_update(
+            guid,
+            self.player_map_id_like_cpp(),
+            data,
+        ));
+    }
+
     pub(crate) fn send_player_values_update_like_cpp(
         &self,
         update: &wow_entities::PlayerValuesUpdate,
@@ -25644,6 +25780,27 @@ impl WorldSession {
         self.spell_acquisition_catalog = Some(catalog);
     }
 
+    /// Install the process-wide audited static authority consumed by the
+    /// immutable acquisition planner. Absence remains fail-closed.
+    pub fn set_spell_acquisition_static_authority_like_cpp(
+        &mut self,
+        safe_cast_spell_ids: impl IntoIterator<Item = u32>,
+        valid_craft_spell_ids: impl IntoIterator<Item = u32>,
+    ) {
+        self.spell_acquisition_cast_authority_like_cpp = Some(Arc::new(
+            crate::spell_acquisition::SpellAcquisitionCastAuthorityLikeCpp::from_audited_rows_like_cpp(
+                safe_cast_spell_ids,
+                std::iter::empty(),
+            ),
+        ));
+        self.spell_acquisition_craft_authority_like_cpp = Some(Arc::new(
+            crate::spell_acquisition::SpellAcquisitionCraftValidityAuthorityLikeCpp::from_audited_rows_like_cpp(
+                valid_craft_spell_ids,
+                std::iter::empty(),
+            ),
+        ));
+    }
+
     pub(crate) fn spell_acquisition_catalog(&self) -> Option<&Arc<SpellAcquisitionCatalogLikeCpp>> {
         self.spell_acquisition_catalog.as_ref()
     }
@@ -25741,6 +25898,31 @@ impl WorldSession {
 
     pub fn set_spell_aura_restrictions_store(&mut self, store: Arc<SpellAuraRestrictionsStore>) {
         self.spell_aura_restrictions_store = Some(store);
+    }
+
+    pub(crate) fn spell_aura_restrictions_store(&self) -> Option<&Arc<SpellAuraRestrictionsStore>> {
+        self.spell_aura_restrictions_store.as_ref()
+    }
+
+    pub(crate) fn set_player_aura_authority_complete_like_cpp(&mut self, complete: bool) {
+        self.player_aura_authority_complete_like_cpp = complete;
+    }
+
+    pub(crate) fn player_aura_authority_complete_like_cpp(&self) -> bool {
+        self.player_aura_authority_complete_like_cpp
+    }
+
+    pub fn set_spell_target_restrictions_store(
+        &mut self,
+        store: Arc<SpellTargetRestrictionsStore>,
+    ) {
+        self.spell_target_restrictions_store = Some(store);
+    }
+
+    pub(crate) fn spell_target_restrictions_store(
+        &self,
+    ) -> Option<&Arc<SpellTargetRestrictionsStore>> {
+        self.spell_target_restrictions_store.as_ref()
     }
 
     pub fn set_spell_equipped_items_store(&mut self, store: Arc<SpellEquippedItemsStore>) {
@@ -25857,6 +26039,10 @@ impl WorldSession {
         self.spell_linked_store = Some(store);
     }
 
+    pub(crate) fn spell_linked_store_like_cpp(&self) -> Option<&SpellLinkedStoreLikeCpp> {
+        self.spell_linked_store.as_deref()
+    }
+
     pub(crate) fn spell_linked_like_cpp(
         &self,
         link_type: SpellLinkedTypeLikeCpp,
@@ -25870,6 +26056,10 @@ impl WorldSession {
 
     pub fn set_spell_pet_aura_store(&mut self, store: Arc<SpellPetAuraStoreLikeCpp>) {
         self.spell_pet_aura_store = Some(store);
+    }
+
+    pub(crate) fn spell_pet_aura_store_like_cpp(&self) -> Option<&SpellPetAuraStoreLikeCpp> {
+        self.spell_pet_aura_store.as_deref()
     }
 
     pub(crate) fn pet_aura_like_cpp(
@@ -27104,6 +27294,125 @@ impl WorldSession {
                             money_after,
                             ?observed_money,
                             "player-money COMMIT outcome remains indeterminate; quarantined the session"
+                        );
+                        None
+                    }
+                }
+            }
+        }
+    }
+
+    /// Commit a trainer fee when the represented cast has no durable
+    /// spell/skill mutation (for example, every acquisition effect was
+    /// suppressed by target immunity). C++ charges and publishes its trainer
+    /// visuals before that triggered cast resolves its hit effects.
+    pub(crate) async fn commit_exclusive_trainer_money_only_like_cpp(
+        &mut self,
+        money_persistence: ExclusivePlayerMoneyPersistenceLikeCpp,
+        character_db: Option<&CharacterDatabase>,
+        money_before: u64,
+        money_after: u64,
+    ) -> Option<ExclusivePlayerMoneyPersistenceLikeCpp> {
+        #[cfg(test)]
+        if let Some(success) = self.loot_money_persistence_test_result_like_cpp {
+            return success.then_some(money_persistence);
+        }
+
+        if money_before == money_after {
+            return Some(money_persistence);
+        }
+        let character_db = character_db?;
+        let guid = self.player_guid()?.counter() as u64;
+        let mut transaction = SqlTransaction::new();
+        transaction.append(Self::build_character_gold_save_statement_like_cpp(
+            money_after,
+            guid,
+        ));
+        self.commit_exclusive_player_money_transaction_like_cpp(
+            money_persistence,
+            character_db,
+            transaction,
+            money_before,
+            money_after,
+            "trainer fee without durable acquisition mutation",
+        )
+        .await
+    }
+
+    /// Commit one trainer fee and its prepared spell/skill acquisition under
+    /// the same per-character money exclusion. Runtime publication remains the
+    /// caller's responsibility and must complete before the returned guard is
+    /// dropped.
+    pub(crate) async fn commit_exclusive_player_money_and_spell_acquisition_like_cpp(
+        &mut self,
+        money_persistence: ExclusivePlayerMoneyPersistenceLikeCpp,
+        character_db: Option<&CharacterDatabase>,
+        prepared: &crate::spell_acquisition::PreparedPlayerSpellAcquisitionLikeCpp,
+        money_before: u64,
+        money_after: u64,
+    ) -> Option<ExclusivePlayerMoneyPersistenceLikeCpp> {
+        #[cfg(test)]
+        if let Some(success) = self.loot_money_persistence_test_result_like_cpp {
+            return success.then_some(money_persistence);
+        }
+
+        let character_db = character_db?;
+        let player_guid = self.player_guid()?;
+        let guid_counter = player_guid.counter() as u64;
+        let mut cancellation_fence = PlayerMoneyCommitCancellationFenceLikeCpp::new(Arc::clone(
+            &self.durable_loot_money_persistence_like_cpp,
+        ));
+        let mut operation_token = [0u8; 16];
+        rand::thread_rng().fill_bytes(&mut operation_token);
+        let commit_result =
+            crate::spell_acquisition::persist_prepared_player_spell_acquisition_and_money_like_cpp(
+                character_db,
+                guid_counter,
+                prepared,
+                money_before,
+                money_after,
+                &operation_token,
+            )
+            .await;
+        match commit_result {
+            Ok(()) => {
+                cancellation_fence.disarm_like_cpp();
+                Some(money_persistence)
+            }
+            Err(SqlTransactionCommitError::DefinitelyRolledBack(error)) => {
+                cancellation_fence.disarm_like_cpp();
+                warn!(%error, "trainer purchase transaction definitely rolled back");
+                None
+            }
+            Err(SqlTransactionCommitError::CommitOutcomeUnknown(error)) => {
+                let reconciliation = crate::spell_acquisition::reconcile_prepared_player_spell_acquisition_and_money_like_cpp(
+                    character_db,
+                    guid_counter,
+                    prepared,
+                    money_after,
+                    &operation_token,
+                )
+                .await;
+                match reconciliation {
+                    Ok(crate::spell_acquisition::PlayerSpellAcquisitionMoneyReconciliationLikeCpp::Committed) => {
+                        cancellation_fence.disarm_like_cpp();
+                        warn!(
+                            %error,
+                            "trainer COMMIT reply was lost but durable money and acquisition rows prove commit"
+                        );
+                        Some(money_persistence)
+                    }
+                    Ok(crate::spell_acquisition::PlayerSpellAcquisitionMoneyReconciliationLikeCpp::Indeterminate)
+                    | Err(_) => {
+                        self.durable_loot_money_persistence_like_cpp
+                            .mark_indeterminate_like_cpp();
+                        cancellation_fence.disarm_like_cpp();
+                        self.kick(
+                            "trainer purchase COMMIT outcome is unknown; relog required before another money mutation",
+                        );
+                        warn!(
+                            %error,
+                            "trainer COMMIT outcome remains indeterminate; quarantined the session"
                         );
                         None
                     }
@@ -33435,7 +33744,28 @@ impl WorldSession {
         );
     }
 
+    pub(crate) fn broadcast_to_movement_set_realm_like_cpp(
+        &self,
+        bytes: Vec<u8>,
+        _include_self: bool,
+    ) {
+        self.broadcast_to_movement_set_in_range_and_connection_like_cpp(
+            bytes,
+            crate::map_manager::VISIBILITY_RADIUS,
+            true,
+        );
+    }
+
     pub(crate) fn broadcast_to_movement_set_in_range_like_cpp(&self, bytes: Vec<u8>, range: f32) {
+        self.broadcast_to_movement_set_in_range_and_connection_like_cpp(bytes, range, false);
+    }
+
+    fn broadcast_to_movement_set_in_range_and_connection_like_cpp(
+        &self,
+        bytes: Vec<u8>,
+        range: f32,
+        realm_connection: bool,
+    ) {
         let (Some(guid), Some(registry)) = (self.player_guid(), self.player_registry()) else {
             return;
         };
@@ -33474,15 +33804,19 @@ impl WorldSession {
             .collect();
 
         for command_tx in candidates {
-            let _ = command_tx.try_send(SessionCommand::SendIfVisibleLikeCpp(
-                SendIfVisibleLikeCppCommand {
-                    queued_at: Instant::now(),
-                    source_guid: guid,
-                    map_id,
-                    instance_id,
-                    packet_bytes: bytes.clone(),
-                },
-            ));
+            let command = SendIfVisibleLikeCppCommand {
+                queued_at: Instant::now(),
+                source_guid: guid,
+                map_id,
+                instance_id,
+                packet_bytes: bytes.clone(),
+            };
+            let command = if realm_connection {
+                SessionCommand::SendRealmIfVisibleLikeCpp(command)
+            } else {
+                SessionCommand::SendIfVisibleLikeCpp(command)
+            };
+            let _ = command_tx.try_send(command);
         }
     }
 
@@ -33495,10 +33829,71 @@ impl WorldSession {
         source_guid: ObjectGuid,
         bytes: Vec<u8>,
     ) {
-        let (Some(registry), Some(source)) = (
-            self.player_registry(),
-            self.canonical_creature_access_like_cpp(source_guid),
-        ) else {
+        self.broadcast_creature_packet_to_visible_set_and_connection_like_cpp(
+            source_guid,
+            bytes,
+            false,
+        );
+    }
+
+    pub(crate) fn broadcast_creature_packet_to_visible_set_realm_like_cpp(
+        &self,
+        source_guid: ObjectGuid,
+        bytes: Vec<u8>,
+    ) {
+        self.broadcast_creature_packet_to_visible_set_and_connection_like_cpp(
+            source_guid,
+            bytes,
+            true,
+        );
+    }
+
+    /// Fan out a creature packet from an interaction snapshot that has
+    /// already been validated against the canonical-or-legacy NPC authority.
+    /// This keeps observer publication working during the transitional map
+    /// split even when the source exists only in the legacy map manager.
+    pub(crate) fn broadcast_creature_packet_from_position_to_visible_set_realm_like_cpp(
+        &self,
+        source_guid: ObjectGuid,
+        source_position: Position,
+        bytes: Vec<u8>,
+    ) {
+        self.broadcast_creature_packet_from_position_to_visible_set_and_connection_like_cpp(
+            source_guid,
+            source_position,
+            bytes,
+            true,
+            true,
+        );
+    }
+
+    fn broadcast_creature_packet_to_visible_set_and_connection_like_cpp(
+        &self,
+        source_guid: ObjectGuid,
+        bytes: Vec<u8>,
+        realm_connection: bool,
+    ) {
+        let Some(source) = self.canonical_creature_access_like_cpp(source_guid) else {
+            return;
+        };
+        self.broadcast_creature_packet_from_position_to_visible_set_and_connection_like_cpp(
+            source_guid,
+            source.position,
+            bytes,
+            realm_connection,
+            false,
+        );
+    }
+
+    fn broadcast_creature_packet_from_position_to_visible_set_and_connection_like_cpp(
+        &self,
+        source_guid: ObjectGuid,
+        source_position: Position,
+        bytes: Vec<u8>,
+        realm_connection: bool,
+        allow_legacy_source_fallback: bool,
+    ) {
+        let Some(registry) = self.player_registry() else {
             return;
         };
         let player_guid = self.player_guid().unwrap_or(ObjectGuid::EMPTY);
@@ -33521,8 +33916,8 @@ impl WorldSession {
                 {
                     return None;
                 }
-                let dx = other_info.position.x - source.position.x;
-                let dy = other_info.position.y - source.position.y;
+                let dx = other_info.position.x - source_position.x;
+                let dy = other_info.position.y - source_position.y;
                 if dx * dx + dy * dy > range_sq {
                     return None;
                 }
@@ -33531,15 +33926,21 @@ impl WorldSession {
             .collect();
 
         for command_tx in candidates {
-            let _ = command_tx.try_send(SessionCommand::SendIfVisibleLikeCpp(
-                SendIfVisibleLikeCppCommand {
-                    queued_at: Instant::now(),
-                    source_guid,
-                    map_id,
-                    instance_id,
-                    packet_bytes: bytes.clone(),
-                },
-            ));
+            let command = SendIfVisibleLikeCppCommand {
+                queued_at: Instant::now(),
+                source_guid,
+                map_id,
+                instance_id,
+                packet_bytes: bytes.clone(),
+            };
+            let command = if realm_connection && allow_legacy_source_fallback {
+                SessionCommand::SendRealmIfVisibleFromLegacySourceLikeCpp(command)
+            } else if realm_connection {
+                SessionCommand::SendRealmIfVisibleLikeCpp(command)
+            } else {
+                SessionCommand::SendIfVisibleLikeCpp(command)
+            };
+            let _ = command_tx.try_send(command);
         }
     }
 
@@ -34187,7 +34588,7 @@ impl WorldSession {
         accessor.write().remove_player(guid);
     }
 
-    fn unregister_canonical_player_from_map_like_cpp(&self) {
+    pub(crate) fn unregister_canonical_player_from_map_like_cpp(&self) {
         let Some(guid) = self.player_guid() else {
             return;
         };
@@ -34233,6 +34634,7 @@ impl WorldSession {
         self.notify_other_players_visibility_changed_like_cpp();
         self.unregister_canonical_player_from_map_like_cpp();
         self.unregister_from_object_accessor();
+        self.release_character_login_claim_like_cpp();
         self.clear_inventory_items_and_objects_like_cpp();
     }
 
@@ -34393,6 +34795,57 @@ impl WorldSession {
         self.sync_current_player_session_visibility_detection_like_cpp();
     }
 
+    /// Atomically reserve the only live runtime authority for `guid`.
+    /// Re-entry by this same session is idempotent; a live foreign claim is
+    /// rejected before either session can load and later save stale rows.
+    pub(crate) fn try_claim_character_login_like_cpp(&mut self, guid: ObjectGuid) -> bool {
+        if self
+            .player_login_claim_like_cpp
+            .as_ref()
+            .is_some_and(|(claimed_guid, _)| *claimed_guid == guid)
+        {
+            return true;
+        }
+        self.release_character_login_claim_like_cpp();
+
+        let claims = ACTIVE_CHARACTER_LOGIN_CLAIMS_LIKE_CPP.get_or_init(Default::default);
+        match claims.entry(guid) {
+            dashmap::mapref::entry::Entry::Vacant(entry) => {
+                let identity = Arc::new(());
+                entry.insert(Arc::downgrade(&identity));
+                self.player_login_claim_like_cpp = Some((guid, identity));
+                true
+            }
+            dashmap::mapref::entry::Entry::Occupied(mut entry) => {
+                if entry.get().upgrade().is_some() {
+                    return false;
+                }
+                let identity = Arc::new(());
+                entry.insert(Arc::downgrade(&identity));
+                self.player_login_claim_like_cpp = Some((guid, identity));
+                true
+            }
+        }
+    }
+
+    pub(crate) fn release_character_login_claim_like_cpp(&mut self) {
+        let Some((guid, identity)) = self.player_login_claim_like_cpp.take() else {
+            return;
+        };
+        let Some(claims) = ACTIVE_CHARACTER_LOGIN_CLAIMS_LIKE_CPP.get() else {
+            return;
+        };
+        if let Some(entry) = claims.get(&guid) {
+            let owns_claim = entry
+                .upgrade()
+                .is_some_and(|current| Arc::ptr_eq(&current, &identity));
+            drop(entry);
+            if owns_claim {
+                claims.remove(&guid);
+            }
+        }
+    }
+
     /// Get the player loading GUID.
     pub fn player_loading(&self) -> Option<ObjectGuid> {
         self.player_loading
@@ -34465,9 +34918,15 @@ impl WorldSession {
         // on the bounded general rail. Keep authoritative combat mutations in
         // durable FIFO order, but defer only their presentation packet until
         // after the refresh backlog has been consumed.
-        let (mut commands, deferred_visible): (Vec<_>, Vec<_>) = durable_commands
-            .into_iter()
-            .partition(|command| !matches!(command, SessionCommand::SendIfVisibleLikeCpp(_)));
+        let (mut commands, deferred_visible): (Vec<_>, Vec<_>) =
+            durable_commands.into_iter().partition(|command| {
+                !matches!(
+                    command,
+                    SessionCommand::SendIfVisibleLikeCpp(_)
+                        | SessionCommand::SendRealmIfVisibleLikeCpp(_)
+                        | SessionCommand::SendRealmIfVisibleFromLegacySourceLikeCpp(_)
+                )
+            });
         while let Ok(command) = self.session_command_rx.try_recv() {
             commands.push(command);
         }
@@ -35009,6 +35468,7 @@ impl WorldSession {
         // Create aura
         let aura = AuraApplication {
             spell_id,
+            difficulty_id: self.current_map_difficulty_id_like_cpp(),
             caster_guid,
             slot,
             duration_total: duration_ms,
@@ -35697,6 +36157,7 @@ impl WorldSession {
 
         let aura = AuraApplication {
             spell_id,
+            difficulty_id: self.current_map_difficulty_id_like_cpp(),
             caster_guid,
             slot,
             duration_total: 0,
@@ -35906,6 +36367,7 @@ impl WorldSession {
 
         let aura = AuraApplication {
             spell_id,
+            difficulty_id: self.current_map_difficulty_id_like_cpp(),
             caster_guid,
             slot,
             duration_total: 30_000,
@@ -35947,6 +36409,7 @@ impl WorldSession {
         let multiplier = 1.0 + (effect.effect_base_points as f32 / 100.0);
         let aura = AuraApplication {
             spell_id,
+            difficulty_id: self.current_map_difficulty_id_like_cpp(),
             caster_guid,
             slot,
             duration_total: 30_000,
@@ -35989,6 +36452,7 @@ impl WorldSession {
 
         let aura = AuraApplication {
             spell_id,
+            difficulty_id: self.current_map_difficulty_id_like_cpp(),
             caster_guid,
             slot,
             duration_total: duration_ms,
@@ -36649,6 +37113,7 @@ impl WorldSession {
         };
         let aura = AuraApplication {
             spell_id,
+            difficulty_id: self.current_map_difficulty_id_like_cpp(),
             caster_guid: caster,
             slot,
             duration_total: duration,
@@ -36992,6 +37457,7 @@ impl WorldSession {
                 self.instance_link_rx = None;
                 self.player_loading = None;
                 self.connect_to_key = None;
+                self.release_character_login_claim_like_cpp();
             }
         }
     }
@@ -39690,15 +40156,12 @@ impl WorldSession {
         {
             SocketWriteFenceWaitResultLikeCpp::Written => true,
             SocketWriteFenceWaitResultLikeCpp::TimedOut => {
-                // C++ queues `SendPacket` without turning transient socket
-                // backpressure into a gameplay failure. Preserve the durable
-                // result and finish enqueuing its remaining fanout.
                 warn!(
                     account = self.account_id,
                     timeout_ms = CROSS_SOCKET_WRITE_FENCE_TIMEOUT.as_millis(),
-                    "instance writer ordering fence timed out; continuing committed fanout"
+                    "instance writer did not acknowledge the ordering fence before timeout"
                 );
-                true
+                false
             }
             SocketWriteFenceWaitResultLikeCpp::WriterClosed => {
                 warn!(
@@ -39739,9 +40202,9 @@ impl WorldSession {
                 warn!(
                     account = self.account_id,
                     timeout_ms = CROSS_SOCKET_WRITE_FENCE_TIMEOUT.as_millis(),
-                    "realm writer ordering fence timed out; continuing committed fanout"
+                    "realm writer did not acknowledge the ordering fence before timeout"
                 );
-                true
+                false
             }
             SocketWriteFenceWaitResultLikeCpp::WriterClosed => {
                 warn!(
@@ -40094,6 +40557,12 @@ impl WorldSession {
         let player_changed = self.player_guid != guid;
         self.player_guid = guid;
         if player_changed {
+            // Visible auras and their completeness proof belong to the C++
+            // Player, not the authenticated WorldSession. Clear both at the
+            // identity boundary so a later character cannot inherit positive
+            // or negative aura-spell authority from the previous one.
+            self.visible_auras.clear();
+            self.player_aura_authority_complete_like_cpp = false;
             // C++ owns PlayerMenu (and therefore both InteractionData and its
             // menus) under Player. A WorldSession can survive character
             // logout, so no player-menu state may cross that lifetime here.
@@ -40550,6 +41019,7 @@ impl WorldSession {
         &mut self,
         mut controller: SessionPlayerController,
     ) {
+        self.player_aura_authority_complete_like_cpp = false;
         let controller_position = controller.position();
         controller.set_gold(self.player_gold);
         controller.set_character_points(self.player_character_points_like_cpp);
@@ -40586,6 +41056,7 @@ impl WorldSession {
         level: u8,
         gender: u8,
     ) -> bool {
+        self.player_aura_authority_complete_like_cpp = false;
         if self.player_controller.is_none() {
             self.attach_player_controller_like_cpp(SessionPlayerController::new(
                 guid, name, position, map_id, race, class, level, gender,
@@ -41768,6 +42239,7 @@ impl WorldSession {
                 slot,
                 AuraApplication {
                     spell_id,
+                    difficulty_id: row.difficulty,
                     caster_guid,
                     slot,
                     duration_total,
@@ -65442,6 +65914,7 @@ impl WorldSession {
             let visible_duration_ms = u32::try_from(duration_ms).unwrap_or(u32::MAX);
             let aura = AuraApplication {
                 spell_id,
+                difficulty_id: self.current_map_difficulty_id_like_cpp(),
                 caster_guid: player_guid,
                 slot,
                 duration_total: visible_duration_ms,
@@ -66528,6 +67001,45 @@ mod tests {
     }
 
     #[test]
+    fn character_login_claim_allows_only_one_live_session_like_cpp() {
+        let guid = ObjectGuid::create_player(1, 0x7FFF_FF01);
+        let (mut first, _, _) = make_session();
+        let (mut second, _, _) = make_session();
+
+        assert!(first.try_claim_character_login_like_cpp(guid));
+        assert!(first.try_claim_character_login_like_cpp(guid));
+        assert!(!second.try_claim_character_login_like_cpp(guid));
+
+        first.release_character_login_claim_like_cpp();
+        assert!(second.try_claim_character_login_like_cpp(guid));
+        second.release_character_login_claim_like_cpp();
+    }
+
+    #[tokio::test]
+    async fn closed_instance_link_releases_character_login_claim_like_cpp() {
+        let guid = ObjectGuid::create_player(1, 0x7FFF_FF02);
+        let (mut first, _, _) = make_session();
+        let (mut second, _, _) = make_session();
+
+        assert!(first.try_claim_character_login_like_cpp(guid));
+        first.set_player_loading(Some(guid));
+        first.set_connect_to_key(Some(77));
+        let (link_tx, link_rx) = tokio::sync::oneshot::channel();
+        first.set_instance_link_rx(Some(link_rx));
+        drop(link_tx);
+
+        first.poll_instance_link().await;
+
+        assert_eq!(first.player_loading(), None);
+        assert_eq!(first.connect_to_key, None);
+        assert!(
+            second.try_claim_character_login_like_cpp(guid),
+            "a failed instance handoff must not strand the process-wide login claim"
+        );
+        second.release_character_login_claim_like_cpp();
+    }
+
+    #[test]
     fn spell_acquisition_catalog_arc_is_shared_with_session() {
         let (mut session, _, _) = make_session();
         let catalog = Arc::new(
@@ -66592,6 +67104,8 @@ mod tests {
         let second_player = ObjectGuid::create_player(1, 70_002);
         let trainer = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 100, 1);
         session.set_player_guid(Some(first_player));
+        session.visible_auras.insert(0, test_visible_aura(0, 999));
+        session.player_aura_authority_complete_like_cpp = true;
         assert!(session.set_complete_player_skill_records_like_cpp(
             HashMap::from([(
                 95,
@@ -66631,6 +67145,11 @@ mod tests {
             "reasserting the same Player identity must not reset its PlayerMenu"
         );
         assert_eq!(session.gossip_options.len(), 1);
+        assert_eq!(
+            session.visible_auras.get(&0).map(|aura| aura.spell_id),
+            Some(999)
+        );
+        assert!(session.player_aura_authority_complete_like_cpp());
         assert!(
             session
                 .player_skill_non_durable_tombstones_like_cpp
@@ -66643,6 +67162,14 @@ mod tests {
         assert!(session.player_interaction_source_guid_like_cpp().is_none());
         assert_eq!(session.player_interaction_trainer_id_like_cpp(), 0);
         assert!(session.gossip_options.is_empty());
+        assert!(
+            session.visible_auras.is_empty(),
+            "active auras cannot cross a C++ Player lifetime"
+        );
+        assert!(
+            !session.player_aura_authority_complete_like_cpp(),
+            "the next Player must establish its own complete aura authority"
+        );
         assert!(
             session
                 .player_skill_non_durable_tombstones_like_cpp
@@ -66659,6 +67186,8 @@ mod tests {
         session.set_player_guid(Some(second_player));
         assert!(session.player_interaction_source_guid_like_cpp().is_none());
         assert!(session.gossip_options.is_empty());
+        assert!(session.visible_auras.is_empty());
+        assert!(!session.player_aura_authority_complete_like_cpp());
     }
 
     fn make_session_with_give_player_xp_hook() -> (
@@ -74745,6 +75274,7 @@ mod tests {
                             slot,
                             AuraApplication {
                                 spell_id,
+                                difficulty_id: 0,
                                 caster_guid: source_guid,
                                 slot,
                                 duration_total: 30_000,
@@ -75223,6 +75753,7 @@ mod tests {
                 standing_aura_slot,
                 AuraApplication {
                     spell_id: standing_aura_spell_id,
+                    difficulty_id: 0,
                     caster_guid: player_guid,
                     slot: standing_aura_slot,
                     duration_total: 30_000,
@@ -76134,6 +76665,120 @@ mod tests {
             packet_bytes
         );
         assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn send_realm_if_visible_uses_legacy_source_when_canonical_mirror_is_missing_like_cpp() {
+        let (mut session, _, instance_rx) = make_session();
+        let (realm_tx, realm_rx) = flume::bounded::<Vec<u8>>(8);
+        session.install_realm_send_channel_for_test(realm_tx);
+        let source_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1013);
+        let packet_bytes = vec![0x44, 0x55, 0x67];
+        let manager = shared_map_manager();
+        manager.write().unwrap().add_creature(
+            571,
+            0,
+            0,
+            0,
+            crate::map_manager::WorldCreature::new(
+                source_guid,
+                777,
+                Position::ZERO,
+                100,
+                80,
+                1,
+                2,
+                0.0,
+                1,
+                35,
+                0,
+                0,
+            ),
+        );
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(571, 0);
+        session.state = SessionState::LoggedIn;
+        session.set_map_manager(manager);
+        session.set_canonical_map_manager(canonical);
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
+        session.client_visible_guids_like_cpp.insert(source_guid);
+
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::SendRealmIfVisibleLikeCpp(
+                SendIfVisibleLikeCppCommand {
+                    queued_at: Instant::now(),
+                    source_guid,
+                    map_id: 571,
+                    instance_id: 0,
+                    packet_bytes: packet_bytes.clone(),
+                },
+            ))
+            .expect("ordinary realm-visible command queued");
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+        assert!(
+            realm_rx.try_recv().is_err(),
+            "only provenance-marked legacy-source commands may cross the map-manager boundary"
+        );
+
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::SendRealmIfVisibleFromLegacySourceLikeCpp(
+                SendIfVisibleLikeCppCommand {
+                    queued_at: Instant::now(),
+                    source_guid,
+                    map_id: 571,
+                    instance_id: 0,
+                    packet_bytes: packet_bytes.clone(),
+                },
+            ))
+            .expect("realm-visible command queued");
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        assert_eq!(realm_rx.try_recv().expect("realm packet"), packet_bytes);
+        assert!(instance_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn creature_realm_fanout_uses_validated_position_without_canonical_mirror() {
+        let (mut source, _, _) = make_session();
+        let source_player = ObjectGuid::create_player(1, 42);
+        let observer = ObjectGuid::create_player(1, 43);
+        let creature = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1014);
+        let source_position = Position::new(10.0, 20.0, 30.0, 0.0);
+        let packet_bytes = vec![0x44, 0x55, 0x68];
+        let registry = Arc::new(PlayerRegistry::default());
+        let (observer_send_tx, _observer_send_rx) = flume::bounded(1);
+        let (observer_command_tx, observer_command_rx) = flume::bounded(1);
+        let mut observer_info =
+            broadcast_info_with_command(observer, observer_send_tx, observer_command_tx);
+        observer_info.map_id = 571;
+        observer_info.instance_id = 0;
+        observer_info.position = source_position;
+        registry.insert(observer, observer_info);
+
+        source.set_player_guid(Some(source_player));
+        source.set_player_map_position_like_cpp(571, Position::ZERO);
+        source.set_player_registry(registry);
+        source.broadcast_creature_packet_from_position_to_visible_set_realm_like_cpp(
+            creature,
+            source_position,
+            packet_bytes.clone(),
+        );
+
+        let command = observer_command_rx.try_recv().expect("observer fanout");
+        let SessionCommand::SendRealmIfVisibleFromLegacySourceLikeCpp(command) = command else {
+            panic!("creature visual must use the Realm-visible command");
+        };
+        assert_eq!(command.source_guid, creature);
+        assert_eq!(command.map_id, 571);
+        assert_eq!(command.instance_id, 0);
+        assert_eq!(command.packet_bytes, packet_bytes);
     }
 
     #[tokio::test]
@@ -98798,6 +99443,7 @@ mod tests {
     ) -> AuraApplication {
         AuraApplication {
             spell_id: 69_500 + i32::from(slot),
+            difficulty_id: 0,
             caster_guid: ObjectGuid::EMPTY,
             slot,
             duration_total: 30_000,
@@ -108928,6 +109574,7 @@ mod tests {
                 slot,
                 AuraApplication {
                     spell_id,
+                    difficulty_id: 0,
                     caster_guid: player_guid,
                     slot,
                     duration_total: 30_000,
@@ -122348,6 +122995,7 @@ mod tests {
             PlayerCastAcquisitionResolutionLikeCpp {
                 reached_immediate_phase: true,
                 executed_hit_target_effect_mask: 0b101,
+                effective_effects: Vec::new(),
                 executed_dual_wield_effects: Vec::new(),
             },
         )]);
@@ -123095,6 +123743,7 @@ mod tests {
     fn test_visible_aura(slot: u8, spell_id: i32) -> AuraApplication {
         AuraApplication {
             spell_id,
+            difficulty_id: 0,
             caster_guid: ObjectGuid::EMPTY,
             slot,
             duration_total: 30_000,
@@ -134218,6 +134867,7 @@ mod tests {
             .values()
             .find(|aura| aura.spell_id == 20_600)
             .expect("loaded total-stat aura");
+        assert_eq!(aura.difficulty_id, 0);
         assert_eq!(aura.represented_effect, None);
         let slot = aura.slot;
         session.remove_aura(slot).expect("remove loaded aura");
@@ -139886,7 +140536,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn cross_socket_fence_timeout_continues_committed_fanout_like_cpp() {
+    async fn cross_socket_fence_timeout_stops_later_channel_publication_like_cpp() {
         let (mut session, _, _instance_rx) = make_session();
         let (realm_tx, _realm_rx) = flume::unbounded();
         session.install_realm_send_channel_for_test(realm_tx);
@@ -139894,16 +140544,16 @@ mod tests {
         session.install_realm_send_write_fence_for_test(SocketWriteFenceLikeCpp::default());
 
         assert!(
-            session
+            !session
                 .wait_for_instance_send_before_realm_send_like_cpp()
                 .await,
-            "a bounded fence timeout must not discard fanout after durable commit"
+            "an unacknowledged instance fence cannot authorize realm publication"
         );
         assert!(
-            session
+            !session
                 .wait_for_realm_send_before_instance_update_like_cpp()
                 .await,
-            "a bounded fence timeout must not discard later instance updates"
+            "an unacknowledged realm fence cannot authorize instance publication"
         );
         assert_ne!(session.state(), SessionState::Disconnecting);
     }

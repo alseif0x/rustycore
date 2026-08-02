@@ -145,7 +145,11 @@ impl SocketWriteFenceLikeCpp {
         Some(u64::from_le_bytes(data[8..16].try_into().ok()?))
     }
 
-    fn acknowledge_marker_like_cpp(&self, data: &[u8]) -> bool {
+    /// Acknowledge a marker consumed by a physical or test socket writer.
+    ///
+    /// Returns `true` when `data` is an internal fence marker and therefore
+    /// must not be written as a world packet.
+    pub fn acknowledge_marker_like_cpp(&self, data: &[u8]) -> bool {
         let Some(id) = Self::marker_id_like_cpp(data) else {
             return false;
         };

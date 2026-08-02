@@ -34,6 +34,9 @@ const TARGET_NONE_LIKE_CPP: i64 = 0;
 const TARGET_UNIT_CASTER_LIKE_CPP: i64 = 1;
 const TARGET_UNIT_TARGET_ALLY_LIKE_CPP: i64 = 21;
 const SPELL_ATTR0_PASSIVE_LIKE_CPP: u32 = 0x0000_0040;
+const SPELL_ATTR0_NO_IMMUNITIES_LIKE_CPP: u32 = 0x2000_0000;
+const SPELL_ATTR1_IS_CHANNELLED_LIKE_CPP: u32 = 0x0000_0004;
+const SPELL_ATTR1_IS_SELF_CHANNELLED_LIKE_CPP: u32 = 0x0000_0040;
 const SPELL_ATTR1_CAST_WHEN_LEARNED_LIKE_CPP: u32 = 0x8000_0000;
 const SUMMON_SLOT_MINIPET_LIKE_CPP: i64 = 5;
 const SUMMON_FROM_BATTLE_PET_JOURNAL_LIKE_CPP: u32 = 0x0020_0000;
@@ -48,7 +51,7 @@ const SPELL_EFFECT_SQL: &str = concat!(
     "SELECT ID, DifficultyID, EffectIndex, Effect, EffectBasePoints, EffectDieSides, ",
     "EffectTriggerSpell, EffectMiscValue1, EffectMiscValue2, ImplicitTarget1, ",
     "ImplicitTarget2, Coefficient, Variance, SpellID, EffectChainTargets, ",
-    "EffectPointsPerResource, EffectRealPointsPerLevel FROM spell_effect ",
+    "EffectPointsPerResource, EffectRealPointsPerLevel, EffectItemType, EffectAura, EffectMechanic, EffectAttributes FROM spell_effect ",
     "WHERE (`VerifiedBuild` > 0) = ?"
 );
 const SPELL_EFFECT_WDC_CHAIN_TARGETS_FIELD: usize = 10;
@@ -57,6 +60,10 @@ const SPELL_EFFECT_WDC_REAL_POINTS_PER_LEVEL_FIELD: usize = 16;
 const SPELL_EFFECT_SQL_CHAIN_TARGETS_COLUMN: usize = 14;
 const SPELL_EFFECT_SQL_POINTS_PER_RESOURCE_COLUMN: usize = 15;
 const SPELL_EFFECT_SQL_REAL_POINTS_PER_LEVEL_COLUMN: usize = 16;
+const SPELL_EFFECT_SQL_ITEM_TYPE_COLUMN: usize = 17;
+const SPELL_EFFECT_SQL_AURA_COLUMN: usize = 18;
+const SPELL_EFFECT_SQL_MECHANIC_COLUMN: usize = 19;
+const SPELL_EFFECT_SQL_ATTRIBUTES_COLUMN: usize = 20;
 const SPELL_LEARN_SPELL_SQL: &str = concat!(
     "SELECT ID, SpellID, LearnSpellID, OverridesSpellID FROM spell_learn_spell ",
     "WHERE (`VerifiedBuild` > 0) = ?"
@@ -308,6 +315,12 @@ pub struct SpellAcquisitionEffectLikeCpp {
     pub difficulty_id_raw: i64,
     pub effect_index_raw: i64,
     pub effect_type_raw: i64,
+    /// Raw `SpellEffectEntry::EffectAura` (`int16`).
+    pub effect_aura_raw: i64,
+    /// Raw `SpellEffectEntry::EffectMechanic` (`int32`).
+    pub effect_mechanic_raw: i64,
+    /// Raw `SpellEffectEntry::EffectAttributes` (`int32` bitmask).
+    pub effect_attributes_raw: i64,
     /// Raw regular DB2/hotfix `SpellEffectEntry::EffectBasePoints` (`int32`).
     ///
     /// C++ promotes this integer into `SpellEffectInfo::BasePoints` only
@@ -323,6 +336,8 @@ pub struct SpellAcquisitionEffectLikeCpp {
     pub effect_coefficient_bits: u32,
     pub effect_variance_bits: u32,
     pub effect_trigger_spell_raw: i64,
+    /// Raw regular DB2/hotfix `SpellEffectEntry::EffectItemType` (`int32`).
+    pub effect_item_type_raw: i64,
     pub effect_misc_value_raw: [i64; 2],
     pub implicit_target_raw: [i64; 2],
 }
@@ -370,6 +385,11 @@ impl SpellAcquisitionEffectLikeCpp {
             self.effect_trigger_spell_raw,
             "SpellEffect.EffectTriggerSpell",
         )
+    }
+
+    pub fn item_type_checked(&self) -> Result<u32, InvalidAcquisitionValueLikeCpp> {
+        source_i32(self.effect_item_type_raw, "SpellEffect.EffectItemType")?;
+        nonnegative_u32(self.effect_item_type_raw, "SpellEffect.EffectItemType")
     }
 
     pub fn misc_value_id_checked(
@@ -520,6 +540,14 @@ pub struct SpellAcquisitionMiscLikeCpp {
 }
 
 impl SpellAcquisitionMiscLikeCpp {
+    pub fn no_immunities_checked(&self) -> Result<bool, InvalidAcquisitionValueLikeCpp> {
+        Ok(
+            checked_u32_bits(self.attributes_raw[0], "SpellMisc.Attributes1")?
+                & SPELL_ATTR0_NO_IMMUNITIES_LIKE_CPP
+                != 0,
+        )
+    }
+
     pub fn is_passive_checked(&self) -> Result<bool, InvalidAcquisitionValueLikeCpp> {
         Ok(
             checked_u32_bits(self.attributes_raw[0], "SpellMisc.Attributes1")?
@@ -532,6 +560,14 @@ impl SpellAcquisitionMiscLikeCpp {
         Ok(
             checked_u32_bits(self.attributes_raw[1], "SpellMisc.Attributes2")?
                 & SPELL_ATTR1_CAST_WHEN_LEARNED_LIKE_CPP
+                != 0,
+        )
+    }
+
+    pub fn is_channeled_checked(&self) -> Result<bool, InvalidAcquisitionValueLikeCpp> {
+        Ok(
+            checked_u32_bits(self.attributes_raw[1], "SpellMisc.Attributes2")?
+                & (SPELL_ATTR1_IS_CHANNELLED_LIKE_CPP | SPELL_ATTR1_IS_SELF_CHANNELLED_LIKE_CPP)
                 != 0,
         )
     }
@@ -2051,6 +2087,9 @@ fn spell_acquisition_effect_from_wdc_like_cpp(
         difficulty_id_raw: i64::from(reader.get_field_i32(index, 0)),
         effect_index_raw: i64::from(reader.get_field_i32(index, 1)),
         effect_type_raw: i64::from(reader.get_field_u32(index, 2)),
+        effect_aura_raw: i64::from(reader.get_field_i16(index, 5)),
+        effect_mechanic_raw: i64::from(reader.get_field_i32(index, 13)),
+        effect_attributes_raw: i64::from(reader.get_field_i32(index, 4)),
         effect_base_points_raw: i64::from(reader.get_field_i32(index, 7)),
         effect_die_sides_raw: i64::from(reader.get_field_i32(index, 11)),
         effect_chain_targets_raw: i64::from(
@@ -2065,6 +2104,7 @@ fn spell_acquisition_effect_from_wdc_like_cpp(
         effect_coefficient_bits: reader.get_field_f32(index, 20).to_bits(),
         effect_variance_bits: reader.get_field_f32(index, 21).to_bits(),
         effect_trigger_spell_raw: i64::from(reader.get_field_i32(index, 17)),
+        effect_item_type_raw: i64::from(reader.get_field_i32(index, 12)),
         effect_misc_value_raw: std::array::from_fn(|array_index| {
             i64::from(reader.get_array_element(index, 24, array_index, 32) as i32)
         }),
@@ -2118,6 +2158,15 @@ fn spell_acquisition_effect_from_sql_source_like_cpp(
         difficulty_id_raw: source.raw(1, "SpellEffect.DifficultyID"),
         effect_index_raw: source.raw(2, "SpellEffect.EffectIndex"),
         effect_type_raw: source.raw(3, "SpellEffect.Effect"),
+        effect_aura_raw: source.raw(SPELL_EFFECT_SQL_AURA_COLUMN, "SpellEffect.EffectAura"),
+        effect_mechanic_raw: source.raw(
+            SPELL_EFFECT_SQL_MECHANIC_COLUMN,
+            "SpellEffect.EffectMechanic",
+        ),
+        effect_attributes_raw: source.raw(
+            SPELL_EFFECT_SQL_ATTRIBUTES_COLUMN,
+            "SpellEffect.EffectAttributes",
+        ),
         effect_base_points_raw: source.raw(4, "SpellEffect.EffectBasePoints"),
         effect_die_sides_raw: source.raw(5, "SpellEffect.EffectDieSides"),
         effect_chain_targets_raw: source.raw(
@@ -2135,6 +2184,10 @@ fn spell_acquisition_effect_from_sql_source_like_cpp(
         effect_coefficient_bits: source.f32_bits(11, "SpellEffect.Coefficient"),
         effect_variance_bits: source.f32_bits(12, "SpellEffect.Variance"),
         effect_trigger_spell_raw: source.raw(6, "SpellEffect.EffectTriggerSpell"),
+        effect_item_type_raw: source.raw(
+            SPELL_EFFECT_SQL_ITEM_TYPE_COLUMN,
+            "SpellEffect.EffectItemType",
+        ),
         effect_misc_value_raw: [
             source.raw(7, "SpellEffect.EffectMiscValue1"),
             source.raw(8, "SpellEffect.EffectMiscValue2"),
@@ -2889,10 +2942,13 @@ mod tests {
         assert_eq!(bytes.len(), RECORD_OFFSET as usize);
 
         let mut fields = [0_u32; FIELD_COUNT as usize];
+        fields[5] = 147; // EffectAura (int16 physical field)
+        fields[4] = 1; // EffectAttributes::NoImmunity
         fields[9] = 9;
         fields[10] = 17; // EffectChainTargets
         fields[11] = 11;
-        fields[13] = 13.0_f32.to_bits();
+        fields[12] = 12_345; // EffectItemType
+        fields[13] = 23; // EffectMechanic
         fields[14] = 1.75_f32.to_bits(); // EffectPointsPerResource
         fields[15] = 15.0_f32.to_bits();
         fields[16] = (-2.5_f32).to_bits(); // EffectRealPointsPerLevel
@@ -2905,8 +2961,8 @@ mod tests {
     }
 
     struct SentinelSpellEffectSqlSource {
-        raw: [i64; 17],
-        f32_bits: [u32; 17],
+        raw: [i64; 21],
+        f32_bits: [u32; 21],
     }
 
     impl SpellEffectSqlFieldSourceLikeCpp for SentinelSpellEffectSqlSource {
@@ -2932,6 +2988,9 @@ mod tests {
             difficulty_id_raw: difficulty_id,
             effect_index_raw: effect_index,
             effect_type_raw: effect_type,
+            effect_aura_raw: 0,
+            effect_mechanic_raw: 0,
+            effect_attributes_raw: 0,
             effect_base_points_raw: 0,
             effect_die_sides_raw: 0,
             effect_chain_targets_raw: 0,
@@ -2940,6 +2999,7 @@ mod tests {
             effect_coefficient_bits: 0.0_f32.to_bits(),
             effect_variance_bits: 0.0_f32.to_bits(),
             effect_trigger_spell_raw: 0,
+            effect_item_type_raw: 0,
             effect_misc_value_raw: [0, 0],
             implicit_target_raw: [0, 0],
         }
@@ -3024,8 +3084,12 @@ mod tests {
         std::fs::remove_file(path).expect("remove SpellEffect WDC4 fixture");
 
         assert_eq!(row.effect_chain_targets_raw, 17);
+        assert_eq!(row.effect_aura_raw, 147);
+        assert_eq!(row.effect_mechanic_raw, 23);
+        assert_eq!(row.effect_attributes_raw, 1);
         assert_eq!(row.effect_points_per_resource_bits, 1.75_f32.to_bits());
         assert_eq!(row.effect_real_points_per_level_bits, (-2.5_f32).to_bits());
+        assert_eq!(row.effect_item_type_raw, 12_345);
     }
 
     #[test]
@@ -3035,31 +3099,47 @@ mod tests {
             .and_then(|sql| sql.split_once(" FROM spell_effect "))
             .map(|(columns, _)| columns.split(", ").collect::<Vec<_>>())
             .expect("SpellEffect SQL projection");
-        assert_eq!(projection.len(), 17);
+        assert_eq!(projection.len(), 21);
         assert_eq!(
             [
                 SPELL_EFFECT_SQL_CHAIN_TARGETS_COLUMN,
                 SPELL_EFFECT_SQL_POINTS_PER_RESOURCE_COLUMN,
                 SPELL_EFFECT_SQL_REAL_POINTS_PER_LEVEL_COLUMN,
+                SPELL_EFFECT_SQL_ITEM_TYPE_COLUMN,
+                SPELL_EFFECT_SQL_AURA_COLUMN,
+                SPELL_EFFECT_SQL_MECHANIC_COLUMN,
+                SPELL_EFFECT_SQL_ATTRIBUTES_COLUMN,
             ],
-            [14, 15, 16]
+            [14, 15, 16, 17, 18, 19, 20]
         );
         assert_eq!(projection[14], "EffectChainTargets");
         assert_eq!(projection[15], "EffectPointsPerResource");
         assert_eq!(projection[16], "EffectRealPointsPerLevel");
+        assert_eq!(projection[17], "EffectItemType");
+        assert_eq!(projection[18], "EffectAura");
+        assert_eq!(projection[19], "EffectMechanic");
+        assert_eq!(projection[20], "EffectAttributes");
 
         let mut source = SentinelSpellEffectSqlSource {
-            raw: [0; 17],
-            f32_bits: [0; 17],
+            raw: [0; 21],
+            f32_bits: [0; 21],
         };
         source.raw[14] = 23;
         source.f32_bits[15] = 3.25_f32.to_bits();
         source.f32_bits[16] = (-4.5_f32).to_bits();
+        source.raw[17] = 54_321;
+        source.raw[18] = 147;
+        source.raw[19] = 23;
+        source.raw[20] = 1;
         let row = spell_acquisition_effect_from_sql_source_like_cpp(88, &mut source);
 
         assert_eq!(row.effect_chain_targets_raw, 23);
         assert_eq!(row.effect_points_per_resource_bits, 3.25_f32.to_bits());
         assert_eq!(row.effect_real_points_per_level_bits, (-4.5_f32).to_bits());
+        assert_eq!(row.effect_item_type_raw, 54_321);
+        assert_eq!(row.effect_aura_raw, 147);
+        assert_eq!(row.effect_mechanic_raw, 23);
+        assert_eq!(row.effect_attributes_raw, 1);
     }
 
     #[test]
@@ -3538,6 +3618,7 @@ mod tests {
         };
         assert_eq!(misc.is_passive_checked(), Ok(true));
         assert_eq!(misc.cast_when_learned_checked(), Ok(true));
+        assert_eq!(misc.is_channeled_checked(), Ok(false));
         assert_eq!(misc.future_player_condition_id_checked(), Ok(Some(44)));
         let SpellAcquisitionMetadataLookupLikeCpp::Present(levels) =
             catalog.levels_for_spell_like_cpp(100, 0)

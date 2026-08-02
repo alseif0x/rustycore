@@ -320,6 +320,17 @@ impl<'a> SpellAcquisitionPlannerLikeCpp<'a> {
                     .collect::<BTreeSet<_>>()
                     .len()
                     != resolution.executed_dual_wield_effects.len()
+                || resolution.effective_effects.iter().any(|effect| {
+                    effect.spell_id_checked().ok() != Some(spell_id)
+                        || effect.effect_index_checked().is_err()
+                })
+                || resolution
+                    .effective_effects
+                    .iter()
+                    .filter_map(|effect| effect.effect_index_checked().ok())
+                    .collect::<BTreeSet<_>>()
+                    .len()
+                    != resolution.effective_effects.len()
             {
                 return Err(
                     SpellAcquisitionIndeterminateLikeCpp::InvalidCastResolution {

@@ -22,12 +22,13 @@ use wow_data::{
     SpellAcquisitionCatalogLikeCpp, SpellAcquisitionDependenciesLookupLikeCpp,
     SpellAcquisitionEffectLikeCpp, SpellAcquisitionEffectsLookupLikeCpp,
     SpellAcquisitionIndeterminateReasonLikeCpp, SpellAcquisitionMetadataLookupLikeCpp,
-    SpellAcquisitionMiscLikeCpp, SpellAcquisitionTableLikeCpp, SpellAcquisitionTalentLookupLikeCpp,
-    SpellChainLoadDiagnosticLikeCpp, SpellChainLookupLikeCpp, SpellChainNodeLikeCpp,
-    SpellChainStoreLikeCpp, SpellCustomAttributeStoreLikeCpp,
+    SpellAcquisitionMiscLikeCpp, SpellAcquisitionResolvedEffectsLookupLikeCpp,
+    SpellAcquisitionResolvedMetadataLookupLikeCpp, SpellAcquisitionTableLikeCpp,
+    SpellAcquisitionTalentLookupLikeCpp, SpellChainLoadDiagnosticLikeCpp, SpellChainLookupLikeCpp,
+    SpellChainNodeLikeCpp, SpellChainStoreLikeCpp, SpellCustomAttributeStoreLikeCpp,
     SpellLearnSkillIndeterminateReasonLikeCpp, SpellLearnSkillLookupLikeCpp,
     SpellLearnSkillNodeLikeCpp, SpellLearnSkillStoreLikeCpp, SpellLearnSpellNodeLikeCpp,
-    SpellLearnSpellStoreLikeCpp, SpellRequiredStoreLikeCpp,
+    SpellLearnSpellStoreLikeCpp, SpellLinkedTypeLikeCpp, SpellRequiredStoreLikeCpp,
 };
 
 use wow_data::skill::{

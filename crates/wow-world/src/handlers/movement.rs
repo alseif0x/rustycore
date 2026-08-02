@@ -911,6 +911,7 @@ mod tests {
     fn visible_aura(slot: u8, flags: u32, flags2: u32) -> AuraApplication {
         AuraApplication {
             spell_id: 1000 + i32::from(slot),
+            difficulty_id: 0,
             caster_guid: ObjectGuid::EMPTY,
             slot,
             duration_total: 30_000,

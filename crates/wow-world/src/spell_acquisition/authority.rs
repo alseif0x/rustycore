@@ -181,7 +181,6 @@ impl SpellAcquisitionCastAuthorityLikeCpp {
         }
     }
 
-    #[cfg(test)]
     pub(crate) fn from_audited_rows_like_cpp(
         proven_safe_spell_ids: impl IntoIterator<Item = u32>,
         indeterminate: impl IntoIterator<
