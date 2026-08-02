@@ -19,7 +19,7 @@ use std::time::{Duration, Instant};
 use dashmap::DashMap;
 use sqlx::{MySql, Row, Transaction};
 use tokio::sync::{Notify, OnceCell, watch};
-use wow_core::{ObjectGuid, ObjectGuidGenerator, guid::HighGuid};
+use wow_core::{ObjectGuid, guid::HighGuid};
 use wow_data::{
     BATTLE_PET_SPECIES_FLAG_LEGACY_ACCOUNT_UNIQUE_LIKE_CPP,
     BATTLE_PET_SPECIES_FLAG_NOT_ACCOUNT_WIDE_LIKE_CPP, BATTLE_PET_SPECIES_FLAG_WELL_KNOWN_LIKE_CPP,
@@ -132,6 +132,10 @@ pub(crate) trait BattlePetPersistenceLikeCpp: Send + Sync {
         'a,
         Result<LoadedBattlePetAccountLikeCpp, BattlePetPersistenceErrorLikeCpp>,
     >;
+
+    fn allocate_guid_counter_like_cpp(
+        &self,
+    ) -> PersistenceFuture<'_, Result<u64, BattlePetPersistenceErrorLikeCpp>>;
 
     fn insert_pet_idempotently<'a>(
         &'a self,
@@ -270,6 +274,55 @@ impl BattlePetPersistenceLikeCpp for LoginBattlePetPersistenceLikeCpp {
                 .await
                 .map_err(|error| database_error_like_cpp(DatabaseError::from(error)))?;
             Ok(LoadedBattlePetAccountLikeCpp { pets, slots })
+        })
+    }
+
+    fn allocate_guid_counter_like_cpp(
+        &self,
+    ) -> PersistenceFuture<'_, Result<u64, BattlePetPersistenceErrorLikeCpp>> {
+        Box::pin(async move {
+            // The namespace is shared by every realm using this Login DB. A
+            // short row lock serializes one allocation without preventing a
+            // second world-server from running against the same database.
+            let mut tx = self
+                .db
+                .pool()
+                .begin()
+                .await
+                .map_err(|error| database_error_like_cpp(DatabaseError::from(error)))?;
+            let row = sqlx::query(
+                "SELECT nextGuid FROM battle_pet_guid_sequence WHERE singleton = 1 FOR UPDATE",
+            )
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|error| database_error_like_cpp(DatabaseError::from(error)))?
+            .ok_or_else(|| {
+                BattlePetPersistenceErrorLikeCpp::Database(
+                    "battle-pet GUID sequence row is missing".to_string(),
+                )
+            })?;
+            let counter: u64 = row.try_get("nextGuid").map_err(|error| {
+                BattlePetPersistenceErrorLikeCpp::Database(format!(
+                    "could not decode battle-pet GUID sequence: {error}"
+                ))
+            })?;
+            let next = counter
+                .checked_add(1)
+                .ok_or(BattlePetPersistenceErrorLikeCpp::GuidCollision)?;
+            let generator_limit = u64::try_from(ObjectGuid::max_counter(HighGuid::BattlePet) - 1)
+                .map_err(|_| BattlePetPersistenceErrorLikeCpp::GuidCollision)?;
+            if counter == 0 || counter >= generator_limit {
+                return Err(BattlePetPersistenceErrorLikeCpp::GuidCollision);
+            }
+            sqlx::query("UPDATE battle_pet_guid_sequence SET nextGuid = ? WHERE singleton = 1")
+                .bind(next)
+                .execute(&mut *tx)
+                .await
+                .map_err(|error| database_error_like_cpp(DatabaseError::from(error)))?;
+            tx.commit()
+                .await
+                .map_err(|error| database_error_like_cpp(DatabaseError::from(error)))?;
+            Ok(counter)
         })
     }
 
@@ -822,7 +875,6 @@ pub(crate) struct BattlePetAccountOwnerLikeCpp {
     realm_id: u16,
     virtual_realm_address: u32,
     persistence: Arc<dyn BattlePetPersistenceLikeCpp>,
-    guid_generator: Arc<ObjectGuidGenerator>,
     species_store: Arc<BattlePetSpeciesStore>,
     breed_quality_store: Arc<BattlePetBreedQualityStore>,
     breed_state_store: Arc<BattlePetBreedStateStore>,
@@ -838,7 +890,6 @@ impl BattlePetAccountOwnerLikeCpp {
         realm_id: u16,
         virtual_realm_address: u32,
         persistence: Arc<dyn BattlePetPersistenceLikeCpp>,
-        guid_generator: Arc<ObjectGuidGenerator>,
         species_store: Arc<BattlePetSpeciesStore>,
         breed_quality_store: Arc<BattlePetBreedQualityStore>,
         breed_state_store: Arc<BattlePetBreedStateStore>,
@@ -902,7 +953,6 @@ impl BattlePetAccountOwnerLikeCpp {
             realm_id,
             virtual_realm_address,
             persistence,
-            guid_generator,
             species_store,
             breed_quality_store,
             breed_state_store,
@@ -1213,27 +1263,11 @@ impl BattlePetAccountOwnerLikeCpp {
             break;
         }
 
-        let row_result = u64::try_from(self.guid_generator.generate())
-            .map_err(|_| BattlePetAddFailureLikeCpp::GuidCollision)
-            .and_then(|counter| self.durable_new_pet_like_cpp(counter, &request));
-        let row = match row_result {
-            Ok(row) => row,
-            Err(error) => {
-                let mut state = self
-                    .state
-                    .lock()
-                    .expect("battle-pet account state poisoned");
-                if let Some(pending) = state.pending_adds.remove(&request.request_key) {
-                    let _ = pending.completion.send(true);
-                }
-                return Err(error);
-            }
-        };
         let owner = Arc::clone(self);
         let operation_guard = self.begin_operation_like_cpp();
         tokio::spawn(async move {
             let _operation_guard = operation_guard;
-            owner.finish_add_pet_like_cpp(request, row).await
+            owner.finish_add_pet_like_cpp(request).await
         })
         .await
         .map_err(|error| {
@@ -1246,17 +1280,31 @@ impl BattlePetAccountOwnerLikeCpp {
     async fn finish_add_pet_like_cpp(
         self: Arc<Self>,
         request: BattlePetAddRequestLikeCpp,
-        row: DurableBattlePetRowLikeCpp,
     ) -> Result<BattlePetAddOutcomeLikeCpp, BattlePetAddFailureLikeCpp> {
-        let persistence_result = self
-            .persistence
-            .insert_pet_idempotently(DurableBattlePetAddLikeCpp {
-                account_id: self.account_id,
-                realm_id: self.realm_id,
-                request_key: request.request_key,
-                pet: row.clone(),
-            })
-            .await;
+        let persistence_result = async {
+            let counter = self.persistence.allocate_guid_counter_like_cpp().await?;
+            let row =
+                self.durable_new_pet_like_cpp(counter, &request)
+                    .map_err(|error| match error {
+                        BattlePetAddFailureLikeCpp::GuidCollision => {
+                            BattlePetPersistenceErrorLikeCpp::GuidCollision
+                        }
+                        other => BattlePetPersistenceErrorLikeCpp::Database(format!(
+                            "could not materialize allocated battle pet: {other:?}"
+                        )),
+                    })?;
+            let outcome = self
+                .persistence
+                .insert_pet_idempotently(DurableBattlePetAddLikeCpp {
+                    account_id: self.account_id,
+                    realm_id: self.realm_id,
+                    request_key: request.request_key,
+                    pet: row.clone(),
+                })
+                .await?;
+            Ok::<_, BattlePetPersistenceErrorLikeCpp>((row, outcome))
+        }
+        .await;
 
         let mut state = self
             .state
@@ -1267,7 +1315,7 @@ impl BattlePetAccountOwnerLikeCpp {
             .remove(&request.request_key)
             .expect("battle-pet reservation disappeared before persistence completed");
         let result = match persistence_result {
-            Ok(outcome) => {
+            Ok((row, outcome)) => {
                 let replayed =
                     matches!(outcome, PersistBattlePetAddOutcomeLikeCpp::Replayed { .. });
                 let durable = match outcome {
@@ -1765,7 +1813,6 @@ impl Drop for BattlePetAccountAttachmentLikeCpp {
 
 pub struct BattlePetAccountRegistryLikeCpp {
     persistence: Arc<dyn BattlePetPersistenceLikeCpp>,
-    guid_generator: Arc<ObjectGuidGenerator>,
     species_store: Arc<BattlePetSpeciesStore>,
     breed_quality_store: Arc<BattlePetBreedQualityStore>,
     breed_state_store: Arc<BattlePetBreedStateStore>,
@@ -1780,7 +1827,6 @@ impl BattlePetAccountRegistryLikeCpp {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         persistence: Arc<LoginBattlePetPersistenceLikeCpp>,
-        guid_generator: Arc<ObjectGuidGenerator>,
         species_store: Arc<BattlePetSpeciesStore>,
         breed_quality_store: Arc<BattlePetBreedQualityStore>,
         breed_state_store: Arc<BattlePetBreedStateStore>,
@@ -1790,7 +1836,6 @@ impl BattlePetAccountRegistryLikeCpp {
     ) -> Self {
         Self::new_with_persistence_like_cpp(
             persistence,
-            guid_generator,
             species_store,
             breed_quality_store,
             breed_state_store,
@@ -1803,7 +1848,6 @@ impl BattlePetAccountRegistryLikeCpp {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new_with_persistence_like_cpp(
         persistence: Arc<dyn BattlePetPersistenceLikeCpp>,
-        guid_generator: Arc<ObjectGuidGenerator>,
         species_store: Arc<BattlePetSpeciesStore>,
         breed_quality_store: Arc<BattlePetBreedQualityStore>,
         breed_state_store: Arc<BattlePetBreedStateStore>,
@@ -1813,7 +1857,6 @@ impl BattlePetAccountRegistryLikeCpp {
     ) -> Self {
         Self {
             persistence,
-            guid_generator,
             species_store,
             breed_quality_store,
             breed_state_store,
@@ -1847,7 +1890,6 @@ impl BattlePetAccountRegistryLikeCpp {
                         self.realm_id,
                         self.virtual_realm_address,
                         Arc::clone(&self.persistence),
-                        Arc::clone(&self.guid_generator),
                         Arc::clone(&self.species_store),
                         Arc::clone(&self.breed_quality_store),
                         Arc::clone(&self.breed_state_store),
@@ -1907,6 +1949,7 @@ mod tests {
     #[derive(Default)]
     struct FakePersistenceLikeCpp {
         state: Mutex<FakePersistenceStateLikeCpp>,
+        next_guid: AtomicU64,
         insert_calls: AtomicUsize,
         fail_next_insert: AtomicBool,
         fail_next_update: AtomicBool,
@@ -1932,6 +1975,19 @@ mod tests {
                     pets: state.pets.clone(),
                     slots: state.slots.clone(),
                 })
+            })
+        }
+
+        fn allocate_guid_counter_like_cpp(
+            &self,
+        ) -> PersistenceFuture<'_, Result<u64, BattlePetPersistenceErrorLikeCpp>> {
+            Box::pin(async move {
+                let counter = self.next_guid.fetch_add(1, Ordering::AcqRel);
+                if counter == 0 {
+                    Err(BattlePetPersistenceErrorLikeCpp::GuidCollision)
+                } else {
+                    Ok(counter)
+                }
             })
         }
 
@@ -2150,10 +2206,12 @@ mod tests {
         species_flags: i32,
         next_guid: i64,
     ) -> BattlePetAccountRegistryLikeCpp {
+        persistence
+            .next_guid
+            .store(next_guid as u64, Ordering::Release);
         let (species, qualities, breed_states, species_states) = stores_like_cpp(species_flags);
         BattlePetAccountRegistryLikeCpp::new_with_persistence_like_cpp(
             persistence,
-            Arc::new(ObjectGuidGenerator::new(HighGuid::BattlePet, next_guid)),
             species,
             qualities,
             breed_states,
@@ -2219,6 +2277,23 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn two_realm_owners_share_one_global_guid_sequence_without_startup_exclusion() {
+        let persistence = Arc::new(FakePersistenceLikeCpp::default());
+        persistence.next_guid.store(500, Ordering::Release);
+
+        // Two world-server processes may share the Login DB. Their allocator
+        // calls serialize only the individual reservation and neither needs a
+        // process-lifetime lease over the database.
+        let (first, second) = tokio::join!(
+            persistence.allocate_guid_counter_like_cpp(),
+            persistence.allocate_guid_counter_like_cpp()
+        );
+        let allocated = HashSet::from([first.unwrap(), second.unwrap()]);
+        assert_eq!(allocated, HashSet::from([500, 501]));
+        assert_eq!(persistence.next_guid.load(Ordering::Acquire), 502);
+    }
+
     #[test]
     fn loaded_rows_apply_cpp_species_owner_capacity_and_slot_validation_like_cpp() {
         let (species, qualities, breed_states, species_states) =
@@ -2254,7 +2329,6 @@ mod tests {
             7,
             0x0102_0007,
             Arc::new(FakePersistenceLikeCpp::default()),
-            Arc::new(ObjectGuidGenerator::new(HighGuid::BattlePet, 100)),
             species,
             qualities,
             breed_states,

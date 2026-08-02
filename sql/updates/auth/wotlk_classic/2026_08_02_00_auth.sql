@@ -1,3 +1,17 @@
+-- Global allocator shared by every realm using this Login DB. Allocations
+-- lock this singleton row only for one short transaction; world-server
+-- processes must not hold a Login DB-wide lock for their complete lifetime.
+CREATE TABLE IF NOT EXISTS `battle_pet_guid_sequence` (
+  `singleton` tinyint unsigned NOT NULL,
+  `nextGuid` bigint unsigned NOT NULL,
+  PRIMARY KEY (`singleton`),
+  CONSTRAINT `chk_battle_pet_guid_sequence_singleton` CHECK (`singleton` = 1)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO `battle_pet_guid_sequence` (`singleton`, `nextGuid`)
+SELECT 1, COALESCE(MAX(`guid`), 0) + 1 FROM `battle_pets`
+ON DUPLICATE KEY UPDATE `nextGuid` = GREATEST(`nextGuid`, VALUES(`nextGuid`));
+
 -- Durable idempotency receipts for account-atomic battle-pet creation.
 -- The receipt and battle_pets row are inserted in one Login DB transaction.
 CREATE TABLE IF NOT EXISTS `battle_pet_add_requests` (

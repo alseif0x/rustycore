@@ -33,9 +33,8 @@ use wow_core::{
     scan_local_ipv4_networks_like_cpp,
 };
 use wow_database::{
-    BattlePetGuidAllocatorAdvisoryLockLikeCpp, CharStatements, CharacterDatabase,
-    DATABASE_CHARACTER_LIKE_CPP, DATABASE_HOTFIX_LIKE_CPP, DATABASE_LOGIN_LIKE_CPP,
-    DATABASE_MASK_ALL_LIKE_CPP, DATABASE_WORLD_LIKE_CPP, HotfixDatabase,
+    CharStatements, CharacterDatabase, DATABASE_CHARACTER_LIKE_CPP, DATABASE_HOTFIX_LIKE_CPP,
+    DATABASE_LOGIN_LIKE_CPP, DATABASE_MASK_ALL_LIKE_CPP, DATABASE_WORLD_LIKE_CPP, HotfixDatabase,
     ItemGuidAllocatorAdvisoryLockLikeCpp, LoginDatabase, LoginStatements, PreparedStatement,
     SqlParam, SqlResult, SqlTransaction, StatementDef, WorldDatabase, WorldStatements,
     escape_string_like_cpp, warn_about_sync_queries_scope_like_cpp,
@@ -98,22 +97,6 @@ fn next_item_guid_allocator_start_like_cpp(max_persisted_guid: Option<u64>) -> R
     if next >= generator_limit {
         bail!(
             "item_instance GUID allocator start {next} is outside HighGuid::Item generator range (must be below {generator_limit})"
-        );
-    }
-    Ok(next)
-}
-
-fn next_battle_pet_guid_allocator_start_like_cpp(max_persisted_guid: Option<u64>) -> Result<i64> {
-    let next = max_persisted_guid
-        .unwrap_or(0)
-        .checked_add(1)
-        .context("battle_pets GUID counter overflow")?;
-    let next = i64::try_from(next)
-        .context("battle_pets GUID counter exceeds the supported integer range")?;
-    let generator_limit = ObjectGuid::max_counter(HighGuid::BattlePet) - 1;
-    if next >= generator_limit {
-        bail!(
-            "battle_pets GUID allocator start {next} is outside HighGuid::BattlePet generator range (must be below {generator_limit})"
         );
     }
     Ok(next)
@@ -1428,39 +1411,6 @@ async fn main() -> Result<ExitCode> {
 
     let guid_generator = Arc::new(ObjectGuidGenerator::new(HighGuid::Player, max_guid));
     info!("GUID generator initialized, next counter: {max_guid}");
-
-    // Battle pets are global to the shared Login DB, not scoped to one realm.
-    // Hold a separate process-lifetime allocator lock before reading MAX so a
-    // second realm/process cannot initialize the same counter concurrently.
-    let mut battle_pet_guid_allocator_advisory_lock =
-        BattlePetGuidAllocatorAdvisoryLockLikeCpp::acquire_like_cpp(login_db.pool())
-            .await
-            .context("failed to acquire the Login DB battle-pet GUID allocator lock")?;
-
-    // One process-wide C++ `HighGuid::BattlePet` namespace. Concurrent
-    // sessions share this allocator; the Login DB lock above makes MAX+1 and
-    // all subsequent process-local allocations globally exclusive.
-    let next_battle_pet_guid = {
-        let stmt = login_db.prepare(LoginStatements::SEL_MAX_BATTLE_PET_GUID);
-        match login_db.query(&stmt).await {
-            Ok(result) if !result.is_empty() && !result.is_null(0) => {
-                let max: u64 = result
-                    .try_read(0)
-                    .context("failed to decode MAX(battle_pets.guid)")?;
-                next_battle_pet_guid_allocator_start_like_cpp(Some(max))?
-            }
-            Ok(_) => next_battle_pet_guid_allocator_start_like_cpp(None)?,
-            Err(error) => {
-                return Err(error)
-                    .context("failed to initialize battle-pet GUID allocator from Login DB");
-            }
-        }
-    };
-    let battle_pet_guid_generator = Arc::new(ObjectGuidGenerator::new(
-        HighGuid::BattlePet,
-        next_battle_pet_guid,
-    ));
-    info!("Battle-pet GUID generator initialized, next counter: {next_battle_pet_guid}");
 
     // A process-local atomic generator is safe only while one world-server can
     // allocate for this character database. Hold a connection-scoped MySQL
@@ -4708,7 +4658,6 @@ async fn main() -> Result<ExitCode> {
     let login_db = Arc::new(login_db);
     let battle_pet_account_registry = Arc::new(BattlePetAccountRegistryLikeCpp::new(
         Arc::new(LoginBattlePetPersistenceLikeCpp::new(Arc::clone(&login_db))),
-        Arc::clone(&battle_pet_guid_generator),
         Arc::clone(&battle_pet_species_entry_store),
         Arc::clone(&battle_pet_breed_quality_store),
         Arc::clone(&battle_pet_breed_state_store),
@@ -6099,18 +6048,6 @@ async fn main() -> Result<ExitCode> {
                 ),
             }
         }
-        result = battle_pet_guid_allocator_advisory_lock.wait_until_lost_like_cpp() => {
-            world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
-            match result {
-                Ok(()) => tracing::error!(
-                    "Battle-pet GUID allocator advisory-lock monitor stopped unexpectedly"
-                ),
-                Err(error) => tracing::error!(
-                    %error,
-                    "Battle-pet GUID allocator advisory lock was lost; stopping before another GUID allocation"
-                ),
-            }
-        }
     }
 
     // Close registration under the same mutex used by `try_register`. An
@@ -6277,14 +6214,6 @@ async fn main() -> Result<ExitCode> {
         world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
         tracing::error!(%error, "Failed to release item GUID allocator advisory lock");
     }
-    if let Err(error) = battle_pet_guid_allocator_advisory_lock
-        .release_like_cpp()
-        .await
-    {
-        world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
-        tracing::error!(%error, "Failed to release battle-pet GUID allocator advisory lock");
-    }
-
     info!(
         exit_code = world_runtime_state.get_exit_code_like_cpp(),
         "World server stopped."
@@ -15153,8 +15082,8 @@ mod tests {
         materialize_game_event_world_event_state_db_bridge_like_cpp,
         max_core_stuck_time_ms_like_cpp, max_core_stuck_time_secs_like_cpp,
         max_primary_trade_skills_like_cpp, min_world_update_time_ms_like_cpp,
-        mmap_runtime_config_like_cpp, next_battle_pet_guid_allocator_start_like_cpp,
-        next_equipment_set_guid_allocator_start_like_cpp, next_item_guid_allocator_start_like_cpp,
+        mmap_runtime_config_like_cpp, next_equipment_set_guid_allocator_start_like_cpp,
+        next_item_guid_allocator_start_like_cpp,
         next_void_storage_item_id_allocator_start_like_cpp,
         normalize_realm_security_level_like_cpp, normalize_realm_type_like_cpp,
         normalized_realm_name_like_cpp, persisted_respawn_info_from_row_like_cpp,
@@ -15259,24 +15188,6 @@ mod tests {
             "startup must reject the value that ObjectGuidGenerator::generate would panic on"
         );
         assert!(next_item_guid_allocator_start_like_cpp(Some(u64::MAX)).is_err());
-    }
-
-    #[test]
-    fn battle_pet_guid_allocator_fails_before_object_guid_generator_panic_like_cpp() {
-        assert_eq!(
-            next_battle_pet_guid_allocator_start_like_cpp(None).unwrap(),
-            1
-        );
-        assert_eq!(
-            next_battle_pet_guid_allocator_start_like_cpp(Some(41)).unwrap(),
-            42
-        );
-        let generator_limit = ObjectGuid::max_counter(HighGuid::BattlePet) - 1;
-        assert!(
-            next_battle_pet_guid_allocator_start_like_cpp(Some((generator_limit - 1) as u64))
-                .is_err()
-        );
-        assert!(next_battle_pet_guid_allocator_start_like_cpp(Some(u64::MAX)).is_err());
     }
 
     #[test]

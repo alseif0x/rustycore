@@ -17,7 +17,6 @@ const DEADLOCK_MAX_RETRY_TIME_LIKE_CPP: Duration = Duration::from_secs(60);
 static DEADLOCK_RETRY_LOCK_LIKE_CPP: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
 const ITEM_GUID_ALLOCATOR_LOCK_PREFIX_LIKE_CPP: &str = "rustycore:item-guid:";
-const BATTLE_PET_GUID_ALLOCATOR_LOCK_PREFIX_LIKE_CPP: &str = "rustycore:battle-pet-guid:";
 const ITEM_GUID_ALLOCATOR_LOCK_VERIFY_INTERVAL_LIKE_CPP: Duration = Duration::from_secs(30);
 
 /// Retry an operation whose caller can distinguish MySQL deadlock 1213 from
@@ -178,41 +177,6 @@ impl ItemGuidAllocatorAdvisoryLockLikeCpp {
     #[cfg(test)]
     pub(crate) fn lock_name_for_test(database_name: &str) -> String {
         item_guid_allocator_lock_name_like_cpp(database_name)
-    }
-}
-
-/// Process-lifetime Login DB lock protecting the global battle-pet GUID
-/// namespace. Unlike item GUIDs, this namespace is shared by every realm that
-/// uses the same Battle.net database, so it needs its own lock domain.
-#[derive(Debug)]
-pub struct BattlePetGuidAllocatorAdvisoryLockLikeCpp(ItemGuidAllocatorAdvisoryLockLikeCpp);
-
-impl BattlePetGuidAllocatorAdvisoryLockLikeCpp {
-    pub async fn acquire_like_cpp(pool: &MySqlPool) -> Result<Self, DatabaseError> {
-        ItemGuidAllocatorAdvisoryLockLikeCpp::acquire_named_like_cpp(
-            pool,
-            "battle-pet",
-            "Login",
-            BATTLE_PET_GUID_ALLOCATOR_LOCK_PREFIX_LIKE_CPP,
-        )
-        .await
-        .map(Self)
-    }
-
-    pub async fn wait_until_lost_like_cpp(&mut self) -> Result<(), DatabaseError> {
-        self.0.wait_until_lost_like_cpp().await
-    }
-
-    pub async fn release_like_cpp(self) -> Result<(), DatabaseError> {
-        self.0.release_like_cpp().await
-    }
-
-    #[cfg(test)]
-    pub(crate) fn lock_name_for_test(database_name: &str) -> String {
-        guid_allocator_lock_name_like_cpp(
-            BATTLE_PET_GUID_ALLOCATOR_LOCK_PREFIX_LIKE_CPP,
-            database_name,
-        )
     }
 }
 
@@ -617,9 +581,8 @@ pub(crate) fn bind_param<'q>(
 #[cfg(test)]
 mod tests {
     use super::{
-        BattlePetGuidAllocatorAdvisoryLockLikeCpp, ItemGuidAllocatorAdvisoryLockLikeCpp,
-        SqlTransaction, SqlTransactionCommitError, retry_deadlocked_operation_like_cpp,
-        validate_rows_affected,
+        ItemGuidAllocatorAdvisoryLockLikeCpp, SqlTransaction, SqlTransactionCommitError,
+        retry_deadlocked_operation_like_cpp, validate_rows_affected,
     };
     use crate::{DatabaseError, PreparedStatement};
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -733,18 +696,6 @@ mod tests {
             first.len() <= 64,
             "MySQL named locks are limited to 64 bytes"
         );
-    }
-
-    #[test]
-    fn battle_pet_and_item_guid_allocators_use_independent_lock_domains() {
-        let battle_pet =
-            BattlePetGuidAllocatorAdvisoryLockLikeCpp::lock_name_for_test("auth_shared");
-        let item = ItemGuidAllocatorAdvisoryLockLikeCpp::lock_name_for_test("auth_shared");
-
-        assert!(battle_pet.starts_with("rustycore:battle-pet-guid:"));
-        assert_ne!(battle_pet, item);
-        assert!(!battle_pet.contains("auth_shared"));
-        assert!(battle_pet.len() <= 64);
     }
 
     #[test]
