@@ -1390,6 +1390,26 @@ impl BattlePetAccountOwnerLikeCpp {
         )
     }
 
+    pub(crate) async fn add_request_committed_like_cpp(
+        &self,
+        request_key: BattlePetAddRequestKeyLikeCpp,
+    ) -> Result<bool, BattlePetAddFailureLikeCpp> {
+        if self
+            .state
+            .lock()
+            .expect("battle-pet account state poisoned")
+            .completed_adds
+            .contains_key(&request_key)
+        {
+            return Ok(true);
+        }
+        self.persistence
+            .lookup_add_request(self.account_id, request_key)
+            .await
+            .map(|receipt| receipt.is_some())
+            .map_err(add_persistence_error_like_cpp)
+    }
+
     pub(crate) async fn try_add_pet_like_cpp(
         self: &Arc<Self>,
         lease_id: BattlePetLeaseIdLikeCpp,

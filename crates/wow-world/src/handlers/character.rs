@@ -17267,6 +17267,26 @@ impl WorldSession {
         runtime_item: Option<wow_entities::Item>,
         context: &str,
     ) -> bool {
+        self.destroy_inventory_full_stack_by_pos_with_expected_owner_like_cpp(
+            bag,
+            slot,
+            item,
+            runtime_item,
+            None,
+            context,
+        )
+        .await
+    }
+
+    pub(crate) async fn destroy_inventory_full_stack_by_pos_with_expected_owner_like_cpp(
+        &mut self,
+        bag: u8,
+        slot: u8,
+        item: crate::session::InventoryItem,
+        runtime_item: Option<wow_entities::Item>,
+        expected_owner_db_guid: Option<u64>,
+        context: &str,
+    ) -> bool {
         let player_guid = match self.player_guid() {
             Some(guid) => guid,
             None => return false,
@@ -17331,10 +17351,23 @@ impl WorldSession {
             .map(|(_, _, child, _)| child.db_guid)
             .chain(std::iter::once(item.db_guid))
         {
-            let mut del_inv = char_db.prepare(CharStatements::DEL_CHAR_INVENTORY_ITEM);
+            let is_guarded_root = db_guid == item.db_guid && expected_owner_db_guid.is_some();
+            let mut del_inv = char_db.prepare(if is_guarded_root {
+                CharStatements::DEL_CHAR_INVENTORY_ITEM_BY_OWNER
+            } else {
+                CharStatements::DEL_CHAR_INVENTORY_ITEM
+            });
             del_inv.set_u64(0, player_guid.counter() as u64);
             del_inv.set_u64(1, db_guid);
-            tx.append(del_inv);
+            if let Some(expected_owner_db_guid) = expected_owner_db_guid.filter(|_| is_guarded_root)
+            {
+                del_inv.set_u64(2, expected_owner_db_guid);
+            }
+            if is_guarded_root {
+                tx.append_expect_rows_affected(del_inv, 1);
+            } else {
+                tx.append(del_inv);
+            }
 
             for statement_kind in fully_merged_item_cleanup_statements_like_cpp() {
                 let mut cleanup = char_db.prepare(statement_kind);
@@ -17342,9 +17375,21 @@ impl WorldSession {
                 tx.append(cleanup);
             }
 
-            let mut del_item = char_db.prepare(CharStatements::DEL_ITEM_INSTANCE);
+            let mut del_item = char_db.prepare(if is_guarded_root {
+                CharStatements::DEL_ITEM_INSTANCE_BY_GUID_AND_OWNER
+            } else {
+                CharStatements::DEL_ITEM_INSTANCE
+            });
             del_item.set_u64(0, db_guid);
-            tx.append(del_item);
+            if let Some(expected_owner_db_guid) = expected_owner_db_guid.filter(|_| is_guarded_root)
+            {
+                del_item.set_u64(1, expected_owner_db_guid);
+            }
+            if is_guarded_root {
+                tx.append_expect_rows_affected(del_item, 1);
+            } else {
+                tx.append(del_item);
+            }
         }
         self.append_planned_quest_statuses_to_transaction_like_cpp(
             &mut tx,
@@ -17359,6 +17404,31 @@ impl WorldSession {
                 InventoryResult::InternalBagError,
             ));
             return false;
+        }
+
+        if let Some(expected_owner_db_guid) = expected_owner_db_guid {
+            match Self::uncage_item_state_like_cpp(&char_db, expected_owner_db_guid, item.db_guid)
+                .await
+            {
+                Ok((None, false)) => {}
+                Ok((owner_guid, inventory_linked)) => {
+                    warn!(
+                        item_guid = item.db_guid,
+                        ?owner_guid,
+                        inventory_linked,
+                        "{context}: guarded item deletion did not reach its durable postcondition"
+                    );
+                    return false;
+                }
+                Err(error) => {
+                    warn!(
+                        item_guid = item.db_guid,
+                        %error,
+                        "{context}: failed to verify guarded item deletion"
+                    );
+                    return false;
+                }
+            }
         }
 
         let mut destroyed_guids = Vec::with_capacity(descendant_runtime.len() + 1);

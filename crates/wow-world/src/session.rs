@@ -49843,6 +49843,116 @@ impl WorldSession {
         }
     }
 
+    async fn battle_pet_add_request_committed_like_cpp(
+        &self,
+        request_key: BattlePetAddRequestKeyLikeCpp,
+    ) -> Result<bool, BattlePetAddFailureLikeCpp> {
+        let Some(attachment) = &self.battle_pet_account_attachment_like_cpp else {
+            return Ok(false);
+        };
+        attachment
+            .owner_like_cpp()
+            .add_request_committed_like_cpp(request_key)
+            .await
+    }
+
+    fn uncage_cast_item_still_matches_like_cpp(
+        &self,
+        cast_item_entry: u32,
+        modifiers: SpellCastBattlePetItemModifiersLikeCpp,
+    ) -> Option<(u8, u8, InventoryItem)> {
+        let (bag, slot, inventory_item) =
+            self.get_inventory_item_by_guid_like_cpp(modifiers.source_item_guid)?;
+        if inventory_item.entry_id != cast_item_entry {
+            return None;
+        }
+        let item = self
+            .inventory_item_objects_like_cpp()
+            .get(&modifiers.source_item_guid)?;
+        (item.object().entry() == cast_item_entry
+            && item.get_modifier(ItemModifier::BattlePetSpeciesId) == modifiers.species_id
+            && item.get_modifier(ItemModifier::BattlePetBreedData) == modifiers.breed_data
+            && item.get_modifier(ItemModifier::BattlePetLevel) == u32::from(modifiers.level)
+            && item.get_modifier(ItemModifier::BattlePetDisplayId) == modifiers.display_id)
+            .then_some((bag, slot, inventory_item))
+    }
+
+    pub(crate) async fn uncage_item_state_like_cpp(
+        char_db: &CharacterDatabase,
+        player_db_guid: u64,
+        item_db_guid: u64,
+    ) -> Result<(Option<u64>, bool), DatabaseError> {
+        let mut statement = char_db.prepare(CharStatements::SEL_UNCAGE_ITEM_STATE);
+        statement.set_u64(0, item_db_guid);
+        statement.set_u64(1, player_db_guid);
+        statement.set_u64(2, item_db_guid);
+        let result = char_db.query(&statement).await?;
+        Ok((
+            result.try_read::<Option<u64>>(0).flatten(),
+            result.try_read::<u64>(1).unwrap_or_default() != 0,
+        ))
+    }
+
+    /// Finish C++ `Player::DestroyItem` after the Login DB pet/receipt commit.
+    ///
+    /// The receipt makes this second database phase retryable: a reconnect may
+    /// observe the already-created pet and finish deleting the cage without
+    /// publishing another pet or visual.
+    async fn destroy_uncaged_battle_pet_item_durable_like_cpp(
+        &mut self,
+        source_item_guid: ObjectGuid,
+    ) -> bool {
+        let Some(player_guid) = self.player_guid() else {
+            return false;
+        };
+        let Some(char_db) = self.char_db().map(Arc::clone) else {
+            return false;
+        };
+        let player_db_guid = player_guid.counter() as u64;
+        let item_db_guid = source_item_guid.counter() as u64;
+
+        let state = Self::uncage_item_state_like_cpp(&char_db, player_db_guid, item_db_guid).await;
+        let (owner_guid, inventory_linked) = match state {
+            Ok(state) => state,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    item_guid = item_db_guid,
+                    %error,
+                    "Failed to inspect the uncaged battle-pet item"
+                );
+                return false;
+            }
+        };
+        if owner_guid.is_some_and(|owner_guid| owner_guid != player_db_guid) {
+            warn!(
+                account = self.account_id,
+                item_guid = item_db_guid,
+                durable_owner = ?owner_guid,
+                player_guid = player_db_guid,
+                "Refusing to destroy an uncaged item owned by another character"
+            );
+            return false;
+        }
+        let Some((bag, slot, item)) = self.get_inventory_item_by_guid_like_cpp(source_item_guid)
+        else {
+            return owner_guid.is_none() && !inventory_linked;
+        };
+        let runtime_item = self
+            .inventory_item_objects_like_cpp()
+            .get(&source_item_guid)
+            .cloned();
+        self.destroy_inventory_full_stack_by_pos_with_expected_owner_like_cpp(
+            bag,
+            slot,
+            item,
+            runtime_item,
+            owner_guid.map(|_| player_db_guid),
+            "BattlePetUncage",
+        )
+        .await
+    }
+
     /// C++ `BattlePetMgr::SendError`.
     pub(crate) fn battle_pet_send_error_like_cpp(
         &mut self,
@@ -62839,10 +62949,9 @@ impl WorldSession {
         }
     }
 
-    /// C++ `Spell::EffectCreateBattlePet` / `SPELL_EFFECT_UNCAGE_BATTLEPET`,
-    /// represented up to the failure gates. The successful `BattlePetMgr::AddPet`
-    /// branch is kept for a later slice because it needs GUID allocation,
-    /// criteria updates, and DB-backed persistence.
+    /// C++ `Spell::EffectCreateBattlePet` / `SPELL_EFFECT_UNCAGE_BATTLEPET`.
+    /// The Login DB pet/receipt commit precedes the Character DB `DestroyItem`
+    /// phase so an interrupted cross-database operation can resume idempotently.
     async fn apply_uncage_battle_pet_effect_like_cpp(
         &mut self,
         spell_id: i32,
@@ -62852,6 +62961,55 @@ impl WorldSession {
         let Some(modifiers) = metadata.cast_item_battle_pet_modifiers else {
             return;
         };
+
+        let Some(request_key) = BattlePetAddRequestKeyLikeCpp::from_source_item_guid_like_cpp(
+            modifiers.source_item_guid,
+        ) else {
+            warn!(
+                account = self.account_id,
+                species = modifiers.species_id,
+                "Durable battle-pet uncage lacks a stable source-item identity"
+            );
+            return;
+        };
+        let request_already_committed = match self
+            .battle_pet_add_request_committed_like_cpp(request_key)
+            .await
+        {
+            Ok(committed) => committed,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    species = modifiers.species_id,
+                    ?error,
+                    "Failed to reconcile a durable battle-pet uncage request"
+                );
+                return;
+            }
+        };
+
+        if request_already_committed {
+            if metadata.cast_item_entry.is_some() {
+                let _ = self
+                    .destroy_uncaged_battle_pet_item_durable_like_cpp(modifiers.source_item_guid)
+                    .await;
+            }
+            return;
+        }
+
+        if let Some(cast_item_entry) = metadata.cast_item_entry
+            && self
+                .uncage_cast_item_still_matches_like_cpp(cast_item_entry, modifiers)
+                .is_none()
+        {
+            warn!(
+                account = self.account_id,
+                item_guid = modifiers.source_item_guid.counter(),
+                cast_item_entry,
+                "Battle-pet uncage source item disappeared or changed before effect execution"
+            );
+            return;
+        }
 
         let Some(species_entry) = self
             .battle_pet_species_store
@@ -62897,16 +63055,6 @@ impl WorldSession {
 
         let breed = (modifiers.breed_data & 0x00FF_FFFF) as u16;
         let quality = ((modifiers.breed_data >> 24) & 0xFF) as u8;
-        let Some(request_key) = BattlePetAddRequestKeyLikeCpp::from_source_item_guid_like_cpp(
-            modifiers.source_item_guid,
-        ) else {
-            warn!(
-                account = self.account_id,
-                species = modifiers.species_id,
-                "Durable battle-pet uncage lacks a stable source-item identity"
-            );
-            return;
-        };
         if let Err(error) = self
             .battle_pet_try_add_pet_durable_like_cpp(
                 request_key.as_bytes(),
@@ -62944,6 +63092,11 @@ impl WorldSession {
                 self.player_position_like_cpp().unwrap_or(Position::ZERO),
                 BATTLE_PET_SPELL_VISUAL_UNCAGE_PET_LIKE_CPP,
             ));
+        }
+        if metadata.cast_item_entry.is_some() {
+            let _ = self
+                .destroy_uncaged_battle_pet_item_durable_like_cpp(modifiers.source_item_guid)
+                .await;
         }
     }
 
@@ -131168,6 +131321,77 @@ mod tests {
                 ServerOpcodes::BattlePetUpdates,
                 ServerOpcodes::CooldownEvent,
             ]
+        );
+    }
+
+    #[tokio::test]
+    async fn spell_effect_uncage_battle_pet_rejects_disappeared_cast_item_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 229);
+        let item_guid = ObjectGuid::create_item(1, 900);
+        let spell_id = 77_289;
+
+        session.set_player_guid(Some(player_guid));
+        install_represented_battle_pet_species_like_cpp(
+            &mut session,
+            11,
+            9000,
+            wow_data::BATTLE_PET_SPECIES_FLAG_WELL_KNOWN_LIKE_CPP,
+        );
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_UNCAGE_BATTLEPET,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell_with_visual_and_target_data_with_metadata(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual::default(),
+                SpellTargetData {
+                    flags: 0x2,
+                    unit: player_guid,
+                    ..SpellTargetData::default()
+                },
+                SpellCastMetadata {
+                    cast_item_entry: Some(8_281),
+                    cast_item_battle_pet_modifiers: Some(SpellCastBattlePetItemModifiersLikeCpp {
+                        source_item_guid: item_guid,
+                        species_id: 11,
+                        breed_data: 7 | (3 << 24),
+                        level: 3,
+                        display_id: 33,
+                    }),
+                    ..SpellCastMetadata::default()
+                },
+            )
+            .await
+            .expect("represented cast should finish without applying a missing cast item");
+
+        assert!(session.represented_battle_pets_like_cpp.is_empty());
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
         );
     }
 
