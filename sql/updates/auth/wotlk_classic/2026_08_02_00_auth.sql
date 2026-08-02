@@ -18,3 +18,7 @@ CREATE TABLE IF NOT EXISTS `battle_pet_add_requests` (
   PRIMARY KEY (`battlenetAccountId`, `requestKey`),
   UNIQUE KEY `uq_battle_pet_add_requests_guid` (`battlePetGuid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- requestKey is the consumed caged item's globally unique ObjectGuid. Rows are
+-- intentionally retained after pet deletion: the source item must never grant
+-- a second pet, and durable item GUIDs are not reused.

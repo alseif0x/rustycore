@@ -51,7 +51,14 @@ impl BattlePetAddRequestKeyLikeCpp {
         Self(bytes)
     }
 
-    fn as_bytes(self) -> [u8; 16] {
+    /// Durable uncage identity. Item GUIDs are allocated from the
+    /// process-lifetime guarded item GUID domain and are never reused, unlike
+    /// the represented process-local spell cast counter.
+    pub(crate) fn from_source_item_guid_like_cpp(source_item_guid: ObjectGuid) -> Option<Self> {
+        (!source_item_guid.is_empty()).then(|| Self(source_item_guid.to_raw_bytes()))
+    }
+
+    pub(crate) fn as_bytes(self) -> [u8; 16] {
         self.0
     }
 }
@@ -838,28 +845,55 @@ impl BattlePetAccountOwnerLikeCpp {
         species_state_store: Arc<BattlePetSpeciesStateStore>,
         loaded: LoadedBattlePetAccountLikeCpp,
     ) -> Self {
-        let pets = loaded
-            .pets
-            .into_iter()
-            .map(|row| {
-                let guid = battle_pet_guid_like_cpp(row.guid_counter);
-                let pet = materialize_pet_like_cpp(
-                    &row,
-                    realm_id,
-                    virtual_realm_address,
-                    &species_store,
-                    &breed_quality_store,
-                    &breed_state_store,
-                    &species_state_store,
-                );
-                (guid, pet)
-            })
-            .collect();
+        // C++ `BattlePetMgr::LoadFromDB` validates each row before it enters
+        // `_pets`; capacity is therefore evaluated against only earlier valid
+        // rows in the database result order.
+        let mut pets = HashMap::new();
+        for row in loaded.pets {
+            let Some(species) = species_store.get(row.species) else {
+                continue;
+            };
+            let not_account_wide =
+                species.has_flag_like_cpp(BATTLE_PET_SPECIES_FLAG_NOT_ACCOUNT_WIDE_LIKE_CPP);
+            if not_account_wide != row.owner_guid_counter.is_some() {
+                continue;
+            }
+            let owner_guid = row
+                .owner_guid_counter
+                .map(|counter| ObjectGuid::create_player(realm_id, counter as i64));
+            let max = if species
+                .has_flag_like_cpp(BATTLE_PET_SPECIES_FLAG_LEGACY_ACCOUNT_UNIQUE_LIKE_CPP)
+            {
+                1
+            } else {
+                DEFAULT_MAX_BATTLE_PETS_PER_SPECIES_LIKE_CPP
+            };
+            if count_materialized_species_like_cpp(&pets, row.species, owner_guid, species.flags)
+                >= max
+            {
+                continue;
+            }
+
+            let guid = battle_pet_guid_like_cpp(row.guid_counter);
+            let pet = materialize_pet_like_cpp(
+                &row,
+                realm_id,
+                virtual_realm_address,
+                &species_store,
+                &breed_quality_store,
+                &breed_state_store,
+                &species_state_store,
+            );
+            pets.insert(guid, pet);
+        }
         let mut slots =
             std::array::from_fn(|index| RepresentedBattlePetSlotLikeCpp::locked_empty(index as u8));
         for slot in loaded.slots {
             if let Some(target) = slots.get_mut(slot.index as usize) {
-                target.pet_guid = slot.pet_guid_counter.map(battle_pet_guid_like_cpp);
+                target.pet_guid = slot
+                    .pet_guid_counter
+                    .map(battle_pet_guid_like_cpp)
+                    .filter(|guid| pets.contains_key(guid));
                 target.locked = slot.locked;
             }
         }
@@ -1570,6 +1604,23 @@ fn count_species_like_cpp(
     u8::try_from(count).unwrap_or(u8::MAX)
 }
 
+fn count_materialized_species_like_cpp(
+    pets: &HashMap<ObjectGuid, RepresentedBattlePetDataLikeCpp>,
+    species: u32,
+    owner_guid: Option<ObjectGuid>,
+    species_flags: i32,
+) -> u8 {
+    let count = pets
+        .values()
+        .filter(|pet| pet.species == species)
+        .filter(|pet| {
+            species_flags & BATTLE_PET_SPECIES_FLAG_NOT_ACCOUNT_WIDE_LIKE_CPP == 0
+                || pet.owner_info.map(|owner| owner.guid) == owner_guid
+        })
+        .count();
+    u8::try_from(count).unwrap_or(u8::MAX)
+}
+
 fn owner_matches_like_cpp(
     species_flags: i32,
     left: Option<ObjectGuid>,
@@ -2124,6 +2175,101 @@ mod tests {
             level: 1,
             owner_guid: Some(ObjectGuid::create_player(7, owner as i64)),
         }
+    }
+
+    fn durable_pet_row_like_cpp(
+        guid_counter: u64,
+        species: u32,
+        owner_guid_counter: Option<u64>,
+    ) -> DurableBattlePetRowLikeCpp {
+        DurableBattlePetRowLikeCpp {
+            guid_counter,
+            species,
+            breed: 7,
+            display_id: 123,
+            level: 1,
+            exp: 0,
+            health: 100,
+            quality: 1,
+            flags: 0,
+            name: String::new(),
+            name_timestamp: 0,
+            owner_guid_counter,
+            declined_names: None,
+        }
+    }
+
+    #[test]
+    fn source_item_guid_is_a_restart_stable_add_request_identity_like_cpp() {
+        let first = ObjectGuid::create_item(7, 41);
+        let second = ObjectGuid::create_item(7, 42);
+        assert_eq!(
+            BattlePetAddRequestKeyLikeCpp::from_source_item_guid_like_cpp(first)
+                .expect("nonempty item guid")
+                .as_bytes(),
+            first.to_raw_bytes()
+        );
+        assert_ne!(
+            BattlePetAddRequestKeyLikeCpp::from_source_item_guid_like_cpp(first),
+            BattlePetAddRequestKeyLikeCpp::from_source_item_guid_like_cpp(second)
+        );
+        assert_eq!(
+            BattlePetAddRequestKeyLikeCpp::from_source_item_guid_like_cpp(ObjectGuid::EMPTY),
+            None
+        );
+    }
+
+    #[test]
+    fn loaded_rows_apply_cpp_species_owner_capacity_and_slot_validation_like_cpp() {
+        let (species, qualities, breed_states, species_states) =
+            stores_like_cpp(BATTLE_PET_SPECIES_FLAG_NOT_ACCOUNT_WIDE_LIKE_CPP);
+        let loaded = LoadedBattlePetAccountLikeCpp {
+            pets: vec![
+                durable_pet_row_like_cpp(1, 999, None),
+                durable_pet_row_like_cpp(2, 11, None),
+                durable_pet_row_like_cpp(3, 11, Some(100)),
+                durable_pet_row_like_cpp(4, 11, Some(100)),
+                durable_pet_row_like_cpp(5, 11, Some(100)),
+                durable_pet_row_like_cpp(6, 11, Some(100)),
+                durable_pet_row_like_cpp(7, 11, Some(200)),
+                durable_pet_row_like_cpp(8, 12, Some(100)),
+                durable_pet_row_like_cpp(9, 12, None),
+                durable_pet_row_like_cpp(10, 12, None),
+            ],
+            slots: vec![
+                DurableBattlePetSlotLikeCpp {
+                    index: 0,
+                    pet_guid_counter: Some(3),
+                    locked: false,
+                },
+                DurableBattlePetSlotLikeCpp {
+                    index: 1,
+                    pet_guid_counter: Some(6),
+                    locked: false,
+                },
+            ],
+        };
+        let owner = BattlePetAccountOwnerLikeCpp::from_loaded_like_cpp(
+            77,
+            7,
+            0x0102_0007,
+            Arc::new(FakePersistenceLikeCpp::default()),
+            Arc::new(ObjectGuidGenerator::new(HighGuid::BattlePet, 100)),
+            species,
+            qualities,
+            breed_states,
+            species_states,
+            loaded,
+        );
+        let state = owner.state.lock().expect("battle-pet account state");
+        let accepted = state
+            .pets
+            .keys()
+            .map(|guid| guid.counter() as u64)
+            .collect::<HashSet<_>>();
+        assert_eq!(accepted, HashSet::from([3, 4, 5, 7, 9]));
+        assert_eq!(state.slots[0].pet_guid, Some(battle_pet_guid_like_cpp(3)));
+        assert_eq!(state.slots[1].pet_guid, None);
     }
 
     #[tokio::test]

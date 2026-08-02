@@ -4740,6 +4740,9 @@ pub enum SessionState {
 /// is attached.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpellCastBattlePetItemModifiersLikeCpp {
+    /// Stable identity of the caged item consumed by C++
+    /// `SPELL_EFFECT_UNCAGE_BATTLEPET`.
+    pub source_item_guid: ObjectGuid,
     pub species_id: u32,
     pub breed_data: u32,
     pub level: u16,
@@ -62895,9 +62898,19 @@ impl WorldSession {
 
         let breed = (modifiers.breed_data & 0x00FF_FFFF) as u16;
         let quality = ((modifiers.breed_data >> 24) & 0xFF) as u8;
+        let Some(request_key) = BattlePetAddRequestKeyLikeCpp::from_source_item_guid_like_cpp(
+            modifiers.source_item_guid,
+        ) else {
+            warn!(
+                account = self.account_id,
+                species = modifiers.species_id,
+                "Durable battle-pet uncage lacks a stable source-item identity"
+            );
+            return;
+        };
         if let Err(error) = self
             .battle_pet_try_add_pet_durable_like_cpp(
-                cast_id.to_raw_bytes(),
+                request_key.as_bytes(),
                 modifiers.species_id,
                 modifiers.display_id,
                 breed,
@@ -131216,6 +131229,7 @@ mod tests {
                 },
                 SpellCastMetadata {
                     cast_item_battle_pet_modifiers: Some(SpellCastBattlePetItemModifiersLikeCpp {
+                        source_item_guid: ObjectGuid::create_item(1, 901),
                         species_id: 11,
                         breed_data: 7 | (3 << 24),
                         level: 11,
@@ -131324,6 +131338,7 @@ mod tests {
                 },
                 SpellCastMetadata {
                     cast_item_battle_pet_modifiers: Some(SpellCastBattlePetItemModifiersLikeCpp {
+                        source_item_guid: ObjectGuid::create_item(1, 902),
                         species_id: 11,
                         breed_data: 7 | (3 << 24),
                         level: 1,
@@ -131422,6 +131437,7 @@ mod tests {
                 },
                 SpellCastMetadata {
                     cast_item_battle_pet_modifiers: Some(SpellCastBattlePetItemModifiersLikeCpp {
+                        source_item_guid: ObjectGuid::create_item(1, 903),
                         species_id: 11,
                         breed_data: 7 | (3 << 24),
                         level: 3,
