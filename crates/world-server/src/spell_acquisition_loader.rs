@@ -25,15 +25,15 @@ use wow_data::{
     ServersideSpellStoreLikeCpp, SkillStore, SpellAcquisitionCatalogLikeCpp,
     SpellAcquisitionCoverageSeedLikeCpp, SpellAcquisitionDiagnosticSeverityLikeCpp,
     SpellAcquisitionIndeterminateReasonLikeCpp, SpellAcquisitionTalentLookupLikeCpp,
-    SpellAuraRestrictionsEntry, SpellAuraRestrictionsStore, SpellChainStoreLikeCpp,
-    SpellCustomAttributeKeyLikeCpp, SpellCustomAttributeLoadErrorKindLikeCpp,
-    SpellCustomAttributeSourceVariantLikeCpp, SpellCustomAttributeStoreLikeCpp,
-    SpellEquippedItemsEntry, SpellEquippedItemsStore, SpellLearnSkillEffectLikeCpp,
-    SpellLearnSkillIndeterminateReasonLikeCpp, SpellLearnSkillSourceSpellInfoLikeCpp,
-    SpellLearnSkillStoreLikeCpp, SpellLearnSourceSpellInfoLikeCpp, SpellLearnSpellEffectLikeCpp,
-    SpellLearnSpellEntry, SpellLearnSpellStoreLikeCpp, SpellLinkedStoreLikeCpp,
-    SpellLinkedTypeLikeCpp, SpellPetAuraStoreLikeCpp, SpellReagentsEntry, SpellReagentsStore,
-    SpellStore, wdc4::Wdc4Reader,
+    SpellAreaStoreLikeCpp, SpellAuraRestrictionsEntry, SpellAuraRestrictionsStore,
+    SpellChainStoreLikeCpp, SpellCustomAttributeKeyLikeCpp,
+    SpellCustomAttributeLoadErrorKindLikeCpp, SpellCustomAttributeSourceVariantLikeCpp,
+    SpellCustomAttributeStoreLikeCpp, SpellEquippedItemsEntry, SpellEquippedItemsStore,
+    SpellLearnSkillEffectLikeCpp, SpellLearnSkillIndeterminateReasonLikeCpp,
+    SpellLearnSkillSourceSpellInfoLikeCpp, SpellLearnSkillStoreLikeCpp,
+    SpellLearnSourceSpellInfoLikeCpp, SpellLearnSpellEffectLikeCpp, SpellLearnSpellEntry,
+    SpellLearnSpellStoreLikeCpp, SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp,
+    SpellPetAuraStoreLikeCpp, SpellReagentsEntry, SpellReagentsStore, SpellStore, wdc4::Wdc4Reader,
 };
 use wow_database::{HotfixDatabase, HotfixStatements, WorldDatabase, WorldStatements};
 
@@ -69,6 +69,7 @@ struct TrainerCastWorldHookAuditLikeCpp {
     aura_restriction: bool,
     equipped_item_restriction: bool,
     spell_focus_requirement: bool,
+    spell_area_requirement: bool,
     linked_spell: bool,
 }
 
@@ -99,6 +100,7 @@ fn trainer_cast_world_hooks_are_static_safe_like_cpp(
         || audit.aura_restriction
         || audit.equipped_item_restriction
         || audit.spell_focus_requirement
+        || audit.spell_area_requirement
         || audit.linked_spell)
 }
 
@@ -205,6 +207,7 @@ pub(crate) async fn load_trainer_static_authority_like_cpp(
     pet_auras: &SpellPetAuraStoreLikeCpp,
     aura_restrictions: &SpellAuraRestrictionsStore,
     equipped_items: &SpellEquippedItemsStore,
+    spell_areas: &SpellAreaStoreLikeCpp,
     item_exists: impl Fn(u32) -> bool,
 ) -> Result<TrainerSpellStaticAuthorityLikeCpp> {
     let script_bindings = load_spell_script_bindings_like_cpp(
@@ -262,6 +265,14 @@ pub(crate) async fn load_trainer_static_authority_like_cpp(
                 .ok()
                 .and_then(|spell_id| spell_store.get(spell_id))
                 .is_none_or(|spell_info| spell_info.requires_spell_focus_like_cpp()),
+            // C++ `SpellInfo::CheckLocation` requires at least one matching
+            // `spell_area` row whenever the spell has any. The reduced
+            // trainer projection does not yet evaluate the player's complete
+            // zone/quest/aura/race/gender context, so those wrappers fail
+            // closed rather than bypassing the cast gate.
+            spell_area_requirement: !spell_areas
+                .spell_area_map_bounds_like_cpp(spell_id)
+                .is_empty(),
             linked_spell: [
                 SpellLinkedTypeLikeCpp::Cast,
                 SpellLinkedTypeLikeCpp::Hit,
@@ -1433,6 +1444,10 @@ mod tests {
             },
             TrainerCastWorldHookAuditLikeCpp {
                 spell_focus_requirement: true,
+                ..Default::default()
+            },
+            TrainerCastWorldHookAuditLikeCpp {
+                spell_area_requirement: true,
                 ..Default::default()
             },
             TrainerCastWorldHookAuditLikeCpp {

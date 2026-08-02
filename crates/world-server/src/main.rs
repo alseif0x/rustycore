@@ -4951,6 +4951,7 @@ async fn main() -> Result<ExitCode> {
             spell_pet_aura_store.as_ref(),
             spell_aura_restrictions_store.as_ref(),
             spell_equipped_items_store.as_ref(),
+            spell_area_store.as_ref(),
             |item_id| item_stats_store.sparse_template(item_id).is_some(),
         )
         .await

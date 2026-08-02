@@ -15444,30 +15444,61 @@ impl WorldSession {
         instance_id: u32,
         required_3d: bool,
     ) -> Option<bool> {
+        self.represented_can_receive_creature_message_to_set_by_guid_with_legacy_fallback_like_cpp(
+            guid,
+            map_id,
+            instance_id,
+            required_3d,
+            false,
+        )
+    }
+
+    pub(crate) fn represented_can_receive_creature_message_to_set_by_guid_with_legacy_fallback_like_cpp(
+        &self,
+        guid: ObjectGuid,
+        map_id: u16,
+        instance_id: u32,
+        required_3d: bool,
+        allow_legacy_fallback: bool,
+    ) -> Option<bool> {
         if let Some(manager) = &self.canonical_map_manager {
             let creature = {
                 let manager = manager.lock().ok()?;
-                let map = manager.find_map(u32::from(map_id), instance_id)?;
-                let creature = map.map().get_typed_creature(guid)?;
-                let world = creature.unit().world();
-                if world.map_id() != u32::from(map_id) || world.instance_id() != instance_id {
+                manager
+                    .find_map(u32::from(map_id), instance_id)
+                    .and_then(|map| map.map().get_typed_creature(guid))
+                    .map(|creature| {
+                        let create_data =
+                            crate::map_manager::WorldCreature::create_data_from_canonical_like_cpp(
+                                creature,
+                            );
+                        crate::map_manager::WorldCreature::from_canonical(
+                            creature.clone(),
+                            create_data,
+                        )
+                    })
+            };
+            if let Some(creature) = creature {
+                if creature.map_id() != u32::from(map_id) || creature.instance_id() != instance_id {
                     return Some(false);
                 }
-                let create_data =
-                    crate::map_manager::WorldCreature::create_data_from_canonical_like_cpp(
-                        creature,
-                    );
-                crate::map_manager::WorldCreature::from_canonical(creature.clone(), create_data)
-            };
-            return Some(
-                self.represented_can_receive_creature_message_to_set_like_cpp(
-                    guid,
-                    &creature,
-                    required_3d,
-                ),
-            );
+                return Some(
+                    self.represented_can_receive_creature_message_to_set_like_cpp(
+                        guid,
+                        &creature,
+                        required_3d,
+                    ),
+                );
+            }
+            if !allow_legacy_fallback {
+                return None;
+            }
         }
 
+        // The two map managers coexist during the incremental runtime
+        // migration. A canonical manager being installed does not prove that
+        // it owns a source already validated from the legacy map. Only the
+        // provenance-marked command path may cross this fallback boundary.
         let creature = {
             let manager = self.map_manager.as_ref()?;
             manager
@@ -33679,6 +33710,7 @@ impl WorldSession {
             source_position,
             bytes,
             true,
+            true,
         );
     }
 
@@ -33696,6 +33728,7 @@ impl WorldSession {
             source.position,
             bytes,
             realm_connection,
+            false,
         );
     }
 
@@ -33705,6 +33738,7 @@ impl WorldSession {
         source_position: Position,
         bytes: Vec<u8>,
         realm_connection: bool,
+        allow_legacy_source_fallback: bool,
     ) {
         let Some(registry) = self.player_registry() else {
             return;
@@ -33746,7 +33780,9 @@ impl WorldSession {
                 instance_id,
                 packet_bytes: bytes.clone(),
             };
-            let command = if realm_connection {
+            let command = if realm_connection && allow_legacy_source_fallback {
+                SessionCommand::SendRealmIfVisibleFromLegacySourceLikeCpp(command)
+            } else if realm_connection {
                 SessionCommand::SendRealmIfVisibleLikeCpp(command)
             } else {
                 SessionCommand::SendIfVisibleLikeCpp(command)
@@ -34735,6 +34771,7 @@ impl WorldSession {
                     command,
                     SessionCommand::SendIfVisibleLikeCpp(_)
                         | SessionCommand::SendRealmIfVisibleLikeCpp(_)
+                        | SessionCommand::SendRealmIfVisibleFromLegacySourceLikeCpp(_)
                 )
             });
         while let Ok(command) = self.session_command_rx.try_recv() {
@@ -76421,7 +76458,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn send_realm_if_visible_uses_realm_connection_like_cpp() {
+    async fn send_realm_if_visible_uses_legacy_source_when_canonical_mirror_is_missing_like_cpp() {
         let (mut session, _, instance_rx) = make_session();
         let (realm_tx, realm_rx) = flume::bounded::<Vec<u8>>(8);
         session.install_realm_send_channel_for_test(realm_tx);
@@ -76449,14 +76486,37 @@ mod tests {
                 0,
             ),
         );
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(571, 0);
         session.state = SessionState::LoggedIn;
         session.set_map_manager(manager);
+        session.set_canonical_map_manager(canonical);
         session.set_player_map_position_like_cpp(571, Position::ZERO);
         session.client_visible_guids_like_cpp.insert(source_guid);
 
         session
             .session_command_tx()
             .try_send(SessionCommand::SendRealmIfVisibleLikeCpp(
+                SendIfVisibleLikeCppCommand {
+                    queued_at: Instant::now(),
+                    source_guid,
+                    map_id: 571,
+                    instance_id: 0,
+                    packet_bytes: packet_bytes.clone(),
+                },
+            ))
+            .expect("ordinary realm-visible command queued");
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+        assert!(
+            realm_rx.try_recv().is_err(),
+            "only provenance-marked legacy-source commands may cross the map-manager boundary"
+        );
+
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::SendRealmIfVisibleFromLegacySourceLikeCpp(
                 SendIfVisibleLikeCppCommand {
                     queued_at: Instant::now(),
                     source_guid,
@@ -76502,7 +76562,7 @@ mod tests {
         );
 
         let command = observer_command_rx.try_recv().expect("observer fanout");
-        let SessionCommand::SendRealmIfVisibleLikeCpp(command) = command else {
+        let SessionCommand::SendRealmIfVisibleFromLegacySourceLikeCpp(command) = command else {
             panic!("creature visual must use the Realm-visible command");
         };
         assert_eq!(command.source_guid, creature);

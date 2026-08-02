@@ -164,19 +164,23 @@ impl crate::session::WorldSession {
             SpellAcquisitionEffectsLookupLikeCpp::MissingCoverage
             | SpellAcquisitionEffectsLookupLikeCpp::Indeterminate(_) => return None,
         };
-        let no_immunities = match catalog.misc_for_spell_like_cpp(spell_id, 0) {
-            SpellAcquisitionMetadataLookupLikeCpp::Present(misc) => {
+        let difficulty_chain = self.current_map_difficulty_chain_for_acquisition_like_cpp();
+        let no_immunities = match catalog
+            .resolved_misc_for_difficulty_chain_like_cpp(spell_id, difficulty_chain.iter().copied())
+        {
+            SpellAcquisitionResolvedMetadataLookupLikeCpp::Present(misc) => {
                 misc.no_immunities_checked().ok()?
             }
-            SpellAcquisitionMetadataLookupLikeCpp::CoveredWithoutRow => false,
-            SpellAcquisitionMetadataLookupLikeCpp::MissingCoverage
-            | SpellAcquisitionMetadataLookupLikeCpp::Indeterminate(_) => return None,
+            SpellAcquisitionResolvedMetadataLookupLikeCpp::CoveredWithoutRow => false,
+            SpellAcquisitionResolvedMetadataLookupLikeCpp::MissingCoverage { .. }
+            | SpellAcquisitionResolvedMetadataLookupLikeCpp::Indeterminate(_) => return None,
         };
         let immunized_effect_mask = self.active_auras_immunized_trainer_effect_mask_like_cpp(
             catalog,
             spell_id,
             effects,
             no_immunities,
+            &difficulty_chain,
         )?;
         let mut executed_hit_target_effect_mask = 0_u32;
         let mut executed_dual_wield_effects = Vec::new();
@@ -208,12 +212,32 @@ impl crate::session::WorldSession {
         })
     }
 
+    /// C++ `WorldObject::CastSpell` resolves both the cast and every active
+    /// aura's `SpellInfo` from `Map::GetDifficultyID`, walking
+    /// `FallbackDifficultyID` exactly as `SpellInfoLoadHelper` does.
+    fn current_map_difficulty_chain_for_acquisition_like_cpp(&self) -> Vec<u32> {
+        let requested = u32::from(self.current_map_difficulty_id_like_cpp());
+        let mut chain = vec![requested];
+        let mut visited = BTreeSet::from([requested]);
+        let mut current = requested;
+        while let Some(difficulty) = self.difficulty_store().and_then(|store| store.get(current)) {
+            let fallback = u32::from(difficulty.fallback_difficulty_id);
+            if !visited.insert(fallback) {
+                break;
+            }
+            chain.push(fallback);
+            current = fallback;
+        }
+        chain
+    }
+
     fn active_auras_immunized_trainer_effect_mask_like_cpp(
         &self,
         catalog: &SpellAcquisitionCatalogLikeCpp,
         trainer_spell_id: u32,
         trainer_effects: &[SpellAcquisitionEffectLikeCpp],
         no_immunities: bool,
+        difficulty_chain: &[u32],
     ) -> Option<u32> {
         let linked = self.spell_linked_store_like_cpp()?;
         let mut immunized_effect_mask = 0_u32;
@@ -236,10 +260,13 @@ impl crate::session::WorldSession {
                 continue;
             }
 
-            let effects = match catalog.difficulty_none_effects_like_cpp(aura_spell_id) {
-                SpellAcquisitionEffectsLookupLikeCpp::Covered(effects) => effects,
-                SpellAcquisitionEffectsLookupLikeCpp::MissingCoverage
-                | SpellAcquisitionEffectsLookupLikeCpp::Indeterminate(_) => return None,
+            let effects = match catalog.resolved_effects_for_difficulty_chain_like_cpp(
+                aura_spell_id,
+                difficulty_chain.iter().copied(),
+            ) {
+                SpellAcquisitionResolvedEffectsLookupLikeCpp::Covered(effects) => effects,
+                SpellAcquisitionResolvedEffectsLookupLikeCpp::MissingCoverage { .. }
+                | SpellAcquisitionResolvedEffectsLookupLikeCpp::Indeterminate(_) => return None,
             };
             let mut unresolved_effect_mask = aura.effect_mask;
             for effect in effects {
