@@ -28,7 +28,9 @@ cross-socket fence failure cannot discard them; a valid cast fully suppressed by
 rejected by the dynamic spell-disable gate still pays and emits both trainer visuals like C++,
 while channeled wrappers remain outside the reduced projection. A process-wide pre-ConnectTo
 character claim rejects a second live session for the same GUID and is released on a failed
-instance handoff, preserving C++'s single `Player*` save authority; ordinary pending spell/skill
+instance handoff or late login packet-ordering fence, preserving C++'s single `Player*` save
+authority. Effective equipped-item and target-restriction duplicates follow C++'s deterministic
+highest-record-ID assignment; ordinary pending spell/skill
 changes are saved before trainer preparation instead of making the trainer unavailable until the
 next autosave. Trainer failures and visuals use the Realm connection; creature visual fanout
 retains the already validated canonical-or-legacy source position. Castable wrappers

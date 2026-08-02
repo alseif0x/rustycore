@@ -1237,7 +1237,11 @@ impl SpellEquippedItemsStore {
     pub fn entry_for_spell_id_like_cpp(&self, spell_id: i32) -> Option<&SpellEquippedItemsEntry> {
         self.entries
             .values()
-            .find(|entry| entry.spell_id == spell_id)
+            .filter(|entry| entry.spell_id == spell_id)
+            // C++ iterates DB2's ID-indexed storage in ascending record order
+            // and assigns this DIFFICULTY_NONE slot for every matching row.
+            // A malformed duplicate therefore resolves to the highest ID.
+            .max_by_key(|entry| entry.id)
     }
 
     /// Load the effective C++ `sSpellEquippedItemsStore` authority: file rows,
@@ -1549,7 +1553,9 @@ impl SpellTargetRestrictionsStore {
             let difficulty_id = u8::try_from(difficulty_id).ok()?;
             self.entries_for_spell_id_like_cpp(spell_id)
                 .filter(|entry| entry.difficulty_id == difficulty_id)
-                .last()
+                // C++'s ID-indexed DB2 iteration overwrites this difficulty
+                // slot in ascending record order, so the highest ID wins.
+                .max_by_key(|entry| entry.id)
         })
     }
 
@@ -1985,6 +1991,33 @@ mod tests {
     }
 
     #[test]
+    fn spell_equipped_items_duplicate_spell_uses_highest_record_id_like_cpp() {
+        let store = SpellEquippedItemsStore::from_entries([
+            SpellEquippedItemsEntry {
+                id: 9,
+                spell_id: 100,
+                equipped_item_class: 2,
+                equipped_item_inv_types: 4,
+                equipped_item_subclass: 8,
+            },
+            SpellEquippedItemsEntry {
+                id: 3,
+                spell_id: 100,
+                equipped_item_class: -1,
+                equipped_item_inv_types: 0,
+                equipped_item_subclass: 0,
+            },
+        ]);
+
+        assert_eq!(
+            store
+                .entry_for_spell_id_like_cpp(100)
+                .map(|entry| (entry.id, entry.equipped_item_class)),
+            Some((9, 2))
+        );
+    }
+
+    #[test]
     fn spell_name_hotfix_rows_override_and_add_effective_ids_like_cpp() {
         let mut store = SpellNameStore::from_entries([SpellNameEntry {
             id: 1,
@@ -2223,13 +2256,14 @@ mod tests {
         let store = SpellTargetRestrictionsStore::from_entries([
             row(1, 0, 1 << (3 - 1)),
             row(2, 2, 1 << (7 - 1)),
+            row(9, 2, 1 << (8 - 1)),
         ]);
 
         assert_eq!(
             store
                 .resolved_for_difficulty_chain_like_cpp(100, [2, 0])
                 .map(|entry| entry.id),
-            Some(2)
+            Some(9)
         );
         assert_eq!(
             store

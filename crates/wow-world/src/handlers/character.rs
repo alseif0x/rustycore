@@ -7823,6 +7823,7 @@ impl WorldSession {
             )
             .await
         {
+            self.abort_partial_login_sequence_like_cpp();
             return;
         }
         self.send_item_time_update_plans(&loaded_item_time_updates);
@@ -19150,6 +19151,16 @@ impl WorldSession {
             .await
     }
 
+    /// A failed cross-socket ordering fence means the successful-login burst
+    /// cannot be completed coherently. C++ loses the socket and destroys the
+    /// partially loaded `Player`; mirror that lifetime boundary immediately
+    /// so the process-wide character claim cannot outlive this failed login.
+    fn abort_partial_login_sequence_like_cpp(&mut self) {
+        self.cleanup_shared_runtime_state();
+        self.set_player_guid(None);
+        self.kick("WorldSession::HandlePlayerLogin login packet sequence failed");
+    }
+
     /// Send the player login packet sequence to the client.
     ///
     /// Follows the C++ login phases:
@@ -21956,6 +21967,34 @@ mod tests {
             assert!(accessor.read().find_connected_player_entity(guid).is_none());
             assert!(send_rx.try_recv().is_err());
         });
+    }
+
+    #[test]
+    fn late_login_sequence_failure_releases_claim_and_partial_player_like_cpp() {
+        let guid = ObjectGuid::create_player(1, 9_001_701);
+        let (mut failed, _failed_rx) = make_session_with_send_capacity(1);
+        assert!(failed.try_claim_character_login_like_cpp(guid));
+        assert!(failed.ensure_login_player_controller_like_cpp(
+            guid,
+            "LateFenceFailure".to_string(),
+            Position::ZERO,
+            1,
+            1,
+            1,
+            10,
+            0,
+        ));
+
+        failed.abort_partial_login_sequence_like_cpp();
+
+        assert_eq!(failed.state(), crate::session::SessionState::Disconnecting);
+        assert!(failed.player_guid().is_none());
+        let (mut retry, _retry_rx) = make_session_with_send_capacity(1);
+        assert!(
+            retry.try_claim_character_login_like_cpp(guid),
+            "the failed login must not retain the only process-wide character claim"
+        );
+        retry.release_character_login_claim_like_cpp();
     }
 
     #[tokio::test]

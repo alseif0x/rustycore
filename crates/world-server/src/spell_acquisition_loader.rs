@@ -1637,6 +1637,28 @@ mod tests {
                 }
             )
         );
+        let duplicate_equipped_rows = SpellEquippedItemsStore::from_entries([
+            SpellEquippedItemsEntry {
+                id: 3,
+                spell_id: 100,
+                equipped_item_class: -1,
+                equipped_item_inv_types: 0,
+                equipped_item_subclass: 0,
+            },
+            SpellEquippedItemsEntry {
+                id: 9,
+                spell_id: 100,
+                equipped_item_class: 2,
+                equipped_item_inv_types: 0,
+                equipped_item_subclass: 0,
+            },
+        ]);
+        assert!(
+            duplicate_equipped_rows
+                .entry_for_spell_id_like_cpp(100)
+                .is_some_and(trainer_cast_has_effective_equipped_item_restriction_like_cpp),
+            "the loader audit must consume C++'s highest-record-ID assignment"
+        );
     }
 
     #[test]
