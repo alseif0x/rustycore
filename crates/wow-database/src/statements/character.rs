@@ -1277,6 +1277,9 @@ pub enum CharStatements {
     /// DELETE FROM item_instance WHERE guid = ?
     DEL_ITEM_INSTANCE,
 
+    /// DELETE FROM item_instance WHERE guid = ? AND owner_guid = ?
+    DEL_ITEM_INSTANCE_BY_GUID_AND_OWNER,
+
     /// SELECT paidMoney, paidExtendedCost FROM item_refund_instance
     /// WHERE item_guid = ? AND player_guid = ? LIMIT 1
     SEL_ITEM_REFUNDS,
@@ -2901,6 +2904,9 @@ impl StatementDef for CharStatements {
                 "REPLACE INTO character_inventory (guid, bag, slot, item) VALUES (?, ?, ?, ?)"
             }
             Self::DEL_ITEM_INSTANCE => "DELETE FROM item_instance WHERE guid = ?",
+            Self::DEL_ITEM_INSTANCE_BY_GUID_AND_OWNER => {
+                "DELETE FROM item_instance WHERE guid = ? AND owner_guid = ?"
+            }
             Self::SEL_ITEM_REFUNDS => {
                 "SELECT paidMoney, paidExtendedCost \
                  FROM item_refund_instance WHERE item_guid = ? AND player_guid = ? LIMIT 1"
@@ -5390,6 +5396,10 @@ mod tests {
 
     #[test]
     fn item_trade_and_persistence_statements_match_cpp_sql_exactly() {
+        assert_eq!(
+            CharStatements::DEL_ITEM_INSTANCE_BY_GUID_AND_OWNER.sql(),
+            "DELETE FROM item_instance WHERE guid = ? AND owner_guid = ?"
+        );
         assert_eq!(
             CharStatements::SEL_ITEM_REFUNDS.sql(),
             "SELECT paidMoney, paidExtendedCost FROM item_refund_instance WHERE item_guid = ? AND player_guid = ? LIMIT 1"

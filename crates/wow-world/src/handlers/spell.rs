@@ -34,7 +34,7 @@ use wow_constants::{
 };
 use wow_core::ObjectGuid;
 use wow_data::{DISABLE_TYPE_SPELL, DisableWorldObjectRefLikeCpp};
-use wow_database::{CharStatements, SqlTransaction, WorldStatements};
+use wow_database::{CharStatements, CharacterDatabase, SqlTransaction, WorldStatements};
 use wow_entities::INVENTORY_SLOT_BAG_0;
 use wow_handler::{PacketHandlerEntry, PacketProcessing, SessionStatus};
 use wow_loot::{
@@ -77,6 +77,26 @@ const SPELL_FAILED_SPELL_UNAVAILABLE_LIKE_CPP: i32 = 128;
 const MAP_BATTLEGROUND_LIKE_CPP: i8 = 3;
 const MAP_ARENA_LIKE_CPP: i8 = 4;
 const SPELL_POWER_TRACE_ENV_LIKE_CPP: &str = "RUSTYCORE_SPELL_POWER_TRACE";
+
+async fn uncaged_battle_pet_item_db_state_like_cpp(
+    char_db: &CharacterDatabase,
+    player_guid_counter: u64,
+    item_db_guid: u64,
+) -> Result<(Option<u64>, bool), sqlx::Error> {
+    let owner =
+        sqlx::query_scalar::<_, u64>("SELECT owner_guid FROM item_instance WHERE guid = ? LIMIT 1")
+            .bind(item_db_guid)
+            .fetch_optional(char_db.pool())
+            .await?;
+    let inventory_links = sqlx::query_scalar::<_, u64>(
+        "SELECT COUNT(*) FROM character_inventory WHERE guid = ? AND item = ?",
+    )
+    .bind(player_guid_counter)
+    .bind(item_db_guid)
+    .fetch_one(char_db.pool())
+    .await?;
+    Ok((owner, inventory_links != 0))
+}
 
 fn spell_power_trace_enabled_like_cpp() -> bool {
     static ENABLED: OnceLock<bool> = OnceLock::new();
@@ -279,26 +299,56 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return false;
         };
-        let Some((bag, slot, item)) = self.get_inventory_item_by_guid_like_cpp(item_guid) else {
-            // A retry after the CharacterDB delete committed is already done.
-            return true;
-        };
         let Some(char_db) = self.char_db().map(Arc::clone) else {
             return false;
         };
+        let runtime_location = self
+            .get_inventory_item_by_guid_like_cpp(item_guid)
+            .map(|(bag, slot, _)| (bag, slot));
+        let item_db_guid = item_guid.counter() as u64;
+        let player_db_guid = player_guid.counter() as u64;
+        let (durable_owner, linked_to_player) =
+            match uncaged_battle_pet_item_db_state_like_cpp(&char_db, player_db_guid, item_db_guid)
+                .await
+            {
+                Ok(state) => state,
+                Err(error) => {
+                    warn!(
+                        account = self.account_id,
+                        item_guid = item_guid.counter(),
+                        ?error,
+                        "Failed to inspect durable uncaged battle-pet item state"
+                    );
+                    return false;
+                }
+            };
+        if durable_owner.is_none() && !linked_to_player {
+            return true;
+        }
+        if durable_owner.is_some_and(|owner| owner != player_db_guid) {
+            warn!(
+                account = self.account_id,
+                item_guid = item_guid.counter(),
+                durable_owner,
+                player_db_guid,
+                "Refusing to reconcile an uncaged battle-pet item owned by another character"
+            );
+            return false;
+        }
 
         let mut tx = SqlTransaction::new();
         let mut del_refund = char_db.prepare(CharStatements::DEL_ITEM_REFUND_INSTANCE);
-        del_refund.set_u64(0, item.db_guid);
+        del_refund.set_u64(0, item_db_guid);
         tx.append(del_refund);
 
         let mut del_inventory = char_db.prepare(CharStatements::DEL_CHAR_INVENTORY_ITEM);
-        del_inventory.set_u64(0, player_guid.counter() as u64);
-        del_inventory.set_u64(1, item.db_guid);
+        del_inventory.set_u64(0, player_db_guid);
+        del_inventory.set_u64(1, item_db_guid);
         tx.append(del_inventory);
 
-        let mut del_item = char_db.prepare(CharStatements::DEL_ITEM_INSTANCE);
-        del_item.set_u64(0, item.db_guid);
+        let mut del_item = char_db.prepare(CharStatements::DEL_ITEM_INSTANCE_BY_GUID_AND_OWNER);
+        del_item.set_u64(0, item_db_guid);
+        del_item.set_u64(1, player_db_guid);
         tx.append(del_item);
 
         if let Err(error) = char_db.commit_transaction(tx).await {
@@ -311,7 +361,22 @@ impl WorldSession {
             return false;
         }
 
-        self.remove_fully_looted_runtime_item(bag, slot, item_guid);
+        let reconciled = matches!(
+            uncaged_battle_pet_item_db_state_like_cpp(&char_db, player_db_guid, item_db_guid,)
+                .await,
+            Ok((None, false))
+        );
+        if !reconciled {
+            warn!(
+                account = self.account_id,
+                item_guid = item_guid.counter(),
+                "Uncaged battle-pet item remained durable after reconciliation"
+            );
+            return false;
+        }
+        if let Some((bag, slot)) = runtime_location {
+            self.remove_fully_looted_runtime_item(bag, slot, item_guid);
+        }
         true
     }
 
