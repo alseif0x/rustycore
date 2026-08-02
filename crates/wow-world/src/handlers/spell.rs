@@ -243,6 +243,35 @@ impl WorldSession {
         })
     }
 
+    /// Re-resolve C++'s `Spell::m_CastItem` immediately before the uncage
+    /// effect.  The handler snapshot is only request metadata; it must not
+    /// authorize a pet after the item was removed while the cast was queued.
+    pub(crate) fn revalidate_uncage_battle_pet_cast_item_like_cpp(
+        &self,
+        spell_id: i32,
+        cast_item_entry: u32,
+        expected: SpellCastBattlePetItemModifiersLikeCpp,
+    ) -> bool {
+        let Some((_bag, _slot, inventory_item)) =
+            self.get_inventory_item_by_guid_like_cpp(expected.source_item_guid)
+        else {
+            return false;
+        };
+        if inventory_item.entry_id != cast_item_entry
+            || !self.item_has_spell_effect_like_cpp(cast_item_entry, spell_id)
+        {
+            return false;
+        }
+
+        let runtime_item = self
+            .inventory_item_objects_like_cpp()
+            .get(&expected.source_item_guid);
+        self.can_use_inventory_item_represented_like_cpp(&inventory_item, runtime_item)
+            == InventoryResult::Ok
+            && self.battle_pet_cast_item_modifiers_like_cpp(expected.source_item_guid)
+                == Some(expected)
+    }
+
     pub(crate) async fn destroy_uncaged_battle_pet_item_like_cpp(
         &mut self,
         item_guid: ObjectGuid,
