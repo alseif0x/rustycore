@@ -248,7 +248,6 @@ impl crate::session::WorldSession {
         spell_id: u32,
     ) -> Option<PlayerCastAcquisitionResolutionLikeCpp> {
         let catalog = self.spell_acquisition_catalog()?;
-        let pet_auras = self.spell_pet_aura_store_like_cpp()?;
         let difficulty_chain = self.current_map_difficulty_chain_for_acquisition_like_cpp();
         let effective_effects = match catalog.resolved_effects_for_difficulty_chain_like_cpp(
             spell_id,
@@ -260,6 +259,34 @@ impl crate::session::WorldSession {
             SpellAcquisitionResolvedEffectsLookupLikeCpp::MissingCoverage { .. }
             | SpellAcquisitionResolvedEffectsLookupLikeCpp::Indeterminate(_) => return None,
         };
+        let map_id = u32::from(self.player_map_id_like_cpp());
+        let (_, area_id) = self.player_zone_area_like_cpp();
+        let map_instance_type = self
+            .map_store()
+            .and_then(|store| store.get(map_id))
+            .map(|entry| entry.instance_type);
+        if self.disable_mgr()?.is_disabled_for_like_cpp(
+            wow_data::DISABLE_TYPE_SPELL,
+            spell_id,
+            Some(wow_data::DisableWorldObjectRefLikeCpp {
+                // The C++ trainer path casts from the player, not the NPC.
+                type_id: wow_constants::TypeId::Player,
+                map_id,
+                area_id,
+                is_pet: false,
+                is_battle_arena: map_instance_type == Some(wow_data::MAP_ARENA_LIKE_CPP),
+                is_battleground: map_instance_type == Some(wow_data::MAP_BATTLEGROUND_LIKE_CPP),
+                player_map_difficulty: None,
+            }),
+            0,
+            self.map_store().map(AsRef::as_ref),
+        ) {
+            // Spell::prepare rejects disabled spells before CheckCast and any
+            // effect/pet hook. Trainer::TeachSpell has already charged and
+            // emitted both visuals, so this is a resolved no-effect cast even
+            // when later metadata is unsupported by the reduced projection.
+            return Some(failed_trainer_cast_resolution_like_cpp(effective_effects));
+        }
         // C++ copies this single SpellInfo field from the first row in the
         // active difficulty/fallback chain, then checks the player target's
         // HUMANOID mask. Do not combine sibling difficulty rows: a heroic
@@ -305,6 +332,7 @@ impl crate::session::WorldSession {
         // pet-aura hooks only after CheckCast has accepted the target/aura
         // gates above, so a definite pre-effect cast failure must win over an
         // unsupported hook and preserve the paid, visualized no-effect cast.
+        let pet_auras = self.spell_pet_aura_store_like_cpp()?;
         for effect in &effective_effects {
             let effect_index = effect.effect_index_checked().ok()?;
             if pet_auras
@@ -337,34 +365,6 @@ impl crate::session::WorldSession {
                 }
                 _ => return None,
             }
-        }
-        let map_id = u32::from(self.player_map_id_like_cpp());
-        let (_, area_id) = self.player_zone_area_like_cpp();
-        let map_instance_type = self
-            .map_store()
-            .and_then(|store| store.get(map_id))
-            .map(|entry| entry.instance_type);
-        if self.disable_mgr()?.is_disabled_for_like_cpp(
-            wow_data::DISABLE_TYPE_SPELL,
-            spell_id,
-            Some(wow_data::DisableWorldObjectRefLikeCpp {
-                // The C++ trainer path casts from the player, not the NPC.
-                type_id: wow_constants::TypeId::Player,
-                map_id,
-                area_id,
-                is_pet: false,
-                is_battle_arena: map_instance_type == Some(wow_data::MAP_ARENA_LIKE_CPP),
-                is_battleground: map_instance_type == Some(wow_data::MAP_BATTLEGROUND_LIKE_CPP),
-                player_map_difficulty: None,
-            }),
-            0,
-            self.map_store().map(AsRef::as_ref),
-        ) {
-            // `Trainer::TeachSpell` has already charged the fee and emitted
-            // both visual kits when the triggered `CastSpell` reaches
-            // `Spell::prepare` and DisableMgr rejects it. This is a resolved
-            // cast failure, not an unavailable trainer offer.
-            return Some(failed_trainer_cast_resolution_like_cpp(effective_effects));
         }
         let (no_immunities, is_channeled) = match catalog
             .resolved_misc_for_difficulty_chain_like_cpp(spell_id, difficulty_chain.iter().copied())

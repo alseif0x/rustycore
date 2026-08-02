@@ -17,6 +17,13 @@ remain real; "sends the packet and mutates DB" still does not imply full gamepla
 
 ## Bounded legacy repairs accepted during the port
 
+- [x] **Issue #159 — keep arena/battleground spell disables contextual.** Legacy
+  `DisableMgr::IsDisabledFor` checks the arena and battleground flags, but when neither context
+  matches and no map/area flag follows it falls through to the unconditional global-disable
+  return (`DisableMgr.cpp:285-345`). Rust treats arena, battleground, map and area as location
+  scopes: a scoped row disables the spell only when at least one declared scope matches. Focused
+  tests pin normal-world rejection of the legacy fallthrough and positive arena/battleground
+  matches.
 - [x] **Issue #163 — rebuild skill indexes after final hotfix removals.** Legacy C++ builds
   selected `SkillLineAbility` / `SkillRaceClassInfo` derived indexes before
   `DB2Manager::LoadHotfixData` performs its final `RecordRemoved` pass

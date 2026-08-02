@@ -2423,6 +2423,40 @@ mod tests {
                 .known_spells_like_cpp()
                 .contains(&(HEROIC_LEARNED_SPELL as i32))
         );
+        while fixture.send_rx.try_recv().is_ok() {}
+
+        let (disable_mgr, report) = wow_data::DisableMgrLikeCpp::from_rows_like_cpp(
+            [wow_data::DisableDbRowLikeCpp {
+                source_type: wow_data::DISABLE_TYPE_SPELL,
+                entry: wrapper_id,
+                flags: wow_data::disable_mgr::SPELL_DISABLE_PLAYER,
+                params_0: String::new(),
+                params_1: String::new(),
+            }],
+            wow_data::DisableMgrRefsLikeCpp {
+                spell_store: fixture.session.spell_store().map(AsRef::as_ref),
+                ..Default::default()
+            },
+        );
+        assert_eq!(report.loaded_count, 1);
+        fixture.session.set_disable_mgr(Arc::new(disable_mgr));
+        fixture
+            .session
+            .handle_trainer_buy_spell(trainer_buy_packet(
+                fixture.trainer,
+                DEFAULT_TRAINER_ID as i32,
+                WRAPPER_TRAINER_SPELL,
+            ))
+            .await;
+
+        assert_eq!(fixture.session.player_gold_like_cpp(), 75);
+        assert!(
+            !fixture
+                .session
+                .known_spells_like_cpp()
+                .contains(&(HEROIC_LEARNED_SPELL as i32))
+        );
+        assert_trainer_charge_and_visuals_like_cpp(&mut fixture);
     }
 
     #[tokio::test]

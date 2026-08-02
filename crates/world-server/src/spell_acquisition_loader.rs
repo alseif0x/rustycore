@@ -138,11 +138,10 @@ fn trainer_cast_has_unsupported_difficulty_none_aura_state_restriction_like_cpp(
     let has_exact = store
         .entries_for_spell_id_like_cpp(spell_id)
         .any(|entry| entry.difficulty_id == 0);
-    let selected_difficulty = if has_exact { 0 } else { u8::MAX };
+    let selected_difficulty = if has_exact { 0_u32 } else { u32::from(u8::MAX) };
     store
-        .entries_for_spell_id_like_cpp(spell_id)
-        .filter(|entry| entry.difficulty_id == selected_difficulty)
-        .any(trainer_cast_has_unsupported_effective_aura_state_restriction_like_cpp)
+        .resolved_for_difficulty_chain_like_cpp(spell_id, [selected_difficulty])
+        .is_some_and(trainer_cast_has_unsupported_effective_aura_state_restriction_like_cpp)
 }
 
 fn trainer_cast_has_effective_equipped_item_restriction_like_cpp(
@@ -1631,6 +1630,23 @@ mod tests {
                 100,
             ),
             "an exact DIFFICULTY_NONE row takes precedence over the wildcard"
+        );
+
+        let mut obsolete_restrictive = effective_aura.clone();
+        obsolete_restrictive.id = 4;
+        obsolete_restrictive.difficulty_id = 0;
+        let mut effective_neutral = obsolete_restrictive.clone();
+        effective_neutral.id = 5;
+        effective_neutral.target_aura_state = 0;
+        effective_neutral.target_aura_spell = 0;
+        let duplicate_exact =
+            SpellAuraRestrictionsStore::from_entries([obsolete_restrictive, effective_neutral]);
+        assert!(
+            !trainer_cast_has_unsupported_difficulty_none_aura_state_restriction_like_cpp(
+                &duplicate_exact,
+                100,
+            ),
+            "C++ later-record assignment makes only the highest-ID duplicate effective"
         );
 
         assert!(
