@@ -49268,9 +49268,9 @@ impl WorldSession {
 
     /// C++ `BattlePetMgr::SendJournalLockStatus`, represented as the successful
     /// local acquisition path until the global world journal-lock owner exists.
-    pub(crate) fn send_battle_pet_journal_lock_status_like_cpp(&mut self) {
+    pub(crate) async fn send_battle_pet_journal_lock_status_like_cpp(&mut self) {
         if let Some(attachment) = &self.battle_pet_account_attachment_like_cpp {
-            let acquired = attachment.try_acquire_lease_like_cpp();
+            let acquired = attachment.try_acquire_lease_like_cpp().await;
             if acquired {
                 self.send_packet_realm(&wow_packet::packets::misc::BattlePetJournalLockAcquired);
             } else {
@@ -129366,8 +129366,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn battle_pet_remove_pet_requires_lock_and_marks_removed_like_cpp() {
+    #[tokio::test]
+    async fn battle_pet_remove_pet_requires_lock_and_marks_removed_like_cpp() {
         let (mut session, _, _) = make_session();
         let pet_guid = ObjectGuid::new(0, 0x125);
         let new_pet_guid = ObjectGuid::new(0, 0x126);
@@ -129394,7 +129394,7 @@ mod tests {
             ))
         );
 
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         assert!(!session.battle_pet_remove_pet_like_cpp(unknown_guid));
         assert!(session.battle_pet_remove_pet_like_cpp(pet_guid));
         assert!(session.battle_pet_remove_pet_like_cpp(new_pet_guid));
@@ -129419,8 +129419,8 @@ mod tests {
         assert_eq!(journal.slots[1].pet_guid, pet_guid);
     }
 
-    #[test]
-    fn battle_pet_cage_battle_pet_applies_cpp_gates_without_side_effects() {
+    #[tokio::test]
+    async fn battle_pet_cage_battle_pet_applies_cpp_gates_without_side_effects() {
         let (mut session, _, send_rx) = make_session();
         let pet_guid = ObjectGuid::new(0, 0x180);
         let slotted_guid = ObjectGuid::new(0, 0x181);
@@ -129479,7 +129479,7 @@ mod tests {
             session.battle_pet_cage_battle_pet_represented_like_cpp(pet_guid, true, true),
             RepresentedBattlePetCageOutcomeLikeCpp::NoJournalLock
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(
@@ -129528,8 +129528,8 @@ mod tests {
         assert!(drain_server_packet_bytes(&send_rx).is_empty());
     }
 
-    #[test]
-    fn battle_pet_cage_battle_pet_creates_cage_item_removes_and_deletes_like_cpp() {
+    #[tokio::test]
+    async fn battle_pet_cage_battle_pet_creates_cage_item_removes_and_deletes_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         let pet_guid = ObjectGuid::new(0, 0x184);
         let expected_item = RepresentedBattlePetCageItemLikeCpp {
@@ -129563,7 +129563,7 @@ mod tests {
             },
         );
         assert!(session.battle_pet_summon_toggle_like_cpp(pet_guid));
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(
@@ -129598,8 +129598,8 @@ mod tests {
         assert_eq!(packet.remaining(), 0);
     }
 
-    #[test]
-    fn battle_pet_modify_name_requires_lock_and_updates_name_state_like_cpp() {
+    #[tokio::test]
+    async fn battle_pet_modify_name_requires_lock_and_updates_name_state_like_cpp() {
         let (mut session, _, _) = make_session();
         let pet_guid = ObjectGuid::new(0, 0x128);
         let new_pet_guid = ObjectGuid::new(0, 0x129);
@@ -129630,7 +129630,7 @@ mod tests {
             ))
         );
 
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         assert!(!session.battle_pet_modify_name_like_cpp(
             unknown_guid,
             "Ghost".to_string(),
@@ -130176,8 +130176,8 @@ mod tests {
         assert_eq!(packet.read_packed_guid().expect("pet guid"), new_guid);
     }
 
-    #[test]
-    fn battle_pet_change_quality_applies_cpp_gates_without_side_effects() {
+    #[tokio::test]
+    async fn battle_pet_change_quality_applies_cpp_gates_without_side_effects() {
         let (mut session, _, send_rx) = make_session();
         let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x189);
         let unknown_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x18a);
@@ -130201,7 +130201,7 @@ mod tests {
             session.battle_pet_change_battle_pet_quality_represented_like_cpp(pet_guid, 3),
             RepresentedBattlePetQualityOutcomeLikeCpp::NoJournalLock
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(
@@ -130325,8 +130325,8 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn battle_pet_change_quality_applies_stats_heals_and_sends_update_like_cpp() {
+    #[tokio::test]
+    async fn battle_pet_change_quality_applies_stats_heals_and_sends_update_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x18b);
         install_represented_battle_pet_stat_stores_like_cpp(&mut session);
@@ -130353,7 +130353,7 @@ mod tests {
                 save_info: RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
             },
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(
@@ -130395,8 +130395,9 @@ mod tests {
         assert_eq!(packet.read_uint8().expect("quality"), 3);
     }
 
-    #[test]
-    fn battle_pet_change_quality_does_not_abort_when_calculate_stats_returns_early_like_cpp() {
+    #[tokio::test]
+    async fn battle_pet_change_quality_does_not_abort_when_calculate_stats_returns_early_like_cpp()
+    {
         let (mut session, _, send_rx) = make_session();
         let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x18bb);
         install_represented_battle_pet_stat_stores_like_cpp(&mut session);
@@ -130419,7 +130420,7 @@ mod tests {
                 )
             },
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(
@@ -130462,8 +130463,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn battle_pet_grant_level_applies_cpp_gates_without_side_effects() {
+    #[tokio::test]
+    async fn battle_pet_grant_level_applies_cpp_gates_without_side_effects() {
         let (mut session, _, send_rx) = make_session();
         let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x18c);
         let max_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x18d);
@@ -130504,7 +130505,7 @@ mod tests {
             session.battle_pet_grant_battle_pet_level_represented_like_cpp(pet_guid, 1),
             RepresentedBattlePetGrantLevelOutcomeLikeCpp::NoJournalLock
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(
@@ -130549,8 +130550,8 @@ mod tests {
         assert!(drain_server_packet_bytes(&send_rx).is_empty());
     }
 
-    #[test]
-    fn battle_pet_grant_level_caps_at_max_resets_xp_and_sends_update_like_cpp() {
+    #[tokio::test]
+    async fn battle_pet_grant_level_caps_at_max_resets_xp_and_sends_update_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x18f);
         install_represented_battle_pet_stat_stores_like_cpp(&mut session);
@@ -130577,7 +130578,7 @@ mod tests {
                 save_info: RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
             },
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(
@@ -130633,8 +130634,8 @@ mod tests {
         assert_eq!(packet.read_uint8().expect("quality"), 3);
     }
 
-    #[test]
-    fn battle_pet_grant_level_does_not_abort_when_calculate_stats_returns_early_like_cpp() {
+    #[tokio::test]
+    async fn battle_pet_grant_level_does_not_abort_when_calculate_stats_returns_early_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x190);
         install_represented_battle_pet_stat_stores_like_cpp(&mut session);
@@ -130658,7 +130659,7 @@ mod tests {
                 )
             },
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(
@@ -130685,8 +130686,8 @@ mod tests {
         assert_eq!(pet.save_info, RepresentedBattlePetSaveInfoLikeCpp::Changed);
     }
 
-    #[test]
-    fn battle_pet_grant_experience_applies_cpp_gates_without_side_effects() {
+    #[tokio::test]
+    async fn battle_pet_grant_experience_applies_cpp_gates_without_side_effects() {
         let (mut session, _, send_rx) = make_session();
         let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x191);
         let max_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x192);
@@ -130734,7 +130735,7 @@ mod tests {
             ),
             RepresentedBattlePetGrantExperienceOutcomeLikeCpp::NoJournalLock
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(
@@ -130818,8 +130819,8 @@ mod tests {
         assert!(drain_server_packet_bytes(&send_rx).is_empty());
     }
 
-    #[test]
-    fn battle_pet_grant_experience_spell_effect_levels_without_active_criteria_like_cpp() {
+    #[tokio::test]
+    async fn battle_pet_grant_experience_spell_effect_levels_without_active_criteria_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x194);
         install_represented_battle_pet_stat_stores_like_cpp(&mut session);
@@ -130848,7 +130849,7 @@ mod tests {
                 )
             },
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(
@@ -130907,8 +130908,9 @@ mod tests {
         assert_eq!(packet.read_uint8().expect("quality"), 3);
     }
 
-    #[test]
-    fn battle_pet_grant_experience_prefers_real_game_table_over_represented_projection_like_cpp() {
+    #[tokio::test]
+    async fn battle_pet_grant_experience_prefers_real_game_table_over_represented_projection_like_cpp()
+     {
         let (mut session, _, send_rx) = make_session();
         let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x197);
         install_represented_battle_pet_stat_stores_like_cpp(&mut session);
@@ -130947,7 +130949,7 @@ mod tests {
                 )
             },
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(
@@ -130997,7 +130999,7 @@ mod tests {
                 )
             },
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
 
         let mut spell_store = wow_data::SpellStore::new();
@@ -131092,7 +131094,7 @@ mod tests {
                 )
             },
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
         assert!(session.battle_pet_summon_toggle_like_cpp(pet_guid));
 
@@ -131621,7 +131623,7 @@ mod tests {
             SpellCastResult::CantDoThatRightNow as i32
         );
 
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
         session
             .execute_spell_with_visual_and_target_data_with_metadata(
@@ -131693,7 +131695,7 @@ mod tests {
                 loadout_ui_model_scene_id: 0,
             }]),
         ));
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
         assert!(session.battle_pet_summon_toggle_like_cpp(pet_guid));
 
@@ -131850,7 +131852,7 @@ mod tests {
                 )
             },
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
         assert!(session.battle_pet_summon_toggle_like_cpp(pet_guid));
 
@@ -131955,7 +131957,7 @@ mod tests {
                 )
             },
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
         assert!(session.battle_pet_summon_toggle_like_cpp(pet_guid));
 
@@ -132018,8 +132020,9 @@ mod tests {
         );
     }
 
-    #[test]
-    fn battle_pet_grant_experience_pet_battle_applies_multiplier_and_active_criteria_like_cpp() {
+    #[tokio::test]
+    async fn battle_pet_grant_experience_pet_battle_applies_multiplier_and_active_criteria_like_cpp()
+     {
         let (mut session, _, send_rx) = make_session();
         let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x195);
         install_represented_battle_pet_stat_stores_like_cpp(&mut session);
@@ -132046,7 +132049,7 @@ mod tests {
                 )
             },
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(
@@ -132088,8 +132091,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn battle_pet_grant_experience_pet_battle_uses_owner_xp_aura_like_cpp() {
+    #[tokio::test]
+    async fn battle_pet_grant_experience_pet_battle_uses_owner_xp_aura_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x1A7);
         let player_guid = ObjectGuid::create_player(1, 226);
@@ -132118,7 +132121,7 @@ mod tests {
                 )
             },
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
         session
             .apply_represented_battle_pet_xp_pct_aura_like_cpp(
@@ -132173,8 +132176,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn battle_pet_grant_experience_missing_later_xp_row_keeps_prior_criteria_but_not_pet_mutation_like_cpp()
+    #[tokio::test]
+    async fn battle_pet_grant_experience_missing_later_xp_row_keeps_prior_criteria_but_not_pet_mutation_like_cpp()
      {
         let (mut session, _, send_rx) = make_session();
         let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x196);
@@ -132200,7 +132203,7 @@ mod tests {
                 )
             },
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(

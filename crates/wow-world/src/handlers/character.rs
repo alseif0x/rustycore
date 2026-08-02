@@ -19150,7 +19150,7 @@ impl WorldSession {
 
         // C++ sends the journal lock before
         // `Player::SendInitialPacketsBeforeAddToMap`.
-        self.send_battle_pet_journal_lock_status_like_cpp();
+        self.send_battle_pet_journal_lock_status_like_cpp().await;
         self.wait_for_realm_send_before_instance_update_like_cpp()
             .await
     }

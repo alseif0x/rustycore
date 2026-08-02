@@ -5215,7 +5215,7 @@ impl crate::session::WorldSession {
         }
 
         if !self.has_represented_battle_pet_journal_lock_like_cpp() {
-            self.send_battle_pet_journal_lock_status_like_cpp();
+            self.send_battle_pet_journal_lock_status_like_cpp().await;
         }
 
         self.send_packet_realm(&self.represented_battle_pet_journal_like_cpp());
@@ -5226,7 +5226,7 @@ impl crate::session::WorldSession {
     /// C++ `HandleBattlePetRequestJournalLock` sends lock status and, when the
     /// lock is held, sends the journal.
     pub async fn handle_battle_pet_request_journal_lock(&mut self, _pkt: wow_packet::WorldPacket) {
-        self.send_battle_pet_journal_lock_status_like_cpp();
+        self.send_battle_pet_journal_lock_status_like_cpp().await;
         if self.has_represented_battle_pet_journal_lock_like_cpp() {
             self.send_packet_realm(&self.represented_battle_pet_journal_like_cpp());
         }
@@ -13502,7 +13502,7 @@ mod tests {
     #[tokio::test]
     async fn battle_pet_request_journal_with_lock_sends_only_journal_like_cpp() {
         let (mut session, send_rx) = make_session();
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = send_rx.try_recv().expect("initial lock packet");
 
         session

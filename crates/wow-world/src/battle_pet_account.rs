@@ -42,6 +42,13 @@ use crate::session::{
 
 type PersistenceFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
+pub(crate) trait BattlePetProcessLeaseLikeCpp: Send {}
+
+struct BattlePetProcessLeaseStateLikeCpp {
+    guard: Option<Box<dyn BattlePetProcessLeaseLikeCpp>>,
+    acquiring: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) struct BattlePetAddRequestKeyLikeCpp([u8; 16]);
 
@@ -125,6 +132,14 @@ pub(crate) enum BattlePetPersistenceErrorLikeCpp {
 }
 
 pub(crate) trait BattlePetPersistenceLikeCpp: Send + Sync {
+    fn try_acquire_process_lease<'a>(
+        &'a self,
+        account_id: u32,
+    ) -> PersistenceFuture<
+        'a,
+        Result<Option<Box<dyn BattlePetProcessLeaseLikeCpp>>, BattlePetPersistenceErrorLikeCpp>,
+    >;
+
     fn load_account<'a>(
         &'a self,
         account_id: u32,
@@ -179,6 +194,12 @@ pub(crate) trait BattlePetPersistenceLikeCpp: Send + Sync {
 pub struct LoginBattlePetPersistenceLikeCpp {
     db: Arc<LoginDatabase>,
 }
+
+struct LoginBattlePetProcessLeaseLikeCpp {
+    _connection: sqlx::MySqlConnection,
+}
+
+impl BattlePetProcessLeaseLikeCpp for LoginBattlePetProcessLeaseLikeCpp {}
 
 impl LoginBattlePetPersistenceLikeCpp {
     pub fn new(db: Arc<LoginDatabase>) -> Self {
@@ -254,6 +275,38 @@ impl LoginBattlePetPersistenceLikeCpp {
 }
 
 impl BattlePetPersistenceLikeCpp for LoginBattlePetPersistenceLikeCpp {
+    fn try_acquire_process_lease<'a>(
+        &'a self,
+        account_id: u32,
+    ) -> PersistenceFuture<
+        'a,
+        Result<Option<Box<dyn BattlePetProcessLeaseLikeCpp>>, BattlePetPersistenceErrorLikeCpp>,
+    > {
+        Box::pin(async move {
+            let pooled = self
+                .db
+                .pool()
+                .acquire()
+                .await
+                .map_err(|error| database_error_like_cpp(DatabaseError::from(error)))?;
+            // Detaching keeps the advisory-lock connection outside the normal
+            // query pool. Dropping the raw connection releases GET_LOCK even
+            // if the world process or session disappears unexpectedly.
+            let mut connection = pooled.detach();
+            let lock_name = format!("rustycore:battle-pet-account:{account_id}");
+            let acquired = sqlx::query_scalar::<_, Option<i64>>("SELECT GET_LOCK(?, 0)")
+                .bind(lock_name)
+                .fetch_one(&mut connection)
+                .await
+                .map_err(|error| database_error_like_cpp(DatabaseError::from(error)))?;
+            Ok((acquired == Some(1)).then(|| {
+                Box::new(LoginBattlePetProcessLeaseLikeCpp {
+                    _connection: connection,
+                }) as Box<dyn BattlePetProcessLeaseLikeCpp>
+            }))
+        })
+    }
+
     fn load_account<'a>(
         &'a self,
         account_id: u32,
@@ -980,6 +1033,9 @@ pub(crate) struct BattlePetAccountOwnerLikeCpp {
     breed_state_store: Arc<BattlePetBreedStateStore>,
     species_state_store: Arc<BattlePetSpeciesStateStore>,
     state: Mutex<BattlePetAccountStateLikeCpp>,
+    process_lease: Mutex<BattlePetProcessLeaseStateLikeCpp>,
+    process_lease_changed: Notify,
+    attachments: AtomicUsize,
     active_operations: AtomicUsize,
     operations_drained: Notify,
 }
@@ -1066,6 +1122,12 @@ impl BattlePetAccountOwnerLikeCpp {
                 pending_pet_mutations: HashSet::new(),
                 slots_pending: false,
             }),
+            process_lease: Mutex::new(BattlePetProcessLeaseStateLikeCpp {
+                guard: None,
+                acquiring: false,
+            }),
+            process_lease_changed: Notify::new(),
+            attachments: AtomicUsize::new(0),
             active_operations: AtomicUsize::new(0),
             operations_drained: Notify::new(),
         }
@@ -1088,7 +1150,117 @@ impl BattlePetAccountOwnerLikeCpp {
         }
     }
 
-    fn try_acquire_lease_like_cpp(&self, lease_id: BattlePetLeaseIdLikeCpp) -> bool {
+    async fn ensure_process_lease_like_cpp(self: &Arc<Self>) -> bool {
+        loop {
+            let wait = {
+                let mut process = self
+                    .process_lease
+                    .lock()
+                    .expect("battle-pet process lease poisoned");
+                if process.guard.is_some() {
+                    return true;
+                }
+                if process.acquiring {
+                    Some(self.process_lease_changed.notified())
+                } else {
+                    process.acquiring = true;
+                    None
+                }
+            };
+            if let Some(wait) = wait {
+                wait.await;
+                continue;
+            }
+
+            let acquired = self
+                .persistence
+                .try_acquire_process_lease(self.account_id)
+                .await;
+            let mut guard = match acquired {
+                Ok(guard) => guard,
+                Err(_) => None,
+            };
+            if guard.is_some() {
+                let loaded = self
+                    .persistence
+                    .load_account(self.account_id, self.realm_id)
+                    .await;
+                if let Ok(loaded) = loaded {
+                    let refreshed = Self::from_loaded_like_cpp(
+                        self.account_id,
+                        self.realm_id,
+                        self.virtual_realm_address,
+                        Arc::clone(&self.persistence),
+                        Arc::clone(&self.species_store),
+                        Arc::clone(&self.breed_quality_store),
+                        Arc::clone(&self.breed_state_store),
+                        Arc::clone(&self.species_state_store),
+                        loaded,
+                    );
+                    let refreshed = refreshed
+                        .state
+                        .into_inner()
+                        .expect("refreshed battle-pet account state poisoned");
+                    let mut state = self
+                        .state
+                        .lock()
+                        .expect("battle-pet account state poisoned");
+                    if state.pending_adds.is_empty()
+                        && state.pending_pet_mutations.is_empty()
+                        && !state.slots_pending
+                    {
+                        state.pets = refreshed.pets;
+                        state.slots = refreshed.slots;
+                        state.completed_adds.clear();
+                    } else {
+                        guard = None;
+                    }
+                } else {
+                    guard = None;
+                }
+            }
+
+            let acquired = guard.is_some();
+            let mut process = self
+                .process_lease
+                .lock()
+                .expect("battle-pet process lease poisoned");
+            process.guard = guard;
+            process.acquiring = false;
+            drop(process);
+            self.process_lease_changed.notify_waiters();
+            return acquired;
+        }
+    }
+
+    fn release_process_lease_if_idle_like_cpp(&self) {
+        if self.attachments.load(Ordering::Acquire) != 0
+            || self.active_operations.load(Ordering::Acquire) != 0
+        {
+            return;
+        }
+        let lease_held = self
+            .state
+            .lock()
+            .expect("battle-pet account state poisoned")
+            .lease_holder
+            .is_some();
+        if !lease_held {
+            self.process_lease
+                .lock()
+                .expect("battle-pet process lease poisoned")
+                .guard
+                .take();
+        }
+    }
+
+    async fn try_acquire_lease_like_cpp(
+        self: &Arc<Self>,
+        lease_id: BattlePetLeaseIdLikeCpp,
+    ) -> bool {
+        if !self.ensure_process_lease_like_cpp().await {
+            return false;
+        }
         let mut state = self
             .state
             .lock()
@@ -1513,6 +1685,9 @@ impl BattlePetAccountOwnerLikeCpp {
         R: Send + 'static,
         F: FnOnce(&mut RepresentedBattlePetDataLikeCpp) -> R,
     {
+        if !self.ensure_process_lease_like_cpp().await {
+            return Err(BattlePetMutationFailureLikeCpp::MissingAuthority);
+        }
         self.try_mutate_pet_with_optional_lease_like_cpp(None, pet_guid, mutation)
             .await
     }
@@ -1931,6 +2106,7 @@ impl Drop for BattlePetOperationGuardLikeCpp {
     fn drop(&mut self) {
         if self.owner.active_operations.fetch_sub(1, Ordering::AcqRel) == 1 {
             self.owner.operations_drained.notify_waiters();
+            self.owner.release_process_lease_if_idle_like_cpp();
         }
     }
 }
@@ -1941,8 +2117,8 @@ pub struct BattlePetAccountAttachmentLikeCpp {
 }
 
 impl BattlePetAccountAttachmentLikeCpp {
-    pub(crate) fn try_acquire_lease_like_cpp(&self) -> bool {
-        self.owner.try_acquire_lease_like_cpp(self.lease_id)
+    pub(crate) async fn try_acquire_lease_like_cpp(&self) -> bool {
+        self.owner.try_acquire_lease_like_cpp(self.lease_id).await
     }
 
     pub(crate) fn has_lease_like_cpp(&self) -> bool {
@@ -1961,6 +2137,9 @@ impl BattlePetAccountAttachmentLikeCpp {
 impl Drop for BattlePetAccountAttachmentLikeCpp {
     fn drop(&mut self) {
         self.owner.release_lease_like_cpp(self.lease_id);
+        let previous = self.owner.attachments.fetch_sub(1, Ordering::AcqRel);
+        debug_assert!(previous != 0, "battle-pet attachment count underflow");
+        self.owner.release_process_lease_if_idle_like_cpp();
     }
 }
 
@@ -2054,6 +2233,7 @@ impl BattlePetAccountRegistryLikeCpp {
             .await?
             .clone();
         let lease_id = BattlePetLeaseIdLikeCpp(self.next_lease_id.fetch_add(1, Ordering::Relaxed));
+        owner.attachments.fetch_add(1, Ordering::AcqRel);
         Ok(BattlePetAccountAttachmentLikeCpp { owner, lease_id })
     }
 
@@ -2102,6 +2282,7 @@ mod tests {
     #[derive(Default)]
     struct FakePersistenceLikeCpp {
         state: Mutex<FakePersistenceStateLikeCpp>,
+        process_lease: Arc<AtomicBool>,
         next_guid: AtomicU64,
         insert_calls: AtomicUsize,
         fail_next_insert: AtomicBool,
@@ -2113,7 +2294,39 @@ mod tests {
         allow_insert: Notify,
     }
 
+    struct FakeProcessLeaseLikeCpp {
+        held: Arc<AtomicBool>,
+    }
+
+    impl BattlePetProcessLeaseLikeCpp for FakeProcessLeaseLikeCpp {}
+
+    impl Drop for FakeProcessLeaseLikeCpp {
+        fn drop(&mut self) {
+            self.held.store(false, Ordering::Release);
+        }
+    }
+
     impl BattlePetPersistenceLikeCpp for FakePersistenceLikeCpp {
+        fn try_acquire_process_lease<'a>(
+            &'a self,
+            _account_id: u32,
+        ) -> PersistenceFuture<
+            'a,
+            Result<Option<Box<dyn BattlePetProcessLeaseLikeCpp>>, BattlePetPersistenceErrorLikeCpp>,
+        > {
+            Box::pin(async move {
+                Ok(self
+                    .process_lease
+                    .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+                    .is_ok()
+                    .then(|| {
+                        Box::new(FakeProcessLeaseLikeCpp {
+                            held: Arc::clone(&self.process_lease),
+                        }) as Box<dyn BattlePetProcessLeaseLikeCpp>
+                    }))
+            })
+        }
+
         fn load_account<'a>(
             &'a self,
             _account_id: u32,
@@ -2517,8 +2730,8 @@ mod tests {
         let registry = registry_like_cpp(Arc::clone(&persistence), 0, 100);
         let first = registry.attach_like_cpp(77).await.expect("first attach");
         let second = registry.attach_like_cpp(77).await.expect("second attach");
-        assert!(first.try_acquire_lease_like_cpp());
-        assert!(!second.try_acquire_lease_like_cpp());
+        assert!(first.try_acquire_lease_like_cpp().await);
+        assert!(!second.try_acquire_lease_like_cpp().await);
 
         let owner = Arc::clone(first.owner_like_cpp());
         let lease = first.lease_id_like_cpp();
@@ -2557,7 +2770,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn two_realm_owners_recheck_one_durable_capacity_scope_before_insert() {
+    async fn cross_process_lease_handoff_reloads_before_next_realm_mutates() {
         let persistence = Arc::new(FakePersistenceLikeCpp::default());
         persistence.next_guid.store(300, Ordering::Release);
         let (species, qualities, breed_states, species_states) = stores_like_cpp(0);
@@ -2584,8 +2797,8 @@ mod tests {
             .attach_like_cpp(77)
             .await
             .expect("realm two");
-        assert!(first.try_acquire_lease_like_cpp());
-        assert!(second.try_acquire_lease_like_cpp());
+        assert!(first.try_acquire_lease_like_cpp().await);
+        assert!(!second.try_acquire_lease_like_cpp().await);
         first
             .owner_like_cpp()
             .try_add_pet_like_cpp(first.lease_id_like_cpp(), add_request_like_cpp(1, 11, 1))
@@ -2597,22 +2810,28 @@ mod tests {
             .await
             .expect("second durable pet");
 
-        let (realm_one, realm_two) = tokio::join!(
-            first
-                .owner_like_cpp()
-                .try_add_pet_like_cpp(first.lease_id_like_cpp(), add_request_like_cpp(3, 11, 1),),
+        drop(first);
+
+        assert!(second.try_acquire_lease_like_cpp().await);
+        assert_eq!(
             second
                 .owner_like_cpp()
-                .try_add_pet_like_cpp(second.lease_id_like_cpp(), add_request_like_cpp(4, 11, 1),),
+                .journal_like_cpp(second.lease_id_like_cpp(), None)
+                .pets
+                .len(),
+            2
         );
-        let outcomes = [realm_one, realm_two];
-        assert_eq!(outcomes.iter().filter(|result| result.is_ok()).count(), 1);
+        second
+            .owner_like_cpp()
+            .try_add_pet_like_cpp(second.lease_id_like_cpp(), add_request_like_cpp(3, 11, 1))
+            .await
+            .expect("third durable pet after process handoff");
         assert_eq!(
-            outcomes
-                .iter()
-                .filter(|result| matches!(result, Err(BattlePetAddFailureLikeCpp::Capacity)))
-                .count(),
-            1
+            second
+                .owner_like_cpp()
+                .try_add_pet_like_cpp(second.lease_id_like_cpp(), add_request_like_cpp(4, 11, 1),)
+                .await,
+            Err(BattlePetAddFailureLikeCpp::Capacity)
         );
         assert_eq!(
             persistence
@@ -2631,8 +2850,8 @@ mod tests {
         let registry = registry_like_cpp(persistence, 0, 400);
         let holder = registry.attach_like_cpp(77).await.expect("holder");
         let non_holder = registry.attach_like_cpp(77).await.expect("non-holder");
-        assert!(holder.try_acquire_lease_like_cpp());
-        assert!(!non_holder.try_acquire_lease_like_cpp());
+        assert!(holder.try_acquire_lease_like_cpp().await);
+        assert!(!non_holder.try_acquire_lease_like_cpp().await);
         let added = holder
             .owner_like_cpp()
             .try_add_pet_like_cpp(holder.lease_id_like_cpp(), add_request_like_cpp(1, 11, 1))
@@ -2674,7 +2893,7 @@ mod tests {
         let persistence = Arc::new(FakePersistenceLikeCpp::default());
         let registry = registry_like_cpp(Arc::clone(&persistence), 0, 200);
         let attachment = registry.attach_like_cpp(77).await.expect("attach");
-        assert!(attachment.try_acquire_lease_like_cpp());
+        assert!(attachment.try_acquire_lease_like_cpp().await);
         let owner = attachment.owner_like_cpp();
         let lease = attachment.lease_id_like_cpp();
         let request = add_request_like_cpp(9, 11, 1);
@@ -2715,7 +2934,7 @@ mod tests {
         persistence.fail_next_insert.store(true, Ordering::Release);
         let registry = registry_like_cpp(Arc::clone(&persistence), 0, 300);
         let attachment = registry.attach_like_cpp(77).await.expect("attach");
-        assert!(attachment.try_acquire_lease_like_cpp());
+        assert!(attachment.try_acquire_lease_like_cpp().await);
         let owner = attachment.owner_like_cpp();
         let lease = attachment.lease_id_like_cpp();
         let request = add_request_like_cpp(10, 11, 1);
@@ -2748,7 +2967,7 @@ mod tests {
             400,
         );
         let attachment = registry.attach_like_cpp(77).await.expect("attach");
-        assert!(attachment.try_acquire_lease_like_cpp());
+        assert!(attachment.try_acquire_lease_like_cpp().await);
         let owner = attachment.owner_like_cpp();
         let lease = attachment.lease_id_like_cpp();
         let request = add_request_like_cpp(11, 11, 1);
@@ -2774,7 +2993,7 @@ mod tests {
             401,
         );
         let attachment = restarted.attach_like_cpp(77).await.expect("reload");
-        assert!(attachment.try_acquire_lease_like_cpp());
+        assert!(attachment.try_acquire_lease_like_cpp().await);
         let journal = attachment
             .owner_like_cpp()
             .journal_like_cpp(attachment.lease_id_like_cpp(), request.owner_guid);
@@ -2795,7 +3014,7 @@ mod tests {
             500,
         );
         let attachment = registry.attach_like_cpp(77).await.expect("attach");
-        assert!(attachment.try_acquire_lease_like_cpp());
+        assert!(attachment.try_acquire_lease_like_cpp().await);
         let owner = attachment.owner_like_cpp();
         let lease = attachment.lease_id_like_cpp();
         for key in 1..=3 {
@@ -2832,7 +3051,7 @@ mod tests {
         persistence.block_next_insert.store(true, Ordering::Release);
         let registry = registry_like_cpp(Arc::clone(&persistence), 0, 600);
         let attachment = registry.attach_like_cpp(77).await.expect("attach");
-        assert!(attachment.try_acquire_lease_like_cpp());
+        assert!(attachment.try_acquire_lease_like_cpp().await);
         let owner = Arc::clone(attachment.owner_like_cpp());
         let lease = attachment.lease_id_like_cpp();
         let request = add_request_like_cpp(21, 11, 1);
@@ -2866,7 +3085,7 @@ mod tests {
         let persistence = Arc::new(FakePersistenceLikeCpp::default());
         let registry = registry_like_cpp(Arc::clone(&persistence), 0, 700);
         let attachment = registry.attach_like_cpp(77).await.expect("attach");
-        assert!(attachment.try_acquire_lease_like_cpp());
+        assert!(attachment.try_acquire_lease_like_cpp().await);
         let owner = attachment.owner_like_cpp();
         let lease = attachment.lease_id_like_cpp();
         let request = add_request_like_cpp(22, 11, 1);
@@ -2888,7 +3107,7 @@ mod tests {
 
         let restarted = registry_like_cpp(Arc::clone(&persistence), 0, 701);
         let attachment = restarted.attach_like_cpp(77).await.expect("reload");
-        assert!(attachment.try_acquire_lease_like_cpp());
+        assert!(attachment.try_acquire_lease_like_cpp().await);
         let owner = attachment.owner_like_cpp();
         assert!(matches!(
             owner
@@ -2909,7 +3128,7 @@ mod tests {
         let persistence = Arc::new(FakePersistenceLikeCpp::default());
         let registry = registry_like_cpp(Arc::clone(&persistence), 0, 750);
         let attachment = registry.attach_like_cpp(77).await.expect("attach");
-        assert!(attachment.try_acquire_lease_like_cpp());
+        assert!(attachment.try_acquire_lease_like_cpp().await);
         let owner = attachment.owner_like_cpp();
         let lease = attachment.lease_id_like_cpp();
         let first_request = add_request_like_cpp(31, 11, 1);
@@ -2940,7 +3159,7 @@ mod tests {
 
         let restarted = registry_like_cpp(Arc::clone(&persistence), 0, 751);
         let attachment = restarted.attach_like_cpp(77).await.expect("reload");
-        assert!(attachment.try_acquire_lease_like_cpp());
+        assert!(attachment.try_acquire_lease_like_cpp().await);
         let replayed = attachment
             .owner_like_cpp()
             .try_add_pet_like_cpp(attachment.lease_id_like_cpp(), first_request)
@@ -2967,7 +3186,7 @@ mod tests {
         let persistence = Arc::new(FakePersistenceLikeCpp::default());
         let registry = registry_like_cpp(Arc::clone(&persistence), 0, 800);
         let attachment = registry.attach_like_cpp(77).await.expect("attach");
-        assert!(attachment.try_acquire_lease_like_cpp());
+        assert!(attachment.try_acquire_lease_like_cpp().await);
         let owner = attachment.owner_like_cpp();
         let lease = attachment.lease_id_like_cpp();
         let request = add_request_like_cpp(23, 11, 1);
