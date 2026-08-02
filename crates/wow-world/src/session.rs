@@ -27296,6 +27296,43 @@ impl WorldSession {
         }
     }
 
+    /// Commit a trainer fee when the represented cast has no durable
+    /// spell/skill mutation (for example, every acquisition effect was
+    /// suppressed by target immunity). C++ charges and publishes its trainer
+    /// visuals before that triggered cast resolves its hit effects.
+    pub(crate) async fn commit_exclusive_trainer_money_only_like_cpp(
+        &mut self,
+        money_persistence: ExclusivePlayerMoneyPersistenceLikeCpp,
+        character_db: Option<&CharacterDatabase>,
+        money_before: u64,
+        money_after: u64,
+    ) -> Option<ExclusivePlayerMoneyPersistenceLikeCpp> {
+        #[cfg(test)]
+        if let Some(success) = self.loot_money_persistence_test_result_like_cpp {
+            return success.then_some(money_persistence);
+        }
+
+        if money_before == money_after {
+            return Some(money_persistence);
+        }
+        let character_db = character_db?;
+        let guid = self.player_guid()?.counter() as u64;
+        let mut transaction = SqlTransaction::new();
+        transaction.append(Self::build_character_gold_save_statement_like_cpp(
+            money_after,
+            guid,
+        ));
+        self.commit_exclusive_player_money_transaction_like_cpp(
+            money_persistence,
+            character_db,
+            transaction,
+            money_before,
+            money_after,
+            "trainer fee without durable acquisition mutation",
+        )
+        .await
+    }
+
     /// Commit one trainer fee and its prepared spell/skill acquisition under
     /// the same per-character money exclusion. Runtime publication remains the
     /// caller's responsibility and must complete before the returned guard is
@@ -37408,6 +37445,7 @@ impl WorldSession {
                 self.instance_link_rx = None;
                 self.player_loading = None;
                 self.connect_to_key = None;
+                self.release_character_login_claim_like_cpp();
             }
         }
     }
@@ -66954,6 +66992,30 @@ mod tests {
 
         first.release_character_login_claim_like_cpp();
         assert!(second.try_claim_character_login_like_cpp(guid));
+        second.release_character_login_claim_like_cpp();
+    }
+
+    #[tokio::test]
+    async fn closed_instance_link_releases_character_login_claim_like_cpp() {
+        let guid = ObjectGuid::create_player(1, 0x7FFF_FF02);
+        let (mut first, _, _) = make_session();
+        let (mut second, _, _) = make_session();
+
+        assert!(first.try_claim_character_login_like_cpp(guid));
+        first.set_player_loading(Some(guid));
+        first.set_connect_to_key(Some(77));
+        let (link_tx, link_rx) = tokio::sync::oneshot::channel();
+        first.set_instance_link_rx(Some(link_rx));
+        drop(link_tx);
+
+        first.poll_instance_link().await;
+
+        assert_eq!(first.player_loading(), None);
+        assert_eq!(first.connect_to_key, None);
+        assert!(
+            second.try_claim_character_login_like_cpp(guid),
+            "a failed instance handoff must not strand the process-wide login claim"
+        );
         second.release_character_login_claim_like_cpp();
     }
 

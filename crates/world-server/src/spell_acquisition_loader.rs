@@ -26,14 +26,15 @@ use wow_data::{
     SpellAcquisitionCoverageSeedLikeCpp, SpellAcquisitionDiagnosticSeverityLikeCpp,
     SpellAcquisitionIndeterminateReasonLikeCpp, SpellAcquisitionTalentLookupLikeCpp,
     SpellAreaStoreLikeCpp, SpellAuraRestrictionsEntry, SpellAuraRestrictionsStore,
-    SpellCastingRequirementsStore, SpellChainStoreLikeCpp, SpellCustomAttributeKeyLikeCpp,
-    SpellCustomAttributeLoadErrorKindLikeCpp, SpellCustomAttributeSourceVariantLikeCpp,
-    SpellCustomAttributeStoreLikeCpp, SpellEquippedItemsEntry, SpellEquippedItemsStore,
-    SpellLearnSkillEffectLikeCpp, SpellLearnSkillIndeterminateReasonLikeCpp,
-    SpellLearnSkillSourceSpellInfoLikeCpp, SpellLearnSkillStoreLikeCpp,
-    SpellLearnSourceSpellInfoLikeCpp, SpellLearnSpellEffectLikeCpp, SpellLearnSpellEntry,
-    SpellLearnSpellStoreLikeCpp, SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp,
-    SpellPetAuraStoreLikeCpp, SpellReagentsEntry, SpellReagentsStore, SpellStore, wdc4::Wdc4Reader,
+    SpellCastingRequirementsEntry, SpellCastingRequirementsStore, SpellChainStoreLikeCpp,
+    SpellCustomAttributeKeyLikeCpp, SpellCustomAttributeLoadErrorKindLikeCpp,
+    SpellCustomAttributeSourceVariantLikeCpp, SpellCustomAttributeStoreLikeCpp,
+    SpellEquippedItemsEntry, SpellEquippedItemsStore, SpellLearnSkillEffectLikeCpp,
+    SpellLearnSkillIndeterminateReasonLikeCpp, SpellLearnSkillSourceSpellInfoLikeCpp,
+    SpellLearnSkillStoreLikeCpp, SpellLearnSourceSpellInfoLikeCpp, SpellLearnSpellEffectLikeCpp,
+    SpellLearnSpellEntry, SpellLearnSpellStoreLikeCpp, SpellLinkedStoreLikeCpp,
+    SpellLinkedTypeLikeCpp, SpellPetAuraStoreLikeCpp, SpellReagentsEntry, SpellReagentsStore,
+    SpellStore, wdc4::Wdc4Reader,
 };
 use wow_database::{HotfixDatabase, HotfixStatements, WorldDatabase, WorldStatements};
 
@@ -41,8 +42,8 @@ use wow_data::spell::spell_effect_types::{
     SPELL_EFFECT_DUAL_WIELD, SPELL_EFFECT_LEARN_SPELL, SPELL_EFFECT_SKILL, SPELL_EFFECT_SKILL_STEP,
 };
 use wow_data::spell_acquisition::{
-    SpellAcquisitionEffectLikeCpp, SpellAcquisitionResolvedEffectsLookupLikeCpp,
-    SpellAcquisitionResolvedMetadataLookupLikeCpp,
+    SpellAcquisitionEffectLikeCpp, SpellAcquisitionMetadataLookupLikeCpp,
+    SpellAcquisitionResolvedEffectsLookupLikeCpp, SpellAcquisitionResolvedMetadataLookupLikeCpp,
 };
 
 #[derive(Debug)]
@@ -67,6 +68,7 @@ struct TrainerCastWorldHookAuditLikeCpp {
     condition: bool,
     aura_restriction: bool,
     equipped_item_restriction: bool,
+    channeled: bool,
     spell_focus_requirement: bool,
     required_area_requirement: bool,
     spell_area_requirement: bool,
@@ -98,10 +100,22 @@ fn trainer_cast_world_hooks_are_static_safe_like_cpp(
         || audit.condition
         || audit.aura_restriction
         || audit.equipped_item_restriction
+        || audit.channeled
         || audit.spell_focus_requirement
         || audit.required_area_requirement
         || audit.spell_area_requirement
         || audit.linked_spell)
+}
+
+fn trainer_cast_effective_casting_requirement_audit_like_cpp(
+    spell_info_present: bool,
+    requirements: Option<&SpellCastingRequirementsEntry>,
+) -> (bool, bool) {
+    (
+        !spell_info_present
+            || requirements.is_some_and(|requirements| requirements.requires_spell_focus != 0),
+        requirements.is_some_and(|requirements| requirements.required_areas_id != 0),
+    )
 }
 
 fn trainer_cast_has_effective_aura_restriction_like_cpp(
@@ -244,6 +258,16 @@ pub(crate) async fn load_trainer_static_authority_like_cpp(
         if difficulty_id != 0 {
             continue;
         }
+        let spell_id_i32 = i32::try_from(spell_id).ok();
+        let effective_casting_requirements = spell_id_i32
+            .and_then(|spell_id| casting_requirements.entry_for_spell_id_like_cpp(spell_id));
+        let (spell_focus_requirement, required_area_requirement) =
+            trainer_cast_effective_casting_requirement_audit_like_cpp(
+                spell_id_i32
+                    .and_then(|spell_id| spell_store.get(spell_id))
+                    .is_some(),
+                effective_casting_requirements,
+            );
         let hook_audit = TrainerCastWorldHookAuditLikeCpp {
             script_binding: script_bindings.contains_like_cpp(
                 spell_id,
@@ -258,20 +282,31 @@ pub(crate) async fn load_trainer_static_authority_like_cpp(
             equipped_item_restriction: equipped_items
                 .entry_for_spell_id_like_cpp(i32::try_from(spell_id).unwrap_or(i32::MAX))
                 .is_some_and(trainer_cast_has_effective_equipped_item_restriction_like_cpp),
+            // The reduced trainer projection does not own channel state or
+            // periodic channel updates. Audit the final effective SpellMisc
+            // attributes, including official/custom hotfix overlays.
+            channeled: spell_id_i32.is_none_or(|spell_id| {
+                spell_store.get(spell_id).is_none() || spell_store.is_channeled_like_cpp(spell_id)
+            }) || match catalog
+                .misc_for_spell_like_cpp(spell_id, u32::from(difficulty_id))
+            {
+                SpellAcquisitionMetadataLookupLikeCpp::Present(misc) => {
+                    misc.is_channeled_checked().unwrap_or(true)
+                }
+                SpellAcquisitionMetadataLookupLikeCpp::CoveredWithoutRow => false,
+                SpellAcquisitionMetadataLookupLikeCpp::MissingCoverage
+                | SpellAcquisitionMetadataLookupLikeCpp::Indeterminate(_) => true,
+            },
             // The reduced trainer path does not execute C++ `SearchSpellFocus`.
-            // Missing SpellInfo is equally indeterminate and must fail closed.
-            spell_focus_requirement: i32::try_from(spell_id)
-                .ok()
-                .and_then(|spell_id| spell_store.get(spell_id))
-                .is_none_or(|spell_info| spell_info.requires_spell_focus_like_cpp()),
+            // C++ builds SpellInfo from the effective SpellCastingRequirements
+            // row, so the audit must use that same overlay-composed authority.
+            // A missing SpellInfo key remains indeterminate and fails closed.
+            spell_focus_requirement,
             // C++ copies DB2 `RequiredAreasID` into SpellInfo and always runs
             // `CheckLocation`, including for this triggered trainer cast.
             // The reduced path cannot resolve AreaGroupMember ancestry yet,
             // so such wrappers must remain outside static authority.
-            required_area_requirement: i32::try_from(spell_id)
-                .ok()
-                .and_then(|spell_id| casting_requirements.entry_for_spell_id_like_cpp(spell_id))
-                .is_some_and(|requirements| requirements.required_areas_id != 0),
+            required_area_requirement,
             // C++ `SpellInfo::CheckLocation` requires at least one matching
             // `spell_area` row whenever the spell has any. The reduced
             // trainer projection does not yet evaluate the player's complete
@@ -1446,6 +1481,10 @@ mod tests {
                 ..Default::default()
             },
             TrainerCastWorldHookAuditLikeCpp {
+                channeled: true,
+                ..Default::default()
+            },
+            TrainerCastWorldHookAuditLikeCpp {
                 spell_focus_requirement: true,
                 ..Default::default()
             },
@@ -1464,6 +1503,36 @@ mod tests {
         ] {
             assert!(!trainer_cast_world_hooks_are_static_safe_like_cpp(audit));
         }
+    }
+
+    #[test]
+    fn trainer_cast_requirement_audit_uses_effective_casting_requirements() {
+        let mut requirements = SpellCastingRequirementsEntry {
+            id: 1,
+            spell_id: 100,
+            facing_caster_flags: 0,
+            min_faction_id: 0,
+            min_reputation: 0,
+            required_areas_id: 0,
+            required_aura_vision: 0,
+            requires_spell_focus: 7,
+        };
+        assert_eq!(
+            trainer_cast_effective_casting_requirement_audit_like_cpp(true, Some(&requirements)),
+            (true, false)
+        );
+
+        requirements.requires_spell_focus = 0;
+        requirements.required_areas_id = 9;
+        assert_eq!(
+            trainer_cast_effective_casting_requirement_audit_like_cpp(true, Some(&requirements)),
+            (false, true)
+        );
+        assert_eq!(
+            trainer_cast_effective_casting_requirement_audit_like_cpp(false, None),
+            (true, false),
+            "missing SpellInfo remains outside static authority"
+        );
     }
 
     #[test]

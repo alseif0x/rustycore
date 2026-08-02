@@ -60,6 +60,12 @@ const TRAINER_BUY_NPC_FLAGS_LIKE_CPP: u32 = NPCFlags1::TRAINER.bits()
 const TRAINER_GOSSIP_NPC_FLAGS_LIKE_CPP: u32 =
     NPCFlags1::GOSSIP.bits() | TRAINER_BUY_NPC_FLAGS_LIKE_CPP;
 
+enum PreparedTrainerAcquisitionLikeCpp {
+    Durable(crate::spell_acquisition::PreparedPlayerSpellAcquisitionLikeCpp),
+    ActionsOnly(crate::spell_acquisition::PreparedPlayerSpellAcquisitionActionsLikeCpp),
+    NoChange,
+}
+
 fn resolve_creature_trainer_like_cpp<'a>(
     store: &'a TrainerStoreLikeCpp,
     entry: u32,
@@ -675,6 +681,14 @@ impl WorldSession {
             });
             return;
         };
+        let Some(player_guid) = current_snapshot.character_guid else {
+            self.send_packet_realm(&TrainerBuyFailed {
+                trainer_guid,
+                spell_id,
+                reason: 0,
+            });
+            return;
+        };
         let prepared = match crate::spell_acquisition::prepare_player_spell_acquisition_like_cpp(
             &offer.acquisition_plan,
             &offer.profession_plan,
@@ -682,12 +696,14 @@ impl WorldSession {
         ) {
             Ok(crate::spell_acquisition::PreparedPlayerSpellAcquisitionOutcomeLikeCpp::Ready(
                 prepared,
-            )) => prepared,
-            Ok(
-                crate::spell_acquisition::PreparedPlayerSpellAcquisitionOutcomeLikeCpp::ActionsOnly(_)
-                | crate::spell_acquisition::PreparedPlayerSpellAcquisitionOutcomeLikeCpp::AlreadyApplied
-                | crate::spell_acquisition::PreparedPlayerSpellAcquisitionOutcomeLikeCpp::NoChange,
-            )
+            )) => PreparedTrainerAcquisitionLikeCpp::Durable(prepared),
+            Ok(crate::spell_acquisition::PreparedPlayerSpellAcquisitionOutcomeLikeCpp::ActionsOnly(
+                prepared,
+            )) => PreparedTrainerAcquisitionLikeCpp::ActionsOnly(prepared),
+            Ok(crate::spell_acquisition::PreparedPlayerSpellAcquisitionOutcomeLikeCpp::NoChange) => {
+                PreparedTrainerAcquisitionLikeCpp::NoChange
+            }
+            Ok(crate::spell_acquisition::PreparedPlayerSpellAcquisitionOutcomeLikeCpp::AlreadyApplied)
             | Err(_) => {
                 self.send_packet_realm(&TrainerBuyFailed {
                     trainer_guid,
@@ -697,11 +713,20 @@ impl WorldSession {
                 return;
             }
         };
-        if crate::spell_acquisition::validate_prepared_player_spell_acquisition_runtime_like_cpp(
-            self, &prepared,
-        )
-        .is_err()
-        {
+        let runtime_valid = match &prepared {
+            PreparedTrainerAcquisitionLikeCpp::Durable(prepared) => {
+                crate::spell_acquisition::validate_prepared_player_spell_acquisition_runtime_like_cpp(
+                    self, prepared,
+                )
+            }
+            PreparedTrainerAcquisitionLikeCpp::ActionsOnly(prepared) => {
+                crate::spell_acquisition::validate_prepared_player_spell_acquisition_actions_runtime_like_cpp(
+                    self, prepared,
+                )
+            }
+            PreparedTrainerAcquisitionLikeCpp::NoChange => Ok(()),
+        };
+        if runtime_valid.is_err() {
             self.send_packet_realm(&TrainerBuyFailed {
                 trainer_guid,
                 spell_id,
@@ -711,16 +736,29 @@ impl WorldSession {
         }
 
         let character_db = self.char_db().map(Arc::clone);
-        let Some(money_persistence) = self
-            .commit_exclusive_player_money_and_spell_acquisition_like_cpp(
-                money_persistence,
-                character_db.as_deref(),
-                &prepared,
-                old_money,
-                new_money,
-            )
-            .await
-        else {
+        let committed_money_persistence = match &prepared {
+            PreparedTrainerAcquisitionLikeCpp::Durable(prepared) => {
+                self.commit_exclusive_player_money_and_spell_acquisition_like_cpp(
+                    money_persistence,
+                    character_db.as_deref(),
+                    prepared,
+                    old_money,
+                    new_money,
+                )
+                .await
+            }
+            PreparedTrainerAcquisitionLikeCpp::ActionsOnly(_)
+            | PreparedTrainerAcquisitionLikeCpp::NoChange => {
+                self.commit_exclusive_trainer_money_only_like_cpp(
+                    money_persistence,
+                    character_db.as_deref(),
+                    old_money,
+                    new_money,
+                )
+                .await
+            }
+        };
+        let Some(money_persistence) = committed_money_persistence else {
             return;
         };
 
@@ -728,15 +766,25 @@ impl WorldSession {
         // player visual, then the direct LearnSpell/triggered wrapper actions.
         // Every durable mutation already committed; keep the exclusion until
         // all covered runtime owners and packets have consumed that result.
-        let player_guid = prepared
-            .character_guid
-            .expect("prepared trainer acquisition has validated player identity");
-        let publish_skill_fields =
-            prepared.source_snapshot.skills != prepared.runtime_snapshot.skills;
-        let actions = match crate::spell_acquisition::install_prepared_player_spell_acquisition_runtime_like_cpp(
-            self, &prepared,
-        ) {
-            Ok(actions) => actions,
+        let installed = match prepared {
+            PreparedTrainerAcquisitionLikeCpp::Durable(prepared) => {
+                let publish_skill_fields =
+                    prepared.source_snapshot.skills != prepared.runtime_snapshot.skills;
+                crate::spell_acquisition::install_prepared_player_spell_acquisition_runtime_like_cpp(
+                    self, &prepared,
+                )
+                .map(|actions| (publish_skill_fields, Some(actions)))
+            }
+            PreparedTrainerAcquisitionLikeCpp::ActionsOnly(prepared) => {
+                crate::spell_acquisition::install_prepared_player_spell_acquisition_actions_runtime_like_cpp(
+                    self, prepared,
+                )
+                .map(|actions| (false, Some(actions)))
+            }
+            PreparedTrainerAcquisitionLikeCpp::NoChange => Ok((false, None)),
+        };
+        let (publish_skill_fields, actions) = match installed {
+            Ok(installed) => installed,
             Err(_) => {
                 self.kick(
                     "committed trainer acquisition could not install runtime state; relog required",
@@ -787,10 +835,11 @@ impl WorldSession {
         if publish_skill_fields {
             self.send_complete_player_skill_values_update_like_cpp();
         }
-        if crate::spell_acquisition::apply_prepared_player_spell_acquisition_actions_like_cpp(
-            self, &actions,
-        )
-        .is_err()
+        if let Some(actions) = actions
+            && crate::spell_acquisition::apply_prepared_player_spell_acquisition_actions_like_cpp(
+                self, &actions,
+            )
+            .is_err()
         {
             self.kick(
                 "committed trainer acquisition could not publish runtime state; relog required",
@@ -1953,6 +2002,79 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn stalled_instance_writer_keeps_committed_dual_wield_runtime_effect() {
+        let mut fixture = trainer_wrapper_fixture();
+        let wrapper_id = WRAPPER_TRAINER_SPELL as u32;
+        let learned_id = WRAPPER_LEARNED_SPELL as u32;
+        let mut dual_wield_effect = player_learn_effect(2, wrapper_id, learned_id);
+        dual_wield_effect.effect_index_raw = 1;
+        dual_wield_effect.effect_type_raw = 40; // SPELL_EFFECT_DUAL_WIELD
+        dual_wield_effect.effect_trigger_spell_raw = 0;
+        fixture.session.set_spell_acquisition_catalog(Arc::new(
+            SpellAcquisitionCatalogLikeCpp::from_effective_rows_like_cpp(
+                [wrapper_id, learned_id]
+                    .map(|spell_id| SpellAcquisitionCoverageSeedLikeCpp::covered(spell_id, 0)),
+                EffectiveSpellAcquisitionRowsLikeCpp {
+                    spell_effects: vec![
+                        player_learn_effect(1, wrapper_id, learned_id),
+                        dual_wield_effect,
+                    ],
+                    ..Default::default()
+                },
+                SpellAcquisitionTableHashesLikeCpp::default(),
+                Vec::new(),
+            ),
+        ));
+        let (realm_tx, realm_rx) = flume::bounded::<Vec<u8>>(8);
+        let instance_fence = wow_network::SocketWriteFenceLikeCpp::default();
+        fixture
+            .session
+            .install_realm_send_channel_for_test(realm_tx);
+        fixture
+            .session
+            .set_send_write_fence_like_cpp(instance_fence);
+
+        fixture
+            .session
+            .handle_trainer_buy_spell(trainer_buy_packet(
+                fixture.trainer,
+                DEFAULT_TRAINER_ID as i32,
+                WRAPPER_TRAINER_SPELL,
+            ))
+            .await;
+
+        assert_eq!(fixture.session.player_gold_like_cpp(), 75);
+        assert!(
+            fixture
+                .session
+                .known_spells_like_cpp()
+                .contains(&WRAPPER_LEARNED_SPELL)
+        );
+        assert!(
+            fixture
+                .session
+                .mutate_canonical_player_like_cpp(|player| {
+                    player.unit().can_dual_wield_like_cpp()
+                })
+                .expect("canonical player"),
+            "non-packet runtime actions must install immediately after commit"
+        );
+        assert!(fixture
+            .session
+            .represented_spell_acquisition_post_commit_actions_like_cpp()
+            .iter()
+            .any(|action| matches!(
+                action,
+                crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp::GrantDualWield { .. }
+            )));
+        assert_eq!(
+            fixture.session.state(),
+            crate::session::SessionState::Disconnecting
+        );
+        assert!(realm_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
     async fn audited_castable_wrapper_commits_its_projected_target_once() {
         let mut fixture = trainer_wrapper_fixture();
 
@@ -2026,6 +2148,60 @@ mod tests {
             ))
             .await;
         assert_eq!(fixture.session.player_gold_like_cpp(), 75);
+        assert_eq!(
+            fixture.send_rx.try_recv().unwrap(),
+            TrainerBuyFailed {
+                trainer_guid: fixture.trainer,
+                spell_id: WRAPPER_TRAINER_SPELL,
+                reason: 0,
+            }
+            .to_bytes()
+        );
+        assert!(fixture.send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn active_difficulty_channeled_wrapper_fails_closed_before_charge() {
+        let mut fixture = trainer_wrapper_fixture();
+        let wrapper_id = WRAPPER_TRAINER_SPELL as u32;
+        let learned_id = WRAPPER_LEARNED_SPELL as u32;
+        fixture.session.set_spell_acquisition_catalog(Arc::new(
+            SpellAcquisitionCatalogLikeCpp::from_effective_rows_like_cpp(
+                [wrapper_id, learned_id]
+                    .map(|spell_id| SpellAcquisitionCoverageSeedLikeCpp::covered(spell_id, 0)),
+                EffectiveSpellAcquisitionRowsLikeCpp {
+                    spell_effects: vec![player_learn_effect(1, wrapper_id, learned_id)],
+                    spell_misc: vec![SpellAcquisitionMiscLikeCpp {
+                        record_id: 2,
+                        spell_id_raw: i64::from(wrapper_id),
+                        difficulty_id_raw: 0,
+                        // SPELL_ATTR1_IS_CHANNELLED
+                        attributes_raw: [0, 0x0000_0004],
+                        show_future_spell_player_condition_id_raw: 0,
+                    }],
+                    ..Default::default()
+                },
+                SpellAcquisitionTableHashesLikeCpp::default(),
+                Vec::new(),
+            ),
+        ));
+
+        fixture
+            .session
+            .handle_trainer_buy_spell(trainer_buy_packet(
+                fixture.trainer,
+                DEFAULT_TRAINER_ID as i32,
+                WRAPPER_TRAINER_SPELL,
+            ))
+            .await;
+
+        assert_eq!(fixture.session.player_gold_like_cpp(), 100);
+        assert!(
+            !fixture
+                .session
+                .known_spells_like_cpp()
+                .contains(&WRAPPER_LEARNED_SPELL)
+        );
         assert_eq!(
             fixture.send_rx.try_recv().unwrap(),
             TrainerBuyFailed {
@@ -2590,7 +2766,7 @@ mod tests {
                 WRAPPER_TRAINER_SPELL,
             ))
             .await;
-        assert_eq!(matching.session.player_gold_like_cpp(), 100);
+        assert_eq!(matching.session.player_gold_like_cpp(), 75);
         assert!(
             !matching
                 .session
@@ -2600,7 +2776,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn wrapper_with_immunity_aura_fails_before_charge_or_publication() {
+    async fn wrapper_with_full_immunity_still_charges_and_publishes_visuals_like_cpp() {
         let mut fixture = trainer_wrapper_fixture();
         install_wrapper_and_aura_catalog(
             &mut fixture.session,
@@ -2621,7 +2797,7 @@ mod tests {
             ))
             .await;
 
-        assert_eq!(fixture.session.player_gold_like_cpp(), 100);
+        assert_eq!(fixture.session.player_gold_like_cpp(), 75);
         assert!(
             !fixture
                 .session
@@ -2630,10 +2806,33 @@ mod tests {
         );
         assert_eq!(
             fixture.send_rx.try_recv().unwrap(),
-            TrainerBuyFailed {
-                trainer_guid: fixture.trainer,
-                spell_id: WRAPPER_TRAINER_SPELL,
-                reason: 0,
+            wow_packet::packets::update::UpdateObject::player_money_update(
+                fixture.session.player_guid().unwrap(),
+                fixture.session.player_map_id_like_cpp(),
+                75,
+                None,
+            )
+            .to_bytes()
+        );
+        assert_eq!(
+            fixture.send_rx.try_recv().unwrap(),
+            PlaySpellVisualKit {
+                unit: fixture.trainer,
+                kit_record_id: 179,
+                kit_type: 0,
+                duration: 0,
+                mounted_visual: false,
+            }
+            .to_bytes()
+        );
+        assert_eq!(
+            fixture.send_rx.try_recv().unwrap(),
+            PlaySpellVisualKit {
+                unit: fixture.session.player_guid().unwrap(),
+                kit_record_id: 362,
+                kit_type: 1,
+                duration: 0,
+                mounted_visual: false,
             }
             .to_bytes()
         );
@@ -2719,7 +2918,7 @@ mod tests {
             .await;
 
         assert_eq!(fixture.session.current_map_difficulty_id_like_cpp(), 2);
-        assert_eq!(fixture.session.player_gold_like_cpp(), 100);
+        assert_eq!(fixture.session.player_gold_like_cpp(), 75);
         assert!(
             !fixture
                 .session
@@ -2808,7 +3007,7 @@ mod tests {
                 WRAPPER_TRAINER_SPELL,
             ))
             .await;
-        assert_eq!(linked_id_immunity.session.player_gold_like_cpp(), 100);
+        assert_eq!(linked_id_immunity.session.player_gold_like_cpp(), 75);
         assert!(
             !linked_id_immunity
                 .session

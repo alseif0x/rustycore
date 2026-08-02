@@ -35,6 +35,8 @@ const TARGET_UNIT_CASTER_LIKE_CPP: i64 = 1;
 const TARGET_UNIT_TARGET_ALLY_LIKE_CPP: i64 = 21;
 const SPELL_ATTR0_PASSIVE_LIKE_CPP: u32 = 0x0000_0040;
 const SPELL_ATTR0_NO_IMMUNITIES_LIKE_CPP: u32 = 0x2000_0000;
+const SPELL_ATTR1_IS_CHANNELLED_LIKE_CPP: u32 = 0x0000_0004;
+const SPELL_ATTR1_IS_SELF_CHANNELLED_LIKE_CPP: u32 = 0x0000_0040;
 const SPELL_ATTR1_CAST_WHEN_LEARNED_LIKE_CPP: u32 = 0x8000_0000;
 const SUMMON_SLOT_MINIPET_LIKE_CPP: i64 = 5;
 const SUMMON_FROM_BATTLE_PET_JOURNAL_LIKE_CPP: u32 = 0x0020_0000;
@@ -558,6 +560,14 @@ impl SpellAcquisitionMiscLikeCpp {
         Ok(
             checked_u32_bits(self.attributes_raw[1], "SpellMisc.Attributes2")?
                 & SPELL_ATTR1_CAST_WHEN_LEARNED_LIKE_CPP
+                != 0,
+        )
+    }
+
+    pub fn is_channeled_checked(&self) -> Result<bool, InvalidAcquisitionValueLikeCpp> {
+        Ok(
+            checked_u32_bits(self.attributes_raw[1], "SpellMisc.Attributes2")?
+                & (SPELL_ATTR1_IS_CHANNELLED_LIKE_CPP | SPELL_ATTR1_IS_SELF_CHANNELLED_LIKE_CPP)
                 != 0,
         )
     }
@@ -3608,6 +3618,7 @@ mod tests {
         };
         assert_eq!(misc.is_passive_checked(), Ok(true));
         assert_eq!(misc.cast_when_learned_checked(), Ok(true));
+        assert_eq!(misc.is_channeled_checked(), Ok(false));
         assert_eq!(misc.future_player_condition_id_checked(), Ok(Some(44)));
         let SpellAcquisitionMetadataLookupLikeCpp::Present(levels) =
             catalog.levels_for_spell_like_cpp(100, 0)

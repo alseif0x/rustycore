@@ -277,16 +277,23 @@ impl crate::session::WorldSession {
         ) {
             return None;
         }
-        let no_immunities = match catalog
+        let (no_immunities, is_channeled) = match catalog
             .resolved_misc_for_difficulty_chain_like_cpp(spell_id, difficulty_chain.iter().copied())
         {
-            SpellAcquisitionResolvedMetadataLookupLikeCpp::Present(misc) => {
-                misc.no_immunities_checked().ok()?
-            }
-            SpellAcquisitionResolvedMetadataLookupLikeCpp::CoveredWithoutRow => false,
+            SpellAcquisitionResolvedMetadataLookupLikeCpp::Present(misc) => (
+                misc.no_immunities_checked().ok()?,
+                misc.is_channeled_checked().ok()?,
+            ),
+            SpellAcquisitionResolvedMetadataLookupLikeCpp::CoveredWithoutRow => (false, false),
             SpellAcquisitionResolvedMetadataLookupLikeCpp::MissingCoverage { .. }
             | SpellAcquisitionResolvedMetadataLookupLikeCpp::Indeterminate(_) => return None,
         };
+        // C++ enters the channel lifecycle even for this triggered player
+        // cast. The reduced trainer projection cannot reproduce channel state
+        // or updates, so active-difficulty channel wrappers fail closed.
+        if is_channeled {
+            return None;
+        }
         let immunized_effect_mask = self.active_auras_immunized_trainer_effect_mask_like_cpp(
             catalog,
             spell_id,

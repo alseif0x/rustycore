@@ -115,6 +115,7 @@ pub(crate) struct PreparedPlayerSpellAcquisitionActionsLikeCpp {
     pub character_guid: Option<wow_core::ObjectGuid>,
     pub runtime_snapshot: PlayerSpellAcquisitionSnapshotLikeCpp,
     pub post_commit_actions: Vec<SpellAcquisitionPostCommitActionLikeCpp>,
+    runtime_actions_already_applied: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -191,6 +192,7 @@ pub(crate) fn prepare_player_spell_acquisition_like_cpp(
                     // persistence states or replace runtime authority.
                     runtime_snapshot: plan.resulting_snapshot.clone(),
                     post_commit_actions: plan.post_commit_actions.clone(),
+                    runtime_actions_already_applied: false,
                 },
             ))
         };
@@ -2048,10 +2050,15 @@ pub(crate) fn install_prepared_player_spell_acquisition_runtime_like_cpp(
         |_| {},
         |_| Ok(()),
     )?;
+    apply_player_spell_acquisition_non_packet_runtime_actions_like_cpp(
+        session,
+        &prepared.post_commit_actions,
+    )?;
     Ok(PreparedPlayerSpellAcquisitionActionsLikeCpp {
         character_guid: prepared.character_guid,
         runtime_snapshot: prepared.runtime_snapshot.clone(),
         post_commit_actions: prepared.post_commit_actions.clone(),
+        runtime_actions_already_applied: true,
     })
 }
 
@@ -2066,6 +2073,36 @@ pub(crate) fn validate_prepared_player_spell_acquisition_runtime_like_cpp(
         session,
         &prepared.post_commit_actions,
     )
+}
+
+pub(crate) fn validate_prepared_player_spell_acquisition_actions_runtime_like_cpp(
+    session: &crate::session::WorldSession,
+    prepared: &PreparedPlayerSpellAcquisitionActionsLikeCpp,
+) -> Result<(), PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp> {
+    require_prepared_session_character_like_cpp(session, prepared.character_guid)?;
+    preflight_player_spell_acquisition_runtime_owners_like_cpp(
+        session,
+        &prepared.post_commit_actions,
+    )
+}
+
+/// Apply non-packet effects from an actions-only cast immediately after its
+/// trainer fee commits. Later publication still records the complete causal
+/// action stream, but will not apply these runtime effects a second time.
+pub(crate) fn install_prepared_player_spell_acquisition_actions_runtime_like_cpp(
+    session: &mut crate::session::WorldSession,
+    mut prepared: PreparedPlayerSpellAcquisitionActionsLikeCpp,
+) -> Result<
+    PreparedPlayerSpellAcquisitionActionsLikeCpp,
+    PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp,
+> {
+    validate_prepared_player_spell_acquisition_actions_runtime_like_cpp(session, &prepared)?;
+    apply_player_spell_acquisition_non_packet_runtime_actions_like_cpp(
+        session,
+        &prepared.post_commit_actions,
+    )?;
+    prepared.runtime_actions_already_applied = true;
+    Ok(prepared)
 }
 
 /// Applies the exact prepared plan with C++ `Player::LearnSpell` timing. The
@@ -2259,6 +2296,7 @@ where
         session,
         runtime_snapshot,
         post_commit_actions,
+        false,
         fault,
     )
 }
@@ -2276,8 +2314,33 @@ pub(crate) fn apply_prepared_player_spell_acquisition_actions_like_cpp(
         session,
         &prepared.runtime_snapshot,
         &prepared.post_commit_actions,
+        prepared.runtime_actions_already_applied,
         |_| Ok(()),
     )
+}
+
+fn apply_player_spell_acquisition_non_packet_runtime_actions_like_cpp(
+    session: &mut crate::session::WorldSession,
+    post_commit_actions: &[SpellAcquisitionPostCommitActionLikeCpp],
+) -> Result<(), PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp> {
+    // Apply owner mutations before replacing the retained causal batch. The
+    // preflight guarantees every required owner exists, so a successful
+    // durable commit cannot be followed by an unrepresented runtime action
+    // merely because a later socket-ordering fence times out.
+    for action in post_commit_actions {
+        if matches!(
+            action,
+            SpellAcquisitionPostCommitActionLikeCpp::GrantDualWield { .. }
+        ) && !session.grant_dual_wield_after_spell_acquisition_like_cpp()
+        {
+            return Err(PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp::InvalidPreparedRuntime);
+        }
+    }
+    session.begin_spell_acquisition_post_commit_action_batch_like_cpp();
+    for action in post_commit_actions.iter().cloned() {
+        session.record_spell_acquisition_post_commit_action_like_cpp(action);
+    }
+    Ok(())
 }
 
 fn require_prepared_session_character_like_cpp(
@@ -2310,16 +2373,21 @@ fn publish_player_spell_acquisition_actions_with_fault_like_cpp<F>(
     session: &mut crate::session::WorldSession,
     runtime_snapshot: &PlayerSpellAcquisitionSnapshotLikeCpp,
     post_commit_actions: &[SpellAcquisitionPostCommitActionLikeCpp],
+    runtime_actions_already_applied: bool,
     mut fault: F,
 ) -> Result<(), PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp>
 where
     F: FnMut(PlayerSpellAcquisitionPublicationFaultPointLikeCpp) -> Result<(), ()>,
 {
-    session.begin_spell_acquisition_post_commit_action_batch_like_cpp();
+    if !runtime_actions_already_applied {
+        session.begin_spell_acquisition_post_commit_action_batch_like_cpp();
+    }
     for (index, action) in post_commit_actions.iter().cloned().enumerate() {
         fault(PlayerSpellAcquisitionPublicationFaultPointLikeCpp::BeforeAction(index))
             .map_err(|()| PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp::PublicationInterrupted)?;
-        session.record_spell_acquisition_post_commit_action_like_cpp(action.clone());
+        if !runtime_actions_already_applied {
+            session.record_spell_acquisition_post_commit_action_like_cpp(action.clone());
+        }
         match action {
             SpellAcquisitionPostCommitActionLikeCpp::LearnedSpell {
                 spell_id,
@@ -2354,7 +2422,9 @@ where
                     spell_id, false,
                 )),
             SpellAcquisitionPostCommitActionLikeCpp::GrantDualWield { .. } => {
-                if !session.grant_dual_wield_after_spell_acquisition_like_cpp() {
+                if !runtime_actions_already_applied
+                    && !session.grant_dual_wield_after_spell_acquisition_like_cpp()
+                {
                     return Err(
                         PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp::InvalidPreparedRuntime,
                     );
