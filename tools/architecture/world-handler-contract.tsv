@@ -81,6 +81,7 @@ opcode_value	opcode_name	handler_name	session_status	packet_processing
 0x3280	MountSpecialAnim	handle_mount_special_anim	LoggedIn	ThreadUnsafe
 0x3292	SpawnTrackingUpdate	handle_spawn_tracking_update	Authed	Inplace
 0x3293	DestroyItem	handle_destroy_item	LoggedIn	Inplace
+0x3298	UseItem	handle_use_item	LoggedIn	Inplace
 0x3299	AddToy	handle_add_toy	LoggedIn	ThreadUnsafe
 0x329A	UseToy	handle_use_toy	LoggedIn	Inplace
 0x329C	CastSpell	handle_cast_spell	LoggedIn	ThreadSafe
