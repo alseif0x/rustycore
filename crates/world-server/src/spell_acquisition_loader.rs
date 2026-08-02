@@ -193,7 +193,11 @@ fn trainer_cast_effects_are_static_safe_like_cpp(
 /// every unsupported effective effect/target remains absent from the result.
 /// The difficulty-specific target restriction and per-player immunity/effect
 /// mask are resolved separately by `wow-world` immediately before the atomic
-/// trainer commit.
+/// trainer commit. Spell disables deliberately remain in that dynamic half:
+/// C++ `DisableMgr::IsDisabledFor` evaluates caster type, map, area, arena,
+/// and battleground state, so excluding every spell that merely has a
+/// `disables` row here would reject casts that C++ permits outside that row's
+/// scope. Missing runtime disable authority fails closed in the same adapter.
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn load_trainer_static_authority_like_cpp(
     data_dir: &str,

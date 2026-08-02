@@ -40106,15 +40106,12 @@ impl WorldSession {
         {
             SocketWriteFenceWaitResultLikeCpp::Written => true,
             SocketWriteFenceWaitResultLikeCpp::TimedOut => {
-                // C++ queues `SendPacket` without turning transient socket
-                // backpressure into a gameplay failure. Preserve the durable
-                // result and finish enqueuing its remaining fanout.
                 warn!(
                     account = self.account_id,
                     timeout_ms = CROSS_SOCKET_WRITE_FENCE_TIMEOUT.as_millis(),
-                    "instance writer ordering fence timed out; continuing committed fanout"
+                    "instance writer did not acknowledge the ordering fence before timeout"
                 );
-                true
+                false
             }
             SocketWriteFenceWaitResultLikeCpp::WriterClosed => {
                 warn!(
@@ -40155,9 +40152,9 @@ impl WorldSession {
                 warn!(
                     account = self.account_id,
                     timeout_ms = CROSS_SOCKET_WRITE_FENCE_TIMEOUT.as_millis(),
-                    "realm writer ordering fence timed out; continuing committed fanout"
+                    "realm writer did not acknowledge the ordering fence before timeout"
                 );
-                true
+                false
             }
             SocketWriteFenceWaitResultLikeCpp::WriterClosed => {
                 warn!(
@@ -140434,7 +140431,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn cross_socket_fence_timeout_continues_committed_fanout_like_cpp() {
+    async fn cross_socket_fence_timeout_stops_later_channel_publication_like_cpp() {
         let (mut session, _, _instance_rx) = make_session();
         let (realm_tx, _realm_rx) = flume::unbounded();
         session.install_realm_send_channel_for_test(realm_tx);
@@ -140442,16 +140439,16 @@ mod tests {
         session.install_realm_send_write_fence_for_test(SocketWriteFenceLikeCpp::default());
 
         assert!(
-            session
+            !session
                 .wait_for_instance_send_before_realm_send_like_cpp()
                 .await,
-            "a bounded fence timeout must not discard fanout after durable commit"
+            "an unacknowledged instance fence cannot authorize realm publication"
         );
         assert!(
-            session
+            !session
                 .wait_for_realm_send_before_instance_update_like_cpp()
                 .await,
-            "a bounded fence timeout must not discard later instance updates"
+            "an unacknowledged realm fence cannot authorize instance publication"
         );
         assert_ne!(session.state(), SessionState::Disconnecting);
     }

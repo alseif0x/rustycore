@@ -1896,6 +1896,63 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn stalled_instance_writer_commits_but_never_publishes_realm_visuals_like_cpp() {
+        let mut fixture = trainer_fixture();
+        let (realm_tx, realm_rx) = flume::bounded::<Vec<u8>>(8);
+        let instance_fence = wow_network::SocketWriteFenceLikeCpp::default();
+        fixture
+            .session
+            .install_realm_send_channel_for_test(realm_tx);
+        fixture
+            .session
+            .set_send_write_fence_like_cpp(instance_fence.clone());
+        fixture
+            .session
+            .set_player_trainer_interaction_like_cpp(fixture.trainer, DEFAULT_TRAINER_ID);
+        fixture.session.set_player_gold_like_cpp(100);
+        fixture
+            .session
+            .set_loot_money_persistence_test_result_like_cpp(true);
+
+        fixture
+            .session
+            .handle_trainer_buy_spell(trainer_buy_packet(
+                fixture.trainer,
+                DEFAULT_TRAINER_ID as i32,
+                AVAILABLE_TRAINER_SPELL,
+            ))
+            .await;
+
+        assert_eq!(fixture.session.player_gold_like_cpp(), 80);
+        assert!(
+            fixture
+                .session
+                .known_spells_like_cpp()
+                .contains(&AVAILABLE_TRAINER_SPELL)
+        );
+        assert_eq!(
+            fixture.session.state(),
+            crate::session::SessionState::Disconnecting
+        );
+        assert!(realm_rx.try_recv().is_err());
+
+        let player_guid = fixture.session.player_guid().unwrap();
+        assert_eq!(
+            fixture.send_rx.try_recv().unwrap(),
+            wow_packet::packets::update::UpdateObject::player_money_update(
+                player_guid,
+                fixture.session.player_map_id_like_cpp(),
+                80,
+                None,
+            )
+            .to_bytes()
+        );
+        let marker = fixture.send_rx.try_recv().unwrap();
+        assert!(instance_fence.acknowledge_marker_like_cpp(&marker));
+        assert!(fixture.send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
     async fn audited_castable_wrapper_commits_its_projected_target_once() {
         let mut fixture = trainer_wrapper_fixture();
 
@@ -2220,6 +2277,49 @@ mod tests {
                 .known_spells_like_cpp()
                 .contains(&WRAPPER_LEARNED_SPELL)
         );
+    }
+
+    #[tokio::test]
+    async fn map_scoped_player_disable_only_blocks_matching_trainer_map_like_cpp() {
+        for (disabled_map, expected_gold, expected_known) in
+            [(0_u32, 100_u64, false), (1_u32, 75_u64, true)]
+        {
+            let mut fixture = trainer_wrapper_fixture();
+            let (disable_mgr, report) = wow_data::DisableMgrLikeCpp::from_rows_like_cpp(
+                [wow_data::DisableDbRowLikeCpp {
+                    source_type: wow_data::DISABLE_TYPE_SPELL,
+                    entry: WRAPPER_TRAINER_SPELL as u32,
+                    flags: wow_data::disable_mgr::SPELL_DISABLE_PLAYER
+                        | wow_data::disable_mgr::SPELL_DISABLE_MAP,
+                    params_0: disabled_map.to_string(),
+                    params_1: String::new(),
+                }],
+                wow_data::DisableMgrRefsLikeCpp {
+                    spell_store: fixture.session.spell_store().map(AsRef::as_ref),
+                    ..Default::default()
+                },
+            );
+            assert_eq!(report.loaded_count, 1);
+            fixture.session.set_disable_mgr(Arc::new(disable_mgr));
+
+            fixture
+                .session
+                .handle_trainer_buy_spell(trainer_buy_packet(
+                    fixture.trainer,
+                    DEFAULT_TRAINER_ID as i32,
+                    WRAPPER_TRAINER_SPELL,
+                ))
+                .await;
+
+            assert_eq!(fixture.session.player_gold_like_cpp(), expected_gold);
+            assert_eq!(
+                fixture
+                    .session
+                    .known_spells_like_cpp()
+                    .contains(&WRAPPER_LEARNED_SPELL),
+                expected_known
+            );
+        }
     }
 
     #[tokio::test]
