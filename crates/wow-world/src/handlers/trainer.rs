@@ -733,46 +733,62 @@ impl WorldSession {
             .expect("prepared trainer acquisition has validated player identity");
         let publish_skill_fields =
             prepared.source_snapshot.skills != prepared.runtime_snapshot.skills;
-        if crate::spell_acquisition::apply_prepared_player_spell_acquisition_with_before_actions_like_cpp(
-            self,
-            &prepared,
-            |session| {
-                session.stage_player_money_change_like_cpp(old_money, new_money);
-                if old_money != new_money {
-                    session.send_player_values_update_from_entity_bridge(
-                        &[],
-                        &[],
-                        &[],
-                        &[],
-                        Some(new_money),
-                    );
-                }
-                let trainer_visual = PlaySpellVisualKit {
-                    unit: trainer_guid,
-                    kit_record_id: 179,
-                    kit_type: 0,
-                    duration: 0,
-                    mounted_visual: false,
-                };
-                session.send_packet_realm(&trainer_visual);
-                session.broadcast_creature_packet_from_position_to_visible_set_realm_like_cpp(
-                    trainer_guid,
-                    fresh_access.position,
-                    trainer_visual.to_bytes(),
+        let actions = match crate::spell_acquisition::install_prepared_player_spell_acquisition_runtime_like_cpp(
+            self, &prepared,
+        ) {
+            Ok(actions) => actions,
+            Err(_) => {
+                self.kick(
+                    "committed trainer acquisition could not install runtime state; relog required",
                 );
-                let player_visual = PlaySpellVisualKit {
-                    unit: player_guid,
-                    kit_record_id: 362,
-                    kit_type: 1,
-                    duration: 0,
-                    mounted_visual: false,
-                };
-                session.send_packet_realm(&player_visual);
-                session.broadcast_to_movement_set_realm_like_cpp(player_visual.to_bytes(), true);
-                if publish_skill_fields {
-                    session.send_complete_player_skill_values_update_like_cpp();
-                }
-            },
+                return;
+            }
+        };
+        self.stage_player_money_change_like_cpp(old_money, new_money);
+        if old_money != new_money {
+            self.send_player_values_update_from_entity_bridge(&[], &[], &[], &[], Some(new_money));
+        }
+        if !self
+            .wait_for_instance_send_before_realm_send_like_cpp()
+            .await
+        {
+            self.kick("trainer socket ordering fence failed after durable acquisition");
+            return;
+        }
+        let trainer_visual = PlaySpellVisualKit {
+            unit: trainer_guid,
+            kit_record_id: 179,
+            kit_type: 0,
+            duration: 0,
+            mounted_visual: false,
+        };
+        self.send_packet_realm(&trainer_visual);
+        self.broadcast_creature_packet_from_position_to_visible_set_realm_like_cpp(
+            trainer_guid,
+            fresh_access.position,
+            trainer_visual.to_bytes(),
+        );
+        let player_visual = PlaySpellVisualKit {
+            unit: player_guid,
+            kit_record_id: 362,
+            kit_type: 1,
+            duration: 0,
+            mounted_visual: false,
+        };
+        self.send_packet_realm(&player_visual);
+        self.broadcast_to_movement_set_realm_like_cpp(player_visual.to_bytes(), true);
+        if !self
+            .wait_for_realm_send_before_instance_update_like_cpp()
+            .await
+        {
+            self.kick("trainer socket ordering fence failed after durable acquisition");
+            return;
+        }
+        if publish_skill_fields {
+            self.send_complete_player_skill_values_update_like_cpp();
+        }
+        if crate::spell_acquisition::apply_prepared_player_spell_acquisition_actions_like_cpp(
+            self, &actions,
         )
         .is_err()
         {
@@ -1097,6 +1113,7 @@ mod tests {
             80,
             0,
         ));
+        session.set_player_aura_authority_complete_like_cpp(true);
         session.set_condition_store(Arc::new(ConditionEntriesByTypeStore::default()));
         session.set_skill_store(Arc::new(
             SkillStore::from_skill_line_abilities_and_race_class_like_cpp([], []),
@@ -1123,6 +1140,9 @@ mod tests {
         session.set_spell_linked_store(Arc::new(wow_data::SpellLinkedStoreLikeCpp::default()));
         session.set_spell_target_restrictions_store(Arc::new(
             wow_data::SpellTargetRestrictionsStore::from_entries([]),
+        ));
+        session.set_spell_aura_restrictions_store(Arc::new(
+            wow_data::SpellAuraRestrictionsStore::from_entries([]),
         ));
         session.set_spell_acquisition_catalog(Arc::new(
             SpellAcquisitionCatalogLikeCpp::from_effective_rows_like_cpp(
@@ -1179,6 +1199,10 @@ mod tests {
     }
 
     fn trainer_wrapper_fixture() -> TrainerFixture {
+        trainer_wrapper_fixture_with_map_difficulty(0)
+    }
+
+    fn trainer_wrapper_fixture_with_map_difficulty(map_difficulty: u8) -> TrainerFixture {
         let store = trainer_store_from_rows(
             vec![trainer_row(DEFAULT_TRAINER_ID, 2, "Train")],
             vec![trainer_spell_row(
@@ -1195,7 +1219,7 @@ mod tests {
                 option_id: 0,
             }],
         );
-        let mut fixture = trainer_fixture_with_store(store);
+        let mut fixture = trainer_fixture_with_store_and_map_difficulty(store, map_difficulty);
         let wrapper_id = WRAPPER_TRAINER_SPELL as u32;
         let learned_id = WRAPPER_LEARNED_SPELL as u32;
         fixture.session.set_spell_acquisition_catalog(Arc::new(
@@ -1734,9 +1758,41 @@ mod tests {
     async fn available_buy_commits_once_then_publishes_cpp_visual_and_learning_order() {
         let mut fixture = trainer_fixture();
         let (realm_tx, realm_rx) = flume::bounded::<Vec<u8>>(8);
+        let instance_fence = wow_network::SocketWriteFenceLikeCpp::default();
+        let realm_fence = wow_network::SocketWriteFenceLikeCpp::default();
         fixture
             .session
             .install_realm_send_channel_for_test(realm_tx);
+        fixture
+            .session
+            .set_send_write_fence_like_cpp(instance_fence.clone());
+        fixture
+            .session
+            .install_realm_send_write_fence_for_test(realm_fence.clone());
+
+        let (observed_tx, observed_rx) = flume::unbounded::<(&'static str, Vec<u8>)>();
+        let instance_rx = fixture.send_rx.clone();
+        let instance_observed_tx = observed_tx.clone();
+        let instance_writer = tokio::spawn(async move {
+            while let Ok(packet) = instance_rx.recv_async().await {
+                if instance_fence.acknowledge_marker_like_cpp(&packet) {
+                    continue;
+                }
+                if instance_observed_tx.send(("instance", packet)).is_err() {
+                    break;
+                }
+            }
+        });
+        let realm_writer = tokio::spawn(async move {
+            while let Ok(packet) = realm_rx.recv_async().await {
+                if realm_fence.acknowledge_marker_like_cpp(&packet) {
+                    continue;
+                }
+                if observed_tx.send(("realm", packet)).is_err() {
+                    break;
+                }
+            }
+        });
         fixture
             .session
             .set_player_trainer_interaction_like_cpp(fixture.trainer, DEFAULT_TRAINER_ID);
@@ -1763,43 +1819,55 @@ mod tests {
         );
         let player_guid = fixture.session.player_guid().unwrap();
         assert_eq!(
-            fixture.send_rx.try_recv().unwrap(),
-            wow_packet::packets::update::UpdateObject::player_money_update(
-                player_guid,
-                fixture.session.player_map_id_like_cpp(),
-                80,
-                None,
+            observed_rx.recv_async().await.unwrap(),
+            (
+                "instance",
+                wow_packet::packets::update::UpdateObject::player_money_update(
+                    player_guid,
+                    fixture.session.player_map_id_like_cpp(),
+                    80,
+                    None,
+                )
+                .to_bytes()
             )
-            .to_bytes()
         );
         assert_eq!(
-            realm_rx.try_recv().unwrap(),
-            PlaySpellVisualKit {
-                unit: fixture.trainer,
-                kit_record_id: 179,
-                kit_type: 0,
-                duration: 0,
-                mounted_visual: false,
-            }
-            .to_bytes()
+            observed_rx.recv_async().await.unwrap(),
+            (
+                "realm",
+                PlaySpellVisualKit {
+                    unit: fixture.trainer,
+                    kit_record_id: 179,
+                    kit_type: 0,
+                    duration: 0,
+                    mounted_visual: false,
+                }
+                .to_bytes()
+            )
         );
         assert_eq!(
-            realm_rx.try_recv().unwrap(),
-            PlaySpellVisualKit {
-                unit: player_guid,
-                kit_record_id: 362,
-                kit_type: 1,
-                duration: 0,
-                mounted_visual: false,
-            }
-            .to_bytes()
+            observed_rx.recv_async().await.unwrap(),
+            (
+                "realm",
+                PlaySpellVisualKit {
+                    unit: player_guid,
+                    kit_record_id: 362,
+                    kit_type: 1,
+                    duration: 0,
+                    mounted_visual: false,
+                }
+                .to_bytes()
+            )
         );
         assert_eq!(
-            fixture.send_rx.try_recv().unwrap(),
-            wow_packet::packets::trainer::LearnedSpells::single(AVAILABLE_TRAINER_SPELL).to_bytes()
+            observed_rx.recv_async().await.unwrap(),
+            (
+                "instance",
+                wow_packet::packets::trainer::LearnedSpells::single(AVAILABLE_TRAINER_SPELL)
+                    .to_bytes()
+            )
         );
-        assert!(realm_rx.try_recv().is_err());
-        assert!(fixture.send_rx.try_recv().is_err());
+        assert!(observed_rx.try_recv().is_err());
 
         fixture
             .session
@@ -1811,16 +1879,20 @@ mod tests {
             .await;
         assert_eq!(fixture.session.player_gold_like_cpp(), 80);
         assert_eq!(
-            realm_rx.try_recv().unwrap(),
-            TrainerBuyFailed {
-                trainer_guid: fixture.trainer,
-                spell_id: AVAILABLE_TRAINER_SPELL,
-                reason: 0,
-            }
-            .to_bytes()
+            observed_rx.recv_async().await.unwrap(),
+            (
+                "realm",
+                TrainerBuyFailed {
+                    trainer_guid: fixture.trainer,
+                    spell_id: AVAILABLE_TRAINER_SPELL,
+                    reason: 0,
+                }
+                .to_bytes()
+            )
         );
-        assert!(realm_rx.try_recv().is_err());
-        assert!(fixture.send_rx.try_recv().is_err());
+        assert!(observed_rx.try_recv().is_err());
+        instance_writer.abort();
+        realm_writer.abort();
     }
 
     #[tokio::test]
@@ -2022,6 +2094,78 @@ mod tests {
         );
         assert_eq!(report.loaded_count, 1);
         fixture.session.set_disable_mgr(Arc::new(disable_mgr));
+
+        fixture
+            .session
+            .handle_trainer_buy_spell(trainer_buy_packet(
+                fixture.trainer,
+                DEFAULT_TRAINER_ID as i32,
+                WRAPPER_TRAINER_SPELL,
+            ))
+            .await;
+
+        assert_eq!(fixture.session.player_gold_like_cpp(), 100);
+        assert!(
+            !fixture
+                .session
+                .known_spells_like_cpp()
+                .contains(&WRAPPER_LEARNED_SPELL)
+        );
+    }
+
+    #[tokio::test]
+    async fn active_difficulty_aura_restriction_stops_before_charge_like_cpp() {
+        let mut fixture = trainer_wrapper_fixture_with_map_difficulty(2);
+        let wrapper_id = WRAPPER_TRAINER_SPELL as u32;
+        fixture.session.set_spell_aura_restrictions_store(Arc::new(
+            wow_data::SpellAuraRestrictionsStore::from_entries([
+                wow_data::SpellAuraRestrictionsEntry {
+                    id: 1,
+                    difficulty_id: 2,
+                    caster_aura_state: 0,
+                    target_aura_state: 0,
+                    exclude_caster_aura_state: 0,
+                    exclude_target_aura_state: 0,
+                    caster_aura_spell: 999,
+                    target_aura_spell: 0,
+                    exclude_caster_aura_spell: 0,
+                    exclude_target_aura_spell: 0,
+                    spell_id: wrapper_id,
+                },
+            ]),
+        ));
+        fixture
+            .session
+            .set_player_trainer_interaction_like_cpp(fixture.trainer, DEFAULT_TRAINER_ID);
+        fixture.session.set_player_gold_like_cpp(100);
+        fixture
+            .session
+            .set_loot_money_persistence_test_result_like_cpp(true);
+
+        fixture
+            .session
+            .handle_trainer_buy_spell(trainer_buy_packet(
+                fixture.trainer,
+                DEFAULT_TRAINER_ID as i32,
+                WRAPPER_TRAINER_SPELL,
+            ))
+            .await;
+
+        assert_eq!(fixture.session.player_gold_like_cpp(), 100);
+        assert!(
+            !fixture
+                .session
+                .known_spells_like_cpp()
+                .contains(&WRAPPER_LEARNED_SPELL)
+        );
+    }
+
+    #[tokio::test]
+    async fn incomplete_persisted_aura_authority_stops_before_charge_like_cpp() {
+        let mut fixture = trainer_wrapper_fixture();
+        fixture
+            .session
+            .set_player_aura_authority_complete_like_cpp(false);
 
         fixture
             .session

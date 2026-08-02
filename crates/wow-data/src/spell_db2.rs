@@ -722,6 +722,23 @@ impl SpellAuraRestrictionsStore {
             .values()
             .filter(move |entry| entry.spell_id == spell_id)
     }
+
+    /// Resolve the single `SpellInfo` row through C++'s requested difficulty
+    /// followed by its `FallbackDifficultyID` chain.
+    pub fn resolved_for_difficulty_chain_like_cpp(
+        &self,
+        spell_id: u32,
+        difficulty_chain: impl IntoIterator<Item = u32>,
+    ) -> Option<&SpellAuraRestrictionsEntry> {
+        difficulty_chain.into_iter().find_map(|difficulty_id| {
+            let difficulty_id = u8::try_from(difficulty_id).ok()?;
+            self.entries_for_spell_id_like_cpp(spell_id)
+                .filter(|entry| entry.difficulty_id == difficulty_id)
+                // C++ iterates DB2 storage in record-ID order and later rows
+                // replace the same SpellInfo difficulty slot.
+                .max_by_key(|entry| entry.id)
+        })
+    }
 }
 
 impl SpellCastTimesStore {
@@ -738,6 +755,12 @@ impl SpellCastTimesStore {
 }
 
 impl SpellCastingRequirementsStore {
+    const HOTFIX_OVERLAY_SQL_LIKE_CPP: &'static str = concat!(
+        "SELECT ID, SpellID, FacingCasterFlags, MinFactionID, MinReputation, ",
+        "RequiredAreasID, RequiredAuraVision, RequiresSpellFocus ",
+        "FROM spell_casting_requirements WHERE (`VerifiedBuild` > 0) = ?"
+    );
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(
             data_dir,
@@ -754,6 +777,63 @@ impl SpellCastingRequirementsStore {
                 requires_spell_focus: r.get_field_u16(idx, 6),
             },
         )
+    }
+
+    /// Compose C++'s final `SpellCastingRequirements` authority: DB2 file,
+    /// official/custom SQL replacements, then final hotfix tombstones.
+    pub async fn load_effective_like_cpp(
+        data_dir: &str,
+        locale: &str,
+        db: &HotfixDatabase,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) -> Result<Self> {
+        let mut store = Self::load(data_dir, locale)?;
+        for official in [true, false] {
+            let mut statement =
+                db.prepare(HotfixStatements::base(Self::HOTFIX_OVERLAY_SQL_LIKE_CPP));
+            statement.set_bool(0, official);
+            let mut result = db.query(&statement).await?;
+            if result.is_empty() {
+                continue;
+            }
+            loop {
+                let entry = SpellCastingRequirementsEntry {
+                    id: result.try_read::<u32>(0).unwrap_or(0),
+                    spell_id: result.try_read::<i32>(1).unwrap_or(0),
+                    facing_caster_flags: result.try_read::<u8>(2).unwrap_or(0),
+                    min_faction_id: result.try_read::<u16>(3).unwrap_or(0),
+                    min_reputation: result.try_read::<i32>(4).unwrap_or(0),
+                    required_areas_id: result.try_read::<u16>(5).unwrap_or(0),
+                    required_aura_vision: result.try_read::<u8>(6).unwrap_or(0),
+                    requires_spell_focus: result.try_read::<u16>(7).unwrap_or(0),
+                };
+                store.entries.insert(entry.id, entry);
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        let table_hash = store
+            .table_hash_like_cpp()
+            .context("SpellCastingRequirements.db2 store is missing its WDC4 table hash")?;
+        store
+            .entries
+            .retain(|record_id, _| !removals.contains_like_cpp(table_hash, *record_id as i32));
+        Ok(store)
+    }
+
+    pub fn entry_for_spell_id_like_cpp(
+        &self,
+        spell_id: i32,
+    ) -> Option<&SpellCastingRequirementsEntry> {
+        self.entries
+            .values()
+            .filter(|entry| entry.spell_id == spell_id)
+            // C++'s DB2 iteration assigns this DIFFICULTY_NONE slot in
+            // record-ID order, so a malformed duplicate resolves to the
+            // highest record ID deterministically.
+            .max_by_key(|entry| entry.id)
     }
 }
 
@@ -2162,6 +2242,70 @@ mod tests {
                 .resolved_for_difficulty_chain_like_cpp(100, [3])
                 .is_none()
         );
+    }
+
+    #[test]
+    fn aura_restrictions_resolve_active_difficulty_then_fallback_like_cpp() {
+        let row = |id, difficulty_id, caster_aura_spell| SpellAuraRestrictionsEntry {
+            id,
+            difficulty_id,
+            caster_aura_state: 0,
+            target_aura_state: 0,
+            exclude_caster_aura_state: 0,
+            exclude_target_aura_state: 0,
+            caster_aura_spell,
+            target_aura_spell: 0,
+            exclude_caster_aura_spell: 0,
+            exclude_target_aura_spell: 0,
+            spell_id: 100,
+        };
+        let store =
+            SpellAuraRestrictionsStore::from_entries([row(3, 2, 30), row(1, 0, 10), row(2, 2, 20)]);
+
+        assert_eq!(
+            store
+                .resolved_for_difficulty_chain_like_cpp(100, [2, 0])
+                .map(|entry| (entry.id, entry.caster_aura_spell)),
+            Some((3, 30))
+        );
+        assert_eq!(
+            store
+                .resolved_for_difficulty_chain_like_cpp(100, [3, 0])
+                .map(|entry| entry.id),
+            Some(1)
+        );
+        assert!(
+            store
+                .resolved_for_difficulty_chain_like_cpp(100, [3])
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn casting_requirements_resolve_cpp_record_order_deterministically() {
+        let row = |id, spell_id, required_areas_id| SpellCastingRequirementsEntry {
+            id,
+            spell_id,
+            facing_caster_flags: 0,
+            min_faction_id: 0,
+            min_reputation: 0,
+            required_areas_id,
+            required_aura_vision: 0,
+            requires_spell_focus: 0,
+        };
+        let store = SpellCastingRequirementsStore::from_entries([
+            row(9, 100, 90),
+            row(3, 100, 30),
+            row(7, 200, 70),
+        ]);
+
+        assert_eq!(
+            store
+                .entry_for_spell_id_like_cpp(100)
+                .map(|entry| (entry.id, entry.required_areas_id)),
+            Some((9, 90))
+        );
+        assert!(store.entry_for_spell_id_like_cpp(300).is_none());
     }
 
     #[test]

@@ -5899,6 +5899,9 @@ pub struct WorldSession {
     // ── Aura system ───────────────────────────────────────────────
     /// All visible auras on the player: slot (0-254) → AuraApplication
     pub(crate) visible_auras: HashMap<u8, AuraApplication>,
+    /// True only after both persisted aura tables were read successfully for
+    /// the active character. Absence is evidence only while this is complete.
+    player_aura_authority_complete_like_cpp: bool,
     /// Difficulty-selected C++ `AuraEffect` identity captured when the aura is applied.
     canonical_threat_aura_snapshots_like_cpp: HashMap<u8, CanonicalThreatAuraSnapshotLikeCpp>,
 
@@ -7750,6 +7753,7 @@ impl WorldSession {
             movement_force_mod_magnitude_like_cpp: 1.0,
             movement_speed_ack_events_like_cpp: Vec::new(),
             visible_auras: HashMap::new(),
+            player_aura_authority_complete_like_cpp: false,
             canonical_threat_aura_snapshots_like_cpp: HashMap::new(),
             spell_store: None,
             spell_acquisition_catalog: None,
@@ -25894,6 +25898,18 @@ impl WorldSession {
         self.spell_aura_restrictions_store = Some(store);
     }
 
+    pub(crate) fn spell_aura_restrictions_store(&self) -> Option<&Arc<SpellAuraRestrictionsStore>> {
+        self.spell_aura_restrictions_store.as_ref()
+    }
+
+    pub(crate) fn set_player_aura_authority_complete_like_cpp(&mut self, complete: bool) {
+        self.player_aura_authority_complete_like_cpp = complete;
+    }
+
+    pub(crate) fn player_aura_authority_complete_like_cpp(&self) -> bool {
+        self.player_aura_authority_complete_like_cpp
+    }
+
     pub fn set_spell_target_restrictions_store(
         &mut self,
         store: Arc<SpellTargetRestrictionsStore>,
@@ -40950,6 +40966,7 @@ impl WorldSession {
         &mut self,
         mut controller: SessionPlayerController,
     ) {
+        self.player_aura_authority_complete_like_cpp = false;
         let controller_position = controller.position();
         controller.set_gold(self.player_gold);
         controller.set_character_points(self.player_character_points_like_cpp);
@@ -40986,6 +41003,7 @@ impl WorldSession {
         level: u8,
         gender: u8,
     ) -> bool {
+        self.player_aura_authority_complete_like_cpp = false;
         if self.player_controller.is_none() {
             self.attach_player_controller_like_cpp(SessionPlayerController::new(
                 guid, name, position, map_id, race, class, level, gender,

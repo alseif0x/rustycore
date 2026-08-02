@@ -2299,6 +2299,20 @@ async fn main() -> Result<ExitCode> {
         "Loaded {} spell aura restriction rows",
         spell_aura_restrictions_store.len()
     );
+    let spell_casting_requirements_store = Arc::new(
+        wow_data::SpellCastingRequirementsStore::load_effective_like_cpp(
+            &data_dir,
+            &locale,
+            &hotfix_db,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellCastingRequirements authority")?,
+    );
+    info!(
+        "Loaded {} spell casting requirement rows",
+        spell_casting_requirements_store.len()
+    );
     let spell_class_options_store = Arc::new(
         wow_data::SpellClassOptionsStore::load(&data_dir, &locale)
             .context("Failed to load SpellClassOptions.db2")?,
@@ -4964,6 +4978,7 @@ async fn main() -> Result<ExitCode> {
             spell_linked_store.as_ref(),
             spell_pet_aura_store.as_ref(),
             spell_aura_restrictions_store.as_ref(),
+            spell_casting_requirements_store.as_ref(),
             spell_equipped_items_store.as_ref(),
             spell_area_store.as_ref(),
             |item_id| item_stats_store.sparse_template(item_id).is_some(),

@@ -7641,11 +7641,14 @@ impl WorldSession {
         self.load_instance_time_restrictions_like_cpp().await;
         self.load_player_account_data_like_cpp(guid).await;
         {
+            self.set_player_aura_authority_complete_like_cpp(false);
             let mut aura_rows = Vec::new();
+            let mut aura_rows_complete = false;
             let mut aura_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_AURAS);
             aura_stmt.set_u64(0, guid.counter() as u64);
             match char_db.query(&aura_stmt).await {
                 Ok(mut aura_result) => {
+                    aura_rows_complete = true;
                     if !aura_result.is_empty() {
                         loop {
                             aura_rows.push(crate::session::CharacterAuraRowLikeCpp {
@@ -7671,10 +7674,12 @@ impl WorldSession {
             }
 
             let mut aura_effect_rows = Vec::new();
+            let mut aura_effect_rows_complete = false;
             let mut aura_effect_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_AURA_EFFECTS);
             aura_effect_stmt.set_u64(0, guid.counter() as u64);
             match char_db.query(&aura_effect_stmt).await {
                 Ok(mut aura_effect_result) => {
+                    aura_effect_rows_complete = true;
                     if !aura_effect_result.is_empty() {
                         loop {
                             aura_effect_rows.push(crate::session::CharacterAuraEffectRowLikeCpp {
@@ -7702,6 +7707,9 @@ impl WorldSession {
             }
             let loaded_character_auras =
                 self.load_represented_character_auras_like_cpp(aura_rows, aura_effect_rows, 0);
+            self.set_player_aura_authority_complete_like_cpp(
+                aura_rows_complete && aura_effect_rows_complete,
+            );
             info!(
                 loaded_character_auras,
                 player_guid = guid.counter(),

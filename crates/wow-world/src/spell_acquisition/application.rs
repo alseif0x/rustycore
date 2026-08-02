@@ -2025,6 +2025,36 @@ where
     )
 }
 
+/// Install an already committed runtime snapshot while deferring every
+/// observable learning action. Cross-socket workflows use the returned action
+/// bundle after their physical writer fences have preserved C++ order.
+pub(crate) fn install_prepared_player_spell_acquisition_runtime_like_cpp(
+    session: &mut crate::session::WorldSession,
+    prepared: &PreparedPlayerSpellAcquisitionLikeCpp,
+) -> Result<
+    PreparedPlayerSpellAcquisitionActionsLikeCpp,
+    PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp,
+> {
+    require_prepared_session_character_like_cpp(session, prepared.character_guid)?;
+    preflight_player_spell_acquisition_runtime_owners_like_cpp(
+        session,
+        &prepared.post_commit_actions,
+    )?;
+    apply_player_spell_acquisition_runtime_snapshot_with_before_actions_and_fault_like_cpp(
+        session,
+        &prepared.runtime_snapshot,
+        &prepared.non_durable_skill_tombstone_ids,
+        &[],
+        |_| {},
+        |_| Ok(()),
+    )?;
+    Ok(PreparedPlayerSpellAcquisitionActionsLikeCpp {
+        character_guid: prepared.character_guid,
+        runtime_snapshot: prepared.runtime_snapshot.clone(),
+        post_commit_actions: prepared.post_commit_actions.clone(),
+    })
+}
+
 /// Proves every runtime owner needed after COMMIT is available before a
 /// trainer fee or acquisition row becomes durable.
 pub(crate) fn validate_prepared_player_spell_acquisition_runtime_like_cpp(

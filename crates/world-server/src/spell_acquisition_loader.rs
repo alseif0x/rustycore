@@ -26,7 +26,7 @@ use wow_data::{
     SpellAcquisitionCoverageSeedLikeCpp, SpellAcquisitionDiagnosticSeverityLikeCpp,
     SpellAcquisitionIndeterminateReasonLikeCpp, SpellAcquisitionTalentLookupLikeCpp,
     SpellAreaStoreLikeCpp, SpellAuraRestrictionsEntry, SpellAuraRestrictionsStore,
-    SpellChainStoreLikeCpp, SpellCustomAttributeKeyLikeCpp,
+    SpellCastingRequirementsStore, SpellChainStoreLikeCpp, SpellCustomAttributeKeyLikeCpp,
     SpellCustomAttributeLoadErrorKindLikeCpp, SpellCustomAttributeSourceVariantLikeCpp,
     SpellCustomAttributeStoreLikeCpp, SpellEquippedItemsEntry, SpellEquippedItemsStore,
     SpellLearnSkillEffectLikeCpp, SpellLearnSkillIndeterminateReasonLikeCpp,
@@ -68,6 +68,7 @@ struct TrainerCastWorldHookAuditLikeCpp {
     aura_restriction: bool,
     equipped_item_restriction: bool,
     spell_focus_requirement: bool,
+    required_area_requirement: bool,
     spell_area_requirement: bool,
     linked_spell: bool,
 }
@@ -98,6 +99,7 @@ fn trainer_cast_world_hooks_are_static_safe_like_cpp(
         || audit.aura_restriction
         || audit.equipped_item_restriction
         || audit.spell_focus_requirement
+        || audit.required_area_requirement
         || audit.spell_area_requirement
         || audit.linked_spell)
 }
@@ -205,6 +207,7 @@ pub(crate) async fn load_trainer_static_authority_like_cpp(
     linked: &SpellLinkedStoreLikeCpp,
     pet_auras: &SpellPetAuraStoreLikeCpp,
     aura_restrictions: &SpellAuraRestrictionsStore,
+    casting_requirements: &SpellCastingRequirementsStore,
     equipped_items: &SpellEquippedItemsStore,
     spell_areas: &SpellAreaStoreLikeCpp,
     item_exists: impl Fn(u32) -> bool,
@@ -257,6 +260,14 @@ pub(crate) async fn load_trainer_static_authority_like_cpp(
                 .ok()
                 .and_then(|spell_id| spell_store.get(spell_id))
                 .is_none_or(|spell_info| spell_info.requires_spell_focus_like_cpp()),
+            // C++ copies DB2 `RequiredAreasID` into SpellInfo and always runs
+            // `CheckLocation`, including for this triggered trainer cast.
+            // The reduced path cannot resolve AreaGroupMember ancestry yet,
+            // so such wrappers must remain outside static authority.
+            required_area_requirement: i32::try_from(spell_id)
+                .ok()
+                .and_then(|spell_id| casting_requirements.entry_for_spell_id_like_cpp(spell_id))
+                .is_some_and(|requirements| requirements.required_areas_id != 0),
             // C++ `SpellInfo::CheckLocation` requires at least one matching
             // `spell_area` row whenever the spell has any. The reduced
             // trainer projection does not yet evaluate the player's complete
@@ -1432,6 +1443,10 @@ mod tests {
             },
             TrainerCastWorldHookAuditLikeCpp {
                 spell_focus_requirement: true,
+                ..Default::default()
+            },
+            TrainerCastWorldHookAuditLikeCpp {
+                required_area_requirement: true,
                 ..Default::default()
             },
             TrainerCastWorldHookAuditLikeCpp {

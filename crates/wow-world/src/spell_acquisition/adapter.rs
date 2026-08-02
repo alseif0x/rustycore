@@ -19,6 +19,19 @@ const SPELL_AURA_MECHANIC_IMMUNITY_MASK_LIKE_CPP: i64 = 147;
 const SPELL_AURA_MOD_IMMUNE_AURA_APPLY_SCHOOL_LIKE_CPP: i64 = 267;
 const SPELL_EFFECT_ATTRIBUTE_NO_IMMUNITY_LIKE_CPP: i64 = 0x0000_0001;
 
+fn trainer_cast_has_effective_aura_restriction_like_cpp(
+    restriction: &wow_data::SpellAuraRestrictionsEntry,
+) -> bool {
+    restriction.caster_aura_state != 0
+        || restriction.target_aura_state != 0
+        || restriction.exclude_caster_aura_state != 0
+        || restriction.exclude_target_aura_state != 0
+        || restriction.caster_aura_spell != 0
+        || restriction.target_aura_spell != 0
+        || restriction.exclude_caster_aura_spell != 0
+        || restriction.exclude_target_aura_spell != 0
+}
+
 fn trainer_target_restriction_admits_player_like_cpp(
     store: &wow_data::SpellTargetRestrictionsStore,
     spell_id: u32,
@@ -223,6 +236,21 @@ impl crate::session::WorldSession {
             spell_id,
             difficulty_chain.iter().copied(),
         ) {
+            return None;
+        }
+        // Startup proves only DIFFICULTY_NONE. C++ selects this independent
+        // SpellInfo row from the active map difficulty and runs the caster/
+        // target aura-state gates even for `CastSpell(..., true)`.
+        if self
+            .spell_aura_restrictions_store()?
+            .resolved_for_difficulty_chain_like_cpp(spell_id, difficulty_chain.iter().copied())
+            .is_some_and(trainer_cast_has_effective_aura_restriction_like_cpp)
+        {
+            return None;
+        }
+        // An empty aura map is evidence of no immunities only after both
+        // persisted aura tables completed successfully during login.
+        if !self.player_aura_authority_complete_like_cpp() {
             return None;
         }
         let map_id = u32::from(self.player_map_id_like_cpp());
