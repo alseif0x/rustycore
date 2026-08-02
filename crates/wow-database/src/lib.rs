@@ -66,8 +66,9 @@ pub use statements::{
     HotfixStatements, LoginStatements, StatementDef, WorldStatements,
 };
 pub use transaction::{
-    ItemGuidAllocatorAdvisoryLockLikeCpp, SqlTransaction, SqlTransactionCommitError,
-    is_database_deadlock_like_cpp, retry_deadlocked_operation_like_cpp,
+    BattlePetGuidAllocatorAdvisoryLockLikeCpp, ItemGuidAllocatorAdvisoryLockLikeCpp,
+    SqlTransaction, SqlTransactionCommitError, is_database_deadlock_like_cpp,
+    retry_deadlocked_operation_like_cpp,
 };
 
 /// Type aliases for each database connection.

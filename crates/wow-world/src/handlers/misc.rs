@@ -5249,7 +5249,8 @@ impl crate::session::WorldSession {
             }
         };
 
-        self.battle_pet_clear_fanfare_like_cpp(request.pet_guid);
+        self.battle_pet_clear_fanfare_durable_like_cpp(request.pet_guid)
+            .await;
     }
 
     /// CMSG_BATTLE_PET_DELETE_PET — represented battle-pet removal body.
@@ -5274,7 +5275,8 @@ impl crate::session::WorldSession {
             }
         };
 
-        self.battle_pet_remove_pet_like_cpp(request.pet_guid);
+        self.battle_pet_remove_pet_durable_like_cpp(request.pet_guid)
+            .await;
     }
 
     /// CMSG_CAGE_BATTLE_PET — represented cage body.
@@ -5327,12 +5329,14 @@ impl crate::session::WorldSession {
         };
 
         let timestamp = i64::try_from(GameTime::now().as_secs()).unwrap_or(i64::MAX);
-        let _ = self.battle_pet_modify_name_like_cpp(
-            request.pet_guid,
-            request.name,
-            request.declined_names,
-            timestamp,
-        );
+        let _ = self
+            .battle_pet_modify_name_durable_like_cpp(
+                request.pet_guid,
+                request.name,
+                request.declined_names,
+                timestamp,
+            )
+            .await;
     }
 
     /// CMSG_BATTLE_PET_SET_FLAGS — apply/remove represented battle-pet flags.
@@ -5355,7 +5359,12 @@ impl crate::session::WorldSession {
             return;
         }
 
-        self.battle_pet_set_flags_like_cpp(request.pet_guid, request.flags, request.control_type);
+        self.battle_pet_set_flags_durable_like_cpp(
+            request.pet_guid,
+            request.flags,
+            request.control_type,
+        )
+        .await;
     }
 
     /// CMSG_BATTLE_PET_SET_BATTLE_SLOT — assign an owned pet to a battle slot.
@@ -5373,7 +5382,8 @@ impl crate::session::WorldSession {
             }
         };
 
-        self.battle_pet_set_battle_slot_like_cpp(request.pet_guid, request.slot);
+        self.battle_pet_set_battle_slot_durable_like_cpp(request.pet_guid, request.slot)
+            .await;
     }
 
     /// CMSG_BATTLE_PET_SUMMON — toggle represented summoned battle-pet guid.
