@@ -27,8 +27,7 @@ use wow_data::{
     BattlePetSpeciesStore, calculate_battle_pet_stats_like_cpp,
 };
 use wow_database::{
-    DatabaseError, LoginDatabase, LoginStatements, PreparedStatement, SqlTransaction,
-    SqlTransactionCommitError,
+    DatabaseError, LoginDatabase, LoginStatements, SqlTransaction, SqlTransactionCommitError,
 };
 use wow_packet::packets::misc::{
     BattlePetJournal, BattlePetJournalPet, BattlePetJournalPetOwnerInfo, BattlePetJournalSlot,
@@ -98,6 +97,7 @@ pub(crate) struct DurableBattlePetAddLikeCpp {
     pub account_id: u32,
     pub realm_id: u16,
     pub request_key: BattlePetAddRequestKeyLikeCpp,
+    pub max_per_scope: u8,
     pub pet: DurableBattlePetRowLikeCpp,
 }
 
@@ -119,6 +119,7 @@ pub(crate) enum PersistBattlePetAddOutcomeLikeCpp {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum BattlePetPersistenceErrorLikeCpp {
     Database(String),
+    Capacity,
     GuidCollision,
     DuplicateRequest,
 }
@@ -348,50 +349,169 @@ impl BattlePetPersistenceLikeCpp for LoginBattlePetPersistenceLikeCpp {
                 };
             }
 
-            let mut tx = SqlTransaction::new();
-            tx.append(insert_pet_statement_like_cpp(&self.db, &request));
-            tx.append(insert_add_request_statement_like_cpp(&self.db, &request));
-            match tx.commit_with_outcome_like_cpp(self.db.pool()).await {
-                Ok(()) => Ok(PersistBattlePetAddOutcomeLikeCpp::Inserted),
-                Err(SqlTransactionCommitError::CommitOutcomeUnknown(_)) => {
-                    match self
+            let owner_scope = request.pet.owner_guid_counter.unwrap_or(0);
+            let owner_realm_scope = request
+                .pet
+                .owner_guid_counter
+                .map(|_| request.realm_id)
+                .unwrap_or(0);
+            let mut tx = self
+                .db
+                .pool()
+                .begin()
+                .await
+                .map_err(|error| database_error_like_cpp(DatabaseError::from(error)))?;
+
+            // Every process contending for this exact C++ count scope locks
+            // the same durable row. Capacity is re-read while that lock is
+            // held and the pet/receipt inserts commit before it is released.
+            sqlx::query(
+                "INSERT INTO battle_pet_capacity_locks (battlenetAccountId, species, ownerRealmScope, ownerScope) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE ownerScope = VALUES(ownerScope)",
+            )
+            .bind(request.account_id)
+            .bind(request.pet.species)
+            .bind(owner_realm_scope)
+            .bind(owner_scope)
+            .execute(&mut *tx)
+            .await
+            .map_err(|error| database_error_like_cpp(DatabaseError::from(error)))?;
+            sqlx::query(
+                "SELECT ownerScope FROM battle_pet_capacity_locks WHERE battlenetAccountId = ? AND species = ? AND ownerRealmScope = ? AND ownerScope = ? FOR UPDATE",
+            )
+            .bind(request.account_id)
+            .bind(request.pet.species)
+            .bind(owner_realm_scope)
+            .bind(owner_scope)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|error| database_error_like_cpp(DatabaseError::from(error)))?;
+
+            if let Some((existing, still_present)) =
+                find_request_in_tx_like_cpp(&mut tx, request.account_id, request.request_key)
+                    .await?
+            {
+                tx.rollback()
+                    .await
+                    .map_err(|error| database_error_like_cpp(DatabaseError::from(error)))?;
+                return if add_request_matches_like_cpp(&request.pet, &existing) {
+                    Ok(PersistBattlePetAddOutcomeLikeCpp::Replayed {
+                        pet: existing,
+                        still_present,
+                    })
+                } else {
+                    Err(BattlePetPersistenceErrorLikeCpp::DuplicateRequest)
+                };
+            }
+
+            let count: i64 = if let Some(owner) = request.pet.owner_guid_counter {
+                sqlx::query_scalar(
+                    "SELECT COUNT(*) FROM battle_pets WHERE battlenetAccountId = ? AND species = ? AND owner = ? AND ownerRealmId = ? FOR UPDATE",
+                )
+                .bind(request.account_id)
+                .bind(request.pet.species)
+                .bind(owner)
+                .bind(request.realm_id)
+                .fetch_one(&mut *tx)
+                .await
+            } else {
+                sqlx::query_scalar(
+                    "SELECT COUNT(*) FROM battle_pets WHERE battlenetAccountId = ? AND species = ? FOR UPDATE",
+                )
+                .bind(request.account_id)
+                .bind(request.pet.species)
+                .fetch_one(&mut *tx)
+                .await
+            }
+            .map_err(|error| database_error_like_cpp(DatabaseError::from(error)))?;
+            if count >= i64::from(request.max_per_scope) {
+                tx.rollback()
+                    .await
+                    .map_err(|error| database_error_like_cpp(DatabaseError::from(error)))?;
+                return Err(BattlePetPersistenceErrorLikeCpp::Capacity);
+            }
+
+            let pet = &request.pet;
+            let insert_result = async {
+                sqlx::query(
+                    "INSERT INTO battle_pets (guid, battlenetAccountId, species, breed, displayId, level, exp, health, quality, flags, name, nameTimestamp, owner, ownerRealmId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                )
+                .bind(pet.guid_counter)
+                .bind(request.account_id)
+                .bind(pet.species)
+                .bind(pet.breed)
+                .bind(pet.display_id)
+                .bind(pet.level)
+                .bind(pet.exp)
+                .bind(pet.health)
+                .bind(pet.quality)
+                .bind(pet.flags)
+                .bind(&pet.name)
+                .bind(pet.name_timestamp)
+                .bind(pet.owner_guid_counter)
+                .bind(pet.owner_guid_counter.map(|_| request.realm_id))
+                .execute(&mut *tx)
+                .await?;
+                sqlx::query(
+                    "INSERT INTO battle_pet_add_requests (battlenetAccountId, requestKey, battlePetGuid, species, breed, displayId, level, exp, health, quality, flags, name, nameTimestamp, owner) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                )
+                .bind(request.account_id)
+                .bind(request.request_key.as_bytes().as_slice())
+                .bind(pet.guid_counter)
+                .bind(pet.species)
+                .bind(pet.breed)
+                .bind(pet.display_id)
+                .bind(pet.level)
+                .bind(pet.exp)
+                .bind(pet.health)
+                .bind(pet.quality)
+                .bind(pet.flags)
+                .bind(&pet.name)
+                .bind(pet.name_timestamp)
+                .bind(pet.owner_guid_counter)
+                .execute(&mut *tx)
+                .await?;
+                Ok::<_, sqlx::Error>(())
+            }
+            .await;
+
+            if let Err(error) = insert_result {
+                let error = DatabaseError::from(error);
+                drop(tx);
+                if is_duplicate_key_like_cpp(&error) {
+                    if let Some((existing, still_present)) = self
                         .find_request_like_cpp(request.account_id, request.request_key)
                         .await?
                     {
-                        Some((existing, still_present))
-                            if add_request_matches_like_cpp(&request.pet, &existing) =>
-                        {
-                            if still_present {
-                                Ok(PersistBattlePetAddOutcomeLikeCpp::Inserted)
-                            } else {
-                                Err(BattlePetPersistenceErrorLikeCpp::DuplicateRequest)
-                            }
-                        }
-                        Some(_) => Err(BattlePetPersistenceErrorLikeCpp::DuplicateRequest),
-                        None => Err(BattlePetPersistenceErrorLikeCpp::Database(
-                            "battle-pet insert COMMIT outcome could not be reconciled".to_string(),
-                        )),
+                        return if add_request_matches_like_cpp(&request.pet, &existing) {
+                            Ok(PersistBattlePetAddOutcomeLikeCpp::Replayed {
+                                pet: existing,
+                                still_present,
+                            })
+                        } else {
+                            Err(BattlePetPersistenceErrorLikeCpp::DuplicateRequest)
+                        };
                     }
+                    return Err(BattlePetPersistenceErrorLikeCpp::GuidCollision);
                 }
-                Err(SqlTransactionCommitError::DefinitelyRolledBack(error)) => {
-                    if is_duplicate_key_like_cpp(&error) {
-                        if let Some((existing, still_present)) = self
-                            .find_request_like_cpp(request.account_id, request.request_key)
-                            .await?
-                        {
-                            return if add_request_matches_like_cpp(&request.pet, &existing) {
-                                Ok(PersistBattlePetAddOutcomeLikeCpp::Replayed {
-                                    pet: existing,
-                                    still_present,
-                                })
-                            } else {
-                                Err(BattlePetPersistenceErrorLikeCpp::DuplicateRequest)
-                            };
-                        }
-                        return Err(BattlePetPersistenceErrorLikeCpp::GuidCollision);
+                return Err(database_error_like_cpp(error));
+            }
+
+            match tx.commit().await {
+                Ok(()) => Ok(PersistBattlePetAddOutcomeLikeCpp::Inserted),
+                Err(_) => match self
+                    .find_request_like_cpp(request.account_id, request.request_key)
+                    .await?
+                {
+                    Some((existing, true))
+                        if add_request_matches_like_cpp(&request.pet, &existing) =>
+                    {
+                        Ok(PersistBattlePetAddOutcomeLikeCpp::Inserted)
                     }
-                    Err(database_error_like_cpp(error))
-                }
+                    Some(_) => Err(BattlePetPersistenceErrorLikeCpp::DuplicateRequest),
+                    None => Err(BattlePetPersistenceErrorLikeCpp::Database(
+                        "battle-pet insert COMMIT outcome could not be reconciled".to_string(),
+                    )),
+                },
             }
         })
     }
@@ -647,6 +767,41 @@ fn durable_pet_from_result_like_cpp(
     })
 }
 
+async fn find_request_in_tx_like_cpp(
+    tx: &mut Transaction<'_, MySql>,
+    account_id: u32,
+    request_key: BattlePetAddRequestKeyLikeCpp,
+) -> Result<Option<(DurableBattlePetRowLikeCpp, bool)>, BattlePetPersistenceErrorLikeCpp> {
+    let row = sqlx::query(
+        "SELECT req.battlePetGuid, req.species, req.breed, req.displayId, req.level, req.exp, req.health, req.quality, req.flags, req.name, req.nameTimestamp, req.owner, pet.guid IS NOT NULL FROM battle_pet_add_requests req LEFT JOIN battle_pets pet ON pet.guid = req.battlePetGuid WHERE req.battlenetAccountId = ? AND req.requestKey = ?",
+    )
+    .bind(account_id)
+    .bind(request_key.as_bytes().as_slice())
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(|error| database_error_like_cpp(DatabaseError::from(error)))?;
+    let Some(row) = row else {
+        return Ok(None);
+    };
+    let pet = DurableBattlePetRowLikeCpp {
+        guid_counter: row.try_get(0).map_err(row_decode_error_like_cpp)?,
+        species: row.try_get(1).map_err(row_decode_error_like_cpp)?,
+        breed: row.try_get(2).map_err(row_decode_error_like_cpp)?,
+        display_id: row.try_get(3).map_err(row_decode_error_like_cpp)?,
+        level: row.try_get(4).map_err(row_decode_error_like_cpp)?,
+        exp: row.try_get(5).map_err(row_decode_error_like_cpp)?,
+        health: row.try_get(6).map_err(row_decode_error_like_cpp)?,
+        quality: row.try_get(7).map_err(row_decode_error_like_cpp)?,
+        flags: row.try_get(8).map_err(row_decode_error_like_cpp)?,
+        name: row.try_get(9).map_err(row_decode_error_like_cpp)?,
+        name_timestamp: row.try_get(10).map_err(row_decode_error_like_cpp)?,
+        owner_guid_counter: row.try_get(11).map_err(row_decode_error_like_cpp)?,
+        declined_names: None,
+    };
+    let still_present = row.try_get(12).map_err(row_decode_error_like_cpp)?;
+    Ok(Some((pet, still_present)))
+}
+
 fn durable_pet_from_row_like_cpp(
     row: &sqlx::mysql::MySqlRow,
 ) -> Result<DurableBattlePetRowLikeCpp, BattlePetPersistenceErrorLikeCpp> {
@@ -677,62 +832,6 @@ fn durable_pet_from_row_like_cpp(
             }),
         },
     })
-}
-
-fn insert_pet_statement_like_cpp(
-    db: &LoginDatabase,
-    request: &DurableBattlePetAddLikeCpp,
-) -> PreparedStatement {
-    let pet = &request.pet;
-    let mut stmt = db.prepare(LoginStatements::INS_BATTLE_PETS);
-    stmt.set_u64(0, pet.guid_counter);
-    stmt.set_u32(1, request.account_id);
-    stmt.set_u32(2, pet.species);
-    stmt.set_u16(3, pet.breed);
-    stmt.set_u32(4, pet.display_id);
-    stmt.set_u16(5, pet.level);
-    stmt.set_u16(6, pet.exp);
-    stmt.set_u32(7, pet.health);
-    stmt.set_u8(8, pet.quality);
-    stmt.set_u16(9, pet.flags);
-    stmt.set_string(10, pet.name.clone());
-    stmt.set_i64(11, pet.name_timestamp);
-    match pet.owner_guid_counter {
-        Some(owner) => stmt.set_u64(12, owner),
-        None => stmt.set_null(12),
-    }
-    if pet.owner_guid_counter.is_some() {
-        stmt.set_u16(13, request.realm_id);
-    } else {
-        stmt.set_null(13);
-    }
-    stmt
-}
-
-fn insert_add_request_statement_like_cpp(
-    db: &LoginDatabase,
-    request: &DurableBattlePetAddLikeCpp,
-) -> PreparedStatement {
-    let pet = &request.pet;
-    let mut stmt = db.prepare(LoginStatements::INS_BATTLE_PET_ADD_REQUEST);
-    stmt.set_u32(0, request.account_id);
-    stmt.set_bytes(1, request.request_key.as_bytes().to_vec());
-    stmt.set_u64(2, pet.guid_counter);
-    stmt.set_u32(3, pet.species);
-    stmt.set_u16(4, pet.breed);
-    stmt.set_u32(5, pet.display_id);
-    stmt.set_u16(6, pet.level);
-    stmt.set_u16(7, pet.exp);
-    stmt.set_u32(8, pet.health);
-    stmt.set_u8(9, pet.quality);
-    stmt.set_u16(10, pet.flags);
-    stmt.set_string(11, pet.name.clone());
-    stmt.set_i64(12, pet.name_timestamp);
-    match pet.owner_guid_counter {
-        Some(owner) => stmt.set_u64(13, owner),
-        None => stmt.set_null(13),
-    }
-    stmt
 }
 
 fn add_request_matches_like_cpp(
@@ -804,6 +903,7 @@ fn add_persistence_error_like_cpp(
         BattlePetPersistenceErrorLikeCpp::Database(error) => {
             BattlePetAddFailureLikeCpp::DatabaseFailure(error)
         }
+        BattlePetPersistenceErrorLikeCpp::Capacity => BattlePetAddFailureLikeCpp::Capacity,
         BattlePetPersistenceErrorLikeCpp::GuidCollision => {
             BattlePetAddFailureLikeCpp::GuidCollision
         }
@@ -1299,6 +1399,23 @@ impl BattlePetAccountOwnerLikeCpp {
                     account_id: self.account_id,
                     realm_id: self.realm_id,
                     request_key: request.request_key,
+                    max_per_scope: self
+                        .species_store
+                        .get(request.species)
+                        .map(|species| {
+                            if species.has_flag_like_cpp(
+                                BATTLE_PET_SPECIES_FLAG_LEGACY_ACCOUNT_UNIQUE_LIKE_CPP,
+                            ) {
+                                1
+                            } else {
+                                DEFAULT_MAX_BATTLE_PETS_PER_SPECIES_LIKE_CPP
+                            }
+                        })
+                        .ok_or_else(|| {
+                            BattlePetPersistenceErrorLikeCpp::Database(
+                                "validated battle-pet species disappeared".to_string(),
+                            )
+                        })?,
                     pet: row.clone(),
                 })
                 .await?;
@@ -1356,6 +1473,9 @@ impl BattlePetAccountOwnerLikeCpp {
             Err(BattlePetPersistenceErrorLikeCpp::GuidCollision) => {
                 Err(BattlePetAddFailureLikeCpp::GuidCollision)
             }
+            Err(BattlePetPersistenceErrorLikeCpp::Capacity) => {
+                Err(BattlePetAddFailureLikeCpp::Capacity)
+            }
             Err(BattlePetPersistenceErrorLikeCpp::DuplicateRequest) => {
                 Err(BattlePetAddFailureLikeCpp::DuplicateRequest)
             }
@@ -1377,12 +1497,44 @@ impl BattlePetAccountOwnerLikeCpp {
         R: Send + 'static,
         F: FnOnce(&mut RepresentedBattlePetDataLikeCpp) -> R,
     {
+        self.try_mutate_pet_with_optional_lease_like_cpp(Some(lease_id), pet_guid, mutation)
+            .await
+    }
+
+    /// C++ `BattlePetMgr::ClearFanfare` is intentionally the one represented
+    /// durable pet mutation without a `HasJournalLock()` gate. It still uses
+    /// the canonical owner's per-pet mutation serialization and persistence.
+    pub(crate) async fn try_mutate_pet_without_lease_like_cpp<R, F>(
+        self: &Arc<Self>,
+        pet_guid: ObjectGuid,
+        mutation: F,
+    ) -> Result<(R, BattlePetJournalPet), BattlePetMutationFailureLikeCpp>
+    where
+        R: Send + 'static,
+        F: FnOnce(&mut RepresentedBattlePetDataLikeCpp) -> R,
+    {
+        self.try_mutate_pet_with_optional_lease_like_cpp(None, pet_guid, mutation)
+            .await
+    }
+
+    async fn try_mutate_pet_with_optional_lease_like_cpp<R, F>(
+        self: &Arc<Self>,
+        lease_id: Option<BattlePetLeaseIdLikeCpp>,
+        pet_guid: ObjectGuid,
+        mutation: F,
+    ) -> Result<(R, BattlePetJournalPet), BattlePetMutationFailureLikeCpp>
+    where
+        R: Send + 'static,
+        F: FnOnce(&mut RepresentedBattlePetDataLikeCpp) -> R,
+    {
         let mut changed = {
             let mut state = self
                 .state
                 .lock()
                 .expect("battle-pet account state poisoned");
-            if state.lease_holder != Some(lease_id) {
+            if let Some(lease_id) = lease_id
+                && state.lease_holder != Some(lease_id)
+            {
                 return Err(if state.lease_holder.is_some() {
                     BattlePetMutationFailureLikeCpp::JournalLocked
                 } else {
@@ -1763,6 +1915,7 @@ fn mutation_persistence_error_like_cpp(
 ) -> BattlePetMutationFailureLikeCpp {
     BattlePetMutationFailureLikeCpp::DatabaseFailure(match error {
         BattlePetPersistenceErrorLikeCpp::Database(error) => error,
+        BattlePetPersistenceErrorLikeCpp::Capacity => "unexpected capacity failure".to_string(),
         BattlePetPersistenceErrorLikeCpp::GuidCollision => "unexpected GUID collision".to_string(),
         BattlePetPersistenceErrorLikeCpp::DuplicateRequest => {
             "unexpected duplicate request".to_string()
@@ -2024,6 +2177,18 @@ mod tests {
                     } else {
                         Err(BattlePetPersistenceErrorLikeCpp::DuplicateRequest)
                     };
+                }
+                let scoped_count = state
+                    .pets
+                    .iter()
+                    .filter(|pet| pet.species == request.pet.species)
+                    .filter(|pet| {
+                        request.pet.owner_guid_counter.is_none()
+                            || pet.owner_guid_counter == request.pet.owner_guid_counter
+                    })
+                    .count();
+                if scoped_count >= usize::from(request.max_per_scope) {
+                    return Err(BattlePetPersistenceErrorLikeCpp::Capacity);
                 }
                 if state
                     .pets
@@ -2388,6 +2553,119 @@ mod tests {
                 .collect::<HashSet<_>>()
                 .len(),
             3
+        );
+    }
+
+    #[tokio::test]
+    async fn two_realm_owners_recheck_one_durable_capacity_scope_before_insert() {
+        let persistence = Arc::new(FakePersistenceLikeCpp::default());
+        persistence.next_guid.store(300, Ordering::Release);
+        let (species, qualities, breed_states, species_states) = stores_like_cpp(0);
+        let first_registry = BattlePetAccountRegistryLikeCpp::new_with_persistence_like_cpp(
+            persistence.clone(),
+            species.clone(),
+            qualities.clone(),
+            breed_states.clone(),
+            species_states.clone(),
+            7,
+            0x0102_0007,
+        );
+        let second_registry = BattlePetAccountRegistryLikeCpp::new_with_persistence_like_cpp(
+            persistence.clone(),
+            species,
+            qualities,
+            breed_states,
+            species_states,
+            8,
+            0x0102_0008,
+        );
+        let first = first_registry.attach_like_cpp(77).await.expect("realm one");
+        let second = second_registry
+            .attach_like_cpp(77)
+            .await
+            .expect("realm two");
+        assert!(first.try_acquire_lease_like_cpp());
+        assert!(second.try_acquire_lease_like_cpp());
+        first
+            .owner_like_cpp()
+            .try_add_pet_like_cpp(first.lease_id_like_cpp(), add_request_like_cpp(1, 11, 1))
+            .await
+            .expect("first durable pet");
+        first
+            .owner_like_cpp()
+            .try_add_pet_like_cpp(first.lease_id_like_cpp(), add_request_like_cpp(2, 11, 1))
+            .await
+            .expect("second durable pet");
+
+        let (realm_one, realm_two) = tokio::join!(
+            first
+                .owner_like_cpp()
+                .try_add_pet_like_cpp(first.lease_id_like_cpp(), add_request_like_cpp(3, 11, 1),),
+            second
+                .owner_like_cpp()
+                .try_add_pet_like_cpp(second.lease_id_like_cpp(), add_request_like_cpp(4, 11, 1),),
+        );
+        let outcomes = [realm_one, realm_two];
+        assert_eq!(outcomes.iter().filter(|result| result.is_ok()).count(), 1);
+        assert_eq!(
+            outcomes
+                .iter()
+                .filter(|result| matches!(result, Err(BattlePetAddFailureLikeCpp::Capacity)))
+                .count(),
+            1
+        );
+        assert_eq!(
+            persistence
+                .state
+                .lock()
+                .expect("fake persistence poisoned")
+                .pets
+                .len(),
+            3
+        );
+    }
+
+    #[tokio::test]
+    async fn clear_fanfare_persists_without_journal_lease_like_cpp() {
+        let persistence = Arc::new(FakePersistenceLikeCpp::default());
+        let registry = registry_like_cpp(persistence, 0, 400);
+        let holder = registry.attach_like_cpp(77).await.expect("holder");
+        let non_holder = registry.attach_like_cpp(77).await.expect("non-holder");
+        assert!(holder.try_acquire_lease_like_cpp());
+        assert!(!non_holder.try_acquire_lease_like_cpp());
+        let added = holder
+            .owner_like_cpp()
+            .try_add_pet_like_cpp(holder.lease_id_like_cpp(), add_request_like_cpp(1, 11, 1))
+            .await
+            .expect("add pet");
+        let guid = match added {
+            BattlePetAddOutcomeLikeCpp::Added(pet) => pet.guid,
+            BattlePetAddOutcomeLikeCpp::Replayed(_) => panic!("fresh add must not replay"),
+        };
+        holder
+            .owner_like_cpp()
+            .try_mutate_pet_like_cpp(holder.lease_id_like_cpp(), guid, |pet| {
+                pet.flags |= crate::session::BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP;
+            })
+            .await
+            .expect("seed fanfare");
+        assert!(matches!(
+            non_holder
+                .owner_like_cpp()
+                .try_mutate_pet_like_cpp(non_holder.lease_id_like_cpp(), guid, |_| {})
+                .await,
+            Err(BattlePetMutationFailureLikeCpp::JournalLocked)
+        ));
+        let (_, packet) = non_holder
+            .owner_like_cpp()
+            .try_mutate_pet_without_lease_like_cpp(guid, |pet| {
+                pet.flags &= !crate::session::BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP;
+            })
+            .await
+            .expect("C++ clear-fanfare exception");
+        assert_eq!(
+            packet.flags & crate::session::BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP,
+            0
         );
     }
 

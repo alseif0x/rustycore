@@ -12,6 +12,17 @@ INSERT INTO `battle_pet_guid_sequence` (`singleton`, `nextGuid`)
 SELECT 1, COALESCE(MAX(`guid`), 0) + 1 FROM `battle_pets`
 ON DUPLICATE KEY UPDATE `nextGuid` = GREATEST(`nextGuid`, VALUES(`nextGuid`));
 
+-- Cross-process serialization domain for the C++ per-species count. Both
+-- owner scope columns are zero for account-wide species; NotAccountWide uses
+-- the player's realm and counter, matching the full C++ owner ObjectGuid.
+CREATE TABLE IF NOT EXISTS `battle_pet_capacity_locks` (
+  `battlenetAccountId` int unsigned NOT NULL,
+  `species` int unsigned NOT NULL,
+  `ownerRealmScope` smallint unsigned NOT NULL,
+  `ownerScope` bigint unsigned NOT NULL,
+  PRIMARY KEY (`battlenetAccountId`, `species`, `ownerRealmScope`, `ownerScope`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Durable idempotency receipts for account-atomic battle-pet creation.
 -- The receipt and battle_pets row are inserted in one Login DB transaction.
 CREATE TABLE IF NOT EXISTS `battle_pet_add_requests` (

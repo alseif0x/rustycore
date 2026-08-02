@@ -49303,9 +49303,8 @@ impl WorldSession {
             return self.battle_pet_clear_fanfare_like_cpp(pet_guid);
         };
         let owner = Arc::clone(attachment.owner_like_cpp());
-        let lease = attachment.lease_id_like_cpp();
         match owner
-            .try_mutate_pet_like_cpp(lease, pet_guid, |pet| {
+            .try_mutate_pet_without_lease_like_cpp(pet_guid, |pet| {
                 pet.flags &= !BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP;
             })
             .await
