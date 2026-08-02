@@ -165,6 +165,12 @@ impl SpellAcquisitionPlannerLikeCpp<'_> {
         self.metadata
             .cast_authority
             .require_safe_like_cpp(spell_id)?;
+        let active_trainer_effects = trainer_wrapper
+            .then(|| self.cast_resolutions.get(&spell_id))
+            .flatten()
+            .filter(|resolution| !resolution.effective_effects.is_empty())
+            .map(|resolution| resolution.effective_effects.clone());
+        let effects = active_trainer_effects.as_deref().unwrap_or(effects);
         // The acquisition effects of this cast are consumed by the immutable
         // plan below.  Emitting a generic post-commit CastSpell intent would
         // execute LearnSpell/SetSkill a second time when #158 applies it.

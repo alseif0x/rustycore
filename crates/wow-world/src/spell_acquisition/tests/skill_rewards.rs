@@ -41,6 +41,7 @@ fn both_new_and_existing_skill_updates_expand_reward_spells() {
             PlayerCastAcquisitionResolutionLikeCpp {
                 reached_immediate_phase: true,
                 executed_hit_target_effect_mask: 1,
+                effective_effects: Vec::new(),
                 executed_dual_wield_effects: Vec::new(),
             },
         );

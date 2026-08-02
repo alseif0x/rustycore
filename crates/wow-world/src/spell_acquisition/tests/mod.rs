@@ -212,6 +212,7 @@ fn snapshot_with_cast(
         PlayerCastAcquisitionResolutionLikeCpp {
             reached_immediate_phase,
             executed_hit_target_effect_mask,
+            effective_effects: Vec::new(),
             executed_dual_wield_effects: Vec::new(),
         },
     );

@@ -1416,6 +1416,12 @@ impl SpellShapeshiftFormStore {
 }
 
 impl SpellTargetRestrictionsStore {
+    const HOTFIX_OVERLAY_SQL_LIKE_CPP: &'static str = concat!(
+        "SELECT ID, DifficultyID, ConeDegrees, MaxTargets, MaxTargetLevel, ",
+        "TargetCreatureType, Targets, Width, SpellID FROM spell_target_restrictions ",
+        "WHERE (`VerifiedBuild` > 0) = ?"
+    );
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(
             data_dir,
@@ -1433,6 +1439,59 @@ impl SpellTargetRestrictionsStore {
                 spell_id: r.get_relationship_id(idx).unwrap_or(0),
             },
         )
+    }
+
+    pub fn entries_for_spell_id_like_cpp(
+        &self,
+        spell_id: u32,
+    ) -> impl Iterator<Item = &SpellTargetRestrictionsEntry> {
+        self.entries
+            .values()
+            .filter(move |entry| entry.spell_id == spell_id)
+    }
+
+    /// Compose C++'s final DB2 authority, including SQL replacements and
+    /// final `hotfix_data` tombstones.
+    pub async fn load_effective_like_cpp(
+        data_dir: &str,
+        locale: &str,
+        db: &HotfixDatabase,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) -> Result<Self> {
+        let mut store = Self::load(data_dir, locale)?;
+        for official in [true, false] {
+            let mut statement =
+                db.prepare(HotfixStatements::base(Self::HOTFIX_OVERLAY_SQL_LIKE_CPP));
+            statement.set_bool(0, official);
+            let mut result = db.query(&statement).await?;
+            if result.is_empty() {
+                continue;
+            }
+            loop {
+                let entry = SpellTargetRestrictionsEntry {
+                    id: result.try_read::<u32>(0).unwrap_or(0),
+                    difficulty_id: result.try_read::<u8>(1).unwrap_or(0),
+                    cone_degrees: result.try_read::<f32>(2).unwrap_or(0.0),
+                    max_targets: result.try_read::<u8>(3).unwrap_or(0),
+                    max_target_level: result.try_read::<u32>(4).unwrap_or(0),
+                    target_creature_type: result.try_read::<i16>(5).unwrap_or(0),
+                    targets: result.try_read::<i32>(6).unwrap_or(0),
+                    width: result.try_read::<f32>(7).unwrap_or(0.0),
+                    spell_id: result.try_read::<u32>(8).unwrap_or(0),
+                };
+                store.entries.insert(entry.id, entry);
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+        let table_hash = store
+            .table_hash_like_cpp()
+            .context("SpellTargetRestrictions.db2 store is missing its WDC4 table hash")?;
+        store
+            .entries
+            .retain(|record_id, _| !removals.contains_like_cpp(table_hash, *record_id as i32));
+        Ok(store)
     }
 }
 

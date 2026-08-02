@@ -2321,6 +2321,20 @@ async fn main() -> Result<ExitCode> {
         "Loaded {} spell equipped items rows",
         spell_equipped_items_store.len()
     );
+    let spell_target_restrictions_store = Arc::new(
+        wow_data::SpellTargetRestrictionsStore::load_effective_like_cpp(
+            &data_dir,
+            &locale,
+            &hotfix_db,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellTargetRestrictions authority")?,
+    );
+    info!(
+        "Loaded {} spell target restriction rows",
+        spell_target_restrictions_store.len()
+    );
     let spell_misc_store = Arc::new(
         wow_data::SpellMiscStore::load(&data_dir, &locale)
             .context("Failed to load SpellMisc.db2")?,
@@ -4951,6 +4965,7 @@ async fn main() -> Result<ExitCode> {
             spell_pet_aura_store.as_ref(),
             spell_aura_restrictions_store.as_ref(),
             spell_equipped_items_store.as_ref(),
+            spell_target_restrictions_store.as_ref(),
             spell_area_store.as_ref(),
             |item_id| item_stats_store.sparse_template(item_id).is_some(),
         )

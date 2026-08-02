@@ -731,6 +731,8 @@ impl WorldSession {
         let player_guid = prepared
             .character_guid
             .expect("prepared trainer acquisition has validated player identity");
+        let publish_skill_fields =
+            prepared.source_snapshot.skills != prepared.runtime_snapshot.skills;
         if crate::spell_acquisition::apply_prepared_player_spell_acquisition_with_before_actions_like_cpp(
             self,
             &prepared,
@@ -767,6 +769,9 @@ impl WorldSession {
                 };
                 session.send_packet_realm(&player_visual);
                 session.broadcast_to_movement_set_realm_like_cpp(player_visual.to_bytes(), true);
+                if publish_skill_fields {
+                    session.send_complete_player_skill_values_update_like_cpp();
+                }
             },
         )
         .is_err()
@@ -1062,6 +1067,7 @@ mod tests {
                 flags2: 0,
             },
         ])));
+        session.set_disable_mgr(Arc::new(wow_data::DisableMgrLikeCpp::default()));
         session.attach_player_controller_like_cpp(SessionPlayerController::new(
             ObjectGuid::create_player(1, 42),
             "TrainerTester".to_string(),
@@ -1879,6 +1885,208 @@ mod tests {
             .to_bytes()
         );
         assert!(fixture.send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn trainer_wrapper_consumes_active_difficulty_effect_rows_like_cpp() {
+        const HEROIC_LEARNED_SPELL: u32 = 54_326;
+        let store = trainer_store_from_rows(
+            vec![trainer_row(DEFAULT_TRAINER_ID, 2, "Train")],
+            vec![trainer_spell_row(
+                DEFAULT_TRAINER_ID,
+                WRAPPER_TRAINER_SPELL,
+                25,
+                1,
+            )],
+            Vec::new(),
+            vec![CreatureTrainerRowLikeCpp {
+                creature_id: CREATURE_ENTRY,
+                trainer_id: DEFAULT_TRAINER_ID,
+                menu_id: 0,
+                option_id: 0,
+            }],
+        );
+        let mut fixture = trainer_fixture_with_store_and_map_difficulty(store, 2);
+        let wrapper_id = WRAPPER_TRAINER_SPELL as u32;
+        let normal_learned_id = WRAPPER_LEARNED_SPELL as u32;
+        let mut heroic_effect = player_learn_effect(2, wrapper_id, HEROIC_LEARNED_SPELL);
+        heroic_effect.difficulty_id_raw = 2;
+        fixture.session.set_spell_acquisition_catalog(Arc::new(
+            SpellAcquisitionCatalogLikeCpp::from_effective_rows_like_cpp(
+                [
+                    SpellAcquisitionCoverageSeedLikeCpp::covered(wrapper_id, 0),
+                    SpellAcquisitionCoverageSeedLikeCpp::covered(wrapper_id, 2),
+                    SpellAcquisitionCoverageSeedLikeCpp::covered(normal_learned_id, 0),
+                    SpellAcquisitionCoverageSeedLikeCpp::covered(HEROIC_LEARNED_SPELL, 0),
+                ],
+                EffectiveSpellAcquisitionRowsLikeCpp {
+                    spell_effects: vec![
+                        player_learn_effect(1, wrapper_id, normal_learned_id),
+                        heroic_effect,
+                    ],
+                    ..Default::default()
+                },
+                SpellAcquisitionTableHashesLikeCpp::default(),
+                Vec::new(),
+            ),
+        ));
+        let mut learn_skills = SpellLearnSkillStoreLikeCpp::default();
+        learn_skills.covered_spell_ids.extend([
+            wrapper_id,
+            normal_learned_id,
+            HEROIC_LEARNED_SPELL,
+        ]);
+        fixture
+            .session
+            .set_spell_learn_skill_store(Arc::new(learn_skills));
+        fixture
+            .session
+            .set_spell_acquisition_static_authority_like_cpp([wrapper_id], []);
+        fixture
+            .session
+            .set_player_trainer_interaction_like_cpp(fixture.trainer, DEFAULT_TRAINER_ID);
+        fixture.session.set_player_gold_like_cpp(100);
+        fixture
+            .session
+            .set_loot_money_persistence_test_result_like_cpp(true);
+
+        fixture
+            .session
+            .handle_trainer_buy_spell(trainer_buy_packet(
+                fixture.trainer,
+                DEFAULT_TRAINER_ID as i32,
+                WRAPPER_TRAINER_SPELL,
+            ))
+            .await;
+
+        assert_eq!(fixture.session.player_gold_like_cpp(), 75);
+        assert!(
+            fixture
+                .session
+                .known_spells_like_cpp()
+                .contains(&(HEROIC_LEARNED_SPELL as i32))
+        );
+        assert!(
+            !fixture
+                .session
+                .known_spells_like_cpp()
+                .contains(&WRAPPER_LEARNED_SPELL)
+        );
+    }
+
+    #[tokio::test]
+    async fn player_only_disable_does_not_block_the_trainer_creature_cast_like_cpp() {
+        let mut fixture = trainer_wrapper_fixture();
+        let (disable_mgr, report) = wow_data::DisableMgrLikeCpp::from_rows_like_cpp(
+            [wow_data::DisableDbRowLikeCpp {
+                source_type: wow_data::DISABLE_TYPE_SPELL,
+                entry: WRAPPER_TRAINER_SPELL as u32,
+                flags: wow_data::disable_mgr::SPELL_DISABLE_PLAYER,
+                params_0: String::new(),
+                params_1: String::new(),
+            }],
+            wow_data::DisableMgrRefsLikeCpp {
+                spell_store: fixture.session.spell_store().map(AsRef::as_ref),
+                ..Default::default()
+            },
+        );
+        assert_eq!(report.loaded_count, 1);
+        fixture.session.set_disable_mgr(Arc::new(disable_mgr));
+
+        fixture
+            .session
+            .handle_trainer_buy_spell(trainer_buy_packet(
+                fixture.trainer,
+                DEFAULT_TRAINER_ID as i32,
+                WRAPPER_TRAINER_SPELL,
+            ))
+            .await;
+
+        assert_eq!(fixture.session.player_gold_like_cpp(), 75);
+        assert!(
+            fixture
+                .session
+                .known_spells_like_cpp()
+                .contains(&WRAPPER_LEARNED_SPELL)
+        );
+    }
+
+    #[tokio::test]
+    async fn trainer_creature_disable_stops_before_charge_or_grant_like_cpp() {
+        let mut fixture = trainer_wrapper_fixture();
+        let (disable_mgr, report) = wow_data::DisableMgrLikeCpp::from_rows_like_cpp(
+            [wow_data::DisableDbRowLikeCpp {
+                source_type: wow_data::DISABLE_TYPE_SPELL,
+                entry: WRAPPER_TRAINER_SPELL as u32,
+                flags: wow_data::disable_mgr::SPELL_DISABLE_CREATURE,
+                params_0: String::new(),
+                params_1: String::new(),
+            }],
+            wow_data::DisableMgrRefsLikeCpp {
+                spell_store: fixture.session.spell_store().map(AsRef::as_ref),
+                ..Default::default()
+            },
+        );
+        assert_eq!(report.loaded_count, 1);
+        fixture.session.set_disable_mgr(Arc::new(disable_mgr));
+
+        fixture
+            .session
+            .handle_trainer_buy_spell(trainer_buy_packet(
+                fixture.trainer,
+                DEFAULT_TRAINER_ID as i32,
+                WRAPPER_TRAINER_SPELL,
+            ))
+            .await;
+
+        assert_eq!(fixture.session.player_gold_like_cpp(), 100);
+        assert!(
+            !fixture
+                .session
+                .known_spells_like_cpp()
+                .contains(&WRAPPER_LEARNED_SPELL)
+        );
+    }
+
+    #[tokio::test]
+    async fn trainer_creature_cast_does_not_apply_caster_owned_skill_to_player_like_cpp() {
+        let mut fixture = trainer_wrapper_fixture();
+        let wrapper_id = WRAPPER_TRAINER_SPELL as u32;
+        let mut skill_effect = player_learn_effect(1, wrapper_id, 0);
+        skill_effect.effect_type_raw =
+            i64::from(wow_data::spell::spell_effect_types::SPELL_EFFECT_SKILL);
+        skill_effect.effect_index_raw = 1;
+        skill_effect.effect_trigger_spell_raw = 0;
+        skill_effect.effect_misc_value_raw[0] = 164;
+        fixture.session.set_spell_acquisition_catalog(Arc::new(
+            SpellAcquisitionCatalogLikeCpp::from_effective_rows_like_cpp(
+                [
+                    SpellAcquisitionCoverageSeedLikeCpp::covered(wrapper_id, 0),
+                    SpellAcquisitionCoverageSeedLikeCpp::covered(WRAPPER_LEARNED_SPELL as u32, 0),
+                ],
+                EffectiveSpellAcquisitionRowsLikeCpp {
+                    spell_effects: vec![
+                        player_learn_effect(2, wrapper_id, WRAPPER_LEARNED_SPELL as u32),
+                        skill_effect,
+                    ],
+                    ..Default::default()
+                },
+                SpellAcquisitionTableHashesLikeCpp::default(),
+                Vec::new(),
+            ),
+        ));
+
+        fixture
+            .session
+            .handle_trainer_buy_spell(trainer_buy_packet(
+                fixture.trainer,
+                DEFAULT_TRAINER_ID as i32,
+                WRAPPER_TRAINER_SPELL,
+            ))
+            .await;
+
+        assert_eq!(fixture.session.player_gold_like_cpp(), 100);
+        assert!(fixture.session.player_skill_records_like_cpp().is_empty());
     }
 
     #[tokio::test]

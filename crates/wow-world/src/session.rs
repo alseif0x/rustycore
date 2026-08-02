@@ -22687,6 +22687,84 @@ impl WorldSession {
         }
     }
 
+    /// Publish the canonical `ActivePlayerData::Skill` image after a durable
+    /// acquisition commit. The current entity bridge does not yet own these
+    /// 256 complex update-field slots, so serialize their complete coherent
+    /// image instead of leaving the client on its pre-purchase ranks.
+    pub(crate) fn send_complete_player_skill_values_update_like_cpp(&self) {
+        use wow_packet::packets::update::{
+            ActivePlayerDataValuesUpdate, SkillInfoValuesUpdate, UpdateObject,
+        };
+
+        let (Some(guid), Some(skill_store), Some(skill_lines), Some(skill_tiers)) = (
+            self.player_guid(),
+            self.skill_store(),
+            self.skill_line_store(),
+            self.skill_tiers_store(),
+        ) else {
+            return;
+        };
+        let mut records = self
+            .player_skill_records_like_cpp()
+            .values()
+            .collect::<Vec<_>>();
+        records.sort_by_key(|record| record.skill_id);
+        if records.len() > 256 {
+            return;
+        }
+
+        let mut skill = SkillInfoValuesUpdate::default();
+        let mut set_skill_bit = |bit: usize| {
+            skill.skill_info_mask[bit / 32] |= 1 << (bit % 32);
+        };
+        set_skill_bit(0);
+        for index in 0..256 {
+            for bit in [
+                1 + index,
+                257 + index,
+                513 + index,
+                769 + index,
+                1025 + index,
+                1281 + index,
+                1537 + index,
+            ] {
+                set_skill_bit(bit);
+            }
+        }
+        for (index, record) in records.into_iter().enumerate() {
+            if let Some(entry) = skill_store.loaded_skill_info_like_cpp(
+                record.skill_id,
+                self.player_race_like_cpp(),
+                self.player_class_like_cpp(),
+                self.player_level_like_cpp(),
+                record.value,
+                record.max,
+                skill_lines,
+                skill_tiers,
+            ) {
+                skill.skill_line_id[index] = entry.skill_id;
+                skill.skill_step[index] = record.step.max(entry.step);
+                skill.skill_rank[index] = entry.rank;
+                skill.skill_starting_rank[index] = entry.starting_rank;
+                skill.skill_max_rank[index] = entry.max_rank;
+                skill.skill_temp_bonus[index] = entry.temp_bonus;
+                skill.skill_perm_bonus[index] = entry.perm_bonus;
+            }
+        }
+
+        let mut data = ActivePlayerDataValuesUpdate {
+            skill,
+            ..Default::default()
+        };
+        data.active_player_data_mask[0] |= 1;
+        data.active_player_data_mask[1] |= 1;
+        self.send_packet(&UpdateObject::full_active_player_values_update(
+            guid,
+            self.player_map_id_like_cpp(),
+            data,
+        ));
+    }
+
     pub(crate) fn send_player_values_update_like_cpp(
         &self,
         update: &wow_entities::PlayerValuesUpdate,
@@ -122783,6 +122861,7 @@ mod tests {
             PlayerCastAcquisitionResolutionLikeCpp {
                 reached_immediate_phase: true,
                 executed_hit_target_effect_mask: 0b101,
+                effective_effects: Vec::new(),
                 executed_dual_wield_effects: Vec::new(),
             },
         )]);

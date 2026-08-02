@@ -3638,6 +3638,7 @@ mod tests {
             PlayerCastAcquisitionResolutionLikeCpp {
                 reached_immediate_phase: true,
                 executed_hit_target_effect_mask: 1,
+                effective_effects: Vec::new(),
                 executed_dual_wield_effects: vec![PlayerExecutedDualWieldEffectLikeCpp {
                     effect_record_id: 7,
                     effect_index: 0,

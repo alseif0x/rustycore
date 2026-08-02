@@ -159,12 +159,71 @@ impl crate::session::WorldSession {
         spell_id: u32,
     ) -> Option<PlayerCastAcquisitionResolutionLikeCpp> {
         let catalog = self.spell_acquisition_catalog()?;
-        let effects = match catalog.acquisition_effects_like_cpp(spell_id) {
-            SpellAcquisitionEffectsLookupLikeCpp::Covered(effects) => effects,
-            SpellAcquisitionEffectsLookupLikeCpp::MissingCoverage
-            | SpellAcquisitionEffectsLookupLikeCpp::Indeterminate(_) => return None,
-        };
         let difficulty_chain = self.current_map_difficulty_chain_for_acquisition_like_cpp();
+        let effective_effects = match catalog.resolved_effects_for_difficulty_chain_like_cpp(
+            spell_id,
+            difficulty_chain.iter().copied(),
+        ) {
+            SpellAcquisitionResolvedEffectsLookupLikeCpp::Covered(effects) => {
+                effects.into_iter().cloned().collect::<Vec<_>>()
+            }
+            SpellAcquisitionResolvedEffectsLookupLikeCpp::MissingCoverage { .. }
+            | SpellAcquisitionResolvedEffectsLookupLikeCpp::Indeterminate(_) => return None,
+        };
+        // Trainer::TeachSpell invokes the wrapper on the trainer creature.
+        // HANDLE_HIT SKILL mutates that caster, not the player target; only
+        // passive/player autocasts may project such an effect.
+        if effective_effects
+            .iter()
+            .any(|effect| effect.effect_type_checked().ok() == Some(SPELL_EFFECT_SKILL))
+        {
+            return None;
+        }
+        // Re-audit the active variant because startup's immutable authority
+        // proves the difficulty-none closure. This prevents a heroic/custom
+        // override from smuggling an unsupported or non-player effect into
+        // the reduced cast path.
+        for effect in &effective_effects {
+            let effect_type = effect.effect_type_checked().ok()?;
+            match effect_type {
+                SPELL_EFFECT_LEARN_SPELL | SPELL_EFFECT_SKILL_STEP | SPELL_EFFECT_DUAL_WIELD => {
+                    if effect.effect_mechanic_raw != 0
+                        || effect.effect_aura_raw != 0
+                        || !effect.targets_player_like_cpp()
+                    {
+                        return None;
+                    }
+                }
+                0 => {}
+                3 if matches!(spell_id, 33_388 | 34_090) => {}
+                other if wow_data::spell::spell_effect_types::is_cpp_null_or_unused_noop(other) => {
+                }
+                _ => return None,
+            }
+        }
+        let map_id = u32::from(self.player_map_id_like_cpp());
+        let (_, area_id) = self.player_zone_area_like_cpp();
+        let map_instance_type = self
+            .map_store()
+            .and_then(|store| store.get(map_id))
+            .map(|entry| entry.instance_type);
+        if self.disable_mgr()?.is_disabled_for_like_cpp(
+            wow_data::DISABLE_TYPE_SPELL,
+            spell_id,
+            Some(wow_data::DisableWorldObjectRefLikeCpp {
+                type_id: wow_constants::TypeId::Unit,
+                map_id,
+                area_id,
+                is_pet: false,
+                is_battle_arena: map_instance_type == Some(wow_data::MAP_ARENA_LIKE_CPP),
+                is_battleground: map_instance_type == Some(wow_data::MAP_BATTLEGROUND_LIKE_CPP),
+                player_map_difficulty: None,
+            }),
+            0,
+            self.map_store().map(AsRef::as_ref),
+        ) {
+            return None;
+        }
         let no_immunities = match catalog
             .resolved_misc_for_difficulty_chain_like_cpp(spell_id, difficulty_chain.iter().copied())
         {
@@ -178,13 +237,13 @@ impl crate::session::WorldSession {
         let immunized_effect_mask = self.active_auras_immunized_trainer_effect_mask_like_cpp(
             catalog,
             spell_id,
-            effects,
+            &effective_effects,
             no_immunities,
             &difficulty_chain,
         )?;
         let mut executed_hit_target_effect_mask = 0_u32;
         let mut executed_dual_wield_effects = Vec::new();
-        for effect in effects {
+        for effect in &effective_effects {
             let effect_type = effect.effect_type_checked().ok()?;
             if !matches!(
                 effect_type,
@@ -208,6 +267,7 @@ impl crate::session::WorldSession {
         Some(PlayerCastAcquisitionResolutionLikeCpp {
             reached_immediate_phase: true,
             executed_hit_target_effect_mask,
+            effective_effects,
             executed_dual_wield_effects,
         })
     }

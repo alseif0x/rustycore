@@ -108,6 +108,10 @@ pub(crate) struct PlayerExecutedDualWieldEffectLikeCpp {
 pub(crate) struct PlayerCastAcquisitionResolutionLikeCpp {
     pub reached_immediate_phase: bool,
     pub executed_hit_target_effect_mask: u32,
+    /// Complete effect slots selected from the caster map's active
+    /// difficulty/fallback chain. The trainer root must consume these exact
+    /// rows instead of the catalog's DIFFICULTY_NONE convenience projection.
+    pub effective_effects: Vec<SpellAcquisitionEffectLikeCpp>,
     /// Exact SpellEffect rows proven by the live target/effect pipeline for
     /// executed `SPELL_EFFECT_DUAL_WIELD` hit-target effects. Keeping these on
     /// the immutable cast authority prevents post-plan diagnostics from

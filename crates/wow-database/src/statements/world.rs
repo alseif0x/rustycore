@@ -315,7 +315,6 @@ pub enum WorldStatements {
     SEL_TRAINER_CAST_SCRIPT_BINDING_IDS,
     SEL_TRAINER_CAST_LEGACY_SCRIPT_IDS,
     SEL_TRAINER_CAST_CONDITION_IDS,
-    SEL_TRAINER_CAST_DISABLED_IDS,
     /// C++ SpellMgr::LoadSpellThreats startup query.
     SEL_SPELL_THREATS,
     /// C++ SpellMgr::LoadSpellEnchantProcData startup query.
@@ -1067,9 +1066,6 @@ impl StatementDef for WorldStatements {
             Self::SEL_TRAINER_CAST_CONDITION_IDS => {
                 "SELECT DISTINCT SourceEntry FROM conditions WHERE SourceTypeOrReferenceId IN (13, 17)"
             }
-            Self::SEL_TRAINER_CAST_DISABLED_IDS => {
-                "SELECT DISTINCT entry FROM disables WHERE sourceType = 0"
-            }
             Self::SEL_SPELL_THREATS => "SELECT entry, flatMod, pctMod, apPctMod FROM spell_threat",
             Self::SEL_SPELL_ENCHANT_PROC_DATA => {
                 "SELECT EnchantID, Chance, ProcsPerMinute, HitMask, AttributesMask FROM spell_enchant_proc_data"
@@ -1576,10 +1572,6 @@ mod tests {
         assert_eq!(
             WorldStatements::SEL_TRAINER_CAST_CONDITION_IDS.sql(),
             "SELECT DISTINCT SourceEntry FROM conditions WHERE SourceTypeOrReferenceId IN (13, 17)"
-        );
-        assert_eq!(
-            WorldStatements::SEL_TRAINER_CAST_DISABLED_IDS.sql(),
-            "SELECT DISTINCT entry FROM disables WHERE sourceType = 0"
         );
     }
 
