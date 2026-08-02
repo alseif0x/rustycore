@@ -29,8 +29,8 @@ use rand::Rng;
 use tracing::{debug, info, warn};
 
 use wow_constants::{
-    BagFamilyMask, ClientOpcodes, InventoryResult, ItemFieldFlags, ItemFlags, ItemUpdateState,
-    PowerType, SpellCastResult, TypeId,
+    BagFamilyMask, ClientOpcodes, InventoryResult, ItemFieldFlags, ItemFlags, ItemModifier,
+    ItemUpdateState, PowerType, SpellCastResult, TypeId,
 };
 use wow_core::ObjectGuid;
 use wow_data::{DISABLE_TYPE_SPELL, DisableWorldObjectRefLikeCpp};
@@ -52,12 +52,15 @@ use wow_packet::packets::pet::PetCancelAura;
 use wow_packet::packets::spell::{
     CancelAura, CancelAutoRepeatSpell, CancelCast, CancelChannelling, CancelGrowthAura,
     CancelModSpeedNoControlAuras, CancelMountAura, CancelQueuedSpell, CastFailed, CastSpellRequest,
-    OpenItem, SelfRes, SpellCastVisual, SpellClick, SpellStartPkt,
+    OpenItem, SelfRes, SpellCastVisual, SpellClick, SpellStartPkt, UseItem,
 };
 use wow_packet::packets::totem::TotemDestroyed;
 
 use crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP;
-use crate::session::{RepresentedPendingSpellCastRequestLikeCpp, WorldSession};
+use crate::session::{
+    RepresentedPendingSpellCastRequestLikeCpp, SpellCastBattlePetItemModifiersLikeCpp,
+    SpellCastMetadata, WorldSession,
+};
 
 const LOOT_MODE_DEFAULT_LIKE_CPP: u16 = 1;
 const MAX_NR_LOOT_ITEMS_LIKE_CPP: usize = 18;
@@ -93,6 +96,15 @@ fn normalize_item_money_loot_bounds_like_cpp(min_money: u32, max_money: u32) -> 
 }
 
 // ── Handler registrations ─────────────────────────────────────────
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::UseItem,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_use_item",
+    }
+}
 
 inventory::submit! {
     PacketHandlerEntry {
@@ -214,6 +226,225 @@ inventory::submit! {
 // ── Handler implementations ───────────────────────────────────────
 
 impl WorldSession {
+    fn battle_pet_cast_item_modifiers_like_cpp(
+        &self,
+        item_guid: ObjectGuid,
+    ) -> Option<SpellCastBattlePetItemModifiersLikeCpp> {
+        let item = self.inventory_item_objects_like_cpp().get(&item_guid)?;
+        let species_id = item.get_modifier(ItemModifier::BattlePetSpeciesId);
+        (species_id != 0).then(|| SpellCastBattlePetItemModifiersLikeCpp {
+            source_item_guid: item_guid,
+            species_id,
+            breed_data: item.get_modifier(ItemModifier::BattlePetBreedData),
+            level: item
+                .get_modifier(ItemModifier::BattlePetLevel)
+                .min(u32::from(u16::MAX)) as u16,
+            display_id: item.get_modifier(ItemModifier::BattlePetDisplayId),
+        })
+    }
+
+    pub(crate) async fn destroy_uncaged_battle_pet_item_like_cpp(
+        &mut self,
+        item_guid: ObjectGuid,
+    ) -> bool {
+        let Some(player_guid) = self.player_guid() else {
+            return false;
+        };
+        let Some((bag, slot, item)) = self.get_inventory_item_by_guid_like_cpp(item_guid) else {
+            // A retry after the CharacterDB delete committed is already done.
+            return true;
+        };
+        let Some(char_db) = self.char_db().map(Arc::clone) else {
+            return false;
+        };
+
+        let mut tx = SqlTransaction::new();
+        let mut del_refund = char_db.prepare(CharStatements::DEL_ITEM_REFUND_INSTANCE);
+        del_refund.set_u64(0, item.db_guid);
+        tx.append(del_refund);
+
+        let mut del_inventory = char_db.prepare(CharStatements::DEL_CHAR_INVENTORY_ITEM);
+        del_inventory.set_u64(0, player_guid.counter() as u64);
+        del_inventory.set_u64(1, item.db_guid);
+        tx.append(del_inventory);
+
+        let mut del_item = char_db.prepare(CharStatements::DEL_ITEM_INSTANCE);
+        del_item.set_u64(0, item.db_guid);
+        tx.append(del_item);
+
+        if let Err(error) = char_db.commit_transaction(tx).await {
+            warn!(
+                account = self.account_id,
+                item_guid = item_guid.counter(),
+                ?error,
+                "Failed to destroy an uncaged battle-pet item"
+            );
+            return false;
+        }
+
+        self.remove_fully_looted_runtime_item(bag, slot, item_guid);
+        true
+    }
+
+    /// Handle the represented caged-battle-pet branch of `CMSG_USE_ITEM`.
+    ///
+    /// C++ carries `SpellCastRequestItemData` through `Spell::prepare`, making
+    /// the exact inventory item (and its modifiers) available to
+    /// `EffectUncageBattlePet`. Other item-spell effects remain fail-closed
+    /// until their cast-item validation and charge handling are represented.
+    pub async fn handle_use_item(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let request = match UseItem::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(account = self.account_id, "UseItem parse failed: {error}");
+                return;
+            }
+        };
+
+        if self.player_is_possessing_like_cpp() {
+            return;
+        }
+
+        let Some(inventory_item) = self.get_inventory_item_by_pos(request.pack_slot, request.slot)
+        else {
+            return;
+        };
+        if inventory_item.guid != request.cast_item {
+            return;
+        }
+
+        let runtime_item = self
+            .inventory_item_objects_like_cpp()
+            .get(&request.cast_item)
+            .cloned();
+        let can_use = self
+            .can_use_inventory_item_represented_like_cpp(&inventory_item, runtime_item.as_ref());
+        if can_use != InventoryResult::Ok {
+            self.send_equip_error(can_use, Some(request.cast_item), None, 0, 0);
+            return;
+        }
+        if !self.item_has_spell_effect_like_cpp(inventory_item.entry_id, request.cast.spell_id) {
+            return;
+        }
+
+        let Some(modifiers) = self.battle_pet_cast_item_modifiers_like_cpp(request.cast_item)
+        else {
+            return;
+        };
+        let Some(spell_info) = self
+            .spell_store()
+            .and_then(|store| store.get(request.cast.spell_id))
+            .cloned()
+        else {
+            warn!(
+                account = self.account_id,
+                spell_id = request.cast.spell_id,
+                "HandleUseItem: unknown caged battle-pet spell"
+            );
+            return;
+        };
+        if !spell_info.effects.iter().any(|effect| {
+            effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_UNCAGE_BATTLEPET
+        }) {
+            return;
+        }
+
+        let Some(player_guid) = self.player_guid() else {
+            return;
+        };
+        let mut target = request.cast.target.clone();
+        let target_guid = if target.unit.is_empty() {
+            target.flags |= 0x2;
+            target.unit = player_guid;
+            player_guid
+        } else {
+            target.unit
+        };
+        let visual = SpellCastVisual {
+            spell_visual_id: request.cast.visual.spell_visual_id,
+            script_visual_id: 0,
+        };
+        let metadata = SpellCastMetadata {
+            from_client: true,
+            misc: request.cast.misc,
+            cast_item_entry: Some(inventory_item.entry_id),
+            cast_item_battle_pet_modifiers: Some(modifiers),
+            original_cast_id: request.cast.cast_id,
+            ..SpellCastMetadata::default()
+        };
+
+        if self.remaining_global_cooldown_ms_like_cpp(&spell_info) > 0
+            || self.remaining_active_spell_cast_ms_like_cpp() > 0
+        {
+            if !self.can_request_represented_spell_cast_like_cpp(&spell_info) {
+                self.send_packet(&CastFailed {
+                    cast_id: request.cast.cast_id,
+                    spell_id: request.cast.spell_id,
+                    visual: request.cast.visual,
+                    reason: SpellCastResult::SpellInProgress as i32,
+                    fail_arg1: 0,
+                    fail_arg2: 0,
+                });
+                return;
+            }
+            self.request_represented_spell_cast_like_cpp(
+                RepresentedPendingSpellCastRequestLikeCpp {
+                    cast_id: request.cast.cast_id,
+                    spell_id: request.cast.spell_id,
+                    casting_unit_guid: player_guid,
+                    target_guid,
+                    target_data: target,
+                    spell_visual: visual,
+                    metadata,
+                },
+            );
+            return;
+        }
+
+        if spell_info.has_cast_time() {
+            self.send_packet(&SpellStartPkt {
+                caster: player_guid,
+                cast_id: request.cast.cast_id,
+                original_cast_id: request.cast.cast_id,
+                spell_id: request.cast.spell_id,
+                visual: visual.clone(),
+                cast_flags_ex: 0,
+                cast_time_ms: spell_info.cast_time_ms,
+                target: target.clone(),
+            });
+            self.active_spell_cast = Some(crate::session::SpellCastState {
+                spell_id: request.cast.spell_id,
+                target_guid,
+                target_data: target,
+                cast_id: request.cast.cast_id,
+                cast_start_time: std::time::Instant::now(),
+                cast_time_ms: spell_info.cast_time_ms,
+                spell_visual: visual,
+                metadata,
+            });
+            return;
+        }
+
+        if let Err(error) = self
+            .execute_spell_with_visual_and_target_data_with_metadata(
+                request.cast.spell_id,
+                target_guid,
+                request.cast.cast_id,
+                visual,
+                target,
+                metadata,
+            )
+            .await
+        {
+            warn!(
+                account = self.account_id,
+                spell_id = request.cast.spell_id,
+                ?error,
+                "Caged battle-pet item spell execution failed"
+            );
+        }
+    }
+
     fn spell_power_cost_snapshot_like_cpp(
         &mut self,
         spell_info: &wow_data::SpellInfo,
@@ -2761,8 +2992,8 @@ mod tests {
     use rand::{Rng, SeedableRng, rngs::StdRng};
 
     use wow_constants::{
-        BagFamilyMask, DeathState, ItemContext, ItemFieldFlags, ItemFlags, ItemUpdateState,
-        PowerType, ServerOpcodes, SpellCastResult,
+        BagFamilyMask, DeathState, ItemContext, ItemFieldFlags, ItemFlags, ItemModifier,
+        ItemUpdateState, PowerType, ServerOpcodes, SpellCastResult,
     };
     use wow_core::{ObjectGuid, Position, guid::HighGuid};
     use wow_entities::{
@@ -2793,7 +3024,8 @@ mod tests {
     };
     use crate::session::{
         AuraApplication, RepresentedAuraEffectLikeCpp, RepresentedPendingSpellCastRequestLikeCpp,
-        SessionPlayerController, SharedCanonicalMapManager, SpellCastMetadata, SpellCastState,
+        SessionPlayerController, SharedCanonicalMapManager, SpellCastBattlePetItemModifiersLikeCpp,
+        SpellCastMetadata, SpellCastState,
     };
 
     fn make_session() -> (crate::session::WorldSession, flume::Receiver<Vec<u8>>) {
@@ -5922,6 +6154,38 @@ mod tests {
         assert_eq!(item.data().durability, 25);
         assert_eq!(item.update_state(), ItemUpdateState::Changed);
         assert!(!item.is_wrapped());
+    }
+
+    #[test]
+    fn caged_battle_pet_item_metadata_keeps_durable_source_guid_like_cpp() {
+        let (mut session, _) = make_session();
+        let owner_guid = ObjectGuid::create_player(1, 42);
+        let item_guid = ObjectGuid::create_item(1, 0xCA6E);
+        let mut item = session.make_inventory_item_object(
+            item_guid,
+            8_281,
+            owner_guid,
+            1,
+            0,
+            ItemContext::None,
+            23,
+        );
+        item.set_modifier(ItemModifier::BattlePetSpeciesId, 11);
+        item.set_modifier(ItemModifier::BattlePetBreedData, 7 | (3 << 24));
+        item.set_modifier(ItemModifier::BattlePetLevel, 25);
+        item.set_modifier(ItemModifier::BattlePetDisplayId, 9003);
+        session.insert_inventory_item_object(item);
+
+        assert_eq!(
+            session.battle_pet_cast_item_modifiers_like_cpp(item_guid),
+            Some(SpellCastBattlePetItemModifiersLikeCpp {
+                source_item_guid: item_guid,
+                species_id: 11,
+                breed_data: 7 | (3 << 24),
+                level: 25,
+                display_id: 9003,
+            })
+        );
     }
 
     #[test]
