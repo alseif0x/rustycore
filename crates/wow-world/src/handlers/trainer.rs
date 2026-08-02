@@ -812,11 +812,11 @@ mod tests {
     use wow_core::{ObjectGuid, Position};
     use wow_data::{
         ConditionEntriesByTypeStore, CreatureTrainerRowLikeCpp,
-        EffectiveSpellAcquisitionRowsLikeCpp, MountStore, SkillLineAbilityRecord, SkillLineStore,
-        SkillRaceClassInfoRecord, SkillStore, SkillTiersStoreLikeCpp,
-        SpellAcquisitionCatalogLikeCpp, SpellAcquisitionCoverageSeedLikeCpp,
-        SpellAcquisitionEffectLikeCpp, SpellAcquisitionMiscLikeCpp,
-        SpellAcquisitionTableHashesLikeCpp, SpellChainStoreLikeCpp,
+        EffectiveSpellAcquisitionRowsLikeCpp, MountStore, SkillLineAbilityRecord, SkillLineEntry,
+        SkillLineStore, SkillRaceClassInfoRecord, SkillStore, SkillTiersRowLikeCpp,
+        SkillTiersStoreLikeCpp, SpellAcquisitionCatalogLikeCpp,
+        SpellAcquisitionCoverageSeedLikeCpp, SpellAcquisitionEffectLikeCpp,
+        SpellAcquisitionMiscLikeCpp, SpellAcquisitionTableHashesLikeCpp, SpellChainStoreLikeCpp,
         SpellCustomAttributeStoreLikeCpp, SpellLearnSkillStoreLikeCpp, SpellLearnSpellStoreLikeCpp,
         SpellRequiredStoreLikeCpp, TrainerLocaleRowLikeCpp, TrainerRowLikeCpp, TrainerSpellLikeCpp,
         TrainerSpellRowLikeCpp,
@@ -2005,50 +2005,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn player_only_disable_does_not_block_the_trainer_creature_cast_like_cpp() {
+    async fn player_disable_stops_the_player_cast_before_charge_or_grant_like_cpp() {
         let mut fixture = trainer_wrapper_fixture();
         let (disable_mgr, report) = wow_data::DisableMgrLikeCpp::from_rows_like_cpp(
             [wow_data::DisableDbRowLikeCpp {
                 source_type: wow_data::DISABLE_TYPE_SPELL,
                 entry: WRAPPER_TRAINER_SPELL as u32,
                 flags: wow_data::disable_mgr::SPELL_DISABLE_PLAYER,
-                params_0: String::new(),
-                params_1: String::new(),
-            }],
-            wow_data::DisableMgrRefsLikeCpp {
-                spell_store: fixture.session.spell_store().map(AsRef::as_ref),
-                ..Default::default()
-            },
-        );
-        assert_eq!(report.loaded_count, 1);
-        fixture.session.set_disable_mgr(Arc::new(disable_mgr));
-
-        fixture
-            .session
-            .handle_trainer_buy_spell(trainer_buy_packet(
-                fixture.trainer,
-                DEFAULT_TRAINER_ID as i32,
-                WRAPPER_TRAINER_SPELL,
-            ))
-            .await;
-
-        assert_eq!(fixture.session.player_gold_like_cpp(), 75);
-        assert!(
-            fixture
-                .session
-                .known_spells_like_cpp()
-                .contains(&WRAPPER_LEARNED_SPELL)
-        );
-    }
-
-    #[tokio::test]
-    async fn trainer_creature_disable_stops_before_charge_or_grant_like_cpp() {
-        let mut fixture = trainer_wrapper_fixture();
-        let (disable_mgr, report) = wow_data::DisableMgrLikeCpp::from_rows_like_cpp(
-            [wow_data::DisableDbRowLikeCpp {
-                source_type: wow_data::DISABLE_TYPE_SPELL,
-                entry: WRAPPER_TRAINER_SPELL as u32,
-                flags: wow_data::disable_mgr::SPELL_DISABLE_CREATURE,
                 params_0: String::new(),
                 params_1: String::new(),
             }],
@@ -2079,7 +2042,44 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn trainer_creature_cast_does_not_apply_caster_owned_skill_to_player_like_cpp() {
+    async fn creature_disable_does_not_block_the_player_cast_like_cpp() {
+        let mut fixture = trainer_wrapper_fixture();
+        let (disable_mgr, report) = wow_data::DisableMgrLikeCpp::from_rows_like_cpp(
+            [wow_data::DisableDbRowLikeCpp {
+                source_type: wow_data::DISABLE_TYPE_SPELL,
+                entry: WRAPPER_TRAINER_SPELL as u32,
+                flags: wow_data::disable_mgr::SPELL_DISABLE_CREATURE,
+                params_0: String::new(),
+                params_1: String::new(),
+            }],
+            wow_data::DisableMgrRefsLikeCpp {
+                spell_store: fixture.session.spell_store().map(AsRef::as_ref),
+                ..Default::default()
+            },
+        );
+        assert_eq!(report.loaded_count, 1);
+        fixture.session.set_disable_mgr(Arc::new(disable_mgr));
+
+        fixture
+            .session
+            .handle_trainer_buy_spell(trainer_buy_packet(
+                fixture.trainer,
+                DEFAULT_TRAINER_ID as i32,
+                WRAPPER_TRAINER_SPELL,
+            ))
+            .await;
+
+        assert_eq!(fixture.session.player_gold_like_cpp(), 75);
+        assert!(
+            fixture
+                .session
+                .known_spells_like_cpp()
+                .contains(&WRAPPER_LEARNED_SPELL)
+        );
+    }
+
+    #[tokio::test]
+    async fn trainer_player_cast_applies_caster_owned_skill_like_cpp() {
         let mut fixture = trainer_wrapper_fixture();
         let wrapper_id = WRAPPER_TRAINER_SPELL as u32;
         let mut skill_effect = player_learn_effect(1, wrapper_id, 0);
@@ -2088,6 +2088,8 @@ mod tests {
         skill_effect.effect_index_raw = 1;
         skill_effect.effect_trigger_spell_raw = 0;
         skill_effect.effect_misc_value_raw[0] = 164;
+        skill_effect.effect_base_points_raw = 1;
+        skill_effect.implicit_target_raw = [0, 0];
         fixture.session.set_spell_acquisition_catalog(Arc::new(
             SpellAcquisitionCatalogLikeCpp::from_effective_rows_like_cpp(
                 [
@@ -2105,6 +2107,46 @@ mod tests {
                 Vec::new(),
             ),
         ));
+        fixture.session.set_skill_store(Arc::new(
+            SkillStore::from_skill_line_abilities_and_race_class_like_cpp(
+                [],
+                [SkillRaceClassInfoRecord {
+                    id: 1,
+                    race_mask: 0,
+                    skill_id: 164,
+                    class_mask: 0,
+                    flags: 0,
+                    availability: 1,
+                    min_level: 1,
+                    skill_tier_id: 1,
+                }],
+            ),
+        ));
+        fixture
+            .session
+            .set_skill_line_store(Arc::new(SkillLineStore::from_entries([SkillLineEntry {
+                id: 164,
+                display_name: "Blacksmithing".to_string(),
+                alternate_verb: String::new(),
+                description: String::new(),
+                horde_display_name: String::new(),
+                override_source_info_display_name: String::new(),
+                category_id: wow_data::skill::SKILL_CATEGORY_SECONDARY_LIKE_CPP,
+                spell_icon_file_id: 0,
+                can_link: 0,
+                parent_skill_line_id: 0,
+                parent_tier_index: 0,
+                flags: 0,
+                spell_book_spell_id: 0,
+            }])));
+        let mut tier_values = [0; wow_data::MAX_SKILL_STEP_LIKE_CPP];
+        tier_values[0] = 75;
+        fixture.session.set_skill_tiers_store(Arc::new(
+            SkillTiersStoreLikeCpp::from_rows_like_cpp([SkillTiersRowLikeCpp {
+                id: 1,
+                value: tier_values,
+            }]),
+        ));
 
         fixture
             .session
@@ -2115,8 +2157,15 @@ mod tests {
             ))
             .await;
 
-        assert_eq!(fixture.session.player_gold_like_cpp(), 100);
-        assert!(fixture.session.player_skill_records_like_cpp().is_empty());
+        assert_eq!(fixture.session.player_gold_like_cpp(), 75);
+        let skill = &fixture.session.player_skill_records_like_cpp()[&164];
+        assert_eq!((skill.step, skill.value, skill.max), (1, 1, 75));
+        assert!(
+            fixture
+                .session
+                .known_spells_like_cpp()
+                .contains(&WRAPPER_LEARNED_SPELL)
+        );
     }
 
     #[tokio::test]

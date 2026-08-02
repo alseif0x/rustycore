@@ -184,15 +184,6 @@ impl crate::session::WorldSession {
             SpellAcquisitionResolvedEffectsLookupLikeCpp::MissingCoverage { .. }
             | SpellAcquisitionResolvedEffectsLookupLikeCpp::Indeterminate(_) => return None,
         };
-        // Trainer::TeachSpell invokes the wrapper on the trainer creature.
-        // HANDLE_HIT SKILL mutates that caster, not the player target; only
-        // passive/player autocasts may project such an effect.
-        if effective_effects
-            .iter()
-            .any(|effect| effect.effect_type_checked().ok() == Some(SPELL_EFFECT_SKILL))
-        {
-            return None;
-        }
         // Re-audit the active variant because startup's immutable authority
         // proves the difficulty-none closure. This prevents a heroic/custom
         // override from smuggling an unsupported or non-player effect into
@@ -205,6 +196,14 @@ impl crate::session::WorldSession {
                         || effect.effect_aura_raw != 0
                         || !effect.targets_player_like_cpp()
                     {
+                        return None;
+                    }
+                }
+                // C++ `Trainer::TeachSpell` invokes castable wrappers as
+                // `player->CastSpell(player, ...)`. EffectSkill is HANDLE_HIT,
+                // has no implicit target, and mutates that player caster.
+                SPELL_EFFECT_SKILL => {
+                    if effect.effect_mechanic_raw != 0 || effect.effect_aura_raw != 0 {
                         return None;
                     }
                 }
@@ -236,7 +235,8 @@ impl crate::session::WorldSession {
             wow_data::DISABLE_TYPE_SPELL,
             spell_id,
             Some(wow_data::DisableWorldObjectRefLikeCpp {
-                type_id: wow_constants::TypeId::Unit,
+                // The C++ trainer path casts from the player, not the NPC.
+                type_id: wow_constants::TypeId::Player,
                 map_id,
                 area_id,
                 is_pet: false,
@@ -272,7 +272,10 @@ impl crate::session::WorldSession {
             let effect_type = effect.effect_type_checked().ok()?;
             if !matches!(
                 effect_type,
-                SPELL_EFFECT_LEARN_SPELL | SPELL_EFFECT_SKILL_STEP | SPELL_EFFECT_DUAL_WIELD
+                SPELL_EFFECT_LEARN_SPELL
+                    | SPELL_EFFECT_SKILL_STEP
+                    | SPELL_EFFECT_SKILL
+                    | SPELL_EFFECT_DUAL_WIELD
             ) {
                 continue;
             }
