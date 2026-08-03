@@ -1101,6 +1101,11 @@ impl WorldSession {
                         BattlePetPurchaseExecutionLikeCpp::TerminalFailure => {
                             summary.terminal_failures += 1;
                         }
+                        BattlePetPurchaseExecutionLikeCpp::CompletedElsewhere => {
+                            // The receipt re-check proved the pet durable:
+                            // the command completed instead of refunding.
+                            summary.applied += 1;
+                        }
                         _ => {
                             summary.deferred += 1;
                             break;
@@ -1163,6 +1168,11 @@ impl WorldSession {
                                 }
                                 BattlePetPurchaseExecutionLikeCpp::TerminalFailure => {
                                     summary.terminal_failures += 1;
+                                }
+                                BattlePetPurchaseExecutionLikeCpp::CompletedElsewhere => {
+                                    // The receipt re-check proved the pet
+                                    // durable: completed instead of refunding.
+                                    summary.applied += 1;
                                 }
                                 _ => {
                                     summary.deferred += 1;
@@ -4328,5 +4338,52 @@ mod executor_tests {
             .expect("recovery runs");
         assert_eq!(summary.applied + summary.compensated + summary.deferred, 0);
         assert_no_packets(&restarted);
+    }
+
+    #[tokio::test]
+    async fn recovery_with_receipt_after_recorded_decision_completes_without_refunding_like_cpp() {
+        // The terminal-failure decision was recorded, but the Login DB
+        // receipt proves the pet became durable after all: recovery must
+        // complete the command, never refund a durable pet.
+        let pet_row = saga_durable_pet_row_like_cpp(6, SAGA_SPECIES, None);
+        let mut fixture = saga_fixture_like_cpp(750, vec![pet_row.clone()]).await;
+        let request_key = [99; 16];
+        fixture
+            .persistence
+            .state
+            .lock()
+            .expect("fake saga persistence poisoned")
+            .receipts
+            .insert(
+                BattlePetAddRequestKeyLikeCpp::from_bytes(request_key),
+                (ACCOUNT_ID, pet_row),
+            );
+        let mut command =
+            crate::battle_pet_purchase::tests::test_command(request_key, PLAYER_COUNTER as u64);
+        command.species = SAGA_SPECIES;
+        command.breed = 7;
+        command.quality = 1;
+        command.display_id = 123;
+        command.level = 1;
+        command.money_before = SAGA_MONEY;
+        command.money_after = 750;
+        command.status = BattlePetPurchaseStatusLikeCpp::CompensationPending;
+        fixture.store.seed_command(command);
+
+        let summary = fixture
+            .session
+            .recover_battle_pet_trainer_purchases_like_cpp()
+            .await
+            .expect("recovery runs");
+        assert_eq!(summary.applied, 1);
+        assert_eq!(summary.compensated, 0);
+        assert_eq!(fixture.store.money(PLAYER_COUNTER as u64), Some(750));
+        assert_eq!(fixture.store.money_mutations(), 0);
+        assert_eq!(fixture.persistence.pet_count(), 1);
+        assert_eq!(
+            fixture.store.command(request_key).expect("command").status,
+            BattlePetPurchaseStatusLikeCpp::Completed
+        );
+        assert_no_packets(&fixture);
     }
 }
