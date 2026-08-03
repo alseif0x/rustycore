@@ -51,6 +51,10 @@ pub(crate) trait BattlePetProcessLeaseLikeCpp: Send {
     fn is_valid_like_cpp(&self) -> bool {
         true
     }
+
+    fn fence_like_cpp(&self) -> u64 {
+        1
+    }
 }
 
 struct BattlePetProcessLeaseStateLikeCpp {
@@ -117,6 +121,7 @@ pub(crate) struct DurableBattlePetAddLikeCpp {
     pub realm_id: u16,
     pub request_key: BattlePetAddRequestKeyLikeCpp,
     pub max_per_scope: u8,
+    pub fence: u64,
     pub pet: DurableBattlePetRowLikeCpp,
 }
 
@@ -142,6 +147,7 @@ pub(crate) enum BattlePetPersistenceErrorLikeCpp {
     Capacity,
     GuidCollision,
     DuplicateRequest,
+    StaleAuthority,
 }
 
 pub(crate) trait BattlePetPersistenceLikeCpp: Send + Sync {
@@ -186,12 +192,14 @@ pub(crate) trait BattlePetPersistenceLikeCpp: Send + Sync {
     fn update_pet<'a>(
         &'a self,
         account_id: u32,
+        fence: u64,
         pet: DurableBattlePetRowLikeCpp,
     ) -> PersistenceFuture<'a, Result<(), BattlePetPersistenceErrorLikeCpp>>;
 
     fn delete_pet<'a>(
         &'a self,
         account_id: u32,
+        fence: u64,
         pet_guid_counter: u64,
         slots: Vec<DurableBattlePetSlotLikeCpp>,
     ) -> PersistenceFuture<'a, Result<(), BattlePetPersistenceErrorLikeCpp>>;
@@ -199,6 +207,7 @@ pub(crate) trait BattlePetPersistenceLikeCpp: Send + Sync {
     fn replace_slots<'a>(
         &'a self,
         account_id: u32,
+        fence: u64,
         slots: Vec<DurableBattlePetSlotLikeCpp>,
     ) -> PersistenceFuture<'a, Result<(), BattlePetPersistenceErrorLikeCpp>>;
 }
@@ -211,11 +220,16 @@ pub struct LoginBattlePetPersistenceLikeCpp {
 struct LoginBattlePetProcessLeaseLikeCpp {
     stop_tx: Option<oneshot::Sender<()>>,
     loss_rx: watch::Receiver<Option<String>>,
+    fence: u64,
 }
 
 impl BattlePetProcessLeaseLikeCpp for LoginBattlePetProcessLeaseLikeCpp {
     fn is_valid_like_cpp(&self) -> bool {
         self.loss_rx.has_changed().is_ok() && self.loss_rx.borrow().is_none()
+    }
+
+    fn fence_like_cpp(&self) -> u64 {
+        self.fence
     }
 }
 
@@ -379,6 +393,61 @@ impl BattlePetPersistenceLikeCpp for LoginBattlePetPersistenceLikeCpp {
             if acquired != Some(1) {
                 return Ok(None);
             }
+            // The advisory lock elects one process, while this durable epoch
+            // fences transactions that were already queued when a dead
+            // connection released that lock. Taking the row lock means a new
+            // owner cannot reload until every transaction from the preceding
+            // epoch has either committed or observed that it is stale.
+            let fence = async {
+                let mut tx = self
+                    .db
+                    .pool()
+                    .begin()
+                    .await
+                    .map_err(|error| database_error_like_cpp(DatabaseError::from(error)))?;
+                sqlx::query(
+                    "INSERT INTO battle_pet_account_fences (battlenetAccountId, generation) VALUES (?, 0) ON DUPLICATE KEY UPDATE battlenetAccountId = VALUES(battlenetAccountId)",
+                )
+                .bind(account_id)
+                .execute(&mut *tx)
+                .await
+                .map_err(|error| database_error_like_cpp(DatabaseError::from(error)))?;
+                let current: u64 = sqlx::query_scalar(
+                    "SELECT generation FROM battle_pet_account_fences WHERE battlenetAccountId = ? FOR UPDATE",
+                )
+                .bind(account_id)
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(|error| database_error_like_cpp(DatabaseError::from(error)))?;
+                let next = current.checked_add(1).ok_or_else(|| {
+                    BattlePetPersistenceErrorLikeCpp::Database(
+                        "battle-pet account fence exhausted".to_string(),
+                    )
+                })?;
+                sqlx::query(
+                    "UPDATE battle_pet_account_fences SET generation = ? WHERE battlenetAccountId = ?",
+                )
+                .bind(next)
+                .bind(account_id)
+                .execute(&mut *tx)
+                .await
+                .map_err(|error| database_error_like_cpp(DatabaseError::from(error)))?;
+                tx.commit()
+                    .await
+                    .map_err(|error| database_error_like_cpp(DatabaseError::from(error)))?;
+                Ok::<_, BattlePetPersistenceErrorLikeCpp>(next)
+            }
+            .await;
+            let fence = match fence {
+                Ok(fence) => fence,
+                Err(error) => {
+                    let _ = sqlx::query_scalar::<_, Option<i64>>("SELECT RELEASE_LOCK(?)")
+                        .bind(&lock_name)
+                        .fetch_one(&mut connection)
+                        .await;
+                    return Err(error);
+                }
+            };
             let (stop_tx, stop_rx) = oneshot::channel();
             let (loss_tx, loss_rx) = watch::channel(None);
             tokio::spawn(run_battle_pet_process_lease_monitor_like_cpp(
@@ -387,6 +456,7 @@ impl BattlePetPersistenceLikeCpp for LoginBattlePetPersistenceLikeCpp {
             Ok(Some(Box::new(LoginBattlePetProcessLeaseLikeCpp {
                 stop_tx: Some(stop_tx),
                 loss_rx,
+                fence,
             })
                 as Box<dyn BattlePetProcessLeaseLikeCpp>))
         })
@@ -500,6 +570,9 @@ impl BattlePetPersistenceLikeCpp for LoginBattlePetPersistenceLikeCpp {
                 .begin()
                 .await
                 .map_err(|error| database_error_like_cpp(DatabaseError::from(error)))?;
+
+            lock_and_validate_account_fence_like_cpp(&mut tx, request.account_id, request.fence)
+                .await?;
 
             // Every process contending for this exact C++ count scope locks
             // the same durable row. Capacity is re-read while that lock is
@@ -689,10 +762,17 @@ impl BattlePetPersistenceLikeCpp for LoginBattlePetPersistenceLikeCpp {
     fn update_pet<'a>(
         &'a self,
         account_id: u32,
+        fence: u64,
         pet: DurableBattlePetRowLikeCpp,
     ) -> PersistenceFuture<'a, Result<(), BattlePetPersistenceErrorLikeCpp>> {
         Box::pin(async move {
             let mut tx = SqlTransaction::new();
+            let mut authority = self
+                .db
+                .prepare(LoginStatements::LOCK_BATTLE_PET_ACCOUNT_FENCE);
+            authority.set_u32(0, account_id);
+            authority.set_u64(1, fence);
+            tx.append_expect_rows_affected(authority, 1);
             let mut stmt = self.db.prepare(LoginStatements::UPD_BATTLE_PETS);
             stmt.set_u16(0, pet.level);
             stmt.set_u16(1, pet.exp);
@@ -745,11 +825,18 @@ impl BattlePetPersistenceLikeCpp for LoginBattlePetPersistenceLikeCpp {
     fn delete_pet<'a>(
         &'a self,
         account_id: u32,
+        fence: u64,
         pet_guid_counter: u64,
         slots: Vec<DurableBattlePetSlotLikeCpp>,
     ) -> PersistenceFuture<'a, Result<(), BattlePetPersistenceErrorLikeCpp>> {
         Box::pin(async move {
             let mut tx = SqlTransaction::new();
+            let mut authority = self
+                .db
+                .prepare(LoginStatements::LOCK_BATTLE_PET_ACCOUNT_FENCE);
+            authority.set_u32(0, account_id);
+            authority.set_u64(1, fence);
+            tx.append_expect_rows_affected(authority, 1);
             let mut delete_declined = self
                 .db
                 .prepare(LoginStatements::DEL_BATTLE_PET_DECLINED_NAME);
@@ -795,10 +882,17 @@ impl BattlePetPersistenceLikeCpp for LoginBattlePetPersistenceLikeCpp {
     fn replace_slots<'a>(
         &'a self,
         account_id: u32,
+        fence: u64,
         slots: Vec<DurableBattlePetSlotLikeCpp>,
     ) -> PersistenceFuture<'a, Result<(), BattlePetPersistenceErrorLikeCpp>> {
         Box::pin(async move {
             let mut tx = SqlTransaction::new();
+            let mut authority = self
+                .db
+                .prepare(LoginStatements::LOCK_BATTLE_PET_ACCOUNT_FENCE);
+            authority.set_u32(0, account_id);
+            authority.set_u64(1, fence);
+            tx.append_expect_rows_affected(authority, 1);
             let mut delete = self.db.prepare(LoginStatements::DEL_BATTLE_PET_SLOTS);
             delete.set_u32(0, account_id);
             tx.append(delete);
@@ -845,6 +939,25 @@ async fn load_pet_rows_like_cpp(
     rows.into_iter()
         .map(|row| durable_pet_from_row_like_cpp(&row))
         .collect()
+}
+
+async fn lock_and_validate_account_fence_like_cpp(
+    tx: &mut Transaction<'_, MySql>,
+    account_id: u32,
+    expected: u64,
+) -> Result<(), BattlePetPersistenceErrorLikeCpp> {
+    let actual: Option<u64> = sqlx::query_scalar(
+        "SELECT generation FROM battle_pet_account_fences WHERE battlenetAccountId = ? FOR UPDATE",
+    )
+    .bind(account_id)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(|error| database_error_like_cpp(DatabaseError::from(error)))?;
+    if actual == Some(expected) {
+        Ok(())
+    } else {
+        Err(BattlePetPersistenceErrorLikeCpp::StaleAuthority)
+    }
 }
 
 async fn load_slot_rows_like_cpp(
@@ -1056,29 +1169,31 @@ fn validate_mutation_lease_like_cpp(
 fn validate_process_add_lease_like_cpp(
     process: &BattlePetProcessLeaseStateLikeCpp,
     lease_id: BattlePetLeaseIdLikeCpp,
-) -> Result<(), BattlePetAddFailureLikeCpp> {
-    if !process
+) -> Result<u64, BattlePetAddFailureLikeCpp> {
+    let Some(guard) = process
         .guard
         .as_ref()
-        .is_some_and(|guard| guard.is_valid_like_cpp())
-    {
+        .filter(|guard| guard.is_valid_like_cpp())
+    else {
         return Err(BattlePetAddFailureLikeCpp::MissingAuthority);
-    }
-    validate_add_lease_like_cpp(process.lease_holder, lease_id)
+    };
+    validate_add_lease_like_cpp(process.lease_holder, lease_id)?;
+    Ok(guard.fence_like_cpp())
 }
 
 fn validate_process_mutation_lease_like_cpp(
     process: &BattlePetProcessLeaseStateLikeCpp,
     lease_id: BattlePetLeaseIdLikeCpp,
-) -> Result<(), BattlePetMutationFailureLikeCpp> {
-    if !process
+) -> Result<u64, BattlePetMutationFailureLikeCpp> {
+    let Some(guard) = process
         .guard
         .as_ref()
-        .is_some_and(|guard| guard.is_valid_like_cpp())
-    {
+        .filter(|guard| guard.is_valid_like_cpp())
+    else {
         return Err(BattlePetMutationFailureLikeCpp::MissingAuthority);
-    }
-    validate_mutation_lease_like_cpp(process.lease_holder, lease_id)
+    };
+    validate_mutation_lease_like_cpp(process.lease_holder, lease_id)?;
+    Ok(guard.fence_like_cpp())
 }
 
 fn add_persistence_error_like_cpp(
@@ -1094,6 +1209,9 @@ fn add_persistence_error_like_cpp(
         }
         BattlePetPersistenceErrorLikeCpp::DuplicateRequest => {
             BattlePetAddFailureLikeCpp::DuplicateRequest
+        }
+        BattlePetPersistenceErrorLikeCpp::StaleAuthority => {
+            BattlePetAddFailureLikeCpp::MissingAuthority
         }
     }
 }
@@ -1479,6 +1597,15 @@ impl BattlePetAccountOwnerLikeCpp {
                 .is_some_and(|guard| guard.is_valid_like_cpp())
     }
 
+    fn has_process_fence_like_cpp(&self, fence: u64) -> bool {
+        self.process_lease
+            .lock()
+            .expect("battle-pet process lease poisoned")
+            .guard
+            .as_ref()
+            .is_some_and(|guard| guard.is_valid_like_cpp() && guard.fence_like_cpp() == fence)
+    }
+
     pub(crate) fn journal_like_cpp(
         &self,
         lease_id: BattlePetLeaseIdLikeCpp,
@@ -1756,10 +1883,18 @@ impl BattlePetAccountOwnerLikeCpp {
             break;
         }
 
+        let fence = validate_process_add_lease_like_cpp(
+            &self
+                .process_lease
+                .lock()
+                .expect("battle-pet process lease poisoned"),
+            lease_id,
+        )?;
+
         let owner = Arc::clone(self);
         tokio::spawn(async move {
             let _operation_guard = operation_guard;
-            owner.finish_add_pet_like_cpp(request).await
+            owner.finish_add_pet_like_cpp(request, fence).await
         })
         .await
         .map_err(|error| {
@@ -1772,8 +1907,9 @@ impl BattlePetAccountOwnerLikeCpp {
     async fn finish_add_pet_like_cpp(
         self: Arc<Self>,
         request: BattlePetAddRequestLikeCpp,
+        fence: u64,
     ) -> Result<BattlePetAddOutcomeLikeCpp, BattlePetAddFailureLikeCpp> {
-        let persistence_result = async {
+        let mut persistence_result = async {
             let counter = self.persistence.allocate_guid_counter_like_cpp().await?;
             let row =
                 self.durable_new_pet_like_cpp(counter, &request)
@@ -1808,12 +1944,17 @@ impl BattlePetAccountOwnerLikeCpp {
                                 "validated battle-pet species disappeared".to_string(),
                             )
                         })?,
+                    fence,
                     pet: row.clone(),
                 })
                 .await?;
             Ok::<_, BattlePetPersistenceErrorLikeCpp>((row, outcome))
         }
         .await;
+
+        if persistence_result.is_ok() && !self.has_process_fence_like_cpp(fence) {
+            persistence_result = Err(BattlePetPersistenceErrorLikeCpp::StaleAuthority);
+        }
 
         let mut state = self
             .state
@@ -1871,6 +2012,9 @@ impl BattlePetAccountOwnerLikeCpp {
             Err(BattlePetPersistenceErrorLikeCpp::DuplicateRequest) => {
                 Err(BattlePetAddFailureLikeCpp::DuplicateRequest)
             }
+            Err(BattlePetPersistenceErrorLikeCpp::StaleAuthority) => {
+                Err(BattlePetAddFailureLikeCpp::MissingAuthority)
+            }
             Err(BattlePetPersistenceErrorLikeCpp::Database(error)) => {
                 Err(BattlePetAddFailureLikeCpp::DatabaseFailure(error))
             }
@@ -1923,20 +2067,26 @@ impl BattlePetAccountOwnerLikeCpp {
         F: FnOnce(&mut RepresentedBattlePetDataLikeCpp) -> R,
     {
         let operation_guard = self.begin_operation_like_cpp();
-        let mut changed = {
+        let (mut changed, fence) = {
             let process = self
                 .process_lease
                 .lock()
                 .expect("battle-pet process lease poisoned");
-            if let Some(lease_id) = lease_id {
-                validate_process_mutation_lease_like_cpp(&process, lease_id)?;
+            let fence = if let Some(lease_id) = lease_id {
+                validate_process_mutation_lease_like_cpp(&process, lease_id)?
             } else if !process
                 .guard
                 .as_ref()
                 .is_some_and(|guard| guard.is_valid_like_cpp())
             {
                 return Err(BattlePetMutationFailureLikeCpp::MissingAuthority);
-            }
+            } else {
+                process
+                    .guard
+                    .as_ref()
+                    .expect("validated battle-pet process guard disappeared")
+                    .fence_like_cpp()
+            };
             let mut state = self
                 .state
                 .lock()
@@ -1948,7 +2098,7 @@ impl BattlePetAccountOwnerLikeCpp {
                 state.pending_pet_mutations.remove(&pet_guid);
                 return Err(BattlePetMutationFailureLikeCpp::UnknownPet);
             };
-            current
+            (current, fence)
         };
         let outcome = mutation(&mut changed);
         changed.save_info = RepresentedBattlePetSaveInfoLikeCpp::Unchanged;
@@ -1956,7 +2106,7 @@ impl BattlePetAccountOwnerLikeCpp {
         tokio::spawn(async move {
             let _operation_guard = operation_guard;
             owner
-                .finish_mutate_pet_like_cpp(pet_guid, outcome, changed)
+                .finish_mutate_pet_like_cpp(pet_guid, outcome, changed, fence)
                 .await
         })
         .await
@@ -1972,9 +2122,16 @@ impl BattlePetAccountOwnerLikeCpp {
         pet_guid: ObjectGuid,
         outcome: R,
         changed: RepresentedBattlePetDataLikeCpp,
+        fence: u64,
     ) -> Result<(R, BattlePetJournalPet), BattlePetMutationFailureLikeCpp> {
         let durable = durable_from_pet_like_cpp(pet_guid, &changed);
-        let persistence = self.persistence.update_pet(self.account_id, durable).await;
+        let mut persistence = self
+            .persistence
+            .update_pet(self.account_id, fence, durable)
+            .await;
+        if persistence.is_ok() && !self.has_process_fence_like_cpp(fence) {
+            persistence = Err(BattlePetPersistenceErrorLikeCpp::StaleAuthority);
+        }
         let mut state = self
             .state
             .lock()
@@ -1996,12 +2153,12 @@ impl BattlePetAccountOwnerLikeCpp {
         pet_guid: ObjectGuid,
     ) -> Result<(), BattlePetMutationFailureLikeCpp> {
         let operation_guard = self.begin_operation_like_cpp();
-        let changed_slots = {
+        let (changed_slots, fence) = {
             let process = self
                 .process_lease
                 .lock()
                 .expect("battle-pet process lease poisoned");
-            validate_process_mutation_lease_like_cpp(&process, lease_id)?;
+            let fence = validate_process_mutation_lease_like_cpp(&process, lease_id)?;
             let mut state = self
                 .state
                 .lock()
@@ -2023,13 +2180,13 @@ impl BattlePetAccountOwnerLikeCpp {
                     slot.pet_guid = None;
                 }
             }
-            changed
+            (changed, fence)
         };
         let owner = Arc::clone(self);
         tokio::spawn(async move {
             let _operation_guard = operation_guard;
             owner
-                .finish_remove_pet_like_cpp(pet_guid, changed_slots)
+                .finish_remove_pet_like_cpp(pet_guid, changed_slots, fence)
                 .await
         })
         .await
@@ -2044,15 +2201,20 @@ impl BattlePetAccountOwnerLikeCpp {
         self: Arc<Self>,
         pet_guid: ObjectGuid,
         changed_slots: [RepresentedBattlePetSlotLikeCpp; BATTLE_PET_SLOT_COUNT_LIKE_CPP],
+        fence: u64,
     ) -> Result<(), BattlePetMutationFailureLikeCpp> {
-        let persistence = self
+        let mut persistence = self
             .persistence
             .delete_pet(
                 self.account_id,
+                fence,
                 pet_guid.counter() as u64,
                 changed_slots.iter().map(durable_slot_like_cpp).collect(),
             )
             .await;
+        if persistence.is_ok() && !self.has_process_fence_like_cpp(fence) {
+            persistence = Err(BattlePetPersistenceErrorLikeCpp::StaleAuthority);
+        }
         let mut state = self
             .state
             .lock()
@@ -2076,12 +2238,12 @@ impl BattlePetAccountOwnerLikeCpp {
         slot_index: u8,
     ) -> Result<BattlePetJournalSlot, BattlePetMutationFailureLikeCpp> {
         let operation_guard = self.begin_operation_like_cpp();
-        let changed = {
+        let (changed, fence) = {
             let process = self
                 .process_lease
                 .lock()
                 .expect("battle-pet process lease poisoned");
-            validate_process_mutation_lease_like_cpp(&process, lease_id)?;
+            let fence = validate_process_mutation_lease_like_cpp(&process, lease_id)?;
             let mut state = self
                 .state
                 .lock()
@@ -2098,12 +2260,14 @@ impl BattlePetAccountOwnerLikeCpp {
             };
             slot.pet_guid = Some(pet_guid);
             state.slots_pending = true;
-            changed
+            (changed, fence)
         };
         let owner = Arc::clone(self);
         tokio::spawn(async move {
             let _operation_guard = operation_guard;
-            owner.finish_set_slot_like_cpp(slot_index, changed).await
+            owner
+                .finish_set_slot_like_cpp(slot_index, changed, fence)
+                .await
         })
         .await
         .map_err(|error| {
@@ -2117,12 +2281,16 @@ impl BattlePetAccountOwnerLikeCpp {
         self: Arc<Self>,
         slot_index: u8,
         changed: [RepresentedBattlePetSlotLikeCpp; BATTLE_PET_SLOT_COUNT_LIKE_CPP],
+        fence: u64,
     ) -> Result<BattlePetJournalSlot, BattlePetMutationFailureLikeCpp> {
         let durable = changed.iter().map(durable_slot_like_cpp).collect();
-        let persistence = self
+        let mut persistence = self
             .persistence
-            .replace_slots(self.account_id, durable)
+            .replace_slots(self.account_id, fence, durable)
             .await;
+        if persistence.is_ok() && !self.has_process_fence_like_cpp(fence) {
+            persistence = Err(BattlePetPersistenceErrorLikeCpp::StaleAuthority);
+        }
         let mut state = self
             .state
             .lock()
@@ -2308,6 +2476,9 @@ fn battle_pet_guid_like_cpp(counter: u64) -> ObjectGuid {
 fn mutation_persistence_error_like_cpp(
     error: BattlePetPersistenceErrorLikeCpp,
 ) -> BattlePetMutationFailureLikeCpp {
+    if error == BattlePetPersistenceErrorLikeCpp::StaleAuthority {
+        return BattlePetMutationFailureLikeCpp::MissingAuthority;
+    }
     BattlePetMutationFailureLikeCpp::DatabaseFailure(match error {
         BattlePetPersistenceErrorLikeCpp::Database(error) => error,
         BattlePetPersistenceErrorLikeCpp::Capacity => "unexpected capacity failure".to_string(),
@@ -2315,6 +2486,7 @@ fn mutation_persistence_error_like_cpp(
         BattlePetPersistenceErrorLikeCpp::DuplicateRequest => {
             "unexpected duplicate request".to_string()
         }
+        BattlePetPersistenceErrorLikeCpp::StaleAuthority => unreachable!(),
     })
 }
 
@@ -2555,6 +2727,7 @@ mod tests {
     struct FakePersistenceLikeCpp {
         state: Mutex<FakePersistenceStateLikeCpp>,
         process_lease: Arc<AtomicBool>,
+        current_fence: Arc<AtomicU64>,
         next_guid: AtomicU64,
         insert_calls: AtomicUsize,
         fail_next_insert: AtomicBool,
@@ -2568,11 +2741,16 @@ mod tests {
 
     struct FakeProcessLeaseLikeCpp {
         held: Arc<AtomicBool>,
+        fence: u64,
     }
 
     impl BattlePetProcessLeaseLikeCpp for FakeProcessLeaseLikeCpp {
         fn is_valid_like_cpp(&self) -> bool {
             self.held.load(Ordering::Acquire)
+        }
+
+        fn fence_like_cpp(&self) -> u64 {
+            self.fence
         }
     }
 
@@ -2596,8 +2774,10 @@ mod tests {
                     .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
                     .is_ok()
                     .then(|| {
+                        let fence = self.current_fence.fetch_add(1, Ordering::AcqRel) + 1;
                         Box::new(FakeProcessLeaseLikeCpp {
                             held: Arc::clone(&self.process_lease),
+                            fence,
                         }) as Box<dyn BattlePetProcessLeaseLikeCpp>
                     }))
             })
@@ -2646,6 +2826,9 @@ mod tests {
                 if self.block_next_insert.swap(false, Ordering::AcqRel) {
                     self.insert_started.notify_one();
                     self.allow_insert.notified().await;
+                }
+                if self.current_fence.load(Ordering::Acquire) != request.fence {
+                    return Err(BattlePetPersistenceErrorLikeCpp::StaleAuthority);
                 }
                 if self.fail_next_insert.swap(false, Ordering::AcqRel) {
                     return Err(BattlePetPersistenceErrorLikeCpp::Database(
@@ -2736,9 +2919,13 @@ mod tests {
         fn update_pet<'a>(
             &'a self,
             _account_id: u32,
+            fence: u64,
             pet: DurableBattlePetRowLikeCpp,
         ) -> PersistenceFuture<'a, Result<(), BattlePetPersistenceErrorLikeCpp>> {
             Box::pin(async move {
+                if self.current_fence.load(Ordering::Acquire) != fence {
+                    return Err(BattlePetPersistenceErrorLikeCpp::StaleAuthority);
+                }
                 if self.fail_next_update.swap(false, Ordering::AcqRel) {
                     return Err(BattlePetPersistenceErrorLikeCpp::Database(
                         "injected update failure".to_string(),
@@ -2762,10 +2949,14 @@ mod tests {
         fn delete_pet<'a>(
             &'a self,
             _account_id: u32,
+            fence: u64,
             pet_guid_counter: u64,
             slots: Vec<DurableBattlePetSlotLikeCpp>,
         ) -> PersistenceFuture<'a, Result<(), BattlePetPersistenceErrorLikeCpp>> {
             Box::pin(async move {
+                if self.current_fence.load(Ordering::Acquire) != fence {
+                    return Err(BattlePetPersistenceErrorLikeCpp::StaleAuthority);
+                }
                 if self.fail_next_delete.swap(false, Ordering::AcqRel) {
                     return Err(BattlePetPersistenceErrorLikeCpp::Database(
                         "injected delete failure".to_string(),
@@ -2783,9 +2974,13 @@ mod tests {
         fn replace_slots<'a>(
             &'a self,
             _account_id: u32,
+            fence: u64,
             slots: Vec<DurableBattlePetSlotLikeCpp>,
         ) -> PersistenceFuture<'a, Result<(), BattlePetPersistenceErrorLikeCpp>> {
             Box::pin(async move {
+                if self.current_fence.load(Ordering::Acquire) != fence {
+                    return Err(BattlePetPersistenceErrorLikeCpp::StaleAuthority);
+                }
                 if self.fail_next_slots.swap(false, Ordering::AcqRel) {
                     return Err(BattlePetPersistenceErrorLikeCpp::Database(
                         "injected slot failure".to_string(),
@@ -2992,6 +3187,7 @@ mod tests {
             realm_id: 7,
             request_key,
             max_per_scope: 3,
+            fence: 0,
             pet: durable_pet_row_like_cpp(30, 11, None),
         };
         assert_eq!(
@@ -3067,12 +3263,62 @@ mod tests {
         assert!(registry.accounts.is_empty());
     }
 
+    #[tokio::test]
+    async fn former_process_cannot_commit_or_publish_after_fence_handoff() {
+        let persistence = Arc::new(FakePersistenceLikeCpp::default());
+        persistence.block_next_insert.store(true, Ordering::Release);
+        let first_registry = registry_like_cpp(Arc::clone(&persistence), 0, 70);
+        let first = first_registry
+            .attach_like_cpp(77)
+            .await
+            .expect("attach first");
+        assert!(first.try_acquire_lease_like_cpp().await);
+        let first_owner = Arc::clone(first.owner_like_cpp());
+        let first_lease = first.lease_id_like_cpp();
+        let stale = tokio::spawn(async move {
+            first_owner
+                .try_add_pet_like_cpp(first_lease, add_request_like_cpp(44, 11, 1))
+                .await
+        });
+        persistence.insert_started.notified().await;
+
+        // Models MySQL releasing the old process' named lock and another
+        // world-server advancing the durable account epoch before the queued
+        // insert enters its transaction.
+        persistence.process_lease.store(false, Ordering::Release);
+        let second_registry = registry_like_cpp(Arc::clone(&persistence), 0, 80);
+        let second = second_registry
+            .attach_like_cpp(77)
+            .await
+            .expect("attach replacement");
+        assert!(second.try_acquire_lease_like_cpp().await);
+
+        persistence.allow_insert.notify_one();
+        assert_eq!(
+            stale.await.expect("stale add task"),
+            Err(BattlePetAddFailureLikeCpp::MissingAuthority)
+        );
+        assert!(
+            persistence
+                .state
+                .lock()
+                .expect("fake persistence poisoned")
+                .pets
+                .is_empty()
+        );
+    }
+
     #[test]
     fn durable_uncage_schema_uses_global_key_and_unsigned_account_domain() {
         let sql = include_str!("../../../sql/updates/auth/wotlk_classic/2026_08_03_00_auth.sql");
         assert!(sql.contains("`battlenetAccountId` int unsigned NOT NULL"));
+        assert!(sql.contains("DELETE duplicateReceipt"));
+        assert!(
+            sql.contains("canonicalReceipt.`battlePetGuid` < duplicateReceipt.`battlePetGuid`")
+        );
         assert!(sql.contains("ADD PRIMARY KEY (`requestKey`)"));
         assert!(sql.contains("DROP PRIMARY KEY"));
+        assert!(sql.contains("CREATE TABLE IF NOT EXISTS `battle_pet_account_fences`"));
         assert!(!sql.contains("PRIMARY KEY (`battlenetAccountId`, `requestKey`)"));
     }
 
