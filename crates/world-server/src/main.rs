@@ -3948,6 +3948,26 @@ async fn main() -> Result<ExitCode> {
         trainer_data_store.creature_trainer_count_like_cpp()
     );
 
+    // Issue #161: C++ `BattlePetMgr::LoadAvailablePetBreeds` /
+    // `LoadDefaultPetQualities` world tables for trainer purchase
+    // materialization. The loader tolerates a missing/empty table exactly
+    // like the C++ null-QueryResult path.
+    let battle_pet_selection_store = Arc::new(
+        wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp::load_like_cpp(
+            world_db.as_ref(),
+            |species| {
+                battle_pet_species_entry_store
+                    .get(species)
+                    .map(|entry| entry.flags)
+            },
+        )
+        .await,
+    );
+    info!(
+        "Loaded {} battle-pet breed/quality selection rows",
+        battle_pet_selection_store.len_like_cpp()
+    );
+
     let mut faction_change_outcome = wow_data::FactionChangeStoreLikeCpp::load_like_cpp(
         world_db.as_ref(),
         |id| achievement_store.contains(id),
@@ -5342,6 +5362,7 @@ async fn main() -> Result<ExitCode> {
         battle_pet_breed_quality_store: Some(Arc::clone(&battle_pet_breed_quality_store)),
         battle_pet_breed_state_store: Some(Arc::clone(&battle_pet_breed_state_store)),
         battle_pet_species_store: Some(Arc::clone(&battle_pet_species_entry_store)),
+        battle_pet_selection_store: Some(Arc::clone(&battle_pet_selection_store)),
         battle_pet_species_state_store: Some(Arc::clone(&battle_pet_species_state_store)),
         battle_pet_xp_game_table: Some(Arc::clone(&battle_pet_xp_game_table)),
         combat_ratings_game_table: Some(Arc::clone(&combat_ratings_game_table)),
@@ -12928,6 +12949,12 @@ async fn create_session(
     if let Some(ref store) = resources.battle_pet_species_store {
         session.set_battle_pet_species_store(Arc::clone(store));
     }
+    if let Some(ref store) = resources.battle_pet_selection_store {
+        session.set_battle_pet_selection_store_like_cpp(Arc::clone(store));
+    }
+    // Issue #161: the recoverable purchase saga builds its production
+    // Character DB store from the session's own character database handle.
+    session.install_battle_pet_purchase_store_from_char_db_like_cpp();
     if let Some(ref store) = resources.battle_pet_species_state_store {
         session.set_battle_pet_species_state_store(Arc::clone(store));
     }

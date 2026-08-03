@@ -469,6 +469,13 @@ impl WorldSession {
                     TRAINER_SPELL_STATE_AVAILABLE_LIKE_CPP,
                     offer.effective_price,
                 ),
+                // C++ `Trainer::GetSpellState` has no battle-pet cap gate, so
+                // a confirmed purchasable species renders available; the
+                // silent cap only applies inside `Trainer::TeachSpell`.
+                TrainerOfferDecisionLikeCpp::AvailableBattlePet(offer) => (
+                    TRAINER_SPELL_STATE_AVAILABLE_LIKE_CPP,
+                    offer.effective_price,
+                ),
             };
 
             spells.push(TrainerListSpell {
@@ -641,13 +648,29 @@ impl WorldSession {
             &fresh_trainer_spell,
             fresh_access.faction_template_id,
         );
-        let TrainerOfferDecisionLikeCpp::Available(offer) = decision else {
-            self.send_packet_realm(&TrainerBuyFailed {
-                trainer_guid,
-                spell_id,
-                reason: 0,
-            });
-            return;
+        let offer = match decision {
+            TrainerOfferDecisionLikeCpp::Available(offer) => offer,
+            TrainerOfferDecisionLikeCpp::AvailableBattlePet(offer) => {
+                // Issue #161: the recoverable saga owns the battle-pet
+                // branch end to end (admission, charge, durable command,
+                // one pet, completion, compensation and publication).
+                self.execute_battle_pet_trainer_purchase_like_cpp(
+                    money_persistence,
+                    trainer_guid,
+                    trainer_id as u32,
+                    offer,
+                )
+                .await;
+                return;
+            }
+            _ => {
+                self.send_packet_realm(&TrainerBuyFailed {
+                    trainer_guid,
+                    spell_id,
+                    reason: 0,
+                });
+                return;
+            }
         };
         let old_money = self.player_gold_like_cpp();
         let price = u64::from(offer.effective_price);

@@ -19218,6 +19218,11 @@ impl WorldSession {
 
         self.send_packet_realm(&SetTimeZoneInformation::utc());
 
+        // Issue #161: converge interrupted battle-pet trainer purchases
+        // before the journal lock and before the client can interact; any
+        // recovery publication lands inside this login burst.
+        self.recover_battle_pet_trainer_purchases_like_cpp().await;
+
         // C++ sends the journal lock before
         // `Player::SendInitialPacketsBeforeAddToMap`.
         self.send_battle_pet_journal_lock_status_like_cpp().await;
