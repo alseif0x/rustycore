@@ -1,3 +1,33 @@
+# `#NEXT.R8.ENTITIES.1247` — recoverable battle-pet trainer purchase saga.
+
+Issue #161 closes the battle-pet branch of the trainer plan without activating its dispatcher
+(#142). The legacy server charges money in memory at `Trainer::TeachSpell` and only persists both
+sides at the next `Player::SaveToDB`, committing Character DB first and Login DB second
+(`Player.cpp:19336-19344`); a crash between commits keeps the charge and loses the pet, and
+`BattlePetMgr::SaveToDB` clears `SaveInfo` when statements are appended (`BattlePetMgr.cpp:377`),
+so the loss is silent and the dependent learned spell is intentionally never persisted. Rust
+closes that window with a durable saga keyed by a 128-bit request key shared with the #160 Login
+DB receipt: admission revalidates membership, C++-ordered gates, conditions, current price,
+balance, #163 species classification, account capacity and journal lease under the #159 exclusive
+money boundary; one Character DB transaction deducts the guarded money and inserts the pending
+command (`character_battle_pet_purchase`); the #160 account owner applies exactly one pet with
+fence/lease/capacity rechecked inside its own Login DB transaction; completion commits before any
+publication; terminal apply failures record `CompensationPending` and refund exactly once in one
+Character DB transaction; a receipt re-check before any refund forbids refunding a durable pet;
+and login recovery converges interrupted commands inline (bounded batch, no background tasks,
+cancellation-safe) with the #160 registry's bounded shutdown drain covering the only worker. The
+reference model's `PetApplied` state is deliberately derived from the Login DB receipt instead of
+duplicated into Character DB. Breed/quality/display selection follows `BattlePetMgr.cpp:201-227`
+with injectable RNG and is frozen into the command at admission. Publication keeps the C++
+battle-pet order with trainer visuals suppressed and is at-most-once across crashes; admission
+capacity/journal-lock failures return a structured unavailable result while the wire stays silent
+exactly like the C++ cap case (`Trainer.cpp:102-106`). Focused tests cover success/reload,
+insufficient money, every commit boundary of charge/apply/complete/compensation, replay,
+concurrent sessions, fence handoff, cancellation at every boundary, bounded shutdown drain,
+deterministic selection, and packet fixtures for success, insufficient money, capacity and
+recovery publication. This remains `represented-partial`: dispatcher activation stays #142, and
+live capture/reload validation against a running server remains explicit future QA.
+
 # `#NEXT.R8.ENTITIES.1246` — atomic normal trainer teaching adapter.
 
 Issue #159 closes the dormant adapter's normal-teaching mutation gap without activating its

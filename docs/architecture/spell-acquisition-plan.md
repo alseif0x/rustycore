@@ -199,3 +199,16 @@ semantics, covered neutral buffs do not block, and missing metadata makes
 wrapper resolution indeterminate instead of assuming no immunity. After confirmed/reconciled
 commit, money, visual kits and the acquisition stream publish in C++ success order. Dispatcher
 activation remains #142.
+
+Issue #161 owns the battle-pet branch end to end: the #163-confirmed species becomes a purchasable
+offer product only for non-castable (direct-learn) trainer spells, mirroring `Trainer.cpp:127-146`.
+The purchase does not reuse the #159 durable acquisition transaction because its second side lives
+in the Login DB; instead a durable saga (`character_battle_pet_purchase`, keyed by the #160 receipt
+identity) commits the guarded charge and the pending command in one Character DB transaction,
+applies the pet once through the #160 account owner, records completion before any publication,
+and compensates terminal failures exactly once. Selection (breed/quality/display) follows
+`BattlePetMgr.cpp:201-227` with injectable RNG and is frozen into the command at admission. Login
+recovery converges interrupted commands inline (bounded batch, cancellation-safe, no new tasks);
+the `PetApplied` state is derived from the Login DB receipt rather than duplicated into Character
+DB. Publication is at-most-once: `SMSG_BATTLE_PET_UPDATES` petAdded plus the dependent runtime
+learn after completion, never before durability, never on compensation.
