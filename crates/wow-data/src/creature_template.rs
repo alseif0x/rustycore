@@ -1693,7 +1693,7 @@ fn difficulty_fallback_pairs_like_cpp(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use rand::{SeedableRng, rngs::StdRng};
 
     use crate::CreatureModelInfoLikeCpp;
@@ -1735,7 +1735,7 @@ mod tests {
         }
     }
 
-    fn creature_template_lifecycle_record_for_test(
+    pub(crate) fn creature_template_lifecycle_record_for_test(
         entry: u32,
     ) -> CreatureTemplateLifecycleRecordLikeCpp {
         CreatureTemplateLifecycleRecordLikeCpp {

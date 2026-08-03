@@ -368,6 +368,45 @@ mod tests {
     }
 
     #[test]
+    fn display_rolls_the_weighted_valid_model_like_cpp() {
+        use crate::creature_template::CreatureTemplateLifecycleModelLikeCpp;
+
+        // C++ `CreatureTemplate::GetRandomValidModel` walks the weighted
+        // model list subtracting probabilities; scripted rolls pin the picks.
+        let mut record =
+            crate::creature_template::tests::creature_template_lifecycle_record_for_test(99);
+        record.models = vec![
+            CreatureTemplateLifecycleModelLikeCpp {
+                creature_display_id: 111,
+                display_scale: 1.0,
+                probability: 0.25,
+            },
+            CreatureTemplateLifecycleModelLikeCpp {
+                creature_display_id: 222,
+                display_scale: 1.0,
+                probability: 0.75,
+            },
+        ];
+        let entry = species(3, 0);
+        for (roll, expected) in [(0.2_f32, 111_u32), (0.25, 111), (0.26, 222), (0.9, 222)] {
+            let mut model_random = ScriptedModelRandomLikeCpp { roll };
+            assert_eq!(
+                select_pet_display_like_cpp(&entry, Some(&record), &mut model_random),
+                expected,
+                "roll {roll}"
+            );
+        }
+
+        // A `RandomDisplay` species returns 0 even with valid models.
+        let random_display = species(4, BATTLE_PET_SPECIES_FLAG_RANDOM_DISPLAY_LIKE_CPP);
+        let mut model_random = ScriptedModelRandomLikeCpp { roll: 0.0 };
+        assert_eq!(
+            select_pet_display_like_cpp(&random_display, Some(&record), &mut model_random),
+            0
+        );
+    }
+
+    #[test]
     fn selection_composes_breed_quality_display_and_level_one_like_cpp() {
         let store = store_with(&[(42, 7)], &[(42, 1)]);
         let entry = species(42, BATTLE_PET_SPECIES_FLAG_RANDOM_DISPLAY_LIKE_CPP);
