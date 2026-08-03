@@ -486,9 +486,9 @@ impl StatementDef for LoginStatements {
                 "DELETE dn FROM battle_pet_declinedname dn INNER JOIN battle_pets bp ON dn.guid = bp.guid WHERE bp.owner = ? AND bp.ownerRealmId = ?"
             }
             Self::SEL_BATTLE_PET_ADD_REQUEST => concat!(
-                "SELECT req.battlePetGuid, req.species, req.breed, req.displayId, req.level, req.exp, req.health, req.quality, req.flags, req.name, req.nameTimestamp, req.owner, pet.guid IS NOT NULL ",
+                "SELECT req.battlenetAccountId, req.battlePetGuid, req.species, req.breed, req.displayId, req.level, req.exp, req.health, req.quality, req.flags, req.name, req.nameTimestamp, req.owner, pet.guid IS NOT NULL ",
                 "FROM battle_pet_add_requests req LEFT JOIN battle_pets pet ON pet.guid = req.battlePetGuid ",
-                "WHERE req.battlenetAccountId = ? AND req.requestKey = ?",
+                "WHERE req.requestKey = ?",
             ),
             Self::INS_BATTLE_PET_ADD_REQUEST => {
                 "INSERT INTO battle_pet_add_requests (battlenetAccountId, requestKey, battlePetGuid, species, breed, displayId, level, exp, health, quality, flags, name, nameTimestamp, owner) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"

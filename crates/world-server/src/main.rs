@@ -1097,7 +1097,12 @@ impl AccountLookup for DbAccountLookup {
             let recruiter: u32 = result.try_read(8).unwrap_or(0);
             let os: String = result.try_read(9).unwrap_or_default();
             let timezone_offset: i16 = result.try_read(10).unwrap_or(0);
-            let bnet_id: u32 = result.try_read(11).unwrap_or(0);
+            let Some(bnet_id) = result.try_read::<u32>(11).filter(|id| *id != 0) else {
+                tracing::warn!(
+                    "Game account {account_id} has no valid Battle.net account link; rejecting world authentication"
+                );
+                return None;
+            };
             let security: u8 = result.try_read(12).unwrap_or(0);
             let is_banned_bnet: u32 = result.try_read(13).unwrap_or(0);
             let is_banned_account: u32 = result.try_read(14).unwrap_or(0);
