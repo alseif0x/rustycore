@@ -19,7 +19,7 @@ use std::time::{Duration, Instant};
 use dashmap::DashMap;
 use sqlx::{MySql, Row, Transaction};
 use tokio::{
-    sync::{Notify, OnceCell, oneshot, watch},
+    sync::{Notify, OnceCell, mpsc, oneshot, watch},
     time::MissedTickBehavior,
 };
 use wow_core::{ObjectGuid, guid::HighGuid};
@@ -215,17 +215,52 @@ pub(crate) trait BattlePetPersistenceLikeCpp: Send + Sync {
 #[derive(Debug)]
 pub struct LoginBattlePetPersistenceLikeCpp {
     db: Arc<LoginDatabase>,
+    lock_broker: BattlePetAccountLockBrokerLikeCpp,
+}
+
+#[derive(Debug, Clone)]
+struct BattlePetAccountLockBrokerLikeCpp {
+    commands: mpsc::UnboundedSender<BattlePetAccountLockCommandLikeCpp>,
+    epoch: Arc<AtomicU64>,
+}
+
+enum BattlePetAccountLockCommandLikeCpp {
+    Acquire {
+        account_id: u32,
+        result: oneshot::Sender<Result<Option<(String, u64)>, String>>,
+    },
+    Release {
+        lock_name: String,
+        epoch: u64,
+    },
 }
 
 struct LoginBattlePetProcessLeaseLikeCpp {
-    stop_tx: Option<oneshot::Sender<()>>,
-    loss_rx: watch::Receiver<Option<String>>,
+    lock_broker: BattlePetAccountLockBrokerLikeCpp,
+    lock_name: Option<String>,
+    broker_epoch: u64,
     fence: u64,
+}
+
+struct BattlePetBrokerLeaseReservationLikeCpp {
+    lock_broker: BattlePetAccountLockBrokerLikeCpp,
+    lock_name: Option<String>,
+    broker_epoch: u64,
+}
+
+impl Drop for BattlePetBrokerLeaseReservationLikeCpp {
+    fn drop(&mut self) {
+        if let Some(lock_name) = self.lock_name.take() {
+            self.lock_broker
+                .release_like_cpp(lock_name, self.broker_epoch);
+        }
+    }
 }
 
 impl BattlePetProcessLeaseLikeCpp for LoginBattlePetProcessLeaseLikeCpp {
     fn is_valid_like_cpp(&self) -> bool {
-        self.loss_rx.has_changed().is_ok() && self.loss_rx.borrow().is_none()
+        !self.lock_broker.commands.is_closed()
+            && self.lock_broker.epoch.load(Ordering::Acquire) == self.broker_epoch
     }
 
     fn fence_like_cpp(&self) -> u64 {
@@ -235,52 +270,195 @@ impl BattlePetProcessLeaseLikeCpp for LoginBattlePetProcessLeaseLikeCpp {
 
 impl Drop for LoginBattlePetProcessLeaseLikeCpp {
     fn drop(&mut self) {
-        if let Some(stop_tx) = self.stop_tx.take() {
-            let _ = stop_tx.send(());
+        if let Some(lock_name) = self.lock_name.take() {
+            let _ = self
+                .lock_broker
+                .commands
+                .send(BattlePetAccountLockCommandLikeCpp::Release {
+                    lock_name,
+                    epoch: self.broker_epoch,
+                });
         }
     }
 }
 
-async fn run_battle_pet_process_lease_monitor_like_cpp(
-    mut connection: sqlx::MySqlConnection,
-    lock_name: String,
-    mut stop_rx: oneshot::Receiver<()>,
-    loss_tx: watch::Sender<Option<String>>,
+impl BattlePetAccountLockBrokerLikeCpp {
+    fn spawn_like_cpp(db: Arc<LoginDatabase>) -> Self {
+        let (commands, receiver) = mpsc::unbounded_channel();
+        let epoch = Arc::new(AtomicU64::new(1));
+        tokio::spawn(run_battle_pet_account_lock_broker_like_cpp(
+            db,
+            receiver,
+            Arc::clone(&epoch),
+        ));
+        Self { commands, epoch }
+    }
+
+    async fn acquire_like_cpp(
+        &self,
+        account_id: u32,
+    ) -> Result<Option<(String, u64)>, BattlePetPersistenceErrorLikeCpp> {
+        let (result, response) = oneshot::channel();
+        self.commands
+            .send(BattlePetAccountLockCommandLikeCpp::Acquire { account_id, result })
+            .map_err(|_| {
+                BattlePetPersistenceErrorLikeCpp::Database(
+                    "battle-pet account lock broker stopped".to_string(),
+                )
+            })?;
+        response
+            .await
+            .map_err(|_| {
+                BattlePetPersistenceErrorLikeCpp::Database(
+                    "battle-pet account lock broker dropped acquisition".to_string(),
+                )
+            })?
+            .map_err(BattlePetPersistenceErrorLikeCpp::Database)
+    }
+
+    fn release_like_cpp(&self, lock_name: String, epoch: u64) {
+        let _ = self
+            .commands
+            .send(BattlePetAccountLockCommandLikeCpp::Release { lock_name, epoch });
+    }
+}
+
+async fn open_battle_pet_lock_broker_connection_like_cpp(
+    db: &LoginDatabase,
+) -> Result<(sqlx::MySqlConnection, String), String> {
+    let pooled = db
+        .pool()
+        .acquire()
+        .await
+        .map_err(|error| error.to_string())?;
+    let mut connection = pooled.detach();
+    let database_scope: String =
+        sqlx::query_scalar("SELECT LEFT(SHA2(COALESCE(DATABASE(), ''), 256), 32)")
+            .fetch_one(&mut connection)
+            .await
+            .map_err(|error| error.to_string())?;
+    Ok((connection, database_scope))
+}
+
+fn invalidate_battle_pet_lock_broker_like_cpp(
+    connection: &mut Option<(sqlx::MySqlConnection, String)>,
+    held_locks: &mut HashSet<String>,
+    epoch: &AtomicU64,
 ) {
+    *connection = None;
+    held_locks.clear();
+    epoch.fetch_add(1, Ordering::AcqRel);
+}
+
+fn battle_pet_account_lock_name_like_cpp(database_scope: &str, account_id: u32) -> String {
+    format!("rustycore:bp:{database_scope}:{account_id}")
+}
+
+async fn run_battle_pet_account_lock_broker_like_cpp(
+    db: Arc<LoginDatabase>,
+    mut commands: mpsc::UnboundedReceiver<BattlePetAccountLockCommandLikeCpp>,
+    epoch: Arc<AtomicU64>,
+) {
+    let mut connection: Option<(sqlx::MySqlConnection, String)> = None;
+    let mut held_locks = HashSet::new();
     let mut verify_interval =
         tokio::time::interval(BATTLE_PET_PROCESS_LEASE_VERIFY_INTERVAL_LIKE_CPP);
     verify_interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
     loop {
         tokio::select! {
             biased;
-            _ = &mut stop_rx => {
-                let _ = sqlx::query_scalar::<_, Option<i64>>("SELECT RELEASE_LOCK(?)")
-                    .bind(&lock_name)
-                    .fetch_one(&mut connection)
-                    .await;
-                return;
+            command = commands.recv() => {
+                let Some(command) = command else { return; };
+                match command {
+                    BattlePetAccountLockCommandLikeCpp::Acquire { account_id, result } => {
+                        if connection.is_none() {
+                            match open_battle_pet_lock_broker_connection_like_cpp(&db).await {
+                                Ok(opened) => connection = Some(opened),
+                                Err(error) => {
+                                    let _ = result.send(Err(error));
+                                    continue;
+                                }
+                            }
+                        }
+                        let (_, database_scope) = connection.as_ref().expect("broker connection opened");
+                        let lock_name = battle_pet_account_lock_name_like_cpp(database_scope, account_id);
+                        if held_locks.contains(&lock_name) {
+                            let _ = result.send(Ok(None));
+                            continue;
+                        }
+                        let acquired = {
+                            let (connection, _) = connection.as_mut().expect("broker connection opened");
+                            sqlx::query_scalar::<_, Option<i64>>("SELECT GET_LOCK(?, 0)")
+                                .bind(&lock_name)
+                                .fetch_one(connection)
+                                .await
+                        };
+                        match acquired {
+                            Ok(Some(1)) => {
+                                held_locks.insert(lock_name.clone());
+                                let lease_epoch = epoch.load(Ordering::Acquire);
+                                if result.send(Ok(Some((lock_name.clone(), lease_epoch)))).is_err() {
+                                    held_locks.remove(&lock_name);
+                                    let release = {
+                                        let (connection, _) = connection.as_mut().expect("broker connection opened");
+                                        sqlx::query_scalar::<_, Option<i64>>("SELECT RELEASE_LOCK(?)")
+                                            .bind(&lock_name)
+                                            .fetch_one(connection)
+                                            .await
+                                    };
+                                    if release.is_err() {
+                                        invalidate_battle_pet_lock_broker_like_cpp(
+                                            &mut connection,
+                                            &mut held_locks,
+                                            &epoch,
+                                        );
+                                    }
+                                }
+                            }
+                            Ok(_) => { let _ = result.send(Ok(None)); }
+                            Err(error) => {
+                                invalidate_battle_pet_lock_broker_like_cpp(
+                                    &mut connection,
+                                    &mut held_locks,
+                                    &epoch,
+                                );
+                                let _ = result.send(Err(error.to_string()));
+                            }
+                        }
+                    }
+                    BattlePetAccountLockCommandLikeCpp::Release { lock_name, epoch: lease_epoch } => {
+                        if lease_epoch != epoch.load(Ordering::Acquire) || !held_locks.remove(&lock_name) {
+                            continue;
+                        }
+                        let release = if let Some((connection, _)) = connection.as_mut() {
+                            sqlx::query_scalar::<_, Option<i64>>("SELECT RELEASE_LOCK(?)")
+                                .bind(&lock_name)
+                                .fetch_one(connection)
+                                .await
+                        } else {
+                            continue;
+                        };
+                        if release.is_err() {
+                            invalidate_battle_pet_lock_broker_like_cpp(
+                                &mut connection,
+                                &mut held_locks,
+                                &epoch,
+                            );
+                        }
+                    }
+                }
             }
-            _ = verify_interval.tick() => {
-                let ownership = sqlx::query_scalar::<_, Option<i64>>(
-                    "SELECT IS_USED_LOCK(?) = CONNECTION_ID()",
-                )
-                .bind(&lock_name)
-                .fetch_one(&mut connection)
-                .await;
-                match ownership {
-                    Ok(Some(1)) => {}
-                    Ok(_) => {
-                        let _ = loss_tx.send(Some(format!(
-                            "dedicated MySQL session lost battle-pet account advisory lock {lock_name}",
-                        )));
-                        return;
-                    }
-                    Err(error) => {
-                        let _ = loss_tx.send(Some(format!(
-                            "could not verify battle-pet account advisory lock {lock_name}: {error}",
-                        )));
-                        return;
-                    }
+            _ = verify_interval.tick(), if connection.is_some() => {
+                let ping = {
+                    let (connection, _) = connection.as_mut().expect("broker connection exists");
+                    sqlx::query_scalar::<_, i32>("SELECT 1").fetch_one(connection).await
+                };
+                if ping.is_err() {
+                    invalidate_battle_pet_lock_broker_like_cpp(
+                        &mut connection,
+                        &mut held_locks,
+                        &epoch,
+                    );
                 }
             }
         }
@@ -289,7 +467,8 @@ async fn run_battle_pet_process_lease_monitor_like_cpp(
 
 impl LoginBattlePetPersistenceLikeCpp {
     pub fn new(db: Arc<LoginDatabase>) -> Self {
-        Self { db }
+        let lock_broker = BattlePetAccountLockBrokerLikeCpp::spawn_like_cpp(Arc::clone(&db));
+        Self { db, lock_broker }
     }
 
     async fn find_request_like_cpp(
@@ -374,25 +553,23 @@ impl BattlePetPersistenceLikeCpp for LoginBattlePetPersistenceLikeCpp {
         Result<Option<Box<dyn BattlePetProcessLeaseLikeCpp>>, BattlePetPersistenceErrorLikeCpp>,
     > {
         Box::pin(async move {
-            let pooled = self
-                .db
-                .pool()
-                .acquire()
-                .await
-                .map_err(|error| database_error_like_cpp(DatabaseError::from(error)))?;
-            // Detaching keeps the advisory-lock connection outside the normal
-            // query pool. Dropping the raw connection releases GET_LOCK even
-            // if the world process or session disappears unexpectedly.
-            let mut connection = pooled.detach();
-            let lock_name = format!("rustycore:battle-pet-account:{account_id}");
-            let acquired = sqlx::query_scalar::<_, Option<i64>>("SELECT GET_LOCK(?, 0)")
-                .bind(&lock_name)
-                .fetch_one(&mut connection)
-                .await
-                .map_err(|error| database_error_like_cpp(DatabaseError::from(error)))?;
-            if acquired != Some(1) {
+            // MariaDB named locks belong to a connection and are server-wide.
+            // One process-level broker multiplexes every online account on a
+            // single detached connection, and includes the Login DB identity
+            // in each lock name so independent deployments do not contend.
+            let Some((lock_name, broker_epoch)) =
+                self.lock_broker.acquire_like_cpp(account_id).await?
+            else {
                 return Ok(None);
-            }
+            };
+            // Keep acquisition cancellation-safe while the durable fence is
+            // advanced. If this future is dropped, the reservation releases
+            // the named lock through the broker.
+            let mut broker_lease = BattlePetBrokerLeaseReservationLikeCpp {
+                lock_broker: self.lock_broker.clone(),
+                lock_name: Some(lock_name),
+                broker_epoch,
+            };
             // The advisory lock elects one process, while this durable epoch
             // fences transactions that were already queued when a dead
             // connection released that lock. Taking the row lock means a new
@@ -440,22 +617,16 @@ impl BattlePetPersistenceLikeCpp for LoginBattlePetPersistenceLikeCpp {
             .await;
             let fence = match fence {
                 Ok(fence) => fence,
-                Err(error) => {
-                    let _ = sqlx::query_scalar::<_, Option<i64>>("SELECT RELEASE_LOCK(?)")
-                        .bind(&lock_name)
-                        .fetch_one(&mut connection)
-                        .await;
-                    return Err(error);
-                }
+                Err(error) => return Err(error),
             };
-            let (stop_tx, stop_rx) = oneshot::channel();
-            let (loss_tx, loss_rx) = watch::channel(None);
-            tokio::spawn(run_battle_pet_process_lease_monitor_like_cpp(
-                connection, lock_name, stop_rx, loss_tx,
-            ));
+            let lock_name = broker_lease
+                .lock_name
+                .take()
+                .expect("broker lease reservation lost its lock name");
             Ok(Some(Box::new(LoginBattlePetProcessLeaseLikeCpp {
-                stop_tx: Some(stop_tx),
-                loss_rx,
+                lock_broker: self.lock_broker.clone(),
+                lock_name: Some(lock_name),
+                broker_epoch,
                 fence,
             })
                 as Box<dyn BattlePetProcessLeaseLikeCpp>))
@@ -766,42 +937,68 @@ impl BattlePetPersistenceLikeCpp for LoginBattlePetPersistenceLikeCpp {
         pet: DurableBattlePetRowLikeCpp,
     ) -> PersistenceFuture<'a, Result<(), BattlePetPersistenceErrorLikeCpp>> {
         Box::pin(async move {
-            let mut tx = SqlTransaction::new();
-            let mut authority = self
+            let mut tx = self
                 .db
-                .prepare(LoginStatements::LOCK_BATTLE_PET_ACCOUNT_FENCE);
-            authority.set_u32(0, account_id);
-            authority.set_u64(1, fence);
-            tx.append_expect_rows_affected(authority, 1);
-            let mut stmt = self.db.prepare(LoginStatements::UPD_BATTLE_PETS);
-            stmt.set_u16(0, pet.level);
-            stmt.set_u16(1, pet.exp);
-            stmt.set_u32(2, pet.health);
-            stmt.set_u8(3, pet.quality);
-            stmt.set_u16(4, pet.flags);
-            stmt.set_string(5, pet.name.clone());
-            stmt.set_i64(6, pet.name_timestamp);
-            stmt.set_u32(7, account_id);
-            stmt.set_u64(8, pet.guid_counter);
-            tx.append_expect_rows_affected(stmt, 1);
-            let mut delete_declined = self
-                .db
-                .prepare(LoginStatements::DEL_BATTLE_PET_DECLINED_NAME);
-            delete_declined.set_u64(0, pet.guid_counter);
-            tx.append(delete_declined);
-            if let Some(declined) = &pet.declined_names {
-                let mut insert = self
-                    .db
-                    .prepare(LoginStatements::INS_BATTLE_PET_DECLINED_NAME);
-                insert.set_u64(0, pet.guid_counter);
-                for (index, name) in declined.names.iter().enumerate() {
-                    insert.set_string(index + 1, name.clone());
-                }
-                tx.append(insert);
+                .pool()
+                .begin()
+                .await
+                .map_err(|error| database_error_like_cpp(DatabaseError::from(error)))?;
+            lock_and_validate_account_fence_like_cpp(&mut tx, account_id, fence).await?;
+
+            // MySQL reports changed rows, not matched rows, for UPDATE. Lock
+            // and verify the target explicitly so an idempotent main-row
+            // update still succeeds and can persist changed declined forms.
+            let exists: Option<i32> = sqlx::query_scalar(
+                "SELECT 1 FROM battle_pets WHERE battlenetAccountId = ? AND guid = ? FOR UPDATE",
+            )
+            .bind(account_id)
+            .bind(pet.guid_counter)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|error| database_error_like_cpp(DatabaseError::from(error)))?;
+            if exists.is_none() {
+                return Err(BattlePetPersistenceErrorLikeCpp::Database(
+                    "battle-pet update target does not exist".to_string(),
+                ));
             }
-            match tx.commit_with_outcome_like_cpp(self.db.pool()).await {
+
+            sqlx::query(
+                "UPDATE battle_pets SET level = ?, exp = ?, health = ?, quality = ?, flags = ?, name = ?, nameTimestamp = ? WHERE battlenetAccountId = ? AND guid = ?",
+            )
+            .bind(pet.level)
+            .bind(pet.exp)
+            .bind(pet.health)
+            .bind(pet.quality)
+            .bind(pet.flags)
+            .bind(&pet.name)
+            .bind(pet.name_timestamp)
+            .bind(account_id)
+            .bind(pet.guid_counter)
+            .execute(&mut *tx)
+            .await
+            .map_err(|error| database_error_like_cpp(DatabaseError::from(error)))?;
+            sqlx::query("DELETE FROM battle_pet_declinedname WHERE guid = ?")
+                .bind(pet.guid_counter)
+                .execute(&mut *tx)
+                .await
+                .map_err(|error| database_error_like_cpp(DatabaseError::from(error)))?;
+            if let Some(declined) = &pet.declined_names {
+                sqlx::query(
+                    "INSERT INTO battle_pet_declinedname (guid, genitive, dative, accusative, instrumental, prepositional) VALUES (?, ?, ?, ?, ?, ?)",
+                )
+                .bind(pet.guid_counter)
+                .bind(&declined.names[0])
+                .bind(&declined.names[1])
+                .bind(&declined.names[2])
+                .bind(&declined.names[3])
+                .bind(&declined.names[4])
+                .execute(&mut *tx)
+                .await
+                .map_err(|error| database_error_like_cpp(DatabaseError::from(error)))?;
+            }
+            match tx.commit().await {
                 Ok(()) => Ok(()),
-                Err(SqlTransactionCommitError::CommitOutcomeUnknown(_)) => {
+                Err(_) => {
                     if self
                         .find_live_pet_like_cpp(account_id, pet.guid_counter)
                         .await?
@@ -814,9 +1011,6 @@ impl BattlePetPersistenceLikeCpp for LoginBattlePetPersistenceLikeCpp {
                             "battle-pet update COMMIT outcome could not be reconciled".to_string(),
                         ))
                     }
-                }
-                Err(SqlTransactionCommitError::DefinitelyRolledBack(error)) => {
-                    Err(database_error_like_cpp(error))
                 }
             }
         })
@@ -1795,13 +1989,13 @@ impl BattlePetAccountOwnerLikeCpp {
             return Ok(BattlePetAddOutcomeLikeCpp::Replayed(packet));
         }
 
-        loop {
-            let wait = {
+        let fence = loop {
+            let (wait, reserved_fence) = {
                 let process = self
                     .process_lease
                     .lock()
                     .expect("battle-pet process lease poisoned");
-                validate_process_add_lease_like_cpp(&process, lease_id)?;
+                let fence = validate_process_add_lease_like_cpp(&process, lease_id)?;
                 let mut state = self
                     .state
                     .lock()
@@ -1822,7 +2016,7 @@ impl BattlePetAccountOwnerLikeCpp {
                     if pending.request != request {
                         return Err(BattlePetAddFailureLikeCpp::DuplicateRequest);
                     }
-                    Some(pending.completion.subscribe())
+                    (Some(pending.completion.subscribe()), None)
                 } else {
                     let Some(species) = self.species_store.get(request.species) else {
                         return Err(BattlePetAddFailureLikeCpp::InvalidSpecies);
@@ -1871,7 +2065,7 @@ impl BattlePetAccountOwnerLikeCpp {
                             completion,
                         },
                     );
-                    None
+                    (None, Some(fence))
                 }
             };
             if let Some(mut wait) = wait {
@@ -1880,16 +2074,8 @@ impl BattlePetAccountOwnerLikeCpp {
                 }
                 continue;
             }
-            break;
-        }
-
-        let fence = validate_process_add_lease_like_cpp(
-            &self
-                .process_lease
-                .lock()
-                .expect("battle-pet process lease poisoned"),
-            lease_id,
-        )?;
+            break reserved_fence.expect("new pending add must capture its process fence");
+        };
 
         let owner = Arc::clone(self);
         tokio::spawn(async move {
@@ -3151,6 +3337,17 @@ mod tests {
         assert!(registry.accounts.is_empty());
     }
 
+    #[test]
+    fn advisory_lock_names_are_scoped_to_one_login_database() {
+        let first =
+            battle_pet_account_lock_name_like_cpp("0123456789abcdef0123456789abcdef", u32::MAX);
+        let second =
+            battle_pet_account_lock_name_like_cpp("fedcba9876543210fedcba9876543210", u32::MAX);
+        assert_ne!(first, second);
+        assert!(first.len() <= 64);
+        assert!(second.len() <= 64);
+    }
+
     #[tokio::test]
     async fn lost_process_lease_is_revalidated_before_more_mutation() {
         let persistence = Arc::new(FakePersistenceLikeCpp::default());
@@ -3846,6 +4043,61 @@ mod tests {
                 .await,
             Ok(BattlePetAddOutcomeLikeCpp::Replayed(ref pet)) if pet.level == 9
         ));
+    }
+
+    #[tokio::test]
+    async fn unchanged_pet_fields_can_still_replace_declined_names_like_cpp() {
+        let persistence = Arc::new(FakePersistenceLikeCpp::default());
+        let registry = registry_like_cpp(Arc::clone(&persistence), 0, 775);
+        let attachment = registry.attach_like_cpp(77).await.expect("attach");
+        assert!(attachment.try_acquire_lease_like_cpp().await);
+        let owner = attachment.owner_like_cpp();
+        let lease = attachment.lease_id_like_cpp();
+        let pet_guid = match owner
+            .try_add_pet_like_cpp(lease, add_request_like_cpp(34, 11, 1))
+            .await
+            .expect("add")
+        {
+            BattlePetAddOutcomeLikeCpp::Added(pet) | BattlePetAddOutcomeLikeCpp::Replayed(pet) => {
+                pet.guid
+            }
+        };
+        let first = DeclinedNamesLikeCpp {
+            names: std::array::from_fn(|index| format!("first-{index}")),
+        };
+        owner
+            .try_mutate_pet_like_cpp(lease, pet_guid, move |pet| pet.declined_names = Some(first))
+            .await
+            .expect("first declined forms");
+        let replacement = DeclinedNamesLikeCpp {
+            names: std::array::from_fn(|index| format!("replacement-{index}")),
+        };
+        let replacement_for_mutation = replacement.clone();
+        owner
+            .try_mutate_pet_like_cpp(lease, pet_guid, move |pet| {
+                pet.declined_names = Some(replacement_for_mutation)
+            })
+            .await
+            .expect("replace declined forms without changing main row");
+        assert_eq!(
+            owner
+                .pet_snapshot_like_cpp(pet_guid)
+                .expect("published pet")
+                .declined_names,
+            Some(replacement.clone())
+        );
+        assert_eq!(
+            persistence
+                .state
+                .lock()
+                .expect("fake persistence poisoned")
+                .pets
+                .iter()
+                .find(|pet| pet.guid_counter == pet_guid.counter() as u64)
+                .expect("durable pet")
+                .declined_names,
+            Some(replacement)
+        );
     }
 
     #[tokio::test]
