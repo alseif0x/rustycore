@@ -134,6 +134,9 @@ pub enum LoginStatements {
     INS_BATTLE_PET_DECLINED_NAME,
     DEL_BATTLE_PET_DECLINED_NAME,
     DEL_BATTLE_PET_DECLINED_NAME_BY_OWNER,
+    SEL_BATTLE_PET_ADD_REQUEST,
+    INS_BATTLE_PET_ADD_REQUEST,
+    LOCK_BATTLE_PET_ACCOUNT_FENCE,
     SEL_ACCOUNT_HEIRLOOMS,
     REP_ACCOUNT_HEIRLOOMS,
     SEL_ACCOUNT_MOUNTS,
@@ -482,6 +485,17 @@ impl StatementDef for LoginStatements {
             }
             Self::DEL_BATTLE_PET_DECLINED_NAME_BY_OWNER => {
                 "DELETE dn FROM battle_pet_declinedname dn INNER JOIN battle_pets bp ON dn.guid = bp.guid WHERE bp.owner = ? AND bp.ownerRealmId = ?"
+            }
+            Self::SEL_BATTLE_PET_ADD_REQUEST => concat!(
+                "SELECT req.battlenetAccountId, req.battlePetGuid, req.species, req.breed, req.displayId, req.level, req.exp, req.health, req.quality, req.flags, req.name, req.nameTimestamp, req.owner, pet.guid IS NOT NULL ",
+                "FROM battle_pet_add_requests req LEFT JOIN battle_pets pet ON pet.guid = req.battlePetGuid ",
+                "WHERE req.requestKey = ?",
+            ),
+            Self::INS_BATTLE_PET_ADD_REQUEST => {
+                "INSERT INTO battle_pet_add_requests (battlenetAccountId, requestKey, battlePetGuid, species, breed, displayId, level, exp, health, quality, flags, name, nameTimestamp, owner) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            }
+            Self::LOCK_BATTLE_PET_ACCOUNT_FENCE => {
+                "UPDATE battle_pet_account_fences SET operationSerial = operationSerial + 1 WHERE battlenetAccountId = ? AND generation = ?"
             }
             Self::SEL_ACCOUNT_HEIRLOOMS => {
                 "SELECT itemId, flags FROM battlenet_account_heirlooms WHERE accountId = ?"

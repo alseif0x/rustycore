@@ -64,8 +64,9 @@ use wow_packet::{
     packets::chat::{ChatMsg, ChatPkt},
 };
 use wow_world::{
-    MMapRuntimeConfigLikeCpp, MapManager as LegacyMapManager, SharedCanonicalMapManager,
-    SharedMapManager, WorldMMapPathfinderWorkerLikeCpp, WorldSession,
+    BattlePetAccountRegistryLikeCpp, LoginBattlePetPersistenceLikeCpp, MMapRuntimeConfigLikeCpp,
+    MapManager as LegacyMapManager, SharedCanonicalMapManager, SharedMapManager,
+    WorldMMapPathfinderWorkerLikeCpp, WorldSession,
     conditions::{
         ConditionMapRef, ConditionMapStateSnapshot, is_spawn_group_meeting_map_conditions_like_cpp,
     },
@@ -1096,7 +1097,12 @@ impl AccountLookup for DbAccountLookup {
             let recruiter: u32 = result.try_read(8).unwrap_or(0);
             let os: String = result.try_read(9).unwrap_or_default();
             let timezone_offset: i16 = result.try_read(10).unwrap_or(0);
-            let bnet_id: u32 = result.try_read(11).unwrap_or(0);
+            let Some(bnet_id) = result.try_read::<u32>(11).filter(|id| *id != 0) else {
+                tracing::warn!(
+                    "Game account {account_id} has no valid Battle.net account link; rejecting world authentication"
+                );
+                return None;
+            };
             let security: u8 = result.try_read(12).unwrap_or(0);
             let is_banned_bnet: u32 = result.try_read(13).unwrap_or(0);
             let is_banned_account: u32 = result.try_read(14).unwrap_or(0);
@@ -4655,6 +4661,15 @@ async fn main() -> Result<ExitCode> {
 
     // Wrap login_db in Arc for sharing between account lookup and sessions
     let login_db = Arc::new(login_db);
+    let battle_pet_account_registry = Arc::new(BattlePetAccountRegistryLikeCpp::new(
+        Arc::new(LoginBattlePetPersistenceLikeCpp::new(Arc::clone(&login_db))),
+        Arc::clone(&battle_pet_species_entry_store),
+        Arc::clone(&battle_pet_breed_quality_store),
+        Arc::clone(&battle_pet_breed_state_store),
+        Arc::clone(&battle_pet_species_state_store),
+        realm_id,
+        active_realm.id.address_like_cpp(),
+    ));
 
     // Build handler dispatch table
     let table = wow_handler::build_dispatch_table();
@@ -5763,6 +5778,7 @@ async fn main() -> Result<ExitCode> {
         let accessor = Arc::clone(&object_accessor);
         let active_sessions = Arc::clone(&active_session_registry);
         let runtime_state = Arc::clone(&world_runtime_state);
+        let battle_pet_accounts = Arc::clone(&battle_pet_account_registry);
         let port = instance_port;
         let mmap_config = mmap_runtime_config.clone();
         let mmap_pathfinder = mmap_pathfinder.clone();
@@ -5783,6 +5799,7 @@ async fn main() -> Result<ExitCode> {
                     let runtime_state = Arc::clone(&runtime_state);
                     let mmap_pathfinder = mmap_pathfinder.clone();
                     let session_aggro_config = session_aggro_config.clone();
+                    let battle_pet_accounts = Arc::clone(&battle_pet_accounts);
                     create_session(
                         account,
                         pkt_rx,
@@ -5802,6 +5819,7 @@ async fn main() -> Result<ExitCode> {
                         active_sessions,
                         session_aggro_config,
                         runtime_state,
+                        battle_pet_accounts,
                     )
                 },
                 realm_listener_ready_tx,
@@ -6124,6 +6142,21 @@ async fn main() -> Result<ExitCode> {
         }
     }
 
+    let battle_pet_operations_drained = battle_pet_account_registry
+        .drain_like_cpp(WORLD_SESSION_SHUTDOWN_DRAIN_TIMEOUT_LIKE_CPP)
+        .await;
+    info!(
+        drained = battle_pet_operations_drained,
+        "Waited for cancellation-safe battle-pet persistence workers"
+    );
+    if !battle_pet_operations_drained {
+        world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
+        tracing::error!(
+            timeout_ms = WORLD_SESSION_SHUTDOWN_DRAIN_TIMEOUT_LIKE_CPP.as_millis(),
+            "Battle-pet persistence workers did not drain before the shutdown deadline"
+        );
+    }
+
     // Quiesce sessions before closing respawn persistence. Each enabled
     // producer observes this flag on its next interval, performs one final
     // tick to consume state such as `save_respawn_requested`, then returns.
@@ -6186,7 +6219,6 @@ async fn main() -> Result<ExitCode> {
         world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
         tracing::error!(%error, "Failed to release item GUID allocator advisory lock");
     }
-
     info!(
         exit_code = world_runtime_state.get_exit_code_like_cpp(),
         "World server stopped."
@@ -12759,6 +12791,7 @@ async fn create_session(
     active_session_registry: Arc<ActiveWorldSessionRegistryLikeCpp>,
     legacy_creature_aggro_config: wow_world::session::LegacyCreatureAggroConfigLikeCpp,
     world_runtime_state: Arc<WorldRuntimeStateLikeCpp>,
+    battle_pet_account_registry: Arc<BattlePetAccountRegistryLikeCpp>,
 ) {
     info!(
         "Creating session for account {} (bnet_id={})",
@@ -13459,6 +13492,21 @@ async fn create_session(
         resources.realm_id,
     );
     session.set_realm_names_like_cpp(resources.realm_names.iter().cloned());
+    match battle_pet_account_registry
+        .attach_like_cpp(account.battlenet_account_id)
+        .await
+    {
+        Ok(attachment) => session.set_battle_pet_account_attachment_like_cpp(attachment),
+        Err(error) => {
+            tracing::error!(
+                account_id = account.id,
+                battlenet_account_id = account.battlenet_account_id,
+                %error,
+                "Rejecting world session because its canonical battle-pet journal could not load"
+            );
+            return;
+        }
+    }
     session.set_map_manager(Arc::clone(&shared_map));
     session.set_canonical_map_manager(Arc::clone(&canonical_map_manager));
 

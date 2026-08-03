@@ -1,11 +1,17 @@
 # Migration: BattlePets
 
 > **C++ canonical path:** `src/server/game/BattlePets/` (`BattlePetMgr.{h,cpp}`) + `src/server/game/Handlers/BattlePetHandler.cpp` + `src/server/game/Server/Packets/BattlePetPackets.{h,cpp}` + `WorldPackets::BattlePet::*` family
-> **Rust target crate(s):** No target crate intended for 3.4.3 client. Today only one packet stub exists: `crates/wow-packet/src/packets/misc.rs:1005` defines `BattlePetJournalLockAcquired` (zero-byte ServerPacket), used by `crates/wow-world/src/handlers/character.rs:4255` during the post-login packet pipeline (defensive ack so a 3.4.3 client that hasn't been told the journal is unavailable doesn't sit waiting). The single CMSG handler stub is `handle_battle_pet_request_journal` at `crates/wow-world/src/handlers/misc.rs:606` (empty body, registered at `:266`).
-> **Layer:** L7 (game system, but **not applicable to WotLK 3.4.3 client** — see §1)
-> **Status:** ⚠️ **N/A for WoLK 3.4.3.** The opcodes exist in the WoLK Trinity-Legacy codebase because that fork tracks a forward-ported feature surface, but a 3.4.3.54261 client has no Pet Battle UI, no companion summoning that resolves to a `BattlePet` species entry, and no journal screen. The only thing the Rust port needs to do is **not break the login flow** by sending a token `BattlePetJournalLockAcquired` (already done) and silently accept any of the 9 CMSG_BATTLEPET_* opcodes if a modded client ever sends them. **Do not implement the system.**
-> **Audited vs C++:** ✅ n/a confirmed (2026-05-01) — post-MoP feature; 3.4.3 client never sends BattlePet opcodes; existing `BattlePetJournalLockAcquired` proactive send flagged for removal/Denied switch
-> **Last updated:** 2026-06-07
+> **Rust target crate(s):** `crates/wow-world` (account owner and handlers), `crates/wow-database` (Login DB persistence), `crates/world-server` (process owner/bootstrap), and `crates/wow-packet` (journal packets).
+> **Layer:** L7 game system plus Login DB account ownership.
+> **Status:** represented-partial. The architecture campaign rooted at issue #133 explicitly supersedes the 2026-06-07 WotLK-only scope freeze for the forward-ported legacy surface. Issue #160 moves the represented journal to a durable account owner; trainer purchase remains #161 and full pet-battle gameplay is still outside this slice.
+> **Audited vs C++:** `BattlePetMgr.cpp` load/add/count/lock/persistence semantics contrasted for #160; Rust deliberately makes lease/capacity/GUID/persistence/publication atomic instead of reproducing the C++ split `HasMaxPetCount`/`AddPet` race.
+> **Last updated:** 2026-08-02
+
+## 2026-08-02 architecture-plan override (#160)
+
+The current GitHub architecture plan requires the forward-ported trainer and battle-pet seams even though a stock 3.4.3 client does not expose the full UI. The old scope-freeze text below is retained as historical product context, not as an instruction to remove or bypass the issue-ordered work.
+
+`BattlePetAccountOwnerLikeCpp` is the single mutable owner per Battle.net account. It loads pets and slots coherently, applies the C++ species/owner/per-species validation before publication, enforces one journal lease, reserves capacity before asynchronous persistence, and publishes only committed state. Adds use the consumed cage item's durable ObjectGuid as their request identity; receipts are intentionally retained after pet deletion because that source item must never grant twice. A singleton Login DB sequence row is locked only for each allocation transaction, while a durable account/species/owner-realm/owner-counter scope row serializes the final capacity recheck with the insert; the global `HighGuid::BattlePet` namespace and caps therefore remain safe when multiple realms share the Login DB. Ambiguous commits are reconciled, and cancellation-safe workers drain with a bounded server-shutdown deadline. `ClearFanfare` preserves the C++ exception that mutates without journal ownership while still using canonical per-pet serialization and persistence. This remains `represented-partial`: #161 owns trainer charging/cross-DB coordination, and unresolved/dormant handlers are not made production-ready by #160.
 
 ## 2026-06-07 scope freeze
 
@@ -293,8 +299,8 @@ The opcodes are **already present in `crates/wow-constants/src/opcodes.rs`** (se
 
 Complejidad: **L** (low, <1h), **M** (med, 1-4h), **H** (high, 4-12h), **XL** (>12h, splitear).
 
-- [ ] **#BPETS.1** **(WONTFIX in 3.4.3)** Implement `BattlePetMgr` per session. Reasoning: feature is post-WotLK. (XL)
-- [ ] **#BPETS.2** **(WONTFIX in 3.4.3)** Add login-DB schema for `battle_pets`, `battle_pet_slots`, `battle_pet_declined_name`. (M)
+- [x] **#BPETS.1 (superseded design)** Do not implement another per-session manager: #160 introduces one shared account-scoped owner and leaves the session-local collection only as a unit-test fallback. Full gameplay remains partial. (XL)
+- [x] **#BPETS.2** Login-DB `battle_pets`, `battle_pet_slots`, and declined-name persistence is active; #160 adds the durable `battle_pet_add_requests` idempotency receipt migration. (M)
 - [ ] **#BPETS.3** **(WONTFIX in 3.4.3)** Port the 9 CMSG handlers and ~15 SMSG packets. (XL)
 - [ ] **#BPETS.4** **(LOW PRIORITY, audit)** Verify the post-login `BattlePetJournalLockAcquired` send is correct vs the 3.4.3 client. If the client never opens the journal UI, this packet is harmless filler — but if a confused addon triggers a journal request, sending Acquired then nothing else is incorrect. Consider switching to `BattlePetJournalLockDenied` (define the packet type if not present), or remove the proactive send entirely (the client doesn't ask for it, so we wouldn't need to send anything). (L)
 - [ ] **#BPETS.5** **(LOW PRIORITY, audit)** Walk all 9 CMSG_BATTLE_PET_* opcodes and confirm they all silently-default in `session.rs` without crashing the dispatcher. Add explicit log-and-discard arms if any are not handled. (L)
