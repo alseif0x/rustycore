@@ -5,6 +5,7 @@
 
 //! World server core: session management, handlers, and world state.
 
+pub(crate) mod battle_pet_account;
 pub mod conditions;
 pub mod entity_update_bridge;
 pub mod handlers;
@@ -29,4 +30,9 @@ pub use map_manager::{
 pub use session::{
     MMapRuntimeConfigLikeCpp, SharedCanonicalMapManager, SharedObjectAccessor, WorldSession,
     new_shared_object_accessor,
+};
+
+pub use battle_pet_account::{
+    BattlePetAccountAttachmentLikeCpp, BattlePetAccountRegistryLikeCpp,
+    LoginBattlePetPersistenceLikeCpp,
 };

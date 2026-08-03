@@ -74,6 +74,7 @@ where
 /// to the pool.
 #[derive(Debug)]
 pub struct ItemGuidAllocatorAdvisoryLockLikeCpp {
+    allocator_label: &'static str,
     stop_tx: Option<oneshot::Sender<()>>,
     loss_rx: watch::Receiver<Option<String>>,
     monitor_handle: Option<JoinHandle<Result<(), DatabaseError>>>,
@@ -81,6 +82,21 @@ pub struct ItemGuidAllocatorAdvisoryLockLikeCpp {
 
 impl ItemGuidAllocatorAdvisoryLockLikeCpp {
     pub async fn acquire_like_cpp(pool: &MySqlPool) -> Result<Self, DatabaseError> {
+        Self::acquire_named_like_cpp(
+            pool,
+            "item",
+            "character",
+            ITEM_GUID_ALLOCATOR_LOCK_PREFIX_LIKE_CPP,
+        )
+        .await
+    }
+
+    async fn acquire_named_like_cpp(
+        pool: &MySqlPool,
+        allocator_label: &'static str,
+        database_label: &'static str,
+        lock_prefix: &'static str,
+    ) -> Result<Self, DatabaseError> {
         let mut connection = pool.acquire().await.map_err(DatabaseError::from)?;
         // From this point onward even an ambiguous GET_LOCK response must not
         // return a potentially locked connection to the pool.
@@ -91,10 +107,12 @@ impl ItemGuidAllocatorAdvisoryLockLikeCpp {
             .map_err(DatabaseError::from)?
             .ok_or_else(|| {
                 DatabaseError::Transaction(
-                    "item GUID allocator lock requires a selected character database".to_string(),
+                    format!(
+                        "{allocator_label} GUID allocator lock requires a selected {database_label} database"
+                    ),
                 )
             })?;
-        let lock_name = item_guid_allocator_lock_name_like_cpp(&database_name);
+        let lock_name = guid_allocator_lock_name_like_cpp(lock_prefix, &database_name);
         let acquired = sqlx::query_scalar::<_, Option<i64>>("SELECT GET_LOCK(?, 0)")
             .bind(&lock_name)
             .fetch_one(&mut *connection)
@@ -102,15 +120,20 @@ impl ItemGuidAllocatorAdvisoryLockLikeCpp {
             .map_err(DatabaseError::from)?;
         if acquired != Some(1) {
             return Err(DatabaseError::Transaction(format!(
-                "another world-server owns the item GUID allocator lock for character database {database_name}"
+                "another world-server owns the {allocator_label} GUID allocator lock for {database_label} database {database_name}"
             )));
         }
         let (stop_tx, stop_rx) = oneshot::channel();
         let (loss_tx, loss_rx) = watch::channel(None);
         let monitor_handle = tokio::spawn(run_item_guid_allocator_lock_monitor_like_cpp(
-            connection, lock_name, stop_rx, loss_tx,
+            connection,
+            lock_name,
+            allocator_label,
+            stop_rx,
+            loss_tx,
         ));
         Ok(Self {
+            allocator_label,
             stop_tx: Some(stop_tx),
             loss_rx,
             monitor_handle: Some(monitor_handle),
@@ -126,9 +149,10 @@ impl ItemGuidAllocatorAdvisoryLockLikeCpp {
                 return Err(DatabaseError::Transaction(message));
             }
             if self.loss_rx.changed().await.is_err() {
-                return Err(DatabaseError::Transaction(
-                    "item GUID allocator advisory-lock monitor stopped unexpectedly".to_string(),
-                ));
+                return Err(DatabaseError::Transaction(format!(
+                    "{} GUID allocator advisory-lock monitor stopped unexpectedly",
+                    self.allocator_label
+                )));
             }
         }
     }
@@ -144,7 +168,8 @@ impl ItemGuidAllocatorAdvisoryLockLikeCpp {
         };
         monitor_handle.await.map_err(|error| {
             DatabaseError::Transaction(format!(
-                "item GUID allocator advisory-lock monitor task failed: {error}"
+                "{} GUID allocator advisory-lock monitor task failed: {error}",
+                self.allocator_label
             ))
         })?
     }
@@ -158,6 +183,7 @@ impl ItemGuidAllocatorAdvisoryLockLikeCpp {
 async fn run_item_guid_allocator_lock_monitor_like_cpp(
     mut connection: PoolConnection<MySql>,
     lock_name: String,
+    allocator_label: &'static str,
     mut stop_rx: oneshot::Receiver<()>,
     loss_tx: watch::Sender<Option<String>>,
 ) -> Result<(), DatabaseError> {
@@ -169,7 +195,11 @@ async fn run_item_guid_allocator_lock_monitor_like_cpp(
         tokio::select! {
             biased;
             _ = &mut stop_rx => {
-                return release_item_guid_allocator_lock_like_cpp(&mut connection, &lock_name).await;
+                return release_item_guid_allocator_lock_like_cpp(
+                    &mut connection,
+                    &lock_name,
+                    allocator_label,
+                ).await;
             }
             _ = verify_interval.tick() => {
                 let ownership = sqlx::query_scalar::<_, Option<i64>>(
@@ -182,7 +212,7 @@ async fn run_item_guid_allocator_lock_monitor_like_cpp(
                     Ok(Some(1)) => {}
                     Ok(_) => {
                         let message = format!(
-                            "dedicated MySQL session lost item GUID allocator advisory lock {lock_name}"
+                            "dedicated MySQL session lost {allocator_label} GUID allocator advisory lock {lock_name}"
                         );
                         let _ = loss_tx.send(Some(message.clone()));
                         return Err(DatabaseError::Transaction(message));
@@ -190,7 +220,7 @@ async fn run_item_guid_allocator_lock_monitor_like_cpp(
                     Err(error) => {
                         let error = DatabaseError::from(error);
                         let message = format!(
-                            "could not verify item GUID allocator advisory lock {lock_name}: {error}"
+                            "could not verify {allocator_label} GUID allocator advisory lock {lock_name}: {error}"
                         );
                         let _ = loss_tx.send(Some(message));
                         return Err(error);
@@ -204,6 +234,7 @@ async fn run_item_guid_allocator_lock_monitor_like_cpp(
 async fn release_item_guid_allocator_lock_like_cpp(
     connection: &mut PoolConnection<MySql>,
     lock_name: &str,
+    allocator_label: &'static str,
 ) -> Result<(), DatabaseError> {
     let released = sqlx::query_scalar::<_, Option<i64>>("SELECT RELEASE_LOCK(?)")
         .bind(lock_name)
@@ -212,7 +243,7 @@ async fn release_item_guid_allocator_lock_like_cpp(
         .map_err(DatabaseError::from)?;
     if released != Some(1) {
         return Err(DatabaseError::Transaction(format!(
-            "item GUID allocator advisory lock {lock_name} was not owned at shutdown"
+            "{allocator_label} GUID allocator advisory lock {lock_name} was not owned at shutdown"
         )));
     }
     // The monitor owns this dedicated close-on-drop connection. Returning
@@ -220,7 +251,12 @@ async fn release_item_guid_allocator_lock_like_cpp(
     Ok(())
 }
 
+#[cfg(test)]
 fn item_guid_allocator_lock_name_like_cpp(database_name: &str) -> String {
+    guid_allocator_lock_name_like_cpp(ITEM_GUID_ALLOCATOR_LOCK_PREFIX_LIKE_CPP, database_name)
+}
+
+fn guid_allocator_lock_name_like_cpp(lock_prefix: &str, database_name: &str) -> String {
     // Stable FNV-1a avoids exposing a possibly sensitive database name while
     // keeping independent character databases in independent lock domains.
     let mut hash = 0xcbf2_9ce4_8422_2325u64;
@@ -228,7 +264,7 @@ fn item_guid_allocator_lock_name_like_cpp(database_name: &str) -> String {
         hash ^= u64::from(*byte);
         hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
     }
-    format!("{ITEM_GUID_ALLOCATOR_LOCK_PREFIX_LIKE_CPP}{hash:016x}")
+    format!("{lock_prefix}{hash:016x}")
 }
 
 /// Whether a failed transaction is known to have rolled back or crossed the

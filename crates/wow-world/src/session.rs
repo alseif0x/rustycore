@@ -20,6 +20,10 @@ use rand::{Rng, RngCore, SeedableRng, rngs::StdRng, seq::SliceRandom};
 use sqlx::Row;
 use tracing::{debug, info, trace, warn};
 
+use crate::battle_pet_account::{
+    BattlePetAccountAttachmentLikeCpp, BattlePetAddFailureLikeCpp, BattlePetAddOutcomeLikeCpp,
+    BattlePetAddRequestKeyLikeCpp, BattlePetAddRequestLikeCpp, BattlePetMutationFailureLikeCpp,
+};
 use crate::entity_update_bridge::{
     bag_values_update_to_update_object, dynamic_object_values_update_to_update_object,
     game_object_values_update_to_update_object, item_values_update_to_update_object,
@@ -3434,7 +3438,7 @@ impl RepresentedBattlePetSlotLikeCpp {
         }
     }
 
-    fn packet_slot_like_cpp(&self) -> wow_packet::packets::misc::BattlePetJournalSlot {
+    pub(crate) fn packet_slot_like_cpp(&self) -> wow_packet::packets::misc::BattlePetJournalSlot {
         wow_packet::packets::misc::BattlePetJournalSlot {
             pet_guid: self
                 .pet_guid
@@ -3472,7 +3476,7 @@ impl RepresentedBattlePetDataLikeCpp {
         }
     }
 
-    fn packet_info_like_cpp(
+    pub(crate) fn packet_info_like_cpp(
         &self,
         guid: ObjectGuid,
     ) -> wow_packet::packets::misc::BattlePetJournalPet {
@@ -4736,6 +4740,9 @@ pub enum SessionState {
 /// is attached.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpellCastBattlePetItemModifiersLikeCpp {
+    /// Stable identity of the caged item consumed by C++
+    /// `SPELL_EFFECT_UNCAGE_BATTLEPET`.
+    pub source_item_guid: ObjectGuid,
     pub species_id: u32,
     pub breed_data: u32,
     pub level: u16,
@@ -6053,8 +6060,11 @@ pub struct WorldSession {
     /// C++ `CollectionMgr::_transmogIllusions`, represented until account collection runtime is complete.
     pub(crate) represented_transmog_illusions_like_cpp: HashSet<u32>,
     /// C++ `BattlePetMgr::_pets`, represented minimally until full battle-pet runtime is ported.
+    /// Production sessions use `battle_pet_account_attachment_like_cpp`; this
+    /// map remains only as the isolated represented/test fallback.
     pub(crate) represented_battle_pets_like_cpp:
         HashMap<ObjectGuid, RepresentedBattlePetDataLikeCpp>,
+    battle_pet_account_attachment_like_cpp: Option<BattlePetAccountAttachmentLikeCpp>,
     /// C++ `BattlePetMgr::_hasJournalLock`, represented until full battle-pet runtime is ported.
     pub(crate) represented_battle_pet_journal_lock_like_cpp: bool,
     /// C++ `BattlePetMgr::_slots`, represented until full battle-pet slot
@@ -7843,6 +7853,7 @@ impl WorldSession {
             represented_favorite_item_appearances_like_cpp: HashMap::new(),
             represented_transmog_illusions_like_cpp: HashSet::new(),
             represented_battle_pets_like_cpp: HashMap::new(),
+            battle_pet_account_attachment_like_cpp: None,
             represented_battle_pet_journal_lock_like_cpp: false,
             represented_battle_pet_slots_like_cpp: std::array::from_fn(|index| {
                 RepresentedBattlePetSlotLikeCpp::locked_empty(index as u8)
@@ -16077,6 +16088,16 @@ impl WorldSession {
     /// Set the login database for this session.
     pub fn set_login_db(&mut self, db: Arc<LoginDatabase>) {
         self.login_db = Some(db);
+    }
+
+    /// Attach this session to the one canonical journal owner for its
+    /// Battle.net account. The attachment releases any held journal lease on
+    /// drop, matching C++ `WorldSession` teardown.
+    pub fn set_battle_pet_account_attachment_like_cpp(
+        &mut self,
+        attachment: BattlePetAccountAttachmentLikeCpp,
+    ) {
+        self.battle_pet_account_attachment_like_cpp = Some(attachment);
     }
 
     pub fn set_battlenet_account_id(&mut self, battlenet_account_id: u32) {
@@ -49239,12 +49260,24 @@ impl WorldSession {
 
     /// C++ `BattlePetMgr::HasJournalLock`.
     pub(crate) fn has_represented_battle_pet_journal_lock_like_cpp(&self) -> bool {
+        if let Some(attachment) = &self.battle_pet_account_attachment_like_cpp {
+            return attachment.has_lease_like_cpp();
+        }
         self.represented_battle_pet_journal_lock_like_cpp
     }
 
     /// C++ `BattlePetMgr::SendJournalLockStatus`, represented as the successful
     /// local acquisition path until the global world journal-lock owner exists.
-    pub(crate) fn send_battle_pet_journal_lock_status_like_cpp(&mut self) {
+    pub(crate) async fn send_battle_pet_journal_lock_status_like_cpp(&mut self) {
+        if let Some(attachment) = &self.battle_pet_account_attachment_like_cpp {
+            let acquired = attachment.try_acquire_lease_like_cpp().await;
+            if acquired {
+                self.send_packet_realm(&wow_packet::packets::misc::BattlePetJournalLockAcquired);
+            } else {
+                self.send_packet_realm(&wow_packet::packets::misc::BattlePetJournalLockDenied);
+            }
+            return;
+        }
         self.represented_battle_pet_journal_lock_like_cpp = true;
         self.send_packet_realm(&wow_packet::packets::misc::BattlePetJournalLockAcquired);
     }
@@ -49262,6 +49295,28 @@ impl WorldSession {
         true
     }
 
+    pub(crate) async fn battle_pet_clear_fanfare_durable_like_cpp(
+        &mut self,
+        pet_guid: ObjectGuid,
+    ) -> bool {
+        let Some(attachment) = &self.battle_pet_account_attachment_like_cpp else {
+            return self.battle_pet_clear_fanfare_like_cpp(pet_guid);
+        };
+        let owner = Arc::clone(attachment.owner_like_cpp());
+        match owner
+            .try_mutate_pet_without_lease_like_cpp(pet_guid, |pet| {
+                pet.flags &= !BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP;
+            })
+            .await
+        {
+            Ok(_) => true,
+            Err(error) => {
+                self.log_battle_pet_mutation_failure_like_cpp("clear fanfare", pet_guid, &error);
+                false
+            }
+        }
+    }
+
     /// C++ `BattlePetMgr::RemovePet`.
     pub(crate) fn battle_pet_remove_pet_like_cpp(&mut self, pet_guid: ObjectGuid) -> bool {
         if !self.has_represented_battle_pet_journal_lock_like_cpp() {
@@ -49274,6 +49329,24 @@ impl WorldSession {
 
         pet.save_info = RepresentedBattlePetSaveInfoLikeCpp::Removed;
         true
+    }
+
+    pub(crate) async fn battle_pet_remove_pet_durable_like_cpp(
+        &mut self,
+        pet_guid: ObjectGuid,
+    ) -> bool {
+        let Some(attachment) = &self.battle_pet_account_attachment_like_cpp else {
+            return self.battle_pet_remove_pet_like_cpp(pet_guid);
+        };
+        let owner = Arc::clone(attachment.owner_like_cpp());
+        let lease = attachment.lease_id_like_cpp();
+        match owner.try_remove_pet_like_cpp(lease, pet_guid).await {
+            Ok(()) => true,
+            Err(error) => {
+                self.log_battle_pet_mutation_failure_like_cpp("remove", pet_guid, &error);
+                false
+            }
+        }
     }
 
     /// C++ `BattlePetMgr::CageBattlePet`, represented at the battle-pet state
@@ -49373,6 +49446,34 @@ impl WorldSession {
         true
     }
 
+    pub(crate) async fn battle_pet_modify_name_durable_like_cpp(
+        &mut self,
+        pet_guid: ObjectGuid,
+        name: String,
+        declined_names: Option<wow_packet::packets::misc::DeclinedNamesLikeCpp>,
+        timestamp: i64,
+    ) -> bool {
+        let Some(attachment) = &self.battle_pet_account_attachment_like_cpp else {
+            return self.battle_pet_modify_name_like_cpp(pet_guid, name, declined_names, timestamp);
+        };
+        let owner = Arc::clone(attachment.owner_like_cpp());
+        let lease = attachment.lease_id_like_cpp();
+        match owner
+            .try_mutate_pet_like_cpp(lease, pet_guid, move |pet| {
+                pet.name = name;
+                pet.name_timestamp = timestamp;
+                pet.declined_names = declined_names;
+            })
+            .await
+        {
+            Ok(_) => true,
+            Err(error) => {
+                self.log_battle_pet_mutation_failure_like_cpp("modify name", pet_guid, &error);
+                false
+            }
+        }
+    }
+
     /// C++ `WorldSession::HandleBattlePetSetFlags` flag mutation.
     pub(crate) fn battle_pet_set_flags_like_cpp(
         &mut self,
@@ -49396,6 +49497,35 @@ impl WorldSession {
         true
     }
 
+    pub(crate) async fn battle_pet_set_flags_durable_like_cpp(
+        &mut self,
+        pet_guid: ObjectGuid,
+        flags: u16,
+        control_type: u8,
+    ) -> bool {
+        let Some(attachment) = &self.battle_pet_account_attachment_like_cpp else {
+            return self.battle_pet_set_flags_like_cpp(pet_guid, flags, control_type);
+        };
+        let owner = Arc::clone(attachment.owner_like_cpp());
+        let lease = attachment.lease_id_like_cpp();
+        match owner
+            .try_mutate_pet_like_cpp(lease, pet_guid, move |pet| {
+                if control_type == BATTLE_PET_FLAGS_CONTROL_TYPE_APPLY_LIKE_CPP {
+                    pet.flags |= flags;
+                } else {
+                    pet.flags &= !flags;
+                }
+            })
+            .await
+        {
+            Ok(_) => true,
+            Err(error) => {
+                self.log_battle_pet_mutation_failure_like_cpp("set flags", pet_guid, &error);
+                false
+            }
+        }
+    }
+
     /// C++ `WorldSession::HandleBattlePetSetBattleSlot`.
     pub(crate) fn battle_pet_set_battle_slot_like_cpp(
         &mut self,
@@ -49417,6 +49547,48 @@ impl WorldSession {
         };
         slot_ref.pet_guid = Some(pet_guid);
         true
+    }
+
+    pub(crate) async fn battle_pet_set_battle_slot_durable_like_cpp(
+        &mut self,
+        pet_guid: ObjectGuid,
+        slot: u8,
+    ) -> bool {
+        let Some(attachment) = &self.battle_pet_account_attachment_like_cpp else {
+            return self.battle_pet_set_battle_slot_like_cpp(pet_guid, slot);
+        };
+        let owner = Arc::clone(attachment.owner_like_cpp());
+        let lease = attachment.lease_id_like_cpp();
+        match owner.try_set_slot_like_cpp(lease, pet_guid, slot).await {
+            Ok(_) => true,
+            Err(error) => {
+                self.log_battle_pet_mutation_failure_like_cpp("set battle slot", pet_guid, &error);
+                false
+            }
+        }
+    }
+
+    fn log_battle_pet_mutation_failure_like_cpp(
+        &self,
+        operation: &'static str,
+        pet_guid: ObjectGuid,
+        error: &BattlePetMutationFailureLikeCpp,
+    ) {
+        if matches!(
+            error,
+            BattlePetMutationFailureLikeCpp::MissingAuthority
+                | BattlePetMutationFailureLikeCpp::JournalLocked
+                | BattlePetMutationFailureLikeCpp::UnknownPet
+        ) {
+            return;
+        }
+        warn!(
+            account = self.account_id,
+            ?pet_guid,
+            ?error,
+            operation,
+            "Durable battle-pet mutation failed"
+        );
     }
 
     /// C++ `BattlePetMgr::UnlockSlot`.
@@ -49465,6 +49637,9 @@ impl WorldSession {
 
     /// C++ `BattlePetMgr::GetMaxPetLevel`.
     pub(crate) fn battle_pet_max_pet_level_like_cpp(&self) -> u16 {
+        if let Some(attachment) = &self.battle_pet_account_attachment_like_cpp {
+            return attachment.owner_like_cpp().max_pet_level_like_cpp();
+        }
         self.represented_battle_pets_like_cpp
             .values()
             .filter(|pet| pet.save_info != RepresentedBattlePetSaveInfoLikeCpp::Removed)
@@ -49479,6 +49654,11 @@ impl WorldSession {
         species: u32,
         owner_guid: Option<ObjectGuid>,
     ) -> u8 {
+        if let Some(attachment) = &self.battle_pet_account_attachment_like_cpp {
+            return attachment
+                .owner_like_cpp()
+                .pet_count_like_cpp(species, owner_guid);
+        }
         let species_flags = self
             .battle_pet_species_store
             .as_ref()
@@ -49512,6 +49692,11 @@ impl WorldSession {
         species: u32,
         owner_guid: Option<ObjectGuid>,
     ) -> bool {
+        if let Some(attachment) = &self.battle_pet_account_attachment_like_cpp {
+            return attachment
+                .owner_like_cpp()
+                .has_max_pet_count_like_cpp(species, owner_guid);
+        }
         let Some(species_entry) = self
             .battle_pet_species_store
             .as_ref()
@@ -49604,6 +49789,168 @@ impl WorldSession {
             .push(species);
 
         Some(pet_guid)
+    }
+
+    /// Durable account-scoped `BattlePetMgr::AddPet` replacement. Unlike the
+    /// target C++ split `HasMaxPetCount`/`AddPet` sequence, the owner rechecks
+    /// lease and capacity while reserving the insert. Publication happens only
+    /// after the Login DB pet row and idempotency receipt commit together.
+    pub(crate) async fn battle_pet_try_add_pet_durable_like_cpp(
+        &mut self,
+        request_key: [u8; 16],
+        species: u32,
+        display_id: u32,
+        breed: u16,
+        quality: u8,
+        level: u16,
+    ) -> Result<ObjectGuid, BattlePetAddFailureLikeCpp> {
+        let Some(attachment) = &self.battle_pet_account_attachment_like_cpp else {
+            return self
+                .battle_pet_add_pet_represented_like_cpp(species, display_id, breed, quality, level)
+                .ok_or(BattlePetAddFailureLikeCpp::InvalidSpecies);
+        };
+        let owner = Arc::clone(attachment.owner_like_cpp());
+        let lease_id = attachment.lease_id_like_cpp();
+        let outcome = owner
+            .try_add_pet_like_cpp(
+                lease_id,
+                BattlePetAddRequestLikeCpp {
+                    request_key: BattlePetAddRequestKeyLikeCpp::from_bytes(request_key),
+                    species,
+                    display_id,
+                    breed,
+                    quality,
+                    level,
+                    owner_guid: self.player_guid(),
+                },
+            )
+            .await?;
+        match outcome {
+            BattlePetAddOutcomeLikeCpp::Added(pet) => {
+                let guid = pet.guid;
+                self.send_packet(&wow_packet::packets::misc::BattlePetUpdates {
+                    pets: vec![pet],
+                    pet_added: true,
+                });
+                self.represented_battle_pet_unique_owned_criteria_like_cpp = self
+                    .represented_battle_pet_unique_owned_criteria_like_cpp
+                    .saturating_add(1);
+                self.represented_battle_pet_learned_new_pet_criteria_like_cpp
+                    .push(species);
+                Ok(guid)
+            }
+            BattlePetAddOutcomeLikeCpp::Replayed(pet) => Ok(pet.guid),
+        }
+    }
+
+    async fn battle_pet_add_request_committed_like_cpp(
+        &self,
+        request_key: BattlePetAddRequestKeyLikeCpp,
+    ) -> Result<bool, BattlePetAddFailureLikeCpp> {
+        let Some(attachment) = &self.battle_pet_account_attachment_like_cpp else {
+            return Ok(false);
+        };
+        attachment
+            .owner_like_cpp()
+            .add_request_committed_like_cpp(request_key)
+            .await
+    }
+
+    fn uncage_cast_item_still_matches_like_cpp(
+        &self,
+        cast_item_entry: u32,
+        modifiers: SpellCastBattlePetItemModifiersLikeCpp,
+    ) -> Option<(u8, u8, InventoryItem)> {
+        let (bag, slot, inventory_item) =
+            self.get_inventory_item_by_guid_like_cpp(modifiers.source_item_guid)?;
+        if inventory_item.entry_id != cast_item_entry {
+            return None;
+        }
+        let item = self
+            .inventory_item_objects_like_cpp()
+            .get(&modifiers.source_item_guid)?;
+        (item.object().entry() == cast_item_entry
+            && item.get_modifier(ItemModifier::BattlePetSpeciesId) == modifiers.species_id
+            && item.get_modifier(ItemModifier::BattlePetBreedData) == modifiers.breed_data
+            && item.get_modifier(ItemModifier::BattlePetLevel) == u32::from(modifiers.level)
+            && item.get_modifier(ItemModifier::BattlePetDisplayId) == modifiers.display_id)
+            .then_some((bag, slot, inventory_item))
+    }
+
+    pub(crate) async fn uncage_item_state_like_cpp(
+        char_db: &CharacterDatabase,
+        player_db_guid: u64,
+        item_db_guid: u64,
+    ) -> Result<(Option<u64>, bool), DatabaseError> {
+        let mut statement = char_db.prepare(CharStatements::SEL_UNCAGE_ITEM_STATE);
+        statement.set_u64(0, item_db_guid);
+        statement.set_u64(1, player_db_guid);
+        statement.set_u64(2, item_db_guid);
+        let result = char_db.query(&statement).await?;
+        Ok((
+            result.try_read::<Option<u64>>(0).flatten(),
+            result.try_read::<u64>(1).unwrap_or_default() != 0,
+        ))
+    }
+
+    /// Finish C++ `Player::DestroyItem` after the Login DB pet/receipt commit.
+    ///
+    /// The receipt makes this second database phase retryable: a reconnect may
+    /// observe the already-created pet and finish deleting the cage without
+    /// publishing another pet or visual.
+    async fn destroy_uncaged_battle_pet_item_durable_like_cpp(
+        &mut self,
+        source_item_guid: ObjectGuid,
+    ) -> bool {
+        let Some(player_guid) = self.player_guid() else {
+            return false;
+        };
+        let Some(char_db) = self.char_db().map(Arc::clone) else {
+            return false;
+        };
+        let player_db_guid = player_guid.counter() as u64;
+        let item_db_guid = source_item_guid.counter() as u64;
+
+        let state = Self::uncage_item_state_like_cpp(&char_db, player_db_guid, item_db_guid).await;
+        let (owner_guid, inventory_linked) = match state {
+            Ok(state) => state,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    item_guid = item_db_guid,
+                    %error,
+                    "Failed to inspect the uncaged battle-pet item"
+                );
+                return false;
+            }
+        };
+        if owner_guid.is_some_and(|owner_guid| owner_guid != player_db_guid) {
+            warn!(
+                account = self.account_id,
+                item_guid = item_db_guid,
+                durable_owner = ?owner_guid,
+                player_guid = player_db_guid,
+                "Refusing to destroy an uncaged item owned by another character"
+            );
+            return false;
+        }
+        let Some((bag, slot, item)) = self.get_inventory_item_by_guid_like_cpp(source_item_guid)
+        else {
+            return owner_guid.is_none() && !inventory_linked;
+        };
+        let runtime_item = self
+            .inventory_item_objects_like_cpp()
+            .get(&source_item_guid)
+            .cloned();
+        self.destroy_inventory_full_stack_by_pos_with_expected_owner_like_cpp(
+            bag,
+            slot,
+            item,
+            runtime_item,
+            owner_guid.map(|_| player_db_guid),
+            "BattlePetUncage",
+        )
+        .await
     }
 
     /// C++ `BattlePetMgr::SendError`.
@@ -49711,6 +50058,65 @@ impl WorldSession {
         RepresentedBattlePetQualityOutcomeLikeCpp::Changed
     }
 
+    pub(crate) async fn battle_pet_change_quality_durable_like_cpp(
+        &mut self,
+        pet_guid: ObjectGuid,
+        quality: u8,
+    ) -> RepresentedBattlePetQualityOutcomeLikeCpp {
+        let Some(attachment) = &self.battle_pet_account_attachment_like_cpp else {
+            return self
+                .battle_pet_change_battle_pet_quality_represented_like_cpp(pet_guid, quality);
+        };
+        if !attachment.has_lease_like_cpp() {
+            return RepresentedBattlePetQualityOutcomeLikeCpp::NoJournalLock;
+        }
+        let owner = Arc::clone(attachment.owner_like_cpp());
+        let lease = attachment.lease_id_like_cpp();
+        let Some(pet) = owner.pet_snapshot_like_cpp(pet_guid) else {
+            return RepresentedBattlePetQualityOutcomeLikeCpp::UnknownPet;
+        };
+        if quality > BATTLE_PET_BREED_QUALITY_RARE_LIKE_CPP {
+            return RepresentedBattlePetQualityOutcomeLikeCpp::QualityAboveRare;
+        }
+        if self.battle_pet_species_has_flag_like_cpp(
+            pet.species,
+            wow_data::BATTLE_PET_SPECIES_FLAG_CANT_BATTLE_LIKE_CPP,
+        ) {
+            return RepresentedBattlePetQualityOutcomeLikeCpp::CantBattle;
+        }
+        if pet.quality >= quality {
+            return RepresentedBattlePetQualityOutcomeLikeCpp::NotUpgrade;
+        }
+        let calculated =
+            self.battle_pet_calculate_stats_like_cpp(pet.breed, pet.species, quality, pet.level);
+        match owner
+            .try_mutate_pet_like_cpp(lease, pet_guid, move |pet| {
+                pet.quality = quality;
+                Self::apply_battle_pet_calculated_stats_like_cpp(pet, calculated);
+            })
+            .await
+        {
+            Ok(((), packet)) => {
+                self.send_packet(&wow_packet::packets::misc::BattlePetUpdates {
+                    pets: vec![packet],
+                    pet_added: false,
+                });
+                RepresentedBattlePetQualityOutcomeLikeCpp::Changed
+            }
+            Err(
+                BattlePetMutationFailureLikeCpp::MissingAuthority
+                | BattlePetMutationFailureLikeCpp::JournalLocked,
+            ) => RepresentedBattlePetQualityOutcomeLikeCpp::NoJournalLock,
+            Err(BattlePetMutationFailureLikeCpp::UnknownPet) => {
+                RepresentedBattlePetQualityOutcomeLikeCpp::UnknownPet
+            }
+            Err(error) => {
+                self.log_battle_pet_mutation_failure_like_cpp("change quality", pet_guid, &error);
+                RepresentedBattlePetQualityOutcomeLikeCpp::UnknownPet
+            }
+        }
+    }
+
     /// C++ `BattlePetMgr::GrantBattlePetLevel`. `BattlePet::CalculateStats`
     /// may return early when breed-state DB2 rows are missing; that does not
     /// abort the level grant.
@@ -49773,6 +50179,80 @@ impl WorldSession {
 
         self.send_battle_pet_updates_like_cpp(&[pet_guid], false);
         RepresentedBattlePetGrantLevelOutcomeLikeCpp::Changed
+    }
+
+    pub(crate) async fn battle_pet_grant_level_durable_like_cpp(
+        &mut self,
+        pet_guid: ObjectGuid,
+        granted_levels: u16,
+    ) -> RepresentedBattlePetGrantLevelOutcomeLikeCpp {
+        let Some(attachment) = &self.battle_pet_account_attachment_like_cpp else {
+            return self
+                .battle_pet_grant_battle_pet_level_represented_like_cpp(pet_guid, granted_levels);
+        };
+        if !attachment.has_lease_like_cpp() {
+            return RepresentedBattlePetGrantLevelOutcomeLikeCpp::NoJournalLock;
+        }
+        let owner = Arc::clone(attachment.owner_like_cpp());
+        let lease = attachment.lease_id_like_cpp();
+        let Some(pet) = owner.pet_snapshot_like_cpp(pet_guid) else {
+            return RepresentedBattlePetGrantLevelOutcomeLikeCpp::UnknownPet;
+        };
+        if self.battle_pet_species_has_flag_like_cpp(
+            pet.species,
+            wow_data::BATTLE_PET_SPECIES_FLAG_CANT_BATTLE_LIKE_CPP,
+        ) {
+            return RepresentedBattlePetGrantLevelOutcomeLikeCpp::CantBattle;
+        }
+        if pet.level >= MAX_BATTLE_PET_LEVEL_LIKE_CPP {
+            return RepresentedBattlePetGrantLevelOutcomeLikeCpp::AlreadyMaxLevel;
+        }
+        if granted_levels == 0 {
+            return RepresentedBattlePetGrantLevelOutcomeLikeCpp::NoGrantedLevels;
+        }
+        let level = pet
+            .level
+            .saturating_add(granted_levels)
+            .min(MAX_BATTLE_PET_LEVEL_LIKE_CPP);
+        let criteria: Vec<_> = ((pet.level + 1)..=level)
+            .map(|level| RepresentedBattlePetLevelCriteriaLikeCpp {
+                species: pet.species,
+                level,
+            })
+            .collect();
+        let calculated =
+            self.battle_pet_calculate_stats_like_cpp(pet.breed, pet.species, pet.quality, level);
+        match owner
+            .try_mutate_pet_like_cpp(lease, pet_guid, move |pet| {
+                pet.level = level;
+                if level >= MAX_BATTLE_PET_LEVEL_LIKE_CPP {
+                    pet.exp = 0;
+                }
+                Self::apply_battle_pet_calculated_stats_like_cpp(pet, calculated);
+            })
+            .await
+        {
+            Ok(((), packet)) => {
+                self.represented_battle_pet_level_criteria_like_cpp
+                    .extend(criteria);
+                self.send_packet(&wow_packet::packets::misc::BattlePetUpdates {
+                    pets: vec![packet],
+                    pet_added: false,
+                });
+                RepresentedBattlePetGrantLevelOutcomeLikeCpp::Changed
+            }
+            Err(
+                BattlePetMutationFailureLikeCpp::MissingAuthority
+                | BattlePetMutationFailureLikeCpp::JournalLocked,
+            ) => RepresentedBattlePetGrantLevelOutcomeLikeCpp::NoJournalLock,
+            Err(BattlePetMutationFailureLikeCpp::UnknownPet) => {
+                RepresentedBattlePetGrantLevelOutcomeLikeCpp::UnknownPet
+            }
+            Err(error) => {
+                self.log_battle_pet_mutation_failure_like_cpp("grant level", pet_guid, &error);
+                RepresentedBattlePetGrantLevelOutcomeLikeCpp::UnknownPet
+            }
+        }
     }
 
     pub(crate) fn set_represented_battle_pet_xp_per_level_like_cpp(
@@ -49872,6 +50352,106 @@ impl WorldSession {
         RepresentedBattlePetGrantExperienceOutcomeLikeCpp::Changed
     }
 
+    pub(crate) async fn battle_pet_grant_experience_durable_like_cpp(
+        &mut self,
+        pet_guid: ObjectGuid,
+        xp: u16,
+        xp_source: RepresentedBattlePetXpSourceLikeCpp,
+        pet_battle_xp_multiplier: f32,
+    ) -> RepresentedBattlePetGrantExperienceOutcomeLikeCpp {
+        let Some(attachment) = &self.battle_pet_account_attachment_like_cpp else {
+            return self.battle_pet_grant_battle_pet_experience_represented_like_cpp(
+                pet_guid,
+                xp,
+                xp_source,
+                pet_battle_xp_multiplier,
+            );
+        };
+        if !attachment.has_lease_like_cpp() {
+            return RepresentedBattlePetGrantExperienceOutcomeLikeCpp::NoJournalLock;
+        }
+        let owner = Arc::clone(attachment.owner_like_cpp());
+        let lease = attachment.lease_id_like_cpp();
+        let Some(pet) = owner.pet_snapshot_like_cpp(pet_guid) else {
+            return RepresentedBattlePetGrantExperienceOutcomeLikeCpp::UnknownPet;
+        };
+        if xp == 0 || xp_source == RepresentedBattlePetXpSourceLikeCpp::Invalid {
+            return RepresentedBattlePetGrantExperienceOutcomeLikeCpp::InvalidXpOrSource;
+        }
+        if self.battle_pet_species_has_flag_like_cpp(
+            pet.species,
+            wow_data::BATTLE_PET_SPECIES_FLAG_CANT_BATTLE_LIKE_CPP,
+        ) {
+            return RepresentedBattlePetGrantExperienceOutcomeLikeCpp::CantBattle;
+        }
+        if pet.level >= MAX_BATTLE_PET_LEVEL_LIKE_CPP {
+            return RepresentedBattlePetGrantExperienceOutcomeLikeCpp::AlreadyMaxLevel;
+        }
+        let Some(mut next_level_xp) = self.battle_pet_xp_per_level_like_cpp(pet.level) else {
+            return RepresentedBattlePetGrantExperienceOutcomeLikeCpp::MissingXpRow;
+        };
+        let mut level = pet.level;
+        let mut total_xp = if xp_source == RepresentedBattlePetXpSourceLikeCpp::PetBattle {
+            (f32::from(xp) * pet_battle_xp_multiplier) as u16
+        } else {
+            xp
+        };
+        total_xp = total_xp.saturating_add(pet.exp);
+        let mut criteria = Vec::new();
+        while total_xp >= next_level_xp && level < MAX_BATTLE_PET_LEVEL_LIKE_CPP {
+            total_xp = total_xp.saturating_sub(next_level_xp);
+            level += 1;
+            let Some(row_xp) = self.battle_pet_xp_per_level_like_cpp(level) else {
+                return RepresentedBattlePetGrantExperienceOutcomeLikeCpp::MissingXpRow;
+            };
+            next_level_xp = row_xp;
+            criteria.push(RepresentedBattlePetLevelCriteriaLikeCpp {
+                species: pet.species,
+                level,
+            });
+        }
+        let calculated =
+            self.battle_pet_calculate_stats_like_cpp(pet.breed, pet.species, pet.quality, level);
+        let persisted_exp = if level < MAX_BATTLE_PET_LEVEL_LIKE_CPP {
+            total_xp
+        } else {
+            0
+        };
+        match owner
+            .try_mutate_pet_like_cpp(lease, pet_guid, move |pet| {
+                pet.level = level;
+                pet.exp = persisted_exp;
+                Self::apply_battle_pet_calculated_stats_like_cpp(pet, calculated);
+            })
+            .await
+        {
+            Ok(((), packet)) => {
+                self.represented_battle_pet_level_criteria_like_cpp
+                    .extend(criteria.iter().copied());
+                if xp_source == RepresentedBattlePetXpSourceLikeCpp::PetBattle {
+                    self.represented_battle_pet_active_level_criteria_like_cpp
+                        .extend(criteria);
+                }
+                self.send_packet(&wow_packet::packets::misc::BattlePetUpdates {
+                    pets: vec![packet],
+                    pet_added: false,
+                });
+                RepresentedBattlePetGrantExperienceOutcomeLikeCpp::Changed
+            }
+            Err(
+                BattlePetMutationFailureLikeCpp::MissingAuthority
+                | BattlePetMutationFailureLikeCpp::JournalLocked,
+            ) => RepresentedBattlePetGrantExperienceOutcomeLikeCpp::NoJournalLock,
+            Err(BattlePetMutationFailureLikeCpp::UnknownPet) => {
+                RepresentedBattlePetGrantExperienceOutcomeLikeCpp::UnknownPet
+            }
+            Err(error) => {
+                self.log_battle_pet_mutation_failure_like_cpp("grant experience", pet_guid, &error);
+                RepresentedBattlePetGrantExperienceOutcomeLikeCpp::UnknownPet
+            }
+        }
+    }
+
     pub(crate) fn battle_pet_grant_battle_pet_experience_with_owner_auras_like_cpp(
         &mut self,
         pet_guid: ObjectGuid,
@@ -49927,6 +50507,11 @@ impl WorldSession {
     pub(crate) fn represented_battle_pet_journal_like_cpp(
         &self,
     ) -> wow_packet::packets::misc::BattlePetJournal {
+        if let Some(attachment) = &self.battle_pet_account_attachment_like_cpp {
+            return attachment
+                .owner_like_cpp()
+                .journal_like_cpp(attachment.lease_id_like_cpp(), self.player_guid());
+        }
         let player_guid = self.player_guid();
         let mut journal = wow_packet::packets::misc::BattlePetJournal {
             trap: 0,
@@ -49975,10 +50560,7 @@ impl WorldSession {
             return true;
         }
 
-        if !self
-            .represented_battle_pets_like_cpp
-            .contains_key(&pet_guid)
-        {
+        if self.represented_battle_pet_like_cpp(pet_guid).is_none() {
             return false;
         }
 
@@ -50056,11 +50638,7 @@ impl WorldSession {
 
     /// C++ `BattlePetMgr::UpdateBattlePetData`, represented at the gate level.
     pub(crate) fn battle_pet_update_notify_like_cpp(&mut self, pet_guid: ObjectGuid) -> bool {
-        let Some(pet) = self
-            .represented_battle_pets_like_cpp
-            .get(&pet_guid)
-            .cloned()
-        else {
+        let Some(pet) = self.represented_battle_pet_like_cpp(pet_guid) else {
             return false;
         };
 
@@ -50084,6 +50662,9 @@ impl WorldSession {
         &self,
         pet_guid: ObjectGuid,
     ) -> Option<RepresentedBattlePetDataLikeCpp> {
+        if let Some(attachment) = &self.battle_pet_account_attachment_like_cpp {
+            return attachment.owner_like_cpp().pet_snapshot_like_cpp(pet_guid);
+        }
         self.represented_battle_pets_like_cpp
             .get(&pet_guid)
             .cloned()
@@ -61802,14 +62383,16 @@ impl WorldSession {
                     self.apply_upgrade_heirloom_effect_like_cpp(metadata);
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_UNCAGE_BATTLEPET => {
-                    self.apply_uncage_battle_pet_effect_like_cpp(spell_id, cast_id, metadata);
+                    self.apply_uncage_battle_pet_effect_like_cpp(spell_id, cast_id, metadata)
+                        .await;
                 }
                 x if x == wow_data::spell::spell_effect_types::SPELL_EFFECT_GRANT_BATTLEPET_LEVEL =>
                 {
                     self.apply_grant_battle_pet_level_effect_like_cpp(
                         metadata,
                         direct_effect_base_points as u16,
-                    );
+                    )
+                    .await;
                 }
                 x if x
                     == wow_data::spell::spell_effect_types::SPELL_EFFECT_GRANT_BATTLEPET_EXPERIENCE =>
@@ -61817,7 +62400,8 @@ impl WorldSession {
                     self.apply_grant_battle_pet_experience_effect_like_cpp(
                         metadata,
                         direct_effect_base_points as u16,
-                    );
+                    )
+                    .await;
                 }
                 x if x
                     == wow_data::spell::spell_effect_types::SPELL_EFFECT_CHANGE_BATTLEPET_QUALITY
@@ -62365,11 +62949,10 @@ impl WorldSession {
         }
     }
 
-    /// C++ `Spell::EffectCreateBattlePet` / `SPELL_EFFECT_UNCAGE_BATTLEPET`,
-    /// represented up to the failure gates. The successful `BattlePetMgr::AddPet`
-    /// branch is kept for a later slice because it needs GUID allocation,
-    /// criteria updates, and DB-backed persistence.
-    fn apply_uncage_battle_pet_effect_like_cpp(
+    /// C++ `Spell::EffectCreateBattlePet` / `SPELL_EFFECT_UNCAGE_BATTLEPET`.
+    /// The Login DB pet/receipt commit precedes the Character DB `DestroyItem`
+    /// phase so an interrupted cross-database operation can resume idempotently.
+    async fn apply_uncage_battle_pet_effect_like_cpp(
         &mut self,
         spell_id: i32,
         cast_id: ObjectGuid,
@@ -62378,6 +62961,55 @@ impl WorldSession {
         let Some(modifiers) = metadata.cast_item_battle_pet_modifiers else {
             return;
         };
+
+        let Some(request_key) = BattlePetAddRequestKeyLikeCpp::from_source_item_guid_like_cpp(
+            modifiers.source_item_guid,
+        ) else {
+            warn!(
+                account = self.account_id,
+                species = modifiers.species_id,
+                "Durable battle-pet uncage lacks a stable source-item identity"
+            );
+            return;
+        };
+        let request_already_committed = match self
+            .battle_pet_add_request_committed_like_cpp(request_key)
+            .await
+        {
+            Ok(committed) => committed,
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    species = modifiers.species_id,
+                    ?error,
+                    "Failed to reconcile a durable battle-pet uncage request"
+                );
+                return;
+            }
+        };
+
+        if request_already_committed {
+            if metadata.cast_item_entry.is_some() {
+                let _ = self
+                    .destroy_uncaged_battle_pet_item_durable_like_cpp(modifiers.source_item_guid)
+                    .await;
+            }
+            return;
+        }
+
+        if let Some(cast_item_entry) = metadata.cast_item_entry
+            && self
+                .uncage_cast_item_still_matches_like_cpp(cast_item_entry, modifiers)
+                .is_none()
+        {
+            warn!(
+                account = self.account_id,
+                item_guid = modifiers.source_item_guid.counter(),
+                cast_item_entry,
+                "Battle-pet uncage source item disappeared or changed before effect execution"
+            );
+            return;
+        }
 
         let Some(species_entry) = self
             .battle_pet_species_store
@@ -62423,13 +63055,37 @@ impl WorldSession {
 
         let breed = (modifiers.breed_data & 0x00FF_FFFF) as u16;
         let quality = ((modifiers.breed_data >> 24) & 0xFF) as u8;
-        let _ = self.battle_pet_add_pet_represented_like_cpp(
-            modifiers.species_id,
-            modifiers.display_id,
-            breed,
-            quality,
-            modifiers.level,
-        );
+        if let Err(error) = self
+            .battle_pet_try_add_pet_durable_like_cpp(
+                request_key.as_bytes(),
+                modifiers.species_id,
+                modifiers.display_id,
+                breed,
+                quality,
+                modifiers.level,
+            )
+            .await
+        {
+            warn!(
+                account = self.account_id,
+                species = modifiers.species_id,
+                ?error,
+                "Durable battle-pet uncage add was rejected"
+            );
+            self.battle_pet_send_error_like_cpp(
+                wow_packet::packets::misc::BattlePetErrorCodeLikeCpp::CantHaveMorePetsOfType,
+                creature_id,
+            );
+            self.send_packet(&wow_packet::packets::spell::CastFailed {
+                cast_id,
+                spell_id,
+                visual: wow_packet::packets::spell::SpellCastVisual::default(),
+                reason: SpellCastResult::CantAddBattlePet as i32,
+                fail_arg1: 0,
+                fail_arg2: 0,
+            });
+            return;
+        }
         if let Some(player_guid) = self.player_guid() {
             self.send_packet(&wow_packet::packets::spell::PlaySpellVisual::self_target(
                 player_guid,
@@ -62437,10 +63093,15 @@ impl WorldSession {
                 BATTLE_PET_SPELL_VISUAL_UNCAGE_PET_LIKE_CPP,
             ));
         }
+        if metadata.cast_item_entry.is_some() {
+            let _ = self
+                .destroy_uncaged_battle_pet_item_durable_like_cpp(modifiers.source_item_guid)
+                .await;
+        }
     }
 
     /// C++ `Spell::EffectGrantBattlePetExperience`.
-    fn apply_grant_battle_pet_experience_effect_like_cpp(
+    async fn apply_grant_battle_pet_experience_effect_like_cpp(
         &mut self,
         metadata: SpellCastMetadata,
         xp: u16,
@@ -62449,16 +63110,18 @@ impl WorldSession {
             return;
         };
 
-        let _ = self.battle_pet_grant_battle_pet_experience_represented_like_cpp(
-            pet_guid,
-            xp,
-            RepresentedBattlePetXpSourceLikeCpp::SpellEffect,
-            1.0,
-        );
+        let _ = self
+            .battle_pet_grant_experience_durable_like_cpp(
+                pet_guid,
+                xp,
+                RepresentedBattlePetXpSourceLikeCpp::SpellEffect,
+                1.0,
+            )
+            .await;
     }
 
     /// C++ `Spell::EffectGrantBattlePetLevel`.
-    fn apply_grant_battle_pet_level_effect_like_cpp(
+    async fn apply_grant_battle_pet_level_effect_like_cpp(
         &mut self,
         metadata: SpellCastMetadata,
         granted_levels: u16,
@@ -62467,8 +63130,9 @@ impl WorldSession {
             return;
         };
 
-        let _ =
-            self.battle_pet_grant_battle_pet_level_represented_like_cpp(pet_guid, granted_levels);
+        let _ = self
+            .battle_pet_grant_level_durable_like_cpp(pet_guid, granted_levels)
+            .await;
     }
 
     /// C++ `Spell::CheckCast` gates for battle-pet unit-target effects.
@@ -62505,7 +63169,7 @@ impl WorldSession {
                 return Some(SpellCastResult::BadTargets);
             }
 
-            let Some(pet) = self.represented_battle_pets_like_cpp.get(&companion_guid) else {
+            let Some(pet) = self.represented_battle_pet_like_cpp(companion_guid) else {
                 continue;
             };
 
@@ -128855,8 +129519,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn battle_pet_remove_pet_requires_lock_and_marks_removed_like_cpp() {
+    #[tokio::test]
+    async fn battle_pet_remove_pet_requires_lock_and_marks_removed_like_cpp() {
         let (mut session, _, _) = make_session();
         let pet_guid = ObjectGuid::new(0, 0x125);
         let new_pet_guid = ObjectGuid::new(0, 0x126);
@@ -128883,7 +129547,7 @@ mod tests {
             ))
         );
 
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         assert!(!session.battle_pet_remove_pet_like_cpp(unknown_guid));
         assert!(session.battle_pet_remove_pet_like_cpp(pet_guid));
         assert!(session.battle_pet_remove_pet_like_cpp(new_pet_guid));
@@ -128908,8 +129572,8 @@ mod tests {
         assert_eq!(journal.slots[1].pet_guid, pet_guid);
     }
 
-    #[test]
-    fn battle_pet_cage_battle_pet_applies_cpp_gates_without_side_effects() {
+    #[tokio::test]
+    async fn battle_pet_cage_battle_pet_applies_cpp_gates_without_side_effects() {
         let (mut session, _, send_rx) = make_session();
         let pet_guid = ObjectGuid::new(0, 0x180);
         let slotted_guid = ObjectGuid::new(0, 0x181);
@@ -128968,7 +129632,7 @@ mod tests {
             session.battle_pet_cage_battle_pet_represented_like_cpp(pet_guid, true, true),
             RepresentedBattlePetCageOutcomeLikeCpp::NoJournalLock
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(
@@ -129017,8 +129681,8 @@ mod tests {
         assert!(drain_server_packet_bytes(&send_rx).is_empty());
     }
 
-    #[test]
-    fn battle_pet_cage_battle_pet_creates_cage_item_removes_and_deletes_like_cpp() {
+    #[tokio::test]
+    async fn battle_pet_cage_battle_pet_creates_cage_item_removes_and_deletes_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         let pet_guid = ObjectGuid::new(0, 0x184);
         let expected_item = RepresentedBattlePetCageItemLikeCpp {
@@ -129052,7 +129716,7 @@ mod tests {
             },
         );
         assert!(session.battle_pet_summon_toggle_like_cpp(pet_guid));
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(
@@ -129087,8 +129751,8 @@ mod tests {
         assert_eq!(packet.remaining(), 0);
     }
 
-    #[test]
-    fn battle_pet_modify_name_requires_lock_and_updates_name_state_like_cpp() {
+    #[tokio::test]
+    async fn battle_pet_modify_name_requires_lock_and_updates_name_state_like_cpp() {
         let (mut session, _, _) = make_session();
         let pet_guid = ObjectGuid::new(0, 0x128);
         let new_pet_guid = ObjectGuid::new(0, 0x129);
@@ -129119,7 +129783,7 @@ mod tests {
             ))
         );
 
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         assert!(!session.battle_pet_modify_name_like_cpp(
             unknown_guid,
             "Ghost".to_string(),
@@ -129665,8 +130329,8 @@ mod tests {
         assert_eq!(packet.read_packed_guid().expect("pet guid"), new_guid);
     }
 
-    #[test]
-    fn battle_pet_change_quality_applies_cpp_gates_without_side_effects() {
+    #[tokio::test]
+    async fn battle_pet_change_quality_applies_cpp_gates_without_side_effects() {
         let (mut session, _, send_rx) = make_session();
         let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x189);
         let unknown_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x18a);
@@ -129690,7 +130354,7 @@ mod tests {
             session.battle_pet_change_battle_pet_quality_represented_like_cpp(pet_guid, 3),
             RepresentedBattlePetQualityOutcomeLikeCpp::NoJournalLock
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(
@@ -129814,8 +130478,8 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn battle_pet_change_quality_applies_stats_heals_and_sends_update_like_cpp() {
+    #[tokio::test]
+    async fn battle_pet_change_quality_applies_stats_heals_and_sends_update_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x18b);
         install_represented_battle_pet_stat_stores_like_cpp(&mut session);
@@ -129842,7 +130506,7 @@ mod tests {
                 save_info: RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
             },
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(
@@ -129884,8 +130548,9 @@ mod tests {
         assert_eq!(packet.read_uint8().expect("quality"), 3);
     }
 
-    #[test]
-    fn battle_pet_change_quality_does_not_abort_when_calculate_stats_returns_early_like_cpp() {
+    #[tokio::test]
+    async fn battle_pet_change_quality_does_not_abort_when_calculate_stats_returns_early_like_cpp()
+    {
         let (mut session, _, send_rx) = make_session();
         let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x18bb);
         install_represented_battle_pet_stat_stores_like_cpp(&mut session);
@@ -129908,7 +130573,7 @@ mod tests {
                 )
             },
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(
@@ -129951,8 +130616,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn battle_pet_grant_level_applies_cpp_gates_without_side_effects() {
+    #[tokio::test]
+    async fn battle_pet_grant_level_applies_cpp_gates_without_side_effects() {
         let (mut session, _, send_rx) = make_session();
         let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x18c);
         let max_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x18d);
@@ -129993,7 +130658,7 @@ mod tests {
             session.battle_pet_grant_battle_pet_level_represented_like_cpp(pet_guid, 1),
             RepresentedBattlePetGrantLevelOutcomeLikeCpp::NoJournalLock
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(
@@ -130038,8 +130703,8 @@ mod tests {
         assert!(drain_server_packet_bytes(&send_rx).is_empty());
     }
 
-    #[test]
-    fn battle_pet_grant_level_caps_at_max_resets_xp_and_sends_update_like_cpp() {
+    #[tokio::test]
+    async fn battle_pet_grant_level_caps_at_max_resets_xp_and_sends_update_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x18f);
         install_represented_battle_pet_stat_stores_like_cpp(&mut session);
@@ -130066,7 +130731,7 @@ mod tests {
                 save_info: RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
             },
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(
@@ -130122,8 +130787,8 @@ mod tests {
         assert_eq!(packet.read_uint8().expect("quality"), 3);
     }
 
-    #[test]
-    fn battle_pet_grant_level_does_not_abort_when_calculate_stats_returns_early_like_cpp() {
+    #[tokio::test]
+    async fn battle_pet_grant_level_does_not_abort_when_calculate_stats_returns_early_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x190);
         install_represented_battle_pet_stat_stores_like_cpp(&mut session);
@@ -130147,7 +130812,7 @@ mod tests {
                 )
             },
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(
@@ -130174,8 +130839,8 @@ mod tests {
         assert_eq!(pet.save_info, RepresentedBattlePetSaveInfoLikeCpp::Changed);
     }
 
-    #[test]
-    fn battle_pet_grant_experience_applies_cpp_gates_without_side_effects() {
+    #[tokio::test]
+    async fn battle_pet_grant_experience_applies_cpp_gates_without_side_effects() {
         let (mut session, _, send_rx) = make_session();
         let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x191);
         let max_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x192);
@@ -130223,7 +130888,7 @@ mod tests {
             ),
             RepresentedBattlePetGrantExperienceOutcomeLikeCpp::NoJournalLock
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(
@@ -130307,8 +130972,8 @@ mod tests {
         assert!(drain_server_packet_bytes(&send_rx).is_empty());
     }
 
-    #[test]
-    fn battle_pet_grant_experience_spell_effect_levels_without_active_criteria_like_cpp() {
+    #[tokio::test]
+    async fn battle_pet_grant_experience_spell_effect_levels_without_active_criteria_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x194);
         install_represented_battle_pet_stat_stores_like_cpp(&mut session);
@@ -130337,7 +131002,7 @@ mod tests {
                 )
             },
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(
@@ -130396,8 +131061,9 @@ mod tests {
         assert_eq!(packet.read_uint8().expect("quality"), 3);
     }
 
-    #[test]
-    fn battle_pet_grant_experience_prefers_real_game_table_over_represented_projection_like_cpp() {
+    #[tokio::test]
+    async fn battle_pet_grant_experience_prefers_real_game_table_over_represented_projection_like_cpp()
+     {
         let (mut session, _, send_rx) = make_session();
         let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x197);
         install_represented_battle_pet_stat_stores_like_cpp(&mut session);
@@ -130436,7 +131102,7 @@ mod tests {
                 )
             },
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(
@@ -130486,7 +131152,7 @@ mod tests {
                 )
             },
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
 
         let mut spell_store = wow_data::SpellStore::new();
@@ -130581,7 +131247,7 @@ mod tests {
                 )
             },
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
         assert!(session.battle_pet_summon_toggle_like_cpp(pet_guid));
 
@@ -130659,6 +131325,77 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn spell_effect_uncage_battle_pet_rejects_disappeared_cast_item_like_cpp() {
+        let (mut session, _, send_rx) = make_session();
+        let player_guid = ObjectGuid::create_player(1, 229);
+        let item_guid = ObjectGuid::create_item(1, 900);
+        let spell_id = 77_289;
+
+        session.set_player_guid(Some(player_guid));
+        install_represented_battle_pet_species_like_cpp(
+            &mut session,
+            11,
+            9000,
+            wow_data::BATTLE_PET_SPECIES_FLAG_WELL_KNOWN_LIKE_CPP,
+        );
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: 0,
+                effect_base_points: 0,
+                effect_bonus_coefficient: 0.0,
+                aura_type: None,
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_UNCAGE_BATTLEPET,
+                    ..Default::default()
+                }],
+            },
+        );
+        session.set_spell_store(Arc::new(spell_store));
+
+        session
+            .execute_spell_with_visual_and_target_data_with_metadata(
+                spell_id,
+                player_guid,
+                ObjectGuid::EMPTY,
+                wow_packet::packets::spell::SpellCastVisual::default(),
+                SpellTargetData {
+                    flags: 0x2,
+                    unit: player_guid,
+                    ..SpellTargetData::default()
+                },
+                SpellCastMetadata {
+                    cast_item_entry: Some(8_281),
+                    cast_item_battle_pet_modifiers: Some(SpellCastBattlePetItemModifiersLikeCpp {
+                        source_item_guid: item_guid,
+                        species_id: 11,
+                        breed_data: 7 | (3 << 24),
+                        level: 3,
+                        display_id: 33,
+                    }),
+                    ..SpellCastMetadata::default()
+                },
+            )
+            .await
+            .expect("represented cast should finish without applying a missing cast item");
+
+        assert!(session.represented_battle_pets_like_cpp.is_empty());
+        assert_eq!(
+            drain_server_opcodes(&send_rx),
+            vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]
+        );
+    }
+
+    #[tokio::test]
     async fn spell_effect_uncage_battle_pet_rejects_too_high_level_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         let player_guid = ObjectGuid::create_player(1, 230);
@@ -130717,6 +131454,7 @@ mod tests {
                 },
                 SpellCastMetadata {
                     cast_item_battle_pet_modifiers: Some(SpellCastBattlePetItemModifiersLikeCpp {
+                        source_item_guid: ObjectGuid::create_item(1, 901),
                         species_id: 11,
                         breed_data: 7 | (3 << 24),
                         level: 11,
@@ -130825,6 +131563,7 @@ mod tests {
                 },
                 SpellCastMetadata {
                     cast_item_battle_pet_modifiers: Some(SpellCastBattlePetItemModifiersLikeCpp {
+                        source_item_guid: ObjectGuid::create_item(1, 902),
                         species_id: 11,
                         breed_data: 7 | (3 << 24),
                         level: 1,
@@ -130923,6 +131662,7 @@ mod tests {
                 },
                 SpellCastMetadata {
                     cast_item_battle_pet_modifiers: Some(SpellCastBattlePetItemModifiersLikeCpp {
+                        source_item_guid: ObjectGuid::create_item(1, 903),
                         species_id: 11,
                         breed_data: 7 | (3 << 24),
                         level: 3,
@@ -131107,7 +131847,7 @@ mod tests {
             SpellCastResult::CantDoThatRightNow as i32
         );
 
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
         session
             .execute_spell_with_visual_and_target_data_with_metadata(
@@ -131179,7 +131919,7 @@ mod tests {
                 loadout_ui_model_scene_id: 0,
             }]),
         ));
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
         assert!(session.battle_pet_summon_toggle_like_cpp(pet_guid));
 
@@ -131336,7 +132076,7 @@ mod tests {
                 )
             },
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
         assert!(session.battle_pet_summon_toggle_like_cpp(pet_guid));
 
@@ -131441,7 +132181,7 @@ mod tests {
                 )
             },
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
         assert!(session.battle_pet_summon_toggle_like_cpp(pet_guid));
 
@@ -131504,8 +132244,9 @@ mod tests {
         );
     }
 
-    #[test]
-    fn battle_pet_grant_experience_pet_battle_applies_multiplier_and_active_criteria_like_cpp() {
+    #[tokio::test]
+    async fn battle_pet_grant_experience_pet_battle_applies_multiplier_and_active_criteria_like_cpp()
+     {
         let (mut session, _, send_rx) = make_session();
         let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x195);
         install_represented_battle_pet_stat_stores_like_cpp(&mut session);
@@ -131532,7 +132273,7 @@ mod tests {
                 )
             },
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(
@@ -131574,8 +132315,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn battle_pet_grant_experience_pet_battle_uses_owner_xp_aura_like_cpp() {
+    #[tokio::test]
+    async fn battle_pet_grant_experience_pet_battle_uses_owner_xp_aura_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x1A7);
         let player_guid = ObjectGuid::create_player(1, 226);
@@ -131604,7 +132345,7 @@ mod tests {
                 )
             },
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
         session
             .apply_represented_battle_pet_xp_pct_aura_like_cpp(
@@ -131659,8 +132400,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn battle_pet_grant_experience_missing_later_xp_row_keeps_prior_criteria_but_not_pet_mutation_like_cpp()
+    #[tokio::test]
+    async fn battle_pet_grant_experience_missing_later_xp_row_keeps_prior_criteria_but_not_pet_mutation_like_cpp()
      {
         let (mut session, _, send_rx) = make_session();
         let pet_guid = ObjectGuid::create_global(HighGuid::BattlePet, 0, 0x196);
@@ -131686,7 +132427,7 @@ mod tests {
                 )
             },
         );
-        session.send_battle_pet_journal_lock_status_like_cpp();
+        session.send_battle_pet_journal_lock_status_like_cpp().await;
         let _ = drain_server_packet_bytes(&send_rx);
 
         assert_eq!(

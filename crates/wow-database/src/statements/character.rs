@@ -196,6 +196,9 @@ pub enum CharStatements {
     /// DELETE FROM character_inventory WHERE guid = ? AND item = ?
     DEL_CHAR_INVENTORY_ITEM,
 
+    /// Delete a character-inventory link only while its item still has the expected owner.
+    DEL_CHAR_INVENTORY_ITEM_BY_OWNER,
+
     /// SELECT skill, value, max, professionSlot FROM character_skills WHERE guid = ?
     SEL_CHARACTER_SKILLS,
 
@@ -1277,6 +1280,12 @@ pub enum CharStatements {
     /// DELETE FROM item_instance WHERE guid = ?
     DEL_ITEM_INSTANCE,
 
+    /// DELETE FROM item_instance WHERE guid = ? AND owner_guid = ?
+    DEL_ITEM_INSTANCE_BY_GUID_AND_OWNER,
+
+    /// SELECT the durable owner and the character-inventory link for an uncaged item.
+    SEL_UNCAGE_ITEM_STATE,
+
     /// SELECT paidMoney, paidExtendedCost FROM item_refund_instance
     /// WHERE item_guid = ? AND player_guid = ? LIMIT 1
     SEL_ITEM_REFUNDS,
@@ -1940,6 +1949,9 @@ impl StatementDef for CharStatements {
             }
             Self::DEL_CHAR_INVENTORY_ITEM => {
                 "DELETE FROM character_inventory WHERE guid = ? AND item = ?"
+            }
+            Self::DEL_CHAR_INVENTORY_ITEM_BY_OWNER => {
+                "DELETE ci FROM character_inventory ci INNER JOIN item_instance ii ON ii.guid = ci.item WHERE ci.guid = ? AND ci.item = ? AND ii.owner_guid = ?"
             }
             Self::SEL_CHARACTER_SKILLS => {
                 "SELECT skill, value, max, professionSlot FROM character_skills WHERE guid = ?"
@@ -2901,6 +2913,12 @@ impl StatementDef for CharStatements {
                 "REPLACE INTO character_inventory (guid, bag, slot, item) VALUES (?, ?, ?, ?)"
             }
             Self::DEL_ITEM_INSTANCE => "DELETE FROM item_instance WHERE guid = ?",
+            Self::DEL_ITEM_INSTANCE_BY_GUID_AND_OWNER => {
+                "DELETE FROM item_instance WHERE guid = ? AND owner_guid = ?"
+            }
+            Self::SEL_UNCAGE_ITEM_STATE => {
+                "SELECT (SELECT owner_guid FROM item_instance WHERE guid = ? LIMIT 1), EXISTS(SELECT 1 FROM character_inventory WHERE guid = ? AND item = ?)"
+            }
             Self::SEL_ITEM_REFUNDS => {
                 "SELECT paidMoney, paidExtendedCost \
                  FROM item_refund_instance WHERE item_guid = ? AND player_guid = ? LIMIT 1"
@@ -5425,6 +5443,18 @@ mod tests {
         assert_eq!(
             CharStatements::DEL_ITEM_INSTANCE_BY_OWNER.sql(),
             "DELETE FROM item_instance WHERE owner_guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_ITEM_INSTANCE_BY_GUID_AND_OWNER.sql(),
+            "DELETE FROM item_instance WHERE guid = ? AND owner_guid = ?"
+        );
+        assert_eq!(
+            CharStatements::DEL_CHAR_INVENTORY_ITEM_BY_OWNER.sql(),
+            "DELETE ci FROM character_inventory ci INNER JOIN item_instance ii ON ii.guid = ci.item WHERE ci.guid = ? AND ci.item = ? AND ii.owner_guid = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_UNCAGE_ITEM_STATE.sql(),
+            "SELECT (SELECT owner_guid FROM item_instance WHERE guid = ? LIMIT 1), EXISTS(SELECT 1 FROM character_inventory WHERE guid = ? AND item = ?)"
         );
     }
 
