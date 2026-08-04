@@ -1741,18 +1741,28 @@ impl WorldSession {
                     return;
                 }
                 // C++ rejects when any member in the uninviter's map is in
-                // combat (`Player.cpp:25173-25176`). Members report their
-                // combat transitions into the broadcast registry through
-                // `set_in_combat_like_cpp`, so the gate reads every
-                // represented member, falling back to the live session
-                // mirror for the uninviter itself.
+                // combat (`Player.cpp:25173-25176`: `IsInMap(this)` first).
+                // Members report their combat transitions into the broadcast
+                // registry through `set_in_combat_like_cpp`, so the gate
+                // reads every represented member ON THE UNINVITER'S MAP,
+                // falling back to the live session mirror for the uninviter
+                // itself.
+                let sender_map_id = self.player_map_id_like_cpp();
+                let sender_instance_id = self
+                    .current_canonical_player_map_key_like_cpp()
+                    .map(|key| key.instance_id)
+                    .unwrap_or(0);
                 let any_member_in_combat = group.members.iter().any(|member_guid| {
                     if *member_guid == sender_guid {
                         self.in_combat
                     } else {
                         self.player_registry()
                             .and_then(|registry| registry.get(member_guid))
-                            .is_some_and(|member| member.in_combat)
+                            .is_some_and(|member| {
+                                member.in_combat
+                                    && member.map_id == sender_map_id
+                                    && member.instance_id == sender_instance_id
+                            })
                     }
                 });
                 if any_member_in_combat {
@@ -5328,6 +5338,42 @@ mod tests {
         assert_eq!(
             party_command_result_code(&send_rx.try_recv().expect("in combat result")),
             party_result::PARTY_LFG_BOOT_IN_COMBAT
+        );
+        assert!(
+            group_registry
+                .get(&group_guid)
+                .expect("group")
+                .members
+                .contains(&target)
+        );
+    }
+
+    #[tokio::test]
+    async fn lfg_uninvite_member_in_combat_on_another_map_passes_gate_like_cpp() {
+        // C++ only counts members in the uninviter's map (`IsInMap(this)`):
+        // a member fighting on another map does not block the kick.
+        let leader = ObjectGuid::create_player(1, 42);
+        let sender = ObjectGuid::create_player(1, 100);
+        let target = ObjectGuid::create_player(1, 101);
+        let group = lfg_group_like_cpp(leader, 5);
+        let (mut session, send_rx, group_registry, group_guid) =
+            lfg_uninvite_session_like_cpp(group, sender);
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (target_tx, _target_rx) = flume::bounded(8);
+        let mut target_info = broadcast_info(target, target_tx);
+        target_info.in_combat = true;
+        target_info.map_id = 1;
+        target_info.instance_id = 1;
+        player_registry.insert(target, target_info);
+        session.set_player_registry(Arc::clone(&player_registry));
+
+        session
+            .handle_party_uninvite(party_uninvite_packet(target, None, "boot"))
+            .await;
+
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ ignores combat on other maps: the gate passes silently into the vote-owned swallow"
         );
         assert!(
             group_registry
