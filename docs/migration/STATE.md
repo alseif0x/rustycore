@@ -62,13 +62,15 @@ committed Character DB first and Login DB second at the next `Player::SaveToDB`
 time (`BattlePetMgr.cpp:377`), so a crash between commits kept the charge and silently lost the
 pet — with a durable saga keyed by a 128-bit request key shared with the #160 Login DB receipt:
 guarded charge + pending command in one Character DB transaction, exactly one pet through the #160
-account owner (fence, journal lease and per-species capacity rechecked inside it), completion
-before publication, exactly-once refund for terminal failures, and bounded login recovery that
+account owner (fence, journal lease and per-species capacity rechecked inside it), exactly-once
+success publication tracked by a durable `published` marker before the completion record,
+exactly-once refund for terminal failures, and bounded login recovery that
 converges interrupted commands without background tasks. Publication keeps the C++ battle-pet
 order (money update, `SMSG_BATTLE_PET_UPDATES` petAdded, dependent runtime learn +
-`SMSG_LEARNED_SPELLS`, trainer visual kits suppressed, silent cap) and is at-most-once across
-crashes; admission-time capacity/journal-lock failures return a structured result while the wire
-stays silent like C++. Full design, transition table and fault matrix:
+`SMSG_LEARNED_SPELLS`, trainer visual kits suppressed, silent cap) and is exactly-once per
+successful command across recovery (a crash between the packet send and the marker commit replays
+one idempotent upsert); admission-time capacity/journal-lock failures return a structured result
+while the wire stays silent like C++. Full design, transition table and fault matrix:
 [battlepets.md](battlepets.md) (2026-08-03, #161). Dispatcher activation remains #142.
 
 ### Fidelity policy for proven legacy defects

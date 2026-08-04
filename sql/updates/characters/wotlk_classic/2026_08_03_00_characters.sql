@@ -12,6 +12,10 @@
 -- receipt identity, and a terminal apply failure is compensated exactly once.
 -- status: 0 PendingApplication, 1 Completed, 2 CompensationPending,
 -- 3 Compensated, 4 TerminalFailure.
+-- `published` records that the one success publication (petAdded journal
+-- update + dependent learned spell) was emitted after the durable pet
+-- existed; completion implies publication was attempted, and recovery
+-- republishes only while the flag is clear.
 CREATE TABLE IF NOT EXISTS `character_battle_pet_purchase` (
   `request_key` binary(16) NOT NULL,
   `guid` bigint unsigned NOT NULL,
@@ -27,6 +31,7 @@ CREATE TABLE IF NOT EXISTS `character_battle_pet_purchase` (
   `money_before` bigint unsigned NOT NULL,
   `money_after` bigint unsigned NOT NULL,
   `status` tinyint unsigned NOT NULL,
+  `published` tinyint unsigned NOT NULL DEFAULT 0,
   `failure_reason` varchar(64) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

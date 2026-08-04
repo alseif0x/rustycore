@@ -63,6 +63,12 @@ pub(crate) struct PreparedTrainerOfferLikeCpp {
     pub effective_price: u32,
     pub acquisition_plan: SpellAcquisitionPlanLikeCpp,
     pub profession_plan: PrimaryProfessionCapacityPlanLikeCpp,
+    /// C++ resolves the battle-pet species before `IsCastable()`
+    /// (`Trainer.cpp:99-128`): a castable spell with a confirmed species
+    /// keeps the normal wrapper acquisition but retains the silent
+    /// per-species capacity gate and suppresses the trainer visual kits.
+    /// `None` for spells without a battle-pet classification.
+    pub battle_pet_species_id: Option<u32>,
 }
 
 /// A purchasable battle-pet trainer offer (issue #161). C++
@@ -235,13 +241,14 @@ where
         }
     };
 
-    match input.battle_pet {
-        TrainerBattlePetProofLikeCpp::NotBattlePet => {}
+    let battle_pet_species_id = match input.battle_pet {
+        TrainerBattlePetProofLikeCpp::NotBattlePet => None,
         TrainerBattlePetProofLikeCpp::Species(species_id) => {
             // C++ `Trainer::TeachSpell` resolves `IsCastable()` before the
             // battle-pet branch (`Trainer.cpp:127-146`): only a non-castable
             // (direct-learn) trainer spell reaches `BattlePetMgr::AddPet`;
-            // a wrapper-castable spell keeps the normal acquisition path.
+            // a wrapper-castable spell keeps the normal acquisition path
+            // but retains the species for its shared cap/visual behavior.
             if matches!(root, SpellAcquisitionRootLikeCpp::DirectLearn(_)) {
                 return TrainerOfferDecisionLikeCpp::AvailableBattlePet(
                     PreparedBattlePetTrainerOfferLikeCpp {
@@ -251,13 +258,14 @@ where
                     },
                 );
             }
+            Some(species_id)
         }
         TrainerBattlePetProofLikeCpp::Indeterminate => {
             return TrainerOfferDecisionLikeCpp::Unavailable(
                 TrainerUnavailableReasonLikeCpp::BattlePetMetadataIndeterminate,
             );
         }
-    }
+    };
 
     let acquisition_plan = match project(root) {
         SpellAcquisitionOutcomeLikeCpp::Deterministic(plan) => plan,
@@ -280,6 +288,7 @@ where
         effective_price: input.effective_price,
         acquisition_plan,
         profession_plan,
+        battle_pet_species_id,
     })
 }
 
@@ -521,7 +530,9 @@ mod tests {
 
         // C++ `Trainer::TeachSpell` resolves `IsCastable()` first: a
         // wrapper-castable spell with a battle-pet classification never
-        // reaches `AddPet` and keeps the normal acquisition path.
+        // reaches `AddPet` and keeps the normal acquisition path, but
+        // retains the species for the shared silent cap and visual
+        // suppression (`Trainer.cpp:99-109,121-125`).
         let mut input = base_input(&skill, &known);
         input.battle_pet = TrainerBattlePetProofLikeCpp::Species(77);
         input.product = TrainerProductLikeCpp::Wrapper {
@@ -535,10 +546,10 @@ mod tests {
             },
             |roots| Ok(capacity_plan(roots.to_vec())),
         );
-        assert!(matches!(
-            decision,
-            TrainerOfferDecisionLikeCpp::Available(_)
-        ));
+        let TrainerOfferDecisionLikeCpp::Available(offer) = decision else {
+            panic!("wrapper-castable battle-pet spell keeps the acquisition path");
+        };
+        assert_eq!(offer.battle_pet_species_id, Some(77));
     }
 
     #[test]

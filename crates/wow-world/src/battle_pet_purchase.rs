@@ -20,10 +20,13 @@
 //! durable purchase command in the same Character DB transaction that deducts
 //! the money, applies it exactly once through the issue #160 account owner
 //! (the command `request_key` is the Login DB `battle_pet_add_requests`
-//! receipt identity), records completion before publishing, and compensates
-//! terminal failures exactly once. Login recovery converges any interrupted
-//! command; no in-memory state decides whether a charge, pet or refund
-//! already happened.
+//! receipt identity), records completion after publishing the one success
+//! update, and compensates terminal failures exactly once. The durable
+//! `published` marker (also set by the completion flip) makes the success
+//! publication exactly-once across crashes: recovery republishes only when
+//! no publication was ever recorded. Login recovery converges any
+//! interrupted command; no in-memory state decides whether a charge, pet or
+//! refund already happened.
 //!
 //! State model (`character_battle_pet_purchase.status`): `PendingApplication`
 //! (0), `Completed` (1), `CompensationPending` (2), `Compensated` (3),
@@ -140,6 +143,10 @@ pub(crate) struct BattlePetPurchaseCommandLikeCpp {
     pub money_before: u64,
     pub money_after: u64,
     pub status: BattlePetPurchaseStatusLikeCpp,
+    /// Whether the one success publication was emitted after the durable
+    /// pet existed. Completion implies it; recovery republishes only while
+    /// it is clear.
+    pub published: bool,
     pub failure_reason: Option<String>,
 }
 
@@ -241,9 +248,21 @@ pub(crate) trait BattlePetPurchaseStoreLikeCpp: Send + Sync {
         Result<Vec<BattlePetPurchaseCommandLikeCpp>, BattlePetPurchaseStoreErrorLikeCpp>,
     >;
 
+    /// Record the one success publication (`published` 0 → 1) before the
+    /// completion flip, so recovery republishes exactly when no publication
+    /// was ever recorded.
+    fn mark_published<'a>(
+        &'a self,
+        request_key: [u8; 16],
+    ) -> BattlePetPurchaseFuture<
+        'a,
+        Result<BattlePetPurchaseMarkOutcomeLikeCpp, BattlePetPurchaseStoreErrorLikeCpp>,
+    >;
+
     /// T3: flip `PendingApplication`/`CompensationPending` → `Completed`.
     /// The wider source guard also closes a recorded compensation decision
-    /// once the pet is known to be durable (receipt re-check).
+    /// once the pet is known to be durable (receipt re-check). The
+    /// completion record always carries the publication marker.
     fn mark_completed<'a>(
         &'a self,
         request_key: [u8; 16],
@@ -327,6 +346,7 @@ impl CharacterBattlePetPurchaseStoreLikeCpp {
             money_before: result.try_read(11).unwrap_or_default(),
             money_after: result.try_read(12).unwrap_or_default(),
             status,
+            published: result.try_read::<u8>(15).unwrap_or_default() != 0,
             failure_reason: result.try_read(14),
         })
     }
@@ -502,6 +522,48 @@ impl BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp {
                 }
             }
             Ok(commands)
+        })
+    }
+
+    fn mark_published<'a>(
+        &'a self,
+        request_key: [u8; 16],
+    ) -> BattlePetPurchaseFuture<
+        'a,
+        Result<BattlePetPurchaseMarkOutcomeLikeCpp, BattlePetPurchaseStoreErrorLikeCpp>,
+    > {
+        Box::pin(async move {
+            let mut statement = self
+                .character_db
+                .prepare(CharStatements::UPD_BATTLE_PET_PURCHASE_PUBLISHED);
+            statement.set_bytes(0, request_key.to_vec());
+            let mut transaction = SqlTransaction::new();
+            transaction.append_expect_rows_affected(statement, 1);
+            match transaction
+                .commit_with_outcome_like_cpp(self.character_db.pool())
+                .await
+            {
+                Ok(()) => Ok(BattlePetPurchaseMarkOutcomeLikeCpp::Applied),
+                Err(_) => match self.load_command_impl(request_key).await {
+                    Ok(Some(row)) if row.published => {
+                        Ok(BattlePetPurchaseMarkOutcomeLikeCpp::AlreadyApplied)
+                    }
+                    Ok(Some(row)) if row.status.is_terminal_like_cpp() => {
+                        Err(BattlePetPurchaseStoreErrorLikeCpp::Terminal(format!(
+                            "battle-pet purchase publication mark on terminal {:?}",
+                            row.status
+                        )))
+                    }
+                    Ok(Some(_)) => Err(BattlePetPurchaseStoreErrorLikeCpp::Retryable(
+                        "battle-pet purchase publication mark did not commit".to_string(),
+                    )),
+                    Ok(None) => Err(BattlePetPurchaseStoreErrorLikeCpp::Terminal(
+                        "battle-pet purchase command disappeared during publication mark"
+                            .to_string(),
+                    )),
+                    Err(error) => Err(error),
+                },
+            }
         })
     }
 
@@ -933,6 +995,7 @@ impl WorldSession {
             money_before: old_money,
             money_after: new_money,
             status: BattlePetPurchaseStatusLikeCpp::PendingApplication,
+            published: false,
             failure_reason: None,
         };
         let charge = retry_battle_pet_purchase_step_like_cpp(
@@ -995,26 +1058,31 @@ impl WorldSession {
         .await;
         match applied {
             Ok(outcome) => {
-                let (pet, published) = match outcome {
+                let (pet, publish) = match outcome {
                     BattlePetAddOutcomeLikeCpp::Added(pet) => (pet, true),
                     BattlePetAddOutcomeLikeCpp::Replayed(pet) => (pet, false),
                 };
-                // T3: completion is recorded before any publication.
+                let pet_guid = pet.guid;
+                // The one success publication: after the durable pet exists,
+                // before the completion record, tracked by the durable
+                // `published` marker so recovery can distinguish a lost
+                // publication from a completed one.
+                if publish {
+                    self.publish_battle_pet_trainer_purchase_like_cpp(pet, offer.source_spell_id);
+                    self.mark_battle_pet_purchase_published_like_cpp(&store, request_key)
+                        .await;
+                }
                 if !self
                     .complete_battle_pet_purchase_like_cpp(&store, request_key)
                     .await
                 {
-                    // The pet is durable; recovery finishes the command and
-                    // the publication stays silent (at-most-once).
+                    // The pet is durable; recovery completes the command and
+                    // republishes only if the marker never committed.
                     return BattlePetPurchaseExecutionLikeCpp::RetryableDeferred;
-                }
-                let pet_guid = pet.guid;
-                if published {
-                    self.publish_battle_pet_trainer_purchase_like_cpp(pet, offer.source_spell_id);
                 }
                 BattlePetPurchaseExecutionLikeCpp::Purchased {
                     pet_guid,
-                    published,
+                    published: publish,
                 }
             }
             Err(error) if battle_pet_add_failure_is_terminal_like_cpp(&error) => {
@@ -1131,25 +1199,31 @@ impl WorldSession {
                     // recovery bounded.
                     match owner.try_add_pet_like_cpp(lease_id, request).await {
                         Ok(outcome) => {
-                            let (pet, publish) = match outcome {
-                                BattlePetAddOutcomeLikeCpp::Added(pet) => (pet, true),
-                                BattlePetAddOutcomeLikeCpp::Replayed(pet) => (pet, false),
+                            let pet = match outcome {
+                                BattlePetAddOutcomeLikeCpp::Added(pet) => pet,
+                                BattlePetAddOutcomeLikeCpp::Replayed(pet) => pet,
                             };
+                            // Recovery publishes whenever no publication was
+                            // ever recorded — including a replayed receipt
+                            // whose live execution died between the durable
+                            // pet and the completion record.
+                            if !command.published {
+                                self.publish_battle_pet_trainer_purchase_like_cpp(
+                                    pet,
+                                    command.spell_id,
+                                );
+                                self.mark_battle_pet_purchase_published_like_cpp(
+                                    &store,
+                                    command.request_key,
+                                )
+                                .await;
+                            }
                             if !self
                                 .complete_battle_pet_purchase_like_cpp(&store, command.request_key)
                                 .await
                             {
                                 summary.deferred += 1;
                                 continue;
-                            }
-                            if publish {
-                                // The recovery publication: the pet became
-                                // durable during this recovery, so the one
-                                // allowed petAdded update is sent now.
-                                self.publish_battle_pet_trainer_purchase_like_cpp(
-                                    pet,
-                                    command.spell_id,
-                                );
                             }
                             summary.applied += 1;
                         }
@@ -1237,6 +1311,42 @@ impl WorldSession {
             &mut breed_random,
             &mut display_random,
         ))
+    }
+
+    /// Best-effort durable record of the one success publication, with
+    /// bounded retries. The completion flip also sets the marker, so a
+    /// failure here only risks one benign idempotent replay on the next
+    /// login if the completion then fails as well.
+    async fn mark_battle_pet_purchase_published_like_cpp(
+        &mut self,
+        store: &Arc<dyn BattlePetPurchaseStoreLikeCpp>,
+        request_key: [u8; 16],
+    ) {
+        match retry_battle_pet_purchase_step_like_cpp(
+            || store.mark_published(request_key),
+            store_error_is_retryable_like_cpp,
+        )
+        .await
+        {
+            Ok(
+                BattlePetPurchaseMarkOutcomeLikeCpp::Applied
+                | BattlePetPurchaseMarkOutcomeLikeCpp::AlreadyApplied,
+            ) => {}
+            Ok(conflict) => {
+                warn!(
+                    account = self.account_id,
+                    ?conflict,
+                    "Battle-pet purchase publication mark observed a conflicting terminal state"
+                );
+            }
+            Err(error) => {
+                warn!(
+                    account = self.account_id,
+                    ?error,
+                    "Battle-pet purchase publication mark did not commit"
+                );
+            }
+        }
     }
 
     /// T3 with bounded retries. False means the pet is durable but the
@@ -1604,6 +1714,7 @@ pub(crate) mod tests {
             money_before: 1_000,
             money_after: 750,
             status: BattlePetPurchaseStatusLikeCpp::PendingApplication,
+            published: false,
             failure_reason: None,
         }
     }
@@ -1717,6 +1828,54 @@ pub(crate) mod tests {
             })
         }
 
+        fn mark_published<'a>(
+            &'a self,
+            request_key: [u8; 16],
+        ) -> BattlePetPurchaseFuture<
+            'a,
+            Result<BattlePetPurchaseMarkOutcomeLikeCpp, BattlePetPurchaseStoreErrorLikeCpp>,
+        > {
+            Box::pin(async move {
+                if self.fail_mark_now_like_cpp() {
+                    let row = self.command(request_key);
+                    return match row {
+                        Some(row) if row.published => {
+                            Ok(BattlePetPurchaseMarkOutcomeLikeCpp::AlreadyApplied)
+                        }
+                        Some(row) if row.status.is_terminal_like_cpp() => {
+                            Err(BattlePetPurchaseStoreErrorLikeCpp::Terminal(
+                                "publication mark on terminal command".to_string(),
+                            ))
+                        }
+                        Some(_) => Err(BattlePetPurchaseStoreErrorLikeCpp::Retryable(
+                            "publication mark did not commit".to_string(),
+                        )),
+                        None => Err(BattlePetPurchaseStoreErrorLikeCpp::Terminal(
+                            "missing command".to_string(),
+                        )),
+                    };
+                }
+                let mut inner = self.inner.lock().expect("fake purchase store poisoned");
+                let Some(row) = inner.commands.get_mut(&request_key) else {
+                    return Err(BattlePetPurchaseStoreErrorLikeCpp::Terminal(
+                        "missing command".to_string(),
+                    ));
+                };
+                Ok(match row.status {
+                    BattlePetPurchaseStatusLikeCpp::PendingApplication
+                    | BattlePetPurchaseStatusLikeCpp::CompensationPending => {
+                        if row.published {
+                            BattlePetPurchaseMarkOutcomeLikeCpp::AlreadyApplied
+                        } else {
+                            row.published = true;
+                            BattlePetPurchaseMarkOutcomeLikeCpp::Applied
+                        }
+                    }
+                    _ => BattlePetPurchaseMarkOutcomeLikeCpp::ConflictedCompensated,
+                })
+            })
+        }
+
         fn mark_completed<'a>(
             &'a self,
             request_key: [u8; 16],
@@ -1743,6 +1902,7 @@ pub(crate) mod tests {
                     BattlePetPurchaseStatusLikeCpp::PendingApplication
                     | BattlePetPurchaseStatusLikeCpp::CompensationPending => {
                         row.status = BattlePetPurchaseStatusLikeCpp::Completed;
+                        row.published = true;
                         row.failure_reason = None;
                         BattlePetPurchaseMarkOutcomeLikeCpp::Applied
                     }
@@ -1952,6 +2112,7 @@ pub(crate) mod tests {
             "`request_key` binary(16) NOT NULL",
             "`guid` bigint unsigned NOT NULL",
             "`status` tinyint unsigned NOT NULL",
+            "`published` tinyint unsigned NOT NULL DEFAULT 0",
             "`money_before` bigint unsigned NOT NULL",
             "`money_after` bigint unsigned NOT NULL",
             "PRIMARY KEY (`request_key`)",
@@ -2172,6 +2333,7 @@ mod executor_tests {
         BattlePetBreedStateStore, BattlePetSpeciesEntry, BattlePetSpeciesStateEntry,
         BattlePetSpeciesStateStore, BattlePetSpeciesStore,
     };
+    use wow_packet::packets::spell::PlaySpellVisualKit;
     use wow_packet::{ServerPacket, WorldPacket};
 
     use super::tests::FakeBattlePetPurchaseStoreLikeCpp;
@@ -3066,31 +3228,32 @@ mod executor_tests {
     }
 
     #[tokio::test]
-    async fn completion_failure_after_durable_pet_resumes_silently_without_second_publication_like_cpp()
+    async fn completion_failure_after_durable_pet_recovers_with_one_idempotent_replay_publication_like_cpp()
      {
         let mut fixture = saga_fixture_like_cpp(SAGA_MONEY, Vec::new()).await;
+        // Fail every publication/completion mark the live path attempts.
         fixture
             .store
             .fail_marks_remaining
-            .store(3, Ordering::SeqCst);
+            .store(6, Ordering::SeqCst);
         let outcome =
             execute_saga_purchase_like_cpp(&mut fixture, saga_offer_like_cpp(SAGA_PRICE)).await;
         assert_eq!(
             outcome,
             BattlePetPurchaseExecutionLikeCpp::RetryableDeferred
         );
-        // Pet durable + receipt durable; command still pending; the
-        // publication never happened (exactly the at-most-once boundary).
+        // Pet durable + receipt durable; the live publication went out but
+        // neither the marker nor the completion committed.
         assert_eq!(fixture.persistence.species_count(SAGA_SPECIES), 1);
         assert_eq!(
             fixture.store.commands_snapshot()[0].status,
             BattlePetPurchaseStatusLikeCpp::PendingApplication
         );
+        assert!(!fixture.store.commands_snapshot()[0].published);
         assert_eq!(
             fixture.send_rx.try_recv().expect("money update"),
             expect_money_update_packet_like_cpp(&fixture, 750)
         );
-        assert_no_packets(&fixture);
         while fixture.send_rx.try_recv().is_ok() {}
         let (store, persistence) = (fixture.store.clone(), fixture.persistence.clone());
         drop(fixture);
@@ -3100,16 +3263,43 @@ mod executor_tests {
             .recover_battle_pet_trainer_purchases_like_cpp()
             .await
             .expect("recovery runs");
-        // The receipt replay completes the command silently: no second pet,
-        // no second charge, no publication.
+        // The receipt replay completes the command; because the publication
+        // marker never committed, recovery replays the one idempotent
+        // petAdded upsert exactly once and never creates a second pet.
         assert_eq!(summary.applied, 1);
+        let commands = restarted.store.commands_snapshot();
         assert_eq!(
-            restarted.store.commands_snapshot()[0].status,
+            commands[0].status,
             BattlePetPurchaseStatusLikeCpp::Completed
         );
+        assert!(commands[0].published);
         assert_eq!(restarted.persistence.pet_count(), 1);
         assert_eq!(restarted.store.money(PLAYER_COUNTER as u64), Some(750));
         assert_eq!(restarted.store.money_mutations(), 1);
+        let pet_guid = ObjectGuid::create_global(
+            HighGuid::BattlePet,
+            0,
+            restarted
+                .persistence
+                .receipt(commands[0].request_key)
+                .expect("receipt")
+                .guid_counter as i64,
+        );
+        assert_eq!(
+            restarted.send_rx.try_recv().expect("recovery pet update"),
+            wow_packet::packets::misc::BattlePetUpdates {
+                pets: vec![expected_pet_packet_like_cpp(&restarted, pet_guid)],
+                pet_added: true,
+            }
+            .to_bytes()
+        );
+        assert_eq!(
+            restarted
+                .send_rx
+                .try_recv()
+                .expect("recovery learned spells"),
+            LearnedSpells::single(SAGA_SPELL_ID as i32).to_bytes()
+        );
         assert_no_packets(&restarted);
     }
 
@@ -3378,16 +3568,32 @@ mod executor_tests {
         assert_eq!(summary.applied, 1);
         assert_eq!(fixture.persistence.pet_count(), 1);
         assert_eq!(fixture.persistence.receipt_count(), 1);
-        assert_eq!(
-            fixture.store.command(request_key).expect("command").status,
-            BattlePetPurchaseStatusLikeCpp::Completed
-        );
-        // Replay recovery is silent: no petAdded publication, no refund.
+        let command = fixture.store.command(request_key).expect("command");
+        assert_eq!(command.status, BattlePetPurchaseStatusLikeCpp::Completed);
+        assert!(command.published);
+        // The replayed receipt had no recorded publication, so recovery
+        // emits the one success publication now — never a second pet.
         assert_eq!(fixture.store.money(PLAYER_COUNTER as u64), Some(750));
         assert_eq!(fixture.store.money_mutations(), 0);
+        assert_eq!(
+            fixture.send_rx.try_recv().expect("recovery pet update"),
+            wow_packet::packets::misc::BattlePetUpdates {
+                pets: vec![expected_pet_packet_like_cpp(
+                    &fixture,
+                    ObjectGuid::create_global(HighGuid::BattlePet, 0, 5),
+                )],
+                pet_added: true,
+            }
+            .to_bytes()
+        );
+        assert_eq!(
+            fixture.send_rx.try_recv().expect("recovery learned spells"),
+            LearnedSpells::single(command.spell_id as i32).to_bytes()
+        );
         assert_no_packets(&fixture);
 
-        // A second recovery finds nothing unconverged.
+        // A second recovery finds nothing unconverged and republishes
+        // nothing: the durable marker proves publication already happened.
         let summary = fixture
             .session
             .recover_battle_pet_trainer_purchases_like_cpp()
@@ -3395,6 +3601,7 @@ mod executor_tests {
             .expect("recovery runs");
         assert_eq!(summary.applied + summary.compensated + summary.deferred, 0);
         assert_eq!(fixture.persistence.pet_count(), 1);
+        assert_no_packets(&fixture);
     }
 
     #[tokio::test]
@@ -3740,14 +3947,41 @@ mod executor_tests {
             .recover_battle_pet_trainer_purchases_like_cpp()
             .await
             .expect("recovery runs");
-        // The receipt replay completes silently: no second pet, no
-        // publication, no new charge.
+        // The receipt replay completes the command: no second pet and no
+        // new charge, and because no publication was ever recorded the one
+        // idempotent success publication is emitted now.
         assert_eq!(summary.applied, 1);
         assert_eq!(restarted.persistence.pet_count(), 1);
         assert_eq!(restarted.store.money_mutations(), 1);
+        let commands = restarted.store.commands_snapshot();
         assert_eq!(
-            restarted.store.commands_snapshot()[0].status,
+            commands[0].status,
             BattlePetPurchaseStatusLikeCpp::Completed
+        );
+        assert!(commands[0].published);
+        let pet_guid = ObjectGuid::create_global(
+            HighGuid::BattlePet,
+            0,
+            restarted
+                .persistence
+                .receipt(commands[0].request_key)
+                .expect("receipt")
+                .guid_counter as i64,
+        );
+        assert_eq!(
+            restarted.send_rx.try_recv().expect("recovery pet update"),
+            wow_packet::packets::misc::BattlePetUpdates {
+                pets: vec![expected_pet_packet_like_cpp(&restarted, pet_guid)],
+                pet_added: true,
+            }
+            .to_bytes()
+        );
+        assert_eq!(
+            restarted
+                .send_rx
+                .try_recv()
+                .expect("recovery learned spells"),
+            LearnedSpells::single(SAGA_SPELL_ID as i32).to_bytes()
         );
         assert_no_packets(&restarted);
     }
@@ -3936,6 +4170,34 @@ mod executor_tests {
     const SAGA_SUMMON_SLOT_MINIPET_RAW: i64 = 5;
     const SAGA_SUMMON_FROM_JOURNAL_RAW: i64 = 0x0020_0000;
 
+    fn saga_learn_effect_like_cpp(
+        record_id: u32,
+        wrapper_spell_id: u32,
+        learned_spell_id: u32,
+    ) -> wow_data::SpellAcquisitionEffectLikeCpp {
+        wow_data::SpellAcquisitionEffectLikeCpp {
+            record_id,
+            spell_id_raw: i64::from(wrapper_spell_id),
+            difficulty_id_raw: 0,
+            effect_index_raw: 1,
+            effect_type_raw: 36, // C++ SPELL_EFFECT_LEARN_SPELL
+            effect_aura_raw: 0,
+            effect_mechanic_raw: 0,
+            effect_attributes_raw: 0,
+            effect_base_points_raw: 0,
+            effect_die_sides_raw: 0,
+            effect_chain_targets_raw: 0,
+            effect_points_per_resource_bits: 0.0_f32.to_bits(),
+            effect_real_points_per_level_bits: 0.0_f32.to_bits(),
+            effect_coefficient_bits: 0.0_f32.to_bits(),
+            effect_variance_bits: 0.0_f32.to_bits(),
+            effect_trigger_spell_raw: i64::from(learned_spell_id),
+            effect_item_type_raw: 0,
+            effect_misc_value_raw: [0, 0],
+            implicit_target_raw: [1, 0],
+        }
+    }
+
     fn saga_summon_effect_like_cpp(spell_id: u32) -> wow_data::SpellAcquisitionEffectLikeCpp {
         wow_data::SpellAcquisitionEffectLikeCpp {
             record_id: 1,
@@ -4003,12 +4265,17 @@ mod executor_tests {
 
     /// A fully rigged handler session: the trainer list/buy path runs the
     /// real admission composition (membership, gates, conditions, price,
-    /// classification) before the saga.
+    /// classification) before the saga. `wrapper_learned_spell` adds a
+    /// `SPELL_EFFECT_LEARN_SPELL` effect so the trainer spell is castable
+    /// (C++ `IsCastable()`), turning the offer into the normal wrapper
+    /// acquisition that retains its battle-pet species classification.
     async fn saga_handler_fixture_like_cpp(
         money: u64,
         battle_pet_price: u32,
+        wrapper_learned_spell: Option<u32>,
+        seeded_pets: Vec<DurableBattlePetRowLikeCpp>,
     ) -> SagaFixtureLikeCpp {
-        let persistence = Arc::new(FakeSagaPersistenceLikeCpp::with_seeded_pets(Vec::new()));
+        let persistence = Arc::new(FakeSagaPersistenceLikeCpp::with_seeded_pets(seeded_pets));
         let store = Arc::new(
             FakeBattlePetPurchaseStoreLikeCpp::new().with_money(PLAYER_COUNTER as u64, money),
         );
@@ -4077,7 +4344,14 @@ mod executor_tests {
         ));
         let mut learn_skills = wow_data::SpellLearnSkillStoreLikeCpp::default();
         learn_skills.covered_spell_ids.extend([SAGA_SPELL_ID]);
+        if let Some(learned) = wrapper_learned_spell {
+            learn_skills.covered_spell_ids.extend([learned]);
+        }
         session.set_spell_learn_skill_store(Arc::new(learn_skills));
+        if wrapper_learned_spell.is_some() {
+            session.set_spell_acquisition_static_authority_like_cpp([SAGA_SPELL_ID], []);
+            session.set_loot_money_persistence_test_result_like_cpp(true);
+        }
         session.set_spell_learn_spell_store(Arc::new(
             wow_data::SpellLearnSpellStoreLikeCpp::default(),
         ));
@@ -4090,14 +4364,22 @@ mod executor_tests {
         session.set_spell_aura_restrictions_store(Arc::new(
             wow_data::SpellAuraRestrictionsStore::from_entries([]),
         ));
+        let mut coverage = vec![wow_data::SpellAcquisitionCoverageSeedLikeCpp::covered(
+            SAGA_SPELL_ID,
+            0,
+        )];
+        let mut spell_effects = vec![saga_summon_effect_like_cpp(SAGA_SPELL_ID)];
+        if let Some(learned) = wrapper_learned_spell {
+            coverage.push(wow_data::SpellAcquisitionCoverageSeedLikeCpp::covered(
+                learned, 0,
+            ));
+            spell_effects.push(saga_learn_effect_like_cpp(2, SAGA_SPELL_ID, learned));
+        }
         session.set_spell_acquisition_catalog(Arc::new(
             wow_data::SpellAcquisitionCatalogLikeCpp::from_effective_rows_like_cpp(
-                [wow_data::SpellAcquisitionCoverageSeedLikeCpp::covered(
-                    SAGA_SPELL_ID,
-                    0,
-                )],
+                coverage,
                 wow_data::EffectiveSpellAcquisitionRowsLikeCpp {
-                    spell_effects: vec![saga_summon_effect_like_cpp(SAGA_SPELL_ID)],
+                    spell_effects,
                     summon_properties: vec![wow_data::SpellAcquisitionSummonPropertiesLikeCpp {
                         record_id: SAGA_SUMMON_PROPERTIES_ID,
                         slot_raw: SAGA_SUMMON_SLOT_MINIPET_RAW,
@@ -4151,7 +4433,8 @@ mod executor_tests {
 
     #[tokio::test]
     async fn handler_battle_pet_buy_runs_the_full_saga_like_cpp() {
-        let mut fixture = saga_handler_fixture_like_cpp(SAGA_MONEY, SAGA_PRICE).await;
+        let mut fixture =
+            saga_handler_fixture_like_cpp(SAGA_MONEY, SAGA_PRICE, None, Vec::new()).await;
         fixture
             .session
             .handle_trainer_buy_spell(saga_buy_packet_like_cpp(SAGA_SPELL_ID as i32))
@@ -4203,7 +4486,8 @@ mod executor_tests {
     async fn handler_buy_revalidates_membership_and_current_price_like_cpp() {
         // A spell outside the trainer's current spell set is rejected with
         // the C++ generic failure before any saga state exists.
-        let mut fixture = saga_handler_fixture_like_cpp(SAGA_MONEY, SAGA_PRICE).await;
+        let mut fixture =
+            saga_handler_fixture_like_cpp(SAGA_MONEY, SAGA_PRICE, None, Vec::new()).await;
         fixture
             .session
             .handle_trainer_buy_spell(saga_buy_packet_like_cpp(999_999))
@@ -4223,7 +4507,7 @@ mod executor_tests {
 
         // The same spell at a different current store price charges the
         // current price, not a previously listed one.
-        let mut fixture = saga_handler_fixture_like_cpp(SAGA_MONEY, 400).await;
+        let mut fixture = saga_handler_fixture_like_cpp(SAGA_MONEY, 400, None, Vec::new()).await;
         fixture
             .session
             .handle_trainer_buy_spell(saga_buy_packet_like_cpp(SAGA_SPELL_ID as i32))
@@ -4239,28 +4523,17 @@ mod executor_tests {
     async fn handler_capacity_failure_publishes_no_packets_like_cpp() {
         // Capture fixture (capacity): the structured admission failure keeps
         // the wire silent exactly like C++.
-        let mut fixture = saga_handler_fixture_like_cpp(SAGA_MONEY, SAGA_PRICE).await;
-        fixture
-            .persistence
-            .state
-            .lock()
-            .expect("fake saga persistence poisoned")
-            .pets = vec![
-            saga_durable_pet_row_like_cpp(1, SAGA_SPECIES, None),
-            saga_durable_pet_row_like_cpp(2, SAGA_SPECIES, None),
-            saga_durable_pet_row_like_cpp(3, SAGA_SPECIES, None),
-        ];
-        // Refresh the owner so its in-memory capacity view sees the seeded
-        // pets: attach a fresh owner over the same persistence.
-        let registry = saga_registry_like_cpp(Arc::clone(&fixture.persistence));
-        fixture.registry = registry;
-        fixture.session.set_battle_pet_account_attachment_like_cpp(
-            fixture
-                .registry
-                .attach_like_cpp(ACCOUNT_ID)
-                .await
-                .expect("re-attach"),
-        );
+        let mut fixture = saga_handler_fixture_like_cpp(
+            SAGA_MONEY,
+            SAGA_PRICE,
+            None,
+            vec![
+                saga_durable_pet_row_like_cpp(1, SAGA_SPECIES, None),
+                saga_durable_pet_row_like_cpp(2, SAGA_SPECIES, None),
+                saga_durable_pet_row_like_cpp(3, SAGA_SPECIES, None),
+            ],
+        )
+        .await;
         fixture
             .session
             .handle_trainer_buy_spell(saga_buy_packet_like_cpp(SAGA_SPELL_ID as i32))
@@ -4383,6 +4656,85 @@ mod executor_tests {
         assert_eq!(
             fixture.store.command(request_key).expect("command").status,
             BattlePetPurchaseStatusLikeCpp::Completed
+        );
+        assert_no_packets(&fixture);
+    }
+
+    // ── Castable (wrapper) spells that still carry a battle-pet species ──
+
+    const SAGA_WRAPPER_LEARNED_SPELL: u32 = 54_331;
+    const SAGA_WRAPPER_PRICE: u32 = 25;
+
+    #[tokio::test]
+    async fn handler_castable_battle_pet_spell_fails_closed_before_money_like_cpp() {
+        // C++ would charge and cast a hybrid (learn + battle-pet summon)
+        // trainer spell with the silent cap and suppressed visuals. The #164
+        // acquisition planner deliberately does not project SUMMON effects
+        // (`BattlePetOrSummonPath`), so today the offer fails closed BEFORE
+        // money, visuals, pet or saga state: the one observable packet is
+        // the C++ generic buy failure. The offer type still carries the
+        // species (pure-decision test in trainer_offer.rs) and the handler
+        // keeps the C++-shared cap gate and visual suppression for the day
+        // the planner models hybrid casts.
+        let mut fixture = saga_handler_fixture_like_cpp(
+            SAGA_MONEY,
+            SAGA_WRAPPER_PRICE,
+            Some(SAGA_WRAPPER_LEARNED_SPELL),
+            Vec::new(),
+        )
+        .await;
+        fixture
+            .session
+            .handle_trainer_buy_spell(saga_buy_packet_like_cpp(SAGA_SPELL_ID as i32))
+            .await;
+        assert_eq!(fixture.session.player_gold_like_cpp(), SAGA_MONEY);
+        assert!(
+            !fixture
+                .session
+                .known_spells_like_cpp()
+                .contains(&(SAGA_WRAPPER_LEARNED_SPELL as i32)),
+            "the hybrid cast must not run while the planner rejects it"
+        );
+        assert_eq!(fixture.persistence.pet_count(), 0);
+        assert!(fixture.store.commands_snapshot().is_empty());
+        assert_eq!(
+            fixture.send_rx.try_recv().expect("teach failure"),
+            TrainerBuyFailed {
+                trainer_guid: saga_trainer_guid_like_cpp(),
+                spell_id: SAGA_SPELL_ID as i32,
+                reason: 0,
+            }
+            .to_bytes()
+        );
+        assert_no_packets(&fixture);
+    }
+
+    #[tokio::test]
+    async fn handler_castable_battle_pet_spell_never_reaches_the_saga_even_uncapped_like_cpp() {
+        // Same fail-closed proof with journal capacity available: the
+        // rejection is the planner boundary, not the battle-pet cap.
+        let mut fixture = saga_handler_fixture_like_cpp(
+            SAGA_MONEY,
+            SAGA_WRAPPER_PRICE,
+            Some(SAGA_WRAPPER_LEARNED_SPELL),
+            vec![saga_durable_pet_row_like_cpp(1, SAGA_SPECIES, None)],
+        )
+        .await;
+        fixture
+            .session
+            .handle_trainer_buy_spell(saga_buy_packet_like_cpp(SAGA_SPELL_ID as i32))
+            .await;
+        assert_eq!(fixture.session.player_gold_like_cpp(), SAGA_MONEY);
+        assert_eq!(fixture.persistence.pet_count(), 1);
+        assert!(fixture.store.commands_snapshot().is_empty());
+        assert_eq!(
+            fixture.send_rx.try_recv().expect("teach failure"),
+            TrainerBuyFailed {
+                trainer_guid: saga_trainer_guid_like_cpp(),
+                spell_id: SAGA_SPELL_ID as i32,
+                reason: 0,
+            }
+            .to_bytes()
         );
         assert_no_packets(&fixture);
     }
