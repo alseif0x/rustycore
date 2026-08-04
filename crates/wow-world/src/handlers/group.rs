@@ -1766,6 +1766,18 @@ impl WorldSession {
                 );
                 return;
             }
+            if !group.is_lfg_group_like_cpp() && self.player_in_represented_battleground_like_cpp()
+            {
+                // C++ `CanUninviteFromGroup` normal branch: battleground
+                // senders are restricted before any target check
+                // (`Player.cpp:25181-25182`).
+                send_party_uninvite_result_like_cpp(
+                    self,
+                    party_result::INVITE_RESTRICTED,
+                    uninvite.target_guid,
+                );
+                return;
+            }
             if !group.is_lfg_group_like_cpp() && group.leader_guid == uninvite.target_guid {
                 send_party_uninvite_result_like_cpp(
                     self,
@@ -1789,6 +1801,14 @@ impl WorldSession {
                     party_result::TARGET_NOT_IN_GROUP,
                     uninvite.target_guid,
                 );
+                return;
+            }
+
+            // C++ `Group::RemoveMember` returns early for LFG groups with
+            // `GROUP_REMOVEMETHOD_KICK` (`Group.cpp:573-575`): the LFG
+            // vote-kick scripts own the actual removal, so a direct uninvite
+            // that passed the boot gate never removes the member here.
+            if group.is_lfg_group_like_cpp() {
                 return;
             }
 
@@ -5091,9 +5111,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn lfg_uninvite_by_nonleader_kicks_member_without_leader_gate_like_cpp() {
+    async fn lfg_uninvite_by_nonleader_passes_gate_but_kick_is_vote_owned_like_cpp() {
         // C++ `Player::CanUninviteFromGroup` LFG branch requires no
-        // leader/assistant role (`Player.cpp:25147-25177`).
+        // leader/assistant role, and `Group::RemoveMember` then returns
+        // early for LFG + KICK (`Group.cpp:573-575`): the vote-kick scripts
+        // own the removal, so a direct uninvite changes no membership.
         let leader = ObjectGuid::create_player(1, 42);
         let sender = ObjectGuid::create_player(1, 100);
         let target = ObjectGuid::create_player(1, 101);
@@ -5106,12 +5128,16 @@ mod tests {
             .await;
 
         assert!(
-            !group_registry
+            group_registry
                 .get(&group_guid)
                 .expect("group")
                 .members
                 .contains(&target),
-            "the LFG boot gate passed and the kick removed the target"
+            "a passed LFG boot gate must not remove: C++ swallows direct kicks"
+        );
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ sends no result packet when the gate passes"
         );
     }
 
@@ -5265,9 +5291,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn lfg_uninvite_leader_target_is_allowed_in_lfg_branch_like_cpp() {
-        // C++'s LFG branch has no `IsLeader(guidMember)` check: booting the
-        // LFG leader is allowed when the gate passes.
+    async fn lfg_uninvite_against_leader_passes_gate_without_removal_like_cpp() {
+        // C++'s LFG branch has no `IsLeader(guidMember)` rejection, and the
+        // same swallowed-kick rule leaves the leader in place: no stale
+        // `leader_guid` can ever be produced by this path.
         let leader = ObjectGuid::create_player(1, 42);
         let sender = ObjectGuid::create_player(1, 100);
         let group = lfg_group_like_cpp(leader, 5);
@@ -5278,15 +5305,40 @@ mod tests {
             .handle_party_uninvite(party_uninvite_packet(leader, None, "boot"))
             .await;
 
+        let group = group_registry.get(&group_guid).expect("group");
+        assert!(group.members.contains(&leader));
+        assert_eq!(group.leader_guid, leader);
+        let _ = send_rx;
+    }
+
+    #[tokio::test]
+    async fn normal_group_uninvite_in_battleground_returns_invite_restricted_like_cpp() {
+        // C++ `CanUninviteFromGroup` normal branch returns
+        // `ERR_INVITE_RESTRICTED` when the sender is in a battleground
+        // (`Player.cpp:25181-25182`).
+        let leader = ObjectGuid::create_player(1, 42);
+        let target = ObjectGuid::create_player(1, 100);
+        let mut group = GroupInfo::new(leader);
+        assert!(group.add_member(target));
+        let (mut session, send_rx, group_registry, group_guid) =
+            lfg_uninvite_session_like_cpp(group, leader);
+        session.set_player_battleground_type_id_like_cpp(1);
+
+        session
+            .handle_party_uninvite(party_uninvite_packet(target, None, "bye"))
+            .await;
+
+        assert_eq!(
+            party_command_result_code(&send_rx.try_recv().expect("invite restricted result")),
+            party_result::INVITE_RESTRICTED
+        );
         assert!(
-            !group_registry
+            group_registry
                 .get(&group_guid)
                 .expect("group")
                 .members
-                .contains(&leader),
-            "C++ allows kicking the LFG leader once the boot gate passes"
+                .contains(&target)
         );
-        let _ = send_rx;
     }
 
     #[tokio::test]

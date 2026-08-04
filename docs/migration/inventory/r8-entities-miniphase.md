@@ -29,7 +29,12 @@ error codes of `SharedDefines.h`: per-group kicks-left restored to `LFG_GROUP_MA
 dungeon-complete from the restored LFG state, connected-target loot rolls from the player
 registry, and the uninviter's own combat state as today's only authoritative member-combat view;
 the missing VoteKick authority is documented, and the LFG branch skips both leader checks exactly
-like C++.
+like C++. A second remote review added the three remaining C++ boundaries: the normal branch
+rejects battleground senders with `ERR_INVITE_RESTRICTED` before any target check
+(`Player.cpp:25181-25182`), and a passed LFG boot gate does NOT remove the member — C++
+`Group::RemoveMember` returns early for LFG + `GROUP_REMOVEMETHOD_KICK` (`Group.cpp:573-575`)
+because the vote-kick scripts own the removal, so no stale `leader_guid` can ever be produced by
+this path and kick consumption stays with the future vote flow.
 
 Focused tests send complete PartyUninvite, TrainerBuySpell and MoveSetVehicleRecIdAck wire
 packets through `WorldSession::dispatch_packet`, observe the PartyCommandResult and
