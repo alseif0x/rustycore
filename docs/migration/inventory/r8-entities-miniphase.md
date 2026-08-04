@@ -12,8 +12,9 @@ balance, #163 species classification, account capacity and journal lease under t
 money boundary; one Character DB transaction deducts the guarded money and inserts the pending
 command (`character_battle_pet_purchase`); the #160 account owner applies exactly one pet with
 fence/lease/capacity rechecked inside its own Login DB transaction; the one success publication
-runs after the durable pet exists and is tracked by the durable `published` marker that the
-completion record also sets, so an interrupted success still publishes exactly once; terminal
+runs after the durable pet exists and is tracked by the durable `published` marker committed
+before completion, and recovery also scans `Completed` rows whose marker is clear, so an
+interrupted success still publishes exactly once; terminal
 apply failures record `CompensationPending` and refund exactly once in one
 Character DB transaction; a receipt re-check before any refund forbids refunding a durable pet;
 and login recovery converges interrupted commands inline (bounded batch, no background tasks,

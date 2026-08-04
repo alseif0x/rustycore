@@ -206,8 +206,9 @@ The purchase does not reuse the #159 durable acquisition transaction because its
 in the Login DB; instead a durable saga (`character_battle_pet_purchase`, keyed by the #160 receipt
 identity) commits the guarded charge and the pending command in one Character DB transaction,
 applies the pet once through the #160 account owner, publishes the one success update after the
-durable pet exists and records it with the completion (durable `published` marker), and
-compensates terminal failures exactly once. Selection (breed/quality/display) follows
+durable pet exists, records it in the durable `published` marker before completing, and
+compensates terminal failures exactly once; recovery also scans `Completed` rows whose marker
+is clear and finishes their publication. Selection (breed/quality/display) follows
 `BattlePetMgr.cpp:201-227` with injectable RNG and is frozen into the command at admission. Login
 recovery converges interrupted commands inline (bounded batch, cancellation-safe, no new tasks);
 the `PetApplied` state is derived from the Login DB receipt rather than duplicated into Character
