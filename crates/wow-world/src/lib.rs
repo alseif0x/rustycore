@@ -6,6 +6,7 @@
 //! World server core: session management, handlers, and world state.
 
 pub(crate) mod battle_pet_account;
+pub(crate) mod battle_pet_purchase;
 pub mod conditions;
 pub mod entity_update_bridge;
 pub mod handlers;

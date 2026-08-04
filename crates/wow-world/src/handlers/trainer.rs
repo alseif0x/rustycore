@@ -469,6 +469,13 @@ impl WorldSession {
                     TRAINER_SPELL_STATE_AVAILABLE_LIKE_CPP,
                     offer.effective_price,
                 ),
+                // C++ `Trainer::GetSpellState` has no battle-pet cap gate, so
+                // a confirmed purchasable species renders available; the
+                // silent cap only applies inside `Trainer::TeachSpell`.
+                TrainerOfferDecisionLikeCpp::AvailableBattlePet(offer) => (
+                    TRAINER_SPELL_STATE_AVAILABLE_LIKE_CPP,
+                    offer.effective_price,
+                ),
             };
 
             spells.push(TrainerListSpell {
@@ -641,14 +648,42 @@ impl WorldSession {
             &fresh_trainer_spell,
             fresh_access.faction_template_id,
         );
-        let TrainerOfferDecisionLikeCpp::Available(offer) = decision else {
-            self.send_packet_realm(&TrainerBuyFailed {
-                trainer_guid,
-                spell_id,
-                reason: 0,
-            });
-            return;
+        let offer = match decision {
+            TrainerOfferDecisionLikeCpp::Available(offer) => offer,
+            TrainerOfferDecisionLikeCpp::AvailableBattlePet(offer) => {
+                // Issue #161: the recoverable saga owns the battle-pet
+                // branch end to end (admission, charge, durable command,
+                // one pet, completion, compensation and publication).
+                self.execute_battle_pet_trainer_purchase_like_cpp(
+                    money_persistence,
+                    trainer_guid,
+                    trainer_id as u32,
+                    offer,
+                )
+                .await;
+                return;
+            }
+            _ => {
+                self.send_packet_realm(&TrainerBuyFailed {
+                    trainer_guid,
+                    spell_id,
+                    reason: 0,
+                });
+                return;
+            }
         };
+        // C++ `Trainer.cpp:99-109`: every spell with a confirmed battle-pet
+        // species — castable or not — applies the silent per-species
+        // capacity gate (no packet, no charge) before the money check.
+        if let Some(species_id) = offer.battle_pet_species_id {
+            let capped = self
+                .battle_pet_account_owner_lease_like_cpp()
+                .map(|(owner, _)| owner.has_max_pet_count_like_cpp(species_id, self.player_guid()))
+                .unwrap_or(true);
+            if capped {
+                return;
+            }
+        }
         let old_money = self.player_gold_like_cpp();
         let price = u64::from(offer.effective_price);
         if old_money < price {
@@ -810,12 +845,6 @@ impl WorldSession {
             duration: 0,
             mounted_visual: false,
         };
-        self.send_packet_realm(&trainer_visual);
-        self.broadcast_creature_packet_from_position_to_visible_set_realm_like_cpp(
-            trainer_guid,
-            fresh_access.position,
-            trainer_visual.to_bytes(),
-        );
         let player_visual = PlaySpellVisualKit {
             unit: player_guid,
             kit_record_id: 362,
@@ -823,8 +852,20 @@ impl WorldSession {
             duration: 0,
             mounted_visual: false,
         };
-        self.send_packet_realm(&player_visual);
-        self.broadcast_to_movement_set_realm_like_cpp(player_visual.to_bytes(), true);
+        // C++ `Trainer.cpp:108,121-125`: a spell with a confirmed battle-pet
+        // species never emits the trainer/player visual kits, even when the
+        // wrapper cast itself proceeds. The socket-ordering fences stay so
+        // the money update and the acquisition stream keep their order.
+        if offer.battle_pet_species_id.is_none() {
+            self.send_packet_realm(&trainer_visual);
+            self.broadcast_creature_packet_from_position_to_visible_set_realm_like_cpp(
+                trainer_guid,
+                fresh_access.position,
+                trainer_visual.to_bytes(),
+            );
+            self.send_packet_realm(&player_visual);
+            self.broadcast_to_movement_set_realm_like_cpp(player_visual.to_bytes(), true);
+        }
         if !self
             .wait_for_realm_send_before_instance_update_like_cpp()
             .await

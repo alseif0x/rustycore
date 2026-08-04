@@ -1491,6 +1491,16 @@ pub(crate) struct BattlePetAccountOwnerLikeCpp {
     registry_identity: Mutex<Option<BattlePetAccountRegistryIdentityLikeCpp>>,
 }
 
+/// Outcome of a cross-account receipt probe serialized by the #160 process
+/// fence (issue #161): the answer is only meaningful when the fence could be
+/// held across the read, so no in-flight original-account insert can race it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BattlePetFencedReceiptProbeLikeCpp {
+    Committed,
+    Absent,
+    AuthorityUnavailable,
+}
+
 impl BattlePetAccountOwnerLikeCpp {
     fn from_loaded_like_cpp(
         account_id: u32,
@@ -1897,6 +1907,69 @@ impl BattlePetAccountOwnerLikeCpp {
             owner_guid,
             entry.flags,
         )
+    }
+
+    pub(crate) fn unique_species_count_like_cpp(&self) -> u32 {
+        let state = self
+            .state
+            .lock()
+            .expect("battle-pet account state poisoned");
+        u32::try_from(
+            state
+                .pets
+                .values()
+                .map(|pet| pet.species)
+                .collect::<std::collections::BTreeSet<_>>()
+                .len(),
+        )
+        .unwrap_or(u32::MAX)
+    }
+
+    /// Receipt probe for an account other than this owner's, serialized by
+    /// the original account's process fence. Any in-flight original-account
+    /// insert holds that fence through its owner guard, so
+    /// `AuthorityUnavailable` must defer rather than guess: without the
+    /// fence a negative read is only a snapshot that a detached worker can
+    /// falsify immediately afterwards.
+    pub(crate) async fn receipt_probe_for_account_fenced_like_cpp(
+        &self,
+        account_id: u32,
+        request_key: BattlePetAddRequestKeyLikeCpp,
+    ) -> Result<BattlePetFencedReceiptProbeLikeCpp, BattlePetAddFailureLikeCpp> {
+        let guard = self
+            .persistence
+            .try_acquire_process_lease(account_id)
+            .await
+            .map_err(add_persistence_error_like_cpp)?;
+        let Some(_guard) = guard else {
+            return Ok(BattlePetFencedReceiptProbeLikeCpp::AuthorityUnavailable);
+        };
+        let committed = self
+            .persistence
+            .lookup_add_request(account_id, request_key)
+            .await
+            .map_err(add_persistence_error_like_cpp)?
+            .is_some();
+        Ok(if committed {
+            BattlePetFencedReceiptProbeLikeCpp::Committed
+        } else {
+            BattlePetFencedReceiptProbeLikeCpp::Absent
+        })
+    }
+
+    /// Receipt probe for an account other than this owner's — used by the
+    /// #161 purchase saga when a character changed Battle.net accounts
+    /// mid-purchase: the receipt authority stays the original account.
+    pub(crate) async fn receipt_committed_for_account_like_cpp(
+        &self,
+        account_id: u32,
+        request_key: BattlePetAddRequestKeyLikeCpp,
+    ) -> Result<bool, BattlePetAddFailureLikeCpp> {
+        self.persistence
+            .lookup_add_request(account_id, request_key)
+            .await
+            .map(|receipt| receipt.is_some())
+            .map_err(add_persistence_error_like_cpp)
     }
 
     pub(crate) async fn add_request_committed_like_cpp(
@@ -3586,6 +3659,38 @@ mod tests {
         assert_eq!(accepted, HashSet::from([3, 4, 5, 7, 9]));
         assert_eq!(state.slots[0].pet_guid, Some(battle_pet_guid_like_cpp(3)));
         assert_eq!(state.slots[1].pet_guid, None);
+    }
+
+    #[test]
+    fn unique_species_criteria_count_keeps_pending_removed_pets_like_cpp() {
+        let (species, qualities, breed_states, species_states) = stores_like_cpp(0);
+        let owner = BattlePetAccountOwnerLikeCpp::from_loaded_like_cpp(
+            77,
+            7,
+            0x0102_0007,
+            Arc::new(FakePersistenceLikeCpp::default()),
+            species,
+            qualities,
+            breed_states,
+            species_states,
+            LoadedBattlePetAccountLikeCpp {
+                pets: vec![
+                    durable_pet_row_like_cpp(1, 11, None),
+                    durable_pet_row_like_cpp(2, 12, None),
+                ],
+                slots: Vec::new(),
+            },
+        );
+        owner
+            .state
+            .lock()
+            .expect("battle-pet account state")
+            .pets
+            .get_mut(&battle_pet_guid_like_cpp(1))
+            .expect("loaded pet")
+            .save_info = RepresentedBattlePetSaveInfoLikeCpp::Removed;
+
+        assert_eq!(owner.unique_species_count_like_cpp(), 2);
     }
 
     #[tokio::test]

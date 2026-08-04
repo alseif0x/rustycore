@@ -339,7 +339,7 @@ pub(crate) struct CommittedRepresentedTalentResetLikeCpp {
 /// fence prevents a cancelled packet/shutdown future from reopening payout
 /// admission and then letting disconnect-save overwrite a transaction whose
 /// COMMIT reply was never observed.
-struct PlayerMoneyCommitCancellationFenceLikeCpp {
+pub(crate) struct PlayerMoneyCommitCancellationFenceLikeCpp {
     tracker: Arc<DurableLootMoneyPersistenceTrackerLikeCpp>,
     armed: bool,
 }
@@ -352,7 +352,24 @@ impl PlayerMoneyCommitCancellationFenceLikeCpp {
         }
     }
 
-    fn disarm_like_cpp(&mut self) {
+    /// Build a fence which is inert until the database layer is immediately
+    /// about to await a COMMIT.  Multi-step sagas use this form so cancelling
+    /// during pre-commit validation does not quarantine a session whose
+    /// transaction was never submitted.
+    pub(crate) fn new_disarmed_like_cpp(
+        tracker: Arc<DurableLootMoneyPersistenceTrackerLikeCpp>,
+    ) -> Self {
+        Self {
+            tracker,
+            armed: false,
+        }
+    }
+
+    pub(crate) fn arm_like_cpp(&mut self) {
+        self.armed = true;
+    }
+
+    pub(crate) fn disarm_like_cpp(&mut self) {
         self.armed = false;
     }
 }
@@ -6065,6 +6082,17 @@ pub struct WorldSession {
     pub(crate) represented_battle_pets_like_cpp:
         HashMap<ObjectGuid, RepresentedBattlePetDataLikeCpp>,
     battle_pet_account_attachment_like_cpp: Option<BattlePetAccountAttachmentLikeCpp>,
+    /// World-DB breed/quality selection tables for battle-pet trainer
+    /// purchases (issue #161), loaded once at bootstrap.
+    battle_pet_selection_store_like_cpp:
+        Option<Arc<wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp>>,
+    /// Character DB seam of the recoverable battle-pet purchase saga (#161).
+    battle_pet_purchase_store_like_cpp:
+        Option<Arc<dyn crate::battle_pet_purchase::BattlePetPurchaseStoreLikeCpp>>,
+    /// Deterministic purchase selection override for saga tests (#161).
+    #[cfg(test)]
+    battle_pet_purchase_selection_override_like_cpp:
+        Option<wow_data::battle_pet_selection::BattlePetTrainerSelectionLikeCpp>,
     /// C++ `BattlePetMgr::_hasJournalLock`, represented until full battle-pet runtime is ported.
     pub(crate) represented_battle_pet_journal_lock_like_cpp: bool,
     /// C++ `BattlePetMgr::_slots`, represented until full battle-pet slot
@@ -7313,6 +7341,10 @@ impl WorldSession {
             battle_pet_breed_state_store: None,
             battle_pet_species_store: None,
             battle_pet_species_state_store: None,
+            battle_pet_selection_store_like_cpp: None,
+            battle_pet_purchase_store_like_cpp: None,
+            #[cfg(test)]
+            battle_pet_purchase_selection_override_like_cpp: None,
             battle_pet_xp_game_table: None,
             combat_ratings_game_table: None,
             shield_block_regular_game_table: None,
@@ -16098,6 +16130,111 @@ impl WorldSession {
         attachment: BattlePetAccountAttachmentLikeCpp,
     ) {
         self.battle_pet_account_attachment_like_cpp = Some(attachment);
+    }
+
+    /// The #160 account owner and this session's journal lease id, when the
+    /// canonical journal is attached (issue #161 purchase saga).
+    pub(crate) fn battle_pet_account_owner_lease_like_cpp(
+        &self,
+    ) -> Option<(
+        Arc<crate::battle_pet_account::BattlePetAccountOwnerLikeCpp>,
+        crate::battle_pet_account::BattlePetLeaseIdLikeCpp,
+    )> {
+        self.battle_pet_account_attachment_like_cpp
+            .as_ref()
+            .map(|attachment| {
+                (
+                    Arc::clone(attachment.owner_like_cpp()),
+                    attachment.lease_id_like_cpp(),
+                )
+            })
+    }
+
+    /// Acquire this session's journal lease through the #160 attachment
+    /// (issue #161 admission/recovery).
+    pub(crate) async fn battle_pet_try_acquire_journal_lease_like_cpp(&self) -> bool {
+        let Some(attachment) = &self.battle_pet_account_attachment_like_cpp else {
+            return false;
+        };
+        attachment.try_acquire_lease_like_cpp().await
+    }
+
+    /// Set the world-DB battle-pet breed/quality selection store (#161).
+    pub fn set_battle_pet_selection_store_like_cpp(
+        &mut self,
+        store: Arc<wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp>,
+    ) {
+        self.battle_pet_selection_store_like_cpp = Some(store);
+    }
+
+    pub(crate) fn battle_pet_selection_store_like_cpp(
+        &self,
+    ) -> Option<&Arc<wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp>> {
+        self.battle_pet_selection_store_like_cpp.as_ref()
+    }
+
+    /// Build the production Character DB seam of the recoverable purchase
+    /// saga (#161) from this session's own character database handle. Keeps
+    /// the saga store type private to `wow-world`.
+    pub fn install_battle_pet_purchase_store_from_char_db_like_cpp(&mut self) {
+        self.battle_pet_purchase_store_like_cpp = self.char_db.as_ref().map(|char_db| {
+            Arc::new(
+                crate::battle_pet_purchase::CharacterBattlePetPurchaseStoreLikeCpp::new(
+                    Arc::clone(char_db),
+                ),
+            ) as Arc<dyn crate::battle_pet_purchase::BattlePetPurchaseStoreLikeCpp>
+        });
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_battle_pet_purchase_store_like_cpp(
+        &mut self,
+        store: Arc<dyn crate::battle_pet_purchase::BattlePetPurchaseStoreLikeCpp>,
+    ) {
+        self.battle_pet_purchase_store_like_cpp = Some(store);
+    }
+
+    pub(crate) fn battle_pet_purchase_store_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn crate::battle_pet_purchase::BattlePetPurchaseStoreLikeCpp>> {
+        self.battle_pet_purchase_store_like_cpp
+            .as_ref()
+            .map(Arc::clone)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_battle_pet_purchase_selection_override_like_cpp(
+        &mut self,
+        selection: Option<wow_data::battle_pet_selection::BattlePetTrainerSelectionLikeCpp>,
+    ) {
+        self.battle_pet_purchase_selection_override_like_cpp = selection;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn battle_pet_purchase_selection_override_like_cpp(
+        &self,
+    ) -> Option<wow_data::battle_pet_selection::BattlePetTrainerSelectionLikeCpp> {
+        self.battle_pet_purchase_selection_override_like_cpp
+    }
+
+    /// One cloned DB2 species row for admission-time materialization (#161).
+    pub(crate) fn battle_pet_species_entry_like_cpp(
+        &self,
+        species: u32,
+    ) -> Option<wow_data::BattlePetSpeciesEntry> {
+        self.battle_pet_species_store
+            .as_ref()
+            .and_then(|store| store.get(species))
+            .cloned()
+    }
+
+    /// Quarantine this session after an unreconcilable battle-pet purchase
+    /// COMMIT, mirroring the #159 money-persistence indeterminate boundary:
+    /// normal payout admission stays closed and the client must relog.
+    pub(crate) fn quarantine_player_money_persistence_like_cpp(&mut self, reason: &'static str) {
+        self.durable_loot_money_persistence_like_cpp
+            .mark_indeterminate_like_cpp();
+        self.kick(reason);
     }
 
     pub fn set_battlenet_account_id(&mut self, battlenet_account_id: u32) {
@@ -49854,6 +49991,58 @@ impl WorldSession {
             .owner_like_cpp()
             .add_request_committed_like_cpp(request_key)
             .await
+    }
+
+    /// Publish one durable battle-pet addition exactly like the #160 session
+    /// seam (`SMSG_BATTLE_PET_UPDATES` with `pet_added` plus the C++
+    /// packet). The issue #161 saga calls this only after the pet and receipt
+    /// are durable. Packet recovery may call it again, so it deliberately has
+    /// no criteria side effects.
+    pub(crate) fn publish_battle_pet_trainer_purchase_add_like_cpp(
+        &mut self,
+        pet: wow_packet::packets::misc::BattlePetJournalPet,
+    ) -> bool {
+        let packet_enqueued = self
+            .send_tx
+            .send(wow_packet::ServerPacket::to_bytes(
+                &wow_packet::packets::misc::BattlePetUpdates {
+                    pets: vec![pet],
+                    pet_added: true,
+                },
+            ))
+            .is_ok();
+        if !packet_enqueued {
+            warn!("Send channel closed for account {}", self.account_id);
+        }
+        packet_enqueued
+    }
+
+    /// Record the C++ `BattlePetMgr::AddPet` criteria hooks from durable
+    /// current state. Both C++ criteria are set-like (`UniquePetsOwned` uses
+    /// the current unique-species count and `LearnedNewPet` sets one species
+    /// to 1), so receipt recovery and packet re-sends are idempotent.
+    pub(crate) fn record_battle_pet_trainer_purchase_criteria_like_cpp(&mut self, species: u32) {
+        self.represented_battle_pet_unique_owned_criteria_like_cpp = self
+            .battle_pet_account_attachment_like_cpp
+            .as_ref()
+            .map(|attachment| attachment.owner_like_cpp().unique_species_count_like_cpp())
+            .unwrap_or_else(|| {
+                u32::try_from(
+                    self.represented_battle_pets_like_cpp
+                        .values()
+                        .map(|pet| pet.species)
+                        .collect::<BTreeSet<_>>()
+                        .len(),
+                )
+                .unwrap_or(u32::MAX)
+            });
+        if !self
+            .represented_battle_pet_learned_new_pet_criteria_like_cpp
+            .contains(&species)
+        {
+            self.represented_battle_pet_learned_new_pet_criteria_like_cpp
+                .push(species);
+        }
     }
 
     fn uncage_cast_item_still_matches_like_cpp(

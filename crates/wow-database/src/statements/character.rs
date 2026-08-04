@@ -1286,6 +1286,53 @@ pub enum CharStatements {
     /// SELECT the durable owner and the character-inventory link for an uncaged item.
     SEL_UNCAGE_ITEM_STATE,
 
+    /// INSERT one pending battle-pet trainer purchase saga command (issue #161).
+    /// INSERT INTO character_battle_pet_purchase (request_key, guid, account_id,
+    /// trainer_id, spell_id, species, breed, quality, display_id, level, price,
+    /// money_before, money_after, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    INS_BATTLE_PET_PURCHASE,
+
+    /// SELECT request_key, guid, account_id, trainer_id, spell_id, species, breed,
+    /// quality, display_id, level, price, money_before, money_after, status,
+    /// failure_reason, published FROM character_battle_pet_purchase WHERE request_key = ?
+    SEL_BATTLE_PET_PURCHASE_BY_KEY,
+
+    /// SELECT the same columns for every unconverged command of one character:
+    /// pending/compensation rows plus Completed rows still owed a publication.
+    /// ... WHERE guid = ? AND (status IN (0, 2) OR (status = 1 AND published = 0)) ... LIMIT ?
+    SEL_BATTLE_PET_PURCHASE_PENDING,
+
+    /// UPDATE character_battle_pet_purchase SET published = 1
+    /// WHERE request_key = ? AND published = 0 AND status IN (0, 1, 2).
+    /// Completed-but-unpublished rows are the recovery-publication signal.
+    UPD_BATTLE_PET_PURCHASE_PUBLISHED,
+
+    /// UPDATE character_battle_pet_purchase SET status = 1,
+    /// failure_reason = NULL WHERE request_key = ? AND status IN (0, 2). The
+    /// wider source guard also closes a recorded compensation decision once
+    /// the Login DB receipt has proven the pet durable (issue #161 T3/T3').
+    /// Completion deliberately does NOT set the publication marker: a
+    /// Completed row with published = 0 is the recovery-publication signal.
+    UPD_BATTLE_PET_PURCHASE_COMPLETED,
+
+    /// UPDATE character_battle_pet_purchase SET status = 2, failure_reason = ?
+    /// WHERE request_key = ? AND status = 0
+    UPD_BATTLE_PET_PURCHASE_COMPENSATION_PENDING,
+
+    /// UPDATE character_battle_pet_purchase SET status = 3
+    /// WHERE request_key = ? AND status = 2
+    UPD_BATTLE_PET_PURCHASE_COMPENSATED,
+
+    /// UPDATE character_battle_pet_purchase SET status = 4, failure_reason = ?
+    /// WHERE request_key = ? AND status = 2
+    UPD_BATTLE_PET_PURCHASE_TERMINAL_FAILURE,
+
+    /// Guarded saga charge: UPDATE characters SET money = ? WHERE guid = ? AND money = ?
+    UPD_CHARACTER_MONEY_GUARDED,
+
+    /// Idempotent saga refund: UPDATE characters SET money = LEAST(money + ?, ?) WHERE guid = ?
+    UPD_CHARACTER_MONEY_REFUND,
+
     /// SELECT paidMoney, paidExtendedCost FROM item_refund_instance
     /// WHERE item_guid = ? AND player_guid = ? LIMIT 1
     SEL_ITEM_REFUNDS,
@@ -2918,6 +2965,36 @@ impl StatementDef for CharStatements {
             }
             Self::SEL_UNCAGE_ITEM_STATE => {
                 "SELECT (SELECT owner_guid FROM item_instance WHERE guid = ? LIMIT 1), EXISTS(SELECT 1 FROM character_inventory WHERE guid = ? AND item = ?)"
+            }
+            Self::INS_BATTLE_PET_PURCHASE => {
+                "INSERT INTO character_battle_pet_purchase (request_key, guid, account_id, trainer_id, spell_id, species, breed, quality, display_id, level, price, money_before, money_after, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            }
+            Self::SEL_BATTLE_PET_PURCHASE_BY_KEY => {
+                "SELECT request_key, guid, account_id, trainer_id, spell_id, species, breed, quality, display_id, level, price, money_before, money_after, status, failure_reason, published FROM character_battle_pet_purchase WHERE request_key = ?"
+            }
+            Self::SEL_BATTLE_PET_PURCHASE_PENDING => {
+                "SELECT request_key, guid, account_id, trainer_id, spell_id, species, breed, quality, display_id, level, price, money_before, money_after, status, failure_reason, published FROM character_battle_pet_purchase WHERE guid = ? AND (status IN (0, 2) OR (status = 1 AND published = 0)) ORDER BY created_at ASC, request_key ASC LIMIT ?"
+            }
+            Self::UPD_BATTLE_PET_PURCHASE_PUBLISHED => {
+                "UPDATE character_battle_pet_purchase SET published = 1 WHERE request_key = ? AND published = 0 AND status IN (0, 1, 2)"
+            }
+            Self::UPD_BATTLE_PET_PURCHASE_COMPLETED => {
+                "UPDATE character_battle_pet_purchase SET status = 1, failure_reason = NULL WHERE request_key = ? AND status IN (0, 2)"
+            }
+            Self::UPD_BATTLE_PET_PURCHASE_COMPENSATION_PENDING => {
+                "UPDATE character_battle_pet_purchase SET status = 2, failure_reason = ? WHERE request_key = ? AND status = 0"
+            }
+            Self::UPD_BATTLE_PET_PURCHASE_COMPENSATED => {
+                "UPDATE character_battle_pet_purchase SET status = 3 WHERE request_key = ? AND status = 2"
+            }
+            Self::UPD_BATTLE_PET_PURCHASE_TERMINAL_FAILURE => {
+                "UPDATE character_battle_pet_purchase SET status = 4, failure_reason = ? WHERE request_key = ? AND status = 2"
+            }
+            Self::UPD_CHARACTER_MONEY_GUARDED => {
+                "UPDATE characters SET money = ? WHERE guid = ? AND money = ?"
+            }
+            Self::UPD_CHARACTER_MONEY_REFUND => {
+                "UPDATE characters SET money = LEAST(money + ?, ?) WHERE guid = ?"
             }
             Self::SEL_ITEM_REFUNDS => {
                 "SELECT paidMoney, paidExtendedCost \
@@ -5455,6 +5532,50 @@ mod tests {
         assert_eq!(
             CharStatements::SEL_UNCAGE_ITEM_STATE.sql(),
             "SELECT (SELECT owner_guid FROM item_instance WHERE guid = ? LIMIT 1), EXISTS(SELECT 1 FROM character_inventory WHERE guid = ? AND item = ?)"
+        );
+    }
+
+    #[test]
+    fn battle_pet_purchase_saga_statements_match_their_contract_exactly() {
+        assert_eq!(
+            CharStatements::INS_BATTLE_PET_PURCHASE.sql(),
+            "INSERT INTO character_battle_pet_purchase (request_key, guid, account_id, trainer_id, spell_id, species, breed, quality, display_id, level, price, money_before, money_after, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        assert_eq!(
+            CharStatements::SEL_BATTLE_PET_PURCHASE_BY_KEY.sql(),
+            "SELECT request_key, guid, account_id, trainer_id, spell_id, species, breed, quality, display_id, level, price, money_before, money_after, status, failure_reason, published FROM character_battle_pet_purchase WHERE request_key = ?"
+        );
+        assert_eq!(
+            CharStatements::SEL_BATTLE_PET_PURCHASE_PENDING.sql(),
+            "SELECT request_key, guid, account_id, trainer_id, spell_id, species, breed, quality, display_id, level, price, money_before, money_after, status, failure_reason, published FROM character_battle_pet_purchase WHERE guid = ? AND (status IN (0, 2) OR (status = 1 AND published = 0)) ORDER BY created_at ASC, request_key ASC LIMIT ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_BATTLE_PET_PURCHASE_PUBLISHED.sql(),
+            "UPDATE character_battle_pet_purchase SET published = 1 WHERE request_key = ? AND published = 0 AND status IN (0, 1, 2)"
+        );
+        assert_eq!(
+            CharStatements::UPD_BATTLE_PET_PURCHASE_COMPLETED.sql(),
+            "UPDATE character_battle_pet_purchase SET status = 1, failure_reason = NULL WHERE request_key = ? AND status IN (0, 2)"
+        );
+        assert_eq!(
+            CharStatements::UPD_BATTLE_PET_PURCHASE_COMPENSATION_PENDING.sql(),
+            "UPDATE character_battle_pet_purchase SET status = 2, failure_reason = ? WHERE request_key = ? AND status = 0"
+        );
+        assert_eq!(
+            CharStatements::UPD_BATTLE_PET_PURCHASE_COMPENSATED.sql(),
+            "UPDATE character_battle_pet_purchase SET status = 3 WHERE request_key = ? AND status = 2"
+        );
+        assert_eq!(
+            CharStatements::UPD_BATTLE_PET_PURCHASE_TERMINAL_FAILURE.sql(),
+            "UPDATE character_battle_pet_purchase SET status = 4, failure_reason = ? WHERE request_key = ? AND status = 2"
+        );
+        assert_eq!(
+            CharStatements::UPD_CHARACTER_MONEY_GUARDED.sql(),
+            "UPDATE characters SET money = ? WHERE guid = ? AND money = ?"
+        );
+        assert_eq!(
+            CharStatements::UPD_CHARACTER_MONEY_REFUND.sql(),
+            "UPDATE characters SET money = LEAST(money + ?, ?) WHERE guid = ?"
         );
     }
 
