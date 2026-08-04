@@ -226,6 +226,10 @@ pub struct SessionResources {
     pub battle_pet_breed_quality_store: Option<Arc<wow_data::BattlePetBreedQualityStore>>,
     pub battle_pet_breed_state_store: Option<Arc<wow_data::BattlePetBreedStateStore>>,
     pub battle_pet_species_store: Option<Arc<wow_data::BattlePetSpeciesStore>>,
+    /// World-DB battle-pet breed/quality tables for trainer purchase
+    /// materialization (issue #161).
+    pub battle_pet_selection_store:
+        Option<Arc<wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp>>,
     pub battle_pet_species_state_store: Option<Arc<wow_data::BattlePetSpeciesStateStore>>,
     pub battle_pet_xp_game_table: Option<Arc<wow_data::BattlePetXpGameTableLikeCpp>>,
     pub combat_ratings_game_table: Option<Arc<wow_data::CombatRatingsGameTableLikeCpp>>,

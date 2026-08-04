@@ -10,6 +10,7 @@ pub mod area;
 pub mod area_trigger;
 pub mod area_trigger_template;
 pub mod artifact_azerite;
+pub mod battle_pet_selection;
 pub mod battlemaster_list;
 pub mod character_progression;
 pub mod chr_specialization;

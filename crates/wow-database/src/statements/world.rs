@@ -409,6 +409,10 @@ pub enum WorldStatements {
     SEL_TRAINER_LOCALES,
     /// C++ `ObjectMgr::LoadCreatureTrainers` full creature_trainer query.
     SEL_CREATURE_TRAINERS_ALL,
+    /// C++ `BattlePetMgr::LoadAvailablePetBreeds` full battle_pet_breeds query.
+    SEL_BATTLE_PET_BREEDS,
+    /// C++ `BattlePetMgr::LoadDefaultPetQualities` full battle_pet_quality query.
+    SEL_BATTLE_PET_QUALITY,
     /// C++ `ObjectMgr::LoadFactionChangeAchievements` startup query.
     SEL_FACTION_CHANGE_ACHIEVEMENTS,
     /// C++ `ObjectMgr::LoadFactionChangeQuests` startup query.
@@ -1209,6 +1213,8 @@ impl StatementDef for WorldStatements {
             Self::SEL_CREATURE_TRAINERS_ALL => {
                 "SELECT CreatureID, TrainerID, MenuID, OptionID FROM creature_trainer"
             }
+            Self::SEL_BATTLE_PET_BREEDS => "SELECT speciesId, breedId FROM battle_pet_breeds",
+            Self::SEL_BATTLE_PET_QUALITY => "SELECT speciesId, quality FROM battle_pet_quality",
             Self::SEL_FACTION_CHANGE_ACHIEVEMENTS => {
                 "SELECT alliance_id, horde_id FROM player_factionchange_achievement"
             }

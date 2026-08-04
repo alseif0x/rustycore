@@ -199,3 +199,28 @@ semantics, covered neutral buffs do not block, and missing metadata makes
 wrapper resolution indeterminate instead of assuming no immunity. After confirmed/reconciled
 commit, money, visual kits and the acquisition stream publish in C++ success order. Dispatcher
 activation remains #142.
+
+Issue #161 owns the battle-pet branch end to end: the #163-confirmed species becomes a purchasable
+offer product only for non-castable (direct-learn) trainer spells, mirroring `Trainer.cpp:127-146`.
+The purchase does not reuse the #159 durable acquisition transaction because its second side lives
+in the Login DB; instead a durable saga (`character_battle_pet_purchase`, keyed by the #160 receipt
+identity) commits the guarded charge and the pending command in one Character DB transaction,
+applies the pet once through the #160 account owner, queues the success update after the durable
+pet exists, records the durable `published` marker after enqueue, completes, and
+compensates terminal failures exactly once; recovery also scans `Completed` rows whose marker
+is clear and finishes their publication. Selection (breed/quality/display) follows
+`BattlePetMgr.cpp:201-227` with injectable RNG and is frozen into the command at admission. Login
+recovery converges interrupted commands inline (bounded batch, cancellation-safe, no new tasks);
+the `PetApplied` state is derived from the Login DB receipt rather than duplicated into Character
+DB. Pet/charge/refund effects are exactly-once; packet enqueue attempts are recoverable and may
+repeat because no client ACK can atomically bridge enqueue and the marker, while actual network
+delivery remains best-effort. Recovery re-sends only when enqueue was not recorded, so the durable
+recovery signal is not consumed before an attempt. No publication occurs on
+compensation. A castable
+trainer spell with a confirmed species keeps the C++-shared silent cap gate and visual-kit
+suppression on the prepared offer (`Trainer.cpp:99-109,121-125` resolve the species before
+`IsCastable()`), but today it cannot run the wrapper acquisition at all: the #164 acquisition
+planner deliberately rejects `SPELL_EFFECT_SUMMON` with `BattlePetOrSummonPath`, so a hybrid
+(learn + battle-pet summon) trainer spell fails closed before money with the generic buy
+failure — focused tests pin that boundary instead of claiming C++ cast parity, which remains
+deferred until the planner models hybrid casts.
