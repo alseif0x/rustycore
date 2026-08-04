@@ -19220,8 +19220,23 @@ impl WorldSession {
 
         // Issue #161: converge interrupted battle-pet trainer purchases
         // before the journal lock and before the client can interact; any
-        // recovery publication lands inside this login burst.
+        // recovery publication lands inside this login burst. The recovery
+        // writes instance-socket packets between Realm-socket neighbours, so
+        // it is bracketed by the same cross-socket ordering fences the rest
+        // of the burst already uses.
+        if !self
+            .wait_for_realm_send_before_instance_update_like_cpp()
+            .await
+        {
+            return false;
+        }
         self.recover_battle_pet_trainer_purchases_like_cpp().await;
+        if !self
+            .wait_for_instance_send_before_realm_send_like_cpp()
+            .await
+        {
+            return false;
+        }
 
         // C++ sends the journal lock before
         // `Player::SendInitialPacketsBeforeAddToMap`.

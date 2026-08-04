@@ -1491,6 +1491,16 @@ pub(crate) struct BattlePetAccountOwnerLikeCpp {
     registry_identity: Mutex<Option<BattlePetAccountRegistryIdentityLikeCpp>>,
 }
 
+/// Outcome of a cross-account receipt probe serialized by the #160 process
+/// fence (issue #161): the answer is only meaningful when the fence could be
+/// held across the read, so no in-flight original-account insert can race it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BattlePetFencedReceiptProbeLikeCpp {
+    Committed,
+    Absent,
+    AuthorityUnavailable,
+}
+
 impl BattlePetAccountOwnerLikeCpp {
     fn from_loaded_like_cpp(
         account_id: u32,
@@ -1913,6 +1923,38 @@ impl BattlePetAccountOwnerLikeCpp {
                 .len(),
         )
         .unwrap_or(u32::MAX)
+    }
+
+    /// Receipt probe for an account other than this owner's, serialized by
+    /// the original account's process fence. Any in-flight original-account
+    /// insert holds that fence through its owner guard, so
+    /// `AuthorityUnavailable` must defer rather than guess: without the
+    /// fence a negative read is only a snapshot that a detached worker can
+    /// falsify immediately afterwards.
+    pub(crate) async fn receipt_probe_for_account_fenced_like_cpp(
+        &self,
+        account_id: u32,
+        request_key: BattlePetAddRequestKeyLikeCpp,
+    ) -> Result<BattlePetFencedReceiptProbeLikeCpp, BattlePetAddFailureLikeCpp> {
+        let guard = self
+            .persistence
+            .try_acquire_process_lease(account_id)
+            .await
+            .map_err(add_persistence_error_like_cpp)?;
+        let Some(_guard) = guard else {
+            return Ok(BattlePetFencedReceiptProbeLikeCpp::AuthorityUnavailable);
+        };
+        let committed = self
+            .persistence
+            .lookup_add_request(account_id, request_key)
+            .await
+            .map_err(add_persistence_error_like_cpp)?
+            .is_some();
+        Ok(if committed {
+            BattlePetFencedReceiptProbeLikeCpp::Committed
+        } else {
+            BattlePetFencedReceiptProbeLikeCpp::Absent
+        })
     }
 
     /// Receipt probe for an account other than this owner's — used by the

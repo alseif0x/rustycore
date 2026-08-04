@@ -1517,6 +1517,19 @@ impl WorldSession {
                             }
                             summary.applied += 1;
                         }
+                        Err(BattlePetAddFailureLikeCpp::DuplicateRequest) => {
+                            // The receipt exists but its pet is gone (deleted
+                            // by another session before recovery): the charge
+                            // stands and nothing can be published, so close
+                            // the marker instead of blocking the batch behind
+                            // an unresolvable row on every login.
+                            self.record_battle_pet_purchase_publication_like_cpp(
+                                &store,
+                                command.request_key,
+                            )
+                            .await;
+                            summary.applied += 1;
+                        }
                         Err(error) => {
                             warn!(
                                 account = self.account_id,
@@ -1709,12 +1722,28 @@ impl WorldSession {
         // without the marker and login recovery finishes the publication.
         let account_mismatch = command.account_id != self.battlenet_account_id();
         let receipt_probe = if account_mismatch {
-            owner
-                .receipt_committed_for_account_like_cpp(
+            // The unfenced snapshot could be falsified by a still-flying
+            // detached insert from the original account; probe through the
+            // original account's process fence instead and defer while its
+            // authority is held elsewhere.
+            match owner
+                .receipt_probe_for_account_fenced_like_cpp(
                     command.account_id,
                     BattlePetAddRequestKeyLikeCpp::from_bytes(command.request_key),
                 )
                 .await
+            {
+                Ok(crate::battle_pet_account::BattlePetFencedReceiptProbeLikeCpp::Committed) => {
+                    Ok(true)
+                }
+                Ok(crate::battle_pet_account::BattlePetFencedReceiptProbeLikeCpp::Absent) => {
+                    Ok(false)
+                }
+                Ok(
+                    crate::battle_pet_account::BattlePetFencedReceiptProbeLikeCpp::AuthorityUnavailable,
+                ) => Err(BattlePetAddFailureLikeCpp::MissingAuthority),
+                Err(error) => Err(error),
+            }
         } else {
             owner
                 .add_request_committed_like_cpp(BattlePetAddRequestKeyLikeCpp::from_bytes(
@@ -5590,5 +5619,140 @@ mod executor_tests {
             .map(|(account, _)| *account)
             .expect("receipt");
         assert_eq!(receipt_account, 5);
+    }
+
+    #[tokio::test]
+    async fn completed_unpublished_with_deleted_pet_settles_marker_and_batch_continues_like_cpp() {
+        // The pet and receipt committed, then another session deleted the
+        // pet before this character's recovery: nothing can be published,
+        // but the charge stands and the row must converge instead of
+        // blocking every later login and every newer command.
+        let mut fixture = saga_fixture_like_cpp(750, Vec::new()).await;
+        let deleted_key = [60; 16];
+        let deleted_row = saga_durable_pet_row_like_cpp(8, SAGA_SPECIES, None);
+        fixture
+            .persistence
+            .state
+            .lock()
+            .expect("fake saga persistence poisoned")
+            .receipts
+            .insert(
+                BattlePetAddRequestKeyLikeCpp::from_bytes(deleted_key),
+                (ACCOUNT_ID, deleted_row),
+            );
+        let mut deleted_command =
+            crate::battle_pet_purchase::tests::test_command(deleted_key, PLAYER_COUNTER as u64);
+        deleted_command.account_id = ACCOUNT_ID;
+        deleted_command.species = SAGA_SPECIES;
+        deleted_command.breed = 7;
+        deleted_command.quality = 1;
+        deleted_command.display_id = 123;
+        deleted_command.money_before = SAGA_MONEY;
+        deleted_command.money_after = 750;
+        deleted_command.status = BattlePetPurchaseStatusLikeCpp::Completed;
+        deleted_command.published = false;
+        fixture.store.seed_command(deleted_command);
+        let mut pending_command =
+            crate::battle_pet_purchase::tests::test_command([61; 16], PLAYER_COUNTER as u64);
+        pending_command.account_id = ACCOUNT_ID;
+        pending_command.species = SAGA_SPECIES;
+        pending_command.breed = 7;
+        pending_command.quality = 1;
+        pending_command.display_id = 123;
+        pending_command.money_before = SAGA_MONEY;
+        pending_command.money_after = 750;
+        fixture.store.seed_command(pending_command);
+
+        let summary = fixture
+            .session
+            .recover_battle_pet_trainer_purchases_like_cpp()
+            .await
+            .expect("recovery runs");
+        assert_eq!(summary.applied, 2);
+        assert_eq!(summary.deferred, 0);
+        // The deleted pet's marker is closed without any packet; the newer
+        // command behind it converges normally with its one publication.
+        let deleted = fixture.store.command(deleted_key).expect("command");
+        assert_eq!(deleted.status, BattlePetPurchaseStatusLikeCpp::Completed);
+        assert!(deleted.published);
+        let pending = fixture.store.command([61; 16]).expect("command");
+        assert_eq!(pending.status, BattlePetPurchaseStatusLikeCpp::Completed);
+        assert!(pending.published);
+        assert_eq!(fixture.persistence.species_count(SAGA_SPECIES), 1);
+        assert_eq!(fixture.store.money(PLAYER_COUNTER as u64), Some(750));
+        assert_eq!(fixture.store.money_mutations(), 0);
+        let pet_guid = ObjectGuid::create_global(
+            HighGuid::BattlePet,
+            0,
+            fixture
+                .persistence
+                .receipt([61; 16])
+                .expect("receipt")
+                .guid_counter as i64,
+        );
+        assert_eq!(
+            fixture.send_rx.try_recv().expect("pet update"),
+            wow_packet::packets::misc::BattlePetUpdates {
+                pets: vec![expected_pet_packet_like_cpp(&fixture, pet_guid)],
+                pet_added: true,
+            }
+            .to_bytes()
+        );
+        assert_eq!(
+            fixture.send_rx.try_recv().expect("learned spells"),
+            LearnedSpells::single(pending.spell_id as i32).to_bytes()
+        );
+        assert_no_packets(&fixture);
+    }
+
+    #[tokio::test]
+    async fn mismatched_refund_waits_for_original_account_fence_like_cpp() {
+        // No receipt, but the original account's authority is held by a
+        // still-flying driver: the snapshot absence must not refund, so the
+        // command waits for the fence instead of risking pet + refund.
+        let mut fixture = saga_fixture_like_cpp(750, Vec::new()).await;
+        let mut command =
+            crate::battle_pet_purchase::tests::test_command([62; 16], PLAYER_COUNTER as u64);
+        command.account_id = 999;
+        command.species = SAGA_SPECIES;
+        command.money_before = SAGA_MONEY;
+        command.money_after = 750;
+        fixture.store.seed_command(command);
+        fixture
+            .persistence
+            .process_lease
+            .store(true, Ordering::SeqCst);
+        let summary = fixture
+            .session
+            .recover_battle_pet_trainer_purchases_like_cpp()
+            .await
+            .expect("recovery runs");
+        assert_eq!(summary.compensated, 0);
+        assert!(summary.deferred >= 1);
+        assert_eq!(fixture.store.money(PLAYER_COUNTER as u64), Some(750));
+        assert_eq!(fixture.store.money_mutations(), 0);
+        assert_eq!(
+            fixture.store.command([62; 16]).expect("command").status,
+            BattlePetPurchaseStatusLikeCpp::CompensationPending
+        );
+        // Once the original account's fence is free and the absence is
+        // proven under it, the refund converges exactly once.
+        fixture
+            .persistence
+            .process_lease
+            .store(false, Ordering::SeqCst);
+        let summary = fixture
+            .session
+            .recover_battle_pet_trainer_purchases_like_cpp()
+            .await
+            .expect("recovery runs");
+        assert_eq!(summary.compensated, 1);
+        assert_eq!(fixture.store.money(PLAYER_COUNTER as u64), Some(SAGA_MONEY));
+        assert_eq!(fixture.store.money_mutations(), 1);
+        assert_eq!(
+            fixture.store.command([62; 16]).expect("command").status,
+            BattlePetPurchaseStatusLikeCpp::Compensated
+        );
+        assert_eq!(fixture.persistence.pet_count(), 0);
     }
 }
