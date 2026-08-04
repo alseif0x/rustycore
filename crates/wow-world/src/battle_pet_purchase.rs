@@ -1058,20 +1058,21 @@ impl WorldSession {
         .await;
         match applied {
             Ok(outcome) => {
-                let (pet, publish) = match outcome {
-                    BattlePetAddOutcomeLikeCpp::Added(pet) => (pet, true),
-                    BattlePetAddOutcomeLikeCpp::Replayed(pet) => (pet, false),
+                let pet = match outcome {
+                    BattlePetAddOutcomeLikeCpp::Added(pet) => pet,
+                    BattlePetAddOutcomeLikeCpp::Replayed(pet) => pet,
                 };
                 let pet_guid = pet.guid;
                 // The one success publication: after the durable pet exists,
                 // before the completion record, tracked by the durable
                 // `published` marker so recovery can distinguish a lost
-                // publication from a completed one.
-                if publish {
-                    self.publish_battle_pet_trainer_purchase_like_cpp(pet, offer.source_spell_id);
-                    self.mark_battle_pet_purchase_published_like_cpp(&store, request_key)
-                        .await;
-                }
+                // publication from a completed one. A `Replayed` outcome of
+                // this fresh command means its own first attempt committed
+                // the Login DB pet/receipt but lost the reply, so it has
+                // never published: publish exactly as for `Added`.
+                self.publish_battle_pet_trainer_purchase_like_cpp(pet, offer.source_spell_id);
+                self.mark_battle_pet_purchase_published_like_cpp(&store, request_key)
+                    .await;
                 if !self
                     .complete_battle_pet_purchase_like_cpp(&store, request_key)
                     .await
@@ -1082,7 +1083,7 @@ impl WorldSession {
                 }
                 BattlePetPurchaseExecutionLikeCpp::Purchased {
                     pet_guid,
-                    published: publish,
+                    published: true,
                 }
             }
             Err(error) if battle_pet_add_failure_is_terminal_like_cpp(&error) => {
@@ -2380,6 +2381,7 @@ mod executor_tests {
         insert_calls: AtomicUsize,
         fail_next_insert: AtomicBool,
         lose_next_insert_reply: AtomicBool,
+        replay_next_insert_after_commit: AtomicBool,
         block_next_insert: AtomicBool,
         insert_started: Notify,
         allow_insert: Notify,
@@ -2542,6 +2544,7 @@ mod executor_tests {
                         "injected insert failure".to_string(),
                     ));
                 }
+                let pet_row_for_replay = request.pet.clone();
                 let applied = {
                     let mut state = self.state.lock().expect("fake saga persistence poisoned");
                     if let Some((receipt_account_id, existing)) =
@@ -2589,6 +2592,18 @@ mod executor_tests {
                     return Err(BattlePetPersistenceErrorLikeCpp::Database(
                         "injected lost insert reply".to_string(),
                     ));
+                }
+                if self
+                    .replay_next_insert_after_commit
+                    .swap(false, Ordering::AcqRel)
+                {
+                    // The real persistence reconciles its own lost COMMIT
+                    // reply through the receipt: the insert reports a replay
+                    // of the row it just wrote.
+                    return Ok(PersistBattlePetAddOutcomeLikeCpp::Replayed {
+                        pet: pet_row_for_replay,
+                        still_present: true,
+                    });
                 }
                 Ok(PersistBattlePetAddOutcomeLikeCpp::Inserted)
             })
@@ -4735,6 +4750,53 @@ mod executor_tests {
                 reason: 0,
             }
             .to_bytes()
+        );
+        assert_no_packets(&fixture);
+    }
+
+    #[tokio::test]
+    async fn reconciled_replay_apply_publishes_exactly_once_like_cpp() {
+        // The Login DB insert commits but its reply is lost; the real
+        // persistence reconciles the duplicate key through the receipt and
+        // reports a replay. The pet was never published by anyone, so this
+        // execution must publish it exactly once (Codex review, #161).
+        let mut fixture = saga_fixture_like_cpp(SAGA_MONEY, Vec::new()).await;
+        fixture
+            .persistence
+            .replay_next_insert_after_commit
+            .store(true, Ordering::SeqCst);
+        let outcome =
+            execute_saga_purchase_like_cpp(&mut fixture, saga_offer_like_cpp(SAGA_PRICE)).await;
+        let BattlePetPurchaseExecutionLikeCpp::Purchased {
+            pet_guid,
+            published,
+        } = outcome
+        else {
+            panic!("reconciled replay must complete the purchase: {outcome:?}");
+        };
+        assert!(published, "a replayed durable add still publishes once");
+        assert_eq!(fixture.persistence.species_count(SAGA_SPECIES), 1);
+        assert_eq!(fixture.persistence.receipt_count(), 1);
+        assert_eq!(fixture.store.money(PLAYER_COUNTER as u64), Some(750));
+        assert_eq!(fixture.store.money_mutations(), 1);
+        let command = &fixture.store.commands_snapshot()[0];
+        assert_eq!(command.status, BattlePetPurchaseStatusLikeCpp::Completed);
+        assert!(command.published);
+        assert_eq!(
+            fixture.send_rx.try_recv().expect("money update"),
+            expect_money_update_packet_like_cpp(&fixture, 750)
+        );
+        assert_eq!(
+            fixture.send_rx.try_recv().expect("pet update"),
+            wow_packet::packets::misc::BattlePetUpdates {
+                pets: vec![expected_pet_packet_like_cpp(&fixture, pet_guid)],
+                pet_added: true,
+            }
+            .to_bytes()
+        );
+        assert_eq!(
+            fixture.send_rx.try_recv().expect("learned spells"),
+            LearnedSpells::single(SAGA_SPELL_ID as i32).to_bytes()
         );
         assert_no_packets(&fixture);
     }
