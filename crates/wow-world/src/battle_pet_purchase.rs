@@ -1164,6 +1164,74 @@ impl WorldSession {
         let full_batch =
             commands.len() == BATTLE_PET_PURCHASE_RECOVERY_BATCH_LIMIT_LIKE_CPP as usize;
         for command in commands {
+            // A character transferred to another Battle.net account mid-
+            // purchase must never apply or publish into the new account:
+            // the pet/receipt authority is the original account, so the
+            // command is compensated (money travels with the character) or
+            // its marker is closed without emitting.
+            let account_mismatch = command.account_id != self.account_id;
+            if account_mismatch && command.status == BattlePetPurchaseStatusLikeCpp::Completed {
+                if !command.published {
+                    warn!(
+                        account = self.account_id,
+                        command_account = command.account_id,
+                        "Closing the publication marker of a battle-pet purchase owned by another account"
+                    );
+                    self.claim_battle_pet_purchase_publication_like_cpp(
+                        &store,
+                        command.request_key,
+                    )
+                    .await;
+                    summary.applied += 1;
+                }
+                continue;
+            }
+            if account_mismatch
+                && command.status == BattlePetPurchaseStatusLikeCpp::PendingApplication
+            {
+                let decision = retry_battle_pet_purchase_step_like_cpp(
+                    || {
+                        store.mark_compensation_pending(
+                            command.request_key,
+                            "battle-pet purchase account changed before application",
+                        )
+                    },
+                    store_error_is_retryable_like_cpp,
+                )
+                .await;
+                if matches!(
+                    decision,
+                    Ok(BattlePetPurchaseMarkOutcomeLikeCpp::Applied
+                        | BattlePetPurchaseMarkOutcomeLikeCpp::AlreadyApplied)
+                ) {
+                    match self
+                        .compensate_battle_pet_purchase_like_cpp(
+                            &owner,
+                            lease_id,
+                            player_guid,
+                            &store,
+                            &command,
+                            BattlePetPurchaseRefundPublicationLikeCpp::RuntimeOnly,
+                        )
+                        .await
+                    {
+                        BattlePetPurchaseExecutionLikeCpp::Compensated => {
+                            summary.compensated += 1;
+                        }
+                        BattlePetPurchaseExecutionLikeCpp::TerminalFailure => {
+                            summary.terminal_failures += 1;
+                        }
+                        _ => {
+                            summary.deferred += 1;
+                            break;
+                        }
+                    }
+                } else {
+                    summary.deferred += 1;
+                    break;
+                }
+                continue;
+            }
             match command.status {
                 BattlePetPurchaseStatusLikeCpp::CompensationPending => {
                     match self
@@ -1509,14 +1577,20 @@ impl WorldSession {
         // no publication was ever recorded, publish it first; when the owner
         // cannot resolve the packet (its in-memory journal lost the pet with
         // a failed insert reply), completion proceeds without the marker and
-        // login recovery finishes the publication.
-        match owner
-            .add_request_committed_like_cpp(BattlePetAddRequestKeyLikeCpp::from_bytes(
-                command.request_key,
-            ))
-            .await
-        {
-            Ok(true) => {
+        // login recovery finishes the publication. An account-mismatched
+        // command skips this re-check entirely: its receipt belongs to the
+        // original account and must never publish or block the refund here.
+        let skip_receipt_recheck = command.account_id != self.account_id;
+        match !skip_receipt_recheck
+            && matches!(
+                owner
+                    .add_request_committed_like_cpp(BattlePetAddRequestKeyLikeCpp::from_bytes(
+                        command.request_key,
+                    ))
+                    .await,
+                Ok(true)
+            ) {
+            true => {
                 if !command.published && self.battle_pet_try_acquire_journal_lease_like_cpp().await
                 {
                     let replay = owner
@@ -1554,14 +1628,23 @@ impl WorldSession {
                     .await;
                 return BattlePetPurchaseExecutionLikeCpp::CompletedElsewhere;
             }
-            Ok(false) => {}
-            Err(error) => {
-                warn!(
-                    account = self.account_id,
-                    ?error,
-                    "Battle-pet purchase compensation cannot prove the receipt absent; refund deferred"
-                );
-                return BattlePetPurchaseExecutionLikeCpp::CompensationDeferred;
+            false => {
+                if !skip_receipt_recheck {
+                    // A receipt read error means absence cannot be proven;
+                    // refunding blind is forbidden.
+                    let probe = owner
+                        .add_request_committed_like_cpp(BattlePetAddRequestKeyLikeCpp::from_bytes(
+                            command.request_key,
+                        ))
+                        .await;
+                    if !matches!(probe, Ok(false)) {
+                        warn!(
+                            account = self.account_id,
+                            "Battle-pet purchase compensation cannot prove the receipt absent; refund deferred"
+                        );
+                        return BattlePetPurchaseExecutionLikeCpp::CompensationDeferred;
+                    }
+                }
             }
         }
 
@@ -3693,6 +3776,7 @@ mod executor_tests {
         let mut fixture = saga_fixture_like_cpp(SAGA_MONEY, Vec::new()).await;
         let mut command =
             crate::battle_pet_purchase::tests::test_command([77; 16], PLAYER_COUNTER as u64);
+        command.account_id = ACCOUNT_ID;
         command.status = BattlePetPurchaseStatusLikeCpp::CompensationPending;
         command.money_before = SAGA_MONEY;
         command.money_after = 750;
@@ -3738,6 +3822,7 @@ mod executor_tests {
             );
         let mut command =
             crate::battle_pet_purchase::tests::test_command(request_key, PLAYER_COUNTER as u64);
+        command.account_id = ACCOUNT_ID;
         command.species = SAGA_SPECIES;
         command.breed = 7;
         command.quality = 1;
@@ -4820,6 +4905,7 @@ mod executor_tests {
             );
         let mut command =
             crate::battle_pet_purchase::tests::test_command(request_key, PLAYER_COUNTER as u64);
+        command.account_id = ACCOUNT_ID;
         command.species = SAGA_SPECIES;
         command.breed = 7;
         command.quality = 1;
@@ -4986,6 +5072,72 @@ mod executor_tests {
             fixture.send_rx.try_recv().expect("learned spells"),
             LearnedSpells::single(SAGA_SPELL_ID as i32).to_bytes()
         );
+        assert_no_packets(&fixture);
+    }
+
+    #[tokio::test]
+    async fn recovery_after_account_transfer_compensates_without_applying_or_publishing_like_cpp() {
+        // The character moved to another Battle.net account while the
+        // purchase was pending: the pet must never be applied into the new
+        // account, so the saga refunds the character (money travels with
+        // it) exactly once and publishes nothing.
+        let mut fixture = saga_fixture_like_cpp(750, Vec::new()).await;
+        let mut command =
+            crate::battle_pet_purchase::tests::test_command([55; 16], PLAYER_COUNTER as u64);
+        command.account_id = 999;
+        command.species = SAGA_SPECIES;
+        command.breed = 7;
+        command.quality = 1;
+        command.display_id = 123;
+        command.money_before = SAGA_MONEY;
+        command.money_after = 750;
+        fixture.store.seed_command(command);
+        let summary = fixture
+            .session
+            .recover_battle_pet_trainer_purchases_like_cpp()
+            .await
+            .expect("recovery runs");
+        assert_eq!(summary.compensated, 1);
+        assert_eq!(summary.applied, 0);
+        assert_eq!(fixture.store.money(PLAYER_COUNTER as u64), Some(SAGA_MONEY));
+        assert_eq!(fixture.store.money_mutations(), 1);
+        assert_eq!(fixture.session.player_gold_like_cpp(), SAGA_MONEY);
+        assert_eq!(fixture.persistence.pet_count(), 0);
+        assert_eq!(fixture.persistence.receipt_count(), 0);
+        assert_eq!(
+            fixture.store.command([55; 16]).expect("command").status,
+            BattlePetPurchaseStatusLikeCpp::Compensated
+        );
+        assert_no_packets(&fixture);
+    }
+
+    #[tokio::test]
+    async fn completed_unpublished_after_account_transfer_closes_marker_without_publishing_like_cpp()
+     {
+        // The pet was durably created in the original account's journal
+        // before the transfer; the new account's client must never receive
+        // an update for a pet it does not own, so recovery just closes the
+        // publication marker.
+        let mut fixture = saga_fixture_like_cpp(750, Vec::new()).await;
+        let mut command =
+            crate::battle_pet_purchase::tests::test_command([56; 16], PLAYER_COUNTER as u64);
+        command.account_id = 999;
+        command.species = SAGA_SPECIES;
+        command.status = BattlePetPurchaseStatusLikeCpp::Completed;
+        command.published = false;
+        command.money_before = SAGA_MONEY;
+        command.money_after = 750;
+        fixture.store.seed_command(command);
+        let summary = fixture
+            .session
+            .recover_battle_pet_trainer_purchases_like_cpp()
+            .await
+            .expect("recovery runs");
+        assert_eq!(summary.applied, 1);
+        assert_eq!(summary.compensated, 0);
+        assert!(fixture.store.command([56; 16]).expect("command").published);
+        assert_eq!(fixture.store.money(PLAYER_COUNTER as u64), Some(750));
+        assert_eq!(fixture.persistence.pet_count(), 0);
         assert_no_packets(&fixture);
     }
 }
