@@ -22,9 +22,10 @@
 //! (the command `request_key` is the Login DB `battle_pet_add_requests`
 //! receipt identity), records completion after publishing the one success
 //! update, and compensates terminal failures exactly once. The durable
-//! `published` marker (also set by the completion flip) makes the success
-//! publication exactly-once across crashes: recovery republishes only when
-//! no publication was ever recorded. Login recovery converges any
+//! `published` marker claims the one success publication before the
+//! packets emit (outbox order), making it exactly-once across crashes:
+//! recovery republishes only when no claim was ever recorded, and a
+//! `Completed` row with a clear marker is the recovery-publication signal. Login recovery converges any
 //! interrupted command; no in-memory state decides whether a charge, pet or
 //! refund already happened.
 //!
@@ -1066,27 +1067,32 @@ impl WorldSession {
                     BattlePetAddOutcomeLikeCpp::Replayed(pet) => pet,
                 };
                 let pet_guid = pet.guid;
-                // The one success publication: after the durable pet exists,
-                // before the completion record, tracked by the durable
-                // `published` marker so recovery can distinguish a lost
-                // publication from a completed one. A `Replayed` outcome of
-                // this fresh command means its own first attempt committed
-                // the Login DB pet/receipt but lost the reply, so it has
-                // never published: publish exactly as for `Added`.
-                self.publish_battle_pet_trainer_purchase_like_cpp(pet, offer.source_spell_id);
-                self.mark_battle_pet_purchase_published_like_cpp(&store, request_key)
+                // The one success publication, outbox order: claim the
+                // durable `published` marker AFTER the pet exists and BEFORE
+                // emitting, so recovery can never repeat an already-emitted
+                // publication. A `Replayed` outcome of this fresh command
+                // means its own first attempt committed the Login DB
+                // pet/receipt but lost the reply, so it has never published:
+                // claim and emit exactly as for `Added`. If the claim cannot
+                // commit, skip the emit — completion without the marker
+                // makes login recovery the publisher.
+                let emit = self
+                    .claim_battle_pet_purchase_publication_like_cpp(&store, request_key)
                     .await;
+                if emit {
+                    self.publish_battle_pet_trainer_purchase_like_cpp(pet, offer.source_spell_id);
+                }
                 if !self
                     .complete_battle_pet_purchase_like_cpp(&store, request_key)
                     .await
                 {
                     // The pet is durable; recovery completes the command and
-                    // republishes only if the marker never committed.
+                    // emits only if the claim never committed.
                     return BattlePetPurchaseExecutionLikeCpp::RetryableDeferred;
                 }
                 BattlePetPurchaseExecutionLikeCpp::Purchased {
                     pet_guid,
-                    published: true,
+                    published: emit,
                 }
             }
             Err(error) if battle_pet_add_failure_is_terminal_like_cpp(&error) => {
@@ -1211,20 +1217,23 @@ impl WorldSession {
                                 BattlePetAddOutcomeLikeCpp::Added(pet) => pet,
                                 BattlePetAddOutcomeLikeCpp::Replayed(pet) => pet,
                             };
-                            // Recovery publishes whenever no publication was
-                            // ever recorded — including a replayed receipt
+                            // Recovery claims the publication before
+                            // emitting it — including for a replayed receipt
                             // whose live execution died between the durable
                             // pet and the completion record.
                             if !command.published {
-                                self.publish_battle_pet_trainer_purchase_like_cpp(
-                                    pet,
-                                    command.spell_id,
-                                );
-                                self.mark_battle_pet_purchase_published_like_cpp(
-                                    &store,
-                                    command.request_key,
-                                )
-                                .await;
+                                let emit = self
+                                    .claim_battle_pet_purchase_publication_like_cpp(
+                                        &store,
+                                        command.request_key,
+                                    )
+                                    .await;
+                                if emit {
+                                    self.publish_battle_pet_trainer_purchase_like_cpp(
+                                        pet,
+                                        command.spell_id,
+                                    );
+                                }
                             }
                             if !self
                                 .complete_battle_pet_purchase_like_cpp(&store, command.request_key)
@@ -1301,15 +1310,18 @@ impl WorldSession {
                                 BattlePetAddOutcomeLikeCpp::Added(pet) => pet,
                                 BattlePetAddOutcomeLikeCpp::Replayed(pet) => pet,
                             };
-                            self.publish_battle_pet_trainer_purchase_like_cpp(
-                                pet,
-                                command.spell_id,
-                            );
-                            self.mark_battle_pet_purchase_published_like_cpp(
-                                &store,
-                                command.request_key,
-                            )
-                            .await;
+                            if self
+                                .claim_battle_pet_purchase_publication_like_cpp(
+                                    &store,
+                                    command.request_key,
+                                )
+                                .await
+                            {
+                                self.publish_battle_pet_trainer_purchase_like_cpp(
+                                    pet,
+                                    command.spell_id,
+                                );
+                            }
                             summary.applied += 1;
                         }
                         Err(error) => {
@@ -1371,38 +1383,41 @@ impl WorldSession {
         ))
     }
 
-    /// Best-effort durable record of the one success publication, with
-    /// bounded retries. The completion flip also sets the marker, so a
-    /// failure here only risks one benign idempotent replay on the next
-    /// login if the completion then fails as well.
-    async fn mark_battle_pet_purchase_published_like_cpp(
+    /// The outbox claim of the one success publication: returns true only
+    /// when this execution won the durable `published` transition and must
+    /// therefore emit. `AlreadyApplied` means a previous attempt owned the
+    /// emit (whether it happened or crashed mid-window), so claiming again
+    /// would duplicate gameplay side effects. A claim failure skips the
+    /// emit: completing without the marker makes login recovery the
+    /// publisher, keeping the success publication exactly-once.
+    async fn claim_battle_pet_purchase_publication_like_cpp(
         &mut self,
         store: &Arc<dyn BattlePetPurchaseStoreLikeCpp>,
         request_key: [u8; 16],
-    ) {
+    ) -> bool {
         match retry_battle_pet_purchase_step_like_cpp(
             || store.mark_published(request_key),
             store_error_is_retryable_like_cpp,
         )
         .await
         {
-            Ok(
-                BattlePetPurchaseMarkOutcomeLikeCpp::Applied
-                | BattlePetPurchaseMarkOutcomeLikeCpp::AlreadyApplied,
-            ) => {}
+            Ok(BattlePetPurchaseMarkOutcomeLikeCpp::Applied) => true,
+            Ok(BattlePetPurchaseMarkOutcomeLikeCpp::AlreadyApplied) => false,
             Ok(conflict) => {
                 warn!(
                     account = self.account_id,
                     ?conflict,
-                    "Battle-pet purchase publication mark observed a conflicting terminal state"
+                    "Battle-pet purchase publication claim observed a conflicting terminal state"
                 );
+                false
             }
             Err(error) => {
                 warn!(
                     account = self.account_id,
                     ?error,
-                    "Battle-pet purchase publication mark did not commit"
+                    "Battle-pet purchase publication claim did not commit"
                 );
+                false
             }
         }
     }
@@ -1524,13 +1539,14 @@ impl WorldSession {
                         BattlePetAddOutcomeLikeCpp::Added(pet)
                         | BattlePetAddOutcomeLikeCpp::Replayed(pet),
                     ) = replay
+                        && self
+                            .claim_battle_pet_purchase_publication_like_cpp(
+                                store,
+                                command.request_key,
+                            )
+                            .await
                     {
                         self.publish_battle_pet_trainer_purchase_like_cpp(pet, command.spell_id);
-                        self.mark_battle_pet_purchase_published_like_cpp(
-                            store,
-                            command.request_key,
-                        )
-                        .await;
                     }
                 }
                 let _ = self
@@ -3399,8 +3415,7 @@ mod executor_tests {
     }
 
     #[tokio::test]
-    async fn completion_failure_after_durable_pet_recovers_with_one_idempotent_replay_publication_like_cpp()
-     {
+    async fn completion_failure_after_durable_pet_recovers_and_publishes_exactly_once_like_cpp() {
         let mut fixture = saga_fixture_like_cpp(SAGA_MONEY, Vec::new()).await;
         // Fail every publication/completion mark the live path attempts.
         fixture
@@ -3413,8 +3428,9 @@ mod executor_tests {
             outcome,
             BattlePetPurchaseExecutionLikeCpp::RetryableDeferred
         );
-        // Pet durable + receipt durable; the live publication went out but
-        // neither the marker nor the completion committed.
+        // Pet durable + receipt durable; the publication claim failed, so
+        // the live path emitted nothing (the claim gates the emit) and the
+        // completion never committed.
         assert_eq!(fixture.persistence.species_count(SAGA_SPECIES), 1);
         assert_eq!(
             fixture.store.commands_snapshot()[0].status,
@@ -3425,7 +3441,7 @@ mod executor_tests {
             fixture.send_rx.try_recv().expect("money update"),
             expect_money_update_packet_like_cpp(&fixture, 750)
         );
-        while fixture.send_rx.try_recv().is_ok() {}
+        assert_no_packets(&fixture);
         let (store, persistence) = (fixture.store.clone(), fixture.persistence.clone());
         drop(fixture);
         let mut restarted = restart_saga_session_like_cpp(store, persistence, 750).await;
@@ -3434,9 +3450,9 @@ mod executor_tests {
             .recover_battle_pet_trainer_purchases_like_cpp()
             .await
             .expect("recovery runs");
-        // The receipt replay completes the command; because the publication
-        // marker never committed, recovery replays the one idempotent
-        // petAdded upsert exactly once and never creates a second pet.
+        // The receipt replay completes the command; because the
+        // publication claim never committed, recovery wins it and emits the
+        // one success publication — never a second pet, never a duplicate.
         assert_eq!(summary.applied, 1);
         let commands = restarted.store.commands_snapshot();
         assert_eq!(

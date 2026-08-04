@@ -11,10 +11,10 @@ DB receipt: admission revalidates membership, C++-ordered gates, conditions, cur
 balance, #163 species classification, account capacity and journal lease under the #159 exclusive
 money boundary; one Character DB transaction deducts the guarded money and inserts the pending
 command (`character_battle_pet_purchase`); the #160 account owner applies exactly one pet with
-fence/lease/capacity rechecked inside its own Login DB transaction; the one success publication
-runs after the durable pet exists and is tracked by the durable `published` marker committed
-before completion, and recovery also scans `Completed` rows whose marker is clear, so an
-interrupted success still publishes exactly once; terminal
+fence/lease/capacity rechecked inside its own Login DB transaction; the one success publication is
+claimed after the durable pet exists and before the packets emit (durable `published` marker),
+and recovery also scans `Completed` rows whose marker is clear, so an interrupted success still
+publishes exactly once and a claimed publication can never be repeated; terminal
 apply failures record `CompensationPending` and refund exactly once in one
 Character DB transaction; a receipt re-check before any refund forbids refunding a durable pet;
 and login recovery converges interrupted commands inline (bounded batch, no background tasks,
@@ -23,7 +23,8 @@ reference model's `PetApplied` state is deliberately derived from the Login DB r
 duplicated into Character DB. Breed/quality/display selection follows `BattlePetMgr.cpp:201-227`
 with injectable RNG and is frozen into the command at admission. Publication keeps the C++
 battle-pet order with trainer visuals suppressed, is exactly-once per successful command across
-recovery (a crash between the packet send and the marker commit replays one idempotent upsert), admission
+recovery (claimed before emission; the claim/emit crash window loses only the immediate
+notification, which the durable journal self-heals), admission
 capacity/journal-lock failures return a structured unavailable result while the wire stays silent
 exactly like the C++ cap case (`Trainer.cpp:102-106`). Focused tests cover success/reload,
 insufficient money, every commit boundary of charge/apply/complete/compensation, replay,
