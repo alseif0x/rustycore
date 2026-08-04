@@ -984,10 +984,12 @@ impl WorldSession {
         // Login DB receipt identity.
         let mut request_key = [0_u8; 16];
         rand::thread_rng().fill_bytes(&mut request_key);
+        // The receipt/owner authority is the Battle.net account (#160), not
+        // the game account; persist that identity for recovery binding.
         let command = BattlePetPurchaseCommandLikeCpp {
             request_key,
             character_guid: player_guid.counter() as u64,
-            account_id: self.account_id,
+            account_id: self.battlenet_account_id(),
             trainer_id,
             spell_id: offer.source_spell_id,
             species: selection.species,
@@ -1169,7 +1171,7 @@ impl WorldSession {
             // the pet/receipt authority is the original account, so the
             // command is compensated (money travels with the character) or
             // its marker is closed without emitting.
-            let account_mismatch = command.account_id != self.account_id;
+            let account_mismatch = command.account_id != self.battlenet_account_id();
             if account_mismatch && command.status == BattlePetPurchaseStatusLikeCpp::Completed {
                 if !command.published {
                     warn!(
@@ -1587,7 +1589,7 @@ impl WorldSession {
         // when the owner cannot resolve the packet (its in-memory journal
         // lost the pet with a failed insert reply), completion proceeds
         // without the marker and login recovery finishes the publication.
-        let account_mismatch = command.account_id != self.account_id;
+        let account_mismatch = command.account_id != self.battlenet_account_id();
         let receipt_probe = if account_mismatch {
             owner
                 .receipt_committed_for_account_like_cpp(
@@ -5200,5 +5202,55 @@ mod executor_tests {
         assert_eq!(fixture.store.money_mutations(), 0);
         assert_eq!(fixture.persistence.pet_count(), 1);
         assert_no_packets(&fixture);
+    }
+
+    #[tokio::test]
+    async fn purchase_binds_the_battlenet_account_identity_like_cpp() {
+        // Game account 1, Battle.net account 5: the durable command and the
+        // Login DB receipt authority must both use the Battle.net identity,
+        // or a later account relink would replay into the wrong journal.
+        let persistence = Arc::new(FakeSagaPersistenceLikeCpp::default());
+        let store = Arc::new(
+            FakeBattlePetPurchaseStoreLikeCpp::new().with_money(PLAYER_COUNTER as u64, SAGA_MONEY),
+        );
+        let registry = saga_registry_like_cpp(Arc::clone(&persistence));
+        let (mut session, _send_rx) = make_saga_session_like_cpp(PLAYER_COUNTER, SAGA_MONEY);
+        session.set_battlenet_account_id(5);
+        session.set_battle_pet_purchase_store_like_cpp(store_handle_like_cpp(&store));
+        session.set_battle_pet_account_attachment_like_cpp(
+            registry
+                .attach_like_cpp(5)
+                .await
+                .expect("attach Battle.net account 5"),
+        );
+        let guard = session
+            .begin_exclusive_player_money_persistence_like_cpp()
+            .await
+            .expect("money exclusivity");
+        let outcome = session
+            .execute_battle_pet_trainer_purchase_like_cpp(
+                guard,
+                saga_trainer_guid_like_cpp(),
+                TRAINER_ID,
+                saga_offer_like_cpp(SAGA_PRICE),
+            )
+            .await;
+        assert!(matches!(
+            outcome,
+            BattlePetPurchaseExecutionLikeCpp::Purchased { .. }
+        ));
+        let command = &store.commands_snapshot()[0];
+        assert_eq!(command.account_id, 5);
+        let receipt_account = persistence
+            .state
+            .lock()
+            .expect("fake saga persistence poisoned")
+            .receipts
+            .get(&BattlePetAddRequestKeyLikeCpp::from_bytes(
+                command.request_key,
+            ))
+            .map(|(account, _)| *account)
+            .expect("receipt");
+        assert_eq!(receipt_account, 5);
     }
 }
