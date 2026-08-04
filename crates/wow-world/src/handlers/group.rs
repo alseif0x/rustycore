@@ -184,6 +184,15 @@ inventory::submit! {
 
 inventory::submit! {
     PacketHandlerEntry {
+        opcode: ClientOpcodes::PartyUninvite,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_party_uninvite",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
         opcode: ClientOpcodes::LeaveGroup,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
@@ -3580,7 +3589,7 @@ mod tests {
         let mut pkt = WorldPacket::new_empty();
         pkt.write_bit(party_index.is_some());
         pkt.write_bits(reason.len() as u32, 8);
-        pkt.write_guid(&target);
+        pkt.write_packed_guid(&target);
         if let Some(party_index) = party_index {
             pkt.write_uint8(party_index);
         }

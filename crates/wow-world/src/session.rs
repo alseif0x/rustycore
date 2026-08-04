@@ -37621,7 +37621,7 @@ impl WorldSession {
     }
 
     /// Dispatch a single packet to its registered handler.
-    async fn dispatch_packet(&mut self, mut pkt: WorldPacket) {
+    pub(crate) async fn dispatch_packet(&mut self, mut pkt: WorldPacket) {
         let opcode_raw = pkt.opcode_raw();
         let opcode: ClientOpcodes = match num_traits::FromPrimitive::from_u32(u32::from(opcode_raw))
         {
@@ -38059,6 +38059,9 @@ impl WorldSession {
                     Ok(hello) => self.handle_trainer_list(hello).await,
                     Err(e) => warn!("Failed to read TrainerList: {e}"),
                 }
+            }
+            ClientOpcodes::TrainerBuySpell => {
+                self.handle_trainer_buy_spell(pkt).await;
             }
             ClientOpcodes::QuestGiverHello => {
                 self.handle_quest_giver_hello(pkt).await;
@@ -88658,6 +88661,125 @@ mod tests {
                 1,
                 "{opcode:?} must record one clock-delta sample through the shared handler"
             );
+        }
+    }
+
+    #[tokio::test]
+    async fn party_uninvite_wire_dispatch_parses_packed_guid_and_honors_logged_in_gate_like_cpp() {
+        fn packet(target: ObjectGuid) -> WorldPacket {
+            let mut packet = WorldPacket::new_empty();
+            packet.write_uint16(ClientOpcodes::PartyUninvite as u16);
+            packet.write_bit(false);
+            packet.write_bits(3, 8);
+            packet.write_packed_guid(&target);
+            packet.write_string("bye");
+            packet.flush_bits();
+            packet.reset_read();
+            packet
+        }
+
+        let player = ObjectGuid::create_player(1, 101);
+        let target = ObjectGuid::create_player(1, 202);
+        let (mut logged_in, _pkt_tx, send_rx) = make_session();
+        logged_in.set_state(SessionState::LoggedIn);
+        logged_in.set_player_guid(Some(player));
+
+        logged_in.dispatch_packet(packet(target)).await;
+
+        let result = send_rx.try_recv().expect("PartyCommandResult");
+        assert_eq!(
+            u16::from_le_bytes([result[0], result[1]]),
+            ServerOpcodes::PartyCommandResult as u16
+        );
+        assert!(send_rx.try_recv().is_err());
+
+        let (mut authed, _pkt_tx, send_rx) = make_session();
+        authed.set_player_guid(Some(player));
+        authed.dispatch_packet(packet(target)).await;
+        assert!(
+            send_rx.try_recv().is_err(),
+            "LoggedIn metadata must reject PartyUninvite while the session is Authed"
+        );
+    }
+
+    #[tokio::test]
+    async fn move_set_vehicle_rec_id_ack_wire_dispatch_reaches_handler_only_when_logged_in() {
+        fn packet(mover: ObjectGuid) -> WorldPacket {
+            let mut packet = WorldPacket::new_empty();
+            packet.write_uint16(ClientOpcodes::MoveSetVehicleRecIdAck as u16);
+            wow_packet::packets::movement::MovementInfo {
+                guid: mover,
+                time: 12_345,
+                position: Position::new(1.25, -2.5, 3.75, 0.5),
+                ..Default::default()
+            }
+            .write(&mut packet);
+            packet.write_int32(-77);
+            packet.write_int32(9_001);
+            packet.reset_read();
+            packet
+        }
+
+        use crate::handlers::movement::take_move_set_vehicle_rec_id_ack_handler_calls_for_test;
+
+        let mover = ObjectGuid::create_player(1, 101);
+        assert_eq!(take_move_set_vehicle_rec_id_ack_handler_calls_for_test(), 0);
+
+        let (mut logged_in, _pkt_tx, send_rx) = make_session();
+        logged_in.set_state(SessionState::LoggedIn);
+        logged_in.set_player_guid(Some(mover));
+        logged_in.dispatch_packet(packet(mover)).await;
+
+        assert_eq!(take_move_set_vehicle_rec_id_ack_handler_calls_for_test(), 1);
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ HandleMoveSetVehicleRecAck sends no response"
+        );
+
+        let (mut authed, _pkt_tx, send_rx) = make_session();
+        authed.set_player_guid(Some(mover));
+        authed.dispatch_packet(packet(mover)).await;
+
+        assert_eq!(
+            take_move_set_vehicle_rec_id_ack_handler_calls_for_test(),
+            0,
+            "LoggedIn metadata must reject the ACK while the session is Authed"
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn reconciled_handler_registrations_match_cpp_metadata_and_rust_targets() {
+        let (session, _, _) = make_session();
+        let expected = [
+            (
+                ClientOpcodes::TrainerBuySpell,
+                SessionStatus::LoggedIn,
+                PacketProcessing::Inplace,
+                "handle_trainer_buy_spell",
+            ),
+            (
+                ClientOpcodes::PartyUninvite,
+                SessionStatus::LoggedIn,
+                PacketProcessing::ThreadUnsafe,
+                "handle_party_uninvite",
+            ),
+            (
+                ClientOpcodes::MoveSetVehicleRecIdAck,
+                SessionStatus::LoggedIn,
+                PacketProcessing::ThreadSafe,
+                "handle_move_set_vehicle_rec_id_ack",
+            ),
+        ];
+
+        for (opcode, status, processing, handler_name) in expected {
+            let entry = session
+                .dispatch_table
+                .get(&opcode)
+                .unwrap_or_else(|| panic!("missing linked registration for {opcode:?}"));
+            assert_eq!(entry.status, status, "{opcode:?} status");
+            assert_eq!(entry.processing, processing, "{opcode:?} processing");
+            assert_eq!(entry.handler_name, handler_name, "{opcode:?} target");
         }
     }
 

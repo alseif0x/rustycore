@@ -150,7 +150,7 @@ impl ClientPacket for PartyUninvite {
     fn read(pkt: &mut WorldPacket) -> Result<Self, PacketError> {
         let has_party_index = pkt.read_bit()?;
         let reason_len = pkt.read_bits(8)? as usize;
-        let target_guid = pkt.read_guid()?;
+        let target_guid = pkt.read_packed_guid()?;
         let party_index = if has_party_index {
             Some(pkt.read_uint8()?)
         } else {
@@ -1209,7 +1209,7 @@ mod tests {
         SetPartyAssignment, SetPartyLeader, SetRole, SilencePartyTalker, SwapSubGroups,
         UpdateRaidTarget, party_result,
     };
-    use crate::{ClientPacket, ServerPacket, WorldPacket};
+    use crate::{ClientPacket, PacketError, ServerPacket, WorldPacket};
     use wow_constants::ServerOpcodes;
     use wow_core::{ObjectGuid, Position};
 
@@ -2059,11 +2059,15 @@ mod tests {
 
     #[test]
     fn party_uninvite_reads_bits_guid_party_index_and_reason_like_cpp() {
-        let target = ObjectGuid::create_player(1, 0x1234);
+        // C++ `operator>>(ByteBuffer&, ObjectGuid&)` consumes two masks followed
+        // by only the non-zero low/high bytes. Keep this fixture independent of
+        // Rust's packed-GUID writer so a symmetric encoder bug cannot bless the
+        // decoder.
+        let target = ObjectGuid::new(0x0000_0000_0000_3400, 0x12);
         let mut pkt = WorldPacket::new_empty();
         pkt.write_bit(true);
         pkt.write_bits(3, 8);
-        pkt.write_guid(&target);
+        pkt.write_bytes(&[0x01, 0x02, 0x12, 0x34]);
         pkt.write_uint8(0);
         pkt.write_string("bye");
         pkt.flush_bits();
@@ -2074,6 +2078,25 @@ mod tests {
         assert_eq!(parsed.target_guid, target);
         assert_eq!(parsed.party_index, Some(0));
         assert_eq!(parsed.reason, "bye");
+        assert_eq!(pkt.remaining(), 0);
+    }
+
+    #[test]
+    fn party_uninvite_rejects_truncated_packed_guid_like_cpp() {
+        let mut pkt = WorldPacket::new_empty();
+        pkt.write_bit(false);
+        pkt.write_bits(0, 8);
+        // The low mask promises byte 0, but the packet ends after both masks.
+        pkt.write_bytes(&[0x01, 0x00]);
+        pkt.reset_read();
+
+        assert!(matches!(
+            PartyUninvite::read(&mut pkt),
+            Err(PacketError::ReadPastEnd {
+                wanted: 1,
+                available: 0
+            })
+        ));
     }
 
     #[test]

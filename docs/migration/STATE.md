@@ -50,8 +50,8 @@ its created item or any positive reagent
 effective sparse item template is absent, matching
 `SpellMgr::IsSpellValid`.
 Deterministic player `EffectLearnSpell` retains its distinct immediate-runtime/deferred-save timing.
-Dispatcher activation remains #142, so no status claim should infer a live client purchase merely
-from the retained opcode registration.
+Issue #142 later activated the `TrainerBuySpell` dispatcher arm and reconciled the
+PartyUninvite/Vehicle registrations to exact equality with zero drift exceptions.
 
 Battle-pet trainer purchase note (issue #161): a confirmed battle-pet species is now a purchasable
 offer product (`Trainer.cpp:127-146` resolves `IsCastable()` before the `AddPet` branch, so only
@@ -73,7 +73,7 @@ ACK and cannot be atomic with the marker, while actual network delivery remains 
 crash may cause a recovery re-send without consuming the sole durable recovery signal first;
 admission-time capacity/journal-lock failures return a structured result
 while the wire stays silent like C++. Full design, transition table and fault matrix:
-[battlepets.md](battlepets.md) (2026-08-03, #161). Dispatcher activation remains #142.
+[battlepets.md](battlepets.md) (2026-08-03, #161). #142 activated the dispatcher arm.
 
 ### Fidelity policy for proven legacy defects
 

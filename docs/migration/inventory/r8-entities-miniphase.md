@@ -1,3 +1,35 @@
+# `#NEXT.R8.ENTITIES.1248` — exact world-handler registration/dispatch equality.
+
+Issue #142 removes the last known one-sided world-handler wiring, after the ordered trainer
+prerequisites (#156/#163/#164/#157/#158/#159/#160/#161) landed. C++ registers
+`CMSG_MOVE_SET_VEHICLE_REC_ID_ACK` as `STATUS_LOGGEDIN`/`PROCESS_THREADSAFE`,
+`CMSG_PARTY_UNINVITE` as `STATUS_LOGGEDIN`/`PROCESS_THREADUNSAFE`, and `CMSG_TRAINER_BUY_SPELL`
+as `STATUS_LOGGEDIN`/`PROCESS_INPLACE` (`Opcodes.cpp:675,714,978`). Rust now gives the two
+already-dispatched opcodes their exact `PacketHandlerEntry` registrations and routes the already
+registered trainer purchase arm to its existing handler. The deliberate contract snapshot grows
+only by PartyUninvite and Vehicle, and all three temporary #142 drift exceptions are removed, so
+the guard reports exact equality with zero exceptions.
+
+The prerequisite audit also found why merely activating PartyUninvite would not have worked
+with a real client. C++ reads its target through `operator>>(ByteBuffer&, ObjectGuid&)`, whose
+two masks and present bytes are the packed 128-bit format (`PartyPackets.cpp:114-123`,
+`ObjectGuid.cpp:779-785`); Rust was consuming a fixed 16-byte GUID. The decoder now reads only
+the C++ packed form. An explicit mask/byte fixture, independent of Rust's packed writer, pins the
+positive layout, and a mask that promises a missing byte pins rejection. TrainerBuySpell's packed
+GUID plus two signed IDs and Vehicle's MovementAck plus signed record ID were separately
+contrasted and already matched C++; no other wire layout or production handler semantics changed.
+
+Focused tests send complete PartyUninvite, TrainerBuySpell and MoveSetVehicleRecIdAck wire
+packets through `WorldSession::dispatch_packet`, observe the PartyCommandResult and
+TrainerBuyFailed response paths plus a test-only Vehicle handler call counter, and prove all
+three inputs are rejected while the session is only `Authed`. Vehicle's C++ handler has no
+durable effect beyond sanitizing the local movement status, so the counter exists only under
+`cfg(test)` and adds no production state or behavior. This remains `represented-partial`: the
+issue makes the three existing paths reachable and corrects the one blocking wire defect, but
+deliberately does not broaden trainer, group or vehicle semantics, persistence, ownership,
+scheduling, or malformed non-UTF-8 reason handling; no manual-client or new capture claim is
+made.
+
 # `#NEXT.R8.ENTITIES.1247` — recoverable battle-pet trainer purchase saga.
 
 Issue #161 closes the battle-pet branch of the trainer plan without activating its dispatcher
