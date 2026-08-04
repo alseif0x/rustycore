@@ -1899,6 +1899,22 @@ impl BattlePetAccountOwnerLikeCpp {
         )
     }
 
+    pub(crate) fn unique_species_count_like_cpp(&self) -> u32 {
+        let state = self
+            .state
+            .lock()
+            .expect("battle-pet account state poisoned");
+        u32::try_from(
+            state
+                .pets
+                .values()
+                .map(|pet| pet.species)
+                .collect::<std::collections::BTreeSet<_>>()
+                .len(),
+        )
+        .unwrap_or(u32::MAX)
+    }
+
     /// Receipt probe for an account other than this owner's — used by the
     /// #161 purchase saga when a character changed Battle.net accounts
     /// mid-purchase: the receipt authority stays the original account.
@@ -3601,6 +3617,38 @@ mod tests {
         assert_eq!(accepted, HashSet::from([3, 4, 5, 7, 9]));
         assert_eq!(state.slots[0].pet_guid, Some(battle_pet_guid_like_cpp(3)));
         assert_eq!(state.slots[1].pet_guid, None);
+    }
+
+    #[test]
+    fn unique_species_criteria_count_keeps_pending_removed_pets_like_cpp() {
+        let (species, qualities, breed_states, species_states) = stores_like_cpp(0);
+        let owner = BattlePetAccountOwnerLikeCpp::from_loaded_like_cpp(
+            77,
+            7,
+            0x0102_0007,
+            Arc::new(FakePersistenceLikeCpp::default()),
+            species,
+            qualities,
+            breed_states,
+            species_states,
+            LoadedBattlePetAccountLikeCpp {
+                pets: vec![
+                    durable_pet_row_like_cpp(1, 11, None),
+                    durable_pet_row_like_cpp(2, 12, None),
+                ],
+                slots: Vec::new(),
+            },
+        );
+        owner
+            .state
+            .lock()
+            .expect("battle-pet account state")
+            .pets
+            .get_mut(&battle_pet_guid_like_cpp(1))
+            .expect("loaded pet")
+            .save_info = RepresentedBattlePetSaveInfoLikeCpp::Removed;
+
+        assert_eq!(owner.unique_species_count_like_cpp(), 2);
     }
 
     #[tokio::test]

@@ -29,12 +29,15 @@ remain real; "sends the packet and mutates DB" still does not imply full gamepla
   dependent learned spell is intentionally never persisted (`Player.cpp:20437-20448`), leaving no
   proof of purchase. Rust instead records a durable saga command in the same Character DB
   transaction that deducts the guarded money, applies it once through the #160 account owner
-  (whose Login DB transaction writes pet + receipt together under the account fence), records
-  completion before publishing, and refunds terminal failures exactly once; login recovery
+  (whose Login DB transaction writes pet + receipt together under the account fence), queues
+  publication only after the pet is durable, records the publication marker after enqueue, then
+  completes the command, and refunds terminal failures exactly once; login recovery
   converges any interrupted command. Focused fault-injection tests distinguish this repair from
   both the legacy loss (charged without pet) and a speculative rewrite (no distributed
   transaction, no second journal owner): every crash boundary converges to either paid+pet or
-  refunded+no-pet.
+  refunded+no-pet. Packet enqueue attempts are recoverable and may repeat after a crash between
+  enqueue and marker; actual delivery remains best-effort without a client ACK. This is preferable
+  to consuming the sole durable recovery signal before attempting the notification.
 - [x] **Issue #159 — keep arena/battleground spell disables contextual.** Legacy
   `DisableMgr::IsDisabledFor` checks the arena and battleground flags, but when neither context
   matches and no map/area flag follows it falls through to the unconditional global-disable

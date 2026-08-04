@@ -12,10 +12,11 @@
 -- receipt identity, and a terminal apply failure is compensated exactly once.
 -- status: 0 PendingApplication, 1 Completed, 2 CompensationPending,
 -- 3 Compensated, 4 TerminalFailure.
--- `published` records that the one success publication (petAdded journal
--- update + dependent learned spell) was emitted after the durable pet
--- existed; completion implies publication was attempted, and recovery
--- republishes only while the flag is clear.
+-- `published` records, after packet enqueue, that the success publication
+-- (petAdded journal update + dependent learned spell) was enqueued by this
+-- server attempt. A clear flag remains a recovery-publication signal. Enqueue
+-- attempts may repeat because no client acknowledgement can make the enqueue
+-- and this Character DB marker atomic; actual delivery remains best-effort.
 CREATE TABLE IF NOT EXISTS `character_battle_pet_purchase` (
   `request_key` binary(16) NOT NULL,
   `guid` bigint unsigned NOT NULL,

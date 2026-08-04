@@ -62,14 +62,16 @@ committed Character DB first and Login DB second at the next `Player::SaveToDB`
 time (`BattlePetMgr.cpp:377`), so a crash between commits kept the charge and silently lost the
 pet — with a durable saga keyed by a 128-bit request key shared with the #160 Login DB receipt:
 guarded charge + pending command in one Character DB transaction, exactly one pet through the #160
-account owner (fence, journal lease and per-species capacity rechecked inside it), exactly-once
-success publication claimed by a durable `published` marker before the packets emit,
-exactly-once refund for terminal failures, and bounded login recovery that
+account owner (fence, journal lease and per-species capacity rechecked inside it), success packets
+queued only after pet durability and recorded afterward by a durable `published` marker,
+exactly-once refund for terminal failures with absolute durable-money reconciliation, and bounded login recovery that
 converges interrupted commands without background tasks. Publication keeps the C++ battle-pet
 order (money update, `SMSG_BATTLE_PET_UPDATES` petAdded, dependent runtime learn +
-`SMSG_LEARNED_SPELLS`, trainer visual kits suppressed, silent cap) and is exactly-once per
-successful command across recovery (claimed before emission; a crash between claim and emit
-loses only the immediate notification, which the durable journal self-heals at next login); admission-time capacity/journal-lock failures return a structured result
+`SMSG_LEARNED_SPELLS`, trainer visual kits suppressed, silent cap). Pet, charge and refund are
+exactly-once; packet enqueue attempts are recoverable and may repeat because enqueue has no client
+ACK and cannot be atomic with the marker, while actual network delivery remains best-effort. A
+crash may cause a recovery re-send without consuming the sole durable recovery signal first;
+admission-time capacity/journal-lock failures return a structured result
 while the wire stays silent like C++. Full design, transition table and fault matrix:
 [battlepets.md](battlepets.md) (2026-08-03, #161). Dispatcher activation remains #142.
 

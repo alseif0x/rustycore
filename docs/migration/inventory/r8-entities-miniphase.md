@@ -11,10 +11,10 @@ DB receipt: admission revalidates membership, C++-ordered gates, conditions, cur
 balance, #163 species classification, account capacity and journal lease under the #159 exclusive
 money boundary; one Character DB transaction deducts the guarded money and inserts the pending
 command (`character_battle_pet_purchase`); the #160 account owner applies exactly one pet with
-fence/lease/capacity rechecked inside its own Login DB transaction; the one success publication is
-claimed after the durable pet exists and before the packets emit (durable `published` marker),
-and recovery also scans `Completed` rows whose marker is clear, so an interrupted success still
-publishes exactly once and a claimed publication can never be repeated; terminal
+fence/lease/capacity rechecked inside its own Login DB transaction; success packets are queued
+after the pet is durable and only then is the durable `published` marker recorded; recovery also
+scans `Completed` rows whose marker is clear, so an interrupted success cannot permanently lose
+its only recovery notification, although a crash between enqueue and marker can re-send it; terminal
 apply failures record `CompensationPending` and refund exactly once in one
 Character DB transaction; a receipt re-check before any refund forbids refunding a durable pet;
 and login recovery converges interrupted commands inline (bounded batch, no background tasks,
@@ -22,9 +22,10 @@ cancellation-safe) with the #160 registry's bounded shutdown drain covering the 
 reference model's `PetApplied` state is deliberately derived from the Login DB receipt instead of
 duplicated into Character DB. Breed/quality/display selection follows `BattlePetMgr.cpp:201-227`
 with injectable RNG and is frozen into the command at admission. Publication keeps the C++
-battle-pet order with trainer visuals suppressed, is exactly-once per successful command across
-recovery (claimed before emission; the claim/emit crash window loses only the immediate
-notification, which the durable journal self-heals), admission
+battle-pet order with trainer visuals suppressed. Durable pet creation, charge and compensation
+are exactly-once; packet enqueue attempts are recoverable and may repeat because the client
+provides no acknowledgement that could make socket enqueue atomic with the Character DB marker;
+actual network delivery remains best-effort. Admission
 capacity/journal-lock failures return a structured unavailable result while the wire stays silent
 exactly like the C++ cap case (`Trainer.cpp:102-106`). Focused tests cover success/reload,
 insufficient money, every commit boundary of charge/apply/complete/compensation, replay,

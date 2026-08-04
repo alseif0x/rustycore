@@ -339,7 +339,7 @@ pub(crate) struct CommittedRepresentedTalentResetLikeCpp {
 /// fence prevents a cancelled packet/shutdown future from reopening payout
 /// admission and then letting disconnect-save overwrite a transaction whose
 /// COMMIT reply was never observed.
-struct PlayerMoneyCommitCancellationFenceLikeCpp {
+pub(crate) struct PlayerMoneyCommitCancellationFenceLikeCpp {
     tracker: Arc<DurableLootMoneyPersistenceTrackerLikeCpp>,
     armed: bool,
 }
@@ -352,7 +352,24 @@ impl PlayerMoneyCommitCancellationFenceLikeCpp {
         }
     }
 
-    fn disarm_like_cpp(&mut self) {
+    /// Build a fence which is inert until the database layer is immediately
+    /// about to await a COMMIT.  Multi-step sagas use this form so cancelling
+    /// during pre-commit validation does not quarantine a session whose
+    /// transaction was never submitted.
+    pub(crate) fn new_disarmed_like_cpp(
+        tracker: Arc<DurableLootMoneyPersistenceTrackerLikeCpp>,
+    ) -> Self {
+        Self {
+            tracker,
+            armed: false,
+        }
+    }
+
+    pub(crate) fn arm_like_cpp(&mut self) {
+        self.armed = true;
+    }
+
+    pub(crate) fn disarm_like_cpp(&mut self) {
         self.armed = false;
     }
 }
@@ -49978,23 +49995,54 @@ impl WorldSession {
 
     /// Publish one durable battle-pet addition exactly like the #160 session
     /// seam (`SMSG_BATTLE_PET_UPDATES` with `pet_added` plus the C++
-    /// `AddPet` criteria hooks). The issue #161 saga calls this only after
-    /// the pet and receipt are durable and the purchase command completed;
-    /// replayed receipts never reach it.
+    /// packet). The issue #161 saga calls this only after the pet and receipt
+    /// are durable. Packet recovery may call it again, so it deliberately has
+    /// no criteria side effects.
     pub(crate) fn publish_battle_pet_trainer_purchase_add_like_cpp(
         &mut self,
         pet: wow_packet::packets::misc::BattlePetJournalPet,
-        species: u32,
-    ) {
-        self.send_packet(&wow_packet::packets::misc::BattlePetUpdates {
-            pets: vec![pet],
-            pet_added: true,
-        });
+    ) -> bool {
+        let packet_enqueued = self
+            .send_tx
+            .send(wow_packet::ServerPacket::to_bytes(
+                &wow_packet::packets::misc::BattlePetUpdates {
+                    pets: vec![pet],
+                    pet_added: true,
+                },
+            ))
+            .is_ok();
+        if !packet_enqueued {
+            warn!("Send channel closed for account {}", self.account_id);
+        }
+        packet_enqueued
+    }
+
+    /// Record the C++ `BattlePetMgr::AddPet` criteria hooks from durable
+    /// current state. Both C++ criteria are set-like (`UniquePetsOwned` uses
+    /// the current unique-species count and `LearnedNewPet` sets one species
+    /// to 1), so receipt recovery and packet re-sends are idempotent.
+    pub(crate) fn record_battle_pet_trainer_purchase_criteria_like_cpp(&mut self, species: u32) {
         self.represented_battle_pet_unique_owned_criteria_like_cpp = self
-            .represented_battle_pet_unique_owned_criteria_like_cpp
-            .saturating_add(1);
-        self.represented_battle_pet_learned_new_pet_criteria_like_cpp
-            .push(species);
+            .battle_pet_account_attachment_like_cpp
+            .as_ref()
+            .map(|attachment| attachment.owner_like_cpp().unique_species_count_like_cpp())
+            .unwrap_or_else(|| {
+                u32::try_from(
+                    self.represented_battle_pets_like_cpp
+                        .values()
+                        .map(|pet| pet.species)
+                        .collect::<BTreeSet<_>>()
+                        .len(),
+                )
+                .unwrap_or(u32::MAX)
+            });
+        if !self
+            .represented_battle_pet_learned_new_pet_criteria_like_cpp
+            .contains(&species)
+        {
+            self.represented_battle_pet_learned_new_pet_criteria_like_cpp
+                .push(species);
+        }
     }
 
     fn uncage_cast_item_still_matches_like_cpp(
