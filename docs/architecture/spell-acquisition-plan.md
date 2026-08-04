@@ -217,5 +217,10 @@ repeat because no client ACK can atomically bridge enqueue and the marker, while
 delivery remains best-effort. Recovery re-sends only when enqueue was not recorded, so the durable
 recovery signal is not consumed before an attempt. No publication occurs on
 compensation. A castable
-trainer spell with a confirmed species keeps the wrapper acquisition but retains the C++ silent
-cap and visual suppression.
+trainer spell with a confirmed species keeps the C++-shared silent cap gate and visual-kit
+suppression on the prepared offer (`Trainer.cpp:99-109,121-125` resolve the species before
+`IsCastable()`), but today it cannot run the wrapper acquisition at all: the #164 acquisition
+planner deliberately rejects `SPELL_EFFECT_SUMMON` with `BattlePetOrSummonPath`, so a hybrid
+(learn + battle-pet summon) trainer spell fails closed before money with the generic buy
+failure — focused tests pin that boundary instead of claiming C++ cast parity, which remains
+deferred until the planner models hybrid casts.

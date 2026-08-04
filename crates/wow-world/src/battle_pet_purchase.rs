@@ -477,12 +477,19 @@ impl BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp {
         Result<BattlePetPurchaseChargeOutcomeLikeCpp, BattlePetPurchaseStoreErrorLikeCpp>,
     > {
         Box::pin(async move {
-            let mut money = self
-                .character_db
-                .prepare(CharStatements::UPD_CHARACTER_MONEY_GUARDED);
-            money.set_u64(0, command.money_after);
-            money.set_u64(1, command.character_guid);
-            money.set_u64(2, command.money_before);
+            // C++ `HasEnoughMoney(0)` always passes and `ModifyMoney(-0)` is
+            // a no-op; MySQL reports zero changed rows for a no-op UPDATE,
+            // so the guarded money statement only exists for a nonzero
+            // price, with the command row as the zero-price commit marker.
+            let money = (command.money_after != command.money_before).then(|| {
+                let mut money = self
+                    .character_db
+                    .prepare(CharStatements::UPD_CHARACTER_MONEY_GUARDED);
+                money.set_u64(0, command.money_after);
+                money.set_u64(1, command.character_guid);
+                money.set_u64(2, command.money_before);
+                money
+            });
             let mut insert = self
                 .character_db
                 .prepare(CharStatements::INS_BATTLE_PET_PURCHASE);
@@ -504,7 +511,9 @@ impl BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp {
                 BattlePetPurchaseStatusLikeCpp::PendingApplication.as_u8_like_cpp(),
             );
             let mut transaction = SqlTransaction::new();
-            transaction.append_expect_rows_affected(money, 1);
+            if let Some(money) = money {
+                transaction.append_expect_rows_affected(money, 1);
+            }
             transaction.append_expect_rows_affected(insert, 1);
             cancellation_fence.arm_like_cpp();
             let outcome = match transaction
@@ -717,15 +726,26 @@ impl BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp {
             let mut refund = self
                 .character_db
                 .prepare(CharStatements::UPD_CHARACTER_MONEY_REFUND);
-            refund.set_u32(0, command.price);
-            refund.set_u64(1, wow_entities::MAX_MONEY_AMOUNT);
-            refund.set_u64(2, command.character_guid);
+            // A zero-price command has no money to refund; the status flip
+            // alone is the exactly-once marker and a no-op refund UPDATE
+            // would report zero rows and roll the transaction back.
+            let refund = (command.price != 0).then(|| {
+                let mut refund = self
+                    .character_db
+                    .prepare(CharStatements::UPD_CHARACTER_MONEY_REFUND);
+                refund.set_u32(0, command.price);
+                refund.set_u64(1, wow_entities::MAX_MONEY_AMOUNT);
+                refund.set_u64(2, command.character_guid);
+                refund
+            });
             let mut flip = self
                 .character_db
                 .prepare(CharStatements::UPD_BATTLE_PET_PURCHASE_COMPENSATED);
             flip.set_bytes(0, request_key.to_vec());
             let mut transaction = SqlTransaction::new();
-            transaction.append_expect_rows_affected(refund, 1);
+            if let Some(refund) = refund {
+                transaction.append_expect_rows_affected(refund, 1);
+            }
             transaction.append_expect_rows_affected(flip, 1);
             cancellation_fence.arm_like_cpp();
             let commit_result = transaction
@@ -2153,11 +2173,13 @@ pub(crate) mod tests {
                         == Some(command.money_before);
                     let key_free = !inner.commands.contains_key(&command.request_key);
                     if guard_ok && key_free {
-                        inner
-                            .money
-                            .insert(command.character_guid, command.money_after);
+                        if command.money_after != command.money_before {
+                            inner
+                                .money
+                                .insert(command.character_guid, command.money_after);
+                            self.money_mutations.fetch_add(1, Ordering::SeqCst);
+                        }
                         inner.commands.insert(command.request_key, command.clone());
-                        self.money_mutations.fetch_add(1, Ordering::SeqCst);
                         true
                     } else {
                         false
@@ -2431,9 +2453,11 @@ pub(crate) mod tests {
                     let mut inner = self.inner.lock().expect("fake purchase store poisoned");
                     match inner.money.get_mut(&command.character_guid) {
                         Some(money) => {
-                            *money = (*money + u64::from(command.price))
-                                .min(wow_entities::MAX_MONEY_AMOUNT);
-                            self.money_mutations.fetch_add(1, Ordering::SeqCst);
+                            if command.price != 0 {
+                                *money = (*money + u64::from(command.price))
+                                    .min(wow_entities::MAX_MONEY_AMOUNT);
+                                self.money_mutations.fetch_add(1, Ordering::SeqCst);
+                            }
                             inner
                                 .commands
                                 .get_mut(&request_key)
@@ -5754,5 +5778,76 @@ mod executor_tests {
             BattlePetPurchaseStatusLikeCpp::Compensated
         );
         assert_eq!(fixture.persistence.pet_count(), 0);
+    }
+
+    #[tokio::test]
+    async fn zero_price_purchase_grants_the_free_pet_like_cpp() {
+        // C++ `HasEnoughMoney(0)` always passes and `ModifyMoney(-0)` is a
+        // no-op: a zero-cost battle-pet trainer row must charge nothing and
+        // still create the pet, the command and the one publication.
+        let mut fixture = saga_fixture_like_cpp(SAGA_MONEY, Vec::new()).await;
+        let outcome = execute_saga_purchase_like_cpp(&mut fixture, saga_offer_like_cpp(0)).await;
+        let BattlePetPurchaseExecutionLikeCpp::Purchased {
+            pet_guid: _,
+            published,
+        } = outcome
+        else {
+            panic!("a zero-price purchase must succeed: {outcome:?}");
+        };
+        assert!(published);
+        assert_eq!(fixture.store.money(PLAYER_COUNTER as u64), Some(SAGA_MONEY));
+        assert_eq!(fixture.store.money_mutations(), 0);
+        let command = &fixture.store.commands_snapshot()[0];
+        assert_eq!(command.status, BattlePetPurchaseStatusLikeCpp::Completed);
+        assert_eq!(command.price, 0);
+        assert_eq!(fixture.persistence.species_count(SAGA_SPECIES), 1);
+        assert_eq!(fixture.session.player_gold_like_cpp(), SAGA_MONEY);
+        // No money update packet for a zero charge; the pet and learned
+        // spell still publish once.
+        assert_eq!(
+            fixture.send_rx.try_recv().expect("pet update"),
+            wow_packet::packets::misc::BattlePetUpdates {
+                pets: vec![expected_pet_packet_like_cpp(
+                    &fixture,
+                    ObjectGuid::create_global(
+                        HighGuid::BattlePet,
+                        0,
+                        fixture
+                            .persistence
+                            .receipt(command.request_key)
+                            .expect("receipt")
+                            .guid_counter as i64,
+                    ),
+                )],
+                pet_added: true,
+            }
+            .to_bytes()
+        );
+        assert_eq!(
+            fixture.send_rx.try_recv().expect("learned spells"),
+            LearnedSpells::single(SAGA_SPELL_ID as i32).to_bytes()
+        );
+        assert_no_packets(&fixture);
+    }
+
+    #[tokio::test]
+    async fn zero_price_compensation_flips_status_without_money_mutation_like_cpp() {
+        // A zero-price purchase that fails terminally compensates by
+        // flipping the command once; there is no refund statement to roll
+        // back, so the compensation must still converge.
+        let seeded = vec![
+            saga_durable_pet_row_like_cpp(1, SAGA_SPECIES, None),
+            saga_durable_pet_row_like_cpp(2, SAGA_SPECIES, None),
+        ];
+        let mut fixture = saga_fixture_like_cpp(SAGA_MONEY, seeded).await;
+        seed_third_pet_into_persistence_like_cpp(&fixture);
+        let outcome = execute_saga_purchase_like_cpp(&mut fixture, saga_offer_like_cpp(0)).await;
+        assert_eq!(outcome, BattlePetPurchaseExecutionLikeCpp::Compensated);
+        assert_eq!(fixture.store.money(PLAYER_COUNTER as u64), Some(SAGA_MONEY));
+        assert_eq!(fixture.store.money_mutations(), 0);
+        let command = &fixture.store.commands_snapshot()[0];
+        assert_eq!(command.status, BattlePetPurchaseStatusLikeCpp::Compensated);
+        assert_eq!(fixture.persistence.species_count(SAGA_SPECIES), 3);
+        assert_no_packets(&fixture);
     }
 }
