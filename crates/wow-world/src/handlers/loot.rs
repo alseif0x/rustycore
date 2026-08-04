@@ -4860,7 +4860,7 @@ impl WorldSession {
 
         // Incoming attackers do not become the player's own melee target.
         // C++ keeps that direction solely in `m_attackers`/combat references.
-        self.in_combat = true;
+        self.set_in_combat_like_cpp(true);
 
         if attacker_is_visible && !command.packet_already_broadcast {
             use wow_packet::packets::combat::AttackStart;
@@ -4934,7 +4934,7 @@ impl WorldSession {
         if self.combat_target == Some(command.attacker_guid) {
             self.combat_target = None;
         }
-        self.in_combat = still_in_combat;
+        self.set_in_combat_like_cpp(still_in_combat);
     }
 
     fn handle_reconcile_pvp_combat_expiry_like_cpp(
@@ -4964,7 +4964,7 @@ impl WorldSession {
                     .map(|player| player.unit().subsystems().combat.has_combat())
             })
             .unwrap_or(false);
-        self.in_combat = still_in_combat;
+        self.set_in_combat_like_cpp(still_in_combat);
     }
 
     fn handle_send_visible_object_values_update_command_like_cpp(
