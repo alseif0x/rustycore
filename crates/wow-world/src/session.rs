@@ -11101,7 +11101,7 @@ impl WorldSession {
             self.canonical_unit_attack_target_state_like_cpp(victim);
         if !self.player_vehicle_seat_allows_attack_like_cpp() {
             self.combat_target = None;
-            self.in_combat = false;
+            self.set_in_combat_like_cpp(false);
             if self.selection_guid_like_cpp() == Some(victim) {
                 self.set_selection_guid_like_cpp(None);
             }
@@ -11132,7 +11132,7 @@ impl WorldSession {
         let combat_attacker_is_friendly_to_victim = attack_context.attacker_is_friendly_to_victim;
         let combat_victim_is_friendly_to_attacker = attack_context.victim_is_friendly_to_attacker;
         self.combat_target = Some(victim);
-        self.in_combat = true;
+        self.set_in_combat_like_cpp(true);
         self.set_selection_guid_like_cpp(Some(victim));
         let outcome = self.mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().attack_with_context_like_cpp(
@@ -11163,7 +11163,7 @@ impl WorldSession {
             )
             | None => {
                 self.combat_target = None;
-                self.in_combat = false;
+                self.set_in_combat_like_cpp(false);
                 if self.selection_guid_like_cpp() == Some(victim) {
                     self.set_selection_guid_like_cpp(None);
                 }
@@ -11213,13 +11213,13 @@ impl WorldSession {
             // player state exists and says there is none.
             Some(None) => {
                 self.combat_target = None;
-                self.in_combat = false;
+                self.set_in_combat_like_cpp(false);
                 return None;
             }
             None => self.combat_target.take()?,
         };
         self.combat_target = None;
-        self.in_combat = false;
+        self.set_in_combat_like_cpp(false);
         if self.selection_guid_like_cpp() == Some(target) {
             self.set_selection_guid_like_cpp(None);
         }
@@ -11236,7 +11236,7 @@ impl WorldSession {
     fn combat_stop_like_cpp(&mut self) {
         let Some(player_guid) = self.player_guid() else {
             self.combat_target = None;
-            self.in_combat = false;
+            self.set_in_combat_like_cpp(false);
             return;
         };
 
@@ -11310,7 +11310,7 @@ impl WorldSession {
         owner_guids: Vec<ObjectGuid>,
     ) {
         self.combat_target = None;
-        self.in_combat = false;
+        self.set_in_combat_like_cpp(false);
         for owner_guid in owner_guids {
             let _ = self.mutate_world_creature(owner_guid, |owner| {
                 if owner.creature.unit().attacking() == Some(player_guid) {
@@ -34483,6 +34483,7 @@ impl WorldSession {
                     .values()
                     .map(|state| state.command_identity.clone())
                     .collect(),
+                in_combat: self.in_combat,
                 pass_on_group_loot: self.pass_on_group_loot,
                 enchanting_skill: self.represented_enchanting_skill,
                 is_alive: self.player_alive_like_cpp,
@@ -34593,6 +34594,7 @@ impl WorldSession {
                 .values()
                 .map(|state| state.command_identity.clone())
                 .collect();
+            info.in_combat = self.in_combat;
             info.pass_on_group_loot = self.pass_on_group_loot;
             info.enchanting_skill = self.represented_enchanting_skill;
             info.is_alive = self.player_alive_like_cpp;
@@ -45891,6 +45893,18 @@ impl WorldSession {
 
     pub(crate) fn player_in_represented_battleground_like_cpp(&self) -> bool {
         self.player_battleground_type_id_like_cpp.is_some()
+    }
+
+    /// C++ `Player::SetInCombatState`: the session mirror and the broadcast
+    /// registry member view always move together so group-level combat gates
+    /// (like the LFG boot combat check) read live per-member state.
+    pub(crate) fn set_in_combat_like_cpp(&mut self, in_combat: bool) {
+        self.in_combat = in_combat;
+        if let (Some(guid), Some(registry)) = (self.player_guid(), &self.player_registry)
+            && let Some(mut info) = registry.get_mut(&guid)
+        {
+            info.in_combat = in_combat;
+        }
     }
 
     pub(crate) fn represented_battleground_status_is_wait_leave_like_cpp(&self) -> bool {
@@ -61317,11 +61331,12 @@ impl WorldSession {
             None => self.combat_target,
         }) else {
             self.combat_target = None;
-            self.in_combat = self
+            let has_combat = self
                 .mutate_canonical_player_like_cpp(|player| {
                     player.unit().subsystems().combat.has_combat()
                 })
                 .unwrap_or(false);
+            self.set_in_combat_like_cpp(has_combat);
             return output;
         };
         self.combat_target = Some(combat_target);
@@ -61379,7 +61394,7 @@ impl WorldSession {
                     .purge_combat_ref_like_cpp(combat_target);
             });
             self.combat_target = None;
-            self.in_combat = false;
+            self.set_in_combat_like_cpp(false);
             return output;
         };
         let (target_position, target_combat_reach, target_bounding_radius) = match target_runtime {
@@ -61465,7 +61480,7 @@ impl WorldSession {
                     player.unit_mut().attack_stop_like_cpp()
                 });
                 self.combat_target = None;
-                self.in_combat = false;
+                self.set_in_combat_like_cpp(false);
                 return output;
             };
 
@@ -61647,7 +61662,7 @@ impl WorldSession {
             });
             self.revalidate_canonical_player_combat_refs_like_cpp(player_guid);
             self.combat_target = None;
-            self.in_combat = false;
+            self.set_in_combat_like_cpp(false);
         }
         output
     }
@@ -61849,7 +61864,7 @@ impl WorldSession {
             };
             let _ = self.send_tx.send(start.to_bytes());
             self.combat_target = Some(guid);
-            self.in_combat = true;
+            self.set_in_combat_like_cpp(true);
         }
     }
 
@@ -66870,7 +66885,7 @@ impl WorldSession {
                 let _ = self.stop_player_attack_like_cpp();
             }
             self.combat_target = None;
-            self.in_combat = false;
+            self.set_in_combat_like_cpp(false);
         }
 
         let pve_refs = {
@@ -102566,6 +102581,7 @@ mod tests {
             visibility_refresh_pending_like_cpp: Default::default(),
             durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),
+            in_combat: false,
             pass_on_group_loot: false,
             enchanting_skill: 0,
             is_alive: true,

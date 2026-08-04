@@ -28,7 +28,10 @@ error codes of `SharedDefines.h`: per-group kicks-left restored to `LFG_GROUP_MA
 `LfgGroupData` (only the vote-kick flow decrements it there), too-few-players from the registry,
 dungeon-complete from the restored LFG state, connected-target loot rolls from the player
 registry, and the uninviter's own combat state as today's only authoritative member-combat view;
-the missing VoteKick authority is documented, and the LFG branch skips both leader checks exactly
+every represented member's combat state through the broadcast registry (sessions now mirror
+`Player::IsInCombat` into their `PlayerBroadcastInfo` entry at every transition via
+`set_in_combat_like_cpp`, so the LFG boot combat gate reads all members like C++, not just the
+uninviter); the missing VoteKick authority is documented, and the LFG branch skips both leader checks exactly
 like C++. A second remote review added the three remaining C++ boundaries: the normal branch
 rejects battleground senders with `ERR_INVITE_RESTRICTED` before any target check
 (`Player.cpp:25181-25182`), and a passed LFG boot gate does NOT remove the member — C++

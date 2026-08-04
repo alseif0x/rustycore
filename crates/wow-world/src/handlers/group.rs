@@ -1741,9 +1741,21 @@ impl WorldSession {
                     return;
                 }
                 // C++ rejects when any member in the uninviter's map is in
-                // combat; today the uninviter's own combat state is the only
-                // authoritative member view for this check.
-                if self.in_combat {
+                // combat (`Player.cpp:25173-25176`). Members report their
+                // combat transitions into the broadcast registry through
+                // `set_in_combat_like_cpp`, so the gate reads every
+                // represented member, falling back to the live session
+                // mirror for the uninviter itself.
+                let any_member_in_combat = group.members.iter().any(|member_guid| {
+                    if *member_guid == sender_guid {
+                        self.in_combat
+                    } else {
+                        self.player_registry()
+                            .and_then(|registry| registry.get(member_guid))
+                            .is_some_and(|member| member.in_combat)
+                    }
+                });
+                if any_member_in_combat {
                     send_party_uninvite_result_like_cpp(
                         self,
                         party_result::PARTY_LFG_BOOT_IN_COMBAT,
@@ -3491,6 +3503,7 @@ mod tests {
             visibility_refresh_pending_like_cpp: Default::default(),
             durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),
+            in_combat: false,
             pass_on_group_loot: false,
             enchanting_skill: 0,
             is_alive: true,
@@ -5288,6 +5301,59 @@ mod tests {
                 .members
                 .contains(&target)
         );
+    }
+
+    #[tokio::test]
+    async fn lfg_uninvite_member_in_combat_returns_code_without_removal_like_cpp() {
+        // C++ checks every member on the uninviter's map: another member in
+        // combat blocks the kick even when the uninviter is at peace.
+        let leader = ObjectGuid::create_player(1, 42);
+        let sender = ObjectGuid::create_player(1, 100);
+        let target = ObjectGuid::create_player(1, 101);
+        let group = lfg_group_like_cpp(leader, 5);
+        let (mut session, send_rx, group_registry, group_guid) =
+            lfg_uninvite_session_like_cpp(group, sender);
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (target_tx, _target_rx) = flume::bounded(8);
+        let mut target_info = broadcast_info(target, target_tx);
+        target_info.in_combat = true;
+        player_registry.insert(target, target_info);
+        session.set_player_registry(Arc::clone(&player_registry));
+        assert!(!session.in_combat);
+
+        session
+            .handle_party_uninvite(party_uninvite_packet(target, None, "boot"))
+            .await;
+
+        assert_eq!(
+            party_command_result_code(&send_rx.try_recv().expect("in combat result")),
+            party_result::PARTY_LFG_BOOT_IN_COMBAT
+        );
+        assert!(
+            group_registry
+                .get(&group_guid)
+                .expect("group")
+                .members
+                .contains(&target)
+        );
+    }
+
+    #[tokio::test]
+    async fn session_combat_transition_updates_the_registry_member_view_like_cpp() {
+        // The LFG combat gate can only read members if their registry view
+        // tracks the owning session's transitions.
+        let guid = ObjectGuid::create_player(1, 42);
+        let (mut session, _send_rx) = make_session_with_send();
+        session.set_player_guid(Some(guid));
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (tx, _rx) = flume::bounded(8);
+        player_registry.insert(guid, broadcast_info(guid, tx));
+        session.set_player_registry(Arc::clone(&player_registry));
+
+        session.set_in_combat_like_cpp(true);
+        assert!(player_registry.get(&guid).expect("member").in_combat);
+        session.set_in_combat_like_cpp(false);
+        assert!(!player_registry.get(&guid).expect("member").in_combat);
     }
 
     #[tokio::test]
