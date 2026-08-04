@@ -54,7 +54,7 @@ use wow_packet::packets::trainer::{LearnedSpells, TrainerBuyFailed};
 
 use crate::battle_pet_account::{
     BattlePetAccountOwnerLikeCpp, BattlePetAddFailureLikeCpp, BattlePetAddOutcomeLikeCpp,
-    BattlePetAddRequestKeyLikeCpp, BattlePetAddRequestLikeCpp,
+    BattlePetAddRequestKeyLikeCpp, BattlePetAddRequestLikeCpp, BattlePetLeaseIdLikeCpp,
 };
 use crate::session::{ExclusivePlayerMoneyPersistenceLikeCpp, WorldSession};
 use crate::trainer_offer::PreparedBattlePetTrainerOfferLikeCpp;
@@ -548,7 +548,10 @@ impl BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp {
                     Ok(Some(row)) if row.published => {
                         Ok(BattlePetPurchaseMarkOutcomeLikeCpp::AlreadyApplied)
                     }
-                    Ok(Some(row)) if row.status.is_terminal_like_cpp() => {
+                    Ok(Some(row))
+                        if row.status.is_terminal_like_cpp()
+                            && row.status != BattlePetPurchaseStatusLikeCpp::Completed =>
+                    {
                         Err(BattlePetPurchaseStoreErrorLikeCpp::Terminal(format!(
                             "battle-pet purchase publication mark on terminal {:?}",
                             row.status
@@ -1089,6 +1092,8 @@ impl WorldSession {
             Err(error) if battle_pet_add_failure_is_terminal_like_cpp(&error) => {
                 self.compensate_battle_pet_purchase_like_cpp(
                     &owner,
+                    lease_id,
+                    player_guid,
                     &store,
                     &command,
                     BattlePetPurchaseRefundPublicationLikeCpp::ValuesUpdatePacket,
@@ -1158,6 +1163,8 @@ impl WorldSession {
                     match self
                         .compensate_battle_pet_purchase_like_cpp(
                             &owner,
+                            lease_id,
+                            player_guid,
                             &store,
                             &command,
                             BattlePetPurchaseRefundPublicationLikeCpp::RuntimeOnly,
@@ -1232,6 +1239,8 @@ impl WorldSession {
                             match self
                                 .compensate_battle_pet_purchase_like_cpp(
                                     &owner,
+                                    lease_id,
+                                    player_guid,
                                     &store,
                                     &command,
                                     BattlePetPurchaseRefundPublicationLikeCpp::RuntimeOnly,
@@ -1260,6 +1269,54 @@ impl WorldSession {
                                 account = self.account_id,
                                 ?error,
                                 "Battle-pet purchase recovery deferred a command"
+                            );
+                            summary.deferred += 1;
+                            break;
+                        }
+                    }
+                }
+                BattlePetPurchaseStatusLikeCpp::Completed => {
+                    // Completed but never recorded as published: replay the
+                    // receipt for its packet and publish exactly once. The
+                    // recovery scan selects these rows deliberately.
+                    if command.published {
+                        continue;
+                    }
+                    if !self.battle_pet_try_acquire_journal_lease_like_cpp().await {
+                        summary.deferred += 1;
+                        break;
+                    }
+                    let request = BattlePetAddRequestLikeCpp {
+                        request_key: BattlePetAddRequestKeyLikeCpp::from_bytes(command.request_key),
+                        species: command.species,
+                        display_id: command.display_id,
+                        breed: command.breed,
+                        quality: command.quality,
+                        level: command.level,
+                        owner_guid: Some(player_guid),
+                    };
+                    match owner.try_add_pet_like_cpp(lease_id, request).await {
+                        Ok(outcome) => {
+                            let pet = match outcome {
+                                BattlePetAddOutcomeLikeCpp::Added(pet) => pet,
+                                BattlePetAddOutcomeLikeCpp::Replayed(pet) => pet,
+                            };
+                            self.publish_battle_pet_trainer_purchase_like_cpp(
+                                pet,
+                                command.spell_id,
+                            );
+                            self.mark_battle_pet_purchase_published_like_cpp(
+                                &store,
+                                command.request_key,
+                            )
+                            .await;
+                            summary.applied += 1;
+                        }
+                        Err(error) => {
+                            warn!(
+                                account = self.account_id,
+                                ?error,
+                                "Battle-pet purchase recovery could not resolve the publication packet"
                             );
                             summary.deferred += 1;
                             break;
@@ -1393,6 +1450,8 @@ impl WorldSession {
     async fn compensate_battle_pet_purchase_like_cpp(
         &mut self,
         owner: &Arc<BattlePetAccountOwnerLikeCpp>,
+        lease_id: BattlePetLeaseIdLikeCpp,
+        player_guid: ObjectGuid,
         store: &Arc<dyn BattlePetPurchaseStoreLikeCpp>,
         command: &BattlePetPurchaseCommandLikeCpp,
         refund_publication: BattlePetPurchaseRefundPublicationLikeCpp,
@@ -1430,7 +1489,12 @@ impl WorldSession {
             }
         }
 
-        // Receipt re-check: a durable pet forbids the refund.
+        // Receipt re-check: a durable pet forbids the refund; the command
+        // completes instead. When the receipt's pet resolves in-process and
+        // no publication was ever recorded, publish it first; when the owner
+        // cannot resolve the packet (its in-memory journal lost the pet with
+        // a failed insert reply), completion proceeds without the marker and
+        // login recovery finishes the publication.
         match owner
             .add_request_committed_like_cpp(BattlePetAddRequestKeyLikeCpp::from_bytes(
                 command.request_key,
@@ -1438,6 +1502,37 @@ impl WorldSession {
             .await
         {
             Ok(true) => {
+                if !command.published && self.battle_pet_try_acquire_journal_lease_like_cpp().await
+                {
+                    let replay = owner
+                        .try_add_pet_like_cpp(
+                            lease_id,
+                            BattlePetAddRequestLikeCpp {
+                                request_key: BattlePetAddRequestKeyLikeCpp::from_bytes(
+                                    command.request_key,
+                                ),
+                                species: command.species,
+                                display_id: command.display_id,
+                                breed: command.breed,
+                                quality: command.quality,
+                                level: command.level,
+                                owner_guid: Some(player_guid),
+                            },
+                        )
+                        .await;
+                    if let Ok(
+                        BattlePetAddOutcomeLikeCpp::Added(pet)
+                        | BattlePetAddOutcomeLikeCpp::Replayed(pet),
+                    ) = replay
+                    {
+                        self.publish_battle_pet_trainer_purchase_like_cpp(pet, command.spell_id);
+                        self.mark_battle_pet_purchase_published_like_cpp(
+                            store,
+                            command.request_key,
+                        )
+                        .await;
+                    }
+                }
                 let _ = self
                     .complete_battle_pet_purchase_like_cpp(store, command.request_key)
                     .await;
@@ -1816,12 +1911,12 @@ pub(crate) mod tests {
                     .values()
                     .filter(|command| {
                         command.character_guid == character_guid
-                            && matches!(
+                            && (matches!(
                                 command.status,
                                 BattlePetPurchaseStatusLikeCpp::PendingApplication
                                     | BattlePetPurchaseStatusLikeCpp::CompensationPending
-                            )
-                            && !command.status.is_terminal_like_cpp()
+                            ) || (command.status == BattlePetPurchaseStatusLikeCpp::Completed
+                                && !command.published))
                     })
                     .take(limit as usize)
                     .cloned()
@@ -1864,6 +1959,7 @@ pub(crate) mod tests {
                 };
                 Ok(match row.status {
                     BattlePetPurchaseStatusLikeCpp::PendingApplication
+                    | BattlePetPurchaseStatusLikeCpp::Completed
                     | BattlePetPurchaseStatusLikeCpp::CompensationPending => {
                         if row.published {
                             BattlePetPurchaseMarkOutcomeLikeCpp::AlreadyApplied
@@ -1903,7 +1999,6 @@ pub(crate) mod tests {
                     BattlePetPurchaseStatusLikeCpp::PendingApplication
                     | BattlePetPurchaseStatusLikeCpp::CompensationPending => {
                         row.status = BattlePetPurchaseStatusLikeCpp::Completed;
-                        row.published = true;
                         row.failure_reason = None;
                         BattlePetPurchaseMarkOutcomeLikeCpp::Applied
                     }
@@ -2297,17 +2392,27 @@ pub(crate) mod tests {
         {
             let mut command = test_command([index as u8 + 10; 16], 9);
             command.status = status;
+            // A Completed row is converged only once its publication was
+            // recorded; this one is fully converged.
+            command.published = true;
             store.seed_command(command);
         }
+        // A Completed row that was never published is still owed its
+        // publication and must be scanned.
+        let mut owed = test_command([99; 16], 9);
+        owed.status = BattlePetPurchaseStatusLikeCpp::Completed;
+        owed.published = false;
+        store.seed_command(owed);
         let pending = store
             .load_pending_commands(9, BATTLE_PET_PURCHASE_RECOVERY_BATCH_LIMIT_LIKE_CPP)
             .await
             .expect("scan");
-        assert_eq!(pending.len(), 2);
+        assert_eq!(pending.len(), 3);
         assert!(
             pending
                 .iter()
-                .all(|command| !command.status.is_terminal_like_cpp())
+                .all(|command| !command.status.is_terminal_like_cpp()
+                    || command.status == BattlePetPurchaseStatusLikeCpp::Completed)
         );
         let bounded = store.load_pending_commands(9, 1).await.expect("scan");
         assert_eq!(bounded.len(), 1);
@@ -3235,11 +3340,62 @@ mod executor_tests {
         );
         assert_eq!(fixture.store.money(PLAYER_COUNTER as u64), Some(750));
         assert_eq!(fixture.store.money_mutations(), 1);
+        assert!(!fixture.store.commands_snapshot()[0].published);
         assert_eq!(
             fixture.send_rx.try_recv().expect("money update"),
             expect_money_update_packet_like_cpp(&fixture, 750)
         );
         assert_no_packets(&fixture);
+
+        // The completed-but-unpublished command is the recovery-publication
+        // signal: after a restart the owner holds the pet again and login
+        // recovery emits the one success publication, then marks it.
+        while fixture.send_rx.try_recv().is_ok() {}
+        let (store, persistence) = (fixture.store.clone(), fixture.persistence.clone());
+        drop(fixture);
+        let mut restarted = restart_saga_session_like_cpp(store, persistence, 750).await;
+        let summary = restarted
+            .session
+            .recover_battle_pet_trainer_purchases_like_cpp()
+            .await
+            .expect("recovery runs");
+        assert_eq!(summary.applied, 1);
+        let commands = restarted.store.commands_snapshot();
+        assert!(commands[0].published);
+        assert_eq!(restarted.persistence.pet_count(), 1);
+        assert_eq!(restarted.store.money_mutations(), 1);
+        let pet_guid = ObjectGuid::create_global(
+            HighGuid::BattlePet,
+            0,
+            restarted
+                .persistence
+                .receipt(commands[0].request_key)
+                .expect("receipt")
+                .guid_counter as i64,
+        );
+        assert_eq!(
+            restarted.send_rx.try_recv().expect("recovery pet update"),
+            wow_packet::packets::misc::BattlePetUpdates {
+                pets: vec![expected_pet_packet_like_cpp(&restarted, pet_guid)],
+                pet_added: true,
+            }
+            .to_bytes()
+        );
+        assert_eq!(
+            restarted
+                .send_rx
+                .try_recv()
+                .expect("recovery learned spells"),
+            LearnedSpells::single(SAGA_SPELL_ID as i32).to_bytes()
+        );
+        assert_no_packets(&restarted);
+        let summary = restarted
+            .session
+            .recover_battle_pet_trainer_purchases_like_cpp()
+            .await
+            .expect("recovery runs");
+        assert_eq!(summary.applied + summary.compensated + summary.deferred, 0);
+        assert_no_packets(&restarted);
     }
 
     #[tokio::test]
@@ -4668,9 +4824,25 @@ mod executor_tests {
         assert_eq!(fixture.store.money(PLAYER_COUNTER as u64), Some(750));
         assert_eq!(fixture.store.money_mutations(), 0);
         assert_eq!(fixture.persistence.pet_count(), 1);
+        let command = fixture.store.command(request_key).expect("command");
+        assert_eq!(command.status, BattlePetPurchaseStatusLikeCpp::Completed);
+        assert!(command.published);
+        // The receipt replay resolves the packet in-process, so the one
+        // success publication goes out instead of the refund.
         assert_eq!(
-            fixture.store.command(request_key).expect("command").status,
-            BattlePetPurchaseStatusLikeCpp::Completed
+            fixture.send_rx.try_recv().expect("recovery pet update"),
+            wow_packet::packets::misc::BattlePetUpdates {
+                pets: vec![expected_pet_packet_like_cpp(
+                    &fixture,
+                    ObjectGuid::create_global(HighGuid::BattlePet, 0, 6),
+                )],
+                pet_added: true,
+            }
+            .to_bytes()
+        );
+        assert_eq!(
+            fixture.send_rx.try_recv().expect("recovery learned spells"),
+            LearnedSpells::single(command.spell_id as i32).to_bytes()
         );
         assert_no_packets(&fixture);
     }
