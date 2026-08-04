@@ -1899,6 +1899,21 @@ impl BattlePetAccountOwnerLikeCpp {
         )
     }
 
+    /// Receipt probe for an account other than this owner's — used by the
+    /// #161 purchase saga when a character changed Battle.net accounts
+    /// mid-purchase: the receipt authority stays the original account.
+    pub(crate) async fn receipt_committed_for_account_like_cpp(
+        &self,
+        account_id: u32,
+        request_key: BattlePetAddRequestKeyLikeCpp,
+    ) -> Result<bool, BattlePetAddFailureLikeCpp> {
+        self.persistence
+            .lookup_add_request(account_id, request_key)
+            .await
+            .map(|receipt| receipt.is_some())
+            .map_err(add_persistence_error_like_cpp)
+    }
+
     pub(crate) async fn add_request_committed_like_cpp(
         &self,
         request_key: BattlePetAddRequestKeyLikeCpp,
