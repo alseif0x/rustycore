@@ -19,6 +19,18 @@ positive layout, and a mask that promises a missing byte pins rejection. Trainer
 GUID plus two signed IDs and Vehicle's MovementAck plus signed record ID were separately
 contrasted and already matched C++; no other wire layout or production handler semantics changed.
 
+The remote review of the first #142 commit caught one more latent handler defect that activation
+would have exposed: C++ `Player::CanUninviteFromGroup` runs a separate LFG branch with
+boot-limit/vote/member-count/dungeon-state/loot-roll/combat checks and no ordinary
+leader/assistant gate (`Player.cpp:25147-25192`), while the reachable handler applied normal-party
+rules to LFG-flagged groups. The uninvite handler now mirrors that branch in C++ order with the
+error codes of `SharedDefines.h`: per-group kicks-left restored to `LFG_GROUP_MAX_KICKS` like
+`LfgGroupData` (only the vote-kick flow decrements it there), too-few-players from the registry,
+dungeon-complete from the restored LFG state, connected-target loot rolls from the player
+registry, and the uninviter's own combat state as today's only authoritative member-combat view;
+the missing VoteKick authority is documented, and the LFG branch skips both leader checks exactly
+like C++.
+
 Focused tests send complete PartyUninvite, TrainerBuySpell and MoveSetVehicleRecIdAck wire
 packets through `WorldSession::dispatch_packet`, observe the PartyCommandResult and
 TrainerBuyFailed response paths plus a test-only Vehicle handler call counter, and prove all

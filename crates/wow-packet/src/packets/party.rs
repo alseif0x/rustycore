@@ -32,6 +32,14 @@ pub mod party_result {
     pub const IGNORING_YOU: u8 = 9;
     pub const INVITE_RESTRICTED: u8 = 13;
     pub const GROUP_SWAP_FAILED: u8 = 14;
+    /// C++ `SharedDefines.h`: LFG boot gates from
+    /// `Player::CanUninviteFromGroup` (`Player.cpp:25147-25177`).
+    pub const PARTY_LFG_BOOT_LIMIT: u8 = 20;
+    pub const PARTY_LFG_BOOT_IN_PROGRESS: u8 = 22;
+    pub const PARTY_LFG_BOOT_TOO_FEW_PLAYERS: u8 = 23;
+    pub const PARTY_LFG_BOOT_IN_COMBAT: u8 = 26;
+    pub const PARTY_LFG_BOOT_DUNGEON_COMPLETE: u8 = 28;
+    pub const PARTY_LFG_BOOT_LOOT_ROLLS: u8 = 29;
 }
 
 // ── ConvertRaid (CMSG_CONVERT_RAID) ─────────────────────────

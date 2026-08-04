@@ -19,6 +19,12 @@ static GROUP_DB_STORE: Mutex<Vec<Option<u64>>> = Mutex::new(Vec::new());
 
 pub const GROUP_FLAG_RAID_LIKE_CPP: u16 = 0x002;
 pub const GROUP_FLAG_LFG_LIKE_CPP: u16 = 0x008;
+/// C++ `LFG_GROUP_MAX_KICKS` (`LFGGroupData.h:28`): kicks each LFG group
+/// starts with; only the vote-kick flow decrements it there.
+pub const LFG_GROUP_MAX_KICKS_LIKE_CPP: u8 = 3;
+/// C++ `LFG_GROUP_KICK_VOTES_NEEDED` (`LFGMgr.h:62`): an LFG kick requires
+/// strictly more members than this.
+pub const LFG_GROUP_KICK_VOTES_NEEDED_LIKE_CPP: usize = 3;
 pub const GROUP_FLAG_EVERYONE_ASSISTANT_LIKE_CPP: u16 = 0x040;
 pub const MEMBER_FLAG_ASSISTANT_LIKE_CPP: u8 = 0x01;
 pub const MEMBER_FLAG_MAINTANK_LIKE_CPP: u8 = 0x02;
@@ -296,6 +302,10 @@ pub struct GroupInfo {
     pub recent_instances: BTreeMap<u32, GroupRecentInstanceLikeCpp>,
     pub owned_instances: BTreeMap<(u32, u32), GroupOwnedInstanceLikeCpp>,
     pub lfg_db_state: Option<GroupLfgDbStateLikeCpp>,
+    /// C++ `LfgGroupData::m_KicksLeft`, restored to `LFG_GROUP_MAX_KICKS`
+    /// for LFG-flagged groups. Only the direct uninvite gate consumes it
+    /// today (there is no vote-kick flow yet to decrement it).
+    pub lfg_kicks_left_like_cpp: u8,
     pub raid_subgroup_counts: Option<[u8; MAX_RAID_SUBGROUPS_LIKE_CPP]>,
     pub ready_check_started: bool,
     /// C++ `Group::m_readyCheckTimer` / duration in milliseconds. Decremented
@@ -336,6 +346,7 @@ impl GroupInfo {
             recent_instances: BTreeMap::new(),
             owned_instances: BTreeMap::new(),
             lfg_db_state: None,
+            lfg_kicks_left_like_cpp: 0,
             raid_subgroup_counts: None,
             ready_check_started: false,
             ready_check_timer_ms: 0,
@@ -377,6 +388,11 @@ impl GroupInfo {
             recent_instances: BTreeMap::new(),
             owned_instances: BTreeMap::new(),
             lfg_db_state: None,
+            lfg_kicks_left_like_cpp: if (group_flags & GROUP_FLAG_LFG_LIKE_CPP) != 0 {
+                LFG_GROUP_MAX_KICKS_LIKE_CPP
+            } else {
+                0
+            },
             raid_subgroup_counts: if (group_flags & GROUP_FLAG_RAID_LIKE_CPP) != 0 {
                 Some([0; MAX_RAID_SUBGROUPS_LIKE_CPP])
             } else {
