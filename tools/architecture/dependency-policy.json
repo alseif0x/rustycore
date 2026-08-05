@@ -198,8 +198,8 @@
     {
       "from": "wow-world",
       "to": "wow-handler",
-      "tracking_issue": 140,
-      "reason": "WorldSession still owns the packet dispatch driver."
+      "tracking_issue": 153,
+      "reason": "WorldSession still owns the packet dispatch driver. #152 and #140 only extract private modules inside wow-world, so neither can remove this Cargo edge; the #153 post-tranche re-audit owns the long-term handler-registry boundary decision."
     },
     {
       "from": "wow-world",
@@ -210,14 +210,14 @@
     {
       "from": "wow-world",
       "to": "wow-network",
-      "tracking_issue": 137,
-      "reason": "Gameplay still depends on network-owned player/session and group registries."
+      "tracking_issue": 153,
+      "reason": "Gameplay still depends on network-owned player/session and group registries; #134, #138, #150, #137 and #151 retire those uses in order, but the session manager, session-link and write-fence transport contracts remain, so the #153 post-tranche re-audit owns the final boundary decision."
     },
     {
       "from": "wow-world",
       "to": "wow-packet",
-      "tracking_issue": 140,
-      "reason": "WorldSession and handlers still own packet-boundary adaptation."
+      "tracking_issue": 153,
+      "reason": "WorldSession and handlers still own packet-boundary adaptation. #152 and #140 only extract private modules inside wow-world, so neither can remove this Cargo edge; the #153 post-tranche re-audit owns the long-term packet boundary decision."
     },
     {
       "from": "wow-world",
