@@ -1,0 +1,43 @@
+{
+  "name": "exception-owned-by-completed-issue",
+  "expect": "reject",
+  "error_substring": "still owned by completed issue #135",
+  "policy": {
+    "schema_version": 2,
+    "categories": {
+      "foundation": ["wow-math"],
+      "domain-runtime": ["wow-map"]
+    },
+    "allowed_category_dependencies": {
+      "foundation": ["foundation"],
+      "domain-runtime": ["domain-runtime", "foundation"]
+    },
+    "restricted_packages": {},
+    "exceptions": [
+      {
+        "from": "wow-map",
+        "to": "wow-math",
+        "tracking_issue": 135,
+        "reason": "Fixture debt still owned by a completed slice."
+      }
+    ],
+    "external_dependencies": {
+      "canonical_registry_source": "registry+https://github.com/rust-lang/crates.io-index",
+      "protected_categories": [],
+      "protected_packages": [],
+      "allowed": {},
+      "exceptions": []
+    }
+  },
+  "ledger": {
+    "schema_version": 1,
+    "parent_issue": 133,
+    "reaudit_issue": 153,
+    "sequence": [135, 153],
+    "issues": [
+      {"number": 133, "state": "open", "title": "Parent epic"},
+      {"number": 153, "state": "open", "title": "Post-tranche re-audit"},
+      {"number": 135, "state": "closed", "title": "Completed slice"}
+    ]
+  }
+}
