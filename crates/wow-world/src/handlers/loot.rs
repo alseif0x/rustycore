@@ -4468,6 +4468,12 @@ impl WorldSession {
         if command.send_group_uninvite {
             self.send_packet_realm(&wow_packet::packets::party::GroupUninvite);
         }
+        // C++ `Group::RemoveMember` (`Group.cpp:654-655`) and `Group::Disband`
+        // (`Group.cpp:746`) both finish by sending the removed player the
+        // destroyed `PartyUpdate` so its client tears down the party frames.
+        if command.send_group_destroyed || command.send_group_uninvite {
+            self.send_destroyed_group_party_update_like_cpp(command.group_guid, command.category);
+        }
     }
 
     fn handle_apply_group_join_command_like_cpp(&mut self, command: ApplyGroupJoinLikeCppCommand) {
@@ -4860,7 +4866,7 @@ impl WorldSession {
 
         // Incoming attackers do not become the player's own melee target.
         // C++ keeps that direction solely in `m_attackers`/combat references.
-        self.in_combat = true;
+        self.set_in_combat_like_cpp(true);
 
         if attacker_is_visible && !command.packet_already_broadcast {
             use wow_packet::packets::combat::AttackStart;
@@ -4934,7 +4940,7 @@ impl WorldSession {
         if self.combat_target == Some(command.attacker_guid) {
             self.combat_target = None;
         }
-        self.in_combat = still_in_combat;
+        self.set_in_combat_like_cpp(still_in_combat);
     }
 
     fn handle_reconcile_pvp_combat_expiry_like_cpp(
@@ -4964,7 +4970,7 @@ impl WorldSession {
                     .map(|player| player.unit().subsystems().combat.has_combat())
             })
             .unwrap_or(false);
-        self.in_combat = still_in_combat;
+        self.set_in_combat_like_cpp(still_in_combat);
     }
 
     fn handle_send_visible_object_values_update_command_like_cpp(
@@ -18137,6 +18143,7 @@ mod tests {
             visibility_refresh_pending_like_cpp: Default::default(),
             durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),
+            in_combat: false,
             pass_on_group_loot: false,
             enchanting_skill: 0,
             is_alive: true,

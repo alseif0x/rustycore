@@ -11101,7 +11101,7 @@ impl WorldSession {
             self.canonical_unit_attack_target_state_like_cpp(victim);
         if !self.player_vehicle_seat_allows_attack_like_cpp() {
             self.combat_target = None;
-            self.in_combat = false;
+            self.set_in_combat_like_cpp(false);
             if self.selection_guid_like_cpp() == Some(victim) {
                 self.set_selection_guid_like_cpp(None);
             }
@@ -11132,7 +11132,7 @@ impl WorldSession {
         let combat_attacker_is_friendly_to_victim = attack_context.attacker_is_friendly_to_victim;
         let combat_victim_is_friendly_to_attacker = attack_context.victim_is_friendly_to_attacker;
         self.combat_target = Some(victim);
-        self.in_combat = true;
+        self.set_in_combat_like_cpp(true);
         self.set_selection_guid_like_cpp(Some(victim));
         let outcome = self.mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().attack_with_context_like_cpp(
@@ -11163,7 +11163,7 @@ impl WorldSession {
             )
             | None => {
                 self.combat_target = None;
-                self.in_combat = false;
+                self.set_in_combat_like_cpp(false);
                 if self.selection_guid_like_cpp() == Some(victim) {
                     self.set_selection_guid_like_cpp(None);
                 }
@@ -11213,13 +11213,13 @@ impl WorldSession {
             // player state exists and says there is none.
             Some(None) => {
                 self.combat_target = None;
-                self.in_combat = false;
+                self.set_in_combat_like_cpp(false);
                 return None;
             }
             None => self.combat_target.take()?,
         };
         self.combat_target = None;
-        self.in_combat = false;
+        self.set_in_combat_like_cpp(false);
         if self.selection_guid_like_cpp() == Some(target) {
             self.set_selection_guid_like_cpp(None);
         }
@@ -11236,7 +11236,7 @@ impl WorldSession {
     fn combat_stop_like_cpp(&mut self) {
         let Some(player_guid) = self.player_guid() else {
             self.combat_target = None;
-            self.in_combat = false;
+            self.set_in_combat_like_cpp(false);
             return;
         };
 
@@ -11310,7 +11310,7 @@ impl WorldSession {
         owner_guids: Vec<ObjectGuid>,
     ) {
         self.combat_target = None;
-        self.in_combat = false;
+        self.set_in_combat_like_cpp(false);
         for owner_guid in owner_guids {
             let _ = self.mutate_world_creature(owner_guid, |owner| {
                 if owner.creature.unit().attacking() == Some(player_guid) {
@@ -24087,6 +24087,32 @@ impl WorldSession {
         current
     }
 
+    /// C++ `Group::SendUpdateDestroyGroupToPlayer` (`Group.cpp:917-926`): the
+    /// removed member tears down its party frames from a destroyed
+    /// `PartyUpdate` that carries no members. `Group::RemoveMember` sends it
+    /// after the kick when the group survives (`Group.cpp:654-655`) and
+    /// `Group::Disband` sends it to every member (`Group.cpp:746`).
+    pub(crate) fn send_destroyed_group_party_update_like_cpp(
+        &mut self,
+        group_guid: u64,
+        category: u8,
+    ) {
+        let sequence_num = self.next_group_update_sequence_number_like_cpp(category);
+        self.send_packet_realm(&wow_packet::packets::party::PartyUpdate {
+            party_flags: wow_network::group_registry::GROUP_FLAG_DESTROYED_LIKE_CPP,
+            party_index: category,
+            party_type: wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP,
+            my_index: -1,
+            party_guid: group_guid,
+            sequence_num,
+            leader_guid: ObjectGuid::EMPTY,
+            leader_faction_group: 0,
+            player_list: Vec::new(),
+            loot_settings: None,
+            difficulty_settings: None,
+        });
+    }
+
     /// C++ `Player::_LoadGroup` sets `PLAYER_FLAGS_GROUP_LEADER` when the
     /// loaded group leader matches the player, and removes it otherwise.
     pub(crate) fn apply_represented_group_leader_flag_like_cpp(&mut self) -> bool {
@@ -34483,6 +34509,7 @@ impl WorldSession {
                     .values()
                     .map(|state| state.command_identity.clone())
                     .collect(),
+                in_combat: self.in_combat,
                 pass_on_group_loot: self.pass_on_group_loot,
                 enchanting_skill: self.represented_enchanting_skill,
                 is_alive: self.player_alive_like_cpp,
@@ -34593,6 +34620,7 @@ impl WorldSession {
                 .values()
                 .map(|state| state.command_identity.clone())
                 .collect();
+            info.in_combat = self.in_combat;
             info.pass_on_group_loot = self.pass_on_group_loot;
             info.enchanting_skill = self.represented_enchanting_skill;
             info.is_alive = self.player_alive_like_cpp;
@@ -37621,7 +37649,7 @@ impl WorldSession {
     }
 
     /// Dispatch a single packet to its registered handler.
-    async fn dispatch_packet(&mut self, mut pkt: WorldPacket) {
+    pub(crate) async fn dispatch_packet(&mut self, mut pkt: WorldPacket) {
         let opcode_raw = pkt.opcode_raw();
         let opcode: ClientOpcodes = match num_traits::FromPrimitive::from_u32(u32::from(opcode_raw))
         {
@@ -38059,6 +38087,9 @@ impl WorldSession {
                     Ok(hello) => self.handle_trainer_list(hello).await,
                     Err(e) => warn!("Failed to read TrainerList: {e}"),
                 }
+            }
+            ClientOpcodes::TrainerBuySpell => {
+                self.handle_trainer_buy_spell(pkt).await;
             }
             ClientOpcodes::QuestGiverHello => {
                 self.handle_quest_giver_hello(pkt).await;
@@ -45888,6 +45919,18 @@ impl WorldSession {
 
     pub(crate) fn player_in_represented_battleground_like_cpp(&self) -> bool {
         self.player_battleground_type_id_like_cpp.is_some()
+    }
+
+    /// C++ `Player::SetInCombatState`: the session mirror and the broadcast
+    /// registry member view always move together so group-level combat gates
+    /// (like the LFG boot combat check) read live per-member state.
+    pub(crate) fn set_in_combat_like_cpp(&mut self, in_combat: bool) {
+        self.in_combat = in_combat;
+        if let (Some(guid), Some(registry)) = (self.player_guid(), &self.player_registry)
+            && let Some(mut info) = registry.get_mut(&guid)
+        {
+            info.in_combat = in_combat;
+        }
     }
 
     pub(crate) fn represented_battleground_status_is_wait_leave_like_cpp(&self) -> bool {
@@ -61314,11 +61357,12 @@ impl WorldSession {
             None => self.combat_target,
         }) else {
             self.combat_target = None;
-            self.in_combat = self
+            let has_combat = self
                 .mutate_canonical_player_like_cpp(|player| {
                     player.unit().subsystems().combat.has_combat()
                 })
                 .unwrap_or(false);
+            self.set_in_combat_like_cpp(has_combat);
             return output;
         };
         self.combat_target = Some(combat_target);
@@ -61376,7 +61420,7 @@ impl WorldSession {
                     .purge_combat_ref_like_cpp(combat_target);
             });
             self.combat_target = None;
-            self.in_combat = false;
+            self.set_in_combat_like_cpp(false);
             return output;
         };
         let (target_position, target_combat_reach, target_bounding_radius) = match target_runtime {
@@ -61462,7 +61506,7 @@ impl WorldSession {
                     player.unit_mut().attack_stop_like_cpp()
                 });
                 self.combat_target = None;
-                self.in_combat = false;
+                self.set_in_combat_like_cpp(false);
                 return output;
             };
 
@@ -61644,7 +61688,7 @@ impl WorldSession {
             });
             self.revalidate_canonical_player_combat_refs_like_cpp(player_guid);
             self.combat_target = None;
-            self.in_combat = false;
+            self.set_in_combat_like_cpp(false);
         }
         output
     }
@@ -61846,7 +61890,7 @@ impl WorldSession {
             };
             let _ = self.send_tx.send(start.to_bytes());
             self.combat_target = Some(guid);
-            self.in_combat = true;
+            self.set_in_combat_like_cpp(true);
         }
     }
 
@@ -66867,7 +66911,7 @@ impl WorldSession {
                 let _ = self.stop_player_attack_like_cpp();
             }
             self.combat_target = None;
-            self.in_combat = false;
+            self.set_in_combat_like_cpp(false);
         }
 
         let pve_refs = {
@@ -75728,6 +75772,39 @@ mod tests {
         assert!(instance_rx.try_recv().is_err());
     }
 
+    /// Parses the destroyed `PartyUpdate` that C++
+    /// `Group::SendUpdateDestroyGroupToPlayer` (`Group.cpp:917-926`) sends so
+    /// the removed member's client tears down its party frames.
+    fn assert_destroyed_party_update_like_cpp(bytes: &[u8], group_guid: u64) {
+        let mut packet = WorldPacket::from_bytes(bytes);
+        assert_eq!(
+            packet.read_uint16().expect("opcode"),
+            ServerOpcodes::PartyUpdate as u16
+        );
+        assert_eq!(
+            packet.read_uint16().expect("party flags"),
+            wow_network::group_registry::GROUP_FLAG_DESTROYED_LIKE_CPP
+        );
+        assert_eq!(
+            packet.read_uint8().expect("party index"),
+            wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP
+        );
+        assert_eq!(
+            packet.read_uint8().expect("party type"),
+            wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP
+        );
+        assert_eq!(packet.read_int32().expect("my index"), -1);
+        assert_eq!(
+            packet.read_packed_guid().expect("party guid"),
+            ObjectGuid::create_group(group_guid)
+        );
+        let _sequence_num = packet.read_int32().expect("sequence num");
+        assert_eq!(
+            packet.read_packed_guid().expect("leader guid"),
+            ObjectGuid::EMPTY
+        );
+    }
+
     #[tokio::test]
     async fn group_removal_command_clears_remote_party_type_like_cpp() {
         let (mut session, _, instance_rx) = make_session();
@@ -75812,6 +75889,11 @@ mod tests {
             wow_packet::WorldPacket::from_bytes(&destroyed).server_opcode(),
             Some(ServerOpcodes::GroupDestroyed)
         );
+        // C++ `Group::Disband` sends every member the destroyed `PartyUpdate`
+        // after `GroupDestroyed` (`Group.cpp:744-746`).
+        let destroyed_update = realm_rx.try_recv().expect("realm destroyed PartyUpdate");
+        assert_destroyed_party_update_like_cpp(&destroyed_update, group_guid);
+        assert!(realm_rx.try_recv().is_err());
     }
 
     #[tokio::test]
@@ -75884,6 +75966,11 @@ mod tests {
             wow_packet::WorldPacket::from_bytes(&uninvite).server_opcode(),
             Some(ServerOpcodes::GroupUninvite)
         );
+        // C++ `Group::RemoveMember` sends the kicked member the destroyed
+        // `PartyUpdate` when the group survives (`Group.cpp:654-655`).
+        let destroyed_update = realm_rx.try_recv().expect("realm destroyed PartyUpdate");
+        assert_destroyed_party_update_like_cpp(&destroyed_update, group_guid);
+        assert!(realm_rx.try_recv().is_err());
     }
 
     #[test]
@@ -88658,6 +88745,125 @@ mod tests {
                 1,
                 "{opcode:?} must record one clock-delta sample through the shared handler"
             );
+        }
+    }
+
+    #[tokio::test]
+    async fn party_uninvite_wire_dispatch_parses_packed_guid_and_honors_logged_in_gate_like_cpp() {
+        fn packet(target: ObjectGuid) -> WorldPacket {
+            let mut packet = WorldPacket::new_empty();
+            packet.write_uint16(ClientOpcodes::PartyUninvite as u16);
+            packet.write_bit(false);
+            packet.write_bits(3, 8);
+            packet.write_packed_guid(&target);
+            packet.write_string("bye");
+            packet.flush_bits();
+            packet.reset_read();
+            packet
+        }
+
+        let player = ObjectGuid::create_player(1, 101);
+        let target = ObjectGuid::create_player(1, 202);
+        let (mut logged_in, _pkt_tx, send_rx) = make_session();
+        logged_in.set_state(SessionState::LoggedIn);
+        logged_in.set_player_guid(Some(player));
+
+        logged_in.dispatch_packet(packet(target)).await;
+
+        let result = send_rx.try_recv().expect("PartyCommandResult");
+        assert_eq!(
+            u16::from_le_bytes([result[0], result[1]]),
+            ServerOpcodes::PartyCommandResult as u16
+        );
+        assert!(send_rx.try_recv().is_err());
+
+        let (mut authed, _pkt_tx, send_rx) = make_session();
+        authed.set_player_guid(Some(player));
+        authed.dispatch_packet(packet(target)).await;
+        assert!(
+            send_rx.try_recv().is_err(),
+            "LoggedIn metadata must reject PartyUninvite while the session is Authed"
+        );
+    }
+
+    #[tokio::test]
+    async fn move_set_vehicle_rec_id_ack_wire_dispatch_reaches_handler_only_when_logged_in() {
+        fn packet(mover: ObjectGuid) -> WorldPacket {
+            let mut packet = WorldPacket::new_empty();
+            packet.write_uint16(ClientOpcodes::MoveSetVehicleRecIdAck as u16);
+            wow_packet::packets::movement::MovementInfo {
+                guid: mover,
+                time: 12_345,
+                position: Position::new(1.25, -2.5, 3.75, 0.5),
+                ..Default::default()
+            }
+            .write(&mut packet);
+            packet.write_int32(-77);
+            packet.write_int32(9_001);
+            packet.reset_read();
+            packet
+        }
+
+        use crate::handlers::movement::take_move_set_vehicle_rec_id_ack_handler_calls_for_test;
+
+        let mover = ObjectGuid::create_player(1, 101);
+        assert_eq!(take_move_set_vehicle_rec_id_ack_handler_calls_for_test(), 0);
+
+        let (mut logged_in, _pkt_tx, send_rx) = make_session();
+        logged_in.set_state(SessionState::LoggedIn);
+        logged_in.set_player_guid(Some(mover));
+        logged_in.dispatch_packet(packet(mover)).await;
+
+        assert_eq!(take_move_set_vehicle_rec_id_ack_handler_calls_for_test(), 1);
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ HandleMoveSetVehicleRecAck sends no response"
+        );
+
+        let (mut authed, _pkt_tx, send_rx) = make_session();
+        authed.set_player_guid(Some(mover));
+        authed.dispatch_packet(packet(mover)).await;
+
+        assert_eq!(
+            take_move_set_vehicle_rec_id_ack_handler_calls_for_test(),
+            0,
+            "LoggedIn metadata must reject the ACK while the session is Authed"
+        );
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn reconciled_handler_registrations_match_cpp_metadata_and_rust_targets() {
+        let (session, _, _) = make_session();
+        let expected = [
+            (
+                ClientOpcodes::TrainerBuySpell,
+                SessionStatus::LoggedIn,
+                PacketProcessing::Inplace,
+                "handle_trainer_buy_spell",
+            ),
+            (
+                ClientOpcodes::PartyUninvite,
+                SessionStatus::LoggedIn,
+                PacketProcessing::ThreadUnsafe,
+                "handle_party_uninvite",
+            ),
+            (
+                ClientOpcodes::MoveSetVehicleRecIdAck,
+                SessionStatus::LoggedIn,
+                PacketProcessing::ThreadSafe,
+                "handle_move_set_vehicle_rec_id_ack",
+            ),
+        ];
+
+        for (opcode, status, processing, handler_name) in expected {
+            let entry = session
+                .dispatch_table
+                .get(&opcode)
+                .unwrap_or_else(|| panic!("missing linked registration for {opcode:?}"));
+            assert_eq!(entry.status, status, "{opcode:?} status");
+            assert_eq!(entry.processing, processing, "{opcode:?} processing");
+            assert_eq!(entry.handler_name, handler_name, "{opcode:?} target");
         }
     }
 
@@ -102444,6 +102650,7 @@ mod tests {
             visibility_refresh_pending_like_cpp: Default::default(),
             durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),
+            in_combat: false,
             pass_on_group_loot: false,
             enchanting_skill: 0,
             is_alive: true,

@@ -14,24 +14,10 @@ pub(crate) struct KnownDispatchDrift {
     pub(crate) tracking_issue: u32,
 }
 
-// These are pre-existing gameplay defects, not accepted architecture. Issue #142
-// owns their C++-anchored correction. Exact-set comparison makes this a removal
-// ratchet: new drift fails, and a fixed mismatch leaves a stale exception that
-// also fails.
-pub(crate) const REGISTERED_WITHOUT_DISPATCH_ARM: &[KnownDispatchDrift] = &[KnownDispatchDrift {
-    opcode_name: "TrainerBuySpell",
-    tracking_issue: 142,
-}];
-pub(crate) const DISPATCH_ARM_WITHOUT_REGISTRATION: &[KnownDispatchDrift] = &[
-    KnownDispatchDrift {
-        opcode_name: "MoveSetVehicleRecIdAck",
-        tracking_issue: 142,
-    },
-    KnownDispatchDrift {
-        opcode_name: "PartyUninvite",
-        tracking_issue: 142,
-    },
-];
+// Exact-set comparison makes this a drift ratchet: a new one-sided opcode
+// fails until its gameplay defect is repaired rather than silently tolerated.
+pub(crate) const REGISTERED_WITHOUT_DISPATCH_ARM: &[KnownDispatchDrift] = &[];
+pub(crate) const DISPATCH_ARM_WITHOUT_REGISTRATION: &[KnownDispatchDrift] = &[];
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) struct DispatcherContract {
     pub(crate) opcode_names: BTreeSet<String>,
