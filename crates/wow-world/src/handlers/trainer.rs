@@ -911,7 +911,7 @@ mod tests {
     use super::*;
     use crate::session::{
         AuraApplication, RepresentedAuraEffectLikeCpp, RepresentedPlayerSpellLikeCpp,
-        RepresentedPlayerSpellStateLikeCpp, SessionPlayerController,
+        RepresentedPlayerSpellStateLikeCpp, SessionPlayerController, SessionState,
     };
     use wow_constants::unit::UnitState;
     use wow_core::guid::HighGuid;
@@ -3446,11 +3446,11 @@ mod tests {
     }
 
     #[test]
-    fn buy_registration_remains_while_dispatch_and_legacy_shortcuts_stay_disabled() {
+    fn buy_registration_and_dispatch_arm_are_both_active_while_legacy_shortcuts_stay_disabled() {
         let trainer = include_str!("trainer.rs");
         let session = include_str!("../session.rs");
         assert!(trainer.contains("opcode: ClientOpcodes::TrainerBuySpell"));
-        assert!(!session.contains("ClientOpcodes::TrainerBuySpell =>"));
+        assert!(session.contains("ClientOpcodes::TrainerBuySpell =>"));
 
         let buy = trainer
             .split("pub async fn handle_trainer_buy_spell")
@@ -3471,6 +3471,66 @@ mod tests {
                 "#159 must use the prepared atomic boundary, not legacy shortcut `{forbidden}`"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn trainer_buy_wire_dispatch_reaches_handler_only_when_logged_in_like_cpp() {
+        const MISSING_SPELL: i32 = 99_001;
+
+        fn trainer_buy_wire_packet(
+            trainer_guid: ObjectGuid,
+            trainer_id: i32,
+            spell_id: i32,
+        ) -> WorldPacket {
+            let mut packet = WorldPacket::new_empty();
+            packet.write_uint16(ClientOpcodes::TrainerBuySpell as u16);
+            packet.write_packed_guid(&trainer_guid);
+            packet.write_int32(trainer_id);
+            packet.write_int32(spell_id);
+            packet.reset_read();
+            packet
+        }
+
+        let mut logged_in = trainer_fixture();
+        logged_in.session.set_state(SessionState::LoggedIn);
+        logged_in
+            .session
+            .set_player_trainer_interaction_like_cpp(logged_in.trainer, DEFAULT_TRAINER_ID);
+        logged_in
+            .session
+            .dispatch_packet(trainer_buy_wire_packet(
+                logged_in.trainer,
+                DEFAULT_TRAINER_ID as i32,
+                MISSING_SPELL,
+            ))
+            .await;
+        assert_eq!(
+            logged_in.send_rx.try_recv().expect("TrainerBuyFailed"),
+            TrainerBuyFailed {
+                trainer_guid: logged_in.trainer,
+                spell_id: MISSING_SPELL,
+                reason: 0,
+            }
+            .to_bytes()
+        );
+        assert!(logged_in.send_rx.try_recv().is_err());
+
+        let mut authed = trainer_fixture();
+        authed
+            .session
+            .set_player_trainer_interaction_like_cpp(authed.trainer, DEFAULT_TRAINER_ID);
+        authed
+            .session
+            .dispatch_packet(trainer_buy_wire_packet(
+                authed.trainer,
+                DEFAULT_TRAINER_ID as i32,
+                MISSING_SPELL,
+            ))
+            .await;
+        assert!(
+            authed.send_rx.try_recv().is_err(),
+            "LoggedIn metadata must reject TrainerBuySpell while the session is Authed"
+        );
     }
 
     #[tokio::test]

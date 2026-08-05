@@ -18,7 +18,8 @@ use wow_network::group_registry::{
 use wow_network::player_registry::{ApplyGroupJoinLikeCppCommand, ApplyGroupRemovalLikeCppCommand};
 use wow_network::{
     AddGroupMemberIfRoomResultLikeCpp, GROUP_ASSIGN_MAINASSIST_LIKE_CPP,
-    GROUP_ASSIGN_MAINTANK_LIKE_CPP, GroupInfo, GroupRegistry, MEMBER_FLAG_ASSISTANT_LIKE_CPP,
+    GROUP_ASSIGN_MAINTANK_LIKE_CPP, GroupInfo, GroupRegistry, LFG_GROUP_KICK_VOTES_NEEDED_LIKE_CPP,
+    LFG_STATE_FINISHED_DUNGEON_LIKE_CPP, MEMBER_FLAG_ASSISTANT_LIKE_CPP,
     MEMBER_FLAG_MAINASSIST_LIKE_CPP, MEMBER_FLAG_MAINTANK_LIKE_CPP, PendingInvites, PlayerRegistry,
     ReadyCheckEventLikeCpp, SendPartyUpdateLikeCppCommand, SendRealmPacketLikeCppCommand,
     SessionCommand, add_group_member_if_room_like_cpp, free_group_db_store_id_like_cpp,
@@ -179,6 +180,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_party_invite_response",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::PartyUninvite,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_party_uninvite",
     }
 }
 
@@ -825,17 +835,15 @@ fn send_group_packet_bytes_like_cpp(bytes: Vec<u8>, recipients: &[flume::Sender<
     }
 }
 
-fn send_party_uninvite_result_like_cpp(
-    session: &WorldSession,
-    result: u8,
-    result_guid: ObjectGuid,
-) {
+fn send_party_uninvite_result_like_cpp(session: &WorldSession, result: u8) {
     session.send_packet_realm(&PartyCommandResult {
         name: String::new(),
         command: 1, // C++ PARTY_OP_UNINVITE
         result,
         result_data: 0,
-        result_guid,
+        // C++ `WorldSession::SendPartyResult` always leaves `ResultGUID`
+        // empty (`GroupHandler.cpp:53`).
+        result_guid: ObjectGuid::EMPTY,
     });
 }
 
@@ -1648,11 +1656,7 @@ impl WorldSession {
         let group_reg = match self.group_registry() {
             Some(registry) => std::sync::Arc::clone(registry),
             None => {
-                send_party_uninvite_result_like_cpp(
-                    self,
-                    party_result::NOT_IN_GROUP,
-                    uninvite.target_guid,
-                );
+                send_party_uninvite_result_like_cpp(self, party_result::NOT_IN_GROUP);
                 return;
             }
         };
@@ -1667,11 +1671,7 @@ impl WorldSession {
             sender_guid,
             uninvite.party_index,
         ) else {
-            send_party_uninvite_result_like_cpp(
-                self,
-                party_result::NOT_IN_GROUP,
-                uninvite.target_guid,
-            );
+            send_party_uninvite_result_like_cpp(self, party_result::NOT_IN_GROUP);
             return;
         };
 
@@ -1683,23 +1683,99 @@ impl WorldSession {
                 Some(group) => group,
                 None => return,
             };
+            // C++ `Player::CanUninviteFromGroup`: an LFG group takes the boot
+            // gate and never the ordinary leader/assistant checks
+            // (`Player.cpp:25147-25192`). The LFG-specific rejections come
+            // first, in C++ order.
+            if group.is_lfg_group_like_cpp() {
+                if group.lfg_kicks_left_like_cpp == 0 {
+                    send_party_uninvite_result_like_cpp(self, party_result::PARTY_LFG_BOOT_LIMIT);
+                    return;
+                }
+                // No VoteKick authority exists yet, so
+                // `ERR_PARTY_LFG_BOOT_IN_PROGRESS` can never fire here.
+                if group.members.len() <= LFG_GROUP_KICK_VOTES_NEEDED_LIKE_CPP {
+                    send_party_uninvite_result_like_cpp(
+                        self,
+                        party_result::PARTY_LFG_BOOT_TOO_FEW_PLAYERS,
+                    );
+                    return;
+                }
+                if group.lfg_db_state.as_ref().and_then(|state| state.state)
+                    == Some(LFG_STATE_FINISHED_DUNGEON_LIKE_CPP)
+                {
+                    send_party_uninvite_result_like_cpp(
+                        self,
+                        party_result::PARTY_LFG_BOOT_DUNGEON_COMPLETE,
+                    );
+                    return;
+                }
+                // C++ checks the target's loot rolls only for a connected
+                // player (`ObjectAccessor::FindConnectedPlayer`).
+                let target_has_loot_rolls = self
+                    .player_registry()
+                    .and_then(|registry| registry.get(&uninvite.target_guid))
+                    .is_some_and(|target| !target.active_loot_rolls.is_empty());
+                if target_has_loot_rolls {
+                    send_party_uninvite_result_like_cpp(
+                        self,
+                        party_result::PARTY_LFG_BOOT_LOOT_ROLLS,
+                    );
+                    return;
+                }
+                // C++ rejects when any member in the uninviter's map is in
+                // combat (`Player.cpp:25173-25176`: `IsInMap(this)` first).
+                // Members report their combat transitions into the broadcast
+                // registry through `set_in_combat_like_cpp`, so the gate
+                // reads every represented member ON THE UNINVITER'S MAP,
+                // falling back to the live session mirror for the uninviter
+                // itself.
+                let sender_map_id = self.player_map_id_like_cpp();
+                let sender_instance_id = self
+                    .current_canonical_player_map_key_like_cpp()
+                    .map(|key| key.instance_id)
+                    .unwrap_or(0);
+                let any_member_in_combat = group.members.iter().any(|member_guid| {
+                    if *member_guid == sender_guid {
+                        self.in_combat
+                    } else {
+                        self.player_registry()
+                            .and_then(|registry| registry.get(member_guid))
+                            .is_some_and(|member| {
+                                member.in_combat
+                                    && member.map_id == sender_map_id
+                                    && member.instance_id == sender_instance_id
+                            })
+                    }
+                });
+                if any_member_in_combat {
+                    send_party_uninvite_result_like_cpp(
+                        self,
+                        party_result::PARTY_LFG_BOOT_IN_COMBAT,
+                    );
+                    return;
+                }
+            }
             let sender_is_assistant = group
                 .member_slot_like_cpp(sender_guid)
                 .is_some_and(|slot| (slot.flags & MEMBER_FLAG_ASSISTANT_LIKE_CPP) != 0);
-            if group.leader_guid != sender_guid && !sender_is_assistant {
-                send_party_uninvite_result_like_cpp(
-                    self,
-                    party_result::NOT_LEADER,
-                    uninvite.target_guid,
-                );
+            if !group.is_lfg_group_like_cpp()
+                && group.leader_guid != sender_guid
+                && !sender_is_assistant
+            {
+                send_party_uninvite_result_like_cpp(self, party_result::NOT_LEADER);
                 return;
             }
-            if group.leader_guid == uninvite.target_guid {
-                send_party_uninvite_result_like_cpp(
-                    self,
-                    party_result::NOT_LEADER,
-                    uninvite.target_guid,
-                );
+            if !group.is_lfg_group_like_cpp() && self.player_in_represented_battleground_like_cpp()
+            {
+                // C++ `CanUninviteFromGroup` normal branch: battleground
+                // senders are restricted before any target check
+                // (`Player.cpp:25181-25182`).
+                send_party_uninvite_result_like_cpp(self, party_result::INVITE_RESTRICTED);
+                return;
+            }
+            if !group.is_lfg_group_like_cpp() && group.leader_guid == uninvite.target_guid {
+                send_party_uninvite_result_like_cpp(self, party_result::NOT_LEADER);
                 return;
             }
             if !group.members.contains(&uninvite.target_guid) {
@@ -1712,11 +1788,15 @@ impl WorldSession {
                         return;
                     }
                 }
-                send_party_uninvite_result_like_cpp(
-                    self,
-                    party_result::TARGET_NOT_IN_GROUP,
-                    uninvite.target_guid,
-                );
+                send_party_uninvite_result_like_cpp(self, party_result::TARGET_NOT_IN_GROUP);
+                return;
+            }
+
+            // C++ `Group::RemoveMember` returns early for LFG groups with
+            // `GROUP_REMOVEMETHOD_KICK` (`Group.cpp:573-575`): the LFG
+            // vote-kick scripts own the actual removal, so a direct uninvite
+            // that passed the boot gate never removes the member here.
+            if group.is_lfg_group_like_cpp() {
                 return;
             }
 
@@ -1778,6 +1858,12 @@ impl WorldSession {
             self.sync_player_registry_state_like_cpp();
             let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
             self.send_packet_realm(&wow_packet::packets::party::GroupDestroyed);
+            // C++ `Group::Disband` sends every member the destroyed
+            // `PartyUpdate` after `GroupDestroyed` (`Group.cpp:744-746`).
+            self.send_destroyed_group_party_update_like_cpp(
+                group_guid,
+                wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP,
+            );
             return;
         }
 
@@ -3399,6 +3485,7 @@ mod tests {
             visibility_refresh_pending_like_cpp: Default::default(),
             durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),
+            in_combat: false,
             pass_on_group_loot: false,
             enchanting_skill: 0,
             is_alive: true,
@@ -3580,7 +3667,7 @@ mod tests {
         let mut pkt = WorldPacket::new_empty();
         pkt.write_bit(party_index.is_some());
         pkt.write_bits(reason.len() as u32, 8);
-        pkt.write_guid(&target);
+        pkt.write_packed_guid(&target);
         if let Some(party_index) = party_index {
             pkt.write_uint8(party_index);
         }
@@ -4985,6 +5072,359 @@ mod tests {
         assert!(send_rx.try_recv().is_err());
     }
 
+    fn lfg_group_like_cpp(leader: ObjectGuid, member_count: usize) -> GroupInfo {
+        let mut group = GroupInfo::new(leader);
+        for counter in 100..(100 + member_count as i64 - 1) {
+            assert!(group.add_member(ObjectGuid::create_player(1, counter)));
+        }
+        group.group_flags |= wow_network::GROUP_FLAG_LFG_LIKE_CPP;
+        group.lfg_kicks_left_like_cpp = wow_network::LFG_GROUP_MAX_KICKS_LIKE_CPP;
+        group
+    }
+
+    fn lfg_uninvite_session_like_cpp(
+        group: GroupInfo,
+        sender_guid: ObjectGuid,
+    ) -> (
+        WorldSession,
+        flume::Receiver<Vec<u8>>,
+        Arc<GroupRegistry>,
+        u64,
+    ) {
+        let (mut session, send_rx) = make_session_with_send();
+        let group_registry = Arc::new(GroupRegistry::default());
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+        session.set_player_guid(Some(sender_guid));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(Arc::new(PlayerRegistry::default()));
+        session.set_group_registry(
+            Arc::clone(&group_registry),
+            Arc::new(PendingInvites::default()),
+        );
+        (session, send_rx, group_registry, group_guid)
+    }
+
+    #[tokio::test]
+    async fn lfg_uninvite_by_nonleader_passes_gate_but_kick_is_vote_owned_like_cpp() {
+        // C++ `Player::CanUninviteFromGroup` LFG branch requires no
+        // leader/assistant role, and `Group::RemoveMember` then returns
+        // early for LFG + KICK (`Group.cpp:573-575`): the vote-kick scripts
+        // own the removal, so a direct uninvite changes no membership.
+        let leader = ObjectGuid::create_player(1, 42);
+        let sender = ObjectGuid::create_player(1, 100);
+        let target = ObjectGuid::create_player(1, 101);
+        let group = lfg_group_like_cpp(leader, 5);
+        let (mut session, send_rx, group_registry, group_guid) =
+            lfg_uninvite_session_like_cpp(group, sender);
+
+        session
+            .handle_party_uninvite(party_uninvite_packet(target, None, "boot"))
+            .await;
+
+        assert!(
+            group_registry
+                .get(&group_guid)
+                .expect("group")
+                .members
+                .contains(&target),
+            "a passed LFG boot gate must not remove: C++ swallows direct kicks"
+        );
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ sends no result packet when the gate passes"
+        );
+    }
+
+    #[tokio::test]
+    async fn lfg_uninvite_boot_limit_returns_code_without_removal_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let sender = ObjectGuid::create_player(1, 100);
+        let target = ObjectGuid::create_player(1, 101);
+        let mut group = lfg_group_like_cpp(leader, 5);
+        group.lfg_kicks_left_like_cpp = 0;
+        let (mut session, send_rx, group_registry, group_guid) =
+            lfg_uninvite_session_like_cpp(group, sender);
+
+        session
+            .handle_party_uninvite(party_uninvite_packet(target, None, "boot"))
+            .await;
+
+        assert_eq!(
+            party_command_result_code(&send_rx.try_recv().expect("boot limit result")),
+            party_result::PARTY_LFG_BOOT_LIMIT
+        );
+        assert!(
+            group_registry
+                .get(&group_guid)
+                .expect("group")
+                .members
+                .contains(&target)
+        );
+    }
+
+    #[tokio::test]
+    async fn lfg_uninvite_too_few_players_returns_code_without_removal_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let sender = ObjectGuid::create_player(1, 100);
+        let target = ObjectGuid::create_player(1, 101);
+        let group = lfg_group_like_cpp(leader, 3);
+        let (mut session, send_rx, group_registry, group_guid) =
+            lfg_uninvite_session_like_cpp(group, sender);
+
+        session
+            .handle_party_uninvite(party_uninvite_packet(target, None, "boot"))
+            .await;
+
+        assert_eq!(
+            party_command_result_code(&send_rx.try_recv().expect("too few players result")),
+            party_result::PARTY_LFG_BOOT_TOO_FEW_PLAYERS
+        );
+        assert!(
+            group_registry
+                .get(&group_guid)
+                .expect("group")
+                .members
+                .contains(&target)
+        );
+    }
+
+    #[tokio::test]
+    async fn lfg_uninvite_finished_dungeon_returns_code_without_removal_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let sender = ObjectGuid::create_player(1, 100);
+        let target = ObjectGuid::create_player(1, 101);
+        let mut group = lfg_group_like_cpp(leader, 5);
+        group.lfg_db_state = Some(wow_network::GroupLfgDbStateLikeCpp {
+            dungeon_id: 100,
+            state: Some(wow_network::LFG_STATE_FINISHED_DUNGEON_LIKE_CPP),
+        });
+        let (mut session, send_rx, group_registry, group_guid) =
+            lfg_uninvite_session_like_cpp(group, sender);
+
+        session
+            .handle_party_uninvite(party_uninvite_packet(target, None, "boot"))
+            .await;
+
+        assert_eq!(
+            party_command_result_code(&send_rx.try_recv().expect("dungeon complete result")),
+            party_result::PARTY_LFG_BOOT_DUNGEON_COMPLETE
+        );
+        assert!(
+            group_registry
+                .get(&group_guid)
+                .expect("group")
+                .members
+                .contains(&target)
+        );
+    }
+
+    #[tokio::test]
+    async fn lfg_uninvite_target_loot_rolls_returns_code_without_removal_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let sender = ObjectGuid::create_player(1, 100);
+        let target = ObjectGuid::create_player(1, 101);
+        let group = lfg_group_like_cpp(leader, 5);
+        let (mut session, send_rx, group_registry, group_guid) =
+            lfg_uninvite_session_like_cpp(group, sender);
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (target_tx, _target_rx) = flume::bounded(8);
+        let mut target_info = broadcast_info(target, target_tx);
+        target_info.active_loot_rolls.push(
+            wow_network::LootRollCommandIdentityLikeCpp::new_like_cpp(
+                ObjectGuid::create_item(1, 9001),
+                1,
+                wow_loot::OwnedLootAuthority::default(),
+                1,
+            ),
+        );
+        player_registry.insert(target, target_info);
+        session.set_player_registry(player_registry);
+
+        session
+            .handle_party_uninvite(party_uninvite_packet(target, None, "boot"))
+            .await;
+
+        assert_eq!(
+            party_command_result_code(&send_rx.try_recv().expect("loot rolls result")),
+            party_result::PARTY_LFG_BOOT_LOOT_ROLLS
+        );
+        assert!(
+            group_registry
+                .get(&group_guid)
+                .expect("group")
+                .members
+                .contains(&target)
+        );
+    }
+
+    #[tokio::test]
+    async fn lfg_uninvite_in_combat_returns_code_without_removal_like_cpp() {
+        let leader = ObjectGuid::create_player(1, 42);
+        let sender = ObjectGuid::create_player(1, 100);
+        let target = ObjectGuid::create_player(1, 101);
+        let group = lfg_group_like_cpp(leader, 5);
+        let (mut session, send_rx, group_registry, group_guid) =
+            lfg_uninvite_session_like_cpp(group, sender);
+        session.in_combat = true;
+
+        session
+            .handle_party_uninvite(party_uninvite_packet(target, None, "boot"))
+            .await;
+
+        assert_eq!(
+            party_command_result_code(&send_rx.try_recv().expect("in combat result")),
+            party_result::PARTY_LFG_BOOT_IN_COMBAT
+        );
+        assert!(
+            group_registry
+                .get(&group_guid)
+                .expect("group")
+                .members
+                .contains(&target)
+        );
+    }
+
+    #[tokio::test]
+    async fn lfg_uninvite_member_in_combat_returns_code_without_removal_like_cpp() {
+        // C++ checks every member on the uninviter's map: another member in
+        // combat blocks the kick even when the uninviter is at peace.
+        let leader = ObjectGuid::create_player(1, 42);
+        let sender = ObjectGuid::create_player(1, 100);
+        let target = ObjectGuid::create_player(1, 101);
+        let group = lfg_group_like_cpp(leader, 5);
+        let (mut session, send_rx, group_registry, group_guid) =
+            lfg_uninvite_session_like_cpp(group, sender);
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (target_tx, _target_rx) = flume::bounded(8);
+        let mut target_info = broadcast_info(target, target_tx);
+        target_info.in_combat = true;
+        player_registry.insert(target, target_info);
+        session.set_player_registry(Arc::clone(&player_registry));
+        assert!(!session.in_combat);
+
+        session
+            .handle_party_uninvite(party_uninvite_packet(target, None, "boot"))
+            .await;
+
+        assert_eq!(
+            party_command_result_code(&send_rx.try_recv().expect("in combat result")),
+            party_result::PARTY_LFG_BOOT_IN_COMBAT
+        );
+        assert!(
+            group_registry
+                .get(&group_guid)
+                .expect("group")
+                .members
+                .contains(&target)
+        );
+    }
+
+    #[tokio::test]
+    async fn lfg_uninvite_member_in_combat_on_another_map_passes_gate_like_cpp() {
+        // C++ only counts members in the uninviter's map (`IsInMap(this)`):
+        // a member fighting on another map does not block the kick.
+        let leader = ObjectGuid::create_player(1, 42);
+        let sender = ObjectGuid::create_player(1, 100);
+        let target = ObjectGuid::create_player(1, 101);
+        let group = lfg_group_like_cpp(leader, 5);
+        let (mut session, send_rx, group_registry, group_guid) =
+            lfg_uninvite_session_like_cpp(group, sender);
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (target_tx, _target_rx) = flume::bounded(8);
+        let mut target_info = broadcast_info(target, target_tx);
+        target_info.in_combat = true;
+        target_info.map_id = 1;
+        target_info.instance_id = 1;
+        player_registry.insert(target, target_info);
+        session.set_player_registry(Arc::clone(&player_registry));
+
+        session
+            .handle_party_uninvite(party_uninvite_packet(target, None, "boot"))
+            .await;
+
+        assert!(
+            send_rx.try_recv().is_err(),
+            "C++ ignores combat on other maps: the gate passes silently into the vote-owned swallow"
+        );
+        assert!(
+            group_registry
+                .get(&group_guid)
+                .expect("group")
+                .members
+                .contains(&target)
+        );
+    }
+
+    #[tokio::test]
+    async fn session_combat_transition_updates_the_registry_member_view_like_cpp() {
+        // The LFG combat gate can only read members if their registry view
+        // tracks the owning session's transitions.
+        let guid = ObjectGuid::create_player(1, 42);
+        let (mut session, _send_rx) = make_session_with_send();
+        session.set_player_guid(Some(guid));
+        let player_registry = Arc::new(PlayerRegistry::default());
+        let (tx, _rx) = flume::bounded(8);
+        player_registry.insert(guid, broadcast_info(guid, tx));
+        session.set_player_registry(Arc::clone(&player_registry));
+
+        session.set_in_combat_like_cpp(true);
+        assert!(player_registry.get(&guid).expect("member").in_combat);
+        session.set_in_combat_like_cpp(false);
+        assert!(!player_registry.get(&guid).expect("member").in_combat);
+    }
+
+    #[tokio::test]
+    async fn lfg_uninvite_against_leader_passes_gate_without_removal_like_cpp() {
+        // C++'s LFG branch has no `IsLeader(guidMember)` rejection, and the
+        // same swallowed-kick rule leaves the leader in place: no stale
+        // `leader_guid` can ever be produced by this path.
+        let leader = ObjectGuid::create_player(1, 42);
+        let sender = ObjectGuid::create_player(1, 100);
+        let group = lfg_group_like_cpp(leader, 5);
+        let (mut session, send_rx, group_registry, group_guid) =
+            lfg_uninvite_session_like_cpp(group, sender);
+
+        session
+            .handle_party_uninvite(party_uninvite_packet(leader, None, "boot"))
+            .await;
+
+        let group = group_registry.get(&group_guid).expect("group");
+        assert!(group.members.contains(&leader));
+        assert_eq!(group.leader_guid, leader);
+        let _ = send_rx;
+    }
+
+    #[tokio::test]
+    async fn normal_group_uninvite_in_battleground_returns_invite_restricted_like_cpp() {
+        // C++ `CanUninviteFromGroup` normal branch returns
+        // `ERR_INVITE_RESTRICTED` when the sender is in a battleground
+        // (`Player.cpp:25181-25182`).
+        let leader = ObjectGuid::create_player(1, 42);
+        let target = ObjectGuid::create_player(1, 100);
+        let mut group = GroupInfo::new(leader);
+        assert!(group.add_member(target));
+        let (mut session, send_rx, group_registry, group_guid) =
+            lfg_uninvite_session_like_cpp(group, leader);
+        session.set_player_battleground_type_id_like_cpp(1);
+
+        session
+            .handle_party_uninvite(party_uninvite_packet(target, None, "bye"))
+            .await;
+
+        assert_eq!(
+            party_command_result_code(&send_rx.try_recv().expect("invite restricted result")),
+            party_result::INVITE_RESTRICTED
+        );
+        assert!(
+            group_registry
+                .get(&group_guid)
+                .expect("group")
+                .members
+                .contains(&target)
+        );
+    }
+
     #[tokio::test]
     async fn party_uninvite_leader_queues_remote_remove_member_cleanup_like_cpp() {
         let (mut session, _send_rx) = make_session_with_send();
@@ -5054,6 +5494,95 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn party_uninvite_disband_sends_destroyed_party_update_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let target = ObjectGuid::create_player(1, 77);
+        let (leader_tx, _leader_rx) = bounded(8);
+        let (target_tx, _target_rx) = bounded(8);
+        let (target_command_tx, target_command_rx) = bounded(8);
+        let player_registry = Arc::new(PlayerRegistry::default());
+        player_registry.insert(leader, broadcast_info(leader, leader_tx));
+        player_registry.insert(
+            target,
+            broadcast_info_with_command_tx(target, target_tx, target_command_tx),
+        );
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(target);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        session.set_player_guid(Some(leader));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(Arc::clone(&player_registry));
+        session.set_group_registry(
+            Arc::clone(&group_registry),
+            Arc::new(PendingInvites::default()),
+        );
+
+        session
+            .handle_party_uninvite(party_uninvite_packet(target, None, "bye"))
+            .await;
+
+        // C++ `Group::RemoveMember` disbands a two-member group instead of
+        // keeping it alive (`Group.cpp:660-663`).
+        assert!(group_registry.get(&group_guid).is_none());
+        assert_eq!(session.group_guid, None);
+
+        let command = target_command_rx.try_recv().unwrap();
+        let SessionCommand::ApplyGroupRemovalLikeCpp(command) = command else {
+            panic!("expected ApplyGroupRemovalLikeCpp for kicked member");
+        };
+        assert!(command.send_group_destroyed);
+        assert!(!command.send_group_uninvite);
+
+        // C++ `Group::Disband` sends the leader `GroupDestroyed` and then the
+        // destroyed `PartyUpdate` (`Group.cpp:744-746`).
+        let mut destroyed_index = None;
+        let mut update_index = None;
+        let mut destroyed_update = None;
+        let mut index = 0usize;
+        while let Ok(bytes) = send_rx.try_recv() {
+            let opcode = WorldPacket::from_bytes(&bytes).server_opcode();
+            if opcode == Some(ServerOpcodes::GroupDestroyed) {
+                destroyed_index = Some(index);
+            }
+            if opcode == Some(ServerOpcodes::PartyUpdate) {
+                update_index = Some(index);
+                destroyed_update = Some(bytes);
+            }
+            index += 1;
+        }
+        let destroyed_index = destroyed_index.expect("leader GroupDestroyed");
+        let update_index = update_index.expect("leader destroyed PartyUpdate");
+        assert!(destroyed_index < update_index);
+
+        let mut packet = WorldPacket::from_bytes(&destroyed_update.unwrap());
+        assert_eq!(
+            packet.read_uint16().expect("opcode"),
+            ServerOpcodes::PartyUpdate as u16
+        );
+        assert_eq!(
+            packet.read_uint16().expect("party flags"),
+            wow_network::group_registry::GROUP_FLAG_DESTROYED_LIKE_CPP
+        );
+        assert_eq!(
+            packet.read_uint8().expect("party index"),
+            GROUP_CATEGORY_HOME_LIKE_CPP
+        );
+        assert_eq!(
+            packet.read_uint8().expect("party type"),
+            wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP
+        );
+        assert_eq!(packet.read_int32().expect("my index"), -1);
+        assert_eq!(
+            packet.read_packed_guid().expect("party guid"),
+            ObjectGuid::create_group(group_guid)
+        );
+    }
+
+    #[tokio::test]
     async fn party_uninvite_non_leader_rejects_with_cpp_result() {
         let (mut session, send_rx) = make_session_with_send();
         let leader = ObjectGuid::create_player(1, 42);
@@ -5089,6 +5618,11 @@ mod tests {
         assert_eq!(name_len, 0);
         assert_eq!(command, 1); // C++ PARTY_OP_UNINVITE
         assert_eq!(result_code as u8, party_result::NOT_LEADER);
+        payload.flush_bits();
+        assert_eq!(payload.read_uint32().unwrap(), 0); // C++ ResultData
+        // C++ `WorldSession::SendPartyResult` always leaves `ResultGUID`
+        // empty (`GroupHandler.cpp:53`).
+        assert_eq!(payload.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
         assert!(send_rx.try_recv().is_err());
     }
 

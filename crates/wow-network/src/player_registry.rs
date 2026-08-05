@@ -998,6 +998,11 @@ pub struct PlayerBroadcastInfo {
     pub position: Position,
     /// Current combat reach used by C++ distance gates such as `GetDistanceZ`.
     pub combat_reach: f32,
+    /// C++ `Player::IsInCombat` mirrored from the owning session, refreshed
+    /// at every combat transition through `set_in_combat_like_cpp` and the
+    /// registry state sync; group-level gates (like the LFG boot combat
+    /// check) read this per member.
+    pub in_combat: bool,
     /// Represented C++ `Unit::GetLiquidStatus()` snapshot for remote accessibility gates.
     pub liquid_status: u32,
     /// Represented C++ `Player::IsInWorld()` receiver gate for global-message fanout.
@@ -1194,6 +1199,7 @@ mod tests {
             visibility_refresh_pending_like_cpp: Default::default(),
             durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),
+            in_combat: false,
             pass_on_group_loot: false,
             enchanting_skill: 0,
             is_alive: true,

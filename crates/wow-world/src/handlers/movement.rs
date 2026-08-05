@@ -35,6 +35,43 @@ use crate::session::{
     WorldSession,
 };
 
+// C++ `HandleMoveSetVehicleRecAck` has no session-visible side effect, so
+// the #142 wire-dispatch test proves reachability with a test-only call
+// counter instead of inventing production state.
+#[cfg(test)]
+static MOVE_SET_VEHICLE_REC_ID_ACK_HANDLER_CALLS_FOR_TEST: std::sync::Mutex<
+    Vec<(std::thread::ThreadId, usize)>,
+> = std::sync::Mutex::new(Vec::new());
+
+#[cfg(test)]
+fn record_move_set_vehicle_rec_id_ack_handler_call_for_test() {
+    let thread_id = std::thread::current().id();
+    let mut calls_by_thread = MOVE_SET_VEHICLE_REC_ID_ACK_HANDLER_CALLS_FOR_TEST
+        .lock()
+        .expect("vehicle ACK test-call counter poisoned");
+    if let Some((_, calls)) = calls_by_thread
+        .iter_mut()
+        .find(|(candidate, _)| *candidate == thread_id)
+    {
+        *calls += 1;
+    } else {
+        calls_by_thread.push((thread_id, 1));
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn take_move_set_vehicle_rec_id_ack_handler_calls_for_test() -> usize {
+    let thread_id = std::thread::current().id();
+    let mut calls_by_thread = MOVE_SET_VEHICLE_REC_ID_ACK_HANDLER_CALLS_FOR_TEST
+        .lock()
+        .expect("vehicle ACK test-call counter poisoned");
+    calls_by_thread
+        .iter()
+        .position(|(candidate, _)| *candidate == thread_id)
+        .map(|index| calls_by_thread.swap_remove(index).1)
+        .unwrap_or(0)
+}
+
 // ── Handler registrations ─────────────────────────────────────────
 // All CMSG_MOVE_* share the same handler (ThreadSafe in C#).
 
@@ -620,6 +657,8 @@ impl WorldSession {
         opcode: ClientOpcodes,
         mut pkt: wow_packet::packets::vehicle::MoveSetVehicleRecIdAck,
     ) {
+        #[cfg(test)]
+        record_move_set_vehicle_rec_id_ack_handler_call_for_test();
         trace!(
             account = self.account_id,
             ?opcode,
@@ -2675,6 +2714,7 @@ mod tests {
             visibility_refresh_pending_like_cpp: Default::default(),
             durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),
+            in_combat: false,
             pass_on_group_loot: false,
             enchanting_skill: 0,
             is_alive: true,
@@ -2812,6 +2852,15 @@ inventory::submit! {
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_move_init_active_mover_complete",
+    }
+}
+
+inventory::submit! {
+    PacketHandlerEntry {
+        opcode: ClientOpcodes::MoveSetVehicleRecIdAck,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadSafe,
+        handler_name: "handle_move_set_vehicle_rec_id_ack",
     }
 }
 
