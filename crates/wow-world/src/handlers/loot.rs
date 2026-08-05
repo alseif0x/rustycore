@@ -4468,6 +4468,12 @@ impl WorldSession {
         if command.send_group_uninvite {
             self.send_packet_realm(&wow_packet::packets::party::GroupUninvite);
         }
+        // C++ `Group::RemoveMember` (`Group.cpp:654-655`) and `Group::Disband`
+        // (`Group.cpp:746`) both finish by sending the removed player the
+        // destroyed `PartyUpdate` so its client tears down the party frames.
+        if command.send_group_destroyed || command.send_group_uninvite {
+            self.send_destroyed_group_party_update_like_cpp(command.group_guid, command.category);
+        }
     }
 
     fn handle_apply_group_join_command_like_cpp(&mut self, command: ApplyGroupJoinLikeCppCommand) {

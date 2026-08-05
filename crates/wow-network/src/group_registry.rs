@@ -19,6 +19,9 @@ static GROUP_DB_STORE: Mutex<Vec<Option<u64>>> = Mutex::new(Vec::new());
 
 pub const GROUP_FLAG_RAID_LIKE_CPP: u16 = 0x002;
 pub const GROUP_FLAG_LFG_LIKE_CPP: u16 = 0x008;
+/// C++ `GROUP_FLAG_DESTROYED` (`Group.h:100`): marks the `PartyUpdate` that
+/// tears down the removed member's party frames.
+pub const GROUP_FLAG_DESTROYED_LIKE_CPP: u16 = 0x010;
 /// C++ `LFG_GROUP_MAX_KICKS` (`LFGGroupData.h:28`): kicks each LFG group
 /// starts with; only the vote-kick flow decrements it there.
 pub const LFG_GROUP_MAX_KICKS_LIKE_CPP: u8 = 3;

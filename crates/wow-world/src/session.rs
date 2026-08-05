@@ -24087,6 +24087,32 @@ impl WorldSession {
         current
     }
 
+    /// C++ `Group::SendUpdateDestroyGroupToPlayer` (`Group.cpp:917-926`): the
+    /// removed member tears down its party frames from a destroyed
+    /// `PartyUpdate` that carries no members. `Group::RemoveMember` sends it
+    /// after the kick when the group survives (`Group.cpp:654-655`) and
+    /// `Group::Disband` sends it to every member (`Group.cpp:746`).
+    pub(crate) fn send_destroyed_group_party_update_like_cpp(
+        &mut self,
+        group_guid: u64,
+        category: u8,
+    ) {
+        let sequence_num = self.next_group_update_sequence_number_like_cpp(category);
+        self.send_packet_realm(&wow_packet::packets::party::PartyUpdate {
+            party_flags: wow_network::group_registry::GROUP_FLAG_DESTROYED_LIKE_CPP,
+            party_index: category,
+            party_type: wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP,
+            my_index: -1,
+            party_guid: group_guid,
+            sequence_num,
+            leader_guid: ObjectGuid::EMPTY,
+            leader_faction_group: 0,
+            player_list: Vec::new(),
+            loot_settings: None,
+            difficulty_settings: None,
+        });
+    }
+
     /// C++ `Player::_LoadGroup` sets `PLAYER_FLAGS_GROUP_LEADER` when the
     /// loaded group leader matches the player, and removes it otherwise.
     pub(crate) fn apply_represented_group_leader_flag_like_cpp(&mut self) -> bool {
@@ -75746,6 +75772,39 @@ mod tests {
         assert!(instance_rx.try_recv().is_err());
     }
 
+    /// Parses the destroyed `PartyUpdate` that C++
+    /// `Group::SendUpdateDestroyGroupToPlayer` (`Group.cpp:917-926`) sends so
+    /// the removed member's client tears down its party frames.
+    fn assert_destroyed_party_update_like_cpp(bytes: &[u8], group_guid: u64) {
+        let mut packet = WorldPacket::from_bytes(bytes);
+        assert_eq!(
+            packet.read_uint16().expect("opcode"),
+            ServerOpcodes::PartyUpdate as u16
+        );
+        assert_eq!(
+            packet.read_uint16().expect("party flags"),
+            wow_network::group_registry::GROUP_FLAG_DESTROYED_LIKE_CPP
+        );
+        assert_eq!(
+            packet.read_uint8().expect("party index"),
+            wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP
+        );
+        assert_eq!(
+            packet.read_uint8().expect("party type"),
+            wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP
+        );
+        assert_eq!(packet.read_int32().expect("my index"), -1);
+        assert_eq!(
+            packet.read_packed_guid().expect("party guid"),
+            ObjectGuid::create_group(group_guid)
+        );
+        let _sequence_num = packet.read_int32().expect("sequence num");
+        assert_eq!(
+            packet.read_packed_guid().expect("leader guid"),
+            ObjectGuid::EMPTY
+        );
+    }
+
     #[tokio::test]
     async fn group_removal_command_clears_remote_party_type_like_cpp() {
         let (mut session, _, instance_rx) = make_session();
@@ -75830,6 +75889,11 @@ mod tests {
             wow_packet::WorldPacket::from_bytes(&destroyed).server_opcode(),
             Some(ServerOpcodes::GroupDestroyed)
         );
+        // C++ `Group::Disband` sends every member the destroyed `PartyUpdate`
+        // after `GroupDestroyed` (`Group.cpp:744-746`).
+        let destroyed_update = realm_rx.try_recv().expect("realm destroyed PartyUpdate");
+        assert_destroyed_party_update_like_cpp(&destroyed_update, group_guid);
+        assert!(realm_rx.try_recv().is_err());
     }
 
     #[tokio::test]
@@ -75902,6 +75966,11 @@ mod tests {
             wow_packet::WorldPacket::from_bytes(&uninvite).server_opcode(),
             Some(ServerOpcodes::GroupUninvite)
         );
+        // C++ `Group::RemoveMember` sends the kicked member the destroyed
+        // `PartyUpdate` when the group survives (`Group.cpp:654-655`).
+        let destroyed_update = realm_rx.try_recv().expect("realm destroyed PartyUpdate");
+        assert_destroyed_party_update_like_cpp(&destroyed_update, group_guid);
+        assert!(realm_rx.try_recv().is_err());
     }
 
     #[test]

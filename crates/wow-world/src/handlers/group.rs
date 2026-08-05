@@ -835,17 +835,15 @@ fn send_group_packet_bytes_like_cpp(bytes: Vec<u8>, recipients: &[flume::Sender<
     }
 }
 
-fn send_party_uninvite_result_like_cpp(
-    session: &WorldSession,
-    result: u8,
-    result_guid: ObjectGuid,
-) {
+fn send_party_uninvite_result_like_cpp(session: &WorldSession, result: u8) {
     session.send_packet_realm(&PartyCommandResult {
         name: String::new(),
         command: 1, // C++ PARTY_OP_UNINVITE
         result,
         result_data: 0,
-        result_guid,
+        // C++ `WorldSession::SendPartyResult` always leaves `ResultGUID`
+        // empty (`GroupHandler.cpp:53`).
+        result_guid: ObjectGuid::EMPTY,
     });
 }
 
@@ -1658,11 +1656,7 @@ impl WorldSession {
         let group_reg = match self.group_registry() {
             Some(registry) => std::sync::Arc::clone(registry),
             None => {
-                send_party_uninvite_result_like_cpp(
-                    self,
-                    party_result::NOT_IN_GROUP,
-                    uninvite.target_guid,
-                );
+                send_party_uninvite_result_like_cpp(self, party_result::NOT_IN_GROUP);
                 return;
             }
         };
@@ -1677,11 +1671,7 @@ impl WorldSession {
             sender_guid,
             uninvite.party_index,
         ) else {
-            send_party_uninvite_result_like_cpp(
-                self,
-                party_result::NOT_IN_GROUP,
-                uninvite.target_guid,
-            );
+            send_party_uninvite_result_like_cpp(self, party_result::NOT_IN_GROUP);
             return;
         };
 
@@ -1699,11 +1689,7 @@ impl WorldSession {
             // first, in C++ order.
             if group.is_lfg_group_like_cpp() {
                 if group.lfg_kicks_left_like_cpp == 0 {
-                    send_party_uninvite_result_like_cpp(
-                        self,
-                        party_result::PARTY_LFG_BOOT_LIMIT,
-                        uninvite.target_guid,
-                    );
+                    send_party_uninvite_result_like_cpp(self, party_result::PARTY_LFG_BOOT_LIMIT);
                     return;
                 }
                 // No VoteKick authority exists yet, so
@@ -1712,7 +1698,6 @@ impl WorldSession {
                     send_party_uninvite_result_like_cpp(
                         self,
                         party_result::PARTY_LFG_BOOT_TOO_FEW_PLAYERS,
-                        uninvite.target_guid,
                     );
                     return;
                 }
@@ -1722,7 +1707,6 @@ impl WorldSession {
                     send_party_uninvite_result_like_cpp(
                         self,
                         party_result::PARTY_LFG_BOOT_DUNGEON_COMPLETE,
-                        uninvite.target_guid,
                     );
                     return;
                 }
@@ -1736,7 +1720,6 @@ impl WorldSession {
                     send_party_uninvite_result_like_cpp(
                         self,
                         party_result::PARTY_LFG_BOOT_LOOT_ROLLS,
-                        uninvite.target_guid,
                     );
                     return;
                 }
@@ -1769,7 +1752,6 @@ impl WorldSession {
                     send_party_uninvite_result_like_cpp(
                         self,
                         party_result::PARTY_LFG_BOOT_IN_COMBAT,
-                        uninvite.target_guid,
                     );
                     return;
                 }
@@ -1781,11 +1763,7 @@ impl WorldSession {
                 && group.leader_guid != sender_guid
                 && !sender_is_assistant
             {
-                send_party_uninvite_result_like_cpp(
-                    self,
-                    party_result::NOT_LEADER,
-                    uninvite.target_guid,
-                );
+                send_party_uninvite_result_like_cpp(self, party_result::NOT_LEADER);
                 return;
             }
             if !group.is_lfg_group_like_cpp() && self.player_in_represented_battleground_like_cpp()
@@ -1793,19 +1771,11 @@ impl WorldSession {
                 // C++ `CanUninviteFromGroup` normal branch: battleground
                 // senders are restricted before any target check
                 // (`Player.cpp:25181-25182`).
-                send_party_uninvite_result_like_cpp(
-                    self,
-                    party_result::INVITE_RESTRICTED,
-                    uninvite.target_guid,
-                );
+                send_party_uninvite_result_like_cpp(self, party_result::INVITE_RESTRICTED);
                 return;
             }
             if !group.is_lfg_group_like_cpp() && group.leader_guid == uninvite.target_guid {
-                send_party_uninvite_result_like_cpp(
-                    self,
-                    party_result::NOT_LEADER,
-                    uninvite.target_guid,
-                );
+                send_party_uninvite_result_like_cpp(self, party_result::NOT_LEADER);
                 return;
             }
             if !group.members.contains(&uninvite.target_guid) {
@@ -1818,11 +1788,7 @@ impl WorldSession {
                         return;
                     }
                 }
-                send_party_uninvite_result_like_cpp(
-                    self,
-                    party_result::TARGET_NOT_IN_GROUP,
-                    uninvite.target_guid,
-                );
+                send_party_uninvite_result_like_cpp(self, party_result::TARGET_NOT_IN_GROUP);
                 return;
             }
 
@@ -1892,6 +1858,12 @@ impl WorldSession {
             self.sync_player_registry_state_like_cpp();
             let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
             self.send_packet_realm(&wow_packet::packets::party::GroupDestroyed);
+            // C++ `Group::Disband` sends every member the destroyed
+            // `PartyUpdate` after `GroupDestroyed` (`Group.cpp:744-746`).
+            self.send_destroyed_group_party_update_like_cpp(
+                group_guid,
+                wow_network::group_registry::GROUP_CATEGORY_HOME_LIKE_CPP,
+            );
             return;
         }
 
@@ -5522,6 +5494,95 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn party_uninvite_disband_sends_destroyed_party_update_like_cpp() {
+        let (mut session, send_rx) = make_session_with_send();
+        let leader = ObjectGuid::create_player(1, 42);
+        let target = ObjectGuid::create_player(1, 77);
+        let (leader_tx, _leader_rx) = bounded(8);
+        let (target_tx, _target_rx) = bounded(8);
+        let (target_command_tx, target_command_rx) = bounded(8);
+        let player_registry = Arc::new(PlayerRegistry::default());
+        player_registry.insert(leader, broadcast_info(leader, leader_tx));
+        player_registry.insert(
+            target,
+            broadcast_info_with_command_tx(target, target_tx, target_command_tx),
+        );
+        let group_registry = Arc::new(GroupRegistry::default());
+        let mut group = GroupInfo::new(leader);
+        group.add_member(target);
+        let group_guid = group.group_guid;
+        group_registry.insert(group_guid, group);
+
+        session.set_player_guid(Some(leader));
+        session.group_guid = Some(group_guid);
+        session.set_player_registry(Arc::clone(&player_registry));
+        session.set_group_registry(
+            Arc::clone(&group_registry),
+            Arc::new(PendingInvites::default()),
+        );
+
+        session
+            .handle_party_uninvite(party_uninvite_packet(target, None, "bye"))
+            .await;
+
+        // C++ `Group::RemoveMember` disbands a two-member group instead of
+        // keeping it alive (`Group.cpp:660-663`).
+        assert!(group_registry.get(&group_guid).is_none());
+        assert_eq!(session.group_guid, None);
+
+        let command = target_command_rx.try_recv().unwrap();
+        let SessionCommand::ApplyGroupRemovalLikeCpp(command) = command else {
+            panic!("expected ApplyGroupRemovalLikeCpp for kicked member");
+        };
+        assert!(command.send_group_destroyed);
+        assert!(!command.send_group_uninvite);
+
+        // C++ `Group::Disband` sends the leader `GroupDestroyed` and then the
+        // destroyed `PartyUpdate` (`Group.cpp:744-746`).
+        let mut destroyed_index = None;
+        let mut update_index = None;
+        let mut destroyed_update = None;
+        let mut index = 0usize;
+        while let Ok(bytes) = send_rx.try_recv() {
+            let opcode = WorldPacket::from_bytes(&bytes).server_opcode();
+            if opcode == Some(ServerOpcodes::GroupDestroyed) {
+                destroyed_index = Some(index);
+            }
+            if opcode == Some(ServerOpcodes::PartyUpdate) {
+                update_index = Some(index);
+                destroyed_update = Some(bytes);
+            }
+            index += 1;
+        }
+        let destroyed_index = destroyed_index.expect("leader GroupDestroyed");
+        let update_index = update_index.expect("leader destroyed PartyUpdate");
+        assert!(destroyed_index < update_index);
+
+        let mut packet = WorldPacket::from_bytes(&destroyed_update.unwrap());
+        assert_eq!(
+            packet.read_uint16().expect("opcode"),
+            ServerOpcodes::PartyUpdate as u16
+        );
+        assert_eq!(
+            packet.read_uint16().expect("party flags"),
+            wow_network::group_registry::GROUP_FLAG_DESTROYED_LIKE_CPP
+        );
+        assert_eq!(
+            packet.read_uint8().expect("party index"),
+            GROUP_CATEGORY_HOME_LIKE_CPP
+        );
+        assert_eq!(
+            packet.read_uint8().expect("party type"),
+            wow_network::group_registry::GROUP_TYPE_NONE_LIKE_CPP
+        );
+        assert_eq!(packet.read_int32().expect("my index"), -1);
+        assert_eq!(
+            packet.read_packed_guid().expect("party guid"),
+            ObjectGuid::create_group(group_guid)
+        );
+    }
+
+    #[tokio::test]
     async fn party_uninvite_non_leader_rejects_with_cpp_result() {
         let (mut session, send_rx) = make_session_with_send();
         let leader = ObjectGuid::create_player(1, 42);
@@ -5557,6 +5618,11 @@ mod tests {
         assert_eq!(name_len, 0);
         assert_eq!(command, 1); // C++ PARTY_OP_UNINVITE
         assert_eq!(result_code as u8, party_result::NOT_LEADER);
+        payload.flush_bits();
+        assert_eq!(payload.read_uint32().unwrap(), 0); // C++ ResultData
+        // C++ `WorldSession::SendPartyResult` always leaves `ResultGUID`
+        // empty (`GroupHandler.cpp:53`).
+        assert_eq!(payload.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
         assert!(send_rx.try_recv().is_err());
     }
 
