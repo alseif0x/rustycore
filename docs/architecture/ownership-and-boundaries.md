@@ -234,8 +234,9 @@ Do not regenerate a baseline merely to make CI green.
 
 Measured at the #154 baseline (HEAD `c697827c`); refresh these numbers as tranche PRs land:
 
-- `wow-network::accept::SessionResources` carries 228 public fields in
-  `crates/wow-network/src/accept.rs`, forcing the listener's upward edges that #134 removes.
+- `wow-network::accept::SessionResources` carries 244 public fields in
+  `crates/wow-network/src/accept.rs` (lines 190-513), forcing the listener's upward edges that
+  #134 removes.
 - `crates/world-server/src/main.rs` spans 27,484 lines and `create_session` alone about 812
   (lines 12,796-13,607); #136 extracts that construction behind a private session factory.
 - `crates/wow-world/src/session.rs` spans 156,394 lines including tests; #152 and #140 extract
@@ -254,23 +255,26 @@ The checked-in issue ledger records the same sequence and each issue's state, an
 fails when this sequence, the ledger, and the JSON policy disagree:
 
 1. #135 — executable boundary guardrails (this baseline);
-2. #148 — model exact effective SkillLine key authority;
-3. #144 — validate trainer load inputs before activation;
-4. #163 — compose effective spell-acquisition metadata;
-5. #164 — freeze a complete trainer acquisition plan;
-6. #157, #158, #159, #160 and #161 — apply the trainer plan in bounded behavioral slices;
-7. #142 — reconcile the pre-existing dispatcher/registration mismatches;
-8. #154 — align this policy and the issue ledger with the audited tranche;
-9. #134 — remove gameplay `SessionResources` from the listener;
-10. #136 — private world-server session factory;
-11. #138 — session mailbox/player registry ownership (mechanical relocation);
-12. #150 — encapsulate the relocated player registry behind a narrow facade;
-13. #137 — group registry ownership (mechanical relocation);
-14. #151 — encapsulate the relocated group registry and pending invites behind atomic APIs;
-15. #139 — extract Calendar handlers from `misc.rs`;
-16. #152 — extract WorldSession packet admission and dispatch;
-17. #140 — extract the WorldSession update/lifecycle driver;
-18. #153 — mandatory post-tranche re-audit; owns the final classification of every remaining
+2. #143 — model C++ interaction provenance before activating the buy arm;
+3. #146 — model exact effective SpellInfo key authority;
+4. #148 — model exact effective SkillLine key authority;
+5. #144 — validate trainer load inputs before activation;
+6. #156 — model independent primary-profession capacity;
+7. #163 — compose effective spell-acquisition metadata;
+8. #164 — freeze a complete trainer acquisition plan;
+9. #157, #158, #159, #160 and #161 — apply the trainer plan in bounded behavioral slices;
+10. #142 — reconcile the pre-existing dispatcher/registration mismatches;
+11. #154 — align this policy and the issue ledger with the audited tranche;
+12. #134 — remove gameplay `SessionResources` from the listener;
+13. #136 — private world-server session factory;
+14. #138 — session mailbox/player registry ownership (mechanical relocation);
+15. #150 — encapsulate the relocated player registry behind a narrow facade;
+16. #137 — group registry ownership (mechanical relocation);
+17. #151 — encapsulate the relocated group registry and pending invites behind atomic APIs;
+18. #139 — extract Calendar handlers from `misc.rs`;
+19. #152 — extract WorldSession packet admission and dispatch;
+20. #140 — extract the WorldSession update/lifecycle driver;
+21. #153 — mandatory post-tranche re-audit; owns the final classification of every remaining
     generic parent-owned exception and the handler/packet/network boundary decisions that
     private-module extractions inside `wow-world` cannot remove.
 

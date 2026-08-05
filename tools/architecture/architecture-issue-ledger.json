@@ -4,8 +4,11 @@
   "reaudit_issue": 153,
   "sequence": [
     135,
+    143,
+    146,
     148,
     144,
+    156,
     163,
     164,
     157,
@@ -73,9 +76,19 @@
       "title": "[ARCH.2.1a] Reconcile world dispatcher and registration drift"
     },
     {
+      "number": 143,
+      "state": "closed",
+      "title": "[ARCH.2.1a-pre] Model C++ interaction provenance before activating TrainerBuySpell"
+    },
+    {
       "number": 144,
       "state": "closed",
       "title": "[ARCH.2.1a-pre2] Validate trainer load inputs before activation"
+    },
+    {
+      "number": 146,
+      "state": "closed",
+      "title": "[ARCH.2.1a-pre2a] Model exact effective SpellInfo key authority"
     },
     {
       "number": 148,
@@ -104,8 +117,13 @@
     },
     {
       "number": 154,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.2.1b] Align architecture policy with the audited refactor tranche"
+    },
+    {
+      "number": 156,
+      "state": "closed",
+      "title": "[ARCH.2.1a-pre3a] Model independent primary-profession capacity"
     },
     {
       "number": 157,
