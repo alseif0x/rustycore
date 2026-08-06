@@ -1,0 +1,164 @@
+{
+  "schema_version": 1,
+  "parent_issue": 133,
+  "reaudit_issue": 153,
+  "sequence": [
+    135,
+    143,
+    146,
+    148,
+    144,
+    156,
+    163,
+    164,
+    157,
+    158,
+    159,
+    160,
+    161,
+    142,
+    154,
+    134,
+    136,
+    138,
+    150,
+    137,
+    151,
+    139,
+    152,
+    140,
+    153
+  ],
+  "issues": [
+    {
+      "number": 133,
+      "state": "open",
+      "title": "[ARCH.2] Modularize RustyCore around ownership and stable boundaries"
+    },
+    {
+      "number": 134,
+      "state": "open",
+      "title": "[ARCH.2.2] Decouple the world listener from gameplay SessionResources"
+    },
+    {
+      "number": 135,
+      "state": "closed",
+      "title": "[ARCH.2.1] Add executable architecture boundary guardrails"
+    },
+    {
+      "number": 136,
+      "state": "open",
+      "title": "[ARCH.2.3] Extract a private world-server session factory"
+    },
+    {
+      "number": 137,
+      "state": "open",
+      "title": "[ARCH.2.5] Move gameplay group registries out of wow-network"
+    },
+    {
+      "number": 138,
+      "state": "open",
+      "title": "[ARCH.2.4] Move the session mailbox and player registry out of wow-network"
+    },
+    {
+      "number": 139,
+      "state": "open",
+      "title": "[ARCH.2.6] Extract Calendar handlers from the misc dumping ground"
+    },
+    {
+      "number": 140,
+      "state": "open",
+      "title": "[ARCH.2.7b] Extract the WorldSession update and lifecycle driver"
+    },
+    {
+      "number": 142,
+      "state": "closed",
+      "title": "[ARCH.2.1a] Reconcile world dispatcher and registration drift"
+    },
+    {
+      "number": 143,
+      "state": "closed",
+      "title": "[ARCH.2.1a-pre] Model C++ interaction provenance before activating TrainerBuySpell"
+    },
+    {
+      "number": 144,
+      "state": "closed",
+      "title": "[ARCH.2.1a-pre2] Validate trainer load inputs before activation"
+    },
+    {
+      "number": 146,
+      "state": "closed",
+      "title": "[ARCH.2.1a-pre2a] Model exact effective SpellInfo key authority"
+    },
+    {
+      "number": 148,
+      "state": "closed",
+      "title": "[ARCH.2.1a-pre2b] Model exact effective SkillLine key authority"
+    },
+    {
+      "number": 150,
+      "state": "open",
+      "title": "[ARCH.2.4b] Encapsulate PlayerRegistry behind a narrow application facade"
+    },
+    {
+      "number": 151,
+      "state": "open",
+      "title": "[ARCH.2.5b] Encapsulate GroupRegistry and pending invites behind atomic APIs"
+    },
+    {
+      "number": 152,
+      "state": "open",
+      "title": "[ARCH.2.7a] Extract WorldSession packet admission and dispatch"
+    },
+    {
+      "number": 153,
+      "state": "open",
+      "title": "[ARCH.2.8] Re-audit architecture after the first modularization tranche"
+    },
+    {
+      "number": 154,
+      "state": "closed",
+      "title": "[ARCH.2.1b] Align architecture policy with the audited refactor tranche"
+    },
+    {
+      "number": 156,
+      "state": "closed",
+      "title": "[ARCH.2.1a-pre3a] Model independent primary-profession capacity"
+    },
+    {
+      "number": 157,
+      "state": "closed",
+      "title": "[ARCH.2.1a-pre3b] Unify faithful trainer offer and eligibility decisions"
+    },
+    {
+      "number": 158,
+      "state": "closed",
+      "title": "[ARCH.2.1a-pre4a] Persist and publish prepared player spell learning"
+    },
+    {
+      "number": 159,
+      "state": "closed",
+      "title": "[ARCH.2.1a-pre4b] Make normal trainer teaching atomic and complete"
+    },
+    {
+      "number": 160,
+      "state": "closed",
+      "title": "[ARCH.2.1a-pre4c] Make battle-pet ownership durable and account-atomic"
+    },
+    {
+      "number": 161,
+      "state": "closed",
+      "title": "[ARCH.2.1a-pre4d] Complete recoverable battle-pet trainer purchases"
+    },
+    {
+      "number": 163,
+      "state": "closed",
+      "title": "[ARCH.2.1a-pre3a1] Compose effective spell-acquisition metadata"
+    },
+    {
+      "number": 164,
+      "state": "closed",
+      "title": "[ARCH.2.1a-pre3a2] Project deterministic player spell-acquisition outcomes"
+    }
+  ]
+}

@@ -16,7 +16,11 @@ from urllib.parse import urlsplit
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 ARCHITECTURE_DIR = pathlib.Path(__file__).resolve().parent
 DEFAULT_POLICY = ARCHITECTURE_DIR / "dependency-policy.json"
+DEFAULT_ISSUE_LEDGER = ARCHITECTURE_DIR / "architecture-issue-ledger.json"
+ARCHITECTURE_DOC = REPO_ROOT / "docs" / "architecture" / "ownership-and-boundaries.md"
 FIXTURES_DIR = ARCHITECTURE_DIR / "fixtures"
+DEBT_OWNERSHIP_FIXTURES_DIR = FIXTURES_DIR / "debt-ownership"
+LEDGER_ISSUE_STATES = {"open", "closed"}
 PRODUCT_DEPENDENCY_KINDS = {"normal", "build"}
 IGNORED_DEPENDENCY_KINDS = {"dev"}
 CRATES_IO_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
@@ -339,6 +343,162 @@ def validate_policy(policy: Any) -> dict[str, Any]:
     policy["_external_allowed_edges"] = external_allowed_edges
     policy["_external_exception_map"] = external_exception_map
     return policy
+
+
+def validate_issue_ledger(ledger: Any) -> dict[str, Any]:
+    """Validate the checked-in architecture issue ledger.
+
+    The ledger is the offline source of truth for which GitHub issues may own
+    dependency debt: it is committed to the repository, so the guardrails never
+    depend on live GitHub availability.
+    """
+    if not isinstance(ledger, dict) or ledger.get("schema_version") != 1:
+        raise ArchitectureError(
+            "architecture issue ledger must be a schema_version 1 object"
+        )
+    parent_issue = ledger.get("parent_issue")
+    reaudit_issue = ledger.get("reaudit_issue")
+    issues = ledger.get("issues")
+    sequence = ledger.get("sequence")
+    if type(parent_issue) is not int or parent_issue <= 0:
+        raise ArchitectureError("issue ledger needs a positive parent_issue")
+    if type(reaudit_issue) is not int or reaudit_issue <= 0:
+        raise ArchitectureError("issue ledger needs a positive reaudit_issue")
+    if not isinstance(issues, list) or not issues:
+        raise ArchitectureError("issue ledger issues must be a non-empty array")
+
+    entries: dict[int, dict[str, Any]] = {}
+    for index, entry in enumerate(issues):
+        if not isinstance(entry, dict):
+            raise ArchitectureError(f"issue ledger entry {index} must be an object")
+        number = entry.get("number")
+        state = entry.get("state")
+        title = entry.get("title")
+        if type(number) is not int or number <= 0:
+            raise ArchitectureError(f"issue ledger entry {index} needs a positive number")
+        if state not in LEDGER_ISSUE_STATES:
+            raise ArchitectureError(
+                f"issue ledger entry #{number} needs state open or closed"
+            )
+        if not isinstance(title, str) or not title.strip():
+            raise ArchitectureError(
+                f"issue ledger entry #{number} needs a non-empty title"
+            )
+        if number in entries:
+            raise ArchitectureError(f"duplicate issue ledger entry: #{number}")
+        entries[number] = entry
+
+    for label, designated in (
+        ("parent_issue", parent_issue),
+        ("reaudit_issue", reaudit_issue),
+    ):
+        if designated not in entries:
+            raise ArchitectureError(
+                f"issue ledger {label} #{designated} is absent from issues"
+            )
+        if entries[designated]["state"] != "open":
+            raise ArchitectureError(
+                f"issue ledger {label} #{designated} must be open while the "
+                "ledger tracks unresolved debt"
+            )
+
+    if not isinstance(sequence, list) or not sequence:
+        raise ArchitectureError("issue ledger sequence must be a non-empty array")
+    if any(type(number) is not int or number <= 0 for number in sequence):
+        raise ArchitectureError(
+            "issue ledger sequence must contain positive issue numbers"
+        )
+    if len(sequence) != len(set(sequence)):
+        raise ArchitectureError("issue ledger sequence contains duplicates")
+    unknown = sorted(set(sequence) - set(entries))
+    if unknown:
+        raise ArchitectureError(
+            f"issue ledger sequence references absent issues: {unknown}"
+        )
+    unsequenced = sorted(set(entries) - set(sequence) - {parent_issue})
+    if unsequenced:
+        raise ArchitectureError(
+            f"issue ledger issues missing from the sequence: {unsequenced}"
+        )
+
+    ledger["_entries"] = entries
+    return ledger
+
+
+def validate_debt_ownership(policy: dict[str, Any], ledger: dict[str, Any]) -> None:
+    """Every policy exception must be owned by an open ledger issue.
+
+    A completed issue must not remain the supposed owner of unresolved debt,
+    and an exception may never reference an issue the ledger does not track.
+    """
+    entries = ledger["_entries"]
+    problems: list[str] = []
+    workspace_exceptions = policy.get("exceptions", [])
+    external_exceptions = policy.get("external_dependencies", {}).get("exceptions", [])
+    for exception in workspace_exceptions:
+        edge = f"{exception.get('from')} -> {exception.get('to')}"
+        _validate_debt_owner(entries, edge, exception.get("tracking_issue"), problems)
+    for exception in external_exceptions:
+        edge = (
+            f"{exception.get('kind')} {exception.get('from')} -> {exception.get('to')}"
+        )
+        _validate_debt_owner(entries, edge, exception.get("tracking_issue"), problems)
+    if problems:
+        raise ArchitectureError("\n".join(problems))
+
+
+def _validate_debt_owner(
+    entries: dict[int, dict[str, Any]],
+    edge: str,
+    tracking_issue: Any,
+    problems: list[str],
+) -> None:
+    if type(tracking_issue) is not int:
+        return  # validate_policy already rejects malformed ownership
+    entry = entries.get(tracking_issue)
+    if entry is None:
+        problems.append(
+            f"exception {edge} tracks issue #{tracking_issue}, which is absent "
+            "from the architecture issue ledger"
+        )
+    elif entry["state"] != "open":
+        problems.append(
+            f"exception {edge} is still owned by completed issue "
+            f"#{tracking_issue}; retarget it to the slice that can actually "
+            "remove the edge"
+        )
+
+
+def validate_documented_sequence(
+    ledger: dict[str, Any], doc_path: pathlib.Path = ARCHITECTURE_DOC
+) -> None:
+    """The human refactor sequence in the architecture doc must be the ledger's."""
+    try:
+        text = doc_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ArchitectureError(f"cannot read {doc_path}: {exc}") from exc
+    section = re.search(
+        r"^## Refactor sequence\s*$([\s\S]*?)(?:^## |\Z)", text, re.MULTILINE
+    )
+    if section is None:
+        raise ArchitectureError(
+            f"{doc_path} has no '## Refactor sequence' section to reconcile "
+            "with the issue ledger"
+        )
+    documented: list[int] = []
+    for line in section.group(1).splitlines():
+        if re.match(r"^\d+\. ", line):
+            documented.extend(int(number) for number in re.findall(r"#(\d+)", line))
+    if not documented:
+        raise ArchitectureError(
+            f"{doc_path} refactor sequence lists no issues to reconcile with "
+            "the issue ledger"
+        )
+    if documented != ledger["sequence"]:
+        raise ArchitectureError(
+            "documented refactor sequence does not match the architecture issue "
+            f"ledger: doc lists {documented}, ledger lists {ledger['sequence']}"
+        )
 
 
 def classify_edge(
@@ -1683,6 +1843,70 @@ def run_fixture_self_tests(policy: dict[str, Any]) -> None:
         raise ArchitectureError("external dependency ratchet self-test failed")
 
 
+def run_debt_ownership_fixture_tests() -> int:
+    """Reject malformed/duplicate debt ownership and ledger violations."""
+    fixtures = sorted(DEBT_OWNERSHIP_FIXTURES_DIR.glob("*.json"))
+    if not fixtures:
+        raise ArchitectureError(
+            f"no debt-ownership fixtures found in {DEBT_OWNERSHIP_FIXTURES_DIR}"
+        )
+    for fixture_path in fixtures:
+        fixture = load_json(fixture_path)
+        if not isinstance(fixture, dict):
+            raise ArchitectureError(
+                f"debt-ownership fixture {fixture_path.name} must be an object"
+            )
+        required_keys = {"name", "expect", "error_substring"}
+        optional_keys = {"policy", "ledger"}
+        missing_keys = required_keys - set(fixture)
+        unknown_keys = set(fixture) - required_keys - optional_keys
+        if missing_keys or unknown_keys:
+            raise ArchitectureError(
+                f"debt-ownership fixture {fixture_path.name} has missing keys "
+                f"{sorted(missing_keys)} and unknown keys {sorted(unknown_keys)}"
+            )
+        if not isinstance(fixture["name"], str) or not fixture["name"].strip():
+            raise ArchitectureError(
+                f"debt-ownership fixture {fixture_path.name} needs a non-empty name"
+            )
+        if fixture["expect"] != "reject":
+            raise ArchitectureError(
+                f"debt-ownership fixture {fixture_path.name} must expect reject"
+            )
+        if not isinstance(fixture["error_substring"], str) or not fixture[
+            "error_substring"
+        ].strip():
+            raise ArchitectureError(
+                f"debt-ownership fixture {fixture_path.name} needs a non-empty "
+                "error_substring"
+            )
+        if "policy" not in fixture and "ledger" not in fixture:
+            raise ArchitectureError(
+                f"debt-ownership fixture {fixture_path.name} needs a policy or "
+                "ledger payload"
+            )
+        try:
+            policy = fixture.get("policy")
+            if policy is not None:
+                policy = validate_policy(policy)
+            ledger = fixture.get("ledger")
+            if ledger is not None:
+                ledger = validate_issue_ledger(ledger)
+            if policy is not None and ledger is not None:
+                validate_debt_ownership(policy, ledger)
+        except ArchitectureError as exc:
+            if fixture["error_substring"] not in str(exc):
+                raise ArchitectureError(
+                    f"debt-ownership fixture {fixture_path.name} returned the "
+                    f"wrong failure: {exc}"
+                ) from exc
+        else:
+            raise ArchitectureError(
+                f"debt-ownership fixture {fixture_path.name} was not rejected"
+            )
+    return len(fixtures)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -1690,6 +1914,12 @@ def main() -> int:
         type=pathlib.Path,
         default=DEFAULT_POLICY,
         help="dependency policy JSON (default: repository policy)",
+    )
+    parser.add_argument(
+        "--ledger",
+        type=pathlib.Path,
+        default=DEFAULT_ISSUE_LEDGER,
+        help="architecture issue ledger JSON (default: repository ledger)",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("check", help="check dependencies and report source hotspots")
@@ -1702,10 +1932,17 @@ def main() -> int:
 
     try:
         policy = validate_policy(load_json(args.policy))
+        if args.command in {"check", "self-test"}:
+            ledger = validate_issue_ledger(load_json(args.ledger))
+            validate_debt_ownership(policy, ledger)
+            validate_documented_sequence(ledger)
         if args.command == "self-test":
             run_fixture_self_tests(policy)
+            debt_ownership_fixtures = run_debt_ownership_fixture_tests()
             print(
-                f"Architecture self-test: PASS ({len(list(FIXTURES_DIR.glob('*.json')))} fixtures)"
+                "Architecture self-test: PASS "
+                f"({len(list(FIXTURES_DIR.glob('*.json')))} fixtures, "
+                f"{debt_ownership_fixtures} debt-ownership rejections)"
             )
         elif args.command == "hotspots":
             if args.limit <= 0:

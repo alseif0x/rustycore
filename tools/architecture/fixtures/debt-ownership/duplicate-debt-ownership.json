@@ -1,0 +1,38 @@
+{
+  "name": "duplicate-debt-ownership",
+  "expect": "reject",
+  "error_substring": "duplicate exception: wow-map -> wow-math",
+  "policy": {
+    "schema_version": 2,
+    "categories": {
+      "foundation": ["wow-math"],
+      "domain-runtime": ["wow-map"]
+    },
+    "allowed_category_dependencies": {
+      "foundation": ["foundation"],
+      "domain-runtime": ["foundation", "domain-runtime"]
+    },
+    "restricted_packages": {},
+    "exceptions": [
+      {
+        "from": "wow-map",
+        "to": "wow-math",
+        "tracking_issue": 133,
+        "reason": "First owner of the fixture debt."
+      },
+      {
+        "from": "wow-map",
+        "to": "wow-math",
+        "tracking_issue": 153,
+        "reason": "Duplicate owner of the same fixture debt."
+      }
+    ],
+    "external_dependencies": {
+      "canonical_registry_source": "registry+https://github.com/rust-lang/crates.io-index",
+      "protected_categories": [],
+      "protected_packages": [],
+      "allowed": {},
+      "exceptions": []
+    }
+  }
+}
