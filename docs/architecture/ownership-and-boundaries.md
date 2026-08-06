@@ -4,7 +4,10 @@ This document is the executable architecture baseline for the incremental refact
 issue #133. It records the current owners and intentional mirrors before code is moved. The
 machine-readable dependency rules live in
 `tools/architecture/dependency-policy.json`; `tools/architecture/check_architecture.py check`
-enforces them.
+enforces them. The checked-in issue ledger
+`tools/architecture/architecture-issue-ledger.json` records every architecture issue, its
+state, and the audited refactor order; the checker keeps this document, the ledger, and the
+JSON policy in agreement without contacting GitHub.
 
 ## Decision
 
@@ -86,6 +89,10 @@ exception:
 When several ordered slices retire distinct uses of the same Cargo edge, `tracking_issue` names
 the final slice that can remove the dependency and the reason lists every intermediate slice.
 Closing an earlier slice must not leave an exception pointing at an already completed issue.
+The checker enforces that rule through the issue ledger: an exception whose `tracking_issue` is
+absent from the ledger, or owned by a completed issue, fails the architecture check. Generic
+exceptions keep `tracking_issue` 133 only while the parent genuinely remains open, and the
+ledger's `reaudit_issue` (#153) explicitly owns their re-audit and final classification.
 
 A new package, new upward edge, undeclared restricted-package edge, undeclared direct external
 dependency in an inward package, duplicate classification, stale allowed dependency, or obsolete
@@ -223,21 +230,53 @@ Do not regenerate a baseline merely to make CI green.
    concrete removal issue.
 6. Run the architecture self-test, architecture check, focused Rust tests, and full PR preflight.
 
+## First-tranche hotspot evidence
+
+Measured at the #154 baseline (HEAD `c697827c`); refresh these numbers as tranche PRs land:
+
+- `wow-network::accept::SessionResources` carries 244 public fields in
+  `crates/wow-network/src/accept.rs` (lines 190-513), forcing the listener's upward edges that
+  #134 removes.
+- `crates/world-server/src/main.rs` spans 27,484 lines and `create_session` alone about 812
+  (lines 12,796-13,607); #136 extracts that construction behind a private session factory.
+- `crates/wow-world/src/session.rs` spans 156,394 lines including tests; #152 and #140 extract
+  the packet admission/dispatch and update/lifecycle drivers into private modules.
+- `crates/wow-world/src/handlers/misc.rs` holds 198 `inventory::submit!` registrations in
+  18,785 lines; #139 extracts the 15 Calendar registrations as the first vertical split.
+
+Closing the first tranche only proves the boundary pattern on these hotspots; it does not close
+the parent epic, which still owns the remaining handler families, the canonical `Player`
+ownership migration, and every generic exception the closing re-audit must classify.
+
 ## Refactor sequence
 
-The child issues of #133 execute in semantic order, regardless of their GitHub creation number:
+The child issues of #133 execute in semantic order, regardless of their GitHub creation number.
+The checked-in issue ledger records the same sequence and each issue's state, and the checker
+fails when this sequence, the ledger, and the JSON policy disagree:
 
 1. #135 — executable boundary guardrails (this baseline);
-2. #163 — compose effective spell-acquisition metadata;
-3. #164 — freeze a complete trainer acquisition plan;
-4. #157, #158, #159, #160 and #161 — apply the trainer plan in bounded behavioral slices;
-5. #142 — reconcile the three pre-existing dispatcher/registration mismatches;
-6. #134 — remove gameplay `SessionResources` from the listener;
-7. #136 — private world-server session factory;
-8. #138 — session mailbox/player registry ownership;
-9. #137 — group registry ownership;
-10. #139 — extract Calendar handlers from `misc.rs`;
-11. #140 — extract the `WorldSession` update/dispatch driver.
+2. #143 — model C++ interaction provenance before activating the buy arm;
+3. #146 — model exact effective SpellInfo key authority;
+4. #148 — model exact effective SkillLine key authority;
+5. #144 — validate trainer load inputs before activation;
+6. #156 — model independent primary-profession capacity;
+7. #163 — compose effective spell-acquisition metadata;
+8. #164 — freeze a complete trainer acquisition plan;
+9. #157, #158, #159, #160 and #161 — apply the trainer plan in bounded behavioral slices;
+10. #142 — reconcile the pre-existing dispatcher/registration mismatches;
+11. #154 — align this policy and the issue ledger with the audited tranche;
+12. #134 — remove gameplay `SessionResources` from the listener;
+13. #136 — private world-server session factory;
+14. #138 — session mailbox/player registry ownership (mechanical relocation);
+15. #150 — encapsulate the relocated player registry behind a narrow facade;
+16. #137 — group registry ownership (mechanical relocation);
+17. #151 — encapsulate the relocated group registry and pending invites behind atomic APIs;
+18. #139 — extract Calendar handlers from `misc.rs`;
+19. #152 — extract WorldSession packet admission and dispatch;
+20. #140 — extract the WorldSession update/lifecycle driver;
+21. #153 — mandatory post-tranche re-audit; owns the final classification of every remaining
+    generic parent-owned exception and the handler/packet/network boundary decisions that
+    private-module extractions inside `wow-world` cannot remove.
 
 Each issue is one branch and one PR. The next issue starts only after the current PR is
 capture-clean where applicable, all actionable review is resolved, required CI is green on the
