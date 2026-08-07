@@ -1239,20 +1239,20 @@ async fn find_request_in_tx_like_cpp(
     let Some(row) = row else {
         return Ok(None);
     };
-    let account_id = row.try_get(0).map_err(row_decode_error_like_cpp)?;
+    let account_id = row_u32_signed_or_unsigned_like_cpp(&row, 0)?;
     let pet = DurableBattlePetRowLikeCpp {
-        guid_counter: row.try_get(1).map_err(row_decode_error_like_cpp)?,
-        species: row.try_get(2).map_err(row_decode_error_like_cpp)?,
-        breed: row.try_get(3).map_err(row_decode_error_like_cpp)?,
-        display_id: row.try_get(4).map_err(row_decode_error_like_cpp)?,
-        level: row.try_get(5).map_err(row_decode_error_like_cpp)?,
-        exp: row.try_get(6).map_err(row_decode_error_like_cpp)?,
-        health: row.try_get(7).map_err(row_decode_error_like_cpp)?,
-        quality: row.try_get(8).map_err(row_decode_error_like_cpp)?,
-        flags: row.try_get(9).map_err(row_decode_error_like_cpp)?,
+        guid_counter: row_u64_signed_or_unsigned_like_cpp(&row, 1)?,
+        species: row_u32_signed_or_unsigned_like_cpp(&row, 2)?,
+        breed: row_u16_signed_or_unsigned_like_cpp(&row, 3)?,
+        display_id: row_u32_signed_or_unsigned_like_cpp(&row, 4)?,
+        level: row_u16_signed_or_unsigned_like_cpp(&row, 5)?,
+        exp: row_u16_signed_or_unsigned_like_cpp(&row, 6)?,
+        health: row_u32_signed_or_unsigned_like_cpp(&row, 7)?,
+        quality: row_u8_signed_or_unsigned_like_cpp(&row, 8)?,
+        flags: row_u16_signed_or_unsigned_like_cpp(&row, 9)?,
         name: row.try_get(10).map_err(row_decode_error_like_cpp)?,
         name_timestamp: row.try_get(11).map_err(row_decode_error_like_cpp)?,
-        owner_guid_counter: row.try_get(12).map_err(row_decode_error_like_cpp)?,
+        owner_guid_counter: row_opt_u64_signed_or_unsigned_like_cpp(&row, 12)?,
         declined_names: None,
     };
     let still_present = row.try_get(13).map_err(row_decode_error_like_cpp)?;
