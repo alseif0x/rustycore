@@ -1167,13 +1167,9 @@ async fn load_slot_rows_like_cpp(
     .map_err(|error| database_error_like_cpp(DatabaseError::from(error)))?;
     rows.into_iter()
         .map(|row| {
-            let counter: u64 = row
-                .try_get(1)
-                .map_err(|error| BattlePetPersistenceErrorLikeCpp::Database(error.to_string()))?;
+            let counter = row_u64_signed_or_unsigned_like_cpp(&row, 1)?;
             Ok(DurableBattlePetSlotLikeCpp {
-                index: row.try_get(0).map_err(|error| {
-                    BattlePetPersistenceErrorLikeCpp::Database(error.to_string())
-                })?,
+                index: row_u8_signed_or_unsigned_like_cpp(&row, 0)?,
                 pet_guid_counter: (counter != 0).then_some(counter),
                 locked: row.try_get(2).map_err(|error| {
                     BattlePetPersistenceErrorLikeCpp::Database(error.to_string())
@@ -1187,32 +1183,43 @@ fn durable_pet_from_result_like_cpp(
     result: &wow_database::SqlResult,
     offset: usize,
 ) -> Result<DurableBattlePetRowLikeCpp, BattlePetPersistenceErrorLikeCpp> {
-    macro_rules! required {
-        ($column:expr) => {
-            result.try_read($column).ok_or_else(|| {
-                BattlePetPersistenceErrorLikeCpp::Database(format!(
-                    "could not decode battle-pet result column {}",
-                    $column
-                ))
-            })?
-        };
-    }
+    let missing = |column: usize| {
+        BattlePetPersistenceErrorLikeCpp::Database(format!(
+            "could not decode battle-pet result column {column}"
+        ))
+    };
     Ok(DurableBattlePetRowLikeCpp {
-        guid_counter: required!(offset),
-        species: required!(offset + 1),
-        breed: required!(offset + 2),
-        display_id: required!(offset + 3),
-        level: required!(offset + 4),
-        exp: required!(offset + 5),
-        health: required!(offset + 6),
-        quality: required!(offset + 7),
-        flags: required!(offset + 8),
-        name: required!(offset + 9),
-        name_timestamp: required!(offset + 10),
+        guid_counter: result_u64_signed_or_unsigned_like_cpp(result, offset)
+            .ok_or_else(|| missing(offset))?,
+        species: result_u32_signed_or_unsigned_like_cpp(result, offset + 1)
+            .ok_or_else(|| missing(offset + 1))?,
+        breed: result_u16_signed_or_unsigned_like_cpp(result, offset + 2)
+            .ok_or_else(|| missing(offset + 2))?,
+        display_id: result_u32_signed_or_unsigned_like_cpp(result, offset + 3)
+            .ok_or_else(|| missing(offset + 3))?,
+        level: result_u16_signed_or_unsigned_like_cpp(result, offset + 4)
+            .ok_or_else(|| missing(offset + 4))?,
+        exp: result_u16_signed_or_unsigned_like_cpp(result, offset + 5)
+            .ok_or_else(|| missing(offset + 5))?,
+        health: result_u32_signed_or_unsigned_like_cpp(result, offset + 6)
+            .ok_or_else(|| missing(offset + 6))?,
+        quality: result_u8_signed_or_unsigned_like_cpp(result, offset + 7)
+            .ok_or_else(|| missing(offset + 7))?,
+        flags: result_u16_signed_or_unsigned_like_cpp(result, offset + 8)
+            .ok_or_else(|| missing(offset + 8))?,
+        name: result
+            .try_read(offset + 9)
+            .ok_or_else(|| missing(offset + 9))?,
+        name_timestamp: result
+            .try_read(offset + 10)
+            .ok_or_else(|| missing(offset + 10))?,
         owner_guid_counter: if result.is_null(offset + 11) {
             None
         } else {
-            Some(required!(offset + 11))
+            Some(
+                result_u64_signed_or_unsigned_like_cpp(result, offset + 11)
+                    .ok_or_else(|| missing(offset + 11))?,
+            )
         },
         declined_names: None,
     })
@@ -1257,18 +1264,18 @@ fn durable_pet_from_row_like_cpp(
 ) -> Result<DurableBattlePetRowLikeCpp, BattlePetPersistenceErrorLikeCpp> {
     let genitive: Option<String> = row.try_get(12).map_err(row_decode_error_like_cpp)?;
     Ok(DurableBattlePetRowLikeCpp {
-        guid_counter: row.try_get(0).map_err(row_decode_error_like_cpp)?,
-        species: row.try_get(1).map_err(row_decode_error_like_cpp)?,
-        breed: row.try_get(2).map_err(row_decode_error_like_cpp)?,
-        display_id: row.try_get(3).map_err(row_decode_error_like_cpp)?,
-        level: row.try_get(4).map_err(row_decode_error_like_cpp)?,
-        exp: row.try_get(5).map_err(row_decode_error_like_cpp)?,
-        health: row.try_get(6).map_err(row_decode_error_like_cpp)?,
-        quality: row.try_get(7).map_err(row_decode_error_like_cpp)?,
-        flags: row.try_get(8).map_err(row_decode_error_like_cpp)?,
+        guid_counter: row_u64_signed_or_unsigned_like_cpp(row, 0)?,
+        species: row_u32_signed_or_unsigned_like_cpp(row, 1)?,
+        breed: row_u16_signed_or_unsigned_like_cpp(row, 2)?,
+        display_id: row_u32_signed_or_unsigned_like_cpp(row, 3)?,
+        level: row_u16_signed_or_unsigned_like_cpp(row, 4)?,
+        exp: row_u16_signed_or_unsigned_like_cpp(row, 5)?,
+        health: row_u32_signed_or_unsigned_like_cpp(row, 6)?,
+        quality: row_u8_signed_or_unsigned_like_cpp(row, 7)?,
+        flags: row_u16_signed_or_unsigned_like_cpp(row, 8)?,
         name: row.try_get(9).map_err(row_decode_error_like_cpp)?,
         name_timestamp: row.try_get(10).map_err(row_decode_error_like_cpp)?,
-        owner_guid_counter: row.try_get(11).map_err(row_decode_error_like_cpp)?,
+        owner_guid_counter: row_opt_u64_signed_or_unsigned_like_cpp(row, 11)?,
         declined_names: match genitive {
             None => None,
             Some(genitive) => Some(DeclinedNamesLikeCpp {
@@ -1322,6 +1329,94 @@ fn database_error_like_cpp(error: DatabaseError) -> BattlePetPersistenceErrorLik
 
 fn row_decode_error_like_cpp(error: sqlx::Error) -> BattlePetPersistenceErrorLikeCpp {
     BattlePetPersistenceErrorLikeCpp::Database(error.to_string())
+}
+
+/// Tolerant unsigned readers for the legacy battle-pet columns (#175).
+///
+/// The legacy C++ schema declares these columns signed
+/// (`sql/base/auth_database.sql` in woltk-trinity-legacy), while the Rust
+/// structs use unsigned types and sqlx rejects the conversion outright. C++
+/// reads the same signed columns into `uint64`/`uint32`/`uint16`/`uint8`
+/// fields without caring about the declared sign. Mirror that: try the exact
+/// unsigned type first (covers rustycore-migrated unsigned schemas), then
+/// fall back to the signed column type with a range check.
+macro_rules! battle_pet_signed_or_unsigned_readers_like_cpp {
+    ($cast_fn:ident, $row_fn:ident, $result_fn:ident, $unsigned:ty, $signed:ty) => {
+        /// Checked signed→unsigned conversion shared by both tolerant readers.
+        fn $cast_fn(
+            raw: $signed,
+            column: usize,
+        ) -> Result<$unsigned, BattlePetPersistenceErrorLikeCpp> {
+            <$unsigned>::try_from(raw).map_err(|_| {
+                BattlePetPersistenceErrorLikeCpp::Database(format!(
+                    "negative value {raw} in battle-pet column {column}"
+                ))
+            })
+        }
+
+        fn $row_fn(
+            row: &sqlx::mysql::MySqlRow,
+            column: usize,
+        ) -> Result<$unsigned, BattlePetPersistenceErrorLikeCpp> {
+            if let Ok(value) = row.try_get::<$unsigned, _>(column) {
+                return Ok(value);
+            }
+            let raw: $signed = row.try_get(column).map_err(row_decode_error_like_cpp)?;
+            $cast_fn(raw, column)
+        }
+
+        fn $result_fn(result: &wow_database::SqlResult, column: usize) -> Option<$unsigned> {
+            result.try_read::<$unsigned>(column).or_else(|| {
+                result
+                    .try_read::<$signed>(column)
+                    .and_then(|raw| $cast_fn(raw, column).ok())
+            })
+        }
+    };
+}
+
+battle_pet_signed_or_unsigned_readers_like_cpp!(
+    battle_pet_column_i64_as_u64_like_cpp,
+    row_u64_signed_or_unsigned_like_cpp,
+    result_u64_signed_or_unsigned_like_cpp,
+    u64,
+    i64
+);
+battle_pet_signed_or_unsigned_readers_like_cpp!(
+    battle_pet_column_i32_as_u32_like_cpp,
+    row_u32_signed_or_unsigned_like_cpp,
+    result_u32_signed_or_unsigned_like_cpp,
+    u32,
+    i32
+);
+battle_pet_signed_or_unsigned_readers_like_cpp!(
+    battle_pet_column_i16_as_u16_like_cpp,
+    row_u16_signed_or_unsigned_like_cpp,
+    result_u16_signed_or_unsigned_like_cpp,
+    u16,
+    i16
+);
+battle_pet_signed_or_unsigned_readers_like_cpp!(
+    battle_pet_column_i8_as_u8_like_cpp,
+    row_u8_signed_or_unsigned_like_cpp,
+    result_u8_signed_or_unsigned_like_cpp,
+    u8,
+    i8
+);
+
+/// Nullable variant of `row_u64_signed_or_unsigned_like_cpp` (`battle_pets.owner`).
+fn row_opt_u64_signed_or_unsigned_like_cpp(
+    row: &sqlx::mysql::MySqlRow,
+    column: usize,
+) -> Result<Option<u64>, BattlePetPersistenceErrorLikeCpp> {
+    match row.try_get::<Option<u64>, _>(column) {
+        Ok(value) => Ok(value),
+        Err(_) => {
+            let raw: Option<i64> = row.try_get(column).map_err(row_decode_error_like_cpp)?;
+            raw.map(|value| battle_pet_column_i64_as_u64_like_cpp(value, column))
+                .transpose()
+        }
+    }
 }
 
 fn is_duplicate_key_like_cpp(error: &DatabaseError) -> bool {
@@ -2974,6 +3069,37 @@ mod tests {
         BATTLE_PET_STATE_STAT_STAMINA_LIKE_CPP, BattlePetBreedQualityEntry,
         BattlePetBreedStateEntry, BattlePetSpeciesEntry, BattlePetSpeciesStateEntry,
     };
+
+    #[test]
+    fn signed_column_casts_preserve_non_negative_values_like_cpp() {
+        assert_eq!(battle_pet_column_i64_as_u64_like_cpp(0, 0).unwrap(), 0);
+        assert_eq!(battle_pet_column_i64_as_u64_like_cpp(42, 0).unwrap(), 42);
+        assert_eq!(
+            battle_pet_column_i64_as_u64_like_cpp(i64::MAX, 0).unwrap(),
+            i64::MAX as u64
+        );
+        assert_eq!(battle_pet_column_i32_as_u32_like_cpp(70, 1).unwrap(), 70);
+        assert_eq!(battle_pet_column_i16_as_u16_like_cpp(25, 2).unwrap(), 25);
+        assert_eq!(battle_pet_column_i8_as_u8_like_cpp(3, 7).unwrap(), 3);
+    }
+
+    #[test]
+    fn signed_column_casts_reject_negative_values_like_cpp() {
+        for result in [
+            battle_pet_column_i64_as_u64_like_cpp(-1, 0),
+            battle_pet_column_i64_as_u64_like_cpp(i64::MIN, 0),
+        ] {
+            let error = result.unwrap_err();
+            assert!(
+                matches!(error, BattlePetPersistenceErrorLikeCpp::Database(ref message)
+                    if message.contains("negative value") && message.contains("column 0")),
+                "unexpected error: {error:?}"
+            );
+        }
+        assert!(battle_pet_column_i32_as_u32_like_cpp(-1, 1).is_err());
+        assert!(battle_pet_column_i16_as_u16_like_cpp(-1, 2).is_err());
+        assert!(battle_pet_column_i8_as_u8_like_cpp(-1, 7).is_err());
+    }
 
     #[derive(Default)]
     struct FakePersistenceStateLikeCpp {
