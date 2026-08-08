@@ -62438,8 +62438,6 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
 
     struct PendingCreatureSpellCastLikeCpp {
         command: CreatureSpellCastPlanLikeCpp,
-        source_position: Position,
-        visibility_range: f32,
         difficulty_id: u8,
         turret_ai: bool,
     }
@@ -62610,8 +62608,6 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
                                     pending_actions.push(PendingCreatureSpellActionLikeCpp::Cast(
                                         PendingCreatureSpellCastLikeCpp {
                                             command,
-                                            source_position: creature.position(),
-                                            visibility_range: creature.visibility_range_like_cpp(),
                                             difficulty_id,
                                             turret_ai: false,
                                         },
@@ -62764,8 +62760,6 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
                         pending_actions.push(PendingCreatureSpellActionLikeCpp::Cast(
                             PendingCreatureSpellCastLikeCpp {
                                 command,
-                                source_position: creature.position(),
-                                visibility_range: creature.visibility_range_like_cpp(),
                                 difficulty_id,
                                 turret_ai: false,
                             },
@@ -62862,8 +62856,6 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
                     pending_actions.push(PendingCreatureSpellActionLikeCpp::Cast(
                         PendingCreatureSpellCastLikeCpp {
                             command,
-                            source_position: creature.position(),
-                            visibility_range: creature.visibility_range_like_cpp(),
                             difficulty_id,
                             turret_ai: true,
                         },
@@ -62914,8 +62906,6 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
             canonical_map_manager,
             legacy_map_manager,
             &pending_cast.command,
-            pending_cast.source_position,
-            pending_cast.visibility_range,
             pending_cast.difficulty_id,
             pending_cast.turret_ai,
             config,
@@ -62974,8 +62964,6 @@ fn validate_and_append_creature_spell_cast_like_cpp(
     canonical_map_manager: &SharedCanonicalMapManager,
     legacy_map_manager: &crate::map_manager::SharedMapManager,
     command: &CreatureSpellCastPlanLikeCpp,
-    source_position: Position,
-    visibility_range: f32,
     difficulty_id: u8,
     turret_ai: bool,
     config: &LegacyCreatureAggroConfigLikeCpp,
@@ -63021,7 +63009,7 @@ fn validate_and_append_creature_spell_cast_like_cpp(
     let Some(managed) = manager.find_map(u32::from(command.map_id), command.instance_id) else {
         return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
     };
-    let hit_profile = {
+    let (hit_profile, source_position, visibility_range) = {
         let map = managed.map();
         let Some(caster) = map.get_typed_creature(command.caster_guid) else {
             return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
@@ -63032,6 +63020,12 @@ fn validate_and_append_creature_spell_cast_like_cpp(
         if !caster.unit().is_alive() || !victim.unit().is_alive() {
             return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
         }
+        // C++ constructs `MessageDistDeliverer` from the live caster during
+        // `SendSpellGo`; it does not reuse the earlier AI-selection position.
+        // Snapshot both fanout inputs from the same canonical caster whose
+        // range, LOS and hit preconditions are validated below.
+        let source_position = caster.unit().world().position();
+        let visibility_range = caster.unit().world().get_visibility_range(map);
         let Some(spell_id_u32) = u32::try_from(command.spell_id).ok() else {
             return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
         };
@@ -63119,7 +63113,7 @@ fn validate_and_append_creature_spell_cast_like_cpp(
             return CreatureSpellCastValidationResultLikeCpp::LosRejected;
         }
 
-        (|| {
+        let hit_profile = (|| {
             let spell_store = config.spell_store.as_ref()?;
             let spell = spell_store.get(command.spell_id)?;
             let metadata = spell_store.hit_metadata_for_difficulty_like_cpp(
@@ -63172,7 +63166,8 @@ fn validate_and_append_creature_spell_cast_like_cpp(
                 &active_effect_indices,
                 attributes,
             )
-        })()
+        })();
+        (hit_profile, source_position, visibility_range)
     };
     if !turret_ai
         && creature_ai_successful_untriggered_spell_resets_combat_timers_like_cpp(
@@ -157848,6 +157843,90 @@ mod tests {
         assert_eq!(
             represented_creature_spell_hit_profile_like_cpp(&metadata, &[0], reflection_attributes,),
             None
+        );
+    }
+
+    #[test]
+    fn creature_spell_fanout_uses_canonical_commit_snapshot_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_318);
+        let victim_guid = ObjectGuid::create_player(1, 91_319);
+        let spell_id = 70_106_i32;
+        let legacy_position = Position::new(10.0, 10.0, 0.0, 0.0);
+        let canonical_position = Position::new(40.0, 10.0, 0.0, 0.0);
+        let canonical_victim_position = Position::new(41.0, 10.0, 0.0, 0.0);
+
+        add_canonical_creature_spell_test_pair_like_cpp(&canonical, creature_guid, victim_guid);
+        {
+            let mut canonical = canonical.lock().unwrap();
+            let map = canonical.find_map_mut(0, 0).unwrap().map_mut();
+            map.relocate_map_object_like_cpp(creature_guid, canonical_position)
+                .unwrap();
+            map.relocate_map_object_like_cpp(victim_guid, canonical_victim_position)
+                .unwrap();
+            map.get_typed_creature_mut(creature_guid)
+                .unwrap()
+                .unit_mut()
+                .world_mut()
+                .set_visibility_distance_override_like_cpp(
+                    wow_entities::VisibilityDistanceTypeLikeCpp::Large,
+                );
+        }
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                assert_eq!(creature.position(), legacy_position);
+                creature
+                    .creature
+                    .unit_mut()
+                    .world_mut()
+                    .set_visibility_distance_override_like_cpp(
+                        wow_entities::VisibilityDistanceTypeLikeCpp::Tiny,
+                    );
+                creature
+                    .creature
+                    .set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
+                creature
+                    .creature
+                    .set_spell(0, u32::try_from(spell_id).unwrap());
+                creature.enter_combat(victim_guid);
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+        let config = creature_ai_spell_test_config_like_cpp(
+            creature_ai_test_spell_info_like_cpp(spell_id, 6, 0),
+            true,
+            30.0,
+        );
+
+        let cast =
+            run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+
+        assert_eq!(cast.canonical_cast_preconditions_passed, 1);
+        let [event] = cast.plan.events.as_slice() else {
+            panic!("one committed creature cast expected: {cast:?}");
+        };
+        let crate::map_manager::RecipientRule::NearbyVisibleDurableBasicSpellCast {
+            source_position,
+            range,
+            ..
+        } = &event.recipients
+        else {
+            panic!("committed cast must use the atomic fanout rule");
+        };
+        assert_eq!(*source_position, canonical_position);
+        assert_ne!(*source_position, legacy_position);
+        assert_eq!(
+            *range,
+            wow_entities::VisibilityDistanceTypeLikeCpp::Large.distance_like_cpp(),
+            "fanout range must come from the same canonical caster snapshot"
         );
     }
 
