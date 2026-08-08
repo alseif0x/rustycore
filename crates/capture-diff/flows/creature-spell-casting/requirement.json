@@ -1,8 +1,7 @@
 {
   "issue": "#26",
-  "status": "awaiting-real-captures",
+  "status": "ready",
   "description": "Cabal Interrogator 22378 performs one ordinary CombatAI cast of Eviscerate 15691 against its victim; the selected wire action is exactly the adjacent SpellStart/SpellGo pair.",
-  "blocked_reason": "No matched live C++/Rust capture pair or completed capture-lineage.json exists yet; synthetic packets are tests only and are not acceptance evidence.",
   "directions": [
     "s2c"
   ],

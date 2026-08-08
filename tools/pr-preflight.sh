@@ -43,7 +43,7 @@ Commands:
   architecture        Check dependency boundaries and report source hotspots.
   format              Run the three formatting checks used by GitHub Actions.
   check               Run the locked core checks and server builds used by CI.
-  test                Run focused suites, loot-race tests, and required capture gate used by CI.
+  test                Run focused suites, loot-race tests, and required capture gates used by CI.
   ci                  Run architecture, format, check, and test.
   diff [BASE]         Check committed, staged, and unstaged diffs for whitespace errors.
   quick [BASE]        Run diff, architecture, format, and check.
@@ -539,6 +539,8 @@ run_capture() {
   cargo_cmd test --locked -p capture-diff
   cargo_cmd run --locked -p capture-diff -- \
     verify-required loot-single-item-claim
+  cargo_cmd run --locked -p capture-diff -- \
+    verify-required creature-spell-casting
 }
 
 review_result() {
@@ -978,7 +980,10 @@ run_self_test() {
     "capture profile capture-diff test command"
   require_exact_occurrences "$capture_output" \
     "verify-required loot-single-item-claim" 1 \
-    "capture profile required-flow command"
+    "capture profile required loot-flow command"
+  require_exact_occurrences "$capture_output" \
+    "verify-required creature-spell-casting" 1 \
+    "capture profile required creature-spell-flow command"
 
   ci_dry_run_output="$(PATH="$artifacts/bin" \
     "$BASH" "$REPO_ROOT/tools/pr-preflight.sh" --dry-run ci 2>&1)" || die \
@@ -1021,7 +1026,10 @@ run_self_test() {
     "local CI capture-diff test command"
   require_exact_occurrences "$ci_dry_run_output" \
     "verify-required loot-single-item-claim" 1 \
-    "local CI required-flow command"
+    "local CI required loot-flow command"
+  require_exact_occurrences "$ci_dry_run_output" \
+    "verify-required creature-spell-casting" 1 \
+    "local CI required creature-spell-flow command"
   [[ "$ci_dry_run_output" != *"WOW_BOT_LOOT_RACE_SMOKE=1"* ]] || die \
     "normal CI profile must never activate destructive live loot-race QA"
 
@@ -1055,7 +1063,10 @@ run_self_test() {
     "GitHub workflow wow-handler inventory registry integration tests"
   require_exact_occurrences "$github_workflow_text" \
     "cargo +1.88.0 run --locked -p capture-diff -- verify-required loot-single-item-claim" 1 \
-    "GitHub workflow required-flow command"
+    "GitHub workflow required loot-flow command"
+  require_exact_occurrences "$github_workflow_text" \
+    "cargo +1.88.0 run --locked -p capture-diff -- verify-required creature-spell-casting" 1 \
+    "GitHub workflow required creature-spell-flow command"
 
   if qa_loot_race_missing_ack_output="$(PATH="$artifacts/bin" \
     "$BASH" "$REPO_ROOT/tools/pr-preflight.sh" --dry-run --allow-runtime-qa \
@@ -2758,7 +2769,10 @@ run_self_test() {
     "local full capture-diff test command"
   require_exact_occurrences "$full_dry_run_output" \
     "verify-required loot-single-item-claim" 1 \
-    "local full required-flow command"
+    "local full required loot-flow command"
+  require_exact_occurrences "$full_dry_run_output" \
+    "verify-required creature-spell-casting" 1 \
+    "local full required creature-spell-flow command"
 
   self_test_cleanup "$qa_world_pid" "$artifacts"
   qa_world_pid=""

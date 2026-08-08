@@ -1,3 +1,44 @@
+# `#NEXT.R8.ENTITIES.1249` — bounded creature combat spell wire lifecycle.
+
+Issue #26 closes the M2.6 subset that makes the stock `CombatAI` and `TurretAI` template-spell
+decision live inside the existing single-owner creature frame. C++ copies the creature-template
+spell list into `Creature::m_spells`, classifies it through `UnitAI::FillAISpellInfo`, schedules
+`CombatAI` events or attempts Turret slot zero, and resets combat timers around a successful cast
+(`Creature.cpp:563`, `UnitAI.cpp:61-82,190-235`, `CombatAI.cpp:45-113,191-223`,
+`Spell.cpp:8363-8372`). Rust now hydrates the required cooldown, duration, visual, spell and
+difficulty stores; preserves the active-map-difficulty lookup, target/range and raw cooldown
+decisions; serializes the reduced C++ `Spell::SendSpellStart`/`SendSpellGo` shape; and commits the
+adjacent pair as one ordered visible-observer command before the same-frame melee phase. Missing
+or unsupported metadata, target topology, power/aura cost, projectile or optional packet shapes
+fail closed.
+
+The first guarded Rust attempt found that the live login path had never hydrated
+`player_faction_template_like_cpp`: the registry therefore published `0` and the existing
+hostility gate rejected the player before engagement. The loaded identity now derives that value
+from `ChrRacesStore` and installs it in both the session/registry snapshot and the canonical
+`Player`. A focused login regression proves identity → registry → canonical faction without the
+manual faction setter that had masked the defect in creature-runtime tests.
+
+The repeated guarded live run derives its C++ source from base HEAD
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` plus one-file patch SHA-256
+`ef8b3c29f46fe537e1ae4e826b5610afcd534999f900ec9554ee0534e7847262`, yielding patched HEAD
+`8cfed90bf1720dbf8b9dc109113c8d7d9173ff6c`. The patch changes only the
+`ChrSpecialization` index-container bound required by the installed DB2 dataset, not AI, spell,
+or packet behavior. The Rust side pins clean HEAD
+`9177705612a9b108edeba0221bde6bfb02b7e8fb`. Cabal Interrogator `22378` casts Eviscerate
+`15691` at character `15`; strict import selects exactly the adjacent START/GO pair on each side
+and produces an empty divergence baseline. The retained C++ RAW PKT is
+`93b6d01532f01a199486575db024b8e4ad72b786bdeed40d9ca7cda72b57f030`, the Rust RAW tree is
+`77ab3fb9219b06609657fbec811016d3e139bb78d82683206c4d07adc6fd1ee4`, the filtered C++ PKT is
+`c849f0044bc3467d439ec0a4bff12719a0d751f20dbd6be21d62b5a4f3bf3370`, the normalized Rust
+tree is `8bc8d8886b2f632fd75037b913c162f55032d87762cd74313bc1c28fff56e124`, and the lineage file is
+`4448e804409b05f00e87762d4fad0a87efba5a95661507631ce0d0f774e01229`.
+
+This remains `represented-partial`. The wire hit topology does not execute Eviscerate effects or
+mutate damage, health, aura, or power state; full `Spell` preparation/check/cast/effect ownership,
+non-instant casts, broader target/optional shapes, the remaining AI families, SmartAI, creature
+text, and dedicated live coverage for TurretAI remain open. No manual-client claim is made.
+
 # `#NEXT.R8.ENTITIES.1248` — exact world-handler registration/dispatch equality.
 
 Issue #142 removes the last known one-sided world-handler wiring, after the ordered trainer

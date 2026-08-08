@@ -24,6 +24,7 @@ cargo run -p capture-diff -- diff login --strict
 
 # Milestone gate (operator-attested ready state, empty baseline and pinned shape):
 cargo run -p capture-diff -- verify-required loot-single-item-claim
+cargo run -p capture-diff -- verify-required creature-spell-casting
 ```
 
 `verify-required` is intentionally stricter than `diff --strict`: it refuses an
@@ -31,13 +32,13 @@ cargo run -p capture-diff -- verify-required loot-single-item-claim
 incorrect exact packet count/boundary/socket/order shape, an invalid correlated
 payload, a selection that differs from the exact reviewed boundaries/ignores,
 a missing or malformed RAW-to-derived lineage, any retained manifest/output
-hash mismatch, or any C++↔Rust difference. This
-lets a PR record exactly which capture it still owes without manufacturing a
-golden. Issue #106's existing `loot-single-item-claim` action windows contain
-six packets each and compare CLEAN with an empty accepted-divergence baseline,
-but they predate the mandatory RAW manifests and cannot establish which
-processes produced them. The contract therefore remains
-`awaiting-real-captures` until a new, fully accredited C++/Rust pair is imported.
+hash mismatch, or any C++↔Rust difference. This lets a PR record exactly which
+capture it still owes without manufacturing a golden. Both required contracts
+shown above are enforced `ready` gates backed by accredited schema-v3 RAW
+manifests and completed RAW-to-derived lineage: issue #106's
+`loot-single-item-claim` permits exactly six packets per side and issue #26's
+`creature-spell-casting` exactly two. Both compare strict-CLEAN with empty
+accepted-divergence baselines.
 
 The `ready` status is an operator attestation made only after inspecting the
 capture run and its provenance. Each wrapper publishes a completed RAW
@@ -158,11 +159,12 @@ topologies. C++ registers `SMSG_SEND_KNOWN_SPELLS` as
 socket, and the comparator itself does not normalize routing; a same-topology
 connection regression remains a separate hard failure.
 
-The versioned `creature-spell-casting-v1` contract reserves fail-closed
-semantic comparisons for the mandatory adjacent `SMSG_SPELL_START` (`0x2C37`)
-then `SMSG_SPELL_GO` (`0x2C36`) pair, without installing or claiming any
-capture artifact. The required-flow validator pins Cabal Interrogator entry
-`22378` on map `530`, Eviscerate `15691`, SpellXSpellVisual `244493`, exact
+The versioned `creature-spell-casting-v1` contract applies fail-closed semantic
+comparisons to the mandatory adjacent `SMSG_SPELL_START` (`0x2C37`) then
+`SMSG_SPELL_GO` (`0x2C36`) pair. Its reviewed live C++/Rust generation is
+strict-CLEAN (2/2 packets) with an empty accepted-divergence baseline. The
+required-flow validator pins Cabal Interrogator entry `22378` on map `530`,
+Eviscerate `15691`, SpellXSpellVisual `244493`, exact
 START/GO flags `0x2`/`0x100` with CastFlagsEx `0`, and one unit-only Player
 target (the guarded character GUID `15`) that appears exactly once in GO's hit
 list with no miss or optional
@@ -188,6 +190,25 @@ GUIDs remain exact. Player/item casts retain raw byte identity. Missing or
 reordered START/GO, full combat-log payloads, noncanonical padding/GUIDs,
 mismatched miss/status counts, trailing bytes and even identical malformed
 bodies all fail closed.
+
+The C++ RAW PKT
+`93b6d01532f01a199486575db024b8e4ad72b786bdeed40d9ca7cda72b57f030`
+comes from an accredited source derivation: base HEAD
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`, one-file patch SHA-256
+`ef8b3c29f46fe537e1ae4e826b5610afcd534999f900ec9554ee0534e7847262`,
+and resulting HEAD `8cfed90bf1720dbf8b9dc109113c8d7d9173ff6c`. The patch only corrects the
+`ChrSpecialization` index-container bound required by the installed DB2 data;
+it changes no AI or spell path. The Rust RAW tree
+`77ab3fb9219b06609657fbec811016d3e139bb78d82683206c4d07adc6fd1ee4`
+comes from clean HEAD `9177705612a9b108edeba0221bde6bfb02b7e8fb`. Strict
+import produced filtered C++ PKT
+`c849f0044bc3467d439ec0a4bff12719a0d751f20dbd6be21d62b5a4f3bf3370`,
+normalized Rust tree
+`8bc8d8886b2f632fd75037b913c162f55032d87762cd74313bc1c28fff56e124`,
+and lineage file
+`4448e804409b05f00e87762d4fad0a87efba5a95661507631ce0d0f774e01229`.
+This wire window proves only the bounded START/GO publication contract; it does
+not claim spell-effect, damage, power, aura, or health-state mutation parity.
 
 The issue-#108 vendor fixture isolates the exact post-COMMIT realm response:
 `SMSG_BUY_SUCCEEDED` followed by `SMSG_ITEM_PUSH_RESULT`. Paired C++ and Rust

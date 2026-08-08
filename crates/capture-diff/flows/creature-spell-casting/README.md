@@ -1,9 +1,18 @@
 # Required capture: creature spell casting
 
-This directory is the fail-closed live acceptance contract for issue #26. It
-does not contain a packet capture and its requirement remains
-`awaiting-real-captures`. Synthetic semantic tests are parser/comparator
-coverage only; they are not evidence that either world server cast a spell.
+This directory is the ready, fail-closed live acceptance gate for issue #26.
+The reviewed pair records the same guarded action from patched C++ source HEAD
+`8cfed90bf1720dbf8b9dc109113c8d7d9173ff6c` and clean RustyCore HEAD
+`9177705612a9b108edeba0221bde6bfb02b7e8fb`: exactly one adjacent
+`SMSG_SPELL_START`/`SMSG_SPELL_GO` pair for spell `15691`, with an empty strict
+divergence baseline. Synthetic semantic tests remain parser/comparator coverage;
+the committed RAW provenance and lineage are the live acceptance evidence.
+The C++ source chain is base HEAD
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` plus patch SHA-256
+`ef8b3c29f46fe537e1ae4e826b5610afcd534999f900ec9554ee0534e7847262`,
+yielding the patched HEAD above. That one-file patch only fixes the
+`ChrSpecialization` index-container bound required to load the installed DB2
+dataset; it does not change creature AI, spells, or their wire output.
 
 ## Guarded fixture
 
@@ -174,9 +183,22 @@ cargo run -p capture-diff -- import creature-spell-casting \
   --strict
 ```
 
-Review both RAW captures, manifests, fixture hashes, the exact selected packet
-bodies, and generated `capture-lineage.json`. Only then change the requirement
-to `ready`, remove `blocked_reason`, and run:
+The reviewed import is strict-CLEAN (2/2 packets) with these retained
+identities:
+
+- C++ RAW PKT SHA-256:
+  `93b6d01532f01a199486575db024b8e4ad72b786bdeed40d9ca7cda72b57f030`;
+- Rust RAW dump tree SHA-256:
+  `77ab3fb9219b06609657fbec811016d3e139bb78d82683206c4d07adc6fd1ee4`;
+- filtered C++ PKT SHA-256:
+  `c849f0044bc3467d439ec0a4bff12719a0d751f20dbd6be21d62b5a4f3bf3370`;
+- normalized Rust tree SHA-256:
+  `8bc8d8886b2f632fd75037b913c162f55032d87762cd74313bc1c28fff56e124`;
+- `capture-lineage.json` file SHA-256:
+  `4448e804409b05f00e87762d4fad0a87efba5a95661507631ce0d0f774e01229`.
+
+The requirement is therefore `ready`; re-verify its exact provenance, packet
+shape, empty baseline, and hashes with:
 
 ```bash
 cargo run -p capture-diff -- verify-required creature-spell-casting

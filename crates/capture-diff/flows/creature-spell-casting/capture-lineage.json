@@ -1,0 +1,184 @@
+{
+  "version": 3,
+  "flow": "creature-spell-casting",
+  "completed": true,
+  "sources": {
+    "cpp": {
+      "manifest_path": "capture-provenance/cpp.capture-manifest.json",
+      "manifest_sha256": "28eb5d7548c7795da237bf59d63b4186c087a0713a242cacc52a496b1814a002",
+      "raw_artifact_sha256": "93b6d01532f01a199486575db024b8e4ad72b786bdeed40d9ca7cda72b57f030",
+      "raw_artifact_size": 68600,
+      "raw_packet_count": null,
+      "harness_repo_head": "9177705612a9b108edeba0221bde6bfb02b7e8fb",
+      "source_repo_head": "8cfed90bf1720dbf8b9dc109113c8d7d9173ff6c",
+      "source_derivation": {
+        "contract": "creature-spell-casting-cpp-source-patch-v1",
+        "remote_url": "https://github.com/alseif0x/TrinityCoreLegacyTest.git",
+        "remote_ref": "refs/remotes/origin/3.4.3",
+        "base_head": "a5f8da2ebf5424bf0450ca4e08843ecbf72577bd",
+        "base_tree": "bb5c4746be7f9944b1a3f7a1eec5ea88d62fff67",
+        "patched_head": "8cfed90bf1720dbf8b9dc109113c8d7d9173ff6c",
+        "patched_tree": "228e91ed36886593c85fb601d00a9f8eb0702137",
+        "patch_path": "crates/capture-diff/flows/creature-spell-casting/fixture/cpp-reference.patch",
+        "patch_sha256": "ef8b3c29f46fe537e1ae4e826b5610afcd534999f900ec9554ee0534e7847262",
+        "changed_paths": [
+          "src/server/game/DataStores/DB2Stores.cpp"
+        ]
+      },
+      "harness_worktree_clean": true,
+      "harness_worktree_state_sha256": "bc23c78583c1d245903e9c9a3e87e0e7dabb8449d7066c54254d654af9262eed",
+      "source_worktree_dirty": false,
+      "source_worktree_state_sha256": "401483f79a44e5f63d08ec7979502af1dbe30486f200a1c9e72d1dbf21089490",
+      "worktree_state_algorithm": "git-head-path-mode-content-sha256-v1",
+      "expected_exec_path": "/tmp/rustycore-cpp-issue26-fix.3kUpRL/build/src/server/worldserver/worldserver",
+      "expected_exec_sha256": "9969ec0fce3f2d34974a3fddedd8836bee2367c1b5b1b4c86130c5a3c07d7de6",
+      "source_exec_path": "/tmp/rustycore-cpp-issue26-fix.3kUpRL/build/src/server/worldserver/worldserver",
+      "source_exec_sha256": "9969ec0fce3f2d34974a3fddedd8836bee2367c1b5b1b4c86130c5a3c07d7de6",
+      "live_exec_path": "/tmp/rustycore-cpp-issue26-fix.3kUpRL/build/src/server/worldserver/worldserver",
+      "live_exec_sha256": "9969ec0fce3f2d34974a3fddedd8836bee2367c1b5b1b4c86130c5a3c07d7de6",
+      "executable_pin_enforced": true,
+      "pm2_entry_pid": 3784722,
+      "pm2_entry_starttime": 1180948773,
+      "pm2_exec_path": "/tmp/rustycore-cpp-issue26-fix.3kUpRL/build/src/server/worldserver/worldserver",
+      "pm2_exec_sha256": "9969ec0fce3f2d34974a3fddedd8836bee2367c1b5b1b4c86130c5a3c07d7de6",
+      "pm2_profile_redacted_sha256": "54c8a42d11f3acb780c539cfc2ba681c24d40d2333c0bc2fb30d8277f06e4638",
+      "listener_runtime_pid": 3784722,
+      "listener_runtime_starttime": 1180948773,
+      "listener_relationship_verified": true,
+      "restart_count": 0,
+      "effective_config_path": "/home/server/trinity-legacy-install/etc/worldserver.conf",
+      "effective_config_redacted_sha256": "61917fb230291a45548e0e3a356596c73e23493649cda9e455425061ef1408a9",
+      "effective_config_algorithm": "capture-relevant-redacted-v1",
+      "runtime_cleanup_verified": true,
+      "normal_runtime_restored": true,
+      "fixture_guard": {
+        "enabled": true,
+        "contract": "creature-spell-casting-shell-fixture-v1",
+        "account": "TESTBOT2@bot.local",
+        "account_id": 9,
+        "character_guid": 15,
+        "peer_account": "",
+        "peer_account_id": 0,
+        "peer_character_guid": 0,
+        "creature_entry": 22378,
+        "creature_spawn_guid": 78686,
+        "item_entry": 0,
+        "fixture_manifest_path": "/home/server/rustycore/crates/capture-diff/flows/creature-spell-casting/fixture/fixture.json",
+        "fixture_manifest_sha256": "fe6cea1808e8beb7d648d285ad52b10067611e46c55d30637514508275b63b49",
+        "journal_sha256": "048938922730943cd58740896db6986a1b67458aa86be08e5c768756dbadf408",
+        "database_snapshot_sha256": "7b86e41b3632739a4959f6321d2031578bcebd98b21e0b0863f400d913d7c12a",
+        "cleanup_verified": true
+      },
+      "bot_report": {
+        "contract": "wow-test-bot-creature-spell-casting-report-v1",
+        "exec_path": "/tmp/rustycore-issue26-bin-457afca9.ChDLY0/wow-test-bot-457afca9",
+        "exec_sha256": "5076ef852ff082ebc4bc04f1bcd3c452b3ea8c6931b1b071b8bb84bcc90f8109",
+        "report_path": "/tmp/rustycore-issue26-final-cpp-91777056.t5v9XD/report.json",
+        "report_sha256": "b6d9817ded9b35d6595b828142e48fa73b1f9f9cf4dce9b62b3325cd50f2769c",
+        "account": "TESTBOT2@bot.local",
+        "account_id": 9,
+        "character_guid": 15,
+        "report_validated": true
+      },
+      "retained_bot_report_path": "capture-provenance/cpp.bot-report.json"
+    },
+    "rust": {
+      "manifest_path": "capture-provenance/rust.capture-manifest.json",
+      "manifest_sha256": "2231d1c287b682360c6621838bc16c1269bff9a4a99423d64d4db69408c9c167",
+      "raw_artifact_sha256": "77ab3fb9219b06609657fbec811016d3e139bb78d82683206c4d07adc6fd1ee4",
+      "raw_artifact_size": null,
+      "raw_packet_count": 115,
+      "harness_repo_head": "9177705612a9b108edeba0221bde6bfb02b7e8fb",
+      "source_repo_head": "9177705612a9b108edeba0221bde6bfb02b7e8fb",
+      "harness_worktree_clean": true,
+      "harness_worktree_state_sha256": "bc23c78583c1d245903e9c9a3e87e0e7dabb8449d7066c54254d654af9262eed",
+      "source_worktree_dirty": false,
+      "source_worktree_state_sha256": "bc23c78583c1d245903e9c9a3e87e0e7dabb8449d7066c54254d654af9262eed",
+      "worktree_state_algorithm": "git-head-path-mode-content-sha256-v1",
+      "expected_exec_path": "/tmp/rustycore-issue26-bin-91777056.fMf2XN/world-server-91777056",
+      "expected_exec_sha256": "95a1c057ced067c10f27f9ddd0f19bb43d8790da4333f1f3cd99e3872d749f03",
+      "source_exec_path": "/tmp/rustycore-issue26-bin-91777056.fMf2XN/world-server-91777056",
+      "source_exec_sha256": "95a1c057ced067c10f27f9ddd0f19bb43d8790da4333f1f3cd99e3872d749f03",
+      "live_exec_path": "/tmp/rustycore-issue26-bin-91777056.fMf2XN/world-server-91777056",
+      "live_exec_sha256": "95a1c057ced067c10f27f9ddd0f19bb43d8790da4333f1f3cd99e3872d749f03",
+      "executable_pin_enforced": true,
+      "pm2_entry_pid": 3789053,
+      "pm2_entry_starttime": 1180966987,
+      "pm2_exec_path": "/tmp/rustycore-issue26-bin-91777056.fMf2XN/world-server-91777056",
+      "pm2_exec_sha256": "95a1c057ced067c10f27f9ddd0f19bb43d8790da4333f1f3cd99e3872d749f03",
+      "pm2_profile_redacted_sha256": "282bbf505c89d0a195802f55a32596e30af355057c30aa5f6f49e3eaeee347de",
+      "listener_runtime_pid": 3789053,
+      "listener_runtime_starttime": 1180966987,
+      "listener_relationship_verified": true,
+      "restart_count": 0,
+      "effective_config_path": "/home/server/trinity-legacy-install/etc/worldserver.conf",
+      "effective_config_redacted_sha256": "caf0882052d596ad1dd29ac6b7e71daad4383d1385c4a8d82f2b8ca1ae763d31",
+      "effective_config_algorithm": "capture-relevant-redacted-v1",
+      "runtime_cleanup_verified": true,
+      "normal_runtime_restored": true,
+      "fixture_guard": {
+        "enabled": true,
+        "contract": "creature-spell-casting-shell-fixture-v1",
+        "account": "TESTBOT2@bot.local",
+        "account_id": 9,
+        "character_guid": 15,
+        "peer_account": "",
+        "peer_account_id": 0,
+        "peer_character_guid": 0,
+        "creature_entry": 22378,
+        "creature_spawn_guid": 78686,
+        "item_entry": 0,
+        "fixture_manifest_path": "/home/server/rustycore/crates/capture-diff/flows/creature-spell-casting/fixture/fixture.json",
+        "fixture_manifest_sha256": "fe6cea1808e8beb7d648d285ad52b10067611e46c55d30637514508275b63b49",
+        "journal_sha256": "96824fccafbb7b9eb2957e1a1e3790be4f38948b5ebbf1ac9f9e02401b3c7519",
+        "database_snapshot_sha256": "7b86e41b3632739a4959f6321d2031578bcebd98b21e0b0863f400d913d7c12a",
+        "cleanup_verified": true
+      },
+      "bot_report": {
+        "contract": "wow-test-bot-creature-spell-casting-report-v1",
+        "exec_path": "/tmp/rustycore-issue26-bin-457afca9.ChDLY0/wow-test-bot-457afca9",
+        "exec_sha256": "5076ef852ff082ebc4bc04f1bcd3c452b3ea8c6931b1b071b8bb84bcc90f8109",
+        "report_path": "/tmp/rustycore-issue26-final-rust-91777056.NttTyC/report.json",
+        "report_sha256": "76f23ba719a414f9acf3a11c1ab267645a4044b5c93d1b5438d80601fec82a94",
+        "account": "TESTBOT2@bot.local",
+        "account_id": 9,
+        "character_guid": 15,
+        "report_validated": true
+      },
+      "retained_bot_report_path": "capture-provenance/rust.bot-report.json"
+    }
+  },
+  "selection": {
+    "directions": [
+      "s2c"
+    ],
+    "from_opcode": {
+      "direction": "s2c",
+      "opcode": 11319
+    },
+    "until_opcode": {
+      "direction": "s2c",
+      "opcode": 11318
+    },
+    "ignored_opcodes": [],
+    "strict": true
+  },
+  "outputs": {
+    "cpp_pkt": {
+      "path": "cpp.pkt",
+      "size": 356,
+      "sha256": "c849f0044bc3467d439ec0a4bff12719a0d751f20dbd6be21d62b5a4f3bf3370"
+    },
+    "rust": {
+      "path": "rust",
+      "file_count": 4,
+      "packet_count": 2,
+      "tree_sha256": "8bc8d8886b2f632fd75037b913c162f55032d87762cd74313bc1c28fff56e124"
+    },
+    "expected_divergences": {
+      "path": "expected-divergences.json",
+      "size": 2,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    }
+  }
+}

@@ -144,14 +144,20 @@ intent, no mutation — see STATE.md §0). Almost every item below is "convert r
   reads but never assigns. Chase commits that direction only after a successful spline launch
   and drops the prior corridor before a direction-flip query. The 3D squared `< 3.0f` corridor
   lookup remains C++-faithful. The fail-closed `detour-chase-around-obstacle` flow pins the
-  connected MMap/action/provenance contract and is awaiting the real C++/Rust pair before closeout.
+  connected MMap/action/provenance contract; its reviewed C++/Rust pair is strict-CLEAN across the
+  exact heartbeat → compressed chase spline → ping window (3/3 packets, empty baseline).
   Not claimed: point/charge, fleeing and confused have no live trigger (no fear/confuse aura
   handlers, no live `MovePoint` caller), so their ported generators stay unreachable; also open are
   mutual chase, VMap LOS, the `CanSwim()` mesh-hole halves, raycast/straight-path modes,
   liquid-aware `NormalizePath`, transports/formation/off-mesh links, and per-instance pathfinder
   concurrency.
-- [ ] **M2.5** Real threat: generate threat from damage/heal/taunt; target switch; aggro range by level diff; leash/evade home; call-for-help.
-- [ ] **M2.6** Creature spell casting in combat (from `creature_template` spell list; cooldowns).
+- [x] **M2.5** Real threat: generate threat from damage/heal/taunt; target switch; aggro range by level diff; leash/evade home; call-for-help.
+- [x] **M2.6** Creature spell casting in combat (from `creature_template` spell list; cooldowns).
+  The bounded CombatAI/TurretAI slice reads template spell slots, schedules supported instant
+  casts with C++ cooldown/range/target/visual rules, and publishes an atomic START/GO pair before
+  the same-frame melee phase. The guarded Cabal Interrogator/Eviscerate live pair is strict-CLEAN
+  (2/2 packets, empty baseline). This closes the M2.6 wire/lifecycle slice only: spell effects,
+  damage/health mutation, the full Spell pipeline, and the other AI families remain later work.
 - [ ] **M2.7** Creature reactions: on-aggro/death/evade `creature_text` emotes/yells/sounds.
 - [ ] **M2.8** Formalize runtime owner per ADR (single-owner, no double resolution; respect `Map::Update` phase order).
 - [ ] **M2 exit:** creatures patrol, path around walls, fight back with abilities, speak, respawn; two clients see identical state.
@@ -212,7 +218,8 @@ Sequenced after/alongside the M0–M6 spine; listed now so the long tail can't f
 - [ ] **L3 Spell effects** — ~42 / 150 → 150. (`spells-effects.md`)
 - [ ] **L4 Aura types (incl. periodic/proc)** — ~5 / ~255 → all. (C++ `SpellAuraEffects`)
 - [ ] **L5 DBC/DB2 stores** — ~110 / ~325 (34%) → all needed. (`cpp-db2-stores.tsv`)
-- [ ] **L6 Creature AI families** — selection-only → AggressorAI/CombatAI/Guard/Passive/Critter/Turret/Vehicle real behavior.
+- [ ] **L6 Creature AI families** — partial (bounded live AggressorAI/CombatAI/TurretAI combat
+  slices) → full AggressorAI/CombatAI/Guard/Passive/Critter/Turret/Vehicle behavior.
 - [ ] **L7 SmartAI (SMART_SCRIPT)** — recognized-not-interpreted → full event/action/target interpreter. (`ai-smartscripts.md`)
 - [ ] **L8 Movement generators** — disconnected → all wired (idle/wander/waypoint/chase/follow/point/flee/charge/taxi/transport).
 - [ ] **L9 Pathfinding/terrain/vmap** — stub → full Detour + height + LOS + collision.
