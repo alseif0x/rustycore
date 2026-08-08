@@ -321,6 +321,9 @@ current_row_expression="$(
 prelogin_row_expression="$(
   creature_spell_fixture_character_row_hash_expression prelogin
 )"
+forced_offline_row_expression="$(
+  creature_spell_fixture_character_row_hash_expression forced-offline
+)"
 immutable_expression="$(
   creature_spell_fixture_character_immutable_hash_expression
 )"
@@ -333,6 +336,12 @@ assert_eq 79 \
 assert_eq 87 \
   "$(tr -cd ',' <<<"$prelogin_row_expression" | wc -c | tr -d ' ')" \
   "deterministic pre-login complete-row expression width"
+assert_eq 86 \
+  "$(grep -oE '`[^`]+`' <<<"$forced_offline_row_expression" | wc -l | tr -d ' ')" \
+  "forced-offline hash retains every column except the replaced online marker"
+assert_eq 87 \
+  "$(tr -cd ',' <<<"$forced_offline_row_expression" | wc -c | tr -d ' ')" \
+  "forced-offline complete-row expression width"
 assert_eq 14 \
   "$(grep -oE '`[^`]+`' <<<"$immutable_expression" | wc -l | tr -d ' ')" \
   "non-restored character projection column count"
@@ -342,6 +351,10 @@ assert_eq 14 \
 [[ "$prelogin_row_expression" == *'CAST(-2749.52 AS FLOAT)'* \
   && "$prelogin_row_expression" == *'50000'* ]] \
   || fail "pre-login row hash does not encode the guarded relocation/health"
+[[ "$forced_offline_row_expression" != *'`online`'* \
+  && "$forced_offline_row_expression" == *'`position_x`'* \
+  && "$forced_offline_row_expression" == *'`health`'* ]] \
+  || fail "forced-offline row hash changes fields beyond the online marker"
 assert_eq 87 "$CREATURE_SPELL_FIXTURE_CHARACTER_SCHEMA_COLUMN_COUNT" \
   "pinned characters schema column count"
 assert_eq 2888 "$CREATURE_SPELL_FIXTURE_CHARACTER_SCHEMA_METADATA_BYTES" \
@@ -391,6 +404,155 @@ for MOCK_GHOST_STATE in $'1\t3' $'1\t0' $'0\t3'; do
   fi
 done
 MOCK_GHOST_STATE=$'0\t0'
+
+# Abrupt C++ socket shutdown can leave only the owned online marker behind.
+# Exercise the reconciler without a DB: it must first prove the stopped-world
+# window, no-op when already offline, and otherwise issue one tightly bounded
+# online-only CAS.
+(
+  RECONCILE_SQL="$TEST_ROOT/reconcile-offline-noop.sql"
+  RECONCILE_RUNTIME="$TEST_ROOT/reconcile-offline-noop.runtime"
+  CREATURE_SPELL_FIXTURE_PHASE=captured
+  CREATURE_SPELL_FIXTURE_CHARACTER_PRELOGIN_ROW_SHA256="$(repeat_digest b)"
+  CREATURE_SPELL_FIXTURE_CHARACTER_IMMUTABLE_SHA256="$(repeat_digest c)"
+  creature_spell_fixture_require_worlds_stopped() {
+    : >"$RECONCILE_RUNTIME"
+  }
+  loot_fixture_character_mysql() {
+    [ "$1" = -e ] || return 1
+    printf '%s\n' "$2" >>"$RECONCILE_SQL"
+    [[ "$2" != *'UPDATE characters AS fixture_character'* ]] \
+      || fail "already-offline reconciliation attempted an UPDATE"
+    printf '0\t0\n'
+  }
+  creature_spell_fixture_reconcile_owned_online_marker \
+    || fail "already-offline marker reconciliation failed"
+  [ -f "$RECONCILE_RUNTIME" ] \
+    || fail "already-offline reconciliation skipped the stopped-world proof"
+  ! grep -q 'UPDATE characters' "$RECONCILE_SQL" \
+    || fail "already-offline reconciliation mutated characters"
+)
+
+(
+  RECONCILE_SQL="$TEST_ROOT/reconcile-owned-success.sql"
+  RECONCILE_RUNTIME="$TEST_ROOT/reconcile-owned-success.runtime"
+  CREATURE_SPELL_FIXTURE_PHASE=applied
+  CREATURE_SPELL_FIXTURE_CHARACTER_PRELOGIN_ROW_SHA256="$(repeat_digest b)"
+  CREATURE_SPELL_FIXTURE_CHARACTER_IMMUTABLE_SHA256="$(repeat_digest c)"
+  creature_spell_fixture_require_worlds_stopped() {
+    : >"$RECONCILE_RUNTIME"
+  }
+  loot_fixture_character_mysql() {
+    [ "$1" = -e ] || return 1
+    printf '%s\n' "$2" >>"$RECONCILE_SQL"
+    if [[ "$2" == *'UPDATE characters AS fixture_character'* ]]; then
+      printf '1\n'
+    else
+      printf '1\t1\n'
+    fi
+  }
+  creature_spell_fixture_reconcile_owned_online_marker \
+    || fail "exact owned online marker reconciliation failed"
+  [ -f "$RECONCILE_RUNTIME" ] \
+    || fail "owned marker reconciliation skipped the stopped-world proof"
+  grep -q 'SET fixture_character.online = 0' "$RECONCILE_SQL" \
+    || fail "owned marker CAS does not update only online"
+  grep -q 'fixture_character.guid = 15' "$RECONCILE_SQL" \
+    && grep -q 'fixture_character.account = 9' "$RECONCILE_SQL" \
+    && grep -q 'fixture_character.online = 1' "$RECONCILE_SQL" \
+    || fail "owned marker CAS is not pinned to guid 15/account 9/online 1"
+  grep -q 'online_guard.online_count = 1' "$RECONCILE_SQL" \
+    && grep -q 'online_guard.owned_online_count = 1' "$RECONCILE_SQL" \
+    || fail "owned marker CAS does not repeat the unique-online-row proof"
+  grep -q "= '$(repeat_digest b)'" "$RECONCILE_SQL" \
+    || fail "owned marker CAS omits the hypothetical pre-login row hash"
+  grep -q "= '$(repeat_digest c)'" "$RECONCILE_SQL" \
+    || fail "owned marker CAS omits the immutable-column hash"
+  grep -q 'FROM corpse' "$RECONCILE_SQL" \
+    && grep -q 'FROM character_aura' "$RECONCILE_SQL" \
+    && grep -q 'FROM character_aura_effect' "$RECONCILE_SQL" \
+    && grep -q 'spell = 8326' "$RECONCILE_SQL" \
+    || fail "owned marker CAS omits corpse/ghost-state exclusions"
+  assert_eq 1 \
+    "$(grep -c 'SET fixture_character.online = 0' "$RECONCILE_SQL")" \
+    "owned marker online-only mutation count"
+)
+
+(
+  RECONCILE_SQL="$TEST_ROOT/reconcile-foreign-shape.sql"
+  CREATURE_SPELL_FIXTURE_PHASE=applied
+  CREATURE_SPELL_FIXTURE_CHARACTER_PRELOGIN_ROW_SHA256="$(repeat_digest b)"
+  CREATURE_SPELL_FIXTURE_CHARACTER_IMMUTABLE_SHA256="$(repeat_digest c)"
+  creature_spell_fixture_require_worlds_stopped() { return 0; }
+  loot_fixture_character_mysql() {
+    [ "$1" = -e ] || return 1
+    printf '%s\n' "$2" >>"$RECONCILE_SQL"
+    [[ "$2" != *'UPDATE characters AS fixture_character'* ]] \
+      || fail "foreign online shape reached the marker UPDATE"
+    printf '%s\n' "$RECONCILE_SHAPE"
+  }
+  for RECONCILE_SHAPE in $'1\t0' $'2\t1'; do
+    if creature_spell_fixture_reconcile_owned_online_marker 2>/dev/null; then
+      fail "marker reconciler accepted foreign online shape ${RECONCILE_SHAPE}"
+    fi
+  done
+  ! grep -q 'UPDATE characters' "$RECONCILE_SQL" \
+    || fail "foreign online shape mutated characters"
+)
+
+(
+  RECONCILE_SQL="$TEST_ROOT/reconcile-wrong-phase.sql"
+  CREATURE_SPELL_FIXTURE_PHASE=captured
+  CREATURE_SPELL_FIXTURE_CHARACTER_PRELOGIN_ROW_SHA256="$(repeat_digest b)"
+  CREATURE_SPELL_FIXTURE_CHARACTER_IMMUTABLE_SHA256="$(repeat_digest c)"
+  creature_spell_fixture_require_worlds_stopped() { return 0; }
+  loot_fixture_character_mysql() {
+    [ "$1" = -e ] || return 1
+    printf '%s\n' "$2" >>"$RECONCILE_SQL"
+    [[ "$2" != *'UPDATE characters AS fixture_character'* ]] \
+      || fail "non-applied journal reached the marker UPDATE"
+    printf '1\t1\n'
+  }
+  if creature_spell_fixture_reconcile_owned_online_marker 2>/dev/null; then
+    fail "marker reconciler accepted an online row outside applied phase"
+  fi
+)
+
+(
+  RECONCILE_SQL="$TEST_ROOT/reconcile-cas-rejected.sql"
+  CREATURE_SPELL_FIXTURE_PHASE=applied
+  CREATURE_SPELL_FIXTURE_CHARACTER_PRELOGIN_ROW_SHA256="$(repeat_digest b)"
+  CREATURE_SPELL_FIXTURE_CHARACTER_IMMUTABLE_SHA256="$(repeat_digest c)"
+  creature_spell_fixture_require_worlds_stopped() { return 0; }
+  loot_fixture_character_mysql() {
+    [ "$1" = -e ] || return 1
+    printf '%s\n' "$2" >>"$RECONCILE_SQL"
+    if [[ "$2" == *'UPDATE characters AS fixture_character'* ]]; then
+      printf '0\n'
+    else
+      printf '1\t1\n'
+    fi
+  }
+  if creature_spell_fixture_reconcile_owned_online_marker 2>/dev/null; then
+    fail "marker reconciler accepted a rejected hash/death/ghost CAS"
+  fi
+)
+
+(
+  RECONCILE_MYSQL_CALL="$TEST_ROOT/reconcile-unsafe-runtime.mysql"
+  CREATURE_SPELL_FIXTURE_PHASE=applied
+  creature_spell_fixture_require_worlds_stopped() { return 1; }
+  loot_fixture_character_mysql() {
+    : >"$RECONCILE_MYSQL_CALL"
+    return 1
+  }
+  if creature_spell_fixture_reconcile_owned_online_marker 2>/dev/null; then
+    fail "marker reconciler accepted an active world/listener window"
+  fi
+  [ ! -e "$RECONCILE_MYSQL_CALL" ] \
+    || fail "unsafe runtime state reached marker DB inspection"
+)
+
 loot_fixture_character_mysql() {
   [ "$1" = -e ] || return 1
   printf '%s\n' "$2" >"$SCHEMA_SQL"
@@ -581,6 +743,7 @@ creature_spell_fixture_load_journal() {
   CREATURE_SPELL_FIXTURE_PHASE=applied
   return 0
 }
+creature_spell_fixture_reconcile_owned_online_marker() { return 0; }
 creature_spell_fixture_require_safe_db_window() { return 0; }
 creature_spell_fixture_snapshot_character_post_login() {
   CREATURE_SPELL_FIXTURE_CHARACTER_POST_LOGIN_ROW_SHA256="$(repeat_digest d)"
@@ -635,6 +798,18 @@ grep -q 'CREATURE_SPELL_FIXTURE_GHOST_PREFLIGHT_VERIFIED" -eq 1' \
 grep -q 'CREATURE_SPELL_FIXTURE_GHOST_POST_CAPTURE_VERIFIED" -eq 1' \
   "$SCRIPT_ROOT/creature-spell-casting-fixture-common.sh" \
   || fail "capture evidence does not require post-capture ghost accreditation"
+POST_CAPTURE_BODY="$TEST_ROOT/post-capture-snapshot.sh"
+sed -n '/^creature_spell_fixture_record_post_login_snapshot() {$/,/^}$/p' \
+  "$SCRIPT_ROOT/creature-spell-casting-fixture-common.sh" >"$POST_CAPTURE_BODY"
+post_reconcile_line="$(line_of \
+  'creature_spell_fixture_reconcile_owned_online_marker' "$POST_CAPTURE_BODY")"
+post_offline_gate_line="$(line_of \
+  'creature_spell_fixture_require_safe_db_window' "$POST_CAPTURE_BODY")"
+post_snapshot_line="$(line_of \
+  'creature_spell_fixture_snapshot_character_post_login' "$POST_CAPTURE_BODY")"
+((post_reconcile_line < post_offline_gate_line \
+  && post_offline_gate_line < post_snapshot_line)) \
+  || fail "post-capture marker reconciliation is not between stopped-world proof and global offline snapshot gate"
 for wrapper in "$CPP_WRAPPER" "$RUST_WRAPPER"; do
   grep -q 'creature-spell-casting)' "$wrapper" \
     || fail "$(basename "$wrapper") omits the creature-spell finalize branch"

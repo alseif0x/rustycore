@@ -41,6 +41,22 @@ proves the original 87-column row was reproduced. It also CAS-restores
 with a hash-bound cleanup marker before normal Rust may start. Any external
 drift leaves both worlds stopped and retains recovery evidence.
 
+An abrupt authenticated-socket shutdown can leave stock C++'s
+`characters.online=1` marker behind while its `WorldSession` waits to expire.
+The normal wrapper handles only that marker after both PM2 world entries are
+stopped with pid `0` and both listeners are absent, but before the global
+all-characters-offline gate and post-login snapshot. If every character is
+already offline it performs no write. Otherwise it requires the sole online
+row to be character `15`, account `9`, with `online=1`; the hypothetical full
+87-column row obtained by changing only `online` to `0` must equal the
+journaled pre-login hash, the 14-column immutable hash must still match, and
+there must be no corpse or persisted spell `8326` aura/effect. One atomic CAS
+then changes only `online` from `1` to `0` and must affect exactly one row.
+Every other online shape or failed predicate leaves both worlds stopped and
+the journal retained. The ordinary global offline gate still runs afterward;
+this is not permission to repair health, position, death, aura, or any other
+gameplay state, and explicit recovery remains fail-closed.
+
 Both the shell guard before mutation and the bot immediately before login
 independently reject persisted spell `8326` aura/effect state. After the
 capture world stops, the shell durably records the post-login core row and
@@ -116,7 +132,8 @@ wrapper independently verifies the pinned bot executable, its fresh report,
 the exact START/GO bodies, and the immediate shutdown of both authenticated
 sockets without a combat `CMSG_LOGOUT_REQUEST` before accepting the capture.
 Press Enter promptly so the wrapper stops the capture world, proves the exact
-offline post-login row, and restores the fixture before another combat hit.
+offline post-login row (including the bounded stale-online-marker CAS above
+when and only when necessary), and restores the fixture before another combat hit.
 Repeat
 the same bot-directed action from the restored database snapshot for the other
 side. A normal game client or a manually selected character is not accredited
