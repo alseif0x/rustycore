@@ -155,9 +155,32 @@ intent, no mutation — see STATE.md §0). Almost every item below is "convert r
 - [x] **M2.6** Creature spell casting in combat (from `creature_template` spell list; cooldowns).
   The bounded CombatAI/TurretAI slice reads template spell slots, schedules supported instant
   casts with C++ cooldown/range/target/visual rules, and publishes an atomic START/GO pair before
-  the same-frame melee phase. The guarded Cabal Interrogator/Eviscerate live pair is strict-CLEAN
-  (2/2 packets, empty baseline). This closes the M2.6 wire/lifecycle slice only: spell effects,
-  damage/health mutation, the full Spell pipeline, and the other AI families remain later work.
+  the same-frame melee phase. The in-progress P1 hardening removes GO's unconditional-hit
+  assumption: bounded resolution is publishable only for a physical `DmgClass=MELEE` Creature
+  spell against a Player attacked from behind, with zero spell/effect mechanics and complete
+  Creature/Player source authority proving every omitted source hit-inert. Canonical local aura
+  application/modifier/visible containers still must be empty; persisted/login sources may be
+  nonempty only when their exact effects are proven neutral to this hit result. Player authority
+  fails closed across persistence, login/zone reconciliation, map/area, guild, skills, quests,
+  glyphs, active traits, pets/battle-pet slots, FFA/PvP/war mode, SpellArea/outdoor sources, and
+  script/legacy/all-rank/SpellLinked hooks. Valid linked hooks and trigger IDs from rejected
+  SpellLinked rows both block the candidate.
+
+  A Creature-owned `0..=9_999` roll yields base `MISS` below `500` (5%) and `HIT` otherwise.
+  The local order is cast then schedule and hit roll before cooldown; `NO_ATTACK_MISS` consumes
+  one hit roll before forcing `HIT`. An accepted HIT publishes its topology, then tombstones
+  before scheduling because C++ next consumes unrepresented launch-crit/effect-value draws;
+  MISS may retain authority and draw its repeat delay. Spell/melee/movement RNG share a
+  fail-closed Creature tombstone. Reaching the unrepresented valid-melee damage/outcome/proc branch sets it and emits
+  no fabricated damage or wire. Because C++ uses a process-global RNG and Rust a per-Creature
+  RNG, the represented guarantee is distribution and local causal order, not exact global draw
+  interleaving. Unaccredited states publish neither START nor GO; event-slot clearing and other
+  already-performed deterministic reset work remain, while a tombstone blocks future
+  random-dependent scheduling. The retained
+  guarded Cabal Interrogator/Eviscerate pair is a strict-CLEAN historical **HIT** sample (2/2
+  packets, empty baseline), not proof of deterministic hit and not a P1 recapture. This closes
+  only the M2.6 wire/lifecycle slice: spell effects, damage/health mutation, the full Spell
+  pipeline, and the other AI families remain later work; no final P1 verification is claimed.
 - [ ] **M2.7** Creature reactions: on-aggro/death/evade `creature_text` emotes/yells/sounds.
 - [ ] **M2.8** Formalize runtime owner per ADR (single-owner, no double resolution; respect `Map::Update` phase order).
 - [ ] **M2 exit:** creatures patrol, path around walls, fight back with abilities, speak, respawn; two clients see identical state.

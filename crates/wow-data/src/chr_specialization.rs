@@ -74,6 +74,19 @@ impl ChrSpecializationStore {
         self.entries.get(&id)
     }
 
+    /// C++ `DB2Manager::GetChrSpecializationByIndex`: resolve the class-local
+    /// specialization slot populated from `ChrSpecializationEntry::OrderIndex`.
+    pub fn get_by_class_and_index_like_cpp(
+        &self,
+        class_id: u8,
+        index: u8,
+    ) -> Option<&ChrSpecializationEntry> {
+        let order_index = i8::try_from(index).ok()?;
+        self.entries
+            .values()
+            .find(|entry| entry.class_id == class_id && entry.order_index == order_index)
+    }
+
     pub fn len(&self) -> usize {
         self.entries.len()
     }
@@ -99,5 +112,31 @@ mod tests {
         assert_eq!(store.get(65).unwrap().class_id, 2);
         assert_eq!(store.get(65).unwrap().role, 1);
         assert!(store.get(66).is_none());
+    }
+
+    #[test]
+    fn chr_specialization_store_resolves_class_local_order_index_like_cpp() {
+        let store = ChrSpecializationStore::from_entries([
+            ChrSpecializationEntry {
+                id: 65,
+                class_id: 2,
+                order_index: 0,
+                role: 1,
+            },
+            ChrSpecializationEntry {
+                id: 71,
+                class_id: 1,
+                order_index: 0,
+                role: 2,
+            },
+        ]);
+
+        assert_eq!(
+            store
+                .get_by_class_and_index_like_cpp(2, 0)
+                .map(|entry| entry.id),
+            Some(65)
+        );
+        assert!(store.get_by_class_and_index_like_cpp(2, 1).is_none());
     }
 }

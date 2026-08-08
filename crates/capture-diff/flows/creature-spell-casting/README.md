@@ -1,6 +1,7 @@
 # Required capture: creature spell casting
 
-This directory is the ready, fail-closed live acceptance gate for issue #26.
+This directory retains the ready, fail-closed live acceptance gate for issue
+#26's original bounded wire slice.
 The reviewed pair records the same guarded action from patched C++ source HEAD
 `8cfed90bf1720dbf8b9dc109113c8d7d9173ff6c` and clean RustyCore HEAD
 `9177705612a9b108edeba0221bde6bfb02b7e8fb`: exactly one adjacent
@@ -78,11 +79,52 @@ damage spell. The installed DB2 rows and legacy C++ producer imply exact START
 flags `0x00000002`, GO flags `0x00000100`, and CastFlagsEx `0`, with no
 projectile/ammo, pending/triggered, immunity, trajectory, power, rune, heal
 prediction, or full combat-log optional. `StartRecoveryTime=1000` prevents the
-GO `NO_GCD` flag. The bot sends one heartbeat to the pinned pull position,
-facing away from the creature, and accepts only an adjacent START/GO pair with
-character `15` as the sole hit target, no miss status, and advanced combat
-logging disabled. A miss fails the attempt; do not alter the spell or
-character database to force the roll.
+GO `NO_GCD` flag. The retained bot run sends one heartbeat to the pinned pull
+position, facing away from the creature, and accepts only an adjacent START/GO
+pair with character `15` as the sole hit target, no miss status, and advanced
+combat logging disabled. A miss fails that capture attempt; do not alter the
+spell or character database to force the roll. The committed `15691` evidence
+is therefore one observed **HIT** sample, not evidence that the spell always
+hits and not a recapture of the P1 hardening described below.
+
+The in-progress P1 hardening removes the unconditional-hit assumption from
+`SMSG_SPELL_GO`. Rust may publish the atomic START/GO pair only for the bounded
+C++ resolution of a physical `DmgClass=MELEE` Creature spell whose sole target
+is a Player attacked from behind, whose spell and represented effect mechanics
+are all zero, and whose complete Creature/Player source authority proves every
+omitted spell-hit source hit-inert. The proof deliberately does not require
+every external source to be empty: persisted or login-derived sources may exist when their exact
+effects are known not to affect this bounded result, but the reduced runtime's
+canonical local aura application/modifier/visible containers must still be
+empty until it owns their full C++ semantics.
+
+The Player side fails closed unless exact persistence and login/zone
+reconciliation prove the represented map/area ancestry, guild, skills,
+active/rewarded and auto-push quests, glyphs, active-specialization traits,
+pets and battle-pet slots, FFA/PvP/war-mode state, SpellArea and
+outdoor/battlefield sources, and script, legacy/all-rank and SpellLinked hook
+sets. Both valid SpellLinked hooks and the absolute trigger IDs retained from
+rejected loader rows block a candidate; a loader error is not treated as proof
+that no hook exists.
+
+A Creature-owned uniform roll in `0..=9_999` resolves `MISS` below `500` (the
+base 5% miss chance) and `HIT` otherwise. CombatAI's local order is cast then
+repeat schedule, with the due EventMap slot cleared before the cast; hit is
+rolled before the cooldown draw, and `NO_ATTACK_MISS` consumes exactly one hit
+roll before forcing `HIT`. An accepted `HIT` is published and then tombstones
+before repeat scheduling because C++'s launch phase consumes an unconditional
+critical roll plus possible effect-value draws that this slice omits; a `MISS`
+does not enter those target-effect draws and may still schedule from the known
+stream. Spell, melee and movement randomness share one fail-closed Creature
+tombstone. An unrepresentable random branch therefore
+blocks later random-dependent work; specifically, a valid melee swing that
+reaches the unrepresented C++ damage/outcome/proc calculation tombstones the
+Creature and emits no fabricated damage or melee wire. C++ uses one
+process-global RNG while Rust uses one RNG per Creature, so the represented
+claim is distribution plus local causal draw order, not an identical global
+sequence or cross-Creature interleaving. This resolution selects only GO's
+hit/miss topology; spell damage and effects remain outside scope. No P1
+recapture or final verification is claimed here.
 
 ## Recording the action
 

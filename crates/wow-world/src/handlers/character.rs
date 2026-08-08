@@ -67,7 +67,9 @@ use wow_packet::packets::update::*;
 use wow_packet::{ClientPacket, WorldPacket};
 
 use crate::handlers::quest::RepresentedQuestGiverStatusSourceLikeCpp;
-use crate::map_manager::zone_and_area_for_position_like_cpp;
+use crate::map_manager::{
+    terrain_grid_area_id_for_position_like_cpp, zone_and_area_for_position_like_cpp,
+};
 use crate::reputation::mgr::CharacterReputationRowLikeCpp;
 use crate::session::{
     ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP, CharacterPetAuraEffectRowLikeCpp,
@@ -5634,6 +5636,39 @@ impl WorldSession {
                 }
             }
         };
+        let loaded_guild_id_like_cpp = {
+            let mut guild_stmt = char_db.prepare(CharStatements::SEL_GUILD_MEMBER);
+            guild_stmt.set_u64(0, guid.counter() as u64);
+            match char_db.query(&guild_stmt).await {
+                Ok(guild_result) if guild_result.is_empty() => Some(0),
+                Ok(mut guild_result) => {
+                    let guild_id = guild_result.try_read::<u64>(0);
+                    if guild_result.next_row() {
+                        warn!(
+                            player_guid = guid.counter(),
+                            "Keeping guild membership authority incomplete: duplicate rows"
+                        );
+                        None
+                    } else if guild_id.is_none() {
+                        warn!(
+                            player_guid = guid.counter(),
+                            "Keeping guild membership authority incomplete: malformed row"
+                        );
+                        None
+                    } else {
+                        guild_id
+                    }
+                }
+                Err(error) => {
+                    warn!(
+                        player_guid = guid.counter(),
+                        %error,
+                        "Failed to load guild membership for player login"
+                    );
+                    None
+                }
+            }
+        };
         let valid_login_homebind = loaded_login_homebind.filter(|homebind| {
             usable_character_homebind_like_cpp(
                 *homebind,
@@ -5733,7 +5768,9 @@ impl WorldSession {
                 .expect("validated character homebind must have an area ID"),
             position: login_homebind.position,
         });
-        self.set_represented_guild_id_like_cpp(result.try_read::<u64>(11).unwrap_or(0));
+        if let Some(guild_id) = loaded_guild_id_like_cpp {
+            self.set_represented_guild_id_like_cpp(guild_id);
+        }
         self.load_represented_player_difficulties_like_cpp(
             result.try_read::<u32>(44).unwrap_or(0),
             result.try_read::<u32>(67).unwrap_or(0),
@@ -5763,6 +5800,7 @@ impl WorldSession {
                 );
             }
         }
+        self.begin_represented_character_pet_authority_load_like_cpp();
         {
             let mut pets_stmt = char_db.prepare(CharStatements::SEL_CHAR_PETS);
             pets_stmt.set_u64(0, guid.counter() as u64);
@@ -6178,11 +6216,13 @@ impl WorldSession {
         self.clear_inventory_items_and_objects_like_cpp();
         self.clear_player_currencies_like_cpp();
         {
+            self.begin_player_equipment_inventory_authority_load_like_cpp();
             let mut eq_stmt = char_db.prepare(CharStatements::SEL_CHAR_EQUIPMENT);
             eq_stmt.set_u64(0, guid.counter() as u64);
             let mut refund_cleanup_tx = SqlTransaction::new();
             match char_db.query(&eq_stmt).await {
                 Ok(mut eq_result) => {
+                    let equipment_inventory_source_is_proven_empty = eq_result.is_empty();
                     if !eq_result.is_empty() {
                         loop {
                             let slot: u8 = eq_result.read(0);
@@ -6396,6 +6436,9 @@ impl WorldSession {
                                 break;
                             }
                         }
+                    }
+                    if equipment_inventory_source_is_proven_empty {
+                        self.complete_player_equipment_inventory_authority_load_like_cpp();
                     }
                 }
                 Err(e) => {
@@ -7835,11 +7878,23 @@ impl WorldSession {
         self.send_loaded_equipped_item_enchantment_updates_like_cpp(&loaded_enchantment_updates);
         self.apply_represented_login_spell_reset_if_needed_like_cpp();
         self.apply_represented_login_talent_reset_if_needed_like_cpp();
-        if self.apply_represented_first_login_flag_if_needed_like_cpp() {
+        let applied_first_login_like_cpp =
+            self.apply_represented_first_login_flag_if_needed_like_cpp();
+        if applied_first_login_like_cpp {
             self.apply_represented_first_login_cast_spells_like_cpp()
                 .await;
             self.apply_represented_first_login_explored_zones_like_cpp();
             self.apply_represented_first_login_reputation_like_cpp();
+        }
+
+        // C++ processes reset-at-login and first-login casts after the initial
+        // map packet sequence. Publish only after those normal mutations. The
+        // first-login cast closure is not represented losslessly, so that
+        // Player remains fail-closed for this entire session.
+        if applied_first_login_like_cpp {
+            self.tombstone_player_spell_hit_aura_authority_like_cpp();
+        } else {
+            let _ = self.sync_player_spell_hit_aura_authority_to_canonical_like_cpp();
         }
 
         // Mark online in DB
@@ -18419,6 +18474,7 @@ impl WorldSession {
         &mut self,
         guid: ObjectGuid,
     ) -> Vec<TraitConfigCreateData> {
+        self.begin_represented_trait_config_authority_load_like_cpp();
         let Some(char_db) = self.char_db().map(Arc::clone) else {
             return Vec::new();
         };
@@ -18427,20 +18483,44 @@ impl WorldSession {
         entries_stmt.set_u64(0, guid.counter() as u64);
         let mut entries_by_config = BTreeMap::<i32, Vec<TraitEntryCreateData>>::new();
         let mut entries_complete_like_cpp = false;
+        let mut entries_empty_like_cpp = false;
         match char_db.query(&entries_stmt).await {
             Ok(mut result) => {
                 entries_complete_like_cpp = true;
+                entries_empty_like_cpp = result.is_empty();
                 if !result.is_empty() {
                     loop {
-                        let trait_config_id = result.try_read::<i32>(0).unwrap_or(0);
-                        entries_by_config.entry(trait_config_id).or_default().push(
-                            TraitEntryCreateData {
-                                trait_node_id: result.try_read::<i32>(1).unwrap_or(0),
-                                trait_node_entry_id: result.try_read::<i32>(2).unwrap_or(0),
-                                rank: result.try_read::<i32>(3).unwrap_or(0),
-                                granted_ranks: result.try_read::<i32>(4).unwrap_or(0),
-                            },
-                        );
+                        match (
+                            result.try_read::<i32>(0),
+                            result.try_read::<i32>(1),
+                            result.try_read::<i32>(2),
+                            result.try_read::<i32>(3),
+                            result.try_read::<i32>(4),
+                        ) {
+                            (
+                                Some(trait_config_id),
+                                Some(trait_node_id),
+                                Some(trait_node_entry_id),
+                                Some(rank),
+                                Some(granted_ranks),
+                            ) => {
+                                entries_by_config.entry(trait_config_id).or_default().push(
+                                    TraitEntryCreateData {
+                                        trait_node_id,
+                                        trait_node_entry_id,
+                                        rank,
+                                        granted_ranks,
+                                    },
+                                );
+                            }
+                            _ => {
+                                entries_complete_like_cpp = false;
+                                warn!(
+                                    player_guid = guid.counter(),
+                                    "Keeping trait-entry authority incomplete: malformed row"
+                                );
+                            }
+                        }
 
                         if !result.next_row() {
                             break;
@@ -18465,19 +18545,47 @@ impl WorldSession {
                 let mut configs = Vec::new();
                 if !result.is_empty() {
                     loop {
-                        let id = result.try_read::<i32>(0).unwrap_or(0);
-                        let config_type = result.try_read::<i32>(1).unwrap_or(0);
-                        configs.push(TraitConfigCreateData {
-                            id,
-                            config_type,
-                            chr_specialization_id: result.try_read::<i32>(2).unwrap_or(0),
-                            combat_config_flags: result.try_read::<i32>(3).unwrap_or(0),
-                            local_identifier: result.try_read::<i32>(4).unwrap_or(0),
-                            skill_line_id: result.try_read::<i32>(5).unwrap_or(0),
-                            trait_system_id: result.try_read::<i32>(6).unwrap_or(0),
-                            name: result.try_read::<String>(7).unwrap_or_default(),
-                            entries: entries_by_config.remove(&id).unwrap_or_default(),
-                        });
+                        let id = result.try_read::<i32>(0);
+                        let config_type = result.try_read::<i32>(1);
+                        let chr_specialization_id = result.try_read::<i32>(2);
+                        let combat_config_flags = result.try_read::<i32>(3);
+                        let local_identifier = result.try_read::<i32>(4);
+                        let skill_line_id = result.try_read::<i32>(5);
+                        let trait_system_id = result.try_read::<i32>(6);
+                        let name = result.try_read::<String>(7);
+                        let type_columns_complete = match config_type {
+                            Some(1) => {
+                                chr_specialization_id.is_some()
+                                    && combat_config_flags.is_some()
+                                    && local_identifier.is_some()
+                            }
+                            Some(2) => skill_line_id.is_some(),
+                            Some(3) => trait_system_id.is_some(),
+                            Some(_) => true,
+                            None => false,
+                        };
+                        match (id, config_type, name, type_columns_complete) {
+                            (Some(id), Some(config_type), Some(name), true) => {
+                                configs.push(TraitConfigCreateData {
+                                    id,
+                                    config_type,
+                                    chr_specialization_id: chr_specialization_id.unwrap_or(0),
+                                    combat_config_flags: combat_config_flags.unwrap_or(0),
+                                    local_identifier: local_identifier.unwrap_or(0),
+                                    skill_line_id: skill_line_id.unwrap_or(0),
+                                    trait_system_id: trait_system_id.unwrap_or(0),
+                                    name,
+                                    entries: entries_by_config.remove(&id).unwrap_or_default(),
+                                });
+                            }
+                            _ => {
+                                configs_complete_like_cpp = false;
+                                warn!(
+                                    player_guid = guid.counter(),
+                                    "Keeping trait-config authority incomplete: malformed row"
+                                );
+                            }
+                        }
 
                         if !result.next_row() {
                             break;
@@ -18495,7 +18603,21 @@ impl WorldSession {
             }
         };
 
-        if entries_complete_like_cpp && configs_complete_like_cpp {
+        let trait_query_authority_complete_like_cpp = entries_complete_like_cpp
+            && configs_complete_like_cpp
+            && self.complete_represented_trait_config_authority_load_like_cpp(
+                configs.iter().map(|config| {
+                    (
+                        config.id,
+                        config.config_type,
+                        config.chr_specialization_id,
+                        config.combat_config_flags,
+                    )
+                }),
+                entries_empty_like_cpp,
+            );
+
+        if trait_query_authority_complete_like_cpp {
             let exact_traits = self
                 .trait_node_entry_store()
                 .zip(self.trait_definition_store())
@@ -18812,6 +18934,14 @@ impl WorldSession {
             );
         }
 
+        let terrain_area_authority_complete = terrain_grid_area_id_for_position_like_cpp(
+            &self.mmap_runtime_config_like_cpp().data_dir,
+            map_id as u32,
+            position.x,
+            position.y,
+        )
+        .is_ok_and(|area_id| area_id.is_some_and(|area_id| area_id != 0));
+
         match zone_and_area_for_position_like_cpp(
             &self.mmap_runtime_config_like_cpp().data_dir,
             map_id as u32,
@@ -18829,6 +18959,11 @@ impl WorldSession {
                 self.update_zone_represented_without_rest_update_packet_like_cpp(
                     resolved_zone_id,
                     resolved_area_id,
+                );
+                self.set_player_zone_area_authority_complete_like_cpp(
+                    terrain_area_authority_complete
+                        && resolved_zone_id != 0
+                        && resolved_area_id != 0,
                 );
                 info!(
                     map_id,
@@ -18852,6 +18987,7 @@ impl WorldSession {
                     seeded_zone_id,
                     seeded_area_id,
                 );
+                self.set_player_zone_area_authority_complete_like_cpp(false);
             }
         }
         let rest_flag_update_dirty = self.take_deferred_rest_flag_update_dirty_like_cpp();

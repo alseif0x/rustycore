@@ -838,6 +838,12 @@ impl SpellCastingRequirementsStore {
 }
 
 impl SpellCategoriesStore {
+    const HOTFIX_OVERLAY_SQL_LIKE_CPP: &'static str = concat!(
+        "SELECT ID, DifficultyID, Category, DefenseType, DispelType, Mechanic, ",
+        "PreventionType, StartRecoveryCategory, ChargeCategory, SpellID ",
+        "FROM spell_categories WHERE (`VerifiedBuild` > 0) = ?"
+    );
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SpellCategories.db2", |id, idx, r| {
             SpellCategoriesEntry {
@@ -853,6 +859,66 @@ impl SpellCategoriesStore {
                 spell_id: r.get_relationship_id(idx).unwrap_or(0),
             }
         })
+    }
+
+    /// Load the effective C++ `sSpellCategoriesStore` authority: DB2 file,
+    /// official SQL replacements, custom SQL replacements, then final
+    /// `hotfix_data` tombstones.
+    pub async fn load_effective_like_cpp(
+        data_dir: &str,
+        locale: &str,
+        db: &HotfixDatabase,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) -> Result<Self> {
+        let mut store = Self::load(data_dir, locale)?;
+        for official in [true, false] {
+            let mut statement =
+                db.prepare(HotfixStatements::base(Self::HOTFIX_OVERLAY_SQL_LIKE_CPP));
+            statement.set_bool(0, official);
+            let mut result = db
+                .query(&statement)
+                .await
+                .context("failed to load SpellCategories SQL overlay")?;
+            if result.is_empty() {
+                continue;
+            }
+            loop {
+                store.overlay_effective_row_like_cpp(SpellCategoriesEntry {
+                    id: result.try_read::<u32>(0).unwrap_or(0),
+                    difficulty_id: result.try_read::<u8>(1).unwrap_or(0),
+                    category: result.try_read::<i16>(2).unwrap_or(0),
+                    defense_type: result.try_read::<i8>(3).unwrap_or(0),
+                    dispel_type: result.try_read::<i8>(4).unwrap_or(0),
+                    mechanic: result.try_read::<i8>(5).unwrap_or(0),
+                    prevention_type: result.try_read::<i8>(6).unwrap_or(0),
+                    start_recovery_category: result.try_read::<i16>(7).unwrap_or(0),
+                    charge_category: result.try_read::<i16>(8).unwrap_or(0),
+                    spell_id: result.try_read::<u32>(9).unwrap_or(0),
+                });
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        let table_hash = store
+            .table_hash_like_cpp()
+            .context("SpellCategories.db2 store is missing its WDC4 table hash")?;
+        store.apply_hotfix_removals_with_table_hash_like_cpp(table_hash, removals);
+        Ok(store)
+    }
+
+    fn overlay_effective_row_like_cpp(&mut self, entry: SpellCategoriesEntry) {
+        self.entries.insert(entry.id, entry);
+    }
+
+    fn apply_hotfix_removals_with_table_hash_like_cpp(
+        &mut self,
+        table_hash: u32,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) {
+        self.entries
+            .retain(|record_id, _| !removals.contains_like_cpp(table_hash, *record_id as i32));
     }
 }
 
@@ -1172,6 +1238,20 @@ impl SpellReagentsCurrencyStore {
 }
 
 impl SpellEffectDb2Store {
+    const HOTFIX_OVERLAY_SQL_LIKE_CPP: &'static str = concat!(
+        "SELECT ID, DifficultyID, EffectIndex, Effect, EffectAmplitude, ",
+        "EffectAttributes, EffectAura, EffectAuraPeriod, EffectBasePoints, ",
+        "EffectBonusCoefficient, EffectChainAmplitude, EffectChainTargets, ",
+        "EffectDieSides, EffectItemType, EffectMechanic, EffectPointsPerResource, ",
+        "EffectPosFacing, EffectRealPointsPerLevel, EffectTriggerSpell, ",
+        "BonusCoefficientFromAP, PvpMultiplier, Coefficient, Variance, ",
+        "ResourceCoefficient, GroupSizeBasePointsCoefficient, EffectMiscValue1, ",
+        "EffectMiscValue2, EffectRadiusIndex1, EffectRadiusIndex2, ",
+        "EffectSpellClassMask1, EffectSpellClassMask2, EffectSpellClassMask3, ",
+        "EffectSpellClassMask4, ImplicitTarget1, ImplicitTarget2, SpellID ",
+        "FROM spell_effect WHERE (`VerifiedBuild` > 0) = ?"
+    );
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SpellEffect.db2", |id, idx, r| {
             SpellEffectDb2Entry {
@@ -1213,6 +1293,100 @@ impl SpellEffectDb2Store {
                 spell_id: r.get_relationship_id(idx).unwrap_or(0),
             }
         })
+    }
+
+    /// Load the effective C++ `sSpellEffectStore` authority: DB2 file,
+    /// official SQL replacements, custom SQL replacements, then final
+    /// `hotfix_data` tombstones.
+    pub async fn load_effective_like_cpp(
+        data_dir: &str,
+        locale: &str,
+        db: &HotfixDatabase,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) -> Result<Self> {
+        let mut store = Self::load(data_dir, locale)?;
+        for official in [true, false] {
+            let mut statement =
+                db.prepare(HotfixStatements::base(Self::HOTFIX_OVERLAY_SQL_LIKE_CPP));
+            statement.set_bool(0, official);
+            let mut result = db
+                .query(&statement)
+                .await
+                .context("failed to load SpellEffect SQL overlay")?;
+            if result.is_empty() {
+                continue;
+            }
+            loop {
+                store.overlay_effective_row_like_cpp(SpellEffectDb2Entry {
+                    id: result.try_read::<u32>(0).unwrap_or(0),
+                    difficulty_id: result.try_read::<i32>(1).unwrap_or(0),
+                    effect_index: result.try_read::<i32>(2).unwrap_or(0),
+                    effect: result.try_read::<u32>(3).unwrap_or(0),
+                    effect_amplitude: result.try_read::<f32>(4).unwrap_or(0.0),
+                    effect_attributes: result.try_read::<i32>(5).unwrap_or(0),
+                    effect_aura: result.try_read::<i16>(6).unwrap_or(0),
+                    effect_aura_period: result.try_read::<i32>(7).unwrap_or(0),
+                    effect_base_points: result.try_read::<i32>(8).unwrap_or(0),
+                    effect_bonus_coefficient: result.try_read::<f32>(9).unwrap_or(0.0),
+                    effect_chain_amplitude: result.try_read::<f32>(10).unwrap_or(0.0),
+                    effect_chain_targets: result.try_read::<i32>(11).unwrap_or(0),
+                    effect_die_sides: result.try_read::<i32>(12).unwrap_or(0),
+                    effect_item_type: result.try_read::<i32>(13).unwrap_or(0),
+                    effect_mechanic: result.try_read::<i32>(14).unwrap_or(0),
+                    effect_points_per_resource: result.try_read::<f32>(15).unwrap_or(0.0),
+                    effect_pos_facing: result.try_read::<f32>(16).unwrap_or(0.0),
+                    effect_real_points_per_level: result.try_read::<f32>(17).unwrap_or(0.0),
+                    effect_trigger_spell: result.try_read::<i32>(18).unwrap_or(0),
+                    bonus_coefficient_from_ap: result.try_read::<f32>(19).unwrap_or(0.0),
+                    pvp_multiplier: result.try_read::<f32>(20).unwrap_or(0.0),
+                    coefficient: result.try_read::<f32>(21).unwrap_or(0.0),
+                    variance: result.try_read::<f32>(22).unwrap_or(0.0),
+                    resource_coefficient: result.try_read::<f32>(23).unwrap_or(0.0),
+                    group_size_base_points_coefficient: result.try_read::<f32>(24).unwrap_or(0.0),
+                    effect_misc_value: [
+                        result.try_read::<i32>(25).unwrap_or(0),
+                        result.try_read::<i32>(26).unwrap_or(0),
+                    ],
+                    effect_radius_index: [
+                        result.try_read::<u32>(27).unwrap_or(0),
+                        result.try_read::<u32>(28).unwrap_or(0),
+                    ],
+                    effect_spell_class_mask: [
+                        result.try_read::<i32>(29).unwrap_or(0) as u32,
+                        result.try_read::<i32>(30).unwrap_or(0) as u32,
+                        result.try_read::<i32>(31).unwrap_or(0) as u32,
+                        result.try_read::<i32>(32).unwrap_or(0) as u32,
+                    ],
+                    implicit_target: [
+                        result.try_read::<i16>(33).unwrap_or(0),
+                        result.try_read::<i16>(34).unwrap_or(0),
+                    ],
+                    spell_id: result.try_read::<u32>(35).unwrap_or(0),
+                });
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        let table_hash = store
+            .table_hash_like_cpp()
+            .context("SpellEffect.db2 store is missing its WDC4 table hash")?;
+        store.apply_hotfix_removals_with_table_hash_like_cpp(table_hash, removals);
+        Ok(store)
+    }
+
+    fn overlay_effective_row_like_cpp(&mut self, entry: SpellEffectDb2Entry) {
+        self.entries.insert(entry.id, entry);
+    }
+
+    fn apply_hotfix_removals_with_table_hash_like_cpp(
+        &mut self,
+        table_hash: u32,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) {
+        self.entries
+            .retain(|record_id, _| !removals.contains_like_cpp(table_hash, *record_id as i32));
     }
 }
 
@@ -1416,6 +1590,16 @@ impl SpellLevelsStore {
 }
 
 impl SpellMiscStore {
+    const HOTFIX_OVERLAY_SQL_LIKE_CPP: &'static str = concat!(
+        "SELECT ID, Attributes1, Attributes2, Attributes3, Attributes4, ",
+        "Attributes5, Attributes6, Attributes7, Attributes8, Attributes9, ",
+        "Attributes10, Attributes11, Attributes12, Attributes13, Attributes14, ",
+        "Attributes15, DifficultyID, CastingTimeIndex, DurationIndex, RangeIndex, ",
+        "SchoolMask, Speed, LaunchDelay, MinDuration, SpellIconFileDataID, ",
+        "ActiveIconFileDataID, ContentTuningID, ShowFutureSpellPlayerConditionID, ",
+        "SpellID FROM spell_misc WHERE (`VerifiedBuild` > 0) = ?"
+    );
+
     pub fn get_by_spell_id(&self, spell_id: u32) -> Option<&SpellMiscEntry> {
         self.entries
             .values()
@@ -1453,6 +1637,73 @@ impl SpellMiscStore {
                 spell_id: r.get_relationship_id(idx).unwrap_or(0),
             }
         })
+    }
+
+    /// Load the effective C++ `sSpellMiscStore` authority: DB2 file,
+    /// official SQL replacements, custom SQL replacements, then final
+    /// `hotfix_data` tombstones.
+    pub async fn load_effective_like_cpp(
+        data_dir: &str,
+        locale: &str,
+        db: &HotfixDatabase,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) -> Result<Self> {
+        let mut store = Self::load(data_dir, locale)?;
+        for official in [true, false] {
+            let mut statement =
+                db.prepare(HotfixStatements::base(Self::HOTFIX_OVERLAY_SQL_LIKE_CPP));
+            statement.set_bool(0, official);
+            let mut result = db
+                .query(&statement)
+                .await
+                .context("failed to load SpellMisc SQL overlay")?;
+            if result.is_empty() {
+                continue;
+            }
+            loop {
+                store.overlay_effective_row_like_cpp(SpellMiscEntry {
+                    id: result.try_read::<u32>(0).unwrap_or(0),
+                    attributes: std::array::from_fn(|index| {
+                        result.try_read::<i32>(index + 1).unwrap_or(0)
+                    }),
+                    difficulty_id: result.try_read::<u8>(16).unwrap_or(0),
+                    casting_time_index: result.try_read::<u16>(17).unwrap_or(0),
+                    duration_index: result.try_read::<u16>(18).unwrap_or(0),
+                    range_index: result.try_read::<u16>(19).unwrap_or(0),
+                    school_mask: result.try_read::<u8>(20).unwrap_or(0),
+                    speed: result.try_read::<f32>(21).unwrap_or(0.0),
+                    launch_delay: result.try_read::<f32>(22).unwrap_or(0.0),
+                    min_duration: result.try_read::<f32>(23).unwrap_or(0.0),
+                    spell_icon_file_data_id: result.try_read::<i32>(24).unwrap_or(0),
+                    active_icon_file_data_id: result.try_read::<i32>(25).unwrap_or(0),
+                    content_tuning_id: result.try_read::<i32>(26).unwrap_or(0),
+                    show_future_spell_player_condition_id: result.try_read::<i32>(27).unwrap_or(0),
+                    spell_id: result.try_read::<u32>(28).unwrap_or(0),
+                });
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        let table_hash = store
+            .table_hash_like_cpp()
+            .context("SpellMisc.db2 store is missing its WDC4 table hash")?;
+        store.apply_hotfix_removals_with_table_hash_like_cpp(table_hash, removals);
+        Ok(store)
+    }
+
+    fn overlay_effective_row_like_cpp(&mut self, entry: SpellMiscEntry) {
+        self.entries.insert(entry.id, entry);
+    }
+
+    fn apply_hotfix_removals_with_table_hash_like_cpp(
+        &mut self,
+        table_hash: u32,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) {
+        self.entries
+            .retain(|record_id, _| !removals.contains_like_cpp(table_hash, *record_id as i32));
     }
 }
 
@@ -1886,6 +2137,65 @@ pub fn spell_effect_radius_like_cpp(
 mod tests {
     use super::*;
 
+    fn test_spell_misc_entry(id: u32, spell_id: u32, school_mask: u8) -> SpellMiscEntry {
+        SpellMiscEntry {
+            id,
+            attributes: [0; 15],
+            difficulty_id: 0,
+            casting_time_index: 0,
+            duration_index: 0,
+            range_index: 0,
+            school_mask,
+            speed: 0.0,
+            launch_delay: 0.0,
+            min_duration: 0.0,
+            spell_icon_file_data_id: 0,
+            active_icon_file_data_id: 0,
+            content_tuning_id: 0,
+            show_future_spell_player_condition_id: 0,
+            spell_id,
+        }
+    }
+
+    fn test_spell_effect_entry(
+        id: u32,
+        spell_id: u32,
+        effect_mechanic: i32,
+    ) -> SpellEffectDb2Entry {
+        SpellEffectDb2Entry {
+            id,
+            difficulty_id: 0,
+            effect_index: 0,
+            effect: 2,
+            effect_amplitude: 0.0,
+            effect_attributes: 0,
+            effect_aura: 0,
+            effect_aura_period: 0,
+            effect_base_points: 0,
+            effect_bonus_coefficient: 0.0,
+            effect_chain_amplitude: 0.0,
+            effect_chain_targets: 0,
+            effect_die_sides: 0,
+            effect_item_type: 0,
+            effect_mechanic,
+            effect_points_per_resource: 0.0,
+            effect_pos_facing: 0.0,
+            effect_real_points_per_level: 0.0,
+            effect_trigger_spell: 0,
+            bonus_coefficient_from_ap: 0.0,
+            pvp_multiplier: 0.0,
+            coefficient: 0.0,
+            variance: 0.0,
+            resource_coefficient: 0.0,
+            group_size_base_points_coefficient: 0.0,
+            effect_misc_value: [0; 2],
+            effect_radius_index: [0; 2],
+            effect_spell_class_mask: [0; 4],
+            implicit_target: [0; 2],
+            spell_id,
+        }
+    }
+
     #[test]
     fn spell_misc_walks_difficulty_fallback_before_base_like_cpp() {
         let entry = |id, difficulty_id, school_mask| SpellMiscEntry {
@@ -1954,6 +2264,58 @@ mod tests {
         }]);
 
         assert_eq!(store.get(1).unwrap().spell_id, 10);
+    }
+
+    #[test]
+    fn hit_metadata_stores_overlay_then_apply_final_removals_like_cpp() {
+        let table_hash = 0xAABB_CCDD;
+        let removals =
+            crate::Db2HotfixRemovalStoreLikeCpp::from_status_rows_like_cpp([(table_hash, 2, 2)]);
+        let category = |id, spell_id, defense_type, mechanic| SpellCategoriesEntry {
+            id,
+            difficulty_id: 0,
+            category: 0,
+            defense_type,
+            dispel_type: 0,
+            mechanic,
+            prevention_type: 0,
+            start_recovery_category: 0,
+            charge_category: 0,
+            spell_id,
+        };
+
+        let mut categories =
+            SpellCategoriesStore::from_entries([category(1, 100, 1, 2), category(2, 200, 3, 4)]);
+        categories.overlay_effective_row_like_cpp(category(1, 100, 5, 6));
+        categories.overlay_effective_row_like_cpp(category(1, 100, 7, 8));
+        categories.apply_hotfix_removals_with_table_hash_like_cpp(table_hash, &removals);
+        assert_eq!(
+            categories
+                .get(1)
+                .map(|entry| (entry.defense_type, entry.mechanic)),
+            Some((7, 8))
+        );
+        assert!(categories.get(2).is_none());
+
+        let mut misc = SpellMiscStore::from_entries([
+            test_spell_misc_entry(1, 100, 1),
+            test_spell_misc_entry(2, 200, 2),
+        ]);
+        misc.overlay_effective_row_like_cpp(test_spell_misc_entry(1, 100, 4));
+        misc.overlay_effective_row_like_cpp(test_spell_misc_entry(1, 100, 8));
+        misc.apply_hotfix_removals_with_table_hash_like_cpp(table_hash, &removals);
+        assert_eq!(misc.get(1).map(|entry| entry.school_mask), Some(8));
+        assert!(misc.get(2).is_none());
+
+        let mut effects = SpellEffectDb2Store::from_entries([
+            test_spell_effect_entry(1, 100, 1),
+            test_spell_effect_entry(2, 200, 2),
+        ]);
+        effects.overlay_effective_row_like_cpp(test_spell_effect_entry(1, 100, 4));
+        effects.overlay_effective_row_like_cpp(test_spell_effect_entry(1, 100, 7));
+        effects.apply_hotfix_removals_with_table_hash_like_cpp(table_hash, &removals);
+        assert_eq!(effects.get(1).map(|entry| entry.effect_mechanic), Some(7));
+        assert!(effects.get(2).is_none());
     }
 
     #[test]

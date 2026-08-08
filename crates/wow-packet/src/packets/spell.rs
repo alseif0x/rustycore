@@ -5,7 +5,8 @@
 
 //! Spell cast packets — CMSG_CAST_SPELL / SMSG_SPELL_START / SMSG_SPELL_GO.
 //!
-//! Packet structures mirror C# Game/Networking/Packets/SpellPackets.cs.
+//! Packet structures mirror C++ `WorldPackets::Spells` in
+//! `SpellPackets.h` / `SpellPackets.cpp`.
 //!
 //! `CastSpellRequest` parses the full `SpellCastRequestPkt` so we correctly
 //! advance the buffer even for fields we don't yet use (optionalReagents,
@@ -608,6 +609,86 @@ impl ClientPacket for SpellClick {
 
 // ── Server packet helpers ─────────────────────────────────────────
 
+/// Per-target spell miss reason (`SpellMissInfo` in TrinityCore).
+///
+/// These discriminants are serialized directly as the C++ `uint8` wire value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum SpellMissReason {
+    None = 0,
+    Miss = 1,
+    Resist = 2,
+    Dodge = 3,
+    Parry = 4,
+    Block = 5,
+    Evade = 6,
+    Immune = 7,
+    Immune2 = 8,
+    Deflect = 9,
+    Absorb = 10,
+    Reflect = 11,
+}
+
+/// C++ `WorldPackets::Spells::SpellMissStatus`.
+///
+/// `reflect_status` is serialized only when `reason` is [`SpellMissReason::Reflect`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellMissStatus {
+    pub reason: SpellMissReason,
+    pub reflect_status: SpellMissReason,
+}
+
+impl SpellMissStatus {
+    /// Construct a non-reflect miss status.
+    pub const fn new(reason: SpellMissReason) -> Self {
+        Self {
+            reason,
+            reflect_status: SpellMissReason::None,
+        }
+    }
+
+    /// Construct a reflected result and its outcome against the original caster.
+    pub const fn reflected(reflect_status: SpellMissReason) -> Self {
+        Self {
+            reason: SpellMissReason::Reflect,
+            reflect_status,
+        }
+    }
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_uint8(self.reason as u8);
+        if self.reason == SpellMissReason::Reflect {
+            pkt.write_uint8(self.reflect_status as u8);
+        }
+    }
+}
+
+/// A failed spell target paired with the status serialized for that target.
+///
+/// Keeping the GUID and status together guarantees that the parallel C++
+/// `MissTargets` and `MissStatus` vectors have matching lengths.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellMissTarget {
+    pub target: ObjectGuid,
+    pub status: SpellMissStatus,
+}
+
+impl SpellMissTarget {
+    pub const fn new(target: ObjectGuid, reason: SpellMissReason) -> Self {
+        Self {
+            target,
+            status: SpellMissStatus::new(reason),
+        }
+    }
+
+    pub const fn reflected(target: ObjectGuid, reflect_status: SpellMissReason) -> Self {
+        Self {
+            target,
+            status: SpellMissStatus::reflected(reflect_status),
+        }
+    }
+}
+
 /// Write a minimal `SpellCastData` (used by both SpellStart and SpellGo).
 ///
 /// C++ refs: `WorldPackets::Spells::SpellCastData` in `SpellPackets.h` and
@@ -626,6 +707,7 @@ impl ClientPacket for SpellClick {
 /// - `cast_time_ms`: 0 for instant
 /// - `target`      : SpellTargetData (unit + flags)
 /// - `hit_targets` : list of GUIDs that were hit (empty for visual-only)
+/// - `miss_targets`: failed target GUIDs paired with their miss status
 fn write_spell_cast_data(
     pkt: &mut WorldPacket,
     caster: &ObjectGuid,
@@ -638,6 +720,7 @@ fn write_spell_cast_data(
     cast_time_ms: u32,
     target: &SpellTargetData,
     hit_targets: &[ObjectGuid],
+    miss_targets: &[SpellMissTarget],
 ) {
     // CasterGUID, CasterUnit, CastID, OriginalCastID
     pkt.write_packed_guid(caster);
@@ -672,8 +755,8 @@ fn write_spell_cast_data(
 
     // Bit counts
     pkt.write_bits(hit_targets.len() as u32, 16); // HitTargets
-    pkt.write_bits(0, 16); // MissTargets
-    pkt.write_bits(0, 16); // MissStatus
+    pkt.write_bits(miss_targets.len() as u32, 16); // MissTargets
+    pkt.write_bits(miss_targets.len() as u32, 16); // MissStatus
     pkt.write_bits(0, 9); // RemainingPower
     pkt.write_bit(false); // RemainingRunes present?
     pkt.write_bits(0, 16); // TargetPoints
@@ -688,7 +771,15 @@ fn write_spell_cast_data(
     for guid in hit_targets {
         pkt.write_packed_guid(guid);
     }
-    // (no MissTargets, MissStatus, RemainingPower, Runes, TargetPoints, Ammo)
+
+    // MissTargets and their parallel MissStatus entries.
+    for miss in miss_targets {
+        pkt.write_packed_guid(&miss.target);
+    }
+    for miss in miss_targets {
+        miss.status.write(pkt);
+    }
+    // (no RemainingPower, Runes, TargetPoints, or Ammo)
 }
 
 // ── SMSG_SPELL_PREPARE ───────────────────────────────────────────
@@ -746,6 +837,7 @@ impl ServerPacket for SpellStartPkt {
             self.cast_time_ms,
             &self.target,
             &[], // no hit targets in SPELL_START
+            &[], // no miss targets in SPELL_START
         );
     }
 }
@@ -769,6 +861,8 @@ pub struct SpellGoPkt {
     pub target: SpellTargetData,
     /// GUIDs that were hit by the spell.
     pub hit_targets: Vec<ObjectGuid>,
+    /// Failed targets and their per-target miss result.
+    pub miss_targets: Vec<SpellMissTarget>,
 }
 
 impl ServerPacket for SpellGoPkt {
@@ -788,6 +882,7 @@ impl ServerPacket for SpellGoPkt {
             self.cast_time_ms,
             &self.target,
             &self.hit_targets,
+            &self.miss_targets,
         );
 
         // CombatLogServerPacket extras: WriteLogDataBit + FlushBits + WriteLogData
@@ -888,6 +983,64 @@ impl ServerPacket for SpellCooldownPkt {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn spell_go_bytes(hit_targets: Vec<ObjectGuid>, miss_targets: Vec<SpellMissTarget>) -> Vec<u8> {
+        SpellGoPkt {
+            caster: ObjectGuid::EMPTY,
+            cast_id: ObjectGuid::EMPTY,
+            original_cast_id: ObjectGuid::EMPTY,
+            spell_id: 12_345,
+            visual: SpellCastVisual::default(),
+            cast_flags: 0,
+            cast_flags_ex: 0,
+            cast_time_ms: 0,
+            target: SpellTargetData::default(),
+            hit_targets,
+            miss_targets,
+        }
+        .to_bytes()
+    }
+
+    fn read_spell_go_through_target(bytes: &[u8]) -> (WorldPacket, usize, usize, usize) {
+        let mut pkt = WorldPacket::from_bytes(bytes);
+        assert_eq!(
+            pkt.read_uint16().expect("opcode"),
+            ServerOpcodes::SpellGo as u16
+        );
+
+        for _ in 0..4 {
+            pkt.read_packed_guid().expect("cast guid");
+        }
+        pkt.read_int32().expect("spell id");
+        SpellCastVisual::read(&mut pkt).expect("spell visual");
+        pkt.read_uint32().expect("cast flags");
+        pkt.read_uint32().expect("cast flags ex");
+        pkt.read_uint32().expect("cast time");
+        pkt.read_int32().expect("missile travel time");
+        pkt.read_float().expect("missile pitch");
+        pkt.read_uint8().expect("destination index");
+        pkt.read_uint32().expect("immunity school");
+        pkt.read_uint32().expect("immunity value");
+        pkt.read_uint32().expect("predicted heal");
+        pkt.read_uint8().expect("prediction type");
+        pkt.read_packed_guid().expect("prediction beacon");
+
+        let hit_count = pkt.read_bits(16).expect("HitTargets count") as usize;
+        let miss_count = pkt.read_bits(16).expect("MissTargets count") as usize;
+        let miss_status_count = pkt.read_bits(16).expect("MissStatus count") as usize;
+        assert_eq!(pkt.read_bits(9).expect("RemainingPower count"), 0);
+        assert!(!pkt.read_bit().expect("RemainingRunes presence"));
+        assert_eq!(pkt.read_bits(16).expect("TargetPoints count"), 0);
+        assert!(!pkt.read_bit().expect("AmmoDisplayID presence"));
+        assert!(!pkt.read_bit().expect("AmmoInventoryType presence"));
+
+        assert_eq!(
+            SpellTargetData::read(&mut pkt).expect("target data"),
+            SpellTargetData::default()
+        );
+
+        (pkt, hit_count, miss_count, miss_status_count)
+    }
 
     #[test]
     fn cancel_cast_reads_cpp_cast_id_then_spell_id() {
@@ -1355,6 +1508,72 @@ mod tests {
     }
 
     #[test]
+    fn spell_go_without_misses_keeps_zero_miss_vectors_on_wire() {
+        let bytes = spell_go_bytes(Vec::new(), Vec::new());
+        let (mut pkt, hit_count, miss_count, miss_status_count) =
+            read_spell_go_through_target(&bytes);
+
+        assert_eq!(hit_count, 0);
+        assert_eq!(miss_count, 0);
+        assert_eq!(miss_status_count, 0);
+        assert!(!pkt.read_bit().expect("combat log data presence"));
+        assert!(pkt.is_empty());
+    }
+
+    #[test]
+    fn spell_go_writes_miss_target_then_miss_reason_like_cpp() {
+        let hit_target = ObjectGuid::new(0x0100, 0x0200);
+        let miss_target = ObjectGuid::new(0x0300, 0x0400);
+        let bytes = spell_go_bytes(
+            vec![hit_target],
+            vec![SpellMissTarget::new(miss_target, SpellMissReason::Miss)],
+        );
+        let (mut pkt, hit_count, miss_count, miss_status_count) =
+            read_spell_go_through_target(&bytes);
+
+        assert_eq!(hit_count, 1);
+        assert_eq!(miss_count, 1);
+        assert_eq!(miss_status_count, 1);
+        assert_eq!(pkt.read_packed_guid().expect("hit target"), hit_target);
+        assert_eq!(pkt.read_packed_guid().expect("miss target"), miss_target);
+        assert_eq!(
+            pkt.read_uint8().expect("miss reason"),
+            SpellMissReason::Miss as u8
+        );
+        assert!(!pkt.read_bit().expect("combat log data presence"));
+        assert!(pkt.is_empty());
+    }
+
+    #[test]
+    fn spell_go_writes_reflect_status_byte_after_reflect_reason() {
+        let miss_target = ObjectGuid::new(0x0500, 0x0600);
+        let bytes = spell_go_bytes(
+            Vec::new(),
+            vec![SpellMissTarget::reflected(
+                miss_target,
+                SpellMissReason::Resist,
+            )],
+        );
+        let (mut pkt, hit_count, miss_count, miss_status_count) =
+            read_spell_go_through_target(&bytes);
+
+        assert_eq!(hit_count, 0);
+        assert_eq!(miss_count, 1);
+        assert_eq!(miss_status_count, 1);
+        assert_eq!(pkt.read_packed_guid().expect("miss target"), miss_target);
+        assert_eq!(
+            pkt.read_uint8().expect("reflect reason"),
+            SpellMissReason::Reflect as u8
+        );
+        assert_eq!(
+            pkt.read_uint8().expect("reflected hit result"),
+            SpellMissReason::Resist as u8
+        );
+        assert!(!pkt.read_bit().expect("combat log data presence"));
+        assert!(pkt.is_empty());
+    }
+
+    #[test]
     fn spell_go_preserves_original_cast_id_and_cast_flags_ex_like_cpp() {
         let caster = ObjectGuid::create_player(1, 77);
         let client_cast_id = ObjectGuid::create_player(1, 99);
@@ -1379,6 +1598,7 @@ mod tests {
             cast_time_ms: 0x1234_5678,
             target: SpellTargetData::default(),
             hit_targets: Vec::new(),
+            miss_targets: Vec::new(),
         }
         .to_bytes();
 

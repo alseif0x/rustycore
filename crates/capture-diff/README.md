@@ -191,6 +191,44 @@ reordered START/GO, full combat-log payloads, noncanonical padding/GUIDs,
 mismatched miss/status counts, trailing bytes and even identical malformed
 bodies all fail closed.
 
+That retained `15691` pair is specifically an observed **HIT** sample. It does
+not establish deterministic hit behavior and has not been regenerated for the
+in-progress P1 hardening. P1 removes the unconditional-hit assumption: the
+atomic START/GO publication is limited to physical `DmgClass=MELEE` Creature
+spells against a Player attacked from behind, with zero spell/effect mechanics
+and complete Creature/Player source authority that proves every omitted source
+is hit-inert for this bounded result. Completeness is not an emptiness shortcut:
+the reduced runtime's canonical local aura application/modifier/visible
+containers must still be empty, while loaded persistence/login sources may be
+nonempty only when their exact effects are proven unable to change the result.
+
+Player authority fails closed across persistence and login/zone reconciliation,
+map and area ancestry, guild, skills, active/rewarded and auto-push quests,
+glyphs, active-spec traits, pets and battle-pet slots, FFA/PvP/war-mode rules,
+SpellArea/outdoor/battlefield sources, and script, legacy/all-rank and
+SpellLinked hooks. A valid SpellLinked hook blocks the candidate; so does the
+absolute trigger spell ID retained from a rejected SpellLinked loader row,
+because a malformed row cannot prove that the hook is absent.
+
+Once accredited, the Creature-owned `0..=9_999` hit roll resolves the base 5%
+`MISS` branch below `500`, otherwise `HIT`. The local C++ order is retained:
+cast before repeat scheduling, and hit roll before the cooldown draw;
+`NO_ATTACK_MISS` still consumes exactly one hit roll before forcing `HIT`.
+An accepted `HIT` is published, then tombstones the local stream before repeat
+scheduling because C++ next consumes an unconditional launch critical roll and
+potential effect-value draws that this wire-only slice does not represent. A
+`MISS` reaches none of those target-effect draws and may retain authority for
+its repeat-delay draw.
+Spell, melee and movement randomness share one fail-closed runtime tombstone:
+an unrepresentable random branch disables subsequent random-dependent work for
+that Creature. A valid melee swing that reaches the still-unrepresented C++
+damage/outcome/proc calculation sets that tombstone and publishes no invented
+damage or melee wire. C++ owns one process-global random engine whereas Rust
+owns one RNG per Creature, so this slice claims the same distributions and
+local causal draw order, not an exact global sequence or cross-Creature
+interleaving. Damage and effects remain outside this wire-only slice, and this
+documentation makes no P1 recapture or final-test claim.
+
 The C++ RAW PKT
 `93b6d01532f01a199486575db024b8e4ad72b786bdeed40d9ca7cda72b57f030`
 comes from an accredited source derivation: base HEAD

@@ -161,10 +161,6 @@ pub enum CreatureLoadedGridResolveErrorLikeCpp {
     MissingTemplate {
         entry: u32,
     },
-    MissingDifficulty {
-        entry: u32,
-        difficulty_id: u8,
-    },
     MissingModel {
         entry: u32,
     },
@@ -1817,7 +1813,7 @@ mod tests {
     }
 
     #[test]
-    fn loaded_grid_db_backed_builder_errors_without_silent_fallbacks_like_cpp() {
+    fn loaded_grid_builder_handles_missing_template_and_difficulty_like_cpp() {
         let entry = 12_401;
         let spawn = db_backed_spawn(entry);
         let runtime_row = CreatureSpawnRuntimeRowLikeCpp {
@@ -1870,31 +1866,32 @@ mod tests {
             Err(CreatureLoadedGridResolveErrorLikeCpp::MissingTemplate { entry })
         );
         let mut random = TestLoadedGridCreatureRandomLikeCpp::default();
-        assert_eq!(
-            build_loaded_grid_creature_inputs_from_db_like_cpp(
-                &spawn,
-                &runtime_row,
-                &db_backed_template_store(entry),
-                &CreatureDifficultyStoreLikeCpp::default(),
-                &db_backed_base_stats_store(),
-                &CreatureClassificationHealthRatesLikeCpp::default(),
-                &display_store,
-                &model_store,
-                &model_info_store,
-                None,
-                &CreatureAddonStoreLikeCpp::default(),
-                2,
-                0,
-                0,
-                false,
-                None,
-                &mut random,
-            ),
-            Err(CreatureLoadedGridResolveErrorLikeCpp::MissingDifficulty {
-                entry,
-                difficulty_id: 2
-            })
-        );
+        let (template, _, runtime) = build_loaded_grid_creature_inputs_from_db_like_cpp(
+            &spawn,
+            &runtime_row,
+            &db_backed_template_store(entry),
+            &CreatureDifficultyStoreLikeCpp::default(),
+            &db_backed_base_stats_store(),
+            &CreatureClassificationHealthRatesLikeCpp::default(),
+            &display_store,
+            &model_store,
+            &model_info_store,
+            None,
+            &CreatureAddonStoreLikeCpp::default(),
+            2,
+            0,
+            0,
+            false,
+            None,
+            &mut random,
+        )
+        .expect("C++ uses its static level-1 difficulty defaults when no row exists");
+        assert_eq!((template.min_level, template.max_level), (1, 1));
+        assert_eq!(template.static_flags, [0; 8]);
+        assert_eq!(template.type_flags, 0);
+        assert_eq!((template.loot_id, template.skin_loot_id), (0, 0));
+        assert_eq!((template.gold_min, template.gold_max), (0, 0));
+        assert_eq!(runtime.selected_level, 1);
     }
 
     #[test]

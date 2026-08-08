@@ -12,6 +12,42 @@ adjacent pair as one ordered visible-observer command before the same-frame mele
 or unsupported metadata, target topology, power/aura cost, projectile or optional packet shapes
 fail closed.
 
+The in-progress P1 hardening removes the former unconditional-hit assumption from
+`SMSG_SPELL_GO`. Its represented C++ resolution is deliberately limited to a physical
+`DmgClass=MELEE` Creature spell whose sole target is a Player attacked from behind, whose spell
+and represented effect mechanics are zero, and whose complete Creature/Player source authority
+proves every omitted spell-hit source hit-inert. Completeness is not an emptiness shortcut:
+persisted and login-derived sources may be present only when their exact effects are proven
+neutral to this bounded result; the reduced runtime's canonical local aura
+application/modifier/visible containers still must be empty until their full C++ semantics exist.
+
+Player accreditation fails closed unless persistence and login/zone reconciliation prove the
+exact map and area ancestry, guild and skill state, active/rewarded/auto-push quests, glyphs,
+active-specialization traits, pets and battle-pet slots, FFA/PvP/war mode, SpellArea and
+outdoor/battlefield sources, and script, legacy/all-rank and SpellLinked hooks. Both valid linked
+hooks and the absolute trigger IDs retained from rejected SpellLinked loader rows reject a
+candidate; a malformed row cannot be treated as proof that no hook exists.
+
+The Creature owns a uniform `0..=9_999` hit roll: values below `500` produce the base 5% `MISS`,
+all others produce `HIT`. CombatAI's initial and due-event causal order is cast then repeat
+schedule, while hit is rolled before the cooldown draw; `NO_ATTACK_MISS` consumes exactly one hit
+roll before forcing `HIT`. The due EventMap slot is cleared before cast. An accepted HIT is
+published and then tombstones before repeat scheduling because C++ next consumes an
+unconditional launch critical roll and possible effect-value draws outside this slice; MISS does
+not enter those target-effect draws and may retain authority for its repeat delay. Spell, melee
+and movement randomness share one permanent fail-closed tombstone on the runtime Creature, so an
+unrepresented random branch prevents later consumers from manufacturing a different sequence. In particular,
+a valid melee swing that reaches the unrepresented C++ damage/outcome/proc calculation sets the
+tombstone and publishes no fabricated damage or melee wire; attack-timer rearm and attacking-aura
+cleanup remain deterministic lifecycle work. C++ has one process-global RNG while Rust has one
+RNG per Creature. The bounded parity claim is therefore the same distributions and local causal
+draw order, not the exact global random sequence or cross-Creature interleaving.
+
+Any unaccredited or unsupported state publishes neither START nor GO. Deterministic event-slot
+clearing and reset work already performed remains, while an RNG tombstone blocks subsequent
+random-dependent scheduling/movement/melee. This is outcome topology only; no damage or spell
+effect executes.
+
 The first guarded Rust attempt found that the live login path had never hydrated
 `player_faction_template_like_cpp`: the registry therefore published `0` and the existing
 hostility gate rejected the player before engagement. The loaded identity now derives that value
@@ -19,7 +55,7 @@ from `ChrRacesStore` and installs it in both the session/registry snapshot and t
 `Player`. A focused login regression proves identity → registry → canonical faction without the
 manual faction setter that had masked the defect in creature-runtime tests.
 
-The repeated guarded live run derives its C++ source from base HEAD
+The retained pre-P1 guarded live run derives its C++ source from base HEAD
 `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` plus one-file patch SHA-256
 `ef8b3c29f46fe537e1ae4e826b5610afcd534999f900ec9554ee0534e7847262`, yielding patched HEAD
 `8cfed90bf1720dbf8b9dc109113c8d7d9173ff6c`. The patch changes only the
@@ -32,9 +68,11 @@ and produces an empty divergence baseline. The retained C++ RAW PKT is
 `77ab3fb9219b06609657fbec811016d3e139bb78d82683206c4d07adc6fd1ee4`, the filtered C++ PKT is
 `c849f0044bc3467d439ec0a4bff12719a0d751f20dbd6be21d62b5a4f3bf3370`, the normalized Rust
 tree is `8bc8d8886b2f632fd75037b913c162f55032d87762cd74313bc1c28fff56e124`, and the lineage file is
-`4448e804409b05f00e87762d4fad0a87efba5a95661507631ce0d0f774e01229`.
+`4448e804409b05f00e87762d4fad0a87efba5a95661507631ce0d0f774e01229`. That retained `15691`
+pair is one observed **HIT** sample. It is not evidence of deterministic hit behavior, was not
+recaptured for P1, and does not imply that final P1 tests have completed.
 
-This remains `represented-partial`. The wire hit topology does not execute Eviscerate effects or
+This remains `represented-partial`. The wire hit/miss topology does not execute Eviscerate effects or
 mutate damage, health, aura, or power state; full `Spell` preparation/check/cast/effect ownership,
 non-instant casts, broader target/optional shapes, the remaining AI families, SmartAI, creature
 text, and dedicated live coverage for TurretAI remain open. No manual-client claim is made.
