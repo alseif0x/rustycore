@@ -36107,7 +36107,7 @@ impl WorldSession {
                 matches!(
                     command,
                     SessionCommand::SendIfVisibleLikeCpp(_)
-                        | SessionCommand::SendBasicCreatureSpellCastIfVisibleLikeCpp(_)
+                        | SessionCommand::SendCreatureSpellCastIfVisibleLikeCpp(_)
                         | SessionCommand::SendRealmIfVisibleLikeCpp(_)
                         | SessionCommand::SendRealmIfVisibleFromLegacySourceLikeCpp(_)
                 )
@@ -62352,6 +62352,7 @@ fn append_committed_creature_spell_packets_like_cpp(
     hit_result: CreatureSpellTargetHitResultLikeCpp,
     source_position: Position,
     visibility_range: f32,
+    full_log_data: &wow_packet::packets::spell::SpellCastLogData,
 ) {
     use wow_packet::ServerPacket;
     use wow_packet::packets::spell::{
@@ -62410,17 +62411,95 @@ fn append_committed_creature_spell_packets_like_cpp(
     };
     plan.events.push(RuntimeEvent {
         source_guid: command.caster_guid,
-        recipients: RecipientRule::NearbyVisibleDurableBasicSpellCast {
+        recipients: RecipientRule::NearbyVisibleDurableSpellCast {
             source_guid: command.caster_guid,
             map_id: command.map_id,
             instance_id: command.instance_id,
             source_position,
             range: visibility_range,
             required_3d: false,
-            go_packet_bytes: go.to_bytes(),
+            basic_go_packet_bytes: go.to_bytes(),
+            full_go_packet_bytes: go.to_full_log_bytes_like_cpp(full_log_data),
         },
         packet_bytes: start.to_bytes(),
     });
+}
+
+fn creature_spell_cast_log_data_like_cpp(
+    caster: &wow_entities::Creature,
+    spell: &wow_data::SpellInfo,
+    difficulty_id: u8,
+) -> Option<wow_packet::packets::spell::SpellCastLogData> {
+    use wow_packet::packets::spell::{SpellCastLogData, SpellLogPowerData};
+
+    // The enclosing M2.6 cast path admits only base-difficulty spells and zero
+    // effective costs. Keep the cost/aura portions independently fail-closed
+    // so later callers cannot fabricate a complete log snapshot.
+    if difficulty_id != 0
+        || creature_ai_spell_has_unrepresented_nonzero_power_cost_like_cpp(spell)
+        || !caster
+            .unit()
+            .subsystems()
+            .auras
+            .has_complete_spell_cast_log_aura_authority_like_cpp()
+    {
+        return None;
+    }
+
+    // C++ `SpellInfo::CalcPowerCost` retains one row per power type even when
+    // its effective amount is zero. That includes signed enum sentinels such
+    // as `POWER_ALL=127`: the unknown-power rejection is reached only by
+    // cost-bearing branches (for example percentage or use-all-power), all of
+    // which M2.6 rejects before this helper. Preserve the remaining zero rows
+    // in DB2 order and deduplicate them by their raw signed type.
+    let mut power_data = Vec::new();
+    for power in &spell.power_costs {
+        let power_type = i32::from(power.power_type);
+        if power_data
+            .iter()
+            .any(|known: &SpellLogPowerData| known.power_type == power_type)
+        {
+            continue;
+        }
+        // C++ retains the signed raw enum value in the wire row. Values that
+        // cannot address its Unit power array keep an amount of zero without
+        // changing or dropping the row (including HEALTH=-2 and POWER_ALL).
+        let amount = <PowerType as num_traits::FromPrimitive>::from_i8(power.power_type)
+            .map(|represented_power| caster.unit().get_power(represented_power))
+            .unwrap_or(0);
+        power_data.push(SpellLogPowerData {
+            power_type,
+            amount,
+            cost: 0,
+        });
+    }
+
+    let primary_power = caster.power_type();
+    let primary_power_type = primary_power as i32;
+    if !power_data
+        .iter()
+        .any(|power| power.power_type == primary_power_type)
+    {
+        power_data.insert(
+            0,
+            SpellLogPowerData {
+                power_type: primary_power_type,
+                amount: caster.unit().get_power(primary_power),
+                cost: 0,
+            },
+        );
+    }
+
+    let stats = caster.combat_log_stats_like_cpp();
+    Some(SpellCastLogData {
+        // Mirrors the C++ `uint64 GetHealth()` assignment to the signed wire
+        // field. DB-backed creature health originates in a u32 and always fits.
+        health: caster.unit().data().health as i64,
+        attack_power: caster.combat_log_attack_power_like_cpp(),
+        spell_power: stats.spell_power,
+        armor: stats.armor,
+        power_data,
+    })
 }
 
 /// Runs the C++ stock `CombatAI`/`TurretAI` template-spell decision once.
@@ -63009,7 +63088,7 @@ fn validate_and_append_creature_spell_cast_like_cpp(
     let Some(managed) = manager.find_map(u32::from(command.map_id), command.instance_id) else {
         return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
     };
-    let (hit_profile, source_position, visibility_range) = {
+    let (hit_profile, source_position, visibility_range, full_log_data) = {
         let map = managed.map();
         let Some(caster) = map.get_typed_creature(command.caster_guid) else {
             return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
@@ -63113,7 +63192,7 @@ fn validate_and_append_creature_spell_cast_like_cpp(
             return CreatureSpellCastValidationResultLikeCpp::LosRejected;
         }
 
-        let hit_profile = (|| {
+        let represented_cast = (|| {
             let spell_store = config.spell_store.as_ref()?;
             let spell = spell_store.get(command.spell_id)?;
             let metadata = spell_store.hit_metadata_for_difficulty_like_cpp(
@@ -63161,13 +63240,26 @@ fn validate_and_append_creature_spell_cast_like_cpp(
             {
                 return None;
             }
-            represented_creature_spell_hit_profile_like_cpp(
+            let hit_profile = represented_creature_spell_hit_profile_like_cpp(
                 &metadata,
                 &active_effect_indices,
                 attributes,
-            )
+            )?;
+            Some((
+                hit_profile,
+                creature_spell_cast_log_data_like_cpp(caster, spell, difficulty_id),
+            ))
         })();
-        (hit_profile, source_position, visibility_range)
+        let (hit_profile, full_log_data) = represented_cast
+            .map_or((None, None), |(profile, log_data)| {
+                (Some(profile), log_data)
+            });
+        (
+            hit_profile,
+            source_position,
+            visibility_range,
+            full_log_data,
+        )
     };
     if !turret_ai
         && creature_ai_successful_untriggered_spell_resets_combat_timers_like_cpp(
@@ -63203,6 +63295,17 @@ fn validate_and_append_creature_spell_cast_like_cpp(
         creature.invalidate_runtime_rng_authority_like_cpp();
         return CreatureSpellCastValidationResultLikeCpp::HitResultUnrepresented;
     };
+    let Some(full_log_data) = full_log_data else {
+        let Some(creature) = legacy_guard.find_creature_mut(
+            command.map_id,
+            command.instance_id,
+            command.caster_guid,
+        ) else {
+            return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
+        };
+        creature.invalidate_runtime_rng_authority_like_cpp();
+        return CreatureSpellCastValidationResultLikeCpp::HitResultUnrepresented;
+    };
     let Some(creature) =
         legacy_guard.find_creature_mut(command.map_id, command.instance_id, command.caster_guid)
     else {
@@ -63229,6 +63332,7 @@ fn validate_and_append_creature_spell_cast_like_cpp(
         hit_result,
         source_position,
         visibility_range,
+        &full_log_data,
     );
     if hit_result == CreatureSpellTargetHitResultLikeCpp::Hit {
         // C++ enters HandleLaunchPhase before SendSpellGo. Every HIT target
@@ -104552,6 +104656,12 @@ mod tests {
                     .subsystems_mut()
                     .auras
                     .set_spell_hit_aura_authority_inert_like_cpp(true);
+                creature
+                    .creature
+                    .unit_mut()
+                    .subsystems_mut()
+                    .auras
+                    .set_spell_cast_log_aura_authority_inert_like_cpp(true);
                 creature.seed_runtime_rng_like_cpp(0x5E11_117);
             })
             .expect("registered test creature must remain available");
@@ -157645,12 +157755,14 @@ mod tests {
             0,
         );
         let mut manager = canonical.lock().unwrap();
-        let player = manager
-            .find_map_mut(0, 0)
+        let map = manager.find_map_mut(0, 0).unwrap().map_mut();
+        map.get_typed_creature_mut(creature_guid)
             .unwrap()
-            .map_mut()
-            .get_typed_player_mut(victim_guid)
-            .unwrap();
+            .unit_mut()
+            .subsystems_mut()
+            .auras
+            .set_spell_cast_log_aura_authority_inert_like_cpp(true);
+        let player = map.get_typed_player_mut(victim_guid).unwrap();
         player.unit_mut().set_max_health(100);
         player.unit_mut().set_health(100);
         player
@@ -157661,6 +157773,88 @@ mod tests {
             .subsystems_mut()
             .auras
             .set_spell_hit_aura_authority_inert_like_cpp(true);
+    }
+
+    #[test]
+    fn creature_spell_cast_log_snapshot_preserves_cpp_power_rows_like_cpp() {
+        use wow_data::SpellPowerCostInfoLikeCpp;
+        use wow_packet::packets::spell::SpellLogPowerData;
+
+        // `SharedDefines.h` declares this signed-enum sentinel explicitly.
+        // The zero-cost CalcPowerCost path retains it in `Spell::m_powerCost`.
+        const POWER_ALL_LIKE_CPP: i8 = 127;
+
+        let mut caster = wow_entities::Creature::new(false);
+        caster.unit_mut().set_max_health(900);
+        caster.unit_mut().set_health(765);
+        caster.set_power_type(PowerType::Rage);
+        caster.unit_mut().set_max_power(PowerType::Rage, 100);
+        caster.unit_mut().set_power(PowerType::Rage, 55);
+        caster.set_combat_log_stats_like_cpp(wow_entities::CreatureCombatLogStatsLikeCpp {
+            attack_power: 111,
+            ranged_attack_power: 222,
+            spell_power: 333,
+            armor: 444,
+        });
+        caster
+            .unit_mut()
+            .subsystems_mut()
+            .auras
+            .set_spell_cast_log_aura_authority_inert_like_cpp(true);
+
+        let zero_cost = |order_index, power_type| SpellPowerCostInfoLikeCpp {
+            order_index,
+            power_type,
+            mana_cost: 0,
+            power_cost_pct: 0.0,
+            power_cost_max_pct: 0.0,
+            required_aura_spell_id: 0,
+            optional_cost: 0,
+        };
+        let mut spell = creature_ai_test_spell_info_like_cpp(70_200, 6, 0);
+        spell.power_costs = vec![
+            zero_cost(0, PowerType::Energy as i8),
+            zero_cost(1, PowerType::Energy as i8),
+            zero_cost(2, PowerType::Health as i8),
+            zero_cost(3, POWER_ALL_LIKE_CPP),
+        ];
+
+        let log = creature_spell_cast_log_data_like_cpp(&caster, &spell, 0)
+            .expect("accredited base-difficulty zero-cost snapshot");
+
+        assert_eq!(log.health, 765);
+        assert_eq!(log.attack_power, 111);
+        assert_eq!(log.spell_power, 333);
+        assert_eq!(log.armor, 444);
+        assert_eq!(
+            log.power_data,
+            vec![
+                SpellLogPowerData {
+                    power_type: PowerType::Rage as i32,
+                    amount: 55,
+                    cost: 0,
+                },
+                SpellLogPowerData {
+                    power_type: PowerType::Energy as i32,
+                    amount: 0,
+                    cost: 0,
+                },
+                SpellLogPowerData {
+                    power_type: PowerType::Health as i32,
+                    amount: 0,
+                    cost: 0,
+                },
+                SpellLogPowerData {
+                    power_type: i32::from(POWER_ALL_LIKE_CPP),
+                    amount: 0,
+                    cost: 0,
+                },
+            ]
+        );
+        assert!(
+            creature_spell_cast_log_data_like_cpp(&caster, &spell, 1).is_none(),
+            "difficulty-specific SpellPower rows are not hydrated in M2.6"
+        );
     }
 
     #[derive(Debug, PartialEq, Eq)]
@@ -157681,7 +157875,9 @@ mod tests {
         miss_targets: Vec<(ObjectGuid, u8)>,
     }
 
-    fn decode_creature_spell_wire_header_like_cpp(bytes: &[u8]) -> CreatureSpellWireHeaderLikeCpp {
+    fn decode_creature_spell_wire_header_and_tail_like_cpp(
+        bytes: &[u8],
+    ) -> (CreatureSpellWireHeaderLikeCpp, WorldPacket) {
         let mut packet = WorldPacket::from_bytes(bytes);
         let opcode = packet.opcode_raw();
         packet.skip_opcode();
@@ -157727,7 +157923,7 @@ mod tests {
                 (guid, reason)
             })
             .collect();
-        CreatureSpellWireHeaderLikeCpp {
+        let header = CreatureSpellWireHeaderLikeCpp {
             opcode,
             caster,
             caster_unit,
@@ -157742,6 +157938,40 @@ mod tests {
             target_unit: target.unit,
             hit_targets,
             miss_targets,
+        };
+        (header, packet)
+    }
+
+    fn decode_creature_spell_wire_header_like_cpp(bytes: &[u8]) -> CreatureSpellWireHeaderLikeCpp {
+        decode_creature_spell_wire_header_and_tail_like_cpp(bytes).0
+    }
+
+    fn decode_creature_spell_full_log_like_cpp(
+        bytes: &[u8],
+    ) -> wow_packet::packets::spell::SpellCastLogData {
+        use wow_packet::packets::spell::{SpellCastLogData, SpellLogPowerData};
+
+        let (_, mut packet) = decode_creature_spell_wire_header_and_tail_like_cpp(bytes);
+        assert!(packet.read_bit().expect("full combat-log presence bit"));
+        let health = packet.read_int64().expect("combat-log health");
+        let attack_power = packet.read_int32().expect("combat-log attack power");
+        let spell_power = packet.read_int32().expect("combat-log spell power");
+        let armor = packet.read_int32().expect("combat-log armor");
+        let power_count = packet.read_bits(9).expect("combat-log power count") as usize;
+        let power_data = (0..power_count)
+            .map(|_| SpellLogPowerData {
+                power_type: packet.read_int32().expect("combat-log power type"),
+                amount: packet.read_int32().expect("combat-log power amount"),
+                cost: packet.read_int32().expect("combat-log power cost"),
+            })
+            .collect();
+        assert!(packet.is_empty());
+        SpellCastLogData {
+            health,
+            attack_power,
+            spell_power,
+            armor,
+            power_data,
         }
     }
 
@@ -157751,16 +157981,16 @@ mod tests {
         CreatureSpellWireHeaderLikeCpp,
         CreatureSpellWireHeaderLikeCpp,
     ) {
-        let go_packet_bytes = match &event.recipients {
-            crate::map_manager::RecipientRule::NearbyVisibleDurableBasicSpellCast {
-                go_packet_bytes,
+        let basic_go_packet_bytes = match &event.recipients {
+            crate::map_manager::RecipientRule::NearbyVisibleDurableSpellCast {
+                basic_go_packet_bytes,
                 ..
-            } => go_packet_bytes,
-            _ => panic!("creature spell START/GO must use the atomic basic-cast recipient rule"),
+            } => basic_go_packet_bytes,
+            _ => panic!("creature spell START/GO must use the atomic cast recipient rule"),
         };
         (
             decode_creature_spell_wire_header_like_cpp(&event.packet_bytes),
-            decode_creature_spell_wire_header_like_cpp(go_packet_bytes),
+            decode_creature_spell_wire_header_like_cpp(basic_go_packet_bytes),
         )
     }
 
@@ -157868,13 +158098,24 @@ mod tests {
                 .unwrap();
             map.relocate_map_object_like_cpp(victim_guid, canonical_victim_position)
                 .unwrap();
-            map.get_typed_creature_mut(creature_guid)
-                .unwrap()
+            let caster = map.get_typed_creature_mut(creature_guid).unwrap();
+            caster
                 .unit_mut()
                 .world_mut()
                 .set_visibility_distance_override_like_cpp(
                     wow_entities::VisibilityDistanceTypeLikeCpp::Large,
                 );
+            caster.unit_mut().set_max_health(5_000);
+            caster.unit_mut().set_health(4_321);
+            caster.set_power_type(PowerType::Rage);
+            caster.unit_mut().set_max_power(PowerType::Rage, 100);
+            caster.unit_mut().set_power(PowerType::Rage, 55);
+            caster.set_combat_log_stats_like_cpp(wow_entities::CreatureCombatLogStatsLikeCpp {
+                attack_power: 111,
+                ranged_attack_power: 222,
+                spell_power: 333,
+                armor: 444,
+            });
         }
         register_test_creature(&mut session, manager.clone(), creature_guid, 25);
         session
@@ -157890,6 +158131,24 @@ mod tests {
                 creature
                     .creature
                     .set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
+                creature.creature.unit_mut().set_health(17);
+                creature.creature.set_power_type(PowerType::Energy);
+                creature
+                    .creature
+                    .unit_mut()
+                    .set_max_power(PowerType::Energy, 100);
+                creature
+                    .creature
+                    .unit_mut()
+                    .set_power(PowerType::Energy, 19);
+                creature.creature.set_combat_log_stats_like_cpp(
+                    wow_entities::CreatureCombatLogStatsLikeCpp {
+                        attack_power: 911,
+                        ranged_attack_power: 922,
+                        spell_power: 933,
+                        armor: 944,
+                    },
+                );
                 creature
                     .creature
                     .set_spell(0, u32::try_from(spell_id).unwrap());
@@ -157913,9 +158172,10 @@ mod tests {
         let [event] = cast.plan.events.as_slice() else {
             panic!("one committed creature cast expected: {cast:?}");
         };
-        let crate::map_manager::RecipientRule::NearbyVisibleDurableBasicSpellCast {
+        let crate::map_manager::RecipientRule::NearbyVisibleDurableSpellCast {
             source_position,
             range,
+            full_go_packet_bytes,
             ..
         } = &event.recipients
         else {
@@ -157927,6 +158187,21 @@ mod tests {
             *range,
             wow_entities::VisibilityDistanceTypeLikeCpp::Large.distance_like_cpp(),
             "fanout range must come from the same canonical caster snapshot"
+        );
+        assert_eq!(
+            decode_creature_spell_full_log_like_cpp(full_go_packet_bytes),
+            wow_packet::packets::spell::SpellCastLogData {
+                health: 4_321,
+                attack_power: 111,
+                spell_power: 333,
+                armor: 444,
+                power_data: vec![wow_packet::packets::spell::SpellLogPowerData {
+                    power_type: PowerType::Rage as i32,
+                    amount: 55,
+                    cost: 0,
+                }],
+            },
+            "full GO must be built from the same canonical caster snapshot, not the legacy mirror"
         );
     }
 
@@ -162812,6 +163087,9 @@ mod tests {
             level: 1,
             min_dmg: 1,
             max_dmg: 2,
+            combat_log_stats: wow_entities::CreatureCombatLogStatsLikeCpp::default(),
+            spell_hit_aura_source_authority_like_cpp: false,
+            spell_cast_log_aura_source_authority_like_cpp: false,
             aggro_radius: 5.0,
             wander_distance: 0.0,
             flags_extra: 0,

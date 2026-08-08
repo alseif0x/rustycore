@@ -23,6 +23,13 @@ pub struct AuraSubsystem {
     /// This is deliberately private and defaults to false: an empty set of
     /// runtime containers is not evidence that the backing sources were read.
     spell_hit_aura_authority_inert_like_cpp: bool,
+    /// Whether omitted aura sources are proven inert for the AP, spell-power,
+    /// armor and effective power-cost values embedded in advanced combat-log
+    /// packets.
+    ///
+    /// This proof is intentionally separate from spell-hit authority: the two
+    /// consumers depend on different C++ aura families.
+    spell_cast_log_aura_authority_inert_like_cpp: bool,
     pub owned_auras: Vec<OwnedAuraRef>,
     pub applied_auras: Vec<AppliedAuraRef>,
     pub applied_aura_types: HashMap<i32, Vec<AppliedAuraRef>>,
@@ -223,8 +230,13 @@ impl AuraSubsystem {
         self.spell_hit_aura_authority_inert_like_cpp = inert;
     }
 
+    pub fn set_spell_cast_log_aura_authority_inert_like_cpp(&mut self, inert: bool) {
+        self.spell_cast_log_aura_authority_inert_like_cpp = inert;
+    }
+
     pub fn invalidate_spell_hit_aura_authority_like_cpp(&mut self) {
         self.spell_hit_aura_authority_inert_like_cpp = false;
+        self.spell_cast_log_aura_authority_inert_like_cpp = false;
     }
 
     /// Proves that the represented Unit has no aura state capable of
@@ -236,8 +248,17 @@ impl AuraSubsystem {
     /// marker, so adding and later removing an aura cannot resurrect stale
     /// authority merely because the containers became empty again.
     pub fn has_complete_spell_hit_inert_aura_authority_like_cpp(&self) -> bool {
-        self.spell_hit_aura_authority_inert_like_cpp
-            && self.owned_auras.is_empty()
+        self.spell_hit_aura_authority_inert_like_cpp && self.has_no_local_aura_state_like_cpp()
+    }
+
+    /// Proves that no represented or omitted aura can alter the advanced
+    /// combat-log stat snapshot.
+    pub fn has_complete_spell_cast_log_aura_authority_like_cpp(&self) -> bool {
+        self.spell_cast_log_aura_authority_inert_like_cpp && self.has_no_local_aura_state_like_cpp()
+    }
+
+    fn has_no_local_aura_state_like_cpp(&self) -> bool {
+        self.owned_auras.is_empty()
             && self.applied_auras.is_empty()
             && self.applied_aura_types.is_empty()
             && self.applied_aura_amounts.is_empty()
@@ -4809,10 +4830,26 @@ mod unit_subsystems_tests {
     }
 
     #[test]
-    fn spell_hit_aura_authority_defaults_fail_closed() {
+    fn aura_authorities_default_fail_closed() {
         let auras = AuraSubsystem::default();
 
         assert!(!auras.has_complete_spell_hit_inert_aura_authority_like_cpp());
+        assert!(!auras.has_complete_spell_cast_log_aura_authority_like_cpp());
+    }
+
+    #[test]
+    fn spell_hit_and_cast_log_aura_authorities_are_independent() {
+        let mut hit_authority = AuraSubsystem::default();
+        hit_authority.set_spell_hit_aura_authority_inert_like_cpp(true);
+
+        assert!(hit_authority.has_complete_spell_hit_inert_aura_authority_like_cpp());
+        assert!(!hit_authority.has_complete_spell_cast_log_aura_authority_like_cpp());
+
+        let mut cast_log_authority = AuraSubsystem::default();
+        cast_log_authority.set_spell_cast_log_aura_authority_inert_like_cpp(true);
+
+        assert!(!cast_log_authority.has_complete_spell_hit_inert_aura_authority_like_cpp());
+        assert!(cast_log_authority.has_complete_spell_cast_log_aura_authority_like_cpp());
     }
 
     #[test]
@@ -4841,12 +4878,20 @@ mod unit_subsystems_tests {
         let mut auras = AuraSubsystem::default();
         let aura = OwnedAuraRef::new(100, guid(1), None);
         auras.set_spell_hit_aura_authority_inert_like_cpp(true);
+        auras.set_spell_cast_log_aura_authority_inert_like_cpp(true);
+
+        assert!(auras.has_complete_spell_hit_inert_aura_authority_like_cpp());
+        assert!(auras.has_complete_spell_cast_log_aura_authority_like_cpp());
 
         auras.add_owned(aura);
+        assert!(!auras.has_complete_spell_hit_inert_aura_authority_like_cpp());
+        assert!(!auras.has_complete_spell_cast_log_aura_authority_like_cpp());
+
         assert!(auras.remove_owned(aura));
 
         assert!(auras.owned_auras.is_empty());
         assert!(!auras.has_complete_spell_hit_inert_aura_authority_like_cpp());
+        assert!(!auras.has_complete_spell_cast_log_aura_authority_like_cpp());
     }
 
     #[test]

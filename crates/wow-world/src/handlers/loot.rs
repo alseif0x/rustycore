@@ -64,8 +64,8 @@ use wow_network::player_registry::{
     ApplyGroupRemovalLikeCppCommand, CancelRepresentedTradeLikeCppCommand,
     CreatureAttackStartLikeCppCommand, CreatureAttackStopLikeCppCommand,
     ReconcilePvpCombatExpiryLikeCppCommand, RefreshVisibleWorldCreaturesLikeCppCommand,
-    SendAddonIfRegisteredLikeCppCommand, SendBasicCreatureSpellCastIfVisibleLikeCppCommand,
-    SendCreatureLootReleaseValuesUpdateLikeCppCommand, SendIfVisibleLikeCppCommand,
+    SendAddonIfRegisteredLikeCppCommand, SendCreatureLootReleaseValuesUpdateLikeCppCommand,
+    SendCreatureSpellCastIfVisibleLikeCppCommand, SendIfVisibleLikeCppCommand,
     SendPartyUpdateLikeCppCommand, SendRepeatableTurnInRequestItemsLikeCppCommand,
     SendRepresentedDuelCountdownLikeCppCommand, SendRepresentedDuelRequestedLikeCppCommand,
     SendRepresentedTradeStatusLikeCppCommand, SetQuestSharingInfoAndSendDetailsCommand,
@@ -4415,8 +4415,8 @@ impl WorldSession {
                 SessionCommand::SendIfVisibleLikeCpp(command) => {
                     self.handle_send_if_visible_like_cpp_command_like_cpp(command, false, false);
                 }
-                SessionCommand::SendBasicCreatureSpellCastIfVisibleLikeCpp(command) => {
-                    self.handle_send_basic_creature_spell_cast_if_visible_like_cpp_command_like_cpp(
+                SessionCommand::SendCreatureSpellCastIfVisibleLikeCpp(command) => {
+                    self.handle_send_creature_spell_cast_if_visible_like_cpp_command_like_cpp(
                         command,
                     );
                 }
@@ -5181,18 +5181,16 @@ impl WorldSession {
 
     /// Deliver one map-owned creature START+GO pair after one visibility gate.
     ///
-    /// C++ `WorldObject::SendCombatLogMessage` selects a full GO frame for
-    /// advanced-combat-log viewers and a basic frame otherwise. The current
-    /// represented producer carries only the basic frame, which remains a
-    /// valid fallback for advanced viewers; START must never be suppressed by
-    /// that session preference. Both viewers receive the frames consecutively
-    /// with no command drain or visibility revalidation between them. The two
+    /// C++ `WorldObject::SendCombatLogMessage` selects the committed full GO
+    /// frame for advanced-combat-log viewers and the basic frame otherwise.
+    /// Both viewers receive START and their selected GO consecutively with no
+    /// command drain or visibility revalidation between them. The two
     /// frame-oriented socket sends are not transactional against other cloned
     /// producers or a receiver closing after START; absolute writer adjacency
     /// needs a future batch-aware socket envelope.
-    fn handle_send_basic_creature_spell_cast_if_visible_like_cpp_command_like_cpp(
+    fn handle_send_creature_spell_cast_if_visible_like_cpp_command_like_cpp(
         &mut self,
-        command: SendBasicCreatureSpellCastIfVisibleLikeCppCommand,
+        command: SendCreatureSpellCastIfVisibleLikeCppCommand,
     ) {
         let opcode = |packet_bytes: &[u8]| {
             packet_bytes
@@ -5202,7 +5200,9 @@ impl WorldSession {
         };
         if opcode(&command.start_packet_bytes)
             != Some(wow_constants::ServerOpcodes::SpellStart as u16)
-            || opcode(&command.go_packet_bytes)
+            || opcode(&command.basic_go_packet_bytes)
+                != Some(wow_constants::ServerOpcodes::SpellGo as u16)
+            || opcode(&command.full_go_packet_bytes)
                 != Some(wow_constants::ServerOpcodes::SpellGo as u16)
         {
             return;
@@ -5219,7 +5219,11 @@ impl WorldSession {
         }
 
         self.send_raw_packet(&command.start_packet_bytes);
-        self.send_raw_packet(&command.go_packet_bytes);
+        if self.represented_advanced_combat_logging_enabled_like_cpp() {
+            self.send_raw_packet(&command.full_go_packet_bytes);
+        } else {
+            self.send_raw_packet(&command.basic_go_packet_bytes);
+        }
     }
 
     /// Per-session gate for addon chat delivery.
@@ -13727,7 +13731,7 @@ mod tests {
         ApplyLootMoneyLikeCppCommand, GroupInfo, GroupRegistry, KickLikeCppCommand,
         LootDropRatesLikeCpp, LootRollCommandIdentityLikeCpp, LootRollVoteCommand,
         MasterLootGiveResult, PendingInvites, PlayerBroadcastInfo, PlayerRegistry,
-        SendBasicCreatureSpellCastIfVisibleLikeCppCommand, SessionCommand,
+        SendCreatureSpellCastIfVisibleLikeCppCommand, SessionCommand,
     };
     use wow_packet::packets::loot::{
         CreatureLoot, LOOT_ERROR_MASTER_OTHER_LIKE_CPP, LOOT_ERROR_MASTER_UNIQUE_ITEM_LIKE_CPP,
@@ -13781,7 +13785,7 @@ mod tests {
         make_session_with_send().0
     }
 
-    fn make_visible_basic_creature_spell_session_like_cpp()
+    fn make_visible_creature_spell_session_like_cpp()
     -> (WorldSession, flume::Receiver<Vec<u8>>, ObjectGuid) {
         let (mut session, send_rx) = make_session_with_send_capacity(2);
         let source_guid =
@@ -13814,36 +13818,38 @@ mod tests {
         (session, send_rx, source_guid)
     }
 
-    fn basic_creature_spell_cast_command_like_cpp(
+    fn creature_spell_cast_command_like_cpp(
         source_guid: ObjectGuid,
-    ) -> SendBasicCreatureSpellCastIfVisibleLikeCppCommand {
+    ) -> SendCreatureSpellCastIfVisibleLikeCppCommand {
         let mut start_packet_bytes = (ServerOpcodes::SpellStart as u16).to_le_bytes().to_vec();
         start_packet_bytes.push(0xAA);
-        let mut go_packet_bytes = (ServerOpcodes::SpellGo as u16).to_le_bytes().to_vec();
-        go_packet_bytes.push(0xBB);
-        SendBasicCreatureSpellCastIfVisibleLikeCppCommand {
+        let mut basic_go_packet_bytes = (ServerOpcodes::SpellGo as u16).to_le_bytes().to_vec();
+        basic_go_packet_bytes.push(0xBB);
+        let mut full_go_packet_bytes = (ServerOpcodes::SpellGo as u16).to_le_bytes().to_vec();
+        full_go_packet_bytes.push(0xCC);
+        SendCreatureSpellCastIfVisibleLikeCppCommand {
             queued_at: Instant::now(),
             source_guid,
             map_id: 571,
             instance_id: 0,
             start_packet_bytes,
-            go_packet_bytes,
+            basic_go_packet_bytes,
+            full_go_packet_bytes,
         }
     }
 
     #[tokio::test]
-    async fn basic_creature_spell_cast_command_sends_start_then_go_after_one_gate_like_cpp() {
-        let (mut session, send_rx, source_guid) =
-            make_visible_basic_creature_spell_session_like_cpp();
-        let command = basic_creature_spell_cast_command_like_cpp(source_guid);
+    async fn creature_spell_cast_command_sends_start_then_basic_go_after_one_gate_like_cpp() {
+        let (mut session, send_rx, source_guid) = make_visible_creature_spell_session_like_cpp();
+        let command = creature_spell_cast_command_like_cpp(source_guid);
         let expected_start = command.start_packet_bytes.clone();
-        let expected_go = command.go_packet_bytes.clone();
+        let expected_go = command.basic_go_packet_bytes.clone();
         session
             .session_command_tx()
-            .try_send(SessionCommand::SendBasicCreatureSpellCastIfVisibleLikeCpp(
+            .try_send(SessionCommand::SendCreatureSpellCastIfVisibleLikeCpp(
                 command,
             ))
-            .expect("atomic basic spell command queued");
+            .expect("atomic spell command queued");
 
         session
             .process_represented_session_commands_like_cpp()
@@ -13855,26 +13861,28 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn advanced_combat_logging_receives_basic_creature_spell_fallback_pair_like_cpp() {
-        let (mut session, send_rx, source_guid) =
-            make_visible_basic_creature_spell_session_like_cpp();
-        let command = basic_creature_spell_cast_command_like_cpp(source_guid);
+    async fn advanced_combat_logging_receives_full_creature_spell_go_like_cpp() {
+        let (mut session, send_rx, source_guid) = make_visible_creature_spell_session_like_cpp();
+        let command = creature_spell_cast_command_like_cpp(source_guid);
         let expected_start = command.start_packet_bytes.clone();
-        let expected_go = command.go_packet_bytes.clone();
+        let expected_go = command.full_go_packet_bytes.clone();
+        let rejected_basic = command.basic_go_packet_bytes.clone();
         session.represented_set_advanced_combat_logging_like_cpp(true);
         session
             .session_command_tx()
-            .try_send(SessionCommand::SendBasicCreatureSpellCastIfVisibleLikeCpp(
+            .try_send(SessionCommand::SendCreatureSpellCastIfVisibleLikeCpp(
                 command,
             ))
-            .expect("atomic basic spell command queued");
+            .expect("atomic spell command queued");
 
         session
             .process_represented_session_commands_like_cpp()
             .await;
 
         assert_eq!(send_rx.try_recv().expect("START frame"), expected_start);
-        assert_eq!(send_rx.try_recv().expect("basic GO fallback"), expected_go);
+        let delivered_go = send_rx.try_recv().expect("full GO frame");
+        assert_eq!(delivered_go, expected_go);
+        assert_ne!(delivered_go, rejected_basic);
         assert!(send_rx.try_recv().is_err(), "no partial or extra frame");
     }
 

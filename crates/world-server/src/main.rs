@@ -14081,14 +14081,15 @@ fn resolve_runtime_event_candidates_like_cpp(
                 }
             }
         }
-        RecipientRule::NearbyVisibleDurableBasicSpellCast {
+        RecipientRule::NearbyVisibleDurableSpellCast {
             source_guid,
             map_id,
             instance_id,
             source_position,
             range,
             required_3d,
-            go_packet_bytes,
+            basic_go_packet_bytes,
+            full_go_packet_bytes,
         } => {
             let range_sq = range * range;
             struct Candidate {
@@ -14151,16 +14152,18 @@ fn resolve_runtime_event_candidates_like_cpp(
                     }
                     None => {}
                 }
-                let command = wow_network::player_registry::SendBasicCreatureSpellCastIfVisibleLikeCppCommand {
-                    queued_at: Instant::now(),
-                    source_guid: *source_guid,
-                    map_id: *map_id,
-                    instance_id: *instance_id,
-                    start_packet_bytes: event.packet_bytes.clone(),
-                    go_packet_bytes: go_packet_bytes.clone(),
-                };
+                let command =
+                    wow_network::player_registry::SendCreatureSpellCastIfVisibleLikeCppCommand {
+                        queued_at: Instant::now(),
+                        source_guid: *source_guid,
+                        map_id: *map_id,
+                        instance_id: *instance_id,
+                        start_packet_bytes: event.packet_bytes.clone(),
+                        basic_go_packet_bytes: basic_go_packet_bytes.clone(),
+                        full_go_packet_bytes: full_go_packet_bytes.clone(),
+                    };
                 if candidate.durable.lock().is_ok_and(|mut durable| {
-                    durable.publish_basic_creature_spell_cast_if_visible_like_cpp(command)
+                    durable.publish_creature_spell_cast_if_visible_like_cpp(command)
                 }) {
                     summary.candidates_queued += 1;
                 } else {
@@ -25578,9 +25581,15 @@ mmap.enablePathFinding = 0
 
     fn make_creature_spell_runtime_plan_like_cpp(
         target_guid: ObjectGuid,
-    ) -> (wow_world::map_manager::RuntimePlan, Vec<u8>, Vec<u8>) {
+    ) -> (
+        wow_world::map_manager::RuntimePlan,
+        Vec<u8>,
+        Vec<u8>,
+        Vec<u8>,
+    ) {
         use wow_packet::packets::spell::{
-            SpellCastVisual, SpellGoPkt, SpellStartPkt, SpellTargetData,
+            SpellCastLogData, SpellCastVisual, SpellGoPkt, SpellLogPowerData, SpellStartPkt,
+            SpellTargetData,
         };
 
         let caster_guid = make_source_guid();
@@ -25607,7 +25616,7 @@ mmap.enablePathFinding = 0
             target: target.clone(),
         }
         .to_bytes();
-        let go_bytes = SpellGoPkt {
+        let go = SpellGoPkt {
             caster: caster_guid,
             cast_id,
             original_cast_id: ObjectGuid::EMPTY,
@@ -25619,25 +25628,36 @@ mmap.enablePathFinding = 0
             target,
             hit_targets: vec![target_guid],
             miss_targets: Vec::new(),
-        }
-        .to_bytes();
+        };
+        let basic_go_bytes = go.to_bytes();
+        let full_go_bytes = go.to_full_log_bytes_like_cpp(&SpellCastLogData {
+            health: 321,
+            attack_power: 45,
+            spell_power: 0,
+            armor: 67,
+            power_data: vec![SpellLogPowerData {
+                power_type: 0,
+                amount: 89,
+                cost: 0,
+            }],
+        });
         let plan = wow_world::map_manager::RuntimePlan {
             events: vec![wow_world::map_manager::RuntimeEvent {
                 source_guid: caster_guid,
-                recipients:
-                    wow_world::map_manager::RecipientRule::NearbyVisibleDurableBasicSpellCast {
-                        source_guid: caster_guid,
-                        map_id: 571,
-                        instance_id: 0,
-                        source_position: Position::ZERO,
-                        range: 100.0,
-                        required_3d: false,
-                        go_packet_bytes: go_bytes.clone(),
-                    },
+                recipients: wow_world::map_manager::RecipientRule::NearbyVisibleDurableSpellCast {
+                    source_guid: caster_guid,
+                    map_id: 571,
+                    instance_id: 0,
+                    source_position: Position::ZERO,
+                    range: 100.0,
+                    required_3d: false,
+                    basic_go_packet_bytes: basic_go_bytes.clone(),
+                    full_go_packet_bytes: full_go_bytes.clone(),
+                },
                 packet_bytes: start_bytes.clone(),
             }],
         };
-        (plan, start_bytes, go_bytes)
+        (plan, start_bytes, basic_go_bytes, full_go_bytes)
     }
 
     fn make_registry_player_like_cpp(
@@ -25921,7 +25941,8 @@ mmap.enablePathFinding = 0
         registry.insert(victim_guid, victim_info);
         registry.insert(observer_guid, observer_info);
 
-        let (plan, start_bytes, go_bytes) = make_creature_spell_runtime_plan_like_cpp(victim_guid);
+        let (plan, start_bytes, basic_go_bytes, full_go_bytes) =
+            make_creature_spell_runtime_plan_like_cpp(victim_guid);
         let plan_delivery = deliver_runtime_plan_like_cpp(&plan, &registry);
         assert_eq!(plan_delivery.events_seen, 1);
         assert_eq!(plan_delivery.candidates_seen, 2);
@@ -25931,32 +25952,39 @@ mmap.enablePathFinding = 0
         // the victim session making progress on its own durable FIFO.
         let observer_commands =
             drain_durable_creature_runtime_commands_like_cpp(&registry, observer_guid);
-        let [SessionCommand::SendBasicCreatureSpellCastIfVisibleLikeCpp(cast)] =
+        let [SessionCommand::SendCreatureSpellCastIfVisibleLikeCpp(cast)] =
             observer_commands.as_slice()
         else {
             panic!("observer must receive one atomic START+GO command: {observer_commands:?}");
         };
         assert_eq!(cast.start_packet_bytes, start_bytes);
-        assert_eq!(cast.go_packet_bytes, go_bytes);
+        assert_eq!(cast.basic_go_packet_bytes, basic_go_bytes);
+        assert_eq!(cast.full_go_packet_bytes, full_go_bytes);
         assert_eq!(
             u16::from_le_bytes(cast.start_packet_bytes[..2].try_into().unwrap()),
             ServerOpcodes::SpellStart as u16
         );
         assert_eq!(
-            u16::from_le_bytes(cast.go_packet_bytes[..2].try_into().unwrap()),
+            u16::from_le_bytes(cast.basic_go_packet_bytes[..2].try_into().unwrap()),
             ServerOpcodes::SpellGo as u16
         );
+        assert_eq!(
+            u16::from_le_bytes(cast.full_go_packet_bytes[..2].try_into().unwrap()),
+            ServerOpcodes::SpellGo as u16
+        );
+        assert_ne!(cast.basic_go_packet_bytes, cast.full_go_packet_bytes);
 
         // The victim's untouched FIFO retains one indivisible copy as well.
         let victim_commands =
             drain_durable_creature_runtime_commands_like_cpp(&registry, victim_guid);
-        let [SessionCommand::SendBasicCreatureSpellCastIfVisibleLikeCpp(victim_cast)] =
+        let [SessionCommand::SendCreatureSpellCastIfVisibleLikeCpp(victim_cast)] =
             victim_commands.as_slice()
         else {
             panic!("victim FIFO must contain one atomic START+GO command: {victim_commands:?}");
         };
         assert_eq!(victim_cast.start_packet_bytes, start_bytes);
-        assert_eq!(victim_cast.go_packet_bytes, go_bytes);
+        assert_eq!(victim_cast.basic_go_packet_bytes, basic_go_bytes);
+        assert_eq!(victim_cast.full_go_packet_bytes, full_go_bytes);
     }
 
     #[test]
@@ -25971,7 +25999,8 @@ mmap.enablePathFinding = 0
         registry.insert(victim_guid, victim_info);
         registry.insert(invisible_observer_guid, invisible_observer_info);
 
-        let (plan, start_bytes, go_bytes) = make_creature_spell_runtime_plan_like_cpp(victim_guid);
+        let (plan, start_bytes, basic_go_bytes, full_go_bytes) =
+            make_creature_spell_runtime_plan_like_cpp(victim_guid);
         let plan_delivery = deliver_runtime_plan_like_cpp(&plan, &registry);
         assert_eq!(plan_delivery.events_seen, 1);
         assert_eq!(plan_delivery.candidates_seen, 2);
@@ -25986,13 +26015,14 @@ mmap.enablePathFinding = 0
 
         let victim_commands =
             drain_durable_creature_runtime_commands_like_cpp(&registry, victim_guid);
-        let [SessionCommand::SendBasicCreatureSpellCastIfVisibleLikeCpp(cast)] =
+        let [SessionCommand::SendCreatureSpellCastIfVisibleLikeCpp(cast)] =
             victim_commands.as_slice()
         else {
             panic!("victim must retain one atomic START+GO command: {victim_commands:?}");
         };
         assert_eq!(cast.start_packet_bytes, start_bytes);
-        assert_eq!(cast.go_packet_bytes, go_bytes);
+        assert_eq!(cast.basic_go_packet_bytes, basic_go_bytes);
+        assert_eq!(cast.full_go_packet_bytes, full_go_bytes);
     }
 
     /// (6) MapBroadcastVisible: enqueues all players on the same map/instance

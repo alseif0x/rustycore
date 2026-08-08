@@ -10,8 +10,8 @@ use rand::{Rng, RngCore, SeedableRng, rngs::StdRng};
 use tracing::{debug, info, warn};
 use wow_constants::movement::MovementFlag;
 use wow_constants::{
-    CreatureRandomMovementType as ConstantsCreatureRandomMovementType, UnitDynFlags, UnitFlags2,
-    UnitMoveType, UnitStandStateType, UnitState, WeaponAttackType,
+    CreatureRandomMovementType as ConstantsCreatureRandomMovementType, PowerType, UnitDynFlags,
+    UnitFlags2, UnitMoveType, UnitStandStateType, UnitState, WeaponAttackType,
 };
 use wow_core::{ObjectGuid, Position};
 use wow_database::{
@@ -19,11 +19,11 @@ use wow_database::{
 };
 use wow_entities::{
     AllowedPositionZCaps, Creature, CreatureAddonLifecycleRecordLikeCpp, CreatureAiState,
-    DEFAULT_HEIGHT_SEARCH, DistractMovementAction, EVENT_CHARGE_PREPATH, GenericMovementInform,
-    INVALID_HEIGHT, MotionMasterUpdateContext, MotionMasterUpdateOutcome, MovementGeneratorKind,
-    MovementGeneratorRef, MovementGeneratorType, MovementSlot, PhaseShift, PointMovementAction,
-    PointMovementInform, RotateMovementUpdate, Z_OFFSET_FIND_HEIGHT,
-    allowed_position_z_from_ground_like_cpp, game_time_secs_like_cpp,
+    CreatureCombatLogStatsLikeCpp, DEFAULT_HEIGHT_SEARCH, DistractMovementAction,
+    EVENT_CHARGE_PREPATH, GenericMovementInform, INVALID_HEIGHT, MotionMasterUpdateContext,
+    MotionMasterUpdateOutcome, MovementGeneratorKind, MovementGeneratorRef, MovementGeneratorType,
+    MovementSlot, PhaseShift, PointMovementAction, PointMovementInform, RotateMovementUpdate,
+    Z_OFFSET_FIND_HEIGHT, allowed_position_z_from_ground_like_cpp, game_time_secs_like_cpp,
 };
 use wow_map::map::MapWorldObjectEnvironment;
 use wow_map::{GridMapTerrain, SharedStaticVMapLineOfSightProvider, SpawnObjectType};
@@ -63,6 +63,37 @@ pub const VISIBILITY_RADIUS: f32 = 100.0;
 /// is clamped to this when the template value is 0 (`ObjectMgr.cpp:1100-1104`); a
 /// 0 attack time crashes the 3.4.3 client's swing-timer math on the first tick.
 const BASE_ATTACK_TIME_LIKE_CPP: u32 = 2_000;
+
+const fn power_type_from_u8_like_cpp(power: u8) -> PowerType {
+    match power {
+        1 => PowerType::Rage,
+        2 => PowerType::Focus,
+        3 => PowerType::Energy,
+        4 => PowerType::Happiness,
+        5 => PowerType::Runes,
+        6 => PowerType::RunicPower,
+        7 => PowerType::SoulShards,
+        8 => PowerType::LunarPower,
+        9 => PowerType::HolyPower,
+        10 => PowerType::AlternatePower,
+        11 => PowerType::Maelstrom,
+        12 => PowerType::Chi,
+        13 => PowerType::Insanity,
+        14 => PowerType::ComboPoints,
+        15 => PowerType::DemonicFury,
+        16 => PowerType::ArcaneCharges,
+        17 => PowerType::Fury,
+        18 => PowerType::Pain,
+        19 => PowerType::Essence,
+        20 => PowerType::RuneBlood,
+        21 => PowerType::RuneFrost,
+        22 => PowerType::RuneUnholy,
+        23 => PowerType::AlternateQuest,
+        24 => PowerType::AlternateEncounter,
+        25 => PowerType::AlternateMount,
+        _ => PowerType::Mana,
+    }
+}
 
 const MAX_NUMBER_OF_CELLS_LIKE_CPP: i32 = 8;
 const TOTAL_NUMBER_OF_CELLS_PER_MAP_LIKE_CPP: i32 =
@@ -1365,6 +1396,12 @@ pub struct WorldCreature {
     /// casts from claiming exact RNG authority, but it must not disable the
     /// pre-existing best-effort melee and movement runtimes.
     runtime_rng_authority_complete_like_cpp: bool,
+    /// DB-backed aura-source proofs that may be re-accredited only after the
+    /// respawn rail reapplies the captured creature/template addon source.
+    /// These are provenance, not the live AuraSubsystem markers: ordinary aura
+    /// mutations still revoke the live markers permanently for that lifetime.
+    respawn_spell_hit_aura_source_authority_like_cpp: bool,
+    respawn_spell_cast_log_aura_source_authority_like_cpp: bool,
     runtime_rng_like_cpp: StdRng,
     clock_started_at: Instant,
 }
@@ -1396,6 +1433,10 @@ impl Clone for WorldCreature {
             home_health_restored_pending_like_cpp: self.home_health_restored_pending_like_cpp,
             runtime_motion_master_ticks: self.runtime_motion_master_ticks,
             runtime_rng_authority_complete_like_cpp: self.runtime_rng_authority_complete_like_cpp,
+            respawn_spell_hit_aura_source_authority_like_cpp: self
+                .respawn_spell_hit_aura_source_authority_like_cpp,
+            respawn_spell_cast_log_aura_source_authority_like_cpp: self
+                .respawn_spell_cast_log_aura_source_authority_like_cpp,
             creature,
             create_data: self.create_data.clone(),
             active_move_spline: self.active_move_spline.clone(),
@@ -1592,6 +1633,8 @@ impl WorldCreature {
             home_health_restored_pending_like_cpp: false,
             runtime_motion_master_ticks: 0,
             runtime_rng_authority_complete_like_cpp: true,
+            respawn_spell_hit_aura_source_authority_like_cpp: false,
+            respawn_spell_cast_log_aura_source_authority_like_cpp: false,
             runtime_rng_like_cpp: StdRng::from_entropy(),
             clock_started_at: Instant::now(),
         }
@@ -1730,12 +1773,7 @@ impl WorldCreature {
         // The loaded-grid lifecycle receives a Creature only after the
         // DB-backed creature_addon/template_addon store has resolved and the
         // selected addon has been applied to its canonical AuraSubsystem.
-        world_creature
-            .creature
-            .unit_mut()
-            .subsystems_mut()
-            .auras
-            .set_spell_hit_aura_authority_inert_like_cpp(true);
+        world_creature.restore_respawn_aura_source_authority_like_cpp(true, true);
         match world_creature.creature.default_movement_type() {
             wow_entities::MovementGeneratorType::Random => {
                 world_creature.initialize_default_random_movement_like_cpp();
@@ -1748,6 +1786,18 @@ impl WorldCreature {
             wow_entities::MovementGeneratorType::Idle => {}
         }
         world_creature
+    }
+
+    fn restore_respawn_aura_source_authority_like_cpp(
+        &mut self,
+        spell_hit: bool,
+        spell_cast_log: bool,
+    ) {
+        self.respawn_spell_hit_aura_source_authority_like_cpp = spell_hit;
+        self.respawn_spell_cast_log_aura_source_authority_like_cpp = spell_cast_log;
+        let auras = &mut self.creature.unit_mut().subsystems_mut().auras;
+        auras.set_spell_hit_aura_authority_inert_like_cpp(spell_hit);
+        auras.set_spell_cast_log_aura_authority_inert_like_cpp(spell_cast_log);
     }
 
     pub fn active_waypoint_generator_like_cpp(&self) -> Option<&WaypointMovementGenerator> {
@@ -5244,22 +5294,23 @@ pub enum RecipientRule {
         range: f32,
         required_3d: bool,
     },
-    /// One basic creature spell cast whose START and GO frames must be
-    /// published and consumed as a single durable unit per observer.
+    /// One creature spell cast whose START plus viewer-selected basic/full GO
+    /// frames must be published and consumed as a single durable unit.
     ///
-    /// `RuntimeEvent::packet_bytes` carries START and `go_packet_bytes`
-    /// carries GO. Routing and the companion payload are deliberately coupled
-    /// here until `RuntimeEvent` grows a first-class packet-batch payload; a
-    /// generic pair of independent events would allow a session drain between
-    /// the two committed frames.
-    NearbyVisibleDurableBasicSpellCast {
+    /// `RuntimeEvent::packet_bytes` carries START and the two GO fields carry
+    /// the basic/full alternatives. Routing and all companion payloads are
+    /// deliberately coupled here until `RuntimeEvent` grows a first-class
+    /// packet-batch payload; independent events would allow a session drain
+    /// between the two committed frames.
+    NearbyVisibleDurableSpellCast {
         source_guid: ObjectGuid,
         map_id: u16,
         instance_id: u32,
         source_position: Position,
         range: f32,
         required_3d: bool,
-        go_packet_bytes: Vec<u8>,
+        basic_go_packet_bytes: Vec<u8>,
+        full_go_packet_bytes: Vec<u8>,
     },
     /// Broadcast to every session on the map regardless of distance.
     /// Mirrors C++ map-wide broadcast.
@@ -6220,6 +6271,13 @@ pub struct PendingRespawn {
     pub level: u8,
     pub min_dmg: u32,
     pub max_dmg: u32,
+    /// Live totals used by C++ `SpellCastLogData::Initialize`.
+    pub combat_log_stats: CreatureCombatLogStatsLikeCpp,
+    /// DB-backed source proofs captured independently of the live aura markers.
+    /// The live markers are revoked during death cleanup; the respawn rail may
+    /// restore only proofs that crossed the authoritative loaded-grid bridge.
+    pub spell_hit_aura_source_authority_like_cpp: bool,
+    pub spell_cast_log_aura_source_authority_like_cpp: bool,
     pub aggro_radius: f32,
     pub wander_distance: f32,
     pub flags_extra: u32,
@@ -6305,11 +6363,11 @@ pub fn pending_respawn_from_world_creature_like_cpp(
             ),
             damage_school: creature.creature.melee_damage_school_like_cpp(),
             scale: 1.0,
-            unit_class: 1,
-            display_power: creature.creature.unit().data().display_power,
-            power: creature.creature.unit().data().power,
-            max_power: creature.creature.unit().data().max_power,
-            base_mana: creature.creature.unit().data().base_mana,
+            unit_class: creature.create_data.unit_class,
+            display_power: creature.create_data.display_power,
+            power: creature.create_data.power,
+            max_power: creature.create_data.max_power,
+            base_mana: creature.create_data.base_mana,
             virtual_items: [
                 (
                     creature.creature.unit().data().virtual_items[0].item_id,
@@ -6355,6 +6413,11 @@ pub fn pending_respawn_from_world_creature_like_cpp(
         level: creature.level(),
         min_dmg: creature.min_dmg(),
         max_dmg: creature.max_dmg(),
+        combat_log_stats: creature.creature.combat_log_stats_like_cpp(),
+        spell_hit_aura_source_authority_like_cpp: creature
+            .respawn_spell_hit_aura_source_authority_like_cpp,
+        spell_cast_log_aura_source_authority_like_cpp: creature
+            .respawn_spell_cast_log_aura_source_authority_like_cpp,
         aggro_radius: creature.creature.ai_ownership().aggro_radius,
         wander_distance: creature.creature.ai_ownership().wander_radius.max(0.0),
         flags_extra: creature.creature.lifecycle_metadata().flags_extra,
@@ -6453,6 +6516,16 @@ pub fn world_creature_from_pending_respawn_like_cpp(
     creature.unit_mut().set_level(level);
     creature.unit_mut().set_max_health(u64::from(hp));
     creature.unit_mut().set_health(u64::from(hp));
+    creature.unit_mut().set_class(create_data.unit_class);
+    let power_type = power_type_from_u8_like_cpp(create_data.display_power);
+    creature.set_power_type(power_type);
+    creature
+        .unit_mut()
+        .set_create_mana_like_cpp(create_data.base_mana);
+    creature
+        .unit_mut()
+        .replace_create_power_arrays_like_cpp(create_data.power, create_data.max_power);
+    creature.set_combat_log_stats_like_cpp(respawn.combat_log_stats);
     creature.set_ai_identity_runtime(display_id, faction, npc_flags, unit_flags);
     creature.set_npc_flags2_runtime_like_cpp(npc_flags2);
     creature.set_unit_flags2_runtime_like_cpp(unit_flags2);
@@ -6521,7 +6594,12 @@ pub fn world_creature_from_pending_respawn_like_cpp(
     creature.ai_ownership_mut().terrain_swap_map = respawn.terrain_swap_map;
     creature.clear_data_changes();
 
-    WorldCreature::from_canonical(creature, respawn.create_data.clone())
+    let mut world_creature = WorldCreature::from_canonical(creature, respawn.create_data.clone());
+    world_creature.restore_respawn_aura_source_authority_like_cpp(
+        respawn.spell_hit_aura_source_authority_like_cpp,
+        respawn.spell_cast_log_aura_source_authority_like_cpp,
+    );
+    world_creature
 }
 
 #[cfg(test)]
@@ -6529,7 +6607,7 @@ mod tests {
     use super::*;
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
-    use wow_constants::{CreatureFlagsExtra, PhaseFlags, PowerType};
+    use wow_constants::{Class, CreatureFlagsExtra, DeathState, PhaseFlags, PowerType};
     use wow_core::guid::HighGuid;
     use wow_map::map::MapWorldObjectEnvironment;
 
@@ -6597,7 +6675,7 @@ mod tests {
     }
 
     #[test]
-    fn only_loaded_grid_creature_bridge_completes_spell_hit_aura_authority_like_cpp() {
+    fn only_loaded_grid_creature_bridge_completes_spell_aura_authorities_like_cpp() {
         let generic = test_creature(ObjectGuid::new(0, 90_001));
         assert!(
             !generic
@@ -6607,6 +6685,14 @@ mod tests {
                 .auras
                 .has_complete_spell_hit_inert_aura_authority_like_cpp()
         );
+        assert!(
+            !generic
+                .creature
+                .unit()
+                .subsystems()
+                .auras
+                .has_complete_spell_cast_log_aura_authority_like_cpp()
+        );
 
         let mut previously_authorized = generic.creature.clone();
         previously_authorized
@@ -6614,6 +6700,11 @@ mod tests {
             .subsystems_mut()
             .auras
             .set_spell_hit_aura_authority_inert_like_cpp(true);
+        previously_authorized
+            .unit_mut()
+            .subsystems_mut()
+            .auras
+            .set_spell_cast_log_aura_authority_inert_like_cpp(true);
         let generic_bridge =
             WorldCreature::from_canonical(previously_authorized, generic.create_data.clone());
         assert!(
@@ -6623,6 +6714,14 @@ mod tests {
                 .subsystems()
                 .auras
                 .has_complete_spell_hit_inert_aura_authority_like_cpp()
+        );
+        assert!(
+            !generic_bridge
+                .creature
+                .unit()
+                .subsystems()
+                .auras
+                .has_complete_spell_cast_log_aura_authority_like_cpp()
         );
 
         let canonical = test_creature(ObjectGuid::new(0, 90_002)).creature;
@@ -6634,6 +6733,14 @@ mod tests {
                 .subsystems()
                 .auras
                 .has_complete_spell_hit_inert_aura_authority_like_cpp()
+        );
+        assert!(
+            loaded_grid
+                .creature
+                .unit()
+                .subsystems()
+                .auras
+                .has_complete_spell_cast_log_aura_authority_like_cpp()
         );
     }
 
@@ -12116,6 +12223,9 @@ mod tests {
             level: 1,
             min_dmg: 1,
             max_dmg: 5,
+            combat_log_stats: CreatureCombatLogStatsLikeCpp::default(),
+            spell_hit_aura_source_authority_like_cpp: false,
+            spell_cast_log_aura_source_authority_like_cpp: false,
             aggro_radius: 10.0,
             wander_distance: 0.0,
             flags_extra: 0,
@@ -12610,6 +12720,80 @@ mod tests {
     }
 
     #[test]
+    fn pending_respawn_preserves_combat_log_state_across_legacy_and_canonical_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 45);
+        let seed = test_creature(guid);
+        let mut canonical = seed.creature;
+        canonical.set_spawn_id(45);
+        canonical.unit_mut().set_class(Class::Hunter as u8);
+        canonical.set_power_type(PowerType::Focus);
+        canonical.unit_mut().set_max_power(PowerType::Focus, 100);
+        canonical.unit_mut().set_power(PowerType::Focus, 37);
+        let combat_log_stats = CreatureCombatLogStatsLikeCpp {
+            attack_power: 111,
+            ranged_attack_power: 222,
+            spell_power: 333,
+            armor: 444,
+        };
+        canonical.set_combat_log_stats_like_cpp(combat_log_stats);
+        let mut loaded_grid =
+            WorldCreature::from_loaded_grid_canonical_like_cpp(canonical, |_| None);
+
+        assert!(
+            loaded_grid
+                .creature
+                .unit()
+                .subsystems()
+                .auras
+                .has_complete_spell_cast_log_aura_authority_like_cpp()
+        );
+        loaded_grid
+            .creature
+            .set_death_state_runtime(DeathState::JustDied, 0);
+        assert!(
+            !loaded_grid
+                .creature
+                .unit()
+                .subsystems()
+                .auras
+                .has_complete_spell_cast_log_aura_authority_like_cpp(),
+            "death cleanup must revoke the live marker before respawn"
+        );
+
+        let pending = pending_respawn_from_world_creature_like_cpp(&loaded_grid, Instant::now(), 0);
+        assert_eq!(pending.create_data.unit_class, Class::Hunter as u8);
+        assert_eq!(pending.create_data.display_power, PowerType::Focus as u8);
+        assert_eq!(pending.create_data.power[0], 37);
+        assert_eq!(pending.combat_log_stats, combat_log_stats);
+        assert!(pending.spell_hit_aura_source_authority_like_cpp);
+        assert!(pending.spell_cast_log_aura_source_authority_like_cpp);
+
+        let legacy = world_creature_from_pending_respawn_like_cpp(&pending, 0);
+        let canonical_mirror = legacy.creature.clone();
+        for creature in [&legacy.creature, &canonical_mirror] {
+            assert_eq!(creature.unit().data().class_id, Class::Hunter as u8);
+            assert_eq!(creature.power_type(), PowerType::Focus);
+            assert_eq!(creature.unit().get_power(PowerType::Focus), 37);
+            assert_eq!(creature.combat_log_stats_like_cpp(), combat_log_stats);
+            assert_eq!(creature.combat_log_attack_power_like_cpp(), 222);
+            assert!(
+                creature
+                    .unit()
+                    .subsystems()
+                    .auras
+                    .has_complete_spell_hit_inert_aura_authority_like_cpp()
+            );
+            assert!(
+                creature
+                    .unit()
+                    .subsystems()
+                    .auras
+                    .has_complete_spell_cast_log_aura_authority_like_cpp()
+            );
+        }
+    }
+
+    #[test]
     fn pending_respawn_preserves_flags_extra_like_cpp() {
         let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 42);
         let mut creature = test_creature(guid);
@@ -12735,11 +12919,16 @@ mod tests {
         assert_eq!(second_pending.spawn_id, second_guid.low_value() as u64);
         assert_ne!(first_pending.spawn_id, second_pending.spawn_id);
         assert!(!first_pending.persistent_spawn);
-        assert_eq!(
-            world_creature_from_pending_respawn_like_cpp(&first_pending, 0)
+        let respawned = world_creature_from_pending_respawn_like_cpp(&first_pending, 0);
+        assert_eq!(respawned.creature.spawn_id(), 0);
+        assert!(
+            !respawned
                 .creature
-                .spawn_id(),
-            0
+                .unit()
+                .subsystems()
+                .auras
+                .has_complete_spell_cast_log_aura_authority_like_cpp(),
+            "generic queue-only respawns must remain fail-closed"
         );
     }
 }

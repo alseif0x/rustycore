@@ -80,12 +80,10 @@ pub enum SessionCommand {
     /// world-server; the per-session gate is in
     /// `handle_send_if_visible_like_cpp_command_like_cpp` (Slice 4A.1b).
     SendIfVisibleLikeCpp(SendIfVisibleLikeCppCommand),
-    /// Deliver one basic creature spell START+GO pair after one shared
-    /// visibility gate. Until the represented producer carries C++'s full
-    /// combat-log tail, the receiver also sends this valid basic GO fallback
-    /// when advanced combat logging is enabled; START is never suppressed by
-    /// that preference.
-    SendBasicCreatureSpellCastIfVisibleLikeCpp(SendBasicCreatureSpellCastIfVisibleLikeCppCommand),
+    /// Deliver one creature spell START+GO pair after one shared visibility
+    /// gate, selecting the basic or full GO by the receiving player's C++
+    /// advanced-combat-log preference.
+    SendCreatureSpellCastIfVisibleLikeCpp(SendCreatureSpellCastIfVisibleLikeCppCommand),
     /// Same visibility/phase/range gate as `SendIfVisibleLikeCpp`, but route
     /// the accepted packet through the receiver's realm connection.
     SendRealmIfVisibleLikeCpp(SendIfVisibleLikeCppCommand),
@@ -332,12 +330,12 @@ impl DurableCreatureRuntimeCommandsLikeCpp {
     }
 
     /// Publish START+GO as one queue element so capacity checks and session
-    /// drains cannot observe only one half of a committed basic spell cast.
-    pub fn publish_basic_creature_spell_cast_if_visible_like_cpp(
+    /// drains cannot observe only one half of a committed spell cast.
+    pub fn publish_creature_spell_cast_if_visible_like_cpp(
         &mut self,
-        command: SendBasicCreatureSpellCastIfVisibleLikeCppCommand,
+        command: SendCreatureSpellCastIfVisibleLikeCppCommand,
     ) -> bool {
-        self.publish_like_cpp(SessionCommand::SendBasicCreatureSpellCastIfVisibleLikeCpp(
+        self.publish_like_cpp(SessionCommand::SendCreatureSpellCastIfVisibleLikeCpp(
             command,
         ))
     }
@@ -376,24 +374,25 @@ pub struct SendIfVisibleLikeCppCommand {
     pub packet_bytes: Vec<u8>,
 }
 
-/// Atomic session handoff for one represented basic creature spell cast.
+/// Atomic session handoff for one represented creature spell cast.
 ///
 /// The two serialized frames remain separate so the socket writer sees the
 /// normal START then GO packet boundary. They share one addressing envelope,
-/// one durable queue slot and one session visibility gate. Until the producer
-/// can represent C++'s full combat-log payload, advanced-log viewers receive
-/// the same valid basic GO fallback instead of losing the entire cast.
+/// one durable queue slot and one session visibility gate. Both C++ packet
+/// variants are committed together; the receiving session selects exactly one
+/// GO representation from its player-local logging preference.
 /// This atomicity ends at the session handoff: the current socket channel is
 /// frame-oriented, so two later `send` calls are not a transactional batch
 /// against cloned producers or a receiver that closes between frames.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SendBasicCreatureSpellCastIfVisibleLikeCppCommand {
+pub struct SendCreatureSpellCastIfVisibleLikeCppCommand {
     pub queued_at: Instant,
     pub source_guid: ObjectGuid,
     pub map_id: u16,
     pub instance_id: u32,
     pub start_packet_bytes: Vec<u8>,
-    pub go_packet_bytes: Vec<u8>,
+    pub basic_go_packet_bytes: Vec<u8>,
+    pub full_go_packet_bytes: Vec<u8>,
 }
 
 /// Carries C++ `WorldSession::DoLootRelease`'s forced creature DynamicFlags
@@ -1328,7 +1327,7 @@ mod tests {
     }
 
     #[test]
-    fn basic_creature_spell_start_go_uses_one_durable_queue_element_like_cpp() {
+    fn creature_spell_start_and_both_go_variants_use_one_durable_queue_element_like_cpp() {
         let source_guid = ObjectGuid::create_world_object(
             wow_core::guid::HighGuid::Creature,
             0,
@@ -1338,17 +1337,18 @@ mod tests {
             123,
             458,
         );
-        let command = SendBasicCreatureSpellCastIfVisibleLikeCppCommand {
+        let command = SendCreatureSpellCastIfVisibleLikeCppCommand {
             queued_at: Instant::now(),
             source_guid,
             map_id: 571,
             instance_id: 4,
             start_packet_bytes: vec![0x37, 0x2C, 0xAA],
-            go_packet_bytes: vec![0x36, 0x2C, 0xBB],
+            basic_go_packet_bytes: vec![0x36, 0x2C, 0xBB],
+            full_go_packet_bytes: vec![0x36, 0x2C, 0xCC],
         };
         let mut durable = DurableCreatureRuntimeCommandsLikeCpp::default();
 
-        assert!(durable.publish_basic_creature_spell_cast_if_visible_like_cpp(command.clone()));
+        assert!(durable.publish_creature_spell_cast_if_visible_like_cpp(command.clone()));
         let drained = durable.drain_like_cpp();
 
         assert_eq!(
@@ -1356,10 +1356,10 @@ mod tests {
             1,
             "a drain cannot split START from GO because the pair occupies one FIFO element"
         );
-        let [SessionCommand::SendBasicCreatureSpellCastIfVisibleLikeCpp(drained_command)] =
+        let [SessionCommand::SendCreatureSpellCastIfVisibleLikeCpp(drained_command)] =
             drained.as_slice()
         else {
-            panic!("expected one atomic basic spell cast command: {drained:?}");
+            panic!("expected one atomic spell cast command: {drained:?}");
         };
         assert_eq!(drained_command, &command);
     }

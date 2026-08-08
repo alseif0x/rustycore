@@ -12,8 +12,8 @@
 //! advance the buffer even for fields we don't yet use (optionalReagents,
 //! MoveUpdate, SpellWeights, etc.).
 //!
-//! `SpellGoPkt` writes a minimal but correct `SpellCastData` that the client
-//! accepts for instant-cast spell animations (no log data, empty RemainingPower).
+//! `SpellGoPkt` writes the basic `SpellCastData` used by ordinary viewers and
+//! can also serialize the C++ full combat-log suffix for advanced viewers.
 
 use wow_constants::{ClientOpcodes, ServerOpcodes};
 use wow_core::{ObjectGuid, Position};
@@ -844,6 +844,40 @@ impl ServerPacket for SpellStartPkt {
 
 // ── SMSG_SPELL_GO ────────────────────────────────────────────────
 
+/// One C++ `SpellLogPowerData` row embedded in advanced combat-log packets.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpellLogPowerData {
+    pub power_type: i32,
+    pub amount: i32,
+    pub cost: i32,
+}
+
+/// C++ `SpellCastLogData`, appended only to the full combat-log packet.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpellCastLogData {
+    pub health: i64,
+    pub attack_power: i32,
+    pub spell_power: i32,
+    pub armor: i32,
+    pub power_data: Vec<SpellLogPowerData>,
+}
+
+impl SpellCastLogData {
+    fn write(&self, pkt: &mut WorldPacket) {
+        pkt.write_int64(self.health);
+        pkt.write_int32(self.attack_power);
+        pkt.write_int32(self.spell_power);
+        pkt.write_int32(self.armor);
+        pkt.write_bits(self.power_data.len() as u32, 9);
+        pkt.flush_bits();
+        for power in &self.power_data {
+            pkt.write_int32(power.power_type);
+            pkt.write_int32(power.amount);
+            pkt.write_int32(power.cost);
+        }
+    }
+}
+
 /// `SMSG_SPELL_GO` — spell completes and effects are applied.
 ///
 /// Instant represented casts send this immediately after `SpellStartPkt`.
@@ -865,10 +899,8 @@ pub struct SpellGoPkt {
     pub miss_targets: Vec<SpellMissTarget>,
 }
 
-impl ServerPacket for SpellGoPkt {
-    const OPCODE: ServerOpcodes = ServerOpcodes::SpellGo;
-
-    fn write(&self, pkt: &mut WorldPacket) {
+impl SpellGoPkt {
+    fn write_with_log_data(&self, pkt: &mut WorldPacket, log_data: Option<&SpellCastLogData>) {
         // SpellCastData (`SMSG_SPELL_GO` carries the server timestamp here).
         write_spell_cast_data(
             pkt,
@@ -885,10 +917,29 @@ impl ServerPacket for SpellGoPkt {
             &self.miss_targets,
         );
 
-        // CombatLogServerPacket extras: WriteLogDataBit + FlushBits + WriteLogData
-        pkt.write_bit(false); // no log data
+        // C++ `CombatLogServerPacket::WriteLogDataBit`, `FlushBits`, then
+        // `WriteLogData` only for the full packet.
+        pkt.write_bit(log_data.is_some());
         pkt.flush_bits();
-        // (WriteLogData writes nothing when bit is false)
+        if let Some(log_data) = log_data {
+            log_data.write(pkt);
+        }
+    }
+
+    /// Serialize the C++ `GetFullLogPacket()` representation for an advanced
+    /// combat-log viewer.
+    pub fn to_full_log_bytes_like_cpp(&self, log_data: &SpellCastLogData) -> Vec<u8> {
+        let mut pkt = WorldPacket::new_server(ServerOpcodes::SpellGo);
+        self.write_with_log_data(&mut pkt, Some(log_data));
+        pkt.into_data()
+    }
+}
+
+impl ServerPacket for SpellGoPkt {
+    const OPCODE: ServerOpcodes = ServerOpcodes::SpellGo;
+
+    fn write(&self, pkt: &mut WorldPacket) {
+        self.write_with_log_data(pkt, None);
     }
 }
 
@@ -1615,5 +1666,56 @@ mod tests {
         assert_eq!(pkt.read_uint32().unwrap(), 0x0004_0101);
         assert_eq!(pkt.read_uint32().unwrap(), 0x08000);
         assert_eq!(pkt.read_uint32().unwrap(), 0x1234_5678);
+    }
+
+    #[test]
+    fn spell_go_full_log_writes_cpp_stats_and_power_rows() {
+        let go = SpellGoPkt {
+            caster: ObjectGuid::EMPTY,
+            cast_id: ObjectGuid::EMPTY,
+            original_cast_id: ObjectGuid::EMPTY,
+            spell_id: 12_345,
+            visual: SpellCastVisual::default(),
+            cast_flags: 0,
+            cast_flags_ex: 0,
+            cast_time_ms: 0,
+            target: SpellTargetData::default(),
+            hit_targets: Vec::new(),
+            miss_targets: Vec::new(),
+        };
+        let bytes = go.to_full_log_bytes_like_cpp(&SpellCastLogData {
+            health: 7_654,
+            attack_power: 321,
+            spell_power: -12,
+            armor: 987,
+            power_data: vec![
+                SpellLogPowerData {
+                    power_type: 0,
+                    amount: 456,
+                    cost: 0,
+                },
+                SpellLogPowerData {
+                    power_type: 3,
+                    amount: 78,
+                    cost: 9,
+                },
+            ],
+        });
+
+        let (mut pkt, hit_count, miss_count, miss_status_count) =
+            read_spell_go_through_target(&bytes);
+        assert_eq!((hit_count, miss_count, miss_status_count), (0, 0, 0));
+        assert!(pkt.read_bit().expect("combat log data presence"));
+        assert_eq!(pkt.read_int64().expect("health"), 7_654);
+        assert_eq!(pkt.read_int32().expect("attack power"), 321);
+        assert_eq!(pkt.read_int32().expect("spell power"), -12);
+        assert_eq!(pkt.read_int32().expect("armor"), 987);
+        assert_eq!(pkt.read_bits(9).expect("power data count"), 2);
+        for expected in [(0, 456, 0), (3, 78, 9)] {
+            assert_eq!(pkt.read_int32().expect("power type"), expected.0);
+            assert_eq!(pkt.read_int32().expect("power amount"), expected.1);
+            assert_eq!(pkt.read_int32().expect("power cost"), expected.2);
+        }
+        assert!(pkt.is_empty());
     }
 }
