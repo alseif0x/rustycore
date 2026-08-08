@@ -558,6 +558,7 @@ struct BotRunResult {
     creature_spell_full_combat_log: Option<bool>,
     creature_spell_advanced_logging_sent: bool,
     creature_spell_adjacent_start_go: bool,
+    creature_spell_disconnect_confirmed: bool,
     creature_spell_logout_confirmed: bool,
     creature_spell_failure: Option<String>,
     loot_race_smoke: bool,
@@ -728,7 +729,8 @@ impl BotRunResult {
                 && self.creature_spell_full_combat_log == Some(false)
                 && !self.creature_spell_advanced_logging_sent
                 && self.creature_spell_adjacent_start_go
-                && self.creature_spell_logout_confirmed;
+                && self.creature_spell_disconnect_confirmed
+                && !self.creature_spell_logout_confirmed;
         }
         if self.loot_race_smoke {
             return self.world_auth
@@ -3089,7 +3091,7 @@ fn print_help() {
     println!(
         "  --creature-spell-fixture-manifest <path>  Exact committed creature spell fixture.json"
     );
-    println!("  --creature-spell-timeout <secs>  Cast/logout deadline (default: 30)");
+    println!("  --creature-spell-timeout <secs>  Cast observation deadline (default: 30)");
     println!(
         "                           Env: WOW_BOT_CREATURE_SPELL_CAPTURE, WOW_BOT_CREATURE_SPELL_FIXTURE_MANIFEST, WOW_BOT_CREATURE_SPELL_TIMEOUT_SECS"
     );
@@ -5002,6 +5004,7 @@ async fn run_bot_with_void_storage(
         creature_spell_full_combat_log: None,
         creature_spell_advanced_logging_sent: false,
         creature_spell_adjacent_start_go: false,
+        creature_spell_disconnect_confirmed: false,
         creature_spell_logout_confirmed: false,
         creature_spell_failure: None,
         loot_race_smoke: loot_race_options.is_some(),
@@ -5985,7 +5988,7 @@ async fn run_bot_with_void_storage(
     }
 
     if let Some(creature_spell_options) = creature_spell_options {
-        if let Err(error) = run_creature_spell_capture_phase(
+        let capture_error = run_creature_spell_capture_phase(
             bot_index,
             &bot,
             &mut stream,
@@ -5997,31 +6000,31 @@ async fn run_bot_with_void_storage(
             &mut result,
         )
         .await
-        {
-            result.creature_spell_failure = Some(error.to_string());
-            result.creature_spell_capture_passed = Some(false);
-            if !result.creature_spell_logout_confirmed {
-                match loot_race::logout_and_wait_routed_like_cpp(
-                    bot_index,
-                    &mut stream,
-                    &mut crypt,
-                    &mut server_inflater,
-                    realm_connection.as_mut(),
-                    bot.character_guid,
-                    &mut result,
-                )
-                .await
-                {
-                    Ok(_) => result.creature_spell_logout_confirmed = true,
-                    Err(logout_error) => {
-                        let failure = result
-                            .creature_spell_failure
-                            .get_or_insert_with(String::new);
-                        failure.push_str(&format!(
-                            "; graceful logout after failure also failed: {logout_error}"
-                        ));
-                    }
-                }
+        .err();
+
+        let disconnect_result =
+            disconnect_creature_spell_sockets(bot_index, &mut stream, &mut realm_connection).await;
+        if disconnect_result.is_ok() {
+            result.creature_spell_disconnect_confirmed = true;
+        }
+
+        match (capture_error, disconnect_result) {
+            (None, Ok(())) => result.creature_spell_capture_passed = Some(true),
+            (Some(error), Ok(())) => {
+                result.creature_spell_failure = Some(error.to_string());
+                result.creature_spell_capture_passed = Some(false);
+            }
+            (None, Err(disconnect_error)) => {
+                result.creature_spell_failure = Some(format!(
+                    "creature spell capture did not confirm both socket shutdowns: {disconnect_error}"
+                ));
+                result.creature_spell_capture_passed = Some(false);
+            }
+            (Some(error), Err(disconnect_error)) => {
+                result.creature_spell_failure = Some(format!(
+                    "{error}; best-effort socket disconnect after failure also failed: {disconnect_error}"
+                ));
+                result.creature_spell_capture_passed = Some(false);
             }
         }
         return Ok(result);
@@ -6470,7 +6473,7 @@ fn log_bot_summary(
         }
         if result.creature_spell_capture {
             info!(
-                "✅ Bot {}: SUCCESS creature_spell target={:?}/{:?}/counter={:?} heartbeat={} start={:?}/{:?} go={:?}/{:?} cast={:?}:{:?} hit={:?} miss={:?} full_log={:?} logout={} failure={:?}",
+                "✅ Bot {}: SUCCESS creature_spell target={:?}/{:?}/counter={:?} heartbeat={} start={:?}/{:?} go={:?}/{:?} cast={:?}:{:?} hit={:?} miss={:?} full_log={:?} disconnect={} logout={} failure={:?}",
                 result.account,
                 result.creature_spell_target_entry,
                 result.creature_spell_target_spawn_guid,
@@ -6485,6 +6488,7 @@ fn log_bot_summary(
                 result.creature_spell_go_hit_target_count,
                 result.creature_spell_go_miss_target_count,
                 result.creature_spell_full_combat_log,
+                result.creature_spell_disconnect_confirmed,
                 result.creature_spell_logout_confirmed,
                 result.creature_spell_failure,
             );
@@ -6729,7 +6733,7 @@ fn log_bot_summary(
         }
         if result.creature_spell_capture {
             error!(
-                "❌ Bot {}: FAILED creature_spell target={:?}/{:?}/counter={:?} discovered={} heartbeat={} start={:?}/{:?} go={:?}/{:?} hit={:?} miss={:?} adjacent={} logout={} failure={:?}",
+                "❌ Bot {}: FAILED creature_spell target={:?}/{:?}/counter={:?} discovered={} heartbeat={} start={:?}/{:?} go={:?}/{:?} hit={:?} miss={:?} adjacent={} disconnect={} logout={} failure={:?}",
                 result.account,
                 result.creature_spell_target_entry,
                 result.creature_spell_target_spawn_guid,
@@ -6743,6 +6747,7 @@ fn log_bot_summary(
                 result.creature_spell_go_hit_target_count,
                 result.creature_spell_go_miss_target_count,
                 result.creature_spell_adjacent_start_go,
+                result.creature_spell_disconnect_confirmed,
                 result.creature_spell_logout_confirmed,
                 result.creature_spell_failure,
             );
@@ -10209,19 +10214,36 @@ async fn run_creature_spell_capture_phase(
         Some(u16::try_from(go_summary.miss_targets.len()).unwrap_or(u16::MAX));
     result.creature_spell_full_combat_log = go_summary.full_combat_log;
     result.creature_spell_adjacent_start_go = true;
+    Ok(())
+}
 
-    loot_race::logout_and_wait_routed_like_cpp(
-        bot_index,
-        stream,
-        crypt,
-        server_inflater,
-        realm_connection.as_mut(),
-        bot.character_guid,
-        result,
-    )
-    .await?;
-    result.creature_spell_logout_confirmed = true;
-    result.creature_spell_capture_passed = Some(true);
+async fn disconnect_creature_spell_sockets(
+    bot_index: usize,
+    instance_stream: &mut TcpStream,
+    realm_connection: &mut Option<EncryptedWorldConnection>,
+) -> Result<()> {
+    let mut shutdown_errors = Vec::new();
+    if let Err(error) = instance_stream.shutdown().await {
+        shutdown_errors.push(format!("instance: {error}"));
+    }
+    match realm_connection.take() {
+        Some(mut realm) => {
+            if let Err(error) = realm.stream.shutdown().await {
+                shutdown_errors.push(format!("realm: {error}"));
+            }
+        }
+        None => shutdown_errors.push("realm: authenticated socket was already absent".to_string()),
+    }
+    if !shutdown_errors.is_empty() {
+        bail!(
+            "creature-spell best-effort socket shutdown failed: {}",
+            shutdown_errors.join("; ")
+        );
+    }
+    info!(
+        "[Bot {}] ✅ creature-spell instance/realm socket shutdowns confirmed without CMSG_LOGOUT_REQUEST",
+        bot_index
+    );
     Ok(())
 }
 
@@ -19935,6 +19957,43 @@ mod tests {
         assert_eq!(
             ISSUE_24_PING_FENCE_SERIAL,
             u32::from_le_bytes(ISSUE_24_PING_FENCE_WIRE)
+        );
+    }
+
+    #[test]
+    fn creature_spell_success_requires_disconnect_without_logout() {
+        let mut result = BotRunResult {
+            creature_spell_capture: true,
+            creature_spell_capture_passed: Some(true),
+            world_auth: true,
+            enum_characters: true,
+            player_login_verified: true,
+            creature_spell_target_discovered: true,
+            creature_spell_heartbeat_sent: true,
+            creature_spell_start_opcode: Some(SMSG_SPELL_START),
+            creature_spell_go_opcode: Some(SMSG_SPELL_GO),
+            creature_spell_spell_id: Some(CREATURE_SPELL_FIXTURE_SPELL_ID),
+            creature_spell_go_hit_target_count: Some(1),
+            creature_spell_go_miss_target_count: Some(0),
+            creature_spell_full_combat_log: Some(false),
+            creature_spell_adjacent_start_go: true,
+            ..BotRunResult::default()
+        };
+        assert!(
+            !result.success(false, false, false),
+            "socket disconnect proof is part of the end-to-end capture"
+        );
+
+        result.creature_spell_disconnect_confirmed = true;
+        assert!(result.success(false, false, false));
+        let json = serde_json::to_value(&result).expect("serialize creature-spell evidence");
+        assert_eq!(json["creature_spell_disconnect_confirmed"], true);
+        assert_eq!(json["creature_spell_logout_confirmed"], false);
+
+        result.creature_spell_logout_confirmed = true;
+        assert!(
+            !result.success(false, false, false),
+            "a combat logout must not satisfy creature-spell capture"
         );
     }
 

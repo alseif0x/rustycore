@@ -102,7 +102,11 @@ WOW_BOT_REPORT=/absolute/private/wow-test-bot-report.json \
 
 Return to the wrapper and press Enter only after the bot reports success. The
 wrapper independently verifies the pinned bot executable, its fresh report,
-the exact START/GO bodies, and the logout before accepting the capture. Repeat
+the exact START/GO bodies, and the immediate shutdown of both authenticated
+sockets without a combat `CMSG_LOGOUT_REQUEST` before accepting the capture.
+Press Enter promptly so the wrapper stops the capture world, proves the exact
+offline post-login row, and restores the fixture before another combat hit.
+Repeat
 the same bot-directed action from the restored database snapshot for the other
 side. A normal game client or a manually selected character is not accredited
 evidence for this flow.
@@ -118,7 +122,7 @@ CREATURE_SPELL_FIXTURE_JOURNAL=/absolute/private/fixture.journal \
 The recovery command deliberately leaves services stopped. An `applied`
 journal has no durable post-login row yet, so automatic recovery is permitted
 only while the complete character row still equals the deterministic pre-login
-hash. If the world persisted any unjournaled login/logout change before the
+hash. If the world persisted any unjournaled live-session change before the
 crash, recovery fails closed without a DB write and requires manual review.
 After a normal wrapper has durably entered `captured`, restoration instead
 requires the exact recorded post-login row hash. Successful recovery retains

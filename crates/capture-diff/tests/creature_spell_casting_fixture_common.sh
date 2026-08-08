@@ -59,6 +59,73 @@ assert_eq \
     "$REPO_ROOT/crates/capture-diff/flows/creature-spell-casting/fixture/cpp-reference.patch")" \
   "reviewed C++ source patch digest"
 
+VALID_BOT_REPORT="$TEST_ROOT/valid-bot-report.json"
+MUTATED_BOT_REPORT="$TEST_ROOT/mutated-bot-report.json"
+jq -n \
+  --arg manifest_sha "$CREATURE_SPELL_FIXTURE_MANIFEST_SHA256" \
+  --arg digest "$(repeat_digest a)" '
+  {
+    creature_spell_capture: true,
+    detour_chase_capture: false,
+    loot_item_capture: false,
+    loot_race_smoke: false,
+    results: [{
+      account: "TESTBOT2@bot.local",
+      account_id: 9,
+      character_guid: 15,
+      world_auth: true,
+      enum_characters: true,
+      player_login_verified: true,
+      creature_spell_capture: true,
+      creature_spell_capture_passed: true,
+      creature_spell_fixture_manifest_sha256: $manifest_sha,
+      creature_spell_target_entry: 22378,
+      creature_spell_target_spawn_guid: 78686,
+      creature_spell_target_runtime_counter: 78686,
+      creature_spell_target_discovered: true,
+      creature_spell_heartbeat_sent: true,
+      creature_spell_heartbeat_sha256: $digest,
+      creature_spell_start_opcode: 11319,
+      creature_spell_start_body_sha256: $digest,
+      creature_spell_start_body_bytes: 100,
+      creature_spell_go_opcode: 11318,
+      creature_spell_go_body_sha256: $digest,
+      creature_spell_go_body_bytes: 101,
+      creature_spell_cast_id_low: 1,
+      creature_spell_cast_id_high: 1,
+      creature_spell_caster_guid_low: 78686,
+      creature_spell_caster_guid_high: 1,
+      creature_spell_victim_guid_low: 15,
+      creature_spell_victim_guid_high: 1,
+      creature_spell_spell_id: 15691,
+      creature_spell_start_cast_flags: 2,
+      creature_spell_go_cast_flags: 256,
+      creature_spell_cast_flags_ex: 0,
+      creature_spell_go_hit_target_count: 1,
+      creature_spell_go_miss_target_count: 0,
+      creature_spell_full_combat_log: false,
+      creature_spell_advanced_logging_sent: false,
+      creature_spell_adjacent_start_go: true,
+      creature_spell_disconnect_confirmed: true,
+      creature_spell_logout_confirmed: false,
+      creature_spell_failure: null
+    }]
+  }' >"$VALID_BOT_REPORT"
+creature_spell_fixture_report_proves_exact_success "$VALID_BOT_REPORT" \
+  || fail "strict report validator rejected disconnect-without-logout evidence"
+jq '.results[0].creature_spell_disconnect_confirmed = false' \
+  "$VALID_BOT_REPORT" >"$MUTATED_BOT_REPORT"
+if creature_spell_fixture_report_proves_exact_success \
+    "$MUTATED_BOT_REPORT"; then
+  fail "strict report validator accepted a missing disconnect proof"
+fi
+jq '.results[0].creature_spell_logout_confirmed = true' \
+  "$VALID_BOT_REPORT" >"$MUTATED_BOT_REPORT"
+if creature_spell_fixture_report_proves_exact_success \
+    "$MUTATED_BOT_REPORT"; then
+  fail "strict report validator accepted a combat logout"
+fi
+
 # Exercise the source-derivation validator against a fresh local Git graph so
 # the test remains independent of any installed C++ checkout or service.
 DERIVATION_HARNESS="$TEST_ROOT/source-derivation-harness"
@@ -374,6 +441,56 @@ assert_eq restored "$CREATURE_SPELL_FIXTURE_PHASE" "journal load phase"
 assert_eq "$ORIGINAL_TSV" "$CREATURE_SPELL_FIXTURE_CHARACTER_ORIGINAL_TSV" \
   "journal load exact restore projection"
 
+# Recovery must obtain credentials only from a private journal whose DB config
+# pathname, bytes, and inode still match the recorded provenance. This preload
+# intentionally performs no MySQL query; the full loader does that afterward.
+PRELOAD_JOURNAL="$TEST_ROOT/preload-journal.json"
+cp -- "$CREATURE_SPELL_FIXTURE_JOURNAL" "$PRELOAD_JOURNAL"
+chmod 600 "$PRELOAD_JOURNAL"
+CREATURE_SPELL_FIXTURE_JOURNAL="$PRELOAD_JOURNAL"
+CREATURE_SPELL_FIXTURE_DB_CONF=""
+CREATURE_SPELL_FIXTURE_DB_CONF_SHA256=""
+CREATURE_SPELL_FIXTURE_DB_CONF_IDENTITY=""
+PRELOAD_MYSQL_CALL="$TEST_ROOT/preload-mysql-call"
+loot_fixture_character_mysql() {
+  : >"$PRELOAD_MYSQL_CALL"
+  return 1
+}
+creature_spell_fixture_preload_recovery_db_config
+[ ! -e "$PRELOAD_MYSQL_CALL" ] \
+  || fail "recovery DB config preload queried MySQL before credentials"
+assert_eq "$TEST_ROOT/worldserver.conf" \
+  "$CREATURE_SPELL_FIXTURE_DB_CONF" "recovery preload DB config"
+assert_eq "$(creature_spell_fixture_sha256_of_file \
+  "$CREATURE_SPELL_FIXTURE_DB_CONF")" \
+  "$CREATURE_SPELL_FIXTURE_DB_CONF_SHA256" "recovery preload DB config SHA"
+assert_eq "$(stat -c '%d:%i' -- "$CREATURE_SPELL_FIXTURE_DB_CONF")" \
+  "$CREATURE_SPELL_FIXTURE_DB_CONF_IDENTITY" \
+  "recovery preload DB config identity"
+
+chmod 640 "$PRELOAD_JOURNAL"
+if creature_spell_fixture_preload_recovery_db_config 2>/dev/null; then
+  fail "recovery preload accepted a non-private journal"
+fi
+chmod 600 "$PRELOAD_JOURNAL"
+
+BAD_PRELOAD_JOURNAL="$TEST_ROOT/bad-preload-journal.json"
+jq --arg digest "$(repeat_digest 0)" \
+  '.recovery.db_conf_sha256 = $digest' "$PRELOAD_JOURNAL" \
+  >"$BAD_PRELOAD_JOURNAL"
+chmod 600 "$BAD_PRELOAD_JOURNAL"
+CREATURE_SPELL_FIXTURE_JOURNAL="$BAD_PRELOAD_JOURNAL"
+if creature_spell_fixture_preload_recovery_db_config 2>/dev/null; then
+  fail "recovery preload accepted a mismatched DB config SHA"
+fi
+jq '.recovery.db_conf_identity = "0:0"' "$PRELOAD_JOURNAL" \
+  >"$BAD_PRELOAD_JOURNAL"
+chmod 600 "$BAD_PRELOAD_JOURNAL"
+if creature_spell_fixture_preload_recovery_db_config 2>/dev/null; then
+  fail "recovery preload accepted a mismatched DB config identity"
+fi
+CREATURE_SPELL_FIXTURE_JOURNAL="$TEST_ROOT/fixture-journal.json"
+
 # Simulate a concurrent change to `slot` after the read-only precheck. `slot`
 # was outside the former partial snapshot and outside the 73 restored fields.
 # MySQL therefore reports ROW_COUNT() = 0 only if the atomic WHERE includes the
@@ -516,5 +633,16 @@ grep -q 'creature_spell_fixture_restore_guard' "$RECOVERY_WRAPPER" \
   || fail "explicit recovery omits the creature fixture guard"
 grep -q 'capture_acquire_orchestration_lock' "$RECOVERY_WRAPPER" \
   || fail "explicit recovery does not acquire the orchestration lock"
+recovery_preload_line="$(line_of \
+  'creature_spell_fixture_preload_recovery_db_config' "$RECOVERY_WRAPPER")"
+recovery_credentials_line="$(line_of \
+  'load_loot_fixture_database_credentials' "$RECOVERY_WRAPPER")"
+recovery_full_load_line="$(line_of \
+  'creature_spell_fixture_load_journal' "$RECOVERY_WRAPPER")"
+((recovery_preload_line < recovery_credentials_line \
+  && recovery_credentials_line < recovery_full_load_line)) \
+  || fail "explicit recovery does not preload DB provenance before credentials and full journal validation"
+grep -q 'PRELOAD_JOURNAL_IDENTITY' "$RECOVERY_WRAPPER" \
+  || fail "explicit recovery does not bind full validation to the preloaded journal inode"
 
 echo "creature spell fixture shell tests passed"

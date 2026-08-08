@@ -78,11 +78,25 @@ if [ ! -e "$CREATURE_SPELL_FIXTURE_JOURNAL" ] \
   exit 0
 fi
 
-creature_spell_fixture_load_journal || {
-  echo "error: creature spell recovery journal failed schema/provenance validation" >&2
+creature_spell_fixture_preload_recovery_db_config || {
+  echo "error: creature spell recovery journal failed DB config provenance validation" >&2
   exit 2
 }
+PRELOAD_JOURNAL_SHA256="$CREATURE_SPELL_FIXTURE_CURRENT_JOURNAL_SHA256"
+PRELOAD_JOURNAL_IDENTITY="$CREATURE_SPELL_FIXTURE_CURRENT_JOURNAL_IDENTITY"
+LOOT_FIXTURE_DB_CONF="$CREATURE_SPELL_FIXTURE_DB_CONF"
+load_loot_fixture_database_credentials || exit 1
+creature_spell_fixture_load_journal \
+  && [ "$CREATURE_SPELL_FIXTURE_CURRENT_JOURNAL_SHA256" \
+    = "$PRELOAD_JOURNAL_SHA256" ] \
+  && [ "$CREATURE_SPELL_FIXTURE_CURRENT_JOURNAL_IDENTITY" \
+    = "$PRELOAD_JOURNAL_IDENTITY" ] || {
+    echo "error: creature spell recovery journal failed schema/provenance validation or changed while loading credentials" \
+      >&2
+    exit 2
+  }
 PRELOCK_JOURNAL_SHA256="$CREATURE_SPELL_FIXTURE_CURRENT_JOURNAL_SHA256"
+PRELOCK_JOURNAL_IDENTITY="$CREATURE_SPELL_FIXTURE_CURRENT_JOURNAL_IDENTITY"
 CAPTURE_WORLD_PORT="$CREATURE_SPELL_FIXTURE_WORLD_PORT"
 CAPTURE_INSTANCE_PORT="$CREATURE_SPELL_FIXTURE_INSTANCE_PORT"
 CAPTURE_ORCHESTRATION_LOCK="$CREATURE_SPELL_FIXTURE_ORCHESTRATION_LOCK"
@@ -95,12 +109,12 @@ trap capture_release_orchestration_lock EXIT
 
 creature_spell_fixture_load_journal \
   && [ "$CREATURE_SPELL_FIXTURE_CURRENT_JOURNAL_SHA256" \
-    = "$PRELOCK_JOURNAL_SHA256" ] || {
+    = "$PRELOCK_JOURNAL_SHA256" ] \
+  && [ "$CREATURE_SPELL_FIXTURE_CURRENT_JOURNAL_IDENTITY" \
+    = "$PRELOCK_JOURNAL_IDENTITY" ] || {
     echo "error: creature spell journal changed while acquiring the lock" >&2
     exit 1
   }
-LOOT_FIXTURE_DB_CONF="$CREATURE_SPELL_FIXTURE_DB_CONF"
-load_loot_fixture_database_credentials || exit 1
 creature_spell_fixture_restore_guard || {
   echo "error: creature spell recovery stopped fail-closed; journal retained" >&2
   exit 1

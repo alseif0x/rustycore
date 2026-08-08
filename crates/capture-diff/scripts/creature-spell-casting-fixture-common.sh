@@ -422,6 +422,48 @@ creature_spell_fixture_validate_db_config() {
   CREATURE_SPELL_FIXTURE_DB_CONF_IDENTITY="$identity"
 }
 
+# Recovery needs the journal-pinned DB config before the full journal loader can
+# validate the live characters schema. Read only those provenance fields from a
+# private journal first, and bind the result to stable journal bytes/inode so a
+# caller can reject any replacement before proceeding to the full loader.
+creature_spell_fixture_preload_recovery_db_config() {
+  local journal="$CREATURE_SPELL_FIXTURE_JOURNAL"
+  local before_sha before_identity after_sha after_identity
+  local db_conf db_conf_sha256 db_conf_identity
+
+  [ -f "$journal" ] && [ ! -L "$journal" ] \
+    && [ "$(stat -c '%a' -- "$journal" 2>/dev/null)" = 600 ] \
+    && [ "$(stat -c '%u' -- "$journal" 2>/dev/null)" = "$(id -u)" ] \
+    || return 1
+  before_sha="$(creature_spell_fixture_sha256_of_file "$journal")" \
+    || return 1
+  before_identity="$(stat -c '%d:%i' -- "$journal")" || return 1
+  jq -e '
+    (.recovery | type == "object")
+    and (.recovery.db_conf
+      | type == "string" and test("^/[^\\r\\n]*$"))
+    and (.recovery.db_conf_sha256 | test("^[0-9a-f]{64}$"))
+    and (.recovery.db_conf_identity | test("^[0-9]+:[0-9]+$"))
+  ' "$journal" >/dev/null || return 1
+  db_conf="$(jq -r '.recovery.db_conf' "$journal")" || return 1
+  db_conf_sha256="$(jq -r '.recovery.db_conf_sha256' "$journal")" \
+    || return 1
+  db_conf_identity="$(jq -r '.recovery.db_conf_identity' "$journal")" \
+    || return 1
+  after_sha="$(creature_spell_fixture_sha256_of_file "$journal")" \
+    || return 1
+  after_identity="$(stat -c '%d:%i' -- "$journal")" || return 1
+  [ "$after_sha" = "$before_sha" ] \
+    && [ "$after_identity" = "$before_identity" ] || return 1
+
+  CREATURE_SPELL_FIXTURE_DB_CONF="$db_conf"
+  CREATURE_SPELL_FIXTURE_DB_CONF_SHA256="$db_conf_sha256"
+  CREATURE_SPELL_FIXTURE_DB_CONF_IDENTITY="$db_conf_identity"
+  creature_spell_fixture_validate_db_config || return 1
+  CREATURE_SPELL_FIXTURE_CURRENT_JOURNAL_SHA256="$after_sha"
+  CREATURE_SPELL_FIXTURE_CURRENT_JOURNAL_IDENTITY="$after_identity"
+}
+
 # CHAR_UPD_CHARACTER in the 3.4.3 C++ reference and Rust statement layer owns
 # these 73 fields. Text is represented as H<uppercase-hex>, nullable text as N
 # or H<hex>; every other token is numeric. This projection supplies the SET
@@ -1769,7 +1811,8 @@ creature_spell_fixture_report_proves_exact_success() {
       and .creature_spell_full_combat_log == false
       and .creature_spell_advanced_logging_sent == false
       and .creature_spell_adjacent_start_go == true
-      and .creature_spell_logout_confirmed == true
+      and .creature_spell_disconnect_confirmed == true
+      and .creature_spell_logout_confirmed == false
       and .creature_spell_failure == null)
   ' "$report_path" >/dev/null
 }

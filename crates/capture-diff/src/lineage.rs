@@ -1531,7 +1531,8 @@ fn validate_creature_spell_bot_report_json(
             && boolean("creature_spell_full_combat_log") == Some(false)
             && boolean("creature_spell_advanced_logging_sent") == Some(false)
             && boolean("creature_spell_adjacent_start_go") == Some(true)
-            && boolean("creature_spell_logout_confirmed") == Some(true)
+            && boolean("creature_spell_disconnect_confirmed") == Some(true)
+            && boolean("creature_spell_logout_confirmed") == Some(false)
             && result
                 .get("creature_spell_failure")
                 .is_some_and(serde_json::Value::is_null),
@@ -3387,7 +3388,8 @@ mod tests {
                     "creature_spell_full_combat_log": false,
                     "creature_spell_advanced_logging_sent": false,
                     "creature_spell_adjacent_start_go": true,
-                    "creature_spell_logout_confirmed": true,
+                    "creature_spell_disconnect_confirmed": true,
+                    "creature_spell_logout_confirmed": false,
                     "creature_spell_failure": null
             });
             let report_json = serde_json::json!({
