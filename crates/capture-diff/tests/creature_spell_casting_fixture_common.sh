@@ -369,6 +369,34 @@ if creature_spell_fixture_validate_character_schema 2>/dev/null; then
 fi
 MOCK_SCHEMA_RESULT="${CREATURE_SPELL_FIXTURE_CHARACTER_SCHEMA_COLUMN_COUNT}"$'\t'"${CREATURE_SPELL_FIXTURE_CHARACTER_SCHEMA_METADATA_BYTES}"$'\t'"${CREATURE_SPELL_FIXTURE_CHARACTER_SCHEMA_SHA256}"
 
+GHOST_STATE_SQL="$TEST_ROOT/ghost-state.sql"
+MOCK_GHOST_STATE=$'0\t0'
+loot_fixture_character_mysql() {
+  [ "$1" = -e ] || return 1
+  printf '%s\n' "$2" >"$GHOST_STATE_SQL"
+  printf '%s\n' "$MOCK_GHOST_STATE"
+}
+creature_spell_fixture_verify_no_persisted_ghost_state
+grep -q 'FROM character_aura' "$GHOST_STATE_SQL" \
+  || fail "ghost preflight omits character_aura"
+grep -q 'FROM character_aura_effect' "$GHOST_STATE_SQL" \
+  || fail "ghost preflight omits associated character_aura_effect rows"
+grep -q 'guid = 15' "$GHOST_STATE_SQL" \
+  || fail "ghost preflight is not pinned to character 15"
+grep -q 'spell = 8326' "$GHOST_STATE_SQL" \
+  || fail "ghost preflight is not pinned to spell 8326"
+for MOCK_GHOST_STATE in $'1\t3' $'1\t0' $'0\t3'; do
+  if creature_spell_fixture_verify_no_persisted_ghost_state 2>/dev/null; then
+    fail "ghost preflight accepted aura/effect counts ${MOCK_GHOST_STATE}"
+  fi
+done
+MOCK_GHOST_STATE=$'0\t0'
+loot_fixture_character_mysql() {
+  [ "$1" = -e ] || return 1
+  printf '%s\n' "$2" >"$SCHEMA_SQL"
+  printf '%s\n' "$MOCK_SCHEMA_RESULT"
+}
+
 declare -a ORIGINAL_FIELDS=()
 for ((field_index = 0; field_index < 73; field_index++)); do
   ORIGINAL_FIELDS+=(0)
@@ -544,11 +572,69 @@ fi
 [ ! -e "$RECOVERY_WRITES" ] \
   || fail "unsafe applied recovery attempted a DB write"
 
+# The post-capture verifier must durably record the exact core row first, then
+# reject any newly persisted ghost aura/effects before cleanup can be
+# accredited. This leaves a captured journal that explicit recovery can use.
+POST_CAPTURE_GHOST_CLEAN=1
+POST_CAPTURE_WRITTEN_PHASE=""
+creature_spell_fixture_load_journal() {
+  CREATURE_SPELL_FIXTURE_PHASE=applied
+  return 0
+}
+creature_spell_fixture_require_safe_db_window() { return 0; }
+creature_spell_fixture_snapshot_character_post_login() {
+  CREATURE_SPELL_FIXTURE_CHARACTER_POST_LOGIN_ROW_SHA256="$(repeat_digest d)"
+}
+creature_spell_fixture_verify_character_post_login() { return 0; }
+creature_spell_fixture_verify_no_persisted_ghost_state() {
+  [ "$POST_CAPTURE_GHOST_CLEAN" -eq 1 ]
+}
+creature_spell_fixture_write_journal() {
+  [ "$1" = replace ] && [ "$2" = captured ] || return 1
+  POST_CAPTURE_WRITTEN_PHASE=captured
+  CREATURE_SPELL_FIXTURE_PHASE=captured
+}
+CREATURE_SPELL_FIXTURE_GHOST_POST_CAPTURE_VERIFIED=0
+creature_spell_fixture_record_post_login_snapshot \
+  || fail "post-capture verifier rejected clean ghost state"
+assert_eq captured "$POST_CAPTURE_WRITTEN_PHASE" \
+  "post-capture verifier durable phase"
+assert_eq 1 "$CREATURE_SPELL_FIXTURE_GHOST_POST_CAPTURE_VERIFIED" \
+  "post-capture ghost accreditation"
+
+POST_CAPTURE_GHOST_CLEAN=0
+POST_CAPTURE_WRITTEN_PHASE=""
+CREATURE_SPELL_FIXTURE_GHOST_POST_CAPTURE_VERIFIED=1
+if creature_spell_fixture_record_post_login_snapshot 2>/dev/null; then
+  fail "post-capture verifier accredited newly persisted ghost state"
+fi
+assert_eq captured "$POST_CAPTURE_WRITTEN_PHASE" \
+  "ghost failure retains a recoverable captured phase"
+assert_eq 0 "$CREATURE_SPELL_FIXTURE_GHOST_POST_CAPTURE_VERIFIED" \
+  "ghost failure clears post-capture accreditation"
+
 CPP_WRAPPER="$SCRIPT_ROOT/capture-cpp.sh"
 RUST_WRAPPER="$SCRIPT_ROOT/capture-rust.sh"
 RECOVERY_WRAPPER="$SCRIPT_ROOT/recover-creature-spell-casting-fixture.sh"
 bash -n "$CPP_WRAPPER" "$RUST_WRAPPER" "$RECOVERY_WRAPPER" \
   "$SCRIPT_ROOT/creature-spell-casting-fixture-common.sh"
+APPLY_GUARD_BODY="$TEST_ROOT/apply-guard.sh"
+sed -n '/^creature_spell_fixture_apply_guard() {$/,/^}$/p' \
+  "$SCRIPT_ROOT/creature-spell-casting-fixture-common.sh" >"$APPLY_GUARD_BODY"
+apply_ghost_line="$(line_of \
+  'creature_spell_fixture_verify_no_persisted_ghost_state' "$APPLY_GUARD_BODY")"
+apply_snapshot_line="$(line_of \
+  'creature_spell_fixture_snapshot_character' "$APPLY_GUARD_BODY")"
+apply_mutation_line="$(line_of \
+  'creature_spell_fixture_cas_ai_name' "$APPLY_GUARD_BODY")"
+((apply_ghost_line < apply_snapshot_line && apply_snapshot_line < apply_mutation_line)) \
+  || fail "fixture mutation can run before the persisted ghost preflight"
+grep -q 'CREATURE_SPELL_FIXTURE_GHOST_PREFLIGHT_VERIFIED" -eq 1' \
+  "$SCRIPT_ROOT/creature-spell-casting-fixture-common.sh" \
+  || fail "capture evidence does not require ghost preflight accreditation"
+grep -q 'CREATURE_SPELL_FIXTURE_GHOST_POST_CAPTURE_VERIFIED" -eq 1' \
+  "$SCRIPT_ROOT/creature-spell-casting-fixture-common.sh" \
+  || fail "capture evidence does not require post-capture ghost accreditation"
 for wrapper in "$CPP_WRAPPER" "$RUST_WRAPPER"; do
   grep -q 'creature-spell-casting)' "$wrapper" \
     || fail "$(basename "$wrapper") omits the creature-spell finalize branch"

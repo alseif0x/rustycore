@@ -18,7 +18,11 @@ world starts:
 - exactly one `creature_template_spell` row exists: slot `0`, spell `15691`
   (`Eviscerate`);
 - the original SmartAI rows and the absence of a persisted creature respawn
-  are included in the database snapshot hash.
+  are included in the database snapshot hash;
+- character `15` has neither ghost aura `8326` in `character_aura` nor any
+  associated `character_aura_effect` rows. A stale ghost aura changes C++
+  server-side visibility and can hide the living Cabal despite an otherwise
+  clean character row, corpse state, and creature respawn state.
 
 With both PM2 worlds stopped, both listener ports absent, and every character
 offline, the wrapper validates the exact 87-column `characters` schema and
@@ -36,6 +40,13 @@ proves the original 87-column row was reproduced. It also CAS-restores
 `SmartAI`, proves the original database snapshot, and replaces the journal
 with a hash-bound cleanup marker before normal Rust may start. Any external
 drift leaves both worlds stopped and retains recovery evidence.
+
+Both the shell guard before mutation and the bot immediately before login
+independently reject persisted spell `8326` aura/effect state. After the
+capture world stops, the shell durably records the post-login core row and
+checks the same narrow ghost state again. Publication requires both checks;
+if the live session persisted ghost state, the capture is not accredited and
+the captured journal is retained for explicit recovery and manual review.
 
 Spell `15691` is an instant, zero-speed, zero-cost victim-targeted school
 damage spell. The installed DB2 rows and legacy C++ producer imply exact START

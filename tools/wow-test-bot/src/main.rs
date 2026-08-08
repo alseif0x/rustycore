@@ -160,6 +160,7 @@ const CREATURE_SPELL_FIXTURE_CHARACTER_GUID: u64 = 15;
 const CREATURE_SPELL_FIXTURE_ENTRY: u32 = 22_378;
 const CREATURE_SPELL_FIXTURE_SPAWN_GUID: u64 = 78_686;
 const CREATURE_SPELL_FIXTURE_SPELL_ID: u32 = 15_691;
+const CREATURE_SPELL_FIXTURE_GHOST_SPELL_ID: u32 = 8_326;
 const CREATURE_SPELL_FIXTURE_SPELL_X_VISUAL_ID: u32 = 244_493;
 const CREATURE_SPELL_FIXTURE_MAP_ID: u16 = 530;
 const CREATURE_SPELL_FIXTURE_X: f32 = -2_764.52;
@@ -2512,6 +2513,20 @@ fn validate_creature_spell_fixture_manifest(path: &Path) -> Result<String> {
     Ok(digest)
 }
 
+fn validate_creature_spell_no_persisted_ghost_state(
+    ghost_aura_count: u64,
+    ghost_effect_count: u64,
+) -> Result<()> {
+    if ghost_aura_count != 0 || ghost_effect_count != 0 {
+        bail!(
+            "creature spell fixture character {} has persisted ghost spell {} state (auras={ghost_aura_count}, effects={ghost_effect_count})",
+            CREATURE_SPELL_FIXTURE_CHARACTER_GUID,
+            CREATURE_SPELL_FIXTURE_GHOST_SPELL_ID
+        );
+    }
+    Ok(())
+}
+
 fn validate_creature_spell_live_fixture_before_login(
     bot: &config::BotConfig,
     options: &CreatureSpellCaptureOptions,
@@ -2596,6 +2611,22 @@ fn validate_creature_spell_live_fixture_before_login(
         )
         .map_err(|error| anyhow!("Check creature spell fixture corpse state: {error}"))?
         .unwrap_or(0);
+    let ghost_state: Option<(u64, u64)> = characters
+        .exec_first(
+            "SELECT \
+               (SELECT COUNT(*) FROM character_aura WHERE guid = ? AND spell = ?), \
+               (SELECT COUNT(*) FROM character_aura_effect WHERE guid = ? AND spell = ?)",
+            (
+                bot.character_guid,
+                CREATURE_SPELL_FIXTURE_GHOST_SPELL_ID,
+                bot.character_guid,
+                CREATURE_SPELL_FIXTURE_GHOST_SPELL_ID,
+            ),
+        )
+        .map_err(|error| anyhow!("Check creature spell fixture ghost aura state: {error}"))?;
+    let (ghost_aura_count, ghost_effect_count) = ghost_state
+        .ok_or_else(|| anyhow!("creature spell fixture ghost aura query returned no row"))?;
+    validate_creature_spell_no_persisted_ghost_state(ghost_aura_count, ghost_effect_count)?;
     if owner != bot.account_id
         || name != "Lfgheal"
         || race != 1
@@ -19995,6 +20026,21 @@ mod tests {
             !result.success(false, false, false),
             "a combat logout must not satisfy creature-spell capture"
         );
+    }
+
+    #[test]
+    fn creature_spell_preflight_rejects_persisted_or_orphaned_ghost_state() {
+        validate_creature_spell_no_persisted_ghost_state(0, 0)
+            .expect("a clean fixture character has no ghost persistence");
+
+        for (auras, effects) in [(1, 3), (1, 0), (0, 3)] {
+            let error = validate_creature_spell_no_persisted_ghost_state(auras, effects)
+                .expect_err("any spell 8326 aura/effect state must fail closed");
+            let message = error.to_string();
+            assert!(message.contains("ghost spell 8326"));
+            assert!(message.contains(&format!("auras={auras}")));
+            assert!(message.contains(&format!("effects={effects}")));
+        }
     }
 
     #[test]

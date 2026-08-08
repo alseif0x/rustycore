@@ -19,6 +19,7 @@ CREATURE_SPELL_FIXTURE_ENTRY=22378
 CREATURE_SPELL_FIXTURE_SPAWN_GUID=78686
 CREATURE_SPELL_FIXTURE_SPELL_SLOT=0
 CREATURE_SPELL_FIXTURE_SPELL_ID=15691
+CREATURE_SPELL_FIXTURE_GHOST_SPELL_ID=8326
 CREATURE_SPELL_FIXTURE_ORIGINAL_AI=SmartAI
 CREATURE_SPELL_FIXTURE_TEMP_AI=CombatAI
 CREATURE_SPELL_FIXTURE_SOURCE_DERIVATION_CONTRACT=creature-spell-casting-cpp-source-patch-v1
@@ -77,6 +78,8 @@ CREATURE_SPELL_FIXTURE_CHARACTER_SCHEMA_SHA256=1c8ef9a9367734daced44acf567cc5453
 : "${CREATURE_SPELL_FIXTURE_CHARACTER_PRELOGIN_ROW_SHA256:=}"
 : "${CREATURE_SPELL_FIXTURE_CHARACTER_POST_LOGIN_ROW_SHA256:=}"
 : "${CREATURE_SPELL_FIXTURE_CHARACTER_IMMUTABLE_SHA256:=}"
+: "${CREATURE_SPELL_FIXTURE_GHOST_PREFLIGHT_VERIFIED:=0}"
+: "${CREATURE_SPELL_FIXTURE_GHOST_POST_CAPTURE_VERIFIED:=0}"
 
 creature_spell_fixture_sha256_of_file() {
   local output digest
@@ -938,6 +941,29 @@ creature_spell_fixture_static_snapshot_sha256() {
   creature_spell_fixture_sha256_of_text "$snapshot"
 }
 
+# Spell 8326 applies C++ ghost server-side visibility. A stale persisted aura
+# makes the living Cabal fixture invisible even when the core character row,
+# corpse table, and creature respawn state are all clean. Keep this check
+# intentionally narrow: reject the aura and any orphaned associated effects
+# for the one pinned fixture character without claiming ownership of other
+# character auras.
+creature_spell_fixture_verify_no_persisted_ghost_state() {
+  local counts
+  counts="$(loot_fixture_character_mysql -e "
+    SELECT
+      (SELECT COUNT(*) FROM character_aura
+        WHERE guid = ${CREATURE_SPELL_FIXTURE_CHARACTER_GUID}
+          AND spell = ${CREATURE_SPELL_FIXTURE_GHOST_SPELL_ID}),
+      (SELECT COUNT(*) FROM character_aura_effect
+        WHERE guid = ${CREATURE_SPELL_FIXTURE_CHARACTER_GUID}
+          AND spell = ${CREATURE_SPELL_FIXTURE_GHOST_SPELL_ID});
+  ")" || return 1
+  [ "$counts" = $'0\t0' ] || {
+    echo "error: creature spell fixture character ${CREATURE_SPELL_FIXTURE_CHARACTER_GUID} has persisted ghost spell ${CREATURE_SPELL_FIXTURE_GHOST_SPELL_ID} aura/effect state (${counts:-query-failed})" >&2
+    return 1
+  }
+}
+
 creature_spell_fixture_verify_exact_state() {
   local expected_ai="$1"
   local counts respawns expected
@@ -1434,6 +1460,8 @@ creature_spell_fixture_load_journal() {
 
 creature_spell_fixture_apply_guard() {
   local snapshot after_snapshot
+  CREATURE_SPELL_FIXTURE_GHOST_PREFLIGHT_VERIFIED=0
+  CREATURE_SPELL_FIXTURE_GHOST_POST_CAPTURE_VERIFIED=0
   creature_spell_fixture_validate_fresh_journal || return 1
   creature_spell_fixture_validate_manifest_file \
     "$CREATURE_SPELL_FIXTURE_MANIFEST" || return 1
@@ -1444,6 +1472,8 @@ creature_spell_fixture_apply_guard() {
   creature_spell_fixture_require_safe_db_window || return 1
   creature_spell_fixture_verify_exact_state \
     "$CREATURE_SPELL_FIXTURE_ORIGINAL_AI" || return 1
+  creature_spell_fixture_verify_no_persisted_ghost_state || return 1
+  CREATURE_SPELL_FIXTURE_GHOST_PREFLIGHT_VERIFIED=1
   creature_spell_fixture_snapshot_character || return 1
   creature_spell_fixture_verify_character_original || return 1
   snapshot="$(creature_spell_fixture_static_snapshot_sha256)" || return 1
@@ -1476,6 +1506,7 @@ creature_spell_fixture_apply_guard() {
 # an applied journal is recoverable only while the complete row still equals
 # the deterministic pre-login hash; any other row remains fail-closed.
 creature_spell_fixture_record_post_login_snapshot() {
+  CREATURE_SPELL_FIXTURE_GHOST_POST_CAPTURE_VERIFIED=0
   creature_spell_fixture_load_journal || {
     echo "WARNING: creature spell fixture journal is unsafe; refusing to snapshot post-login state" >&2
     return 1
@@ -1494,10 +1525,14 @@ creature_spell_fixture_record_post_login_snapshot() {
       # change is still caught atomically by the restoration UPDATE CAS.
       creature_spell_fixture_verify_character_post_login || return 1
       creature_spell_fixture_write_journal replace captured || return 1
+      creature_spell_fixture_verify_no_persisted_ghost_state || return 1
+      CREATURE_SPELL_FIXTURE_GHOST_POST_CAPTURE_VERIFIED=1
       ;;
     captured)
       if creature_spell_fixture_verify_character_post_login \
           || creature_spell_fixture_verify_character_original; then
+        creature_spell_fixture_verify_no_persisted_ghost_state || return 1
+        CREATURE_SPELL_FIXTURE_GHOST_POST_CAPTURE_VERIFIED=1
         return 0
       fi
       echo "WARNING: journaled creature spell post-login state changed before restoration" >&2
@@ -1747,6 +1782,10 @@ creature_spell_fixture_restore_guard() {
   creature_spell_fixture_verify_exact_state \
     "$CREATURE_SPELL_FIXTURE_ORIGINAL_AI" || return 1
   creature_spell_fixture_verify_character_original || return 1
+  creature_spell_fixture_verify_no_persisted_ghost_state || {
+    echo "WARNING: creature spell fixture restored its owned rows, but persisted ghost state prevents cleanup accreditation" >&2
+    return 1
+  }
   [ "$(creature_spell_fixture_static_snapshot_sha256)" \
     = "$CREATURE_SPELL_FIXTURE_DATABASE_SNAPSHOT_SHA256" ] || return 1
   if [ "$CREATURE_SPELL_FIXTURE_PHASE" != restored ]; then
@@ -1845,6 +1884,8 @@ creature_spell_fixture_capture_evidence() {
   local bot_report="$3"
   local bot_report_sha256="$4"
   [ "$CREATURE_SPELL_FIXTURE_CLEANUP_VERIFIED" -eq 1 ] \
+    && [ "$CREATURE_SPELL_FIXTURE_GHOST_PREFLIGHT_VERIFIED" -eq 1 ] \
+    && [ "$CREATURE_SPELL_FIXTURE_GHOST_POST_CAPTURE_VERIFIED" -eq 1 ] \
     && [[ "$CREATURE_SPELL_FIXTURE_JOURNAL_SHA256" =~ ^[0-9a-f]{64}$ ]] \
     && [[ "$CREATURE_SPELL_FIXTURE_DATABASE_SNAPSHOT_SHA256" =~ ^[0-9a-f]{64}$ ]] \
     && [[ "$CREATURE_SPELL_FIXTURE_MANIFEST_SHA256" =~ ^[0-9a-f]{64}$ ]] \
