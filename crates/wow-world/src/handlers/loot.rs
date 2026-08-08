@@ -4726,16 +4726,18 @@ impl WorldSession {
         let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
     }
 
-    /// Apply a map-owned creature melee hit to this player session.
+    /// Apply a transitional map-owned creature melee compatibility hit to this
+    /// player session.
     ///
     /// C++ contrast: `Creature::Update` calls `DoMeleeAttackIfReady()`, which
     /// eventually emits `AttackerStateUpdate` from the map update tick and
-    /// then applies damage to the victim. The global creature combat driver
-    /// owns the swing timer/damage/canonical health mutation once; this
-    /// command is only the victim-session delivery rail. It sets represented
-    /// player health to the final value instead of subtracting damage, so
-    /// retries cannot double apply the hit and delayed command delivery cannot
-    /// stale-overwrite newer canonical health.
+    /// then applies damage to the victim. This driver preserves the earlier
+    /// normal-hit bridge; it does not claim full `CalculateMeleeDamage` parity.
+    /// It owns the swing timer/damage/canonical health mutation once, and this
+    /// command is only the victim-session delivery rail. Delivery rereads the
+    /// current canonical health/death tuple and advances a presentation-only
+    /// revision, so neither retries nor a delayed command can write an older
+    /// value over a newer heal, hit, death, or resurrection.
     fn handle_apply_creature_melee_damage_like_cpp_command_like_cpp(
         &mut self,
         command: ApplyCreatureMeleeDamageLikeCppCommand,
@@ -4744,9 +4746,6 @@ impl WorldSession {
             return;
         }
         if self.player_guid() != Some(command.victim_guid) {
-            return;
-        }
-        if !self.player_is_alive_like_cpp() {
             return;
         }
         if self.player_map_id_like_cpp() != command.map_id {
@@ -4759,8 +4758,11 @@ impl WorldSession {
         if session_instance_id != command.instance_id {
             return;
         }
-        let health_after = command.victim_health_after;
-        self.set_player_health_after_runtime_damage_like_cpp(health_after);
+        let Some(canonical_health) = self.present_committed_creature_melee_health_like_cpp(
+            command.victim_health_state_revision_after,
+        ) else {
+            return;
+        };
 
         use wow_packet::packets::combat::{
             AttackerStateUpdate, HIT_INFO_NORMAL_SWING, HealthUpdate, VICTIM_STATE_HIT,
@@ -4786,7 +4788,7 @@ impl WorldSession {
         }
         self.send_packet(&HealthUpdate {
             guid: command.victim_guid,
-            health: command.victim_health_after.min(i64::MAX as u64) as i64,
+            health: canonical_health.min(i64::MAX as u64) as i64,
         });
     }
 
@@ -17467,6 +17469,7 @@ mod tests {
         let before = session
             .mutate_world_creature(owner_guid, |creature| {
                 creature.creature.set_corpse_delay(120, false);
+                creature.set_corpse_despawn_at(Some(Instant::now() + Duration::from_secs(120)));
                 creature.apply_corpse_loot_flags_after_death_state_like_cpp(true, false);
                 (
                     creature.corpse_despawn_at(),

@@ -208,12 +208,15 @@ pub enum GroupDifficultyKindLikeCpp {
     LegacyRaid,
 }
 
-/// Payload for a map-owned creature melee hit against one player session.
+/// Payload for the transitional map-owned creature melee compatibility hit
+/// against one player session.
 ///
-/// Future global creature combat will compute the swing once from the map tick,
-/// set the canonical player health to `victim_health_after`, then enqueue this
-/// command to the victim's session. The session side is idempotent: it sets the
-/// represented player health to the final value and sends one combat packet.
+/// The compatibility driver preserves the pre-existing damage bridge while the
+/// full C++ `CalculateMeleeDamage` outcome/proc pipeline remains unrepresented.
+/// It sets canonical health once and enqueues this command to the victim. The
+/// session side treats the command as presentation-only: the monotonic health
+/// revision suppresses replay, while health/death are reread from canonical
+/// state instead of being written back from this delayed payload.
 #[derive(Clone, Debug)]
 pub struct ApplyCreatureMeleeDamageLikeCppCommand {
     pub attacker_guid: ObjectGuid,
@@ -224,6 +227,7 @@ pub struct ApplyCreatureMeleeDamageLikeCppCommand {
     pub over_damage: i32,
     pub target_level: u8,
     pub victim_health_after: u64,
+    pub victim_health_state_revision_after: u64,
 }
 
 /// Payload for a map-owned creature aggro transition against one player.
@@ -1393,6 +1397,7 @@ mod tests {
             over_damage: -1,
             target_level: 80,
             victim_health_after: 89,
+            victim_health_state_revision_after: 7,
         };
 
         assert_eq!(cmd.attacker_guid, attacker);
@@ -1400,6 +1405,7 @@ mod tests {
         assert_eq!(cmd.map_id, 571);
         assert_eq!(cmd.instance_id, 3);
         assert_eq!(cmd.victim_health_after, 89);
+        assert_eq!(cmd.victim_health_state_revision_after, 7);
     }
 
     #[test]
@@ -1559,7 +1565,7 @@ mod tests {
                 instance_id: 0,
             }
         ));
-        for victim_health_after in [90, 75] {
+        for (victim_health_after, victim_health_state_revision_after) in [(90, 7), (75, 8)] {
             assert!(pending.publish_melee_damage_like_cpp(
                 ApplyCreatureMeleeDamageLikeCppCommand {
                     attacker_guid: attacker,
@@ -1570,6 +1576,7 @@ mod tests {
                     over_damage: -1,
                     target_level: 80,
                     victim_health_after,
+                    victim_health_state_revision_after,
                 }
             ));
         }
@@ -1595,7 +1602,9 @@ mod tests {
             panic!("expected second melee event");
         };
         assert_eq!(first_melee.victim_health_after, 90);
+        assert_eq!(first_melee.victim_health_state_revision_after, 7);
         assert_eq!(second_melee.victim_health_after, 75);
+        assert_eq!(second_melee.victim_health_state_revision_after, 8);
         assert!(pending.drain_like_cpp().is_empty());
     }
 

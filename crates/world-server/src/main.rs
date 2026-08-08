@@ -15239,7 +15239,12 @@ fn spawn_legacy_creature_runtime_update_loop_like_cpp(
                         outcome.spell.spell_visuals_unrepresented,
                     creature_spell_range_rejections = outcome.spell.spell_range_rejections,
                     creature_spell_los_rejections = outcome.spell.spell_los_rejections,
-                    melee_hits = outcome.melee.canonical_hits,
+                    melee_compatibility_hits = outcome.melee.canonical_hits,
+                    melee_outcomes_unrepresented = outcome.melee.melee_outcomes_unrepresented,
+                    melee_attacker_incarnation_rejections =
+                        outcome.melee.attacker_incarnation_rejections,
+                    melee_creature_victim_sync_cas_rejections =
+                        outcome.melee.legacy_creature_victim_sync_cas_rejections,
                     melee_commands = outcome.melee_delivery.candidates_queued,
                     melee_plan_commands = outcome.melee_plan_delivery.candidates_queued,
                     "Legacy global creature runtime tick produced visible work"
@@ -25714,6 +25719,39 @@ mmap.enablePathFinding = 0
             .unwrap();
     }
 
+    fn mirror_canonical_melee_test_creature_like_cpp(
+        canonical: &wow_world::SharedCanonicalMapManager,
+        guid: ObjectGuid,
+        map_id: u32,
+        instance_id: u32,
+    ) -> wow_world::map_manager::WorldCreature {
+        let mut creature = canonical
+            .lock()
+            .unwrap()
+            .find_map(map_id, instance_id)
+            .unwrap()
+            .map()
+            .get_typed_creature(guid)
+            .expect("canonical test creature")
+            .clone();
+        creature.set_ai_home_position(creature.position());
+        creature.set_ai_identity_runtime(100, 14, 0, 0);
+        creature.unit_mut().set_weapon_damage(
+            wow_constants::WeaponAttackType::BaseAttack,
+            3.0,
+            5.0,
+        );
+        {
+            let ai = creature.ai_ownership_mut();
+            ai.aggro_radius = 20.0;
+            ai.min_damage = 3;
+            ai.max_damage = 5;
+        }
+        let create_data =
+            wow_world::map_manager::WorldCreature::create_data_from_canonical_like_cpp(&creature);
+        wow_world::map_manager::WorldCreature::from_canonical(creature, create_data)
+    }
+
     /// (1) NearbyVisible: players on a different map_id are not enqueued.
     /// C++ anchor: MessageDistDeliverer::Visit — map-id check before distance.
     #[test]
@@ -26775,6 +26813,7 @@ mmap.enablePathFinding = 0
                 over_damage: -1,
                 target_level: 80,
                 victim_health_after: 83,
+                victim_health_state_revision_after: 7,
             },
         ];
         let summary = deliver_creature_melee_damage_commands_like_cpp(&commands, &registry);
@@ -26792,6 +26831,7 @@ mmap.enablePathFinding = 0
         assert_eq!(command.attacker_guid, attacker);
         assert_eq!(command.victim_guid, victim);
         assert_eq!(command.victim_health_after, 83);
+        assert_eq!(command.victim_health_state_revision_after, 7);
         assert!(
             other_rx.try_recv().is_err(),
             "non-victim session is untouched"
@@ -26827,6 +26867,7 @@ mmap.enablePathFinding = 0
                 over_damage: -1,
                 target_level: 80,
                 victim_health_after: 95,
+                victim_health_state_revision_after: 1,
             };
         let commands = vec![
             make_command(wrong_map),
@@ -26878,6 +26919,7 @@ mmap.enablePathFinding = 0
                 over_damage: -1,
                 target_level: 80,
                 victim_health_after: 95,
+                victim_health_state_revision_after: 1,
             },
         ];
         let summary = deliver_creature_melee_damage_commands_like_cpp(&commands, &registry);
@@ -26911,6 +26953,7 @@ mmap.enablePathFinding = 0
             over_damage: -1,
             target_level: 80,
             victim_health_after: 95,
+            victim_health_state_revision_after: 7,
         };
         command_tx
             .send(SessionCommand::ApplyCreatureMeleeDamageLikeCpp(
@@ -26920,6 +26963,7 @@ mmap.enablePathFinding = 0
 
         let mut latest = command.clone();
         latest.victim_health_after = 90;
+        latest.victim_health_state_revision_after = 8;
         let summary =
             deliver_creature_melee_damage_commands_like_cpp(&[command, latest], &registry);
         assert_eq!(summary.candidates_queued, 2);
@@ -26938,15 +26982,16 @@ mmap.enablePathFinding = 0
             panic!("expected second durable melee command");
         };
         assert_eq!(first.victim_health_after, 95);
+        assert_eq!(first.victim_health_state_revision_after, 7);
         assert_eq!(second.victim_health_after, 90);
+        assert_eq!(second.victim_health_state_revision_after, 8);
     }
 
-    /// 4C.3 bridge: after deterministic melee preconditions pass, the global
-    /// creature body fails closed at C++ `CalculateMeleeDamage` because its
-    /// outcome/proc RNG surface is not represented. No fabricated health or
-    /// victim command may escape.
+    /// 4C.3 compatibility bridge: canonical health is applied once and the
+    /// final-health command is delivered outside all map locks. The outcome is
+    /// still marked unrepresented until full `CalculateMeleeDamage` exists.
     #[test]
-    fn legacy_creature_melee_tick_fails_closed_before_victim_command_like_cpp() {
+    fn legacy_creature_melee_tick_delivers_compatibility_victim_command_like_cpp() {
         let legacy: wow_world::SharedMapManager =
             Arc::new(std::sync::RwLock::new(wow_world::MapManager::new()));
         let canonical: wow_world::SharedCanonicalMapManager =
@@ -26966,20 +27011,8 @@ mmap.enablePathFinding = 0
             0,
             25,
         );
-        let mut world_creature = wow_world::map_manager::WorldCreature::new(
-            attacker,
-            9001,
-            attacker_position,
-            25,
-            2,
-            3,
-            5,
-            20.0,
-            100,
-            14,
-            0,
-            0,
-        );
+        let mut world_creature =
+            mirror_canonical_melee_test_creature_like_cpp(&canonical, attacker, 0, 0);
         world_creature.enter_combat(victim);
         world_creature.creature.ai_ownership_mut().swing_timer_ms = 0;
 
@@ -27013,13 +27046,22 @@ mmap.enablePathFinding = 0
         assert_eq!(outcome.swings_ready, 1);
         assert_eq!(outcome.melee_outcomes_unrepresented, 1);
         assert_eq!(outcome.runtime_rng_authority_rejections, 0);
-        assert_eq!(outcome.canonical_hits, 0);
-        assert!(outcome.commands.is_empty());
-        assert_eq!(delivery.commands_seen, 0);
-        assert_eq!(delivery.candidates_seen, 0);
-        assert_eq!(delivery.candidates_queued, 0);
+        assert_eq!(outcome.canonical_hits, 1);
+        assert_eq!(outcome.commands.len(), 1);
+        assert_eq!(delivery.commands_seen, 1);
+        assert_eq!(delivery.candidates_seen, 1);
+        assert_eq!(delivery.candidates_queued, 1);
         assert_eq!(plan_delivery.events_seen, 0);
-        assert!(drain_durable_creature_runtime_commands_like_cpp(&registry, victim).is_empty());
+        let command = match drain_durable_creature_runtime_commands_like_cpp(&registry, victim)
+            .pop()
+            .expect("victim session receives final-health melee command")
+        {
+            SessionCommand::ApplyCreatureMeleeDamageLikeCpp(command) => command,
+            other => panic!("expected ApplyCreatureMeleeDamageLikeCpp, got {other:?}"),
+        };
+        assert_eq!(command.attacker_guid, attacker);
+        assert_eq!(command.victim_guid, victim);
+        assert!((3..=5).contains(&command.damage));
 
         let canonical_health = canonical
             .lock()
@@ -27032,11 +27074,12 @@ mmap.enablePathFinding = 0
             .unit()
             .data()
             .health;
-        assert_eq!(canonical_health, 100);
+        assert_eq!(canonical_health, command.victim_health_after);
+        assert_eq!(canonical_health, 100 - u64::from(command.damage));
     }
 
     #[test]
-    fn legacy_creature_melee_tick_fails_closed_before_creature_victim_plan_like_cpp() {
+    fn legacy_creature_melee_tick_delivers_compatibility_creature_plan_like_cpp() {
         let legacy: wow_world::SharedMapManager =
             Arc::new(std::sync::RwLock::new(wow_world::MapManager::new()));
         let canonical: wow_world::SharedCanonicalMapManager =
@@ -27049,10 +27092,8 @@ mmap.enablePathFinding = 0
         let position = Position::new(5.0, 5.0, 0.0, 0.0);
         add_canonical_test_creature_on_map_like_cpp(&canonical, victim, position, 0, 0, 100);
         add_canonical_test_creature_on_map_like_cpp(&canonical, attacker, position, 0, 0, 25);
-
-        let mut world_creature = wow_world::map_manager::WorldCreature::new(
-            attacker, 9001, position, 25, 2, 3, 5, 20.0, 100, 14, 0, 0,
-        );
+        let mut world_creature =
+            mirror_canonical_melee_test_creature_like_cpp(&canonical, attacker, 0, 0);
         world_creature.enter_combat(victim);
         world_creature.creature.ai_ownership_mut().swing_timer_ms = 0;
 
@@ -27083,13 +27124,22 @@ mmap.enablePathFinding = 0
         assert_eq!(outcome.swings_ready, 1);
         assert_eq!(outcome.melee_outcomes_unrepresented, 1);
         assert_eq!(outcome.runtime_rng_authority_rejections, 0);
-        assert_eq!(outcome.canonical_hits, 0);
-        assert_eq!(outcome.canonical_creature_hits, 0);
+        assert_eq!(outcome.canonical_hits, 1);
+        assert_eq!(outcome.canonical_creature_hits, 1);
         assert!(outcome.commands.is_empty());
         assert_eq!(delivery.commands_seen, 0);
-        assert_eq!(plan_delivery.events_seen, 0);
-        assert_eq!(plan_delivery.candidates_queued, 0);
-        assert!(viewer_rx.try_recv().is_err());
+        assert_eq!(plan_delivery.events_seen, 2);
+        assert_eq!(plan_delivery.candidates_queued, 2);
+        for _ in 0..2 {
+            let SessionCommand::SendIfVisibleLikeCpp(command) = viewer_rx
+                .try_recv()
+                .expect("viewer receives creature-victim melee fanout")
+            else {
+                panic!("expected SendIfVisibleLikeCpp");
+            };
+            assert!(command.source_guid == attacker || command.source_guid == victim);
+            assert!(!command.packet_bytes.is_empty());
+        }
     }
 
     /// 4A.3c bridge: lifecycle changes happen once under the global owner, then
@@ -27331,12 +27381,11 @@ mmap.enablePathFinding = 0
 
     /// Combined runtime bridge: one test-only task runs lifecycle first
     /// (map-owned despawn/respawn visibility refresh), then movement
-    /// (NearbyVisible MonsterMove fanout), then reaches the unrepresented C++
-    /// creature-melee outcome without fabricating a victim command, all while
+    /// (NearbyVisible MonsterMove fanout), then the transitional melee
+    /// compatibility bridge while retaining the unrepresented-outcome marker.
     /// `GlobalLegacy` is enabled only inside the test.
     #[tokio::test]
-    async fn legacy_creature_global_runtime_task_delivers_lifecycle_refresh_and_movement_like_cpp()
-    {
+    async fn legacy_creature_global_runtime_task_delivers_lifecycle_movement_and_melee_like_cpp() {
         let legacy: wow_world::SharedMapManager =
             Arc::new(std::sync::RwLock::new(wow_world::MapManager::new()));
         let canonical: wow_world::SharedCanonicalMapManager =
@@ -27434,20 +27483,8 @@ mmap.enablePathFinding = 0
             0,
             25,
         );
-        let mut melee_creature = wow_world::map_manager::WorldCreature::new(
-            melee_guid,
-            9001,
-            melee_position,
-            25,
-            2,
-            3,
-            5,
-            20.0,
-            100,
-            14,
-            0,
-            0,
-        );
+        let mut melee_creature =
+            mirror_canonical_melee_test_creature_like_cpp(&canonical, melee_guid, 0, 0);
         melee_creature.enter_combat(melee_victim);
         melee_creature.creature.ai_ownership_mut().swing_timer_ms = 0;
 
@@ -27590,10 +27627,10 @@ mmap.enablePathFinding = 0
         assert_eq!(outcome.melee.swings_ready, 1);
         assert_eq!(outcome.melee.melee_outcomes_unrepresented, 1);
         assert_eq!(outcome.melee.runtime_rng_authority_rejections, 0);
-        assert_eq!(outcome.melee.canonical_hits, 0);
-        assert_eq!(outcome.melee_delivery.commands_seen, 0);
-        assert_eq!(outcome.melee_delivery.candidates_seen, 0);
-        assert_eq!(outcome.melee_delivery.candidates_queued, 0);
+        assert_eq!(outcome.melee.canonical_hits, 1);
+        assert_eq!(outcome.melee_delivery.commands_seen, 1);
+        assert_eq!(outcome.melee_delivery.candidates_seen, 1);
+        assert_eq!(outcome.melee_delivery.candidates_queued, 1);
         assert_eq!(outcome.melee_plan_delivery.events_seen, 0);
 
         for command_rx in [&near_a_rx, &near_b_rx] {
@@ -27641,11 +27678,16 @@ mmap.enablePathFinding = 0
             u16::from_le_bytes([chase_stop.packet_bytes[0], chase_stop.packet_bytes[1]]),
             wow_constants::ServerOpcodes::OnMonsterMove as u16
         );
-        assert!(
+        let SessionCommand::ApplyCreatureMeleeDamageLikeCpp(melee_command) =
             drain_durable_creature_runtime_commands_like_cpp(registry.as_ref(), melee_victim)
-                .is_empty(),
-            "unrepresented melee outcome must not fabricate a durable victim command"
-        );
+                .pop()
+                .expect("victim must receive the compatibility melee command")
+        else {
+            panic!("expected ApplyCreatureMeleeDamageLikeCpp command for victim");
+        };
+        assert_eq!(melee_command.attacker_guid, melee_guid);
+        assert_eq!(melee_command.victim_guid, melee_victim);
+        assert!((3..=5).contains(&melee_command.damage));
         assert!(
             victim_rx.try_recv().is_err(),
             "victim receives only its own attacker's chase stop"
@@ -27687,7 +27729,8 @@ mmap.enablePathFinding = 0
             .unit()
             .data()
             .health;
-        assert_eq!(victim_health, 100);
+        assert_eq!(victim_health, melee_command.victim_health_after);
+        assert_eq!(victim_health, 100 - u64::from(melee_command.damage));
     }
 
     /// 4B.2a smoke: exercise the real experimental production loop wrapper,

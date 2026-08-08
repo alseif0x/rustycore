@@ -3607,6 +3607,61 @@ pub(crate) fn sync_canonical_creature_entity_on_map_like_cpp(
     if map.map().get_creature(guid).is_none() {
         return None;
     }
+    let accept_incoming_entity_state = {
+        let current = map.map().get_typed_creature(guid)?;
+        let incoming_unit = creature.unit();
+        let current_unit = current.unit();
+        let shares_health_timeline = incoming_unit.shares_health_state_revision_authority_like_cpp(
+            &current_unit.health_state_revision_authority_like_cpp(),
+        );
+        let incoming_revision = incoming_unit.health_state_revision_like_cpp();
+        let current_revision = current_unit.health_state_revision_like_cpp();
+        let health_tuple_matches = incoming_unit.data().health == current_unit.data().health
+            && incoming_unit.data().max_health == current_unit.data().max_health
+            && incoming_unit.death_state() == current_unit.death_state();
+
+        // Whole-entity replacement is safe only inside the same incarnation
+        // timeline. A lower revision is a stale snapshot even when health has
+        // completed an ABA cycle; an equal revision is valid only when its full
+        // represented health tuple agrees. Reject the entire snapshot instead
+        // of copying only health, because death/respawn hooks also mutate AI,
+        // combat, loot, aura, timer, flag, and runtime-plan state.
+        shares_health_timeline
+            && (incoming_revision > current_revision
+                || (incoming_revision == current_revision && health_tuple_matches))
+    };
+
+    let current_authority = map
+        .map()
+        .get_typed_creature(guid)?
+        .loot_authority_like_cpp()
+        .clone();
+    let incoming_authority = creature.loot_authority_like_cpp().clone();
+    let current_stamp = current_authority.stamp_like_cpp();
+    let incoming_stamp = incoming_authority.stamp_like_cpp();
+    let authority = reconcile_creature_loot_authority_mirrors_like_cpp(
+        &current_authority,
+        current_stamp,
+        &incoming_authority,
+        incoming_stamp,
+    );
+    map.map_mut()
+        .get_typed_creature_mut(guid)?
+        .rebind_loot_authority_if_current_like_cpp(
+            &current_authority,
+            current_stamp,
+            authority.clone(),
+        )?;
+    if !accept_incoming_entity_state {
+        // The actual legacy owner performs its own expected-stamp CAS with the
+        // returned authority. Its rejected transport clone must not replace any
+        // canonical lifecycle fields.
+        return Some(authority);
+    }
+    // `creature` is a cloned transport snapshot whose old authority is still
+    // owned by the live legacy entity. Do not detach it here; the caller
+    // performs the expected-stamp CAS on that actual entity.
+    creature.adopt_loot_authority_for_snapshot_like_cpp(authority);
     let old_threat_guids = map
         .map()
         .get_typed_creature(guid)
@@ -3625,32 +3680,6 @@ pub(crate) fn sync_canonical_creature_entity_on_map_like_cpp(
         .collect();
     let mirrored_threat_guids: Vec<_> = incoming_threat_guids.iter().copied().collect();
 
-    if let Some(current_authority) = map
-        .map()
-        .get_typed_creature(guid)
-        .map(|current| current.loot_authority_like_cpp().clone())
-    {
-        let incoming_authority = creature.loot_authority_like_cpp().clone();
-        let current_stamp = current_authority.stamp_like_cpp();
-        let incoming_stamp = incoming_authority.stamp_like_cpp();
-        let authority = reconcile_creature_loot_authority_mirrors_like_cpp(
-            &current_authority,
-            current_stamp,
-            &incoming_authority,
-            incoming_stamp,
-        );
-        map.map_mut()
-            .get_typed_creature_mut(guid)?
-            .rebind_loot_authority_if_current_like_cpp(
-                &current_authority,
-                current_stamp,
-                authority.clone(),
-            )?;
-        // `creature` is a cloned transport snapshot whose old authority is
-        // still owned by the live legacy entity. Do not detach it here; the
-        // caller performs the expected-stamp CAS on that actual entity.
-        creature.adopt_loot_authority_for_snapshot_like_cpp(authority);
-    }
     creature.unit_mut().world_mut().object_mut().add_to_world();
     let Ok(record) = wow_entities::MapObjectRecord::new_creature(creature) else {
         return None;
@@ -4371,11 +4400,13 @@ pub struct LegacyCreatureMeleeTickOutcomeLikeCpp {
     pub melee_range_rejections: usize,
     pub melee_facing_rejections: usize,
     pub attacker_state_rejections: usize,
+    pub attacker_incarnation_rejections: usize,
     pub melee_los_rejections: usize,
     pub attacking_interrupt_auras_removed: usize,
     pub canonical_hits: usize,
     pub canonical_creature_hits: usize,
     pub legacy_creature_victim_syncs: usize,
+    pub legacy_creature_victim_sync_cas_rejections: usize,
     pub commands: Vec<wow_network::player_registry::ApplyCreatureMeleeDamageLikeCppCommand>,
     pub plan: RuntimePlan,
 }
@@ -5733,6 +5764,10 @@ pub struct WorldSession {
     player_health_like_cpp: u32,
     /// Represented player max health used by movement/environmental side effects.
     player_max_health_like_cpp: u32,
+    /// High-water mark for map-owned creature-melee presentation commands.
+    /// Canonical health/death authority lives on `wow-map`; this suppresses
+    /// durable FIFO replay without writing delayed values back to that owner.
+    last_presented_creature_melee_health_state_revision_like_cpp: u64,
     /// Represented `Unit::m_movementInfo.time` for client movement ACK side effects.
     player_movement_time_like_cpp: u32,
     /// Represented `Unit::m_movementInfo.jump`, reset by `Player::TeleportTo`.
@@ -7789,6 +7824,7 @@ impl WorldSession {
             player_environmental_damage_immune_like_cpp: false,
             player_health_like_cpp: 100,
             player_max_health_like_cpp: 100,
+            last_presented_creature_melee_health_state_revision_like_cpp: 0,
             player_movement_time_like_cpp: 0,
             player_movement_jump_like_cpp: wow_packet::packets::movement::JumpInfo::default(),
             last_fall_time_like_cpp: 0,
@@ -9590,6 +9626,12 @@ impl WorldSession {
         );
         let map = managed.map_mut();
         if let Some(existing) = map.get_typed_player_mut(guid) {
+            // Existing map health/death is canonical. The session-built Player
+            // is a whole-entity transport snapshot and may have been created
+            // before a map-owned melee hit, heal, death, or resurrection.
+            player
+                .unit_mut()
+                .preserve_authoritative_health_state_for_snapshot_like_cpp(existing.unit());
             let attacking = existing.unit().attacking();
             let target = existing.unit().data().target;
             let unit_state = existing.unit().unit_state();
@@ -9636,9 +9678,26 @@ impl WorldSession {
         &self,
         manager: &mut wow_map::MapManager,
         key: wow_map::MapKey,
-        player: Player,
+        mut player: Player,
     ) {
         let guid = player.guid();
+        let mut authoritative_unit = None;
+        manager.do_for_all_maps(|managed| {
+            if authoritative_unit.is_none() {
+                authoritative_unit = managed
+                    .map()
+                    .get_typed_player(guid)
+                    .map(|existing| existing.unit().clone());
+            }
+        });
+        if let Some(authoritative_unit) = authoritative_unit.as_ref() {
+            // A map transfer changes containment, not the same character's
+            // health timeline. Carry the canonical tuple and its shared
+            // revision allocator across remove/insert.
+            player
+                .unit_mut()
+                .preserve_authoritative_health_state_for_snapshot_like_cpp(authoritative_unit);
+        }
         manager.do_for_all_maps_mut(|managed| {
             if managed.map_id() == key.map_id && managed.instance_id() == key.instance_id {
                 return;
@@ -12812,6 +12871,20 @@ impl WorldSession {
         {
             canonical_creature.rebind_loot_authority_like_cpp(authority);
         }
+        if let Some(manager) = self.canonical_map_manager.as_ref()
+            && let Ok(manager) = manager.lock()
+            && let Some(current) = manager
+                .find_map(u32::from(map_id), 0)
+                .and_then(|managed| managed.map().get_typed_creature(guid))
+        {
+            // When a canonical object pre-exists (for example grid loading
+            // racing legacy registration), seed the compatibility mirror from
+            // that exact health timeline rather than a separately constructed
+            // Unit with incomparable revisions.
+            canonical_creature
+                .unit_mut()
+                .preserve_authoritative_health_state_for_snapshot_like_cpp(current.unit());
+        }
 
         if let Some(manager) = &self.map_manager {
             let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(position.x, position.y);
@@ -15081,13 +15154,12 @@ impl WorldSession {
                     .unwrap_or_else(|poisoned| poisoned.into_inner());
                 if let Some(creature) = manager.find_creature_mut(map_id, instance_id, guid) {
                     let result = f.take().expect("creature mutator is called once")(creature);
-                    Some((result, creature.position(), creature.creature.clone()))
+                    Some((result, creature.creature.clone()))
                 } else {
                     None
                 }
             };
-            if let Some((result, position, creature)) = result {
-                self.relocate_canonical_creature_map_object_like_cpp(guid, position);
+            if let Some((result, creature)) = result {
                 self.sync_canonical_creature_entity_like_cpp(creature);
                 return Some(result);
             }
@@ -15126,12 +15198,11 @@ impl WorldSession {
                 lifecycle_revision,
                 || {
                     let result = f(creature);
-                    (result, creature.position(), creature.creature.clone())
+                    (result, creature.creature.clone())
                 },
             )
         }?;
-        let (result, position, creature) = guarded_result;
-        self.relocate_canonical_creature_map_object_like_cpp(guid, position);
+        let (result, creature) = guarded_result;
         self.sync_canonical_creature_entity_like_cpp(creature);
         Some(result)
     }
@@ -15169,12 +15240,11 @@ impl WorldSession {
                 lifecycle_revision,
                 || {
                     let result = f(creature);
-                    (result, creature.position(), creature.creature.clone())
+                    (result, creature.creature.clone())
                 },
             )
         }?;
-        let (result, position, creature) = guarded_result;
-        self.relocate_canonical_creature_map_object_like_cpp(guid, position);
+        let (result, creature) = guarded_result;
         self.sync_canonical_creature_entity_like_cpp(creature);
         Some(result)
     }
@@ -41687,6 +41757,7 @@ impl WorldSession {
         }
         self.player_guid = guid;
         if player_changed {
+            self.last_presented_creature_melee_health_state_revision_like_cpp = 0;
             // Visible auras and their completeness proof belong to the C++
             // Player, not the authenticated WorldSession. Clear both at the
             // identity boundary so a later character cannot inherit positive
@@ -47879,6 +47950,46 @@ impl WorldSession {
             self.player_max_health_like_cpp,
         );
         self.sync_player_registry_state_like_cpp();
+    }
+
+    /// Present a health transition already committed by the canonical map
+    /// owner without replaying the delayed value into canonical state.
+    ///
+    /// The command revision is a presentation high-water mark. The health and
+    /// death tuple itself is always reread from the current canonical Player,
+    /// so a heal, later hit, death, or resurrection that won after the queued
+    /// swing cannot be rolled back by session delivery.
+    pub(crate) fn present_committed_creature_melee_health_like_cpp(
+        &mut self,
+        committed_revision: u64,
+    ) -> Option<u64> {
+        if committed_revision == 0
+            || committed_revision
+                <= self.last_presented_creature_melee_health_state_revision_like_cpp
+        {
+            return None;
+        }
+
+        let (canonical_revision, canonical_health, canonical_max_health, canonical_alive) = self
+            .mutate_canonical_player_like_cpp(|player| {
+                (
+                    player.unit().health_state_revision_like_cpp(),
+                    player.unit().data().health,
+                    player.unit().data().max_health,
+                    player.unit().is_alive(),
+                )
+            })?;
+        if canonical_revision < committed_revision {
+            return None;
+        }
+
+        self.player_max_health_like_cpp = canonical_max_health.clamp(1, u64::from(u32::MAX)) as u32;
+        self.player_health_like_cpp =
+            canonical_health.min(u64::from(self.player_max_health_like_cpp)) as u32;
+        self.player_alive_like_cpp = canonical_alive && self.player_health_like_cpp > 0;
+        self.last_presented_creature_melee_health_state_revision_like_cpp = committed_revision;
+        self.sync_player_registry_state_like_cpp();
+        Some(canonical_health)
     }
 
     fn apply_represented_player_environmental_death_like_cpp(&mut self) {
@@ -59755,13 +59866,8 @@ pub fn run_legacy_creature_movement_tick_once_like_cpp(
         canonical_syncs: 0,
         plan: RuntimePlan { events: Vec::new() },
     };
-    let mut canonical_syncs: Vec<(
-        u32,
-        u32,
-        wow_core::ObjectGuid,
-        Position,
-        wow_entities::Creature,
-    )> = Vec::new();
+    let mut canonical_syncs: Vec<(u32, u32, wow_core::ObjectGuid, wow_entities::Creature)> =
+        Vec::new();
 
     {
         let mut manager = legacy_map_manager
@@ -59848,7 +59954,6 @@ pub fn run_legacy_creature_movement_tick_once_like_cpp(
                     u32::from(map_id),
                     instance_id,
                     guid,
-                    source_position,
                     creature.creature.clone(),
                 ));
                 if let Some(packet_bytes) = packet_bytes {
@@ -59872,14 +59977,7 @@ pub fn run_legacy_creature_movement_tick_once_like_cpp(
     }
 
     if let Some(canonical_map_manager) = canonical_map_manager {
-        for (map_id, instance_id, guid, position, creature) in canonical_syncs {
-            relocate_canonical_creature_map_object_on_map_like_cpp(
-                canonical_map_manager,
-                map_id,
-                instance_id,
-                guid,
-                position,
-            );
+        for (map_id, instance_id, guid, creature) in canonical_syncs {
             let expected_legacy_authority = creature.loot_authority_like_cpp().clone();
             let expected_legacy_stamp = expected_legacy_authority.stamp_like_cpp();
             let authority = sync_canonical_creature_entity_on_map_like_cpp(
@@ -61605,12 +61703,46 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
     outcome
 }
 
+struct CreatureMeleeVictimSyncIdentityLikeCpp {
+    authority: OwnedLootAuthority,
+    health_state_revision_authority: wow_entities::HealthStateRevisionAuthorityLikeCpp,
+    spawn_id: u64,
+    loot_lifecycle_revision_before: u64,
+    loot_lifecycle_revision_after: u64,
+    death_state_before: wow_constants::DeathState,
+    death_state_after: wow_constants::DeathState,
+    ai_state_before: wow_entities::CreatureAiState,
+    ai_state_after: wow_entities::CreatureAiState,
+}
+
+struct CreatureMeleeVictimSyncStateLikeCpp {
+    applied_damage: u32,
+    victim_health_before: u64,
+    victim_health_after: u64,
+    victim_health_state_revision_before: u64,
+    victim_health_state_revision_after: u64,
+    identity: CreatureMeleeVictimSyncIdentityLikeCpp,
+}
+
 enum CreatureMeleeApplyResultLikeCpp {
-    MeleeOutcomeUnrepresented,
+    Ready,
+    Hit {
+        victim_applied_damage: u32,
+        victim_health_before: u64,
+        victim_health_after: u64,
+        victim_health_state_revision_before: u64,
+        victim_health_state_revision_after: u64,
+        victim_creature_sync_identity: Option<CreatureMeleeVictimSyncIdentityLikeCpp>,
+        over_damage: i32,
+        target_level: u8,
+        events: Vec<RuntimeEvent>,
+    },
     OutOfRange,
     BadFacing,
     AttackerStateRejected,
     LosRejected,
+    AttackerUnavailable,
+    VictimNotAlive,
     MissingVictim,
 }
 
@@ -63070,9 +63202,9 @@ fn validate_and_append_creature_spell_cast_like_cpp(
         };
         // At this point C++ may have returned before its melee hit roll
         // (immunity/reflection) or after consuming it (avoidance/facing). The
-        // exact shared-RNG position is therefore unknowable. Tombstone the
-        // loaded creature rather than letting a later schedule, swing, or
-        // movement publish from one arbitrarily chosen future stream.
+        // exact shared-RNG position is therefore unknowable. Tombstone exact
+        // creature-spell RNG accreditation; the pre-existing transitional
+        // melee and movement runtimes remain available as best-effort work.
         creature.invalidate_runtime_rng_authority_like_cpp();
         return CreatureSpellCastValidationResultLikeCpp::HitResultUnrepresented;
     };
@@ -63108,8 +63240,9 @@ fn validate_and_append_creature_spell_cast_like_cpp(
         // consumes at least the unconditional `roll_chance_f(critChance)` in
         // PreprocessSpellLaunch, followed by effect-specific value/variance
         // draws that this wire-only slice does not own. Publish the already
-        // resolved HIT topology, then permanently stop the shared local RNG
-        // before CombatAI can draw its repeat delay.
+        // resolved HIT topology, then stop later creature-spell schedules or
+        // hit results from claiming an exact shared-RNG position. Transitional
+        // melee and movement continue best-effort instead of freezing gameplay.
         creature.invalidate_runtime_rng_authority_like_cpp();
     }
     CreatureSpellCastValidationResultLikeCpp::Ready(hit_result)
@@ -63127,8 +63260,8 @@ fn is_creature_melee_los_clear_like_cpp(
     )
 }
 
-fn validate_creature_melee_against_canonical_player_like_cpp(
-    canonical_map_manager: &SharedCanonicalMapManager,
+fn apply_creature_melee_damage_to_canonical_player_on_map_like_cpp(
+    canonical_map_manager: &mut wow_map::MapManager,
     map_id: u32,
     instance_id: u32,
     attacker_guid: ObjectGuid,
@@ -63136,61 +63269,111 @@ fn validate_creature_melee_against_canonical_player_like_cpp(
     attacker_combat_reach: f32,
     attacker_can_state_update: bool,
     victim_guid: ObjectGuid,
+    damage: Option<u32>,
 ) -> CreatureMeleeApplyResultLikeCpp {
-    let Ok(manager) = canonical_map_manager.lock() else {
+    let Some(managed) = canonical_map_manager.find_map_mut(map_id, instance_id) else {
         return CreatureMeleeApplyResultLikeCpp::MissingVictim;
     };
-    let Some(managed) = manager.find_map(map_id, instance_id) else {
-        return CreatureMeleeApplyResultLikeCpp::MissingVictim;
-    };
-    let map = managed.map();
-    let Some(victim) = map.get_typed_player(victim_guid) else {
-        return CreatureMeleeApplyResultLikeCpp::MissingVictim;
-    };
-    if !victim.unit().is_alive() {
-        return CreatureMeleeApplyResultLikeCpp::MissingVictim;
-    }
 
-    let victim_position = victim.unit().world().position();
-    let victim_data = victim.unit().data();
-    let victim_combat_reach = victim_data.combat_reach;
-    if !WorldSession::is_within_melee_range_like_cpp(
-        attacker_position,
-        attacker_combat_reach,
-        victim_position,
-        victim_combat_reach,
-    ) {
-        return CreatureMeleeApplyResultLikeCpp::OutOfRange;
-    }
-    if !WorldSession::is_within_target_boundary_radius_like_cpp(
-        attacker_position,
-        attacker_combat_reach,
-        victim_position,
-        victim_combat_reach,
-        victim_data.bounding_radius,
-    ) && !WorldSession::is_unit_facing_target_for_melee_like_cpp(
-        attacker_position,
-        victim_position,
-    ) {
-        return CreatureMeleeApplyResultLikeCpp::BadFacing;
-    }
-    if !attacker_can_state_update {
-        return CreatureMeleeApplyResultLikeCpp::AttackerStateRejected;
-    }
-    // C++ `Unit::AttackerStateUpdate` calls `IsWithinLOSInMap` before it
-    // removes attacking-interrupt auras and enters CalculateMeleeDamage.
-    let Some(attacker) = map.get_typed_creature(attacker_guid) else {
+    let (health_before, health_state_revision_before, target_level) = {
+        let map = managed.map();
+        let Some(victim) = map.get_typed_player(victim_guid) else {
+            return CreatureMeleeApplyResultLikeCpp::MissingVictim;
+        };
+
+        let victim_position = victim.unit().world().position();
+        let victim_data = victim.unit().data();
+        let victim_combat_reach = victim_data.combat_reach;
+        if !WorldSession::is_within_melee_range_like_cpp(
+            attacker_position,
+            attacker_combat_reach,
+            victim_position,
+            victim_combat_reach,
+        ) {
+            return CreatureMeleeApplyResultLikeCpp::OutOfRange;
+        }
+        if !WorldSession::is_within_target_boundary_radius_like_cpp(
+            attacker_position,
+            attacker_combat_reach,
+            victim_position,
+            victim_combat_reach,
+            victim_data.bounding_radius,
+        ) && !WorldSession::is_unit_facing_target_for_melee_like_cpp(
+            attacker_position,
+            victim_position,
+        ) {
+            return CreatureMeleeApplyResultLikeCpp::BadFacing;
+        }
+        if !victim.unit().is_alive() || victim.unit().data().health == 0 {
+            return CreatureMeleeApplyResultLikeCpp::VictimNotAlive;
+        }
+        if !attacker_can_state_update {
+            return CreatureMeleeApplyResultLikeCpp::AttackerStateRejected;
+        }
+        // C++ `Unit::AttackerStateUpdate` requires a real attacker and checks
+        // LOS before removing attacking-interrupt auras or calculating damage.
+        let Some(attacker) = map.get_typed_creature(attacker_guid) else {
+            return CreatureMeleeApplyResultLikeCpp::AttackerUnavailable;
+        };
+        if !attacker.is_alive() {
+            return CreatureMeleeApplyResultLikeCpp::AttackerUnavailable;
+        }
+        if !is_creature_melee_los_clear_like_cpp(
+            attacker.unit().world(),
+            victim.unit().world(),
+            map,
+        ) {
+            return CreatureMeleeApplyResultLikeCpp::LosRejected;
+        }
+
+        (
+            victim.unit().data().health,
+            victim.unit().health_state_revision_like_cpp(),
+            victim.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8,
+        )
+    };
+
+    let Some(damage) = damage else {
+        return CreatureMeleeApplyResultLikeCpp::Ready;
+    };
+
+    let Some(victim) = managed.map_mut().get_typed_player_mut(victim_guid) else {
         return CreatureMeleeApplyResultLikeCpp::MissingVictim;
     };
-    if !is_creature_melee_los_clear_like_cpp(attacker.unit().world(), victim.unit().world(), map) {
-        return CreatureMeleeApplyResultLikeCpp::LosRejected;
+    let health_after = health_before.saturating_sub(u64::from(damage));
+    victim.unit_mut().set_health(health_after);
+    if health_after == 0 {
+        // The map owner commits the authoritative lethal transition. Session
+        // delivery is presentation-only and may legitimately be skipped after
+        // logout or a map transfer.
+        victim
+            .unit_mut()
+            .set_death_state(wow_constants::DeathState::JustDied);
+        victim.unit_mut().set_health(0);
     }
-
-    CreatureMeleeApplyResultLikeCpp::MeleeOutcomeUnrepresented
+    let health_state_revision_after = victim.unit().health_state_revision_like_cpp();
+    let over_damage = if health_after == 0 {
+        u64::from(damage)
+            .saturating_sub(health_before)
+            .min(i32::MAX as u64) as i32
+    } else {
+        -1
+    };
+    CreatureMeleeApplyResultLikeCpp::Hit {
+        victim_applied_damage: damage,
+        victim_health_before: health_before,
+        victim_health_after: health_after,
+        victim_health_state_revision_before: health_state_revision_before,
+        victim_health_state_revision_after: health_state_revision_after,
+        victim_creature_sync_identity: None,
+        over_damage,
+        target_level,
+        events: Vec::new(),
+    }
 }
 
-fn validate_creature_melee_against_canonical_creature_like_cpp(
-    canonical_map_manager: &SharedCanonicalMapManager,
+fn apply_creature_melee_damage_to_canonical_creature_on_map_like_cpp(
+    canonical_map_manager: &mut wow_map::MapManager,
     map_id: u32,
     instance_id: u32,
     attacker_guid: ObjectGuid,
@@ -63198,55 +63381,272 @@ fn validate_creature_melee_against_canonical_creature_like_cpp(
     attacker_combat_reach: f32,
     attacker_can_state_update: bool,
     victim_guid: ObjectGuid,
+    damage: Option<u32>,
 ) -> CreatureMeleeApplyResultLikeCpp {
-    let Ok(manager) = canonical_map_manager.lock() else {
+    use wow_packet::ServerPacket;
+    use wow_packet::packets::combat::{
+        AttackerStateUpdate, HIT_INFO_FAKE_DAMAGE, HIT_INFO_NORMAL_SWING, VICTIM_STATE_HIT,
+    };
+
+    let Some(managed) = canonical_map_manager.find_map_mut(map_id, instance_id) else {
         return CreatureMeleeApplyResultLikeCpp::MissingVictim;
     };
-    let Some(managed) = manager.find_map(map_id, instance_id) else {
+
+    let (
+        health_before,
+        health_state_revision_before,
+        victim_incarnation_authority,
+        victim_health_state_revision_authority,
+        victim_spawn_id,
+        victim_loot_lifecycle_revision_before,
+        victim_death_state_before,
+        victim_ai_state_before,
+        target_level,
+        damage,
+        applied_damage,
+        hit_info,
+    ) = {
+        let map = managed.map();
+        let Some(victim) = map.get_typed_creature(victim_guid) else {
+            return CreatureMeleeApplyResultLikeCpp::MissingVictim;
+        };
+
+        let victim_position = victim.unit().world().position();
+        let victim_data = victim.unit().data();
+        let victim_combat_reach = victim_data.combat_reach;
+        if !WorldSession::is_within_melee_range_like_cpp(
+            attacker_position,
+            attacker_combat_reach,
+            victim_position,
+            victim_combat_reach,
+        ) {
+            return CreatureMeleeApplyResultLikeCpp::OutOfRange;
+        }
+        if !WorldSession::is_within_target_boundary_radius_like_cpp(
+            attacker_position,
+            attacker_combat_reach,
+            victim_position,
+            victim_combat_reach,
+            victim_data.bounding_radius,
+        ) && !WorldSession::is_unit_facing_target_for_melee_like_cpp(
+            attacker_position,
+            victim_position,
+        ) {
+            return CreatureMeleeApplyResultLikeCpp::BadFacing;
+        }
+        if !victim.is_alive() {
+            return CreatureMeleeApplyResultLikeCpp::VictimNotAlive;
+        }
+        if !attacker_can_state_update {
+            return CreatureMeleeApplyResultLikeCpp::AttackerStateRejected;
+        }
+        let Some(attacker) = map.get_typed_creature(attacker_guid) else {
+            return CreatureMeleeApplyResultLikeCpp::AttackerUnavailable;
+        };
+        if !attacker.is_alive() {
+            return CreatureMeleeApplyResultLikeCpp::AttackerUnavailable;
+        }
+        if !is_creature_melee_los_clear_like_cpp(
+            attacker.unit().world(),
+            victim.unit().world(),
+            map,
+        ) {
+            return CreatureMeleeApplyResultLikeCpp::LosRejected;
+        }
+
+        let Some(damage) = damage else {
+            return CreatureMeleeApplyResultLikeCpp::Ready;
+        };
+
+        let attacker_is_player_controlled =
+            attacker.is_charmed_owned_by_player_or_player_like_cpp();
+        let applied_damage = victim.calculate_damage_for_sparring_like_cpp(
+            true,
+            attacker_is_player_controlled,
+            damage,
+        );
+        let mut hit_info = HIT_INFO_NORMAL_SWING;
+        if victim.should_fake_damage_from_like_cpp(true, attacker_is_player_controlled) {
+            hit_info |= HIT_INFO_FAKE_DAMAGE;
+        }
+
+        (
+            victim.unit().data().health,
+            victim.unit().health_state_revision_like_cpp(),
+            victim.loot_authority_like_cpp().clone(),
+            victim.unit().health_state_revision_authority_like_cpp(),
+            victim.spawn_id(),
+            victim.loot_lifecycle_revision_like_cpp(),
+            victim.unit().death_state(),
+            victim.ai_ownership().state,
+            victim.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8,
+            damage,
+            applied_damage,
+            hit_info,
+        )
+    };
+
+    let Some(victim) = managed.map_mut().get_typed_creature_mut(victim_guid) else {
         return CreatureMeleeApplyResultLikeCpp::MissingVictim;
     };
-    let map = managed.map();
-    let Some(victim) = map.get_typed_creature(victim_guid) else {
-        return CreatureMeleeApplyResultLikeCpp::MissingVictim;
+    let killed = victim.apply_ai_damage_before_death_state_at_game_time_like_cpp(
+        applied_damage,
+        u64::from(WorldSession::game_time_ms_like_cpp()),
+        wow_entities::game_time_secs_like_cpp(),
+    );
+    if killed {
+        victim.set_death_state_runtime(
+            wow_constants::DeathState::JustDied,
+            wow_entities::game_time_secs_like_cpp(),
+        );
+        victim.unit_mut().set_health(0);
+    }
+    let health_after = victim.unit().data().health;
+    let health_state_revision_after = victim.unit().health_state_revision_like_cpp();
+    let victim_creature_sync_identity = CreatureMeleeVictimSyncIdentityLikeCpp {
+        authority: victim_incarnation_authority,
+        health_state_revision_authority: victim_health_state_revision_authority,
+        spawn_id: victim_spawn_id,
+        loot_lifecycle_revision_before: victim_loot_lifecycle_revision_before,
+        loot_lifecycle_revision_after: victim.loot_lifecycle_revision_like_cpp(),
+        death_state_before: victim_death_state_before,
+        death_state_after: victim.unit().death_state(),
+        ai_state_before: victim_ai_state_before,
+        ai_state_after: victim.ai_ownership().state,
     };
-    if !victim.unit().is_alive() {
-        return CreatureMeleeApplyResultLikeCpp::MissingVictim;
+    // C++ serializes AttackerStateUpdate before DealMeleeDamage applies the
+    // creature sparring clamp. Its overkill field therefore uses the raw wire
+    // damage against pre-hit health, not the post-sparring applied damage.
+    let over_damage = if u64::from(damage) >= health_before {
+        u64::from(damage)
+            .saturating_sub(health_before)
+            .min(i32::MAX as u64) as i32
+    } else {
+        -1
+    };
+    let values_update = victim.unit().values_update();
+
+    let mut events = Vec::new();
+    events.push(RuntimeEvent {
+        source_guid: attacker_guid,
+        recipients: RecipientRule::MapBroadcastVisible {
+            map_id: map_id as u16,
+            instance_id,
+        },
+        packet_bytes: AttackerStateUpdate {
+            attacker: attacker_guid,
+            victim: victim_guid,
+            hit_info,
+            damage: damage.min(i32::MAX as u32) as i32,
+            over_damage,
+            victim_state: VICTIM_STATE_HIT,
+            school_mask: 1,
+            target_level,
+            expansion: 2,
+        }
+        .to_bytes(),
+    });
+    if let Some(update) =
+        unit_values_update_to_update_object(victim_guid, map_id as u16, &values_update)
+    {
+        events.push(RuntimeEvent {
+            source_guid: victim_guid,
+            recipients: RecipientRule::MapBroadcastVisible {
+                map_id: map_id as u16,
+                instance_id,
+            },
+            packet_bytes: update.to_bytes(),
+        });
     }
 
-    let victim_position = victim.unit().world().position();
-    let victim_data = victim.unit().data();
-    let victim_combat_reach = victim_data.combat_reach;
-    if !WorldSession::is_within_melee_range_like_cpp(
-        attacker_position,
-        attacker_combat_reach,
-        victim_position,
-        victim_combat_reach,
-    ) {
-        return CreatureMeleeApplyResultLikeCpp::OutOfRange;
+    CreatureMeleeApplyResultLikeCpp::Hit {
+        victim_applied_damage: applied_damage,
+        victim_health_before: health_before,
+        victim_health_after: health_after,
+        victim_health_state_revision_before: health_state_revision_before,
+        victim_health_state_revision_after: health_state_revision_after,
+        victim_creature_sync_identity: Some(victim_creature_sync_identity),
+        over_damage,
+        target_level,
+        events,
     }
-    if !WorldSession::is_within_target_boundary_radius_like_cpp(
-        attacker_position,
-        attacker_combat_reach,
-        victim_position,
-        victim_combat_reach,
-        victim_data.bounding_radius,
-    ) && !WorldSession::is_unit_facing_target_for_melee_like_cpp(
-        attacker_position,
-        victim_position,
-    ) {
-        return CreatureMeleeApplyResultLikeCpp::BadFacing;
-    }
-    if !attacker_can_state_update {
-        return CreatureMeleeApplyResultLikeCpp::AttackerStateRejected;
-    }
-    let Some(attacker) = map.get_typed_creature(attacker_guid) else {
-        return CreatureMeleeApplyResultLikeCpp::MissingVictim;
-    };
-    if !is_creature_melee_los_clear_like_cpp(attacker.unit().world(), victim.unit().world(), map) {
-        return CreatureMeleeApplyResultLikeCpp::LosRejected;
+}
+
+/// Mirror one already-committed canonical creature health/death transition
+/// into the legacy owner under that owner's write lock.
+///
+/// Every identity and before-state comparison happens before mutation. The
+/// caller therefore gets an optimistic atomic CAS at the legacy boundary: a
+/// respawn/replacement, loot-authority handoff, damage/heal ABA, or prior
+/// replay rejects without touching the current creature.
+fn apply_creature_melee_victim_sync_to_legacy_like_cpp(
+    victim: &mut crate::map_manager::WorldCreature,
+    sync: &CreatureMeleeVictimSyncStateLikeCpp,
+    game_time_secs: i64,
+) -> bool {
+    let unit = victim.creature.unit();
+    let identity = &sync.identity;
+    if unit.data().health != sync.victim_health_before
+        || unit.death_state() != identity.death_state_before
+        || unit.health_state_revision_like_cpp() != sync.victim_health_state_revision_before
+        || victim.creature.spawn_id() != identity.spawn_id
+        || victim.creature.loot_lifecycle_revision_like_cpp()
+            != identity.loot_lifecycle_revision_before
+        || victim.creature.ai_ownership().state != identity.ai_state_before
+        || !victim
+            .creature
+            .loot_authority_like_cpp()
+            .shares_storage_like_cpp(&identity.authority)
+        || !victim
+            .creature
+            .unit()
+            .shares_health_state_revision_authority_like_cpp(
+                &identity.health_state_revision_authority,
+            )
+        || victim
+            .creature
+            .loot_authority_like_cpp()
+            .lifecycle_like_cpp()
+            == OwnedLootAuthorityLifecycle::Detached
+    {
+        return false;
     }
 
-    CreatureMeleeApplyResultLikeCpp::MeleeOutcomeUnrepresented
+    let killed = victim
+        .take_damage_before_death_state_at_game_time_like_cpp(sync.applied_damage, game_time_secs);
+    if killed {
+        victim.complete_death_state_after_kill_hooks_at_game_time_like_cpp(game_time_secs);
+        victim.creature.unit_mut().set_health(0);
+    }
+
+    let unit = victim.creature.unit();
+    let state_matches = unit.data().health == sync.victim_health_after
+        && unit.death_state() == identity.death_state_after
+        && victim.creature.spawn_id() == identity.spawn_id
+        && victim.creature.loot_lifecycle_revision_like_cpp()
+            == identity.loot_lifecycle_revision_after
+        && victim.creature.ai_ownership().state == identity.ai_state_after
+        && victim
+            .creature
+            .loot_authority_like_cpp()
+            .shares_storage_like_cpp(&identity.authority)
+        && victim
+            .creature
+            .unit()
+            .shares_health_state_revision_authority_like_cpp(
+                &identity.health_state_revision_authority,
+            );
+    if !state_matches {
+        return false;
+    }
+
+    victim
+        .creature
+        .unit_mut()
+        .adopt_committed_health_state_revision_for_mirror_like_cpp(
+            sync.victim_health_state_revision_after,
+        );
+    true
 }
 
 /// Runs one global legacy creature melee tick without spawning a loop.
@@ -63254,10 +63654,9 @@ fn validate_creature_melee_against_canonical_creature_like_cpp(
 /// This is dormant infrastructure for the next runtime slice after movement
 /// and lifecycle. C++ contrast: `Creature::Update` calls
 /// `DoMeleeAttackIfReady()` from the map object update phase. This function
-/// resolves deterministic preconditions once from the map owner. A valid swing
-/// reaches C++ `CalculateMeleeDamage`, whose outcome/proc/daze RNG surface is
-/// not represented yet, so this slice tombstones the shared stream and emits
-/// no fabricated damage or wire.
+/// preserves the pre-existing transitional damage bridge while the complete
+/// C++ outcome/proc pipeline remains a later runtime slice. Spell-hit RNG
+/// accreditation must not turn otherwise valid creature swings into no-ops.
 pub fn run_legacy_creature_melee_tick_once_like_cpp(
     legacy_map_manager: &crate::map_manager::SharedMapManager,
     canonical_map_manager: Option<&SharedCanonicalMapManager>,
@@ -63274,6 +63673,16 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
         attacker_combat_reach: f32,
         attacker_can_state_update: bool,
         victim_guid: ObjectGuid,
+    }
+
+    struct CreatureVictimCompatibilitySyncLikeCpp {
+        swing: PendingCreatureSwingLikeCpp,
+        state: CreatureMeleeVictimSyncStateLikeCpp,
+    }
+
+    struct CreatureVictimCompatibilitySyncChainLikeCpp {
+        swing: PendingCreatureSwingLikeCpp,
+        states: Vec<CreatureMeleeVictimSyncStateLikeCpp>,
     }
 
     let mut outcome = LegacyCreatureMeleeTickOutcomeLikeCpp::default();
@@ -63349,80 +63758,147 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
         return outcome;
     };
 
-    let mut committed_swings = Vec::new();
-    let mut attacker_state_entered_swings = Vec::new();
-    let mut failed_retry_swings = Vec::new();
-    for swing in pending_swings {
-        let apply_result = if swing.victim_guid.is_player() {
-            validate_creature_melee_against_canonical_player_like_cpp(
-                canonical_map_manager,
-                u32::from(swing.map_id),
-                swing.instance_id,
-                swing.attacker_guid,
-                swing.attacker_position,
-                swing.attacker_combat_reach,
-                swing.attacker_can_state_update,
-                swing.victim_guid,
-            )
-        } else {
-            validate_creature_melee_against_canonical_creature_like_cpp(
-                canonical_map_manager,
-                u32::from(swing.map_id),
-                swing.instance_id,
-                swing.attacker_guid,
-                swing.attacker_position,
-                swing.attacker_combat_reach,
-                swing.attacker_can_state_update,
-                swing.victim_guid,
-            )
+    let mut creature_victim_syncs = Vec::new();
+    for mut swing in pending_swings {
+        // One C++ map update owns attacker validation, RNG consumption, damage,
+        // attacking-aura removal, and timer rearm as one serial operation. Hold
+        // both transitional owners in the established canonical -> legacy order
+        // so a target switch or same-GUID respawn cannot cross that commit.
+        let Ok(mut canonical_manager) = canonical_map_manager.lock() else {
+            outcome.melee_precondition_rejections += 1;
+            continue;
         };
-        match apply_result {
-            CreatureMeleeApplyResultLikeCpp::MeleeOutcomeUnrepresented => {
-                let was_authoritative = {
-                    let mut manager = legacy_map_manager
-                        .write()
-                        .unwrap_or_else(|poisoned| poisoned.into_inner());
-                    manager
-                        .find_creature_mut(swing.map_id, swing.instance_id, swing.attacker_guid)
-                        .map(|creature| {
-                            let was_authoritative =
-                                creature.runtime_rng_authority_complete_like_cpp();
-                            creature.invalidate_runtime_rng_authority_like_cpp();
-                            was_authoritative
-                        })
-                        .unwrap_or(false)
-                };
-                if was_authoritative {
-                    outcome.melee_outcomes_unrepresented += 1;
-                } else {
-                    outcome.runtime_rng_authority_rejections += 1;
-                }
-                // C++ has already passed LOS, called AtTargetAttacked, removed
-                // attacking-interrupt auras, and will reset BASE_ATTACK after
-                // AttackerStateUpdate returns. Preserve those deterministic
-                // side effects while suppressing the unrepresented outcome.
-                attacker_state_entered_swings.push(swing);
-                committed_swings.push(swing);
-                continue;
+        let mut legacy_manager = legacy_map_manager
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let Some(attacker) =
+            legacy_manager.find_creature_mut(swing.map_id, swing.instance_id, swing.attacker_guid)
+        else {
+            outcome.melee_precondition_rejections += 1;
+            continue;
+        };
+
+        if !attacker.can_swing()
+            || attacker.creature.ai_ownership().combat_target != Some(swing.victim_guid)
+            || attacker.creature.lifecycle_metadata().ai_name == "TurretAI"
+            || !attacker.creature.can_melee_like_cpp()
+        {
+            outcome.melee_precondition_rejections += 1;
+            continue;
+        }
+        let unit = attacker.creature.unit();
+        if unit.has_unit_state(UnitState::CHARGING.bits())
+            || (unit.has_unit_state(UnitState::CASTING.bits())
+                && !unit
+                    .current_spell(CurrentSpellSlot::Channeled)
+                    .is_some_and(|spell| spell.allow_actions_during_channel))
+        {
+            outcome.melee_precondition_rejections += 1;
+            continue;
+        }
+        swing.attacker_position = attacker.position();
+        swing.attacker_combat_reach = unit.world().combat_reach();
+        swing.attacker_can_state_update = unit.can_attacker_state_update_melee_like_cpp(false);
+
+        let canonical_attacker_is_same_incarnation = canonical_manager
+            .find_map(u32::from(swing.map_id), swing.instance_id)
+            .and_then(|managed| managed.map().get_typed_creature(swing.attacker_guid))
+            .is_some_and(|canonical_attacker| {
+                canonical_attacker.spawn_id() == attacker.creature.spawn_id()
+                    && canonical_attacker
+                        .loot_authority_like_cpp()
+                        .shares_storage_like_cpp(attacker.creature.loot_authority_like_cpp())
+                    && canonical_attacker
+                        .unit()
+                        .shares_health_state_revision_authority_like_cpp(
+                            &attacker
+                                .creature
+                                .unit()
+                                .health_state_revision_authority_like_cpp(),
+                        )
+            });
+        if !canonical_attacker_is_same_incarnation {
+            outcome.melee_precondition_rejections += 1;
+            outcome.attacker_incarnation_rejections += 1;
+            continue;
+        }
+        // Movement snapshots normally publish this position before melee, but
+        // the two global ticks may overlap between their legacy read and
+        // canonical write phases. With both owners locked and the incarnation
+        // proven equal, align the canonical WorldObject used by the LOS check to
+        // the same live position used for range and facing.
+        if let Some(managed) =
+            canonical_manager.find_map_mut(u32::from(swing.map_id), swing.instance_id)
+        {
+            let _ = managed
+                .map_mut()
+                .relocate_map_object_like_cpp(swing.attacker_guid, swing.attacker_position);
+        }
+
+        let apply = |canonical_manager: &mut wow_map::MapManager,
+                     swing: &PendingCreatureSwingLikeCpp,
+                     damage| {
+            if swing.victim_guid.is_player() {
+                apply_creature_melee_damage_to_canonical_player_on_map_like_cpp(
+                    canonical_manager,
+                    u32::from(swing.map_id),
+                    swing.instance_id,
+                    swing.attacker_guid,
+                    swing.attacker_position,
+                    swing.attacker_combat_reach,
+                    swing.attacker_can_state_update,
+                    swing.victim_guid,
+                    damage,
+                )
+            } else {
+                apply_creature_melee_damage_to_canonical_creature_on_map_like_cpp(
+                    canonical_manager,
+                    u32::from(swing.map_id),
+                    swing.instance_id,
+                    swing.attacker_guid,
+                    swing.attacker_position,
+                    swing.attacker_combat_reach,
+                    swing.attacker_can_state_update,
+                    swing.victim_guid,
+                    damage,
+                )
+            }
+        };
+
+        match apply(&mut canonical_manager, &swing, None) {
+            CreatureMeleeApplyResultLikeCpp::Ready => {}
+            CreatureMeleeApplyResultLikeCpp::Hit { .. } => {
+                unreachable!("melee precondition validation must not mutate canonical health")
             }
             CreatureMeleeApplyResultLikeCpp::OutOfRange => {
                 outcome.melee_range_rejections += 1;
-                failed_retry_swings.push(swing);
+                attacker.record_failed_swing_retry_like_cpp();
                 continue;
             }
             CreatureMeleeApplyResultLikeCpp::BadFacing => {
                 outcome.melee_facing_rejections += 1;
-                failed_retry_swings.push(swing);
+                attacker.record_failed_swing_retry_like_cpp();
                 continue;
             }
             CreatureMeleeApplyResultLikeCpp::AttackerStateRejected => {
                 outcome.attacker_state_rejections += 1;
-                committed_swings.push(swing);
+                attacker.record_swing();
                 continue;
             }
             CreatureMeleeApplyResultLikeCpp::LosRejected => {
                 outcome.melee_los_rejections += 1;
-                committed_swings.push(swing);
+                attacker.record_swing();
+                continue;
+            }
+            CreatureMeleeApplyResultLikeCpp::VictimNotAlive => {
+                // `DoMeleeAttackIfReady` resets BASE_ATTACK after
+                // `AttackerStateUpdate` returns early for a dead victim.
+                outcome.melee_precondition_rejections += 1;
+                attacker.record_swing();
+                continue;
+            }
+            CreatureMeleeApplyResultLikeCpp::AttackerUnavailable => {
+                outcome.melee_precondition_rejections += 1;
                 continue;
             }
             CreatureMeleeApplyResultLikeCpp::MissingVictim => {
@@ -63430,40 +63906,240 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                 continue;
             }
         }
+
+        if !swing.attacker_can_state_update {
+            outcome.attacker_state_rejections += 1;
+            attacker.record_swing();
+            continue;
+        }
+        let Some(damage) = attacker.roll_damage() else {
+            outcome.melee_precondition_rejections += 1;
+            // `DoMeleeAttackIfReady` rearms BASE_ATTACK after
+            // `AttackerStateUpdate` even if damage calculation cannot produce a
+            // represented result.
+            attacker.record_swing();
+            continue;
+        };
+        // The compatibility bridge preserves the pre-existing damage and wire
+        // behavior, but it does not model RollMeleeOutcomeAgainst or later
+        // proc/daze draws. Keep gameplay running while preventing a later
+        // creature spell from claiming an exact shared-RNG position.
+        attacker.invalidate_runtime_rng_authority_like_cpp();
+        let damage = damage.max(1);
+        outcome.melee_outcomes_unrepresented += 1;
+
+        let (
+            victim_applied_damage,
+            victim_health_before,
+            victim_health_after,
+            victim_health_state_revision_before,
+            victim_health_state_revision_after,
+            victim_creature_sync_identity,
+            over_damage,
+            target_level,
+            events,
+        ) = match apply(&mut canonical_manager, &swing, Some(damage)) {
+            CreatureMeleeApplyResultLikeCpp::Hit {
+                victim_applied_damage,
+                victim_health_before,
+                victim_health_after,
+                victim_health_state_revision_before,
+                victim_health_state_revision_after,
+                victim_creature_sync_identity,
+                over_damage,
+                target_level,
+                events,
+            } => (
+                victim_applied_damage,
+                victim_health_before,
+                victim_health_after,
+                victim_health_state_revision_before,
+                victim_health_state_revision_after,
+                victim_creature_sync_identity,
+                over_damage,
+                target_level,
+                events,
+            ),
+            CreatureMeleeApplyResultLikeCpp::Ready => unreachable!(
+                "melee apply with represented damage must not return validation readiness"
+            ),
+            CreatureMeleeApplyResultLikeCpp::OutOfRange => {
+                outcome.melee_range_rejections += 1;
+                attacker.record_failed_swing_retry_like_cpp();
+                continue;
+            }
+            CreatureMeleeApplyResultLikeCpp::BadFacing => {
+                outcome.melee_facing_rejections += 1;
+                attacker.record_failed_swing_retry_like_cpp();
+                continue;
+            }
+            CreatureMeleeApplyResultLikeCpp::AttackerStateRejected => {
+                outcome.attacker_state_rejections += 1;
+                attacker.record_swing();
+                continue;
+            }
+            CreatureMeleeApplyResultLikeCpp::LosRejected => {
+                outcome.melee_los_rejections += 1;
+                attacker.record_swing();
+                continue;
+            }
+            CreatureMeleeApplyResultLikeCpp::VictimNotAlive => {
+                outcome.melee_precondition_rejections += 1;
+                attacker.record_swing();
+                continue;
+            }
+            CreatureMeleeApplyResultLikeCpp::AttackerUnavailable => {
+                outcome.melee_precondition_rejections += 1;
+                continue;
+            }
+            CreatureMeleeApplyResultLikeCpp::MissingVictim => {
+                outcome.melee_precondition_rejections += 1;
+                continue;
+            }
+        };
+        outcome.attacking_interrupt_auras_removed += attacker
+            .creature
+            .unit_mut()
+            .remove_attacking_interrupt_auras_like_cpp();
+        attacker.record_swing();
+        outcome.canonical_hits += 1;
+        if swing.victim_guid.is_player() {
+            outcome.commands.push(
+                wow_network::player_registry::ApplyCreatureMeleeDamageLikeCppCommand {
+                    attacker_guid: swing.attacker_guid,
+                    victim_guid: swing.victim_guid,
+                    map_id: swing.map_id,
+                    instance_id: swing.instance_id,
+                    damage,
+                    over_damage,
+                    target_level,
+                    victim_health_after,
+                    victim_health_state_revision_after,
+                },
+            );
+        } else {
+            outcome.canonical_creature_hits += 1;
+            outcome.plan.events.extend(events);
+            if victim_health_state_revision_after != victim_health_state_revision_before {
+                creature_victim_syncs.push(CreatureVictimCompatibilitySyncLikeCpp {
+                    swing,
+                    state: CreatureMeleeVictimSyncStateLikeCpp {
+                        applied_damage: victim_applied_damage,
+                        victim_health_before,
+                        victim_health_after,
+                        victim_health_state_revision_before,
+                        victim_health_state_revision_after,
+                        identity: victim_creature_sync_identity
+                            .expect("creature victim commits carry incarnation authority"),
+                    },
+                });
+            }
+        }
     }
 
-    if !committed_swings.is_empty()
-        || !failed_retry_swings.is_empty()
-        || !attacker_state_entered_swings.is_empty()
-    {
-        let mut manager = legacy_map_manager
+    // Multiple attackers can commit against one creature during a single
+    // batch. Chain their contiguous health revisions so canonical authority is
+    // checked once against the final desired tuple, then replay each committed
+    // transition into the legacy mirror in FIFO order.
+    let mut creature_victim_sync_chains: Vec<CreatureVictimCompatibilitySyncChainLikeCpp> =
+        Vec::new();
+    for sync in creature_victim_syncs {
+        let contiguous = creature_victim_sync_chains.iter_mut().find(|chain| {
+            let existing = chain
+                .states
+                .last()
+                .expect("creature victim sync chains are never empty");
+            chain.swing.map_id == sync.swing.map_id
+                && chain.swing.instance_id == sync.swing.instance_id
+                && chain.swing.victim_guid == sync.swing.victim_guid
+                && existing.victim_health_after == sync.state.victim_health_before
+                && existing.victim_health_state_revision_after
+                    == sync.state.victim_health_state_revision_before
+                && existing.identity.death_state_after == sync.state.identity.death_state_before
+                && existing.identity.ai_state_after == sync.state.identity.ai_state_before
+                && existing.identity.loot_lifecycle_revision_after
+                    == sync.state.identity.loot_lifecycle_revision_before
+                && existing.identity.spawn_id == sync.state.identity.spawn_id
+                && existing
+                    .identity
+                    .authority
+                    .shares_storage_like_cpp(&sync.state.identity.authority)
+                && existing
+                    .identity
+                    .health_state_revision_authority
+                    .shares_storage_like_cpp(&sync.state.identity.health_state_revision_authority)
+        });
+        if let Some(chain) = contiguous {
+            chain.states.push(sync.state);
+        } else {
+            creature_victim_sync_chains.push(CreatureVictimCompatibilitySyncChainLikeCpp {
+                swing: sync.swing,
+                states: vec![sync.state],
+            });
+        }
+    }
+
+    // Lock order is canonical -> legacy, matching the existing spell-cast
+    // validation bridge. Holding canonical authority through the legacy CAS
+    // closes the final window where a heal/death/respawn could otherwise make
+    // this mirror write stale.
+    for chain in creature_victim_sync_chains {
+        let desired = chain
+            .states
+            .last()
+            .expect("creature victim sync chains are never empty");
+        let Ok(mut canonical_manager) = canonical_map_manager.lock() else {
+            outcome.legacy_creature_victim_sync_cas_rejections += 1;
+            continue;
+        };
+        let canonical_is_desired = canonical_manager
+            .find_map_mut(u32::from(chain.swing.map_id), chain.swing.instance_id)
+            .and_then(|managed| managed.map().get_typed_creature(chain.swing.victim_guid))
+            .is_some_and(|victim| {
+                let unit = victim.unit();
+                let identity = &desired.identity;
+                unit.data().health == desired.victim_health_after
+                    && unit.death_state() == identity.death_state_after
+                    && unit.health_state_revision_like_cpp()
+                        == desired.victim_health_state_revision_after
+                    && victim.spawn_id() == identity.spawn_id
+                    && victim.loot_lifecycle_revision_like_cpp()
+                        == identity.loot_lifecycle_revision_after
+                    && victim.ai_ownership().state == identity.ai_state_after
+                    && victim
+                        .loot_authority_like_cpp()
+                        .shares_storage_like_cpp(&identity.authority)
+                    && victim
+                        .unit()
+                        .shares_health_state_revision_authority_like_cpp(
+                            &identity.health_state_revision_authority,
+                        )
+                    && victim.loot_authority_like_cpp().lifecycle_like_cpp()
+                        != OwnedLootAuthorityLifecycle::Detached
+            });
+        if !canonical_is_desired {
+            outcome.legacy_creature_victim_sync_cas_rejections += 1;
+            continue;
+        }
+
+        let mut legacy_manager = legacy_map_manager
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        for swing in attacker_state_entered_swings {
-            if let Some(creature) =
-                manager.find_creature_mut(swing.map_id, swing.instance_id, swing.attacker_guid)
-            {
-                // C++ `Unit::AttackerStateUpdate` removes attacking-interruptible
-                // auras before entering the unrepresented melee outcome. Keep
-                // that deterministic side effect even though damage fails closed.
-                outcome.attacking_interrupt_auras_removed += creature
-                    .creature
-                    .unit_mut()
-                    .remove_attacking_interrupt_auras_like_cpp();
-            }
-        }
-        for swing in committed_swings {
-            if let Some(creature) =
-                manager.find_creature_mut(swing.map_id, swing.instance_id, swing.attacker_guid)
-            {
-                creature.record_swing();
-            }
-        }
-        for swing in failed_retry_swings {
-            if let Some(creature) =
-                manager.find_creature_mut(swing.map_id, swing.instance_id, swing.attacker_guid)
-            {
-                creature.record_failed_swing_retry_like_cpp();
+        let Some(victim) = legacy_manager.find_creature_mut(
+            chain.swing.map_id,
+            chain.swing.instance_id,
+            chain.swing.victim_guid,
+        ) else {
+            outcome.legacy_creature_victim_sync_cas_rejections += 1;
+            continue;
+        };
+        let game_time_secs = wow_entities::game_time_secs_like_cpp();
+        for state in &chain.states {
+            if apply_creature_melee_victim_sync_to_legacy_like_cpp(victim, state, game_time_secs) {
+                outcome.legacy_creature_victim_syncs += 1;
+            } else {
+                outcome.legacy_creature_victim_sync_cas_rejections += 1;
+                break;
             }
         }
     }
@@ -81539,6 +82215,32 @@ mod tests {
         );
     }
 
+    fn install_committed_canonical_player_health_for_melee_test_like_cpp(
+        session: &mut WorldSession,
+        victim_guid: ObjectGuid,
+        health: u64,
+        death_state: wow_constants::DeathState,
+    ) -> u64 {
+        let canonical = shared_canonical_map_manager();
+        add_canonical_test_player_on_map(&canonical, victim_guid, Position::ZERO, 571, 0);
+        let revision = {
+            let mut guard = canonical.lock().unwrap();
+            let player = guard
+                .find_map_mut(571, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_player_mut(victim_guid)
+                .unwrap();
+            player.unit_mut().set_max_health(100);
+            player.unit_mut().set_health(100);
+            player.unit_mut().set_health(health);
+            player.unit_mut().set_death_state(death_state);
+            player.unit().health_state_revision_like_cpp()
+        };
+        session.set_canonical_map_manager(canonical);
+        revision
+    }
+
     /// Future global creature melee must deliver exactly one already-resolved
     /// map-owned swing to the victim session. C++ anchor:
     /// `Creature::Update` -> `DoMeleeAttackIfReady` -> `AttackerStateUpdate`.
@@ -81553,6 +82255,12 @@ mod tests {
         session.set_player_map_position_like_cpp(571, Position::ZERO);
         session.set_player_health_like_cpp(100, 100);
         session.client_visible_guids_like_cpp.insert(attacker_guid);
+        let committed_revision = install_committed_canonical_player_health_for_melee_test_like_cpp(
+            &mut session,
+            victim_guid,
+            83,
+            wow_constants::DeathState::Alive,
+        );
 
         session
             .session_command_tx()
@@ -81566,6 +82274,7 @@ mod tests {
                     over_damage: -1,
                     target_level: 80,
                     victim_health_after: 83,
+                    victim_health_state_revision_after: committed_revision,
                 },
             ))
             .expect("command queued");
@@ -81593,6 +82302,12 @@ mod tests {
         session.set_player_guid(Some(victim_guid));
         session.set_player_map_position_like_cpp(571, Position::ZERO);
         session.set_player_health_like_cpp(100, 100);
+        let committed_revision = install_committed_canonical_player_health_for_melee_test_like_cpp(
+            &mut session,
+            victim_guid,
+            83,
+            wow_constants::DeathState::Alive,
+        );
 
         session
             .session_command_tx()
@@ -81606,6 +82321,7 @@ mod tests {
                     over_damage: -1,
                     target_level: 80,
                     victim_health_after: 83,
+                    victim_health_state_revision_after: committed_revision,
                 },
             ))
             .expect("command queued");
@@ -81623,6 +82339,178 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn apply_creature_melee_damage_command_delayed_after_heal_presents_current_canonical_state_like_cpp()
+     {
+        let (mut session, _, send_rx) = make_session();
+        let attacker_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1014);
+        let victim_guid = ObjectGuid::create_player(1, 7008);
+        session.state = SessionState::LoggedIn;
+        session.set_player_guid(Some(victim_guid));
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
+        session.set_player_health_like_cpp(83, 100);
+        session.client_visible_guids_like_cpp.insert(attacker_guid);
+        let committed_revision = install_committed_canonical_player_health_for_melee_test_like_cpp(
+            &mut session,
+            victim_guid,
+            83,
+            wow_constants::DeathState::Alive,
+        );
+        let command = ApplyCreatureMeleeDamageLikeCppCommand {
+            attacker_guid,
+            victim_guid,
+            map_id: 571,
+            instance_id: 0,
+            damage: 17,
+            over_damage: -1,
+            target_level: 80,
+            victim_health_after: 83,
+            victim_health_state_revision_after: committed_revision,
+        };
+
+        session
+            .mutate_canonical_player_like_cpp(|player| player.unit_mut().set_health(95))
+            .expect("canonical player remains present for delayed delivery");
+        session.set_player_health_like_cpp(95, 100);
+        let canonical_before = session
+            .mutate_canonical_player_like_cpp(|player| {
+                (
+                    player.unit().data().health,
+                    player.unit().death_state(),
+                    player.unit().health_state_revision_like_cpp(),
+                )
+            })
+            .unwrap();
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::ApplyCreatureMeleeDamageLikeCpp(command))
+            .expect("delayed command queued");
+
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        let canonical_after = session
+            .mutate_canonical_player_like_cpp(|player| {
+                (
+                    player.unit().data().health,
+                    player.unit().death_state(),
+                    player.unit().health_state_revision_like_cpp(),
+                )
+            })
+            .unwrap();
+        assert_eq!(canonical_after, canonical_before);
+        assert_eq!(session.player_health_like_cpp(), 95);
+        assert!(session.player_is_alive_like_cpp());
+        assert_eq!(
+            session.last_presented_creature_melee_health_state_revision_like_cpp,
+            committed_revision
+        );
+
+        let attacker_state = send_rx.try_recv().expect("committed hit is presented once");
+        assert_eq!(
+            u16::from_le_bytes([attacker_state[0], attacker_state[1]]),
+            ServerOpcodes::AttackerStateUpdate as u16
+        );
+        let health_update = send_rx.try_recv().expect("current health is presented");
+        let mut health_update = wow_packet::world_packet::WorldPacket::from_bytes(&health_update);
+        assert_eq!(
+            health_update.read_uint16().unwrap(),
+            ServerOpcodes::HealthUpdate as u16
+        );
+        assert_eq!(health_update.read_packed_guid().unwrap(), victim_guid);
+        assert_eq!(health_update.read_int64().unwrap(), 95);
+        assert!(send_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn apply_creature_melee_damage_command_replay_after_resurrection_is_suppressed_like_cpp()
+    {
+        let (mut session, _, send_rx) = make_session();
+        let attacker_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1015);
+        let victim_guid = ObjectGuid::create_player(1, 7009);
+        session.state = SessionState::LoggedIn;
+        session.set_player_guid(Some(victim_guid));
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
+        session.set_player_health_like_cpp(100, 100);
+        session.client_visible_guids_like_cpp.insert(attacker_guid);
+        let committed_revision = install_committed_canonical_player_health_for_melee_test_like_cpp(
+            &mut session,
+            victim_guid,
+            0,
+            wow_constants::DeathState::JustDied,
+        );
+        let command = ApplyCreatureMeleeDamageLikeCppCommand {
+            attacker_guid,
+            victim_guid,
+            map_id: 571,
+            instance_id: 0,
+            damage: 100,
+            over_damage: 0,
+            target_level: 80,
+            victim_health_after: 0,
+            victim_health_state_revision_after: committed_revision,
+        };
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::ApplyCreatureMeleeDamageLikeCpp(
+                command.clone(),
+            ))
+            .expect("lethal command queued");
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+        assert_eq!(send_rx.drain().count(), 2);
+
+        session
+            .mutate_canonical_player_like_cpp(|player| {
+                player
+                    .unit_mut()
+                    .set_death_state(wow_constants::DeathState::Alive);
+                player.unit_mut().set_health(40);
+            })
+            .expect("canonical player resurrected");
+        session.set_player_health_like_cpp(40, 100);
+        let canonical_before = session
+            .mutate_canonical_player_like_cpp(|player| {
+                (
+                    player.unit().data().health,
+                    player.unit().death_state(),
+                    player.unit().health_state_revision_like_cpp(),
+                )
+            })
+            .unwrap();
+        let presented_before = session.last_presented_creature_melee_health_state_revision_like_cpp;
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::ApplyCreatureMeleeDamageLikeCpp(command))
+            .expect("replayed command queued");
+
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        let canonical_after = session
+            .mutate_canonical_player_like_cpp(|player| {
+                (
+                    player.unit().data().health,
+                    player.unit().death_state(),
+                    player.unit().health_state_revision_like_cpp(),
+                )
+            })
+            .unwrap();
+        assert_eq!(canonical_after, canonical_before);
+        assert_eq!(session.player_health_like_cpp(), 40);
+        assert!(session.player_is_alive_like_cpp());
+        assert_eq!(
+            session.last_presented_creature_melee_health_state_revision_like_cpp,
+            presented_before
+        );
+        assert!(send_rx.try_recv().is_err(), "replay emits no packets");
+    }
+
+    #[tokio::test]
     async fn durable_creature_runtime_rail_is_drained_by_session_update_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         let attacker_guid =
@@ -81632,6 +82520,12 @@ mod tests {
         session.set_player_guid(Some(victim_guid));
         session.set_player_map_position_like_cpp(571, Position::ZERO);
         session.set_player_health_like_cpp(100, 100);
+        let committed_revision = install_committed_canonical_player_health_for_melee_test_like_cpp(
+            &mut session,
+            victim_guid,
+            0,
+            wow_constants::DeathState::JustDied,
+        );
         assert!(
             session
                 .durable_creature_runtime_commands_like_cpp
@@ -81646,6 +82540,7 @@ mod tests {
                     over_damage: 0,
                     target_level: 80,
                     victim_health_after: 0,
+                    victim_health_state_revision_after: committed_revision,
                 })
         );
 
@@ -81739,6 +82634,7 @@ mod tests {
                     over_damage: -1,
                     target_level: 80,
                     victim_health_after: 97,
+                    victim_health_state_revision_after: 1,
                 },
             ));
         }
@@ -105014,15 +105910,18 @@ mod tests {
             .clone();
 
         let synced = Position::new(17.0, 27.0, 37.0, 3.0);
-        let mut creature = wow_entities::Creature::new(false);
-        creature.unit_mut().world_mut().object_mut().create(guid);
-        creature.unit_mut().world_mut().object_mut().set_entry(9001);
-        creature.unit_mut().world_mut().set_map(609, 7).unwrap();
+        let mut creature = canonical
+            .lock()
+            .unwrap()
+            .find_map(609, 7)
+            .unwrap()
+            .map()
+            .get_typed_creature(guid)
+            .unwrap()
+            .clone();
         creature.unit_mut().world_mut().relocate(synced);
         creature.unit_mut().set_level(33);
-        creature.unit_mut().set_max_health(100);
-        creature.unit_mut().set_health(100);
-        creature.set_ai_identity_runtime(1, 35, 0, 0);
+        creature.unit_mut().subsystems_mut().combat.end_all_combat();
 
         let selected_authority =
             sync_canonical_creature_entity_on_map_like_cpp(&canonical, 609, 7, creature)
@@ -105058,15 +105957,15 @@ mod tests {
         );
         drop(guard);
 
-        let mut reengaged = wow_entities::Creature::new(false);
-        reengaged.unit_mut().world_mut().object_mut().create(guid);
-        reengaged
-            .unit_mut()
-            .world_mut()
-            .object_mut()
-            .set_entry(9001);
-        reengaged.unit_mut().world_mut().set_map(609, 7).unwrap();
-        reengaged.unit_mut().world_mut().relocate(synced);
+        let mut reengaged = canonical
+            .lock()
+            .unwrap()
+            .find_map(609, 7)
+            .unwrap()
+            .map()
+            .get_typed_creature(guid)
+            .unwrap()
+            .clone();
         reengaged
             .unit_mut()
             .subsystems_mut()
@@ -156959,6 +157858,7 @@ mod tests {
         let manager = shared_map_manager();
         let canonical = shared_canonical_map_manager();
         let (mut session, _, _) = make_session();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
         let creature_guid = test_creature_guid(91_316);
         let victim_guid = ObjectGuid::create_player(1, 91_317);
         let spell_id = 15_691_i32;
@@ -157129,10 +158029,11 @@ mod tests {
             })
             .unwrap();
         let melee = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
-        assert_eq!(melee.runtime_rng_authority_rejections, 1);
-        assert_eq!(melee.melee_outcomes_unrepresented, 0);
+        assert_eq!(melee.runtime_rng_authority_rejections, 0);
+        assert_eq!(melee.melee_outcomes_unrepresented, 1);
         assert_eq!(melee.swings_ready, 1);
-        assert!(melee.commands.is_empty());
+        assert_eq!(melee.canonical_hits, 1);
+        assert_eq!(melee.commands.len(), 1);
         assert!(melee.plan.events.is_empty());
     }
 
@@ -158730,8 +159631,427 @@ mod tests {
         assert_eq!(combat_target, None);
     }
 
+    fn creature_melee_sync_state_for_test_like_cpp(
+        victim: &crate::map_manager::WorldCreature,
+        applied_damage: u32,
+    ) -> CreatureMeleeVictimSyncStateLikeCpp {
+        let mut canonical = victim.clone();
+        let identity_authority = canonical.creature.loot_authority_like_cpp().clone();
+        let identity_health_authority = canonical
+            .creature
+            .unit()
+            .health_state_revision_authority_like_cpp();
+        let health_before = canonical.creature.unit().data().health;
+        let revision_before = canonical.creature.unit().health_state_revision_like_cpp();
+        let lifecycle_before = canonical.creature.loot_lifecycle_revision_like_cpp();
+        let death_before = canonical.creature.unit().death_state();
+        let ai_before = canonical.creature.ai_ownership().state;
+        let killed = canonical.take_damage_before_death_state_at_game_time_like_cpp(
+            applied_damage,
+            wow_entities::game_time_secs_like_cpp(),
+        );
+        if killed {
+            canonical.complete_death_state_after_kill_hooks_like_cpp();
+        }
+        CreatureMeleeVictimSyncStateLikeCpp {
+            applied_damage,
+            victim_health_before: health_before,
+            victim_health_after: canonical.creature.unit().data().health,
+            victim_health_state_revision_before: revision_before,
+            victim_health_state_revision_after: canonical
+                .creature
+                .unit()
+                .health_state_revision_like_cpp(),
+            identity: CreatureMeleeVictimSyncIdentityLikeCpp {
+                authority: identity_authority,
+                health_state_revision_authority: identity_health_authority,
+                spawn_id: canonical.creature.spawn_id(),
+                loot_lifecycle_revision_before: lifecycle_before,
+                loot_lifecycle_revision_after: canonical
+                    .creature
+                    .loot_lifecycle_revision_like_cpp(),
+                death_state_before: death_before,
+                death_state_after: canonical.creature.unit().death_state(),
+                ai_state_before: ai_before,
+                ai_state_after: canonical.creature.ai_ownership().state,
+            },
+        }
+    }
+
     #[test]
-    fn legacy_creature_melee_tick_once_tombstones_unrepresented_player_outcome_like_cpp() {
+    fn legacy_creature_victim_sync_cas_rejects_same_guid_replacement_like_cpp() {
+        let guid = test_creature_guid(91_045);
+        let original = crate::map_manager::WorldCreature::new(
+            guid,
+            9001,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            100,
+            80,
+            10,
+            10,
+            20.0,
+            1,
+            35,
+            0,
+            0,
+        );
+        let sync = creature_melee_sync_state_for_test_like_cpp(&original, 10);
+        let mut replacement = crate::map_manager::WorldCreature::new(
+            guid,
+            9001,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            100,
+            80,
+            10,
+            10,
+            20.0,
+            1,
+            35,
+            0,
+            0,
+        );
+        let before = (
+            replacement.creature.unit().data().health,
+            replacement.creature.unit().death_state(),
+            replacement.creature.unit().health_state_revision_like_cpp(),
+            replacement.creature.loot_lifecycle_revision_like_cpp(),
+        );
+
+        assert!(!apply_creature_melee_victim_sync_to_legacy_like_cpp(
+            &mut replacement,
+            &sync,
+            wow_entities::game_time_secs_like_cpp(),
+        ));
+
+        assert_eq!(
+            (
+                replacement.creature.unit().data().health,
+                replacement.creature.unit().death_state(),
+                replacement.creature.unit().health_state_revision_like_cpp(),
+                replacement.creature.loot_lifecycle_revision_like_cpp(),
+            ),
+            before
+        );
+        assert!(
+            !replacement
+                .creature
+                .loot_authority_like_cpp()
+                .shares_storage_like_cpp(&sync.identity.authority)
+        );
+    }
+
+    #[test]
+    fn legacy_creature_victim_sync_cas_rejects_stale_aba_health_state_like_cpp() {
+        let guid = test_creature_guid(91_046);
+        let mut victim = crate::map_manager::WorldCreature::new(
+            guid,
+            9001,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            100,
+            80,
+            10,
+            10,
+            20.0,
+            1,
+            35,
+            0,
+            0,
+        );
+        let sync = creature_melee_sync_state_for_test_like_cpp(&victim, 10);
+        victim.creature.unit_mut().set_health(90);
+        victim.creature.unit_mut().set_health(100);
+        let before = (
+            victim.creature.unit().data().health,
+            victim.creature.unit().death_state(),
+            victim.creature.unit().health_state_revision_like_cpp(),
+            victim.creature.loot_lifecycle_revision_like_cpp(),
+        );
+
+        assert!(!apply_creature_melee_victim_sync_to_legacy_like_cpp(
+            &mut victim,
+            &sync,
+            wow_entities::game_time_secs_like_cpp(),
+        ));
+
+        assert_eq!(
+            (
+                victim.creature.unit().data().health,
+                victim.creature.unit().death_state(),
+                victim.creature.unit().health_state_revision_like_cpp(),
+                victim.creature.loot_lifecycle_revision_like_cpp(),
+            ),
+            before
+        );
+        assert!(
+            victim
+                .creature
+                .loot_authority_like_cpp()
+                .shares_storage_like_cpp(&sync.identity.authority)
+        );
+    }
+
+    #[test]
+    fn same_map_player_snapshot_preserves_newer_canonical_health_timeline_like_cpp() {
+        let (session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let guid = ObjectGuid::create_player(1, 91_047);
+        add_canonical_test_player_on_map(&canonical, guid, Position::ZERO, 0, 0);
+        let stale = {
+            let mut guard = canonical.lock().unwrap();
+            let player = guard
+                .find_map_mut(0, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_player_mut(guid)
+                .unwrap();
+            player.unit_mut().set_max_health(100);
+            player.unit_mut().set_health(100);
+            player.clone()
+        };
+        let expected = {
+            let mut guard = canonical.lock().unwrap();
+            let player = guard
+                .find_map_mut(0, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_player_mut(guid)
+                .unwrap();
+            player.unit_mut().set_health(90);
+            (
+                player.unit().data().health,
+                player.unit().data().max_health,
+                player.unit().death_state(),
+                player.unit().health_state_revision_like_cpp(),
+                player.unit().health_state_revision_authority_like_cpp(),
+            )
+        };
+
+        {
+            let mut guard = canonical.lock().unwrap();
+            let managed = guard.find_map_mut(0, 0).unwrap();
+            session.sync_canonical_player_entity_like_cpp(managed, stale);
+        }
+
+        let guard = canonical.lock().unwrap();
+        let player = guard
+            .find_map(0, 0)
+            .unwrap()
+            .map()
+            .get_typed_player(guid)
+            .unwrap();
+        assert_eq!(
+            (
+                player.unit().data().health,
+                player.unit().data().max_health,
+                player.unit().death_state(),
+                player.unit().health_state_revision_like_cpp(),
+            ),
+            (expected.0, expected.1, expected.2, expected.3)
+        );
+        assert!(
+            player
+                .unit()
+                .shares_health_state_revision_authority_like_cpp(&expected.4)
+        );
+    }
+
+    #[test]
+    fn player_map_transfer_preserves_revision_and_next_hit_clears_presentation_high_water_like_cpp()
+    {
+        let (mut session, _, _) = make_session();
+        let canonical = shared_canonical_map_manager();
+        let guid = ObjectGuid::create_player(1, 91_048);
+        add_canonical_test_player_on_map(&canonical, guid, Position::ZERO, 0, 0);
+        let old_revision = {
+            let mut guard = canonical.lock().unwrap();
+            guard.create_world_map(1, 0);
+            let player = guard
+                .find_map_mut(0, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_player_mut(guid)
+                .unwrap();
+            player.unit_mut().set_max_health(100);
+            player.unit_mut().set_health(90);
+            player.unit().health_state_revision_like_cpp()
+        };
+        let mut transfer_snapshot = Player::new(Some(1), false);
+        transfer_snapshot
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .create(guid);
+        transfer_snapshot
+            .unit_mut()
+            .world_mut()
+            .set_map(1, 0)
+            .unwrap();
+        transfer_snapshot.unit_mut().set_max_health(100);
+        transfer_snapshot.unit_mut().set_health(100);
+        {
+            let mut guard = canonical.lock().unwrap();
+            session.sync_canonical_player_entity_for_map_like_cpp(
+                &mut guard,
+                wow_map::MapKey::new(1, 0),
+                transfer_snapshot,
+            );
+        }
+
+        session.state = SessionState::LoggedIn;
+        session.set_player_guid(Some(guid));
+        session.set_player_map_position_like_cpp(1, Position::ZERO);
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.last_presented_creature_melee_health_state_revision_like_cpp = old_revision;
+        let new_revision = session
+            .mutate_canonical_player_like_cpp(|player| {
+                assert_eq!(player.unit().data().health, 90);
+                assert_eq!(player.unit().health_state_revision_like_cpp(), old_revision);
+                player.unit_mut().set_health(80);
+                player.unit().health_state_revision_like_cpp()
+            })
+            .unwrap();
+
+        assert!(new_revision > old_revision);
+        assert_eq!(
+            session.present_committed_creature_melee_health_like_cpp(new_revision),
+            Some(80)
+        );
+        let guard = canonical.lock().unwrap();
+        assert!(
+            guard
+                .find_map(0, 0)
+                .unwrap()
+                .map()
+                .get_typed_player(guid)
+                .is_none()
+        );
+        assert_eq!(
+            guard
+                .find_map(1, 0)
+                .unwrap()
+                .map()
+                .get_typed_player(guid)
+                .unwrap()
+                .unit()
+                .health_state_revision_like_cpp(),
+            new_revision
+        );
+    }
+
+    #[test]
+    fn stale_legacy_creature_snapshot_cannot_replace_newer_canonical_health_like_cpp() {
+        let canonical = shared_canonical_map_manager();
+        let guid = test_creature_guid(91_049);
+        add_canonical_test_creature_on_map(&canonical, guid, 9001, Position::ZERO, 0, 0, 0);
+        let stale = canonical
+            .lock()
+            .unwrap()
+            .find_map(0, 0)
+            .unwrap()
+            .map()
+            .get_typed_creature(guid)
+            .unwrap()
+            .clone();
+        let expected = {
+            let mut guard = canonical.lock().unwrap();
+            let creature = guard
+                .find_map_mut(0, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_creature_mut(guid)
+                .unwrap();
+            creature.unit_mut().set_health(90);
+            (
+                creature.unit().data().health,
+                creature.unit().death_state(),
+                creature.unit().health_state_revision_like_cpp(),
+            )
+        };
+
+        assert!(sync_canonical_creature_entity_on_map_like_cpp(&canonical, 0, 0, stale).is_some());
+
+        let guard = canonical.lock().unwrap();
+        let creature = guard
+            .find_map(0, 0)
+            .unwrap()
+            .map()
+            .get_typed_creature(guid)
+            .unwrap();
+        assert_eq!(
+            (
+                creature.unit().data().health,
+                creature.unit().death_state(),
+                creature.unit().health_state_revision_like_cpp(),
+            ),
+            expected
+        );
+    }
+
+    #[test]
+    fn stale_legacy_creature_snapshot_cannot_erase_canonical_death_lifecycle_like_cpp() {
+        let canonical = shared_canonical_map_manager();
+        let guid = test_creature_guid(91_105);
+        let target = ObjectGuid::create_player(1, 91_106);
+        add_canonical_test_creature_on_map(&canonical, guid, 9001, Position::ZERO, 0, 0, 0);
+        let stale = {
+            let mut guard = canonical.lock().unwrap();
+            let creature = guard
+                .find_map_mut(0, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_creature_mut(guid)
+                .unwrap();
+            creature.enter_ai_combat(target);
+            creature.clone()
+        };
+        let expected = {
+            let mut guard = canonical.lock().unwrap();
+            let creature = guard
+                .find_map_mut(0, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_creature_mut(guid)
+                .unwrap();
+            assert!(
+                creature
+                    .apply_ai_damage_before_death_state_at_game_time_like_cpp(100, 1_000, 1_000,)
+            );
+            creature.set_death_state_runtime(wow_constants::DeathState::JustDied, 1_000);
+            creature.unit_mut().set_health(0);
+            creature.clone()
+        };
+        assert_eq!(
+            stale.ai_ownership().state,
+            wow_entities::CreatureAiState::InCombat
+        );
+        assert_eq!(
+            expected.ai_ownership().state,
+            wow_entities::CreatureAiState::Dead
+        );
+        assert!(expected.runtime_state().save_respawn_requested);
+        assert!(expected.corpse_remove_time() > 1_000);
+        assert!(expected.respawn_time() > 1_000);
+        assert!(
+            expected.loot_lifecycle_revision_like_cpp() > stale.loot_lifecycle_revision_like_cpp()
+        );
+
+        assert!(sync_canonical_creature_entity_on_map_like_cpp(&canonical, 0, 0, stale).is_some());
+
+        let guard = canonical.lock().unwrap();
+        let stored = guard
+            .find_map(0, 0)
+            .unwrap()
+            .map()
+            .get_typed_creature(guid)
+            .unwrap();
+        assert_eq!(
+            stored, &expected,
+            "a rejected stale snapshot must preserve every canonical kill hook"
+        );
+    }
+
+    #[test]
+    fn legacy_creature_melee_tick_once_preserves_compatibility_player_damage_like_cpp() {
         use crate::map_manager::RuntimeTickOwner;
         let manager = shared_map_manager();
         let canonical = shared_canonical_map_manager();
@@ -158757,6 +160077,7 @@ mod tests {
         }
 
         let (mut session, _, _) = make_session();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
         let creature_guid = test_creature_guid(91_004);
         add_canonical_test_creature_on_map(
             &canonical,
@@ -158788,8 +160109,8 @@ mod tests {
         assert_eq!(outcome.swings_ready, 1);
         assert_eq!(outcome.melee_outcomes_unrepresented, 1);
         assert_eq!(outcome.runtime_rng_authority_rejections, 0);
-        assert_eq!(outcome.canonical_hits, 0);
-        assert!(outcome.commands.is_empty());
+        assert_eq!(outcome.canonical_hits, 1);
+        assert_eq!(outcome.commands.len(), 1);
         assert!(outcome.plan.events.is_empty());
 
         let health = canonical
@@ -158803,16 +160124,113 @@ mod tests {
             .unit()
             .data()
             .health;
-        assert_eq!(health, 100);
+        assert_eq!(health, 100 - u64::from(outcome.commands[0].damage));
+        assert_eq!(outcome.commands[0].victim_health_after, health);
         let guard = manager.read().unwrap();
         let creature = guard.find_creature(0, 0, creature_guid).unwrap();
         assert!(!creature.runtime_rng_authority_complete_like_cpp());
         assert_eq!(
             creature.creature.ai_ownership().swing_timer_ms,
             2_000,
-            "C++ rearms BASE_ATTACK after the unrepresented AttackerStateUpdate"
+            "C++ rearms BASE_ATTACK after AttackerStateUpdate"
         );
         assert!(!creature.can_swing());
+    }
+
+    #[test]
+    fn legacy_creature_melee_tick_once_two_attackers_commit_only_one_lethal_player_hit_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let player = ObjectGuid::create_player(1, 91_040);
+        add_canonical_test_player_on_map(
+            &canonical,
+            player,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            0,
+        );
+        {
+            let mut guard = canonical.lock().unwrap();
+            let player = guard
+                .find_map_mut(0, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_player_mut(player)
+                .unwrap();
+            player.unit_mut().set_level(80);
+            player.unit_mut().set_max_health(1);
+            player.unit_mut().set_health(1);
+        }
+
+        let (mut session, _, _) = make_session();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        let attackers = [test_creature_guid(91_041), test_creature_guid(91_042)];
+        for attacker in attackers {
+            add_canonical_test_creature_on_map(
+                &canonical,
+                attacker,
+                9001,
+                Position::new(10.0, 10.0, 0.0, 0.0),
+                0,
+                0,
+                0,
+            );
+            register_test_creature(&mut session, Arc::clone(&manager), attacker, 25);
+            session
+                .mutate_world_creature(attacker, |creature| {
+                    creature.enter_combat(player);
+                    creature.creature.ai_ownership_mut().last_swing_ms = 0;
+                    creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+                    creature.creature.ai_ownership_mut().min_damage = 1;
+                    creature.creature.ai_ownership_mut().max_damage = 1;
+                })
+                .unwrap();
+        }
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+
+        assert_eq!(outcome.swings_ready, 2);
+        assert_eq!(outcome.melee_outcomes_unrepresented, 1);
+        assert_eq!(outcome.canonical_hits, 1);
+        assert_eq!(outcome.melee_precondition_rejections, 1);
+        assert_eq!(outcome.commands.len(), 1);
+        assert_eq!(outcome.commands[0].damage, 1);
+        assert_eq!(outcome.commands[0].over_damage, 0);
+        let canonical_guard = canonical.lock().unwrap();
+        let player = canonical_guard
+            .find_map(0, 0)
+            .unwrap()
+            .map()
+            .get_typed_player(player)
+            .unwrap();
+        assert_eq!(player.unit().data().health, 0);
+        assert_eq!(
+            player.unit().death_state(),
+            wow_constants::DeathState::JustDied
+        );
+        assert!(!player.unit().is_alive());
+        assert_eq!(
+            outcome.commands[0].victim_health_state_revision_after,
+            player.unit().health_state_revision_like_cpp()
+        );
+        drop(canonical_guard);
+
+        let legacy_guard = manager.read().unwrap();
+        let tombstoned = attackers
+            .into_iter()
+            .filter(|attacker| {
+                let creature = legacy_guard.find_creature(0, 0, *attacker).unwrap();
+                assert_eq!(creature.creature.ai_ownership().swing_timer_ms, 2_000);
+                !creature.runtime_rng_authority_complete_like_cpp()
+            })
+            .count();
+        assert_eq!(tombstoned, 1, "only the committed hit consumes melee RNG");
     }
 
     #[test]
@@ -158830,6 +160248,17 @@ mod tests {
             0,
             0,
         );
+        {
+            let mut guard = canonical.lock().unwrap();
+            let player = guard
+                .find_map_mut(0, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_player_mut(player)
+                .unwrap();
+            player.unit_mut().set_max_health(100);
+            player.unit_mut().set_health(100);
+        }
 
         let (mut session, _, _) = make_session();
         let creature_guid = test_creature_guid(91_037);
@@ -158894,6 +160323,133 @@ mod tests {
     }
 
     #[test]
+    fn legacy_creature_melee_tick_once_rejects_same_guid_attacker_replacement_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let player = ObjectGuid::create_player(1, 91_107);
+        add_canonical_test_player_on_map(
+            &canonical,
+            player,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            0,
+        );
+        {
+            let mut guard = canonical.lock().unwrap();
+            let player = guard
+                .find_map_mut(0, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_player_mut(player)
+                .unwrap();
+            player.unit_mut().set_max_health(100);
+            player.unit_mut().set_health(100);
+        }
+
+        let (mut session, _, _) = make_session();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        let creature_guid = test_creature_guid(91_108);
+        let seed = 0x91_108;
+        register_test_creature(&mut session, Arc::clone(&manager), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.enter_combat(player);
+                creature.creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+                creature.seed_runtime_rng_like_cpp(seed);
+            })
+            .unwrap();
+        let legacy_health_authority = manager
+            .read()
+            .unwrap()
+            .find_creature(0, 0, creature_guid)
+            .unwrap()
+            .creature
+            .unit()
+            .health_state_revision_authority_like_cpp();
+
+        let mut replacement = crate::map_manager::WorldCreature::new(
+            creature_guid,
+            9001,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            25,
+            80,
+            3,
+            5,
+            20.0,
+            1,
+            35,
+            0,
+            0,
+        )
+        .creature;
+        replacement.unit_mut().world_mut().set_map(0, 0).unwrap();
+        replacement
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .add_to_world();
+        assert!(
+            !replacement
+                .unit()
+                .shares_health_state_revision_authority_like_cpp(&legacy_health_authority)
+        );
+        canonical
+            .lock()
+            .unwrap()
+            .find_map_mut(0, 0)
+            .unwrap()
+            .map_mut()
+            .insert_map_object_record(
+                wow_entities::MapObjectRecord::new_creature(replacement).unwrap(),
+            )
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+
+        assert_eq!(outcome.swings_ready, 1);
+        assert_eq!(outcome.attacker_incarnation_rejections, 1);
+        assert_eq!(outcome.melee_precondition_rejections, 1);
+        assert_eq!(outcome.melee_outcomes_unrepresented, 0);
+        assert_eq!(outcome.canonical_hits, 0);
+        assert!(outcome.commands.is_empty());
+        assert_eq!(
+            canonical
+                .lock()
+                .unwrap()
+                .find_map(0, 0)
+                .unwrap()
+                .map()
+                .get_typed_player(player)
+                .unwrap()
+                .unit()
+                .data()
+                .health,
+            100
+        );
+        let mut expected_rng = StdRng::seed_from_u64(seed);
+        let expected_first_roll = expected_rng.gen_range(0..=9_999_u32);
+        let (timer, exact_rng, actual_first_roll) = session
+            .mutate_world_creature(creature_guid, |creature| {
+                (
+                    creature.creature.ai_ownership().swing_timer_ms,
+                    creature.runtime_rng_authority_complete_like_cpp(),
+                    creature.random_creature_spell_hit_roll_like_cpp(),
+                )
+            })
+            .unwrap();
+        assert_eq!(timer, 0);
+        assert!(exact_rng);
+        assert_eq!(actual_first_roll, Some(expected_first_roll));
+    }
+
+    #[test]
     fn legacy_creature_melee_tick_once_rejects_out_of_range_victim_like_cpp() {
         use crate::map_manager::RuntimeTickOwner;
         let manager = shared_map_manager();
@@ -158920,6 +160476,7 @@ mod tests {
         }
 
         let (mut session, _, _) = make_session();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
         let creature_guid = test_creature_guid(91_006);
         register_test_creature(&mut session, manager.clone(), creature_guid, 25);
         let seed = 0x91_006;
@@ -159004,6 +160561,7 @@ mod tests {
         }
 
         let (mut session, _, _) = make_session();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
         let creature_guid = test_creature_guid(91_008);
         register_test_creature(&mut session, manager.clone(), creature_guid, 25);
         session
@@ -159070,6 +160628,7 @@ mod tests {
         );
 
         let (mut session, _, _) = make_session();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
         let creature_guid = test_creature_guid(91_010);
         register_test_creature(&mut session, manager.clone(), creature_guid, 25);
         session
@@ -159105,6 +160664,139 @@ mod tests {
     }
 
     #[test]
+    fn legacy_creature_melee_tick_once_invalid_damage_roll_rearms_base_timer_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let player = ObjectGuid::create_player(1, 91_101);
+        add_canonical_test_player_on_map(
+            &canonical,
+            player,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            0,
+        );
+        {
+            let mut guard = canonical.lock().unwrap();
+            let player = guard
+                .find_map_mut(0, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_player_mut(player)
+                .unwrap();
+            player.unit_mut().set_max_health(100);
+            player.unit_mut().set_health(100);
+        }
+
+        let (mut session, _, _) = make_session();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        let creature_guid = test_creature_guid(91_102);
+        add_canonical_test_creature_on_map(
+            &canonical,
+            creature_guid,
+            9001,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            0,
+            0,
+        );
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.enter_combat(player);
+                creature.creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+                creature.creature.ai_ownership_mut().min_damage = 10;
+                creature.creature.ai_ownership_mut().max_damage = 5;
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+
+        assert_eq!(outcome.swings_ready, 1);
+        assert_eq!(outcome.melee_precondition_rejections, 1);
+        assert_eq!(outcome.melee_outcomes_unrepresented, 0);
+        assert_eq!(outcome.canonical_hits, 0);
+        assert!(outcome.commands.is_empty());
+        let guard = manager.read().unwrap();
+        let creature = guard.find_creature(0, 0, creature_guid).unwrap();
+        assert_eq!(creature.creature.ai_ownership().swing_timer_ms, 2_000);
+        assert!(
+            !creature.runtime_rng_authority_complete_like_cpp(),
+            "invalid damage bounds cannot preserve an exact C++ RNG position"
+        );
+    }
+
+    #[test]
+    fn legacy_creature_melee_tick_once_checks_range_before_dead_victim_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let player = ObjectGuid::create_player(1, 91_103);
+        add_canonical_test_player_on_map(
+            &canonical,
+            player,
+            Position::new(100.0, 100.0, 0.0, 0.0),
+            0,
+            0,
+        );
+        {
+            let mut guard = canonical.lock().unwrap();
+            let player = guard
+                .find_map_mut(0, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_player_mut(player)
+                .unwrap();
+            player.unit_mut().set_max_health(100);
+            player.unit_mut().set_health(0);
+            player
+                .unit_mut()
+                .set_death_state(wow_constants::DeathState::JustDied);
+        }
+
+        let (mut session, _, _) = make_session();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        let creature_guid = test_creature_guid(91_104);
+        add_canonical_test_creature_on_map(
+            &canonical,
+            creature_guid,
+            9001,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            0,
+            0,
+        );
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.enter_combat(player);
+                creature.creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+
+        assert_eq!(outcome.swings_ready, 1);
+        assert_eq!(outcome.melee_range_rejections, 1);
+        assert_eq!(outcome.melee_precondition_rejections, 0);
+        assert_eq!(outcome.canonical_hits, 0);
+        assert!(outcome.commands.is_empty());
+        let guard = manager.read().unwrap();
+        let creature = guard.find_creature(0, 0, creature_guid).unwrap();
+        assert_eq!(creature.creature.ai_ownership().swing_timer_ms, 100);
+    }
+
+    #[test]
     fn legacy_creature_melee_tick_once_attacker_state_rejection_consumes_swing_like_cpp() {
         use crate::map_manager::RuntimeTickOwner;
         let manager = shared_map_manager();
@@ -159130,6 +160822,7 @@ mod tests {
         }
 
         let (mut session, _, _) = make_session();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
         let creature_guid = test_creature_guid(91_012);
         register_test_creature(&mut session, manager.clone(), creature_guid, 25);
         session
@@ -159188,8 +160881,7 @@ mod tests {
     }
 
     #[test]
-    fn legacy_creature_melee_tick_once_removes_attacking_auras_before_unrepresented_outcome_like_cpp()
-     {
+    fn legacy_creature_melee_tick_once_removes_attacking_auras_on_compatibility_hit_like_cpp() {
         use crate::map_manager::RuntimeTickOwner;
         let manager = shared_map_manager();
         let canonical = shared_canonical_map_manager();
@@ -159214,6 +160906,7 @@ mod tests {
         }
 
         let (mut session, _, _) = make_session();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
         let creature_guid = test_creature_guid(91_023);
         let removed_by_attacking = wow_entities::AppliedAuraRef::new(91_024, creature_guid, 0, 0x1);
         let kept = wow_entities::AppliedAuraRef::new(91_025, creature_guid, 0, 0x2);
@@ -159260,9 +160953,9 @@ mod tests {
 
         assert_eq!(outcome.swings_ready, 1);
         assert_eq!(outcome.melee_outcomes_unrepresented, 1);
-        assert_eq!(outcome.canonical_hits, 0);
+        assert_eq!(outcome.canonical_hits, 1);
         assert_eq!(outcome.attacking_interrupt_auras_removed, 1);
-        assert!(outcome.commands.is_empty());
+        assert_eq!(outcome.commands.len(), 1);
         assert!(outcome.plan.events.is_empty());
         let guard = manager.read().unwrap();
         let creature = guard.find_creature(0, 0, creature_guid).unwrap();
@@ -159287,7 +160980,7 @@ mod tests {
     }
 
     #[test]
-    fn legacy_creature_melee_tick_once_tombstones_unrepresented_creature_outcome_like_cpp() {
+    fn legacy_creature_melee_tick_once_preserves_compatibility_creature_damage_like_cpp() {
         use crate::map_manager::RuntimeTickOwner;
         let manager = shared_map_manager();
         let canonical = shared_canonical_map_manager();
@@ -159315,6 +161008,7 @@ mod tests {
         }
 
         let (mut session, _, _) = make_session();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
         let attacker = test_creature_guid(91_029);
         add_canonical_test_creature_on_map(
             &canonical,
@@ -159343,11 +161037,11 @@ mod tests {
 
         assert_eq!(outcome.swings_ready, 1);
         assert_eq!(outcome.melee_outcomes_unrepresented, 1);
-        assert_eq!(outcome.canonical_hits, 0);
-        assert_eq!(outcome.canonical_creature_hits, 0);
-        assert_eq!(outcome.legacy_creature_victim_syncs, 0);
+        assert_eq!(outcome.canonical_hits, 1);
+        assert_eq!(outcome.canonical_creature_hits, 1);
+        assert_eq!(outcome.legacy_creature_victim_syncs, 1);
         assert!(outcome.commands.is_empty());
-        assert!(outcome.plan.events.is_empty());
+        assert_eq!(outcome.plan.events.len(), 2);
         let health = canonical
             .lock()
             .unwrap()
@@ -159359,7 +161053,7 @@ mod tests {
             .unit()
             .data()
             .health;
-        assert_eq!(health, 100);
+        assert!(health < 100);
         let legacy_health = manager
             .read()
             .unwrap()
@@ -159371,7 +161065,7 @@ mod tests {
             .health;
         assert_eq!(
             legacy_health, health,
-            "an unrepresented outcome must not mutate either creature mirror"
+            "the compatibility bridge must keep both creature mirrors coherent"
         );
         assert!(
             !manager
@@ -159384,7 +161078,103 @@ mod tests {
     }
 
     #[test]
-    fn legacy_creature_melee_tick_once_does_not_fabricate_sparring_damage_like_cpp() {
+    fn legacy_creature_melee_tick_once_prevents_postmortem_cross_kill_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let creatures = [test_creature_guid(91_043), test_creature_guid(91_044)];
+        for creature_guid in creatures {
+            add_canonical_test_creature_on_map(
+                &canonical,
+                creature_guid,
+                9001,
+                Position::new(10.0, 10.0, 0.0, 0.0),
+                0,
+                0,
+                0,
+            );
+            let mut guard = canonical.lock().unwrap();
+            let creature = guard
+                .find_map_mut(0, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_creature_mut(creature_guid)
+                .unwrap();
+            creature.unit_mut().set_max_health(1);
+            creature.unit_mut().set_health(1);
+        }
+
+        let (mut session, _, _) = make_session();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        for (attacker, victim) in [(creatures[0], creatures[1]), (creatures[1], creatures[0])] {
+            register_test_creature(&mut session, Arc::clone(&manager), attacker, 1);
+            session
+                .mutate_world_creature(attacker, |creature| {
+                    creature.enter_combat(victim);
+                    creature.creature.ai_ownership_mut().last_swing_ms = 0;
+                    creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+                    creature.creature.ai_ownership_mut().min_damage = 1;
+                    creature.creature.ai_ownership_mut().max_damage = 1;
+                })
+                .unwrap();
+        }
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+
+        assert_eq!(outcome.swings_ready, 2);
+        assert_eq!(outcome.melee_outcomes_unrepresented, 1);
+        assert_eq!(outcome.canonical_hits, 1);
+        assert_eq!(outcome.canonical_creature_hits, 1);
+        assert_eq!(outcome.melee_precondition_rejections, 1);
+        assert_eq!(outcome.legacy_creature_victim_syncs, 1);
+        assert_eq!(outcome.legacy_creature_victim_sync_cas_rejections, 0);
+        assert!(outcome.commands.is_empty());
+        assert_eq!(outcome.plan.events.len(), 2);
+
+        let canonical_guard = canonical.lock().unwrap();
+        let legacy_guard = manager.read().unwrap();
+        let mut alive = 0;
+        let mut dead = 0;
+        let mut tombstoned = 0;
+        for guid in creatures {
+            let canonical_creature = canonical_guard
+                .find_map(0, 0)
+                .unwrap()
+                .map()
+                .get_typed_creature(guid)
+                .unwrap();
+            let legacy_creature = legacy_guard.find_creature(0, 0, guid).unwrap();
+            assert_eq!(
+                legacy_creature.creature.unit().data().health,
+                canonical_creature.unit().data().health
+            );
+            assert_eq!(
+                legacy_creature.creature.unit().death_state(),
+                canonical_creature.unit().death_state()
+            );
+            match (
+                canonical_creature.unit().data().health,
+                canonical_creature.unit().death_state(),
+            ) {
+                (1, wow_constants::DeathState::Alive) => alive += 1,
+                (0, wow_constants::DeathState::Corpse) => dead += 1,
+                tuple => panic!("unexpected cross-kill final tuple: {tuple:?}"),
+            }
+            if !legacy_creature.runtime_rng_authority_complete_like_cpp() {
+                tombstoned += 1;
+            }
+        }
+        assert_eq!((alive, dead), (1, 1));
+        assert_eq!(tombstoned, 1);
+    }
+
+    #[test]
+    fn legacy_creature_melee_tick_once_preserves_sparring_damage_clamp_like_cpp() {
         use crate::map_manager::RuntimeTickOwner;
         let manager = shared_map_manager();
         let canonical = shared_canonical_map_manager();
@@ -159413,6 +161203,7 @@ mod tests {
         }
 
         let (mut session, _, _) = make_session();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
         let attacker = test_creature_guid(91_031);
         add_canonical_test_creature_on_map(
             &canonical,
@@ -159423,12 +161214,20 @@ mod tests {
             0,
             0,
         );
+        register_test_creature(&mut session, Arc::clone(&manager), victim, 52);
+        session
+            .mutate_world_creature(victim, |creature| {
+                creature.creature.set_sparring_health_pct_like_cpp(50.0);
+            })
+            .unwrap();
         register_test_creature(&mut session, manager.clone(), attacker, 25);
         session
             .mutate_world_creature(attacker, |creature| {
                 creature.enter_combat(victim);
                 creature.creature.ai_ownership_mut().last_swing_ms = 0;
                 creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+                creature.creature.ai_ownership_mut().min_damage = 52;
+                creature.creature.ai_ownership_mut().max_damage = 52;
             })
             .unwrap();
         manager
@@ -159440,8 +161239,30 @@ mod tests {
 
         assert_eq!(outcome.swings_ready, 1);
         assert_eq!(outcome.melee_outcomes_unrepresented, 1);
-        assert_eq!(outcome.canonical_creature_hits, 0);
-        assert!(outcome.plan.events.is_empty());
+        assert_eq!(outcome.canonical_creature_hits, 1);
+        assert_eq!(outcome.legacy_creature_victim_syncs, 1);
+        assert_eq!(outcome.legacy_creature_victim_sync_cas_rejections, 0);
+        assert_eq!(outcome.plan.events.len(), 2);
+        let mut packet =
+            wow_packet::world_packet::WorldPacket::from_bytes(&outcome.plan.events[0].packet_bytes);
+        assert_eq!(
+            packet.read_uint16().unwrap(),
+            wow_constants::ServerOpcodes::AttackerStateUpdate as u16
+        );
+        assert!(!packet.read_bit().unwrap());
+        let info_len = packet.read_uint32().unwrap() as usize;
+        let info_bytes = packet.read_bytes(info_len).unwrap();
+        let mut info = wow_packet::world_packet::WorldPacket::from_bytes(&info_bytes);
+        assert_eq!(info.read_uint32().unwrap(), 0x0000_0002);
+        assert_eq!(info.read_packed_guid().unwrap(), attacker);
+        assert_eq!(info.read_packed_guid().unwrap(), victim);
+        assert_eq!(info.read_int32().unwrap(), 52);
+        assert_eq!(info.read_int32().unwrap(), 52);
+        assert_eq!(
+            info.read_int32().unwrap(),
+            0,
+            "C++ wire overdamage uses raw damage before the sparring clamp"
+        );
         let health = canonical
             .lock()
             .unwrap()
@@ -159453,12 +161274,25 @@ mod tests {
             .unit()
             .data()
             .health;
-        assert_eq!(health, 52);
+        assert_eq!(health, 50);
+        assert_eq!(
+            manager
+                .read()
+                .unwrap()
+                .find_creature(0, 0, victim)
+                .unwrap()
+                .creature
+                .unit()
+                .data()
+                .health,
+            50
+        );
     }
 
     #[test]
-    fn legacy_creature_melee_tick_once_suppresses_unrepresented_fake_damage_wire_like_cpp() {
+    fn legacy_creature_melee_tick_once_preserves_fake_damage_wire_like_cpp() {
         use crate::map_manager::RuntimeTickOwner;
+        use wow_packet::packets::combat::{HIT_INFO_FAKE_DAMAGE, HIT_INFO_NORMAL_SWING};
         let manager = shared_map_manager();
         let canonical = shared_canonical_map_manager();
         let victim = test_creature_guid(91_032);
@@ -159486,6 +161320,7 @@ mod tests {
         }
 
         let (mut session, _, _) = make_session();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
         let attacker = test_creature_guid(91_033);
         add_canonical_test_creature_on_map(
             &canonical,
@@ -159513,8 +161348,22 @@ mod tests {
 
         assert_eq!(outcome.swings_ready, 1);
         assert_eq!(outcome.melee_outcomes_unrepresented, 1);
-        assert_eq!(outcome.canonical_creature_hits, 0);
-        assert!(outcome.plan.events.is_empty());
+        assert_eq!(outcome.canonical_creature_hits, 1);
+        assert!(!outcome.plan.events.is_empty());
+        let mut packet =
+            wow_packet::world_packet::WorldPacket::from_bytes(&outcome.plan.events[0].packet_bytes);
+        assert_eq!(
+            packet.read_uint16().expect("opcode"),
+            wow_constants::ServerOpcodes::AttackerStateUpdate as u16
+        );
+        assert!(!packet.read_bit().expect("has_log_data"));
+        let info_len = packet.read_uint32().expect("attackRoundInfo size") as usize;
+        let info_bytes = packet.read_bytes(info_len).expect("attackRoundInfo bytes");
+        let mut attack_round_info = wow_packet::world_packet::WorldPacket::from_bytes(&info_bytes);
+        assert_eq!(
+            attack_round_info.read_uint32().expect("hitInfo"),
+            HIT_INFO_NORMAL_SWING | HIT_INFO_FAKE_DAMAGE
+        );
         let health = canonical
             .lock()
             .unwrap()
@@ -159530,7 +161379,7 @@ mod tests {
     }
 
     #[test]
-    fn legacy_creature_melee_tick_once_does_not_fabricate_lethal_creature_outcome_like_cpp() {
+    fn legacy_creature_melee_tick_once_preserves_lethal_creature_outcome_like_cpp() {
         use crate::map_manager::RuntimeTickOwner;
         let manager = shared_map_manager();
         let canonical = shared_canonical_map_manager();
@@ -159558,6 +161407,7 @@ mod tests {
         }
 
         let (mut session, _, _) = make_session();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
         let attacker = test_creature_guid(91_035);
         add_canonical_test_creature_on_map(
             &canonical,
@@ -159586,9 +161436,9 @@ mod tests {
 
         assert_eq!(outcome.swings_ready, 1);
         assert_eq!(outcome.melee_outcomes_unrepresented, 1);
-        assert_eq!(outcome.canonical_creature_hits, 0);
-        assert_eq!(outcome.legacy_creature_victim_syncs, 0);
-        assert!(outcome.plan.events.is_empty());
+        assert_eq!(outcome.canonical_creature_hits, 1);
+        assert_eq!(outcome.legacy_creature_victim_syncs, 1);
+        assert_eq!(outcome.plan.events.len(), 2);
         let guard = canonical.lock().unwrap();
         let creature = guard
             .find_map(0, 0)
@@ -159596,13 +161446,19 @@ mod tests {
             .map()
             .get_typed_creature(victim)
             .unwrap();
-        assert_eq!(creature.unit().data().health, 1);
-        assert!(creature.unit().is_alive());
+        assert_eq!(creature.unit().data().health, 0);
+        assert_eq!(
+            creature.unit().death_state(),
+            wow_constants::DeathState::Corpse
+        );
         drop(guard);
         let legacy_guard = manager.read().unwrap();
         let legacy_creature = legacy_guard.find_creature(0, 0, victim).unwrap();
-        assert_eq!(legacy_creature.creature.unit().data().health, 1);
-        assert!(legacy_creature.creature.unit().is_alive());
+        assert_eq!(legacy_creature.creature.unit().data().health, 0);
+        assert_eq!(
+            legacy_creature.creature.unit().death_state(),
+            wow_constants::DeathState::Corpse
+        );
     }
 
     struct CreatureMeleeLosTestEnvironment {
@@ -159851,6 +161707,7 @@ mod tests {
         }
 
         let (mut session, _, _) = make_session();
+        session.set_canonical_map_manager(Arc::clone(&canonical));
         let creature_guid = test_creature_guid(91_019);
         add_canonical_test_creature_on_map(
             &canonical,
@@ -159884,8 +161741,8 @@ mod tests {
         assert_eq!(outcome.melee_precondition_rejections, 0);
         assert_eq!(outcome.swings_ready, 1);
         assert_eq!(outcome.melee_outcomes_unrepresented, 1);
-        assert_eq!(outcome.canonical_hits, 0);
-        assert!(outcome.commands.is_empty());
+        assert_eq!(outcome.canonical_hits, 1);
+        assert_eq!(outcome.commands.len(), 1);
         assert!(outcome.plan.events.is_empty());
         assert!(
             !manager
