@@ -5183,12 +5183,13 @@ impl WorldSession {
     ///
     /// C++ `WorldObject::SendCombatLogMessage` selects a full GO frame for
     /// advanced-combat-log viewers and a basic frame otherwise. The current
-    /// represented producer carries only the basic frame, so advanced viewers
-    /// fail closed before START; basic viewers receive both frames
-    /// consecutively with no command drain or visibility revalidation between
-    /// them. The two frame-oriented socket sends are not transactional against
-    /// other cloned producers or a receiver closing after START; absolute
-    /// writer adjacency needs a future batch-aware socket envelope.
+    /// represented producer carries only the basic frame, which remains a
+    /// valid fallback for advanced viewers; START must never be suppressed by
+    /// that session preference. Both viewers receive the frames consecutively
+    /// with no command drain or visibility revalidation between them. The two
+    /// frame-oriented socket sends are not transactional against other cloned
+    /// producers or a receiver closing after START; absolute writer adjacency
+    /// needs a future batch-aware socket envelope.
     fn handle_send_basic_creature_spell_cast_if_visible_like_cpp_command_like_cpp(
         &mut self,
         command: SendBasicCreatureSpellCastIfVisibleLikeCppCommand,
@@ -5203,7 +5204,6 @@ impl WorldSession {
             != Some(wow_constants::ServerOpcodes::SpellStart as u16)
             || opcode(&command.go_packet_bytes)
                 != Some(wow_constants::ServerOpcodes::SpellGo as u16)
-            || self.represented_advanced_combat_logging_enabled_like_cpp()
         {
             return;
         }
@@ -13855,14 +13855,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn advanced_combat_logging_rejects_entire_basic_creature_spell_pair_like_cpp() {
+    async fn advanced_combat_logging_receives_basic_creature_spell_fallback_pair_like_cpp() {
         let (mut session, send_rx, source_guid) =
             make_visible_basic_creature_spell_session_like_cpp();
+        let command = basic_creature_spell_cast_command_like_cpp(source_guid);
+        let expected_start = command.start_packet_bytes.clone();
+        let expected_go = command.go_packet_bytes.clone();
         session.represented_set_advanced_combat_logging_like_cpp(true);
         session
             .session_command_tx()
             .try_send(SessionCommand::SendBasicCreatureSpellCastIfVisibleLikeCpp(
-                basic_creature_spell_cast_command_like_cpp(source_guid),
+                command,
             ))
             .expect("atomic basic spell command queued");
 
@@ -13870,10 +13873,9 @@ mod tests {
             .process_represented_session_commands_like_cpp()
             .await;
 
-        assert!(
-            send_rx.try_recv().is_err(),
-            "advanced logging must receive neither basic START nor basic GO"
-        );
+        assert_eq!(send_rx.try_recv().expect("START frame"), expected_start);
+        assert_eq!(send_rx.try_recv().expect("basic GO fallback"), expected_go);
+        assert!(send_rx.try_recv().is_err(), "no partial or extra frame");
     }
 
     #[test]

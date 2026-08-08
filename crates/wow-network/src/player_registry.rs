@@ -81,9 +81,10 @@ pub enum SessionCommand {
     /// `handle_send_if_visible_like_cpp_command_like_cpp` (Slice 4A.1b).
     SendIfVisibleLikeCpp(SendIfVisibleLikeCppCommand),
     /// Deliver one basic creature spell START+GO pair after one shared
-    /// visibility gate. The receiver additionally rejects the entire pair
-    /// while advanced combat logging is enabled because this represented
-    /// packet shape contains only the basic combat-log tail.
+    /// visibility gate. Until the represented producer carries C++'s full
+    /// combat-log tail, the receiver also sends this valid basic GO fallback
+    /// when advanced combat logging is enabled; START is never suppressed by
+    /// that preference.
     SendBasicCreatureSpellCastIfVisibleLikeCpp(SendBasicCreatureSpellCastIfVisibleLikeCppCommand),
     /// Same visibility/phase/range gate as `SendIfVisibleLikeCpp`, but route
     /// the accepted packet through the receiver's realm connection.
@@ -379,7 +380,9 @@ pub struct SendIfVisibleLikeCppCommand {
 ///
 /// The two serialized frames remain separate so the socket writer sees the
 /// normal START then GO packet boundary. They share one addressing envelope,
-/// one durable queue slot, and one session visibility/advanced-logging gate.
+/// one durable queue slot and one session visibility gate. Until the producer
+/// can represent C++'s full combat-log payload, advanced-log viewers receive
+/// the same valid basic GO fallback instead of losing the entire cast.
 /// This atomicity ends at the session handoff: the current socket channel is
 /// frame-oriented, so two later `send` calls are not a transactional batch
 /// against cloned producers or a receiver that closes between frames.
