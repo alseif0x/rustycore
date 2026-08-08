@@ -1653,14 +1653,25 @@ async fn main() -> Result<ExitCode> {
         item_set_spell_store.len()
     );
 
-    // Load ChrSpecialization.db2 for C++ loot-specialization validation.
+    let db2_hotfix_removals = wow_data::Db2HotfixRemovalStoreLikeCpp::load_like_cpp(&hotfix_db)
+        .await
+        .context("Failed to load effective DB2 hotfix removals")?;
+
+    // Load effective ChrSpecialization authority for C++ specialization validation.
     let chr_specialization_store = Arc::new(
-        wow_data::ChrSpecializationStore::load(&data_dir, &locale).context(
-            "Failed to load ChrSpecialization.db2 — check DataDir and DBC.Locale config",
+        wow_data::ChrSpecializationStore::load_effective_like_cpp(
+            &data_dir,
+            &locale,
+            &hotfix_db,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context(
+            "Failed to load effective ChrSpecialization store — check DataDir and DBC.Locale config",
         )?,
     );
     info!(
-        "Loaded {} chr specializations from ChrSpecialization.db2",
+        "Loaded {} effective chr specializations from ChrSpecialization.db2 and SQL overlays",
         chr_specialization_store.len()
     );
 
@@ -1887,9 +1898,6 @@ async fn main() -> Result<ExitCode> {
         trivial: world_config_f32(&world_configs, "Rate.Creature.Health.Trivial", 1.0),
         minus_mob: world_config_f32(&world_configs, "Rate.Creature.Health.MinusMob", 1.0),
     };
-    let db2_hotfix_removals = wow_data::Db2HotfixRemovalStoreLikeCpp::load_like_cpp(&hotfix_db)
-        .await
-        .context("Failed to load effective DB2 hotfix removals")?;
     let difficulty_store = Arc::new(
         wow_data::DifficultyStore::load_effective_like_cpp(
             &data_dir,
