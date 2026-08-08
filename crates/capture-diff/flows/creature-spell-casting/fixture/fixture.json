@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "flow": "creature-spell-casting",
+  "contract": "creature-spell-casting-shell-fixture-v1",
+  "creature_template": {
+    "entry": 22378,
+    "name": "Cabal Interrogator",
+    "original_ai_name": "SmartAI",
+    "temporary_ai_name": "CombatAI",
+    "script_name": "",
+    "verified_build": 52237
+  },
+  "spawn": {
+    "guid": 78686,
+    "map": 530,
+    "zone_id": 0,
+    "area_id": 0,
+    "spawn_difficulties": "0",
+    "phase_use_flags": 0,
+    "phase_id": 0,
+    "phase_group": 0,
+    "terrain_swap_map": -1,
+    "position_x": -2764.52,
+    "position_y": 5431.19,
+    "position_z": -34.4548,
+    "orientation": 3.735,
+    "spawn_time_seconds": 300,
+    "wander_distance": 0.0,
+    "movement_type": 0,
+    "verified_build": 0
+  },
+  "template_spell": {
+    "index": 0,
+    "spell_id": 15691,
+    "name": "Eviscerate",
+    "verified_build": 41031
+  },
+  "spell_shape": {
+    "defense_type": 2,
+    "attributes_0": 851984,
+    "attributes_3": 0,
+    "cast_time_ms": 0,
+    "speed": 0.0,
+    "launch_delay": 0.0,
+    "start_recovery_time_ms": 1000,
+    "effect": 2,
+    "implicit_target_a": 6,
+    "implicit_target_b": 0,
+    "base_points": 64,
+    "die_sides": 1,
+    "spell_x_spell_visual_id": 244493,
+    "spell_visual_id": 671,
+    "expected_start_cast_flags": 2,
+    "expected_go_cast_flags": 256,
+    "expected_cast_flags_ex": 0,
+    "expected_full_combat_log": false,
+    "required_go_hit_targets": 1,
+    "required_go_miss_targets": 0
+  }
+}

@@ -80,6 +80,11 @@ pub enum SessionCommand {
     /// world-server; the per-session gate is in
     /// `handle_send_if_visible_like_cpp_command_like_cpp` (Slice 4A.1b).
     SendIfVisibleLikeCpp(SendIfVisibleLikeCppCommand),
+    /// Deliver one basic creature spell START+GO pair after one shared
+    /// visibility gate. The receiver additionally rejects the entire pair
+    /// while advanced combat logging is enabled because this represented
+    /// packet shape contains only the basic combat-log tail.
+    SendBasicCreatureSpellCastIfVisibleLikeCpp(SendBasicCreatureSpellCastIfVisibleLikeCppCommand),
     /// Same visibility/phase/range gate as `SendIfVisibleLikeCpp`, but route
     /// the accepted packet through the receiver's realm connection.
     SendRealmIfVisibleLikeCpp(SendIfVisibleLikeCppCommand),
@@ -321,6 +326,17 @@ impl DurableCreatureRuntimeCommandsLikeCpp {
         self.publish_like_cpp(SessionCommand::SendIfVisibleLikeCpp(command))
     }
 
+    /// Publish START+GO as one queue element so capacity checks and session
+    /// drains cannot observe only one half of a committed basic spell cast.
+    pub fn publish_basic_creature_spell_cast_if_visible_like_cpp(
+        &mut self,
+        command: SendBasicCreatureSpellCastIfVisibleLikeCppCommand,
+    ) -> bool {
+        self.publish_like_cpp(SessionCommand::SendBasicCreatureSpellCastIfVisibleLikeCpp(
+            command,
+        ))
+    }
+
     pub fn drain_like_cpp(&mut self) -> Vec<SessionCommand> {
         self.commands.drain(..).collect()
     }
@@ -353,6 +369,24 @@ pub struct SendIfVisibleLikeCppCommand {
     pub instance_id: u32,
     /// Already-serialised wire payload ready to write to the socket.
     pub packet_bytes: Vec<u8>,
+}
+
+/// Atomic session handoff for one represented basic creature spell cast.
+///
+/// The two serialized frames remain separate so the socket writer sees the
+/// normal START then GO packet boundary. They share one addressing envelope,
+/// one durable queue slot, and one session visibility/advanced-logging gate.
+/// This atomicity ends at the session handoff: the current socket channel is
+/// frame-oriented, so two later `send` calls are not a transactional batch
+/// against cloned producers or a receiver that closes between frames.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SendBasicCreatureSpellCastIfVisibleLikeCppCommand {
+    pub queued_at: Instant,
+    pub source_guid: ObjectGuid,
+    pub map_id: u16,
+    pub instance_id: u32,
+    pub start_packet_bytes: Vec<u8>,
+    pub go_packet_bytes: Vec<u8>,
 }
 
 /// Carries C++ `WorldSession::DoLootRelease`'s forced creature DynamicFlags
@@ -1284,6 +1318,43 @@ mod tests {
         };
         assert_eq!(cmd.map_id, 532);
         assert_eq!(cmd.instance_id, 99);
+    }
+
+    #[test]
+    fn basic_creature_spell_start_go_uses_one_durable_queue_element_like_cpp() {
+        let source_guid = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Creature,
+            0,
+            1,
+            571,
+            0,
+            123,
+            458,
+        );
+        let command = SendBasicCreatureSpellCastIfVisibleLikeCppCommand {
+            queued_at: Instant::now(),
+            source_guid,
+            map_id: 571,
+            instance_id: 4,
+            start_packet_bytes: vec![0x37, 0x2C, 0xAA],
+            go_packet_bytes: vec![0x36, 0x2C, 0xBB],
+        };
+        let mut durable = DurableCreatureRuntimeCommandsLikeCpp::default();
+
+        assert!(durable.publish_basic_creature_spell_cast_if_visible_like_cpp(command.clone()));
+        let drained = durable.drain_like_cpp();
+
+        assert_eq!(
+            drained.len(),
+            1,
+            "a drain cannot split START from GO because the pair occupies one FIFO element"
+        );
+        let [SessionCommand::SendBasicCreatureSpellCastIfVisibleLikeCpp(drained_command)] =
+            drained.as_slice()
+        else {
+            panic!("expected one atomic basic spell cast command: {drained:?}");
+        };
+        assert_eq!(drained_command, &command);
     }
 
     /// Verify that creature visibility refresh commands are scoped by both map

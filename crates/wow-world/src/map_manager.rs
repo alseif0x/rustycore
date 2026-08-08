@@ -1342,6 +1342,17 @@ pub struct WorldCreature {
     assistance_called_like_cpp: bool,
     /// Active `SPELL_AURA_MOD_TAUNT`s in application order: caster and expiry.
     active_taunts_like_cpp: Vec<ActiveTauntLikeCpp>,
+    /// C++ `CombatAI::_events` due times for the eight template spell slots.
+    /// `None` means that slot is not scheduled for the current engagement.
+    creature_spell_due_at_ms_like_cpp: [Option<u64>; wow_entities::MAX_CREATURE_SPELLS],
+    /// C++ initializes and resets `CombatAI::_events` once per AI lifecycle.
+    /// The legacy map owner keeps that lifecycle bit beside the due times so
+    /// multiple player sessions cannot independently schedule the same cast.
+    creature_spell_schedule_initialized_like_cpp: bool,
+    /// Monotonic engagement token carried by deferred session commands. It
+    /// invalidates a queued cast after evade/death/reset even when the same
+    /// creature later attacks the same player again.
+    creature_spell_engagement_epoch_like_cpp: u64,
     /// Set by reached-home finalization until the global movement owner
     /// publishes the restored health values update.
     home_health_restored_pending_like_cpp: bool,
@@ -1370,6 +1381,10 @@ impl Clone for WorldCreature {
             pending_assistance_like_cpp: self.pending_assistance_like_cpp.clone(),
             assistance_called_like_cpp: self.assistance_called_like_cpp,
             active_taunts_like_cpp: self.active_taunts_like_cpp.clone(),
+            creature_spell_due_at_ms_like_cpp: self.creature_spell_due_at_ms_like_cpp,
+            creature_spell_schedule_initialized_like_cpp: self
+                .creature_spell_schedule_initialized_like_cpp,
+            creature_spell_engagement_epoch_like_cpp: self.creature_spell_engagement_epoch_like_cpp,
             home_health_restored_pending_like_cpp: self.home_health_restored_pending_like_cpp,
             runtime_motion_master_ticks: self.runtime_motion_master_ticks,
             creature,
@@ -1554,6 +1569,9 @@ impl WorldCreature {
             pending_assistance_like_cpp: Vec::new(),
             assistance_called_like_cpp: false,
             active_taunts_like_cpp: Vec::new(),
+            creature_spell_due_at_ms_like_cpp: [None; wow_entities::MAX_CREATURE_SPELLS],
+            creature_spell_schedule_initialized_like_cpp: false,
+            creature_spell_engagement_epoch_like_cpp: 0,
             home_health_restored_pending_like_cpp: false,
             runtime_motion_master_ticks: 0,
             runtime_rng_like_cpp: StdRng::from_entropy(),
@@ -1939,6 +1957,12 @@ impl WorldCreature {
     }
 
     pub fn enter_combat(&mut self, attacker: ObjectGuid) {
+        // `enter_combat` is also used when threat selection changes the current
+        // victim. C++ only resets/schedules `CombatAI::_events` for a new
+        // engagement, not every victim switch.
+        if self.creature.ai_state() != CreatureAiState::InCombat {
+            self.reset_creature_spell_schedule_like_cpp();
+        }
         self.creature.enter_ai_combat(attacker);
         self.sync_runtime_motion_master_like_cpp();
         debug!(
@@ -2118,6 +2142,7 @@ impl WorldCreature {
         // `CanAssistTo` when the delay expires. A real `Unit::AttackStop`
         // resets `m_AlreadyCallAssistance` for the next engagement.
         self.assistance_called_like_cpp = false;
+        self.reset_creature_spell_schedule_like_cpp();
         self.creature.reset_ai_combat(self.now_ms());
         self.sync_runtime_motion_master_like_cpp();
         active_taunts
@@ -4459,6 +4484,71 @@ impl WorldCreature {
         ai.swing_timer_ms = 100;
     }
 
+    pub(crate) fn creature_spell_schedule_initialized_like_cpp(&self) -> bool {
+        self.creature_spell_schedule_initialized_like_cpp
+    }
+
+    pub(crate) fn mark_creature_spell_schedule_initialized_like_cpp(&mut self) {
+        self.creature_spell_schedule_initialized_like_cpp = true;
+    }
+
+    pub(crate) fn reset_creature_spell_schedule_like_cpp(&mut self) {
+        self.creature_spell_due_at_ms_like_cpp = [None; wow_entities::MAX_CREATURE_SPELLS];
+        self.creature_spell_schedule_initialized_like_cpp = false;
+        self.creature_spell_engagement_epoch_like_cpp = self
+            .creature_spell_engagement_epoch_like_cpp
+            .wrapping_add(1);
+    }
+
+    pub(crate) fn creature_spell_engagement_epoch_like_cpp(&self) -> u64 {
+        self.creature_spell_engagement_epoch_like_cpp
+    }
+
+    pub(crate) fn schedule_creature_spell_slot_after_like_cpp(
+        &mut self,
+        slot: usize,
+        delay_ms: u64,
+    ) {
+        let due_at_ms = self.now_ms().saturating_add(delay_ms);
+        if let Some(due_at) = self.creature_spell_due_at_ms_like_cpp.get_mut(slot) {
+            *due_at = Some(due_at_ms);
+        }
+    }
+
+    pub(crate) fn first_due_creature_spell_slot_like_cpp(&self) -> Option<usize> {
+        let now_ms = self.now_ms();
+        self.creature_spell_due_at_ms_like_cpp
+            .iter()
+            .enumerate()
+            .filter_map(|(slot, due_at)| due_at.map(|due_at| (slot, due_at)))
+            .filter(|(_, due_at)| now_ms >= *due_at)
+            // C++ `CombatAI::UpdateAI` invokes `EventMap::ExecuteEvent` once
+            // per update, so simultaneous events are consumed one at a time.
+            .min_by_key(|(slot, due_at)| (*due_at, *slot))
+            .map(|(slot, _)| slot)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn creature_spell_due_in_ms_for_test(&self, slot: usize) -> Option<u64> {
+        self.creature_spell_due_at_ms_like_cpp
+            .get(slot)
+            .copied()
+            .flatten()
+            .map(|due_at| due_at.saturating_sub(self.now_ms()))
+    }
+
+    pub(crate) fn random_creature_spell_delay_like_cpp(
+        &mut self,
+        minimum_ms: u64,
+        maximum_ms: u64,
+    ) -> u64 {
+        if minimum_ms >= maximum_ms {
+            minimum_ms
+        } else {
+            self.runtime_rng_like_cpp.gen_range(minimum_ms..=maximum_ms)
+        }
+    }
+
     pub fn roll_damage(&mut self) -> u32 {
         let min_dmg = self.min_dmg();
         let max_dmg = self.max_dmg();
@@ -5081,6 +5171,23 @@ pub enum RecipientRule {
         source_position: Position,
         range: f32,
         required_3d: bool,
+    },
+    /// One basic creature spell cast whose START and GO frames must be
+    /// published and consumed as a single durable unit per observer.
+    ///
+    /// `RuntimeEvent::packet_bytes` carries START and `go_packet_bytes`
+    /// carries GO. Routing and the companion payload are deliberately coupled
+    /// here until `RuntimeEvent` grows a first-class packet-batch payload; a
+    /// generic pair of independent events would allow a session drain between
+    /// the two committed frames.
+    NearbyVisibleDurableBasicSpellCast {
+        source_guid: ObjectGuid,
+        map_id: u16,
+        instance_id: u32,
+        source_position: Position,
+        range: f32,
+        required_3d: bool,
+        go_packet_bytes: Vec<u8>,
     },
     /// Broadcast to every session on the map regardless of distance.
     /// Mirrors C++ map-wide broadcast.

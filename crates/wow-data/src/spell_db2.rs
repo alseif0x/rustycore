@@ -1715,19 +1715,23 @@ impl SpellVisualMissileStore {
 impl SpellXSpellVisualStore {
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SpellXSpellVisual.db2", |id, idx, r| {
+            // Unlike the other relationship-backed Spell* tables loaded here,
+            // SpellXSpellVisual keeps its record ID as physical field 0.  The
+            // C++ DB2 metadata declares ID at logical column 0 and SpellID as
+            // the relationship column, so payload fields begin at field 1.
             SpellXSpellVisualEntry {
                 id,
-                difficulty_id: r.get_field_u8(idx, 0),
-                spell_visual_id: r.get_field_u32(idx, 1),
-                probability: f32_field(r, idx, 2),
-                flags: r.get_field_u8(idx, 3),
-                priority: r.get_field_i32(idx, 4),
-                spell_icon_file_id: r.get_field_i32(idx, 5),
-                active_icon_file_id: r.get_field_i32(idx, 6),
-                viewer_unit_condition_id: r.get_field_u16(idx, 7),
-                viewer_player_condition_id: r.get_field_u32(idx, 8),
-                caster_unit_condition_id: r.get_field_u16(idx, 9),
-                caster_player_condition_id: r.get_field_u32(idx, 10),
+                difficulty_id: r.get_field_u8(idx, 1),
+                spell_visual_id: r.get_field_u32(idx, 2),
+                probability: f32_field(r, idx, 3),
+                flags: r.get_field_u8(idx, 4),
+                priority: r.get_field_i32(idx, 5),
+                spell_icon_file_id: r.get_field_i32(idx, 6),
+                active_icon_file_id: r.get_field_i32(idx, 7),
+                viewer_unit_condition_id: r.get_field_u16(idx, 8),
+                viewer_player_condition_id: r.get_field_u32(idx, 9),
+                caster_unit_condition_id: r.get_field_u16(idx, 10),
+                caster_player_condition_id: r.get_field_u32(idx, 11),
                 spell_id: r.get_relationship_id(idx).unwrap_or(0),
             }
         })
@@ -2210,6 +2214,43 @@ mod tests {
         assert_eq!(row.mana_cost, 0);
         assert_eq!(row.power_cost_pct, 18.0);
         assert_eq!(row.power_cost_max_pct, 0.0);
+    }
+
+    #[test]
+    fn spell_x_spell_visual_fixture_skips_inline_record_id_like_cpp() {
+        let data_dir = "/home/server/woltk-server-core/Data";
+        let locale = "enUS";
+        let path = Path::new(data_dir)
+            .join("dbc")
+            .join(locale)
+            .join("SpellXSpellVisual.db2");
+        if !path.exists() {
+            eprintln!(
+                "Skipping test: SpellXSpellVisual fixture not found at {}",
+                path.display()
+            );
+            return;
+        }
+
+        let store =
+            SpellXSpellVisualStore::load(data_dir, locale).expect("load SpellXSpellVisual.db2");
+        let row = store
+            .get(345_432)
+            .expect("3.4.3 Scarlet Ballista visual row");
+
+        assert_eq!(row.id, 345_432);
+        assert_eq!(row.difficulty_id, 0);
+        assert_eq!(row.spell_visual_id, 11_704);
+        assert_eq!(row.probability, 1.0);
+        assert_eq!(row.flags, 0);
+        assert_eq!(row.priority, 1);
+        assert_eq!(row.spell_icon_file_id, 0);
+        assert_eq!(row.active_icon_file_id, 0);
+        assert_eq!(row.viewer_unit_condition_id, 0);
+        assert_eq!(row.viewer_player_condition_id, 0);
+        assert_eq!(row.caster_unit_condition_id, 0);
+        assert_eq!(row.caster_player_condition_id, 0);
+        assert_eq!(row.spell_id, 53_117);
     }
 
     #[test]

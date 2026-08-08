@@ -692,6 +692,7 @@ impl WorldSession {
                     spell_visual_id: req.visual.spell_visual_id,
                     script_visual_id: 0,
                 },
+                cast_flags: 0x0000_0002,
                 cast_flags_ex: 0,
                 target: spell_target.clone(),
                 cast_time_ms: spell_info.cast_time_ms,

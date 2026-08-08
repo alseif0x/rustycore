@@ -1640,11 +1640,35 @@ const MAP_BATTLEGROUND_LIKE_CPP: i8 = 3;
 const MAP_ARENA_LIKE_CPP: i8 = 4;
 const GROUP_XP_DISTANCE_LIKE_CPP: f32 = 74.0;
 const BATTLEGROUND_WS_LIKE_CPP: u32 = 2;
-const SPELL_CAST_SOURCE_NORMAL_LIKE_CPP: u8 = 0;
+// C++ `SpellCastSource::Normal` is encoded in the six-bit Cast GUID subtype.
+// The capture contract validates this field rather than treating it as a
+// runtime counter, so keep the canonical numeric value here.
+const SPELL_CAST_SOURCE_NORMAL_LIKE_CPP: u8 = 3;
 pub(crate) const CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP: u32 = 0x08000;
 static NEXT_REPRESENTED_SPELL_CAST_COUNTER_LIKE_CPP: AtomicI64 = AtomicI64::new(1);
 static NEXT_REPRESENTED_BATTLE_PET_COUNTER_LIKE_CPP: AtomicI64 = AtomicI64::new(1);
 const BATTLEGROUND_EY_LIKE_CPP: u32 = 7;
+
+// C++ `ObjectGuid::Create<HighGuid::Cast>` passes realm id 0 to
+// `CreateWorldObject`, then `ObjectGuidFactory.cpp:GetRealmIdForObjectGuid(0)`
+// substitutes `realm.Id.Realm`. Rust passes that already-resolved local realm
+// explicitly; using the caster realm preserves the same visible GUID bits.
+fn next_represented_spell_cast_guid_for_map_like_cpp(
+    realm_id: u16,
+    map_id: u16,
+    spell_id: i32,
+) -> ObjectGuid {
+    let counter = NEXT_REPRESENTED_SPELL_CAST_COUNTER_LIKE_CPP.fetch_add(1, Ordering::Relaxed);
+    ObjectGuid::create_world_object(
+        HighGuid::Cast,
+        SPELL_CAST_SOURCE_NORMAL_LIKE_CPP,
+        realm_id,
+        map_id,
+        0,
+        u32::try_from(spell_id).unwrap_or_default(),
+        counter,
+    )
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MMapRuntimeConfigLikeCpp {
@@ -3858,6 +3882,7 @@ pub struct LegacyCreatureAggroCandidateLikeCpp {
     pub player_guid: ObjectGuid,
     pub map_id: u16,
     pub instance_id: u32,
+    pub map_difficulty_id: u8,
     pub position: Position,
     pub player_visibility_represented: bool,
     pub player_phase_shift: PhaseShift,
@@ -3919,6 +3944,12 @@ pub struct LegacyCreatureAggroConfigLikeCpp {
     pub map_store: Option<Arc<MapStore>>,
     pub spell_misc_store: Option<Arc<SpellMiscStore>>,
     pub spell_range_store: Option<Arc<SpellRangeStore>>,
+    pub spell_duration_store: Option<Arc<SpellDurationStore>>,
+    pub spell_cooldowns_store: Option<Arc<wow_data::SpellCooldownsStore>>,
+    pub spell_x_spell_visual_store: Option<Arc<wow_data::SpellXSpellVisualStore>>,
+    pub spell_store: Option<Arc<SpellStore>>,
+    pub spell_custom_attribute_store: Option<Arc<SpellCustomAttributeStoreLikeCpp>>,
+    pub difficulty_store: Option<Arc<DifficultyStore>>,
     pub visibility_distance_continents: f32,
     pub visibility_distance_instances: f32,
     pub visibility_distance_battlegrounds: f32,
@@ -3939,6 +3970,12 @@ impl Default for LegacyCreatureAggroConfigLikeCpp {
             map_store: None,
             spell_misc_store: None,
             spell_range_store: None,
+            spell_duration_store: None,
+            spell_cooldowns_store: None,
+            spell_x_spell_visual_store: None,
+            spell_store: None,
+            spell_custom_attribute_store: None,
+            difficulty_store: None,
             visibility_distance_continents: wow_entities::DEFAULT_VISIBILITY_DISTANCE,
             visibility_distance_instances: wow_entities::DEFAULT_VISIBILITY_INSTANCE,
             visibility_distance_battlegrounds: DEFAULT_VISIBILITY_BGARENAS_LIKE_CPP,
@@ -4334,6 +4371,27 @@ pub struct LegacyCreatureMeleeTickOutcomeLikeCpp {
     pub canonical_creature_hits: usize,
     pub legacy_creature_victim_syncs: usize,
     pub commands: Vec<wow_network::player_registry::ApplyCreatureMeleeDamageLikeCppCommand>,
+    pub plan: RuntimePlan,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct LegacyCreatureSpellTickOutcomeLikeCpp {
+    pub skipped_owner_not_global: bool,
+    pub maps_seen: usize,
+    pub creatures_seen: usize,
+    pub ai_selection_unrepresented: usize,
+    pub missing_spell_metadata: usize,
+    pub schedules_initialized: usize,
+    pub casts_ready: usize,
+    pub noninstant_casts_unrepresented: usize,
+    pub spell_effects_unrepresented: usize,
+    pub spell_projectiles_unrepresented: usize,
+    pub spell_visuals_unrepresented: usize,
+    pub unit_state_casting_skips: usize,
+    pub spell_range_rejections: usize,
+    pub spell_los_rejections: usize,
+    pub canonical_cast_preconditions_passed: usize,
+    pub canonical_cast_missing_target: usize,
     pub plan: RuntimePlan,
 }
 
@@ -35100,23 +35158,29 @@ impl WorldSession {
             .lock()
             .map(|mut pending| pending.drain_like_cpp())
             .unwrap_or_default();
-        // Visibility-gated packets must not overtake an older refresh queued
-        // on the bounded general rail. Keep authoritative combat mutations in
-        // durable FIFO order, but defer only their presentation packet until
-        // after the refresh backlog has been consumed.
-        let (mut commands, deferred_visible): (Vec<_>, Vec<_>) =
-            durable_commands.into_iter().partition(|command| {
-                !matches!(
+        // Drain the bounded general rail before the first durable presentation
+        // packet so a pending visibility refresh can run first. The rails do
+        // not yet share an enqueue ordinal, so this is not a global cross-rail
+        // ordering guarantee. The spell pair itself still occupies one durable
+        // command and therefore cannot be split by this merge.
+        let first_visible = durable_commands
+            .iter()
+            .position(|command| {
+                matches!(
                     command,
                     SessionCommand::SendIfVisibleLikeCpp(_)
+                        | SessionCommand::SendBasicCreatureSpellCastIfVisibleLikeCpp(_)
                         | SessionCommand::SendRealmIfVisibleLikeCpp(_)
                         | SessionCommand::SendRealmIfVisibleFromLegacySourceLikeCpp(_)
                 )
-            });
+            })
+            .unwrap_or(durable_commands.len());
+        let mut commands = durable_commands;
+        let deferred_durable_suffix = commands.split_off(first_visible);
         while let Ok(command) = self.session_command_rx.try_recv() {
             commands.push(command);
         }
-        commands.extend(deferred_visible);
+        commands.extend(deferred_durable_suffix);
         commands
     }
 
@@ -59526,17 +59590,28 @@ fn legacy_creature_ai_can_attack_decision_like_cpp(
         let Some(range_store) = config.spell_range_store.as_ref() else {
             return LegacyCreatureAiCanAttackDecisionLikeCpp::Unrepresented;
         };
-        let Some(misc) = misc_store.get_by_spell_id(first_spell_id) else {
+        // `TurretAI` caches GetMin/MaxRange from the active map difficulty in
+        // its constructor (CombatAI.cpp:196-199).
+        let Some(misc) = misc_store.entry_for_spell_difficulty_with_fallback_like_cpp(
+            first_spell_id,
+            candidate.map_difficulty_id,
+            config.difficulty_store.as_deref(),
+        ) else {
             return LegacyCreatureAiCanAttackDecisionLikeCpp::Unrepresented;
         };
         let Some(range) = range_store.get(u32::from(misc.range_index)) else {
             return LegacyCreatureAiCanAttackDecisionLikeCpp::Unrepresented;
         };
-        let distance = creature.position().distance(&candidate.position).max(0.0);
-        let combat_distance = range.range_max[0].max(0.0);
-        let minimum_range = range.range_min[0].max(0.0);
-        input.target_within_turret_combat_range = distance <= combat_distance;
-        input.target_within_turret_min_range = minimum_range > 0.0 && distance <= minimum_range;
+        // `Unit::IsWithinCombatRange` compares squared center distance with
+        // `(requested range + both combat reaches)^2` using strict `<`.
+        let distance_sq = creature.position().distance_sq(&candidate.position);
+        let reach_sum = creature.creature.unit().world().combat_reach()
+            + candidate.player_combat_reach.max(0.0);
+        let combat_distance = range.range_max[0] + reach_sum;
+        let minimum_range = range.range_min[0];
+        input.target_within_turret_combat_range = distance_sq < combat_distance * combat_distance;
+        input.target_within_turret_min_range = minimum_range != 0.0
+            && distance_sq < (minimum_range + reach_sum) * (minimum_range + reach_sum);
     }
 
     if creature_ai_can_attack_like_cpp(ai_kind, &input) {
@@ -60512,6 +60587,1223 @@ enum CreatureMeleeApplyResultLikeCpp {
     MissingVictim,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum CreatureAiSpellTargetLikeCpp {
+    SelfTarget,
+    Victim,
+    Enemy,
+    Buff,
+    Debuff,
+}
+
+impl CreatureAiSpellTargetLikeCpp {
+    fn resolve_for_single_player_threat_list_like_cpp(
+        self,
+        caster_guid: ObjectGuid,
+        victim_guid: ObjectGuid,
+    ) -> ObjectGuid {
+        match self {
+            Self::SelfTarget | Self::Buff => caster_guid,
+            Self::Victim | Self::Enemy | Self::Debuff => victim_guid,
+        }
+    }
+}
+
+fn creature_ai_spell_target_like_cpp(
+    spell_id: u32,
+    spell: &wow_data::SpellInfo,
+    difficulty_id: u8,
+    config: &LegacyCreatureAggroConfigLikeCpp,
+) -> CreatureAiSpellTargetLikeCpp {
+    const TARGET_UNIT_TARGET_ENEMY_LIKE_CPP: u32 = 6;
+    const TARGET_UNIT_DEST_AREA_ENEMY_LIKE_CPP: u32 = 16;
+    const TARGET_DEST_TARGET_ENEMY_LIKE_CPP: u32 = 53;
+
+    // C++ does not inspect implicit targets when hostile max range is zero.
+    let has_max_range = config
+        .spell_misc_store
+        .as_ref()
+        .and_then(|store| {
+            store.entry_for_spell_difficulty_with_fallback_like_cpp(
+                spell_id,
+                difficulty_id,
+                config.difficulty_store.as_deref(),
+            )
+        })
+        .and_then(|misc| {
+            config
+                .spell_range_store
+                .as_ref()
+                .and_then(|store| store.get(u32::from(misc.range_index)))
+        })
+        .is_some_and(|range| range.range_max[0] != 0.0);
+    if !has_max_range {
+        return CreatureAiSpellTargetLikeCpp::SelfTarget;
+    }
+
+    let positive = WorldSession::represented_spell_is_positive_like_cpp(spell);
+    spell.effects().iter().fold(
+        CreatureAiSpellTargetLikeCpp::SelfTarget,
+        |selected, effect| {
+            // C++ `FillAISpellInfo` intentionally considers TargetA only.
+            let target_a = effect.implicit_target_1;
+            let mut candidate = match target_a {
+                TARGET_UNIT_TARGET_ENEMY_LIKE_CPP | TARGET_DEST_TARGET_ENEMY_LIKE_CPP => {
+                    CreatureAiSpellTargetLikeCpp::Victim
+                }
+                TARGET_UNIT_DEST_AREA_ENEMY_LIKE_CPP => CreatureAiSpellTargetLikeCpp::Enemy,
+                _ => CreatureAiSpellTargetLikeCpp::SelfTarget,
+            };
+            if effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA {
+                if target_a == TARGET_UNIT_TARGET_ENEMY_LIKE_CPP {
+                    candidate = CreatureAiSpellTargetLikeCpp::Debuff;
+                } else if positive {
+                    candidate = CreatureAiSpellTargetLikeCpp::Buff;
+                }
+            }
+            selected.max(candidate)
+        },
+    )
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CreatureAiSpellConditionLikeCpp {
+    Aggro,
+    Combat,
+    Die,
+}
+
+fn creature_ai_spell_condition_like_cpp(
+    spell_id: u32,
+    difficulty_id: u8,
+    config: &LegacyCreatureAggroConfigLikeCpp,
+) -> CreatureAiSpellConditionLikeCpp {
+    const SPELL_ATTR0_ALLOW_CAST_WHILE_DEAD_LIKE_CPP: u32 = 0x0080_0000;
+    if i32::try_from(spell_id).ok().is_some_and(|spell_id| {
+        config.spell_store.as_ref().is_some_and(|store| {
+            store.has_attribute_for_difficulty_like_cpp(
+                spell_id,
+                difficulty_id,
+                config.difficulty_store.as_deref(),
+                0,
+                SPELL_ATTR0_ALLOW_CAST_WHILE_DEAD_LIKE_CPP,
+            )
+        })
+    }) {
+        return CreatureAiSpellConditionLikeCpp::Die;
+    }
+    let Some(misc) = config.spell_misc_store.as_ref().and_then(|store| {
+        store.entry_for_spell_difficulty_with_fallback_like_cpp(
+            spell_id,
+            difficulty_id,
+            config.difficulty_store.as_deref(),
+        )
+    }) else {
+        return CreatureAiSpellConditionLikeCpp::Combat;
+    };
+    if misc.is_passive_like_cpp()
+        || spell_duration_ms_like_cpp(
+            u32::from(misc.duration_index),
+            config.spell_duration_store.as_deref(),
+        ) == -1
+    {
+        CreatureAiSpellConditionLikeCpp::Aggro
+    } else {
+        CreatureAiSpellConditionLikeCpp::Combat
+    }
+}
+
+fn creature_ai_spell_difficulty_chain_like_cpp(
+    difficulty_id: u8,
+    config: &LegacyCreatureAggroConfigLikeCpp,
+) -> Vec<u8> {
+    let mut chain = Vec::new();
+    let mut visited = [false; 256];
+    let mut current = difficulty_id;
+    loop {
+        if visited[usize::from(current)] {
+            break;
+        }
+        visited[usize::from(current)] = true;
+        chain.push(current);
+        if current == 0 {
+            break;
+        }
+        current = config
+            .difficulty_store
+            .as_ref()
+            .and_then(|store| store.get(u32::from(current)))
+            .map_or(0, |difficulty| difficulty.fallback_difficulty_id);
+    }
+    chain
+}
+
+fn creature_ai_spell_cooldowns_entry_like_cpp(
+    spell_id: u32,
+    difficulty_id: u8,
+    config: &LegacyCreatureAggroConfigLikeCpp,
+) -> Option<&wow_data::SpellCooldownsEntry> {
+    let store = config.spell_cooldowns_store.as_ref()?;
+    creature_ai_spell_difficulty_chain_like_cpp(difficulty_id, config)
+        .into_iter()
+        .find_map(|difficulty_id| {
+            store
+                .entries_like_cpp()
+                .filter(|entry| entry.spell_id == spell_id && entry.difficulty_id == difficulty_id)
+                .max_by_key(|entry| entry.id)
+        })
+}
+
+fn creature_ai_effective_spell_info_like_cpp(
+    spell: &wow_data::SpellInfo,
+    difficulty_id: u8,
+    config: &LegacyCreatureAggroConfigLikeCpp,
+) -> wow_data::SpellInfo {
+    let mut effective = spell.clone();
+    if let Some(effects) = config.spell_store.as_ref().and_then(|store| {
+        store.effects_for_difficulty_like_cpp(
+            spell.spell_id,
+            difficulty_id,
+            config.difficulty_store.as_deref(),
+        )
+    }) {
+        effective.effects = effects.to_vec();
+    }
+    effective
+}
+
+fn creature_ai_has_temporally_unrepresented_noninstant_spell_like_cpp(
+    spells: &[u32],
+    difficulty_id: u8,
+    config: &LegacyCreatureAggroConfigLikeCpp,
+) -> bool {
+    // M2.6 has no cast-completion/cancellation state. If one template slot
+    // could start a non-instant Aggro/Combat cast, merely dropping that slot
+    // would leave Rust free to emit another slot while C++ still owns
+    // UNIT_STATE_CASTING. Suppress this creature's whole spell surface until
+    // M3.1 can represent that temporal state.
+    spells
+        .iter()
+        .copied()
+        .filter(|spell_id| *spell_id != 0)
+        .any(|spell_id| {
+            let Some(spell_store) = config.spell_store.as_ref() else {
+                return false;
+            };
+            let Ok(spell_id_i32) = i32::try_from(spell_id) else {
+                return false;
+            };
+            let Some(spell) = spell_store.get(spell_id_i32) else {
+                return false;
+            };
+            let spell = creature_ai_effective_spell_info_like_cpp(spell, difficulty_id, config);
+            spell.cast_time_ms != 0
+                && matches!(
+                    creature_ai_spell_condition_like_cpp(spell_id, difficulty_id, config),
+                    CreatureAiSpellConditionLikeCpp::Aggro
+                        | CreatureAiSpellConditionLikeCpp::Combat
+                )
+        })
+}
+
+fn creature_ai_spell_initial_cooldown_like_cpp(
+    spell_id: u32,
+    _spell: &wow_data::SpellInfo,
+    difficulty_id: u8,
+    config: &LegacyCreatureAggroConfigLikeCpp,
+) -> u64 {
+    // C++ `AISpellInfoType` starts at AI_DEFAULT_COOLDOWN=5000 and
+    // `FillAISpellInfo` raises it with raw `RecoveryTime`, deliberately not
+    // `GetRecoveryTime()`/CategoryRecoveryTime.
+    let recovery_time_ms =
+        creature_ai_spell_cooldowns_entry_like_cpp(spell_id, difficulty_id, config)
+            .and_then(|entry| u64::try_from(entry.recovery_time).ok())
+            .unwrap_or(0);
+    recovery_time_ms.max(5_000)
+}
+
+fn creature_ai_spell_repeat_cooldown_like_cpp(
+    spell_id: u32,
+    spell: &wow_data::SpellInfo,
+    difficulty_id: u8,
+    config: &LegacyCreatureAggroConfigLikeCpp,
+) -> u64 {
+    // C++ `CombatAI::UpdateAI` re-schedules in [cooldown, cooldown*2].
+    creature_ai_spell_initial_cooldown_like_cpp(spell_id, spell, difficulty_id, config)
+}
+
+fn creature_ai_spell_x_spell_visual_id_like_cpp(
+    spell_id: u32,
+    difficulty_id: u8,
+    config: &LegacyCreatureAggroConfigLikeCpp,
+) -> Result<u32, ()> {
+    // C++ falls back only when the current difficulty has no visual rows at
+    // all. It then orders the selected vector by caster-player condition and
+    // evaluates both caster conditions. This slice can prove only a single
+    // unconditional row; a conditional or ambiguous selected vector must not
+    // silently fall through to another difficulty or pick a HashMap order.
+    let Some(store) = config.spell_x_spell_visual_store.as_ref() else {
+        return Err(());
+    };
+    for difficulty_id in creature_ai_spell_difficulty_chain_like_cpp(difficulty_id, config) {
+        let rows = store
+            .entries_like_cpp()
+            .filter(|entry| entry.spell_id == spell_id && entry.difficulty_id == difficulty_id)
+            .collect::<Vec<_>>();
+        if rows.is_empty() {
+            continue;
+        }
+        if rows.len() != 1
+            || rows[0].caster_player_condition_id != 0
+            || rows[0].caster_unit_condition_id != 0
+        {
+            return Err(());
+        }
+        return Ok(rows[0].id);
+    }
+    Ok(0)
+}
+
+fn creature_ai_spell_go_cast_flags_like_cpp(
+    spell_id: u32,
+    difficulty_id: u8,
+    config: &LegacyCreatureAggroConfigLikeCpp,
+) -> u32 {
+    const CAST_FLAG_UNKNOWN_9_LIKE_CPP: u32 = 0x0000_0100;
+    const CAST_FLAG_NO_GCD_LIKE_CPP: u32 = 0x0004_0000;
+    let start_recovery_time =
+        creature_ai_spell_cooldowns_entry_like_cpp(spell_id, difficulty_id, config)
+            .map_or(0, |entry| entry.start_recovery_time);
+    CAST_FLAG_UNKNOWN_9_LIKE_CPP
+        | (start_recovery_time == 0)
+            .then_some(CAST_FLAG_NO_GCD_LIKE_CPP)
+            .unwrap_or(0)
+}
+
+#[derive(Debug, Clone)]
+struct CreatureSpellCastPlanLikeCpp {
+    caster_guid: ObjectGuid,
+    target_guid: ObjectGuid,
+    map_id: u16,
+    instance_id: u32,
+    spell_id: i32,
+    spell_x_spell_visual_id: u32,
+    cast_time_ms: u32,
+    spell_go_cast_flags: u32,
+    engagement_epoch: u64,
+}
+
+fn creature_ai_successful_untriggered_spell_resets_combat_timers_like_cpp(
+    command: &CreatureSpellCastPlanLikeCpp,
+    difficulty_id: u8,
+    config: &LegacyCreatureAggroConfigLikeCpp,
+) -> bool {
+    // C++ `Spell::IsAutoActionResetSpell` rejects triggered casts and these
+    // two attribute cases. CreatureAI `DoCast`/`CastSpell` is untriggered in
+    // this slice, so a successful represented cast resets the base swing when
+    // neither applicable opt-out is present (Spell.cpp:3839-3840, 8056-8064).
+    const SPELL_ATTR2_DO_NOT_RESET_COMBAT_TIMERS_LIKE_CPP: u32 = 0x0002_0000;
+    const SPELL_ATTR6_DOESNT_RESET_SWING_TIMER_IF_INSTANT_LIKE_CPP: u32 = 0x0200_0000;
+
+    let has_attribute = |word, attribute| {
+        config.spell_store.as_ref().is_some_and(|store| {
+            store.has_attribute_for_difficulty_like_cpp(
+                command.spell_id,
+                difficulty_id,
+                config.difficulty_store.as_deref(),
+                word,
+                attribute,
+            )
+        })
+    };
+    !has_attribute(2, SPELL_ATTR2_DO_NOT_RESET_COMBAT_TIMERS_LIKE_CPP)
+        && (command.cast_time_ms != 0
+            || !has_attribute(6, SPELL_ATTR6_DOESNT_RESET_SWING_TIMER_IF_INSTANT_LIKE_CPP))
+}
+
+fn creature_ai_spell_plan_like_cpp(
+    creature: &crate::map_manager::WorldCreature,
+    caster_guid: ObjectGuid,
+    target_guid: ObjectGuid,
+    map_id: u16,
+    instance_id: u32,
+    spell_id: u32,
+    spell: &wow_data::SpellInfo,
+    difficulty_id: u8,
+    config: &LegacyCreatureAggroConfigLikeCpp,
+) -> Result<CreatureSpellCastPlanLikeCpp, ()> {
+    Ok(CreatureSpellCastPlanLikeCpp {
+        caster_guid,
+        target_guid,
+        map_id,
+        instance_id,
+        spell_id: spell.spell_id,
+        spell_x_spell_visual_id: creature_ai_spell_x_spell_visual_id_like_cpp(
+            spell_id,
+            difficulty_id,
+            config,
+        )?,
+        cast_time_ms: spell.cast_time_ms,
+        spell_go_cast_flags: creature_ai_spell_go_cast_flags_like_cpp(
+            spell_id,
+            difficulty_id,
+            config,
+        ),
+        engagement_epoch: creature.creature_spell_engagement_epoch_like_cpp(),
+    })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CreatureAiSpellRepresentationRejectionLikeCpp {
+    NonInstant,
+    ProjectileOrAmmo,
+    EffectOrTarget,
+}
+
+fn creature_ai_spell_requires_projectile_payload_like_cpp(
+    spell_id: u32,
+    difficulty_id: u8,
+    config: &LegacyCreatureAggroConfigLikeCpp,
+) -> bool {
+    // C++ `Spell::SendSpellStart` / `SendSpellGo` add
+    // `CAST_FLAG_PROJECTILE` and `SpellCastData::AmmoDisplayID` for any of
+    // these three attributes (Spell.cpp:4678-4679, 4750-4751, 4779-4780).
+    // The represented packet currently serializes neither optional ammo field,
+    // so accepting one of these spells would produce a structurally different
+    // START+GO pair.
+    const SPELL_ATTR0_USES_RANGED_SLOT_LIKE_CPP: u32 = 0x0000_0002;
+    const SPELL_ATTR10_USES_RANGED_SLOT_COSMETIC_ONLY_LIKE_CPP: u32 = 0x0000_0004;
+    const SPELL_ATTR0_CU_NEEDS_AMMO_DATA_LIKE_CPP: u32 = 0x0008_0000;
+
+    let Some(spell_id_i32) = i32::try_from(spell_id).ok() else {
+        return true;
+    };
+    let db2_requires_projectile = config.spell_store.as_ref().is_some_and(|store| {
+        store.has_attribute_for_difficulty_like_cpp(
+            spell_id_i32,
+            difficulty_id,
+            config.difficulty_store.as_deref(),
+            0,
+            SPELL_ATTR0_USES_RANGED_SLOT_LIKE_CPP,
+        ) || store.has_attribute_for_difficulty_like_cpp(
+            spell_id_i32,
+            difficulty_id,
+            config.difficulty_store.as_deref(),
+            10,
+            SPELL_ATTR10_USES_RANGED_SLOT_COSMETIC_ONLY_LIKE_CPP,
+        )
+    });
+    let custom_requires_ammo = config
+        .spell_custom_attribute_store
+        .as_ref()
+        .is_some_and(|store| {
+            creature_ai_spell_difficulty_chain_like_cpp(difficulty_id, config)
+                .into_iter()
+                .any(|difficulty_id| {
+                    store.attributes_for_spell_difficulty_like_cpp(
+                        spell_id,
+                        u32::from(difficulty_id),
+                    ) & SPELL_ATTR0_CU_NEEDS_AMMO_DATA_LIKE_CPP
+                        != 0
+                })
+        });
+    db2_requires_projectile || custom_requires_ammo
+}
+
+fn creature_ai_spell_has_unrepresented_nonzero_power_cost_like_cpp(
+    spell: &wow_data::SpellInfo,
+) -> bool {
+    // `SpellInfo::PowerCosts` retains zero-valued SpellPower rows. Their mere
+    // presence does not make `Spell::m_powerCost` nonzero; in particular live
+    // 15691 has a type-3 row whose flat, percentage, max-percentage and
+    // optional values are all zero. Any nonzero cost input still fails closed
+    // until Creature power calculation/check/deduction is represented.
+    spell.power_costs.iter().any(|cost| {
+        cost.mana_cost != 0
+            || cost.power_cost_pct != 0.0
+            || cost.power_cost_max_pct != 0.0
+            || cost.required_aura_spell_id != 0
+            || cost.optional_cost != 0
+    })
+}
+
+fn creature_ai_zero_power_rows_have_unrepresented_implicit_cost_like_cpp(
+    spell: &wow_data::SpellInfo,
+    difficulty_id: u8,
+    config: &LegacyCreatureAggroConfigLikeCpp,
+    creature: &crate::map_manager::WorldCreature,
+) -> bool {
+    const SPELL_ATTR1_USE_ALL_MANA_LIKE_CPP: u32 = 0x0000_0002;
+    const SPELL_ATTR4_WEAPON_SPEED_COST_SCALING_LIKE_CPP: u32 = 0x0000_0400;
+    const SPELL_AURA_MOD_ADDITIONAL_POWER_COST_LIKE_CPP: i32 = 63;
+
+    if spell.power_costs.is_empty()
+        || creature_ai_spell_has_unrepresented_nonzero_power_cost_like_cpp(spell)
+    {
+        return false;
+    }
+    let Some(attributes) = config.spell_store.as_ref().and_then(|store| {
+        store.misc_attributes_for_difficulty_like_cpp(
+            spell.spell_id,
+            difficulty_id,
+            config.difficulty_store.as_deref(),
+        )
+    }) else {
+        // A zero-valued DB2 row is safe only when the attributes that can turn
+        // it into a real cost are themselves represented and absent.
+        return true;
+    };
+    if attributes[1] & SPELL_ATTR1_USE_ALL_MANA_LIKE_CPP != 0
+        || attributes[4] & SPELL_ATTR4_WEAPON_SPEED_COST_SCALING_LIKE_CPP != 0
+    {
+        return true;
+    }
+
+    let auras = &creature.creature.unit().subsystems().auras;
+    auras.has_aura_type_like_cpp(SPELL_AURA_MOD_ADDITIONAL_POWER_COST_LIKE_CPP)
+        || auras
+            .has_aura_type_like_cpp(wow_data::spell::aura_types::SPELL_AURA_MOD_POWER_COST_SCHOOL)
+        || auras.has_aura_type_like_cpp(
+            wow_data::spell::aura_types::SPELL_AURA_MOD_POWER_COST_SCHOOL_PCT,
+        )
+}
+
+fn creature_ai_spell_single_unit_topology_like_cpp(
+    spell: &wow_data::SpellInfo,
+    target_guid: ObjectGuid,
+    recipient_guid: ObjectGuid,
+    requires_projectile_payload: bool,
+) -> Result<(), CreatureAiSpellRepresentationRejectionLikeCpp> {
+    // Cast-time completion belongs to M3.1. M2.6 must fail closed rather than
+    // emitting START and an immediate, premature GO for a non-instant spell.
+    if spell.cast_time_ms != 0 {
+        return Err(CreatureAiSpellRepresentationRejectionLikeCpp::NonInstant);
+    }
+    if requires_projectile_payload {
+        return Err(CreatureAiSpellRepresentationRejectionLikeCpp::ProjectileOrAmmo);
+    }
+    if spell.requires_spell_focus != 0
+        || creature_ai_spell_has_unrepresented_nonzero_power_cost_like_cpp(spell)
+    {
+        // Focus discovery and Creature power-cost calculation/deduction are
+        // not part of M2.6. Emitting GO when C++ CheckCast/CheckPower would
+        // fail would be a false successful cast, so keep this slice closed.
+        return Err(CreatureAiSpellRepresentationRejectionLikeCpp::EffectOrTarget);
+    }
+    if target_guid != recipient_guid {
+        return Err(CreatureAiSpellRepresentationRejectionLikeCpp::EffectOrTarget);
+    }
+
+    // M2.6 owns AI selection, cooldowns and cast wire. Damage calculation is
+    // deliberately left to M3.2: raw EffectBasePoints is not CalcValue and
+    // omits dice, scaling, bonuses, mitigation, hit, absorb and resist. Until
+    // that pipeline exists, only a topology whose START/GO target lists can be
+    // proven from hydrated metadata is emitted, with no fabricated health
+    // mutation. TargetA=6 is C++ TARGET_UNIT_TARGET_ENEMY; TargetB must be
+    // empty, and chained/radius/triggered effects would add unsupported target
+    // or follow-up topology.
+    let mut represented_effects = 0usize;
+    for effect in spell.effects().iter().filter(|effect| effect.effect != 0) {
+        if wow_data::spell::spell_effect_types::is_cpp_null_or_unused_noop(effect.effect) {
+            continue;
+        }
+        if effect.effect != wow_data::spell::spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE
+            || effect.implicit_target_1 != 6
+            || effect.implicit_target_2 != 0
+            || effect.chain_targets != 0
+            || effect.effect_radius_index_1 != 0
+            || effect.effect_trigger_spell != 0
+        {
+            return Err(CreatureAiSpellRepresentationRejectionLikeCpp::EffectOrTarget);
+        }
+        represented_effects += 1;
+    }
+    if represented_effects == 0 {
+        return Err(CreatureAiSpellRepresentationRejectionLikeCpp::EffectOrTarget);
+    }
+    Ok(())
+}
+
+fn append_committed_creature_spell_packets_like_cpp(
+    plan: &mut RuntimePlan,
+    command: &CreatureSpellCastPlanLikeCpp,
+    source_position: Position,
+    visibility_range: f32,
+) {
+    use wow_packet::ServerPacket;
+    use wow_packet::packets::spell::{SpellCastVisual, SpellGoPkt, SpellStartPkt, SpellTargetData};
+
+    let cast_id = next_represented_spell_cast_guid_for_map_like_cpp(
+        command.caster_guid.realm_id(),
+        command.map_id,
+        command.spell_id,
+    );
+    let visual = SpellCastVisual {
+        spell_visual_id: command.spell_x_spell_visual_id,
+        script_visual_id: 0,
+    };
+    let target = SpellTargetData {
+        flags: 0x2,
+        unit: command.target_guid,
+        item: ObjectGuid::EMPTY,
+        ..Default::default()
+    };
+    let start = SpellStartPkt {
+        caster: command.caster_guid,
+        cast_id,
+        original_cast_id: ObjectGuid::EMPTY,
+        spell_id: command.spell_id,
+        visual: visual.clone(),
+        cast_flags: 0x0000_0002,
+        cast_flags_ex: 0,
+        cast_time_ms: command.cast_time_ms,
+        target: target.clone(),
+    };
+    let go = SpellGoPkt {
+        caster: command.caster_guid,
+        cast_id,
+        original_cast_id: ObjectGuid::EMPTY,
+        spell_id: command.spell_id,
+        visual,
+        cast_flags: command.spell_go_cast_flags,
+        cast_flags_ex: 0,
+        cast_time_ms: WorldSession::game_time_ms_like_cpp(),
+        target,
+        hit_targets: vec![command.target_guid],
+    };
+    plan.events.push(RuntimeEvent {
+        source_guid: command.caster_guid,
+        recipients: RecipientRule::NearbyVisibleDurableBasicSpellCast {
+            source_guid: command.caster_guid,
+            map_id: command.map_id,
+            instance_id: command.instance_id,
+            source_position,
+            range: visibility_range,
+            required_3d: false,
+            go_packet_bytes: go.to_bytes(),
+        },
+        packet_bytes: start.to_bytes(),
+    });
+}
+
+/// Runs the C++ stock `CombatAI`/`TurretAI` template-spell decision once.
+///
+/// Selection, cooldown mutation, target preconditions, and START/GO packet
+/// construction stay under the global map-owned runtime. Effect execution is
+/// intentionally not invented here: damage/heal calculation belongs to M3.2,
+/// while this M2.6 slice proves the cast decision and wire topology.
+pub fn run_legacy_creature_spell_tick_once_like_cpp(
+    legacy_map_manager: &crate::map_manager::SharedMapManager,
+    canonical_map_manager: Option<&SharedCanonicalMapManager>,
+    config: &LegacyCreatureAggroConfigLikeCpp,
+) -> LegacyCreatureSpellTickOutcomeLikeCpp {
+    use crate::map_manager::RuntimeTickOwner;
+
+    struct PendingCreatureSpellCastLikeCpp {
+        command: CreatureSpellCastPlanLikeCpp,
+        source_position: Position,
+        visibility_range: f32,
+        difficulty_id: u8,
+        turret_ai: bool,
+    }
+
+    let mut outcome = LegacyCreatureSpellTickOutcomeLikeCpp::default();
+    let Some(spell_store) = config.spell_store.as_ref() else {
+        return outcome;
+    };
+    let mut map_difficulties = HashMap::new();
+    if let Some(canonical_map_manager) = canonical_map_manager
+        && let Ok(manager) = canonical_map_manager.lock()
+    {
+        manager.do_for_all_maps(|managed| {
+            if let Ok(map_id) = u16::try_from(managed.map_id()) {
+                map_difficulties.insert((map_id, managed.instance_id()), managed.difficulty());
+            }
+        });
+    }
+    let mut pending = Vec::new();
+    let mut manager = legacy_map_manager
+        .write()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if manager.tick_owner() != RuntimeTickOwner::GlobalLegacy {
+        outcome.skipped_owner_not_global = true;
+        return outcome;
+    }
+
+    let map_keys = manager.active_map_keys();
+    outcome.maps_seen = map_keys.len();
+    for (map_id, instance_id) in map_keys {
+        let difficulty_id = map_difficulties
+            .get(&(map_id, instance_id))
+            .copied()
+            .unwrap_or(0);
+        for guid in manager.creature_guids(map_id, instance_id) {
+            let Some(creature) = manager.find_creature_mut(map_id, instance_id, guid) else {
+                continue;
+            };
+            outcome.creatures_seen += 1;
+            if !creature.is_alive() || creature.state() != wow_entities::CreatureAiState::InCombat {
+                continue;
+            }
+            let Some(recipient_guid) = creature.creature.ai_ownership().combat_target else {
+                continue;
+            };
+            // Creature-vs-creature effects need a future map-owned generic
+            // spell executor and are intentionally not fabricated here.
+            if !recipient_guid.is_player() {
+                continue;
+            }
+
+            let ai_kind = match legacy_creature_ai_selection_decision_like_cpp(creature, config) {
+                LegacyCreatureAiSelectionDecisionLikeCpp::Selected(ai_kind) => ai_kind,
+                LegacyCreatureAiSelectionDecisionLikeCpp::ScriptRegistryUnrepresented => {
+                    outcome.ai_selection_unrepresented += 1;
+                    continue;
+                }
+            };
+            let spells = creature.creature.spells();
+
+            match ai_kind {
+                CreatureAiKindLikeCpp::CombatAI => {
+                    if difficulty_id != 0 && spells.iter().any(|spell_id| *spell_id != 0) {
+                        // Effects/range/cooldowns have difficulty-aware stores,
+                        // but cast time, focus and SpellPower rows are still
+                        // hydrated only from difficulty 0. Do not claim a
+                        // successful active-difficulty cast from mixed metadata.
+                        outcome.spell_effects_unrepresented += 1;
+                        continue;
+                    }
+                    if creature_ai_has_temporally_unrepresented_noninstant_spell_like_cpp(
+                        &spells,
+                        difficulty_id,
+                        config,
+                    ) {
+                        outcome.noninstant_casts_unrepresented += 1;
+                        continue;
+                    }
+                    if !creature.creature_spell_schedule_initialized_like_cpp() {
+                        creature.mark_creature_spell_schedule_initialized_like_cpp();
+                        outcome.schedules_initialized += 1;
+                        for (slot, spell_id) in spells.into_iter().enumerate() {
+                            if spell_id == 0 {
+                                continue;
+                            }
+                            let Some(spell) = i32::try_from(spell_id)
+                                .ok()
+                                .and_then(|spell_id| spell_store.get(spell_id))
+                            else {
+                                outcome.missing_spell_metadata += 1;
+                                continue;
+                            };
+                            let spell = creature_ai_effective_spell_info_like_cpp(
+                                spell,
+                                difficulty_id,
+                                config,
+                            );
+                            match creature_ai_spell_condition_like_cpp(
+                                spell_id,
+                                difficulty_id,
+                                config,
+                            ) {
+                                CreatureAiSpellConditionLikeCpp::Aggro => {
+                                    // C++ `CombatAI::JustEngagedWith` casts
+                                    // AICOND_AGGRO directly on `who`, bypassing
+                                    // `UnitAI::DoCast` target classification.
+                                    if creature_ai_zero_power_rows_have_unrepresented_implicit_cost_like_cpp(
+                                        &spell,
+                                        difficulty_id,
+                                        config,
+                                        creature,
+                                    ) {
+                                        outcome.spell_effects_unrepresented += 1;
+                                        continue;
+                                    }
+                                    match creature_ai_spell_single_unit_topology_like_cpp(
+                                        &spell,
+                                        recipient_guid,
+                                        recipient_guid,
+                                        creature_ai_spell_requires_projectile_payload_like_cpp(
+                                            spell_id,
+                                            difficulty_id,
+                                            config,
+                                        ),
+                                    ) {
+                                        Ok(()) => {}
+                                        Err(CreatureAiSpellRepresentationRejectionLikeCpp::NonInstant) => {
+                                            outcome.noninstant_casts_unrepresented += 1;
+                                            continue;
+                                        }
+                                        Err(CreatureAiSpellRepresentationRejectionLikeCpp::ProjectileOrAmmo) => {
+                                            outcome.spell_projectiles_unrepresented += 1;
+                                            continue;
+                                        }
+                                        Err(CreatureAiSpellRepresentationRejectionLikeCpp::EffectOrTarget) => {
+                                            outcome.spell_effects_unrepresented += 1;
+                                            continue;
+                                        }
+                                    }
+                                    let Ok(command) = creature_ai_spell_plan_like_cpp(
+                                        creature,
+                                        guid,
+                                        recipient_guid,
+                                        map_id,
+                                        instance_id,
+                                        spell_id,
+                                        &spell,
+                                        difficulty_id,
+                                        config,
+                                    ) else {
+                                        outcome.spell_visuals_unrepresented += 1;
+                                        continue;
+                                    };
+                                    pending.push(PendingCreatureSpellCastLikeCpp {
+                                        command,
+                                        source_position: creature.position(),
+                                        visibility_range: creature.visibility_range_like_cpp(),
+                                        difficulty_id,
+                                        turret_ai: false,
+                                    });
+                                    outcome.casts_ready += 1;
+                                }
+                                CreatureAiSpellConditionLikeCpp::Combat => {
+                                    // C++ schedules every valid AICOND_COMBAT
+                                    // spell before it attempts the cast. Keep
+                                    // that clock even if this Rust slice later
+                                    // has to fail closed for its wire topology.
+                                    let minimum = creature_ai_spell_initial_cooldown_like_cpp(
+                                        spell_id,
+                                        &spell,
+                                        difficulty_id,
+                                        config,
+                                    );
+                                    let delay = creature.random_creature_spell_delay_like_cpp(
+                                        minimum,
+                                        minimum.saturating_mul(2),
+                                    );
+                                    creature
+                                        .schedule_creature_spell_slot_after_like_cpp(slot, delay);
+                                }
+                                CreatureAiSpellConditionLikeCpp::Die => {}
+                            }
+                        }
+                    }
+
+                    // C++ advances EventMap before this gate but executes no
+                    // due event while the creature owns UNIT_STATE_CASTING.
+                    if creature
+                        .creature
+                        .unit()
+                        .has_unit_state(UnitState::CASTING.bits())
+                    {
+                        outcome.unit_state_casting_skips += 1;
+                        continue;
+                    }
+
+                    if let Some(slot) = creature.first_due_creature_spell_slot_like_cpp() {
+                        let spell_id = spells[slot];
+                        let Some(spell) = i32::try_from(spell_id)
+                            .ok()
+                            .and_then(|spell_id| spell_store.get(spell_id))
+                        else {
+                            outcome.missing_spell_metadata += 1;
+                            continue;
+                        };
+                        let spell =
+                            creature_ai_effective_spell_info_like_cpp(spell, difficulty_id, config);
+                        let target_guid = creature_ai_spell_target_like_cpp(
+                            spell_id,
+                            &spell,
+                            difficulty_id,
+                            config,
+                        )
+                        .resolve_for_single_player_threat_list_like_cpp(guid, recipient_guid);
+
+                        // `CombatAI::UpdateAI` re-schedules after every
+                        // `DoCast` attempt, including a failed one.
+                        let minimum = creature_ai_spell_repeat_cooldown_like_cpp(
+                            spell_id,
+                            &spell,
+                            difficulty_id,
+                            config,
+                        );
+                        let delay = creature.random_creature_spell_delay_like_cpp(
+                            minimum,
+                            minimum.saturating_mul(2),
+                        );
+                        creature.schedule_creature_spell_slot_after_like_cpp(slot, delay);
+
+                        if creature_ai_zero_power_rows_have_unrepresented_implicit_cost_like_cpp(
+                            &spell,
+                            difficulty_id,
+                            config,
+                            creature,
+                        ) {
+                            outcome.spell_effects_unrepresented += 1;
+                            continue;
+                        }
+                        match creature_ai_spell_single_unit_topology_like_cpp(
+                            &spell,
+                            target_guid,
+                            recipient_guid,
+                            creature_ai_spell_requires_projectile_payload_like_cpp(
+                                spell_id,
+                                difficulty_id,
+                                config,
+                            ),
+                        ) {
+                            Ok(()) => {}
+                            Err(CreatureAiSpellRepresentationRejectionLikeCpp::NonInstant) => {
+                                outcome.noninstant_casts_unrepresented += 1;
+                                continue;
+                            }
+                            Err(
+                                CreatureAiSpellRepresentationRejectionLikeCpp::ProjectileOrAmmo,
+                            ) => {
+                                outcome.spell_projectiles_unrepresented += 1;
+                                continue;
+                            }
+                            Err(CreatureAiSpellRepresentationRejectionLikeCpp::EffectOrTarget) => {
+                                outcome.spell_effects_unrepresented += 1;
+                                continue;
+                            }
+                        }
+                        let Ok(command) = creature_ai_spell_plan_like_cpp(
+                            creature,
+                            guid,
+                            target_guid,
+                            map_id,
+                            instance_id,
+                            spell_id,
+                            &spell,
+                            difficulty_id,
+                            config,
+                        ) else {
+                            outcome.spell_visuals_unrepresented += 1;
+                            continue;
+                        };
+                        pending.push(PendingCreatureSpellCastLikeCpp {
+                            command,
+                            source_position: creature.position(),
+                            visibility_range: creature.visibility_range_like_cpp(),
+                            difficulty_id,
+                            turret_ai: false,
+                        });
+                        outcome.casts_ready += 1;
+                    }
+                }
+                CreatureAiKindLikeCpp::TurretAI => {
+                    if difficulty_id != 0 && spells[0] != 0 {
+                        // See the CombatAI gate above: TurretAI has the same
+                        // unhydrated difficulty-specific cast metadata.
+                        outcome.spell_effects_unrepresented += 1;
+                        continue;
+                    }
+                    // C++ TurretAI only ever reads `m_spells[0]`; unrelated
+                    // template slots cannot put it into UNIT_STATE_CASTING.
+                    if creature_ai_has_temporally_unrepresented_noninstant_spell_like_cpp(
+                        &spells[..1],
+                        difficulty_id,
+                        config,
+                    ) {
+                        outcome.noninstant_casts_unrepresented += 1;
+                        continue;
+                    }
+                    if creature
+                        .creature
+                        .unit()
+                        .has_unit_state(UnitState::CASTING.bits())
+                    {
+                        outcome.unit_state_casting_skips += 1;
+                        continue;
+                    }
+                    let spell_id = spells[0];
+                    if spell_id == 0 || !creature.can_swing() {
+                        continue;
+                    }
+                    let Some(spell) = i32::try_from(spell_id)
+                        .ok()
+                        .and_then(|spell_id| spell_store.get(spell_id))
+                    else {
+                        outcome.missing_spell_metadata += 1;
+                        continue;
+                    };
+                    let spell =
+                        creature_ai_effective_spell_info_like_cpp(spell, difficulty_id, config);
+                    if creature_ai_zero_power_rows_have_unrepresented_implicit_cost_like_cpp(
+                        &spell,
+                        difficulty_id,
+                        config,
+                        creature,
+                    ) {
+                        outcome.spell_effects_unrepresented += 1;
+                        continue;
+                    }
+                    match creature_ai_spell_single_unit_topology_like_cpp(
+                        &spell,
+                        recipient_guid,
+                        recipient_guid,
+                        creature_ai_spell_requires_projectile_payload_like_cpp(
+                            spell_id,
+                            difficulty_id,
+                            config,
+                        ),
+                    ) {
+                        Ok(()) => {}
+                        Err(CreatureAiSpellRepresentationRejectionLikeCpp::NonInstant) => {
+                            outcome.noninstant_casts_unrepresented += 1;
+                            continue;
+                        }
+                        Err(CreatureAiSpellRepresentationRejectionLikeCpp::ProjectileOrAmmo) => {
+                            outcome.spell_projectiles_unrepresented += 1;
+                            continue;
+                        }
+                        Err(CreatureAiSpellRepresentationRejectionLikeCpp::EffectOrTarget) => {
+                            outcome.spell_effects_unrepresented += 1;
+                            continue;
+                        }
+                    }
+                    let Ok(command) = creature_ai_spell_plan_like_cpp(
+                        creature,
+                        guid,
+                        recipient_guid,
+                        map_id,
+                        instance_id,
+                        spell_id,
+                        &spell,
+                        difficulty_id,
+                        config,
+                    ) else {
+                        outcome.spell_visuals_unrepresented += 1;
+                        continue;
+                    };
+                    pending.push(PendingCreatureSpellCastLikeCpp {
+                        command,
+                        source_position: creature.position(),
+                        visibility_range: creature.visibility_range_like_cpp(),
+                        difficulty_id,
+                        turret_ai: true,
+                    });
+                    outcome.casts_ready += 1;
+                }
+                _ => {}
+            }
+        }
+    }
+
+    drop(manager);
+    let Some(canonical_map_manager) = canonical_map_manager else {
+        outcome.canonical_cast_missing_target += pending.len();
+        outcome.casts_ready = outcome.casts_ready.saturating_sub(pending.len());
+        return outcome;
+    };
+
+    for pending_cast in pending {
+        let validation = validate_and_append_creature_spell_cast_like_cpp(
+            canonical_map_manager,
+            legacy_map_manager,
+            &pending_cast.command,
+            pending_cast.source_position,
+            pending_cast.visibility_range,
+            pending_cast.difficulty_id,
+            pending_cast.turret_ai,
+            config,
+            &mut outcome.plan,
+        );
+
+        match validation {
+            CreatureSpellCastValidationResultLikeCpp::Ready => {}
+            CreatureSpellCastValidationResultLikeCpp::OutOfRange => {
+                outcome.spell_range_rejections += 1;
+                outcome.casts_ready = outcome.casts_ready.saturating_sub(1);
+                continue;
+            }
+            CreatureSpellCastValidationResultLikeCpp::LosRejected => {
+                outcome.spell_los_rejections += 1;
+                outcome.casts_ready = outcome.casts_ready.saturating_sub(1);
+                continue;
+            }
+            CreatureSpellCastValidationResultLikeCpp::MissingTarget => {
+                outcome.canonical_cast_missing_target += 1;
+                outcome.casts_ready = outcome.casts_ready.saturating_sub(1);
+                continue;
+            }
+        }
+        outcome.canonical_cast_preconditions_passed += 1;
+    }
+
+    outcome
+}
+
+enum CreatureSpellCastValidationResultLikeCpp {
+    Ready,
+    OutOfRange,
+    LosRejected,
+    MissingTarget,
+}
+
+fn validate_and_append_creature_spell_cast_like_cpp(
+    canonical_map_manager: &SharedCanonicalMapManager,
+    legacy_map_manager: &crate::map_manager::SharedMapManager,
+    command: &CreatureSpellCastPlanLikeCpp,
+    source_position: Position,
+    visibility_range: f32,
+    difficulty_id: u8,
+    turret_ai: bool,
+    config: &LegacyCreatureAggroConfigLikeCpp,
+    plan: &mut RuntimePlan,
+) -> CreatureSpellCastValidationResultLikeCpp {
+    const SPELL_RANGE_MELEE_LIKE_CPP: u8 = 0x01;
+    const SPELL_RANGE_RANGED_LIKE_CPP: u8 = 0x02;
+
+    let Ok(manager) = canonical_map_manager.lock() else {
+        return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
+    };
+    // The canonical update path already establishes canonical -> legacy when
+    // mirroring loaded grids. Use that same order so target/epoch validation,
+    // TurretAI timer mutation and packet-plan construction are serialized
+    // without lock inversion.
+    let mut legacy_guard = legacy_map_manager
+        .write()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if !legacy_guard
+        .find_creature(command.map_id, command.instance_id, command.caster_guid)
+        .is_some_and(|creature| {
+            creature.is_alive()
+                && creature.state() == wow_entities::CreatureAiState::InCombat
+                && creature.creature.ai_ownership().combat_target == Some(command.target_guid)
+                && creature.creature_spell_engagement_epoch_like_cpp() == command.engagement_epoch
+        })
+    {
+        return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
+    }
+    let Some(managed) = manager.find_map(u32::from(command.map_id), command.instance_id) else {
+        return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
+    };
+    {
+        let map = managed.map();
+        let Some(caster) = map.get_typed_creature(command.caster_guid) else {
+            return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
+        };
+        let Some(victim) = map.get_typed_player(command.target_guid) else {
+            return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
+        };
+        if !caster.unit().is_alive() || !victim.unit().is_alive() {
+            return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
+        }
+        let Some(spell_id_u32) = u32::try_from(command.spell_id).ok() else {
+            return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
+        };
+        let Some(range) = config
+            .spell_misc_store
+            .as_ref()
+            .and_then(|store| {
+                store.entry_for_spell_difficulty_with_fallback_like_cpp(
+                    spell_id_u32,
+                    difficulty_id,
+                    config.difficulty_store.as_deref(),
+                )
+            })
+            .and_then(|misc| {
+                config
+                    .spell_range_store
+                    .as_ref()
+                    .and_then(|store| store.get(u32::from(misc.range_index)))
+            })
+        else {
+            return CreatureSpellCastValidationResultLikeCpp::OutOfRange;
+        };
+
+        let caster_reach = caster.unit().world().combat_reach().max(0.0);
+        let victim_reach = victim.unit().world().combat_reach().max(0.0);
+        let reach_sum = caster_reach + victim_reach;
+        let melee_range = (reach_sum + 4.0 / 3.0).max(NOMINAL_MELEE_RANGE_LIKE_CPP);
+        let mut minimum = range.range_min[0].max(0.0);
+        let mut maximum = range.range_max[0].max(0.0);
+        let turret_combat_maximum = maximum + reach_sum;
+        if range.flags & SPELL_RANGE_MELEE_LIKE_CPP != 0 {
+            minimum = 0.0;
+            maximum = melee_range;
+        } else {
+            if range.flags & SPELL_RANGE_RANGED_LIKE_CPP != 0 {
+                minimum += melee_range;
+            } else if minimum > 0.0 {
+                minimum += reach_sum;
+            }
+            maximum += reach_sum;
+        }
+        let caster_movement = caster.unit().movement_flags_like_cpp();
+        let victim_movement = victim.unit().movement_flags_like_cpp();
+        if caster_movement.intersects(MovementFlag::MASK_MOVING)
+            && victim_movement.intersects(MovementFlag::MASK_MOVING)
+            && !caster_movement.contains(MovementFlag::WALKING)
+            && !victim_movement.contains(MovementFlag::WALKING)
+        {
+            // C++ `Spell::GetMinMaxRange(true)` adds this latency allowance
+            // when both units run and the target is a player.
+            maximum += 8.0 / 3.0;
+        }
+        let distance_sq = caster
+            .unit()
+            .world()
+            .position()
+            .distance_sq(&victim.unit().world().position());
+        // `TurretAI::DoSpellAttackIfReady` first uses strict
+        // `IsWithinCombatRange` with the raw spell max plus combat reaches;
+        // `Spell::CheckRange(true)` (including moving allowance) follows.
+        if turret_ai && distance_sq >= turret_combat_maximum * turret_combat_maximum {
+            return CreatureSpellCastValidationResultLikeCpp::OutOfRange;
+        }
+        if turret_ai {
+            let Some(creature) = legacy_guard.find_creature_mut(
+                command.map_id,
+                command.instance_id,
+                command.caster_guid,
+            ) else {
+                return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
+            };
+            // `UnitAI::DoSpellAttackIfReady` calls `CastSpell` after only the
+            // raw-max combat-range gate, then resets BASE_ATTACK regardless of
+            // whether Spell::CheckRange/CheckCast rejects min range or LOS.
+            creature.record_swing();
+        }
+        if distance_sq > maximum * maximum || (minimum > 0.0 && distance_sq < minimum * minimum) {
+            return CreatureSpellCastValidationResultLikeCpp::OutOfRange;
+        }
+        if !caster.unit().world().is_within_los_in_map(
+            victim.unit().world(),
+            map,
+            wow_entities::LineOfSightOptions::default(),
+        ) {
+            return CreatureSpellCastValidationResultLikeCpp::LosRejected;
+        }
+    }
+    if !turret_ai
+        && creature_ai_successful_untriggered_spell_resets_combat_timers_like_cpp(
+            command,
+            difficulty_id,
+            config,
+        )
+    {
+        let Some(creature) = legacy_guard.find_creature_mut(
+            command.map_id,
+            command.instance_id,
+            command.caster_guid,
+        ) else {
+            return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
+        };
+        // `Spell::ResetCombatTimers` rearms BASE_ATTACK before the same map
+        // update can reach `DoMeleeAttackIfReady` (Spell.cpp:8363-8372).
+        creature.record_swing();
+    }
+    append_committed_creature_spell_packets_like_cpp(
+        plan,
+        command,
+        source_position,
+        visibility_range,
+    );
+    CreatureSpellCastValidationResultLikeCpp::Ready
+}
+
 fn is_creature_melee_los_clear_like_cpp(
     attacker: &wow_entities::WorldObject,
     victim: &wow_entities::WorldObject,
@@ -60822,6 +62114,14 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                 };
                 outcome.creatures_seen += 1;
                 if !creature.can_swing() {
+                    continue;
+                }
+                // C++ `TurretAI` calls `SetCanMelee(false)` in its
+                // constructor. The transitional selector stores the explicit
+                // DB AIName rather than a live AI object, so enforce that
+                // constructor side effect at the global melee boundary.
+                if creature.creature.lifecycle_metadata().ai_name == "TurretAI" {
+                    outcome.melee_precondition_rejections += 1;
                     continue;
                 }
                 if !creature.creature.can_melee_like_cpp() {
@@ -61971,15 +63271,10 @@ impl WorldSession {
     /// yet expose the map low-guid allocator for casts, so this uses a process
     /// local monotonic counter while preserving the visible GUID shape.
     pub(crate) fn next_represented_spell_cast_guid_like_cpp(&self, spell_id: i32) -> ObjectGuid {
-        let counter = NEXT_REPRESENTED_SPELL_CAST_COUNTER_LIKE_CPP.fetch_add(1, Ordering::Relaxed);
-        ObjectGuid::create_world_object(
-            HighGuid::Cast,
-            SPELL_CAST_SOURCE_NORMAL_LIKE_CPP,
-            1,
+        next_represented_spell_cast_guid_for_map_like_cpp(
+            self.realm_id(),
             self.player_map_id_like_cpp(),
-            0,
-            u32::try_from(spell_id).unwrap_or_default(),
-            counter,
+            spell_id,
         )
     }
 
@@ -62261,7 +63556,6 @@ impl WorldSession {
                 wow_packet::ServerPacket::to_bytes(&go_pkt),
             );
         }
-
         let mut force_visibility_after_add_farsight = false;
         for effect in spell_info.effects() {
             if effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_ADD_FARSIGHT {
@@ -78350,6 +79644,84 @@ mod tests {
         assert!(matches!(
             commands.get(1),
             Some(SessionCommand::SendIfVisibleLikeCpp(_))
+        ));
+    }
+
+    #[test]
+    fn visibility_barrier_preserves_entire_durable_suffix_fifo_like_cpp() {
+        let (session, _, _) = make_session();
+        let creature_guid = test_creature_guid(1013);
+        let victim_guid = ObjectGuid::create_player(1, 7007);
+        {
+            let mut durable = session
+                .durable_creature_runtime_commands_like_cpp
+                .lock()
+                .unwrap();
+            assert!(
+                durable.publish_attack_start_like_cpp(CreatureAttackStartLikeCppCommand {
+                    attacker_guid: creature_guid,
+                    victim_guid,
+                    previous_victim_guid: None,
+                    map_id: 571,
+                    instance_id: 0,
+                    packet_already_broadcast: false,
+                },)
+            );
+            for packet_bytes in [vec![0x37, 0x2C], vec![0x36, 0x2C]] {
+                assert!(
+                    durable.publish_send_if_visible_like_cpp(SendIfVisibleLikeCppCommand {
+                        queued_at: Instant::now(),
+                        source_guid: creature_guid,
+                        map_id: 571,
+                        instance_id: 0,
+                        packet_bytes,
+                    },)
+                );
+            }
+            assert!(durable.publish_melee_damage_like_cpp(
+                ApplyCreatureMeleeDamageLikeCppCommand {
+                    attacker_guid: creature_guid,
+                    victim_guid,
+                    map_id: 571,
+                    instance_id: 0,
+                    damage: 3,
+                    over_damage: -1,
+                    target_level: 80,
+                    victim_health_after: 97,
+                },
+            ));
+        }
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::RefreshVisibleWorldCreaturesLikeCpp(
+                RefreshVisibleWorldCreaturesLikeCppCommand {
+                    map_id: 571,
+                    instance_id: 0,
+                },
+            ))
+            .expect("refresh queued");
+
+        let commands = session.drain_session_commands();
+        assert_eq!(commands.len(), 5);
+        assert!(matches!(
+            &commands[0],
+            SessionCommand::CreatureAttackStartLikeCpp(_)
+        ));
+        assert!(matches!(
+            &commands[1],
+            SessionCommand::RefreshVisibleWorldCreaturesLikeCpp(_)
+        ));
+        let SessionCommand::SendIfVisibleLikeCpp(start) = &commands[2] else {
+            panic!("START must remain first in the deferred durable suffix");
+        };
+        let SessionCommand::SendIfVisibleLikeCpp(go) = &commands[3] else {
+            panic!("GO must remain immediately behind START");
+        };
+        assert_eq!(start.packet_bytes, vec![0x37, 0x2C]);
+        assert_eq!(go.packet_bytes, vec![0x36, 0x2C]);
+        assert!(matches!(
+            &commands[4],
+            SessionCommand::ApplyCreatureMeleeDamageLikeCpp(_)
         ));
     }
 
@@ -149778,6 +151150,7 @@ mod tests {
             player_guid,
             map_id: 0,
             instance_id: 0,
+            map_difficulty_id: 0,
             position,
             player_visibility_represented: true,
             player_phase_shift: PhaseShift::default(),
@@ -153169,6 +154542,1264 @@ mod tests {
         }
     }
 
+    fn creature_ai_test_spell_info_like_cpp(
+        spell_id: i32,
+        implicit_target_1: u32,
+        implicit_target_2: u32,
+    ) -> wow_data::SpellInfo {
+        wow_data::SpellInfo {
+            spell_id,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            // SpellStore hydrates GetRecoveryTime=max(RecoveryTime,
+            // CategoryRecoveryTime). CombatAI must still use raw 6s below.
+            recovery_time_ms: 12_000,
+            effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE,
+            effect_base_points: 7,
+            effect_bonus_coefficient: 0.0,
+            aura_type: None,
+            display_flags: 0,
+            requires_spell_focus: 0,
+            power_costs: Vec::new(),
+            effects: vec![wow_data::SpellEffectInfo {
+                effect_index: 0,
+                effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_SCHOOL_DAMAGE,
+                effect_base_points: 7,
+                implicit_target_1,
+                implicit_target_2,
+                ..Default::default()
+            }],
+        }
+    }
+
+    fn creature_ai_spell_test_config_like_cpp(
+        spell: wow_data::SpellInfo,
+        passive: bool,
+        range_max: f32,
+    ) -> LegacyCreatureAggroConfigLikeCpp {
+        let spell_id = u32::try_from(spell.spell_id).unwrap();
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(spell.spell_id, spell);
+        let mut misc = spell_misc_entry_like_cpp(8_001, spell_id, 71);
+        if passive {
+            misc.attributes[0] |= wow_data::spell::attributes::SPELL_ATTR0_PASSIVE as i32;
+        }
+        LegacyCreatureAggroConfigLikeCpp {
+            spell_misc_store: Some(Arc::new(wow_data::SpellMiscStore::from_entries([misc]))),
+            spell_range_store: Some(Arc::new(wow_data::SpellRangeStore::from_entries([
+                spell_range_entry_like_cpp(71, 0.0, range_max),
+            ]))),
+            spell_cooldowns_store: Some(Arc::new(wow_data::SpellCooldownsStore::from_entries([
+                wow_data::SpellCooldownsEntry {
+                    id: 8_002,
+                    difficulty_id: 0,
+                    category_recovery_time: 12_000,
+                    recovery_time: 6_000,
+                    start_recovery_time: 0,
+                    spell_id,
+                },
+            ]))),
+            spell_x_spell_visual_store: Some(Arc::new(
+                wow_data::SpellXSpellVisualStore::from_entries([
+                    wow_data::SpellXSpellVisualEntry {
+                        id: 8_003,
+                        difficulty_id: 0,
+                        spell_visual_id: 99_999,
+                        probability: 1.0,
+                        flags: 0,
+                        priority: 0,
+                        spell_icon_file_id: 0,
+                        active_icon_file_id: 0,
+                        viewer_unit_condition_id: 0,
+                        viewer_player_condition_id: 0,
+                        caster_unit_condition_id: 0,
+                        caster_player_condition_id: 0,
+                        spell_id,
+                    },
+                ]),
+            )),
+            spell_store: Some(Arc::new(spell_store)),
+            ..legacy_aggro_hostile_config_like_cpp()
+        }
+    }
+
+    fn add_canonical_creature_spell_test_pair_like_cpp(
+        canonical: &SharedCanonicalMapManager,
+        creature_guid: ObjectGuid,
+        victim_guid: ObjectGuid,
+    ) {
+        add_canonical_creature_spell_test_pair_with_difficulty_like_cpp(
+            canonical,
+            creature_guid,
+            victim_guid,
+            0,
+        );
+    }
+
+    fn add_canonical_creature_spell_test_pair_with_difficulty_like_cpp(
+        canonical: &SharedCanonicalMapManager,
+        creature_guid: ObjectGuid,
+        victim_guid: ObjectGuid,
+        difficulty_id: u8,
+    ) {
+        add_canonical_test_player_on_map_with_difficulty(
+            canonical,
+            victim_guid,
+            Position::new(11.0, 10.0, 0.0, 0.0),
+            0,
+            0,
+            difficulty_id,
+        );
+        add_canonical_test_creature_on_map(
+            canonical,
+            creature_guid,
+            9_001,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            0,
+            0,
+            0,
+        );
+        let mut manager = canonical.lock().unwrap();
+        let player = manager
+            .find_map_mut(0, 0)
+            .unwrap()
+            .map_mut()
+            .get_typed_player_mut(victim_guid)
+            .unwrap();
+        player.unit_mut().set_max_health(100);
+        player.unit_mut().set_health(100);
+        player
+            .unit_mut()
+            .set_death_state(wow_constants::DeathState::Alive);
+    }
+
+    #[derive(Debug, PartialEq, Eq)]
+    struct CreatureSpellWireHeaderLikeCpp {
+        opcode: u16,
+        caster: ObjectGuid,
+        caster_unit: ObjectGuid,
+        cast_id: ObjectGuid,
+        original_cast_id: ObjectGuid,
+        spell_id: i32,
+        spell_x_spell_visual_id: u32,
+        cast_flags: u32,
+        cast_flags_ex: u32,
+        cast_time_ms: u32,
+        target_flags: u32,
+        target_unit: ObjectGuid,
+        hit_targets: Vec<ObjectGuid>,
+    }
+
+    fn decode_creature_spell_wire_header_like_cpp(bytes: &[u8]) -> CreatureSpellWireHeaderLikeCpp {
+        let mut packet = WorldPacket::from_bytes(bytes);
+        let opcode = packet.opcode_raw();
+        packet.skip_opcode();
+        let caster = packet.read_packed_guid().unwrap();
+        let caster_unit = packet.read_packed_guid().unwrap();
+        let cast_id = packet.read_packed_guid().unwrap();
+        let original_cast_id = packet.read_packed_guid().unwrap();
+        let spell_id = packet.read_int32().unwrap();
+        let spell_x_spell_visual_id = packet.read_uint32().unwrap();
+        let cast_flags = packet.read_uint32().unwrap();
+        let cast_flags_ex = packet.read_uint32().unwrap();
+        let cast_time_ms = packet.read_uint32().unwrap();
+        assert_eq!(packet.read_int32().unwrap(), 0); // missile travel time
+        assert_eq!(packet.read_float().unwrap(), 0.0); // missile pitch
+        assert_eq!(packet.read_uint8().unwrap(), 0); // destination cast index
+        assert_eq!(packet.read_uint32().unwrap(), 0); // immunity school
+        assert_eq!(packet.read_uint32().unwrap(), 0); // immunity value
+        assert_eq!(packet.read_uint32().unwrap(), 0); // heal prediction
+        assert_eq!(packet.read_uint8().unwrap(), 0); // prediction type
+        assert_eq!(packet.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
+        let hit_count = packet.read_bits(16).unwrap() as usize;
+        assert_eq!(packet.read_bits(16).unwrap(), 0); // misses
+        assert_eq!(packet.read_bits(16).unwrap(), 0); // miss status
+        assert_eq!(packet.read_bits(9).unwrap(), 0); // remaining power
+        assert!(!packet.read_bit().unwrap()); // remaining runes
+        assert_eq!(packet.read_bits(16).unwrap(), 0); // target points
+        assert!(!packet.read_bit().unwrap()); // ammo display
+        assert!(!packet.read_bit().unwrap()); // ammo inventory type
+        let target = wow_packet::packets::spell::SpellTargetData::read(&mut packet).unwrap();
+        let hit_targets = (0..hit_count)
+            .map(|_| packet.read_packed_guid().unwrap())
+            .collect();
+        CreatureSpellWireHeaderLikeCpp {
+            opcode,
+            caster,
+            caster_unit,
+            cast_id,
+            original_cast_id,
+            spell_id,
+            spell_x_spell_visual_id,
+            cast_flags,
+            cast_flags_ex,
+            cast_time_ms,
+            target_flags: target.flags,
+            target_unit: target.unit,
+            hit_targets,
+        }
+    }
+
+    fn decode_atomic_creature_spell_wire_pair_like_cpp(
+        event: &RuntimeEvent,
+    ) -> (
+        CreatureSpellWireHeaderLikeCpp,
+        CreatureSpellWireHeaderLikeCpp,
+    ) {
+        let go_packet_bytes = match &event.recipients {
+            crate::map_manager::RecipientRule::NearbyVisibleDurableBasicSpellCast {
+                go_packet_bytes,
+                ..
+            } => go_packet_bytes,
+            _ => panic!("creature spell START/GO must use the atomic basic-cast recipient rule"),
+        };
+        (
+            decode_creature_spell_wire_header_like_cpp(&event.packet_bytes),
+            decode_creature_spell_wire_header_like_cpp(go_packet_bytes),
+        )
+    }
+
+    #[test]
+    fn legacy_creature_combat_ai_schedules_casts_and_rearms_cooldown_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_200);
+        let victim_guid = ObjectGuid::create_player(1, 91_201);
+        let spell_id = 70_001_i32;
+        let canonical = shared_canonical_map_manager();
+        add_canonical_creature_spell_test_pair_like_cpp(&canonical, creature_guid, victim_guid);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature
+                    .creature
+                    .set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
+                creature
+                    .creature
+                    .set_spell(0, u32::try_from(spell_id).unwrap());
+                creature.enter_combat(victim_guid);
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+        let config = creature_ai_spell_test_config_like_cpp(
+            creature_ai_test_spell_info_like_cpp(spell_id, 6, 0),
+            false,
+            30.0,
+        );
+
+        let initialized =
+            run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+        assert_eq!(initialized.schedules_initialized, 1);
+        assert_eq!(initialized.casts_ready, 0);
+        assert!(initialized.plan.events.is_empty());
+        let first_due_in_ms = session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature_spell_due_in_ms_for_test(0).unwrap()
+            })
+            .unwrap();
+        assert!((6_000..=12_000).contains(&first_due_in_ms));
+
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.backdate_runtime_clock_for_test(Duration::from_millis(
+                    first_due_in_ms.saturating_sub(1),
+                ));
+            })
+            .unwrap();
+        let before_minimum =
+            run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+        assert_eq!(before_minimum.casts_ready, 0);
+
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.backdate_runtime_clock_for_test(Duration::from_secs(60));
+                creature
+                    .creature
+                    .unit_mut()
+                    .add_unit_state(UnitState::CASTING.bits());
+            })
+            .unwrap();
+        let casting =
+            run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+        assert_eq!(casting.unit_state_casting_skips, 1);
+        assert_eq!(casting.casts_ready, 0);
+        assert!(casting.plan.events.is_empty());
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature
+                    .creature
+                    .unit_mut()
+                    .clear_unit_state(UnitState::CASTING.bits());
+            })
+            .unwrap();
+        let cast =
+            run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+        assert_eq!(cast.casts_ready, 1, "spell tick outcome: {cast:?}");
+        assert_eq!(cast.canonical_cast_preconditions_passed, 1);
+        assert_eq!(cast.plan.events.len(), 1);
+        let (start, go) = decode_atomic_creature_spell_wire_pair_like_cpp(&cast.plan.events[0]);
+        assert_eq!(
+            start.opcode,
+            wow_constants::ServerOpcodes::SpellStart as u16
+        );
+        assert_eq!(go.opcode, wow_constants::ServerOpcodes::SpellGo as u16);
+        assert_eq!(start.caster, creature_guid);
+        assert_eq!(start.caster_unit, creature_guid);
+        assert_eq!(start.cast_id, go.cast_id);
+        assert_eq!(start.cast_id.high_type(), HighGuid::Cast);
+        assert_eq!(start.cast_id.sub_type(), SPELL_CAST_SOURCE_NORMAL_LIKE_CPP);
+        assert_eq!(start.cast_id.map_id(), 0);
+        assert_eq!(start.cast_id.entry(), u32::try_from(spell_id).unwrap());
+        assert_ne!(start.cast_id.counter(), 0);
+        assert_eq!(start.original_cast_id, ObjectGuid::EMPTY);
+        assert_eq!(go.original_cast_id, ObjectGuid::EMPTY);
+        assert_eq!(start.spell_id, spell_id);
+        assert_eq!(go.spell_id, spell_id);
+        assert_eq!(start.spell_x_spell_visual_id, 8_003);
+        assert_eq!(go.spell_x_spell_visual_id, 8_003);
+        assert_eq!(start.cast_flags, 0x0000_0002);
+        assert_eq!(go.cast_flags, 0x0004_0100);
+        assert_eq!(start.cast_flags_ex, 0);
+        assert_eq!(go.cast_flags_ex, 0);
+        assert_eq!(start.cast_time_ms, 0);
+        assert_eq!(start.target_flags, 0x2);
+        assert_eq!(go.target_flags, 0x2);
+        assert_eq!(start.target_unit, victim_guid);
+        assert_eq!(go.target_unit, victim_guid);
+        assert!(start.hit_targets.is_empty());
+        assert_eq!(go.hit_targets, vec![victim_guid]);
+        let first_cast_id = start.cast_id;
+        assert_eq!(
+            canonical
+                .lock()
+                .unwrap()
+                .find_map(0, 0)
+                .unwrap()
+                .map()
+                .get_typed_player(victim_guid)
+                .unwrap()
+                .unit()
+                .data()
+                .health,
+            100,
+            "M2.6 emits the cast wire without fabricating M3.2 damage"
+        );
+
+        let rearmed =
+            run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+        assert_eq!(rearmed.casts_ready, 0);
+        assert!(rearmed.plan.events.is_empty());
+        let repeat_due_in_ms = session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature_spell_due_in_ms_for_test(0).unwrap()
+            })
+            .unwrap();
+        assert!((6_000..=12_000).contains(&repeat_due_in_ms));
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.backdate_runtime_clock_for_test(Duration::from_secs(120));
+            })
+            .unwrap();
+        let upper_bound =
+            run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+        assert_eq!(upper_bound.casts_ready, 1);
+        let next_start =
+            decode_creature_spell_wire_header_like_cpp(&upper_bound.plan.events[0].packet_bytes);
+        assert_ne!(next_start.cast_id, first_cast_id);
+    }
+
+    #[test]
+    fn legacy_creature_combat_ai_successful_cast_resets_swing_before_same_tick_melee_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_300);
+        let victim_guid = ObjectGuid::create_player(1, 91_301);
+        let spell_id = 15_691_i32;
+        add_canonical_creature_spell_test_pair_like_cpp(&canonical, creature_guid, victim_guid);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature
+                    .creature
+                    .set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
+                creature
+                    .creature
+                    .set_spell(0, u32::try_from(spell_id).unwrap());
+                creature.enter_combat(victim_guid);
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+        let mut spell = creature_ai_test_spell_info_like_cpp(spell_id, 6, 0);
+        spell
+            .power_costs
+            .push(wow_data::spell::SpellPowerCostInfoLikeCpp {
+                order_index: 0,
+                power_type: 3,
+                mana_cost: 0,
+                power_cost_pct: 0.0,
+                power_cost_max_pct: 0.0,
+                required_aura_spell_id: 0,
+                optional_cost: 0,
+            });
+        let mut config = creature_ai_spell_test_config_like_cpp(spell, false, 30.0);
+        Arc::get_mut(config.spell_store.as_mut().unwrap())
+            .unwrap()
+            .insert_spell_misc_attributes_like_cpp(spell_id, [0; 15]);
+
+        let initialized =
+            run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+        assert_eq!(initialized.schedules_initialized, 1);
+        assert_eq!(initialized.casts_ready, 0);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.backdate_runtime_clock_for_test(Duration::from_secs(60));
+                creature.creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+                assert!(creature.can_swing());
+            })
+            .unwrap();
+
+        let cast =
+            run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+
+        assert_eq!(cast.casts_ready, 1, "spell tick outcome: {cast:?}");
+        assert_eq!(cast.canonical_cast_preconditions_passed, 1);
+        assert_eq!(cast.plan.events.len(), 1);
+        let (start, go) = decode_atomic_creature_spell_wire_pair_like_cpp(&cast.plan.events[0]);
+        assert_eq!(start.opcode, ServerOpcodes::SpellStart as u16);
+        assert_eq!(go.opcode, ServerOpcodes::SpellGo as u16);
+        assert_eq!(start.spell_id, spell_id);
+        assert_eq!(go.spell_id, spell_id);
+        assert!(
+            !session
+                .mutate_world_creature(creature_guid, |creature| creature.can_swing())
+                .unwrap(),
+            "successful untriggered 15691 must reset BASE_ATTACK before melee"
+        );
+
+        let melee = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+        assert_eq!(melee.swings_ready, 0);
+        assert_eq!(melee.canonical_hits, 0);
+        assert!(melee.commands.is_empty());
+
+        let mut implicit_cost_attributes = [0_u32; 15];
+        implicit_cost_attributes[1] = 0x0000_0002; // SPELL_ATTR1_USE_ALL_MANA
+        Arc::get_mut(config.spell_store.as_mut().unwrap())
+            .unwrap()
+            .insert_spell_misc_attributes_like_cpp(spell_id, implicit_cost_attributes);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.backdate_runtime_clock_for_test(Duration::from_secs(120));
+            })
+            .unwrap();
+        let implicit_cost_rejected =
+            run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+        assert_eq!(implicit_cost_rejected.casts_ready, 0);
+        assert_eq!(implicit_cost_rejected.spell_effects_unrepresented, 1);
+        assert!(implicit_cost_rejected.plan.events.is_empty());
+
+        let mut weapon_speed_cost_attributes = [0_u32; 15];
+        weapon_speed_cost_attributes[4] = 0x0000_0400; // SPELL_ATTR4_WEAPON_SPEED_COST_SCALING
+        Arc::get_mut(config.spell_store.as_mut().unwrap())
+            .unwrap()
+            .insert_spell_misc_attributes_like_cpp(spell_id, weapon_speed_cost_attributes);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.backdate_runtime_clock_for_test(Duration::from_secs(180));
+            })
+            .unwrap();
+        let weapon_speed_cost_rejected =
+            run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+        assert_eq!(weapon_speed_cost_rejected.casts_ready, 0);
+        assert_eq!(weapon_speed_cost_rejected.spell_effects_unrepresented, 1);
+        assert!(weapon_speed_cost_rejected.plan.events.is_empty());
+
+        Arc::get_mut(config.spell_store.as_mut().unwrap())
+            .unwrap()
+            .insert_spell_misc_attributes_like_cpp(spell_id, [0; 15]);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature
+                    .creature
+                    .unit_mut()
+                    .subsystems_mut()
+                    .auras
+                    .register_applied_aura_type_like_cpp(
+                        wow_entities::AppliedAuraRef::new(91_999, creature_guid, 0, 1),
+                        63, // SPELL_AURA_MOD_ADDITIONAL_POWER_COST
+                    );
+                creature.backdate_runtime_clock_for_test(Duration::from_secs(240));
+            })
+            .unwrap();
+        let aura_cost_rejected =
+            run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+        assert_eq!(aura_cost_rejected.casts_ready, 0);
+        assert_eq!(aura_cost_rejected.spell_effects_unrepresented, 1);
+        assert!(aura_cost_rejected.plan.events.is_empty());
+    }
+
+    #[test]
+    fn legacy_creature_combat_ai_mixed_noninstant_template_suppresses_15691_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_214);
+        let victim_guid = ObjectGuid::create_player(1, 91_215);
+        let instant_spell_id = 15_691_i32;
+        let noninstant_spell_id = 70_009_i32;
+        add_canonical_creature_spell_test_pair_like_cpp(&canonical, creature_guid, victim_guid);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature
+                    .creature
+                    .set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
+                creature
+                    .creature
+                    .set_spell(0, u32::try_from(instant_spell_id).unwrap());
+                creature
+                    .creature
+                    .set_spell(1, u32::try_from(noninstant_spell_id).unwrap());
+                creature.enter_combat(victim_guid);
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let instant_spell = creature_ai_test_spell_info_like_cpp(instant_spell_id, 6, 0);
+        let mut noninstant_spell = creature_ai_test_spell_info_like_cpp(noninstant_spell_id, 6, 0);
+        noninstant_spell.cast_time_ms = 1_500;
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(instant_spell_id, instant_spell.clone());
+        spell_store.insert(noninstant_spell_id, noninstant_spell);
+        let mut instant_misc =
+            spell_misc_entry_like_cpp(8_211, u32::try_from(instant_spell_id).unwrap(), 71);
+        let mut noninstant_misc =
+            spell_misc_entry_like_cpp(8_212, u32::try_from(noninstant_spell_id).unwrap(), 71);
+        instant_misc.attributes[0] |= wow_data::spell::attributes::SPELL_ATTR0_PASSIVE as i32;
+        noninstant_misc.attributes[0] |= wow_data::spell::attributes::SPELL_ATTR0_PASSIVE as i32;
+        let mut config = creature_ai_spell_test_config_like_cpp(instant_spell, true, 30.0);
+        config.spell_store = Some(Arc::new(spell_store));
+        config.spell_misc_store = Some(Arc::new(wow_data::SpellMiscStore::from_entries([
+            instant_misc,
+            noninstant_misc,
+        ])));
+
+        let outcome =
+            run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+
+        assert_eq!(outcome.noninstant_casts_unrepresented, 1);
+        assert_eq!(outcome.schedules_initialized, 0);
+        assert_eq!(outcome.casts_ready, 0);
+        assert!(
+            outcome.plan.events.is_empty(),
+            "Rust cannot emit instant 15691 while C++ could still own UNIT_STATE_CASTING for the other template slot"
+        );
+    }
+
+    #[test]
+    fn legacy_creature_combat_ai_rearms_after_range_rejection_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_206);
+        let victim_guid = ObjectGuid::create_player(1, 91_207);
+        let spell_id = 70_006_i32;
+        add_canonical_creature_spell_test_pair_like_cpp(&canonical, creature_guid, victim_guid);
+        canonical
+            .lock()
+            .unwrap()
+            .find_map_mut(0, 0)
+            .unwrap()
+            .map_mut()
+            .get_typed_player_mut(victim_guid)
+            .unwrap()
+            .unit_mut()
+            .world_mut()
+            .relocate(Position::new(100.0, 10.0, 0.0, 0.0));
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature
+                    .creature
+                    .set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
+                creature
+                    .creature
+                    .set_spell(0, u32::try_from(spell_id).unwrap());
+                creature.enter_combat(victim_guid);
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+        let config = creature_ai_spell_test_config_like_cpp(
+            creature_ai_test_spell_info_like_cpp(spell_id, 6, 0),
+            false,
+            30.0,
+        );
+
+        let initialized =
+            run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+        assert_eq!(initialized.schedules_initialized, 1);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.backdate_runtime_clock_for_test(Duration::from_secs(60));
+            })
+            .unwrap();
+        let rejected =
+            run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+
+        assert_eq!(rejected.casts_ready, 0);
+        assert_eq!(rejected.spell_range_rejections, 1);
+        assert_eq!(rejected.canonical_cast_preconditions_passed, 0);
+        assert!(rejected.plan.events.is_empty());
+        let repeat_due_in_ms = session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature_spell_due_in_ms_for_test(0).unwrap()
+            })
+            .unwrap();
+        assert!((6_000..=12_000).contains(&repeat_due_in_ms));
+    }
+
+    #[test]
+    fn legacy_turret_ai_cast_resets_attack_timer_and_never_melees_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_208);
+        let victim_guid = ObjectGuid::create_player(1, 91_209);
+        let spell_id = 70_007_i32;
+        add_canonical_creature_spell_test_pair_like_cpp(&canonical, creature_guid, victim_guid);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature
+                    .creature
+                    .set_ai_identity_names_runtime_like_cpp("TurretAI", String::new());
+                creature
+                    .creature
+                    .set_spell(0, u32::try_from(spell_id).unwrap());
+                creature.enter_combat(victim_guid);
+                creature.creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+                assert!(creature.can_swing());
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+        let config = creature_ai_spell_test_config_like_cpp(
+            creature_ai_test_spell_info_like_cpp(spell_id, 6, 0),
+            false,
+            30.0,
+        );
+
+        let cast =
+            run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+        assert_eq!(cast.casts_ready, 1, "spell tick outcome: {cast:?}");
+        assert_eq!(cast.canonical_cast_preconditions_passed, 1);
+        assert_eq!(cast.plan.events.len(), 1);
+        let (start, go) = decode_atomic_creature_spell_wire_pair_like_cpp(&cast.plan.events[0]);
+        assert_eq!(start.opcode, ServerOpcodes::SpellStart as u16);
+        assert_eq!(go.opcode, ServerOpcodes::SpellGo as u16);
+        let can_swing_immediately = session
+            .mutate_world_creature(creature_guid, |creature| creature.can_swing())
+            .unwrap();
+        assert!(!can_swing_immediately);
+
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.backdate_runtime_clock_for_test(Duration::from_secs(60));
+                assert!(creature.can_swing());
+            })
+            .unwrap();
+        let melee = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+        assert_eq!(melee.swings_ready, 0);
+        assert_eq!(melee.canonical_hits, 0);
+        assert!(melee.commands.is_empty());
+    }
+
+    #[test]
+    fn legacy_turret_ai_raw_max_attempt_resets_swing_before_min_range_failure_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_302);
+        let victim_guid = ObjectGuid::create_player(1, 91_303);
+        let spell_id = 70_101_i32;
+        add_canonical_creature_spell_test_pair_like_cpp(&canonical, creature_guid, victim_guid);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature
+                    .creature
+                    .set_ai_identity_names_runtime_like_cpp("TurretAI", String::new());
+                creature
+                    .creature
+                    .set_spell(0, u32::try_from(spell_id).unwrap());
+                creature.enter_combat(victim_guid);
+                creature.creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+                assert!(creature.can_swing());
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+        let mut config = creature_ai_spell_test_config_like_cpp(
+            creature_ai_test_spell_info_like_cpp(spell_id, 6, 0),
+            false,
+            30.0,
+        );
+        config.spell_range_store = Some(Arc::new(wow_data::SpellRangeStore::from_entries([
+            spell_range_entry_like_cpp(71, 5.0, 30.0),
+        ])));
+
+        let rejected =
+            run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+
+        assert_eq!(rejected.casts_ready, 0, "spell tick outcome: {rejected:?}");
+        assert_eq!(rejected.spell_range_rejections, 1);
+        assert_eq!(rejected.canonical_cast_preconditions_passed, 0);
+        assert!(rejected.plan.events.is_empty());
+        assert!(
+            !session
+                .mutate_world_creature(creature_guid, |creature| creature.can_swing())
+                .unwrap(),
+            "TurretAI must reset BASE_ATTACK after its raw-max CastSpell attempt"
+        );
+    }
+
+    #[test]
+    fn legacy_turret_ai_ignores_noninstant_spells_outside_slot_zero_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_308);
+        let victim_guid = ObjectGuid::create_player(1, 91_309);
+        let turret_spell_id = 70_102_i32;
+        let ignored_spell_id = 70_103_i32;
+        add_canonical_creature_spell_test_pair_like_cpp(&canonical, creature_guid, victim_guid);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature
+                    .creature
+                    .set_ai_identity_names_runtime_like_cpp("TurretAI", String::new());
+                creature
+                    .creature
+                    .set_spell(0, u32::try_from(turret_spell_id).unwrap());
+                creature
+                    .creature
+                    .set_spell(1, u32::try_from(ignored_spell_id).unwrap());
+                creature.enter_combat(victim_guid);
+                creature.creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+                assert!(creature.can_swing());
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let turret_spell = creature_ai_test_spell_info_like_cpp(turret_spell_id, 6, 0);
+        let mut ignored_noninstant_spell =
+            creature_ai_test_spell_info_like_cpp(ignored_spell_id, 6, 0);
+        ignored_noninstant_spell.cast_time_ms = 1_500;
+        let mut spell_store = wow_data::SpellStore::new();
+        spell_store.insert(turret_spell_id, turret_spell.clone());
+        spell_store.insert(ignored_spell_id, ignored_noninstant_spell);
+        let mut config = creature_ai_spell_test_config_like_cpp(turret_spell, false, 30.0);
+        config.spell_store = Some(Arc::new(spell_store));
+
+        let cast =
+            run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+
+        assert_eq!(cast.noninstant_casts_unrepresented, 0);
+        assert_eq!(cast.casts_ready, 1, "spell tick outcome: {cast:?}");
+        assert_eq!(cast.plan.events.len(), 1);
+        let (start, go) = decode_atomic_creature_spell_wire_pair_like_cpp(&cast.plan.events[0]);
+        assert_eq!(start.spell_id, turret_spell_id);
+        assert_eq!(go.spell_id, turret_spell_id);
+    }
+
+    #[test]
+    fn legacy_creature_combat_ai_rejects_unhydrated_active_difficulty_metadata_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_210);
+        let victim_guid = ObjectGuid::create_player(1, 91_211);
+        let spell_id = 70_008_i32;
+        add_canonical_creature_spell_test_pair_with_difficulty_like_cpp(
+            &canonical,
+            creature_guid,
+            victim_guid,
+            2,
+        );
+        assert_eq!(
+            canonical
+                .lock()
+                .unwrap()
+                .find_map(0, 0)
+                .unwrap()
+                .difficulty(),
+            2
+        );
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature
+                    .creature
+                    .set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
+                creature
+                    .creature
+                    .set_spell(0, u32::try_from(spell_id).unwrap());
+                creature.enter_combat(victim_guid);
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let spell = creature_ai_test_spell_info_like_cpp(spell_id, 6, 0);
+        let spell_id_u32 = u32::try_from(spell_id).unwrap();
+        let mut config = creature_ai_spell_test_config_like_cpp(spell, false, 5.0);
+        let base_misc = spell_misc_entry_like_cpp(8_101, spell_id_u32, 71);
+        let mut active_misc = spell_misc_entry_like_cpp(8_102, spell_id_u32, 72);
+        active_misc.difficulty_id = 2;
+        config.spell_misc_store = Some(Arc::new(wow_data::SpellMiscStore::from_entries([
+            base_misc,
+            active_misc,
+        ])));
+        config.spell_range_store = Some(Arc::new(wow_data::SpellRangeStore::from_entries([
+            spell_range_entry_like_cpp(71, 0.0, 0.5),
+            spell_range_entry_like_cpp(72, 0.0, 30.0),
+        ])));
+        config.spell_cooldowns_store =
+            Some(Arc::new(wow_data::SpellCooldownsStore::from_entries([
+                wow_data::SpellCooldownsEntry {
+                    id: 8_103,
+                    difficulty_id: 0,
+                    recovery_time: 11_000,
+                    start_recovery_time: 0,
+                    spell_id: spell_id_u32,
+                    ..Default::default()
+                },
+                wow_data::SpellCooldownsEntry {
+                    id: 8_104,
+                    difficulty_id: 2,
+                    recovery_time: 7_000,
+                    start_recovery_time: 1_000,
+                    spell_id: spell_id_u32,
+                    ..Default::default()
+                },
+            ])));
+        let visual_entry = |id, difficulty_id| wow_data::SpellXSpellVisualEntry {
+            id,
+            difficulty_id,
+            spell_visual_id: id + 100,
+            probability: 1.0,
+            flags: 0,
+            priority: 0,
+            spell_icon_file_id: 0,
+            active_icon_file_id: 0,
+            viewer_unit_condition_id: 0,
+            viewer_player_condition_id: 0,
+            caster_unit_condition_id: 0,
+            caster_player_condition_id: 0,
+            spell_id: spell_id_u32,
+        };
+        config.spell_x_spell_visual_store =
+            Some(Arc::new(wow_data::SpellXSpellVisualStore::from_entries([
+                visual_entry(8_105, 0),
+                visual_entry(8_106, 2),
+            ])));
+        config.difficulty_store =
+            Some(Arc::new(DifficultyStore::from_entries([DifficultyEntry {
+                id: 2,
+                instance_type: 0,
+                flags: 0,
+                fallback_difficulty_id: 0,
+                toggle_difficulty_id: 0,
+            }])));
+
+        let rejected =
+            run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+
+        assert_eq!(rejected.spell_effects_unrepresented, 1);
+        assert_eq!(rejected.schedules_initialized, 0);
+        assert_eq!(rejected.casts_ready, 0);
+        assert!(rejected.plan.events.is_empty());
+    }
+
+    #[test]
+    fn legacy_creature_combat_ai_aggro_self_effect_fails_closed_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_202);
+        let victim_guid = ObjectGuid::create_player(1, 91_203);
+        let spell_id = 70_002_i32;
+        let canonical = shared_canonical_map_manager();
+        add_canonical_creature_spell_test_pair_like_cpp(&canonical, creature_guid, victim_guid);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature
+                    .creature
+                    .set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
+                creature
+                    .creature
+                    .set_spell(0, u32::try_from(spell_id).unwrap());
+                creature.enter_combat(victim_guid);
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+        // AICOND_AGGRO passes `who` as the explicit SpellCastTargets unit, but
+        // TargetA=1 still selects the caster in Spell::SelectSpellTargets. The
+        // current single-victim wire slice must not claim that `who` was hit.
+        let config = creature_ai_spell_test_config_like_cpp(
+            creature_ai_test_spell_info_like_cpp(spell_id, 1, 0),
+            true,
+            30.0,
+        );
+
+        let engaged =
+            run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+        assert_eq!(engaged.casts_ready, 0);
+        assert_eq!(engaged.spell_effects_unrepresented, 1);
+        assert!(engaged.plan.events.is_empty());
+        let repeated =
+            run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+        assert_eq!(repeated.casts_ready, 0);
+        assert!(repeated.plan.events.is_empty());
+    }
+
+    #[test]
+    fn legacy_creature_ai_target_classifier_uses_target_a_and_nonzero_range_like_cpp() {
+        let spell_id = 70_003_u32;
+        let target_b_only = creature_ai_test_spell_info_like_cpp(spell_id as i32, 0, 6);
+        let ranged = creature_ai_spell_test_config_like_cpp(target_b_only.clone(), false, 30.0);
+        assert_eq!(
+            creature_ai_spell_target_like_cpp(spell_id, &target_b_only, 0, &ranged),
+            CreatureAiSpellTargetLikeCpp::SelfTarget
+        );
+
+        let target_a = creature_ai_test_spell_info_like_cpp(spell_id as i32, 6, 0);
+        assert_eq!(
+            creature_ai_spell_target_like_cpp(spell_id, &target_a, 0, &ranged),
+            CreatureAiSpellTargetLikeCpp::Victim
+        );
+        let zero_range = creature_ai_spell_test_config_like_cpp(target_a.clone(), false, 0.0);
+        assert_eq!(
+            creature_ai_spell_target_like_cpp(spell_id, &target_a, 0, &zero_range),
+            CreatureAiSpellTargetLikeCpp::SelfTarget
+        );
+    }
+
+    #[test]
+    fn legacy_creature_spell_visual_stops_at_conditional_active_difficulty_like_cpp() {
+        let spell_id = 70_006_u32;
+        let spell = creature_ai_test_spell_info_like_cpp(spell_id as i32, 6, 0);
+        let mut config = creature_ai_spell_test_config_like_cpp(spell, false, 30.0);
+        let visual =
+            |id, difficulty_id, caster_unit_condition_id| wow_data::SpellXSpellVisualEntry {
+                id,
+                difficulty_id,
+                spell_visual_id: id + 100,
+                probability: 1.0,
+                flags: 0,
+                priority: 0,
+                spell_icon_file_id: 0,
+                active_icon_file_id: 0,
+                viewer_unit_condition_id: 0,
+                viewer_player_condition_id: 0,
+                caster_unit_condition_id,
+                caster_player_condition_id: 0,
+                spell_id,
+            };
+        config.spell_x_spell_visual_store =
+            Some(Arc::new(wow_data::SpellXSpellVisualStore::from_entries([
+                visual(8_201, 0, 0),
+                visual(8_202, 2, 17),
+            ])));
+        config.difficulty_store =
+            Some(Arc::new(DifficultyStore::from_entries([DifficultyEntry {
+                id: 2,
+                instance_type: 0,
+                flags: 0,
+                fallback_difficulty_id: 0,
+                toggle_difficulty_id: 0,
+            }])));
+
+        assert_eq!(
+            creature_ai_spell_x_spell_visual_id_like_cpp(spell_id, 2, &config),
+            Err(()),
+            "C++ must evaluate the active difficulty's unit condition; Rust cannot skip it and borrow the fallback visual"
+        );
+        assert_eq!(
+            creature_ai_spell_x_spell_visual_id_like_cpp(spell_id, 0, &config),
+            Ok(8_201)
+        );
+    }
+
+    #[test]
+    fn legacy_creature_spell_wire_slice_fails_closed_for_unrepresented_topology_like_cpp() {
+        let victim_guid = ObjectGuid::create_player(1, 91_204);
+        let caster_guid = test_creature_guid(91_205);
+        let mut spell = creature_ai_test_spell_info_like_cpp(70_005, 6, 0);
+        assert_eq!(
+            creature_ai_spell_single_unit_topology_like_cpp(
+                &spell,
+                victim_guid,
+                victim_guid,
+                false,
+            ),
+            Ok(())
+        );
+
+        spell.cast_time_ms = 1_000;
+        assert_eq!(
+            creature_ai_spell_single_unit_topology_like_cpp(
+                &spell,
+                victim_guid,
+                victim_guid,
+                false,
+            ),
+            Err(CreatureAiSpellRepresentationRejectionLikeCpp::NonInstant)
+        );
+        spell.cast_time_ms = 0;
+        spell.effects[0].implicit_target_1 = 1;
+        assert_eq!(
+            creature_ai_spell_single_unit_topology_like_cpp(
+                &spell,
+                victim_guid,
+                victim_guid,
+                false,
+            ),
+            Err(CreatureAiSpellRepresentationRejectionLikeCpp::EffectOrTarget),
+            "TargetA=1 selects the caster even when SpellCastTargets names the victim"
+        );
+
+        spell.effects[0].implicit_target_1 = 6;
+        spell.effects[0].implicit_target_2 = 16;
+        assert_eq!(
+            creature_ai_spell_single_unit_topology_like_cpp(
+                &spell,
+                victim_guid,
+                victim_guid,
+                false,
+            ),
+            Err(CreatureAiSpellRepresentationRejectionLikeCpp::EffectOrTarget)
+        );
+        spell.effects[0].implicit_target_2 = 0;
+        spell.effects[0].chain_targets = 2;
+        assert_eq!(
+            creature_ai_spell_single_unit_topology_like_cpp(
+                &spell,
+                victim_guid,
+                victim_guid,
+                false,
+            ),
+            Err(CreatureAiSpellRepresentationRejectionLikeCpp::EffectOrTarget)
+        );
+        spell.effects[0].chain_targets = 0;
+        assert_eq!(
+            creature_ai_spell_single_unit_topology_like_cpp(
+                &spell,
+                caster_guid,
+                victim_guid,
+                false,
+            ),
+            Err(CreatureAiSpellRepresentationRejectionLikeCpp::EffectOrTarget)
+        );
+
+        spell
+            .power_costs
+            .push(wow_data::spell::SpellPowerCostInfoLikeCpp {
+                order_index: 0,
+                power_type: 3,
+                mana_cost: 0,
+                power_cost_pct: 0.0,
+                power_cost_max_pct: 0.0,
+                required_aura_spell_id: 0,
+                optional_cost: 0,
+            });
+        assert_eq!(
+            creature_ai_spell_single_unit_topology_like_cpp(
+                &spell,
+                victim_guid,
+                victim_guid,
+                false,
+            ),
+            Ok(()),
+            "a production-shaped zero-value SpellPower row has no effective cost"
+        );
+        spell.power_costs[0].mana_cost = 1;
+        assert_eq!(
+            creature_ai_spell_single_unit_topology_like_cpp(
+                &spell,
+                victim_guid,
+                victim_guid,
+                false,
+            ),
+            Err(CreatureAiSpellRepresentationRejectionLikeCpp::EffectOrTarget),
+            "nonzero Creature power cost remains fail-closed"
+        );
+        spell.power_costs[0].mana_cost = 0;
+        spell.power_costs[0].required_aura_spell_id = 123;
+        assert_eq!(
+            creature_ai_spell_single_unit_topology_like_cpp(
+                &spell,
+                victim_guid,
+                victim_guid,
+                false,
+            ),
+            Err(CreatureAiSpellRepresentationRejectionLikeCpp::EffectOrTarget),
+            "RequiredAura-dependent cost remains fail-closed"
+        );
+        spell.power_costs[0].required_aura_spell_id = 0;
+        spell.power_costs[0].optional_cost = 1;
+        assert_eq!(
+            creature_ai_spell_single_unit_topology_like_cpp(
+                &spell,
+                victim_guid,
+                victim_guid,
+                false,
+            ),
+            Err(CreatureAiSpellRepresentationRejectionLikeCpp::EffectOrTarget),
+            "OptionalCost remains fail-closed"
+        );
+    }
+
+    #[test]
+    fn legacy_creature_spell_projectile_payload_gate_preserves_15691_like_cpp() {
+        const SPELL_ATTR0_USES_RANGED_SLOT_LIKE_CPP: u32 = 0x0000_0002;
+        const SPELL_ATTR10_USES_RANGED_SLOT_COSMETIC_ONLY_LIKE_CPP: u32 = 0x0000_0004;
+        const SPELL_ATTR0_CU_NEEDS_AMMO_DATA_LIKE_CPP: u32 = 0x0008_0000;
+
+        let spell_id = 15_691_u32;
+        let victim_guid = ObjectGuid::create_player(1, 91_206);
+        let spell = creature_ai_test_spell_info_like_cpp(spell_id as i32, 6, 0);
+        let base_config = creature_ai_spell_test_config_like_cpp(spell.clone(), false, 30.0);
+        let fixture_requires_projectile =
+            creature_ai_spell_requires_projectile_payload_like_cpp(spell_id, 0, &base_config);
+        assert!(
+            !fixture_requires_projectile,
+            "Eviscerate 15691 is the issue-26 fixture and has an ordinary non-projectile START+GO shape"
+        );
+        assert_eq!(
+            creature_ai_spell_single_unit_topology_like_cpp(
+                &spell,
+                victim_guid,
+                victim_guid,
+                fixture_requires_projectile,
+            ),
+            Ok(())
+        );
+
+        for (attribute_word, attribute) in [
+            (0, SPELL_ATTR0_USES_RANGED_SLOT_LIKE_CPP),
+            (10, SPELL_ATTR10_USES_RANGED_SLOT_COSMETIC_ONLY_LIKE_CPP),
+        ] {
+            let mut attributes = [0_u32; 15];
+            attributes[attribute_word] = attribute;
+            let mut spell_store = wow_data::SpellStore::new();
+            spell_store.insert(spell.spell_id, spell.clone());
+            spell_store.insert_spell_misc_attributes_like_cpp(spell.spell_id, attributes);
+            let mut config = base_config.clone();
+            config.spell_store = Some(Arc::new(spell_store));
+            let requires_projectile =
+                creature_ai_spell_requires_projectile_payload_like_cpp(spell_id, 0, &config);
+            assert!(requires_projectile);
+            assert_eq!(
+                creature_ai_spell_single_unit_topology_like_cpp(
+                    &spell,
+                    victim_guid,
+                    victim_guid,
+                    requires_projectile,
+                ),
+                Err(CreatureAiSpellRepresentationRejectionLikeCpp::ProjectileOrAmmo)
+            );
+        }
+
+        let mut custom_config = base_config;
+        custom_config.spell_custom_attribute_store =
+            Some(Arc::new(wow_data::SpellCustomAttributeStoreLikeCpp {
+                attributes_by_spell_and_difficulty: std::collections::BTreeMap::from([(
+                    wow_data::SpellCustomAttributeKeyLikeCpp {
+                        spell_id,
+                        difficulty: 0,
+                    },
+                    SPELL_ATTR0_CU_NEEDS_AMMO_DATA_LIKE_CPP,
+                )]),
+            }));
+        let requires_projectile =
+            creature_ai_spell_requires_projectile_payload_like_cpp(spell_id, 0, &custom_config);
+        assert!(requires_projectile);
+        assert_eq!(
+            creature_ai_spell_single_unit_topology_like_cpp(
+                &spell,
+                victim_guid,
+                victim_guid,
+                requires_projectile,
+            ),
+            Err(CreatureAiSpellRepresentationRejectionLikeCpp::ProjectileOrAmmo)
+        );
+    }
+
+    #[test]
+    fn legacy_creature_spell_tick_is_noop_under_session_owner_like_cpp() {
+        let manager = shared_map_manager();
+        let spell_id = 70_004_i32;
+        let config = creature_ai_spell_test_config_like_cpp(
+            creature_ai_test_spell_info_like_cpp(spell_id, 6, 0),
+            false,
+            30.0,
+        );
+
+        let outcome = run_legacy_creature_spell_tick_once_like_cpp(&manager, None, &config);
+
+        assert!(outcome.skipped_owner_not_global);
+        assert_eq!(outcome.maps_seen, 0);
+        assert!(outcome.plan.events.is_empty());
+    }
+
     #[test]
     fn legacy_creature_aggro_tick_once_honors_turret_ai_range_like_cpp() {
         use crate::map_manager::RuntimeTickOwner;
@@ -153179,6 +155810,7 @@ mod tests {
         session
             .mutate_world_creature(creature_guid, |creature| {
                 creature.creature.ai_ownership_mut().aggro_radius = 100.0;
+                creature.creature.unit_mut().set_combat_reach(0.0);
                 creature
                     .creature
                     .set_ai_identity_names_runtime_like_cpp("TurretAI", String::new());
@@ -153218,6 +155850,144 @@ mod tests {
         assert_eq!(outcome.aggro_starts, 1);
         assert_eq!(outcome.commands.len(), 1);
         assert_eq!(outcome.commands[0].victim_guid, valid);
+    }
+
+    #[test]
+    fn legacy_turret_ai_can_attack_uses_combat_reaches_and_strict_bounds_like_cpp() {
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_304);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.set_spell(0, 7_003);
+                creature.creature.unit_mut().set_combat_reach(1.0);
+            })
+            .unwrap();
+        let config = LegacyCreatureAggroConfigLikeCpp {
+            spell_misc_store: Some(Arc::new(wow_data::SpellMiscStore::from_entries([
+                spell_misc_entry_like_cpp(8_301, 7_003, 71),
+            ]))),
+            spell_range_store: Some(Arc::new(wow_data::SpellRangeStore::from_entries([
+                spell_range_entry_like_cpp(71, 1.0, 5.0),
+            ]))),
+            ..legacy_aggro_hostile_config_like_cpp()
+        };
+        let guard = manager.read().unwrap();
+        let creature = guard.find_creature(0, 0, creature_guid).unwrap();
+        let mut candidate = legacy_aggro_candidate_like_cpp(
+            ObjectGuid::create_player(1, 91_305),
+            Position::default(),
+        );
+        candidate.player_combat_reach = 1.0;
+
+        candidate.position = Position::new(16.0, 10.0, 0.0, 0.0);
+        assert_eq!(
+            legacy_creature_ai_can_attack_decision_like_cpp(
+                &CreatureAiKindLikeCpp::TurretAI,
+                creature,
+                &candidate,
+                &config,
+            ),
+            LegacyCreatureAiCanAttackDecisionLikeCpp::Allowed,
+            "center distance 6 is inside max 5 + reaches 1 + 1"
+        );
+        candidate.position = Position::new(17.0, 10.0, 0.0, 0.0);
+        assert_eq!(
+            legacy_creature_ai_can_attack_decision_like_cpp(
+                &CreatureAiKindLikeCpp::TurretAI,
+                creature,
+                &candidate,
+                &config,
+            ),
+            LegacyCreatureAiCanAttackDecisionLikeCpp::Rejected,
+            "IsWithinCombatRange is strict at max + reaches"
+        );
+        candidate.position = Position::new(12.5, 10.0, 0.0, 0.0);
+        assert_eq!(
+            legacy_creature_ai_can_attack_decision_like_cpp(
+                &CreatureAiKindLikeCpp::TurretAI,
+                creature,
+                &candidate,
+                &config,
+            ),
+            LegacyCreatureAiCanAttackDecisionLikeCpp::Rejected,
+            "center distance 2.5 is inside min 1 + reaches 1 + 1"
+        );
+        candidate.position = Position::new(13.0, 10.0, 0.0, 0.0);
+        assert_eq!(
+            legacy_creature_ai_can_attack_decision_like_cpp(
+                &CreatureAiKindLikeCpp::TurretAI,
+                creature,
+                &candidate,
+                &config,
+            ),
+            LegacyCreatureAiCanAttackDecisionLikeCpp::Allowed,
+            "the min + reaches boundary itself is not within strict range"
+        );
+    }
+
+    #[test]
+    fn legacy_turret_ai_can_attack_uses_active_map_difficulty_range_like_cpp() {
+        let manager = shared_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_306);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.creature.set_spell(0, 7_004);
+                creature.creature.unit_mut().set_combat_reach(0.0);
+            })
+            .unwrap();
+        let mut active_misc = spell_misc_entry_like_cpp(8_303, 7_004, 72);
+        active_misc.difficulty_id = 2;
+        let config = LegacyCreatureAggroConfigLikeCpp {
+            spell_misc_store: Some(Arc::new(wow_data::SpellMiscStore::from_entries([
+                spell_misc_entry_like_cpp(8_302, 7_004, 71),
+                active_misc,
+            ]))),
+            spell_range_store: Some(Arc::new(wow_data::SpellRangeStore::from_entries([
+                spell_range_entry_like_cpp(71, 0.0, 2.0),
+                spell_range_entry_like_cpp(72, 0.0, 10.0),
+            ]))),
+            difficulty_store: Some(Arc::new(DifficultyStore::from_entries([DifficultyEntry {
+                id: 2,
+                instance_type: 0,
+                flags: 0,
+                fallback_difficulty_id: 0,
+                toggle_difficulty_id: 0,
+            }]))),
+            ..legacy_aggro_hostile_config_like_cpp()
+        };
+        let guard = manager.read().unwrap();
+        let creature = guard.find_creature(0, 0, creature_guid).unwrap();
+        let mut candidate = legacy_aggro_candidate_like_cpp(
+            ObjectGuid::create_player(1, 91_307),
+            Position::new(16.0, 10.0, 0.0, 0.0),
+        );
+        candidate.player_combat_reach = 0.0;
+        candidate.map_difficulty_id = 2;
+
+        assert_eq!(
+            legacy_creature_ai_can_attack_decision_like_cpp(
+                &CreatureAiKindLikeCpp::TurretAI,
+                creature,
+                &candidate,
+                &config,
+            ),
+            LegacyCreatureAiCanAttackDecisionLikeCpp::Allowed,
+            "active difficulty range 10 must win over base range 2"
+        );
+        candidate.map_difficulty_id = 0;
+        assert_eq!(
+            legacy_creature_ai_can_attack_decision_like_cpp(
+                &CreatureAiKindLikeCpp::TurretAI,
+                creature,
+                &candidate,
+                &config,
+            ),
+            LegacyCreatureAiCanAttackDecisionLikeCpp::Rejected
+        );
     }
 
     #[test]

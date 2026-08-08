@@ -54,6 +54,12 @@
 #                            detour-chase-around-obstacle. That flow uses the
 #                            bot journal path as a shell-owned DB recovery
 #                            journal and a private synthetic-MMap DataDir
+#   CREATURE_SPELL_CAPTURE_ACK_FIXTURE_MUTATION must be 1 for
+#                            creature-spell-casting. The wrapper journals and
+#                            CAS-switches Cabal Interrogator 22378 from SmartAI
+#                            to CombatAI only while both worlds are stopped
+#   CREATURE_SPELL_FIXTURE_JOURNAL fresh absolute recovery-journal path in a
+#                            canonical mode-0700 directory
 #
 # This restarts the live world server (disconnecting players). Pass --yes to skip
 # the confirmation prompt.
@@ -90,6 +96,24 @@ WOW_BOT_FIXTURE_JOURNAL="${WOW_BOT_FIXTURE_JOURNAL:-}"
 WOW_BOT_EXEC="${WOW_BOT_EXEC:-}"
 WOW_BOT_EXEC_SHA256="${WOW_BOT_EXEC_SHA256:-}"
 WOW_BOT_REPORT="${WOW_BOT_REPORT:-}"
+CREATURE_SPELL_CAPTURE_ACK_FIXTURE_MUTATION="${CREATURE_SPELL_CAPTURE_ACK_FIXTURE_MUTATION:-0}"
+CREATURE_SPELL_FIXTURE_JOURNAL="${CREATURE_SPELL_FIXTURE_JOURNAL:-}"
+CREATURE_SPELL_FIXTURE_CLEANUP_MARKER=""
+CREATURE_SPELL_FIXTURE_DB_CONF=""
+CREATURE_SPELL_FIXTURE_DB_CONF_SHA256=""
+CREATURE_SPELL_FIXTURE_DB_CONF_IDENTITY=""
+CREATURE_SPELL_FIXTURE_SIDE=""
+CREATURE_SPELL_FIXTURE_PM2_RUST_WORLD=""
+CREATURE_SPELL_FIXTURE_PM2_CPP_WORLD=""
+CREATURE_SPELL_FIXTURE_WORLD_PORT=""
+CREATURE_SPELL_FIXTURE_INSTANCE_PORT=""
+CREATURE_SPELL_FIXTURE_ORCHESTRATION_LOCK=""
+CREATURE_SPELL_FIXTURE_MANIFEST=""
+CREATURE_SPELL_FIXTURE_MANIFEST_SHA256=""
+CREATURE_SPELL_FIXTURE_DATABASE_SNAPSHOT_SHA256=""
+CREATURE_SPELL_FIXTURE_JOURNAL_SHA256=""
+CREATURE_SPELL_FIXTURE_DB_APPLIED=0
+CREATURE_SPELL_FIXTURE_CLEANUP_VERIFIED=0
 CAPTURE_EXEC=""
 CAPTURE_EXEC_SHA256=""
 CAPTURE_EXPECTED_EXEC=""
@@ -164,11 +188,46 @@ source "$(dirname "${BASH_SOURCE[0]}")/loot-fixture-common.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/capture-service-common.sh"
 # shellcheck source=detour-chase-fixture-common.sh
 source "$(dirname "${BASH_SOURCE[0]}")/detour-chase-fixture-common.sh"
+# shellcheck source=creature-spell-casting-fixture-common.sh
+source "$(dirname "${BASH_SOURCE[0]}")/creature-spell-casting-fixture-common.sh"
 capture_validate_world_timeouts || exit 2
 
 if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
   LOOT_FIXTURE_GUARD_ENABLED=1
   DETOUR_FIXTURE_DB_CONF="$RUST_CAPTURE_DB_CONF"
+fi
+
+if [ "$FLOW" = "creature-spell-casting" ]; then
+  [ "$CREATURE_SPELL_CAPTURE_ACK_FIXTURE_MUTATION" = 1 ] || {
+    echo "error: creature-spell-casting requires CREATURE_SPELL_CAPTURE_ACK_FIXTURE_MUTATION=1" >&2
+    exit 2
+  }
+  [ -n "$RUST_CAPTURE_EXEC" ] && [ -n "$RUST_CAPTURE_EXEC_SHA256" ] || {
+    echo "error: creature spell evidence requires RUST_CAPTURE_EXEC and RUST_CAPTURE_EXEC_SHA256" >&2
+    exit 2
+  }
+  [ "$RUST_CAPTURE_EFFECTIVE_CONFIG_WAS_SET" = x ] \
+    && [ -n "$RUST_CAPTURE_EFFECTIVE_CONFIG" ] || {
+      echo "error: creature spell evidence requires RUST_CAPTURE_EFFECTIVE_CONFIG" >&2
+    exit 2
+  }
+  [ -n "$WOW_BOT_EXEC" ] && [ -n "$WOW_BOT_EXEC_SHA256" ] \
+    && [ -n "$WOW_BOT_REPORT" ] || {
+    echo "error: creature spell evidence requires WOW_BOT_EXEC, WOW_BOT_EXEC_SHA256, and WOW_BOT_REPORT" >&2
+    exit 2
+  }
+  [[ "$WOW_BOT_EXEC_SHA256" =~ ^[0-9A-Fa-f]{64}$ ]] || {
+    echo "error: WOW_BOT_EXEC_SHA256 must contain exactly 64 hexadecimal characters" >&2
+    exit 2
+  }
+  WOW_BOT_EXEC_SHA256="${WOW_BOT_EXEC_SHA256,,}"
+  capture_validate_fresh_bot_inputs \
+    "$WOW_BOT_EXEC" "$WOW_BOT_EXEC_SHA256" "$WOW_BOT_REPORT" || {
+    echo "error: creature spell bot executable/report inputs are not fresh, canonical, and pinned" >&2
+    exit 2
+  }
+  creature_spell_fixture_validate_fresh_journal || exit 2
+  creature_spell_fixture_validate_committed_fixture "$REPO_ROOT" || exit 2
 fi
 
 [[ "$RUST_WORLD_PORT" =~ ^[1-9][0-9]*$ ]] \
@@ -262,7 +321,8 @@ case "$RUST_CAPTURE_LOOT_FIXTURE_GUARD" in
     ;;
 esac
 
-if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
+if [ "$FLOW" = "detour-chase-around-obstacle" ] \
+    || [ "$FLOW" = "creature-spell-casting" ]; then
   [ -n "$RUST_CAPTURE_EXEC" ] && [ -n "$RUST_CAPTURE_EXEC_SHA256" ] || {
     echo "error: detour evidence requires RUST_CAPTURE_EXEC and RUST_CAPTURE_EXEC_SHA256" >&2
     exit 2
@@ -883,7 +943,8 @@ capture_git_repo_clean_at_head "$REPO_ROOT" "$CAPTURE_HARNESS_REPO_HEAD" || {
   echo "error: capture evidence requires a clean committed RustyCore harness/source worktree (including untracked files)" >&2
   exit 1
 }
-if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
+if [ "$FLOW" = "detour-chase-around-obstacle" ] \
+    || [ "$FLOW" = "creature-spell-casting" ]; then
   CAPTURE_EXEC_SOURCE_HEAD="$(
     rust_capture_embedded_source_head "$CAPTURE_EXEC"
   )" || {
@@ -978,6 +1039,9 @@ finalize_rust_capture_artifact() {
   if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
     fixture_guard_enabled=1
   fi
+  if [ "$FLOW" = "creature-spell-casting" ]; then
+    fixture_guard_enabled=1
+  fi
   capture_fixture_cleanup_verified_for_publication \
     "$fixture_guard_enabled" \
     "$CAPTURE_FIXTURE_CLEANUP_VERIFIED" || return 1
@@ -992,6 +1056,10 @@ finalize_rust_capture_artifact() {
       ;;
     vendor-extended-cost-purchase)
       bot_evidence="$(capture_vendor_bot_evidence \
+        "$WOW_BOT_REPORT" "$WOW_BOT_EXEC" "$WOW_BOT_EXEC_SHA256")" || return 1
+      ;;
+    creature-spell-casting)
+      bot_evidence="$(creature_spell_fixture_bot_evidence \
         "$WOW_BOT_REPORT" "$WOW_BOT_EXEC" "$WOW_BOT_EXEC_SHA256")" || return 1
       ;;
   esac
@@ -1012,6 +1080,10 @@ finalize_rust_capture_artifact() {
   fi
   if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
     capture_evidence="$(detour_chase_capture_evidence)" || return 1
+  elif [ "$FLOW" = "creature-spell-casting" ]; then
+    capture_evidence="$(creature_spell_fixture_capture_evidence \
+      "$CAPTURE_BOT_EXEC" "$CAPTURE_BOT_EXEC_SHA256" \
+      "$CAPTURE_BOT_REPORT" "$CAPTURE_BOT_REPORT_SHA256")" || return 1
   else
     capture_evidence="$(capture_bot_manifest_evidence \
       "$FLOW" "$CAPTURE_BOT_EXEC" "$CAPTURE_BOT_EXEC_SHA256" \
@@ -1027,7 +1099,8 @@ finalize_rust_capture_artifact() {
     && [ "$(capture_git_worktree_state_sha256 "$REPO_ROOT")" \
       = "$CAPTURE_HARNESS_WORKTREE_SHA256" ] \
     && {
-      [ "$FLOW" != "detour-chase-around-obstacle" ] \
+      { [ "$FLOW" != "detour-chase-around-obstacle" ] \
+          && [ "$FLOW" != "creature-spell-casting" ]; } \
         || [ "$(rust_capture_embedded_source_head "$CAPTURE_EXEC")" \
           = "$CAPTURE_EXEC_SOURCE_HEAD" ]
     } || return 1
@@ -1148,7 +1221,8 @@ for dependency in awk chmod date dirname find flock git id mkdir mktemp mv \
   }
 done
 if [ "$RUST_CAPTURE_LOOT_FIXTURE_GUARD" = "1" ] \
-    || [ "$FLOW" = "detour-chase-around-obstacle" ]; then
+    || [ "$FLOW" = "detour-chase-around-obstacle" ] \
+    || [ "$FLOW" = "creature-spell-casting" ]; then
   command -v mysql >/dev/null 2>&1 || {
     echo "error: mysql is required by the selected fixture guard" >&2
     exit 1
@@ -1169,6 +1243,9 @@ if [ "$RUST_CAPTURE_LOOT_FIXTURE_GUARD" = "1" ]; then
   else
     echo "DB fixture : entry ${LOOT_FIXTURE_ENTRY}, temporary HealthModifier ${LOOT_FIXTURE_TEMP_HEALTH_MODIFIER}"
   fi
+fi
+if [ "$FLOW" = "creature-spell-casting" ]; then
+  echo "DB fixture : Cabal entry ${CREATURE_SPELL_FIXTURE_ENTRY}, spawn ${CREATURE_SPELL_FIXTURE_SPAWN_GUID}, spell ${CREATURE_SPELL_FIXTURE_SPELL_ID}; SmartAI -> CombatAI"
 fi
 echo
 echo "This will restart ${PM2_RUST_WORLD} with RUSTYCORE_PACKET_DUMP_DIR set."
@@ -1328,7 +1405,8 @@ resolve_rust_profile_effective_config() {
     return 1
   fi
   if { [ "$RUST_CAPTURE_LOOT_FIXTURE_GUARD" = "1" ] \
-        || [ "$FLOW" = "detour-chase-around-obstacle" ]; } \
+        || [ "$FLOW" = "detour-chase-around-obstacle" ] \
+        || [ "$FLOW" = "creature-spell-casting" ]; } \
       && ! jq -e '
         (.apps[0].env // {}) | keys
         | map(select(startswith("TC_"))) | length == 0
@@ -1482,6 +1560,18 @@ cleanup() {
     restore_status=1
   fi
   if [ "$restore_status" -eq 0 ] \
+      && [ "$FLOW" = "creature-spell-casting" ] \
+      && ! creature_spell_fixture_record_post_login_snapshot; then
+    echo "WARNING: failed to durably snapshot the exact post-login creature spell character state; the normal world will remain stopped" >&2
+    restore_status=1
+  fi
+  if [ "$restore_status" -eq 0 ] \
+      && [ "$FLOW" = "creature-spell-casting" ] \
+      && ! creature_spell_fixture_restore_guard; then
+    echo "WARNING: failed to restore the guarded Cabal creature spell fixture; the normal world will remain stopped" >&2
+    restore_status=1
+  fi
+  if [ "$restore_status" -eq 0 ] \
       && [ "$FLOW" = "detour-chase-around-obstacle" ] \
       && ! detour_chase_restore_fixture_guard; then
     echo "WARNING: failed to restore the guarded detour creature/character fixture" >&2
@@ -1496,6 +1586,10 @@ cleanup() {
   fi
   if [ "$restore_status" -eq 0 ] \
       && [ "$RUST_CAPTURE_LOOT_FIXTURE_GUARD" = "1" ]; then
+    CAPTURE_FIXTURE_CLEANUP_VERIFIED=1
+  fi
+  if [ "$restore_status" -eq 0 ] \
+      && [ "$FLOW" = "creature-spell-casting" ]; then
     CAPTURE_FIXTURE_CLEANUP_VERIFIED=1
   fi
   if [ "$restore_status" -eq 0 ] \
@@ -1590,6 +1684,12 @@ cleanup() {
       || [ "$FLOW" = "detour-chase-around-obstacle" ]; } \
       && ! rm -f -- "$LOOT_FIXTURE_CLEANUP_MARKER"; then
     echo "WARNING: failed to remove the consumed bot cleanup marker" >&2
+    restore_status=1
+  fi
+  if [ "$restore_status" -eq 0 ] \
+      && [ "$FLOW" = "creature-spell-casting" ] \
+      && ! creature_spell_fixture_remove_cleanup_marker; then
+    echo "WARNING: failed to remove the consumed creature spell cleanup marker" >&2
     restore_status=1
   fi
   if [ "$restore_status" -eq 0 ] && [ "$capture_status" -eq 0 ]; then
@@ -1813,6 +1913,28 @@ chmod 600 "$RESTORE_FILE" "$CAPTURE_CONFIG_FILE" || {
 RESTORE_FILE_SHA256="$(sha256_of_file "$RESTORE_FILE")" || exit 1
 CAPTURE_CONFIG_FILE_SHA256="$(sha256_of_file "$CAPTURE_CONFIG_FILE")" || exit 1
 RESTORE_READY=1
+if [ "$FLOW" = "creature-spell-casting" ]; then
+  CREATURE_SPELL_FIXTURE_DB_CONF="$(
+    realpath -e -- "$RUST_CAPTURE_DB_CONF"
+  )" || exit 1
+  CREATURE_SPELL_FIXTURE_DB_CONF_SHA256="$(
+    creature_spell_fixture_sha256_of_file \
+      "$CREATURE_SPELL_FIXTURE_DB_CONF"
+  )" || exit 1
+  CREATURE_SPELL_FIXTURE_DB_CONF_IDENTITY="$(
+    stat -c '%d:%i' -- "$CREATURE_SPELL_FIXTURE_DB_CONF"
+  )" || exit 1
+  CREATURE_SPELL_FIXTURE_SIDE=rust
+  CREATURE_SPELL_FIXTURE_PM2_RUST_WORLD="$PM2_RUST_WORLD"
+  CREATURE_SPELL_FIXTURE_PM2_CPP_WORLD="$PM2_CPP_WORLD"
+  CREATURE_SPELL_FIXTURE_WORLD_PORT="$RUST_WORLD_PORT"
+  CREATURE_SPELL_FIXTURE_INSTANCE_PORT="$RUST_INSTANCE_PORT"
+  CREATURE_SPELL_FIXTURE_ORCHESTRATION_LOCK="$CAPTURE_ORCHESTRATION_LOCK"
+  creature_spell_fixture_validate_db_config || {
+    echo "error: creature spell recovery DB config is not canonical and pinned" >&2
+    exit 1
+  }
+fi
 if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
   DETOUR_FIXTURE_DB_CONF="$(realpath -e -- "$RUST_CAPTURE_DB_CONF")"
   DETOUR_FIXTURE_DB_CONF_SHA256="$(
@@ -1928,6 +2050,9 @@ capture_pm2_process_stopped "$PM2_CPP_WORLD" || {
   exit 1
 }
 apply_loot_fixture_guard
+if [ "$FLOW" = "creature-spell-casting" ]; then
+  creature_spell_fixture_apply_guard
+fi
 if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
   detour_chase_apply_fixture_guard
 fi
@@ -2044,7 +2169,14 @@ if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
   DETOUR_FIXTURE_BOT_READY=1
 fi
 echo
-echo ">>> Perform the '${FLOW}' flow with the client now."
+if [ "$FLOW" = "creature-spell-casting" ]; then
+  echo ">>> Run the pinned bot once while this capture world is active:"
+  printf '>>> WOW_BOT_REPORT=%q %q --creature-spell-capture --single %q --creature-spell-fixture-manifest %q\n' \
+    "$WOW_BOT_REPORT" "$WOW_BOT_EXEC" "$CREATURE_SPELL_FIXTURE_ACCOUNT" \
+    "$CREATURE_SPELL_FIXTURE_MANIFEST"
+else
+  echo ">>> Perform the '${FLOW}' flow with the client now."
+fi
 read -r -p ">>> Press ENTER when the flow is complete to finish the capture... " _
 
 FINAL_CAPTURE_IDENTITY=""

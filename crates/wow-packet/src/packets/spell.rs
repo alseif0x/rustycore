@@ -713,13 +713,17 @@ impl ServerPacket for SpellPreparePkt {
 // ── SMSG_SPELL_START ─────────────────────────────────────────────
 
 /// `SMSG_SPELL_START` — notifies client a spell cast has begun.
-/// Used for spells with a cast time; for instant spells use `SpellGoPkt`.
+/// C++ emits this during `Spell::prepare` even for instant casts, followed by
+/// `SpellGoPkt` when the cast executes.
 pub struct SpellStartPkt {
     pub caster: ObjectGuid,
     pub cast_id: ObjectGuid,
     pub original_cast_id: ObjectGuid,
     pub spell_id: i32,
     pub visual: SpellCastVisual,
+    /// C++ `Spell::SendSpellStart` flags (at minimum
+    /// `CAST_FLAG_HAS_TRAJECTORY` for an ordinary unit cast).
+    pub cast_flags: u32,
     pub cast_flags_ex: u32,
     /// Cast time in milliseconds (0 for instant).
     pub cast_time_ms: u32,
@@ -737,7 +741,7 @@ impl ServerPacket for SpellStartPkt {
             &self.original_cast_id,
             self.spell_id,
             &self.visual,
-            0,
+            self.cast_flags,
             self.cast_flags_ex,
             self.cast_time_ms,
             &self.target,
@@ -750,8 +754,7 @@ impl ServerPacket for SpellStartPkt {
 
 /// `SMSG_SPELL_GO` — spell completes and effects are applied.
 ///
-/// For our básicos implementation we send this immediately for all spells
-/// (treating everything as instant-cast).
+/// Instant represented casts send this immediately after `SpellStartPkt`.
 pub struct SpellGoPkt {
     pub caster: ObjectGuid,
     pub cast_id: ObjectGuid,
@@ -772,7 +775,7 @@ impl ServerPacket for SpellGoPkt {
     const OPCODE: ServerOpcodes = ServerOpcodes::SpellGo;
 
     fn write(&self, pkt: &mut WorldPacket) {
-        // SpellCastData (CastTime=0 for instant)
+        // SpellCastData (`SMSG_SPELL_GO` carries the server timestamp here).
         write_spell_cast_data(
             pkt,
             &self.caster,

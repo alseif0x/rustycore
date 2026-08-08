@@ -57,6 +57,7 @@ const SMSG_INVENTORY_CHANGE_FAILURE: u16 = 0x2DA5;
 const SMSG_BIND_POINT_UPDATE: u16 = 0x257D;
 const SMSG_GOSSIP_COMPLETE: u16 = 0x2A97;
 const SMSG_PLAYER_BOUND: u16 = 0x2FF8;
+const SMSG_SPELL_START: u16 = 0x2C37;
 const SMSG_SPELL_GO: u16 = 0x2C36;
 const CMSG_LOGOUT_REQUEST: u16 = 0x34D6;
 const SMSG_LOGOUT_COMPLETE: u16 = 0x2684;
@@ -152,6 +153,25 @@ const DETOUR_CHASE_TILE_ASSET_SHA256: &str =
     "693b93ac3ac605fea8b846a0e1fcf6ca2d0b0dce2f8c5d9c34739febc3731f47";
 const ISSUE_24_PING_FENCE_WIRE: [u8; 4] = *b"DTOR";
 const ISSUE_24_PING_FENCE_SERIAL: u32 = u32::from_le_bytes(ISSUE_24_PING_FENCE_WIRE);
+const CREATURE_SPELL_FIXTURE_FLOW: &str = "creature-spell-casting";
+const CREATURE_SPELL_FIXTURE_ACCOUNT: &str = "TESTBOT2@bot.local";
+const CREATURE_SPELL_FIXTURE_ACCOUNT_ID: u32 = 9;
+const CREATURE_SPELL_FIXTURE_CHARACTER_GUID: u64 = 15;
+const CREATURE_SPELL_FIXTURE_ENTRY: u32 = 22_378;
+const CREATURE_SPELL_FIXTURE_SPAWN_GUID: u64 = 78_686;
+const CREATURE_SPELL_FIXTURE_SPELL_ID: u32 = 15_691;
+const CREATURE_SPELL_FIXTURE_SPELL_X_VISUAL_ID: u32 = 244_493;
+const CREATURE_SPELL_FIXTURE_MAP_ID: u16 = 530;
+const CREATURE_SPELL_FIXTURE_X: f32 = -2_764.52;
+const CREATURE_SPELL_FIXTURE_Y: f32 = 5_431.19;
+const CREATURE_SPELL_FIXTURE_Z: f32 = -34.4548;
+const CREATURE_SPELL_CHARACTER_START_X: f32 = -2_749.52;
+const CREATURE_SPELL_CHARACTER_PULL_X: f32 = -2_760.52;
+const CREATURE_SPELL_CHARACTER_ORIENTATION: f32 = 0.0;
+const CREATURE_SPELL_TARGET_MATCH_RADIUS: f32 = 0.5;
+const DEFAULT_CREATURE_SPELL_CAPTURE_TIMEOUT_SECS: u64 = 30;
+const CREATURE_SPELL_FIXTURE_MANIFEST_SHA256: &str =
+    "be6302866ad2d09e1117ec30f1a81e5c0b3b2cacbebe93dc54fe9eecf814af8b";
 const REST_STATE_RESTED: u8 = 1;
 const REST_STATE_NORMAL: u8 = 2;
 const PLAYER_FLAGS_RESTING: u32 = 0x0000_0020;
@@ -318,6 +338,9 @@ struct CliOptions {
     ack_disposable_detour_fixture: bool,
     detour_fixture_manifest: Option<String>,
     detour_chase_timeout_secs: u64,
+    creature_spell_capture: bool,
+    creature_spell_fixture_manifest: Option<String>,
+    creature_spell_capture_timeout_secs: u64,
     loot_race_smoke: bool,
     loot_item_capture: bool,
     ack_disposable_overworld_loot_race: bool,
@@ -505,6 +528,38 @@ struct BotRunResult {
     detour_chase_time_sync_after_fence: u32,
     detour_chase_logout_confirmed: bool,
     detour_chase_failure: Option<String>,
+    creature_spell_capture: bool,
+    creature_spell_capture_passed: Option<bool>,
+    creature_spell_fixture_manifest_sha256: Option<String>,
+    creature_spell_target_entry: Option<u32>,
+    creature_spell_target_spawn_guid: Option<u64>,
+    creature_spell_target_runtime_counter: Option<u64>,
+    creature_spell_target_discovered: bool,
+    creature_spell_heartbeat_sent: bool,
+    creature_spell_heartbeat_sha256: Option<String>,
+    creature_spell_start_opcode: Option<u16>,
+    creature_spell_start_body_sha256: Option<String>,
+    creature_spell_start_body_bytes: Option<usize>,
+    creature_spell_go_opcode: Option<u16>,
+    creature_spell_go_body_sha256: Option<String>,
+    creature_spell_go_body_bytes: Option<usize>,
+    creature_spell_cast_id_low: Option<u64>,
+    creature_spell_cast_id_high: Option<u64>,
+    creature_spell_caster_guid_low: Option<u64>,
+    creature_spell_caster_guid_high: Option<u64>,
+    creature_spell_victim_guid_low: Option<u64>,
+    creature_spell_victim_guid_high: Option<u64>,
+    creature_spell_spell_id: Option<u32>,
+    creature_spell_start_cast_flags: Option<u32>,
+    creature_spell_go_cast_flags: Option<u32>,
+    creature_spell_cast_flags_ex: Option<u32>,
+    creature_spell_go_hit_target_count: Option<u16>,
+    creature_spell_go_miss_target_count: Option<u16>,
+    creature_spell_full_combat_log: Option<bool>,
+    creature_spell_advanced_logging_sent: bool,
+    creature_spell_adjacent_start_go: bool,
+    creature_spell_logout_confirmed: bool,
+    creature_spell_failure: Option<String>,
     loot_race_smoke: bool,
     loot_race_smoke_passed: Option<bool>,
     loot_race_target_entry: Option<u32>,
@@ -658,6 +713,23 @@ impl BotRunResult {
                 && self.detour_chase_pong_confirmed
                 && self.detour_chase_logout_confirmed;
         }
+        if self.creature_spell_capture {
+            return self.world_auth
+                && self.enum_characters
+                && self.player_login_verified
+                && self.creature_spell_capture_passed.unwrap_or(false)
+                && self.creature_spell_target_discovered
+                && self.creature_spell_heartbeat_sent
+                && self.creature_spell_start_opcode == Some(SMSG_SPELL_START)
+                && self.creature_spell_go_opcode == Some(SMSG_SPELL_GO)
+                && self.creature_spell_spell_id == Some(CREATURE_SPELL_FIXTURE_SPELL_ID)
+                && self.creature_spell_go_hit_target_count == Some(1)
+                && self.creature_spell_go_miss_target_count == Some(0)
+                && self.creature_spell_full_combat_log == Some(false)
+                && !self.creature_spell_advanced_logging_sent
+                && self.creature_spell_adjacent_start_go
+                && self.creature_spell_logout_confirmed;
+        }
         if self.loot_race_smoke {
             return self.world_auth
                 && self.enum_characters
@@ -699,6 +771,7 @@ struct RunReport {
     equipment_set_race_smoke: bool,
     rested_xp_smoke: bool,
     detour_chase_capture: bool,
+    creature_spell_capture: bool,
     loot_race_smoke: bool,
     loot_item_capture: bool,
     group_capacity_race_smoke: bool,
@@ -1394,6 +1467,17 @@ fn parse_cli() -> Result<CliOptions> {
             .map(|value| value.parse::<u64>())
             .transpose()?
             .unwrap_or(DEFAULT_DETOUR_CHASE_TIMEOUT_SECS),
+        creature_spell_capture: std::env::var("WOW_BOT_CREATURE_SPELL_CAPTURE")
+            .ok()
+            .map(|value| is_truthy(&value))
+            .unwrap_or(false),
+        creature_spell_fixture_manifest: std::env::var("WOW_BOT_CREATURE_SPELL_FIXTURE_MANIFEST")
+            .ok(),
+        creature_spell_capture_timeout_secs: std::env::var("WOW_BOT_CREATURE_SPELL_TIMEOUT_SECS")
+            .ok()
+            .map(|value| value.parse::<u64>())
+            .transpose()?
+            .unwrap_or(DEFAULT_CREATURE_SPELL_CAPTURE_TIMEOUT_SECS),
         loot_race_smoke: std::env::var("WOW_BOT_LOOT_RACE_SMOKE")
             .ok()
             .is_some_and(|value| is_truthy(&value)),
@@ -1693,6 +1777,15 @@ fn parse_cli() -> Result<CliOptions> {
                 opts.detour_chase_timeout_secs =
                     next_arg(&mut args, "--detour-chase-timeout")?.parse()?;
             }
+            "--creature-spell-capture" => opts.creature_spell_capture = true,
+            "--creature-spell-fixture-manifest" => {
+                opts.creature_spell_fixture_manifest =
+                    Some(next_arg(&mut args, "--creature-spell-fixture-manifest")?);
+            }
+            "--creature-spell-timeout" => {
+                opts.creature_spell_capture_timeout_secs =
+                    next_arg(&mut args, "--creature-spell-timeout")?.parse()?;
+            }
             "--loot-race-smoke" => opts.loot_race_smoke = true,
             "--loot-item-capture" => opts.loot_item_capture = true,
             arg if arg == loot_race::ACK_FLAG => opts.ack_disposable_overworld_loot_race = true,
@@ -1956,6 +2049,29 @@ struct DetourChaseCaptureOptions {
     destination_z: f32,
     destination_orientation: f32,
     timeout_secs: u64,
+}
+
+#[derive(Debug, Clone)]
+struct CreatureSpellCaptureOptions {
+    fixture_manifest_sha256: String,
+    timeout_secs: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CreatureSpellCastSummary {
+    caster: (u64, u64),
+    caster_unit: (u64, u64),
+    cast_id: (u64, u64),
+    original_cast_id: (u64, u64),
+    spell_id: u32,
+    cast_flags: u32,
+    cast_flags_ex: u32,
+    target: (u64, u64),
+    hit_targets: Vec<(u64, u64)>,
+    miss_targets: Vec<(u64, u64)>,
+    miss_status_count: u16,
+    full_combat_log: Option<bool>,
+    consumed: usize,
 }
 
 fn detour_chase_options_from_pinned_manifest(
@@ -2287,6 +2403,253 @@ fn validate_detour_fixture_manifest(path: &Path) -> Result<()> {
                 asset.sha256
             );
         }
+    }
+    Ok(())
+}
+
+fn validate_creature_spell_capture_cli_values(
+    enabled: bool,
+    single_account: Option<&str>,
+    timeout_secs: u64,
+    manifest: Option<&str>,
+) -> Result<()> {
+    if !enabled {
+        return Ok(());
+    }
+    if !single_account
+        .is_some_and(|account| account.eq_ignore_ascii_case(CREATURE_SPELL_FIXTURE_ACCOUNT))
+    {
+        bail!("--creature-spell-capture requires --single {CREATURE_SPELL_FIXTURE_ACCOUNT}");
+    }
+    if timeout_secs == 0 {
+        bail!("--creature-spell-timeout must be greater than zero");
+    }
+    if !manifest.is_some_and(|path| !path.trim().is_empty()) {
+        bail!("--creature-spell-capture requires --creature-spell-fixture-manifest <path>");
+    }
+    Ok(())
+}
+
+fn validate_creature_spell_fixture_manifest(path: &Path) -> Result<String> {
+    let metadata = std::fs::symlink_metadata(path).with_context(|| {
+        format!(
+            "Read creature spell fixture manifest metadata {}",
+            path.display()
+        )
+    })?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        bail!(
+            "Creature spell fixture manifest must be a regular file and not a symlink: {}",
+            path.display()
+        );
+    }
+    let canonical = path.canonicalize().with_context(|| {
+        format!(
+            "Canonicalize creature spell fixture manifest {}",
+            path.display()
+        )
+    })?;
+    let bytes = std::fs::read(&canonical).with_context(|| {
+        format!(
+            "Read creature spell fixture manifest {}",
+            canonical.display()
+        )
+    })?;
+    let digest = format!("{:x}", Sha256::digest(&bytes));
+    if digest != CREATURE_SPELL_FIXTURE_MANIFEST_SHA256 {
+        bail!(
+            "Creature spell fixture manifest SHA-256 mismatch: got {digest}, expected {CREATURE_SPELL_FIXTURE_MANIFEST_SHA256}"
+        );
+    }
+    let manifest: serde_json::Value = serde_json::from_slice(&bytes).with_context(|| {
+        format!(
+            "Decode creature spell fixture manifest {}",
+            canonical.display()
+        )
+    })?;
+    if manifest
+        .get("schema_version")
+        .and_then(|value| value.as_u64())
+        != Some(1)
+        || manifest.get("flow").and_then(|value| value.as_str())
+            != Some(CREATURE_SPELL_FIXTURE_FLOW)
+        || manifest
+            .pointer("/creature_template/entry")
+            .and_then(|value| value.as_u64())
+            != Some(u64::from(CREATURE_SPELL_FIXTURE_ENTRY))
+        || manifest
+            .pointer("/creature_template/original_ai_name")
+            .and_then(|value| value.as_str())
+            != Some("SmartAI")
+        || manifest
+            .pointer("/creature_template/temporary_ai_name")
+            .and_then(|value| value.as_str())
+            != Some("CombatAI")
+        || manifest
+            .pointer("/spawn/guid")
+            .and_then(|value| value.as_u64())
+            != Some(CREATURE_SPELL_FIXTURE_SPAWN_GUID)
+        || manifest
+            .pointer("/template_spell/spell_id")
+            .and_then(|value| value.as_u64())
+            != Some(u64::from(CREATURE_SPELL_FIXTURE_SPELL_ID))
+        || manifest
+            .pointer("/spell_shape/required_go_hit_targets")
+            .and_then(|value| value.as_u64())
+            != Some(1)
+        || manifest
+            .pointer("/spell_shape/required_go_miss_targets")
+            .and_then(|value| value.as_u64())
+            != Some(0)
+    {
+        bail!(
+            "Creature spell fixture manifest differs from the pinned issue #26 contract: {}",
+            canonical.display()
+        );
+    }
+    Ok(digest)
+}
+
+fn validate_creature_spell_live_fixture_before_login(
+    bot: &config::BotConfig,
+    options: &CreatureSpellCaptureOptions,
+) -> Result<()> {
+    use mysql::prelude::Queryable;
+
+    if !bot
+        .account
+        .eq_ignore_ascii_case(CREATURE_SPELL_FIXTURE_ACCOUNT)
+        || bot.account_id != CREATURE_SPELL_FIXTURE_ACCOUNT_ID
+        || bot.character_guid != CREATURE_SPELL_FIXTURE_CHARACTER_GUID
+    {
+        bail!(
+            "creature spell fixture requires account {CREATURE_SPELL_FIXTURE_ACCOUNT}/{} and character {}",
+            CREATURE_SPELL_FIXTURE_ACCOUNT_ID,
+            CREATURE_SPELL_FIXTURE_CHARACTER_GUID
+        );
+    }
+    if options.fixture_manifest_sha256 != CREATURE_SPELL_FIXTURE_MANIFEST_SHA256 {
+        bail!("creature spell capture options lost their pinned manifest identity");
+    }
+
+    let auth_opts = mysql::Opts::from_url(&auth_db_url()?)
+        .map_err(|error| anyhow!("Bad auth DB URL: {error}"))?;
+    let mut auth = mysql::Conn::new(auth_opts)
+        .map_err(|error| anyhow!("Connect to auth DB for creature spell fixture: {error}"))?;
+    let auth_identity: Option<(Option<String>, u8)> = auth
+        .exec_first(
+            "SELECT ba.email, a.online \
+             FROM account a LEFT JOIN battlenet_accounts ba ON ba.id = a.battlenet_account \
+             WHERE a.id = ?",
+            (bot.account_id,),
+        )
+        .map_err(|error| anyhow!("Validate creature spell fixture auth identity: {error}"))?;
+    let (email, game_account_online) = auth_identity.ok_or_else(|| {
+        anyhow!(
+            "No auth.account row for creature spell bot id {}",
+            bot.account_id
+        )
+    })?;
+    if game_account_online != 0
+        || !email
+            .as_deref()
+            .is_some_and(|email| email.eq_ignore_ascii_case(CREATURE_SPELL_FIXTURE_ACCOUNT))
+    {
+        bail!("creature spell fixture game/BNet identity is not pinned and offline");
+    }
+
+    let character_opts = mysql::Opts::from_url(&characters_db_url()?)
+        .map_err(|error| anyhow!("Bad characters DB URL: {error}"))?;
+    let mut characters = mysql::Conn::new(character_opts)
+        .map_err(|error| anyhow!("Connect to characters DB for creature spell fixture: {error}"))?;
+    let character: Option<(u32, String, u8, u8, u8, u32, u32, u32, f64, f64, f64, f64)> =
+        characters
+            .exec_first(
+                "SELECT account, name, race, class, level, map, zone, instance_id, \
+                    position_x, position_y, position_z, orientation \
+             FROM characters WHERE guid = ? AND online = 0",
+                (bot.character_guid,),
+            )
+            .map_err(|error| anyhow!("Validate creature spell fixture character: {error}"))?;
+    let Some((owner, name, race, class, level, map, zone, instance_id, x, y, z, orientation)) =
+        character
+    else {
+        bail!("creature spell fixture character is missing or online");
+    };
+    let persisted_state: Option<(u32, f64, f64, f64, f64, u64, Option<String>, i64)> = characters
+        .exec_first(
+            "SELECT health, trans_x, trans_y, trans_z, trans_o, transguid, \
+                    taxi_path, death_expire_time \
+             FROM characters WHERE guid = ? AND online = 0",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Validate creature spell persisted character state: {error}"))?;
+    let (health, trans_x, trans_y, trans_z, trans_o, transport, taxi_path, death_expire_time) =
+        persisted_state
+            .ok_or_else(|| anyhow!("creature spell fixture character changed during preflight"))?;
+    let corpse_count: u64 = characters
+        .exec_first(
+            "SELECT COUNT(*) FROM corpse WHERE guid = ?",
+            (bot.character_guid,),
+        )
+        .map_err(|error| anyhow!("Check creature spell fixture corpse state: {error}"))?
+        .unwrap_or(0);
+    if owner != bot.account_id
+        || name != "Lfgheal"
+        || race != 1
+        || class != 2
+        || level != 80
+        || map != u32::from(CREATURE_SPELL_FIXTURE_MAP_ID)
+        || zone != 0
+        || instance_id != 0
+        || !detour_fixture_float_matches(x, CREATURE_SPELL_CHARACTER_START_X)
+        || !detour_fixture_float_matches(y, CREATURE_SPELL_FIXTURE_Y)
+        || !detour_fixture_float_matches(z, CREATURE_SPELL_FIXTURE_Z)
+        || !detour_fixture_float_matches(orientation, CREATURE_SPELL_CHARACTER_ORIENTATION)
+        || health != 50_000
+        || trans_x != 0.0
+        || trans_y != 0.0
+        || trans_z != 0.0
+        || trans_o != 0.0
+        || transport != 0
+        || taxi_path.as_deref().is_some_and(|path| !path.is_empty())
+        || death_expire_time != 0
+        || corpse_count != 0
+    {
+        bail!("creature spell fixture character does not match the journal-owned pre-login state");
+    }
+
+    let world_opts = mysql::Opts::from_url(&world_db_url()?)
+        .map_err(|error| anyhow!("Bad world DB URL: {error}"))?;
+    let mut world = mysql::Conn::new(world_opts)
+        .map_err(|error| anyhow!("Connect to world DB for creature spell fixture: {error}"))?;
+    let shape: Option<(u64, u64, u64, u64)> = world
+        .exec_first(
+            "SELECT \
+               (SELECT COUNT(*) FROM creature_template \
+                 WHERE entry = ? AND name = 'Cabal Interrogator' \
+                   AND AIName = 'CombatAI' AND ScriptName = ''), \
+               (SELECT COUNT(*) FROM creature WHERE id = ?), \
+               (SELECT COUNT(*) FROM creature \
+                 WHERE guid = ? AND id = ? AND map = 530 \
+                   AND position_x = CAST(-2764.52 AS FLOAT) \
+                   AND position_y = CAST(5431.19 AS FLOAT) \
+                   AND position_z = CAST(-34.4548 AS FLOAT)), \
+               (SELECT COUNT(*) FROM creature_template_spell \
+                 WHERE CreatureID = ? AND `Index` = 0 AND Spell = ? \
+                   AND VerifiedBuild = 41031)",
+            (
+                CREATURE_SPELL_FIXTURE_ENTRY,
+                CREATURE_SPELL_FIXTURE_ENTRY,
+                CREATURE_SPELL_FIXTURE_SPAWN_GUID,
+                CREATURE_SPELL_FIXTURE_ENTRY,
+                CREATURE_SPELL_FIXTURE_ENTRY,
+                CREATURE_SPELL_FIXTURE_SPELL_ID,
+            ),
+        )
+        .map_err(|error| anyhow!("Validate creature spell world fixture: {error}"))?;
+    if shape != Some((1, 1, 1, 1)) {
+        bail!("creature spell world fixture is not the exact temporary 22378/78686/15691 state");
     }
     Ok(())
 }
@@ -2721,6 +3084,16 @@ fn print_help() {
         "                           Env: WOW_BOT_DETOUR_CHASE_CAPTURE, WOW_BOT_DETOUR_FIXTURE_MANIFEST, WOW_BOT_DETOUR_CHASE_TIMEOUT_SECS"
     );
     println!(
+        "  --creature-spell-capture  Body-pull the guarded issue #26 Cabal fixture and require one adjacent hit START/GO"
+    );
+    println!(
+        "  --creature-spell-fixture-manifest <path>  Exact committed creature spell fixture.json"
+    );
+    println!("  --creature-spell-timeout <secs>  Cast/logout deadline (default: 30)");
+    println!(
+        "                           Env: WOW_BOT_CREATURE_SPELL_CAPTURE, WOW_BOT_CREATURE_SPELL_FIXTURE_MANIFEST, WOW_BOT_CREATURE_SPELL_TIMEOUT_SECS"
+    );
+    println!(
         "  --loot-race-smoke       Race ITEM and MONEY claims on one shared chest from two real sessions"
     );
     println!(
@@ -2826,6 +3199,25 @@ fn add_pinned_detour_fixture_bot_if_missing(
         account_id: DETOUR_CHASE_FIXTURE_ACCOUNT_ID,
         lfg_role: 4,
         class: "priest".to_string(),
+        enabled: true,
+        session_key_bnet: String::new(),
+    });
+}
+
+fn add_pinned_creature_spell_fixture_bot_if_missing(
+    bots: &mut Vec<config::BotConfig>,
+    creature_spell_capture: bool,
+) {
+    if !creature_spell_capture || !bots.is_empty() {
+        return;
+    }
+    bots.push(config::BotConfig {
+        account: CREATURE_SPELL_FIXTURE_ACCOUNT.to_string(),
+        password: String::new(),
+        character_guid: CREATURE_SPELL_FIXTURE_CHARACTER_GUID,
+        account_id: CREATURE_SPELL_FIXTURE_ACCOUNT_ID,
+        lfg_role: 4,
+        class: "paladin".to_string(),
         enabled: true,
         session_key_bnet: String::new(),
     });
@@ -3407,6 +3799,12 @@ async fn main() -> Result<()> {
         cli.detour_chase_timeout_secs,
         cli.detour_fixture_manifest.as_deref(),
     )?;
+    validate_creature_spell_capture_cli_values(
+        cli.creature_spell_capture,
+        cli.single_account.as_deref(),
+        cli.creature_spell_capture_timeout_secs,
+        cli.creature_spell_fixture_manifest.as_deref(),
+    )?;
     if cli.recover_loot_fixture {
         let conflicting_mode = cli.ensure_test_accounts
             || cli.login_only
@@ -3420,6 +3818,7 @@ async fn main() -> Result<()> {
             || cli.equipment_set_race_smoke
             || cli.rested_xp_smoke
             || cli.detour_chase_capture
+            || cli.creature_spell_capture
             || cli.loot_race_smoke
             || cli.loot_item_capture
             || cli.group_capacity_race_smoke
@@ -3445,6 +3844,20 @@ async fn main() -> Result<()> {
     } else {
         None
     };
+    let creature_spell_options = if cli.creature_spell_capture {
+        let manifest = cli
+            .creature_spell_fixture_manifest
+            .as_deref()
+            .context("Validated creature spell capture is missing its fixture manifest")?;
+        let fixture_manifest_sha256 =
+            validate_creature_spell_fixture_manifest(Path::new(manifest))?;
+        Some(CreatureSpellCaptureOptions {
+            fixture_manifest_sha256,
+            timeout_secs: cli.creature_spell_capture_timeout_secs,
+        })
+    } else {
+        None
+    };
     let app_config = config::AppConfig::load_or_create(&cli.config_path)?;
     let mut bots: Vec<config::BotConfig> =
         app_config.get_enabled_bots().into_iter().cloned().collect();
@@ -3453,6 +3866,7 @@ async fn main() -> Result<()> {
         bots.retain(|bot| bot.account.eq_ignore_ascii_case(account));
     }
     add_pinned_detour_fixture_bot_if_missing(&mut bots, cli.detour_chase_capture);
+    add_pinned_creature_spell_fixture_bot_if_missing(&mut bots, cli.creature_spell_capture);
     if cli.loot_race_smoke || cli.loot_item_capture {
         if cli.single_account.is_some() {
             bail!(
@@ -3499,6 +3913,9 @@ async fn main() -> Result<()> {
     if cli.detour_chase_capture && bots.len() != 1 {
         bail!("--detour-chase-capture requires exactly one pinned fixture bot");
     }
+    if cli.creature_spell_capture && bots.len() != 1 {
+        bail!("--creature-spell-capture requires exactly one pinned fixture bot");
+    }
     let missing_passwords: Vec<&str> = bots
         .iter()
         .filter(|bot| {
@@ -3518,6 +3935,7 @@ async fn main() -> Result<()> {
     let loot_mode = cli.loot_race_smoke || cli.loot_item_capture;
     let guarded_identity_mode = loot_mode
         || cli.detour_chase_capture
+        || cli.creature_spell_capture
         || cli.group_capacity_race_smoke
         || cli.equipment_set_race_smoke;
     validate_provisioning_mode(guarded_identity_mode, cli.ensure_test_accounts)?;
@@ -3532,6 +3950,7 @@ async fn main() -> Result<()> {
         cli.equipment_set_race_smoke,
         cli.rested_xp_smoke,
         cli.detour_chase_capture,
+        cli.creature_spell_capture,
         cli.loot_race_smoke,
         cli.loot_item_capture,
         cli.group_capacity_race_smoke,
@@ -3542,7 +3961,7 @@ async fn main() -> Result<()> {
     .count();
     if post_login_mode_count > 1 {
         bail!(
-            "stand-state, bank, void-storage, homebind, inventory-swap, vendor, equipment-set-race, rested-xp, detour-chase-capture, loot-race, loot-item-capture, group-capacity-race, and quest smoke are separate post-login modes"
+            "stand-state, bank, void-storage, homebind, inventory-swap, vendor, equipment-set-race, rested-xp, detour-chase-capture, creature-spell-capture, loot-race, loot-item-capture, group-capacity-race, and quest smoke are separate post-login modes"
         );
     }
     if cli.bank_smoke && bots.len() != 1 {
@@ -3723,6 +4142,8 @@ async fn main() -> Result<()> {
             "rested-xp-smoke"
         } else if cli.detour_chase_capture {
             "detour-chase-capture"
+        } else if cli.creature_spell_capture {
+            "creature-spell-capture"
         } else if cli.loot_race_smoke {
             "loot-race-smoke"
         } else if cli.loot_item_capture {
@@ -3755,6 +4176,7 @@ async fn main() -> Result<()> {
         && !cli.equipment_set_race_smoke
         && !cli.rested_xp_smoke
         && !cli.detour_chase_capture
+        && !cli.creature_spell_capture
         && !cli.loot_race_smoke
         && !cli.loot_item_capture
         && !cli.group_capacity_race_smoke
@@ -3830,6 +4252,7 @@ async fn main() -> Result<()> {
         for bot in bots {
             info!("\n[Bot {}] Starting...", bot.account);
             let detour_failure_bot = cli.detour_chase_capture.then(|| bot.clone());
+            let creature_spell_failure_bot = cli.creature_spell_capture.then(|| bot.clone());
             let run = if cli.bank_smoke {
                 run_bank_smoke_workflow(
                     bot,
@@ -3917,6 +4340,15 @@ async fn main() -> Result<()> {
             } else if let Some(options) = detour_chase_options.clone() {
                 run_bot_with_detour_chase(bot, dungeon_id, timeout_secs, auto_teleport, options)
                     .await
+            } else if let Some(options) = creature_spell_options.clone() {
+                run_bot_with_creature_spell_capture(
+                    bot,
+                    dungeon_id,
+                    timeout_secs,
+                    auto_teleport,
+                    options,
+                )
+                .await
             } else {
                 run_bot(
                     bot,
@@ -3947,6 +4379,17 @@ async fn main() -> Result<()> {
                         (detour_failure_bot, detour_chase_options.as_ref())
                     {
                         let result = detour_chase_failure_result(
+                            &bot,
+                            dungeon_id,
+                            options,
+                            error.to_string(),
+                        );
+                        log_bot_summary(&result, require_proposal, require_group, cli.login_only);
+                        results.push(result);
+                    } else if let (Some(bot), Some(options)) =
+                        (creature_spell_failure_bot, creature_spell_options.as_ref())
+                    {
+                        let result = creature_spell_failure_result(
                             &bot,
                             dungeon_id,
                             options,
@@ -4027,6 +4470,7 @@ async fn main() -> Result<()> {
         cli.equipment_set_race_smoke,
         cli.rested_xp_smoke,
         cli.detour_chase_capture,
+        cli.creature_spell_capture,
         cli.loot_race_smoke,
         cli.loot_item_capture,
         cli.group_capacity_race_smoke,
@@ -4179,6 +4623,7 @@ async fn run_bot(
         quest_options,
         None,
         None,
+        None,
     )
     .await
 }
@@ -4217,6 +4662,7 @@ async fn run_bot_with_detour_chase(
         None,
         None,
         Some(detour_chase_options),
+        None,
     )
     .await
 }
@@ -4242,6 +4688,70 @@ fn detour_chase_failure_result(
     }
 }
 
+async fn run_bot_with_creature_spell_capture(
+    bot: config::BotConfig,
+    dungeon_id: u32,
+    lfg_secs: u64,
+    auto_teleport: bool,
+    creature_spell_options: CreatureSpellCaptureOptions,
+) -> Result<BotRunResult> {
+    let bot_for_preflight = bot.clone();
+    let options_for_preflight = creature_spell_options.clone();
+    tokio::task::spawn_blocking(move || {
+        validate_creature_spell_live_fixture_before_login(
+            &bot_for_preflight,
+            &options_for_preflight,
+        )
+    })
+    .await
+    .map_err(|error| anyhow!("Creature spell fixture DB preflight worker failed: {error}"))??;
+    info!("Pinned creature spell account/character/spawn fixture passed read-only DB preflight");
+
+    run_bot_with_void_storage(
+        bot,
+        dungeon_id,
+        lfg_secs,
+        auto_teleport,
+        false,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        Some(creature_spell_options),
+    )
+    .await
+}
+
+fn creature_spell_failure_result(
+    bot: &config::BotConfig,
+    dungeon_id: u32,
+    options: &CreatureSpellCaptureOptions,
+    failure: String,
+) -> BotRunResult {
+    BotRunResult {
+        account: bot.account.clone(),
+        account_id: bot.account_id,
+        character_guid: bot.character_guid,
+        dungeon_id,
+        role: bot.lfg_role,
+        creature_spell_capture: true,
+        creature_spell_capture_passed: Some(false),
+        creature_spell_fixture_manifest_sha256: Some(options.fixture_manifest_sha256.clone()),
+        creature_spell_target_entry: Some(CREATURE_SPELL_FIXTURE_ENTRY),
+        creature_spell_target_spawn_guid: Some(CREATURE_SPELL_FIXTURE_SPAWN_GUID),
+        creature_spell_failure: Some(failure),
+        ..BotRunResult::default()
+    }
+}
+
 async fn run_bot_with_void_storage(
     bot: config::BotConfig,
     dungeon_id: u32,
@@ -4260,6 +4770,7 @@ async fn run_bot_with_void_storage(
     quest_options: Option<QuestSmokeOptions>,
     mut void_storage_options: Option<VoidStorageSmokeOptions>,
     detour_chase_options: Option<DetourChaseCaptureOptions>,
+    creature_spell_options: Option<CreatureSpellCaptureOptions>,
 ) -> Result<BotRunResult> {
     let bot_index = bot.account_id as usize;
     let void_storage_query_capture = void_storage_options
@@ -4455,6 +4966,44 @@ async fn run_bot_with_void_storage(
         detour_chase_time_sync_after_fence: 0,
         detour_chase_logout_confirmed: false,
         detour_chase_failure: None,
+        creature_spell_capture: creature_spell_options.is_some(),
+        creature_spell_capture_passed: None,
+        creature_spell_fixture_manifest_sha256: creature_spell_options
+            .as_ref()
+            .map(|options| options.fixture_manifest_sha256.clone()),
+        creature_spell_target_entry: creature_spell_options
+            .as_ref()
+            .map(|_| CREATURE_SPELL_FIXTURE_ENTRY),
+        creature_spell_target_spawn_guid: creature_spell_options
+            .as_ref()
+            .map(|_| CREATURE_SPELL_FIXTURE_SPAWN_GUID),
+        creature_spell_target_runtime_counter: None,
+        creature_spell_target_discovered: false,
+        creature_spell_heartbeat_sent: false,
+        creature_spell_heartbeat_sha256: None,
+        creature_spell_start_opcode: None,
+        creature_spell_start_body_sha256: None,
+        creature_spell_start_body_bytes: None,
+        creature_spell_go_opcode: None,
+        creature_spell_go_body_sha256: None,
+        creature_spell_go_body_bytes: None,
+        creature_spell_cast_id_low: None,
+        creature_spell_cast_id_high: None,
+        creature_spell_caster_guid_low: None,
+        creature_spell_caster_guid_high: None,
+        creature_spell_victim_guid_low: None,
+        creature_spell_victim_guid_high: None,
+        creature_spell_spell_id: None,
+        creature_spell_start_cast_flags: None,
+        creature_spell_go_cast_flags: None,
+        creature_spell_cast_flags_ex: None,
+        creature_spell_go_hit_target_count: None,
+        creature_spell_go_miss_target_count: None,
+        creature_spell_full_combat_log: None,
+        creature_spell_advanced_logging_sent: false,
+        creature_spell_adjacent_start_go: false,
+        creature_spell_logout_confirmed: false,
+        creature_spell_failure: None,
         loot_race_smoke: loot_race_options.is_some(),
         loot_race_smoke_passed: None,
         loot_race_target_entry: loot_race_options
@@ -4872,6 +5421,7 @@ async fn run_bot_with_void_storage(
         || vendor_options.is_some()
         || rested_xp_options.is_some()
         || detour_chase_options.is_some()
+        || creature_spell_options.is_some()
         || loot_race_options.is_some()
         || group_capacity_options.is_some()
         || equipment_set_options.is_some()
@@ -4880,6 +5430,7 @@ async fn run_bot_with_void_storage(
     let mut vendor_target_seen: Option<DiscoveredCreatureGuid> = None;
     let mut void_storage_target_seen: Option<DiscoveredCreatureGuid> = None;
     let mut detour_chase_target_seen: Option<DiscoveredCreatureGuid> = None;
+    let mut creature_spell_target_seen: Option<DiscoveredCreatureGuid> = None;
     let login_budget = LoginVerifyBudget::new(LOGIN_VERIFY_TIMEOUT);
     while let Some(read_timeout) = login_budget.next_read_timeout() {
         match tokio::time::timeout(
@@ -5016,6 +5567,47 @@ async fn run_bot_with_void_storage(
                                 );
                             }
                             _ => detour_chase_target_seen = Some(candidate),
+                        }
+                    }
+                }
+                if creature_spell_options.is_some() {
+                    if op == SMSG_SPELL_START {
+                        bail!(
+                            "creature began casting during login before the bot's body-pull heartbeat; the pre-login position is not isolated"
+                        );
+                    }
+                    let candidates = (op == SMSG_UPDATE_OBJECT)
+                        .then(|| {
+                            find_creature_guids_near_position_in_update_object(
+                                &payload,
+                                CREATURE_SPELL_FIXTURE_MAP_ID,
+                                CREATURE_SPELL_FIXTURE_ENTRY,
+                                CREATURE_SPELL_FIXTURE_X,
+                                CREATURE_SPELL_FIXTURE_Y,
+                                CREATURE_SPELL_FIXTURE_Z,
+                                CREATURE_SPELL_TARGET_MATCH_RADIUS,
+                                None,
+                            )
+                        })
+                        .unwrap_or_default();
+                    if candidates.len() > 1 {
+                        bail!(
+                            "creature spell login discovery found {} same-entry live candidates inside the pinned spawn radius",
+                            candidates.len()
+                        );
+                    }
+                    if let Some(candidate) = candidates.into_iter().next() {
+                        match creature_spell_target_seen {
+                            Some(previous)
+                                if (previous.low, previous.high)
+                                    != (candidate.low, candidate.high) =>
+                            {
+                                bail!(
+                                    "creature spell login discovery produced two different live candidates for pinned spawn {}",
+                                    CREATURE_SPELL_FIXTURE_SPAWN_GUID
+                                );
+                            }
+                            _ => creature_spell_target_seen = Some(candidate),
                         }
                     }
                 }
@@ -5382,6 +5974,49 @@ async fn run_bot_with_void_storage(
                     Ok(_) => result.detour_chase_logout_confirmed = true,
                     Err(logout_error) => {
                         let failure = result.detour_chase_failure.get_or_insert_with(String::new);
+                        failure.push_str(&format!(
+                            "; graceful logout after failure also failed: {logout_error}"
+                        ));
+                    }
+                }
+            }
+        }
+        return Ok(result);
+    }
+
+    if let Some(creature_spell_options) = creature_spell_options {
+        if let Err(error) = run_creature_spell_capture_phase(
+            bot_index,
+            &bot,
+            &mut stream,
+            &mut crypt,
+            &mut server_inflater,
+            &mut realm_connection,
+            &creature_spell_options,
+            creature_spell_target_seen,
+            &mut result,
+        )
+        .await
+        {
+            result.creature_spell_failure = Some(error.to_string());
+            result.creature_spell_capture_passed = Some(false);
+            if !result.creature_spell_logout_confirmed {
+                match loot_race::logout_and_wait_routed_like_cpp(
+                    bot_index,
+                    &mut stream,
+                    &mut crypt,
+                    &mut server_inflater,
+                    realm_connection.as_mut(),
+                    bot.character_guid,
+                    &mut result,
+                )
+                .await
+                {
+                    Ok(_) => result.creature_spell_logout_confirmed = true,
+                    Err(logout_error) => {
+                        let failure = result
+                            .creature_spell_failure
+                            .get_or_insert_with(String::new);
                         failure.push_str(&format!(
                             "; graceful logout after failure also failed: {logout_error}"
                         ));
@@ -5833,6 +6468,28 @@ fn log_bot_summary(
             );
             return;
         }
+        if result.creature_spell_capture {
+            info!(
+                "✅ Bot {}: SUCCESS creature_spell target={:?}/{:?}/counter={:?} heartbeat={} start={:?}/{:?} go={:?}/{:?} cast={:?}:{:?} hit={:?} miss={:?} full_log={:?} logout={} failure={:?}",
+                result.account,
+                result.creature_spell_target_entry,
+                result.creature_spell_target_spawn_guid,
+                result.creature_spell_target_runtime_counter,
+                result.creature_spell_heartbeat_sent,
+                result.creature_spell_start_opcode,
+                result.creature_spell_start_body_sha256,
+                result.creature_spell_go_opcode,
+                result.creature_spell_go_body_sha256,
+                result.creature_spell_cast_id_high,
+                result.creature_spell_cast_id_low,
+                result.creature_spell_go_hit_target_count,
+                result.creature_spell_go_miss_target_count,
+                result.creature_spell_full_combat_log,
+                result.creature_spell_logout_confirmed,
+                result.creature_spell_failure,
+            );
+            return;
+        }
         if result.loot_race_smoke {
             info!(
                 "✅ Bot {}: SUCCESS loot_race target={:?}/{:?}/counter={:?} party={} discovered={} opened={} list={:?} coins={:?} item_push={} removed={} money_notify={:?} coin_removed={} db_item={:?} db_money_delta={:?} relog={} failure={:?}",
@@ -6070,6 +6727,27 @@ fn log_bot_summary(
             );
             return;
         }
+        if result.creature_spell_capture {
+            error!(
+                "❌ Bot {}: FAILED creature_spell target={:?}/{:?}/counter={:?} discovered={} heartbeat={} start={:?}/{:?} go={:?}/{:?} hit={:?} miss={:?} adjacent={} logout={} failure={:?}",
+                result.account,
+                result.creature_spell_target_entry,
+                result.creature_spell_target_spawn_guid,
+                result.creature_spell_target_runtime_counter,
+                result.creature_spell_target_discovered,
+                result.creature_spell_heartbeat_sent,
+                result.creature_spell_start_opcode,
+                result.creature_spell_start_body_sha256,
+                result.creature_spell_go_opcode,
+                result.creature_spell_go_body_sha256,
+                result.creature_spell_go_hit_target_count,
+                result.creature_spell_go_miss_target_count,
+                result.creature_spell_adjacent_start_go,
+                result.creature_spell_logout_confirmed,
+                result.creature_spell_failure,
+            );
+            return;
+        }
         if result.loot_race_smoke {
             error!(
                 "❌ Bot {}: FAILED loot_race target={:?}/{:?}/counter={:?} party={} discovered={} opened={} list={:?} coins={:?} item_push={} removed={} money_notify={:?} coin_removed={} db_item={:?} db_money_delta={:?} relog={} failure={:?}",
@@ -6137,6 +6815,7 @@ fn write_report_if_requested(
     equipment_set_race_smoke: bool,
     rested_xp_smoke: bool,
     detour_chase_capture: bool,
+    creature_spell_capture: bool,
     loot_race_smoke: bool,
     loot_item_capture: bool,
     group_capacity_race_smoke: bool,
@@ -6166,6 +6845,7 @@ fn write_report_if_requested(
         equipment_set_race_smoke,
         rested_xp_smoke,
         detour_chase_capture,
+        creature_spell_capture,
         loot_race_smoke,
         loot_item_capture,
         group_capacity_race_smoke,
@@ -8227,6 +8907,7 @@ async fn run_void_storage_smoke_workflow(
             None,
             Some(unlock_deposit),
             None,
+            None,
         )
         .await?;
         if !combined.void_storage_smoke_passed.unwrap_or(false) {
@@ -8270,6 +8951,7 @@ async fn run_void_storage_smoke_workflow(
                 None,
                 None,
                 Some(options),
+                None,
                 None,
             )
             .await?;
@@ -8363,6 +9045,7 @@ async fn run_void_storage_query_capture_workflow(
         None,
         None,
         Some(fixture.options.clone()),
+        None,
         None,
     )
     .await;
@@ -9305,6 +9988,240 @@ async fn run_detour_chase_capture_phase(
     .await?;
     result.detour_chase_logout_confirmed = true;
     result.detour_chase_capture_passed = Some(true);
+    Ok(())
+}
+
+async fn run_creature_spell_capture_phase(
+    bot_index: usize,
+    bot: &config::BotConfig,
+    stream: &mut TcpStream,
+    crypt: &mut WorldCrypt,
+    server_inflater: &mut ServerPacketInflater,
+    realm_connection: &mut Option<EncryptedWorldConnection>,
+    options: &CreatureSpellCaptureOptions,
+    login_target: Option<DiscoveredCreatureGuid>,
+    result: &mut BotRunResult,
+) -> Result<()> {
+    if realm_connection.is_none() {
+        bail!("creature spell capture requires distinct authenticated realm/instance sockets");
+    }
+    if !bot
+        .account
+        .eq_ignore_ascii_case(CREATURE_SPELL_FIXTURE_ACCOUNT)
+        || bot.account_id != CREATURE_SPELL_FIXTURE_ACCOUNT_ID
+        || bot.character_guid != CREATURE_SPELL_FIXTURE_CHARACTER_GUID
+        || options.fixture_manifest_sha256 != CREATURE_SPELL_FIXTURE_MANIFEST_SHA256
+    {
+        bail!("creature spell capture lost its pinned account/character/manifest identity");
+    }
+
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(options.timeout_secs.max(1));
+    let clock_origin = tokio::time::Instant::now();
+    let active_mover_complete = build_move_init_active_mover_complete_payload(0);
+    send_encrypted_packet(
+        stream,
+        crypt,
+        CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE,
+        &active_mover_complete,
+    )
+    .await?;
+
+    let mut target = login_target;
+    while target.is_none() && tokio::time::Instant::now() < deadline {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        let (opcode, payload) = tokio::time::timeout(
+            remaining,
+            read_encrypted_packet(stream, crypt, server_inflater),
+        )
+        .await
+        .map_err(|_| anyhow!("timed out discovering creature spell fixture target"))??;
+        result.seen_opcodes.push(format!("0x{opcode:04X}"));
+        match opcode {
+            SMSG_TIME_SYNC_REQUEST => {
+                respond_to_detour_time_sync_like_cpp(
+                    bot_index,
+                    stream,
+                    crypt,
+                    &payload,
+                    clock_origin,
+                    "creature-spell-discovery",
+                )
+                .await?;
+            }
+            SMSG_SPELL_START => {
+                bail!(
+                    "creature began casting before the bot's body-pull heartbeat; the pre-login position is not isolated"
+                );
+            }
+            SMSG_UPDATE_OBJECT => {
+                let candidates = find_creature_guids_near_position_in_update_object(
+                    &payload,
+                    CREATURE_SPELL_FIXTURE_MAP_ID,
+                    CREATURE_SPELL_FIXTURE_ENTRY,
+                    CREATURE_SPELL_FIXTURE_X,
+                    CREATURE_SPELL_FIXTURE_Y,
+                    CREATURE_SPELL_FIXTURE_Z,
+                    CREATURE_SPELL_TARGET_MATCH_RADIUS,
+                    None,
+                );
+                if candidates.len() > 1 {
+                    bail!(
+                        "creature spell discovery found {} live candidates inside the pinned spawn radius",
+                        candidates.len()
+                    );
+                }
+                target = candidates.into_iter().next();
+            }
+            _ => {}
+        }
+    }
+    let target = target.ok_or_else(|| {
+        anyhow!(
+            "did not discover creature spell fixture entry={} spawn={} near ({:.3},{:.3},{:.3})",
+            CREATURE_SPELL_FIXTURE_ENTRY,
+            CREATURE_SPELL_FIXTURE_SPAWN_GUID,
+            CREATURE_SPELL_FIXTURE_X,
+            CREATURE_SPELL_FIXTURE_Y,
+            CREATURE_SPELL_FIXTURE_Z
+        )
+    })?;
+    result.creature_spell_target_runtime_counter = Some(target.low);
+    result.creature_spell_target_discovered = true;
+    let target_guid = (target.low, target.high);
+    let player_guid = create_player_guid_raw(bot.character_guid, realm_id());
+
+    let heartbeat = build_move_heartbeat_payload(
+        player_guid.0,
+        player_guid.1,
+        CREATURE_SPELL_CHARACTER_PULL_X,
+        CREATURE_SPELL_FIXTURE_Y,
+        CREATURE_SPELL_FIXTURE_Z,
+        CREATURE_SPELL_CHARACTER_ORIENTATION,
+    );
+    send_encrypted_packet(stream, crypt, CMSG_MOVE_HEARTBEAT, &heartbeat).await?;
+    result.creature_spell_heartbeat_sent = true;
+    result.creature_spell_heartbeat_sha256 = Some(format!("{:x}", Sha256::digest(&heartbeat)));
+    info!(
+        "[Bot {}] ✅ creature spell body-pull heartbeat sent without CMSG_ATTACK_SWING; player faces away from spawn",
+        bot_index
+    );
+
+    let start_summary = loop {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if remaining.is_zero() {
+            bail!("timed out waiting for fixture SMSG_SPELL_START 15691");
+        }
+        let (opcode, payload) = tokio::time::timeout(
+            remaining,
+            read_encrypted_packet(stream, crypt, server_inflater),
+        )
+        .await
+        .map_err(|_| anyhow!("timed out waiting for fixture SMSG_SPELL_START 15691"))??;
+        result.seen_opcodes.push(format!("0x{opcode:04X}"));
+        if opcode == SMSG_TIME_SYNC_REQUEST {
+            respond_to_detour_time_sync_like_cpp(
+                bot_index,
+                stream,
+                crypt,
+                &payload,
+                clock_origin,
+                "creature-spell-start-wait",
+            )
+            .await?;
+            continue;
+        }
+        if opcode != SMSG_SPELL_START {
+            continue;
+        }
+        let summary = parse_creature_spell_cast_data(&payload, false)
+            .context("malformed creature spell SMSG_SPELL_START")?;
+        if summary.caster != target_guid || summary.spell_id != CREATURE_SPELL_FIXTURE_SPELL_ID {
+            continue;
+        }
+        if summary.caster_unit != target_guid
+            || summary.cast_id == (0, 0)
+            || summary.original_cast_id != (0, 0)
+            || summary.target != player_guid
+            || summary.cast_flags != 0x0000_0002
+            || summary.cast_flags_ex != 0
+            || !summary.hit_targets.is_empty()
+            || !summary.miss_targets.is_empty()
+            || summary.miss_status_count != 0
+            || summary.full_combat_log.is_some()
+        {
+            bail!("fixture SMSG_SPELL_START differs from the exact basic cast contract");
+        }
+        result.creature_spell_start_opcode = Some(SMSG_SPELL_START);
+        result.creature_spell_start_body_sha256 = Some(format!("{:x}", Sha256::digest(&payload)));
+        result.creature_spell_start_body_bytes = Some(payload.len());
+        result.creature_spell_cast_id_low = Some(summary.cast_id.0);
+        result.creature_spell_cast_id_high = Some(summary.cast_id.1);
+        result.creature_spell_caster_guid_low = Some(summary.caster.0);
+        result.creature_spell_caster_guid_high = Some(summary.caster.1);
+        result.creature_spell_victim_guid_low = Some(summary.target.0);
+        result.creature_spell_victim_guid_high = Some(summary.target.1);
+        result.creature_spell_spell_id = Some(summary.spell_id);
+        result.creature_spell_start_cast_flags = Some(summary.cast_flags);
+        result.creature_spell_cast_flags_ex = Some(summary.cast_flags_ex);
+        break summary;
+    };
+
+    // The flow has no ignored S2C opcodes. The very next instance packet must
+    // be the GO for the same CastID; this binds the bot report to the exact RAW
+    // pair selected by capture-diff.
+    let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+    let (go_opcode, go_payload) = tokio::time::timeout(
+        remaining,
+        read_encrypted_packet(stream, crypt, server_inflater),
+    )
+    .await
+    .map_err(|_| anyhow!("timed out waiting for adjacent fixture SMSG_SPELL_GO"))??;
+    result.seen_opcodes.push(format!("0x{go_opcode:04X}"));
+    if go_opcode != SMSG_SPELL_GO {
+        bail!("fixture START was followed by opcode 0x{go_opcode:04X}, not adjacent SMSG_SPELL_GO");
+    }
+    let go_summary = parse_creature_spell_cast_data(&go_payload, true)
+        .context("malformed creature spell SMSG_SPELL_GO")?;
+    if go_summary.caster != target_guid
+        || go_summary.caster_unit != target_guid
+        || go_summary.cast_id != start_summary.cast_id
+        || go_summary.original_cast_id != (0, 0)
+        || go_summary.spell_id != CREATURE_SPELL_FIXTURE_SPELL_ID
+        || go_summary.target != player_guid
+        || go_summary.cast_flags != 0x0000_0100
+        || go_summary.cast_flags_ex != 0
+        || go_summary.hit_targets != [player_guid]
+        || !go_summary.miss_targets.is_empty()
+        || go_summary.miss_status_count != 0
+        || go_summary.full_combat_log != Some(false)
+    {
+        bail!(
+            "fixture SMSG_SPELL_GO missed/avoided or differs from the exact basic hit contract; discard and repeat the live attempt"
+        );
+    }
+    result.creature_spell_go_opcode = Some(SMSG_SPELL_GO);
+    result.creature_spell_go_body_sha256 = Some(format!("{:x}", Sha256::digest(&go_payload)));
+    result.creature_spell_go_body_bytes = Some(go_payload.len());
+    result.creature_spell_go_cast_flags = Some(go_summary.cast_flags);
+    result.creature_spell_go_hit_target_count =
+        Some(u16::try_from(go_summary.hit_targets.len()).unwrap_or(u16::MAX));
+    result.creature_spell_go_miss_target_count =
+        Some(u16::try_from(go_summary.miss_targets.len()).unwrap_or(u16::MAX));
+    result.creature_spell_full_combat_log = go_summary.full_combat_log;
+    result.creature_spell_adjacent_start_go = true;
+
+    loot_race::logout_and_wait_routed_like_cpp(
+        bot_index,
+        stream,
+        crypt,
+        server_inflater,
+        realm_connection.as_mut(),
+        bot.character_guid,
+        result,
+    )
+    .await?;
+    result.creature_spell_logout_confirmed = true;
+    result.creature_spell_capture_passed = Some(true);
     Ok(())
 }
 
@@ -17284,6 +18201,172 @@ fn take_u32(data: &[u8], position: &mut usize) -> Option<u32> {
     Some(u32::from_le_bytes(bytes))
 }
 
+fn take_u8(data: &[u8], position: &mut usize) -> Option<u8> {
+    let value = *data.get(*position)?;
+    *position = position.checked_add(1)?;
+    Some(value)
+}
+
+fn parse_creature_spell_cast_data(
+    payload: &[u8],
+    is_spell_go: bool,
+) -> Result<CreatureSpellCastSummary> {
+    let mut position = 0usize;
+    let caster = take_packed_guid(payload, &mut position)
+        .context("creature spell cast omitted CasterGUID")?;
+    let caster_unit = take_packed_guid(payload, &mut position)
+        .context("creature spell cast omitted CasterUnit")?;
+    let cast_id =
+        take_packed_guid(payload, &mut position).context("creature spell cast omitted CastID")?;
+    let original_cast_id = take_packed_guid(payload, &mut position)
+        .context("creature spell cast omitted OriginalCastID")?;
+    let spell_id =
+        take_u32(payload, &mut position).context("creature spell cast omitted SpellID")?;
+    let visual =
+        take_u32(payload, &mut position).context("creature spell cast omitted SpellCastVisual")?;
+    let cast_flags =
+        take_u32(payload, &mut position).context("creature spell cast omitted CastFlags")?;
+    let cast_flags_ex =
+        take_u32(payload, &mut position).context("creature spell cast omitted CastFlagsEx")?;
+    let cast_time =
+        take_u32(payload, &mut position).context("creature spell cast omitted CastTime")?;
+    let trajectory_time =
+        take_u32(payload, &mut position).context("creature spell cast omitted trajectory time")?;
+    let trajectory_pitch =
+        take_u32(payload, &mut position).context("creature spell cast omitted trajectory pitch")?;
+    let destination_index =
+        take_u8(payload, &mut position).context("creature spell cast omitted destination index")?;
+    let immunity_school =
+        take_u32(payload, &mut position).context("creature spell cast omitted immunity school")?;
+    let immunity_value =
+        take_u32(payload, &mut position).context("creature spell cast omitted immunity value")?;
+    let prediction_points = take_u32(payload, &mut position)
+        .context("creature spell cast omitted heal prediction points")?;
+    let prediction_type = take_u8(payload, &mut position)
+        .context("creature spell cast omitted heal prediction type")?;
+    let prediction_beacon = take_packed_guid(payload, &mut position)
+        .context("creature spell cast omitted prediction beacon")?;
+    if visual != CREATURE_SPELL_FIXTURE_SPELL_X_VISUAL_ID
+        || (!is_spell_go && cast_time != 0)
+        || trajectory_time != 0
+        || trajectory_pitch != 0
+        || destination_index != 0
+        || immunity_school != 0
+        || immunity_value != 0
+        || prediction_points != 0
+        || prediction_type != 0
+        || prediction_beacon != (0, 0)
+    {
+        bail!("creature spell cast contains an unexpected fixed optional payload");
+    }
+
+    let counts = payload
+        .get(position..position.saturating_add(10))
+        .context("creature spell cast omitted vector counts")?;
+    let hit_count = read_msb_bits(counts, 0, 16).context("invalid hit target count")? as u16;
+    let miss_count = read_msb_bits(counts, 16, 16).context("invalid miss target count")? as u16;
+    let miss_status_count =
+        read_msb_bits(counts, 32, 16).context("invalid miss status count")? as u16;
+    let remaining_power = read_msb_bits(counts, 48, 9).context("invalid remaining-power count")?;
+    let has_runes = read_msb_bits(counts, 57, 1).context("invalid rune-present bit")?;
+    let target_points = read_msb_bits(counts, 58, 16).context("invalid target-point count")?;
+    let has_ammo_display = read_msb_bits(counts, 74, 1).context("invalid ammo-display bit")?;
+    let has_ammo_inventory = read_msb_bits(counts, 75, 1).context("invalid ammo-inventory bit")?;
+    let count_padding = read_msb_bits(counts, 76, 4).context("invalid vector-count padding")?;
+    if remaining_power != 0
+        || has_runes != 0
+        || target_points != 0
+        || has_ammo_display != 0
+        || has_ammo_inventory != 0
+        || count_padding != 0
+    {
+        bail!("creature spell cast contains an unexpected vector optional");
+    }
+    position += 10;
+
+    let target_header = payload
+        .get(position..position.saturating_add(5))
+        .context("creature spell cast omitted target header")?;
+    let target_flags =
+        read_msb_bits(target_header, 0, 28).context("invalid creature spell target flags")?;
+    let target_optionals =
+        read_msb_bits(target_header, 28, 4).context("invalid target optional bits")?;
+    let target_name_length =
+        read_msb_bits(target_header, 32, 7).context("invalid target name length")?;
+    let target_padding =
+        read_msb_bits(target_header, 39, 1).context("invalid target-header padding")?;
+    if target_flags != 0x2
+        || target_optionals != 0
+        || target_name_length != 0
+        || target_padding != 0
+    {
+        bail!("creature spell cast target is not the exact unit-only target shape");
+    }
+    position += 5;
+    let target = take_packed_guid(payload, &mut position)
+        .context("creature spell cast omitted unit target")?;
+    let item = take_packed_guid(payload, &mut position)
+        .context("creature spell cast omitted item target")?;
+    if item != (0, 0) {
+        bail!("creature spell cast unexpectedly targets an item");
+    }
+
+    let mut hit_targets = Vec::with_capacity(usize::from(hit_count));
+    for _ in 0..hit_count {
+        hit_targets.push(
+            take_packed_guid(payload, &mut position)
+                .context("creature spell cast truncated hit target")?,
+        );
+    }
+    let mut miss_targets = Vec::with_capacity(usize::from(miss_count));
+    for _ in 0..miss_count {
+        miss_targets.push(
+            take_packed_guid(payload, &mut position)
+                .context("creature spell cast truncated miss target")?,
+        );
+    }
+    // Success evidence requires no misses. Refuse to guess variable-length
+    // SpellMissStatus records in a failed attempt; the operator must repeat it.
+    if miss_status_count != 0 {
+        bail!(
+            "creature spell cast contains {miss_status_count} miss status record(s); discard and repeat the live attempt"
+        );
+    }
+
+    let full_combat_log = if is_spell_go {
+        let byte = take_u8(payload, &mut position)
+            .context("creature spell GO omitted FullCombatLog bit")?;
+        if byte != 0 {
+            bail!("creature spell GO enabled FullCombatLog or has trailing log data");
+        }
+        Some(false)
+    } else {
+        None
+    };
+    if position != payload.len() {
+        bail!(
+            "creature spell cast has {} unexpected trailing byte(s)",
+            payload.len().saturating_sub(position)
+        );
+    }
+
+    Ok(CreatureSpellCastSummary {
+        caster,
+        caster_unit,
+        cast_id,
+        original_cast_id,
+        spell_id,
+        cast_flags,
+        cast_flags_ex,
+        target,
+        hit_targets,
+        miss_targets,
+        miss_status_count,
+        full_combat_log,
+        consumed: position,
+    })
+}
+
 fn spell_go_matches_bind(
     payload: &[u8],
     expected_caster_low: u64,
@@ -17417,6 +18500,156 @@ fn build_packed_guid(low: u64, high: u64) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn write_test_msb_bits(buffer: &mut [u8], bit_offset: usize, bit_count: usize, value: u32) {
+        assert!(bit_count <= 32);
+        assert!(bit_offset + bit_count <= buffer.len() * 8);
+        for index in 0..bit_count {
+            let source_bit = (value >> (bit_count - 1 - index)) & 1;
+            if source_bit != 0 {
+                let destination = bit_offset + index;
+                buffer[destination / 8] |= 1 << (7 - destination % 8);
+            }
+        }
+    }
+
+    fn creature_spell_test_body(
+        is_spell_go: bool,
+        miss: bool,
+    ) -> (Vec<u8>, usize, usize, (u64, u64), (u64, u64)) {
+        let caster = create_creature_guid_raw(
+            CREATURE_SPELL_FIXTURE_MAP_ID,
+            CREATURE_SPELL_FIXTURE_ENTRY,
+            9_876,
+        );
+        let player = create_player_guid_raw(CREATURE_SPELL_FIXTURE_CHARACTER_GUID, 1);
+        let cast_id = (0x1234, 0x0400_0000_0000_0001);
+        let mut body = Vec::new();
+        body.extend(build_packed_guid(caster.0, caster.1));
+        body.extend(build_packed_guid(caster.0, caster.1));
+        body.extend(build_packed_guid(cast_id.0, cast_id.1));
+        body.extend(build_packed_guid(0, 0));
+        body.extend(CREATURE_SPELL_FIXTURE_SPELL_ID.to_le_bytes());
+        body.extend(CREATURE_SPELL_FIXTURE_SPELL_X_VISUAL_ID.to_le_bytes());
+        body.extend(
+            (if is_spell_go {
+                0x0000_0100u32
+            } else {
+                0x0000_0002u32
+            })
+            .to_le_bytes(),
+        );
+        body.extend(0u32.to_le_bytes()); // CastFlagsEx
+        body.extend(
+            (if is_spell_go { 12_345u32 } else { 0u32 }).to_le_bytes(), // CastTime/timestamp
+        );
+        body.extend(0u32.to_le_bytes()); // trajectory time
+        body.extend(0u32.to_le_bytes()); // trajectory pitch
+        body.push(0); // destination index
+        body.extend(0u32.to_le_bytes()); // immunity school
+        body.extend(0u32.to_le_bytes()); // immunity value
+        body.extend(0u32.to_le_bytes()); // heal prediction points
+        body.push(0); // heal prediction type
+        body.extend(build_packed_guid(0, 0)); // prediction beacon
+
+        let counts_offset = body.len();
+        let mut counts = [0u8; 10];
+        write_test_msb_bits(&mut counts, 0, 16, u32::from(is_spell_go && !miss));
+        write_test_msb_bits(&mut counts, 16, 16, u32::from(miss));
+        write_test_msb_bits(&mut counts, 32, 16, u32::from(miss));
+        body.extend(counts);
+
+        let target_offset = body.len();
+        let mut target_header = [0u8; 5];
+        write_test_msb_bits(&mut target_header, 0, 28, 0x2);
+        body.extend(target_header);
+        body.extend(build_packed_guid(player.0, player.1));
+        body.extend(build_packed_guid(0, 0));
+        if is_spell_go && !miss {
+            body.extend(build_packed_guid(player.0, player.1));
+        }
+        if miss {
+            body.extend(build_packed_guid(player.0, player.1));
+        }
+        if is_spell_go {
+            body.push(0); // FullCombatLog=false plus zero padding
+        }
+        (body, counts_offset, target_offset, caster, player)
+    }
+
+    #[test]
+    fn creature_spell_parser_accepts_only_the_pinned_start_and_hit_go_shapes() {
+        let (start, _, _, caster, player) = creature_spell_test_body(false, false);
+        let parsed_start = parse_creature_spell_cast_data(&start, false).unwrap();
+        assert_eq!(parsed_start.caster, caster);
+        assert_eq!(parsed_start.target, player);
+        assert_eq!(parsed_start.spell_id, CREATURE_SPELL_FIXTURE_SPELL_ID);
+        assert_eq!(parsed_start.cast_flags, 0x2);
+        assert!(parsed_start.hit_targets.is_empty());
+        assert_eq!(parsed_start.full_combat_log, None);
+        assert_eq!(parsed_start.consumed, start.len());
+
+        let (go, _, _, _, _) = creature_spell_test_body(true, false);
+        let parsed_go = parse_creature_spell_cast_data(&go, true).unwrap();
+        assert_eq!(parsed_go.cast_id, parsed_start.cast_id);
+        assert_eq!(parsed_go.cast_flags, 0x100);
+        assert_eq!(parsed_go.hit_targets, [player]);
+        assert!(parsed_go.miss_targets.is_empty());
+        assert_eq!(parsed_go.full_combat_log, Some(false));
+        assert_eq!(parsed_go.consumed, go.len());
+    }
+
+    #[test]
+    fn creature_spell_parser_rejects_miss_padding_and_trailing_bytes() {
+        let (miss, _, _, _, _) = creature_spell_test_body(true, true);
+        assert!(parse_creature_spell_cast_data(&miss, true)
+            .unwrap_err()
+            .to_string()
+            .contains("miss status"));
+
+        let (mut count_padding, counts_offset, _, _, _) = creature_spell_test_body(true, false);
+        count_padding[counts_offset + 9] |= 0x01;
+        assert!(parse_creature_spell_cast_data(&count_padding, true).is_err());
+
+        let (mut target_padding, _, target_offset, _, _) = creature_spell_test_body(true, false);
+        target_padding[target_offset + 4] |= 0x01;
+        assert!(parse_creature_spell_cast_data(&target_padding, true).is_err());
+
+        let (mut trailing, _, _, _, _) = creature_spell_test_body(false, false);
+        trailing.push(0);
+        assert!(parse_creature_spell_cast_data(&trailing, false).is_err());
+    }
+
+    #[test]
+    fn creature_spell_cli_and_committed_manifest_are_pinned() {
+        let manifest = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../crates/capture-diff/flows/creature-spell-casting/fixture/fixture.json");
+        assert!(validate_creature_spell_capture_cli_values(
+            true,
+            Some(CREATURE_SPELL_FIXTURE_ACCOUNT),
+            30,
+            manifest.to_str(),
+        )
+        .is_ok());
+        assert!(validate_creature_spell_capture_cli_values(
+            true,
+            Some("TESTBOT1@bot.local"),
+            30,
+            manifest.to_str(),
+        )
+        .is_err());
+        assert!(validate_creature_spell_capture_cli_values(
+            true,
+            Some(CREATURE_SPELL_FIXTURE_ACCOUNT),
+            0,
+            manifest.to_str(),
+        )
+        .is_err());
+        assert_eq!(
+            validate_creature_spell_fixture_manifest(&manifest).unwrap(),
+            CREATURE_SPELL_FIXTURE_MANIFEST_SHA256
+        );
+    }
 
     #[test]
     fn optional_login_known_spells_gate_waits_for_both_signals() {

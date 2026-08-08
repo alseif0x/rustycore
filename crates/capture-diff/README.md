@@ -158,6 +158,37 @@ topologies. C++ registers `SMSG_SEND_KNOWN_SPELLS` as
 socket, and the comparator itself does not normalize routing; a same-topology
 connection regression remains a separate hard failure.
 
+The versioned `creature-spell-casting-v1` contract reserves fail-closed
+semantic comparisons for the mandatory adjacent `SMSG_SPELL_START` (`0x2C37`)
+then `SMSG_SPELL_GO` (`0x2C36`) pair, without installing or claiming any
+capture artifact. The required-flow validator pins Cabal Interrogator entry
+`22378` on map `530`, Eviscerate `15691`, SpellXSpellVisual `244493`, exact
+START/GO flags `0x2`/`0x100` with CastFlagsEx `0`, and one unit-only Player
+target (the guarded character GUID `15`) that appears exactly once in GO's hit
+list with no miss or optional
+power/rune/target-point/ammo state. Both packets decode the complete 3.4.3
+`SpellCastData`, including
+canonical packed GUIDs and bit padding, both caster fields, spell visual and
+cast flags, missile/immunity/heal-prediction fields, complete
+`SpellTargetData`, hit/miss/status topology, and power/rune/target-point/ammo
+optionals; GO additionally validates the trailing basic combat-log bit. The
+contract correlates exact same-side caster, CastID, spell, visual and target
+values across START→GO. For an ordinary Creature AI cast, only the lower
+40-bit runtime counters of the exactly correlated
+`CasterGUID == CasterUnit` and normal-source `HighGuid::Cast` ID are normalized
+on both opcodes. GO's wrapping timestamp `CastTime` is also normalized, while
+START's cast-duration `CastTime` remains exact. Creature/cast type, realm, map,
+entry (spell ID), subtype/source and server ID remain strict.
+The guarded fixture pins the Creature, Player victim, and Cast GUID to local
+realm `1`; no realm bits are normalized (the legacy GUID factory expands its
+zero realm argument to that local realm before serialization).
+`OriginalCastID` must remain exact EMPTY. A self target or hit is normalized
+only by proving exact same-side equality with the caster; unrelated Creature
+GUIDs remain exact. Player/item casts retain raw byte identity. Missing or
+reordered START/GO, full combat-log payloads, noncanonical padding/GUIDs,
+mismatched miss/status counts, trailing bytes and even identical malformed
+bodies all fail closed.
+
 The issue-#108 vendor fixture isolates the exact post-COMMIT realm response:
 `SMSG_BUY_SUCCEEDED` followed by `SMSG_ITEM_PUSH_RESULT`. Paired C++ and Rust
 bot runs bought item `30183` from G'eras (entry `18525`, spawn `96654`) for

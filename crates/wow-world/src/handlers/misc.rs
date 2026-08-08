@@ -3373,6 +3373,7 @@ impl crate::session::WorldSession {
                 original_cast_id: request.cast.cast_id,
                 spell_id: request.cast.spell_id,
                 visual: spell_visual.clone(),
+                cast_flags: 0x0000_0002,
                 cast_flags_ex: CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP,
                 cast_time_ms: spell_info.cast_time_ms,
                 target: spell_target.clone(),
