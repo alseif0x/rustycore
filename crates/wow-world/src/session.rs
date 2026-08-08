@@ -9243,6 +9243,9 @@ impl WorldSession {
             self.player_class_like_cpp(),
             gender_from_u8(self.player_gender_like_cpp()),
         );
+        if let Some(faction_template) = self.player_faction_template_like_cpp {
+            player.unit_mut().set_faction(faction_template);
+        }
         player.unit_mut().set_level(self.player_level_like_cpp());
         player
             .unit_mut()
@@ -41204,8 +41207,28 @@ impl WorldSession {
             controller.set_level(level);
             controller.gender = gender;
         }
+        self.set_player_faction_for_race_like_cpp(race);
         self.initialize_reputation_mgr_like_cpp();
         self.refresh_represented_talent_points_like_cpp();
+    }
+
+    /// C++ `Player::SetFactionForRace`: `Player::LoadFromDB` resolves the
+    /// player's live faction template from `ChrRacesEntry::FactionID` before
+    /// the player is added to the map or published through ObjectAccessor.
+    fn set_player_faction_for_race_like_cpp(&mut self, race: u8) {
+        let Some(chr_races_store) = self.chr_races_store.as_ref() else {
+            return;
+        };
+        let faction_template = chr_races_store
+            .get(u32::from(race))
+            .and_then(|entry| u32::try_from(entry.faction_id).ok())
+            .filter(|faction_template| *faction_template != 0);
+        self.player_faction_template_like_cpp = faction_template;
+
+        let faction_template = faction_template.unwrap_or(0);
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_faction(faction_template);
+        });
     }
 
     pub(crate) fn set_loaded_player_flags_like_cpp(&mut self, player_flags: u32) {

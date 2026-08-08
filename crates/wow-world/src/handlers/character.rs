@@ -22064,6 +22064,66 @@ mod tests {
     }
 
     #[test]
+    fn login_identity_hydrates_race_faction_into_registry_and_canonical_player_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send_capacity(1);
+        let guid = ObjectGuid::create_player(1, 42_001);
+        let canonical: crate::session::SharedCanonicalMapManager =
+            Arc::new(std::sync::Mutex::new(wow_map::MapManager::default()));
+        let registry = Arc::new(wow_network::PlayerRegistry::default());
+        let mut race_entry = chr_race_entry(1, 0);
+        race_entry.faction_id = 1;
+
+        session.set_chr_races_store(Arc::new(ChrRacesStore::from_entries([race_entry])));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_player_registry(Arc::clone(&registry));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+
+        // Mirror the real LoadFromDB order: identity is loaded from the
+        // character row before the controller/map/registry publication.
+        session.set_player_guid(Some(guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 10, 0);
+        assert!(session.ensure_login_player_controller_like_cpp(
+            guid,
+            "FactionLogin".to_string(),
+            Position::ZERO,
+            571,
+            1,
+            1,
+            10,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        session.register_in_player_registry();
+
+        assert_eq!(
+            registry
+                .get(&guid)
+                .expect("login player registry entry")
+                .faction_template_id,
+            1,
+            "the aggro candidate bridge must not receive faction template 0"
+        );
+        let manager = canonical.lock().unwrap();
+        let player = manager
+            .find_map(571, 0)
+            .expect("login map")
+            .map()
+            .get_typed_player(guid)
+            .expect("canonical login player");
+        assert_eq!(player.unit().data().faction_template, 1);
+    }
+
+    #[test]
     fn late_login_sequence_failure_releases_claim_and_partial_player_like_cpp() {
         let guid = ObjectGuid::create_player(1, 9_001_701);
         let (mut failed, _failed_rx) = make_session_with_send_capacity(1);
