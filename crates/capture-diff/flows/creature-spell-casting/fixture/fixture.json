@@ -2,6 +2,20 @@
   "schema_version": 1,
   "flow": "creature-spell-casting",
   "contract": "creature-spell-casting-shell-fixture-v1",
+  "source_derivation": {
+    "contract": "creature-spell-casting-cpp-source-patch-v1",
+    "remote_url": "https://github.com/alseif0x/TrinityCoreLegacyTest.git",
+    "remote_ref": "refs/remotes/origin/3.4.3",
+    "base_head": "a5f8da2ebf5424bf0450ca4e08843ecbf72577bd",
+    "base_tree": "bb5c4746be7f9944b1a3f7a1eec5ea88d62fff67",
+    "patched_head": "8cfed90bf1720dbf8b9dc109113c8d7d9173ff6c",
+    "patched_tree": "228e91ed36886593c85fb601d00a9f8eb0702137",
+    "patch_path": "crates/capture-diff/flows/creature-spell-casting/fixture/cpp-reference.patch",
+    "patch_sha256": "ef8b3c29f46fe537e1ae4e826b5610afcd534999f900ec9554ee0534e7847262",
+    "changed_paths": [
+      "src/server/game/DataStores/DB2Stores.cpp"
+    ]
+  },
   "creature_template": {
     "entry": 22378,
     "name": "Cabal Interrogator",

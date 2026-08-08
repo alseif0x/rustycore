@@ -147,6 +147,7 @@ CPP_CAPTURE_HARNESS_WORKTREE_CLEAN=0
 CPP_CAPTURE_HARNESS_WORKTREE_SHA256=""
 CPP_CAPTURE_SOURCE_WORKTREE_DIRTY=0
 CPP_CAPTURE_SOURCE_WORKTREE_SHA256=""
+CPP_CAPTURE_SOURCE_DERIVATION_JSON=null
 CPP_CAPTURE_PM2_ENTRY_PID=""
 CPP_CAPTURE_PM2_ENTRY_STARTTIME=""
 CPP_CAPTURE_PM2_EXEC_PATH=""
@@ -343,7 +344,7 @@ elif [ -n "$CPP_CAPTURE_EXEC_SHA256" ]; then
   exit 2
 fi
 
-for dependency in awk chmod cp date dirname flock git grep id jq mkdir mktemp mv \
+for dependency in awk chmod cmp cp date dirname flock git grep id jq mkdir mktemp mv \
   pm2 realpath rg sed sha256sum sleep ss stat sync tail; do
   command -v "$dependency" >/dev/null 2>&1 || {
     echo "error: required command not found: $dependency" >&2
@@ -396,6 +397,14 @@ fi
 if [ "$CPP_CAPTURE_HARNESS_WORKTREE_CLEAN" -ne 1 ]; then
   echo "error: capture evidence requires a clean committed RustyCore harness worktree (including untracked files)" >&2
   exit 2
+fi
+if [ "$FLOW" = "creature-spell-casting" ]; then
+  creature_spell_fixture_validate_cpp_source_derivation \
+    "$REPO_ROOT" "$CPP_CAPTURE_SOURCE_REPO" || {
+      echo "error: legacy C++ source does not match the reviewed creature spell derivation" >&2
+      exit 2
+    }
+  CPP_CAPTURE_SOURCE_DERIVATION_JSON="$CREATURE_SPELL_FIXTURE_SOURCE_DERIVATION_JSON"
 fi
 
 if [ "$CPP_CAPTURE_PINNED" -eq 1 ] \
@@ -617,6 +626,9 @@ finalize_cpp_capture_artifact() {
         && [ "$FLOW" != "creature-spell-casting" ]; } \
       || [ "$(cpp_capture_embedded_source_head "$CPP_CAPTURE_EXEC")" \
         = "$CPP_CAPTURE_EXEC_SOURCE_HEAD" ]; } \
+    && { [ "$FLOW" != "creature-spell-casting" ] \
+      || creature_spell_fixture_validate_cpp_source_derivation \
+        "$REPO_ROOT" "$CPP_CAPTURE_SOURCE_REPO"; } \
     && [ "$(capture_git_worktree_state_sha256 "$CPP_CAPTURE_SOURCE_REPO")" \
       = "$CPP_CAPTURE_SOURCE_WORKTREE_SHA256" ] || return 1
   capture_require_canonical_directory "$OUT_DIR" \
@@ -649,6 +661,7 @@ finalize_cpp_capture_artifact() {
       --arg bot_report_sha256 "$CPP_CAPTURE_BOT_REPORT_SHA256" \
       --arg packet_sha256 "$packet_sha" \
       --argjson capture_evidence "$capture_evidence" \
+      --argjson source_derivation "$CPP_CAPTURE_SOURCE_DERIVATION_JSON" \
       --argjson pm2_entry_pid "$CPP_CAPTURE_PM2_ENTRY_PID" \
       --argjson pm2_entry_starttime "$CPP_CAPTURE_PM2_ENTRY_STARTTIME" \
       --argjson listener_runtime_pid "$CPP_CAPTURE_PID" \
@@ -701,7 +714,10 @@ finalize_cpp_capture_artifact() {
           size: $packet_size,
           sha256: $packet_sha256
         }
-      }' >"$manifest_stage"; then
+      }
+      + (if $source_derivation == null then {}
+         else {source_derivation: $source_derivation}
+         end)' >"$manifest_stage"; then
     rm -f -- "$manifest_stage"
     return 1
   fi
@@ -767,6 +783,9 @@ capture_git_repo_clean_at_head "$REPO_ROOT" "$CPP_CAPTURE_HARNESS_REPO_HEAD" \
       && [ "$FLOW" != "creature-spell-casting" ]; } \
     || [ "$(cpp_capture_embedded_source_head "$CPP_CAPTURE_EXEC")" \
       = "$CPP_CAPTURE_EXEC_SOURCE_HEAD" ]; } \
+  && { [ "$FLOW" != "creature-spell-casting" ] \
+    || creature_spell_fixture_validate_cpp_source_derivation \
+      "$REPO_ROOT" "$CPP_CAPTURE_SOURCE_REPO"; } \
   && [ "$(capture_git_worktree_state_sha256 "$CPP_CAPTURE_SOURCE_REPO")" \
     = "$CPP_CAPTURE_SOURCE_WORKTREE_SHA256" ] || {
   echo "error: harness/source worktree provenance changed before service mutation" >&2

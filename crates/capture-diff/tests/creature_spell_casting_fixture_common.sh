@@ -50,9 +50,203 @@ assert_eq creature-spell-casting \
   "$(jq -r '.flow' "$CREATURE_SPELL_FIXTURE_MANIFEST")" \
   "fixture manifest flow"
 assert_eq \
-  be6302866ad2d09e1117ec30f1a81e5c0b3b2cacbebe93dc54fe9eecf814af8b \
+  fe6cea1808e8beb7d648d285ad52b10067611e46c55d30637514508275b63b49 \
   "$CREATURE_SPELL_FIXTURE_MANIFEST_SHA256" \
   "fixture manifest digest"
+assert_eq \
+  ef8b3c29f46fe537e1ae4e826b5610afcd534999f900ec9554ee0534e7847262 \
+  "$(creature_spell_fixture_sha256_of_file \
+    "$REPO_ROOT/crates/capture-diff/flows/creature-spell-casting/fixture/cpp-reference.patch")" \
+  "reviewed C++ source patch digest"
+
+# Exercise the source-derivation validator against a fresh local Git graph so
+# the test remains independent of any installed C++ checkout or service.
+DERIVATION_HARNESS="$TEST_ROOT/source-derivation-harness"
+DERIVATION_SOURCE="$TEST_ROOT/source-derivation-repo"
+DERIVATION_PATCH_REL=fixture/cpp-reference.patch
+DERIVATION_PATCH="$DERIVATION_HARNESS/$DERIVATION_PATCH_REL"
+DERIVATION_FIXTURE="$DERIVATION_HARNESS/fixture.json"
+DERIVATION_REMOTE_URL=https://example.invalid/legacy-reference.git
+DERIVATION_REMOTE_REF=refs/remotes/origin/3.4.3
+DERIVATION_CHANGED_PATH=src/server/game/DataStores/DB2Stores.cpp
+mkdir -p "$DERIVATION_HARNESS/fixture" \
+  "$DERIVATION_SOURCE/src/server/game/DataStores"
+git -C "$DERIVATION_SOURCE" init -q
+git -C "$DERIVATION_SOURCE" config user.name 'Capture Fixture Test'
+git -C "$DERIVATION_SOURCE" config user.email capture-fixture@example.invalid
+git -C "$DERIVATION_SOURCE" remote add origin "$DERIVATION_REMOTE_URL"
+printf 'base\n' >"$DERIVATION_SOURCE/$DERIVATION_CHANGED_PATH"
+git -C "$DERIVATION_SOURCE" add "$DERIVATION_CHANGED_PATH"
+git -C "$DERIVATION_SOURCE" commit -q -m base
+DERIVATION_BASE_HEAD="$(git -C "$DERIVATION_SOURCE" rev-parse HEAD)"
+DERIVATION_BASE_TREE="$(git -C "$DERIVATION_SOURCE" rev-parse 'HEAD^{tree}')"
+git -C "$DERIVATION_SOURCE" update-ref \
+  "$DERIVATION_REMOTE_REF" "$DERIVATION_BASE_HEAD"
+printf 'base\nreviewed\n' >"$DERIVATION_SOURCE/$DERIVATION_CHANGED_PATH"
+git -C "$DERIVATION_SOURCE" add "$DERIVATION_CHANGED_PATH"
+git -C "$DERIVATION_SOURCE" commit -q -m reviewed
+DERIVATION_PATCHED_HEAD="$(git -C "$DERIVATION_SOURCE" rev-parse HEAD)"
+DERIVATION_PATCHED_TREE="$(git -C "$DERIVATION_SOURCE" rev-parse 'HEAD^{tree}')"
+git -C "$DERIVATION_SOURCE" diff \
+  --binary --full-index --no-ext-diff --no-textconv --no-renames --no-color \
+  --src-prefix=a/ --dst-prefix=b/ --diff-algorithm=myers \
+  "$DERIVATION_BASE_HEAD" "$DERIVATION_PATCHED_HEAD" -- \
+  >"$DERIVATION_PATCH"
+DERIVATION_PATCH_SHA="$(creature_spell_fixture_sha256_of_file \
+  "$DERIVATION_PATCH")"
+jq -n \
+  --arg contract "$CREATURE_SPELL_FIXTURE_SOURCE_DERIVATION_CONTRACT" \
+  --arg remote_url "$DERIVATION_REMOTE_URL" \
+  --arg remote_ref "$DERIVATION_REMOTE_REF" \
+  --arg base_head "$DERIVATION_BASE_HEAD" \
+  --arg base_tree "$DERIVATION_BASE_TREE" \
+  --arg patched_head "$DERIVATION_PATCHED_HEAD" \
+  --arg patched_tree "$DERIVATION_PATCHED_TREE" \
+  --arg patch_path "$DERIVATION_PATCH_REL" \
+  --arg patch_sha "$DERIVATION_PATCH_SHA" \
+  --arg changed_path "$DERIVATION_CHANGED_PATH" '
+    {source_derivation: {
+      contract: $contract,
+      remote_url: $remote_url,
+      remote_ref: $remote_ref,
+      base_head: $base_head,
+      base_tree: $base_tree,
+      patched_head: $patched_head,
+      patched_tree: $patched_tree,
+      patch_path: $patch_path,
+      patch_sha256: $patch_sha,
+      changed_paths: [$changed_path]
+    }}
+  ' >"$DERIVATION_FIXTURE"
+
+creature_spell_fixture_validate_cpp_source_derivation \
+  "$DERIVATION_HARNESS" "$DERIVATION_SOURCE" "$DERIVATION_FIXTURE"
+assert_eq "$DERIVATION_PATCHED_HEAD" \
+  "$(jq -r '.patched_head' \
+    <<<"$CREATURE_SPELL_FIXTURE_SOURCE_DERIVATION_JSON")" \
+  "validated patched source HEAD"
+
+if GIT_DIR="$DERIVATION_SOURCE/.git" \
+    creature_spell_fixture_validate_cpp_source_derivation \
+      "$DERIVATION_HARNESS" "$DERIVATION_SOURCE" "$DERIVATION_FIXTURE" \
+      2>/dev/null; then
+  fail "source derivation accepted a GIT_DIR repository redirect"
+fi
+if GIT_CONFIG_COUNT=1 \
+    GIT_CONFIG_KEY_0=core.abbrev \
+    GIT_CONFIG_VALUE_0=12 \
+    creature_spell_fixture_validate_cpp_source_derivation \
+      "$DERIVATION_HARNESS" "$DERIVATION_SOURCE" "$DERIVATION_FIXTURE" \
+      2>/dev/null; then
+  fail "source derivation accepted injected Git configuration"
+fi
+if GIT_CONFIG="$DERIVATION_SOURCE/.git/config" \
+    creature_spell_fixture_validate_cpp_source_derivation \
+      "$DERIVATION_HARNESS" "$DERIVATION_SOURCE" "$DERIVATION_FIXTURE" \
+      2>/dev/null; then
+  fail "source derivation accepted a GIT_CONFIG file redirect"
+fi
+
+DERIVATION_MUTATED="$DERIVATION_HARNESS/mutated.json"
+git -C "$DERIVATION_SOURCE" remote set-url origin \
+  https://example.invalid/unreviewed.git
+if creature_spell_fixture_validate_cpp_source_derivation \
+    "$DERIVATION_HARNESS" "$DERIVATION_SOURCE" "$DERIVATION_FIXTURE" \
+    2>/dev/null; then
+  fail "source derivation accepted a different origin URL"
+fi
+git -C "$DERIVATION_SOURCE" remote set-url origin "$DERIVATION_REMOTE_URL"
+
+git -C "$DERIVATION_SOURCE" update-ref \
+  "$DERIVATION_REMOTE_REF" "$DERIVATION_PATCHED_HEAD"
+if creature_spell_fixture_validate_cpp_source_derivation \
+    "$DERIVATION_HARNESS" "$DERIVATION_SOURCE" "$DERIVATION_FIXTURE" \
+    2>/dev/null; then
+  fail "source derivation accepted a moved remote base ref"
+fi
+git -C "$DERIVATION_SOURCE" update-ref \
+  "$DERIVATION_REMOTE_REF" "$DERIVATION_BASE_HEAD"
+
+git -C "$DERIVATION_SOURCE" checkout -q --detach "$DERIVATION_BASE_HEAD"
+if creature_spell_fixture_validate_cpp_source_derivation \
+    "$DERIVATION_HARNESS" "$DERIVATION_SOURCE" "$DERIVATION_FIXTURE" \
+    2>/dev/null; then
+  fail "source derivation accepted the unpatched HEAD"
+fi
+git -C "$DERIVATION_SOURCE" checkout -q --detach "$DERIVATION_PATCHED_HEAD"
+
+jq '.source_derivation.base_tree = ("0" * 40)' \
+  "$DERIVATION_FIXTURE" >"$DERIVATION_MUTATED"
+if creature_spell_fixture_validate_cpp_source_derivation \
+    "$DERIVATION_HARNESS" "$DERIVATION_SOURCE" "$DERIVATION_MUTATED" \
+    2>/dev/null; then
+  fail "source derivation accepted the wrong canonical base tree"
+fi
+jq '.source_derivation.patched_tree = ("0" * 40)' \
+  "$DERIVATION_FIXTURE" >"$DERIVATION_MUTATED"
+if creature_spell_fixture_validate_cpp_source_derivation \
+    "$DERIVATION_HARNESS" "$DERIVATION_SOURCE" "$DERIVATION_MUTATED" \
+    2>/dev/null; then
+  fail "source derivation accepted the wrong patched tree"
+fi
+
+git -C "$DERIVATION_SOURCE" commit -q --allow-empty -m extra-parent
+DERIVATION_EXTRA_HEAD="$(git -C "$DERIVATION_SOURCE" rev-parse HEAD)"
+jq --arg head "$DERIVATION_EXTRA_HEAD" \
+  '.source_derivation.patched_head = $head' \
+  "$DERIVATION_FIXTURE" >"$DERIVATION_MUTATED"
+if creature_spell_fixture_validate_cpp_source_derivation \
+    "$DERIVATION_HARNESS" "$DERIVATION_SOURCE" "$DERIVATION_MUTATED" \
+    2>/dev/null; then
+  fail "source derivation accepted a patched commit whose parent is not the base"
+fi
+git -C "$DERIVATION_SOURCE" checkout -q --detach "$DERIVATION_PATCHED_HEAD"
+
+git -C "$DERIVATION_SOURCE" checkout -q -b merge-parent "$DERIVATION_BASE_HEAD"
+printf 'second parent\n' >"$DERIVATION_SOURCE/src/second-parent.cpp"
+git -C "$DERIVATION_SOURCE" add src/second-parent.cpp
+git -C "$DERIVATION_SOURCE" commit -q -m second-parent
+DERIVATION_SECOND_PARENT="$(git -C "$DERIVATION_SOURCE" rev-parse HEAD)"
+git -C "$DERIVATION_SOURCE" checkout -q --detach "$DERIVATION_PATCHED_HEAD"
+git -C "$DERIVATION_SOURCE" merge -q --no-ff -m merge-parent \
+  "$DERIVATION_SECOND_PARENT"
+DERIVATION_MERGE_HEAD="$(git -C "$DERIVATION_SOURCE" rev-parse HEAD)"
+DERIVATION_MERGE_TREE="$(git -C "$DERIVATION_SOURCE" rev-parse 'HEAD^{tree}')"
+jq --arg head "$DERIVATION_MERGE_HEAD" --arg tree "$DERIVATION_MERGE_TREE" '
+  .source_derivation.patched_head = $head
+  | .source_derivation.patched_tree = $tree
+' "$DERIVATION_FIXTURE" >"$DERIVATION_MUTATED"
+if creature_spell_fixture_validate_cpp_source_derivation \
+    "$DERIVATION_HARNESS" "$DERIVATION_SOURCE" "$DERIVATION_MUTATED" \
+    2>/dev/null; then
+  fail "source derivation accepted a merge commit with multiple parents"
+fi
+git -C "$DERIVATION_SOURCE" checkout -q --detach "$DERIVATION_PATCHED_HEAD"
+
+printf '\n' >>"$DERIVATION_PATCH"
+DERIVATION_TAMPERED_SHA="$(creature_spell_fixture_sha256_of_file \
+  "$DERIVATION_PATCH")"
+jq --arg sha "$DERIVATION_TAMPERED_SHA" \
+  '.source_derivation.patch_sha256 = $sha' \
+  "$DERIVATION_FIXTURE" >"$DERIVATION_MUTATED"
+if creature_spell_fixture_validate_cpp_source_derivation \
+    "$DERIVATION_HARNESS" "$DERIVATION_SOURCE" "$DERIVATION_MUTATED" \
+    2>/dev/null; then
+  fail "source derivation accepted patch bytes differing from the Git diff"
+fi
+git -C "$DERIVATION_SOURCE" diff \
+  --binary --full-index --no-ext-diff --no-textconv --no-renames --no-color \
+  --src-prefix=a/ --dst-prefix=b/ --diff-algorithm=myers \
+  "$DERIVATION_BASE_HEAD" "$DERIVATION_PATCHED_HEAD" -- \
+  >"$DERIVATION_PATCH"
+
+jq '.source_derivation.changed_paths = ["src/unreviewed.cpp"]' \
+  "$DERIVATION_FIXTURE" >"$DERIVATION_MUTATED"
+if creature_spell_fixture_validate_cpp_source_derivation \
+    "$DERIVATION_HARNESS" "$DERIVATION_SOURCE" "$DERIVATION_MUTATED" \
+    2>/dev/null; then
+  fail "source derivation accepted a different changed-path set"
+fi
 
 current_row_expression="$(
   creature_spell_fixture_character_row_hash_expression current
@@ -270,6 +464,17 @@ grep -q 'cpp_capture_embedded_source_head "$CPP_CAPTURE_EXEC"' "$CPP_WRAPPER" \
   || fail "C++ creature capture does not bind the binary to its source revision"
 grep -q 'source_exec_revision:' "$CPP_WRAPPER" \
   || fail "C++ raw manifest omits the embedded source revision"
+grep -q 'creature_spell_fixture_validate_cpp_source_derivation' "$CPP_WRAPPER" \
+  || fail "C++ creature capture does not revalidate the reviewed source patch"
+assert_eq 3 \
+  "$(grep -c 'creature_spell_fixture_validate_cpp_source_derivation' "$CPP_WRAPPER")" \
+  "C++ creature capture derivation validation phase count"
+grep -q -- '--argjson source_derivation' "$CPP_WRAPPER" \
+  || fail "C++ raw manifest omits source_derivation publication"
+grep -q 'else {source_derivation: $source_derivation}' "$CPP_WRAPPER" \
+  || fail "C++ raw manifest does not retain the reviewed source derivation"
+grep -q 'if $source_derivation == null then {}' "$CPP_WRAPPER" \
+  || fail "unrelated C++ flows do not omit source_derivation"
 # shellcheck disable=SC2294 # Evaluate only this literal function definition.
 eval "$(sed -n '/^cpp_capture_embedded_source_head() {$/,/^}$/p' "$CPP_WRAPPER")"
 FAKE_CPP_REVISION=a5f8da2eb001337b48d37807c5b0c9642b461b57

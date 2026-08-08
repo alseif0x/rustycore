@@ -41,7 +41,20 @@ const DETOUR_FIXTURE_MAP_SHA256: &str =
 const DETOUR_FIXTURE_TILE_SHA256: &str =
     "693b93ac3ac605fea8b846a0e1fcf6ca2d0b0dce2f8c5d9c34739febc3731f47";
 const CREATURE_SPELL_FIXTURE_MANIFEST_SHA256: &str =
-    "be6302866ad2d09e1117ec30f1a81e5c0b3b2cacbebe93dc54fe9eecf814af8b";
+    "fe6cea1808e8beb7d648d285ad52b10067611e46c55d30637514508275b63b49";
+const CREATURE_SPELL_CPP_SOURCE_DERIVATION_CONTRACT: &str =
+    "creature-spell-casting-cpp-source-patch-v1";
+const CREATURE_SPELL_CPP_REMOTE_URL: &str = "https://github.com/alseif0x/TrinityCoreLegacyTest.git";
+const CREATURE_SPELL_CPP_REMOTE_REF: &str = "refs/remotes/origin/3.4.3";
+const CREATURE_SPELL_CPP_BASE_HEAD: &str = "a5f8da2ebf5424bf0450ca4e08843ecbf72577bd";
+const CREATURE_SPELL_CPP_BASE_TREE: &str = "bb5c4746be7f9944b1a3f7a1eec5ea88d62fff67";
+const CREATURE_SPELL_CPP_PATCHED_HEAD: &str = "8cfed90bf1720dbf8b9dc109113c8d7d9173ff6c";
+const CREATURE_SPELL_CPP_PATCHED_TREE: &str = "228e91ed36886593c85fb601d00a9f8eb0702137";
+const CREATURE_SPELL_CPP_PATCH_PATH: &str =
+    "crates/capture-diff/flows/creature-spell-casting/fixture/cpp-reference.patch";
+const CREATURE_SPELL_CPP_PATCH_SHA256: &str =
+    "ef8b3c29f46fe537e1ae4e826b5610afcd534999f900ec9554ee0534e7847262";
+const CREATURE_SPELL_CPP_CHANGED_PATH: &str = "src/server/game/DataStores/DB2Stores.cpp";
 const CREATURE_SPELL_PLAYER_GUID_HIGH: u64 = 0x0800_0400_0000_0000;
 const LINEAGE_VERSION: u32 = 3;
 const RAW_MANIFEST_VERSION: u32 = 3;
@@ -141,6 +154,21 @@ struct BotReportEvidence {
     report_validated: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SourceDerivationEvidence {
+    contract: String,
+    remote_url: String,
+    remote_ref: String,
+    base_head: String,
+    base_tree: String,
+    patched_head: String,
+    patched_tree: String,
+    patch_path: String,
+    patch_sha256: String,
+    changed_paths: Vec<String>,
+}
+
 /// Schema emitted by `capture-cpp.sh` and `capture-rust.sh`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -154,6 +182,8 @@ struct RawCaptureManifest {
     source_repo_head: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     source_exec_revision: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    source_derivation: Option<SourceDerivationEvidence>,
     harness_worktree_clean: bool,
     harness_worktree_state_sha256: String,
     source_worktree_dirty: bool,
@@ -261,6 +291,8 @@ struct SourceLineage {
     raw_packet_count: Option<u64>,
     harness_repo_head: String,
     source_repo_head: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    source_derivation: Option<SourceDerivationEvidence>,
     harness_worktree_clean: bool,
     harness_worktree_state_sha256: String,
     source_worktree_dirty: bool,
@@ -624,6 +656,15 @@ fn validate_raw_manifest_schema(
         &manifest.effective_config_redacted_sha256,
         "effective_config_redacted_sha256",
     )?;
+    if let Some(derivation) = &manifest.source_derivation {
+        validate_source_derivation_schema(derivation)?;
+    }
+    if flow != "creature-spell-casting" {
+        ensure!(
+            manifest.source_derivation.is_none(),
+            "source_derivation is reserved for C++ creature-spell-casting evidence"
+        );
+    }
     ensure!(
         manifest.expected_exec_path == manifest.source_exec_path
             && manifest.source_exec_path == manifest.live_exec_path,
@@ -712,6 +753,12 @@ fn validate_raw_manifest_schema(
                         == Some(manifest.source_repo_head.as_str()),
                     "creature-spell-casting C++ embedded executable revision must equal source_repo_head"
                 );
+                validate_canonical_creature_spell_source_derivation(manifest)?;
+            } else {
+                ensure!(
+                    manifest.source_derivation.is_none(),
+                    "C++ source_derivation is reserved for creature-spell-casting"
+                );
             }
             ensure!(
                 manifest.artifact.path == "cpp.pkt",
@@ -731,6 +778,10 @@ fn validate_raw_manifest_schema(
             );
         }
         RawSide::Rust => {
+            ensure!(
+                manifest.source_derivation.is_none(),
+                "Rust raw manifests must not contain C++ source_derivation evidence"
+            );
             ensure!(
                 manifest.harness_repo_head == manifest.source_repo_head,
                 "Rust harness/source repository HEAD values must match"
@@ -769,6 +820,101 @@ fn validate_raw_manifest_schema(
             );
         }
     }
+    Ok(())
+}
+
+fn validate_source_derivation_schema(derivation: &SourceDerivationEvidence) -> Result<()> {
+    ensure!(
+        !derivation.contract.is_empty(),
+        "source_derivation.contract must not be empty"
+    );
+    ensure!(
+        !derivation.remote_url.is_empty()
+            && !derivation.remote_url.contains(['\r', '\n'])
+            && derivation.remote_url.starts_with("https://"),
+        "source_derivation.remote_url must be one HTTPS line"
+    );
+    ensure!(
+        derivation.remote_ref.starts_with("refs/remotes/")
+            && !derivation.remote_ref.contains(['\r', '\n'])
+            && !derivation.remote_ref.contains(".."),
+        "source_derivation.remote_ref must be one canonical remote-tracking ref"
+    );
+    for (label, oid) in [
+        ("base_head", derivation.base_head.as_str()),
+        ("base_tree", derivation.base_tree.as_str()),
+        ("patched_head", derivation.patched_head.as_str()),
+        ("patched_tree", derivation.patched_tree.as_str()),
+    ] {
+        ensure!(
+            valid_git_oid(oid),
+            "source_derivation.{label} must be a lowercase 40- or 64-hex object id"
+        );
+    }
+    ensure!(
+        derivation.base_head != derivation.patched_head,
+        "source_derivation base and patched commits must differ"
+    );
+    ensure!(
+        is_canonical_relative_path(&derivation.patch_path),
+        "source_derivation.patch_path must be one canonical repository-relative path"
+    );
+    validate_sha256(&derivation.patch_sha256, "source_derivation.patch_sha256")?;
+    ensure!(
+        !derivation.changed_paths.is_empty()
+            && derivation
+                .changed_paths
+                .iter()
+                .all(|path| is_canonical_relative_path(path))
+            && derivation
+                .changed_paths
+                .windows(2)
+                .all(|pair| pair[0] < pair[1]),
+        "source_derivation.changed_paths must be nonempty, canonical, sorted, and unique"
+    );
+    Ok(())
+}
+
+fn is_canonical_relative_path(path: &str) -> bool {
+    !path.is_empty()
+        && !path.starts_with('/')
+        && !path.ends_with('/')
+        && !path.contains(['\r', '\n'])
+        && path.split('/').all(|component| {
+            !component.is_empty()
+                && component != "."
+                && component != ".."
+                && component
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+        })
+}
+
+fn validate_canonical_creature_spell_source_derivation(
+    manifest: &RawCaptureManifest,
+) -> Result<()> {
+    let derivation = manifest
+        .source_derivation
+        .as_ref()
+        .context("creature-spell-casting C++ requires source_derivation evidence")?;
+    ensure!(
+        derivation.contract == CREATURE_SPELL_CPP_SOURCE_DERIVATION_CONTRACT
+            && derivation.remote_url == CREATURE_SPELL_CPP_REMOTE_URL
+            && derivation.remote_ref == CREATURE_SPELL_CPP_REMOTE_REF
+            && derivation.base_head == CREATURE_SPELL_CPP_BASE_HEAD
+            && derivation.base_tree == CREATURE_SPELL_CPP_BASE_TREE
+            && derivation.patched_head == CREATURE_SPELL_CPP_PATCHED_HEAD
+            && derivation.patched_tree == CREATURE_SPELL_CPP_PATCHED_TREE
+            && derivation.patch_path == CREATURE_SPELL_CPP_PATCH_PATH
+            && derivation.patch_sha256 == CREATURE_SPELL_CPP_PATCH_SHA256
+            && derivation.changed_paths == [CREATURE_SPELL_CPP_CHANGED_PATH],
+        "creature-spell-casting C++ source_derivation differs from the reviewed canonical-base patch"
+    );
+    ensure!(
+        manifest.source_repo_head == derivation.patched_head
+            && manifest.source_exec_revision.as_deref() == Some(derivation.patched_head.as_str()),
+        "creature-spell-casting C++ source/binary revision is not the reviewed patched HEAD"
+    );
     Ok(())
 }
 
@@ -1828,6 +1974,7 @@ fn source_lineage(raw: &ValidatedRawSide, manifest_path: String) -> Result<Sourc
         raw_packet_count,
         harness_repo_head: raw.manifest.harness_repo_head.clone(),
         source_repo_head: raw.manifest.source_repo_head.clone(),
+        source_derivation: raw.manifest.source_derivation.clone(),
         harness_worktree_clean: raw.manifest.harness_worktree_clean,
         harness_worktree_state_sha256: raw.manifest.harness_worktree_state_sha256.clone(),
         source_worktree_dirty: raw.manifest.source_worktree_dirty,
@@ -1902,6 +2049,9 @@ pub fn verify_required_lineage(
 
     verify_retained_source(flow, flow_dir, RawSide::Cpp, &lineage.sources.cpp)?;
     verify_retained_source(flow, flow_dir, RawSide::Rust, &lineage.sources.rust)?;
+    if flow == "creature-spell-casting" {
+        validate_creature_spell_fixture_files(&flow_dir.join("fixture"))?;
+    }
     ensure!(
         lineage.sources.cpp.harness_repo_head == lineage.sources.rust.harness_repo_head
             && lineage.sources.cpp.harness_worktree_state_sha256
@@ -2063,6 +2213,33 @@ fn verify_retained_source(
         source.executable_pin_enforced,
         "required raw executable was not pinned"
     );
+    match (flow, side) {
+        ("creature-spell-casting", RawSide::Cpp) => {
+            let derivation = source
+                .source_derivation
+                .as_ref()
+                .context("required lineage C++ creature-spell source_derivation is missing")?;
+            validate_source_derivation_schema(derivation)?;
+            ensure!(
+                derivation.contract == CREATURE_SPELL_CPP_SOURCE_DERIVATION_CONTRACT
+                    && derivation.remote_url == CREATURE_SPELL_CPP_REMOTE_URL
+                    && derivation.remote_ref == CREATURE_SPELL_CPP_REMOTE_REF
+                    && derivation.base_head == CREATURE_SPELL_CPP_BASE_HEAD
+                    && derivation.base_tree == CREATURE_SPELL_CPP_BASE_TREE
+                    && derivation.patched_head == CREATURE_SPELL_CPP_PATCHED_HEAD
+                    && derivation.patched_tree == CREATURE_SPELL_CPP_PATCHED_TREE
+                    && derivation.patch_path == CREATURE_SPELL_CPP_PATCH_PATH
+                    && derivation.patch_sha256 == CREATURE_SPELL_CPP_PATCH_SHA256
+                    && derivation.changed_paths == [CREATURE_SPELL_CPP_CHANGED_PATH]
+                    && source.source_repo_head == derivation.patched_head,
+                "required lineage C++ creature-spell source_derivation differs from the reviewed patch"
+            );
+        }
+        _ => ensure!(
+            source.source_derivation.is_none(),
+            "required lineage contains source_derivation outside C++ creature-spell evidence"
+        ),
+    }
 
     let path = flow_dir.join(&source.manifest_path);
     let raw = read_and_validate_raw_manifest(&path, flow, side, true)?;
@@ -2073,6 +2250,7 @@ fn verify_retained_source(
     ensure!(
         raw.manifest.harness_repo_head == source.harness_repo_head
             && raw.manifest.source_repo_head == source.source_repo_head
+            && raw.manifest.source_derivation == source.source_derivation
             && raw.manifest.harness_worktree_clean == source.harness_worktree_clean
             && raw.manifest.harness_worktree_state_sha256 == source.harness_worktree_state_sha256
             && raw.manifest.source_worktree_dirty == source.source_worktree_dirty
@@ -2592,6 +2770,16 @@ fn copy_reviewed_metadata(source: &Path, destination: &Path) -> Result<()> {
 }
 
 fn copy_creature_spell_fixture_metadata(source: &Path, destination: &Path) -> Result<()> {
+    validate_creature_spell_fixture_files(source)?;
+
+    fs::create_dir(destination)?;
+    for name in ["fixture.json", "cpp-reference.patch"] {
+        copy_tree_entry(&source.join(name), &destination.join(name))?;
+    }
+    Ok(())
+}
+
+fn validate_creature_spell_fixture_files(source: &Path) -> Result<()> {
     let metadata = fs::symlink_metadata(source)?;
     ensure!(
         metadata.file_type().is_dir() && !metadata.file_type().is_symlink(),
@@ -2607,20 +2795,65 @@ fn copy_creature_spell_fixture_metadata(source: &Path, destination: &Path) -> Re
         .collect::<std::io::Result<Vec<_>>>()?;
     root_names.sort();
     ensure!(
-        root_names == ["fixture.json"],
+        root_names == ["cpp-reference.patch", "fixture.json"],
         "creature-spell fixture contains an unreviewed root entry"
     );
     let manifest_bytes = read_regular_file(&source.join("fixture.json"))?;
+    let patch_bytes = read_regular_file(&source.join("cpp-reference.patch"))?;
     ensure!(
         sha256_bytes(&manifest_bytes) == CREATURE_SPELL_FIXTURE_MANIFEST_SHA256,
         "creature-spell fixture manifest differs from the reviewed bytes"
     );
-
-    fs::create_dir(destination)?;
-    copy_tree_entry(
-        &source.join("fixture.json"),
-        &destination.join("fixture.json"),
-    )?;
+    ensure!(
+        sha256_bytes(&patch_bytes) == CREATURE_SPELL_CPP_PATCH_SHA256,
+        "creature-spell C++ reference patch differs from the reviewed bytes"
+    );
+    let fixture: serde_json::Value = serde_json::from_slice(&manifest_bytes)
+        .context("parsing reviewed creature-spell fixture manifest")?;
+    let derivation = fixture
+        .get("source_derivation")
+        .context("reviewed creature-spell fixture source_derivation is missing")?;
+    ensure!(
+        derivation
+            .get("contract")
+            .and_then(serde_json::Value::as_str)
+            == Some(CREATURE_SPELL_CPP_SOURCE_DERIVATION_CONTRACT)
+            && derivation
+                .get("remote_url")
+                .and_then(serde_json::Value::as_str)
+                == Some(CREATURE_SPELL_CPP_REMOTE_URL)
+            && derivation
+                .get("remote_ref")
+                .and_then(serde_json::Value::as_str)
+                == Some(CREATURE_SPELL_CPP_REMOTE_REF)
+            && derivation
+                .get("base_head")
+                .and_then(serde_json::Value::as_str)
+                == Some(CREATURE_SPELL_CPP_BASE_HEAD)
+            && derivation
+                .get("base_tree")
+                .and_then(serde_json::Value::as_str)
+                == Some(CREATURE_SPELL_CPP_BASE_TREE)
+            && derivation
+                .get("patched_head")
+                .and_then(serde_json::Value::as_str)
+                == Some(CREATURE_SPELL_CPP_PATCHED_HEAD)
+            && derivation
+                .get("patched_tree")
+                .and_then(serde_json::Value::as_str)
+                == Some(CREATURE_SPELL_CPP_PATCHED_TREE)
+            && derivation
+                .get("patch_path")
+                .and_then(serde_json::Value::as_str)
+                == Some(CREATURE_SPELL_CPP_PATCH_PATH)
+            && derivation
+                .get("patch_sha256")
+                .and_then(serde_json::Value::as_str)
+                == Some(CREATURE_SPELL_CPP_PATCH_SHA256)
+            && derivation.get("changed_paths")
+                == Some(&serde_json::json!([CREATURE_SPELL_CPP_CHANGED_PATH])),
+        "reviewed creature-spell fixture source_derivation metadata differs from the pinned patch"
+    );
     Ok(())
 }
 
@@ -2832,6 +3065,21 @@ mod tests {
 
     fn fake_oid() -> String {
         "a".repeat(40)
+    }
+
+    fn reviewed_cpp_source_derivation() -> serde_json::Value {
+        serde_json::json!({
+            "contract": CREATURE_SPELL_CPP_SOURCE_DERIVATION_CONTRACT,
+            "remote_url": CREATURE_SPELL_CPP_REMOTE_URL,
+            "remote_ref": CREATURE_SPELL_CPP_REMOTE_REF,
+            "base_head": CREATURE_SPELL_CPP_BASE_HEAD,
+            "base_tree": CREATURE_SPELL_CPP_BASE_TREE,
+            "patched_head": CREATURE_SPELL_CPP_PATCHED_HEAD,
+            "patched_tree": CREATURE_SPELL_CPP_PATCHED_TREE,
+            "patch_path": CREATURE_SPELL_CPP_PATCH_PATH,
+            "patch_sha256": CREATURE_SPELL_CPP_PATCH_SHA256,
+            "changed_paths": [CREATURE_SPELL_CPP_CHANGED_PATH]
+        })
     }
 
     fn make_raw_pair(root: &Path, flow: &str) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
@@ -3161,6 +3409,11 @@ mod tests {
                     serde_json::from_slice(&fs::read(manifest_path).unwrap()).unwrap();
                 if manifest_path == &cpp_manifest {
                     manifest["source_worktree_dirty"] = serde_json::Value::Bool(false);
+                    manifest["source_repo_head"] =
+                        serde_json::Value::String(CREATURE_SPELL_CPP_PATCHED_HEAD.to_string());
+                    manifest["source_exec_revision"] =
+                        serde_json::Value::String(CREATURE_SPELL_CPP_PATCHED_HEAD.to_string());
+                    manifest["source_derivation"] = reviewed_cpp_source_derivation();
                 }
                 manifest["fixture_guard"] = fixture.clone();
                 manifest["bot_report"] = serde_json::json!({
@@ -3350,6 +3603,18 @@ mod tests {
     fn make_derived_flow(root: &Path, flow: &str, raw: &ValidatedRawPair) -> PathBuf {
         let flow_dir = root.join(flow);
         fs::create_dir_all(flow_dir.join("rust")).unwrap();
+        if flow == "creature-spell-casting" {
+            let committed_fixture =
+                Path::new(env!("CARGO_MANIFEST_DIR")).join("flows/creature-spell-casting/fixture");
+            fs::create_dir_all(flow_dir.join("fixture")).unwrap();
+            for name in ["fixture.json", "cpp-reference.patch"] {
+                fs::copy(
+                    committed_fixture.join(name),
+                    flow_dir.join("fixture").join(name),
+                )
+                .unwrap();
+            }
+        }
         fs::write(flow_dir.join("cpp.pkt"), b"filtered-cpp").unwrap();
         fs::write(flow_dir.join("rust/one.meta"), b"derived-meta").unwrap();
         fs::write(flow_dir.join("rust/one.bin"), b"derived-bin").unwrap();
@@ -3432,6 +3697,13 @@ mod tests {
         let error = validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true)
             .expect_err("non-RFC3339 timestamp must fail");
         assert!(format!("{error:#}").contains("RFC3339"));
+
+        let mut json: serde_json::Value = serde_json::from_slice(&original).unwrap();
+        json["source_derivation"] = reviewed_cpp_source_derivation();
+        fs::write(&cpp_manifest, serde_json::to_vec_pretty(&json).unwrap()).unwrap();
+        let error = validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true)
+            .expect_err("an unrelated flow must not claim reviewed C++ derivation evidence");
+        assert!(format!("{error:#}").contains("reserved for C++ creature-spell-casting"));
 
         fs::write(&cpp_manifest, &original).unwrap();
         let mut rust_json: serde_json::Value =
@@ -3664,21 +3936,32 @@ mod tests {
     }
 
     #[test]
-    fn creature_spell_import_copies_only_the_reviewed_fixture_manifest() {
+    fn creature_spell_import_copies_only_the_reviewed_fixture_derivation() {
         let root = test_root("creature-spell-reviewed-fixture");
         let target = root.join("creature-spell-casting");
         let fixture = target.join("fixture");
-        let committed_fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("flows/creature-spell-casting/fixture/fixture.json");
+        let committed_fixture =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("flows/creature-spell-casting/fixture");
         fs::create_dir_all(&fixture).unwrap();
         fs::write(target.join("README.md"), b"reviewed").unwrap();
-        fs::copy(&committed_fixture, fixture.join("fixture.json")).unwrap();
+        for name in ["fixture.json", "cpp-reference.patch"] {
+            fs::copy(committed_fixture.join(name), fixture.join(name)).unwrap();
+        }
 
         {
             let transaction = AtomicFlowImport::prepare(&root, "creature-spell-casting").unwrap();
             assert_eq!(
                 fs::read(transaction.staging_dir().join("fixture/fixture.json")).unwrap(),
-                fs::read(&committed_fixture).unwrap()
+                fs::read(committed_fixture.join("fixture.json")).unwrap()
+            );
+            assert_eq!(
+                fs::read(
+                    transaction
+                        .staging_dir()
+                        .join("fixture/cpp-reference.patch")
+                )
+                .unwrap(),
+                fs::read(committed_fixture.join("cpp-reference.patch")).unwrap()
             );
         }
 
@@ -3687,7 +3970,21 @@ mod tests {
             .err()
             .expect("tampered reviewed fixture manifest must fail closed");
         assert!(error.to_string().contains("manifest differs"));
-        fs::copy(&committed_fixture, fixture.join("fixture.json")).unwrap();
+        fs::copy(
+            committed_fixture.join("fixture.json"),
+            fixture.join("fixture.json"),
+        )
+        .unwrap();
+        fs::write(fixture.join("cpp-reference.patch"), b"tampered").unwrap();
+        let error = AtomicFlowImport::prepare(&root, "creature-spell-casting")
+            .err()
+            .expect("tampered reviewed source patch must fail closed");
+        assert!(error.to_string().contains("reference patch differs"));
+        fs::copy(
+            committed_fixture.join("cpp-reference.patch"),
+            fixture.join("cpp-reference.patch"),
+        )
+        .unwrap();
         fs::write(fixture.join("unreviewed.bin"), b"must not propagate").unwrap();
         let error = AtomicFlowImport::prepare(&root, "creature-spell-casting")
             .err()
@@ -3812,8 +4109,120 @@ mod tests {
                     .is_file(),
             "derived creature-spell lineage did not retain both bot reports"
         );
+        let lineage_path = flow_dir.join(LINEAGE_FILE);
+        let lineage_original = fs::read(&lineage_path).unwrap();
+        let lineage_json: serde_json::Value = serde_json::from_slice(&lineage_original).unwrap();
+        assert_eq!(
+            lineage_json["sources"]["cpp"]["source_derivation"],
+            reviewed_cpp_source_derivation(),
+            "derived lineage did not retain the exact reviewed C++ derivation"
+        );
+        assert!(
+            lineage_json["sources"]["rust"]
+                .get("source_derivation")
+                .is_none(),
+            "derived lineage invented C++ derivation evidence for Rust"
+        );
+
+        let mut tampered_lineage = lineage_json.clone();
+        tampered_lineage["sources"]["cpp"]["source_derivation"]["patch_sha256"] =
+            serde_json::Value::String("0".repeat(64));
+        fs::write(
+            &lineage_path,
+            serde_json::to_vec_pretty(&tampered_lineage).unwrap(),
+        )
+        .unwrap();
+        let error = verify_required_lineage(flow, &flow_dir, &required_selection())
+            .expect_err("tampered derived source patch identity must fail");
+        assert!(format!("{error:#}").contains("reviewed patch"));
+
+        let mut missing_lineage = lineage_json;
+        missing_lineage["sources"]["cpp"]
+            .as_object_mut()
+            .unwrap()
+            .remove("source_derivation");
+        fs::write(
+            &lineage_path,
+            serde_json::to_vec_pretty(&missing_lineage).unwrap(),
+        )
+        .unwrap();
+        let error = verify_required_lineage(flow, &flow_dir, &required_selection())
+            .expect_err("missing derived source derivation must fail");
+        assert!(format!("{error:#}").contains("source_derivation is missing"));
+        fs::write(&lineage_path, &lineage_original).unwrap();
 
         let cpp_original = fs::read(&cpp_manifest).unwrap();
+        let mut missing_derivation: serde_json::Value =
+            serde_json::from_slice(&cpp_original).unwrap();
+        missing_derivation
+            .as_object_mut()
+            .unwrap()
+            .remove("source_derivation");
+        fs::write(
+            &cpp_manifest,
+            serde_json::to_vec_pretty(&missing_derivation).unwrap(),
+        )
+        .unwrap();
+        let error = validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true)
+            .expect_err("missing C++ source derivation must fail");
+        assert!(format!("{error:#}").contains("requires source_derivation evidence"));
+
+        for (field, value) in [
+            (
+                "contract",
+                serde_json::Value::String("wrong-contract".into()),
+            ),
+            (
+                "remote_url",
+                serde_json::Value::String("https://example.invalid/reference.git".into()),
+            ),
+            (
+                "remote_ref",
+                serde_json::Value::String("refs/remotes/origin/other".into()),
+            ),
+            ("base_head", serde_json::Value::String("0".repeat(40))),
+            ("base_tree", serde_json::Value::String("0".repeat(40))),
+            ("patched_head", serde_json::Value::String("0".repeat(40))),
+            ("patched_tree", serde_json::Value::String("0".repeat(40))),
+            (
+                "patch_path",
+                serde_json::Value::String("fixture/other.patch".into()),
+            ),
+            ("patch_sha256", serde_json::Value::String("0".repeat(64))),
+            (
+                "changed_paths",
+                serde_json::json!([
+                    CREATURE_SPELL_CPP_CHANGED_PATH,
+                    "src/server/game/DataStores/Unreviewed.cpp"
+                ]),
+            ),
+        ] {
+            let mut changed: serde_json::Value = serde_json::from_slice(&cpp_original).unwrap();
+            changed["source_derivation"][field] = value;
+            fs::write(&cpp_manifest, serde_json::to_vec_pretty(&changed).unwrap()).unwrap();
+            let error = validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true)
+                .expect_err("mutated reviewed C++ source derivation must fail");
+            assert!(
+                format!("{error:#}").contains("source_derivation"),
+                "unexpected {field} mutation error: {error:#}"
+            );
+        }
+
+        let rust_original_with_derivation = fs::read(&rust_manifest).unwrap();
+        let mut rust_derivation: serde_json::Value =
+            serde_json::from_slice(&rust_original_with_derivation).unwrap();
+        rust_derivation["source_derivation"] = reviewed_cpp_source_derivation();
+        fs::write(
+            &rust_manifest,
+            serde_json::to_vec_pretty(&rust_derivation).unwrap(),
+        )
+        .unwrap();
+        fs::write(&cpp_manifest, &cpp_original).unwrap();
+        let error = validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true)
+            .expect_err("Rust must not claim the C++ source derivation");
+        assert!(format!("{error:#}").contains("Rust raw manifests must not contain"));
+        fs::write(&rust_manifest, rust_original_with_derivation).unwrap();
+
         let mut dirty_cpp: serde_json::Value = serde_json::from_slice(&cpp_original).unwrap();
         dirty_cpp["source_worktree_dirty"] = serde_json::Value::Bool(true);
         fs::write(

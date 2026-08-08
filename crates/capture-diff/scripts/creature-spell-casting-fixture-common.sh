@@ -21,6 +21,7 @@ CREATURE_SPELL_FIXTURE_SPELL_SLOT=0
 CREATURE_SPELL_FIXTURE_SPELL_ID=15691
 CREATURE_SPELL_FIXTURE_ORIGINAL_AI=SmartAI
 CREATURE_SPELL_FIXTURE_TEMP_AI=CombatAI
+CREATURE_SPELL_FIXTURE_SOURCE_DERIVATION_CONTRACT=creature-spell-casting-cpp-source-patch-v1
 CREATURE_SPELL_FIXTURE_ACCOUNT=TESTBOT2@bot.local
 CREATURE_SPELL_FIXTURE_ACCOUNT_ID=9
 CREATURE_SPELL_FIXTURE_CHARACTER_GUID=15
@@ -60,6 +61,8 @@ CREATURE_SPELL_FIXTURE_CHARACTER_SCHEMA_SHA256=1c8ef9a9367734daced44acf567cc5453
 : "${CREATURE_SPELL_FIXTURE_ORCHESTRATION_LOCK:=}"
 : "${CREATURE_SPELL_FIXTURE_MANIFEST:=}"
 : "${CREATURE_SPELL_FIXTURE_MANIFEST_SHA256:=}"
+: "${CREATURE_SPELL_FIXTURE_CPP_PATCH:=}"
+: "${CREATURE_SPELL_FIXTURE_SOURCE_DERIVATION_JSON:=}"
 : "${CREATURE_SPELL_FIXTURE_DATABASE_SNAPSHOT_SHA256:=}"
 : "${CREATURE_SPELL_FIXTURE_JOURNAL_SHA256:=}"
 : "${CREATURE_SPELL_FIXTURE_CURRENT_JOURNAL_SHA256:=}"
@@ -147,6 +150,16 @@ creature_spell_fixture_validate_manifest_file() {
       .schema_version == 1
       and .flow == "creature-spell-casting"
       and .contract == "creature-spell-casting-shell-fixture-v1"
+      and .source_derivation.contract == "creature-spell-casting-cpp-source-patch-v1"
+      and .source_derivation.remote_url == "https://github.com/alseif0x/TrinityCoreLegacyTest.git"
+      and .source_derivation.remote_ref == "refs/remotes/origin/3.4.3"
+      and .source_derivation.base_head == "a5f8da2ebf5424bf0450ca4e08843ecbf72577bd"
+      and .source_derivation.base_tree == "bb5c4746be7f9944b1a3f7a1eec5ea88d62fff67"
+      and .source_derivation.patched_head == "8cfed90bf1720dbf8b9dc109113c8d7d9173ff6c"
+      and .source_derivation.patched_tree == "228e91ed36886593c85fb601d00a9f8eb0702137"
+      and .source_derivation.patch_path == "crates/capture-diff/flows/creature-spell-casting/fixture/cpp-reference.patch"
+      and .source_derivation.patch_sha256 == "ef8b3c29f46fe537e1ae4e826b5610afcd534999f900ec9554ee0534e7847262"
+      and .source_derivation.changed_paths == ["src/server/game/DataStores/DB2Stores.cpp"]
       and .creature_template.entry == 22378
       and .creature_template.name == "Cabal Interrogator"
       and .creature_template.original_ai_name == "SmartAI"
@@ -208,6 +221,180 @@ creature_spell_fixture_validate_committed_fixture() {
   CREATURE_SPELL_FIXTURE_MANIFEST_SHA256="$(
     creature_spell_fixture_sha256_of_file "$CREATURE_SPELL_FIXTURE_MANIFEST"
   )" || return 1
+}
+
+# Bind the clean C++ checkout and embedded executable revision to one reviewed
+# one-parent derivation of the canonical remote base. The committed full-index
+# patch is compared byte-for-byte with Git's diff, not merely by filename or
+# caller-supplied digest, and the changed path set is independently pinned.
+creature_spell_fixture_require_unredirected_git_environment() {
+  local variable
+  for variable in \
+    GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE \
+    GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_QUARANTINE_PATH \
+    GIT_NAMESPACE GIT_REPLACE_REF_BASE GIT_GRAFT_FILE GIT_SHALLOW_FILE \
+    GIT_CONFIG GIT_CONFIG_PARAMETERS GIT_CONFIG_COUNT GIT_CONFIG_SYSTEM \
+    GIT_CONFIG_GLOBAL GIT_CONFIG_NOSYSTEM GIT_ATTR_SOURCE GIT_ATTR_SYSTEM \
+    GIT_ATTR_GLOBAL GIT_ATTR_NOSYSTEM; do
+    if [[ -v "$variable" ]]; then
+      echo "error: ${variable} must be unset while validating C++ source derivation" >&2
+      return 1
+    fi
+  done
+}
+
+creature_spell_fixture_validate_cpp_source_derivation() {
+  local repo_root="$1"
+  local source_repo="$2"
+  local manifest="${3:-$CREATURE_SPELL_FIXTURE_MANIFEST}"
+  local derivation contract remote_url remote_ref base_head base_tree
+  local patched_head patched_tree patch_path patch_sha256 patch_file
+  local repo_canonical patch_canonical actual_patch_sha current_head
+  local parent_line actual_base_tree actual_patched_tree actual_remote_url
+  local actual_remote_head expected_paths actual_paths
+  local -a commit_and_parents
+
+  CREATURE_SPELL_FIXTURE_CPP_PATCH=""
+  CREATURE_SPELL_FIXTURE_SOURCE_DERIVATION_JSON=""
+  creature_spell_fixture_require_unredirected_git_environment || return 1
+  [ -n "$manifest" ] && [ -f "$manifest" ] && [ ! -L "$manifest" ] \
+    || return 1
+  derivation="$(jq -cSe '
+    .source_derivation
+    | select(
+        type == "object"
+        and (keys | sort) == [
+          "base_head", "base_tree", "changed_paths", "contract",
+          "patch_path", "patch_sha256", "patched_head", "patched_tree",
+          "remote_ref", "remote_url"
+        ]
+        and (.contract | type == "string" and length > 0 and test("^[A-Za-z0-9._-]+$"))
+        and (.remote_url | type == "string" and length > 0 and (contains("\\n") | not))
+        and (.remote_ref | type == "string" and test("^refs/remotes/[A-Za-z0-9._/-]+$"))
+        and (.base_head | type == "string" and test("^([0-9a-f]{40}|[0-9a-f]{64})$"))
+        and (.base_tree | type == "string" and test("^([0-9a-f]{40}|[0-9a-f]{64})$"))
+        and (.patched_head | type == "string" and test("^([0-9a-f]{40}|[0-9a-f]{64})$"))
+        and (.patched_tree | type == "string" and test("^([0-9a-f]{40}|[0-9a-f]{64})$"))
+        and .base_head != .patched_head
+        and (.patch_path | type == "string" and test("^[A-Za-z0-9._/-]+$"))
+        and (.patch_sha256 | type == "string" and test("^[0-9a-f]{64}$"))
+        and (.changed_paths | type == "array" and length > 0)
+        and all(.changed_paths[];
+          type == "string" and test("^[A-Za-z0-9._/-]+$")
+          and startswith("/") == false
+          and contains("//") == false
+          and contains("/../") == false
+          and startswith("../") == false
+          and endswith("/..") == false)
+        and (.changed_paths == (.changed_paths | sort | unique))
+      )
+  ' "$manifest")" || {
+    echo "error: creature spell C++ source derivation metadata is malformed" >&2
+    return 1
+  }
+  contract="$(jq -r '.contract' <<<"$derivation")" || return 1
+  remote_url="$(jq -r '.remote_url' <<<"$derivation")" || return 1
+  remote_ref="$(jq -r '.remote_ref' <<<"$derivation")" || return 1
+  base_head="$(jq -r '.base_head' <<<"$derivation")" || return 1
+  base_tree="$(jq -r '.base_tree' <<<"$derivation")" || return 1
+  patched_head="$(jq -r '.patched_head' <<<"$derivation")" || return 1
+  patched_tree="$(jq -r '.patched_tree' <<<"$derivation")" || return 1
+  patch_path="$(jq -r '.patch_path' <<<"$derivation")" || return 1
+  patch_sha256="$(jq -r '.patch_sha256' <<<"$derivation")" || return 1
+  [ "$contract" = "$CREATURE_SPELL_FIXTURE_SOURCE_DERIVATION_CONTRACT" ] || {
+    echo "error: unexpected creature spell C++ source derivation contract" >&2
+    return 1
+  }
+  case "/${patch_path}/" in
+    */../*|*/./*|*//*)
+      echo "error: creature spell C++ patch path is not canonical" >&2
+      return 1
+      ;;
+  esac
+
+  repo_canonical="$(realpath -e -- "$repo_root" 2>/dev/null)" || return 1
+  [ "$repo_canonical" = "$repo_root" ] || return 1
+  patch_file="${repo_root}/${patch_path}"
+  patch_canonical="$(realpath -e -- "$patch_file" 2>/dev/null)" || {
+    echo "error: reviewed creature spell C++ patch does not resolve" >&2
+    return 1
+  }
+  [ "$patch_canonical" = "$patch_file" ] \
+    && [ -f "$patch_file" ] && [ ! -L "$patch_file" ] || {
+      echo "error: reviewed creature spell C++ patch is not a canonical regular file" >&2
+      return 1
+    }
+  actual_patch_sha="$(creature_spell_fixture_sha256_of_file "$patch_file")" \
+    || return 1
+  [ "$actual_patch_sha" = "$patch_sha256" ] || {
+    echo "error: reviewed creature spell C++ patch SHA-256 differs from fixture metadata" >&2
+    return 1
+  }
+
+  current_head="$(git --no-replace-objects -C "$source_repo" rev-parse HEAD 2>/dev/null)" \
+    || return 1
+  [ "$current_head" = "$patched_head" ] || {
+    echo "error: creature spell C++ source HEAD is not the reviewed patched commit" >&2
+    return 1
+  }
+  parent_line="$(git --no-replace-objects -C "$source_repo" \
+    rev-list --parents -n 1 "$patched_head" 2>/dev/null)" \
+    || return 1
+  read -r -a commit_and_parents <<<"$parent_line"
+  [ "${#commit_and_parents[@]}" -eq 2 ] \
+    && [ "${commit_and_parents[0]}" = "$patched_head" ] \
+    && [ "${commit_and_parents[1]}" = "$base_head" ] || {
+      echo "error: creature spell C++ patched commit must have exactly the reviewed canonical base as its sole parent" >&2
+      return 1
+    }
+  actual_base_tree="$(git --no-replace-objects -C "$source_repo" \
+    rev-parse "${base_head}^{tree}" 2>/dev/null)" \
+    || return 1
+  [ "$actual_base_tree" = "$base_tree" ] || {
+    echo "error: creature spell C++ canonical base tree differs from fixture metadata" >&2
+    return 1
+  }
+  actual_patched_tree="$(git --no-replace-objects -C "$source_repo" \
+    rev-parse "${patched_head}^{tree}" 2>/dev/null)" \
+    || return 1
+  [ "$actual_patched_tree" = "$patched_tree" ] || {
+    echo "error: creature spell C++ patched tree differs from fixture metadata" >&2
+    return 1
+  }
+  actual_remote_url="$(git -C "$source_repo" config --get remote.origin.url 2>/dev/null)" \
+    || return 1
+  [ "$actual_remote_url" = "$remote_url" ] || {
+    echo "error: creature spell C++ origin URL differs from fixture metadata" >&2
+    return 1
+  }
+  actual_remote_head="$(git --no-replace-objects -C "$source_repo" \
+    rev-parse "${remote_ref}^{commit}" 2>/dev/null)" \
+    || {
+      echo "error: creature spell C++ reviewed remote ref is missing" >&2
+      return 1
+    }
+  [ "$actual_remote_head" = "$base_head" ] || {
+    echo "error: creature spell C++ reviewed remote ref does not resolve to the canonical base" >&2
+    return 1
+  }
+  if ! LC_ALL=C git --no-replace-objects -C "$source_repo" diff \
+      --binary --full-index --no-ext-diff --no-textconv --no-renames --no-color \
+      --src-prefix=a/ --dst-prefix=b/ --diff-algorithm=myers \
+      "$base_head" "$patched_head" -- | cmp -s - "$patch_file"; then
+    echo "error: creature spell C++ source diff bytes differ from the reviewed patch" >&2
+    return 1
+  fi
+  expected_paths="$(jq -r '.changed_paths[]' <<<"$derivation")" || return 1
+  actual_paths="$(LC_ALL=C git --no-replace-objects -C "$source_repo" diff \
+    --name-only --no-ext-diff --no-textconv --no-renames --no-color \
+    "$base_head" "$patched_head" --)" || return 1
+  [ "$actual_paths" = "$expected_paths" ] || {
+    echo "error: creature spell C++ changed paths differ from fixture metadata" >&2
+    return 1
+  }
+
+  CREATURE_SPELL_FIXTURE_CPP_PATCH="$patch_file"
+  CREATURE_SPELL_FIXTURE_SOURCE_DERIVATION_JSON="$derivation"
 }
 
 creature_spell_fixture_validate_db_config() {
