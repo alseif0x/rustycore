@@ -4042,6 +4042,8 @@ pub struct LegacyCreatureAggroConfigLikeCpp {
     pub spell_duration_store: Option<Arc<SpellDurationStore>>,
     pub spell_cooldowns_store: Option<Arc<wow_data::SpellCooldownsStore>>,
     pub spell_x_spell_visual_store: Option<Arc<wow_data::SpellXSpellVisualStore>>,
+    pub spell_target_restrictions_store: Option<Arc<SpellTargetRestrictionsStore>>,
+    pub spell_casting_requirements_store: Option<Arc<wow_data::SpellCastingRequirementsStore>>,
     pub spell_store: Option<Arc<SpellStore>>,
     pub spell_chain_store: Option<Arc<SpellChainStoreLikeCpp>>,
     pub spell_linked_store: Option<Arc<SpellLinkedStoreLikeCpp>>,
@@ -4075,6 +4077,8 @@ impl Default for LegacyCreatureAggroConfigLikeCpp {
             spell_duration_store: None,
             spell_cooldowns_store: None,
             spell_x_spell_visual_store: None,
+            spell_target_restrictions_store: None,
+            spell_casting_requirements_store: None,
             spell_store: None,
             spell_chain_store: None,
             spell_linked_store: None,
@@ -4107,6 +4111,25 @@ impl LegacyCreatureAggroConfigLikeCpp {
             self.spell_chain_store.as_deref(),
             self.spell_linked_store.as_deref(),
         )
+    }
+
+    /// Prove that C++ `Spell::CheckCast` has no caster-facing requirement
+    /// that this bounded creature publication path would otherwise skip.
+    ///
+    /// Startup installs the effective DB2 + SQL + hotfix authority. Missing
+    /// authority and spell IDs outside DB2's signed key domain fail closed;
+    /// an absent effective row means the spell has no such requirement.
+    fn spell_has_no_unrepresented_facing_requirement_like_cpp(&self, spell_id: u32) -> bool {
+        let Some(store) = self.spell_casting_requirements_store.as_deref() else {
+            return false;
+        };
+        let Ok(spell_id) = i32::try_from(spell_id) else {
+            return false;
+        };
+        match store.entry_for_spell_id_like_cpp(spell_id) {
+            Some(requirement) => requirement.facing_caster_flags == 0,
+            None => true,
+        }
     }
 
     fn creature_faction_template_is_neutral_to_all_like_cpp(
@@ -4511,6 +4534,7 @@ pub struct LegacyCreatureSpellTickOutcomeLikeCpp {
     pub casts_ready: usize,
     pub noninstant_casts_unrepresented: usize,
     pub spell_runtime_hooks_unrepresented: usize,
+    pub spell_facing_requirements_unrepresented: usize,
     pub spell_disable_context_unrepresented: usize,
     pub spells_disabled: usize,
     pub spell_effects_unrepresented: usize,
@@ -61992,6 +62016,28 @@ fn creature_ai_spell_difficulty_chain_like_cpp(
     chain
 }
 
+fn creature_ai_spell_has_unrepresented_target_creature_type_like_cpp(
+    spell_id: u32,
+    difficulty_id: u8,
+    config: &LegacyCreatureAggroConfigLikeCpp,
+) -> bool {
+    // C++ resolves one effective `SpellTargetRestrictions` row through the
+    // active difficulty fallback chain before `CheckTargetCreatureType`.
+    // Creature/player type checks are not represented by M2.6, so missing
+    // authority or any effective nonzero mask must keep publication closed.
+    let Some(store) = config.spell_target_restrictions_store.as_ref() else {
+        return true;
+    };
+    store
+        .resolved_for_difficulty_chain_like_cpp(
+            spell_id,
+            creature_ai_spell_difficulty_chain_like_cpp(difficulty_id, config)
+                .into_iter()
+                .map(u32::from),
+        )
+        .is_some_and(|restriction| restriction.target_creature_type_mask_like_cpp() != 0)
+}
+
 fn creature_ai_spell_cooldowns_entry_like_cpp(
     spell_id: u32,
     difficulty_id: u8,
@@ -62093,7 +62139,8 @@ fn creature_ai_spell_x_spell_visual_id_like_cpp(
 ) -> Result<u32, ()> {
     // C++ falls back only when the current difficulty has no visual rows at
     // all. It then orders the selected vector by caster-player condition and
-    // evaluates both caster conditions. This slice can prove only a single
+    // evaluates both caster conditions. Viewer conditions likewise make the
+    // emitted visual row viewer-specific. This slice can prove only a single
     // unconditional row; a conditional or ambiguous selected vector must not
     // silently fall through to another difficulty or pick a HashMap order.
     let Some(store) = config.spell_x_spell_visual_store.as_ref() else {
@@ -62108,6 +62155,8 @@ fn creature_ai_spell_x_spell_visual_id_like_cpp(
             continue;
         }
         if rows.len() != 1
+            || rows[0].viewer_player_condition_id != 0
+            || rows[0].viewer_unit_condition_id != 0
             || rows[0].caster_player_condition_id != 0
             || rows[0].caster_unit_condition_id != 0
         {
@@ -62786,11 +62835,27 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
                                         outcome.spell_runtime_hooks_unrepresented += 1;
                                         continue;
                                     }
+                                    if !config
+                                        .spell_has_no_unrepresented_facing_requirement_like_cpp(
+                                            spell_id,
+                                        )
+                                    {
+                                        outcome.spell_facing_requirements_unrepresented += 1;
+                                        continue;
+                                    }
                                     if creature_ai_zero_power_rows_have_unrepresented_implicit_cost_like_cpp(
                                         &spell,
                                         difficulty_id,
                                         config,
                                         creature,
+                                    ) {
+                                        outcome.spell_effects_unrepresented += 1;
+                                        continue;
+                                    }
+                                    if creature_ai_spell_has_unrepresented_target_creature_type_like_cpp(
+                                        spell_id,
+                                        difficulty_id,
+                                        config,
                                     ) {
                                         outcome.spell_effects_unrepresented += 1;
                                         continue;
@@ -62949,11 +63014,28 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
                                 .push(PendingCreatureSpellActionLikeCpp::Schedule(schedule));
                             continue;
                         }
+                        if !config.spell_has_no_unrepresented_facing_requirement_like_cpp(spell_id)
+                        {
+                            outcome.spell_facing_requirements_unrepresented += 1;
+                            pending_actions
+                                .push(PendingCreatureSpellActionLikeCpp::Schedule(schedule));
+                            continue;
+                        }
                         if creature_ai_zero_power_rows_have_unrepresented_implicit_cost_like_cpp(
                             &spell,
                             difficulty_id,
                             config,
                             creature,
+                        ) {
+                            outcome.spell_effects_unrepresented += 1;
+                            pending_actions
+                                .push(PendingCreatureSpellActionLikeCpp::Schedule(schedule));
+                            continue;
+                        }
+                        if creature_ai_spell_has_unrepresented_target_creature_type_like_cpp(
+                            spell_id,
+                            difficulty_id,
+                            config,
                         ) {
                             outcome.spell_effects_unrepresented += 1;
                             pending_actions
@@ -63074,11 +63156,23 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
                         outcome.spell_runtime_hooks_unrepresented += 1;
                         continue;
                     }
+                    if !config.spell_has_no_unrepresented_facing_requirement_like_cpp(spell_id) {
+                        outcome.spell_facing_requirements_unrepresented += 1;
+                        continue;
+                    }
                     if creature_ai_zero_power_rows_have_unrepresented_implicit_cost_like_cpp(
                         &spell,
                         difficulty_id,
                         config,
                         creature,
+                    ) {
+                        outcome.spell_effects_unrepresented += 1;
+                        continue;
+                    }
+                    if creature_ai_spell_has_unrepresented_target_creature_type_like_cpp(
+                        spell_id,
+                        difficulty_id,
+                        config,
                     ) {
                         outcome.spell_effects_unrepresented += 1;
                         continue;
@@ -158028,6 +158122,12 @@ mod tests {
                     },
                 ]),
             )),
+            spell_target_restrictions_store: Some(Arc::new(
+                wow_data::SpellTargetRestrictionsStore::from_entries([]),
+            )),
+            spell_casting_requirements_store: Some(Arc::new(
+                wow_data::SpellCastingRequirementsStore::from_entries([]),
+            )),
             spell_store: Some(Arc::new(spell_store)),
             spell_chain_store: Some(Arc::new(SpellChainStoreLikeCpp::default())),
             spell_linked_store: Some(Arc::new(SpellLinkedStoreLikeCpp::default())),
@@ -160150,7 +160250,7 @@ mod tests {
         let spell = creature_ai_test_spell_info_like_cpp(spell_id as i32, 6, 0);
         let mut config = creature_ai_spell_test_config_like_cpp(spell, false, 30.0);
         let visual =
-            |id, difficulty_id, caster_unit_condition_id| wow_data::SpellXSpellVisualEntry {
+            |id, difficulty_id, viewer_player_condition_id| wow_data::SpellXSpellVisualEntry {
                 id,
                 difficulty_id,
                 spell_visual_id: id + 100,
@@ -160160,15 +160260,15 @@ mod tests {
                 spell_icon_file_id: 0,
                 active_icon_file_id: 0,
                 viewer_unit_condition_id: 0,
-                viewer_player_condition_id: 0,
-                caster_unit_condition_id,
+                viewer_player_condition_id,
+                caster_unit_condition_id: 0,
                 caster_player_condition_id: 0,
                 spell_id,
             };
         config.spell_x_spell_visual_store =
             Some(Arc::new(wow_data::SpellXSpellVisualStore::from_entries([
                 visual(8_201, 0, 0),
-                visual(8_202, 2, 17),
+                visual(8_202, 2, 23),
             ])));
         config.difficulty_store =
             Some(Arc::new(DifficultyStore::from_entries([DifficultyEntry {
@@ -160182,7 +160282,7 @@ mod tests {
         assert_eq!(
             creature_ai_spell_x_spell_visual_id_like_cpp(spell_id, 2, &config),
             Err(()),
-            "C++ must evaluate the active difficulty's unit condition; Rust cannot skip it and borrow the fallback visual"
+            "C++ must evaluate the active difficulty's viewer condition; Rust cannot skip it and borrow the fallback visual"
         );
         assert_eq!(
             creature_ai_spell_x_spell_visual_id_like_cpp(spell_id, 0, &config),
