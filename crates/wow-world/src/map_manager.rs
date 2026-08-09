@@ -10710,6 +10710,7 @@ mod tests {
             0,
             0,
         );
+        creature.seed_runtime_rng_like_cpp(0x5434_1);
         creature
             .creature
             .set_default_movement_type_runtime_like_cpp(
