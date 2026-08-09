@@ -14,14 +14,18 @@
 # starts or stops a service.
 
 CREATURE_SPELL_FIXTURE_FLOW=creature-spell-casting
-CREATURE_SPELL_FIXTURE_CONTRACT=creature-spell-casting-shell-fixture-v1
+CREATURE_SPELL_FIXTURE_CONTRACT=creature-spell-casting-shell-fixture-v2
 CREATURE_SPELL_FIXTURE_ENTRY=22378
+CREATURE_SPELL_FIXTURE_DIFFICULTY_ID=0
 CREATURE_SPELL_FIXTURE_SPAWN_GUID=78686
 CREATURE_SPELL_FIXTURE_SPELL_SLOT=0
 CREATURE_SPELL_FIXTURE_SPELL_ID=15691
 CREATURE_SPELL_FIXTURE_GHOST_SPELL_ID=8326
 CREATURE_SPELL_FIXTURE_ORIGINAL_AI=SmartAI
 CREATURE_SPELL_FIXTURE_TEMP_AI=CombatAI
+CREATURE_SPELL_FIXTURE_ORIGINAL_STATIC_FLAGS_1=0
+# C++ `CREATURE_STATIC_FLAG_NO_MELEE`: suppresses only automatic melee swings.
+CREATURE_SPELL_FIXTURE_TEMP_STATIC_FLAGS_1=1048576
 CREATURE_SPELL_FIXTURE_SOURCE_DERIVATION_CONTRACT=creature-spell-casting-cpp-source-patch-v1
 CREATURE_SPELL_FIXTURE_ACCOUNT=TESTBOT2@bot.local
 CREATURE_SPELL_FIXTURE_ACCOUNT_ID=9
@@ -150,9 +154,9 @@ creature_spell_fixture_validate_manifest_file() {
   [ "$canonical" = "$manifest" ] \
     && [[ "$manifest" == */crates/capture-diff/flows/creature-spell-casting/fixture/fixture.json ]] \
     && jq -e '
-      .schema_version == 1
+      .schema_version == 2
       and .flow == "creature-spell-casting"
-      and .contract == "creature-spell-casting-shell-fixture-v1"
+      and .contract == "creature-spell-casting-shell-fixture-v2"
       and .source_derivation.contract == "creature-spell-casting-cpp-source-patch-v1"
       and .source_derivation.remote_url == "https://github.com/alseif0x/TrinityCoreLegacyTest.git"
       and .source_derivation.remote_ref == "refs/remotes/origin/3.4.3"
@@ -169,6 +173,34 @@ creature_spell_fixture_validate_manifest_file() {
       and .creature_template.temporary_ai_name == "CombatAI"
       and .creature_template.script_name == ""
       and .creature_template.verified_build == 52237
+      and .creature_template_difficulty == {
+        entry: 22378,
+        difficulty_id: 0,
+        min_level: 64,
+        max_level: 65,
+        health_scaling_expansion: 0,
+        health_modifier: 1,
+        mana_modifier: 1,
+        armor_modifier: 1,
+        damage_modifier: 1,
+        creature_difficulty_id: 18203,
+        type_flags: 0,
+        type_flags_2: 0,
+        loot_id: 22378,
+        pickpocket_loot_id: 22378,
+        skin_loot_id: 0,
+        gold_min: 153,
+        gold_max: 205,
+        original_static_flags_1: 0,
+        temporary_static_flags_1: 1048576,
+        static_flags_2: 0,
+        static_flags_3: 0,
+        static_flags_4: 0,
+        static_flags_5: 0,
+        static_flags_6: 0,
+        static_flags_7: 0,
+        static_flags_8: 0
+      }
       and .spawn.guid == 78686
       and .spawn.map == 530
       and .spawn.zone_id == 0
@@ -218,7 +250,7 @@ creature_spell_fixture_validate_committed_fixture() {
   CREATURE_SPELL_FIXTURE_MANIFEST="${repo_root}/crates/capture-diff/flows/creature-spell-casting/fixture/fixture.json"
   creature_spell_fixture_validate_manifest_file \
     "$CREATURE_SPELL_FIXTURE_MANIFEST" || {
-      echo "error: committed creature spell fixture manifest is missing or differs from its v1 contract" >&2
+      echo "error: committed creature spell fixture manifest is missing or differs from its v2 contract" >&2
       return 1
     }
   CREATURE_SPELL_FIXTURE_MANIFEST_SHA256="$(
@@ -889,9 +921,11 @@ creature_spell_fixture_restore_character() {
   creature_spell_fixture_verify_character_original
 }
 
-# Hash every fixture-relevant row except the one intentionally changed AIName.
-# Full spawn/spell/SmartAI rows make the digest useful across both capture sides,
-# while the explicit state checks below produce actionable errors.
+# Hash every fixture-relevant row except the two fields changed atomically by
+# this guard: creature_template.AIName and creature_template_difficulty.StaticFlags1.
+# The other 24 difficulty fields plus the full spawn/spell/SmartAI rows make
+# the digest useful across both capture sides, while the explicit state checks
+# below produce actionable errors.
 creature_spell_fixture_static_snapshot_sha256() {
   local world_snapshot character_snapshot snapshot
   creature_spell_fixture_validate_character_original_tsv \
@@ -909,6 +943,15 @@ creature_spell_fixture_static_snapshot_sha256() {
   world_snapshot="$(loot_fixture_world_mysql -e "
     SELECT entry, HEX(name), HEX(ScriptName), VerifiedBuild
       FROM creature_template WHERE entry = ${CREATURE_SPELL_FIXTURE_ENTRY};
+    SELECT Entry, DifficultyID, MinLevel, MaxLevel,
+           HealthScalingExpansion, HealthModifier, ManaModifier,
+           ArmorModifier, DamageModifier, CreatureDifficultyID,
+           TypeFlags, TypeFlags2, LootID, PickPocketLootID, SkinLootID,
+           GoldMin, GoldMax, StaticFlags2, StaticFlags3, StaticFlags4,
+           StaticFlags5, StaticFlags6, StaticFlags7, StaticFlags8
+      FROM creature_template_difficulty
+      WHERE Entry = ${CREATURE_SPELL_FIXTURE_ENTRY}
+      ORDER BY Entry, DifficultyID;
     SELECT * FROM creature
       WHERE guid = ${CREATURE_SPELL_FIXTURE_SPAWN_GUID}
       ORDER BY guid;
@@ -968,9 +1011,14 @@ creature_spell_fixture_verify_no_persisted_ghost_state() {
 
 creature_spell_fixture_verify_exact_state() {
   local expected_ai="$1"
-  local counts respawns expected
+  local expected_static_flags_1 counts respawns expected
   case "$expected_ai" in
-    "$CREATURE_SPELL_FIXTURE_ORIGINAL_AI"|"$CREATURE_SPELL_FIXTURE_TEMP_AI") ;;
+    "$CREATURE_SPELL_FIXTURE_ORIGINAL_AI")
+      expected_static_flags_1="$CREATURE_SPELL_FIXTURE_ORIGINAL_STATIC_FLAGS_1"
+      ;;
+    "$CREATURE_SPELL_FIXTURE_TEMP_AI")
+      expected_static_flags_1="$CREATURE_SPELL_FIXTURE_TEMP_STATIC_FLAGS_1"
+      ;;
     *) return 1 ;;
   esac
 
@@ -984,6 +1032,24 @@ creature_spell_fixture_verify_exact_state() {
           AND AIName = '${expected_ai}'
           AND ScriptName = ''
           AND VerifiedBuild = 52237),
+      (SELECT COUNT(*) FROM creature_template_difficulty
+        WHERE Entry = ${CREATURE_SPELL_FIXTURE_ENTRY}),
+      (SELECT COUNT(*) FROM creature_template_difficulty
+        WHERE Entry = ${CREATURE_SPELL_FIXTURE_ENTRY}
+          AND DifficultyID = ${CREATURE_SPELL_FIXTURE_DIFFICULTY_ID}
+          AND MinLevel = 64 AND MaxLevel = 65
+          AND HealthScalingExpansion = 0
+          AND HealthModifier = 1 AND ManaModifier = 1
+          AND ArmorModifier = 1 AND DamageModifier = 1
+          AND CreatureDifficultyID = 18203
+          AND TypeFlags = 0 AND TypeFlags2 = 0
+          AND LootID = 22378 AND PickPocketLootID = 22378
+          AND SkinLootID = 0 AND GoldMin = 153 AND GoldMax = 205
+          AND StaticFlags1 = ${expected_static_flags_1}
+          AND StaticFlags2 = 0 AND StaticFlags3 = 0
+          AND StaticFlags4 = 0 AND StaticFlags5 = 0
+          AND StaticFlags6 = 0 AND StaticFlags7 = 0
+          AND StaticFlags8 = 0),
       (SELECT COUNT(*) FROM creature
         WHERE id = ${CREATURE_SPELL_FIXTURE_ENTRY}),
       (SELECT COUNT(*) FROM creature
@@ -1036,7 +1102,7 @@ creature_spell_fixture_verify_exact_state() {
       (SELECT COUNT(*) FROM spawn_group
         WHERE spawnType = 0 AND spawnId = ${CREATURE_SPELL_FIXTURE_SPAWN_GUID});
   ")" || return 1
-  expected=$'1\t1\t1\t1\t1\t1\t3\t1\t0\t0\t0\t0\t0'
+  expected=$'1\t1\t1\t1\t1\t1\t1\t1\t3\t1\t0\t0\t0\t0\t0'
   [ "$counts" = "$expected" ] || {
     echo "error: creature spell fixture DB topology/state differs from the pinned Cabal 22378/78686/15691 contract (${counts:-query-failed})" >&2
     return 1
@@ -1159,25 +1225,52 @@ creature_spell_fixture_reconcile_owned_online_marker() {
   }
 }
 
-creature_spell_fixture_cas_ai_name() {
+creature_spell_fixture_cas_runtime_state() {
   local from="$1"
   local to="$2"
-  local updated
+  local from_static_flags_1 to_static_flags_1 updated
   case "${from}:${to}" in
-    "${CREATURE_SPELL_FIXTURE_ORIGINAL_AI}:${CREATURE_SPELL_FIXTURE_TEMP_AI}"|\
-    "${CREATURE_SPELL_FIXTURE_TEMP_AI}:${CREATURE_SPELL_FIXTURE_ORIGINAL_AI}") ;;
+    "${CREATURE_SPELL_FIXTURE_ORIGINAL_AI}:${CREATURE_SPELL_FIXTURE_TEMP_AI}")
+      from_static_flags_1="$CREATURE_SPELL_FIXTURE_ORIGINAL_STATIC_FLAGS_1"
+      to_static_flags_1="$CREATURE_SPELL_FIXTURE_TEMP_STATIC_FLAGS_1"
+      ;;
+    "${CREATURE_SPELL_FIXTURE_TEMP_AI}:${CREATURE_SPELL_FIXTURE_ORIGINAL_AI}")
+      from_static_flags_1="$CREATURE_SPELL_FIXTURE_TEMP_STATIC_FLAGS_1"
+      to_static_flags_1="$CREATURE_SPELL_FIXTURE_ORIGINAL_STATIC_FLAGS_1"
+      ;;
     *) return 1 ;;
   esac
   updated="$(loot_fixture_world_mysql -e "
-    UPDATE creature_template
-       SET AIName = '${to}'
-     WHERE entry = ${CREATURE_SPELL_FIXTURE_ENTRY}
-       AND AIName = '${from}'
-       AND ScriptName = '';
+    UPDATE creature_template AS ct
+    JOIN creature_template_difficulty AS ctd
+      ON ctd.Entry = ct.entry
+     AND ctd.DifficultyID = ${CREATURE_SPELL_FIXTURE_DIFFICULTY_ID}
+       SET ct.AIName = '${to}',
+           ctd.StaticFlags1 = ${to_static_flags_1}
+     WHERE ct.entry = ${CREATURE_SPELL_FIXTURE_ENTRY}
+       AND ct.name = 'Cabal Interrogator'
+       AND ct.AIName = '${from}'
+       AND ct.ScriptName = ''
+       AND ct.VerifiedBuild = 52237
+       AND ctd.MinLevel = 64 AND ctd.MaxLevel = 65
+       AND ctd.HealthScalingExpansion = 0
+       AND ctd.HealthModifier = 1 AND ctd.ManaModifier = 1
+       AND ctd.ArmorModifier = 1 AND ctd.DamageModifier = 1
+       AND ctd.CreatureDifficultyID = 18203
+       AND ctd.TypeFlags = 0 AND ctd.TypeFlags2 = 0
+       AND ctd.LootID = 22378 AND ctd.PickPocketLootID = 22378
+       AND ctd.SkinLootID = 0 AND ctd.GoldMin = 153 AND ctd.GoldMax = 205
+       AND ctd.StaticFlags1 = ${from_static_flags_1}
+       AND ctd.StaticFlags2 = 0 AND ctd.StaticFlags3 = 0
+       AND ctd.StaticFlags4 = 0 AND ctd.StaticFlags5 = 0
+       AND ctd.StaticFlags6 = 0 AND ctd.StaticFlags7 = 0
+       AND ctd.StaticFlags8 = 0;
     SELECT ROW_COUNT();
   ")" || return 1
-  [ "$updated" = 1 ] || {
-    echo "error: creature spell fixture AIName CAS ${from}->${to} changed ${updated:-unknown} row(s)" >&2
+  # Both tables are InnoDB and this multi-table UPDATE changes exactly one row
+  # in each table. Any mixed or drifted pair changes zero rows and fails closed.
+  [ "$updated" = 2 ] || {
+    echo "error: creature spell fixture runtime CAS ${from}+${from_static_flags_1}->${to}+${to_static_flags_1} changed ${updated:-unknown} row(s), expected 2" >&2
     return 1
   }
 }
@@ -1254,11 +1347,14 @@ creature_spell_fixture_write_journal() {
       --argjson world_port "$CREATURE_SPELL_FIXTURE_WORLD_PORT" \
       --argjson instance_port "$CREATURE_SPELL_FIXTURE_INSTANCE_PORT" \
       --argjson entry "$CREATURE_SPELL_FIXTURE_ENTRY" \
+      --argjson difficulty_id "$CREATURE_SPELL_FIXTURE_DIFFICULTY_ID" \
+      --argjson original_static_flags_1 "$CREATURE_SPELL_FIXTURE_ORIGINAL_STATIC_FLAGS_1" \
+      --argjson temporary_static_flags_1 "$CREATURE_SPELL_FIXTURE_TEMP_STATIC_FLAGS_1" \
       --argjson spawn_guid "$CREATURE_SPELL_FIXTURE_SPAWN_GUID" \
       --argjson spell_slot "$CREATURE_SPELL_FIXTURE_SPELL_SLOT" \
       --argjson spell_id "$CREATURE_SPELL_FIXTURE_SPELL_ID" '
         {
-          version: 1,
+          version: 2,
           contract: $contract,
           flow: $flow,
           side: $side,
@@ -1271,12 +1367,17 @@ creature_spell_fixture_write_journal() {
             creature_entry: $entry,
             creature_spawn_guid: $spawn_guid,
             ai_name: $original_ai,
+            difficulty_id: $difficulty_id,
+            static_flags_1: $original_static_flags_1,
             spawn_count: 1,
             spell_slot: $spell_slot,
             spell_id: $spell_id,
             spell_count: 1
           },
-          temporary: {ai_name: $temporary_ai},
+          temporary: {
+            ai_name: $temporary_ai,
+            static_flags_1: $temporary_static_flags_1
+          },
           character: {
             account: $character_account,
             account_id: 9,
@@ -1383,8 +1484,8 @@ creature_spell_fixture_load_journal() {
       "fixture_manifest_sha256", "flow", "original", "phase", "recovery",
       "side", "temporary", "version"
     ]
-    and .version == 1
-    and .contract == "creature-spell-casting-shell-fixture-v1"
+    and .version == 2
+    and .contract == "creature-spell-casting-shell-fixture-v2"
     and .flow == "creature-spell-casting"
     and (.side == "cpp" or .side == "rust")
     and (.phase == "armed" or .phase == "applied" or .phase == "captured" or .phase == "restored")
@@ -1396,12 +1497,14 @@ creature_spell_fixture_load_journal() {
       creature_entry: 22378,
       creature_spawn_guid: 78686,
       ai_name: "SmartAI",
+      difficulty_id: 0,
+      static_flags_1: 0,
       spawn_count: 1,
       spell_slot: 0,
       spell_id: 15691,
       spell_count: 1
     }
-    and .temporary == {ai_name: "CombatAI"}
+    and .temporary == {ai_name: "CombatAI", static_flags_1: 1048576}
     and .character.account == "TESTBOT2@bot.local"
     and .character.account_id == 9
     and .character.guid == 15
@@ -1564,9 +1667,10 @@ creature_spell_fixture_apply_guard() {
     || return 1
   creature_spell_fixture_write_journal create armed || return 1
 
-  # The durable journal exists before the only owned DB mutation. A kill after
-  # COMMIT but before the phase update is recoverable from either exact AIName.
-  creature_spell_fixture_cas_ai_name \
+  # The durable journal exists before the owned world mutation. AIName and
+  # StaticFlags1 change in one multi-table InnoDB UPDATE, so a kill after
+  # COMMIT but before the phase update is recoverable from either exact pair.
+  creature_spell_fixture_cas_runtime_state \
     "$CREATURE_SPELL_FIXTURE_ORIGINAL_AI" \
     "$CREATURE_SPELL_FIXTURE_TEMP_AI" || return 1
   CREATURE_SPELL_FIXTURE_DB_APPLIED=1
@@ -1580,7 +1684,7 @@ creature_spell_fixture_apply_guard() {
     return 1
   }
   creature_spell_fixture_write_journal replace applied || return 1
-  echo "creature spell fixture: entry ${CREATURE_SPELL_FIXTURE_ENTRY} AIName ${CREATURE_SPELL_FIXTURE_ORIGINAL_AI} -> ${CREATURE_SPELL_FIXTURE_TEMP_AI}; spawn ${CREATURE_SPELL_FIXTURE_SPAWN_GUID}, spell ${CREATURE_SPELL_FIXTURE_SPELL_ID} (restore journal armed)"
+  echo "creature spell fixture: entry ${CREATURE_SPELL_FIXTURE_ENTRY} AIName ${CREATURE_SPELL_FIXTURE_ORIGINAL_AI} -> ${CREATURE_SPELL_FIXTURE_TEMP_AI}, difficulty ${CREATURE_SPELL_FIXTURE_DIFFICULTY_ID} StaticFlags1 ${CREATURE_SPELL_FIXTURE_ORIGINAL_STATIC_FLAGS_1} -> ${CREATURE_SPELL_FIXTURE_TEMP_STATIC_FLAGS_1}; spawn ${CREATURE_SPELL_FIXTURE_SPAWN_GUID}, spell ${CREATURE_SPELL_FIXTURE_SPELL_ID} (restore journal armed)"
 }
 
 # Normal capture wrappers call this after they have stopped and accredited the
@@ -1646,15 +1750,16 @@ creature_spell_fixture_validate_cleanup_marker() {
       "character_original_projection_sha256", "character_original_row_sha256",
       "character_post_login_row_sha256", "character_prelogin_row_sha256",
       "character_schema_sha256", "cleanup_pid", "contract", "creature_entry", "creature_spawn_guid",
-      "database_snapshot_sha256", "fixture_manifest_sha256", "flow",
-      "journal_sha256", "original_ai_name", "side", "spell_id",
-      "temporary_ai_name", "version"
+      "database_snapshot_sha256", "difficulty_id", "fixture_manifest_sha256", "flow",
+      "journal_sha256", "original_ai_name", "original_static_flags_1", "side", "spell_id",
+      "temporary_ai_name", "temporary_static_flags_1", "version"
     ]
-    and .version == 1
-    and .contract == "creature-spell-casting-shell-fixture-v1"
+    and .version == 2
+    and .contract == "creature-spell-casting-shell-fixture-v2"
     and .flow == "creature-spell-casting"
     and (.side == "cpp" or .side == "rust")
     and .creature_entry == 22378
+    and .difficulty_id == 0
     and .creature_spawn_guid == 78686
     and .spell_id == 15691
     and .character_account == "TESTBOT2@bot.local"
@@ -1668,7 +1773,9 @@ creature_spell_fixture_validate_cleanup_marker() {
       or (.character_post_login_row_sha256 | test("^[0-9a-f]{64}$")))
     and .character_schema_sha256 == "1c8ef9a9367734daced44acf567cc5453357498c04d57c37f2cce3e5108aa24c"
     and .original_ai_name == "SmartAI"
+    and .original_static_flags_1 == 0
     and .temporary_ai_name == "CombatAI"
+    and .temporary_static_flags_1 == 1048576
     and (.cleanup_pid | type == "number" and . > 0)
     and (.journal_sha256 | test("^[0-9a-f]{64}$"))
     and (.database_snapshot_sha256 | test("^[0-9a-f]{64}$"))
@@ -1741,14 +1848,18 @@ creature_spell_fixture_complete_journal() {
         --arg character_schema_sha256 "$CREATURE_SPELL_FIXTURE_CHARACTER_SCHEMA_SHA256" \
         --argjson cleanup_pid "$$" \
         --argjson creature_entry "$CREATURE_SPELL_FIXTURE_ENTRY" \
+        --argjson difficulty_id "$CREATURE_SPELL_FIXTURE_DIFFICULTY_ID" \
+        --argjson original_static_flags_1 "$CREATURE_SPELL_FIXTURE_ORIGINAL_STATIC_FLAGS_1" \
+        --argjson temporary_static_flags_1 "$CREATURE_SPELL_FIXTURE_TEMP_STATIC_FLAGS_1" \
         --argjson creature_spawn_guid "$CREATURE_SPELL_FIXTURE_SPAWN_GUID" \
         --argjson spell_id "$CREATURE_SPELL_FIXTURE_SPELL_ID" '
           {
-            version: 1,
+            version: 2,
             contract: $contract,
             flow: $flow,
             side: $side,
             creature_entry: $creature_entry,
+            difficulty_id: $difficulty_id,
             creature_spawn_guid: $creature_spawn_guid,
             spell_id: $spell_id,
             character_account: $character_account,
@@ -1764,7 +1875,9 @@ creature_spell_fixture_complete_journal() {
               then null else $character_post_login_row_sha256 end
             ),
             original_ai_name: $original_ai,
+            original_static_flags_1: $original_static_flags_1,
             temporary_ai_name: $temporary_ai,
+            temporary_static_flags_1: $temporary_static_flags_1,
             fixture_manifest_sha256: $fixture_manifest_sha256,
             database_snapshot_sha256: $snapshot_sha256,
             journal_sha256: $journal_sha256,
@@ -1817,7 +1930,7 @@ creature_spell_fixture_restore_guard() {
   fi
   snapshot="$(creature_spell_fixture_static_snapshot_sha256)" || return 1
   [ "$snapshot" = "$CREATURE_SPELL_FIXTURE_DATABASE_SNAPSHOT_SHA256" ] || {
-    echo "WARNING: creature spell fixture topology/SmartAI/respawn state drifted; refusing AIName restoration" >&2
+    echo "WARNING: creature spell fixture topology/SmartAI/difficulty/respawn state drifted; refusing runtime-state restoration" >&2
     return 1
   }
 
@@ -1854,11 +1967,11 @@ creature_spell_fixture_restore_guard() {
     : # A prior exact CAS committed; finish its durable bookkeeping.
   elif creature_spell_fixture_verify_exact_state \
       "$CREATURE_SPELL_FIXTURE_TEMP_AI"; then
-    creature_spell_fixture_cas_ai_name \
+    creature_spell_fixture_cas_runtime_state \
       "$CREATURE_SPELL_FIXTURE_TEMP_AI" \
       "$CREATURE_SPELL_FIXTURE_ORIGINAL_AI" || return 1
   else
-    echo "WARNING: creature spell fixture AIName changed externally; refusing overwrite" >&2
+    echo "WARNING: creature spell fixture AIName/StaticFlags1 pair changed externally; refusing overwrite" >&2
     return 1
   fi
   creature_spell_fixture_restore_character || return 1
@@ -1875,7 +1988,7 @@ creature_spell_fixture_restore_guard() {
     creature_spell_fixture_write_journal replace restored || return 1
   fi
   creature_spell_fixture_complete_journal || return 1
-  echo "creature spell fixture: restored entry ${CREATURE_SPELL_FIXTURE_ENTRY} AIName ${CREATURE_SPELL_FIXTURE_ORIGINAL_AI}; cleanup marker verified"
+  echo "creature spell fixture: restored entry ${CREATURE_SPELL_FIXTURE_ENTRY} AIName ${CREATURE_SPELL_FIXTURE_ORIGINAL_AI}, difficulty ${CREATURE_SPELL_FIXTURE_DIFFICULTY_ID} StaticFlags1 ${CREATURE_SPELL_FIXTURE_ORIGINAL_STATIC_FLAGS_1}; cleanup marker verified"
 }
 
 creature_spell_fixture_remove_cleanup_marker() {

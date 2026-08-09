@@ -49,8 +49,21 @@ creature_spell_fixture_validate_committed_fixture "$REPO_ROOT"
 assert_eq creature-spell-casting \
   "$(jq -r '.flow' "$CREATURE_SPELL_FIXTURE_MANIFEST")" \
   "fixture manifest flow"
+assert_eq 2 "$(jq -r '.schema_version' "$CREATURE_SPELL_FIXTURE_MANIFEST")" \
+  "fixture manifest schema"
+assert_eq creature-spell-casting-shell-fixture-v2 \
+  "$(jq -r '.contract' "$CREATURE_SPELL_FIXTURE_MANIFEST")" \
+  "fixture manifest contract"
+assert_eq 0 \
+  "$(jq -r '.creature_template_difficulty.original_static_flags_1' \
+    "$CREATURE_SPELL_FIXTURE_MANIFEST")" \
+  "fixture manifest original StaticFlags1"
+assert_eq 1048576 \
+  "$(jq -r '.creature_template_difficulty.temporary_static_flags_1' \
+    "$CREATURE_SPELL_FIXTURE_MANIFEST")" \
+  "fixture manifest temporary NO_MELEE StaticFlags1"
 assert_eq \
-  fe6cea1808e8beb7d648d285ad52b10067611e46c55d30637514508275b63b49 \
+  3cef5dd6201c88fc85c1c2cb767fec27cd11921ec7ecdc2c7705379fd54e356d \
   "$CREATURE_SPELL_FIXTURE_MANIFEST_SHA256" \
   "fixture manifest digest"
 assert_eq \
@@ -405,6 +418,104 @@ for MOCK_GHOST_STATE in $'1\t3' $'1\t0' $'0\t3'; do
 done
 MOCK_GHOST_STATE=$'0\t0'
 
+# The world mutation must be one exact multi-table CAS. It changes AIName and
+# StaticFlags1 together, never touches attack-time columns, and accepts only
+# the two pinned SmartAI/0 and CombatAI/NO_MELEE pairs.
+(
+  RUNTIME_CAS_SQL="$TEST_ROOT/runtime-cas-forward.sql"
+  loot_fixture_world_mysql() {
+    [ "$1" = -e ] || return 1
+    printf '%s\n' "$2" >"$RUNTIME_CAS_SQL"
+    printf '2\n'
+  }
+  creature_spell_fixture_cas_runtime_state SmartAI CombatAI \
+    || fail "atomic runtime-state activation CAS failed"
+  grep -q 'UPDATE creature_template AS ct' "$RUNTIME_CAS_SQL" \
+    && grep -q 'JOIN creature_template_difficulty AS ctd' "$RUNTIME_CAS_SQL" \
+    || fail "runtime-state CAS is not one multi-table UPDATE"
+  grep -q "ct.AIName = 'CombatAI'" "$RUNTIME_CAS_SQL" \
+    && grep -q 'ctd.StaticFlags1 = 1048576' "$RUNTIME_CAS_SQL" \
+    && grep -q "ct.AIName = 'SmartAI'" "$RUNTIME_CAS_SQL" \
+    && grep -q 'ctd.StaticFlags1 = 0' "$RUNTIME_CAS_SQL" \
+    || fail "runtime-state activation CAS does not bind both exact pairs"
+  for field in MinLevel MaxLevel HealthScalingExpansion HealthModifier \
+    ManaModifier ArmorModifier DamageModifier CreatureDifficultyID TypeFlags \
+    TypeFlags2 LootID PickPocketLootID SkinLootID GoldMin GoldMax \
+    StaticFlags2 StaticFlags3 StaticFlags4 StaticFlags5 StaticFlags6 \
+    StaticFlags7 StaticFlags8; do
+    grep -q "ctd.${field}" "$RUNTIME_CAS_SQL" \
+      || fail "runtime-state CAS omits difficulty predicate ${field}"
+  done
+  ! grep -Eq 'BaseAttackTime|RangeAttackTime' "$RUNTIME_CAS_SQL" \
+    || fail "runtime-state CAS mutates or predicates an attack-time column"
+)
+
+(
+  RUNTIME_CAS_SQL="$TEST_ROOT/runtime-cas-reverse.sql"
+  loot_fixture_world_mysql() {
+    [ "$1" = -e ] || return 1
+    printf '%s\n' "$2" >"$RUNTIME_CAS_SQL"
+    printf '2\n'
+  }
+  creature_spell_fixture_cas_runtime_state CombatAI SmartAI \
+    || fail "atomic runtime-state restoration CAS failed"
+  grep -q "ct.AIName = 'SmartAI'" "$RUNTIME_CAS_SQL" \
+    && grep -q 'ctd.StaticFlags1 = 0' "$RUNTIME_CAS_SQL" \
+    && grep -q "ct.AIName = 'CombatAI'" "$RUNTIME_CAS_SQL" \
+    && grep -q 'ctd.StaticFlags1 = 1048576' "$RUNTIME_CAS_SQL" \
+    || fail "runtime-state restoration CAS does not bind both exact pairs"
+)
+
+(
+  loot_fixture_world_mysql() {
+    printf '1\n'
+  }
+  if creature_spell_fixture_cas_runtime_state SmartAI CombatAI 2>/dev/null; then
+    fail "runtime-state CAS accepted a partial one-row transition"
+  fi
+)
+
+(
+  EXACT_STATE_SQL="$TEST_ROOT/exact-state.sql"
+  MOCK_EXACT_COUNTS=$'1\t1\t1\t1\t1\t1\t1\t1\t3\t1\t0\t0\t0\t0\t0'
+  loot_fixture_world_mysql() {
+    [ "$1" = -e ] || return 1
+    printf '%s\n' "$2" >"$EXACT_STATE_SQL"
+    printf '%s\n' "$MOCK_EXACT_COUNTS"
+  }
+  loot_fixture_character_mysql() {
+    printf '0\n'
+  }
+  creature_spell_fixture_verify_exact_state SmartAI \
+    || fail "exact-state verifier rejected SmartAI/StaticFlags1=0"
+  grep -q "AIName = 'SmartAI'" "$EXACT_STATE_SQL" \
+    && grep -q 'StaticFlags1 = 0' "$EXACT_STATE_SQL" \
+    || fail "exact-state verifier did not bind the original pair"
+  creature_spell_fixture_verify_exact_state CombatAI \
+    || fail "exact-state verifier rejected CombatAI/NO_MELEE"
+  grep -q "AIName = 'CombatAI'" "$EXACT_STATE_SQL" \
+    && grep -q 'StaticFlags1 = 1048576' "$EXACT_STATE_SQL" \
+    || fail "exact-state verifier did not bind the temporary pair"
+  MOCK_EXACT_COUNTS=$'1\t1\t1\t0\t1\t1\t1\t1\t3\t1\t0\t0\t0\t0\t0'
+  if creature_spell_fixture_verify_exact_state CombatAI 2>/dev/null; then
+    fail "exact-state verifier accepted a mixed CombatAI/StaticFlags1=0 state"
+  fi
+)
+
+SNAPSHOT_BODY="$TEST_ROOT/static-snapshot.sh"
+sed -n '/^creature_spell_fixture_static_snapshot_sha256() {$/,/^}$/p' \
+  "$SCRIPT_ROOT/creature-spell-casting-fixture-common.sh" >"$SNAPSHOT_BODY"
+for field in Entry DifficultyID MinLevel MaxLevel HealthScalingExpansion \
+  HealthModifier ManaModifier ArmorModifier DamageModifier CreatureDifficultyID \
+  TypeFlags TypeFlags2 LootID PickPocketLootID SkinLootID GoldMin GoldMax \
+  StaticFlags2 StaticFlags3 StaticFlags4 StaticFlags5 StaticFlags6 \
+  StaticFlags7 StaticFlags8; do
+  grep -q "${field}" "$SNAPSHOT_BODY" \
+    || fail "static snapshot omits unchanged difficulty field ${field}"
+done
+! grep -q 'StaticFlags1' "$SNAPSHOT_BODY" \
+  || fail "static snapshot includes the intentionally mutable StaticFlags1"
+
 # Abrupt C++ socket shutdown can leave only the owned online marker behind.
 # Exercise the reconciler without a DB: it must first prove the stopped-world
 # window, no-op when already offline, and otherwise issue one tightly bounded
@@ -602,6 +713,18 @@ CREATURE_SPELL_FIXTURE_CHARACTER_IMMUTABLE_SHA256="$(repeat_digest c)"
 creature_spell_fixture_write_journal create armed
 assert_eq armed "$(jq -r '.phase' "$CREATURE_SPELL_FIXTURE_JOURNAL")" \
   "journal armed phase"
+assert_eq 2 "$(jq -r '.version' "$CREATURE_SPELL_FIXTURE_JOURNAL")" \
+  "journal v2 schema"
+assert_eq creature-spell-casting-shell-fixture-v2 \
+  "$(jq -r '.contract' "$CREATURE_SPELL_FIXTURE_JOURNAL")" \
+  "journal v2 contract"
+assert_eq 0 "$(jq -r '.original.difficulty_id' "$CREATURE_SPELL_FIXTURE_JOURNAL")" \
+  "journal difficulty identity"
+assert_eq 0 "$(jq -r '.original.static_flags_1' "$CREATURE_SPELL_FIXTURE_JOURNAL")" \
+  "journal original StaticFlags1"
+assert_eq 1048576 \
+  "$(jq -r '.temporary.static_flags_1' "$CREATURE_SPELL_FIXTURE_JOURNAL")" \
+  "journal temporary NO_MELEE StaticFlags1"
 assert_eq 73 \
   "$(jq -r '.character.original_fields | length' "$CREATURE_SPELL_FIXTURE_JOURNAL")" \
   "journal restore projection length"
@@ -681,6 +804,30 @@ if creature_spell_fixture_preload_recovery_db_config 2>/dev/null; then
 fi
 CREATURE_SPELL_FIXTURE_JOURNAL="$TEST_ROOT/fixture-journal.json"
 
+# Completing a restored journal must retain the v2 difficulty transition in
+# the durable cleanup marker, then consume only that validated marker.
+creature_spell_fixture_complete_journal \
+  || fail "failed to complete the restored v2 fixture journal"
+assert_eq 2 "$(jq -r '.version' "$CREATURE_SPELL_FIXTURE_CLEANUP_MARKER")" \
+  "cleanup marker v2 schema"
+assert_eq creature-spell-casting-shell-fixture-v2 \
+  "$(jq -r '.contract' "$CREATURE_SPELL_FIXTURE_CLEANUP_MARKER")" \
+  "cleanup marker v2 contract"
+assert_eq 0 "$(jq -r '.difficulty_id' "$CREATURE_SPELL_FIXTURE_CLEANUP_MARKER")" \
+  "cleanup marker difficulty identity"
+assert_eq 0 \
+  "$(jq -r '.original_static_flags_1' "$CREATURE_SPELL_FIXTURE_CLEANUP_MARKER")" \
+  "cleanup marker original StaticFlags1"
+assert_eq 1048576 \
+  "$(jq -r '.temporary_static_flags_1' "$CREATURE_SPELL_FIXTURE_CLEANUP_MARKER")" \
+  "cleanup marker temporary NO_MELEE StaticFlags1"
+creature_spell_fixture_remove_cleanup_marker \
+  || fail "failed to consume the validated v2 cleanup marker"
+# Later recovery-order tests need only a regular journal pathname so their
+# deliberately stubbed loader is reached; restore the already validated copy.
+cp -- "$PRELOAD_JOURNAL" "$CREATURE_SPELL_FIXTURE_JOURNAL"
+chmod 600 "$CREATURE_SPELL_FIXTURE_JOURNAL"
+
 # Simulate a concurrent change to `slot` after the read-only precheck. `slot`
 # was outside the former partial snapshot and outside the 73 restored fields.
 # MySQL therefore reports ROW_COUNT() = 0 only if the atomic WHERE includes the
@@ -722,7 +869,7 @@ creature_spell_fixture_load_journal() {
 }
 creature_spell_fixture_require_safe_db_window() { return 0; }
 creature_spell_fixture_verify_character_prelogin() { return 1; }
-creature_spell_fixture_cas_ai_name() {
+creature_spell_fixture_cas_runtime_state() {
   printf 'ai\n' >>"$RECOVERY_WRITES"
 }
 creature_spell_fixture_restore_character() {
@@ -789,7 +936,7 @@ apply_ghost_line="$(line_of \
 apply_snapshot_line="$(line_of \
   'creature_spell_fixture_snapshot_character' "$APPLY_GUARD_BODY")"
 apply_mutation_line="$(line_of \
-  'creature_spell_fixture_cas_ai_name' "$APPLY_GUARD_BODY")"
+  'creature_spell_fixture_cas_runtime_state' "$APPLY_GUARD_BODY")"
 ((apply_ghost_line < apply_snapshot_line && apply_snapshot_line < apply_mutation_line)) \
   || fail "fixture mutation can run before the persisted ghost preflight"
 grep -q 'CREATURE_SPELL_FIXTURE_GHOST_PREFLIGHT_VERIFIED" -eq 1' \

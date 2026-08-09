@@ -1,13 +1,16 @@
 # Required capture: creature spell casting
 
-This directory retains the ready, fail-closed live acceptance gate for issue
-#26's original bounded wire slice.
-The reviewed pair records the same guarded action from patched C++ source HEAD
+This directory retains issue #26's original bounded wire slice and the
+fail-closed v2 live-recapture gate. The reviewed pair records the same guarded
+action from patched C++ source HEAD
 `8cfed90bf1720dbf8b9dc109113c8d7d9173ff6c` and clean RustyCore HEAD
 `9177705612a9b108edeba0221bde6bfb02b7e8fb`: exactly one adjacent
 `SMSG_SPELL_START`/`SMSG_SPELL_GO` pair for spell `15691`, with an empty strict
 divergence baseline. Synthetic semantic tests remain parser/comparator coverage;
 the committed RAW provenance and lineage are the live acceptance evidence.
+Those retained manifests and bot reports truthfully describe the earlier v1
+fixture. They are not relabeled as v2 evidence: the v2 manifest pin makes them
+fail closed until both sides are recaptured and imported with the new guard.
 The C++ source chain is base HEAD
 `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` plus patch SHA-256
 `ef8b3c29f46fe537e1ae4e826b5610afcd534999f900ec9554ee0534e7847262`,
@@ -22,6 +25,8 @@ world starts:
 
 - `creature_template` entry `22378` is the one `Cabal Interrogator`, with
   `AIName=SmartAI` and an empty `ScriptName`;
+- its sole difficulty-0 `creature_template_difficulty` row matches all 25
+  pinned fields in `fixture/fixture.json`, including `StaticFlags1..8=0`;
 - exactly one spawn exists for the entry: guid `78686`, map `530`, at the
   coordinates pinned in `fixture/fixture.json`, with no pool, event, linked
   respawn, addon, or spawn-group augmentation;
@@ -36,20 +41,25 @@ world starts:
 
 With both PM2 worlds stopped, both listener ports absent, and every character
 offline, the wrapper validates the exact 87-column `characters` schema and
-writes a private mode-0600 recovery journal before either mutation. It
-CAS-updates `creature_template.AIName` from `SmartAI` to `CombatAI`, and moves
-character `15` (`TESTBOT2@bot.local`) to the pinned safe login position with
-health `50000`. Both character transitions use a hash of the complete
-87-column row. `CombatAI` reads the already-installed spell slot; no spawn or
-spell row is created.
+writes a private mode-0600 recovery journal before either mutation. One exact
+multi-table InnoDB CAS updates `creature_template.AIName` from `SmartAI` to
+`CombatAI` and difficulty-0 `StaticFlags1` from `0` to `0x00100000`
+(`CREATURE_STATIC_FLAG_NO_MELEE`); it must report two changed rows. The CAS
+pins every other field of the difficulty row and rejects mixed states. It then
+moves character `15` (`TESTBOT2@bot.local`) to the pinned safe login position
+with health `50000`. Both character transitions use a hash of the complete
+87-column row. `CombatAI` reads the already-installed spell slot; no spawn,
+spell row, or attack-time value is created or changed.
 
 Cleanup restores the exact 73-field `CHAR_UPD_CHARACTER` projection used by
 the C++ and Rust persistence paths. Its atomic predicate contains both the
 durably recorded complete-row hash and a hash of the other 14 columns, then it
-proves the original 87-column row was reproduced. It also CAS-restores
-`SmartAI`, proves the original database snapshot, and replaces the journal
-with a hash-bound cleanup marker before normal Rust may start. Any external
-drift leaves both worlds stopped and retains recovery evidence.
+proves the original 87-column row was reproduced. It also atomically
+CAS-restores the exact `CombatAI/0x00100000` pair to `SmartAI/0`, proves the
+original database snapshot, and replaces the journal with a hash-bound v2
+cleanup marker that records the difficulty id and both StaticFlags1 values
+before normal Rust may start. Any external drift leaves both worlds stopped
+and retains recovery evidence.
 
 An abrupt authenticated-socket shutdown can leave stock C++'s
 `characters.online=1` marker behind while its `WorldSession` waits to expire.
@@ -108,10 +118,15 @@ rejected loader rows block a candidate; a loader error is not treated as proof
 that no hook exists.
 
 A Creature-owned uniform roll in `0..=9_999` resolves `MISS` below `500` (the
-base 5% miss chance) and `HIT` otherwise. CombatAI's local order is cast then
-repeat schedule, with the due EventMap slot cleared before the cast; hit is
-rolled before the cooldown draw, and `NO_ATTACK_MISS` consumes exactly one hit
-roll before forcing `HIT`. An accepted `HIT` is published and then tombstones
+base 5% miss chance) and `HIT` otherwise. The temporary
+`CREATURE_STATIC_FLAG_NO_MELEE` disables only automatic melee swings: it does
+not make the creature passive, suppress threat/chase, change attack timers, or
+replace CombatAI's ordinary EventMap scheduler. This prevents an auto-melee
+outcome/proc branch from consuming the Creature RNG stream before the due
+EventMap cast. CombatAI's local order remains cast then repeat schedule, with
+the due EventMap slot cleared before the cast; hit is rolled before the
+cooldown draw, and `NO_ATTACK_MISS` consumes exactly one hit roll before
+forcing `HIT`. An accepted `HIT` is published and then tombstones
 before repeat scheduling because C++'s launch phase consumes an unconditional
 critical roll plus possible effect-value draws that this slice omits; a `MISS`
 does not enter those target-effect draws and may still schedule from the known
@@ -225,7 +240,7 @@ cargo run -p capture-diff -- import creature-spell-casting \
   --strict
 ```
 
-The reviewed import is strict-CLEAN (2/2 packets) with these retained
+The historical v1 import was strict-CLEAN (2/2 packets) with these retained
 identities:
 
 - C++ RAW PKT SHA-256:
@@ -239,8 +254,11 @@ identities:
 - `capture-lineage.json` file SHA-256:
   `4448e804409b05f00e87762d4fad0a87efba5a95661507631ce0d0f774e01229`.
 
-The requirement is therefore `ready`; re-verify its exact provenance, packet
-shape, empty baseline, and hashes with:
+The v2 requirement is deliberately not `ready` from those v1 artifacts. Until
+both sides are recaptured and imported, the following command must reject the
+old fixture contract/hash rather than silently promote it. After a genuine v2
+import, use the same command to verify exact provenance, packet shape, empty
+baseline, and hashes:
 
 ```bash
 cargo run -p capture-diff -- verify-required creature-spell-casting

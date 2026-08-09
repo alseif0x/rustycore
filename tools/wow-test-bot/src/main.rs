@@ -154,6 +154,7 @@ const DETOUR_CHASE_TILE_ASSET_SHA256: &str =
 const ISSUE_24_PING_FENCE_WIRE: [u8; 4] = *b"DTOR";
 const ISSUE_24_PING_FENCE_SERIAL: u32 = u32::from_le_bytes(ISSUE_24_PING_FENCE_WIRE);
 const CREATURE_SPELL_FIXTURE_FLOW: &str = "creature-spell-casting";
+const CREATURE_SPELL_FIXTURE_CONTRACT: &str = "creature-spell-casting-shell-fixture-v2";
 const CREATURE_SPELL_FIXTURE_ACCOUNT: &str = "TESTBOT2@bot.local";
 const CREATURE_SPELL_FIXTURE_ACCOUNT_ID: u32 = 9;
 const CREATURE_SPELL_FIXTURE_CHARACTER_GUID: u64 = 15;
@@ -172,7 +173,7 @@ const CREATURE_SPELL_CHARACTER_ORIENTATION: f32 = 0.0;
 const CREATURE_SPELL_TARGET_MATCH_RADIUS: f32 = 0.5;
 const DEFAULT_CREATURE_SPELL_CAPTURE_TIMEOUT_SECS: u64 = 30;
 const CREATURE_SPELL_FIXTURE_MANIFEST_SHA256: &str =
-    "fe6cea1808e8beb7d648d285ad52b10067611e46c55d30637514508275b63b49";
+    "3cef5dd6201c88fc85c1c2cb767fec27cd11921ec7ecdc2c7705379fd54e356d";
 const REST_STATE_RESTED: u8 = 1;
 const REST_STATE_NORMAL: u8 = 2;
 const PLAYER_FLAGS_RESTING: u32 = 0x0000_0020;
@@ -2470,12 +2471,42 @@ fn validate_creature_spell_fixture_manifest(path: &Path) -> Result<String> {
             canonical.display()
         )
     })?;
+    let expected_difficulty = serde_json::json!({
+        "entry": 22_378,
+        "difficulty_id": 0,
+        "min_level": 64,
+        "max_level": 65,
+        "health_scaling_expansion": 0,
+        "health_modifier": 1.0,
+        "mana_modifier": 1.0,
+        "armor_modifier": 1.0,
+        "damage_modifier": 1.0,
+        "creature_difficulty_id": 18_203,
+        "type_flags": 0,
+        "type_flags_2": 0,
+        "loot_id": 22_378,
+        "pickpocket_loot_id": 22_378,
+        "skin_loot_id": 0,
+        "gold_min": 153,
+        "gold_max": 205,
+        "original_static_flags_1": 0,
+        "temporary_static_flags_1": 0x0010_0000,
+        "static_flags_2": 0,
+        "static_flags_3": 0,
+        "static_flags_4": 0,
+        "static_flags_5": 0,
+        "static_flags_6": 0,
+        "static_flags_7": 0,
+        "static_flags_8": 0
+    });
     if manifest
         .get("schema_version")
         .and_then(|value| value.as_u64())
-        != Some(1)
+        != Some(2)
         || manifest.get("flow").and_then(|value| value.as_str())
             != Some(CREATURE_SPELL_FIXTURE_FLOW)
+        || manifest.get("contract").and_then(|value| value.as_str())
+            != Some(CREATURE_SPELL_FIXTURE_CONTRACT)
         || manifest
             .pointer("/creature_template/entry")
             .and_then(|value| value.as_u64())
@@ -2488,6 +2519,7 @@ fn validate_creature_spell_fixture_manifest(path: &Path) -> Result<String> {
             .pointer("/creature_template/temporary_ai_name")
             .and_then(|value| value.as_str())
             != Some("CombatAI")
+        || manifest.get("creature_template_difficulty") != Some(&expected_difficulty)
         || manifest
             .pointer("/spawn/guid")
             .and_then(|value| value.as_u64())
@@ -2656,12 +2688,30 @@ fn validate_creature_spell_live_fixture_before_login(
         .map_err(|error| anyhow!("Bad world DB URL: {error}"))?;
     let mut world = mysql::Conn::new(world_opts)
         .map_err(|error| anyhow!("Connect to world DB for creature spell fixture: {error}"))?;
-    let shape: Option<(u64, u64, u64, u64)> = world
+    let shape: Option<(u64, u64, u64, u64, u64)> = world
         .exec_first(
             "SELECT \
-               (SELECT COUNT(*) FROM creature_template \
-                 WHERE entry = ? AND name = 'Cabal Interrogator' \
-                   AND AIName = 'CombatAI' AND ScriptName = ''), \
+               (SELECT COUNT(*) FROM creature_template ct \
+                 JOIN creature_template_difficulty ctd \
+                   ON ctd.Entry = ct.entry AND ctd.DifficultyID = 0 \
+                 WHERE ct.entry = ? AND ct.name = 'Cabal Interrogator' \
+                   AND ct.AIName = 'CombatAI' AND ct.ScriptName = '' \
+                   AND ct.VerifiedBuild = 52237 \
+                   AND ctd.MinLevel = 64 AND ctd.MaxLevel = 65 \
+                   AND ctd.HealthScalingExpansion = 0 \
+                   AND ctd.HealthModifier = 1 AND ctd.ManaModifier = 1 \
+                   AND ctd.ArmorModifier = 1 AND ctd.DamageModifier = 1 \
+                   AND ctd.CreatureDifficultyID = 18203 \
+                   AND ctd.TypeFlags = 0 AND ctd.TypeFlags2 = 0 \
+                   AND ctd.LootID = 22378 AND ctd.PickPocketLootID = 22378 \
+                   AND ctd.SkinLootID = 0 AND ctd.GoldMin = 153 AND ctd.GoldMax = 205 \
+                   AND ctd.StaticFlags1 = 1048576 \
+                   AND ctd.StaticFlags2 = 0 AND ctd.StaticFlags3 = 0 \
+                   AND ctd.StaticFlags4 = 0 AND ctd.StaticFlags5 = 0 \
+                   AND ctd.StaticFlags6 = 0 AND ctd.StaticFlags7 = 0 \
+                   AND ctd.StaticFlags8 = 0), \
+               (SELECT COUNT(*) FROM creature_template_difficulty \
+                 WHERE Entry = ?), \
                (SELECT COUNT(*) FROM creature WHERE id = ?), \
                (SELECT COUNT(*) FROM creature \
                  WHERE guid = ? AND id = ? AND map = 530 \
@@ -2674,6 +2724,7 @@ fn validate_creature_spell_live_fixture_before_login(
             (
                 CREATURE_SPELL_FIXTURE_ENTRY,
                 CREATURE_SPELL_FIXTURE_ENTRY,
+                CREATURE_SPELL_FIXTURE_ENTRY,
                 CREATURE_SPELL_FIXTURE_SPAWN_GUID,
                 CREATURE_SPELL_FIXTURE_ENTRY,
                 CREATURE_SPELL_FIXTURE_ENTRY,
@@ -2681,7 +2732,7 @@ fn validate_creature_spell_live_fixture_before_login(
             ),
         )
         .map_err(|error| anyhow!("Validate creature spell world fixture: {error}"))?;
-    if shape != Some((1, 1, 1, 1)) {
+    if shape != Some((1, 1, 1, 1, 1)) {
         bail!("creature spell world fixture is not the exact temporary 22378/78686/15691 state");
     }
     Ok(())
@@ -18702,6 +18753,24 @@ mod tests {
             validate_creature_spell_fixture_manifest(&manifest).unwrap(),
             CREATURE_SPELL_FIXTURE_MANIFEST_SHA256
         );
+        let pinned: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&manifest).unwrap()).unwrap();
+        assert_eq!(pinned["schema_version"], 2);
+        assert_eq!(pinned["contract"], CREATURE_SPELL_FIXTURE_CONTRACT);
+        assert_eq!(
+            pinned["creature_template_difficulty"]["original_static_flags_1"],
+            0
+        );
+        assert_eq!(
+            pinned["creature_template_difficulty"]["temporary_static_flags_1"],
+            0x0010_0000
+        );
+        for index in 2..=8 {
+            assert_eq!(
+                pinned["creature_template_difficulty"][format!("static_flags_{index}")],
+                0
+            );
+        }
     }
 
     #[test]

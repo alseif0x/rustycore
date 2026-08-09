@@ -41,7 +41,8 @@ const DETOUR_FIXTURE_MAP_SHA256: &str =
 const DETOUR_FIXTURE_TILE_SHA256: &str =
     "693b93ac3ac605fea8b846a0e1fcf6ca2d0b0dce2f8c5d9c34739febc3731f47";
 const CREATURE_SPELL_FIXTURE_MANIFEST_SHA256: &str =
-    "fe6cea1808e8beb7d648d285ad52b10067611e46c55d30637514508275b63b49";
+    "3cef5dd6201c88fc85c1c2cb767fec27cd11921ec7ecdc2c7705379fd54e356d";
+const CREATURE_SPELL_FIXTURE_CONTRACT: &str = "creature-spell-casting-shell-fixture-v2";
 const CREATURE_SPELL_CPP_SOURCE_DERIVATION_CONTRACT: &str =
     "creature-spell-casting-cpp-source-patch-v1";
 const CREATURE_SPELL_CPP_REMOTE_URL: &str = "https://github.com/alseif0x/TrinityCoreLegacyTest.git";
@@ -1184,7 +1185,7 @@ fn validate_canonical_creature_spell_identity(manifest: &RawCaptureManifest) -> 
         .context("creature-spell-casting requires fixture_guard evidence")?;
     ensure!(fixture.enabled, "fixture_guard.enabled must be true");
     ensure!(
-        fixture.contract == "creature-spell-casting-shell-fixture-v1",
+        fixture.contract == CREATURE_SPELL_FIXTURE_CONTRACT,
         "unexpected creature-spell fixture_guard contract"
     );
     ensure!(
@@ -2811,6 +2812,55 @@ fn validate_creature_spell_fixture_files(source: &Path) -> Result<()> {
     );
     let fixture: serde_json::Value = serde_json::from_slice(&manifest_bytes)
         .context("parsing reviewed creature-spell fixture manifest")?;
+    ensure!(
+        fixture
+            .get("schema_version")
+            .and_then(serde_json::Value::as_u64)
+            == Some(2)
+            && fixture.get("flow").and_then(serde_json::Value::as_str)
+                == Some("creature-spell-casting")
+            && fixture.get("contract").and_then(serde_json::Value::as_str)
+                == Some(CREATURE_SPELL_FIXTURE_CONTRACT)
+            && fixture.get("creature_template")
+                == Some(&serde_json::json!({
+                    "entry": 22_378,
+                    "name": "Cabal Interrogator",
+                    "original_ai_name": "SmartAI",
+                    "temporary_ai_name": "CombatAI",
+                    "script_name": "",
+                    "verified_build": 52_237
+                }))
+            && fixture.get("creature_template_difficulty")
+                == Some(&serde_json::json!({
+                    "entry": 22_378,
+                    "difficulty_id": 0,
+                    "min_level": 64,
+                    "max_level": 65,
+                    "health_scaling_expansion": 0,
+                    "health_modifier": 1.0,
+                    "mana_modifier": 1.0,
+                    "armor_modifier": 1.0,
+                    "damage_modifier": 1.0,
+                    "creature_difficulty_id": 18_203,
+                    "type_flags": 0,
+                    "type_flags_2": 0,
+                    "loot_id": 22_378,
+                    "pickpocket_loot_id": 22_378,
+                    "skin_loot_id": 0,
+                    "gold_min": 153,
+                    "gold_max": 205,
+                    "original_static_flags_1": 0,
+                    "temporary_static_flags_1": 0x0010_0000,
+                    "static_flags_2": 0,
+                    "static_flags_3": 0,
+                    "static_flags_4": 0,
+                    "static_flags_5": 0,
+                    "static_flags_6": 0,
+                    "static_flags_7": 0,
+                    "static_flags_8": 0
+                })),
+        "reviewed creature-spell fixture is not the exact shell guard v2 SmartAI/0 -> CombatAI/NO_MELEE contract"
+    );
     let derivation = fixture
         .get("source_derivation")
         .context("reviewed creature-spell fixture source_derivation is missing")?;
@@ -3335,7 +3385,7 @@ mod tests {
         } else if flow == "creature-spell-casting" {
             let fixture = serde_json::json!({
                 "enabled": true,
-                "contract": "creature-spell-casting-shell-fixture-v1",
+                "contract": CREATURE_SPELL_FIXTURE_CONTRACT,
                 "account": "TESTBOT2@bot.local",
                 "account_id": 9,
                 "character_guid": 15,

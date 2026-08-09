@@ -54,8 +54,9 @@
 #                   private synthetic-MMap DataDir
 #   CREATURE_SPELL_CAPTURE_ACK_FIXTURE_MUTATION must be 1 for
 #                   creature-spell-casting. The wrapper journals and
-#                   CAS-switches Cabal Interrogator 22378 from SmartAI to
-#                   CombatAI only while both worlds are stopped
+#                   atomically CAS-switches Cabal Interrogator 22378 from
+#                   SmartAI/StaticFlags1=0 to CombatAI/NO_MELEE only while
+#                   both worlds are stopped
 #   CREATURE_SPELL_FIXTURE_JOURNAL fresh absolute recovery-journal path in a
 #                   canonical mode-0700 directory. Cleanup replaces it with a
 #                   hash-bound marker before normal Rust resumes
@@ -751,7 +752,7 @@ fi
 echo "pkt file     : ${CPP_LOGS_DIR}/${PKT_NAME}"
 echo "output       : ${OUT_PKT}"
 if [ "$FLOW" = "creature-spell-casting" ]; then
-  echo "DB fixture   : Cabal entry ${CREATURE_SPELL_FIXTURE_ENTRY}, spawn ${CREATURE_SPELL_FIXTURE_SPAWN_GUID}, spell ${CREATURE_SPELL_FIXTURE_SPELL_ID}; SmartAI -> CombatAI"
+  echo "DB fixture   : Cabal entry ${CREATURE_SPELL_FIXTURE_ENTRY}, spawn ${CREATURE_SPELL_FIXTURE_SPAWN_GUID}, spell ${CREATURE_SPELL_FIXTURE_SPELL_ID}; SmartAI/StaticFlags1=0 -> CombatAI/StaticFlags1=${CREATURE_SPELL_FIXTURE_TEMP_STATIC_FLAGS_1} (NO_MELEE)"
 fi
 echo
 echo "This will STOP ${PM2_RUST_WORLD} and START ${PM2_CPP_WORLD} (shared DBs/ports)."
