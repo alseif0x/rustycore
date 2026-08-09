@@ -5822,6 +5822,7 @@ async fn main() -> Result<ExitCode> {
     legacy_creature_aggro_config.faction_template_store = Some(Arc::clone(&faction_template_store));
     legacy_creature_aggro_config.faction_store = Some(Arc::clone(&progression_faction_store));
     legacy_creature_aggro_config.map_store = Some(Arc::clone(&map_store));
+    legacy_creature_aggro_config.disable_mgr = Some(Arc::clone(&disable_mgr));
     legacy_creature_aggro_config.spell_misc_store = Some(Arc::clone(&spell_misc_store));
     legacy_creature_aggro_config.spell_range_store = Some(Arc::clone(&spell_range_store));
     legacy_creature_aggro_config.spell_duration_store = Some(Arc::clone(&spell_duration_store));
@@ -5829,6 +5830,16 @@ async fn main() -> Result<ExitCode> {
     legacy_creature_aggro_config.spell_x_spell_visual_store =
         Some(Arc::clone(&spell_x_spell_visual_store));
     legacy_creature_aggro_config.spell_store = Some(Arc::clone(&spell_store));
+    legacy_creature_aggro_config.spell_chain_store = Some(Arc::clone(&spell_chain_store));
+    legacy_creature_aggro_config.spell_linked_store = Some(Arc::clone(&spell_linked_store));
+    legacy_creature_aggro_config.spell_script_exact_spell_ids_like_cpp =
+        Some(Arc::clone(&spell_script_exact_spell_ids));
+    legacy_creature_aggro_config.spell_script_all_rank_root_spell_ids_like_cpp =
+        Some(Arc::clone(&spell_script_all_rank_root_spell_ids));
+    legacy_creature_aggro_config.legacy_spell_script_spell_ids_like_cpp =
+        Some(Arc::clone(&legacy_spell_script_spell_ids));
+    legacy_creature_aggro_config.spell_linked_rejected_trigger_spell_ids_like_cpp =
+        Some(Arc::clone(&spell_linked_rejected_trigger_spell_ids));
     legacy_creature_aggro_config.spell_custom_attribute_store =
         Some(Arc::clone(&spell_custom_attribute_store));
     legacy_creature_aggro_config.difficulty_store = Some(Arc::clone(&difficulty_store));
@@ -14486,12 +14497,19 @@ fn legacy_creature_aggro_config_like_cpp(
         faction_template_store: None,
         faction_store: None,
         map_store: None,
+        disable_mgr: Some(Arc::new(wow_data::DisableMgrLikeCpp::default())),
         spell_misc_store: None,
         spell_range_store: None,
         spell_duration_store: None,
         spell_cooldowns_store: None,
         spell_x_spell_visual_store: None,
         spell_store: None,
+        spell_chain_store: None,
+        spell_linked_store: None,
+        spell_script_exact_spell_ids_like_cpp: None,
+        spell_script_all_rank_root_spell_ids_like_cpp: None,
+        legacy_spell_script_spell_ids_like_cpp: None,
+        spell_linked_rejected_trigger_spell_ids_like_cpp: None,
         spell_custom_attribute_store: None,
         difficulty_store: None,
     }

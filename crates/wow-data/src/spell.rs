@@ -644,8 +644,11 @@ pub struct SpellPowerCostInfoLikeCpp {
     pub order_index: u8,
     pub power_type: i8,
     pub mana_cost: i32,
+    pub mana_cost_per_level: i32,
+    pub mana_per_second: i32,
     pub power_cost_pct: f32,
     pub power_cost_max_pct: f32,
+    pub power_pct_per_second: f32,
     pub required_aura_spell_id: i32,
     pub optional_cost: u32,
 }
@@ -7069,8 +7072,11 @@ impl SpellStore {
                 order_index,
                 power_type: power.power_type,
                 mana_cost: power.mana_cost,
+                mana_cost_per_level: power.mana_cost_per_level,
+                mana_per_second: power.mana_per_second,
                 power_cost_pct: power.power_cost_pct,
                 power_cost_max_pct: power.power_cost_max_pct,
+                power_pct_per_second: power.power_pct_per_second,
                 required_aura_spell_id: power.required_aura_spell_id,
                 optional_cost: power.optional_cost,
             };
@@ -8721,13 +8727,13 @@ mod tests {
                 id: 10,
                 order_index: 1,
                 mana_cost: 40,
-                mana_cost_per_level: 0,
-                mana_per_second: 0,
+                mana_cost_per_level: 4,
+                mana_per_second: 5,
                 power_display_id: 0,
                 alt_power_bar_id: 0,
                 power_cost_pct: 10.0,
                 power_cost_max_pct: 0.0,
-                power_pct_per_second: 0.0,
+                power_pct_per_second: 6.5,
                 power_type: PowerType::Mana as i8,
                 required_aura_spell_id: 0,
                 optional_cost: 0,
@@ -8763,7 +8769,10 @@ mod tests {
         assert_eq!(costs.len(), 1, "non-default difficulty rows are skipped");
         assert_eq!(costs[0].order_index, 1);
         assert_eq!(costs[0].mana_cost, 40);
+        assert_eq!(costs[0].mana_cost_per_level, 4);
+        assert_eq!(costs[0].mana_per_second, 5);
         assert_eq!(costs[0].power_cost_pct, 10.0);
+        assert_eq!(costs[0].power_pct_per_second, 6.5);
         assert_eq!(costs[0].power_type, PowerType::Mana as i8);
     }
 
@@ -8774,8 +8783,11 @@ mod tests {
             order_index: 0,
             power_type: PowerType::Mana as i8,
             mana_cost: 50,
+            mana_cost_per_level: 0,
+            mana_per_second: 0,
             power_cost_pct: 12.5,
             power_cost_max_pct: 0.0,
+            power_pct_per_second: 0.0,
             required_aura_spell_id: 0,
             optional_cost: 0,
         });
@@ -8798,8 +8810,11 @@ mod tests {
             order_index: 0,
             power_type: PowerType::Mana as i8,
             mana_cost: 0,
+            mana_cost_per_level: 0,
+            mana_per_second: 0,
             power_cost_pct: 0.0,
             power_cost_max_pct: 18.0,
+            power_pct_per_second: 0.0,
             required_aura_spell_id: 0,
             optional_cost: 0,
         });
