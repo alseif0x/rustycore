@@ -4002,7 +4002,6 @@ fn spell_has_no_unrepresented_runtime_hooks_from_authority_like_cpp(
     {
         return false;
     }
-
     let first_rank = chains.first_spell_in_chain_like_cpp(spell_id);
     if exact_spell_ids.contains(&spell_id)
         || all_rank_root_spell_ids.contains(&first_rank)
@@ -4048,6 +4047,7 @@ pub struct LegacyCreatureAggroConfigLikeCpp {
     pub spell_store: Option<Arc<SpellStore>>,
     pub spell_chain_store: Option<Arc<SpellChainStoreLikeCpp>>,
     pub spell_linked_store: Option<Arc<SpellLinkedStoreLikeCpp>>,
+    pub spell_condition_store: Option<Arc<ConditionEntriesByTypeStore>>,
     pub spell_script_exact_spell_ids_like_cpp: Option<Arc<BTreeSet<u32>>>,
     pub spell_script_all_rank_root_spell_ids_like_cpp: Option<Arc<BTreeSet<u32>>>,
     pub legacy_spell_script_spell_ids_like_cpp: Option<Arc<BTreeSet<u32>>>,
@@ -4084,6 +4084,7 @@ impl Default for LegacyCreatureAggroConfigLikeCpp {
             spell_store: None,
             spell_chain_store: None,
             spell_linked_store: None,
+            spell_condition_store: None,
             spell_script_exact_spell_ids_like_cpp: None,
             spell_script_all_rank_root_spell_ids_like_cpp: None,
             legacy_spell_script_spell_ids_like_cpp: None,
@@ -4102,6 +4103,23 @@ impl Default for LegacyCreatureAggroConfigLikeCpp {
 
 impl LegacyCreatureAggroConfigLikeCpp {
     fn spell_has_no_unrepresented_runtime_hooks_like_cpp(&self, spell_id: u32) -> bool {
+        let Some(conditions) = self.spell_condition_store.as_deref() else {
+            return false;
+        };
+        let Ok(signed_spell_id) = i32::try_from(spell_id) else {
+            return false;
+        };
+        if conditions
+            .conditions_for_like_cpp(
+                wow_constants::ConditionSourceType::Spell,
+                wow_data::conditions::ConditionId::new(0, signed_spell_id, 0),
+            )
+            .is_some()
+        {
+            // C++ Spell::CheckCast evaluates SourceType 17 before explicit
+            // target validation. M2.6 cannot evaluate those predicates.
+            return false;
+        }
         spell_has_no_unrepresented_runtime_hooks_from_authority_like_cpp(
             spell_id,
             self.spell_script_exact_spell_ids_like_cpp.as_deref(),
@@ -4586,6 +4604,7 @@ pub struct LegacyCreatureSpellTickOutcomeLikeCpp {
     pub spell_misses: usize,
     pub canonical_cast_preconditions_passed: usize,
     pub canonical_cast_missing_target: usize,
+    pub canonical_cast_target_rejections: usize,
     pub plan: RuntimePlan,
 }
 
@@ -63344,6 +63363,11 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
                 outcome.casts_ready = outcome.casts_ready.saturating_sub(1);
                 continue;
             }
+            CreatureSpellCastValidationResultLikeCpp::TargetRejected => {
+                outcome.canonical_cast_target_rejections += 1;
+                outcome.casts_ready = outcome.casts_ready.saturating_sub(1);
+                continue;
+            }
             CreatureSpellCastValidationResultLikeCpp::HitResultUnrepresented => {
                 outcome.spell_hit_results_unrepresented += 1;
                 outcome.casts_ready = outcome.casts_ready.saturating_sub(1);
@@ -63365,10 +63389,12 @@ enum CreatureSpellCastValidationResultLikeCpp {
     OutOfRange,
     LosRejected,
     MissingTarget,
+    TargetRejected,
     HitResultUnrepresented,
     RuntimeRngAuthorityRejected,
 }
 
+#[cfg(test)]
 fn creature_spell_target_accepts_npc_attack_like_cpp(
     target_flags: UnitFlags,
     spell_attributes: &[u32; 15],
@@ -63629,6 +63655,24 @@ fn validate_and_append_creature_spell_cast_like_cpp(
             return CreatureSpellCastValidationResultLikeCpp::LosRejected;
         }
 
+        if let Some(attributes) = config.spell_store.as_ref().and_then(|store| {
+            store.misc_attributes_for_difficulty_like_cpp(
+                command.spell_id,
+                difficulty_id,
+                config.difficulty_store.as_deref(),
+            )
+        }) && !creature_spell_target_is_valid_attack_target_like_cpp(
+            caster,
+            victim,
+            &attributes,
+            config,
+        ) {
+            // C++ Spell::CheckCast rejects this before melee hit resolution.
+            // Preserve the queued CombatAI repeat and exact RNG authority so
+            // its following ScheduleEvent can draw the next delay.
+            return CreatureSpellCastValidationResultLikeCpp::TargetRejected;
+        }
+
         let represented_cast = (|| {
             let spell_store = config.spell_store.as_ref()?;
             let spell = spell_store.get(command.spell_id)?;
@@ -63659,16 +63703,6 @@ fn validate_and_append_creature_spell_cast_like_cpp(
                 .auras
                 .has_complete_spell_hit_inert_aura_authority_like_cpp();
             let target_has_no_vehicle_kit = victim.unit().subsystems().vehicle.kit.is_none();
-            // C++ re-runs `WorldObject::IsValidAttackTarget` during
-            // `Spell::CheckCast`; use the fresh canonical units so GM, life,
-            // visibility, faction/reputation, state and immunity changes made
-            // after the earlier aggro snapshot are all observed here.
-            let target_accepts_npc_attacks = creature_spell_target_is_valid_attack_target_like_cpp(
-                caster,
-                victim,
-                &attributes,
-                config,
-            );
             let caster_is_behind_player =
                 !victim
                     .unit()
@@ -63678,7 +63712,6 @@ fn validate_and_append_creature_spell_cast_like_cpp(
                 || !caster_has_no_owner_or_charmer
                 || !victim_hit_aura_sources_are_hit_inert
                 || !target_has_no_vehicle_kit
-                || !target_accepts_npc_attacks
                 || !caster_is_behind_player
             {
                 return None;
@@ -158284,6 +158317,7 @@ mod tests {
             spell_store: Some(Arc::new(spell_store)),
             spell_chain_store: Some(Arc::new(SpellChainStoreLikeCpp::default())),
             spell_linked_store: Some(Arc::new(SpellLinkedStoreLikeCpp::default())),
+            spell_condition_store: Some(Arc::new(ConditionEntriesByTypeStore::default())),
             spell_script_exact_spell_ids_like_cpp: Some(Arc::new(BTreeSet::new())),
             spell_script_all_rank_root_spell_ids_like_cpp: Some(Arc::new(BTreeSet::new())),
             legacy_spell_script_spell_ids_like_cpp: Some(Arc::new(BTreeSet::new())),
@@ -158469,7 +158503,7 @@ mod tests {
         );
         assert!(base.spell_has_no_unrepresented_runtime_hooks_like_cpp(CANDIDATE_SPELL_ID));
 
-        for missing_authority in 0..6 {
+        for missing_authority in 0..7 {
             let mut config = base.clone();
             match missing_authority {
                 0 => config.spell_script_exact_spell_ids_like_cpp = None,
@@ -158478,6 +158512,7 @@ mod tests {
                 3 => config.spell_linked_rejected_trigger_spell_ids_like_cpp = None,
                 4 => config.spell_chain_store = None,
                 5 => config.spell_linked_store = None,
+                6 => config.spell_condition_store = None,
                 _ => unreachable!(),
             }
             assert!(
@@ -158519,6 +158554,21 @@ mod tests {
         assert!(
             !rejected_link.spell_has_no_unrepresented_runtime_hooks_like_cpp(CANDIDATE_SPELL_ID),
             "a rejected linked row cannot prove that its trigger has no C++ hook"
+        );
+
+        let mut conditioned = base.clone();
+        conditioned.spell_condition_store = Some(Arc::new(
+            ConditionEntriesByTypeStore::from_conditions_like_cpp([wow_data::Condition {
+                source_type: wow_constants::ConditionSourceType::Spell,
+                source_entry: CANDIDATE_SPELL_ID as i32,
+                condition_type: wow_constants::ConditionType::Aura,
+                condition_value1: 123,
+                ..Default::default()
+            }]),
+        ));
+        assert!(
+            !conditioned.spell_has_no_unrepresented_runtime_hooks_like_cpp(CANDIDATE_SPELL_ID),
+            "C++ SourceType 17 conditions must reject the bounded cast"
         );
 
         for link_type in 0..=3 {
@@ -160210,6 +160260,76 @@ mod tests {
             })
             .unwrap();
         assert!((6_000..=12_000).contains(&repeat_due_in_ms));
+    }
+
+    #[test]
+    fn legacy_creature_combat_ai_rearms_after_target_rejection_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_336);
+        let victim_guid = ObjectGuid::create_player(1, 91_337);
+        let spell_id = 70_209_i32;
+        add_canonical_creature_spell_test_pair_like_cpp(&canonical, creature_guid, victim_guid);
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature
+                    .creature
+                    .set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
+                creature
+                    .creature
+                    .set_spell(0, u32::try_from(spell_id).unwrap());
+                creature.enter_combat(victim_guid);
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+        let config = creature_ai_spell_test_config_like_cpp(
+            creature_ai_test_spell_info_like_cpp(spell_id, 6, 0),
+            false,
+            30.0,
+        );
+
+        let initialized =
+            run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+        assert_eq!(initialized.schedules_initialized, 1);
+        canonical
+            .lock()
+            .unwrap()
+            .find_map_mut(0, 0)
+            .unwrap()
+            .map_mut()
+            .get_typed_player_mut(victim_guid)
+            .unwrap()
+            .unit_mut()
+            .add_unit_state(UnitState::IN_FLIGHT.bits());
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.backdate_runtime_clock_for_test(Duration::from_secs(60));
+            })
+            .unwrap();
+
+        let rejected =
+            run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+        assert_eq!(rejected.casts_ready, 0);
+        assert_eq!(rejected.canonical_cast_target_rejections, 1);
+        assert_eq!(rejected.spell_hit_results_unrepresented, 0);
+        assert!(rejected.plan.events.is_empty());
+        let (repeat_due_in_ms, rng_authoritative) = session
+            .mutate_world_creature(creature_guid, |creature| {
+                (
+                    creature.creature_spell_due_in_ms_for_test(0).unwrap(),
+                    creature.runtime_rng_authority_complete_like_cpp(),
+                )
+            })
+            .unwrap();
+        assert!((6_000..=12_000).contains(&repeat_due_in_ms));
+        assert!(rng_authoritative);
     }
 
     #[test]
