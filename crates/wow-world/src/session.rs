@@ -4044,6 +4044,7 @@ pub struct LegacyCreatureAggroConfigLikeCpp {
     pub spell_x_spell_visual_store: Option<Arc<wow_data::SpellXSpellVisualStore>>,
     pub spell_target_restrictions_store: Option<Arc<SpellTargetRestrictionsStore>>,
     pub spell_casting_requirements_store: Option<Arc<wow_data::SpellCastingRequirementsStore>>,
+    pub spell_aura_restrictions_store: Option<Arc<SpellAuraRestrictionsStore>>,
     pub spell_store: Option<Arc<SpellStore>>,
     pub spell_chain_store: Option<Arc<SpellChainStoreLikeCpp>>,
     pub spell_linked_store: Option<Arc<SpellLinkedStoreLikeCpp>>,
@@ -4079,6 +4080,7 @@ impl Default for LegacyCreatureAggroConfigLikeCpp {
             spell_x_spell_visual_store: None,
             spell_target_restrictions_store: None,
             spell_casting_requirements_store: None,
+            spell_aura_restrictions_store: None,
             spell_store: None,
             spell_chain_store: None,
             spell_linked_store: None,
@@ -4119,7 +4121,7 @@ impl LegacyCreatureAggroConfigLikeCpp {
     /// Startup installs the effective DB2 + SQL + hotfix authority. Missing
     /// authority and spell IDs outside DB2's signed key domain fail closed;
     /// an absent effective row means the spell has no such requirement.
-    fn spell_has_no_unrepresented_facing_requirement_like_cpp(&self, spell_id: u32) -> bool {
+    fn spell_has_no_unrepresented_casting_requirements_like_cpp(&self, spell_id: u32) -> bool {
         let Some(store) = self.spell_casting_requirements_store.as_deref() else {
             return false;
         };
@@ -4127,9 +4129,44 @@ impl LegacyCreatureAggroConfigLikeCpp {
             return false;
         };
         match store.entry_for_spell_id_like_cpp(spell_id) {
-            Some(requirement) => requirement.facing_caster_flags == 0,
+            Some(requirement) => {
+                requirement.facing_caster_flags == 0
+                    && requirement.required_areas_id == 0
+                    && requirement.requires_spell_focus == 0
+            }
             None => true,
         }
+    }
+
+    /// C++ applies the effective `SpellAuraRestrictions` row during
+    /// `Spell::CheckCast`/`SpellInfo::CheckExplicitTarget`. This bounded path
+    /// does not yet evaluate aura states or required/excluded aura spells, so
+    /// only an absent or entirely neutral effective row is safe to publish.
+    fn spell_has_no_unrepresented_aura_restrictions_like_cpp(
+        &self,
+        spell_id: u32,
+        difficulty_id: u8,
+    ) -> bool {
+        let Some(store) = self.spell_aura_restrictions_store.as_deref() else {
+            return false;
+        };
+        let Some(restriction) = store.resolved_for_difficulty_chain_like_cpp(
+            spell_id,
+            creature_ai_spell_difficulty_chain_like_cpp(difficulty_id, self)
+                .into_iter()
+                .map(u32::from),
+        ) else {
+            return true;
+        };
+
+        restriction.caster_aura_state == 0
+            && restriction.target_aura_state == 0
+            && restriction.exclude_caster_aura_state == 0
+            && restriction.exclude_target_aura_state == 0
+            && restriction.caster_aura_spell == 0
+            && restriction.target_aura_spell == 0
+            && restriction.exclude_caster_aura_spell == 0
+            && restriction.exclude_target_aura_spell == 0
     }
 
     fn creature_faction_template_is_neutral_to_all_like_cpp(
@@ -4534,7 +4571,7 @@ pub struct LegacyCreatureSpellTickOutcomeLikeCpp {
     pub casts_ready: usize,
     pub noninstant_casts_unrepresented: usize,
     pub spell_runtime_hooks_unrepresented: usize,
-    pub spell_facing_requirements_unrepresented: usize,
+    pub spell_casting_requirements_unrepresented: usize,
     pub spell_disable_context_unrepresented: usize,
     pub spells_disabled: usize,
     pub spell_effects_unrepresented: usize,
@@ -62434,37 +62471,23 @@ fn creature_ai_spell_single_unit_topology_like_cpp(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CreatureSpellHitProfileLikeCpp {
     NoAttackMissAfterRequiredRoll,
-    LevelAdjustedMeleeMiss {
+    BaseMeleeMiss {
         miss_threshold_per_ten_thousand: u32,
     },
 }
 
-fn creature_melee_spell_miss_threshold_3_3_5_like_cpp(caster_level: u8, victim_level: u8) -> u32 {
-    // TrinityCore 3.3.5 `Unit::MeleeSpellHitResult` gives a Creature its
-    // target-relative maximum weapon skill (`level * 5`) and compares it with
-    // the Player victim's maximum skill for level. `MeleeSpellMissChance` then
-    // adds 0.04 percentage points per missing skill point, or subtracts 0.02
-    // per surplus point, from the base 5%. Keep the f32 operations and final
-    // truncation because that is the order used before C++ converts the chance
-    // to the 0..=9_999 roll threshold.
-    let attacker_weapon_skill = i32::from(caster_level) * 5;
-    let victim_max_skill_for_level = i32::from(victim_level) * 5;
-    let skill_diff = attacker_weapon_skill - victim_max_skill_for_level;
-    let victim_skill_advantage = -skill_diff;
-    let skill_adjustment = if victim_skill_advantage > 0 {
-        victim_skill_advantage as f32 * 0.04
-    } else {
-        victim_skill_advantage as f32 * 0.02
-    };
-    ((5.0_f32 + skill_adjustment).max(0.0) * 100.0) as u32
+fn creature_melee_spell_miss_threshold_3_3_5_like_cpp() -> u32 {
+    // `Unit::MeleeSpellHitResult` delegates its miss bucket to
+    // `MeleeSpellMissChance`, whose victim miss chance is the constant 5.0%
+    // returned by `Unit::GetUnitMissChance`. Weapon-skill and level deltas are
+    // not applied by this legacy melee-spell path.
+    500
 }
 
 fn represented_creature_spell_hit_profile_like_cpp(
     metadata: &wow_data::spell::SpellHitMetadataLikeCpp,
     active_effect_indices: &[u32],
     attributes: [u32; 15],
-    caster_level_for_target: Option<u8>,
-    victim_level_for_target: u8,
 ) -> Option<CreatureSpellHitProfileLikeCpp> {
     const SPELL_DAMAGE_CLASS_MELEE_LIKE_CPP: i8 = 2;
     const SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP: u8 = 0x01;
@@ -62493,10 +62516,8 @@ fn represented_creature_spell_hit_profile_like_cpp(
         if attributes[7] & SPELL_ATTR7_NO_ATTACK_MISS_LIKE_CPP != 0 {
             CreatureSpellHitProfileLikeCpp::NoAttackMissAfterRequiredRoll
         } else {
-            CreatureSpellHitProfileLikeCpp::LevelAdjustedMeleeMiss {
+            CreatureSpellHitProfileLikeCpp::BaseMeleeMiss {
                 miss_threshold_per_ten_thousand: creature_melee_spell_miss_threshold_3_3_5_like_cpp(
-                    caster_level_for_target?,
-                    victim_level_for_target,
                 ),
             }
         },
@@ -62515,7 +62536,7 @@ fn resolve_creature_spell_hit_profile_like_cpp(
         CreatureSpellHitProfileLikeCpp::NoAttackMissAfterRequiredRoll => {
             Some(CreatureSpellTargetHitResultLikeCpp::Hit)
         }
-        CreatureSpellHitProfileLikeCpp::LevelAdjustedMeleeMiss {
+        CreatureSpellHitProfileLikeCpp::BaseMeleeMiss {
             miss_threshold_per_ten_thousand,
         } => Some(if roll < miss_threshold_per_ten_thousand {
             CreatureSpellTargetHitResultLikeCpp::Miss
@@ -62836,11 +62857,20 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
                                         continue;
                                     }
                                     if !config
-                                        .spell_has_no_unrepresented_facing_requirement_like_cpp(
+                                        .spell_has_no_unrepresented_casting_requirements_like_cpp(
                                             spell_id,
                                         )
                                     {
-                                        outcome.spell_facing_requirements_unrepresented += 1;
+                                        outcome.spell_casting_requirements_unrepresented += 1;
+                                        continue;
+                                    }
+                                    if !config
+                                        .spell_has_no_unrepresented_aura_restrictions_like_cpp(
+                                            spell_id,
+                                            difficulty_id,
+                                        )
+                                    {
+                                        outcome.spell_effects_unrepresented += 1;
                                         continue;
                                     }
                                     if creature_ai_zero_power_rows_have_unrepresented_implicit_cost_like_cpp(
@@ -63014,9 +63044,19 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
                                 .push(PendingCreatureSpellActionLikeCpp::Schedule(schedule));
                             continue;
                         }
-                        if !config.spell_has_no_unrepresented_facing_requirement_like_cpp(spell_id)
+                        if !config
+                            .spell_has_no_unrepresented_casting_requirements_like_cpp(spell_id)
                         {
-                            outcome.spell_facing_requirements_unrepresented += 1;
+                            outcome.spell_casting_requirements_unrepresented += 1;
+                            pending_actions
+                                .push(PendingCreatureSpellActionLikeCpp::Schedule(schedule));
+                            continue;
+                        }
+                        if !config.spell_has_no_unrepresented_aura_restrictions_like_cpp(
+                            spell_id,
+                            difficulty_id,
+                        ) {
+                            outcome.spell_effects_unrepresented += 1;
                             pending_actions
                                 .push(PendingCreatureSpellActionLikeCpp::Schedule(schedule));
                             continue;
@@ -63156,8 +63196,15 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
                         outcome.spell_runtime_hooks_unrepresented += 1;
                         continue;
                     }
-                    if !config.spell_has_no_unrepresented_facing_requirement_like_cpp(spell_id) {
-                        outcome.spell_facing_requirements_unrepresented += 1;
+                    if !config.spell_has_no_unrepresented_casting_requirements_like_cpp(spell_id) {
+                        outcome.spell_casting_requirements_unrepresented += 1;
+                        continue;
+                    }
+                    if !config.spell_has_no_unrepresented_aura_restrictions_like_cpp(
+                        spell_id,
+                        difficulty_id,
+                    ) {
+                        outcome.spell_effects_unrepresented += 1;
                         continue;
                     }
                     if creature_ai_zero_power_rows_have_unrepresented_implicit_cost_like_cpp(
@@ -63320,6 +63367,113 @@ enum CreatureSpellCastValidationResultLikeCpp {
     MissingTarget,
     HitResultUnrepresented,
     RuntimeRngAuthorityRejected,
+}
+
+fn creature_spell_target_accepts_npc_attack_like_cpp(
+    target_flags: UnitFlags,
+    spell_attributes: &[u32; 15],
+) -> bool {
+    const SPELL_ATTR6_CAN_TARGET_UNTARGETABLE_LIKE_CPP: u32 = 0x0100_0000;
+
+    !target_flags.intersects(
+        UnitFlags::NON_ATTACKABLE
+            | UnitFlags::UNINTERACTIBLE
+            | UnitFlags::ON_TAXI
+            | UnitFlags::NOT_ATTACKABLE_1
+            | UnitFlags::IMMUNE_TO_NPC,
+    ) && (!target_flags.contains(UnitFlags::NON_ATTACKABLE_2)
+        || spell_attributes[6] & SPELL_ATTR6_CAN_TARGET_UNTARGETABLE_LIKE_CPP != 0)
+}
+
+fn creature_spell_target_is_valid_attack_target_like_cpp(
+    caster: &wow_entities::Creature,
+    victim: &wow_entities::Player,
+    spell_attributes: &[u32; 15],
+    config: &LegacyCreatureAggroConfigLikeCpp,
+) -> bool {
+    if !caster.unit().world().object().is_in_world()
+        || !victim.unit().world().object().is_in_world()
+        || !caster.unit().is_alive()
+        || !victim.unit().is_alive()
+        || victim.is_game_master_like_cpp()
+        || victim.unit().unit_state() & (UnitState::DIED | UnitState::IN_FLIGHT).bits() != 0
+        || !caster
+            .unit()
+            .can_see_or_detect_unit_like_cpp(victim.unit(), false, false, false)
+    {
+        return false;
+    }
+
+    let Some(faction_templates) = config.faction_template_store.as_deref() else {
+        return false;
+    };
+    let Ok(caster_faction_template_id) = u32::try_from(caster.unit().data().faction_template)
+    else {
+        return false;
+    };
+    let Ok(victim_faction_template_id) = u32::try_from(victim.unit().data().faction_template)
+    else {
+        return false;
+    };
+    let (Some(caster_faction_template), Some(victim_faction_template)) = (
+        faction_templates.get(caster_faction_template_id),
+        faction_templates.get(victim_faction_template_id),
+    ) else {
+        return false;
+    };
+
+    let mut victim_flags = victim.unit().unit_flags_like_cpp();
+    if spell_attributes[6] & 0x0100_0000 != 0 {
+        victim_flags.remove(UnitFlags::NON_ATTACKABLE_2);
+    }
+    let mut context = wow_entities::UnitAttackContextLikeCpp {
+        victim_is_game_master_player: victim.is_game_master_like_cpp(),
+        visibility_represented: true,
+        attacker_can_see_or_detect_target: true,
+        victim_unit_state: victim.unit().unit_state(),
+        attacker_unit_flags: caster.unit().unit_flags_like_cpp().bits(),
+        victim_unit_flags: victim_flags.bits(),
+        relation_represented: true,
+        attacker_is_hostile_to_victim: caster_faction_template
+            .is_hostile_to_like_cpp(victim_faction_template),
+        victim_is_hostile_to_attacker: victim_faction_template
+            .is_hostile_to_like_cpp(caster_faction_template),
+        attacker_is_friendly_to_victim: caster_faction_template
+            .is_friendly_to_like_cpp(victim_faction_template),
+        victim_is_friendly_to_attacker: victim_faction_template
+            .is_friendly_to_like_cpp(caster_faction_template),
+        victim_has_affecting_player: true,
+        ..Default::default()
+    };
+
+    let creature_faction_id = u32::from(caster_faction_template.faction);
+    if creature_faction_id != 0 {
+        if victim.has_forced_reputation_rank_like_cpp(creature_faction_id) {
+            // The canonical player currently retains only the presence of a
+            // forced reaction, not its rank. Its exact reaction is therefore
+            // unrepresented at this cast-time boundary.
+            return false;
+        }
+        let Some(factions) = config.faction_store.as_deref() else {
+            return false;
+        };
+        let Some(creature_faction) = factions.get(creature_faction_id) else {
+            return false;
+        };
+        if creature_faction.can_have_reputation_like_cpp()
+            && victim.has_reputation_state_like_cpp(creature_faction_id)
+        {
+            context.player_creature_reputation_represented = true;
+            context.creature_is_contested_guard =
+                caster_faction_template.is_contested_guard_faction_like_cpp();
+            context.player_has_contested_pvp_flag =
+                victim.has_player_flag(PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP);
+            context.player_at_war_with_creature_faction =
+                victim.is_at_war_with_faction_like_cpp(creature_faction_id);
+        }
+    }
+
+    wow_entities::Unit::is_valid_attack_target_represented_like_cpp(&context)
 }
 
 fn validate_and_append_creature_spell_cast_like_cpp(
@@ -63505,10 +63659,16 @@ fn validate_and_append_creature_spell_cast_like_cpp(
                 .auras
                 .has_complete_spell_hit_inert_aura_authority_like_cpp();
             let target_has_no_vehicle_kit = victim.unit().subsystems().vehicle.kit.is_none();
-            let target_accepts_npc_attacks = !victim
-                .unit()
-                .unit_flags_like_cpp()
-                .contains(UnitFlags::IMMUNE_TO_NPC);
+            // C++ re-runs `WorldObject::IsValidAttackTarget` during
+            // `Spell::CheckCast`; use the fresh canonical units so GM, life,
+            // visibility, faction/reputation, state and immunity changes made
+            // after the earlier aggro snapshot are all observed here.
+            let target_accepts_npc_attacks = creature_spell_target_is_valid_attack_target_like_cpp(
+                caster,
+                victim,
+                &attributes,
+                config,
+            );
             let caster_is_behind_player =
                 !victim
                     .unit()
@@ -63523,20 +63683,10 @@ fn validate_and_append_creature_spell_cast_like_cpp(
             {
                 return None;
             }
-            // TrinityCore 3.3.5 derives a regular Creature's weapon skill from
-            // its target-relative level. World bosses replace that level with
-            // a world-configured victim-relative value which this runtime does
-            // not carry, so keep only that exceptional case fail-closed.
-            let caster_level_for_target =
-                (!caster.is_world_boss_like_cpp()).then(|| caster.level());
-            let victim_level_for_target =
-                victim.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8;
             let hit_profile = represented_creature_spell_hit_profile_like_cpp(
                 &metadata,
                 &active_effect_indices,
                 attributes,
-                caster_level_for_target,
-                victim_level_for_target,
             )?;
             Some((
                 hit_profile,
@@ -158128,6 +158278,9 @@ mod tests {
             spell_casting_requirements_store: Some(Arc::new(
                 wow_data::SpellCastingRequirementsStore::from_entries([]),
             )),
+            spell_aura_restrictions_store: Some(Arc::new(
+                wow_data::SpellAuraRestrictionsStore::from_entries([]),
+            )),
             spell_store: Some(Arc::new(spell_store)),
             spell_chain_store: Some(Arc::new(SpellChainStoreLikeCpp::default())),
             spell_linked_store: Some(Arc::new(SpellLinkedStoreLikeCpp::default())),
@@ -158137,6 +158290,170 @@ mod tests {
             spell_linked_rejected_trigger_spell_ids_like_cpp: Some(Arc::new(BTreeSet::new())),
             ..legacy_aggro_hostile_config_like_cpp()
         }
+    }
+
+    #[test]
+    fn creature_spell_casting_and_aura_restrictions_fail_closed_like_cpp() {
+        const SPELL_ID: u32 = 70_190;
+        let base = creature_ai_spell_test_config_like_cpp(
+            creature_ai_test_spell_info_like_cpp(SPELL_ID as i32, 6, 0),
+            false,
+            30.0,
+        );
+        assert!(base.spell_has_no_unrepresented_casting_requirements_like_cpp(SPELL_ID));
+        assert!(base.spell_has_no_unrepresented_aura_restrictions_like_cpp(SPELL_ID, 0));
+
+        let mut missing = base.clone();
+        missing.spell_casting_requirements_store = None;
+        missing.spell_aura_restrictions_store = None;
+        assert!(!missing.spell_has_no_unrepresented_casting_requirements_like_cpp(SPELL_ID));
+        assert!(!missing.spell_has_no_unrepresented_aura_restrictions_like_cpp(SPELL_ID, 0));
+
+        let mut required_area = base.clone();
+        required_area.spell_casting_requirements_store = Some(Arc::new(
+            wow_data::SpellCastingRequirementsStore::from_entries([
+                wow_data::SpellCastingRequirementsEntry {
+                    id: 1,
+                    spell_id: SPELL_ID as i32,
+                    facing_caster_flags: 0,
+                    min_faction_id: 0,
+                    min_reputation: 0,
+                    required_areas_id: 42,
+                    required_aura_vision: 0,
+                    requires_spell_focus: 0,
+                },
+            ]),
+        ));
+        assert!(
+            !required_area.spell_has_no_unrepresented_casting_requirements_like_cpp(SPELL_ID),
+            "C++ SpellInfo::CheckLocation must reject an unevaluated RequiredAreasID"
+        );
+
+        let mut required_spell_focus = base.clone();
+        required_spell_focus.spell_casting_requirements_store = Some(Arc::new(
+            wow_data::SpellCastingRequirementsStore::from_entries([
+                wow_data::SpellCastingRequirementsEntry {
+                    id: 2,
+                    spell_id: SPELL_ID as i32,
+                    facing_caster_flags: 0,
+                    min_faction_id: 0,
+                    min_reputation: 0,
+                    required_areas_id: 0,
+                    required_aura_vision: 0,
+                    requires_spell_focus: 181,
+                },
+            ]),
+        ));
+        assert!(
+            !required_spell_focus
+                .spell_has_no_unrepresented_casting_requirements_like_cpp(SPELL_ID),
+            "C++ Spell::CheckCast must reject an unevaluated required spell focus"
+        );
+
+        let mut required_aura = base;
+        required_aura.spell_aura_restrictions_store = Some(Arc::new(
+            wow_data::SpellAuraRestrictionsStore::from_entries([
+                wow_data::SpellAuraRestrictionsEntry {
+                    id: 1,
+                    difficulty_id: 0,
+                    caster_aura_state: 0,
+                    target_aura_state: 0,
+                    exclude_caster_aura_state: 0,
+                    exclude_target_aura_state: 0,
+                    caster_aura_spell: 0,
+                    target_aura_spell: 123,
+                    exclude_caster_aura_spell: 0,
+                    exclude_target_aura_spell: 0,
+                    spell_id: SPELL_ID,
+                },
+            ]),
+        ));
+        assert!(
+            !required_aura.spell_has_no_unrepresented_aura_restrictions_like_cpp(SPELL_ID, 0),
+            "required/excluded aura state is not represented by the bounded AI cast"
+        );
+    }
+
+    #[test]
+    fn creature_spell_canonical_targetability_honors_cpp_untargetable_override() {
+        let attributes = [0_u32; 15];
+        for flag in [
+            UnitFlags::NON_ATTACKABLE,
+            UnitFlags::UNINTERACTIBLE,
+            UnitFlags::ON_TAXI,
+            UnitFlags::NOT_ATTACKABLE_1,
+            UnitFlags::IMMUNE_TO_NPC,
+            UnitFlags::NON_ATTACKABLE_2,
+        ] {
+            assert!(!creature_spell_target_accepts_npc_attack_like_cpp(
+                flag,
+                &attributes
+            ));
+        }
+
+        let mut can_target_untargetable = attributes;
+        can_target_untargetable[6] = 0x0100_0000; // SPELL_ATTR6_CAN_TARGET_UNTARGETABLE
+        assert!(creature_spell_target_accepts_npc_attack_like_cpp(
+            UnitFlags::NON_ATTACKABLE_2,
+            &can_target_untargetable,
+        ));
+        assert!(!creature_spell_target_accepts_npc_attack_like_cpp(
+            UnitFlags::NON_ATTACKABLE | UnitFlags::NON_ATTACKABLE_2,
+            &can_target_untargetable,
+        ));
+    }
+
+    #[test]
+    fn creature_spell_canonical_targetability_rechecks_full_cpp_state() {
+        let canonical = shared_canonical_map_manager();
+        let creature_guid = test_creature_guid(91_334);
+        let victim_guid = ObjectGuid::create_player(1, 91_335);
+        add_canonical_creature_spell_test_pair_like_cpp(&canonical, creature_guid, victim_guid);
+        let config = legacy_aggro_hostile_config_like_cpp();
+        let attributes = [0_u32; 15];
+
+        let target_is_valid = |canonical: &SharedCanonicalMapManager| {
+            let manager = canonical.lock().unwrap();
+            let map = manager.find_map(0, 0).unwrap().map();
+            creature_spell_target_is_valid_attack_target_like_cpp(
+                map.get_typed_creature(creature_guid).unwrap(),
+                map.get_typed_player(victim_guid).unwrap(),
+                &attributes,
+                &config,
+            )
+        };
+        assert!(target_is_valid(&canonical));
+
+        canonical
+            .lock()
+            .unwrap()
+            .find_map_mut(0, 0)
+            .unwrap()
+            .map_mut()
+            .get_typed_player_mut(victim_guid)
+            .unwrap()
+            .set_game_master_like_cpp(true);
+        assert!(
+            !target_is_valid(&canonical),
+            "a player entering GM mode after aggro must fail the cast-time C++ target check"
+        );
+
+        let mut manager = canonical.lock().unwrap();
+        let victim = manager
+            .find_map_mut(0, 0)
+            .unwrap()
+            .map_mut()
+            .get_typed_player_mut(victim_guid)
+            .unwrap();
+        victim.set_game_master_like_cpp(false);
+        victim
+            .unit_mut()
+            .add_unit_state(UnitState::IN_FLIGHT.bits());
+        drop(manager);
+        assert!(
+            !target_is_valid(&canonical),
+            "UNIT_STATE_UNATTACKABLE changes must also be observed at cast time"
+        );
     }
 
     #[test]
@@ -158342,6 +158659,78 @@ mod tests {
     }
 
     #[test]
+    fn creature_spell_runtime_blocks_required_area_and_aura_restrictions_like_cpp() {
+        let area_spell_id = 70_207_u32;
+        let (area_manager, area_canonical, mut area_config, _) =
+            creature_spell_bound_hook_tick_fixture_like_cpp(
+                "CombatAI",
+                true,
+                area_spell_id as i32,
+                91_328,
+                91_329,
+            );
+        area_config.spell_script_exact_spell_ids_like_cpp = Some(Arc::new(BTreeSet::new()));
+        area_config.spell_casting_requirements_store = Some(Arc::new(
+            wow_data::SpellCastingRequirementsStore::from_entries([
+                wow_data::SpellCastingRequirementsEntry {
+                    id: 1,
+                    spell_id: area_spell_id as i32,
+                    facing_caster_flags: 0,
+                    min_faction_id: 0,
+                    min_reputation: 0,
+                    required_areas_id: 42,
+                    required_aura_vision: 0,
+                    requires_spell_focus: 0,
+                },
+            ]),
+        ));
+        let area = run_legacy_creature_spell_tick_once_like_cpp(
+            &area_manager,
+            Some(&area_canonical),
+            &area_config,
+        );
+        assert_eq!(area.spell_casting_requirements_unrepresented, 1);
+        assert_eq!(area.casts_ready, 0);
+        assert!(area.plan.events.is_empty());
+
+        let aura_spell_id = 70_208_u32;
+        let (aura_manager, aura_canonical, mut aura_config, _) =
+            creature_spell_bound_hook_tick_fixture_like_cpp(
+                "TurretAI",
+                false,
+                aura_spell_id as i32,
+                91_330,
+                91_331,
+            );
+        aura_config.spell_script_exact_spell_ids_like_cpp = Some(Arc::new(BTreeSet::new()));
+        aura_config.spell_aura_restrictions_store = Some(Arc::new(
+            wow_data::SpellAuraRestrictionsStore::from_entries([
+                wow_data::SpellAuraRestrictionsEntry {
+                    id: 1,
+                    difficulty_id: 0,
+                    caster_aura_state: 0,
+                    target_aura_state: 0,
+                    exclude_caster_aura_state: 0,
+                    exclude_target_aura_state: 0,
+                    caster_aura_spell: 0,
+                    target_aura_spell: 123,
+                    exclude_caster_aura_spell: 0,
+                    exclude_target_aura_spell: 0,
+                    spell_id: aura_spell_id,
+                },
+            ]),
+        ));
+        let aura = run_legacy_creature_spell_tick_once_like_cpp(
+            &aura_manager,
+            Some(&aura_canonical),
+            &aura_config,
+        );
+        assert_eq!(aura.spell_effects_unrepresented, 1);
+        assert_eq!(aura.casts_ready, 0);
+        assert!(aura.plan.events.is_empty());
+    }
+
+    #[test]
     fn creature_spell_disable_row_blocks_runtime_plan_like_cpp() {
         let (manager, canonical, mut config, _) = creature_spell_bound_hook_tick_fixture_like_cpp(
             "CombatAI", true, 70_206, 91_326, 91_327,
@@ -158405,13 +158794,15 @@ mod tests {
         );
         let mut manager = canonical.lock().unwrap();
         let map = manager.find_map_mut(0, 0).unwrap().map_mut();
-        map.get_typed_creature_mut(creature_guid)
-            .unwrap()
+        let creature = map.get_typed_creature_mut(creature_guid).unwrap();
+        creature.unit_mut().set_faction(14);
+        creature
             .unit_mut()
             .subsystems_mut()
             .auras
             .set_spell_cast_log_aura_authority_inert_like_cpp(true);
         let player = map.get_typed_player_mut(victim_guid).unwrap();
+        player.unit_mut().set_faction(1);
         player.unit_mut().set_level(80);
         player.unit_mut().set_max_health(100);
         player.unit_mut().set_health(100);
@@ -158648,7 +159039,7 @@ mod tests {
     }
 
     #[test]
-    fn represented_creature_melee_spell_hit_profile_matches_cpp_level_skill_boundaries() {
+    fn represented_creature_melee_spell_hit_profile_keeps_cpp_base_miss_across_levels() {
         let metadata = wow_data::SpellHitMetadataLikeCpp {
             defense_type: 2,
             spell_mechanic: 0,
@@ -158659,14 +159050,12 @@ mod tests {
             &metadata,
             &[0],
             represented_creature_spell_test_attributes_like_cpp(false),
-            Some(80),
-            80,
         )
         .unwrap();
 
         assert_eq!(
             profile,
-            CreatureSpellHitProfileLikeCpp::LevelAdjustedMeleeMiss {
+            CreatureSpellHitProfileLikeCpp::BaseMeleeMiss {
                 miss_threshold_per_ten_thousand: 500,
             }
         );
@@ -158687,22 +159076,20 @@ mod tests {
             &metadata,
             &[0],
             represented_creature_spell_test_attributes_like_cpp(false),
-            Some(64),
-            80,
         )
         .unwrap();
         assert_eq!(
             higher_level_victim,
-            CreatureSpellHitProfileLikeCpp::LevelAdjustedMeleeMiss {
-                miss_threshold_per_ten_thousand: 820,
+            CreatureSpellHitProfileLikeCpp::BaseMeleeMiss {
+                miss_threshold_per_ten_thousand: 500,
             }
         );
         assert_eq!(
-            resolve_creature_spell_hit_profile_like_cpp(higher_level_victim, Some(819)),
+            resolve_creature_spell_hit_profile_like_cpp(higher_level_victim, Some(499)),
             Some(CreatureSpellTargetHitResultLikeCpp::Miss)
         );
         assert_eq!(
-            resolve_creature_spell_hit_profile_like_cpp(higher_level_victim, Some(820)),
+            resolve_creature_spell_hit_profile_like_cpp(higher_level_victim, Some(500)),
             Some(CreatureSpellTargetHitResultLikeCpp::Hit)
         );
 
@@ -158710,61 +159097,27 @@ mod tests {
             &metadata,
             &[0],
             represented_creature_spell_test_attributes_like_cpp(false),
-            Some(80),
-            64,
         )
         .unwrap();
         assert_eq!(
             lower_level_victim,
-            CreatureSpellHitProfileLikeCpp::LevelAdjustedMeleeMiss {
-                miss_threshold_per_ten_thousand: 340,
+            CreatureSpellHitProfileLikeCpp::BaseMeleeMiss {
+                miss_threshold_per_ten_thousand: 500,
             }
         );
         assert_eq!(
-            resolve_creature_spell_hit_profile_like_cpp(lower_level_victim, Some(339)),
+            resolve_creature_spell_hit_profile_like_cpp(lower_level_victim, Some(499)),
             Some(CreatureSpellTargetHitResultLikeCpp::Miss)
         );
         assert_eq!(
-            resolve_creature_spell_hit_profile_like_cpp(lower_level_victim, Some(340)),
+            resolve_creature_spell_hit_profile_like_cpp(lower_level_victim, Some(500)),
             Some(CreatureSpellTargetHitResultLikeCpp::Hit)
-        );
-
-        let zero_miss = represented_creature_spell_hit_profile_like_cpp(
-            &metadata,
-            &[0],
-            represented_creature_spell_test_attributes_like_cpp(false),
-            Some(80),
-            1,
-        )
-        .unwrap();
-        assert_eq!(
-            zero_miss,
-            CreatureSpellHitProfileLikeCpp::LevelAdjustedMeleeMiss {
-                miss_threshold_per_ten_thousand: 0,
-            }
-        );
-        assert_eq!(
-            resolve_creature_spell_hit_profile_like_cpp(zero_miss, Some(0)),
-            Some(CreatureSpellTargetHitResultLikeCpp::Hit)
-        );
-        assert_eq!(
-            represented_creature_spell_hit_profile_like_cpp(
-                &metadata,
-                &[0],
-                represented_creature_spell_test_attributes_like_cpp(false),
-                None,
-                80,
-            ),
-            None,
-            "target-relative Creature skill must fail closed when its level is not represented"
         );
 
         let guaranteed = represented_creature_spell_hit_profile_like_cpp(
             &metadata,
             &[0],
             represented_creature_spell_test_attributes_like_cpp(true),
-            None,
-            80,
         )
         .unwrap();
         assert_eq!(
@@ -158793,38 +159146,20 @@ mod tests {
 
         metadata.spell_mechanic = 1;
         assert_eq!(
-            represented_creature_spell_hit_profile_like_cpp(
-                &metadata,
-                &[0],
-                attributes,
-                Some(80),
-                80,
-            ),
+            represented_creature_spell_hit_profile_like_cpp(&metadata, &[0], attributes,),
             None
         );
         metadata.spell_mechanic = 0;
         metadata.effect_mechanics.clear();
         assert_eq!(
-            represented_creature_spell_hit_profile_like_cpp(
-                &metadata,
-                &[0],
-                attributes,
-                Some(80),
-                80,
-            ),
+            represented_creature_spell_hit_profile_like_cpp(&metadata, &[0], attributes,),
             None
         );
         metadata.effect_mechanics.insert(0, 0);
         let mut reflection_attributes = attributes;
         reflection_attributes[7] |= 0x0000_0001; // SPELL_ATTR7_ALLOW_SPELL_REFLECTION
         assert_eq!(
-            represented_creature_spell_hit_profile_like_cpp(
-                &metadata,
-                &[0],
-                reflection_attributes,
-                Some(80),
-                80,
-            ),
+            represented_creature_spell_hit_profile_like_cpp(&metadata, &[0], reflection_attributes,),
             None
         );
     }
@@ -159627,8 +159962,8 @@ mod tests {
         }
         register_test_creature(&mut session, manager.clone(), creature_guid, 25);
 
-        let miss_threshold = creature_melee_spell_miss_threshold_3_3_5_like_cpp(64, 80);
-        assert_eq!(miss_threshold, 820);
+        let miss_threshold = creature_melee_spell_miss_threshold_3_3_5_like_cpp();
+        assert_eq!(miss_threshold, 500);
         let hit_seed = (0_u64..10_000)
             .find(|seed| {
                 let mut rng = StdRng::seed_from_u64(*seed);
