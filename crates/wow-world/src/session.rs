@@ -26309,6 +26309,7 @@ impl WorldSession {
                     | aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE
                     | aura_types::SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE
                     | aura_types::SPELL_AURA_MOD_REPUTATION_GAIN
+                    | aura_types::SPELL_AURA_MOD_XP_PCT
                     | aura_types::SPELL_AURA_MOD_EXPERTISE
             ),
             // These login-time capability effects either change only the
@@ -26890,29 +26891,38 @@ impl WorldSession {
     /// C++ `Player::UpdateZone` dispatches OutdoorPvP and Battlefield handlers
     /// after `SpellArea`. Their live control state is not represented here, so
     /// registered zones that can add hit-relevant auras remain fail-closed.
-    /// Nagrand is the narrow exception: OutdoorPvPNA can add spell 33795, whose
-    /// effective DB2 projection is only aura type 79 (outgoing damage done), so
-    /// it is inert for a creature spell's `SpellHitResult` against this Player.
+    /// Nagrand and Terokkar Forest are narrow exceptions: their exact source
+    /// spells are admitted only when the effective spell projection and
+    /// runtime-hook authority prove them hit-inert.
     fn represented_update_zone_script_aura_source_is_hit_inert_like_cpp(&self) -> bool {
         if !self.player_zone_area_authority_complete_like_cpp {
             return false;
         }
         let (zone_id, _) = self.player_zone_area_like_cpp();
-        if zone_id == 3_518 {
+        let audited_source_spell_id = match zone_id {
+            // OutdoorPvPNA::NA_CAPTURE_BUFF.
+            3_518 => Some(33_795),
+            // OutdoorPvPTF::TF_CAPTURE_BUFF. The C++ handler is instantiated
+            // for map 530 and is therefore reachable here for Terokkar Forest.
+            3_519 => Some(33_377),
+            _ => None,
+        };
+        if let Some(spell_id) = audited_source_spell_id {
             return self.player_target_spell_is_hit_inert_like_cpp(
-                33_795,
+                spell_id,
                 self.current_map_difficulty_id_like_cpp(),
             );
         }
         !matches!(
             zone_id,
-            // OutdoorPvPSI, OutdoorPvPTF, OutdoorPvPZM, OutdoorPvPHP, and
-            // BattlefieldWG respectively. OutdoorPvPNA zone 3518 is audited
-            // above as the hit-inert spell-33795 exception.
+            // OutdoorPvPSI, the four OutdoorPvPTF dungeon zone IDs,
+            // OutdoorPvPZM, OutdoorPvPHP, and BattlefieldWG respectively.
+            // OutdoorPvPNA and OutdoorPvPTF on map 530 are audited above; the
+            // dungeon IDs remain conservative because this authority does not
+            // model C++'s `(Map*, zone)` OutdoorPvP registration key.
             1_377
                 | 3_428
                 | 3_429
-                | 3_519
                 | 3_791
                 | 3_789
                 | 3_792
@@ -71316,6 +71326,36 @@ mod tests {
         assert!(!session.player_aura_authority_complete_like_cpp());
     }
 
+    fn player_target_aura_spell_info_fixture_like_cpp(
+        spell_id: i32,
+        aura_types: &[i32],
+    ) -> SpellInfo {
+        SpellInfo {
+            spell_id,
+            cast_time_ms: 0,
+            cooldown_ms: 0,
+            recovery_time_ms: 0,
+            effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+            effect_base_points: 0,
+            effect_bonus_coefficient: 0.0,
+            aura_type: aura_types.first().copied(),
+            display_flags: 0,
+            requires_spell_focus: 0,
+            power_costs: Vec::new(),
+            effects: aura_types
+                .iter()
+                .copied()
+                .enumerate()
+                .map(|(effect_index, effect_aura)| wow_data::SpellEffectInfo {
+                    effect_index: effect_index as u32,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura,
+                    ..Default::default()
+                })
+                .collect(),
+        }
+    }
+
     fn complete_empty_player_dynamic_spell_hit_aura_sources_like_cpp(session: &mut WorldSession) {
         assert!(session.set_complete_represented_spell_trait_definition_ids_like_cpp([]));
         session.set_chr_specialization_store(Arc::new(ChrSpecializationStore::from_entries([
@@ -71355,25 +71395,20 @@ mod tests {
         let mut spell_store = SpellStore::new();
         spell_store.insert(
             33_795,
-            SpellInfo {
-                spell_id: 33_795,
-                cast_time_ms: 0,
-                cooldown_ms: 0,
-                recovery_time_ms: 0,
-                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
-                effect_base_points: 0,
-                effect_bonus_coefficient: 0.0,
-                aura_type: Some(79),
-                display_flags: 0,
-                requires_spell_focus: 0,
-                power_costs: Vec::new(),
-                effects: vec![wow_data::SpellEffectInfo {
-                    effect_index: 0,
-                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
-                    effect_aura: 79,
-                    ..Default::default()
-                }],
-            },
+            player_target_aura_spell_info_fixture_like_cpp(
+                33_795,
+                &[wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE],
+            ),
+        );
+        spell_store.insert(
+            33_377,
+            player_target_aura_spell_info_fixture_like_cpp(
+                33_377,
+                &[
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_XP_PCT,
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE,
+                ],
+            ),
         );
         session.set_spell_store(Arc::new(spell_store));
         session.set_spell_chain_store(Arc::new(wow_data::SpellChainStoreLikeCpp::default()));
@@ -71462,6 +71497,31 @@ mod tests {
         assert!(session.set_complete_represented_player_spell_rows_like_cpp([]));
         complete_empty_player_dynamic_spell_hit_aura_sources_like_cpp(&mut session);
         session
+    }
+
+    fn configure_outdoor_pvp_tf_authority_fixture_like_cpp(session: &mut WorldSession) {
+        session.set_area_table_store(Arc::new(AreaTableStore::from_entries([
+            wow_data::AreaTableEntry {
+                id: 3_519,
+                continent_id: 530,
+                parent_area_id: 0,
+                area_bit: 1_143,
+                exploration_level: 0,
+                mount_flags: 2,
+                flags: 0,
+            },
+            wow_data::AreaTableEntry {
+                id: 3_697,
+                continent_id: 530,
+                parent_area_id: 3_519,
+                area_bit: 1_321,
+                exploration_level: 64,
+                mount_flags: 2,
+                flags: 0,
+            },
+        ])));
+        session.set_player_zone_area_like_cpp(3_519, 3_697);
+        session.set_player_zone_area_authority_complete_like_cpp(true);
     }
 
     fn spell_area_store_for_authority_like_cpp(
@@ -71761,6 +71821,72 @@ mod tests {
         assert!(
             !session.can_authorize_empty_player_spell_hit_aura_source_like_cpp(),
             "an unverified zone cannot prove OutdoorPvP/Battlefield sources hit-inert"
+        );
+    }
+
+    #[test]
+    fn player_spell_hit_source_authority_audits_outdoor_pvp_tf_terokkar_buff_like_cpp() {
+        let mut session = complete_empty_player_spell_hit_authority_fixture_like_cpp();
+        configure_outdoor_pvp_tf_authority_fixture_like_cpp(&mut session);
+        assert!(
+            session.can_authorize_empty_player_spell_hit_aura_source_like_cpp(),
+            "OutdoorPvPTF zone 3519 must admit spell 33377 only after both XP and outgoing-damage auras are proven hit-inert"
+        );
+    }
+
+    #[test]
+    fn player_spell_hit_source_authority_keeps_outdoor_pvp_tf_dungeon_ids_fail_closed_like_cpp() {
+        for zone_id in [3_791, 3_789, 3_792, 3_790] {
+            let mut session = complete_empty_player_spell_hit_authority_fixture_like_cpp();
+            configure_outdoor_pvp_tf_authority_fixture_like_cpp(&mut session);
+            session.set_player_zone_area_like_cpp(zone_id, 3_697);
+            assert!(
+                !session.can_authorize_empty_player_spell_hit_aura_source_like_cpp(),
+                "OutdoorPvPTF dungeon zone {zone_id} must remain fail-closed without C++ (Map*, zone) registration authority"
+            );
+        }
+    }
+
+    #[test]
+    fn player_spell_hit_source_authority_fails_closed_for_unproven_outdoor_pvp_tf_buff_like_cpp() {
+        let mut missing_metadata = complete_empty_player_spell_hit_authority_fixture_like_cpp();
+        configure_outdoor_pvp_tf_authority_fixture_like_cpp(&mut missing_metadata);
+        missing_metadata.set_spell_store(Arc::new(SpellStore::new()));
+        assert!(
+            !missing_metadata.can_authorize_empty_player_spell_hit_aura_source_like_cpp(),
+            "missing effective spell 33377 metadata must fail closed"
+        );
+
+        let mut scripted = complete_empty_player_spell_hit_authority_fixture_like_cpp();
+        configure_outdoor_pvp_tf_authority_fixture_like_cpp(&mut scripted);
+        scripted.set_spell_runtime_script_authority_like_cpp(
+            Arc::new(BTreeSet::from([33_377])),
+            Arc::new(BTreeSet::new()),
+            Arc::new(BTreeSet::new()),
+            Arc::new(BTreeSet::new()),
+        );
+        assert!(
+            !scripted.can_authorize_empty_player_spell_hit_aura_source_like_cpp(),
+            "an exact runtime hook on spell 33377 must fail closed"
+        );
+
+        let mut hit_relevant = complete_empty_player_spell_hit_authority_fixture_like_cpp();
+        configure_outdoor_pvp_tf_authority_fixture_like_cpp(&mut hit_relevant);
+        let mut spell_store = SpellStore::new();
+        spell_store.insert(
+            33_377,
+            player_target_aura_spell_info_fixture_like_cpp(
+                33_377,
+                &[
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_XP_PCT,
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE,
+                ],
+            ),
+        );
+        hit_relevant.set_spell_store(Arc::new(spell_store));
+        assert!(
+            !hit_relevant.can_authorize_empty_player_spell_hit_aura_source_like_cpp(),
+            "a hit-relevant effective effect on spell 33377 must fail closed"
         );
     }
 
@@ -158845,6 +158971,148 @@ mod tests {
     }
 
     #[test]
+    fn legacy_combat_ai_no_melee_fixture_preserves_rng_until_due_15691_hit_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_320);
+        let victim_guid = ObjectGuid::create_player(1, 91_321);
+        let spell_id = 15_691_i32;
+        add_canonical_creature_spell_test_pair_like_cpp(&canonical, creature_guid, victim_guid);
+        canonical
+            .lock()
+            .unwrap()
+            .find_map_mut(0, 0)
+            .unwrap()
+            .map_mut()
+            .get_typed_player_mut(victim_guid)
+            .unwrap()
+            .unit_mut()
+            .world_mut()
+            .relocate(Position::new(14.0, 10.0, 0.0, 0.0));
+        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+
+        let hit_seed = (0_u64..10_000)
+            .find(|seed| {
+                let mut rng = StdRng::seed_from_u64(*seed);
+                let _initial_delay = rng.gen_range(5_000_u64..=10_000_u64);
+                rng.gen_range(0..=9_999_u32) >= 500
+            })
+            .unwrap();
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature
+                    .creature
+                    .set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
+                creature.creature.set_spell(0, spell_id as u32);
+                creature.enter_combat(victim_guid);
+                creature.creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+                let mut static_flags = [0; 8];
+                static_flags[0] =
+                    wow_constants::creature::CreatureStaticFlags::NO_MELEE_FLEE.bits();
+                creature
+                    .creature
+                    .set_static_flags_runtime_like_cpp(static_flags);
+                creature.seed_runtime_rng_like_cpp(hit_seed);
+                assert!(creature.can_swing());
+                assert!(creature.runtime_rng_authority_complete_like_cpp());
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+        let mut spell = creature_ai_test_spell_info_like_cpp(spell_id, 6, 0);
+        spell.recovery_time_ms = 0;
+        spell.effect_base_points = 64;
+        spell.effects[0].effect_base_points = 64;
+        let mut config = creature_ai_spell_test_config_like_cpp(spell, false, 5.0);
+        let mut issue_26_attributes = [0_u32; 15];
+        issue_26_attributes[0] = 0x000d_0010;
+        Arc::get_mut(config.spell_store.as_mut().unwrap())
+            .unwrap()
+            .insert_spell_misc_attributes_like_cpp(spell_id, issue_26_attributes);
+        let mut misc = spell_misc_entry_like_cpp(8_320, spell_id as u32, 2);
+        misc.attributes = issue_26_attributes.map(|attribute| attribute as i32);
+        config.spell_misc_store = Some(Arc::new(wow_data::SpellMiscStore::from_entries([misc])));
+        let mut range = spell_range_entry_like_cpp(2, 0.0, 5.0);
+        range.flags = 1;
+        config.spell_range_store = Some(Arc::new(wow_data::SpellRangeStore::from_entries([range])));
+        config.spell_cooldowns_store =
+            Some(Arc::new(wow_data::SpellCooldownsStore::from_entries([
+                wow_data::SpellCooldownsEntry {
+                    id: 8_321,
+                    difficulty_id: 0,
+                    category_recovery_time: 0,
+                    recovery_time: 0,
+                    start_recovery_time: 1_000,
+                    spell_id: spell_id as u32,
+                },
+            ])));
+
+        let initialized =
+            run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+        assert_eq!(initialized.schedules_initialized, 1);
+        assert_eq!(initialized.casts_ready, 0);
+        assert!(initialized.plan.events.is_empty());
+        let initial_due_in_ms = session
+            .mutate_world_creature(creature_guid, |creature| {
+                assert!(creature.runtime_rng_authority_complete_like_cpp());
+                creature.creature_spell_due_in_ms_for_test(0).unwrap()
+            })
+            .unwrap();
+        assert!((4_750..=10_000).contains(&initial_due_in_ms));
+
+        let melee = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical));
+        assert_eq!(melee.melee_precondition_rejections, 1);
+        assert_eq!(melee.swings_ready, 0);
+        assert_eq!(melee.canonical_hits, 0);
+        assert!(melee.commands.is_empty());
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                assert!(
+                    creature.runtime_rng_authority_complete_like_cpp(),
+                    "NO_MELEE must return before the melee damage RNG draw"
+                );
+                assert_eq!(creature.creature.ai_ownership().last_swing_ms, 0);
+                assert_eq!(creature.creature.ai_ownership().swing_timer_ms, 0);
+                creature.backdate_runtime_clock_for_test(Duration::from_millis(
+                    initial_due_in_ms.saturating_add(250),
+                ));
+            })
+            .unwrap();
+
+        let cast =
+            run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+
+        assert_eq!(cast.casts_ready, 1, "spell tick outcome: {cast:?}");
+        assert_eq!(cast.canonical_cast_preconditions_passed, 1);
+        assert_eq!(cast.spell_hits, 1);
+        assert_eq!(cast.runtime_rng_authority_rejections, 1);
+        assert_eq!(cast.plan.events.len(), 1);
+        let (start, go) = decode_atomic_creature_spell_wire_pair_like_cpp(&cast.plan.events[0]);
+        assert_eq!(start.opcode, ServerOpcodes::SpellStart as u16);
+        assert_eq!(go.opcode, ServerOpcodes::SpellGo as u16);
+        assert_eq!(start.spell_id, spell_id);
+        assert_eq!(go.spell_id, spell_id);
+        assert_eq!(go.hit_targets, vec![victim_guid]);
+        assert!(go.miss_targets.is_empty());
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                assert!(
+                    !creature.runtime_rng_authority_complete_like_cpp(),
+                    "the committed HIT remains in the plan before launch RNG is tombstoned"
+                );
+                assert_eq!(creature.creature_spell_due_in_ms_for_test(0), None);
+            })
+            .unwrap();
+    }
+
+    #[test]
     fn legacy_creature_combat_ai_mixed_noninstant_template_suppresses_15691_like_cpp() {
         use crate::map_manager::RuntimeTickOwner;
 
@@ -161991,6 +162259,14 @@ mod tests {
         assert_eq!(rejected.melee_precondition_rejections, 1);
         assert_eq!(rejected.canonical_hits, 0);
         assert!(rejected.commands.is_empty());
+        let guard = manager.read().unwrap();
+        let creature = guard.find_creature(0, 0, creature_guid).unwrap();
+        assert!(
+            creature.runtime_rng_authority_complete_like_cpp(),
+            "NO_MELEE returns before CalculateMeleeDamage consumes runtime RNG"
+        );
+        assert_eq!(creature.creature.ai_ownership().last_swing_ms, 0);
+        assert_eq!(creature.creature.ai_ownership().swing_timer_ms, 0);
     }
 
     #[test]

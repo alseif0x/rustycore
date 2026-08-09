@@ -2554,6 +2554,39 @@ mod tests {
     }
 
     #[test]
+    fn blessing_of_auchindoun_fixture_has_only_outgoing_damage_and_xp_auras_like_cpp() {
+        let data_dir = "/home/server/woltk-server-core/Data";
+        let locale = "esES";
+        let path = Path::new(data_dir)
+            .join("dbc")
+            .join(locale)
+            .join("SpellEffect.db2");
+        if !path.exists() {
+            eprintln!(
+                "Skipping test: SpellEffect.db2 not found at {}",
+                path.display()
+            );
+            return;
+        }
+
+        let store = SpellEffectDb2Store::load(data_dir, locale).expect("load SpellEffect.db2");
+        let mut effects: Vec<_> = store
+            .entries_like_cpp()
+            .filter(|entry| entry.spell_id == 33_377)
+            .map(|entry| {
+                (
+                    entry.effect_index,
+                    entry.effect,
+                    entry.effect_aura,
+                    entry.effect_trigger_spell,
+                )
+            })
+            .collect();
+        effects.sort_unstable();
+        assert_eq!(effects, vec![(0, 6, 200, 0), (1, 6, 79, 0)]);
+    }
+
+    #[test]
     fn spell_power_fixture_maps_relationship_spell_id_and_percent_fields_like_cpp() {
         let data_dir = "/home/server/woltk-server-core/Data";
         let locale = "enUS";
