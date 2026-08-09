@@ -13607,6 +13607,7 @@ mod tests {
         RepresentedGameObjectSpellCaster, RepresentedGameObjectUseEffect,
         RepresentedLootRollCriteriaEvent, SessionState, loot_money_durable_outcome_like_cpp,
     };
+    use crate::session_policy::LootDropRatesLikeCpp;
     use rand::{Rng, SeedableRng, rngs::StdRng};
     use std::time::{Duration, Instant};
     use std::{
@@ -13650,8 +13651,8 @@ mod tests {
     };
     use wow_network::{
         ApplyLootMoneyLikeCppCommand, GroupInfo, GroupRegistry, KickLikeCppCommand,
-        LootDropRatesLikeCpp, LootRollCommandIdentityLikeCpp, LootRollVoteCommand,
-        MasterLootGiveResult, PendingInvites, PlayerBroadcastInfo, PlayerRegistry, SessionCommand,
+        LootRollCommandIdentityLikeCpp, LootRollVoteCommand, MasterLootGiveResult, PendingInvites,
+        PlayerBroadcastInfo, PlayerRegistry, SessionCommand,
     };
     use wow_packet::packets::loot::{
         CreatureLoot, LOOT_ERROR_MASTER_OTHER_LIKE_CPP, LOOT_ERROR_MASTER_UNIQUE_ITEM_LIKE_CPP,

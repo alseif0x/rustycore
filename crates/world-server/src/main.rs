@@ -49,13 +49,11 @@ use wow_loot::{
 use wow_network::session_mgr::SessionManager;
 use wow_network::world_socket::{AccountInfo, AccountLookup};
 use wow_network::{
-    ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
     GameEventQuestCompleteCommandLikeCpp, GameEventQuestCompleteResponseLikeCpp, GroupDbRowLikeCpp,
     GroupLoadSummaryLikeCpp, GroupMemberCharacterLikeCpp, GroupMemberDbRowLikeCpp, GroupRegistry,
-    KickLikeCppCommand, LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, PendingInvites,
-    PlayerRegistry, ReadyCheckEventLikeCpp, ReputationRatesLikeCpp,
+    KickLikeCppCommand, PendingInvites, PlayerRegistry, ReadyCheckEventLikeCpp,
     ResetSeasonalQuestStatusCommand, SendVisibleObjectValuesUpdateCommand, SessionCommand,
-    SessionResources, SocketTimeoutsLikeCpp, WorldSessionShutdownFlushLikeCppCommand,
+    SocketTimeoutsLikeCpp, WorldListenerPolicyLikeCpp, WorldSessionShutdownFlushLikeCppCommand,
     WorldSessionShutdownFlushResultLikeCpp, load_groups_from_db_rows_like_cpp,
     tick_all_group_ready_checks_like_cpp,
 };
@@ -64,8 +62,10 @@ use wow_packet::{
     packets::chat::{ChatMsg, ChatPkt},
 };
 use wow_world::{
-    BattlePetAccountRegistryLikeCpp, LoginBattlePetPersistenceLikeCpp, MMapRuntimeConfigLikeCpp,
-    MapManager as LegacyMapManager, SharedCanonicalMapManager, SharedMapManager,
+    BattlePetAccountRegistryLikeCpp, ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp,
+    ChatListenRangesLikeCpp, LoginBattlePetPersistenceLikeCpp, LootDropRatesLikeCpp,
+    MMapRuntimeConfigLikeCpp, MapManager as LegacyMapManager, PacketSpoofConfigLikeCpp,
+    ReputationRatesLikeCpp, SharedCanonicalMapManager, SharedMapManager,
     WorldMMapPathfinderWorkerLikeCpp, WorldSession,
     conditions::{
         ConditionMapRef, ConditionMapStateSnapshot, is_spawn_group_meeting_map_conditions_like_cpp,
@@ -76,8 +76,11 @@ use wow_world::{
 mod area_trigger_loaded_grid;
 mod creature_loaded_grid;
 mod gameobject_loaded_grid;
+mod session_resources;
 mod spawn_store_loader;
 mod spell_acquisition_loader;
+
+use session_resources::SessionResources;
 
 const WORLD_CONFIG_CANDIDATES: &[&str] = &[
     "worldserver.conf",
@@ -5331,6 +5334,23 @@ async fn main() -> Result<ExitCode> {
             Arc::clone(&char_db),
         ));
 
+    let world_listener_policy = WorldListenerPolicyLikeCpp {
+        max_overspeed_pings: world_config_u32(&world_configs, "CONFIG_MAX_OVERSPEED_PINGS", 2),
+        socket_timeouts: SocketTimeoutsLikeCpp {
+            unauthenticated_secs: u64::from(world_config_u32(
+                &world_configs,
+                "CONFIG_SOCKET_TIMEOUTTIME",
+                900,
+            )),
+            active_secs: u64::from(world_config_u32(
+                &world_configs,
+                "CONFIG_SOCKET_TIMEOUTTIME_ACTIVE",
+                60,
+            )),
+        },
+        ip_location_store: Some(Arc::clone(&ip_location_store)),
+    };
+
     // Build session resources
     let session_resources = Arc::new(SessionResources {
         char_db: Some(Arc::clone(&char_db)),
@@ -5347,7 +5367,6 @@ async fn main() -> Result<ExitCode> {
         import_price_stores: Some(Arc::clone(&import_price_stores)),
         emotes_store: Some(Arc::clone(&emotes_store)),
         emotes_text_store: Some(Arc::clone(&emotes_text_store)),
-        ip_location_store: Some(Arc::clone(&ip_location_store)),
         item_class_store: Some(Arc::clone(&item_class_store)),
         item_currency_cost_store: Some(Arc::clone(&item_currency_cost_store)),
         item_extended_cost_store: Some(Arc::clone(&item_extended_cost_store)),
@@ -5436,7 +5455,6 @@ async fn main() -> Result<ExitCode> {
         spell_category_store: Some(Arc::clone(&spell_category_store)),
         npc_spell_click_store: Some(Arc::clone(&npc_spell_click_store)),
         spell_aura_options_store: Some(Arc::clone(&spell_aura_options_store)),
-        spell_class_options_store: Some(Arc::clone(&spell_class_options_store)),
         spell_aura_restrictions_store: Some(Arc::clone(&spell_aura_restrictions_store)),
         spell_target_restrictions_store: Some(Arc::clone(&spell_target_restrictions_store)),
         spell_equipped_items_store: Some(Arc::clone(&spell_equipped_items_store)),
@@ -5453,7 +5471,6 @@ async fn main() -> Result<ExitCode> {
         pet_levelup_spell_store: Some(Arc::clone(&pet_levelup_spell_store)),
         pet_default_spell_store: Some(Arc::clone(&pet_default_spell_store)),
         pet_family_spell_store: Some(Arc::clone(&pet_family_spell_store)),
-        spell_procs_per_minute_store: Some(Arc::clone(&spell_procs_per_minute_store)),
         spell_proc_store: Some(Arc::clone(&spell_proc_store)),
         spell_required_store: Some(Arc::clone(&spell_required_store)),
         spell_threat_store: Some(Arc::clone(&spell_threat_store)),
@@ -5705,19 +5722,6 @@ async fn main() -> Result<ExitCode> {
             ),
             mute_time_secs: world_config_u32(&world_configs, "CONFIG_CHATFLOOD_MUTE_TIME", 10),
         },
-        max_overspeed_pings: world_config_u32(&world_configs, "CONFIG_MAX_OVERSPEED_PINGS", 2),
-        socket_timeouts: SocketTimeoutsLikeCpp {
-            unauthenticated_secs: u64::from(world_config_u32(
-                &world_configs,
-                "CONFIG_SOCKET_TIMEOUTTIME",
-                900,
-            )),
-            active_secs: u64::from(world_config_u32(
-                &world_configs,
-                "CONFIG_SOCKET_TIMEOUTTIME_ACTIVE",
-                60,
-            )),
-        },
         packet_spoof_config: PacketSpoofConfigLikeCpp {
             policy: world_config_u32(&world_configs, "CONFIG_PACKET_SPOOF_POLICY", 1),
             ban_mode: world_config_u32(&world_configs, "CONFIG_PACKET_SPOOF_BANMODE", 0),
@@ -5790,6 +5794,7 @@ async fn main() -> Result<ExitCode> {
     // Spawn realm listener (existing world listener)
     let mut realm_handle = tokio::spawn({
         let lookup = Arc::clone(&account_lookup);
+        let listener_policy = world_listener_policy;
         let resources = Arc::clone(&session_resources);
         let mgr = Arc::clone(&session_mgr);
         let smap = Arc::clone(&shared_map);
@@ -5808,8 +5813,9 @@ async fn main() -> Result<ExitCode> {
             wow_network::start_world_listener(
                 realm_addr,
                 lookup,
-                resources,
-                move |account, pkt_rx, send_tx, send_write_fence_like_cpp, res| {
+                listener_policy,
+                move |account, pkt_rx, send_tx, send_write_fence_like_cpp, socket_timeouts| {
+                    let resources = Arc::clone(&resources);
                     let mgr = Arc::clone(&mgr);
                     let smap = Arc::clone(&smap);
                     let canonical_map = Arc::clone(&canonical_map);
@@ -5826,7 +5832,8 @@ async fn main() -> Result<ExitCode> {
                         pkt_rx,
                         send_tx,
                         send_write_fence_like_cpp,
-                        res,
+                        socket_timeouts,
+                        resources,
                         mgr,
                         smap,
                         canonical_map,
@@ -12798,6 +12805,7 @@ async fn create_session(
     pkt_rx: flume::Receiver<wow_packet::WorldPacket>,
     send_tx: flume::Sender<Vec<u8>>,
     send_write_fence_like_cpp: wow_network::SocketWriteFenceLikeCpp,
+    socket_timeouts: SocketTimeoutsLikeCpp,
     resources: Arc<SessionResources>,
     session_mgr: Arc<SessionManager>,
     shared_map: SharedMapManager,
@@ -13469,7 +13477,7 @@ async fn create_session(
     session.set_chat_level_requirements_like_cpp(resources.chat_level_requirements);
     session.set_chat_listen_ranges_like_cpp(resources.chat_listen_ranges);
     session.set_chat_flood_config_like_cpp(resources.chat_flood_config);
-    session.set_socket_timeouts_like_cpp(resources.socket_timeouts);
+    session.set_socket_timeouts_like_cpp(socket_timeouts);
     session.set_packet_spoof_config_like_cpp(resources.packet_spoof_config);
     session.set_player_save_interval_ms_like_cpp(resources.player_save_interval_ms);
     session.set_legacy_creature_aggro_config_like_cpp(legacy_creature_aggro_config.clone());
@@ -15312,6 +15320,7 @@ mod tests {
             instance_id: 0,
             position: wow_core::Position::ZERO,
             combat_reach: 0.0,
+            in_combat: false,
             liquid_status: 0,
             is_in_world: true,
             realm_send_tx: send_tx.clone(),
@@ -18540,6 +18549,34 @@ Expansion = 9
     }
 
     #[test]
+    fn world_listener_captures_application_resources_outside_transport_boundary() {
+        let source =
+            fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/main.rs"))
+                .expect("world-server source should be readable");
+        let listener_start = source
+            .find("wow_network::start_world_listener(")
+            .expect("world listener call must exist");
+        let listener_end = listener_start
+            + source[listener_start..]
+                .find("realm_listener_ready_tx,")
+                .expect("world listener readiness argument must exist");
+        let listener_call = &source[listener_start..listener_end];
+
+        assert!(
+            source[..listener_start].contains("let resources = Arc::clone(&session_resources);")
+        );
+        assert!(listener_call.contains(
+            "move |account, pkt_rx, send_tx, send_write_fence_like_cpp, socket_timeouts|"
+        ));
+        assert!(listener_call.contains("let resources = Arc::clone(&resources);"));
+        assert!(listener_call.contains("create_session("));
+        assert!(
+            !listener_call.contains("session_resources"),
+            "the application aggregate must be captured outside the listener call"
+        );
+    }
+
+    #[test]
     fn primary_profession_capacity_config_and_session_resource_wiring_are_pinned() {
         let _guard = TEST_LOCK.lock().expect("test lock poisoned");
 
@@ -19311,7 +19348,7 @@ ResetSchedule.WeekDay = 5
         .expect("config should load");
 
         let configs = wow_config::load_world_config_values();
-        let packet_spoof = wow_network::PacketSpoofConfigLikeCpp {
+        let packet_spoof = wow_world::PacketSpoofConfigLikeCpp {
             policy: world_config_u32(&configs, "CONFIG_PACKET_SPOOF_POLICY", 1),
             ban_mode: world_config_u32(&configs, "CONFIG_PACKET_SPOOF_BANMODE", 0),
             ban_duration_secs: world_config_u32(
@@ -19323,7 +19360,7 @@ ResetSchedule.WeekDay = 5
 
         assert_eq!(
             packet_spoof,
-            wow_network::PacketSpoofConfigLikeCpp {
+            wow_world::PacketSpoofConfigLikeCpp {
                 policy: 2,
                 ban_mode: 2,
                 ban_duration_secs: 12_345,
@@ -22007,6 +22044,7 @@ mmap.enablePathFinding = 0
                 instance_id: 0,
                 position: wow_core::Position::ZERO,
                 combat_reach: 0.0,
+                in_combat: false,
                 liquid_status: 0,
                 is_in_world: true,
                 realm_send_tx: send_tx.clone(),

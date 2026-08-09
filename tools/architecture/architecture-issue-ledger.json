@@ -37,7 +37,7 @@
     },
     {
       "number": 134,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.2.2] Decouple the world listener from gameplay SessionResources"
     },
     {
