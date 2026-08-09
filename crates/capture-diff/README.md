@@ -37,8 +37,10 @@ capture it still owes without manufacturing a golden. Both required contracts
 shown above are enforced `ready` gates backed by accredited schema-v3 RAW
 manifests and completed RAW-to-derived lineage: issue #106's
 `loot-single-item-claim` permits exactly six packets per side and issue #26's
-`creature-spell-casting` exactly two. Both compare strict-CLEAN with empty
-accepted-divergence baselines.
+final `creature-spell-casting` generation exactly two. Both compare
+strict-CLEAN with empty accepted-divergence baselines; issue #26's current
+generation also passes `verify-required` from clean harness HEAD
+`42977e9accb24fc3921af075f4122e1f0180f4a2`.
 
 The `ready` status is an operator attestation made only after inspecting the
 capture run and its provenance. Each wrapper publishes a completed RAW
@@ -191,13 +193,23 @@ reordered START/GO, full combat-log payloads, noncanonical padding/GUIDs,
 mismatched miss/status counts, trailing bytes and even identical malformed
 bodies all fail closed.
 
-That retained `15691` pair is specifically an observed **HIT** sample. It does
-not establish deterministic hit behavior and has not been regenerated for the
-in-progress P1 hardening. P1 removes the unconditional-hit assumption: the
-atomic START/GO publication is limited to physical `DmgClass=MELEE` Creature
-spells against a Player attacked from behind, with zero spell/effect mechanics
-and complete Creature/Player source authority that proves every omitted source
-is hit-inert for this bounded result. Completeness is not an emptiness shortcut:
+The current `15691` pair is the final issue-#26 P1 recapture and specifically
+an observed **HIT** sample; it does not establish deterministic hit behavior.
+Both C++ and Rust wrappers ran from clean harness HEAD
+`42977e9accb24fc3921af075f4122e1f0180f4a2` under
+`creature-spell-casting-shell-fixture-v2`. Before capture, that guard verifies
+the installed stock `AIName=SmartAI` / difficulty-0 `StaticFlags1=0` snapshot,
+CAS-switches it to `CombatAI` / `0x00100000`
+(`CREATURE_STATIC_FLAG_NO_MELEE`), and after capture CAS-restores the exact
+`SmartAI` / `0` pair. `NO_MELEE` suppresses the unrelated automatic melee path
+without disabling CombatAI's EventMap cast or consuming its melee damage RNG
+before the due spell.
+
+The final P1 hardening removes the unconditional-hit assumption: atomic
+START/GO publication is limited to physical `DmgClass=MELEE` Creature spells
+against a Player attacked from behind, with zero spell/effect mechanics and
+complete Creature/Player source authority that proves every omitted source is
+hit-inert for this bounded result. Completeness is not an emptiness shortcut:
 the reduced runtime's canonical local aura application/modifier/visible
 containers must still be empty, while loaded persistence/login sources may be
 nonempty only when their exact effects are proven unable to change the result.
@@ -226,25 +238,33 @@ damage/outcome/proc calculation sets that tombstone and publishes no invented
 damage or melee wire. C++ owns one process-global random engine whereas Rust
 owns one RNG per Creature, so this slice claims the same distributions and
 local causal draw order, not an exact global sequence or cross-Creature
-interleaving. Damage and effects remain outside this wire-only slice, and this
-documentation makes no P1 recapture or final-test claim.
+interleaving. Damage and effects remain outside this wire-only slice; the final
+issue-#26 acceptance closes only this bounded P1 wire/lifecycle contract, not
+the full Spell effect or combat pipeline.
 
 The C++ RAW PKT
-`93b6d01532f01a199486575db024b8e4ad72b786bdeed40d9ca7cda72b57f030`
+`b52cc8ba962160be63286e72eb7611c6282b0cdc3a1cee0082fc6d6d7bf2c7b9`
 comes from an accredited source derivation: base HEAD
 `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`, one-file patch SHA-256
 `ef8b3c29f46fe537e1ae4e826b5610afcd534999f900ec9554ee0534e7847262`,
 and resulting HEAD `8cfed90bf1720dbf8b9dc109113c8d7d9173ff6c`. The patch only corrects the
 `ChrSpecialization` index-container bound required by the installed DB2 data;
 it changes no AI or spell path. The Rust RAW tree
-`77ab3fb9219b06609657fbec811016d3e139bb78d82683206c4d07adc6fd1ee4`
-comes from clean HEAD `9177705612a9b108edeba0221bde6bfb02b7e8fb`. Strict
-import produced filtered C++ PKT
-`c849f0044bc3467d439ec0a4bff12719a0d751f20dbd6be21d62b5a4f3bf3370`,
+`9aee309d9ffb2e2e1e5a33167c228ccaa8d1634d917efd026e1a525f2a5db94a`
+comes from clean source HEAD
+`42977e9accb24fc3921af075f4122e1f0180f4a2`. The retained C++ and Rust
+manifest hashes are respectively
+`d40e3615b3337a26a3c4d4e380dc665c23719133ec0b3c7a05febdfd640e849d`
+and `3c942209db52f9f36b3d661477f0cad766e7e2ee49cf1fc97d68a74d996f0da0`.
+Strict import produced filtered C++ PKT
+`a6b32206e3277e455e25f6aa8e491606aa5cd9449e2bf24245ea9dd5db79d932`,
 normalized Rust tree
-`8bc8d8886b2f632fd75037b913c162f55032d87762cd74313bc1c28fff56e124`,
+`cc8d53b06c2727c95990eda80fd095a1a7e390da0af16981429d07176e0c003b`,
 and lineage file
-`4448e804409b05f00e87762d4fad0a87efba5a95661507631ce0d0f774e01229`.
+`f443539e7857ac27dfb2029012f1e889d92ed27a224f89f7a6247f9510f0479d`.
+`diff --strict` reports 2 matched packets and zero differences, and
+`verify-required creature-spell-casting` reports CLEAN with exact
+topology/order and correlated payload semantics.
 This wire window proves only the bounded START/GO publication contract; it does
 not claim spell-effect, damage, power, aura, or health-state mutation parity.
 

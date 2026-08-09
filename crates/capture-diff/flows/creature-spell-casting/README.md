@@ -1,16 +1,14 @@
 # Required capture: creature spell casting
 
-This directory retains issue #26's original bounded wire slice and the
-fail-closed v2 live-recapture gate. The reviewed pair records the same guarded
-action from patched C++ source HEAD
+This directory retains issue #26's final bounded P1 wire/lifecycle acceptance.
+The reviewed v2 pair records the same guarded action from patched C++ source HEAD
 `8cfed90bf1720dbf8b9dc109113c8d7d9173ff6c` and clean RustyCore HEAD
-`9177705612a9b108edeba0221bde6bfb02b7e8fb`: exactly one adjacent
+`42977e9accb24fc3921af075f4122e1f0180f4a2`: exactly one adjacent
 `SMSG_SPELL_START`/`SMSG_SPELL_GO` pair for spell `15691`, with an empty strict
 divergence baseline. Synthetic semantic tests remain parser/comparator coverage;
 the committed RAW provenance and lineage are the live acceptance evidence.
-Those retained manifests and bot reports truthfully describe the earlier v1
-fixture. They are not relabeled as v2 evidence: the v2 manifest pin makes them
-fail closed until both sides are recaptured and imported with the new guard.
+Both manifests pin `creature-spell-casting-shell-fixture-v2` and fixture SHA-256
+`3cef5dd6201c88fc85c1c2cb767fec27cd11921ec7ecdc2c7705379fd54e356d`.
 The C++ source chain is base HEAD
 `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` plus patch SHA-256
 `ef8b3c29f46fe537e1ae4e826b5610afcd534999f900ec9554ee0534e7847262`,
@@ -95,18 +93,19 @@ pair with character `15` as the sole hit target, no miss status, and advanced
 combat logging disabled. A miss fails that capture attempt; do not alter the
 spell or character database to force the roll. The committed `15691` evidence
 is therefore one observed **HIT** sample, not evidence that the spell always
-hits and not a recapture of the P1 hardening described below.
+hits. It is the final live recapture of the bounded P1 hardening described below.
 
-The in-progress P1 hardening removes the unconditional-hit assumption from
+The final P1 hardening removes the unconditional-hit assumption from
 `SMSG_SPELL_GO`. Rust may publish the atomic START/GO pair only for the bounded
 C++ resolution of a physical `DmgClass=MELEE` Creature spell whose sole target
 is a Player attacked from behind, whose spell and represented effect mechanics
 are all zero, and whose complete Creature/Player source authority proves every
 omitted spell-hit source hit-inert. The proof deliberately does not require
-every external source to be empty: persisted or login-derived sources may exist when their exact
-effects are known not to affect this bounded result, but the reduced runtime's
-canonical local aura application/modifier/visible containers must still be
-empty until it owns their full C++ semantics.
+every external source to be empty: persisted or login-derived sources may
+exist when their exact effects are known not to affect this bounded result,
+but the reduced runtime's canonical local aura
+application/modifier/visible containers must still be empty until it owns
+their full C++ semantics.
 
 The Player side fails closed unless exact persistence and login/zone
 reconciliation prove the represented map/area ancestry, guild, skills,
@@ -116,6 +115,15 @@ outdoor/battlefield sources, and script, legacy/all-rank and SpellLinked hook
 sets. Both valid SpellLinked hooks and the absolute trigger IDs retained from
 rejected loader rows block a candidate; a loader error is not treated as proof
 that no hook exists.
+
+The final live path corrects the external-ID WDC4 offsets used by
+`AreaTable`: Shattrath area `3697` resolves to map `530` and Terokkar zone
+`3519` like C++. The OutdoorPvPTF source is then admitted only when effective
+spell `33377` contains exactly hit-inert XP-percentage and outgoing-damage
+auras and no represented runtime hook can alter them. Effective
+`ChrSpecialization` hotfix rows are loaded before active-trait authority is
+evaluated. The four Auchindoun dungeon zone IDs remain fail-closed because
+this authority does not model C++'s `(Map*, zone)` registration key.
 
 A Creature-owned uniform roll in `0..=9_999` resolves `MISS` below `500` (the
 base 5% miss chance) and `HIT` otherwise. The temporary
@@ -138,8 +146,9 @@ Creature and emits no fabricated damage or melee wire. C++ uses one
 process-global RNG while Rust uses one RNG per Creature, so the represented
 claim is distribution plus local causal draw order, not an identical global
 sequence or cross-Creature interleaving. This resolution selects only GO's
-hit/miss topology; spell damage and effects remain outside scope. No P1
-recapture or final verification is claimed here.
+hit/miss topology; spell damage and effects remain outside scope. The v2
+recapture and strict verifier close this bounded result only, not the full
+Spell effect or combat pipeline.
 
 ## Recording the action
 
@@ -240,25 +249,33 @@ cargo run -p capture-diff -- import creature-spell-casting \
   --strict
 ```
 
-The historical v1 import was strict-CLEAN (2/2 packets) with these retained
-identities:
+The final v2 import is strict-CLEAN (2/2 packets, zero divergences) with these
+retained identities:
 
-- C++ RAW PKT SHA-256:
-  `93b6d01532f01a199486575db024b8e4ad72b786bdeed40d9ca7cda72b57f030`;
-- Rust RAW dump tree SHA-256:
-  `77ab3fb9219b06609657fbec811016d3e139bb78d82683206c4d07adc6fd1ee4`;
+- C++ RAW PKT SHA-256 (73,730 bytes / 183 packets):
+  `b52cc8ba962160be63286e72eb7611c6282b0cdc3a1cee0082fc6d6d7bf2c7b9`;
+- Rust RAW dump tree SHA-256 (113 packets):
+  `9aee309d9ffb2e2e1e5a33167c228ccaa8d1634d917efd026e1a525f2a5db94a`;
+- C++ and Rust manifest SHA-256:
+  `d40e3615b3337a26a3c4d4e380dc665c23719133ec0b3c7a05febdfd640e849d`
+  and `3c942209db52f9f36b3d661477f0cad766e7e2ee49cf1fc97d68a74d996f0da0`;
+- reviewed C++ and Rust executable SHA-256:
+  `9969ec0fce3f2d34974a3fddedd8836bee2367c1b5b1b4c86130c5a3c07d7de6`
+  and `2027d8d8a2ecfb2e4f5baf3f1374f1c1d7e3277e28a4ad2e906ee629f83152a3`;
+- pinned bot executable SHA-256:
+  `099d98144e89890d331759d693dc617c7016d1b4f988ea5033bf80662f3a4ffb`;
+- C++ and Rust bot-report SHA-256:
+  `fdf1da6266c041b3ee880bd6268c3d24fedb8a85ea23e3655446b98796ac2b34`
+  and `1aaf1f369664b2c68ba07ec43a63adfe88b0001a20c833e5638222d282d38c74`;
 - filtered C++ PKT SHA-256:
-  `c849f0044bc3467d439ec0a4bff12719a0d751f20dbd6be21d62b5a4f3bf3370`;
+  `a6b32206e3277e455e25f6aa8e491606aa5cd9449e2bf24245ea9dd5db79d932`;
 - normalized Rust tree SHA-256:
-  `8bc8d8886b2f632fd75037b913c162f55032d87762cd74313bc1c28fff56e124`;
+  `cc8d53b06c2727c95990eda80fd095a1a7e390da0af16981429d07176e0c003b`;
 - `capture-lineage.json` file SHA-256:
-  `4448e804409b05f00e87762d4fad0a87efba5a95661507631ce0d0f774e01229`.
+  `f443539e7857ac27dfb2029012f1e889d92ed27a224f89f7a6247f9510f0479d`.
 
-The v2 requirement is deliberately not `ready` from those v1 artifacts. Until
-both sides are recaptured and imported, the following command must reject the
-old fixture contract/hash rather than silently promote it. After a genuine v2
-import, use the same command to verify exact provenance, packet shape, empty
-baseline, and hashes:
+The requirement is `ready`; verify its exact provenance, packet shape, empty
+baseline, hashes, topology/order, and correlated payload semantics with:
 
 ```bash
 cargo run -p capture-diff -- verify-required creature-spell-casting

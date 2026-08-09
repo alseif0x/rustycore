@@ -1,11 +1,11 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**Date:** 2026-08-08 · **Base:** `3.4.3` @ `91777056` including issue #26's bounded
-creature-spell runtime and login faction hydration.
+**Date:** 2026-08-09 · **Base:** `3.4.3` @ `42977e9a` including issue #26's final bounded
+creature-spell P1 wire/lifecycle acceptance and login faction hydration.
 
-The P1 hardening described below is in progress beyond that accredited base.
-The retained `15691` capture was not regenerated for it, and this state update
-does not claim final P1 test completion.
+The guarded C++ and Rust `15691` evidence was recaptured from clean harness HEAD
+`42977e9accb24fc3921af075f4122e1f0180f4a2`; strict diff is CLEAN at 2/2 packets and
+`verify-required creature-spell-casting` is CLEAN.
 
 This document replaces the drifting status snapshots in `_INDEX.md` (2026-05-01, "5–15%"),
 the `MIGRATION_ROADMAP.md` §3 inherited table (which tells you not to trust it), and the
@@ -305,7 +305,7 @@ M2.6 / issue #26 closes the bounded stock `CombatAI`/`TurretAI` template-spell p
 slice. The globally owned creature frame reads the hydrated template slots and active-difficulty
 spell metadata, schedules only the represented instant target shapes with the C++ raw cooldown
 rules, and commits an atomic adjacent `SMSG_SPELL_START`/`SMSG_SPELL_GO` pair before the
-same-frame melee phase. The in-progress P1 hardening removes GO's unconditional-hit assumption.
+same-frame melee phase. The final P1 hardening removes GO's unconditional-hit assumption.
 It permits publication only for the bounded C++ resolution of a physical
 `DmgClass=MELEE` Creature spell whose sole target is a Player attacked from behind, whose spell
 and represented effect mechanics are all zero, and whose complete Creature/Player source
@@ -340,10 +340,9 @@ evidence of the full `Spell` pipeline or M3 combat math.
 The first Rust live attempt exposed a real login bridge defect rather than a casting mismatch:
 `player_faction_template_like_cpp` remained unset, the player registry published faction template
 `0`, and the creature-hostility gate correctly rejected that unrepresented identity before
-`AttackStart`. HEAD `91777056` now derives the player's faction template from `ChrRacesStore`
+`AttackStart`. The final HEAD derives the player's faction template from `ChrRacesStore`
 when the loaded identity is installed and mirrors it into the canonical `Player`; the regression
-covers identity → registry → canonical player without manually seeding a faction. The retained
-pre-P1 evidence on both sides comes from that clean harness HEAD. The accredited C++ source
+covers identity → registry → canonical player without manually seeding a faction. The accredited C++ source
 derivation starts at base HEAD `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`, applies the reviewed
 one-file patch SHA-256
 `ef8b3c29f46fe537e1ae4e826b5610afcd534999f900ec9554ee0534e7847262`, and yields patched HEAD
@@ -351,21 +350,40 @@ one-file patch SHA-256
 `ChrSpecialization` index-container bound needed to load the installed DB2 dataset; it does not
 touch creature AI, spell selection, casting, or packet serialization.
 
-The retained guarded Cabal Interrogator `22378` / Eviscerate `15691` import is strict-CLEAN:
-exactly the adjacent START/GO pair on both sides, no accepted divergence. It records one observed
-**HIT** branch from the accredited pre-P1 Rust HEAD; it neither proves that `15691` always hits
-nor represents a P1 recapture. Its five review identities are:
+The final fixture guard uses contract `creature-spell-casting-shell-fixture-v2`. It verifies the
+installed stock `AIName=SmartAI` and difficulty-0 `StaticFlags1=0`, CAS-switches the capture
+window to `CombatAI` and `0x00100000` (`CREATURE_STATIC_FLAG_NO_MELEE`), then CAS-restores the
+exact `SmartAI`/`0` pair and verifies cleanup. Suppressing auto-melee prevents that unrelated path
+from consuming melee damage RNG before CombatAI's due spell without disabling its EventMap cast.
+The final live authority also loads effective `ChrSpecialization` hotfix rows and corrects
+external-ID `AreaTable` WDC4 offsets, so Shattrath area `3697` resolves to map `530` and Terokkar
+zone `3519` like C++. OutdoorPvPTF source spell `33377` is admitted only after its effective XP
+and outgoing-damage auras plus exact runtime-hook authority prove it hit-inert; the four
+Auchindoun dungeon IDs remain fail-closed without C++'s `(Map*, zone)` registration authority.
+
+Both C++ and Rust were recaptured from clean harness HEAD
+`42977e9accb24fc3921af075f4122e1f0180f4a2`. The final guarded Cabal Interrogator `22378` /
+Eviscerate `15691` import contains exactly the adjacent START/GO pair on both sides with no
+accepted divergence. It records one observed **HIT** branch and does not prove that `15691`
+always hits. Its current review identities are:
 
 - C++ RAW PKT:
-  `93b6d01532f01a199486575db024b8e4ad72b786bdeed40d9ca7cda72b57f030`;
+  `b52cc8ba962160be63286e72eb7611c6282b0cdc3a1cee0082fc6d6d7bf2c7b9`;
 - Rust RAW tree:
-  `77ab3fb9219b06609657fbec811016d3e139bb78d82683206c4d07adc6fd1ee4`;
+  `9aee309d9ffb2e2e1e5a33167c228ccaa8d1634d917efd026e1a525f2a5db94a`;
+- C++ / Rust capture manifests:
+  `d40e3615b3337a26a3c4d4e380dc665c23719133ec0b3c7a05febdfd640e849d` /
+  `3c942209db52f9f36b3d661477f0cad766e7e2ee49cf1fc97d68a74d996f0da0`;
 - filtered C++ PKT:
-  `c849f0044bc3467d439ec0a4bff12719a0d751f20dbd6be21d62b5a4f3bf3370`;
+  `a6b32206e3277e455e25f6aa8e491606aa5cd9449e2bf24245ea9dd5db79d932`;
 - normalized Rust tree:
-  `8bc8d8886b2f632fd75037b913c162f55032d87762cd74313bc1c28fff56e124`;
+  `cc8d53b06c2727c95990eda80fd095a1a7e390da0af16981429d07176e0c003b`;
 - `capture-lineage.json` file:
-  `4448e804409b05f00e87762d4fad0a87efba5a95661507631ce0d0f774e01229`.
+  `f443539e7857ac27dfb2029012f1e889d92ed27a224f89f7a6247f9510f0479d`.
+
+`diff creature-spell-casting --strict` reports 2 matched packets with zero value, routing,
+missing, or extra differences. `verify-required creature-spell-casting` is CLEAN with exact
+topology/order and correlated payload semantics.
 
 ---
 
@@ -434,11 +452,11 @@ fanout, or a per-Player `RestMgr`/`Player::Update` owner. The aggregate
 ### Engines — PARTIAL / STUB (the gameplay-quality gap)
 | Capability | Status | Evidence |
 |---|---|---|
-| Spell cast → SPELL_START / SPELL_GO | **WORKS (bounded paths; P1 hardening in progress)** | the represented player-cast handler publishes its existing START/GO path; issue #26 adds one map-owned creature path. P1 no longer presumes HIT: only a physical melee Creature spell against a rear-attacked Player, with zero mechanics and complete source authority proving omitted sources hit-inert, may publish the atomic pair; canonical local aura containers remain empty. Player persistence/login/zone/map/guild/skill/quest/glyph/trait/pet/FFA/SpellArea/hook evidence fails closed, including valid and rejected-trigger SpellLinked rows. The Creature roll maps `<500` to base `MISS` and the rest to `HIT`; local order is cast→schedule and hit→cooldown, with `NO_ATTACK_MISS` still consuming a hit roll. An accepted HIT publishes then tombstones before scheduling because subsequent launch/effect RNG is omitted; MISS may retain authority for its repeat delay. Spell/melee/movement share the tombstone. C++ global-vs-Rust per-Creature RNG parity is distribution/local-order only. This status does not claim effect execution, P1 recapture, or final P1 verification. |
+| Spell cast → SPELL_START / SPELL_GO | **WORKS (bounded paths; issue #26 P1 verified)** | the represented player-cast handler publishes its existing START/GO path; issue #26 adds one map-owned creature path. P1 no longer presumes HIT: only a physical melee Creature spell against a rear-attacked Player, with zero mechanics and complete source authority proving omitted sources hit-inert, may publish the atomic pair; canonical local aura containers remain empty. Player persistence/login/zone/map/guild/skill/quest/glyph/trait/pet/FFA/SpellArea/hook evidence fails closed, including valid and rejected-trigger SpellLinked rows. The Creature roll maps `<500` to base `MISS` and the rest to `HIT`; local order is cast→schedule and hit→cooldown, with `NO_ATTACK_MISS` still consuming a hit roll. An accepted HIT publishes then tombstones before scheduling because subsequent launch/effect RNG is omitted; MISS may retain authority for its repeat delay. Spell/melee/movement share the tombstone. C++ global-vs-Rust per-Creature RNG parity is distribution/local-order only. Guard v2 recaptured C++ and Rust from clean `42977e9a`, temporarily switching stock `SmartAI`/`0` to `CombatAI`/`NO_MELEE` and restoring it; strict 2/2 and `verify-required` are CLEAN. This does not claim effect execution or the full Spell pipeline. |
 | Spell effects dispatched | PARTIAL **~42/150** | `session.rs:48774-49383` |
 | Spell cast cost/timing/cooldown | **PARTIAL** | SpellCastTimes/SpellCooldowns/SpellPower DB2 hydrate represented `SpellInfo`; the player path checks/deducts flat + mana-pct costs, while creature `CombatAI` uses raw `RecoveryTime`, floors missing/short values at C++'s 5-second AI default, and re-arms every repeat attempt in `[cooldown, 2×cooldown]`. Full C++ SpellHistory/modifiers and general cast lifecycle remain open. |
 | Spell damage calc (coeff/crit/resist/absorb) | **ABSENT** | `SpellEffectDb2Entry` parsed but unused |
-| Spell LOS/range/facing/reagent checks | **PARTIAL** | issue #26 revalidates the live canonical creature/victim, C++ min/max range with combat reaches and movement allowance, and map LOS immediately before publication; the in-progress P1 slice additionally requires that the Creature caster is behind its Player target. General player-cast range/facing/reagent coverage and real VMap-backed LOS remain incomplete; the shared VMap foundation is still a stub. |
+| Spell LOS/range/facing/reagent checks | **PARTIAL** | issue #26 revalidates the live canonical creature/victim, C++ min/max range with combat reaches and movement allowance, and map LOS immediately before publication; the final bounded P1 slice additionally requires that the Creature caster is behind its Player target. General player-cast range/facing/reagent coverage and real VMap-backed LOS remain incomplete; the shared VMap foundation is still a stub. |
 | Aura apply + client update | PARTIAL | `session.rs:26431` |
 | Aura periodic tick (DoT/HoT) + ~255 aura types | **STUB** (~5 types) | `session.rs:27810` expiry only; `unit_subsystems.rs:12-14` |
 | Proc system | **ABSENT** | `SpellAuraOptionsEntry` fields unused |

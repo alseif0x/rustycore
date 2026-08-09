@@ -155,7 +155,7 @@ intent, no mutation — see STATE.md §0). Almost every item below is "convert r
 - [x] **M2.6** Creature spell casting in combat (from `creature_template` spell list; cooldowns).
   The bounded CombatAI/TurretAI slice reads template spell slots, schedules supported instant
   casts with C++ cooldown/range/target/visual rules, and publishes an atomic START/GO pair before
-  the same-frame melee phase. The in-progress P1 hardening removes GO's unconditional-hit
+  the same-frame melee phase. The final issue-#26 P1 hardening removes GO's unconditional-hit
   assumption: bounded resolution is publishable only for a physical `DmgClass=MELEE` Creature
   spell against a Player attacked from behind, with zero spell/effect mechanics and complete
   Creature/Player source authority proving every omitted source hit-inert. Canonical local aura
@@ -176,11 +176,18 @@ intent, no mutation — see STATE.md §0). Almost every item below is "convert r
   RNG, the represented guarantee is distribution and local causal order, not exact global draw
   interleaving. Unaccredited states publish neither START nor GO; event-slot clearing and other
   already-performed deterministic reset work remain, while a tombstone blocks future
-  random-dependent scheduling. The retained
-  guarded Cabal Interrogator/Eviscerate pair is a strict-CLEAN historical **HIT** sample (2/2
-  packets, empty baseline), not proof of deterministic hit and not a P1 recapture. This closes
-  only the M2.6 wire/lifecycle slice: spell effects, damage/health mutation, the full Spell
-  pipeline, and the other AI families remain later work; no final P1 verification is claimed.
+  random-dependent scheduling. Final live authority also loads effective specialization hotfixes,
+  corrects the external-ID `AreaTable` offsets that resolve Shattrath to Terokkar, and admits exact
+  OutdoorPvPTF spell `33377` only after its XP/outgoing-damage auras and runtime hooks prove
+  hit-inert. The final C++/Rust Cabal Interrogator/Eviscerate generation was
+  recaptured from clean harness HEAD
+  `42977e9accb24fc3921af075f4122e1f0180f4a2`. Fixture guard v2 verifies the stock
+  `SmartAI`/difficulty-0 flags `0`, CAS-switches only the capture window to
+  `CombatAI`/`CREATURE_STATIC_FLAG_NO_MELEE`, and restores the exact `SmartAI`/`0` state. The
+  selected pair is an observed **HIT**, strict-CLEAN at 2/2 packets with an empty baseline, and
+  `verify-required creature-spell-casting` is CLEAN. It is not proof of deterministic hit. This
+  closes only the M2.6 wire/lifecycle slice: spell effects, damage/health mutation, the full Spell
+  pipeline, and the other AI families remain later work.
 - [ ] **M2.7** Creature reactions: on-aggro/death/evade `creature_text` emotes/yells/sounds.
 - [ ] **M2.8** Formalize runtime owner per ADR (single-owner, no double resolution; respect `Map::Update` phase order).
 - [ ] **M2 exit:** creatures patrol, path around walls, fight back with abilities, speak, respawn; two clients see identical state.
