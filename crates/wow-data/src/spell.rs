@@ -554,6 +554,8 @@ pub mod attributes {
     pub const SPELL_ATTR1_NO_AUTOCAST_AI: u32 = 0x0002_0000;
     /// C++ `SPELL_ATTR1_NO_AURA_ICON` (`SharedDefines.h`).
     pub const SPELL_ATTR1_NO_AURA_ICON: u32 = 0x1000_0000;
+    /// C++ `SPELL_ATTR2_IGNORE_LINE_OF_SIGHT` (`SharedDefines.h`).
+    pub const SPELL_ATTR2_IGNORE_LINE_OF_SIGHT: u32 = 0x0000_0004;
     /// C++ `SPELL_ATTR2_ALLOW_WHILE_NOT_SHAPESHIFTED_CASTER_FORM` (`SharedDefines.h`).
     pub const SPELL_ATTR2_ALLOW_WHILE_NOT_SHAPESHIFTED_CASTER_FORM: u32 = 0x0008_0000;
     /// C++ `SPELL_ATTR2_NO_INITIAL_THREAT` (`SharedDefines.h`).
@@ -6591,7 +6593,13 @@ impl SpellStore {
         store.apply_db2_cast_times_like_cpp(&spell_misc_store, &spell_cast_times_store);
 
         // [M0.1/#14] Join DB2 SpellCooldowns (per-spell cooldown), also after the merge.
-        let spell_cooldowns_store = crate::spell_db2::SpellCooldownsStore::load(data_dir, locale)?;
+        let spell_cooldowns_store = crate::spell_db2::SpellCooldownsStore::load_effective_like_cpp(
+            data_dir,
+            locale,
+            hotfix_db,
+            hotfix_removals,
+        )
+        .await?;
         store.apply_db2_cooldowns_like_cpp(&spell_cooldowns_store);
 
         // [M0.1/#72] C++ SpellMgr loads SpellInfo::PowerCosts from

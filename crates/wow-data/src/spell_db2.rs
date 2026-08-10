@@ -959,6 +959,12 @@ impl SpellClassOptionsStore {
 }
 
 impl SpellCooldownsStore {
+    const HOTFIX_OVERLAY_SQL_LIKE_CPP: &'static str = concat!(
+        "SELECT ID, DifficultyID, CategoryRecoveryTime, RecoveryTime, ",
+        "StartRecoveryTime, SpellID FROM spell_cooldowns ",
+        "WHERE (`VerifiedBuild` > 0) = ?"
+    );
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SpellCooldowns.db2", |id, idx, r| {
             SpellCooldownsEntry {
@@ -970,6 +976,61 @@ impl SpellCooldownsStore {
                 spell_id: r.get_relationship_id(idx).unwrap_or(0),
             }
         })
+    }
+
+    /// Load C++'s effective cooldown authority: DB2, official SQL, custom
+    /// SQL, then final `hotfix_data` tombstones.
+    pub async fn load_effective_like_cpp(
+        data_dir: &str,
+        locale: &str,
+        db: &HotfixDatabase,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) -> Result<Self> {
+        let mut store = Self::load(data_dir, locale)?;
+        for official in [true, false] {
+            let mut statement =
+                db.prepare(HotfixStatements::base(Self::HOTFIX_OVERLAY_SQL_LIKE_CPP));
+            statement.set_bool(0, official);
+            let mut result = db
+                .query(&statement)
+                .await
+                .context("failed to load SpellCooldowns SQL overlay")?;
+            if result.is_empty() {
+                continue;
+            }
+            loop {
+                store.overlay_effective_row_like_cpp(SpellCooldownsEntry {
+                    id: result.try_read::<u32>(0).unwrap_or(0),
+                    difficulty_id: result.try_read::<u8>(1).unwrap_or(0),
+                    category_recovery_time: result.try_read::<i32>(2).unwrap_or(0),
+                    recovery_time: result.try_read::<i32>(3).unwrap_or(0),
+                    start_recovery_time: result.try_read::<i32>(4).unwrap_or(0),
+                    spell_id: result.try_read::<u32>(5).unwrap_or(0),
+                });
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        let table_hash = store
+            .table_hash_like_cpp()
+            .context("SpellCooldowns.db2 store is missing its WDC4 table hash")?;
+        store.apply_hotfix_removals_with_table_hash_like_cpp(table_hash, removals);
+        Ok(store)
+    }
+
+    fn overlay_effective_row_like_cpp(&mut self, entry: SpellCooldownsEntry) {
+        self.entries.insert(entry.id, entry);
+    }
+
+    fn apply_hotfix_removals_with_table_hash_like_cpp(
+        &mut self,
+        table_hash: u32,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) {
+        self.entries
+            .retain(|record_id, _| !removals.contains_like_cpp(table_hash, *record_id as i32));
     }
 }
 
@@ -1964,6 +2025,13 @@ impl SpellVisualMissileStore {
 }
 
 impl SpellXSpellVisualStore {
+    const HOTFIX_OVERLAY_SQL_LIKE_CPP: &'static str = concat!(
+        "SELECT ID, DifficultyID, SpellVisualID, Probability, Flags, Priority, ",
+        "SpellIconFileID, ActiveIconFileID, ViewerUnitConditionID, ",
+        "ViewerPlayerConditionID, CasterUnitConditionID, CasterPlayerConditionID, ",
+        "SpellID FROM spell_x_spell_visual WHERE (`VerifiedBuild` > 0) = ?"
+    );
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SpellXSpellVisual.db2", |id, idx, r| {
             // Unlike the other relationship-backed Spell* tables loaded here,
@@ -1986,6 +2054,68 @@ impl SpellXSpellVisualStore {
                 spell_id: r.get_relationship_id(idx).unwrap_or(0),
             }
         })
+    }
+
+    /// Load C++'s effective spell-visual relation authority: DB2, official
+    /// SQL, custom SQL, then final `hotfix_data` tombstones.
+    pub async fn load_effective_like_cpp(
+        data_dir: &str,
+        locale: &str,
+        db: &HotfixDatabase,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) -> Result<Self> {
+        let mut store = Self::load(data_dir, locale)?;
+        for official in [true, false] {
+            let mut statement =
+                db.prepare(HotfixStatements::base(Self::HOTFIX_OVERLAY_SQL_LIKE_CPP));
+            statement.set_bool(0, official);
+            let mut result = db
+                .query(&statement)
+                .await
+                .context("failed to load SpellXSpellVisual SQL overlay")?;
+            if result.is_empty() {
+                continue;
+            }
+            loop {
+                store.overlay_effective_row_like_cpp(SpellXSpellVisualEntry {
+                    id: result.try_read::<u32>(0).unwrap_or(0),
+                    difficulty_id: result.try_read::<u8>(1).unwrap_or(0),
+                    spell_visual_id: result.try_read::<u32>(2).unwrap_or(0),
+                    probability: result.try_read::<f32>(3).unwrap_or(0.0),
+                    flags: result.try_read::<u8>(4).unwrap_or(0),
+                    priority: result.try_read::<i32>(5).unwrap_or(0),
+                    spell_icon_file_id: result.try_read::<i32>(6).unwrap_or(0),
+                    active_icon_file_id: result.try_read::<i32>(7).unwrap_or(0),
+                    viewer_unit_condition_id: result.try_read::<u16>(8).unwrap_or(0),
+                    viewer_player_condition_id: result.try_read::<u32>(9).unwrap_or(0),
+                    caster_unit_condition_id: result.try_read::<u16>(10).unwrap_or(0),
+                    caster_player_condition_id: result.try_read::<u32>(11).unwrap_or(0),
+                    spell_id: result.try_read::<u32>(12).unwrap_or(0),
+                });
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        let table_hash = store
+            .table_hash_like_cpp()
+            .context("SpellXSpellVisual.db2 store is missing its WDC4 table hash")?;
+        store.apply_hotfix_removals_with_table_hash_like_cpp(table_hash, removals);
+        Ok(store)
+    }
+
+    fn overlay_effective_row_like_cpp(&mut self, entry: SpellXSpellVisualEntry) {
+        self.entries.insert(entry.id, entry);
+    }
+
+    fn apply_hotfix_removals_with_table_hash_like_cpp(
+        &mut self,
+        table_hash: u32,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) {
+        self.entries
+            .retain(|record_id, _| !removals.contains_like_cpp(table_hash, *record_id as i32));
     }
 }
 
@@ -2316,6 +2446,58 @@ mod tests {
         effects.apply_hotfix_removals_with_table_hash_like_cpp(table_hash, &removals);
         assert_eq!(effects.get(1).map(|entry| entry.effect_mechanic), Some(7));
         assert!(effects.get(2).is_none());
+    }
+
+    #[test]
+    fn cooldown_and_visual_stores_overlay_then_apply_final_removals_like_cpp() {
+        let table_hash = 0xAABB_CCDD;
+        let removals = crate::Db2HotfixRemovalStoreLikeCpp::from_status_rows_like_cpp([
+            (table_hash, 2, 2),
+            (table_hash, 3, 2),
+        ]);
+
+        let cooldown = |id, spell_id, recovery_time| SpellCooldownsEntry {
+            id,
+            difficulty_id: 2,
+            category_recovery_time: recovery_time + 1,
+            recovery_time,
+            start_recovery_time: recovery_time + 2,
+            spell_id,
+        };
+        let mut cooldowns =
+            SpellCooldownsStore::from_entries([cooldown(1, 100, 10), cooldown(2, 200, 20)]);
+        cooldowns.overlay_effective_row_like_cpp(cooldown(1, 101, 30));
+        cooldowns.overlay_effective_row_like_cpp(cooldown(3, 300, 40));
+        cooldowns.overlay_effective_row_like_cpp(cooldown(1, 102, 50));
+        cooldowns.apply_hotfix_removals_with_table_hash_like_cpp(table_hash, &removals);
+        assert_eq!(cooldowns.get(1), Some(&cooldown(1, 102, 50)));
+        assert!(cooldowns.get(2).is_none());
+        assert!(cooldowns.get(3).is_none());
+
+        let visual = |id, spell_id, spell_visual_id| SpellXSpellVisualEntry {
+            id,
+            difficulty_id: 2,
+            spell_visual_id,
+            probability: 1.0,
+            flags: 3,
+            priority: 4,
+            spell_icon_file_id: 5,
+            active_icon_file_id: 6,
+            viewer_unit_condition_id: 7,
+            viewer_player_condition_id: 8,
+            caster_unit_condition_id: 9,
+            caster_player_condition_id: 10,
+            spell_id,
+        };
+        let mut visuals =
+            SpellXSpellVisualStore::from_entries([visual(1, 100, 10), visual(2, 200, 20)]);
+        visuals.overlay_effective_row_like_cpp(visual(1, 101, 30));
+        visuals.overlay_effective_row_like_cpp(visual(3, 300, 40));
+        visuals.overlay_effective_row_like_cpp(visual(1, 102, 50));
+        visuals.apply_hotfix_removals_with_table_hash_like_cpp(table_hash, &removals);
+        assert_eq!(visuals.get(1), Some(&visual(1, 102, 50)));
+        assert!(visuals.get(2).is_none());
+        assert!(visuals.get(3).is_none());
     }
 
     #[test]

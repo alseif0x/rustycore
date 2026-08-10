@@ -4158,6 +4158,20 @@ impl LegacyCreatureAggroConfigLikeCpp {
         }
     }
 
+    /// This bounded creature-cast slice does not yet own the complete
+    /// shapeshift-form authority needed by `SpellInfo::CheckShapeshift`.
+    /// A neutral mask is provably safe; every non-neutral mask fails closed.
+    fn spell_has_no_unrepresented_shapeshift_requirements_like_cpp(&self, spell_id: u32) -> bool {
+        let Some(store) = self.spell_store.as_deref() else {
+            return false;
+        };
+        let Ok(spell_id) = i32::try_from(spell_id) else {
+            return false;
+        };
+        let (stances, stances_not) = store.shapeshift_masks_like_cpp(spell_id);
+        stances == 0 && stances_not == 0
+    }
+
     /// C++ applies the effective `SpellAuraRestrictions` row during
     /// `Spell::CheckCast`/`SpellInfo::CheckExplicitTarget`. This bounded path
     /// does not yet evaluate aura states or required/excluded aura spells, so
@@ -63006,6 +63020,15 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
                                         break 'spell_slots;
                                     }
                                     if !config
+                                        .spell_has_no_unrepresented_shapeshift_requirements_like_cpp(
+                                            spell_id,
+                                        )
+                                    {
+                                        outcome.spell_casting_requirements_unrepresented += 1;
+                                        creature.record_swing();
+                                        break 'spell_slots;
+                                    }
+                                    if !config
                                         .spell_has_no_unrepresented_aura_restrictions_like_cpp(
                                             spell_id,
                                             difficulty_id,
@@ -63230,6 +63253,14 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
                                 .push(PendingCreatureSpellActionLikeCpp::Schedule(schedule));
                             continue;
                         }
+                        if !config
+                            .spell_has_no_unrepresented_shapeshift_requirements_like_cpp(spell_id)
+                        {
+                            outcome.spell_casting_requirements_unrepresented += 1;
+                            pending_actions
+                                .push(PendingCreatureSpellActionLikeCpp::Schedule(schedule));
+                            continue;
+                        }
                         if !config.spell_has_no_unrepresented_aura_restrictions_like_cpp(
                             spell_id,
                             difficulty_id,
@@ -63396,6 +63427,12 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
                     }
                     if !config.spell_has_no_unrepresented_casting_requirements_like_cpp(spell_id) {
                         outcome.spell_casting_requirements_unrepresented += 1;
+                        continue;
+                    }
+                    if !config.spell_has_no_unrepresented_shapeshift_requirements_like_cpp(spell_id)
+                    {
+                        outcome.spell_casting_requirements_unrepresented += 1;
+                        creature.record_swing();
                         continue;
                     }
                     if !config.spell_has_no_unrepresented_aura_restrictions_like_cpp(
@@ -63872,26 +63909,34 @@ fn validate_and_append_creature_spell_cast_like_cpp(
         if distance_sq > maximum * maximum || (minimum > 0.0 && distance_sq < minimum * minimum) {
             return CreatureSpellCastValidationResultLikeCpp::OutOfRange;
         }
-        if !caster.unit().world().is_within_los_in_map(
-            victim.unit().world(),
-            map,
-            wow_entities::LineOfSightOptions::default(),
-        ) {
-            return CreatureSpellCastValidationResultLikeCpp::LosRejected;
-        }
-
-        if let Some(attributes) = config.spell_store.as_ref().and_then(|store| {
+        let effective_attributes = config.spell_store.as_ref().and_then(|store| {
             store.misc_attributes_for_difficulty_like_cpp(
                 command.spell_id,
                 difficulty_id,
                 config.difficulty_store.as_deref(),
             )
-        }) && !creature_spell_target_is_valid_attack_target_like_cpp(
-            caster,
-            victim,
-            &attributes,
-            config,
-        ) {
+        });
+        let ignores_line_of_sight = effective_attributes.is_some_and(|attributes| {
+            attributes[2] & wow_data::spell::attributes::SPELL_ATTR2_IGNORE_LINE_OF_SIGHT != 0
+        });
+        if !ignores_line_of_sight
+            && !caster.unit().world().is_within_los_in_map(
+                victim.unit().world(),
+                map,
+                wow_entities::LineOfSightOptions::default(),
+            )
+        {
+            return CreatureSpellCastValidationResultLikeCpp::LosRejected;
+        }
+
+        if let Some(attributes) = effective_attributes
+            && !creature_spell_target_is_valid_attack_target_like_cpp(
+                caster,
+                victim,
+                &attributes,
+                config,
+            )
+        {
             // C++ Spell::CheckCast rejects this before melee hit resolution.
             // Preserve the queued CombatAI repeat and exact RNG authority so
             // its following ScheduleEvent can draw the next delay.
@@ -63906,11 +63951,7 @@ fn validate_and_append_creature_spell_cast_like_cpp(
                 difficulty_id,
                 config.difficulty_store.as_deref(),
             )?;
-            let attributes = spell_store.misc_attributes_for_difficulty_like_cpp(
-                command.spell_id,
-                difficulty_id,
-                config.difficulty_store.as_deref(),
-            )?;
+            let attributes = effective_attributes?;
             let active_effect_indices: Vec<u32> = spell
                 .effects()
                 .iter()
@@ -158654,6 +158695,47 @@ mod tests {
         assert!(creature_ai_spell_is_combat_forbidden_like_cpp(
             SPELL_ID, 0, &config
         ));
+    }
+
+    #[test]
+    fn creature_ai_spell_shapeshift_masks_fail_closed_like_cpp() {
+        const SPELL_ID: u32 = 70_187;
+        let mut config = creature_ai_spell_test_config_like_cpp(
+            creature_ai_test_spell_info_like_cpp(SPELL_ID as i32, 6, 0),
+            false,
+            30.0,
+        );
+        assert!(config.spell_has_no_unrepresented_shapeshift_requirements_like_cpp(SPELL_ID));
+        Arc::get_mut(config.spell_store.as_mut().unwrap())
+            .unwrap()
+            .insert_spell_shapeshift_masks_like_cpp(SPELL_ID as i32, 1 << 4, 0);
+        assert!(
+            !config.spell_has_no_unrepresented_shapeshift_requirements_like_cpp(SPELL_ID),
+            "non-neutral C++ stance authority must not reach START/GO"
+        );
+        config.spell_store = None;
+        assert!(
+            !config.spell_has_no_unrepresented_shapeshift_requirements_like_cpp(SPELL_ID),
+            "missing shapeshift authority remains fail-closed"
+        );
+    }
+
+    #[test]
+    fn creature_ai_spell_ignore_los_attribute_uses_exact_cpp_bit() {
+        let mut attributes = represented_creature_spell_test_attributes_like_cpp(true);
+        assert_eq!(
+            attributes[2] & wow_data::spell::attributes::SPELL_ATTR2_IGNORE_LINE_OF_SIGHT,
+            0
+        );
+        attributes[2] |= wow_data::spell::attributes::SPELL_ATTR2_IGNORE_LINE_OF_SIGHT;
+        assert_ne!(
+            attributes[2] & wow_data::spell::attributes::SPELL_ATTR2_IGNORE_LINE_OF_SIGHT,
+            0
+        );
+        assert_eq!(
+            wow_data::spell::attributes::SPELL_ATTR2_IGNORE_LINE_OF_SIGHT,
+            0x0000_0004
+        );
     }
 
     #[test]

@@ -2415,8 +2415,14 @@ async fn main() -> Result<ExitCode> {
     );
     info!("Loaded {} spell duration rows", spell_duration_store.len());
     let spell_cooldowns_store = Arc::new(
-        wow_data::SpellCooldownsStore::load(&data_dir, &locale)
-            .context("Failed to load SpellCooldowns.db2")?,
+        wow_data::SpellCooldownsStore::load_effective_like_cpp(
+            &data_dir,
+            &locale,
+            &hotfix_db,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellCooldowns authority")?,
     );
     info!("Loaded {} spell cooldown rows", spell_cooldowns_store.len());
     let spell_shapeshift_form_store = Arc::new(
@@ -4522,8 +4528,14 @@ async fn main() -> Result<ExitCode> {
     let spell_visual_store = wow_data::SpellVisualStore::load(&data_dir, &locale)
         .context("Failed to load SpellVisual.db2 for C++ jump_charge_params validation")?;
     let spell_x_spell_visual_store = Arc::new(
-        wow_data::SpellXSpellVisualStore::load(&data_dir, &locale)
-            .context("Failed to load SpellXSpellVisual.db2 for creature casts")?,
+        wow_data::SpellXSpellVisualStore::load_effective_like_cpp(
+            &data_dir,
+            &locale,
+            &hotfix_db,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellXSpellVisual authority for creature casts")?,
     );
     let jump_charge_params_outcome = wow_data::JumpChargeParamsStoreLikeCpp::load_like_cpp(
         world_db.as_ref(),
