@@ -62075,7 +62075,7 @@ fn creature_ai_spell_difficulty_chain_like_cpp(
     chain
 }
 
-fn creature_ai_spell_has_unrepresented_target_creature_type_like_cpp(
+fn creature_ai_spell_has_unrepresented_target_restrictions_like_cpp(
     spell_id: u32,
     difficulty_id: u8,
     config: &LegacyCreatureAggroConfigLikeCpp,
@@ -62087,6 +62087,8 @@ fn creature_ai_spell_has_unrepresented_target_creature_type_like_cpp(
     let Some(store) = config.spell_target_restrictions_store.as_ref() else {
         return true;
     };
+    const REPRESENTED_HOSTILE_UNIT_TARGETS_LIKE_CPP: u32 = 0x0000_0002 | 0x0000_0080;
+
     store
         .resolved_for_difficulty_chain_like_cpp(
             spell_id,
@@ -62094,7 +62096,14 @@ fn creature_ai_spell_has_unrepresented_target_creature_type_like_cpp(
                 .into_iter()
                 .map(u32::from),
         )
-        .is_some_and(|restriction| restriction.target_creature_type_mask_like_cpp() != 0)
+        .is_some_and(|restriction| {
+            restriction.target_creature_type_mask_like_cpp() != 0
+                // C++ seeds ExplicitTargetMask from this signed DB2 field,
+                // then synthesizes any required source/destination payload.
+                // This slice serializes only one hostile living Unit target;
+                // fail closed for every other validation or wire requirement.
+                || (restriction.targets as u32 & !REPRESENTED_HOSTILE_UNIT_TARGETS_LIKE_CPP != 0)
+        })
 }
 
 fn creature_ai_spell_cooldowns_entry_like_cpp(
@@ -63003,7 +63012,7 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
                                         creature.record_swing();
                                         break 'spell_slots;
                                     }
-                                    if creature_ai_spell_has_unrepresented_target_creature_type_like_cpp(
+                                    if creature_ai_spell_has_unrepresented_target_restrictions_like_cpp(
                                         spell_id,
                                         difficulty_id,
                                         config,
@@ -63208,7 +63217,7 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
                                 .push(PendingCreatureSpellActionLikeCpp::Schedule(schedule));
                             continue;
                         }
-                        if creature_ai_spell_has_unrepresented_target_creature_type_like_cpp(
+                        if creature_ai_spell_has_unrepresented_target_restrictions_like_cpp(
                             spell_id,
                             difficulty_id,
                             config,
@@ -63360,7 +63369,7 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
                         outcome.spell_effects_unrepresented += 1;
                         continue;
                     }
-                    if creature_ai_spell_has_unrepresented_target_creature_type_like_cpp(
+                    if creature_ai_spell_has_unrepresented_target_restrictions_like_cpp(
                         spell_id,
                         difficulty_id,
                         config,
@@ -63682,6 +63691,10 @@ fn validate_and_append_creature_spell_cast_like_cpp(
         control.owner_guid.is_none()
             && control.charmer_guid.is_none()
             && !control.controlled_by_player
+            // C++ CanHaveGlobalCooldown treats any Creature with CharmInfo as
+            // controlled even if its owner/charmer GUIDs are momentarily empty.
+            // Keep that GCD-bearing surface outside this stock-AI slice.
+            && !control.has_charm_info()
     };
     let Some(managed) = manager.find_map(u32::from(command.map_id), command.instance_id) else {
         return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
@@ -158507,6 +158520,55 @@ mod tests {
             spell_linked_rejected_trigger_spell_ids_like_cpp: Some(Arc::new(BTreeSet::new())),
             ..legacy_aggro_hostile_config_like_cpp()
         }
+    }
+
+    #[test]
+    fn creature_ai_spell_target_restrictions_require_hostile_unit_only_wire_like_cpp() {
+        const SPELL_ID: u32 = 70_189;
+        let rejects = |targets: i32, target_creature_type: i16| {
+            let config = LegacyCreatureAggroConfigLikeCpp {
+                spell_target_restrictions_store: Some(Arc::new(
+                    wow_data::SpellTargetRestrictionsStore::from_entries([
+                        wow_data::SpellTargetRestrictionsEntry {
+                            id: 1,
+                            difficulty_id: 0,
+                            cone_degrees: 0.0,
+                            max_targets: 0,
+                            max_target_level: 0,
+                            target_creature_type,
+                            targets,
+                            width: 0.0,
+                            spell_id: SPELL_ID,
+                        },
+                    ]),
+                )),
+                ..Default::default()
+            };
+            creature_ai_spell_has_unrepresented_target_restrictions_like_cpp(SPELL_ID, 0, &config)
+        };
+
+        for targets in [0, 0x0000_0002, 0x0000_0080, 0x0000_0082] {
+            assert!(!rejects(targets, 0), "represented target mask {targets:#x}");
+        }
+        for targets in [
+            0x0000_0004,
+            0x0000_0008,
+            0x0000_0010,
+            0x0000_0020,
+            0x0000_0040,
+            0x0000_0100,
+            0x0000_0400,
+            0x0000_0800,
+            0x0001_0000,
+            0x0010_0000,
+            i32::MIN,
+        ] {
+            assert!(
+                rejects(targets, 0),
+                "unrepresented target mask {targets:#x}"
+            );
+        }
+        assert!(rejects(0, 1), "creature-type masks remain fail-closed");
     }
 
     #[test]
