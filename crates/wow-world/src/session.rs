@@ -61934,6 +61934,10 @@ enum CreatureAiSpellTargetLikeCpp {
 }
 
 impl CreatureAiSpellTargetLikeCpp {
+    fn requires_random_threat_selection_like_cpp(self) -> bool {
+        matches!(self, Self::Enemy | Self::Debuff)
+    }
+
     fn resolve_for_single_player_threat_list_like_cpp(
         self,
         caster_guid: ObjectGuid,
@@ -62205,6 +62209,24 @@ fn creature_ai_spell_has_represented_cooldown_semantics_like_cpp(
         .is_some_and(|category| {
             category.flags & SPELL_CATEGORY_FLAG_COOLDOWN_STARTS_ON_EVENT_LIKE_CPP == 0
         })
+}
+
+fn creature_ai_spell_is_combat_forbidden_like_cpp(
+    spell_id: u32,
+    difficulty_id: u8,
+    config: &LegacyCreatureAggroConfigLikeCpp,
+) -> bool {
+    i32::try_from(spell_id).ok().is_none_or(|spell_id| {
+        config.spell_store.as_ref().is_none_or(|store| {
+            store.has_attribute_for_difficulty_like_cpp(
+                spell_id,
+                difficulty_id,
+                config.difficulty_store.as_deref(),
+                0,
+                wow_data::spell::attributes::SPELL_ATTR0_NOT_IN_COMBAT_ONLY_PEACEFUL,
+            )
+        })
+    })
 }
 
 fn creature_ai_effective_spell_info_like_cpp(
@@ -63002,6 +63024,15 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
                                         creature.record_swing();
                                         break 'spell_slots;
                                     }
+                                    if creature_ai_spell_is_combat_forbidden_like_cpp(
+                                        spell_id,
+                                        difficulty_id,
+                                        config,
+                                    ) {
+                                        outcome.spell_effects_unrepresented += 1;
+                                        creature.record_swing();
+                                        break 'spell_slots;
+                                    }
                                     if creature_ai_zero_power_rows_have_unrepresented_implicit_cost_like_cpp(
                                         &spell,
                                         difficulty_id,
@@ -63129,13 +63160,25 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
                         };
                         let spell =
                             creature_ai_effective_spell_info_like_cpp(spell, difficulty_id, config);
-                        let target_guid = creature_ai_spell_target_like_cpp(
+                        let target_kind = creature_ai_spell_target_like_cpp(
                             spell_id,
                             &spell,
                             difficulty_id,
                             config,
-                        )
-                        .resolve_for_single_player_threat_list_like_cpp(guid, recipient_guid);
+                        );
+                        if target_kind.requires_random_threat_selection_like_cpp() {
+                            // C++ Enemy/Debuff selection draws from the full
+                            // non-offline threat list before CastSpell. This
+                            // slice cannot yet prove every candidate's range,
+                            // aura and player/NPC filters. Stop exact spell RNG
+                            // accreditation instead of selecting the victim or
+                            // drawing the later repeat delay out of order.
+                            outcome.spell_effects_unrepresented += 1;
+                            creature.invalidate_runtime_rng_authority_like_cpp();
+                            continue;
+                        }
+                        let target_guid = target_kind
+                            .resolve_for_single_player_threat_list_like_cpp(guid, recipient_guid);
 
                         // `CombatAI::UpdateAI` re-schedules after every
                         // `DoCast` attempt, including a failed one. Defer the
@@ -63197,6 +63240,16 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
                             continue;
                         }
                         if !creature_ai_spell_has_represented_cooldown_semantics_like_cpp(
+                            spell_id,
+                            difficulty_id,
+                            config,
+                        ) {
+                            outcome.spell_effects_unrepresented += 1;
+                            pending_actions
+                                .push(PendingCreatureSpellActionLikeCpp::Schedule(schedule));
+                            continue;
+                        }
+                        if creature_ai_spell_is_combat_forbidden_like_cpp(
                             spell_id,
                             difficulty_id,
                             config,
@@ -63358,6 +63411,17 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
                         config,
                     ) {
                         outcome.spell_effects_unrepresented += 1;
+                        continue;
+                    }
+                    if creature_ai_spell_is_combat_forbidden_like_cpp(
+                        spell_id,
+                        difficulty_id,
+                        config,
+                    ) {
+                        outcome.spell_effects_unrepresented += 1;
+                        // TurretAI resets BASE_ATTACK after its CastSpell call
+                        // even when CheckCast rejects the peaceful-only spell.
+                        creature.record_swing();
                         continue;
                     }
                     if creature_ai_zero_power_rows_have_unrepresented_implicit_cost_like_cpp(
@@ -158572,6 +158636,27 @@ mod tests {
     }
 
     #[test]
+    fn creature_ai_spell_peaceful_only_attribute_is_rejected_in_combat_like_cpp() {
+        const SPELL_ID: u32 = 70_188;
+        let mut config = creature_ai_spell_test_config_like_cpp(
+            creature_ai_test_spell_info_like_cpp(SPELL_ID as i32, 6, 0),
+            false,
+            30.0,
+        );
+        assert!(!creature_ai_spell_is_combat_forbidden_like_cpp(
+            SPELL_ID, 0, &config
+        ));
+        let mut attributes = represented_creature_spell_test_attributes_like_cpp(true);
+        attributes[0] |= wow_data::spell::attributes::SPELL_ATTR0_NOT_IN_COMBAT_ONLY_PEACEFUL;
+        Arc::get_mut(config.spell_store.as_mut().unwrap())
+            .unwrap()
+            .insert_spell_misc_attributes_like_cpp(SPELL_ID as i32, attributes);
+        assert!(creature_ai_spell_is_combat_forbidden_like_cpp(
+            SPELL_ID, 0, &config
+        ));
+    }
+
+    #[test]
     fn creature_spell_casting_and_aura_restrictions_fail_closed_like_cpp() {
         const SPELL_ID: u32 = 70_190;
         let base = creature_ai_spell_test_config_like_cpp(
@@ -161212,6 +161297,17 @@ mod tests {
             creature_ai_spell_target_like_cpp(spell_id, &target_a, 0, &ranged),
             CreatureAiSpellTargetLikeCpp::Victim
         );
+        let area_enemy = creature_ai_test_spell_info_like_cpp(spell_id as i32, 16, 0);
+        let area_enemy_target =
+            creature_ai_spell_target_like_cpp(spell_id, &area_enemy, 0, &ranged);
+        assert_eq!(area_enemy_target, CreatureAiSpellTargetLikeCpp::Enemy);
+        assert!(area_enemy_target.requires_random_threat_selection_like_cpp());
+
+        let mut debuff = creature_ai_test_spell_info_like_cpp(spell_id as i32, 6, 0);
+        debuff.effects[0].effect = wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA;
+        let debuff_target = creature_ai_spell_target_like_cpp(spell_id, &debuff, 0, &ranged);
+        assert_eq!(debuff_target, CreatureAiSpellTargetLikeCpp::Debuff);
+        assert!(debuff_target.requires_random_threat_selection_like_cpp());
         let zero_range = creature_ai_spell_test_config_like_cpp(target_a.clone(), false, 0.0);
         assert_eq!(
             creature_ai_spell_target_like_cpp(spell_id, &target_a, 0, &zero_range),

@@ -538,6 +538,8 @@ pub mod attributes {
     pub const SPELL_ATTR0_ONLY_OUTDOORS: u32 = 0x0000_8000;
     /// C++ `SPELL_ATTR0_ALLOW_WHILE_MOUNTED` (`SharedDefines.h`).
     pub const SPELL_ATTR0_ALLOW_WHILE_MOUNTED: u32 = 0x0100_0000;
+    /// C++ `SPELL_ATTR0_NOT_IN_COMBAT_ONLY_PEACEFUL` (`SharedDefines.h`).
+    pub const SPELL_ATTR0_NOT_IN_COMBAT_ONLY_PEACEFUL: u32 = 0x1000_0000;
     /// C++ `SPELL_ATTR0_NO_AURA_CANCEL` (`SharedDefines.h`).
     pub const SPELL_ATTR0_NO_AURA_CANCEL: u32 = 0x8000_0000;
 
