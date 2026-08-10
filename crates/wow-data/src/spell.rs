@@ -611,6 +611,10 @@ pub struct SpellInfo {
 /// row still suppresses the same effect slot from a fallback difficulty.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SpellHitMetadataLikeCpp {
+    /// C++ `SpellInfo::CategoryId`, resolved from `SpellCategories`.
+    pub category_id: u32,
+    /// C++ `SpellInfo::ChargeCategoryId`, resolved from `SpellCategories`.
+    pub charge_category_id: u32,
     pub defense_type: i8,
     pub spell_mechanic: i8,
     pub school_mask: u8,
@@ -6269,6 +6273,8 @@ struct SpellInterruptRowLikeCpp {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct SpellHitCategoriesRowLikeCpp {
     record_id: u32,
+    category_id: u32,
+    charge_category_id: u32,
     defense_type: i8,
     spell_mechanic: i8,
 }
@@ -6381,6 +6387,8 @@ impl SpellStore {
                     .spell_hit_categories_by_difficulty
                     .get(&(spell_id, difficulty_id))
             {
+                metadata.category_id = categories.category_id;
+                metadata.charge_category_id = categories.charge_category_id;
                 metadata.defense_type = categories.defense_type;
                 metadata.spell_mechanic = categories.spell_mechanic;
                 categories_resolved = true;
@@ -6669,6 +6677,10 @@ impl SpellStore {
             };
             let row = SpellHitCategoriesRowLikeCpp {
                 record_id: categories.id,
+                // C++ assigns the signed DB2 fields directly into the
+                // corresponding uint32 SpellInfo members.
+                category_id: categories.category as u32,
+                charge_category_id: categories.charge_category as u32,
                 defense_type: categories.defense_type,
                 spell_mechanic: categories.mechanic,
             };
@@ -7575,6 +7587,8 @@ ORDER BY sm.ID, se.EffectIndex
         metadata: SpellHitMetadataLikeCpp,
     ) {
         let SpellHitMetadataLikeCpp {
+            category_id,
+            charge_category_id,
             defense_type,
             spell_mechanic,
             school_mask,
@@ -7584,6 +7598,8 @@ ORDER BY sm.ID, se.EffectIndex
             (spell_id, difficulty_id),
             SpellHitCategoriesRowLikeCpp {
                 record_id: u32::MAX,
+                category_id,
+                charge_category_id,
                 defense_type,
                 spell_mechanic,
             },
@@ -7982,23 +7998,24 @@ mod tests {
     #[test]
     fn hit_metadata_composes_each_db2_contributor_and_effect_slot_like_cpp() {
         let spell_id = 90_001;
-        let categories =
-            |id, difficulty_id, defense_type, mechanic| crate::spell_db2::SpellCategoriesEntry {
+        let categories = |id, difficulty_id, category, charge_category, defense_type, mechanic| {
+            crate::spell_db2::SpellCategoriesEntry {
                 id,
                 difficulty_id,
-                category: 0,
+                category,
                 defense_type,
                 dispel_type: 0,
                 mechanic,
                 prevention_type: 0,
                 start_recovery_category: 0,
-                charge_category: 0,
+                charge_category,
                 spell_id,
-            };
+            }
+        };
         let category_store = crate::spell_db2::SpellCategoriesStore::from_entries([
-            categories(10, 0, 1, 2),
-            categories(19, 2, 5, 6),
-            categories(20, 2, 3, 4),
+            categories(10, 0, 7, 8, 1, 2),
+            categories(19, 2, 50, 60, 5, 6),
+            categories(20, 2, 30, 40, 3, 4),
         ]);
 
         let mut base_misc = test_spell_misc_entry_like_cpp(10, spell_id, 0, 0);
@@ -8052,6 +8069,8 @@ mod tests {
         assert_eq!(
             store.hit_metadata_for_difficulty_like_cpp(spell_id as i32, 2, Some(&difficulties)),
             Some(SpellHitMetadataLikeCpp {
+                category_id: 30,
+                charge_category_id: 40,
                 defense_type: 3,
                 spell_mechanic: 4,
                 school_mask: 1,
@@ -8061,6 +8080,8 @@ mod tests {
         assert_eq!(
             store.hit_metadata_for_difficulty_like_cpp(spell_id as i32, 3, None),
             Some(SpellHitMetadataLikeCpp {
+                category_id: 7,
+                charge_category_id: 8,
                 defense_type: 1,
                 spell_mechanic: 2,
                 school_mask: 1,
@@ -8078,6 +8099,8 @@ mod tests {
     fn synthetic_hit_metadata_insertion_supports_focused_consumers() {
         let mut store = SpellStore::new();
         let metadata = SpellHitMetadataLikeCpp {
+            category_id: 13,
+            charge_category_id: 17,
             defense_type: 2,
             spell_mechanic: 7,
             school_mask: 4,
@@ -8124,6 +8147,8 @@ mod tests {
         assert_eq!(
             store.hit_metadata_for_difficulty_like_cpp(15_691, 0, None),
             Some(SpellHitMetadataLikeCpp {
+                category_id: 0,
+                charge_category_id: 0,
                 defense_type: 2,
                 spell_mechanic: 0,
                 school_mask: 1,

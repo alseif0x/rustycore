@@ -5836,6 +5836,7 @@ async fn main() -> Result<ExitCode> {
     legacy_creature_aggro_config.spell_range_store = Some(Arc::clone(&spell_range_store));
     legacy_creature_aggro_config.spell_duration_store = Some(Arc::clone(&spell_duration_store));
     legacy_creature_aggro_config.spell_cooldowns_store = Some(Arc::clone(&spell_cooldowns_store));
+    legacy_creature_aggro_config.spell_category_store = Some(Arc::clone(&spell_category_store));
     legacy_creature_aggro_config.spell_x_spell_visual_store =
         Some(Arc::clone(&spell_x_spell_visual_store));
     legacy_creature_aggro_config.spell_target_restrictions_store =
@@ -14518,6 +14519,7 @@ fn legacy_creature_aggro_config_like_cpp(
         spell_range_store: None,
         spell_duration_store: None,
         spell_cooldowns_store: None,
+        spell_category_store: None,
         spell_x_spell_visual_store: None,
         spell_target_restrictions_store: None,
         spell_casting_requirements_store: None,
