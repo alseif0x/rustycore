@@ -2035,14 +2035,14 @@
     "hotspots": {
       "coverage_source": {
         "command": "python3 tools/architecture/check_architecture.py hotspots --limit 20",
-        "measurement": "physical checked-in Rust source lines split approximately at the first inline cfg(test) module; each recorded production/test/total metric is an independent non-growth ceiling and reductions are accepted",
+        "measurement": "physical checked-in Rust source lines; lines from each exact top-level cfg(test) attribute through the end of its attached Rust item are test lines, all other lines are production lines, and each recorded production/test/total metric is an independent non-growth ceiling with reductions accepted",
         "baseline_commit": "002d3d8795ad895ee2d639375b59f4b6ca38df67"
       },
       "entries": [
         {
           "path": "crates/wow-world/src/session.rs",
-          "production_lines": 71997,
-          "test_lines": 94772,
+          "production_lines": 71881,
+          "test_lines": 94888,
           "total_lines": 166769,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
@@ -2058,8 +2058,8 @@
         },
         {
           "path": "crates/wow-map/src/map.rs",
-          "production_lines": 15247,
-          "test_lines": 18413,
+          "production_lines": 15245,
+          "test_lines": 18415,
           "total_lines": 33660,
           "owner": "wow-map canonical MapManager/runtime.",
           "open_retirement_issues": [
@@ -2071,8 +2071,8 @@
         },
         {
           "path": "crates/wow-world/src/handlers/character.rs",
-          "production_lines": 20235,
-          "test_lines": 10618,
+          "production_lines": 20200,
+          "test_lines": 10653,
           "total_lines": 30853,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
           "open_retirement_issues": [
@@ -2086,8 +2086,8 @@
         },
         {
           "path": "crates/wow-world/src/handlers/loot.rs",
-          "production_lines": 13660,
-          "test_lines": 16193,
+          "production_lines": 13619,
+          "test_lines": 16234,
           "total_lines": 29853,
           "owner": "wow-world loot handler plus transitional loot/map/persistence coordination.",
           "open_retirement_issues": [
@@ -2100,8 +2100,8 @@
         },
         {
           "path": "crates/world-server/src/main.rs",
-          "production_lines": 15380,
-          "test_lines": 12795,
+          "production_lines": 15370,
+          "test_lines": 12805,
           "total_lines": 28175,
           "owner": "world-server composition root mixed with bootstrap and runtime orchestration.",
           "open_retirement_issues": [
@@ -2127,8 +2127,8 @@
         },
         {
           "path": "crates/wow-world/src/handlers/quest.rs",
-          "production_lines": 8231,
-          "test_lines": 10241,
+          "production_lines": 8255,
+          "test_lines": 10217,
           "total_lines": 18472,
           "owner": "wow-world quest handler plus represented Player/persistence logic.",
           "open_retirement_issues": [

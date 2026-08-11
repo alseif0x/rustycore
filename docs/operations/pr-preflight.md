@@ -54,7 +54,9 @@ to the policy's canonical crates.io source: same-named path, Git, or alternate-r
 dependencies fail closed. Metadata identity is validated globally; duplicate JSON keys,
 package/node/member IDs, and ambiguous multi-ID direct dependencies also fail closed. The
 self-test pins the exact locked/all-features Cargo metadata command. The profile additionally
-prints a split of the largest Rust source files into production and trailing inline-test lines.
+prints a split of the largest Rust source files into production and exact top-level
+`#[cfg(test)]` item ranges. A test range starts at the exact `cfg(test)` attribute and ends at
+the attached item's closing brace or semicolon; later items and trailing lines remain production.
 File size is not a universal gate, but each hotspot explicitly curated in
 `runtime-ownership-ledger.json` has independent production, test, and total non-growth ceilings;
 reductions pass without a baseline edit, while a rename/removal requires explicitly retiring or

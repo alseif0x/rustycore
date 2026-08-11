@@ -171,8 +171,11 @@ external exceptions, external allowlist entries, and the raw-network rejection o
 (`wow-network → sqlx`) while retaining its reviewed Tokio runtime. Malformed/duplicate JSON and
 Cargo identities, canonical/path/Git/alternate-registry origins, both valid Cargo Git-ID forms,
 inactive target-specific dependencies, and ambiguous external identities are adversarially
-covered. The hotspot self-test independently rejects production, test, and total growth and
-accepts a reduction. `check` evaluates the real locked Cargo workspace, including direct
+covered. The hotspot classifier self-test proves exact top-level `#[cfg(test)]` item ranges across
+multiple modules/items, ignores braces and false attributes in Rust literals/comments, and keeps
+production after a test module outside the test range. The ratchet self-test independently rejects
+production, test, and total growth and accepts a reduction. `check` evaluates the real locked
+Cargo workspace, including direct
 third-party `normal`/`build` dependencies, rejects stale policy entries, enforces non-growth for
 the curated hotspot paths, and still prints the broader source-hotspot report.
 
