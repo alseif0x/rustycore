@@ -40,10 +40,10 @@ use wow_data::{
 };
 use wow_entities::{
     Creature, CreatureAddToWorldVehicleResetContextLikeCpp, CreatureAddonLifecycleRecordLikeCpp,
-    CreatureCreateLifecycleRecord, CreatureFormationInfoLikeCpp, CreatureLifecycleStats,
-    CreatureLoadFromDbLifecycleRecord, CreatureModelDimensions, CreatureSpawnLifecycleRecord,
-    CreatureTemplateLifecycleRecord, DEFAULT_CORPSE_DELAY_SECS, MapObjectRecord,
-    MovementGeneratorType, VehicleKitCreateInputLikeCpp,
+    CreatureCombatLogStatsLikeCpp, CreatureCreateLifecycleRecord, CreatureFormationInfoLikeCpp,
+    CreatureLifecycleStats, CreatureLoadFromDbLifecycleRecord, CreatureModelDimensions,
+    CreatureSpawnLifecycleRecord, CreatureTemplateLifecycleRecord, DEFAULT_CORPSE_DELAY_SECS,
+    MapObjectRecord, MovementGeneratorType, VehicleKitCreateInputLikeCpp,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -161,10 +161,6 @@ pub enum CreatureLoadedGridResolveErrorLikeCpp {
     MissingTemplate {
         entry: u32,
     },
-    MissingDifficulty {
-        entry: u32,
-        difficulty_id: u8,
-    },
     MissingModel {
         entry: u32,
     },
@@ -258,6 +254,16 @@ impl CreatureLoadedGridLifecycleResolverLikeCpp {
         if let Some(sparring_health_pct) = template.sparring_health_pct {
             creature.set_sparring_health_pct_like_cpp(sparring_health_pct);
         }
+        // This is the DB-backed boundary that has resolved and applied the
+        // selected creature_addon/template_addon source. Empty local aura
+        // containers can therefore be accredited as inert for the stat and
+        // power-cost fields in `SpellCastLogData`; any represented aura keeps
+        // the completeness check closed and every later mutation revokes it.
+        creature
+            .unit_mut()
+            .subsystems_mut()
+            .auras
+            .set_spell_cast_log_aura_authority_inert_like_cpp(true);
         let map_insertion_requested = spawn.add_to_map;
         let map_object_record = if map_insertion_requested {
             Some(
@@ -590,6 +596,14 @@ pub fn build_loaded_grid_creature_inputs_with_power_stores_from_db_like_cpp(
             power,
             min_damage,
             max_damage: min_damage * 1.5,
+            combat_log: CreatureCombatLogStatsLikeCpp {
+                // C++ seeds the UnitMods base value through float before the
+                // signed total is read by `SpellCastLogData::Initialize`.
+                attack_power: (base_stats.attack_power as f32) as i32,
+                ranged_attack_power: (base_stats.ranged_attack_power as f32) as i32,
+                spell_power: 0,
+                armor: (base_stats.generate_armor_like_cpp(difficulty) as f32) as i32,
+            },
         },
         selected_display_id,
         selected_model_dimensions,
@@ -929,6 +943,7 @@ mod tests {
                     power: 123,
                     min_damage: 12.0,
                     max_damage: 34.0,
+                    combat_log: CreatureCombatLogStatsLikeCpp::default(),
                 },
                 selected_display_id: 9002,
                 selected_model_dimensions: None,
@@ -1117,9 +1132,9 @@ mod tests {
             wow_data::CreatureBaseStatsRecordLikeCpp {
                 base_health: [10, 20, 100],
                 base_mana: 50,
-                base_armor: 0,
-                attack_power: 0,
-                ranged_attack_power: 0,
+                base_armor: 123,
+                attack_power: 456,
+                ranged_attack_power: 789,
                 base_damage: [1.0, 2.0, 5.0],
             },
         )])
@@ -1313,6 +1328,10 @@ mod tests {
         assert_eq!(runtime.stats.power, 150);
         assert_eq!(runtime.stats.min_damage, 20.0);
         assert_eq!(runtime.stats.max_damage, 30.0);
+        assert_eq!(runtime.stats.combat_log.attack_power, 456);
+        assert_eq!(runtime.stats.combat_log.ranged_attack_power, 789);
+        assert_eq!(runtime.stats.combat_log.spell_power, 0);
+        assert_eq!(runtime.stats.combat_log.armor, 123);
 
         let (default_loot_template, _, _) = build_loaded_grid_creature_inputs_from_db_like_cpp(
             &spawn,
@@ -1817,7 +1836,7 @@ mod tests {
     }
 
     #[test]
-    fn loaded_grid_db_backed_builder_errors_without_silent_fallbacks_like_cpp() {
+    fn loaded_grid_builder_handles_missing_template_and_difficulty_like_cpp() {
         let entry = 12_401;
         let spawn = db_backed_spawn(entry);
         let runtime_row = CreatureSpawnRuntimeRowLikeCpp {
@@ -1870,31 +1889,32 @@ mod tests {
             Err(CreatureLoadedGridResolveErrorLikeCpp::MissingTemplate { entry })
         );
         let mut random = TestLoadedGridCreatureRandomLikeCpp::default();
-        assert_eq!(
-            build_loaded_grid_creature_inputs_from_db_like_cpp(
-                &spawn,
-                &runtime_row,
-                &db_backed_template_store(entry),
-                &CreatureDifficultyStoreLikeCpp::default(),
-                &db_backed_base_stats_store(),
-                &CreatureClassificationHealthRatesLikeCpp::default(),
-                &display_store,
-                &model_store,
-                &model_info_store,
-                None,
-                &CreatureAddonStoreLikeCpp::default(),
-                2,
-                0,
-                0,
-                false,
-                None,
-                &mut random,
-            ),
-            Err(CreatureLoadedGridResolveErrorLikeCpp::MissingDifficulty {
-                entry,
-                difficulty_id: 2
-            })
-        );
+        let (template, _, runtime) = build_loaded_grid_creature_inputs_from_db_like_cpp(
+            &spawn,
+            &runtime_row,
+            &db_backed_template_store(entry),
+            &CreatureDifficultyStoreLikeCpp::default(),
+            &db_backed_base_stats_store(),
+            &CreatureClassificationHealthRatesLikeCpp::default(),
+            &display_store,
+            &model_store,
+            &model_info_store,
+            None,
+            &CreatureAddonStoreLikeCpp::default(),
+            2,
+            0,
+            0,
+            false,
+            None,
+            &mut random,
+        )
+        .expect("C++ uses its static level-1 difficulty defaults when no row exists");
+        assert_eq!((template.min_level, template.max_level), (1, 1));
+        assert_eq!(template.static_flags, [0; 8]);
+        assert_eq!(template.type_flags, 0);
+        assert_eq!((template.loot_id, template.skin_loot_id), (0, 0));
+        assert_eq!((template.gold_min, template.gold_max), (0, 0));
+        assert_eq!(runtime.selected_level, 1);
     }
 
     #[test]

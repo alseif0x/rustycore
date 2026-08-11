@@ -59,6 +59,18 @@ pub(crate) struct SpellAcquisitionBootstrapLikeCpp {
 pub(crate) struct TrainerSpellStaticAuthorityLikeCpp {
     pub(crate) safe_cast_spell_ids: BTreeSet<u32>,
     pub(crate) valid_craft_spell_ids: BTreeSet<u32>,
+    /// Exact positive `spell_script_names.spell_id` bindings.
+    ///
+    /// These process-wide sets are also consumed by the spell-hit aura
+    /// authority. Keeping the raw exact/all-ranks distinction lets each
+    /// session resolve the final rank through the same effective
+    /// `SpellChainStoreLikeCpp` instead of treating an empty runtime script
+    /// registry as source proof.
+    pub(crate) spell_script_exact_spell_ids: BTreeSet<u32>,
+    /// Absolute roots from negative `spell_script_names.spell_id` rows.
+    pub(crate) spell_script_all_rank_root_spell_ids: BTreeSet<u32>,
+    /// C++ `spell_scripts.id & 0x00FF_FFFF` bindings.
+    pub(crate) legacy_spell_script_spell_ids: BTreeSet<u32>,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -370,6 +382,9 @@ pub(crate) async fn load_trainer_static_authority_like_cpp(
     Ok(TrainerSpellStaticAuthorityLikeCpp {
         safe_cast_spell_ids,
         valid_craft_spell_ids,
+        spell_script_exact_spell_ids: script_bindings.exact_spell_ids,
+        spell_script_all_rank_root_spell_ids: script_bindings.all_rank_root_spell_ids,
+        legacy_spell_script_spell_ids: legacy_scripts,
     })
 }
 

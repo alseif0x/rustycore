@@ -1,3 +1,8 @@
+use std::sync::{
+    Arc,
+    atomic::{AtomicU64, Ordering},
+};
+
 use wow_constants::{
     DeathState, Gender, PowerType, ShapeShiftForm, SheathState, SpellState, TypeId, TypeMask,
     UnitFlags, UnitFlags2, UnitFlags3, UnitPvpFlags, UnitStandStateType, UnitState,
@@ -350,12 +355,76 @@ impl Default for UnitVisibilityDetectionStateLikeCpp {
     }
 }
 
+/// Shared sequence identity for the health/max-health/death timeline of one entity
+/// incarnation. Holding this token keeps the allocation alive, so its identity
+/// cannot be reused while a compare/exchange is in flight.
+#[derive(Debug, Clone)]
+pub struct HealthStateRevisionAuthorityLikeCpp {
+    allocator: Arc<AtomicU64>,
+}
+
+impl HealthStateRevisionAuthorityLikeCpp {
+    fn new() -> Self {
+        Self {
+            allocator: Arc::new(AtomicU64::new(0)),
+        }
+    }
+
+    fn next(&self) -> u64 {
+        let previous = self
+            .allocator
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
+                current.checked_add(1)
+            })
+            .expect("health-state revision allocator exhausted");
+        previous
+            .checked_add(1)
+            .expect("health-state revision allocator exhausted")
+    }
+
+    pub fn shares_storage_like_cpp(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.allocator, &other.allocator)
+    }
+}
+
+#[derive(Debug, Clone)]
+struct HealthStateRevisionLikeCpp {
+    value: u64,
+    /// Clones retain a local state version while allocating future revisions
+    /// from one sequence shared by the entity incarnation.
+    authority: HealthStateRevisionAuthorityLikeCpp,
+}
+
+impl HealthStateRevisionLikeCpp {
+    fn new() -> Self {
+        Self {
+            value: 0,
+            authority: HealthStateRevisionAuthorityLikeCpp::new(),
+        }
+    }
+
+    fn advance(&mut self) {
+        self.value = self.authority.next();
+    }
+}
+
+impl PartialEq for HealthStateRevisionLikeCpp {
+    fn eq(&self, other: &Self) -> bool {
+        self.value == other.value
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Unit {
     world: WorldObject,
     data: UnitDataValues,
     unit_data_changes: UpdateMask,
     death_state: DeathState,
+    /// Monotonic version of the represented health/max-health/death tuple. Cross-owner
+    /// compatibility bridges use it as an optimistic CAS token so a delayed
+    /// mirror update cannot overwrite a newer damage, heal, death, or
+    /// resurrection transition.
+    health_state_revision_like_cpp: HealthStateRevisionLikeCpp,
     unit_state: u32,
     base_attack_speed: [u32; MAX_ATTACK],
     mod_attack_speed_pct: [f32; MAX_ATTACK],
@@ -393,6 +462,7 @@ impl Unit {
             data: UnitDataValues::default(),
             unit_data_changes: UpdateMask::new(UNIT_DATA_BITS),
             death_state: DeathState::Alive,
+            health_state_revision_like_cpp: HealthStateRevisionLikeCpp::new(),
             unit_state: 0,
             base_attack_speed: [0; MAX_ATTACK],
             mod_attack_speed_pct: [1.0; MAX_ATTACK],
@@ -883,7 +953,77 @@ impl Unit {
     }
 
     pub fn set_death_state(&mut self, state: DeathState) {
+        if self.death_state == state {
+            return;
+        }
         self.death_state = state;
+        self.advance_health_state_revision_like_cpp();
+    }
+
+    pub const fn health_state_revision_like_cpp(&self) -> u64 {
+        self.health_state_revision_like_cpp.value
+    }
+
+    pub fn health_state_revision_authority_like_cpp(&self) -> HealthStateRevisionAuthorityLikeCpp {
+        self.health_state_revision_like_cpp.authority.clone()
+    }
+
+    pub fn shares_health_state_revision_authority_like_cpp(
+        &self,
+        authority: &HealthStateRevisionAuthorityLikeCpp,
+    ) -> bool {
+        self.health_state_revision_like_cpp
+            .authority
+            .shares_storage_like_cpp(authority)
+    }
+
+    /// Copy the canonical health tuple into a temporary whole-entity snapshot
+    /// immediately before that snapshot replaces the canonical object.
+    ///
+    /// This deliberately copies the revision exactly: the authoritative state
+    /// did not change, only the container object did. Callers must never use
+    /// this on a live owner to replay an older mirror transition.
+    pub fn preserve_authoritative_health_state_for_snapshot_like_cpp(
+        &mut self,
+        authoritative: &Self,
+    ) {
+        self.set_u64_field(
+            UNIT_DATA_MAX_HEALTH_BIT,
+            authoritative.data.max_health,
+            |data| &mut data.max_health,
+        );
+        self.set_u64_field(UNIT_DATA_HEALTH_BIT, authoritative.data.health, |data| {
+            &mut data.health
+        });
+        self.death_state = authoritative.death_state;
+        self.health_state_revision_like_cpp = authoritative.health_state_revision_like_cpp.clone();
+    }
+
+    /// Mark a mirror replay as the exact already-committed health transition.
+    ///
+    /// Replaying normal setters is intentional because it runs the mirror's
+    /// local death hooks, but those setters reserve fresh sequence values. The
+    /// caller may invoke this only after verifying that the resulting
+    /// health/death tuple and incarnation metadata exactly match the canonical
+    /// commit. The shared allocator never moves backward; only this mirror's
+    /// local state version is aligned with the committed version.
+    pub fn adopt_committed_health_state_revision_for_mirror_like_cpp(
+        &mut self,
+        committed_revision: u64,
+    ) {
+        assert_ne!(
+            committed_revision, 0,
+            "a committed health transition must carry a nonzero revision"
+        );
+        self.health_state_revision_like_cpp
+            .authority
+            .allocator
+            .fetch_max(committed_revision, Ordering::AcqRel);
+        self.health_state_revision_like_cpp.value = committed_revision;
+    }
+
+    fn advance_health_state_revision_like_cpp(&mut self) {
+        self.health_state_revision_like_cpp.advance();
     }
 
     pub const fn is_alive(&self) -> bool {
@@ -1911,7 +2051,11 @@ impl Unit {
         } else if value > self.data.max_health {
             value = self.data.max_health;
         }
+        let health_before = self.data.health;
         self.set_u64_field(UNIT_DATA_HEALTH_BIT, value, |data| &mut data.health);
+        if self.data.health != health_before {
+            self.advance_health_state_revision_like_cpp();
+        }
     }
 
     pub fn set_max_health(&mut self, mut value: u64) {
@@ -1919,7 +2063,11 @@ impl Unit {
             value = 1;
         }
         let current = self.data.health;
+        let max_health_before = self.data.max_health;
         self.set_u64_field(UNIT_DATA_MAX_HEALTH_BIT, value, |data| &mut data.max_health);
+        if self.data.max_health != max_health_before {
+            self.advance_health_state_revision_like_cpp();
+        }
         if value < current {
             self.set_health(value);
         }
@@ -3955,5 +4103,76 @@ mod tests {
         assert!(!unit.is_pvp_like_cpp());
         assert!(unit.is_in_sanctuary_like_cpp());
         assert!(unit.has_pvp_flag_like_cpp(UnitPvpFlags::UNK1));
+    }
+
+    #[test]
+    fn health_state_revision_advances_only_for_real_health_or_death_changes_like_cpp() {
+        let mut unit = Unit::new(true);
+        unit.set_max_health(100);
+        assert_eq!(unit.health_state_revision_like_cpp(), 1);
+
+        unit.set_health(100);
+        assert_eq!(unit.health_state_revision_like_cpp(), 2);
+        unit.set_health(100);
+        unit.set_death_state(DeathState::Alive);
+        assert_eq!(unit.health_state_revision_like_cpp(), 2);
+
+        unit.set_death_state(DeathState::JustDied);
+        assert_eq!(unit.health_state_revision_like_cpp(), 3);
+        unit.set_health(50);
+        assert_eq!(unit.data().health, 0);
+        assert_eq!(unit.health_state_revision_like_cpp(), 4);
+        unit.set_health(50);
+        assert_eq!(unit.health_state_revision_like_cpp(), 4);
+    }
+
+    #[test]
+    fn committed_mirror_replay_adopts_revision_without_rewinding_shared_allocator_like_cpp() {
+        let mut base = Unit::new(true);
+        base.set_max_health(100);
+        base.set_health(100);
+        let authority = base.health_state_revision_authority_like_cpp();
+        let mut canonical = base.clone();
+        let mut mirror = base;
+
+        canonical.set_health(90);
+        assert_eq!(canonical.health_state_revision_like_cpp(), 3);
+        mirror.set_health(90);
+        assert_eq!(mirror.health_state_revision_like_cpp(), 4);
+        assert!(mirror.shares_health_state_revision_authority_like_cpp(&authority));
+
+        mirror.adopt_committed_health_state_revision_for_mirror_like_cpp(3);
+        assert_eq!(mirror.health_state_revision_like_cpp(), 3);
+        canonical.set_health(80);
+        assert_eq!(
+            canonical.health_state_revision_like_cpp(),
+            5,
+            "the mirror replay reservation remains consumed"
+        );
+    }
+
+    #[test]
+    fn snapshot_preservation_copies_exact_authoritative_health_timeline_like_cpp() {
+        let mut canonical = Unit::new(true);
+        canonical.set_max_health(100);
+        canonical.set_health(100);
+        canonical.set_health(0);
+        canonical.set_death_state(DeathState::Corpse);
+
+        let mut snapshot = Unit::new(true);
+        snapshot.set_max_health(200);
+        snapshot.set_health(150);
+        snapshot.preserve_authoritative_health_state_for_snapshot_like_cpp(&canonical);
+
+        assert_eq!(snapshot.data().max_health, 100);
+        assert_eq!(snapshot.data().health, 0);
+        assert_eq!(snapshot.death_state(), DeathState::Corpse);
+        assert_eq!(
+            snapshot.health_state_revision_like_cpp(),
+            canonical.health_state_revision_like_cpp()
+        );
+        assert!(snapshot.shares_health_state_revision_authority_like_cpp(
+            &canonical.health_state_revision_authority_like_cpp()
+        ));
     }
 }

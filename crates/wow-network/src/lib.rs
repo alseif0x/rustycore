@@ -48,9 +48,10 @@ pub use player_registry::{
     MasterLootGiveResult, NotifyLootMoneyRemovedLikeCppCommand, PlayerBroadcastInfo,
     PlayerRegistry, RefreshVisibleWorldCreaturesLikeCppCommand, ResetSeasonalQuestStatusCommand,
     SendAddonIfRegisteredLikeCppCommand, SendCreatureLootReleaseValuesUpdateLikeCppCommand,
-    SendIfVisibleLikeCppCommand, SendPartyUpdateLikeCppCommand, SendRealmPacketLikeCppCommand,
-    SendVisibleObjectValuesUpdateCommand, SessionCommand, WorldSessionShutdownFlushLikeCppCommand,
-    WorldSessionShutdownFlushResultLikeCpp,
+    SendCreatureSpellCastIfVisibleLikeCppCommand, SendIfVisibleLikeCppCommand,
+    SendPartyUpdateLikeCppCommand, SendRealmPacketLikeCppCommand,
+    SendVisibleObjectValuesUpdateCommand, SessionCommand, SharedClientVisibleGuidsLikeCpp,
+    WorldSessionShutdownFlushLikeCppCommand, WorldSessionShutdownFlushResultLikeCpp,
 };
 pub use session_mgr::{InstanceLink, SessionManager};
 pub use world_socket::{

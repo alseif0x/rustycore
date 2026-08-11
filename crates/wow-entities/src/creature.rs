@@ -4,7 +4,7 @@ use std::{
 };
 
 use wow_constants::{
-    CreatureChaseMovementType, CreatureFlagsExtra, CreatureFlightMovementType,
+    Class, CreatureChaseMovementType, CreatureFlagsExtra, CreatureFlightMovementType,
     CreatureGroundMovementType, CreatureRandomMovementType, CreatureStaticFlags,
     CreatureStaticFlags4, CreatureType, CreatureTypeFlags, DeathState, PowerType, ShapeShiftForm,
     SheathState, TypeId, TypeMask, UnitDynFlags, UnitFlags, UnitFlags2, UnitFlags3, UnitMoveType,
@@ -226,6 +226,20 @@ pub struct CreatureModelDimensions {
     pub combat_reach: f32,
 }
 
+/// Live creature stats consumed by C++ `SpellCastLogData::Initialize`.
+///
+/// The represented creature runtime currently has no separate UnitMods rail,
+/// so these values are the authoritative totals seeded by
+/// `Creature::UpdateLevelDependantStats`. Callers that later represent a stat
+/// modifier must update this snapshot at the same mutation boundary.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct CreatureCombatLogStatsLikeCpp {
+    pub attack_power: i32,
+    pub ranged_attack_power: i32,
+    pub spell_power: i32,
+    pub armor: i32,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CreatureLifecycleStats {
     pub max_health: u64,
@@ -237,6 +251,7 @@ pub struct CreatureLifecycleStats {
     pub power: i32,
     pub min_damage: f32,
     pub max_damage: f32,
+    pub combat_log: CreatureCombatLogStatsLikeCpp,
 }
 
 impl CreatureLifecycleStats {
@@ -250,6 +265,12 @@ impl CreatureLifecycleStats {
             power: mana,
             min_damage: BASE_MINDAMAGE,
             max_damage: BASE_MAXDAMAGE,
+            combat_log: CreatureCombatLogStatsLikeCpp {
+                attack_power: 0,
+                ranged_attack_power: 0,
+                spell_power: 0,
+                armor: 0,
+            },
         }
     }
 }
@@ -947,6 +968,7 @@ pub struct Creature {
     attack_reputation_faction_id: Option<u32>,
     is_contested_guard_faction: bool,
     spell_focus: CreatureSpellFocusStateLikeCpp,
+    combat_log_stats: CreatureCombatLogStatsLikeCpp,
     /// Monotonic identity for the creature loot-producing lifetime. Async
     /// `Unit::Kill` generation captures this value and may install its pools
     /// only while the same death lifetime is still current. Corpse removal
@@ -1023,6 +1045,7 @@ impl Creature {
             attack_reputation_faction_id: None,
             is_contested_guard_faction: false,
             spell_focus: CreatureSpellFocusStateLikeCpp::default(),
+            combat_log_stats: CreatureCombatLogStatsLikeCpp::default(),
             loot_lifecycle_revision: 0,
             loot_authority: OwnedLootAuthority::new(),
             shared_loot: None,
@@ -1165,6 +1188,7 @@ impl Creature {
             record.stats.min_damage,
             record.stats.max_damage,
         );
+        self.combat_log_stats = record.stats.combat_log;
         self.set_melee_damage_school_like_cpp(template.damage_school);
         self.ai_ownership.home_position = home_position;
         self.ai_ownership.move_target = None;
@@ -2868,6 +2892,28 @@ impl Creature {
 
     pub fn power_type(&self) -> PowerType {
         power_type_from_u8(self.unit.data().display_power)
+    }
+
+    pub const fn combat_log_stats_like_cpp(&self) -> CreatureCombatLogStatsLikeCpp {
+        self.combat_log_stats
+    }
+
+    /// Replace the live totals consumed by C++ `SpellCastLogData::Initialize`.
+    ///
+    /// Loaders and future represented UnitMods mutations must update this at
+    /// the same boundary as the corresponding canonical Unit state.
+    pub fn set_combat_log_stats_like_cpp(&mut self, stats: CreatureCombatLogStatsLikeCpp) {
+        self.combat_log_stats = stats;
+    }
+
+    /// C++ `SpellCastLogData::Initialize` selects ranged AP only for the
+    /// hunter unit class and base-attack AP for every other class.
+    pub fn combat_log_attack_power_like_cpp(&self) -> i32 {
+        if self.unit.data().class_id == Class::Hunter as u8 {
+            self.combat_log_stats.ranged_attack_power
+        } else {
+            self.combat_log_stats.attack_power
+        }
     }
 
     pub fn set_power_type(&mut self, power: PowerType) {
@@ -5102,6 +5148,31 @@ mod tests {
     }
 
     #[test]
+    fn creature_lifecycle_retains_combat_log_stats_and_selects_attack_power_like_cpp() {
+        let combat_log_stats = CreatureCombatLogStatsLikeCpp {
+            attack_power: 111,
+            ranged_attack_power: 222,
+            spell_power: 333,
+            armor: 444,
+        };
+
+        let mut melee_record = creature_lifecycle_create_record();
+        melee_record.stats.combat_log = combat_log_stats;
+        let melee = Creature::create_from_lifecycle(melee_record);
+
+        assert_eq!(melee.combat_log_stats_like_cpp(), combat_log_stats);
+        assert_eq!(melee.combat_log_attack_power_like_cpp(), 111);
+
+        let mut hunter_record = creature_lifecycle_create_record();
+        hunter_record.template.unit_class = Class::Hunter as u8;
+        hunter_record.stats.combat_log = combat_log_stats;
+        let hunter = Creature::create_from_lifecycle(hunter_record);
+
+        assert_eq!(hunter.combat_log_stats_like_cpp(), combat_log_stats);
+        assert_eq!(hunter.combat_log_attack_power_like_cpp(), 222);
+    }
+
+    #[test]
     fn creature_lifecycle_seeds_selected_non_mana_power_like_cpp() {
         let mut record = creature_lifecycle_create_record();
         record.stats = CreatureLifecycleStats {
@@ -5113,6 +5184,7 @@ mod tests {
             power: 25,
             min_damage: BASE_MINDAMAGE,
             max_damage: BASE_MAXDAMAGE,
+            combat_log: CreatureCombatLogStatsLikeCpp::default(),
         };
 
         let creature = Creature::create_from_lifecycle(record);

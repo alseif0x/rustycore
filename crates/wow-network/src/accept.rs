@@ -308,6 +308,15 @@ pub struct SessionResources {
     /// execute. Missing authority remains fail-closed in `wow-world`.
     pub spell_acquisition_safe_cast_spell_ids: Option<Arc<std::collections::BTreeSet<u32>>>,
     pub spell_acquisition_valid_craft_spell_ids: Option<Arc<std::collections::BTreeSet<u32>>>,
+    /// Effective world-script bindings retained separately from trainer
+    /// authority so spell/aura runtimes can prove a candidate has no C++
+    /// script hook.
+    pub spell_script_exact_spell_ids: Option<Arc<std::collections::BTreeSet<u32>>>,
+    pub spell_script_all_rank_root_spell_ids: Option<Arc<std::collections::BTreeSet<u32>>>,
+    pub legacy_spell_script_spell_ids: Option<Arc<std::collections::BTreeSet<u32>>>,
+    /// Absolute trigger IDs from rejected `spell_linked_spell` rows. The
+    /// validated store cannot prove hook absence for these triggers.
+    pub spell_linked_rejected_trigger_spell_ids: Option<Arc<std::collections::BTreeSet<u32>>>,
     pub spell_levels_store: Option<Arc<wow_data::SpellLevelsStore>>,
     pub spell_category_store: Option<Arc<wow_data::SpellCategoryStore>>,
     pub npc_spell_click_store: Option<Arc<wow_data::NpcSpellClickStoreLikeCpp>>,

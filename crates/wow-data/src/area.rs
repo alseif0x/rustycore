@@ -109,20 +109,20 @@ impl AreaTableStore {
         for (id, idx) in reader.iter_records() {
             // `AreaTableMeta` has an external ID (`IndexField = -1`), so its
             // 23 physical WDC4 fields are zero-based without `ID`:
-            // `FactionGroupMask` is field 14. The hotfix SELECT below includes
-            // `ID` as column 0 and therefore reads the same value at column 15.
+            // `ContinentID`, `ParentAreaID`, `AreaBit`, `ExplorationLevel`, and
+            // `FactionGroupMask` are fields 2, 3, 4, 11, and 14 respectively.
+            // The hotfix SELECT below includes `ID` as column 0, so each of
+            // those values appears one column later there.
             faction_group_masks.insert(id, reader.get_field_u8(idx, 14));
             entries.insert(
                 id,
                 AreaTableEntry {
                     id,
-                    // WDC4 record ids supply C++ field 0 (`ID`), so
-                    // `ContinentID` is DB2Meta field index 3 and `ParentAreaID` is index 4.
-                    continent_id: reader.get_field_u16(idx, 3),
-                    parent_area_id: reader.get_field_u16(idx, 4),
+                    continent_id: reader.get_field_u16(idx, 2),
+                    parent_area_id: reader.get_field_u16(idx, 3),
                     // C++ fields `AreaBit` and `ExplorationLevel`.
-                    area_bit: reader.get_field_i16(idx, 5),
-                    exploration_level: reader.get_field_i8(idx, 12),
+                    area_bit: reader.get_field_i16(idx, 4),
+                    exploration_level: reader.get_field_i8(idx, 11),
                     // `MountFlags` is C++ field index 17, DB2Meta field index 16.
                     mount_flags: reader.get_field_i32(idx, 16),
                     // `Flags1` is C++ field index 22, DB2Meta field index 21
@@ -414,6 +414,10 @@ mod tests {
         assert_eq!(bytes.len(), RECORD_OFFSET as usize);
 
         let mut fields = [0u32; FIELD_COUNT as usize];
+        fields[2] = 530; // C++ AreaTableEntry::ContinentID
+        fields[3] = 3519; // C++ AreaTableEntry::ParentAreaID
+        fields[4] = 1321; // C++ AreaTableEntry::AreaBit
+        fields[11] = 64; // C++ AreaTableEntry::ExplorationLevel
         fields[14] = 6; // C++ AreaTableEntry::FactionGroupMask
         fields[15] = 0.3f32.to_bits(); // AmbientMultiplier, low byte 0x9A
         for field in fields {
@@ -624,13 +628,26 @@ mod tests {
 
         let store = AreaTableStore::load(data_dir, locale).expect("failed to load AreaTable.db2");
         assert!(!store.is_empty());
+        assert_eq!(
+            store.get(3697),
+            Some(&AreaTableEntry {
+                id: 3697,
+                continent_id: 530,
+                parent_area_id: 3519,
+                area_bit: 1321,
+                exploration_level: 64,
+                mount_flags: 2,
+                flags: 0x4000_C440,
+            }),
+            "Shattrath City"
+        );
         assert_eq!(store.faction_group_mask_like_cpp(1519), 2, "Stormwind");
         assert_eq!(store.faction_group_mask_like_cpp(1637), 4, "Orgrimmar");
         assert_eq!(store.faction_group_mask_like_cpp(4395), 6, "Dalaran");
     }
 
     #[test]
-    fn base_loader_reads_physical_faction_group_mask_field_without_sql_id_column() {
+    fn base_loader_reads_physical_area_fields_without_sql_id_column() {
         let root = std::env::temp_dir().join(format!(
             "rustycore-area-table-wdc4-field-test-{}",
             std::process::id()
@@ -643,6 +660,18 @@ mod tests {
 
         let store = AreaTableStore::load(root.to_str().expect("UTF-8 temp path"), "enUS")
             .expect("load minimal AreaTable WDC4 fixture");
+        assert_eq!(
+            store.get(4395),
+            Some(&AreaTableEntry {
+                id: 4395,
+                continent_id: 530,
+                parent_area_id: 3519,
+                area_bit: 1321,
+                exploration_level: 64,
+                mount_flags: 0,
+                flags: 0,
+            })
+        );
         assert_eq!(store.faction_group_mask_like_cpp(4395), 6);
 
         std::fs::remove_dir_all(root).expect("remove WDC4 fixture directory");

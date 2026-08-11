@@ -65,10 +65,11 @@ use wow_network::player_registry::{
     CreatureAttackStartLikeCppCommand, CreatureAttackStopLikeCppCommand,
     ReconcilePvpCombatExpiryLikeCppCommand, RefreshVisibleWorldCreaturesLikeCppCommand,
     SendAddonIfRegisteredLikeCppCommand, SendCreatureLootReleaseValuesUpdateLikeCppCommand,
-    SendIfVisibleLikeCppCommand, SendPartyUpdateLikeCppCommand,
-    SendRepeatableTurnInRequestItemsLikeCppCommand, SendRepresentedDuelCountdownLikeCppCommand,
-    SendRepresentedDuelRequestedLikeCppCommand, SendRepresentedTradeStatusLikeCppCommand,
-    SetQuestSharingInfoAndSendDetailsCommand, SyncChestGameobjectStateAndRefreshLikeCppCommand,
+    SendCreatureSpellCastIfVisibleLikeCppCommand, SendIfVisibleLikeCppCommand,
+    SendPartyUpdateLikeCppCommand, SendRepeatableTurnInRequestItemsLikeCppCommand,
+    SendRepresentedDuelCountdownLikeCppCommand, SendRepresentedDuelRequestedLikeCppCommand,
+    SendRepresentedTradeStatusLikeCppCommand, SetQuestSharingInfoAndSendDetailsCommand,
+    SyncChestGameobjectStateAndRefreshLikeCppCommand,
     SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
     SyncGooberGameobjectStateAndRefreshLikeCppCommand, UnacceptRepresentedTradeLikeCppCommand,
     WorldSessionShutdownFlushResultLikeCpp,
@@ -4414,6 +4415,11 @@ impl WorldSession {
                 SessionCommand::SendIfVisibleLikeCpp(command) => {
                     self.handle_send_if_visible_like_cpp_command_like_cpp(command, false, false);
                 }
+                SessionCommand::SendCreatureSpellCastIfVisibleLikeCpp(command) => {
+                    self.handle_send_creature_spell_cast_if_visible_like_cpp_command_like_cpp(
+                        command,
+                    );
+                }
                 SessionCommand::SendRealmIfVisibleLikeCpp(command) => {
                     self.handle_send_if_visible_like_cpp_command_like_cpp(command, true, false);
                 }
@@ -4720,16 +4726,18 @@ impl WorldSession {
         let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
     }
 
-    /// Apply a map-owned creature melee hit to this player session.
+    /// Apply a transitional map-owned creature melee compatibility hit to this
+    /// player session.
     ///
     /// C++ contrast: `Creature::Update` calls `DoMeleeAttackIfReady()`, which
     /// eventually emits `AttackerStateUpdate` from the map update tick and
-    /// then applies damage to the victim. The global creature combat driver
-    /// owns the swing timer/damage/canonical health mutation once; this
-    /// command is only the victim-session delivery rail. It sets represented
-    /// player health to the final value instead of subtracting damage, so
-    /// retries cannot double apply the hit and delayed command delivery cannot
-    /// stale-overwrite newer canonical health.
+    /// then applies damage to the victim. This driver preserves the earlier
+    /// normal-hit bridge; it does not claim full `CalculateMeleeDamage` parity.
+    /// It owns the swing timer/damage/canonical health mutation once, and this
+    /// command is only the victim-session delivery rail. Delivery rereads the
+    /// current canonical health/death tuple and advances a presentation-only
+    /// revision, so neither retries nor a delayed command can write an older
+    /// value over a newer heal, hit, death, or resurrection.
     fn handle_apply_creature_melee_damage_like_cpp_command_like_cpp(
         &mut self,
         command: ApplyCreatureMeleeDamageLikeCppCommand,
@@ -4738,9 +4746,6 @@ impl WorldSession {
             return;
         }
         if self.player_guid() != Some(command.victim_guid) {
-            return;
-        }
-        if !self.player_is_alive_like_cpp() {
             return;
         }
         if self.player_map_id_like_cpp() != command.map_id {
@@ -4753,8 +4758,11 @@ impl WorldSession {
         if session_instance_id != command.instance_id {
             return;
         }
-        let health_after = command.victim_health_after;
-        self.set_player_health_after_runtime_damage_like_cpp(health_after);
+        let Some(canonical_health) = self.present_committed_creature_melee_health_like_cpp(
+            command.victim_health_state_revision_after,
+        ) else {
+            return;
+        };
 
         use wow_packet::packets::combat::{
             AttackerStateUpdate, HIT_INFO_NORMAL_SWING, HealthUpdate, VICTIM_STATE_HIT,
@@ -4780,7 +4788,7 @@ impl WorldSession {
         }
         self.send_packet(&HealthUpdate {
             guid: command.victim_guid,
-            health: command.victim_health_after.min(i64::MAX as u64) as i64,
+            health: canonical_health.min(i64::MAX as u64) as i64,
         });
     }
 
@@ -5002,20 +5010,22 @@ impl WorldSession {
         }
     }
 
-    /// Per-session gate for [`SessionCommand::SendIfVisibleLikeCpp`].
+    /// Shared per-session visibility gate for one or more packet frames.
     ///
     /// Mirrors C++ `GridNotifiers.h : MessageDistDeliverer::SendPacket` and
     /// `GridNotifiersImpl.h : MessageDistDeliverer::Visit(PlayerMapType&)`:
     /// `MessageDistDeliverer::Visit` rechecks phase/distance against the
     /// current source object, then `SendPacket` applies HaveAtClient.
-    fn handle_send_if_visible_like_cpp_command_like_cpp(
+    fn send_if_visible_like_cpp_gate_passes_like_cpp(
         &mut self,
-        command: SendIfVisibleLikeCppCommand,
-        realm_connection: bool,
+        queued_at: Instant,
+        source_guid: ObjectGuid,
+        map_id: u16,
+        instance_id: u32,
+        representative_packet_bytes: &[u8],
         allow_legacy_creature_source: bool,
-    ) {
-        let is_monster_move = command
-            .packet_bytes
+    ) -> bool {
+        let is_monster_move = representative_packet_bytes
             .get(0..2)
             .and_then(|bytes| bytes.try_into().ok())
             .map(u16::from_le_bytes)
@@ -5025,11 +5035,11 @@ impl WorldSession {
             if is_monster_move {
                 tracing::info!(
                     account = self.account_id,
-                    source_guid = ?command.source_guid,
+                    source_guid = ?source_guid,
                     "RUST_MONSTER_MOVE_DELIVERY rejected: session not logged in"
                 );
             }
-            return;
+            return false;
         }
         // Gate 1b: C++ does not deliver SMSG_ON_MONSTER_MOVE during the
         // initial enter-world packet burst. Rust queues fan-out commands from
@@ -5037,72 +5047,69 @@ impl WorldSession {
         // queued before the login burst completed.
         if is_monster_move {
             if let Some(cutoff) = self.suppress_creature_movement_queued_at_or_before_like_cpp {
-                if command.queued_at <= cutoff {
+                if queued_at <= cutoff {
                     tracing::info!(
                         account = self.account_id,
-                        source_guid = ?command.source_guid,
+                        source_guid = ?source_guid,
                         queued_before_cutoff_ms =
-                            cutoff.saturating_duration_since(command.queued_at).as_millis(),
+                            cutoff.saturating_duration_since(queued_at).as_millis(),
                         "RUST_MONSTER_MOVE_DELIVERY rejected: queued before enter-world movement cutoff"
                     );
-                    return;
+                    return false;
                 }
             }
         }
         // Gate 2: map must match.
-        if self.player_map_id_like_cpp() != command.map_id {
+        if self.player_map_id_like_cpp() != map_id {
             if is_monster_move {
                 tracing::info!(
                     account = self.account_id,
-                    source_guid = ?command.source_guid,
+                    source_guid = ?source_guid,
                     player_map = self.player_map_id_like_cpp(),
-                    command_map = command.map_id,
+                    command_map = map_id,
                     "RUST_MONSTER_MOVE_DELIVERY rejected: wrong map"
                 );
             }
-            return;
+            return false;
         }
         // Gate 3: instance must match.
         let session_instance_id = self
             .current_canonical_player_map_key_like_cpp()
             .map(|k| k.instance_id)
             .unwrap_or(0);
-        if session_instance_id != command.instance_id {
+        if session_instance_id != instance_id {
             if is_monster_move {
                 tracing::info!(
                     account = self.account_id,
-                    source_guid = ?command.source_guid,
+                    source_guid = ?source_guid,
                     session_instance_id,
-                    command_instance_id = command.instance_id,
+                    command_instance_id = instance_id,
                     "RUST_MONSTER_MOVE_DELIVERY rejected: wrong instance"
                 );
             }
-            return;
+            return false;
         }
         // Gate 4: source GUID must be in client's visible set (HaveAtClient).
-        if !self
-            .client_visible_guids_like_cpp
-            .contains(&command.source_guid)
-        {
+        if !self.client_visible_guids_like_cpp.contains(&source_guid) {
             if is_monster_move {
                 tracing::info!(
                     account = self.account_id,
-                    source_guid = ?command.source_guid,
+                    source_guid = ?source_guid,
                     visible_count = self.client_visible_guids_like_cpp.len(),
                     "RUST_MONSTER_MOVE_DELIVERY rejected: source not visible"
                 );
             }
-            return;
+            return false;
         }
         // Gate 5: for creature-backed MessageDistDeliverer packets, re-read
         // the current source object and apply C++ Visit(PlayerMapType&): same
         // phase and exact 2D visibility range before SendPacket.
-        if command.source_guid.is_creature() {
+        if source_guid.is_creature() {
             match self
                 .represented_can_receive_creature_message_to_set_by_guid_with_legacy_fallback_like_cpp(
-                    command.source_guid,
-                    command.map_id,
-                    command.instance_id,
+                    source_guid,
+                    map_id,
+                    instance_id,
                     false,
                     allow_legacy_creature_source,
                 )
@@ -5112,28 +5119,53 @@ impl WorldSession {
                     if is_monster_move {
                         tracing::info!(
                             account = self.account_id,
-                            source_guid = ?command.source_guid,
+                            source_guid = ?source_guid,
                             visible_count = self.client_visible_guids_like_cpp.len(),
                             "RUST_MONSTER_MOVE_DELIVERY rejected: source failed current creature phase/range gate"
                         );
                     }
-                    return;
+                    return false;
                 }
                 None => {
                     if is_monster_move {
                         tracing::info!(
                             account = self.account_id,
-                            source_guid = ?command.source_guid,
+                            source_guid = ?source_guid,
                             visible_count = self.client_visible_guids_like_cpp.len(),
                             "RUST_MONSTER_MOVE_DELIVERY rejected: source creature missing"
                         );
                     }
-                    return;
+                    return false;
                 }
             }
         }
+        true
+    }
+
+    fn handle_send_if_visible_like_cpp_command_like_cpp(
+        &mut self,
+        command: SendIfVisibleLikeCppCommand,
+        realm_connection: bool,
+        allow_legacy_creature_source: bool,
+    ) {
+        if !self.send_if_visible_like_cpp_gate_passes_like_cpp(
+            command.queued_at,
+            command.source_guid,
+            command.map_id,
+            command.instance_id,
+            &command.packet_bytes,
+            allow_legacy_creature_source,
+        ) {
+            return;
+        }
         // All gates passed — deliver the already-serialised packet as-is.
-        if is_monster_move {
+        if command
+            .packet_bytes
+            .get(0..2)
+            .and_then(|bytes| bytes.try_into().ok())
+            .map(u16::from_le_bytes)
+            == Some(wow_constants::ServerOpcodes::OnMonsterMove as u16)
+        {
             tracing::info!(
                 account = self.account_id,
                 source_guid = ?command.source_guid,
@@ -5145,6 +5177,66 @@ impl WorldSession {
         } else {
             self.send_raw_packet(&command.packet_bytes);
         }
+    }
+
+    /// Deliver one map-owned creature START+GO pair after one visibility gate.
+    ///
+    /// C++ `WorldObject::SendCombatLogMessage` selects the committed full GO
+    /// frame for advanced-combat-log viewers and the basic frame otherwise.
+    /// Both viewers receive START and their selected GO consecutively with no
+    /// command drain or visibility revalidation between them. The two
+    /// frame-oriented socket sends are not transactional against other cloned
+    /// producers or a receiver closing after START; absolute writer adjacency
+    /// needs a future batch-aware socket envelope.
+    fn handle_send_creature_spell_cast_if_visible_like_cpp_command_like_cpp(
+        &mut self,
+        command: SendCreatureSpellCastIfVisibleLikeCppCommand,
+    ) {
+        let opcode = |packet_bytes: &[u8]| {
+            packet_bytes
+                .get(0..2)
+                .and_then(|bytes| bytes.try_into().ok())
+                .map(u16::from_le_bytes)
+        };
+        if opcode(&command.start_packet_bytes)
+            != Some(wow_constants::ServerOpcodes::SpellStart as u16)
+            || opcode(&command.go_packet_bytes)
+                != Some(wow_constants::ServerOpcodes::SpellGo as u16)
+        {
+            return;
+        }
+        // Recipient selection already happened where C++ performs it: inside the
+        // synchronous `SendSpellGo` fan-out, against this session's
+        // `HaveAtClient` set. Re-deriving it here from the drain-time set would
+        // drop a correctly committed pair after a visibility exit and deliver a
+        // stale cast to a viewer that only became visible afterwards. Validate
+        // that the command belongs to this session incarnation and that the
+        // session is still on the map it was committed for, then honor it.
+        if !self
+            .client_visible_guids_like_cpp
+            .shares_storage_like_cpp(&command.committed_visibility_like_cpp)
+        {
+            return;
+        }
+        if self.state() != crate::session::SessionState::LoggedIn {
+            return;
+        }
+        if self.player_map_id_like_cpp() != command.map_id {
+            return;
+        }
+        let session_instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        if session_instance_id != command.instance_id {
+            return;
+        }
+
+        // The basic/full combat-log representation was already chosen for this
+        // recipient when the cast resolved, so a preference the client toggled
+        // since then cannot retroactively change an earlier cast's frame.
+        self.send_raw_packet(&command.start_packet_bytes);
+        self.send_raw_packet(&command.go_packet_bytes);
     }
 
     /// Per-session gate for addon chat delivery.
@@ -13619,7 +13711,7 @@ mod tests {
     use wow_ai::CreatureAI;
     use wow_constants::{
         InventoryResult, InventoryType, ItemBondingType, ItemClass, ItemContext, ItemFieldFlags,
-        ItemFlags2, ItemQuality, TypeId, TypeMask, UnitDynFlags,
+        ItemFlags2, ItemQuality, ServerOpcodes, TypeId, TypeMask, UnitDynFlags,
     };
     use wow_core::{ObjectGuid, ObjectGuidGenerator, Position, guid::HighGuid};
     use wow_data::quest::{
@@ -13651,7 +13743,8 @@ mod tests {
     use wow_network::{
         ApplyLootMoneyLikeCppCommand, GroupInfo, GroupRegistry, KickLikeCppCommand,
         LootDropRatesLikeCpp, LootRollCommandIdentityLikeCpp, LootRollVoteCommand,
-        MasterLootGiveResult, PendingInvites, PlayerBroadcastInfo, PlayerRegistry, SessionCommand,
+        MasterLootGiveResult, PendingInvites, PlayerBroadcastInfo, PlayerRegistry,
+        SendCreatureSpellCastIfVisibleLikeCppCommand, SessionCommand,
     };
     use wow_packet::packets::loot::{
         CreatureLoot, LOOT_ERROR_MASTER_OTHER_LIKE_CPP, LOOT_ERROR_MASTER_UNIQUE_ITEM_LIKE_CPP,
@@ -13703,6 +13796,214 @@ mod tests {
 
     fn make_session() -> WorldSession {
         make_session_with_send().0
+    }
+
+    fn make_visible_creature_spell_session_like_cpp()
+    -> (WorldSession, flume::Receiver<Vec<u8>>, ObjectGuid) {
+        let (mut session, send_rx) = make_session_with_send_capacity(2);
+        let source_guid =
+            ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 91_500);
+        let manager = Arc::new(RwLock::new(crate::map_manager::MapManager::new()));
+        manager.write().unwrap().add_creature(
+            571,
+            0,
+            0,
+            0,
+            crate::map_manager::WorldCreature::new(
+                source_guid,
+                777,
+                Position::ZERO,
+                100,
+                80,
+                1,
+                2,
+                0.0,
+                1,
+                35,
+                0,
+                0,
+            ),
+        );
+        session.set_state(SessionState::LoggedIn);
+        session.set_map_manager(manager);
+        session.set_player_map_position_like_cpp(571, Position::ZERO);
+        session.client_visible_guids_like_cpp.insert(source_guid);
+        (session, send_rx, source_guid)
+    }
+
+    /// One committed cast. `go_marker` distinguishes the basic frame (`0xBB`)
+    /// the producer commits for an ordinary receiver from the full combat-log
+    /// frame (`0xCC`) it commits for an advanced-logging receiver.
+    fn creature_spell_cast_command_like_cpp(
+        source_guid: ObjectGuid,
+        committed_visibility_like_cpp: wow_network::SharedClientVisibleGuidsLikeCpp,
+        go_marker: u8,
+    ) -> SendCreatureSpellCastIfVisibleLikeCppCommand {
+        let mut start_packet_bytes = (ServerOpcodes::SpellStart as u16).to_le_bytes().to_vec();
+        start_packet_bytes.push(0xAA);
+        let mut go_packet_bytes = (ServerOpcodes::SpellGo as u16).to_le_bytes().to_vec();
+        go_packet_bytes.push(go_marker);
+        SendCreatureSpellCastIfVisibleLikeCppCommand {
+            queued_at: Instant::now(),
+            source_guid,
+            map_id: 571,
+            instance_id: 0,
+            start_packet_bytes,
+            go_packet_bytes,
+            committed_visibility_like_cpp,
+        }
+    }
+
+    #[tokio::test]
+    async fn creature_spell_cast_command_sends_start_then_basic_go_after_one_gate_like_cpp() {
+        let (mut session, send_rx, source_guid) = make_visible_creature_spell_session_like_cpp();
+        let command = creature_spell_cast_command_like_cpp(
+            source_guid,
+            session.client_visible_guids_like_cpp.clone(),
+            0xBB,
+        );
+        let expected_start = command.start_packet_bytes.clone();
+        let expected_go = command.go_packet_bytes.clone();
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::SendCreatureSpellCastIfVisibleLikeCpp(
+                command,
+            ))
+            .expect("atomic spell command queued");
+
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        assert_eq!(send_rx.try_recv().expect("START frame"), expected_start);
+        assert_eq!(send_rx.try_recv().expect("GO frame"), expected_go);
+        assert!(send_rx.try_recv().is_err(), "no partial or extra frame");
+    }
+
+    #[tokio::test]
+    async fn advanced_combat_logging_receives_the_committed_full_creature_spell_go_like_cpp() {
+        // The producer committed the full combat-log frame for this receiver.
+        let (mut session, send_rx, source_guid) = make_visible_creature_spell_session_like_cpp();
+        session.represented_set_advanced_combat_logging_like_cpp(true);
+        let command = creature_spell_cast_command_like_cpp(
+            source_guid,
+            session.client_visible_guids_like_cpp.clone(),
+            0xCC,
+        );
+        let expected_start = command.start_packet_bytes.clone();
+        let expected_go = command.go_packet_bytes.clone();
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::SendCreatureSpellCastIfVisibleLikeCpp(
+                command,
+            ))
+            .expect("atomic spell command queued");
+
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        assert_eq!(send_rx.try_recv().expect("START frame"), expected_start);
+        assert_eq!(send_rx.try_recv().expect("full GO frame"), expected_go);
+        assert!(send_rx.try_recv().is_err(), "no partial or extra frame");
+    }
+
+    #[tokio::test]
+    async fn creature_spell_go_keeps_the_committed_frame_after_a_preference_toggle_like_cpp() {
+        // C++ chooses the combat-log representation while distributing the cast,
+        // so toggling advanced logging before this drain must not retroactively
+        // change the frame an earlier cast committed.
+        let (mut session, send_rx, source_guid) = make_visible_creature_spell_session_like_cpp();
+        let command = creature_spell_cast_command_like_cpp(
+            source_guid,
+            session.client_visible_guids_like_cpp.clone(),
+            0xBB,
+        );
+        let expected_go = command.go_packet_bytes.clone();
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::SendCreatureSpellCastIfVisibleLikeCpp(
+                command,
+            ))
+            .expect("atomic spell command queued");
+        session.represented_set_advanced_combat_logging_like_cpp(true);
+
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        let _start = send_rx.try_recv().expect("START frame");
+        assert_eq!(
+            send_rx.try_recv().expect("GO frame"),
+            expected_go,
+            "the committed basic frame survives a later advanced-logging toggle"
+        );
+        assert!(send_rx.try_recv().is_err(), "no partial or extra frame");
+    }
+
+    #[tokio::test]
+    async fn creature_spell_cast_honors_commit_time_visibility_after_exit_like_cpp() {
+        // C++ picks recipients synchronously inside `SendSpellGo`, so a
+        // visibility exit between that commit and this drain cannot retract a
+        // pair the viewer was already selected for.
+        let (mut session, send_rx, source_guid) = make_visible_creature_spell_session_like_cpp();
+        let command = creature_spell_cast_command_like_cpp(
+            source_guid,
+            session.client_visible_guids_like_cpp.clone(),
+            0xBB,
+        );
+        let expected_start = command.start_packet_bytes.clone();
+        let expected_go = command.go_packet_bytes.clone();
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::SendCreatureSpellCastIfVisibleLikeCpp(
+                command,
+            ))
+            .expect("atomic spell command queued");
+        assert!(
+            session.client_visible_guids_like_cpp.remove(&source_guid),
+            "the caster leaves the client's visible set before the drain"
+        );
+
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        assert_eq!(send_rx.try_recv().expect("START frame"), expected_start);
+        assert_eq!(send_rx.try_recv().expect("GO frame"), expected_go);
+        assert!(send_rx.try_recv().is_err(), "no partial or extra frame");
+    }
+
+    #[tokio::test]
+    async fn creature_spell_cast_rejects_command_committed_for_another_session_like_cpp() {
+        // A replaced session owns a fresh `HaveAtClient` allocation, so a pair
+        // committed against the previous incarnation must not be delivered even
+        // when the caster is visible again.
+        let (mut session, send_rx, source_guid) = make_visible_creature_spell_session_like_cpp();
+        let previous_incarnation = wow_network::SharedClientVisibleGuidsLikeCpp::default();
+        previous_incarnation.insert(source_guid);
+        assert!(
+            !session
+                .client_visible_guids_like_cpp
+                .shares_storage_like_cpp(&previous_incarnation),
+            "the fixture models two distinct session incarnations"
+        );
+        let command = creature_spell_cast_command_like_cpp(source_guid, previous_incarnation, 0xBB);
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::SendCreatureSpellCastIfVisibleLikeCpp(
+                command,
+            ))
+            .expect("atomic spell command queued");
+
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        assert!(
+            send_rx.try_recv().is_err(),
+            "a command committed for another incarnation delivers nothing"
+        );
     }
 
     #[test]
@@ -17298,6 +17599,7 @@ mod tests {
         let before = session
             .mutate_world_creature(owner_guid, |creature| {
                 creature.creature.set_corpse_delay(120, false);
+                creature.set_corpse_despawn_at(Some(Instant::now() + Duration::from_secs(120)));
                 creature.apply_corpse_loot_flags_after_death_state_like_cpp(true, false);
                 (
                     creature.corpse_despawn_at(),
@@ -18140,6 +18442,8 @@ mod tests {
             send_tx,
             command_tx,
             durable_creature_runtime_commands_like_cpp: Default::default(),
+            client_visible_guids_like_cpp: Default::default(),
+            advanced_combat_logging_enabled_like_cpp: Default::default(),
             visibility_refresh_pending_like_cpp: Default::default(),
             durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),

@@ -6,12 +6,12 @@ use std::sync::{Arc, Mutex, RwLock, mpsc};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use rand::{Rng, SeedableRng, rngs::StdRng};
+use rand::{Rng, RngCore, SeedableRng, rngs::StdRng};
 use tracing::{debug, info, warn};
 use wow_constants::movement::MovementFlag;
 use wow_constants::{
-    CreatureRandomMovementType as ConstantsCreatureRandomMovementType, UnitDynFlags, UnitFlags2,
-    UnitMoveType, UnitStandStateType, UnitState, WeaponAttackType,
+    CreatureRandomMovementType as ConstantsCreatureRandomMovementType, PowerType, UnitDynFlags,
+    UnitFlags2, UnitMoveType, UnitStandStateType, UnitState, WeaponAttackType,
 };
 use wow_core::{ObjectGuid, Position};
 use wow_database::{
@@ -19,11 +19,11 @@ use wow_database::{
 };
 use wow_entities::{
     AllowedPositionZCaps, Creature, CreatureAddonLifecycleRecordLikeCpp, CreatureAiState,
-    DEFAULT_HEIGHT_SEARCH, DistractMovementAction, EVENT_CHARGE_PREPATH, GenericMovementInform,
-    INVALID_HEIGHT, MotionMasterUpdateContext, MotionMasterUpdateOutcome, MovementGeneratorKind,
-    MovementGeneratorRef, MovementGeneratorType, MovementSlot, PhaseShift, PointMovementAction,
-    PointMovementInform, RotateMovementUpdate, Z_OFFSET_FIND_HEIGHT,
-    allowed_position_z_from_ground_like_cpp, game_time_secs_like_cpp,
+    CreatureCombatLogStatsLikeCpp, DEFAULT_HEIGHT_SEARCH, DistractMovementAction,
+    EVENT_CHARGE_PREPATH, GenericMovementInform, INVALID_HEIGHT, MotionMasterUpdateContext,
+    MotionMasterUpdateOutcome, MovementGeneratorKind, MovementGeneratorRef, MovementGeneratorType,
+    MovementSlot, PhaseShift, PointMovementAction, PointMovementInform, RotateMovementUpdate,
+    Z_OFFSET_FIND_HEIGHT, allowed_position_z_from_ground_like_cpp, game_time_secs_like_cpp,
 };
 use wow_map::map::MapWorldObjectEnvironment;
 use wow_map::{GridMapTerrain, SharedStaticVMapLineOfSightProvider, SpawnObjectType};
@@ -63,6 +63,37 @@ pub const VISIBILITY_RADIUS: f32 = 100.0;
 /// is clamped to this when the template value is 0 (`ObjectMgr.cpp:1100-1104`); a
 /// 0 attack time crashes the 3.4.3 client's swing-timer math on the first tick.
 const BASE_ATTACK_TIME_LIKE_CPP: u32 = 2_000;
+
+const fn power_type_from_u8_like_cpp(power: u8) -> PowerType {
+    match power {
+        1 => PowerType::Rage,
+        2 => PowerType::Focus,
+        3 => PowerType::Energy,
+        4 => PowerType::Happiness,
+        5 => PowerType::Runes,
+        6 => PowerType::RunicPower,
+        7 => PowerType::SoulShards,
+        8 => PowerType::LunarPower,
+        9 => PowerType::HolyPower,
+        10 => PowerType::AlternatePower,
+        11 => PowerType::Maelstrom,
+        12 => PowerType::Chi,
+        13 => PowerType::Insanity,
+        14 => PowerType::ComboPoints,
+        15 => PowerType::DemonicFury,
+        16 => PowerType::ArcaneCharges,
+        17 => PowerType::Fury,
+        18 => PowerType::Pain,
+        19 => PowerType::Essence,
+        20 => PowerType::RuneBlood,
+        21 => PowerType::RuneFrost,
+        22 => PowerType::RuneUnholy,
+        23 => PowerType::AlternateQuest,
+        24 => PowerType::AlternateEncounter,
+        25 => PowerType::AlternateMount,
+        _ => PowerType::Mana,
+    }
+}
 
 const MAX_NUMBER_OF_CELLS_LIKE_CPP: i32 = 8;
 const TOTAL_NUMBER_OF_CELLS_PER_MAP_LIKE_CPP: i32 =
@@ -597,6 +628,9 @@ pub fn terrain_grid_area_id_for_position_like_cpp(
     x: f32,
     y: f32,
 ) -> io::Result<Option<u32>> {
+    // `terrain_grid_coords_for_wow_position_like_cpp` already includes the
+    // axis reversal performed by C++ `Map::EnsureGridCreated` before it asks
+    // TerrainMgr for the extracted map tile (`Map.cpp:338-343`).
     let (gx, gy) = terrain_grid_coords_for_wow_position_like_cpp(x, y);
     let file_name = data_dir
         .as_ref()
@@ -1342,10 +1376,32 @@ pub struct WorldCreature {
     assistance_called_like_cpp: bool,
     /// Active `SPELL_AURA_MOD_TAUNT`s in application order: caster and expiry.
     active_taunts_like_cpp: Vec<ActiveTauntLikeCpp>,
+    /// C++ `CombatAI::_events` due times for the eight template spell slots.
+    /// `None` means that slot is not scheduled for the current engagement.
+    creature_spell_due_at_ms_like_cpp: [Option<u64>; wow_entities::MAX_CREATURE_SPELLS],
+    /// C++ initializes and resets `CombatAI::_events` once per AI lifecycle.
+    /// The legacy map owner keeps that lifecycle bit beside the due times so
+    /// multiple player sessions cannot independently schedule the same cast.
+    creature_spell_schedule_initialized_like_cpp: bool,
+    /// Monotonic engagement token carried by deferred session commands. It
+    /// invalidates a queued cast after evade/death/reset even when the same
+    /// creature later attacks the same player again.
+    creature_spell_engagement_epoch_like_cpp: u64,
     /// Set by reached-home finalization until the global movement owner
     /// publishes the restored health values update.
     home_health_restored_pending_like_cpp: bool,
     runtime_motion_master_ticks: u64,
+    /// False after the creature-spell slice reaches a C++ RNG decision whose
+    /// exact number/order of draws is unknown. The marker prevents later spell
+    /// casts from claiming exact RNG authority, but it must not disable the
+    /// pre-existing best-effort melee and movement runtimes.
+    runtime_rng_authority_complete_like_cpp: bool,
+    /// DB-backed aura-source proofs that may be re-accredited only after the
+    /// respawn rail reapplies the captured creature/template addon source.
+    /// These are provenance, not the live AuraSubsystem markers: ordinary aura
+    /// mutations still revoke the live markers permanently for that lifetime.
+    respawn_spell_hit_aura_source_authority_like_cpp: bool,
+    respawn_spell_cast_log_aura_source_authority_like_cpp: bool,
     runtime_rng_like_cpp: StdRng,
     clock_started_at: Instant,
 }
@@ -1370,8 +1426,17 @@ impl Clone for WorldCreature {
             pending_assistance_like_cpp: self.pending_assistance_like_cpp.clone(),
             assistance_called_like_cpp: self.assistance_called_like_cpp,
             active_taunts_like_cpp: self.active_taunts_like_cpp.clone(),
+            creature_spell_due_at_ms_like_cpp: self.creature_spell_due_at_ms_like_cpp,
+            creature_spell_schedule_initialized_like_cpp: self
+                .creature_spell_schedule_initialized_like_cpp,
+            creature_spell_engagement_epoch_like_cpp: self.creature_spell_engagement_epoch_like_cpp,
             home_health_restored_pending_like_cpp: self.home_health_restored_pending_like_cpp,
             runtime_motion_master_ticks: self.runtime_motion_master_ticks,
+            runtime_rng_authority_complete_like_cpp: self.runtime_rng_authority_complete_like_cpp,
+            respawn_spell_hit_aura_source_authority_like_cpp: self
+                .respawn_spell_hit_aura_source_authority_like_cpp,
+            respawn_spell_cast_log_aura_source_authority_like_cpp: self
+                .respawn_spell_cast_log_aura_source_authority_like_cpp,
             creature,
             create_data: self.create_data.clone(),
             active_move_spline: self.active_move_spline.clone(),
@@ -1522,6 +1587,14 @@ impl WorldCreature {
     }
 
     pub fn from_canonical(mut creature: Creature, mut create_data: CreatureCreateData) -> Self {
+        // This generic bridge carries no proof that every aura source was
+        // hydrated. Preserve fail-closed semantics even if a caller passes a
+        // clone that previously crossed a more authoritative boundary.
+        creature
+            .unit_mut()
+            .subsystems_mut()
+            .auras
+            .invalidate_spell_hit_aura_authority_like_cpp();
         let ai = creature.ai_ownership();
         create_data.npc_flags = (u64::from(ai.npc_flags2) << 32) | u64::from(ai.npc_flags);
         create_data.unit_flags = ai.unit_flags;
@@ -1554,8 +1627,14 @@ impl WorldCreature {
             pending_assistance_like_cpp: Vec::new(),
             assistance_called_like_cpp: false,
             active_taunts_like_cpp: Vec::new(),
+            creature_spell_due_at_ms_like_cpp: [None; wow_entities::MAX_CREATURE_SPELLS],
+            creature_spell_schedule_initialized_like_cpp: false,
+            creature_spell_engagement_epoch_like_cpp: 0,
             home_health_restored_pending_like_cpp: false,
             runtime_motion_master_ticks: 0,
+            runtime_rng_authority_complete_like_cpp: true,
+            respawn_spell_hit_aura_source_authority_like_cpp: false,
+            respawn_spell_cast_log_aura_source_authority_like_cpp: false,
             runtime_rng_like_cpp: StdRng::from_entropy(),
             clock_started_at: Instant::now(),
         }
@@ -1691,6 +1770,10 @@ impl WorldCreature {
     ) -> Self {
         let create_data = Self::create_data_from_canonical_like_cpp(&creature);
         let mut world_creature = Self::from_canonical(creature, create_data);
+        // The loaded-grid lifecycle receives a Creature only after the
+        // DB-backed creature_addon/template_addon store has resolved and the
+        // selected addon has been applied to its canonical AuraSubsystem.
+        world_creature.restore_respawn_aura_source_authority_like_cpp(true, true);
         match world_creature.creature.default_movement_type() {
             wow_entities::MovementGeneratorType::Random => {
                 world_creature.initialize_default_random_movement_like_cpp();
@@ -1703,6 +1786,18 @@ impl WorldCreature {
             wow_entities::MovementGeneratorType::Idle => {}
         }
         world_creature
+    }
+
+    fn restore_respawn_aura_source_authority_like_cpp(
+        &mut self,
+        spell_hit: bool,
+        spell_cast_log: bool,
+    ) {
+        self.respawn_spell_hit_aura_source_authority_like_cpp = spell_hit;
+        self.respawn_spell_cast_log_aura_source_authority_like_cpp = spell_cast_log;
+        let auras = &mut self.creature.unit_mut().subsystems_mut().auras;
+        auras.set_spell_hit_aura_authority_inert_like_cpp(spell_hit);
+        auras.set_spell_cast_log_aura_authority_inert_like_cpp(spell_cast_log);
     }
 
     pub fn active_waypoint_generator_like_cpp(&self) -> Option<&WaypointMovementGenerator> {
@@ -1939,6 +2034,12 @@ impl WorldCreature {
     }
 
     pub fn enter_combat(&mut self, attacker: ObjectGuid) {
+        // `enter_combat` is also used when threat selection changes the current
+        // victim. C++ only resets/schedules `CombatAI::_events` for a new
+        // engagement, not every victim switch.
+        if self.creature.ai_state() != CreatureAiState::InCombat {
+            self.reset_creature_spell_schedule_like_cpp();
+        }
         self.creature.enter_ai_combat(attacker);
         self.sync_runtime_motion_master_like_cpp();
         debug!(
@@ -2118,6 +2219,7 @@ impl WorldCreature {
         // `CanAssistTo` when the delay expires. A real `Unit::AttackStop`
         // resets `m_AlreadyCallAssistance` for the next engagement.
         self.assistance_called_like_cpp = false;
+        self.reset_creature_spell_schedule_like_cpp();
         self.creature.reset_ai_combat(self.now_ms());
         self.sync_runtime_motion_master_like_cpp();
         active_taunts
@@ -3986,7 +4088,7 @@ impl WorldCreature {
         random: WaypointRandomAtPathEnd,
     ) -> Option<(Position, MoveSpline)> {
         let dst =
-            self.pick_random_destination_from_current_position_like_cpp(random.wander_distance);
+            self.pick_random_destination_from_current_position_like_cpp(random.wander_distance)?;
         self.begin_move_spline_like_cpp(dst)
     }
 
@@ -4459,13 +4561,118 @@ impl WorldCreature {
         ai.swing_timer_ms = 100;
     }
 
-    pub fn roll_damage(&mut self) -> u32 {
+    pub(crate) fn creature_spell_schedule_initialized_like_cpp(&self) -> bool {
+        self.creature_spell_schedule_initialized_like_cpp
+    }
+
+    pub(crate) fn mark_creature_spell_schedule_initialized_like_cpp(&mut self) {
+        self.creature_spell_schedule_initialized_like_cpp = true;
+    }
+
+    pub(crate) fn reset_creature_spell_schedule_like_cpp(&mut self) {
+        self.creature_spell_due_at_ms_like_cpp = [None; wow_entities::MAX_CREATURE_SPELLS];
+        self.creature_spell_schedule_initialized_like_cpp = false;
+        self.creature_spell_engagement_epoch_like_cpp = self
+            .creature_spell_engagement_epoch_like_cpp
+            .wrapping_add(1);
+    }
+
+    pub(crate) fn creature_spell_engagement_epoch_like_cpp(&self) -> u64 {
+        self.creature_spell_engagement_epoch_like_cpp
+    }
+
+    pub(crate) fn runtime_rng_authority_complete_like_cpp(&self) -> bool {
+        self.runtime_rng_authority_complete_like_cpp
+    }
+
+    /// Permanently tombstone exact creature-spell RNG authority for this loaded
+    /// creature. C++ keeps the same generator across combat resets, so neither
+    /// a new target nor a new engagement epoch can restore a provable draw
+    /// position. Existing transitional melee and movement continue to consume
+    /// their best-effort stream so an unrepresented spell cannot freeze normal
+    /// gameplay.
+    pub(crate) fn invalidate_runtime_rng_authority_like_cpp(&mut self) {
+        self.runtime_rng_authority_complete_like_cpp = false;
+    }
+
+    pub(crate) fn schedule_creature_spell_slot_after_like_cpp(
+        &mut self,
+        slot: usize,
+        delay_ms: u64,
+    ) {
+        let due_at_ms = self.now_ms().saturating_add(delay_ms);
+        if let Some(due_at) = self.creature_spell_due_at_ms_like_cpp.get_mut(slot) {
+            *due_at = Some(due_at_ms);
+        }
+    }
+
+    pub(crate) fn clear_creature_spell_slot_like_cpp(&mut self, slot: usize) {
+        if let Some(due_at) = self.creature_spell_due_at_ms_like_cpp.get_mut(slot) {
+            *due_at = None;
+        }
+    }
+
+    pub(crate) fn first_due_creature_spell_slot_like_cpp(&self) -> Option<usize> {
+        let now_ms = self.now_ms();
+        self.creature_spell_due_at_ms_like_cpp
+            .iter()
+            .enumerate()
+            .filter_map(|(slot, due_at)| due_at.map(|due_at| (slot, due_at)))
+            .filter(|(_, due_at)| now_ms >= *due_at)
+            // C++ `CombatAI::UpdateAI` invokes `EventMap::ExecuteEvent` once
+            // per update, so simultaneous events are consumed one at a time.
+            .min_by_key(|(slot, due_at)| (*due_at, *slot))
+            .map(|(slot, _)| slot)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn creature_spell_due_in_ms_for_test(&self, slot: usize) -> Option<u64> {
+        self.creature_spell_due_at_ms_like_cpp
+            .get(slot)
+            .copied()
+            .flatten()
+            .map(|due_at| due_at.saturating_sub(self.now_ms()))
+    }
+
+    pub(crate) fn random_creature_spell_delay_like_cpp(
+        &mut self,
+        minimum_ms: u64,
+        maximum_ms: u64,
+    ) -> Option<u64> {
+        if !self.runtime_rng_authority_complete_like_cpp {
+            return None;
+        }
+        if minimum_ms > maximum_ms {
+            self.invalidate_runtime_rng_authority_like_cpp();
+            return None;
+        }
+        if minimum_ms == maximum_ms {
+            // C++ `urand(min, max)` still invokes its process-global engine
+            // when both inclusive bounds are equal. Preserve that logical
+            // draw in the Creature-owned represented stream.
+            let _ = self.runtime_rng_like_cpp.next_u32();
+            return Some(minimum_ms);
+        }
+        Some(self.runtime_rng_like_cpp.gen_range(minimum_ms..=maximum_ms))
+    }
+
+    pub(crate) fn random_creature_spell_hit_roll_like_cpp(&mut self) -> Option<u32> {
+        self.runtime_rng_authority_complete_like_cpp
+            .then(|| self.runtime_rng_like_cpp.gen_range(0..=9_999))
+    }
+
+    pub fn roll_damage(&mut self) -> Option<u32> {
         let min_dmg = self.min_dmg();
         let max_dmg = self.max_dmg();
-        if min_dmg >= max_dmg {
-            return min_dmg;
+        if min_dmg > max_dmg {
+            self.invalidate_runtime_rng_authority_like_cpp();
+            return None;
         }
-        self.runtime_rng_like_cpp.gen_range(min_dmg..=max_dmg)
+        if min_dmg == max_dmg {
+            let _ = self.runtime_rng_like_cpp.next_u32();
+            return Some(min_dmg);
+        }
+        Some(self.runtime_rng_like_cpp.gen_range(min_dmg..=max_dmg))
     }
 
     pub fn should_wander(&self) -> bool {
@@ -4480,7 +4687,7 @@ impl WorldCreature {
                 >= self.creature.ai_ownership().wander_delay_ms
     }
 
-    pub fn pick_wander_destination(&mut self) -> Position {
+    pub fn pick_wander_destination(&mut self) -> Option<Position> {
         let angle = self
             .runtime_rng_like_cpp
             .gen_range(0.0..(2.0 * std::f32::consts::PI));
@@ -4490,13 +4697,13 @@ impl WorldCreature {
         let x = home.x + angle.cos() * dist;
         let y = home.y + angle.sin() * dist;
         let o = angle + std::f32::consts::PI;
-        Position::new(x, y, home.z, o)
+        Some(Position::new(x, y, home.z, o))
     }
 
     pub fn pick_random_destination_from_current_position_like_cpp(
         &mut self,
         wander_distance: f32,
-    ) -> Position {
+    ) -> Option<Position> {
         let angle = self
             .runtime_rng_like_cpp
             .gen_range(0.0..(2.0 * std::f32::consts::PI));
@@ -4506,46 +4713,51 @@ impl WorldCreature {
         let x = reference.x + angle.cos() * dist;
         let y = reference.y + angle.sin() * dist;
         let o = angle + std::f32::consts::PI;
-        Position::new(x, y, reference.z, o)
+        Some(Position::new(x, y, reference.z, o))
     }
 
-    pub fn reset_wander_timer(&mut self) {
+    pub fn reset_wander_timer(&mut self) -> bool {
         let now_ms = self.now_ms();
         let wander_delay_ms = self.runtime_rng_like_cpp.gen_range(4_000..=10_000);
         let ai = self.creature.ai_ownership_mut();
         ai.move_start_ms = now_ms;
         ai.wander_delay_ms = wander_delay_ms;
+        true
     }
 
-    pub fn initialize_random_wander_steps_like_cpp(&mut self) {
+    pub fn initialize_random_wander_steps_like_cpp(&mut self) -> bool {
         let wander_steps_remaining = self.runtime_rng_like_cpp.gen_range(2..=10);
         self.creature.ai_ownership_mut().wander_steps_remaining = wander_steps_remaining;
+        true
     }
 
-    pub fn record_random_movement_launch_like_cpp(&mut self) {
+    pub fn record_random_movement_launch_like_cpp(&mut self) -> bool {
         if self.creature.ai_ownership().wander_steps_remaining == 0 {
-            self.initialize_random_wander_steps_like_cpp();
+            if !self.initialize_random_wander_steps_like_cpp() {
+                return false;
+            }
         }
         let ai = self.creature.ai_ownership_mut();
         ai.wander_steps_remaining = ai.wander_steps_remaining.saturating_sub(1);
         ai.state = CreatureAiState::WalkingRandom;
+        true
     }
 
-    pub fn schedule_after_random_movement_like_cpp(&mut self) {
+    pub fn schedule_after_random_movement_like_cpp(&mut self) -> bool {
         let now_ms = self.now_ms();
         if self.creature.ai_ownership().wander_steps_remaining > 0 {
             let ai = self.creature.ai_ownership_mut();
             ai.move_start_ms = now_ms;
             ai.wander_delay_ms = 0;
-            return;
+            return true;
         }
-
         let wander_delay_ms = self.runtime_rng_like_cpp.gen_range(4_000..=10_000);
         let wander_steps_remaining = self.runtime_rng_like_cpp.gen_range(2..=10);
         let ai = self.creature.ai_ownership_mut();
         ai.move_start_ms = now_ms;
         ai.wander_delay_ms = wander_delay_ms;
         ai.wander_steps_remaining = wander_steps_remaining;
+        true
     }
 
     #[cfg(test)]
@@ -5081,6 +5293,24 @@ pub enum RecipientRule {
         source_position: Position,
         range: f32,
         required_3d: bool,
+    },
+    /// One creature spell cast whose START plus viewer-selected basic/full GO
+    /// frames must be published and consumed as a single durable unit.
+    ///
+    /// `RuntimeEvent::packet_bytes` carries START and the two GO fields carry
+    /// the basic/full alternatives. Routing and all companion payloads are
+    /// deliberately coupled here until `RuntimeEvent` grows a first-class
+    /// packet-batch payload; independent events would allow a session drain
+    /// between the two committed frames.
+    NearbyVisibleDurableSpellCast {
+        source_guid: ObjectGuid,
+        map_id: u16,
+        instance_id: u32,
+        source_position: Position,
+        range: f32,
+        required_3d: bool,
+        basic_go_packet_bytes: Vec<u8>,
+        full_go_packet_bytes: Vec<u8>,
     },
     /// Broadcast to every session on the map regardless of distance.
     /// Mirrors C++ map-wide broadcast.
@@ -6041,6 +6271,13 @@ pub struct PendingRespawn {
     pub level: u8,
     pub min_dmg: u32,
     pub max_dmg: u32,
+    /// Live totals used by C++ `SpellCastLogData::Initialize`.
+    pub combat_log_stats: CreatureCombatLogStatsLikeCpp,
+    /// DB-backed source proofs captured independently of the live aura markers.
+    /// The live markers are revoked during death cleanup; the respawn rail may
+    /// restore only proofs that crossed the authoritative loaded-grid bridge.
+    pub spell_hit_aura_source_authority_like_cpp: bool,
+    pub spell_cast_log_aura_source_authority_like_cpp: bool,
     pub aggro_radius: f32,
     pub wander_distance: f32,
     pub flags_extra: u32,
@@ -6126,11 +6363,11 @@ pub fn pending_respawn_from_world_creature_like_cpp(
             ),
             damage_school: creature.creature.melee_damage_school_like_cpp(),
             scale: 1.0,
-            unit_class: 1,
-            display_power: creature.creature.unit().data().display_power,
-            power: creature.creature.unit().data().power,
-            max_power: creature.creature.unit().data().max_power,
-            base_mana: creature.creature.unit().data().base_mana,
+            unit_class: creature.create_data.unit_class,
+            display_power: creature.create_data.display_power,
+            power: creature.create_data.power,
+            max_power: creature.create_data.max_power,
+            base_mana: creature.create_data.base_mana,
             virtual_items: [
                 (
                     creature.creature.unit().data().virtual_items[0].item_id,
@@ -6176,6 +6413,11 @@ pub fn pending_respawn_from_world_creature_like_cpp(
         level: creature.level(),
         min_dmg: creature.min_dmg(),
         max_dmg: creature.max_dmg(),
+        combat_log_stats: creature.creature.combat_log_stats_like_cpp(),
+        spell_hit_aura_source_authority_like_cpp: creature
+            .respawn_spell_hit_aura_source_authority_like_cpp,
+        spell_cast_log_aura_source_authority_like_cpp: creature
+            .respawn_spell_cast_log_aura_source_authority_like_cpp,
         aggro_radius: creature.creature.ai_ownership().aggro_radius,
         wander_distance: creature.creature.ai_ownership().wander_radius.max(0.0),
         flags_extra: creature.creature.lifecycle_metadata().flags_extra,
@@ -6274,6 +6516,16 @@ pub fn world_creature_from_pending_respawn_like_cpp(
     creature.unit_mut().set_level(level);
     creature.unit_mut().set_max_health(u64::from(hp));
     creature.unit_mut().set_health(u64::from(hp));
+    creature.unit_mut().set_class(create_data.unit_class);
+    let power_type = power_type_from_u8_like_cpp(create_data.display_power);
+    creature.set_power_type(power_type);
+    creature
+        .unit_mut()
+        .set_create_mana_like_cpp(create_data.base_mana);
+    creature
+        .unit_mut()
+        .replace_create_power_arrays_like_cpp(create_data.power, create_data.max_power);
+    creature.set_combat_log_stats_like_cpp(respawn.combat_log_stats);
     creature.set_ai_identity_runtime(display_id, faction, npc_flags, unit_flags);
     creature.set_npc_flags2_runtime_like_cpp(npc_flags2);
     creature.set_unit_flags2_runtime_like_cpp(unit_flags2);
@@ -6342,7 +6594,12 @@ pub fn world_creature_from_pending_respawn_like_cpp(
     creature.ai_ownership_mut().terrain_swap_map = respawn.terrain_swap_map;
     creature.clear_data_changes();
 
-    WorldCreature::from_canonical(creature, respawn.create_data.clone())
+    let mut world_creature = WorldCreature::from_canonical(creature, respawn.create_data.clone());
+    world_creature.restore_respawn_aura_source_authority_like_cpp(
+        respawn.spell_hit_aura_source_authority_like_cpp,
+        respawn.spell_cast_log_aura_source_authority_like_cpp,
+    );
+    world_creature
 }
 
 #[cfg(test)]
@@ -6350,7 +6607,7 @@ mod tests {
     use super::*;
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
-    use wow_constants::{CreatureFlagsExtra, PhaseFlags, PowerType};
+    use wow_constants::{Class, CreatureFlagsExtra, DeathState, PhaseFlags, PowerType};
     use wow_core::guid::HighGuid;
     use wow_map::map::MapWorldObjectEnvironment;
 
@@ -6415,6 +6672,76 @@ mod tests {
             0,
             0,
         )
+    }
+
+    #[test]
+    fn only_loaded_grid_creature_bridge_completes_spell_aura_authorities_like_cpp() {
+        let generic = test_creature(ObjectGuid::new(0, 90_001));
+        assert!(
+            !generic
+                .creature
+                .unit()
+                .subsystems()
+                .auras
+                .has_complete_spell_hit_inert_aura_authority_like_cpp()
+        );
+        assert!(
+            !generic
+                .creature
+                .unit()
+                .subsystems()
+                .auras
+                .has_complete_spell_cast_log_aura_authority_like_cpp()
+        );
+
+        let mut previously_authorized = generic.creature.clone();
+        previously_authorized
+            .unit_mut()
+            .subsystems_mut()
+            .auras
+            .set_spell_hit_aura_authority_inert_like_cpp(true);
+        previously_authorized
+            .unit_mut()
+            .subsystems_mut()
+            .auras
+            .set_spell_cast_log_aura_authority_inert_like_cpp(true);
+        let generic_bridge =
+            WorldCreature::from_canonical(previously_authorized, generic.create_data.clone());
+        assert!(
+            !generic_bridge
+                .creature
+                .unit()
+                .subsystems()
+                .auras
+                .has_complete_spell_hit_inert_aura_authority_like_cpp()
+        );
+        assert!(
+            !generic_bridge
+                .creature
+                .unit()
+                .subsystems()
+                .auras
+                .has_complete_spell_cast_log_aura_authority_like_cpp()
+        );
+
+        let canonical = test_creature(ObjectGuid::new(0, 90_002)).creature;
+        let loaded_grid = WorldCreature::from_loaded_grid_canonical_like_cpp(canonical, |_| None);
+        assert!(
+            loaded_grid
+                .creature
+                .unit()
+                .subsystems()
+                .auras
+                .has_complete_spell_hit_inert_aura_authority_like_cpp()
+        );
+        assert!(
+            loaded_grid
+                .creature
+                .unit()
+                .subsystems()
+                .auras
+                .has_complete_spell_cast_log_aura_authority_like_cpp()
+        );
     }
 
     fn test_chase_target(victim: ObjectGuid, x: f32) -> ChaseTargetSnapshotLikeCpp {
@@ -6841,6 +7168,36 @@ mod tests {
     }
 
     #[test]
+    fn terrain_area_file_uses_cpp_reversed_grid_coordinates_like_cpp() {
+        let data_dir = unique_temp_data_dir("terrain-area-grid-reversal");
+        let map_id = 530;
+        let x = 2_933.0;
+        let y = -5_600.0;
+        let (file_x, file_y) = terrain_grid_coords_for_wow_position_like_cpp(x, y);
+        assert_eq!((file_x, file_y), (26, 42));
+
+        let area_offset = MAP_FILE_HEADER_SIZE_LIKE_CPP as u32;
+        let mut bytes =
+            map_file_header_with_area_like_cpp(area_offset, MAP_AREA_HEADER_SIZE_LIKE_CPP as u32);
+        bytes.extend_from_slice(MAP_AREA_MAGIC_LIKE_CPP);
+        bytes.extend_from_slice(&MAP_AREA_HEADER_FLAG_NO_AREA_LIKE_CPP.to_le_bytes());
+        bytes.extend_from_slice(&3_697_u16.to_le_bytes());
+        fs::write(
+            data_dir
+                .join("maps")
+                .join(format!("{map_id:04}_{file_x:02}_{file_y:02}.map")),
+            bytes,
+        )
+        .expect("write reversed C++ terrain tile");
+
+        assert_eq!(
+            terrain_grid_area_id_for_position_like_cpp(&data_dir, map_id, x, y)
+                .expect("read reversed C++ terrain tile"),
+            Some(3_697)
+        );
+    }
+
+    #[test]
     fn terrain_zone_area_falls_back_to_map_area_when_grid_missing_like_cpp() {
         let data_dir = unique_temp_data_dir("terrain-area-fallback");
         assert_eq!(
@@ -6856,12 +7213,119 @@ mod tests {
         let mut creature = test_creature(guid);
         creature.seed_runtime_rng_like_cpp(0xA141_BEEF);
 
-        let rolls: Vec<u32> = (0..16).map(|_| creature.roll_damage()).collect();
+        let rolls: Vec<u32> = (0..16)
+            .map(|_| creature.roll_damage().expect("authoritative damage roll"))
+            .collect();
 
         assert!(rolls.iter().all(|roll| (5..=10).contains(roll)));
         assert!(
             rolls.iter().any(|roll| *roll != rolls[0]),
             "damage rolls should come from owned RNG, not now_ms/spline_id: {rolls:?}"
+        );
+    }
+
+    #[test]
+    fn creature_spell_hit_roll_consumes_owned_runtime_rng_sequence_like_cpp() {
+        let seed = 0x5E11_117_u64;
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 70002);
+        let mut creature = test_creature(guid);
+        creature.seed_runtime_rng_like_cpp(seed);
+        let mut expected_rng = StdRng::seed_from_u64(seed);
+
+        let actual: Vec<u32> = (0..16)
+            .map(|_| {
+                creature
+                    .random_creature_spell_hit_roll_like_cpp()
+                    .expect("authoritative creature-spell hit roll")
+            })
+            .collect();
+        let expected: Vec<u32> = (0..16).map(|_| expected_rng.gen_range(0..=9_999)).collect();
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn equal_rng_bounds_still_consume_shared_runtime_draws_like_cpp() {
+        let seed = 0xE011_A1_u64;
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 70008);
+        let mut creature = test_creature(guid);
+        creature.seed_runtime_rng_like_cpp(seed);
+        creature.creature.ai_ownership_mut().min_damage = 7;
+        creature.creature.ai_ownership_mut().max_damage = 7;
+        let mut expected_rng = StdRng::seed_from_u64(seed);
+
+        assert_eq!(
+            creature.random_creature_spell_delay_like_cpp(5_000, 5_000),
+            Some(5_000)
+        );
+        let _ = expected_rng.next_u32();
+        assert_eq!(creature.roll_damage(), Some(7));
+        let _ = expected_rng.next_u32();
+        assert_eq!(
+            creature.random_creature_spell_hit_roll_like_cpp(),
+            Some(expected_rng.gen_range(0..=9_999))
+        );
+    }
+
+    #[test]
+    fn world_creature_spell_rng_tombstone_preserves_legacy_melee_and_movement() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 70007);
+        let mut creature = test_creature(guid);
+        creature.seed_runtime_rng_like_cpp(0x7007);
+        assert!(creature.runtime_rng_authority_complete_like_cpp());
+        assert!(creature.random_creature_spell_hit_roll_like_cpp().is_some());
+
+        creature.invalidate_runtime_rng_authority_like_cpp();
+        creature.reset_creature_spell_schedule_like_cpp();
+        creature.seed_runtime_rng_like_cpp(0x7008);
+
+        assert!(!creature.runtime_rng_authority_complete_like_cpp());
+        assert_eq!(creature.random_creature_spell_hit_roll_like_cpp(), None);
+        assert_eq!(
+            creature.random_creature_spell_delay_like_cpp(5_000, 10_000),
+            None
+        );
+        assert_eq!(
+            creature.random_creature_spell_delay_like_cpp(5_000, 5_000),
+            None,
+            "even equal C++ bounds consume the permanently lost RNG stream"
+        );
+        assert!(creature.roll_damage().is_some());
+        assert!(creature.pick_wander_destination().is_some());
+        assert!(
+            creature
+                .pick_random_destination_from_current_position_like_cpp(12.0)
+                .is_some()
+        );
+        assert!(creature.reset_wander_timer());
+        creature.creature.ai_ownership_mut().wander_steps_remaining = 0;
+        assert!(creature.record_random_movement_launch_like_cpp());
+        assert!(creature.schedule_after_random_movement_like_cpp());
+        creature
+            .creature
+            .set_default_movement_type_runtime_like_cpp(MovementGeneratorType::Random);
+        creature.creature.ai_ownership_mut().wander_radius = 12.0;
+        assert!(creature.initialize_default_random_movement_like_cpp());
+
+        let cloned = creature.clone();
+        assert!(!cloned.runtime_rng_authority_complete_like_cpp());
+    }
+
+    #[test]
+    fn reversed_damage_bounds_reject_and_tombstone_only_spell_rng_authority() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 70009);
+        let mut creature = test_creature(guid);
+        creature.creature.ai_ownership_mut().min_damage = 10;
+        creature.creature.ai_ownership_mut().max_damage = 5;
+
+        assert_eq!(creature.roll_damage(), None);
+        assert!(!creature.runtime_rng_authority_complete_like_cpp());
+        assert_eq!(creature.random_creature_spell_hit_roll_like_cpp(), None);
+        assert!(
+            creature
+                .pick_random_destination_from_current_position_like_cpp(12.0)
+                .is_some(),
+            "the conservative spell-RNG tombstone must not freeze legacy movement"
         );
     }
 
@@ -6979,14 +7443,14 @@ mod tests {
             );
         creature.creature.ai_ownership_mut().wander_steps_remaining = 2;
 
-        creature.record_random_movement_launch_like_cpp();
+        assert!(creature.record_random_movement_launch_like_cpp());
         assert_eq!(creature.creature.ai_ownership().wander_steps_remaining, 1);
-        creature.schedule_after_random_movement_like_cpp();
+        assert!(creature.schedule_after_random_movement_like_cpp());
         assert_eq!(creature.creature.ai_ownership().wander_delay_ms, 0);
 
-        creature.record_random_movement_launch_like_cpp();
+        assert!(creature.record_random_movement_launch_like_cpp());
         assert_eq!(creature.creature.ai_ownership().wander_steps_remaining, 0);
-        creature.schedule_after_random_movement_like_cpp();
+        assert!(creature.schedule_after_random_movement_like_cpp());
         assert!(
             (4_000..=10_000).contains(&creature.creature.ai_ownership().wander_delay_ms),
             "C++ RandomMovementGenerator pauses 4..10 seconds only after its wander step batch"
@@ -7032,7 +7496,9 @@ mod tests {
         creature.seed_runtime_rng_like_cpp(0x5757);
 
         for _ in 0..24 {
-            let dst = creature.pick_wander_destination();
+            let dst = creature
+                .pick_wander_destination()
+                .expect("authoritative wander destination");
             let dist = creature.home_position().distance(&dst);
             assert!(
                 dist <= creature.creature.ai_ownership().wander_radius + f32::EPSILON,
@@ -7041,7 +7507,7 @@ mod tests {
         }
 
         for _ in 0..24 {
-            creature.reset_wander_timer();
+            assert!(creature.reset_wander_timer());
             assert!(
                 (4_000..=10_000).contains(&creature.creature.ai_ownership().wander_delay_ms),
                 "C++ RandomMovementGenerator pauses with urand(4, 10) seconds"
@@ -10244,6 +10710,7 @@ mod tests {
             0,
             0,
         );
+        creature.seed_runtime_rng_like_cpp(0x5434_1);
         creature
             .creature
             .set_default_movement_type_runtime_like_cpp(
@@ -11757,6 +12224,9 @@ mod tests {
             level: 1,
             min_dmg: 1,
             max_dmg: 5,
+            combat_log_stats: CreatureCombatLogStatsLikeCpp::default(),
+            spell_hit_aura_source_authority_like_cpp: false,
+            spell_cast_log_aura_source_authority_like_cpp: false,
             aggro_radius: 10.0,
             wander_distance: 0.0,
             flags_extra: 0,
@@ -12251,6 +12721,80 @@ mod tests {
     }
 
     #[test]
+    fn pending_respawn_preserves_combat_log_state_across_legacy_and_canonical_like_cpp() {
+        let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 45);
+        let seed = test_creature(guid);
+        let mut canonical = seed.creature;
+        canonical.set_spawn_id(45);
+        canonical.unit_mut().set_class(Class::Hunter as u8);
+        canonical.set_power_type(PowerType::Focus);
+        canonical.unit_mut().set_max_power(PowerType::Focus, 100);
+        canonical.unit_mut().set_power(PowerType::Focus, 37);
+        let combat_log_stats = CreatureCombatLogStatsLikeCpp {
+            attack_power: 111,
+            ranged_attack_power: 222,
+            spell_power: 333,
+            armor: 444,
+        };
+        canonical.set_combat_log_stats_like_cpp(combat_log_stats);
+        let mut loaded_grid =
+            WorldCreature::from_loaded_grid_canonical_like_cpp(canonical, |_| None);
+
+        assert!(
+            loaded_grid
+                .creature
+                .unit()
+                .subsystems()
+                .auras
+                .has_complete_spell_cast_log_aura_authority_like_cpp()
+        );
+        loaded_grid
+            .creature
+            .set_death_state_runtime(DeathState::JustDied, 0);
+        assert!(
+            !loaded_grid
+                .creature
+                .unit()
+                .subsystems()
+                .auras
+                .has_complete_spell_cast_log_aura_authority_like_cpp(),
+            "death cleanup must revoke the live marker before respawn"
+        );
+
+        let pending = pending_respawn_from_world_creature_like_cpp(&loaded_grid, Instant::now(), 0);
+        assert_eq!(pending.create_data.unit_class, Class::Hunter as u8);
+        assert_eq!(pending.create_data.display_power, PowerType::Focus as u8);
+        assert_eq!(pending.create_data.power[0], 37);
+        assert_eq!(pending.combat_log_stats, combat_log_stats);
+        assert!(pending.spell_hit_aura_source_authority_like_cpp);
+        assert!(pending.spell_cast_log_aura_source_authority_like_cpp);
+
+        let legacy = world_creature_from_pending_respawn_like_cpp(&pending, 0);
+        let canonical_mirror = legacy.creature.clone();
+        for creature in [&legacy.creature, &canonical_mirror] {
+            assert_eq!(creature.unit().data().class_id, Class::Hunter as u8);
+            assert_eq!(creature.power_type(), PowerType::Focus);
+            assert_eq!(creature.unit().get_power(PowerType::Focus), 37);
+            assert_eq!(creature.combat_log_stats_like_cpp(), combat_log_stats);
+            assert_eq!(creature.combat_log_attack_power_like_cpp(), 222);
+            assert!(
+                creature
+                    .unit()
+                    .subsystems()
+                    .auras
+                    .has_complete_spell_hit_inert_aura_authority_like_cpp()
+            );
+            assert!(
+                creature
+                    .unit()
+                    .subsystems()
+                    .auras
+                    .has_complete_spell_cast_log_aura_authority_like_cpp()
+            );
+        }
+    }
+
+    #[test]
     fn pending_respawn_preserves_flags_extra_like_cpp() {
         let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 42);
         let mut creature = test_creature(guid);
@@ -12376,11 +12920,16 @@ mod tests {
         assert_eq!(second_pending.spawn_id, second_guid.low_value() as u64);
         assert_ne!(first_pending.spawn_id, second_pending.spawn_id);
         assert!(!first_pending.persistent_spawn);
-        assert_eq!(
-            world_creature_from_pending_respawn_like_cpp(&first_pending, 0)
+        let respawned = world_creature_from_pending_respawn_like_cpp(&first_pending, 0);
+        assert_eq!(respawned.creature.spawn_id(), 0);
+        assert!(
+            !respawned
                 .creature
-                .spawn_id(),
-            0
+                .unit()
+                .subsystems()
+                .auras
+                .has_complete_spell_cast_log_aura_authority_like_cpp(),
+            "generic queue-only respawns must remain fail-closed"
         );
     }
 }

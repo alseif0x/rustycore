@@ -73,6 +73,7 @@ pub enum RequirementStatus {
 pub enum RequirementSemanticContract {
     LootSingleItemClaimV1,
     ChaseAroundObstacleV1,
+    CreatureSpellCastingV1,
 }
 
 /// One routing/order anchor that must occur in a required capture.
@@ -318,6 +319,10 @@ impl FlowRequirement {
                     RequiredCaptureSide::Rust => semantic::validate_detour_chase_capture(capture),
                 }
                 .map_err(anyhow::Error::msg)?;
+            }
+            RequirementSemanticContract::CreatureSpellCastingV1 => {
+                semantic::validate_creature_spell_casting_capture(capture)
+                    .map_err(anyhow::Error::msg)?;
             }
         }
         Ok(())

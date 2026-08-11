@@ -19,7 +19,10 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::model::{Capture, Direction, PacketBoundary};
-use crate::semantic::ISSUE_24_PING_FENCE_SERIAL;
+use crate::semantic::{
+    CorrelatedSpellGuidBody, ISSUE_24_PING_FENCE_SERIAL, SMSG_SPELL_GO, SMSG_SPELL_START,
+    decode_spell_go_body, decode_spell_start_body,
+};
 
 /// Completion marker for one fully derived capture flow.
 pub const LINEAGE_FILE: &str = "capture-lineage.json";
@@ -37,6 +40,23 @@ const DETOUR_FIXTURE_MAP_SHA256: &str =
     "3ff3365bbd0aafb383f4c2984389d07df133dd86cdb0b9340c25361db32d8f5a";
 const DETOUR_FIXTURE_TILE_SHA256: &str =
     "693b93ac3ac605fea8b846a0e1fcf6ca2d0b0dce2f8c5d9c34739febc3731f47";
+const CREATURE_SPELL_FIXTURE_MANIFEST_SHA256: &str =
+    "3cef5dd6201c88fc85c1c2cb767fec27cd11921ec7ecdc2c7705379fd54e356d";
+const CREATURE_SPELL_FIXTURE_CONTRACT: &str = "creature-spell-casting-shell-fixture-v2";
+const CREATURE_SPELL_CPP_SOURCE_DERIVATION_CONTRACT: &str =
+    "creature-spell-casting-cpp-source-patch-v1";
+const CREATURE_SPELL_CPP_REMOTE_URL: &str = "https://github.com/alseif0x/TrinityCoreLegacyTest.git";
+const CREATURE_SPELL_CPP_REMOTE_REF: &str = "refs/remotes/origin/3.4.3";
+const CREATURE_SPELL_CPP_BASE_HEAD: &str = "a5f8da2ebf5424bf0450ca4e08843ecbf72577bd";
+const CREATURE_SPELL_CPP_BASE_TREE: &str = "bb5c4746be7f9944b1a3f7a1eec5ea88d62fff67";
+const CREATURE_SPELL_CPP_PATCHED_HEAD: &str = "8cfed90bf1720dbf8b9dc109113c8d7d9173ff6c";
+const CREATURE_SPELL_CPP_PATCHED_TREE: &str = "228e91ed36886593c85fb601d00a9f8eb0702137";
+const CREATURE_SPELL_CPP_PATCH_PATH: &str =
+    "crates/capture-diff/flows/creature-spell-casting/fixture/cpp-reference.patch";
+const CREATURE_SPELL_CPP_PATCH_SHA256: &str =
+    "ef8b3c29f46fe537e1ae4e826b5610afcd534999f900ec9554ee0534e7847262";
+const CREATURE_SPELL_CPP_CHANGED_PATH: &str = "src/server/game/DataStores/DB2Stores.cpp";
+const CREATURE_SPELL_PLAYER_GUID_HIGH: u64 = 0x0800_0400_0000_0000;
 const LINEAGE_VERSION: u32 = 3;
 const RAW_MANIFEST_VERSION: u32 = 3;
 
@@ -135,6 +155,21 @@ struct BotReportEvidence {
     report_validated: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SourceDerivationEvidence {
+    contract: String,
+    remote_url: String,
+    remote_ref: String,
+    base_head: String,
+    base_tree: String,
+    patched_head: String,
+    patched_tree: String,
+    patch_path: String,
+    patch_sha256: String,
+    changed_paths: Vec<String>,
+}
+
 /// Schema emitted by `capture-cpp.sh` and `capture-rust.sh`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -148,6 +183,8 @@ struct RawCaptureManifest {
     source_repo_head: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     source_exec_revision: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    source_derivation: Option<SourceDerivationEvidence>,
     harness_worktree_clean: bool,
     harness_worktree_state_sha256: String,
     source_worktree_dirty: bool,
@@ -255,6 +292,8 @@ struct SourceLineage {
     raw_packet_count: Option<u64>,
     harness_repo_head: String,
     source_repo_head: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    source_derivation: Option<SourceDerivationEvidence>,
     harness_worktree_clean: bool,
     harness_worktree_state_sha256: String,
     source_worktree_dirty: bool,
@@ -372,11 +411,109 @@ pub fn validate_bot_report_capture_binding(
     cpp: &Capture,
     rust: &Capture,
 ) -> Result<()> {
-    if flow != "detour-chase-around-obstacle" {
-        return Ok(());
+    match flow {
+        "detour-chase-around-obstacle" => {
+            validate_detour_report_capture_binding("C++", &raw.cpp, cpp)?;
+            validate_detour_report_capture_binding("Rust", &raw.rust, rust)
+        }
+        "creature-spell-casting" => {
+            validate_creature_spell_report_capture_binding("C++", &raw.cpp, cpp)?;
+            validate_creature_spell_report_capture_binding("Rust", &raw.rust, rust)
+        }
+        _ => Ok(()),
     }
-    validate_detour_report_capture_binding("C++", &raw.cpp, cpp)?;
-    validate_detour_report_capture_binding("Rust", &raw.rust, rust)
+}
+
+fn validate_creature_spell_report_capture_binding(
+    side_name: &str,
+    side: &ValidatedRawSide,
+    capture: &Capture,
+) -> Result<()> {
+    let report_bytes = side.bot_report_bytes.as_deref().with_context(|| {
+        format!("{side_name} creature-spell capture has no validated bot report")
+    })?;
+    let report: serde_json::Value = serde_json::from_slice(report_bytes).with_context(|| {
+        format!("parsing {side_name} creature-spell bot report for packet binding")
+    })?;
+    let result = report
+        .get("results")
+        .and_then(serde_json::Value::as_array)
+        .and_then(|results| results.first())
+        .context("creature-spell bot report has no result for packet binding")?;
+    let string = |key: &str| {
+        result
+            .get(key)
+            .and_then(serde_json::Value::as_str)
+            .with_context(|| format!("creature-spell bot report {key} is missing"))
+    };
+    let u64_value = |key: &str| {
+        result
+            .get(key)
+            .and_then(serde_json::Value::as_u64)
+            .with_context(|| format!("creature-spell bot report {key} is missing"))
+    };
+    let [start_packet, go_packet] = capture.packets.as_slice() else {
+        bail!(
+            "{side_name} creature-spell packet/report binding requires the exact two-packet selected capture"
+        );
+    };
+    ensure!(
+        start_packet.opcode == SMSG_SPELL_START
+            && go_packet.opcode == SMSG_SPELL_GO
+            && u64_value("creature_spell_start_opcode")? == u64::from(start_packet.opcode)
+            && u64_value("creature_spell_go_opcode")? == u64::from(go_packet.opcode)
+            && u64_value("creature_spell_start_body_bytes")? == start_packet.body.len() as u64
+            && u64_value("creature_spell_go_body_bytes")? == go_packet.body.len() as u64
+            && string("creature_spell_start_body_sha256")? == sha256_bytes(&start_packet.body)
+            && string("creature_spell_go_body_sha256")? == sha256_bytes(&go_packet.body),
+        "{side_name} creature-spell bot report does not match selected RAW START/GO packet bodies"
+    );
+
+    let start = decode_spell_start_body(&start_packet.body)
+        .map_err(anyhow::Error::msg)
+        .with_context(|| {
+            format!("decoding {side_name} selected RAW SpellStart for report binding")
+        })?;
+    let go = decode_spell_go_body(&go_packet.body)
+        .map_err(anyhow::Error::msg)
+        .with_context(|| format!("decoding {side_name} selected RAW SpellGo for report binding"))?;
+    let CorrelatedSpellGuidBody::Exact { guid: start_victim } = &start.body.cast.target.unit else {
+        bail!("{side_name} selected RAW SpellStart does not carry the reported player victim")
+    };
+    let CorrelatedSpellGuidBody::Exact { guid: go_victim } = &go.body.target.unit else {
+        bail!("{side_name} selected RAW SpellGo does not carry the reported player victim")
+    };
+    let [CorrelatedSpellGuidBody::Exact { guid: hit_victim }] = go.body.hit_targets.as_slice()
+    else {
+        bail!("{side_name} selected RAW SpellGo does not carry the reported single hit victim")
+    };
+    ensure!(
+        start.cast_id == go.cast_id
+            && start.exact_caster_guid == go.exact_caster_guid
+            && start_victim == go_victim
+            && go_victim == hit_victim
+            && u64_value("creature_spell_cast_id_low")? == start.cast_id.low
+            && u64_value("creature_spell_cast_id_high")? == start.cast_id.high
+            && u64_value("creature_spell_caster_guid_low")? == start.exact_caster_guid.low
+            && u64_value("creature_spell_caster_guid_high")? == start.exact_caster_guid.high
+            && u64_value("creature_spell_victim_guid_low")? == start_victim.low
+            && u64_value("creature_spell_victim_guid_high")? == start_victim.high
+            && u64_value("creature_spell_target_runtime_counter")?
+                == start.exact_caster_guid.low & 0x0000_00FF_FFFF_FFFF
+            && u64_value("creature_spell_spell_id")? == start.body.cast.spell_id as u64
+            && start.body.cast.spell_id == go.body.spell_id
+            && u64_value("creature_spell_start_cast_flags")?
+                == u64::from(start.body.cast.cast_flags)
+            && u64_value("creature_spell_go_cast_flags")? == u64::from(go.body.cast_flags)
+            && u64_value("creature_spell_cast_flags_ex")?
+                == u64::from(start.body.cast.cast_flags_ex)
+            && start.body.cast.cast_flags_ex == go.body.cast_flags_ex
+            && u64_value("creature_spell_go_hit_target_count")? == go.body.hit_targets.len() as u64
+            && u64_value("creature_spell_go_miss_target_count")?
+                == go.body.miss_targets.len() as u64,
+        "{side_name} creature-spell bot report GUID/cast topology does not match selected RAW"
+    );
+    Ok(())
 }
 
 fn validate_detour_report_capture_binding(
@@ -520,6 +657,15 @@ fn validate_raw_manifest_schema(
         &manifest.effective_config_redacted_sha256,
         "effective_config_redacted_sha256",
     )?;
+    if let Some(derivation) = &manifest.source_derivation {
+        validate_source_derivation_schema(derivation)?;
+    }
+    if flow != "creature-spell-casting" {
+        ensure!(
+            manifest.source_derivation.is_none(),
+            "source_derivation is reserved for C++ creature-spell-casting evidence"
+        );
+    }
     ensure!(
         manifest.expected_exec_path == manifest.source_exec_path
             && manifest.source_exec_path == manifest.live_exec_path,
@@ -582,6 +728,7 @@ fn validate_raw_manifest_schema(
         }
         "vendor-extended-cost-purchase" => validate_canonical_vendor_identity(manifest)?,
         "detour-chase-around-obstacle" => validate_canonical_detour_identity(manifest)?,
+        "creature-spell-casting" => validate_canonical_creature_spell_identity(manifest)?,
         _ => {}
     }
 
@@ -596,6 +743,22 @@ fn validate_raw_manifest_schema(
                     manifest.source_exec_revision.as_deref()
                         == Some(manifest.source_repo_head.as_str()),
                     "detour C++ embedded executable revision must equal source_repo_head"
+                );
+            } else if flow == "creature-spell-casting" {
+                ensure!(
+                    !manifest.source_worktree_dirty,
+                    "creature-spell-casting C++ source worktree must be clean"
+                );
+                ensure!(
+                    manifest.source_exec_revision.as_deref()
+                        == Some(manifest.source_repo_head.as_str()),
+                    "creature-spell-casting C++ embedded executable revision must equal source_repo_head"
+                );
+                validate_canonical_creature_spell_source_derivation(manifest)?;
+            } else {
+                ensure!(
+                    manifest.source_derivation.is_none(),
+                    "C++ source_derivation is reserved for creature-spell-casting"
                 );
             }
             ensure!(
@@ -617,14 +780,21 @@ fn validate_raw_manifest_schema(
         }
         RawSide::Rust => {
             ensure!(
+                manifest.source_derivation.is_none(),
+                "Rust raw manifests must not contain C++ source_derivation evidence"
+            );
+            ensure!(
                 manifest.harness_repo_head == manifest.source_repo_head,
                 "Rust harness/source repository HEAD values must match"
             );
-            if flow == "detour-chase-around-obstacle" {
+            if matches!(
+                flow,
+                "detour-chase-around-obstacle" | "creature-spell-casting"
+            ) {
                 ensure!(
                     manifest.source_exec_revision.as_deref()
                         == Some(manifest.source_repo_head.as_str()),
-                    "detour Rust embedded executable revision must equal source_repo_head"
+                    "{flow} Rust embedded executable revision must equal source_repo_head"
                 );
             }
             ensure!(
@@ -651,6 +821,101 @@ fn validate_raw_manifest_schema(
             );
         }
     }
+    Ok(())
+}
+
+fn validate_source_derivation_schema(derivation: &SourceDerivationEvidence) -> Result<()> {
+    ensure!(
+        !derivation.contract.is_empty(),
+        "source_derivation.contract must not be empty"
+    );
+    ensure!(
+        !derivation.remote_url.is_empty()
+            && !derivation.remote_url.contains(['\r', '\n'])
+            && derivation.remote_url.starts_with("https://"),
+        "source_derivation.remote_url must be one HTTPS line"
+    );
+    ensure!(
+        derivation.remote_ref.starts_with("refs/remotes/")
+            && !derivation.remote_ref.contains(['\r', '\n'])
+            && !derivation.remote_ref.contains(".."),
+        "source_derivation.remote_ref must be one canonical remote-tracking ref"
+    );
+    for (label, oid) in [
+        ("base_head", derivation.base_head.as_str()),
+        ("base_tree", derivation.base_tree.as_str()),
+        ("patched_head", derivation.patched_head.as_str()),
+        ("patched_tree", derivation.patched_tree.as_str()),
+    ] {
+        ensure!(
+            valid_git_oid(oid),
+            "source_derivation.{label} must be a lowercase 40- or 64-hex object id"
+        );
+    }
+    ensure!(
+        derivation.base_head != derivation.patched_head,
+        "source_derivation base and patched commits must differ"
+    );
+    ensure!(
+        is_canonical_relative_path(&derivation.patch_path),
+        "source_derivation.patch_path must be one canonical repository-relative path"
+    );
+    validate_sha256(&derivation.patch_sha256, "source_derivation.patch_sha256")?;
+    ensure!(
+        !derivation.changed_paths.is_empty()
+            && derivation
+                .changed_paths
+                .iter()
+                .all(|path| is_canonical_relative_path(path))
+            && derivation
+                .changed_paths
+                .windows(2)
+                .all(|pair| pair[0] < pair[1]),
+        "source_derivation.changed_paths must be nonempty, canonical, sorted, and unique"
+    );
+    Ok(())
+}
+
+fn is_canonical_relative_path(path: &str) -> bool {
+    !path.is_empty()
+        && !path.starts_with('/')
+        && !path.ends_with('/')
+        && !path.contains(['\r', '\n'])
+        && path.split('/').all(|component| {
+            !component.is_empty()
+                && component != "."
+                && component != ".."
+                && component
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+        })
+}
+
+fn validate_canonical_creature_spell_source_derivation(
+    manifest: &RawCaptureManifest,
+) -> Result<()> {
+    let derivation = manifest
+        .source_derivation
+        .as_ref()
+        .context("creature-spell-casting C++ requires source_derivation evidence")?;
+    ensure!(
+        derivation.contract == CREATURE_SPELL_CPP_SOURCE_DERIVATION_CONTRACT
+            && derivation.remote_url == CREATURE_SPELL_CPP_REMOTE_URL
+            && derivation.remote_ref == CREATURE_SPELL_CPP_REMOTE_REF
+            && derivation.base_head == CREATURE_SPELL_CPP_BASE_HEAD
+            && derivation.base_tree == CREATURE_SPELL_CPP_BASE_TREE
+            && derivation.patched_head == CREATURE_SPELL_CPP_PATCHED_HEAD
+            && derivation.patched_tree == CREATURE_SPELL_CPP_PATCHED_TREE
+            && derivation.patch_path == CREATURE_SPELL_CPP_PATCH_PATH
+            && derivation.patch_sha256 == CREATURE_SPELL_CPP_PATCH_SHA256
+            && derivation.changed_paths == [CREATURE_SPELL_CPP_CHANGED_PATH],
+        "creature-spell-casting C++ source_derivation differs from the reviewed canonical-base patch"
+    );
+    ensure!(
+        manifest.source_repo_head == derivation.patched_head
+            && manifest.source_exec_revision.as_deref() == Some(derivation.patched_head.as_str()),
+        "creature-spell-casting C++ source/binary revision is not the reviewed patched HEAD"
+    );
     Ok(())
 }
 
@@ -913,6 +1178,94 @@ fn validate_canonical_detour_identity(manifest: &RawCaptureManifest) -> Result<(
     Ok(())
 }
 
+fn validate_canonical_creature_spell_identity(manifest: &RawCaptureManifest) -> Result<()> {
+    let fixture = manifest
+        .fixture_guard
+        .as_ref()
+        .context("creature-spell-casting requires fixture_guard evidence")?;
+    ensure!(fixture.enabled, "fixture_guard.enabled must be true");
+    ensure!(
+        fixture.contract == CREATURE_SPELL_FIXTURE_CONTRACT,
+        "unexpected creature-spell fixture_guard contract"
+    );
+    ensure!(
+        fixture.account == "TESTBOT2@bot.local"
+            && fixture.account_id == 9
+            && fixture.character_guid == 15
+            && fixture.peer_account.is_empty()
+            && fixture.peer_account_id == 0
+            && fixture.peer_character_guid == 0
+            && fixture.character_account_id.is_none(),
+        "creature-spell fixture_guard is not the canonical TESTBOT2 identity"
+    );
+    ensure!(
+        fixture.creature_entry == Some(22_378)
+            && fixture.creature_spawn_guid == Some(78_686)
+            && fixture.gameobject_entry.is_none()
+            && fixture.gameobject_spawn_guid.is_none()
+            && fixture.item_entry == 0,
+        "creature-spell fixture_guard world identity is not Cabal Interrogator 22378/78686"
+    );
+    ensure!(
+        fixture.normal_data_dir.is_none()
+            && fixture.private_data_dir.is_none()
+            && fixture
+                .private_data_dir_removed_before_normal_runtime
+                .is_none()
+            && fixture.synthetic_mmaps.is_none()
+            && fixture.linked_read_only_data.is_none(),
+        "creature-spell fixture_guard contains unrelated filesystem evidence"
+    );
+    let fixture_manifest_path = fixture
+        .fixture_manifest_path
+        .as_deref()
+        .context("creature-spell fixture_guard.fixture_manifest_path is missing")?;
+    ensure!(
+        Path::new(fixture_manifest_path).is_absolute()
+            && Path::new(fixture_manifest_path)
+                .ends_with("crates/capture-diff/flows/creature-spell-casting/fixture/fixture.json"),
+        "creature-spell fixture_guard manifest path is not the committed fixture"
+    );
+    ensure!(
+        fixture.fixture_manifest_sha256.as_deref() == Some(CREATURE_SPELL_FIXTURE_MANIFEST_SHA256),
+        "creature-spell fixture_guard.fixture_manifest_sha256 is not the exact reviewed manifest"
+    );
+    validate_sha256(
+        fixture
+            .journal_sha256
+            .as_deref()
+            .context("creature-spell fixture_guard.journal_sha256 is missing")?,
+        "creature-spell fixture_guard.journal_sha256",
+    )?;
+    validate_sha256(
+        fixture
+            .database_snapshot_sha256
+            .as_deref()
+            .context("creature-spell fixture_guard.database_snapshot_sha256 is missing")?,
+        "creature-spell fixture_guard.database_snapshot_sha256",
+    )?;
+    ensure!(
+        fixture.cleanup_verified,
+        "creature-spell fixture_guard cleanup was not verified"
+    );
+    let bot = manifest
+        .bot_report
+        .as_ref()
+        .context("creature-spell-casting requires bot_report evidence")?;
+    ensure!(
+        bot.contract == "wow-test-bot-creature-spell-casting-report-v1",
+        "unexpected creature-spell bot_report contract"
+    );
+    ensure!(bot.report_validated, "bot_report was not validated");
+    ensure!(
+        bot.account == fixture.account
+            && bot.account_id == fixture.account_id
+            && bot.character_guid == fixture.character_guid,
+        "creature-spell bot_report identity does not match fixture_guard identity"
+    );
+    Ok(())
+}
+
 fn detour_fixture_shared_identity_matches(
     cpp: &FixtureGuardEvidence,
     rust: &FixtureGuardEvidence,
@@ -942,6 +1295,30 @@ fn detour_fixture_shared_identity_matches(
         && cpp.cleanup_verified == rust.cleanup_verified
 }
 
+fn creature_spell_fixture_shared_identity_matches(
+    cpp: &FixtureGuardEvidence,
+    rust: &FixtureGuardEvidence,
+) -> bool {
+    cpp.enabled == rust.enabled
+        && cpp.contract == rust.contract
+        && cpp.account == rust.account
+        && cpp.account_id == rust.account_id
+        && cpp.character_guid == rust.character_guid
+        && cpp.peer_account == rust.peer_account
+        && cpp.peer_account_id == rust.peer_account_id
+        && cpp.peer_character_guid == rust.peer_character_guid
+        && cpp.creature_entry == rust.creature_entry
+        && cpp.creature_spawn_guid == rust.creature_spawn_guid
+        && cpp.gameobject_entry == rust.gameobject_entry
+        && cpp.gameobject_spawn_guid == rust.gameobject_spawn_guid
+        && cpp.item_entry == rust.item_entry
+        && cpp.character_account_id == rust.character_account_id
+        && cpp.fixture_manifest_path == rust.fixture_manifest_path
+        && cpp.fixture_manifest_sha256 == rust.fixture_manifest_sha256
+        && cpp.database_snapshot_sha256 == rust.database_snapshot_sha256
+        && cpp.cleanup_verified == rust.cleanup_verified
+}
+
 fn validate_cross_side_identity(
     flow: &str,
     cpp: &RawCaptureManifest,
@@ -959,7 +1336,34 @@ fn validate_cross_side_identity(
         cpp.worktree_state_algorithm == rust.worktree_state_algorithm,
         "C++ and Rust harness digest algorithms differ"
     );
-    if matches!(
+    if flow == "creature-spell-casting" {
+        ensure!(
+            cpp.fixture_guard
+                .as_ref()
+                .zip(rust.fixture_guard.as_ref())
+                .is_some_and(|(cpp, rust)| {
+                    creature_spell_fixture_shared_identity_matches(cpp, rust)
+                }),
+            "C++ and Rust creature-spell fixture identities differ"
+        );
+        let cpp_bot = cpp
+            .bot_report
+            .as_ref()
+            .context("C++ creature-spell bot report missing")?;
+        let rust_bot = rust
+            .bot_report
+            .as_ref()
+            .context("Rust creature-spell bot report missing")?;
+        ensure!(
+            cpp_bot.contract == rust_bot.contract
+                && cpp_bot.exec_path == rust_bot.exec_path
+                && cpp_bot.exec_sha256 == rust_bot.exec_sha256
+                && cpp_bot.account == rust_bot.account
+                && cpp_bot.account_id == rust_bot.account_id
+                && cpp_bot.character_guid == rust_bot.character_guid,
+            "C++ and Rust creature-spell captures used different canonical bot identities"
+        );
+    } else if matches!(
         flow,
         "loot-single-item-claim"
             | "loot-two-session-atomic-race"
@@ -1028,8 +1432,114 @@ fn validate_bot_report_json(bytes: &[u8], evidence: &BotReportEvidence) -> Resul
         "wow-test-bot-detour-chase-capture-report-v1" => {
             validate_detour_chase_bot_report_json(&report, evidence)
         }
+        "wow-test-bot-creature-spell-casting-report-v1" => {
+            validate_creature_spell_bot_report_json(&report, evidence)
+        }
         contract => bail!("unsupported bot report contract {contract:?}"),
     }
+}
+
+fn validate_creature_spell_bot_report_json(
+    report: &serde_json::Value,
+    evidence: &BotReportEvidence,
+) -> Result<()> {
+    let results = report
+        .get("results")
+        .and_then(serde_json::Value::as_array)
+        .context("bot report results must be an array")?;
+    ensure!(
+        report
+            .get("creature_spell_capture")
+            .and_then(serde_json::Value::as_bool)
+            == Some(true)
+            && report
+                .get("detour_chase_capture")
+                .and_then(serde_json::Value::as_bool)
+                == Some(false)
+            && report
+                .get("loot_item_capture")
+                .and_then(serde_json::Value::as_bool)
+                == Some(false)
+            && report
+                .get("loot_race_smoke")
+                .and_then(serde_json::Value::as_bool)
+                == Some(false)
+            && results.len() == 1,
+        "bot report is not one isolated creature-spell capture"
+    );
+    let result = &results[0];
+    let string = |key: &str| result.get(key).and_then(serde_json::Value::as_str);
+    let u64_value = |key: &str| result.get(key).and_then(serde_json::Value::as_u64);
+    let boolean = |key: &str| result.get(key).and_then(serde_json::Value::as_bool);
+    ensure!(
+        string("account") == Some(evidence.account.as_str())
+            && u64_value("account_id") == Some(u64::from(evidence.account_id))
+            && u64_value("character_guid") == Some(evidence.character_guid),
+        "bot report subject does not match manifest identity"
+    );
+    for (field, label) in [
+        (
+            "creature_spell_heartbeat_sha256",
+            "creature-spell heartbeat SHA-256",
+        ),
+        (
+            "creature_spell_start_body_sha256",
+            "creature-spell START body SHA-256",
+        ),
+        (
+            "creature_spell_go_body_sha256",
+            "creature-spell GO body SHA-256",
+        ),
+    ] {
+        validate_sha256(
+            string(field).with_context(|| format!("{label} is missing"))?,
+            label,
+        )?;
+    }
+    ensure!(
+        boolean("world_auth") == Some(true)
+            && boolean("enum_characters") == Some(true)
+            && boolean("player_login_verified") == Some(true)
+            && boolean("creature_spell_capture") == Some(true)
+            && boolean("creature_spell_capture_passed") == Some(true)
+            && string("creature_spell_fixture_manifest_sha256")
+                == Some(CREATURE_SPELL_FIXTURE_MANIFEST_SHA256)
+            && u64_value("creature_spell_target_entry") == Some(22_378)
+            && u64_value("creature_spell_target_spawn_guid") == Some(78_686)
+            && u64_value("creature_spell_target_runtime_counter")
+                .is_some_and(|counter| counter > 0)
+            && boolean("creature_spell_target_discovered") == Some(true)
+            && boolean("creature_spell_heartbeat_sent") == Some(true)
+            && u64_value("creature_spell_start_opcode") == Some(u64::from(SMSG_SPELL_START))
+            && u64_value("creature_spell_start_body_bytes").is_some_and(|bytes| bytes > 0)
+            && u64_value("creature_spell_go_opcode") == Some(u64::from(SMSG_SPELL_GO))
+            && u64_value("creature_spell_go_body_bytes").is_some_and(|bytes| bytes > 0)
+            && u64_value("creature_spell_cast_id_low").is_some_and(|value| value > 0)
+            && u64_value("creature_spell_cast_id_high").is_some_and(|value| value > 0)
+            && u64_value("creature_spell_caster_guid_low").is_some_and(|value| value > 0)
+            && u64_value("creature_spell_caster_guid_low")
+                == u64_value("creature_spell_target_runtime_counter")
+            && u64_value("creature_spell_caster_guid_high").is_some_and(|value| value > 0)
+            && u64_value("creature_spell_victim_guid_low") == Some(15)
+            && u64_value("creature_spell_victim_guid_high")
+                == Some(CREATURE_SPELL_PLAYER_GUID_HIGH)
+            && u64_value("creature_spell_spell_id") == Some(15_691)
+            && u64_value("creature_spell_start_cast_flags") == Some(2)
+            && u64_value("creature_spell_go_cast_flags") == Some(0x100)
+            && u64_value("creature_spell_cast_flags_ex") == Some(0)
+            && u64_value("creature_spell_go_hit_target_count") == Some(1)
+            && u64_value("creature_spell_go_miss_target_count") == Some(0)
+            && boolean("creature_spell_full_combat_log") == Some(false)
+            && boolean("creature_spell_advanced_logging_sent") == Some(false)
+            && boolean("creature_spell_adjacent_start_go") == Some(true)
+            && boolean("creature_spell_disconnect_confirmed") == Some(true)
+            && boolean("creature_spell_logout_confirmed") == Some(false)
+            && result
+                .get("creature_spell_failure")
+                .is_some_and(serde_json::Value::is_null),
+        "bot report does not prove the canonical successful creature-spell window"
+    );
+    Ok(())
 }
 
 fn validate_detour_chase_bot_report_json(
@@ -1466,6 +1976,7 @@ fn source_lineage(raw: &ValidatedRawSide, manifest_path: String) -> Result<Sourc
         raw_packet_count,
         harness_repo_head: raw.manifest.harness_repo_head.clone(),
         source_repo_head: raw.manifest.source_repo_head.clone(),
+        source_derivation: raw.manifest.source_derivation.clone(),
         harness_worktree_clean: raw.manifest.harness_worktree_clean,
         harness_worktree_state_sha256: raw.manifest.harness_worktree_state_sha256.clone(),
         source_worktree_dirty: raw.manifest.source_worktree_dirty,
@@ -1540,6 +2051,9 @@ pub fn verify_required_lineage(
 
     verify_retained_source(flow, flow_dir, RawSide::Cpp, &lineage.sources.cpp)?;
     verify_retained_source(flow, flow_dir, RawSide::Rust, &lineage.sources.rust)?;
+    if flow == "creature-spell-casting" {
+        validate_creature_spell_fixture_files(&flow_dir.join("fixture"))?;
+    }
     ensure!(
         lineage.sources.cpp.harness_repo_head == lineage.sources.rust.harness_repo_head
             && lineage.sources.cpp.harness_worktree_state_sha256
@@ -1548,7 +2062,41 @@ pub fn verify_required_lineage(
                 == lineage.sources.rust.worktree_state_algorithm,
         "required lineage C++/Rust harness identities differ"
     );
-    if matches!(
+    if flow == "creature-spell-casting" {
+        ensure!(
+            lineage
+                .sources
+                .cpp
+                .fixture_guard
+                .as_ref()
+                .zip(lineage.sources.rust.fixture_guard.as_ref())
+                .is_some_and(|(cpp, rust)| {
+                    creature_spell_fixture_shared_identity_matches(cpp, rust)
+                }),
+            "required lineage C++/Rust creature-spell fixture identities differ"
+        );
+        let cpp_bot = lineage
+            .sources
+            .cpp
+            .bot_report
+            .as_ref()
+            .context("required lineage C++ creature-spell bot report is missing")?;
+        let rust_bot = lineage
+            .sources
+            .rust
+            .bot_report
+            .as_ref()
+            .context("required lineage Rust creature-spell bot report is missing")?;
+        ensure!(
+            cpp_bot.contract == rust_bot.contract
+                && cpp_bot.exec_path == rust_bot.exec_path
+                && cpp_bot.exec_sha256 == rust_bot.exec_sha256
+                && cpp_bot.account == rust_bot.account
+                && cpp_bot.account_id == rust_bot.account_id
+                && cpp_bot.character_guid == rust_bot.character_guid,
+            "required lineage C++/Rust creature-spell bot identities differ"
+        );
+    } else if matches!(
         flow,
         "loot-single-item-claim"
             | "loot-two-session-atomic-race"
@@ -1667,6 +2215,33 @@ fn verify_retained_source(
         source.executable_pin_enforced,
         "required raw executable was not pinned"
     );
+    match (flow, side) {
+        ("creature-spell-casting", RawSide::Cpp) => {
+            let derivation = source
+                .source_derivation
+                .as_ref()
+                .context("required lineage C++ creature-spell source_derivation is missing")?;
+            validate_source_derivation_schema(derivation)?;
+            ensure!(
+                derivation.contract == CREATURE_SPELL_CPP_SOURCE_DERIVATION_CONTRACT
+                    && derivation.remote_url == CREATURE_SPELL_CPP_REMOTE_URL
+                    && derivation.remote_ref == CREATURE_SPELL_CPP_REMOTE_REF
+                    && derivation.base_head == CREATURE_SPELL_CPP_BASE_HEAD
+                    && derivation.base_tree == CREATURE_SPELL_CPP_BASE_TREE
+                    && derivation.patched_head == CREATURE_SPELL_CPP_PATCHED_HEAD
+                    && derivation.patched_tree == CREATURE_SPELL_CPP_PATCHED_TREE
+                    && derivation.patch_path == CREATURE_SPELL_CPP_PATCH_PATH
+                    && derivation.patch_sha256 == CREATURE_SPELL_CPP_PATCH_SHA256
+                    && derivation.changed_paths == [CREATURE_SPELL_CPP_CHANGED_PATH]
+                    && source.source_repo_head == derivation.patched_head,
+                "required lineage C++ creature-spell source_derivation differs from the reviewed patch"
+            );
+        }
+        _ => ensure!(
+            source.source_derivation.is_none(),
+            "required lineage contains source_derivation outside C++ creature-spell evidence"
+        ),
+    }
 
     let path = flow_dir.join(&source.manifest_path);
     let raw = read_and_validate_raw_manifest(&path, flow, side, true)?;
@@ -1677,6 +2252,7 @@ fn verify_retained_source(
     ensure!(
         raw.manifest.harness_repo_head == source.harness_repo_head
             && raw.manifest.source_repo_head == source.source_repo_head
+            && raw.manifest.source_derivation == source.source_derivation
             && raw.manifest.harness_worktree_clean == source.harness_worktree_clean
             && raw.manifest.harness_worktree_state_sha256 == source.harness_worktree_state_sha256
             && raw.manifest.source_worktree_dirty == source.source_worktree_dirty
@@ -2179,6 +2755,10 @@ fn copy_reviewed_metadata(source: &Path, destination: &Path) -> Result<()> {
             copy_detour_fixture_metadata(&entry.path(), &destination.join(&name))?;
             continue;
         }
+        if flow == "creature-spell-casting" && name == "fixture" {
+            copy_creature_spell_fixture_metadata(&entry.path(), &destination.join(&name))?;
+            continue;
+        }
         ensure!(
             matches!(
                 name.as_str(),
@@ -2188,6 +2768,143 @@ fn copy_reviewed_metadata(source: &Path, destination: &Path) -> Result<()> {
         );
         copy_tree_entry(&entry.path(), &destination.join(name))?;
     }
+    Ok(())
+}
+
+fn copy_creature_spell_fixture_metadata(source: &Path, destination: &Path) -> Result<()> {
+    validate_creature_spell_fixture_files(source)?;
+
+    fs::create_dir(destination)?;
+    for name in ["fixture.json", "cpp-reference.patch"] {
+        copy_tree_entry(&source.join(name), &destination.join(name))?;
+    }
+    Ok(())
+}
+
+fn validate_creature_spell_fixture_files(source: &Path) -> Result<()> {
+    let metadata = fs::symlink_metadata(source)?;
+    ensure!(
+        metadata.file_type().is_dir() && !metadata.file_type().is_symlink(),
+        "creature-spell fixture is not a non-symlink directory"
+    );
+    let mut root_names = fs::read_dir(source)?
+        .map(|entry| {
+            entry?
+                .file_name()
+                .into_string()
+                .map_err(|_| std::io::Error::other("creature-spell fixture filename is not UTF-8"))
+        })
+        .collect::<std::io::Result<Vec<_>>>()?;
+    root_names.sort();
+    ensure!(
+        root_names == ["cpp-reference.patch", "fixture.json"],
+        "creature-spell fixture contains an unreviewed root entry"
+    );
+    let manifest_bytes = read_regular_file(&source.join("fixture.json"))?;
+    let patch_bytes = read_regular_file(&source.join("cpp-reference.patch"))?;
+    ensure!(
+        sha256_bytes(&manifest_bytes) == CREATURE_SPELL_FIXTURE_MANIFEST_SHA256,
+        "creature-spell fixture manifest differs from the reviewed bytes"
+    );
+    ensure!(
+        sha256_bytes(&patch_bytes) == CREATURE_SPELL_CPP_PATCH_SHA256,
+        "creature-spell C++ reference patch differs from the reviewed bytes"
+    );
+    let fixture: serde_json::Value = serde_json::from_slice(&manifest_bytes)
+        .context("parsing reviewed creature-spell fixture manifest")?;
+    ensure!(
+        fixture
+            .get("schema_version")
+            .and_then(serde_json::Value::as_u64)
+            == Some(2)
+            && fixture.get("flow").and_then(serde_json::Value::as_str)
+                == Some("creature-spell-casting")
+            && fixture.get("contract").and_then(serde_json::Value::as_str)
+                == Some(CREATURE_SPELL_FIXTURE_CONTRACT)
+            && fixture.get("creature_template")
+                == Some(&serde_json::json!({
+                    "entry": 22_378,
+                    "name": "Cabal Interrogator",
+                    "original_ai_name": "SmartAI",
+                    "temporary_ai_name": "CombatAI",
+                    "script_name": "",
+                    "verified_build": 52_237
+                }))
+            && fixture.get("creature_template_difficulty")
+                == Some(&serde_json::json!({
+                    "entry": 22_378,
+                    "difficulty_id": 0,
+                    "min_level": 64,
+                    "max_level": 65,
+                    "health_scaling_expansion": 0,
+                    "health_modifier": 1.0,
+                    "mana_modifier": 1.0,
+                    "armor_modifier": 1.0,
+                    "damage_modifier": 1.0,
+                    "creature_difficulty_id": 18_203,
+                    "type_flags": 0,
+                    "type_flags_2": 0,
+                    "loot_id": 22_378,
+                    "pickpocket_loot_id": 22_378,
+                    "skin_loot_id": 0,
+                    "gold_min": 153,
+                    "gold_max": 205,
+                    "original_static_flags_1": 0,
+                    "temporary_static_flags_1": 0x0010_0000,
+                    "static_flags_2": 0,
+                    "static_flags_3": 0,
+                    "static_flags_4": 0,
+                    "static_flags_5": 0,
+                    "static_flags_6": 0,
+                    "static_flags_7": 0,
+                    "static_flags_8": 0
+                })),
+        "reviewed creature-spell fixture is not the exact shell guard v2 SmartAI/0 -> CombatAI/NO_MELEE contract"
+    );
+    let derivation = fixture
+        .get("source_derivation")
+        .context("reviewed creature-spell fixture source_derivation is missing")?;
+    ensure!(
+        derivation
+            .get("contract")
+            .and_then(serde_json::Value::as_str)
+            == Some(CREATURE_SPELL_CPP_SOURCE_DERIVATION_CONTRACT)
+            && derivation
+                .get("remote_url")
+                .and_then(serde_json::Value::as_str)
+                == Some(CREATURE_SPELL_CPP_REMOTE_URL)
+            && derivation
+                .get("remote_ref")
+                .and_then(serde_json::Value::as_str)
+                == Some(CREATURE_SPELL_CPP_REMOTE_REF)
+            && derivation
+                .get("base_head")
+                .and_then(serde_json::Value::as_str)
+                == Some(CREATURE_SPELL_CPP_BASE_HEAD)
+            && derivation
+                .get("base_tree")
+                .and_then(serde_json::Value::as_str)
+                == Some(CREATURE_SPELL_CPP_BASE_TREE)
+            && derivation
+                .get("patched_head")
+                .and_then(serde_json::Value::as_str)
+                == Some(CREATURE_SPELL_CPP_PATCHED_HEAD)
+            && derivation
+                .get("patched_tree")
+                .and_then(serde_json::Value::as_str)
+                == Some(CREATURE_SPELL_CPP_PATCHED_TREE)
+            && derivation
+                .get("patch_path")
+                .and_then(serde_json::Value::as_str)
+                == Some(CREATURE_SPELL_CPP_PATCH_PATH)
+            && derivation
+                .get("patch_sha256")
+                .and_then(serde_json::Value::as_str)
+                == Some(CREATURE_SPELL_CPP_PATCH_SHA256)
+            && derivation.get("changed_paths")
+                == Some(&serde_json::json!([CREATURE_SPELL_CPP_CHANGED_PATH])),
+        "reviewed creature-spell fixture source_derivation metadata differs from the pinned patch"
+    );
     Ok(())
 }
 
@@ -2399,6 +3116,21 @@ mod tests {
 
     fn fake_oid() -> String {
         "a".repeat(40)
+    }
+
+    fn reviewed_cpp_source_derivation() -> serde_json::Value {
+        serde_json::json!({
+            "contract": CREATURE_SPELL_CPP_SOURCE_DERIVATION_CONTRACT,
+            "remote_url": CREATURE_SPELL_CPP_REMOTE_URL,
+            "remote_ref": CREATURE_SPELL_CPP_REMOTE_REF,
+            "base_head": CREATURE_SPELL_CPP_BASE_HEAD,
+            "base_tree": CREATURE_SPELL_CPP_BASE_TREE,
+            "patched_head": CREATURE_SPELL_CPP_PATCHED_HEAD,
+            "patched_tree": CREATURE_SPELL_CPP_PATCHED_TREE,
+            "patch_path": CREATURE_SPELL_CPP_PATCH_PATH,
+            "patch_sha256": CREATURE_SPELL_CPP_PATCH_SHA256,
+            "changed_paths": [CREATURE_SPELL_CPP_CHANGED_PATH]
+        })
     }
 
     fn make_raw_pair(root: &Path, flow: &str) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
@@ -2650,6 +3382,105 @@ mod tests {
                 });
                 fs::write(manifest_path, serde_json::to_vec_pretty(&manifest).unwrap()).unwrap();
             }
+        } else if flow == "creature-spell-casting" {
+            let fixture = serde_json::json!({
+                "enabled": true,
+                "contract": CREATURE_SPELL_FIXTURE_CONTRACT,
+                "account": "TESTBOT2@bot.local",
+                "account_id": 9,
+                "character_guid": 15,
+                "peer_account": "",
+                "peer_account_id": 0,
+                "peer_character_guid": 0,
+                "creature_entry": 22378,
+                "creature_spawn_guid": 78686,
+                "item_entry": 0,
+                "fixture_manifest_path": "/workspace/rustycore/crates/capture-diff/flows/creature-spell-casting/fixture/fixture.json",
+                "fixture_manifest_sha256": CREATURE_SPELL_FIXTURE_MANIFEST_SHA256,
+                "journal_sha256": "8".repeat(64),
+                "database_snapshot_sha256": "4".repeat(64),
+                "cleanup_verified": true
+            });
+            let report_result = serde_json::json!({
+                    "account": "TESTBOT2@bot.local",
+                    "account_id": 9,
+                    "character_guid": 15,
+                    "world_auth": true,
+                    "enum_characters": true,
+                    "player_login_verified": true,
+                    "creature_spell_capture": true,
+                    "creature_spell_capture_passed": true,
+                    "creature_spell_fixture_manifest_sha256": CREATURE_SPELL_FIXTURE_MANIFEST_SHA256,
+                    "creature_spell_target_entry": 22378,
+                    "creature_spell_target_spawn_guid": 78686,
+                    "creature_spell_target_runtime_counter": 78686,
+                    "creature_spell_target_discovered": true,
+                    "creature_spell_heartbeat_sent": true,
+                    "creature_spell_heartbeat_sha256": "7".repeat(64),
+                    "creature_spell_start_opcode": SMSG_SPELL_START,
+                    "creature_spell_start_body_sha256": "8".repeat(64),
+                    "creature_spell_start_body_bytes": 100,
+                    "creature_spell_go_opcode": SMSG_SPELL_GO,
+                    "creature_spell_go_body_sha256": "9".repeat(64),
+                    "creature_spell_go_body_bytes": 101,
+                    "creature_spell_cast_id_low": 1,
+                    "creature_spell_cast_id_high": 1,
+                    "creature_spell_caster_guid_low": 78686,
+                    "creature_spell_caster_guid_high": 1,
+                    "creature_spell_victim_guid_low": 15,
+                    "creature_spell_victim_guid_high": CREATURE_SPELL_PLAYER_GUID_HIGH,
+                    "creature_spell_spell_id": 15691,
+                    "creature_spell_start_cast_flags": 2,
+                    "creature_spell_go_cast_flags": 256,
+                    "creature_spell_cast_flags_ex": 0,
+                    "creature_spell_go_hit_target_count": 1,
+                    "creature_spell_go_miss_target_count": 0,
+                    "creature_spell_full_combat_log": false,
+                    "creature_spell_advanced_logging_sent": false,
+                    "creature_spell_adjacent_start_go": true,
+                    "creature_spell_disconnect_confirmed": true,
+                    "creature_spell_logout_confirmed": false,
+                    "creature_spell_failure": null
+            });
+            let report_json = serde_json::json!({
+                "creature_spell_capture": true,
+                "detour_chase_capture": false,
+                "loot_item_capture": false,
+                "loot_race_smoke": false,
+                "results": [report_result]
+            });
+            let report_bytes = serde_json::to_vec_pretty(&report_json).unwrap();
+            let cpp_report = raw.join("cpp-creature-spell-report.json");
+            let rust_report = raw.join("rust-creature-spell-report.json");
+            fs::write(&cpp_report, &report_bytes).unwrap();
+            fs::write(&rust_report, &report_bytes).unwrap();
+            for (manifest_path, report_path) in
+                [(&cpp_manifest, cpp_report), (&rust_manifest, rust_report)]
+            {
+                let mut manifest: serde_json::Value =
+                    serde_json::from_slice(&fs::read(manifest_path).unwrap()).unwrap();
+                if manifest_path == &cpp_manifest {
+                    manifest["source_worktree_dirty"] = serde_json::Value::Bool(false);
+                    manifest["source_repo_head"] =
+                        serde_json::Value::String(CREATURE_SPELL_CPP_PATCHED_HEAD.to_string());
+                    manifest["source_exec_revision"] =
+                        serde_json::Value::String(CREATURE_SPELL_CPP_PATCHED_HEAD.to_string());
+                    manifest["source_derivation"] = reviewed_cpp_source_derivation();
+                }
+                manifest["fixture_guard"] = fixture.clone();
+                manifest["bot_report"] = serde_json::json!({
+                    "contract": "wow-test-bot-creature-spell-casting-report-v1",
+                    "exec_path": "/opt/rustycore/wow-test-bot",
+                    "exec_sha256": "6".repeat(64),
+                    "report_path": report_path.to_string_lossy(),
+                    "report_sha256": sha256_bytes(&report_bytes),
+                    "account": "TESTBOT2@bot.local",
+                    "account_id": 9,
+                    "character_guid": 15,
+                    "report_validated": true
+                });
+                fs::write(manifest_path, serde_json::to_vec_pretty(&manifest).unwrap()).unwrap();
+            }
         } else if flow == "detour-chase-around-obstacle" {
             for (side, manifest_path, private_data_dir, journal_sha256) in [
                 (
@@ -2824,6 +3655,18 @@ mod tests {
     fn make_derived_flow(root: &Path, flow: &str, raw: &ValidatedRawPair) -> PathBuf {
         let flow_dir = root.join(flow);
         fs::create_dir_all(flow_dir.join("rust")).unwrap();
+        if flow == "creature-spell-casting" {
+            let committed_fixture =
+                Path::new(env!("CARGO_MANIFEST_DIR")).join("flows/creature-spell-casting/fixture");
+            fs::create_dir_all(flow_dir.join("fixture")).unwrap();
+            for name in ["fixture.json", "cpp-reference.patch"] {
+                fs::copy(
+                    committed_fixture.join(name),
+                    flow_dir.join("fixture").join(name),
+                )
+                .unwrap();
+            }
+        }
         fs::write(flow_dir.join("cpp.pkt"), b"filtered-cpp").unwrap();
         fs::write(flow_dir.join("rust/one.meta"), b"derived-meta").unwrap();
         fs::write(flow_dir.join("rust/one.bin"), b"derived-bin").unwrap();
@@ -2906,6 +3749,13 @@ mod tests {
         let error = validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true)
             .expect_err("non-RFC3339 timestamp must fail");
         assert!(format!("{error:#}").contains("RFC3339"));
+
+        let mut json: serde_json::Value = serde_json::from_slice(&original).unwrap();
+        json["source_derivation"] = reviewed_cpp_source_derivation();
+        fs::write(&cpp_manifest, serde_json::to_vec_pretty(&json).unwrap()).unwrap();
+        let error = validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true)
+            .expect_err("an unrelated flow must not claim reviewed C++ derivation evidence");
+        assert!(format!("{error:#}").contains("reserved for C++ creature-spell-casting"));
 
         fs::write(&cpp_manifest, &original).unwrap();
         let mut rust_json: serde_json::Value =
@@ -3138,6 +3988,64 @@ mod tests {
     }
 
     #[test]
+    fn creature_spell_import_copies_only_the_reviewed_fixture_derivation() {
+        let root = test_root("creature-spell-reviewed-fixture");
+        let target = root.join("creature-spell-casting");
+        let fixture = target.join("fixture");
+        let committed_fixture =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("flows/creature-spell-casting/fixture");
+        fs::create_dir_all(&fixture).unwrap();
+        fs::write(target.join("README.md"), b"reviewed").unwrap();
+        for name in ["fixture.json", "cpp-reference.patch"] {
+            fs::copy(committed_fixture.join(name), fixture.join(name)).unwrap();
+        }
+
+        {
+            let transaction = AtomicFlowImport::prepare(&root, "creature-spell-casting").unwrap();
+            assert_eq!(
+                fs::read(transaction.staging_dir().join("fixture/fixture.json")).unwrap(),
+                fs::read(committed_fixture.join("fixture.json")).unwrap()
+            );
+            assert_eq!(
+                fs::read(
+                    transaction
+                        .staging_dir()
+                        .join("fixture/cpp-reference.patch")
+                )
+                .unwrap(),
+                fs::read(committed_fixture.join("cpp-reference.patch")).unwrap()
+            );
+        }
+
+        fs::write(fixture.join("fixture.json"), b"tampered").unwrap();
+        let error = AtomicFlowImport::prepare(&root, "creature-spell-casting")
+            .err()
+            .expect("tampered reviewed fixture manifest must fail closed");
+        assert!(error.to_string().contains("manifest differs"));
+        fs::copy(
+            committed_fixture.join("fixture.json"),
+            fixture.join("fixture.json"),
+        )
+        .unwrap();
+        fs::write(fixture.join("cpp-reference.patch"), b"tampered").unwrap();
+        let error = AtomicFlowImport::prepare(&root, "creature-spell-casting")
+            .err()
+            .expect("tampered reviewed source patch must fail closed");
+        assert!(error.to_string().contains("reference patch differs"));
+        fs::copy(
+            committed_fixture.join("cpp-reference.patch"),
+            fixture.join("cpp-reference.patch"),
+        )
+        .unwrap();
+        fs::write(fixture.join("unreviewed.bin"), b"must not propagate").unwrap();
+        let error = AtomicFlowImport::prepare(&root, "creature-spell-casting")
+            .err()
+            .expect("unknown creature-spell fixture entry must fail closed");
+        assert!(error.to_string().contains("unreviewed root entry"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn complete_existing_flow_is_exchanged_as_one_generation() {
         let root = test_root("atomic-exchange");
         let target = root.join("required-flow");
@@ -3234,6 +4142,332 @@ mod tests {
     }
 
     #[test]
+    fn creature_spell_raw_pair_requires_reviewed_guard_and_shared_database_snapshot() {
+        let root = test_root("creature-spell-identity");
+        let flow = "creature-spell-casting";
+        let (cpp, cpp_manifest, rust, rust_manifest) = make_raw_pair(&root, flow);
+        let raw =
+            validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true).unwrap();
+        let flow_dir = make_derived_flow(&root, flow, &raw);
+        verify_required_lineage(flow, &flow_dir, &required_selection()).unwrap();
+        assert!(
+            flow_dir
+                .join(RAW_PROVENANCE_DIR)
+                .join(CPP_BOT_REPORT_FILE)
+                .is_file()
+                && flow_dir
+                    .join(RAW_PROVENANCE_DIR)
+                    .join(RUST_BOT_REPORT_FILE)
+                    .is_file(),
+            "derived creature-spell lineage did not retain both bot reports"
+        );
+        let lineage_path = flow_dir.join(LINEAGE_FILE);
+        let lineage_original = fs::read(&lineage_path).unwrap();
+        let lineage_json: serde_json::Value = serde_json::from_slice(&lineage_original).unwrap();
+        assert_eq!(
+            lineage_json["sources"]["cpp"]["source_derivation"],
+            reviewed_cpp_source_derivation(),
+            "derived lineage did not retain the exact reviewed C++ derivation"
+        );
+        assert!(
+            lineage_json["sources"]["rust"]
+                .get("source_derivation")
+                .is_none(),
+            "derived lineage invented C++ derivation evidence for Rust"
+        );
+
+        let mut tampered_lineage = lineage_json.clone();
+        tampered_lineage["sources"]["cpp"]["source_derivation"]["patch_sha256"] =
+            serde_json::Value::String("0".repeat(64));
+        fs::write(
+            &lineage_path,
+            serde_json::to_vec_pretty(&tampered_lineage).unwrap(),
+        )
+        .unwrap();
+        let error = verify_required_lineage(flow, &flow_dir, &required_selection())
+            .expect_err("tampered derived source patch identity must fail");
+        assert!(format!("{error:#}").contains("reviewed patch"));
+
+        let mut missing_lineage = lineage_json;
+        missing_lineage["sources"]["cpp"]
+            .as_object_mut()
+            .unwrap()
+            .remove("source_derivation");
+        fs::write(
+            &lineage_path,
+            serde_json::to_vec_pretty(&missing_lineage).unwrap(),
+        )
+        .unwrap();
+        let error = verify_required_lineage(flow, &flow_dir, &required_selection())
+            .expect_err("missing derived source derivation must fail");
+        assert!(format!("{error:#}").contains("source_derivation is missing"));
+        fs::write(&lineage_path, &lineage_original).unwrap();
+
+        let cpp_original = fs::read(&cpp_manifest).unwrap();
+        let mut missing_derivation: serde_json::Value =
+            serde_json::from_slice(&cpp_original).unwrap();
+        missing_derivation
+            .as_object_mut()
+            .unwrap()
+            .remove("source_derivation");
+        fs::write(
+            &cpp_manifest,
+            serde_json::to_vec_pretty(&missing_derivation).unwrap(),
+        )
+        .unwrap();
+        let error = validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true)
+            .expect_err("missing C++ source derivation must fail");
+        assert!(format!("{error:#}").contains("requires source_derivation evidence"));
+
+        for (field, value) in [
+            (
+                "contract",
+                serde_json::Value::String("wrong-contract".into()),
+            ),
+            (
+                "remote_url",
+                serde_json::Value::String("https://example.invalid/reference.git".into()),
+            ),
+            (
+                "remote_ref",
+                serde_json::Value::String("refs/remotes/origin/other".into()),
+            ),
+            ("base_head", serde_json::Value::String("0".repeat(40))),
+            ("base_tree", serde_json::Value::String("0".repeat(40))),
+            ("patched_head", serde_json::Value::String("0".repeat(40))),
+            ("patched_tree", serde_json::Value::String("0".repeat(40))),
+            (
+                "patch_path",
+                serde_json::Value::String("fixture/other.patch".into()),
+            ),
+            ("patch_sha256", serde_json::Value::String("0".repeat(64))),
+            (
+                "changed_paths",
+                serde_json::json!([
+                    CREATURE_SPELL_CPP_CHANGED_PATH,
+                    "src/server/game/DataStores/Unreviewed.cpp"
+                ]),
+            ),
+        ] {
+            let mut changed: serde_json::Value = serde_json::from_slice(&cpp_original).unwrap();
+            changed["source_derivation"][field] = value;
+            fs::write(&cpp_manifest, serde_json::to_vec_pretty(&changed).unwrap()).unwrap();
+            let error = validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true)
+                .expect_err("mutated reviewed C++ source derivation must fail");
+            assert!(
+                format!("{error:#}").contains("source_derivation"),
+                "unexpected {field} mutation error: {error:#}"
+            );
+        }
+
+        let rust_original_with_derivation = fs::read(&rust_manifest).unwrap();
+        let mut rust_derivation: serde_json::Value =
+            serde_json::from_slice(&rust_original_with_derivation).unwrap();
+        rust_derivation["source_derivation"] = reviewed_cpp_source_derivation();
+        fs::write(
+            &rust_manifest,
+            serde_json::to_vec_pretty(&rust_derivation).unwrap(),
+        )
+        .unwrap();
+        fs::write(&cpp_manifest, &cpp_original).unwrap();
+        let error = validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true)
+            .expect_err("Rust must not claim the C++ source derivation");
+        assert!(format!("{error:#}").contains("Rust raw manifests must not contain"));
+        fs::write(&rust_manifest, rust_original_with_derivation).unwrap();
+
+        let mut dirty_cpp: serde_json::Value = serde_json::from_slice(&cpp_original).unwrap();
+        dirty_cpp["source_worktree_dirty"] = serde_json::Value::Bool(true);
+        fs::write(
+            &cpp_manifest,
+            serde_json::to_vec_pretty(&dirty_cpp).unwrap(),
+        )
+        .unwrap();
+        let error = validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true)
+            .expect_err("dirty creature-spell C++ source worktree must fail");
+        assert!(
+            format!("{error:#}")
+                .contains("creature-spell-casting C++ source worktree must be clean"),
+            "unexpected error: {error:#}"
+        );
+
+        let mut wrong_revision: serde_json::Value = serde_json::from_slice(&cpp_original).unwrap();
+        wrong_revision["source_exec_revision"] = serde_json::Value::String("e".repeat(40));
+        fs::write(
+            &cpp_manifest,
+            serde_json::to_vec_pretty(&wrong_revision).unwrap(),
+        )
+        .unwrap();
+        let error = validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true)
+            .expect_err("unrelated creature-spell C++ executable revision must fail");
+        assert!(
+            format!("{error:#}").contains(
+                "creature-spell-casting C++ embedded executable revision must equal source_repo_head"
+            ),
+            "unexpected error: {error:#}"
+        );
+        fs::write(&cpp_manifest, &cpp_original).unwrap();
+
+        let original = fs::read(&rust_manifest).unwrap();
+
+        let mut missing_revision: serde_json::Value = serde_json::from_slice(&original).unwrap();
+        missing_revision["source_exec_revision"] = serde_json::Value::Null;
+        fs::write(
+            &rust_manifest,
+            serde_json::to_vec_pretty(&missing_revision).unwrap(),
+        )
+        .unwrap();
+        let error = validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true)
+            .expect_err("missing creature-spell Rust executable revision must fail");
+        assert!(
+            format!("{error:#}").contains(
+                "creature-spell-casting Rust embedded executable revision must equal source_repo_head"
+            ),
+            "unexpected error: {error:#}"
+        );
+
+        let mut wrong_revision: serde_json::Value = serde_json::from_slice(&original).unwrap();
+        wrong_revision["source_exec_revision"] = serde_json::Value::String("e".repeat(40));
+        fs::write(
+            &rust_manifest,
+            serde_json::to_vec_pretty(&wrong_revision).unwrap(),
+        )
+        .unwrap();
+        let error = validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true)
+            .expect_err("unrelated creature-spell Rust executable revision must fail");
+        assert!(
+            format!("{error:#}").contains(
+                "creature-spell-casting Rust embedded executable revision must equal source_repo_head"
+            ),
+            "unexpected error: {error:#}"
+        );
+        fs::write(&rust_manifest, &original).unwrap();
+
+        let mut manifest: serde_json::Value = serde_json::from_slice(&original).unwrap();
+        manifest.as_object_mut().unwrap().remove("fixture_guard");
+        fs::write(
+            &rust_manifest,
+            serde_json::to_vec_pretty(&manifest).unwrap(),
+        )
+        .unwrap();
+        let error = validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true)
+            .expect_err("missing creature-spell fixture guard must fail");
+        assert!(
+            format!("{error:#}").contains("requires fixture_guard evidence"),
+            "unexpected error: {error:#}"
+        );
+
+        let mut manifest: serde_json::Value = serde_json::from_slice(&original).unwrap();
+        manifest["fixture_guard"]["fixture_manifest_sha256"] =
+            serde_json::Value::String("5".repeat(64));
+        fs::write(
+            &rust_manifest,
+            serde_json::to_vec_pretty(&manifest).unwrap(),
+        )
+        .unwrap();
+        let error = validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true)
+            .expect_err("unreviewed creature-spell fixture manifest must fail");
+        assert!(
+            format!("{error:#}").contains("exact reviewed manifest"),
+            "unexpected error: {error:#}"
+        );
+
+        let mut manifest: serde_json::Value = serde_json::from_slice(&original).unwrap();
+        manifest["fixture_guard"]["database_snapshot_sha256"] =
+            serde_json::Value::String("3".repeat(64));
+        fs::write(
+            &rust_manifest,
+            serde_json::to_vec_pretty(&manifest).unwrap(),
+        )
+        .unwrap();
+        let error = validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true)
+            .expect_err("different creature-spell database snapshots must fail");
+        assert!(
+            format!("{error:#}").contains("creature-spell fixture identities differ"),
+            "unexpected error: {error:#}"
+        );
+
+        let mut manifest: serde_json::Value = serde_json::from_slice(&original).unwrap();
+        manifest["fixture_guard"]["creature_entry"] = serde_json::Value::from(22_379);
+        fs::write(
+            &rust_manifest,
+            serde_json::to_vec_pretty(&manifest).unwrap(),
+        )
+        .unwrap();
+        let error = validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true)
+            .expect_err("wrong creature-spell world identity must fail");
+        assert!(
+            format!("{error:#}").contains("Cabal Interrogator"),
+            "unexpected error: {error:#}"
+        );
+
+        let mut manifest: serde_json::Value = serde_json::from_slice(&original).unwrap();
+        manifest["fixture_guard"]["cleanup_verified"] = serde_json::Value::Bool(false);
+        fs::write(
+            &rust_manifest,
+            serde_json::to_vec_pretty(&manifest).unwrap(),
+        )
+        .unwrap();
+        let error = validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true)
+            .expect_err("unverified creature-spell cleanup must fail");
+        assert!(
+            format!("{error:#}").contains("cleanup was not verified"),
+            "unexpected error: {error:#}"
+        );
+
+        let mut manifest: serde_json::Value = serde_json::from_slice(&original).unwrap();
+        manifest["bot_report"] = serde_json::Value::Null;
+        fs::write(
+            &rust_manifest,
+            serde_json::to_vec_pretty(&manifest).unwrap(),
+        )
+        .unwrap();
+        let error = validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true)
+            .expect_err("creature-spell fixture must require bot evidence");
+        assert!(
+            format!("{error:#}").contains("requires bot_report evidence"),
+            "unexpected error: {error:#}"
+        );
+
+        let mut manifest: serde_json::Value = serde_json::from_slice(&original).unwrap();
+        manifest["fixture_guard"]["account_id"] = serde_json::Value::from(10);
+        fs::write(
+            &rust_manifest,
+            serde_json::to_vec_pretty(&manifest).unwrap(),
+        )
+        .unwrap();
+        let error = validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true)
+            .expect_err("noncanonical creature-spell bot identity must fail");
+        assert!(
+            format!("{error:#}").contains("canonical TESTBOT2 identity"),
+            "unexpected error: {error:#}"
+        );
+
+        let manifest: serde_json::Value = serde_json::from_slice(&original).unwrap();
+        let report_path = PathBuf::from(manifest["bot_report"]["report_path"].as_str().unwrap());
+        let report_original = fs::read(&report_path).unwrap();
+        let mut report: serde_json::Value = serde_json::from_slice(&report_original).unwrap();
+        report["results"][0]["creature_spell_go_hit_target_count"] = serde_json::Value::from(0);
+        let report_bytes = serde_json::to_vec_pretty(&report).unwrap();
+        fs::write(&report_path, &report_bytes).unwrap();
+        let mut manifest: serde_json::Value = serde_json::from_slice(&original).unwrap();
+        manifest["bot_report"]["report_sha256"] =
+            serde_json::Value::String(sha256_bytes(&report_bytes));
+        fs::write(
+            &rust_manifest,
+            serde_json::to_vec_pretty(&manifest).unwrap(),
+        )
+        .unwrap();
+        let error = validate_raw_pair(flow, &cpp, &cpp_manifest, &rust, &rust_manifest, true)
+            .expect_err("creature-spell report without one hit must fail");
+        assert!(
+            format!("{error:#}").contains("canonical successful creature-spell window"),
+            "unexpected error: {error:#}"
+        );
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn detour_raw_pair_allows_private_evidence_to_differ_but_pins_shared_fixture_and_window() {
         let root = test_root("detour-identity");
         let flow = "detour-chase-around-obstacle";
@@ -3287,7 +4521,7 @@ mod tests {
             .expect_err("Rust binary/source revision mismatch must fail");
         assert!(
             format!("{error:#}")
-                .contains("detour Rust embedded executable revision must equal source_repo_head"),
+                .contains("Rust embedded executable revision must equal source_repo_head"),
             "unexpected error: {error:#}"
         );
         fs::write(&rust_manifest, rust_original).unwrap();
@@ -3411,6 +4645,219 @@ mod tests {
         mismatched.packets[1].body.push(0);
         let error = validate_bot_report_capture_binding(flow, &raw, &cpp, &mismatched)
             .expect_err("a report from a different execution must fail");
+        assert!(format!("{error:#}").contains("does not match selected RAW"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn creature_spell_bot_reports_are_cryptographically_bound_to_selected_start_go() {
+        #[derive(Default)]
+        struct BitWriter {
+            bytes: Vec<u8>,
+            current: u8,
+            used: u8,
+        }
+
+        impl BitWriter {
+            fn bits(&mut self, value: u32, width: u8) {
+                for shift in (0..width).rev() {
+                    self.current |= (((value >> shift) & 1) as u8) << (7 - self.used);
+                    self.used += 1;
+                    if self.used == 8 {
+                        self.bytes.push(self.current);
+                        self.current = 0;
+                        self.used = 0;
+                    }
+                }
+            }
+
+            fn finish(mut self) -> Vec<u8> {
+                if self.used != 0 {
+                    self.bytes.push(self.current);
+                }
+                self.bytes
+            }
+        }
+
+        fn guid(
+            high_type: u8,
+            subtype: u8,
+            realm: u16,
+            map: u16,
+            entry: u32,
+            counter: u64,
+        ) -> crate::semantic::ExactObjectGuid {
+            crate::semantic::ExactObjectGuid {
+                low: counter & 0x0000_00FF_FFFF_FFFF,
+                high: (u64::from(high_type & 0x3F) << 58)
+                    | (u64::from(realm & 0x1FFF) << 42)
+                    | (u64::from(map & 0x1FFF) << 29)
+                    | (u64::from(entry & 0x7F_FFFF) << 6)
+                    | u64::from(subtype & 0x3F),
+            }
+        }
+
+        fn push_guid(out: &mut Vec<u8>, guid: crate::semantic::ExactObjectGuid) {
+            let low = guid.low.to_le_bytes();
+            let high = guid.high.to_le_bytes();
+            let low_mask = low.iter().enumerate().fold(0u8, |mask, (index, byte)| {
+                mask | (u8::from(*byte != 0) << index)
+            });
+            let high_mask = high.iter().enumerate().fold(0u8, |mask, (index, byte)| {
+                mask | (u8::from(*byte != 0) << index)
+            });
+            out.push(low_mask);
+            out.push(high_mask);
+            out.extend(low.into_iter().filter(|byte| *byte != 0));
+            out.extend(high.into_iter().filter(|byte| *byte != 0));
+        }
+
+        fn spell_body(
+            caster: crate::semantic::ExactObjectGuid,
+            cast_id: crate::semantic::ExactObjectGuid,
+            victim: crate::semantic::ExactObjectGuid,
+            spell_go: bool,
+        ) -> Vec<u8> {
+            let mut out = Vec::new();
+            for value in [
+                caster,
+                caster,
+                cast_id,
+                crate::semantic::ExactObjectGuid { low: 0, high: 0 },
+            ] {
+                push_guid(&mut out, value);
+            }
+            out.extend(15_691_i32.to_le_bytes());
+            out.extend(244_493_i32.to_le_bytes());
+            out.extend(if spell_go { 0x100_u32 } else { 2_u32 }.to_le_bytes());
+            out.extend(0_u32.to_le_bytes());
+            out.extend(if spell_go { 123_u32 } else { 0_u32 }.to_le_bytes());
+            out.extend(0_u32.to_le_bytes());
+            out.extend(0_f32.to_bits().to_le_bytes());
+            out.push(0);
+            out.extend(0_u32.to_le_bytes());
+            out.extend(0_u32.to_le_bytes());
+            out.extend(0_u32.to_le_bytes());
+            out.push(0);
+            push_guid(
+                &mut out,
+                crate::semantic::ExactObjectGuid { low: 0, high: 0 },
+            );
+
+            let mut counts = BitWriter::default();
+            counts.bits(u32::from(spell_go), 16);
+            counts.bits(0, 16);
+            counts.bits(0, 16);
+            counts.bits(0, 9);
+            counts.bits(0, 1);
+            counts.bits(0, 16);
+            counts.bits(0, 1);
+            counts.bits(0, 1);
+            out.extend(counts.finish());
+
+            let mut target = BitWriter::default();
+            target.bits(2, 28);
+            target.bits(0, 1);
+            target.bits(0, 1);
+            target.bits(0, 1);
+            target.bits(0, 1);
+            target.bits(0, 7);
+            out.extend(target.finish());
+            push_guid(&mut out, victim);
+            push_guid(
+                &mut out,
+                crate::semantic::ExactObjectGuid { low: 0, high: 0 },
+            );
+            if spell_go {
+                push_guid(&mut out, victim);
+                out.push(0); // basic SpellGo combat-log bit plus canonical padding
+            }
+            out
+        }
+
+        fn bind_report(
+            manifest_path: &Path,
+            start: &[u8],
+            go: &[u8],
+            caster: crate::semantic::ExactObjectGuid,
+            cast_id: crate::semantic::ExactObjectGuid,
+            victim: crate::semantic::ExactObjectGuid,
+        ) {
+            let mut manifest: serde_json::Value =
+                serde_json::from_slice(&fs::read(manifest_path).unwrap()).unwrap();
+            let report_path =
+                PathBuf::from(manifest["bot_report"]["report_path"].as_str().unwrap());
+            let mut report: serde_json::Value =
+                serde_json::from_slice(&fs::read(&report_path).unwrap()).unwrap();
+            let result = &mut report["results"][0];
+            result["creature_spell_start_body_sha256"] =
+                serde_json::Value::String(sha256_bytes(start));
+            result["creature_spell_start_body_bytes"] = serde_json::Value::from(start.len() as u64);
+            result["creature_spell_go_body_sha256"] = serde_json::Value::String(sha256_bytes(go));
+            result["creature_spell_go_body_bytes"] = serde_json::Value::from(go.len() as u64);
+            result["creature_spell_cast_id_low"] = serde_json::Value::from(cast_id.low);
+            result["creature_spell_cast_id_high"] = serde_json::Value::from(cast_id.high);
+            result["creature_spell_caster_guid_low"] = serde_json::Value::from(caster.low);
+            result["creature_spell_caster_guid_high"] = serde_json::Value::from(caster.high);
+            result["creature_spell_victim_guid_low"] = serde_json::Value::from(victim.low);
+            result["creature_spell_victim_guid_high"] = serde_json::Value::from(victim.high);
+            result["creature_spell_target_runtime_counter"] =
+                serde_json::Value::from(caster.low & 0x0000_00FF_FFFF_FFFF);
+            let report_bytes = serde_json::to_vec_pretty(&report).unwrap();
+            fs::write(&report_path, &report_bytes).unwrap();
+            manifest["bot_report"]["report_sha256"] =
+                serde_json::Value::String(sha256_bytes(&report_bytes));
+            fs::write(manifest_path, serde_json::to_vec_pretty(&manifest).unwrap()).unwrap();
+        }
+
+        let caster = guid(8, 0, 1, 530, 22_378, 78_686);
+        let cast_id = guid(47, 3, 1, 530, 15_691, 44);
+        let victim = guid(2, 0, 1, 0, 0, 15);
+        let start = spell_body(caster, cast_id, victim, false);
+        let go = spell_body(caster, cast_id, victim, true);
+        let selected = |source: &str| {
+            Capture::new(
+                source,
+                vec![
+                    CapturedPacket {
+                        direction: Direction::S2C,
+                        connection_id: 1,
+                        opcode: SMSG_SPELL_START,
+                        body: start.clone(),
+                    },
+                    CapturedPacket {
+                        direction: Direction::S2C,
+                        connection_id: 1,
+                        opcode: SMSG_SPELL_GO,
+                        body: go.clone(),
+                    },
+                ],
+            )
+        };
+        crate::semantic::validate_creature_spell_casting_capture(&selected("shape")).unwrap();
+
+        let root = test_root("creature-spell-report-packet-binding");
+        let flow = "creature-spell-casting";
+        let (cpp_path, cpp_manifest, rust_path, rust_manifest) = make_raw_pair(&root, flow);
+        bind_report(&cpp_manifest, &start, &go, caster, cast_id, victim);
+        bind_report(&rust_manifest, &start, &go, caster, cast_id, victim);
+        let raw = validate_raw_pair(
+            flow,
+            &cpp_path,
+            &cpp_manifest,
+            &rust_path,
+            &rust_manifest,
+            true,
+        )
+        .unwrap();
+        let cpp = selected("cpp");
+        let rust = selected("rust");
+        validate_bot_report_capture_binding(flow, &raw, &cpp, &rust).unwrap();
+
+        let mut mismatched = rust.clone();
+        mismatched.packets[1].body.push(0);
+        let error = validate_bot_report_capture_binding(flow, &raw, &cpp, &mismatched)
+            .expect_err("a creature-spell report from a different execution must fail");
         assert!(format!("{error:#}").contains("does not match selected RAW"));
         fs::remove_dir_all(root).unwrap();
     }

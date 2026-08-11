@@ -24,6 +24,7 @@ cargo run -p capture-diff -- diff login --strict
 
 # Milestone gate (operator-attested ready state, empty baseline and pinned shape):
 cargo run -p capture-diff -- verify-required loot-single-item-claim
+cargo run -p capture-diff -- verify-required creature-spell-casting
 ```
 
 `verify-required` is intentionally stricter than `diff --strict`: it refuses an
@@ -31,13 +32,15 @@ cargo run -p capture-diff -- verify-required loot-single-item-claim
 incorrect exact packet count/boundary/socket/order shape, an invalid correlated
 payload, a selection that differs from the exact reviewed boundaries/ignores,
 a missing or malformed RAW-to-derived lineage, any retained manifest/output
-hash mismatch, or any C++↔Rust difference. This
-lets a PR record exactly which capture it still owes without manufacturing a
-golden. Issue #106's existing `loot-single-item-claim` action windows contain
-six packets each and compare CLEAN with an empty accepted-divergence baseline,
-but they predate the mandatory RAW manifests and cannot establish which
-processes produced them. The contract therefore remains
-`awaiting-real-captures` until a new, fully accredited C++/Rust pair is imported.
+hash mismatch, or any C++↔Rust difference. This lets a PR record exactly which
+capture it still owes without manufacturing a golden. Both required contracts
+shown above are enforced `ready` gates backed by accredited schema-v3 RAW
+manifests and completed RAW-to-derived lineage: issue #106's
+`loot-single-item-claim` permits exactly six packets per side and issue #26's
+final `creature-spell-casting` generation exactly two. Both compare
+strict-CLEAN with empty accepted-divergence baselines; issue #26's current
+generation also passes `verify-required` from clean harness HEAD
+`42977e9accb24fc3921af075f4122e1f0180f4a2`.
 
 The `ready` status is an operator attestation made only after inspecting the
 capture run and its provenance. Each wrapper publishes a completed RAW
@@ -157,6 +160,113 @@ topologies. C++ registers `SMSG_SEND_KNOWN_SPELLS` as
 `CONNECTION_TYPE_INSTANCE`, Rust emits it on its authenticated instance
 socket, and the comparator itself does not normalize routing; a same-topology
 connection regression remains a separate hard failure.
+
+The versioned `creature-spell-casting-v1` contract applies fail-closed semantic
+comparisons to the mandatory adjacent `SMSG_SPELL_START` (`0x2C37`) then
+`SMSG_SPELL_GO` (`0x2C36`) pair. Its reviewed live C++/Rust generation is
+strict-CLEAN (2/2 packets) with an empty accepted-divergence baseline. The
+required-flow validator pins Cabal Interrogator entry `22378` on map `530`,
+Eviscerate `15691`, SpellXSpellVisual `244493`, exact
+START/GO flags `0x2`/`0x100` with CastFlagsEx `0`, and one unit-only Player
+target (the guarded character GUID `15`) that appears exactly once in GO's hit
+list with no miss or optional
+power/rune/target-point/ammo state. Both packets decode the complete 3.4.3
+`SpellCastData`, including
+canonical packed GUIDs and bit padding, both caster fields, spell visual and
+cast flags, missile/immunity/heal-prediction fields, complete
+`SpellTargetData`, hit/miss/status topology, and power/rune/target-point/ammo
+optionals; GO additionally validates the trailing basic combat-log bit. The
+contract correlates exact same-side caster, CastID, spell, visual and target
+values across START→GO. For an ordinary Creature AI cast, only the lower
+40-bit runtime counters of the exactly correlated
+`CasterGUID == CasterUnit` and normal-source `HighGuid::Cast` ID are normalized
+on both opcodes. GO's wrapping timestamp `CastTime` is also normalized, while
+START's cast-duration `CastTime` remains exact. Creature/cast type, realm, map,
+entry (spell ID), subtype/source and server ID remain strict.
+The guarded fixture pins the Creature, Player victim, and Cast GUID to local
+realm `1`; no realm bits are normalized (the legacy GUID factory expands its
+zero realm argument to that local realm before serialization).
+`OriginalCastID` must remain exact EMPTY. A self target or hit is normalized
+only by proving exact same-side equality with the caster; unrelated Creature
+GUIDs remain exact. Player/item casts retain raw byte identity. Missing or
+reordered START/GO, full combat-log payloads, noncanonical padding/GUIDs,
+mismatched miss/status counts, trailing bytes and even identical malformed
+bodies all fail closed.
+
+The current `15691` pair is the final issue-#26 P1 recapture and specifically
+an observed **HIT** sample; it does not establish deterministic hit behavior.
+Both C++ and Rust wrappers ran from clean harness HEAD
+`42977e9accb24fc3921af075f4122e1f0180f4a2` under
+`creature-spell-casting-shell-fixture-v2`. Before capture, that guard verifies
+the installed stock `AIName=SmartAI` / difficulty-0 `StaticFlags1=0` snapshot,
+CAS-switches it to `CombatAI` / `0x00100000`
+(`CREATURE_STATIC_FLAG_NO_MELEE`), and after capture CAS-restores the exact
+`SmartAI` / `0` pair. `NO_MELEE` suppresses the unrelated automatic melee path
+without disabling CombatAI's EventMap cast or consuming its melee damage RNG
+before the due spell.
+
+The final P1 hardening removes the unconditional-hit assumption: atomic
+START/GO publication is limited to physical `DmgClass=MELEE` Creature spells
+against a Player attacked from behind, with zero spell/effect mechanics and
+complete Creature/Player source authority that proves every omitted source is
+hit-inert for this bounded result. Completeness is not an emptiness shortcut:
+the reduced runtime's canonical local aura application/modifier/visible
+containers must still be empty, while loaded persistence/login sources may be
+nonempty only when their exact effects are proven unable to change the result.
+
+Player authority fails closed across persistence and login/zone reconciliation,
+map and area ancestry, guild, skills, active/rewarded and auto-push quests,
+glyphs, active-spec traits, pets and battle-pet slots, FFA/PvP/war-mode rules,
+SpellArea/outdoor/battlefield sources, and script, legacy/all-rank and
+SpellLinked hooks. A valid SpellLinked hook blocks the candidate; so does the
+absolute trigger spell ID retained from a rejected SpellLinked loader row,
+because a malformed row cannot prove that the hook is absent.
+
+Once accredited, the Creature-owned `0..=9_999` hit roll resolves the base 5%
+`MISS` branch below `500`, otherwise `HIT`. The local C++ order is retained:
+cast before repeat scheduling, and hit roll before the cooldown draw;
+`NO_ATTACK_MISS` still consumes exactly one hit roll before forcing `HIT`.
+An accepted `HIT` is published, then tombstones the local stream before repeat
+scheduling because C++ next consumes an unconditional launch critical roll and
+potential effect-value draws that this wire-only slice does not represent. A
+`MISS` reaches none of those target-effect draws and may retain authority for
+its repeat-delay draw.
+Spell, melee and movement randomness share one fail-closed runtime tombstone:
+an unrepresentable random branch disables subsequent random-dependent work for
+that Creature. A valid melee swing that reaches the still-unrepresented C++
+damage/outcome/proc calculation sets that tombstone and publishes no invented
+damage or melee wire. C++ owns one process-global random engine whereas Rust
+owns one RNG per Creature, so this slice claims the same distributions and
+local causal draw order, not an exact global sequence or cross-Creature
+interleaving. Damage and effects remain outside this wire-only slice; the final
+issue-#26 acceptance closes only this bounded P1 wire/lifecycle contract, not
+the full Spell effect or combat pipeline.
+
+The C++ RAW PKT
+`b52cc8ba962160be63286e72eb7611c6282b0cdc3a1cee0082fc6d6d7bf2c7b9`
+comes from an accredited source derivation: base HEAD
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`, one-file patch SHA-256
+`ef8b3c29f46fe537e1ae4e826b5610afcd534999f900ec9554ee0534e7847262`,
+and resulting HEAD `8cfed90bf1720dbf8b9dc109113c8d7d9173ff6c`. The patch only corrects the
+`ChrSpecialization` index-container bound required by the installed DB2 data;
+it changes no AI or spell path. The Rust RAW tree
+`9aee309d9ffb2e2e1e5a33167c228ccaa8d1634d917efd026e1a525f2a5db94a`
+comes from clean source HEAD
+`42977e9accb24fc3921af075f4122e1f0180f4a2`. The retained C++ and Rust
+manifest hashes are respectively
+`d40e3615b3337a26a3c4d4e380dc665c23719133ec0b3c7a05febdfd640e849d`
+and `3c942209db52f9f36b3d661477f0cad766e7e2ee49cf1fc97d68a74d996f0da0`.
+Strict import produced filtered C++ PKT
+`a6b32206e3277e455e25f6aa8e491606aa5cd9449e2bf24245ea9dd5db79d932`,
+normalized Rust tree
+`cc8d53b06c2727c95990eda80fd095a1a7e390da0af16981429d07176e0c003b`,
+and lineage file
+`f443539e7857ac27dfb2029012f1e889d92ed27a224f89f7a6247f9510f0479d`.
+`diff --strict` reports 2 matched packets and zero differences, and
+`verify-required creature-spell-casting` reports CLEAN with exact
+topology/order and correlated payload semantics.
+This wire window proves only the bounded START/GO publication contract; it does
+not claim spell-effect, damage, power, aura, or health-state mutation parity.
 
 The issue-#108 vendor fixture isolates the exact post-COMMIT realm response:
 `SMSG_BUY_SUCCEEDED` followed by `SMSG_ITEM_PUSH_RESULT`. Paired C++ and Rust

@@ -502,6 +502,13 @@ impl QuestStore {
         self.quests.get(&id)
     }
 
+    /// Complete C++ `sObjectMgr->GetQuestTemplates()` projection. Callers
+    /// that audit global login/update producers must inspect every template,
+    /// not only quests related to the current Player.
+    pub fn quests_like_cpp(&self) -> impl Iterator<Item = &QuestTemplate> {
+        self.quests.values()
+    }
+
     pub fn objective_like_cpp(&self, objective_id: u32) -> Option<&QuestObjective> {
         self.quests
             .values()

@@ -1,0 +1,2 @@
+# Unified diff context lines intentionally retain their required leading space.
+crates/capture-diff/flows/creature-spell-casting/fixture/cpp-reference.patch -whitespace

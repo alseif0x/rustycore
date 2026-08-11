@@ -1,0 +1,25 @@
+diff --git a/src/server/game/DataStores/DB2Stores.cpp b/src/server/game/DataStores/DB2Stores.cpp
+index 079cf994f4101551bc2c1946175a2caaff808b50..ca66f8ff44271c05f9704b8391ffb59f6a640552 100644
+--- a/src/server/game/DataStores/DB2Stores.cpp
++++ b/src/server/game/DataStores/DB2Stores.cpp
+@@ -379,7 +379,10 @@ typedef std::unordered_map<uint32 /*areaGroupId*/, std::vector<uint32/*areaId*/>
+ typedef std::unordered_map<uint32, std::vector<ArtifactPowerEntry const*>> ArtifactPowersContainer;
+ typedef std::unordered_map<uint32, std::vector<uint32>> ArtifactPowerLinksContainer;
+ typedef std::unordered_map<std::pair<uint32, uint8>, ArtifactPowerRankEntry const*> ArtifactPowerRanksContainer;
+-typedef ChrSpecializationEntry const* ChrSpecializationByIndexContainer[MAX_CLASSES + 1][MAX_SPECIALIZATIONS];
++// MAX_SPECIALIZATIONS is the WotLK dual-talent-group limit; this store also
++// reserves INITIAL_SPECIALIZATION_INDEX, so it needs indices [0, 4].
++constexpr uint8 MAX_CHR_SPECIALIZATION_SLOTS = INITIAL_SPECIALIZATION_INDEX + 1;
++typedef ChrSpecializationEntry const* ChrSpecializationByIndexContainer[MAX_CLASSES + 1][MAX_CHR_SPECIALIZATION_SLOTS];
+ typedef std::unordered_map<uint32 /*curveID*/, std::vector<DBCPosition2D>> CurvePointsContainer;
+ typedef std::map<std::tuple<uint32, uint8, uint8, uint8>, EmotesTextSoundEntry const*> EmotesTextSoundContainer;
+ typedef std::unordered_map<uint32, std::vector<uint32>> FactionTeamContainer;
+@@ -1104,7 +1107,7 @@ uint32 DB2Manager::LoadStores(std::string const& dataPath, LocaleConstant defaul
+     for (ChrSpecializationEntry const* chrSpec : sChrSpecializationStore)
+     {
+         ASSERT(chrSpec->ClassID < MAX_CLASSES);
+-        ASSERT(chrSpec->OrderIndex < MAX_SPECIALIZATIONS);
++        ASSERT(chrSpec->OrderIndex >= 0 && chrSpec->OrderIndex < MAX_CHR_SPECIALIZATION_SLOTS);
+ 
+         uint32 storageIndex = chrSpec->ClassID;
+         if (chrSpec->GetFlags().HasFlag(ChrSpecializationFlag::PetOverrideSpec))

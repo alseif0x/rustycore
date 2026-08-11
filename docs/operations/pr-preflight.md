@@ -27,7 +27,7 @@ Printing `review` or `full` with `--dry-run` does not require Codex or its execu
 | `diff [BASE]` | Whitespace-check committed, staged, and unstaged changes | No |
 | `format` | Run harness self-tests and all three formatting checks from CI | No |
 | `check` | Run locked core checks, bot check, and server builds from CI | No |
-| `test` | Run focused suites, loot-race tests, and the required capture gate from CI | No |
+| `test` | Run focused suites, loot-race tests, and the required capture gates from CI | No |
 | `ci` | Run `architecture`, `format`, `check`, and `test` | No |
 | `quick [BASE]` | Run `diff`, `architecture`, `format`, and `check` during iteration | No |
 | `capture` | Test committed captures and enforce required capture contracts without `protoc` | No |
@@ -176,15 +176,15 @@ For a no-build QA run, also provide the independently pinned
 take precedence over ignored `.env.local` defaults.
 
 Fresh C++ or Rust packet recording is also intentionally excluded: the capture scripts can
-restart services and require an interactive client flow. The `capture` profile does not invoke
-protobuf tooling. It tests committed fixtures and runs `verify-required` for milestone contracts.
-A required contract whose matched real C++/Rust artifacts have not been installed fails closed.
-Issue #106's pre-lineage one-client loot claim still compares CLEAN at the strict six-packet
-semantic layer, but it is intentionally `awaiting-real-captures`: it lacks the mandatory completed
-RAW manifests and process/config lineage. A fresh import must validate those manifests, retain exact
-copies, hash the exact reviewed selection and all installed outputs, and publish the complete flow
-generation atomically before `verify-required` can pass. The separate two-client race remains
-runtime evidence rather than a golden, because global packet logs merge concurrent sessions.
+restart services and perform guarded fixture mutations around an interactive client flow. The
+`capture` profile does not invoke protobuf tooling. It tests committed fixtures and runs
+`verify-required` for both ready milestone contracts: `loot-single-item-claim` and
+`creature-spell-casting`. The local `capture`, `test`, `ci`, and `full` profiles enforce both
+contracts, as does the GitHub focused-test job through direct commands. Each contract is backed by
+a matched C++/Rust capture pair, completed schema-v3 manifests and lineage, and an empty committed
+divergence baseline. Artifact, lineage, effective-config, executable, fixture-cleanup, or semantic
+drift fails closed. The separate two-client loot race remains runtime evidence rather than a golden,
+because global packet logs merge concurrent sessions.
 RAW capture-manifest schema v3 distinguishes PM2's configured entry
 PID/start-time/path/hash/profile from the unique PID/start-time owning both
 listeners: they may be identical for a direct Rust binary, while the legacy

@@ -134,6 +134,7 @@ jobs:
           cargo +1.88.0 test --locked --manifest-path tools/wow-test-bot/Cargo.toml loot_race::tests
           cargo +1.88.0 test --locked -p capture-diff
           cargo +1.88.0 run --locked -p capture-diff -- verify-required loot-single-item-claim
+          cargo +1.88.0 run --locked -p capture-diff -- verify-required creature-spell-casting
 
   latest-stable:
     name: Latest stable compatibility
