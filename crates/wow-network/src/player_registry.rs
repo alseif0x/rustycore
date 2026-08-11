@@ -82,6 +82,22 @@ impl SharedClientVisibleGuidsLikeCpp {
         self.write_like_cpp().extend(guids);
     }
 
+    /// Drop the objects a visibility refresh no longer sees and add the ones it
+    /// found, under a single write.
+    ///
+    /// Removing and re-adding in separate steps would briefly publish a
+    /// half-rebuilt set, and a producer selecting recipients inside that window
+    /// would skip a viewer that never actually lost the object.
+    pub fn retain_and_extend_like_cpp(
+        &self,
+        mut keep: impl FnMut(&ObjectGuid) -> bool,
+        added: impl IntoIterator<Item = ObjectGuid>,
+    ) {
+        let mut guard = self.write_like_cpp();
+        guard.retain(|guid| keep(guid));
+        guard.extend(added);
+    }
+
     /// Copy the current membership. Callers that need to iterate must take this
     /// snapshot rather than hold the lock across session work.
     pub fn snapshot_like_cpp(&self) -> HashSet<ObjectGuid> {

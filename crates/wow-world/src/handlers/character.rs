@@ -9180,32 +9180,31 @@ impl WorldSession {
                 }
             }
 
-            self.client_visible_guids_like_cpp.retain(|guid| {
-                !guid.is_any_type_creature()
-                    && !guid.is_game_object()
-                    && !guid.is_dynamic_object()
-                    && !guid.is_area_trigger()
-                    && !guid.is_corpse()
-                    && !guid.is_scene_object()
-                    && !guid.is_conversation()
-                    && !guid.is_player()
-            });
+            // One write: a cast resolving concurrently must never see this set
+            // stripped of objects the refresh is about to put back.
             self.client_visible_guids_like_cpp
-                .extend(new_visible_creatures.iter().copied());
-            self.client_visible_guids_like_cpp
-                .extend(new_visible_gos.iter().copied());
-            self.client_visible_guids_like_cpp
-                .extend(new_visible_dynamic_objects.iter().copied());
-            self.client_visible_guids_like_cpp
-                .extend(new_visible_area_triggers.iter().copied());
-            self.client_visible_guids_like_cpp
-                .extend(new_visible_corpses.iter().copied());
-            self.client_visible_guids_like_cpp
-                .extend(new_visible_scene_objects.iter().copied());
-            self.client_visible_guids_like_cpp
-                .extend(new_visible_conversations.iter().copied());
-            self.client_visible_guids_like_cpp
-                .extend(new_visible_players.iter().copied());
+                .retain_and_extend_like_cpp(
+                    |guid| {
+                        !guid.is_any_type_creature()
+                            && !guid.is_game_object()
+                            && !guid.is_dynamic_object()
+                            && !guid.is_area_trigger()
+                            && !guid.is_corpse()
+                            && !guid.is_scene_object()
+                            && !guid.is_conversation()
+                            && !guid.is_player()
+                    },
+                    new_visible_creatures
+                        .iter()
+                        .chain(new_visible_gos.iter())
+                        .chain(new_visible_dynamic_objects.iter())
+                        .chain(new_visible_area_triggers.iter())
+                        .chain(new_visible_corpses.iter())
+                        .chain(new_visible_scene_objects.iter())
+                        .chain(new_visible_conversations.iter())
+                        .chain(new_visible_players.iter())
+                        .copied(),
+                );
             self.last_visibility_pos = Some(pos);
             debug!(
                 "Visibility updated at ({:.1}, {:.1}): {} creatures / {} GOs in range",
