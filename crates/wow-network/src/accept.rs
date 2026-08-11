@@ -16,131 +16,11 @@ use wow_crypto::HmacSha256;
 use wow_packet::ClientPacket;
 use wow_packet::packets::auth::{AuthContinuedSession, ConnectToKey, EnterEncryptedMode};
 
-use crate::group_registry::{GroupRegistry, PendingInvites};
-use crate::player_registry::{GameEventQuestCompleteCommandLikeCpp, PlayerRegistry};
 use crate::session_mgr::{InstanceLink, SessionManager};
 use crate::world_socket::{
     AccountInfo, AccountLookup, SocketWriteFenceLikeCpp, WorldSocket, WorldSocketError,
     sign_enable_encryption,
 };
-
-/// C++ `World::rate_values` subset used by loot generation.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct LootDropRatesLikeCpp {
-    pub item_poor: f32,
-    pub item_normal: f32,
-    pub item_uncommon: f32,
-    pub item_rare: f32,
-    pub item_epic: f32,
-    pub item_legendary: f32,
-    pub item_artifact: f32,
-    pub item_referenced: f32,
-    pub item_referenced_amount: f32,
-    pub money: f32,
-    pub corpse_decay_looted: f32,
-}
-
-impl Default for LootDropRatesLikeCpp {
-    fn default() -> Self {
-        Self {
-            item_poor: 1.0,
-            item_normal: 1.0,
-            item_uncommon: 1.0,
-            item_rare: 1.0,
-            item_epic: 1.0,
-            item_legendary: 1.0,
-            item_artifact: 1.0,
-            item_referenced: 1.0,
-            item_referenced_amount: 1.0,
-            money: 1.0,
-            corpse_decay_looted: 0.5,
-        }
-    }
-}
-
-/// C++ `World::rate_values` subset used by reputation gain.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct ReputationRatesLikeCpp {
-    pub gain: f32,
-    pub low_level_kill: f32,
-    pub low_level_quest: f32,
-    pub recruit_a_friend_bonus: f32,
-    pub recruit_a_friend_distance: f32,
-}
-
-impl Default for ReputationRatesLikeCpp {
-    fn default() -> Self {
-        Self {
-            gain: 1.0,
-            low_level_kill: 1.0,
-            low_level_quest: 1.0,
-            recruit_a_friend_bonus: 0.1,
-            recruit_a_friend_distance: 100.0,
-        }
-    }
-}
-
-/// C++ `ChatLevelReq.*` represented session snapshot.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ChatLevelRequirementsLikeCpp {
-    pub channel: u8,
-    pub whisper: u8,
-    pub emote: u8,
-    pub say: u8,
-    pub yell: u8,
-}
-
-impl Default for ChatLevelRequirementsLikeCpp {
-    fn default() -> Self {
-        Self {
-            channel: 1,
-            whisper: 1,
-            emote: 1,
-            say: 1,
-            yell: 1,
-        }
-    }
-}
-
-/// C++ `ListenRange.*` represented session snapshot.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct ChatListenRangesLikeCpp {
-    pub say: f32,
-    pub text_emote: f32,
-    pub yell: f32,
-}
-
-impl Default for ChatListenRangesLikeCpp {
-    fn default() -> Self {
-        Self {
-            say: 25.0,
-            text_emote: 25.0,
-            yell: 300.0,
-        }
-    }
-}
-
-/// C++ `ChatFlood.*` represented session snapshot.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ChatFloodConfigLikeCpp {
-    pub message_count: u32,
-    pub message_delay_secs: u32,
-    pub addon_message_count: u32,
-    pub addon_message_delay_secs: u32,
-    pub mute_time_secs: u32,
-}
-
-impl Default for ChatFloodConfigLikeCpp {
-    fn default() -> Self {
-        Self {
-            message_count: 10,
-            message_delay_secs: 1,
-            addon_message_count: 100,
-            addon_message_delay_secs: 1,
-            mute_time_secs: 10,
-        }
-    }
-}
 
 /// C++ `SocketTimeOutTime{,Active}` represented in seconds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -158,367 +38,41 @@ impl Default for SocketTimeoutsLikeCpp {
     }
 }
 
-/// C++ `PacketSpoof.*` policy carried by `WorldSession::DosProtection`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PacketSpoofConfigLikeCpp {
-    pub policy: u32,
-    pub ban_mode: u32,
-    pub ban_duration_secs: u32,
-}
-
-impl PacketSpoofConfigLikeCpp {
-    pub const POLICY_LOG: u32 = 0;
-    pub const POLICY_KICK: u32 = 1;
-    pub const POLICY_BAN: u32 = 2;
-    pub const BAN_ACCOUNT: u32 = 0;
-    pub const BAN_IP: u32 = 2;
-}
-
-impl Default for PacketSpoofConfigLikeCpp {
-    fn default() -> Self {
-        Self {
-            policy: Self::POLICY_KICK,
-            ban_mode: Self::BAN_ACCOUNT,
-            ban_duration_secs: 86_400,
-        }
-    }
-}
-
-/// Resources needed for creating a WorldSession after authentication.
+/// Socket/auth policy owned by the world listener.
 ///
-/// Held by the accept loop and cloned for each connection.
-pub struct SessionResources {
-    pub char_db: Option<Arc<wow_database::CharacterDatabase>>,
-    pub login_db: Option<Arc<wow_database::LoginDatabase>>,
-    pub world_db: Option<Arc<wow_database::WorldDatabase>>,
-    /// Process-wide C++ `ObjectMgr::_trainers` /
-    /// `_creatureDefaultTrainers` snapshot.
-    pub trainer_store: Option<Arc<wow_data::TrainerStoreLikeCpp>>,
-    pub guid_generator: Option<Arc<wow_core::ObjectGuidGenerator>>,
-    /// Process-wide C++ `sObjectMgr->GetGenerator<HighGuid::Item>()` mirror.
-    /// Every session must share this allocator so concurrent item creation
-    /// cannot select the same `item_instance.guid`.
-    pub item_guid_generator: Option<Arc<wow_core::ObjectGuidGenerator>>,
-    /// Process-wide C++ `ObjectMgr::_equipmentSetGuid` mirror shared across
-    /// equipment sets, transmog outfits, and every session.
-    pub equipment_set_guid_generator: Option<Arc<wow_core::EquipmentSetGuidGeneratorLikeCpp>>,
-    /// Process-wide C++ `ObjectMgr::_voidItemId` mirror. This raw ID space is
-    /// independent from `item_instance.guid` and shared by every session.
-    pub void_storage_item_id_generator: Option<Arc<wow_core::VoidStorageItemIdGeneratorLikeCpp>>,
-    pub instance_lock_mgr: Option<Arc<std::sync::RwLock<wow_instances::InstanceLockMgr>>>,
-    pub bank_bag_slot_prices_store: Option<Arc<wow_data::BankBagSlotPricesStore>>,
-    pub currency_types_store: Option<Arc<wow_data::CurrencyTypesStore>>,
-    pub import_price_stores: Option<Arc<wow_data::ImportPriceStores>>,
-    pub emotes_store: Option<Arc<wow_data::EmotesStore>>,
-    pub emotes_text_store: Option<Arc<wow_data::EmotesTextStore>>,
-    pub ip_location_store: Option<Arc<wow_core::IpLocationStore>>,
-    pub item_class_store: Option<Arc<wow_data::ItemClassStore>>,
-    pub item_currency_cost_store: Option<Arc<wow_data::ItemCurrencyCostStore>>,
-    pub item_extended_cost_store: Option<Arc<wow_data::ItemExtendedCostStore>>,
-    pub item_appearance_store: Option<Arc<wow_data::ItemAppearanceStore>>,
-    pub item_store: Option<Arc<wow_data::ItemStore>>,
-    pub item_child_equipment_store: Option<Arc<wow_data::ItemChildEquipmentStore>>,
-    pub item_modified_appearance_store: Option<Arc<wow_data::ItemModifiedAppearanceStore>>,
-    pub item_search_name_store: Option<Arc<wow_data::ItemSearchNameStore>>,
-    pub trinity_string_store: Option<Arc<wow_data::TrinityStringStoreLikeCpp>>,
-    pub heirloom_store: Option<Arc<wow_data::HeirloomStore>>,
-    pub toy_store: Option<Arc<wow_data::ToyStore>>,
-    pub battle_pet_breed_quality_store: Option<Arc<wow_data::BattlePetBreedQualityStore>>,
-    pub battle_pet_breed_state_store: Option<Arc<wow_data::BattlePetBreedStateStore>>,
-    pub battle_pet_species_store: Option<Arc<wow_data::BattlePetSpeciesStore>>,
-    /// World-DB battle-pet breed/quality tables for trainer purchase
-    /// materialization (issue #161).
-    pub battle_pet_selection_store:
-        Option<Arc<wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp>>,
-    pub battle_pet_species_state_store: Option<Arc<wow_data::BattlePetSpeciesStateStore>>,
-    pub battle_pet_xp_game_table: Option<Arc<wow_data::BattlePetXpGameTableLikeCpp>>,
-    pub combat_ratings_game_table: Option<Arc<wow_data::CombatRatingsGameTableLikeCpp>>,
-    pub shield_block_regular_game_table: Option<Arc<wow_data::ShieldBlockRegularGameTableLikeCpp>>,
-    pub transmog_set_item_store: Option<Arc<wow_data::TransmogSetItemStore>>,
-    pub item_price_base_store: Option<Arc<wow_data::ItemPriceBaseStore>>,
-    pub item_limit_category_store: Option<Arc<wow_data::ItemLimitCategoryStore>>,
-    pub item_limit_category_condition_store: Option<Arc<wow_data::ItemLimitCategoryConditionStore>>,
-    pub player_create_info_store: Option<Arc<wow_data::PlayerCreateInfoStoreLikeCpp>>,
-    pub player_create_cast_spell_store:
-        Option<Arc<wow_data::PlayerCreateInfoCastSpellStoreLikeCpp>>,
-    pub player_create_custom_spell_store:
-        Option<Arc<wow_data::PlayerCreateInfoCustomSpellStoreLikeCpp>>,
-    pub player_stats: Option<Arc<wow_data::PlayerStatsStore>>,
-    pub item_bonus_db2_store: Option<Arc<wow_data::ItemBonusDb2Store>>,
-    pub pvp_item_store: Option<Arc<wow_data::PvpItemStore>>,
-    pub item_set_store: Option<Arc<wow_data::ItemSetStore>>,
-    pub item_set_spell_store: Option<Arc<wow_data::ItemSetSpellStore>>,
-    pub item_stats_store: Option<Arc<wow_data::ItemStatsStore>>,
-    pub durability_costs_store: Option<Arc<wow_data::DurabilityCostsStore>>,
-    pub durability_quality_store: Option<Arc<wow_data::DurabilityQualityStore>>,
-    pub item_effect_store: Option<Arc<wow_data::ItemEffectStore>>,
-    pub item_random_suffix_store: Option<Arc<wow_data::ItemRandomSuffixStore>>,
-    pub item_random_properties_store: Option<Arc<wow_data::ItemRandomPropertiesStore>>,
-    pub rand_prop_points_store: Option<Arc<wow_data::RandPropPointsStore>>,
-    pub item_random_enchantment_template_store:
-        Option<Arc<wow_data::ItemRandomEnchantmentTemplateStore>>,
-    pub item_spec_override_store: Option<Arc<wow_data::ItemSpecOverrideStore>>,
-    pub item_disenchant_loot_store: Option<Arc<wow_data::ItemDisenchantLootStore>>,
-    pub loot_stores: Option<Arc<wow_loot::LootStores>>,
-    pub condition_store: Option<Arc<wow_data::ConditionEntriesByTypeStore>>,
-    pub player_condition_store: Option<Arc<wow_data::PlayerConditionStore>>,
-    pub adventure_map_poi_store: Option<Arc<wow_data::AdventureMapPoiStore>>,
-    pub content_tuning_store: Option<Arc<wow_data::progression_rewards::ContentTuningStore>>,
-    pub curve_store: Option<Arc<wow_data::progression_rewards::CurveStore>>,
-    pub curve_point_store: Option<Arc<wow_data::progression_rewards::CurvePointStore>>,
-    pub scaling_stat_distribution_store:
-        Option<Arc<wow_data::progression_rewards::ScalingStatDistributionStore>>,
-    pub scaling_stat_values_store:
-        Option<Arc<wow_data::progression_rewards::ScalingStatValuesStore>>,
-    pub progression_faction_store: Option<Arc<wow_data::progression_rewards::FactionStore>>,
-    pub faction_template_store: Option<Arc<wow_data::progression_rewards::FactionTemplateStore>>,
-    pub friendship_rep_reaction_store:
-        Option<Arc<wow_data::progression_rewards::FriendshipRepReactionStore>>,
-    pub paragon_reputation_store:
-        Option<Arc<wow_data::progression_rewards::ParagonReputationStore>>,
-    pub disable_mgr: Option<Arc<wow_data::DisableMgrLikeCpp>>,
-    pub difficulty_store: Option<Arc<wow_data::DifficultyStore>>,
-    pub lock_store: Option<Arc<wow_data::LockStore>>,
-    pub spell_item_enchantment_store: Option<Arc<wow_data::SpellItemEnchantmentStore>>,
-    pub spell_item_enchantment_condition_store:
-        Option<Arc<wow_data::SpellItemEnchantmentConditionStore>>,
-    pub gem_properties_store: Option<Arc<wow_data::GemPropertiesStore>>,
-    pub spell_enchant_proc_store: Option<Arc<wow_data::SpellEnchantProcStoreLikeCpp>>,
-    pub hotfix_blob_cache: Option<Arc<wow_data::HotfixBlobCache>>,
-    pub tact_key_store: Option<Arc<wow_data::TactKeyStore>>,
-    pub skill_store: Option<Arc<wow_data::SkillStore>>,
-    pub trait_definition_store: Option<Arc<wow_data::trait_tree::TraitDefinitionStore>>,
-    pub trait_node_entry_store: Option<Arc<wow_data::trait_tree::TraitNodeEntryStore>>,
-    pub skill_line_store: Option<Arc<wow_data::SkillLineStore>>,
-    pub skill_tiers_store: Option<Arc<wow_data::SkillTiersStoreLikeCpp>>,
-    pub talent_store: Option<Arc<wow_data::TalentStore>>,
-    pub talent_tab_store: Option<Arc<wow_data::TalentTabStore>>,
-    pub num_talents_at_level_store:
-        Option<Arc<wow_data::progression_rewards::NumTalentsAtLevelStore>>,
-    pub glyph_properties_store: Option<Arc<wow_data::GlyphPropertiesStore>>,
-    pub chr_races_store: Option<Arc<wow_data::character_progression::ChrRacesStore>>,
-    pub chr_classes_store: Option<Arc<wow_data::character_progression::ChrClassesStore>>,
-    pub power_type_store: Option<Arc<wow_data::character_progression::PowerTypeStore>>,
-    pub spell_chain_store: Option<Arc<wow_data::SpellChainStoreLikeCpp>>,
-    pub spell_store: Option<Arc<wow_data::SpellStore>>,
-    /// Process-wide immutable acquisition projection composed from the
-    /// effective spell metadata sources.
-    pub spell_acquisition_catalog: Option<Arc<wow_data::SpellAcquisitionCatalogLikeCpp>>,
-    /// Startup-audited casts/crafts that the immutable acquisition planner may
-    /// execute. Missing authority remains fail-closed in `wow-world`.
-    pub spell_acquisition_safe_cast_spell_ids: Option<Arc<std::collections::BTreeSet<u32>>>,
-    pub spell_acquisition_valid_craft_spell_ids: Option<Arc<std::collections::BTreeSet<u32>>>,
-    /// Effective world-script bindings retained separately from trainer
-    /// authority so spell/aura runtimes can prove a candidate has no C++
-    /// script hook.
-    pub spell_script_exact_spell_ids: Option<Arc<std::collections::BTreeSet<u32>>>,
-    pub spell_script_all_rank_root_spell_ids: Option<Arc<std::collections::BTreeSet<u32>>>,
-    pub legacy_spell_script_spell_ids: Option<Arc<std::collections::BTreeSet<u32>>>,
-    /// Absolute trigger IDs from rejected `spell_linked_spell` rows. The
-    /// validated store cannot prove hook absence for these triggers.
-    pub spell_linked_rejected_trigger_spell_ids: Option<Arc<std::collections::BTreeSet<u32>>>,
-    pub spell_levels_store: Option<Arc<wow_data::SpellLevelsStore>>,
-    pub spell_category_store: Option<Arc<wow_data::SpellCategoryStore>>,
-    pub npc_spell_click_store: Option<Arc<wow_data::NpcSpellClickStoreLikeCpp>>,
-    pub spell_aura_options_store: Option<Arc<wow_data::SpellAuraOptionsStore>>,
-    pub spell_class_options_store: Option<Arc<wow_data::SpellClassOptionsStore>>,
-    pub spell_aura_restrictions_store: Option<Arc<wow_data::SpellAuraRestrictionsStore>>,
-    pub spell_target_restrictions_store: Option<Arc<wow_data::SpellTargetRestrictionsStore>>,
-    pub spell_equipped_items_store: Option<Arc<wow_data::SpellEquippedItemsStore>>,
-    pub spell_misc_store: Option<Arc<wow_data::SpellMiscStore>>,
-    pub spell_group_store: Option<Arc<wow_data::SpellGroupStoreLikeCpp>>,
-    pub spell_group_stack_rule_store: Option<Arc<wow_data::SpellGroupStackRuleStoreLikeCpp>>,
-    pub spell_linked_store: Option<Arc<wow_data::SpellLinkedStoreLikeCpp>>,
-    pub spell_pet_aura_store: Option<Arc<wow_data::SpellPetAuraStoreLikeCpp>>,
-    pub spell_area_store: Option<Arc<wow_data::SpellAreaStoreLikeCpp>>,
-    pub spell_custom_attribute_store: Option<Arc<wow_data::SpellCustomAttributeStoreLikeCpp>>,
-    pub serverside_spell_store: Option<Arc<wow_data::ServersideSpellStoreLikeCpp>>,
-    pub spell_learn_skill_store: Option<Arc<wow_data::SpellLearnSkillStoreLikeCpp>>,
-    pub spell_learn_spell_store: Option<Arc<wow_data::SpellLearnSpellStoreLikeCpp>>,
-    pub pet_levelup_spell_store: Option<Arc<wow_data::PetLevelupSpellStoreLikeCpp>>,
-    pub pet_default_spell_store: Option<Arc<wow_data::PetDefaultSpellStoreLikeCpp>>,
-    pub pet_family_spell_store: Option<Arc<wow_data::PetFamilySpellStoreLikeCpp>>,
-    pub spell_procs_per_minute_store: Option<Arc<wow_data::SpellProcsPerMinuteStore>>,
-    pub spell_proc_store: Option<Arc<wow_data::SpellProcStoreLikeCpp>>,
-    pub spell_required_store: Option<Arc<wow_data::SpellRequiredStoreLikeCpp>>,
-    pub spell_threat_store: Option<Arc<wow_data::SpellThreatStoreLikeCpp>>,
-    pub spell_duration_store: Option<Arc<wow_data::SpellDurationStore>>,
-    pub spell_radius_store: Option<Arc<wow_data::SpellRadiusStore>>,
-    pub spell_range_store: Option<Arc<wow_data::SpellRangeStore>>,
-    pub spell_target_position_store: Option<Arc<wow_data::SpellTargetPositionStoreLikeCpp>>,
-    pub spell_totem_model_store: Option<Arc<wow_data::SpellTotemModelStoreLikeCpp>>,
-    pub movie_store: Option<Arc<wow_data::MovieStore>>,
-    pub script_name_interner: Option<Arc<wow_data::ScriptNameInternerLikeCpp>>,
-    pub gameobject_template_lifecycle_store:
-        Option<Arc<wow_data::GameObjectTemplateLifecycleStoreLikeCpp>>,
-    pub area_table_store: Option<Arc<wow_data::AreaTableStore>>,
-    pub fishing_base_skill_store: Option<Arc<wow_data::FishingBaseSkillStoreLikeCpp>>,
-    pub area_trigger_db2_store: Option<Arc<wow_data::AreaTriggerDb2Store>>,
-    pub area_trigger_store: Option<Arc<wow_data::AreaTriggerStore>>,
-    pub area_trigger_script_store: Option<Arc<wow_data::AreaTriggerScriptStoreLikeCpp>>,
-    pub tavern_area_trigger_store: Option<Arc<wow_data::TavernAreaTriggerStoreLikeCpp>>,
-    pub graveyard_store: Option<Arc<wow_data::GraveyardStore>>,
-    pub area_trigger_template_store: Option<Arc<wow_data::AreaTriggerTemplateStore>>,
-    pub chr_specialization_store: Option<Arc<wow_data::ChrSpecializationStore>>,
-    pub dungeon_encounter_store: Option<Arc<wow_data::DungeonEncounterStore>>,
-    pub map_store: Option<Arc<wow_data::MapStore>>,
-    pub map_difficulty_store: Option<Arc<wow_data::MapDifficultyStore>>,
-    pub map_difficulty_x_condition_store: Option<Arc<wow_data::MapDifficultyXConditionStore>>,
-    pub access_requirement_store: Option<Arc<wow_data::AccessRequirementStoreLikeCpp>>,
-    pub lfg_dungeons_store: Option<Arc<wow_data::LfgDungeonsStore>>,
-    pub lfg_dungeon_store_like_cpp: Option<Arc<wow_data::LfgDungeonStoreLikeCpp>>,
-    pub battlemaster_list_store: Option<Arc<wow_data::BattlemasterListStore>>,
-    pub creature_template_lifecycle_store:
-        Option<Arc<wow_data::CreatureTemplateLifecycleStoreLikeCpp>>,
-    pub creature_template_mount_store: Option<Arc<wow_data::CreatureTemplateMountStoreLikeCpp>>,
-    pub creature_equipment_store: Option<Arc<wow_data::CreatureEquipmentStoreLikeCpp>>,
-    pub creature_display_info_store: Option<Arc<wow_data::CreatureDisplayInfoStore>>,
-    pub creature_display_info_extra_store: Option<Arc<wow_data::CreatureDisplayInfoExtraStore>>,
-    pub gameobject_display_info_store: Option<Arc<wow_data::GameObjectDisplayInfoStore>>,
-    pub creature_model_info_store: Option<Arc<wow_data::CreatureModelInfoStoreLikeCpp>>,
-    pub creature_addon_store: Option<Arc<wow_data::CreatureAddonStoreLikeCpp>>,
-    pub creature_difficulty_store: Option<Arc<wow_data::CreatureDifficultyStoreLikeCpp>>,
-    pub creature_base_stats_store: Option<Arc<wow_data::CreatureBaseStatsStoreLikeCpp>>,
-    pub creature_health_rates: wow_data::CreatureClassificationHealthRatesLikeCpp,
-    pub creature_model_data_store: Option<Arc<wow_data::CreatureModelDataStore>>,
-    pub mount_store: Option<Arc<wow_data::MountStore>>,
-    pub mount_definition_store: Option<Arc<wow_data::MountDefinitionStoreLikeCpp>>,
-    pub mount_capability_store: Option<Arc<wow_data::MountCapabilityStore>>,
-    pub mount_type_x_capability_store: Option<Arc<wow_data::MountTypeXCapabilityStore>>,
-    pub mount_x_display_store: Option<Arc<wow_data::MountXDisplayStore>>,
-    pub spell_shapeshift_form_store: Option<Arc<wow_data::SpellShapeshiftFormStore>>,
-    pub vehicle_store: Option<Arc<wow_data::VehicleStore>>,
-    pub vehicle_seat_store: Option<Arc<wow_data::VehicleSeatStore>>,
-    pub vehicle_template_store: Option<Arc<wow_data::VehicleTemplateStoreLikeCpp>>,
-    pub vehicle_accessory_store: Option<Arc<wow_data::VehicleAccessoryStoreLikeCpp>>,
-    pub terrain_swap_store: Option<Arc<wow_data::TerrainSwapStore>>,
-    pub phase_store: Option<Arc<wow_data::PhaseStore>>,
-    pub phase_group_store: Option<Arc<wow_data::PhaseGroupStore>>,
-    pub quest_store: Option<Arc<wow_data::quest::QuestStore>>,
-    pub quest_xp_store: Option<Arc<wow_data::quest_xp::QuestXpStore>>,
-    pub quest_money_reward_store: Option<Arc<wow_data::progression_rewards::QuestMoneyRewardStore>>,
-    pub quest_v2_store: Option<Arc<wow_data::progression_rewards::QuestV2Store>>,
-    pub quest_info_store: Option<Arc<wow_data::progression_rewards::QuestInfoStore>>,
-    pub quest_package_item_store: Option<Arc<wow_data::progression_rewards::QuestPackageItemStore>>,
-    pub quest_faction_reward_store:
-        Option<Arc<wow_data::progression_rewards::QuestFactionRewardStore>>,
-    pub reputation_reward_rate_store:
-        Option<Arc<wow_data::reputation::ReputationRewardRateStoreLikeCpp>>,
-    pub creature_onkill_reputation_store:
-        Option<Arc<wow_data::reputation::CreatureOnKillReputationStoreLikeCpp>>,
-    pub reputation_spillover_template_store:
-        Option<Arc<wow_data::reputation::RepSpilloverTemplateStoreLikeCpp>>,
-    /// XP required per level: index = level (1-based), value = xp_needed.
-    pub player_xp_table: Option<Arc<Vec<u32>>>,
-    /// C++ `ObjectMgr::_baseXPTable` used by area exploration XP.
-    pub exploration_base_xp_store: Option<Arc<wow_data::ExplorationBaseXpStoreLikeCpp>>,
-    /// C++ `sWorld->getRate(RATE_XP_EXPLORE)`.
-    pub exploration_xp_rate: f32,
-    /// C++ `CONFIG_MAX_PLAYER_LEVEL`.
-    pub max_player_level_config: u32,
-    /// C++ `CONFIG_MAX_PRIMARY_TRADE_SKILL`.
-    pub max_primary_trade_skills: u8,
-    /// C++ PvP/RP-PvP/FFA-PvP `CONFIG_GAME_TYPE` classification.
-    pub is_pvp_realm: bool,
-    /// C++ `World::IsFFAPvPRealm()` classification.
-    pub is_ffa_pvp_realm: bool,
-    /// C++ `CONFIG_MAX_RECRUIT_A_FRIEND_BONUS_PLAYER_LEVEL`.
-    pub max_recruit_a_friend_bonus_player_level: u32,
-    /// C++ `CONFIG_MAX_RECRUIT_A_FRIEND_BONUS_PLAYER_LEVEL_DIFFERENCE`.
-    pub max_recruit_a_friend_bonus_player_level_difference: u32,
-    /// C++ `sWorld->getRate(RATE_REST_OFFLINE_IN_WILDERNESS)`.
-    pub rest_offline_wilderness_rate: f32,
-    /// C++ `sWorld->getRate(RATE_REST_OFFLINE_IN_TAVERN_OR_CITY)`.
-    pub rest_offline_tavern_or_city_rate: f32,
-    /// C++ `sWorld->getRate(RATE_REST_INGAME)`.
-    pub rest_ingame_rate: f32,
-    /// C++ `CONFIG_MIN_QUEST_SCALED_XP_RATIO`.
-    pub min_quest_scaled_xp_ratio: u32,
-    /// C++ `CONFIG_MIN_DISCOVERED_SCALED_XP_RATIO`.
-    pub min_discovered_scaled_xp_ratio: u32,
-    /// Shared registry of all active player sessions (for broadcast).
-    pub player_registry: Option<Arc<PlayerRegistry>>,
-    /// Session -> world-server bridge for C++ GameEventMgr::HandleQuestComplete.
-    pub game_event_quest_complete_tx: Option<flume::Sender<GameEventQuestCompleteCommandLikeCpp>>,
-    /// Shared registry of all active groups.
-    pub group_registry: Option<Arc<GroupRegistry>>,
-    /// Pending party invites: invited_guid → inviter_guid.
-    pub pending_invites: Option<Arc<PendingInvites>>,
-    pub loot_drop_rates: LootDropRatesLikeCpp,
-    pub reputation_rates: ReputationRatesLikeCpp,
-    pub repair_cost_rate: f32,
-    /// C++ `CONFIG_RESET_SCHEDULE_{HOUR,WEEK_DAY}` for instance lock expiry.
-    pub reset_schedule: wow_instances::ResetSchedule,
-    /// C++ `CONFIG_NO_RESET_TALENT_COST` / `NoResetTalentsCost`.
-    pub no_reset_talent_cost: bool,
-    /// C++ `CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN` / `OffhandCheckAtSpellUnlearn`.
-    pub offhand_check_at_spell_unlearn: bool,
-    /// C++ `CONFIG_VMAP_INDOOR_CHECK` / `vmap.enableIndoorCheck`.
-    pub vmap_indoor_check: bool,
-    /// C++ `CONFIG_START_ALL_EXPLORED` / `PlayerStart.MapsExplored`.
-    pub start_all_explored: bool,
-    /// C++ `CONFIG_START_ALL_REP` / `PlayerStart.AllReputation`.
-    pub start_all_reputation: bool,
-    /// C++ `CONFIG_START_ALL_SPELLS` / `PlayerStart.AllSpells`.
-    pub start_all_spells: bool,
-    /// C++ `CONFIG_SUPPORT_ENABLED` / `Support.Enabled`.
-    pub support_enabled: bool,
-    /// C++ `CONFIG_SUPPORT_TICKETS_ENABLED` / `Support.TicketsEnabled`.
-    pub support_tickets_enabled: bool,
-    /// C++ `CONFIG_SUPPORT_BUGS_ENABLED` / `Support.BugsEnabled`.
-    pub support_bugs_enabled: bool,
-    /// C++ `CONFIG_SUPPORT_COMPLAINTS_ENABLED` / `Support.ComplaintsEnabled`.
-    pub support_complaints_enabled: bool,
-    /// C++ `CONFIG_SUPPORT_SUGGESTIONS_ENABLED` / `Support.SuggestionsEnabled`.
-    pub support_suggestions_enabled: bool,
-    pub quest_low_level_hide_diff: u32,
-    pub quest_high_level_hide_diff: u32,
-    pub enable_ae_loot: bool,
-    pub addon_channel: bool,
-    /// C++ `CONFIG_EXPANSION`; used by map-entry expansion gates.
-    pub server_expansion: u8,
-    /// C++ `CONFIG_CHARACTERS_PER_REALM` / `CharactersPerRealm`.
-    pub characters_per_realm: u32,
-    /// C++ `CONFIG_DECLINED_NAMES_USED` / `DeclinedNames`.
-    pub declined_names_used: bool,
-    /// C++ `CONFIG_FEATURE_SYSTEM_BPAY_STORE_ENABLED`.
-    pub feature_system_bpay_store_enabled: bool,
-    /// C++ `CONFIG_FEATURE_SYSTEM_CHARACTER_UNDELETE_ENABLED`.
-    pub feature_system_character_undelete_enabled: bool,
-    /// C++ `CONFIG_INSTANCE_IGNORE_RAID` / `Instance.IgnoreRaid`.
-    pub instance_ignore_raid: bool,
-    /// C++ `CONFIG_INSTANCE_IGNORE_LEVEL` / `Instance.IgnoreLevel`.
-    pub instance_ignore_level: bool,
-    /// C++ `CONFIG_MAX_INSTANCES_PER_HOUR` / `AccountInstancesPerHour`.
-    pub max_instances_per_hour: u32,
-    pub chat_fake_message_preventing: bool,
-    pub party_raid_warnings: bool,
-    /// C++ `CONFIG_ALLOW_GM_GROUP` / `GM.AllowInvite`.
-    pub allow_gm_group: bool,
-    /// C++ `CONFIG_ALLOW_TWO_SIDE_INTERACTION_GROUP` / `AllowTwoSide.Interaction.Group`.
-    pub allow_two_side_interaction_group: bool,
-    /// C++ `CONFIG_PARTY_LEVEL_REQ` / `PartyLevelReq`.
-    pub party_level_req: u32,
-    pub chat_strict_link_checking_kick: bool,
-    pub chat_level_requirements: ChatLevelRequirementsLikeCpp,
-    pub chat_listen_ranges: ChatListenRangesLikeCpp,
-    pub chat_flood_config: ChatFloodConfigLikeCpp,
+/// Gameplay stores, database pools, registries, and gameplay policy snapshots
+/// belong to the application callback and never cross this boundary.
+#[derive(Debug, Clone)]
+pub struct WorldListenerPolicyLikeCpp {
     pub max_overspeed_pings: u32,
     pub socket_timeouts: SocketTimeoutsLikeCpp,
-    pub packet_spoof_config: PacketSpoofConfigLikeCpp,
-    /// C++ `CONFIG_INTERVAL_SAVE` / `PlayerSaveInterval` in milliseconds.
-    pub player_save_interval_ms: u32,
-    pub realm_id: u16,
-    /// Region from `realmlist.Region`, used in C++ `RealmHandle::GetAddress()`.
-    pub realm_region: u8,
-    /// Battlegroup/site from `realmlist.Battlegroup`, used in C++ `RealmHandle::GetAddress()`.
-    pub realm_battlegroup: u8,
-    /// `(RealmHandle::GetAddress(), Name, NormalizedName)` records from the current realm-list snapshot.
-    pub realm_names: Arc<Vec<(u32, String, String)>>,
-    /// External (public) IP from `realmlist.address`.
-    pub realm_external_address: [u8; 4],
-    /// Local (LAN) IP from `realmlist.localAddress`.
-    pub realm_local_address: [u8; 4],
+    pub ip_location_store: Option<Arc<wow_core::IpLocationStore>>,
+}
+
+fn handoff_authenticated_world_session_like_cpp<F, Fut>(
+    callback: &F,
+    account_info: AccountInfo,
+    packet_rx: flume::Receiver<wow_packet::WorldPacket>,
+    send_tx: flume::Sender<Vec<u8>>,
+    send_write_fence_like_cpp: SocketWriteFenceLikeCpp,
+    socket_timeouts: SocketTimeoutsLikeCpp,
+) -> Fut
+where
+    F: Fn(
+        AccountInfo,
+        flume::Receiver<wow_packet::WorldPacket>,
+        flume::Sender<Vec<u8>>,
+        SocketWriteFenceLikeCpp,
+        SocketTimeoutsLikeCpp,
+    ) -> Fut,
+{
+    callback(
+        account_info,
+        packet_rx,
+        send_tx,
+        send_write_fence_like_cpp,
+        socket_timeouts,
+    )
 }
 
 /// Start the world server TCP listener on the given address.
@@ -529,7 +83,7 @@ pub struct SessionResources {
 /// - `packet_rx` — channel to receive packets from the socket
 /// - `send_tx` — channel to send responses back through the socket
 /// - `send_write_fence` — FIFO completion fence paired with `send_tx`
-/// - `SessionResources` — shared resources for the session
+/// - `socket_timeouts` — transport-owned session liveness policy
 ///
 /// The callback should create a WorldSession and return a future that runs
 /// the session update loop. This future is spawned alongside the socket
@@ -537,7 +91,7 @@ pub struct SessionResources {
 pub async fn start_world_listener<F, Fut>(
     bind_addr: SocketAddr,
     account_lookup: Arc<dyn AccountLookup>,
-    resources: Arc<SessionResources>,
+    listener_policy: WorldListenerPolicyLikeCpp,
     on_session_ready: F,
     ready_tx: tokio::sync::oneshot::Sender<Result<(), String>>,
 ) -> std::io::Result<()>
@@ -547,7 +101,7 @@ where
             flume::Receiver<wow_packet::WorldPacket>,
             flume::Sender<Vec<u8>>,
             SocketWriteFenceLikeCpp,
-            Arc<SessionResources>,
+            SocketTimeoutsLikeCpp,
         ) -> Fut
         + Send
         + Sync
@@ -578,13 +132,13 @@ where
         };
 
         let lookup = Arc::clone(&account_lookup);
-        let res = Arc::clone(&resources);
+        let policy = listener_policy.clone();
         let callback = Arc::clone(&on_session);
 
         tokio::spawn(async move {
             let mut socket = WorldSocket::new(stream, addr);
-            socket.set_max_overspeed_pings_like_cpp(res.max_overspeed_pings);
-            socket.set_ip_location_store_like_cpp(res.ip_location_store.clone());
+            socket.set_max_overspeed_pings_like_cpp(policy.max_overspeed_pings);
+            socket.set_ip_location_store_like_cpp(policy.ip_location_store.clone());
 
             // Phase 1: Handshake (connection strings + auth challenge)
             if let Err(e) = socket.start().await {
@@ -632,12 +186,13 @@ where
             });
 
             // Phase 6: Spawn session update loop
-            let session_future = callback(
+            let session_future = handoff_authenticated_world_session_like_cpp(
+                callback.as_ref(),
                 account_info,
                 pkt_rx,
                 send_tx,
                 send_write_fence_like_cpp,
-                res,
+                policy.socket_timeouts,
             );
             tokio::spawn(session_future);
 
@@ -916,9 +471,247 @@ async fn handle_instance_connection(
 
 #[cfg(test)]
 mod tests {
-    use super::start_instance_listener;
-    use crate::SessionManager;
+    use super::{
+        SocketTimeoutsLikeCpp, WorldListenerPolicyLikeCpp,
+        handoff_authenticated_world_session_like_cpp, start_instance_listener,
+        start_world_listener,
+    };
+    use crate::world_socket::{AccountInfo, AccountLookup};
+    use crate::{SessionManager, SocketWriteFenceLikeCpp, SocketWriteFenceWaitResultLikeCpp};
+    use std::future::Future;
+    use std::pin::Pin;
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::Duration;
+
+    struct MissingAccountLookup;
+
+    impl AccountLookup for MissingAccountLookup {
+        fn lookup_account(
+            &self,
+            _realm_join_ticket: &str,
+        ) -> Pin<Box<dyn Future<Output = Option<AccountInfo>> + Send + '_>> {
+            Box::pin(async { None })
+        }
+    }
+
+    fn account_info_fixture() -> AccountInfo {
+        AccountInfo {
+            id: 42,
+            session_key_hex: "A1B2C3D4".to_owned(),
+            last_ip: "192.0.2.10".to_owned(),
+            is_locked_to_ip: true,
+            lock_country: "ES".to_owned(),
+            expansion: 9,
+            mute_time: 1234,
+            locale: "esES".to_owned(),
+            recruiter: 77,
+            is_a_recruiter: true,
+            os: "Wn64".to_owned(),
+            timezone_offset: 120,
+            battlenet_account_id: 314,
+            security: 3,
+            is_banned_bnet: false,
+            is_banned_account: true,
+            win64_auth_seed: [0xA5; 16],
+            client_address: Some("198.51.100.7".parse().unwrap()),
+            derived_session_key: vec![0x5A; 40],
+        }
+    }
+
+    fn world_listener_policy_fixture() -> WorldListenerPolicyLikeCpp {
+        WorldListenerPolicyLikeCpp {
+            max_overspeed_pings: 7,
+            socket_timeouts: SocketTimeoutsLikeCpp {
+                unauthenticated_secs: 123,
+                active_secs: 45,
+            },
+            ip_location_store: None,
+        }
+    }
+
+    fn assert_account_info_matches(actual: &AccountInfo, expected: &AccountInfo) {
+        assert_eq!(actual.id, expected.id);
+        assert_eq!(actual.session_key_hex, expected.session_key_hex);
+        assert_eq!(actual.last_ip, expected.last_ip);
+        assert_eq!(actual.is_locked_to_ip, expected.is_locked_to_ip);
+        assert_eq!(actual.lock_country, expected.lock_country);
+        assert_eq!(actual.expansion, expected.expansion);
+        assert_eq!(actual.mute_time, expected.mute_time);
+        assert_eq!(actual.locale, expected.locale);
+        assert_eq!(actual.recruiter, expected.recruiter);
+        assert_eq!(actual.is_a_recruiter, expected.is_a_recruiter);
+        assert_eq!(actual.os, expected.os);
+        assert_eq!(actual.timezone_offset, expected.timezone_offset);
+        assert_eq!(actual.battlenet_account_id, expected.battlenet_account_id);
+        assert_eq!(actual.security, expected.security);
+        assert_eq!(actual.is_banned_bnet, expected.is_banned_bnet);
+        assert_eq!(actual.is_banned_account, expected.is_banned_account);
+        assert_eq!(actual.win64_auth_seed, expected.win64_auth_seed);
+        assert_eq!(actual.client_address, expected.client_address);
+        assert_eq!(actual.derived_session_key, expected.derived_session_key);
+    }
+
+    #[tokio::test]
+    async fn authenticated_world_session_handoff_preserves_transport_contract_exactly_once() {
+        let expected_account = account_info_fixture();
+        let (_packet_tx, packet_rx) = flume::bounded(256);
+        let expected_packet_rx = packet_rx.clone();
+        let (send_tx, send_rx) = flume::bounded(256);
+        let expected_send_tx = send_tx.clone();
+        let expected_write_fence = SocketWriteFenceLikeCpp::default();
+        let expected_timeouts = SocketTimeoutsLikeCpp {
+            unauthenticated_secs: 321,
+            active_secs: 54,
+        };
+        let callback_count = Arc::new(AtomicUsize::new(0));
+        let (observed_tx, observed_rx) = flume::bounded(2);
+
+        let callback = {
+            let callback_count = Arc::clone(&callback_count);
+            move |account, packet_rx, send_tx, write_fence, socket_timeouts| {
+                callback_count.fetch_add(1, Ordering::SeqCst);
+                observed_tx
+                    .send((account, packet_rx, send_tx, write_fence, socket_timeouts))
+                    .unwrap();
+                async {}
+            }
+        };
+
+        handoff_authenticated_world_session_like_cpp(
+            &callback,
+            expected_account.clone(),
+            packet_rx,
+            send_tx,
+            expected_write_fence.clone(),
+            expected_timeouts,
+        )
+        .await;
+
+        let (account, packet_rx, send_tx, write_fence, socket_timeouts) =
+            observed_rx.recv_async().await.unwrap();
+        assert_account_info_matches(&account, &expected_account);
+        assert!(packet_rx.same_channel(&expected_packet_rx));
+        assert!(send_tx.same_channel(&expected_send_tx));
+        assert_eq!(socket_timeouts, expected_timeouts);
+        assert_eq!(callback_count.load(Ordering::SeqCst), 1);
+        assert!(observed_rx.try_recv().is_err());
+
+        let fence_wait = tokio::spawn(async move {
+            write_fence
+                .wait_for_prior_packets_written_like_cpp(&send_tx, Duration::from_secs(1))
+                .await
+        });
+        let marker = send_rx.recv_async().await.unwrap();
+        assert!(expected_write_fence.acknowledge_marker_like_cpp(&marker));
+        assert_eq!(
+            fence_wait.await.unwrap(),
+            SocketWriteFenceWaitResultLikeCpp::Written
+        );
+    }
+
+    #[tokio::test]
+    async fn world_listener_reports_ready_only_after_successful_bind() {
+        let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
+        let handle = tokio::spawn(start_world_listener(
+            "127.0.0.1:0".parse().unwrap(),
+            Arc::new(MissingAccountLookup),
+            world_listener_policy_fixture(),
+            |_account, _packet_rx, _send_tx, _write_fence, _socket_timeouts| async {},
+            ready_tx,
+        ));
+
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(1), ready_rx)
+                .await
+                .expect("listener readiness must not hang")
+                .expect("listener task must retain readiness sender"),
+            Ok(())
+        );
+        handle.abort();
+        let _ = handle.await;
+    }
+
+    #[tokio::test]
+    async fn world_listener_reports_bind_failure_before_returning() {
+        let occupied = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let occupied_addr = occupied.local_addr().unwrap();
+        let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
+        let handle = tokio::spawn(start_world_listener(
+            occupied_addr,
+            Arc::new(MissingAccountLookup),
+            world_listener_policy_fixture(),
+            |_account, _packet_rx, _send_tx, _write_fence, _socket_timeouts| async {},
+            ready_tx,
+        ));
+
+        let readiness = tokio::time::timeout(Duration::from_secs(1), ready_rx)
+            .await
+            .expect("bind failure readiness must not hang")
+            .expect("listener must report its bind result");
+        assert!(readiness.is_err());
+        assert!(handle.await.expect("listener task must join").is_err());
+    }
+
+    #[test]
+    fn world_listener_source_and_api_are_transport_only() {
+        let source = include_str!("accept.rs");
+        let start = source
+            .find("pub struct WorldListenerPolicyLikeCpp")
+            .expect("world listener policy must remain present");
+        let end = source[start..]
+            .find("// ── Instance listener")
+            .map(|offset| start + offset)
+            .expect("instance listener boundary must remain present");
+        let listener_source = &source[start..end];
+
+        for required in [
+            "AccountLookup",
+            "WorldListenerPolicyLikeCpp",
+            "SocketTimeoutsLikeCpp",
+            "SocketWriteFenceLikeCpp",
+            "flume::Receiver<wow_packet::WorldPacket>",
+            "flume::Sender<Vec<u8>>",
+        ] {
+            assert!(
+                listener_source.contains(required),
+                "world listener transport API lost {required}"
+            );
+        }
+
+        for forbidden in [
+            "SessionResources",
+            "wow_database",
+            "wow_instances",
+            "wow_data",
+            "wow_loot",
+            "PlayerRegistry",
+            "GroupRegistry",
+            "player_registry",
+            "group_registry",
+            "LootDropRatesLikeCpp",
+            "ReputationRatesLikeCpp",
+            "ChatLevelRequirementsLikeCpp",
+            "ChatListenRangesLikeCpp",
+            "ChatFloodConfigLikeCpp",
+            "PacketSpoofConfigLikeCpp",
+        ] {
+            assert!(
+                !listener_source.contains(forbidden),
+                "application dependency {forbidden} crossed the world listener boundary"
+            );
+        }
+
+        let without_transport_store = listener_source
+            .replace("IpLocationStore", "")
+            .replace("ip_location_store", "");
+        for forbidden in ["Store", "_store", "Pool", "_pool"] {
+            assert!(
+                !without_transport_store.contains(forbidden),
+                "application {forbidden} dependency crossed the world listener boundary"
+            );
+        }
+    }
 
     #[tokio::test]
     async fn instance_listener_reports_ready_only_after_successful_bind() {

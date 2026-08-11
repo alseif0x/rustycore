@@ -108,8 +108,8 @@ last-writer-wins policy.
 
 | Concept | Current owner and storage | Writers | Readers / delivery | Clock, lifetime, and synchronization | Retirement |
 |---|---|---|---|---|---|
-| Authenticated world connection | `wow-network::accept` and the connection task | socket/authentication task | `WorldSession` dispatch boundary | one connection; created after authentication and dropped on disconnect | Remains a network responsibility. Issue #134 narrows the constructor input to this boundary. |
-| Gameplay session construction aggregate | `wow_network::accept::SessionResources` | `world-server` bootstrap constructs it; accept loop clones the `Arc` | connection setup copies stores, registries, DB adapters, and runtime handles into each `WorldSession` | process lifetime; no independent clock | #134 moves the gameplay aggregate to composition/application code. #136 then extracts a private session factory. |
+| Authenticated world connection | `wow-network::accept` and the connection task | socket/authentication task | `WorldSession` dispatch boundary | one connection; created after authentication and dropped on disconnect | Remains a network responsibility. #134 narrowed the listener to transport-owned configuration and authenticated connection outputs. |
+| Gameplay session construction aggregate | private `SessionResources` in `crates/world-server/src/session_resources.rs` | `world-server` bootstrap constructs it; the outer session callback captures and clones the `Arc` | `world-server::create_session` copies stores, registries, DB adapters, and runtime handles into each `WorldSession`; the aggregate never enters `wow-network` | process lifetime; no independent clock | #134 moved the aggregate to composition code and retired the direct `wow-network → wow-database` / `wow-network → wow-instances` edges. #136 next extracts a private session factory. |
 | Session mailbox and connected-player registry | `wow_network::player_registry::{SessionCommand, PlayerRegistry}`; registry is a `DashMap<ObjectGuid, PlayerBroadcastInfo>` | session login/logout and state publication write the registry; session/global runtime producers enqueue mailbox and durable-rail commands | global routing reads registry snapshots; the owning session consumes its mailbox; chat/movement/combat/loot producers request fanout through these seams | registry lives for the process; mailbox lives for a connection/session task; FIFO command order is observable | #138 moves this application coordination seam out of `wow-network`. |
 | Group registry | `wow_network::group_registry::GroupRegistry`, currently a `DashMap<u64, GroupInfo>` | group handlers and group timer/ready-check paths | group handlers, connected-player fanout, world-server ready-check loop | process lifetime; timed group work is driven outside the network listener | #137 moves gameplay group ownership out of `wow-network`. |
 | Legacy creature runtime | shared `wow_world::MapManager` behind `Arc<RwLock<_>>` | production `GlobalLegacy` runtime tick plus explicit spawn/respawn bridges; `Session` writer exists only for tests and the diagnostic config override | world handlers, global runtime bridge, visibility/fanout routing | process lifetime; production startup defaults `RuntimeTickOwner` to `GlobalLegacy` and uses the configured map-update interval; session ticks read the shared owner and must skip to prevent double resolution | Retire only method-by-method into the canonical map/entity runtime under `docs/migration/adr-runtime-tick-ownership.md`. |
@@ -234,9 +234,10 @@ Do not regenerate a baseline merely to make CI green.
 
 Measured at the #154 baseline (HEAD `c697827c`); refresh these numbers as tranche PRs land:
 
-- `wow-network::accept::SessionResources` carries 244 public fields in
-  `crates/wow-network/src/accept.rs` (lines 190-513), forcing the listener's upward edges that
-  #134 removes.
+- At that baseline, `wow-network::accept::SessionResources` carried 244 public fields in
+  `crates/wow-network/src/accept.rs` (lines 190-513). #134 has since moved that aggregate to the
+  composition side, removed it from the listener API, and retired the direct database and instance
+  dependencies from `wow-network`.
 - `crates/world-server/src/main.rs` spans 27,484 lines and `create_session` alone about 812
   (lines 12,796-13,607); #136 extracts that construction behind a private session factory.
 - `crates/wow-world/src/session.rs` spans 156,394 lines including tests; #152 and #140 extract

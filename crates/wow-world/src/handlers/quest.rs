@@ -10679,9 +10679,9 @@ mod tests {
         quest.reward_faction_ids[0] = 76;
         quest.reward_faction_overrides[0] = 1200;
         session.set_player_level_like_cpp(80);
-        session.set_reputation_rates_like_cpp(wow_network::ReputationRatesLikeCpp {
+        session.set_reputation_rates_like_cpp(crate::ReputationRatesLikeCpp {
             low_level_quest: 0.5,
-            ..wow_network::ReputationRatesLikeCpp::default()
+            ..crate::ReputationRatesLikeCpp::default()
         });
         session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
         session.set_faction_store(Arc::new(FactionStore::from_entries([

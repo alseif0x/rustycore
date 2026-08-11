@@ -16,6 +16,7 @@ pub mod phasing;
 pub(crate) mod profession;
 pub mod reputation;
 pub mod session;
+mod session_policy;
 #[allow(dead_code)] // Private prerequisite seam consumed by trainer issue #157.
 pub(crate) mod spell_acquisition;
 #[allow(dead_code)] // Private decision seam introduced by trainer issue #157.
@@ -31,6 +32,10 @@ pub use map_manager::{
 pub use session::{
     MMapRuntimeConfigLikeCpp, SharedCanonicalMapManager, SharedObjectAccessor, WorldSession,
     new_shared_object_accessor,
+};
+pub use session_policy::{
+    ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
+    LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, ReputationRatesLikeCpp,
 };
 
 pub use battle_pet_account::{

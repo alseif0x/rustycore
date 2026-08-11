@@ -1357,8 +1357,8 @@ pub struct PlayerBroadcastInfo {
 
 /// Thread-safe registry of all active player sessions, keyed by player GUID.
 ///
-/// Wrap in `Arc` and share between all `WorldSession` instances and the
-/// `SessionResources` passed to `create_session`.
+/// Wrap in `Arc` and share between all `WorldSession` instances through the
+/// composition-owned session construction resources.
 pub type PlayerRegistry = DashMap<ObjectGuid, PlayerBroadcastInfo>;
 
 #[cfg(test)]

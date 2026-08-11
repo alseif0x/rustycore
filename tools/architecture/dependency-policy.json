@@ -139,19 +139,7 @@
       "from": "wow-network",
       "to": "wow-data",
       "tracking_issue": 137,
-      "reason": "SessionResources plus the network-owned player and group registries still carry gameplay data; issues #134, #138, and #137 retire those uses in order."
-    },
-    {
-      "from": "wow-network",
-      "to": "wow-database",
-      "tracking_issue": 134,
-      "reason": "SessionResources currently makes the listener carry gameplay databases."
-    },
-    {
-      "from": "wow-network",
-      "to": "wow-instances",
-      "tracking_issue": 134,
-      "reason": "SessionResources currently makes the listener carry instance gameplay state."
+      "reason": "The network-owned player and group registries still carry gameplay data; issues #138 and #137 retire those uses in order."
     },
     {
       "from": "wow-network",
@@ -211,7 +199,7 @@
       "from": "wow-world",
       "to": "wow-network",
       "tracking_issue": 153,
-      "reason": "Gameplay still depends on network-owned player/session and group registries; #134, #138, #150, #137 and #151 retire those uses in order, but the session manager, session-link and write-fence transport contracts remain, so the #153 post-tranche re-audit owns the final boundary decision."
+      "reason": "After #134 removed the listener megabag, gameplay still depends on network-owned player/session and group registries; #138, #150, #137 and #151 retire those uses in order, but the session manager, session-link and write-fence transport contracts remain, so the #153 post-tranche re-audit owns the final boundary decision."
     },
     {
       "from": "wow-world",

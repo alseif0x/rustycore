@@ -217,8 +217,8 @@ impl SocketWriteFenceLikeCpp {
     }
 }
 
-// Build-specific auth seeds are loaded from the `build_info` DB table at startup
-// and stored in SessionResources. They are passed to AccountInfo during lookup.
+// Build-specific auth seeds are loaded from the `build_info` DB table at startup,
+// injected through the composition-owned `AccountLookup`, and carried by `AccountInfo`.
 
 /// Ed25519 private key seed used for signing `EnterEncryptedMode`.
 const ENTER_ENCRYPTED_MODE_PRIVATE_KEY: [u8; 32] = [
@@ -1550,6 +1550,74 @@ fn should_compress_server_packet_like_cpp(data: &[u8]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn session_channels_preserve_capacity_and_socket_pairing() {
+        use tokio::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let listener_addr = listener.local_addr().unwrap();
+        let connect = TcpStream::connect(listener_addr);
+        let (accepted, connected) = tokio::join!(listener.accept(), connect);
+        let (server_stream, client_addr) = accepted.unwrap();
+        let client_stream = connected.unwrap();
+
+        let mut socket = WorldSocket::new(server_stream, client_addr);
+        let (packet_rx, send_tx, write_fence) = socket.create_session_channels();
+
+        assert_eq!(packet_rx.capacity(), Some(256));
+        assert_eq!(send_tx.capacity(), Some(256));
+
+        let inbound = [0x34, 0x12, 0xAB];
+        socket
+            .session_tx
+            .as_ref()
+            .expect("socket packet sender")
+            .send(WorldPacket::from_bytes(&inbound))
+            .unwrap();
+        assert_eq!(packet_rx.recv_async().await.unwrap().data(), inbound);
+
+        let outbound = vec![0x78, 0x56, 0xCD];
+        send_tx.send(outbound.clone()).unwrap();
+        assert_eq!(
+            socket
+                .send_rx
+                .as_ref()
+                .expect("socket send receiver")
+                .recv_async()
+                .await
+                .unwrap(),
+            outbound
+        );
+
+        let fence_wait = {
+            let write_fence = write_fence.clone();
+            let send_tx = send_tx.clone();
+            tokio::spawn(async move {
+                write_fence
+                    .wait_for_prior_packets_written_like_cpp(&send_tx, Duration::from_millis(250))
+                    .await
+            })
+        };
+        let marker = socket
+            .send_rx
+            .as_ref()
+            .expect("socket send receiver")
+            .recv_async()
+            .await
+            .unwrap();
+        assert!(
+            socket
+                .send_write_fence_like_cpp
+                .acknowledge_marker_like_cpp(&marker)
+        );
+        assert_eq!(
+            fence_wait.await.unwrap(),
+            SocketWriteFenceWaitResultLikeCpp::Written
+        );
+
+        drop(client_stream);
+    }
 
     #[tokio::test]
     async fn split_for_io_preserves_socket_compressor_history_like_cpp() {
