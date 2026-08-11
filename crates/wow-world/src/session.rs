@@ -6024,7 +6024,11 @@ pub struct WorldSession {
     represented_action_buttons_like_cpp: [u32; wow_packet::packets::misc::MAX_ACTION_BUTTONS],
     represented_action_buttons_loaded_like_cpp: bool,
     /// C++ `Player::_advancedCombatLoggingEnabled`; consumed when combat-log fanout selects full/basic payloads.
-    advanced_combat_logging_enabled_like_cpp: bool,
+    /// C++ `WorldSession::_filterAddonMessages`' sibling for
+    /// `SMSG_SPELL_GO`: shared so a producer can commit the combat-log packet
+    /// variant per recipient while distributing a cast, the way C++ selects it
+    /// synchronously inside `WorldObject::SendCombatLogMessage`.
+    advanced_combat_logging_enabled_like_cpp: Arc<AtomicBool>,
     /// C++ `Player::GetUnitBeingMoved()` represented GUID.
     player_moved_unit_guid_like_cpp: ObjectGuid,
     /// Count of visibility refreshes requested by movement initialization.
@@ -8062,7 +8066,7 @@ impl WorldSession {
             active_player_multi_action_bars_like_cpp: 0,
             represented_action_buttons_like_cpp: [0; wow_packet::packets::misc::MAX_ACTION_BUTTONS],
             represented_action_buttons_loaded_like_cpp: false,
-            advanced_combat_logging_enabled_like_cpp: false,
+            advanced_combat_logging_enabled_like_cpp: Arc::new(AtomicBool::new(false)),
             player_moved_unit_guid_like_cpp: ObjectGuid::EMPTY,
             movement_visibility_refresh_requests_like_cpp: 0,
             movement_ack_events_like_cpp: Vec::new(),
@@ -15887,7 +15891,6 @@ impl WorldSession {
             .unwrap_or(0);
 
         Self::creature_message_to_set_target_allows_like_cpp(
-            guid,
             creature,
             // The HaveAtClient membership was proven above.
             true,
@@ -15900,7 +15903,6 @@ impl WorldSession {
     }
 
     fn creature_message_to_set_target_allows_like_cpp(
-        guid: ObjectGuid,
         creature: &crate::map_manager::WorldCreature,
         source_is_visible_like_cpp: bool,
         player_map_id: u32,
@@ -35694,6 +35696,9 @@ impl WorldSession {
                     &self.durable_creature_runtime_commands_like_cpp,
                 ),
                 client_visible_guids_like_cpp: self.client_visible_guids_like_cpp.clone(),
+                advanced_combat_logging_enabled_like_cpp: Arc::clone(
+                    &self.advanced_combat_logging_enabled_like_cpp,
+                ),
                 visibility_refresh_pending_like_cpp: Arc::clone(
                     &self.visibility_refresh_pending_like_cpp,
                 ),
@@ -56113,11 +56118,13 @@ impl WorldSession {
     }
 
     pub(crate) fn represented_set_advanced_combat_logging_like_cpp(&mut self, enable: bool) {
-        self.advanced_combat_logging_enabled_like_cpp = enable;
+        self.advanced_combat_logging_enabled_like_cpp
+            .store(enable, Ordering::Relaxed);
     }
 
     pub(crate) fn represented_advanced_combat_logging_enabled_like_cpp(&self) -> bool {
         self.advanced_combat_logging_enabled_like_cpp
+            .load(Ordering::Relaxed)
     }
 
     pub(crate) fn represented_save_cuf_profiles_like_cpp(
@@ -65430,7 +65437,6 @@ impl WorldSession {
                     range,
                 );
                 if !Self::creature_message_to_set_target_allows_like_cpp(
-                    guid,
                     creature,
                     visible_guids.contains(&guid),
                     player_map_id,
@@ -108218,6 +108224,7 @@ mod tests {
             command_tx,
             durable_creature_runtime_commands_like_cpp: Default::default(),
             client_visible_guids_like_cpp: Default::default(),
+            advanced_combat_logging_enabled_like_cpp: Default::default(),
             visibility_refresh_pending_like_cpp: Default::default(),
             durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),

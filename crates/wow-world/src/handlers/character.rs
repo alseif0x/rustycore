@@ -8690,19 +8690,25 @@ impl WorldSession {
                 ));
             }
 
-            if !blocks.is_empty() {
-                let update = UpdateObject::create_creatures(blocks, map_id);
-                if std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some() {
-                    for line in update.debug_create_summary_like_cpp() {
-                        info!("RUST_UPDATEOBJECT map_owned_creatures {line}");
+            // Publish the creature membership and its create blocks as one step;
+            // see `publish_transition_like_cpp`.
+            let visibility_like_cpp = self.client_visible_guids_like_cpp.clone();
+            visibility_like_cpp.publish_transition_like_cpp(
+                |guid| !guid.is_any_type_creature(),
+                visible_guids.iter().copied(),
+                || {
+                    if blocks.is_empty() {
+                        return;
                     }
-                }
-                self.send_packet(&update);
-            }
-            self.client_visible_guids_like_cpp
-                .retain(|guid| !guid.is_any_type_creature());
-            self.client_visible_guids_like_cpp
-                .extend(visible_guids.iter().copied());
+                    let update = UpdateObject::create_creatures(blocks, map_id);
+                    if std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some() {
+                        for line in update.debug_create_summary_like_cpp() {
+                            info!("RUST_UPDATEOBJECT map_owned_creatures {line}");
+                        }
+                    }
+                    self.send_packet(&update);
+                },
+            );
             self.last_visibility_pos = Some(*position);
             debug!(
                 "Sent {} map-owned creatures to account {} on map {}",
@@ -8795,13 +8801,16 @@ impl WorldSession {
                 info!("RUST_UPDATEOBJECT nearby_creatures {line}");
             }
         }
-        self.send_packet(&update);
         // Mirror C++ Player::m_clientGUIDs semantics: this is the exact set
         // of creatures sent to this client, not every creature loaded on map.
-        self.client_visible_guids_like_cpp
-            .retain(|guid| !guid.is_any_type_creature());
-        self.client_visible_guids_like_cpp
-            .extend(visible_guids.iter().copied());
+        // The membership and its packet are published as one step; see
+        // `publish_transition_like_cpp`.
+        let visibility_like_cpp = self.client_visible_guids_like_cpp.clone();
+        visibility_like_cpp.publish_transition_like_cpp(
+            |guid| !guid.is_any_type_creature(),
+            visible_guids.iter().copied(),
+            || self.send_packet(&update),
+        );
         self.last_visibility_pos = Some(*position);
         let mob_count = visible_guids
             .iter()
@@ -9149,62 +9158,67 @@ impl WorldSession {
                 .collect();
             out_of_range_guids.extend(removed_players);
 
-            if !update_blocks.is_empty() || !out_of_range_guids.is_empty() {
-                let update = UpdateObject {
-                    map_id,
-                    num_updates: update_blocks.len() as u32,
-                    destroy_guids: Vec::new(),
-                    out_of_range_guids,
-                    blocks: update_blocks,
-                };
-                if std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some() {
-                    info!(
-                        map_id,
-                        created_creatures,
-                        created_gameobjects,
-                        created_dynamic_objects,
-                        created_area_triggers,
-                        created_corpses,
-                        created_scene_objects,
-                        created_conversations,
-                        created_players,
-                        "RUST_UPDATEOBJECT visibility_update plan"
-                    );
-                    for line in update.debug_create_summary_like_cpp() {
-                        info!("RUST_UPDATEOBJECT visibility_update {line}");
+            // The membership replacement and the UpdateObject that carries it are
+            // one client-visible step. A cast resolving between them would either
+            // skip a viewer whose client already received the create block, or
+            // address a caster whose out-of-range block is already queued, so
+            // publish both under the same write.
+            let visibility_like_cpp = self.client_visible_guids_like_cpp.clone();
+            visibility_like_cpp.publish_transition_like_cpp(
+                |guid| {
+                    !guid.is_any_type_creature()
+                        && !guid.is_game_object()
+                        && !guid.is_dynamic_object()
+                        && !guid.is_area_trigger()
+                        && !guid.is_corpse()
+                        && !guid.is_scene_object()
+                        && !guid.is_conversation()
+                        && !guid.is_player()
+                },
+                new_visible_creatures
+                    .iter()
+                    .chain(new_visible_gos.iter())
+                    .chain(new_visible_dynamic_objects.iter())
+                    .chain(new_visible_area_triggers.iter())
+                    .chain(new_visible_corpses.iter())
+                    .chain(new_visible_scene_objects.iter())
+                    .chain(new_visible_conversations.iter())
+                    .chain(new_visible_players.iter())
+                    .copied(),
+                || {
+                    if update_blocks.is_empty() && out_of_range_guids.is_empty() {
+                        return;
                     }
-                }
-                self.send_packet(&update);
-                for creature in &initial_visible_creatures_like_cpp {
-                    self.send_initial_visible_packets_for_creature_like_cpp(creature);
-                }
-            }
-
-            // One write: a cast resolving concurrently must never see this set
-            // stripped of objects the refresh is about to put back.
-            self.client_visible_guids_like_cpp
-                .retain_and_extend_like_cpp(
-                    |guid| {
-                        !guid.is_any_type_creature()
-                            && !guid.is_game_object()
-                            && !guid.is_dynamic_object()
-                            && !guid.is_area_trigger()
-                            && !guid.is_corpse()
-                            && !guid.is_scene_object()
-                            && !guid.is_conversation()
-                            && !guid.is_player()
-                    },
-                    new_visible_creatures
-                        .iter()
-                        .chain(new_visible_gos.iter())
-                        .chain(new_visible_dynamic_objects.iter())
-                        .chain(new_visible_area_triggers.iter())
-                        .chain(new_visible_corpses.iter())
-                        .chain(new_visible_scene_objects.iter())
-                        .chain(new_visible_conversations.iter())
-                        .chain(new_visible_players.iter())
-                        .copied(),
-                );
+                    let update = UpdateObject {
+                        map_id,
+                        num_updates: update_blocks.len() as u32,
+                        destroy_guids: Vec::new(),
+                        out_of_range_guids,
+                        blocks: update_blocks,
+                    };
+                    if std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some() {
+                        info!(
+                            map_id,
+                            created_creatures,
+                            created_gameobjects,
+                            created_dynamic_objects,
+                            created_area_triggers,
+                            created_corpses,
+                            created_scene_objects,
+                            created_conversations,
+                            created_players,
+                            "RUST_UPDATEOBJECT visibility_update plan"
+                        );
+                        for line in update.debug_create_summary_like_cpp() {
+                            info!("RUST_UPDATEOBJECT visibility_update {line}");
+                        }
+                    }
+                    self.send_packet(&update);
+                    for creature in &initial_visible_creatures_like_cpp {
+                        self.send_initial_visible_packets_for_creature_like_cpp(creature);
+                    }
+                },
+            );
             self.last_visibility_pos = Some(pos);
             debug!(
                 "Visibility updated at ({:.1}, {:.1}): {} creatures / {} GOs in range",

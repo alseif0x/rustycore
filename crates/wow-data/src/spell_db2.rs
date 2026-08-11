@@ -586,6 +586,62 @@ db2_store!(SpellVisualKitStore, SpellVisualKitEntry);
 db2_store!(SpellVisualMissileStore, SpellVisualMissileEntry);
 db2_store!(SpellXSpellVisualStore, SpellXSpellVisualEntry);
 
+/// The two mechanical halves every effective Spell DB2 loader shares: an SQL
+/// overlay row replaces the file row with the same record ID, and the final
+/// `hotfix_data` pass drops the record IDs C++ tombstoned.
+///
+/// Only the SQL text and the row-to-entry mapping differ per table, so those
+/// stay explicit in each `load_effective_like_cpp`.
+macro_rules! db2_effective_helpers {
+    ($store:ident, $entry:ty, $file:literal) => {
+        impl $store {
+            fn overlay_effective_row_like_cpp(&mut self, entry: $entry) {
+                self.entries.insert(entry.id, entry);
+            }
+
+            fn apply_hotfix_removals_with_table_hash_like_cpp(
+                &mut self,
+                table_hash: u32,
+                removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+            ) {
+                self.entries.retain(|record_id, _| {
+                    !removals.contains_like_cpp(table_hash, *record_id as i32)
+                });
+            }
+
+            fn apply_final_hotfix_removals_like_cpp(
+                &mut self,
+                removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+            ) -> Result<()> {
+                let table_hash = self
+                    .table_hash_like_cpp()
+                    .context(concat!($file, " store is missing its WDC4 table hash"))?;
+                self.apply_hotfix_removals_with_table_hash_like_cpp(table_hash, removals);
+                Ok(())
+            }
+        }
+    };
+}
+
+db2_effective_helpers!(
+    SpellCastTimesStore,
+    SpellCastTimesEntry,
+    "SpellCastTimes.db2"
+);
+db2_effective_helpers!(SpellCategoryStore, SpellCategoryEntry, "SpellCategory.db2");
+db2_effective_helpers!(SpellDurationStore, SpellDurationEntry, "SpellDuration.db2");
+db2_effective_helpers!(
+    SpellInterruptsStore,
+    SpellInterruptsEntry,
+    "SpellInterrupts.db2"
+);
+db2_effective_helpers!(SpellRadiusStore, SpellRadiusEntry, "SpellRadius.db2");
+db2_effective_helpers!(
+    SpellShapeshiftStore,
+    SpellShapeshiftEntry,
+    "SpellShapeshift.db2"
+);
+
 impl SpellAuraOptionsStore {
     pub fn entry_for_spell_difficulty_like_cpp(
         &self,
@@ -742,6 +798,11 @@ impl SpellAuraRestrictionsStore {
 }
 
 impl SpellCastTimesStore {
+    const HOTFIX_OVERLAY_SQL_LIKE_CPP: &'static str = concat!(
+        "SELECT ID, Base, PerLevel, Minimum FROM spell_cast_times ",
+        "WHERE (`VerifiedBuild` > 0) = ?"
+    );
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SpellCastTimes.db2", |id, idx, r| {
             SpellCastTimesEntry {
@@ -751,6 +812,42 @@ impl SpellCastTimesStore {
                 minimum: r.get_field_i32(idx, 2),
             }
         })
+    }
+
+    /// Load C++'s effective cast-time authority: DB2, official SQL, custom SQL,
+    /// then final `hotfix_data` tombstones.
+    pub async fn load_effective_like_cpp(
+        data_dir: &str,
+        locale: &str,
+        db: &HotfixDatabase,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) -> Result<Self> {
+        let mut store = Self::load(data_dir, locale)?;
+        for official in [true, false] {
+            let mut statement =
+                db.prepare(HotfixStatements::base(Self::HOTFIX_OVERLAY_SQL_LIKE_CPP));
+            statement.set_bool(0, official);
+            let mut result = db
+                .query(&statement)
+                .await
+                .context("failed to load SpellCastTimes SQL overlay")?;
+            if result.is_empty() {
+                continue;
+            }
+            loop {
+                store.overlay_effective_row_like_cpp(SpellCastTimesEntry {
+                    id: result.try_read::<u32>(0).unwrap_or(0),
+                    base: result.try_read::<i32>(1).unwrap_or(0),
+                    per_level: result.try_read::<i16>(2).unwrap_or(0),
+                    minimum: result.try_read::<i32>(3).unwrap_or(0),
+                });
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+        store.apply_final_hotfix_removals_like_cpp(removals)?;
+        Ok(store)
     }
 }
 
@@ -923,6 +1020,11 @@ impl SpellCategoriesStore {
 }
 
 impl SpellCategoryStore {
+    const HOTFIX_OVERLAY_SQL_LIKE_CPP: &'static str = concat!(
+        "SELECT ID, Name, Flags, UsesPerWeek, MaxCharges, ChargeRecoveryTime, ",
+        "TypeMask FROM spell_category WHERE (`VerifiedBuild` > 0) = ?"
+    );
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SpellCategory.db2", |id, idx, r| {
             SpellCategoryEntry {
@@ -935,6 +1037,47 @@ impl SpellCategoryStore {
                 type_mask: r.get_field_i32(idx, 5),
             }
         })
+    }
+
+    /// Load C++'s effective category authority: DB2, official SQL, custom SQL,
+    /// then final `hotfix_data` tombstones. `SpellCategory.Flags` carries
+    /// `SPELL_CATEGORY_FLAG_COOLDOWN_STARTS_ON_EVENT`, so a hotfixed row decides
+    /// whether a cooldown may start at publication time.
+    pub async fn load_effective_like_cpp(
+        data_dir: &str,
+        locale: &str,
+        db: &HotfixDatabase,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) -> Result<Self> {
+        let mut store = Self::load(data_dir, locale)?;
+        for official in [true, false] {
+            let mut statement =
+                db.prepare(HotfixStatements::base(Self::HOTFIX_OVERLAY_SQL_LIKE_CPP));
+            statement.set_bool(0, official);
+            let mut result = db
+                .query(&statement)
+                .await
+                .context("failed to load SpellCategory SQL overlay")?;
+            if result.is_empty() {
+                continue;
+            }
+            loop {
+                store.overlay_effective_row_like_cpp(SpellCategoryEntry {
+                    id: result.try_read::<u32>(0).unwrap_or(0),
+                    name: result.try_read::<String>(1).unwrap_or_default(),
+                    flags: result.try_read::<i32>(2).unwrap_or(0),
+                    uses_per_week: result.try_read::<u8>(3).unwrap_or(0),
+                    max_charges: result.try_read::<i8>(4).unwrap_or(0),
+                    charge_recovery_time: result.try_read::<i32>(5).unwrap_or(0),
+                    type_mask: result.try_read::<i32>(6).unwrap_or(0),
+                });
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+        store.apply_final_hotfix_removals_like_cpp(removals)?;
+        Ok(store)
     }
 }
 
@@ -1035,6 +1178,11 @@ impl SpellCooldownsStore {
 }
 
 impl SpellDurationStore {
+    const HOTFIX_OVERLAY_SQL_LIKE_CPP: &'static str = concat!(
+        "SELECT ID, Duration, DurationPerLevel, MaxDuration FROM spell_duration ",
+        "WHERE (`VerifiedBuild` > 0) = ?"
+    );
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SpellDuration.db2", |id, idx, r| {
             SpellDurationEntry {
@@ -1044,6 +1192,42 @@ impl SpellDurationStore {
                 max_duration: r.get_field_i32(idx, 2),
             }
         })
+    }
+
+    /// Load C++'s effective duration authority: DB2, official SQL, custom SQL,
+    /// then final `hotfix_data` tombstones.
+    pub async fn load_effective_like_cpp(
+        data_dir: &str,
+        locale: &str,
+        db: &HotfixDatabase,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) -> Result<Self> {
+        let mut store = Self::load(data_dir, locale)?;
+        for official in [true, false] {
+            let mut statement =
+                db.prepare(HotfixStatements::base(Self::HOTFIX_OVERLAY_SQL_LIKE_CPP));
+            statement.set_bool(0, official);
+            let mut result = db
+                .query(&statement)
+                .await
+                .context("failed to load SpellDuration SQL overlay")?;
+            if result.is_empty() {
+                continue;
+            }
+            loop {
+                store.overlay_effective_row_like_cpp(SpellDurationEntry {
+                    id: result.try_read::<u32>(0).unwrap_or(0),
+                    duration: result.try_read::<i32>(1).unwrap_or(0),
+                    duration_per_level: result.try_read::<u32>(2).unwrap_or(0),
+                    max_duration: result.try_read::<i32>(3).unwrap_or(0),
+                });
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+        store.apply_final_hotfix_removals_like_cpp(removals)?;
+        Ok(store)
     }
 }
 
@@ -1381,6 +1565,11 @@ impl SpellProcsPerMinuteModStore {
 }
 
 impl SpellRadiusStore {
+    const HOTFIX_OVERLAY_SQL_LIKE_CPP: &'static str = concat!(
+        "SELECT ID, Radius, RadiusPerLevel, RadiusMin, RadiusMax FROM spell_radius ",
+        "WHERE (`VerifiedBuild` > 0) = ?"
+    );
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SpellRadius.db2", |id, idx, r| {
             SpellRadiusEntry {
@@ -1391,6 +1580,43 @@ impl SpellRadiusStore {
                 radius_max: f32_field(r, idx, 3),
             }
         })
+    }
+
+    /// Load C++'s effective radius authority: DB2, official SQL, custom SQL,
+    /// then final `hotfix_data` tombstones.
+    pub async fn load_effective_like_cpp(
+        data_dir: &str,
+        locale: &str,
+        db: &HotfixDatabase,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) -> Result<Self> {
+        let mut store = Self::load(data_dir, locale)?;
+        for official in [true, false] {
+            let mut statement =
+                db.prepare(HotfixStatements::base(Self::HOTFIX_OVERLAY_SQL_LIKE_CPP));
+            statement.set_bool(0, official);
+            let mut result = db
+                .query(&statement)
+                .await
+                .context("failed to load SpellRadius SQL overlay")?;
+            if result.is_empty() {
+                continue;
+            }
+            loop {
+                store.overlay_effective_row_like_cpp(SpellRadiusEntry {
+                    id: result.try_read::<u32>(0).unwrap_or(0),
+                    radius: result.try_read::<f32>(1).unwrap_or(0.0),
+                    radius_per_level: result.try_read::<f32>(2).unwrap_or(0.0),
+                    radius_min: result.try_read::<f32>(3).unwrap_or(0.0),
+                    radius_max: result.try_read::<f32>(4).unwrap_or(0.0),
+                });
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+        store.apply_final_hotfix_removals_like_cpp(removals)?;
+        Ok(store)
     }
 }
 
@@ -1752,6 +1978,12 @@ impl SpellFocusObjectStore {
 }
 
 impl SpellInterruptsStore {
+    const HOTFIX_OVERLAY_SQL_LIKE_CPP: &'static str = concat!(
+        "SELECT ID, DifficultyID, InterruptFlags, AuraInterruptFlags1, ",
+        "AuraInterruptFlags2, ChannelInterruptFlags1, ChannelInterruptFlags2, ",
+        "SpellID FROM spell_interrupts WHERE (`VerifiedBuild` > 0) = ?"
+    );
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SpellInterrupts.db2", |id, idx, r| {
             SpellInterruptsEntry {
@@ -1767,6 +1999,55 @@ impl SpellInterruptsStore {
                 spell_id: r.get_relationship_id(idx).unwrap_or(0),
             }
         })
+    }
+
+    /// Load C++'s effective interrupt authority: DB2, official SQL, custom SQL,
+    /// then final `hotfix_data` tombstones.
+    ///
+    /// Composing it here rather than overlaying SQL onto an already hydrated
+    /// `SpellStore` is what makes the tombstone pass reachable: a removed row
+    /// must stop contributing its aura/channel masks instead of keeping the file
+    /// values a row-keyed overlay would leave behind.
+    pub async fn load_effective_like_cpp(
+        data_dir: &str,
+        locale: &str,
+        db: &HotfixDatabase,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) -> Result<Self> {
+        let mut store = Self::load(data_dir, locale)?;
+        for official in [true, false] {
+            let mut statement =
+                db.prepare(HotfixStatements::base(Self::HOTFIX_OVERLAY_SQL_LIKE_CPP));
+            statement.set_bool(0, official);
+            let mut result = db
+                .query(&statement)
+                .await
+                .context("failed to load SpellInterrupts SQL overlay")?;
+            if result.is_empty() {
+                continue;
+            }
+            loop {
+                store.overlay_effective_row_like_cpp(SpellInterruptsEntry {
+                    id: result.try_read::<u32>(0).unwrap_or(0),
+                    difficulty_id: result.try_read::<u8>(1).unwrap_or(0),
+                    interrupt_flags: result.try_read::<i16>(2).unwrap_or(0),
+                    aura_interrupt_flags: [
+                        result.try_read::<i32>(3).unwrap_or(0),
+                        result.try_read::<i32>(4).unwrap_or(0),
+                    ],
+                    channel_interrupt_flags: [
+                        result.try_read::<i32>(5).unwrap_or(0),
+                        result.try_read::<i32>(6).unwrap_or(0),
+                    ],
+                    spell_id: result.try_read::<u32>(7).unwrap_or(0),
+                });
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+        store.apply_final_hotfix_removals_like_cpp(removals)?;
+        Ok(store)
     }
 }
 
@@ -1991,6 +2272,12 @@ impl SpellScalingStore {
 }
 
 impl SpellShapeshiftStore {
+    const HOTFIX_OVERLAY_SQL_LIKE_CPP: &'static str = concat!(
+        "SELECT ID, SpellID, StanceBarOrder, ShapeshiftExclude1, ShapeshiftExclude2, ",
+        "ShapeshiftMask1, ShapeshiftMask2 FROM spell_shapeshift ",
+        "WHERE (`VerifiedBuild` > 0) = ?"
+    );
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SpellShapeshift.db2", |id, idx, r| {
             SpellShapeshiftEntry {
@@ -2003,6 +2290,50 @@ impl SpellShapeshiftStore {
                 shapeshift_mask: std::array::from_fn(|i| r.get_array_element(idx, 3, i, 32) as i32),
             }
         })
+    }
+
+    /// Load C++'s effective shapeshift authority: DB2, official SQL, custom SQL,
+    /// then final `hotfix_data` tombstones. A tombstoned row must stop gating
+    /// the spell's stance requirement entirely.
+    pub async fn load_effective_like_cpp(
+        data_dir: &str,
+        locale: &str,
+        db: &HotfixDatabase,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) -> Result<Self> {
+        let mut store = Self::load(data_dir, locale)?;
+        for official in [true, false] {
+            let mut statement =
+                db.prepare(HotfixStatements::base(Self::HOTFIX_OVERLAY_SQL_LIKE_CPP));
+            statement.set_bool(0, official);
+            let mut result = db
+                .query(&statement)
+                .await
+                .context("failed to load SpellShapeshift SQL overlay")?;
+            if result.is_empty() {
+                continue;
+            }
+            loop {
+                store.overlay_effective_row_like_cpp(SpellShapeshiftEntry {
+                    id: result.try_read::<u32>(0).unwrap_or(0),
+                    spell_id: result.try_read::<i32>(1).unwrap_or(0),
+                    stance_bar_order: result.try_read::<i8>(2).unwrap_or(0),
+                    shapeshift_exclude: [
+                        result.try_read::<i32>(3).unwrap_or(0),
+                        result.try_read::<i32>(4).unwrap_or(0),
+                    ],
+                    shapeshift_mask: [
+                        result.try_read::<i32>(5).unwrap_or(0),
+                        result.try_read::<i32>(6).unwrap_or(0),
+                    ],
+                });
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+        store.apply_final_hotfix_removals_like_cpp(removals)?;
+        Ok(store)
     }
 }
 
@@ -2802,6 +3133,128 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![10, 20, 30]
         );
+    }
+
+    #[test]
+    fn remaining_cast_path_stores_overlay_then_apply_final_removals_like_cpp() {
+        // Every store the creature-cast path reads must compose DB2, the
+        // official overlay, the custom overlay and the final tombstone pass in
+        // that order, so record 1 keeps the last overlay and records 2 and 3 are
+        // dropped again by the removals.
+        let table_hash = 0xAABB_CCDD;
+        let removals = crate::Db2HotfixRemovalStoreLikeCpp::from_status_rows_like_cpp([
+            (table_hash, 2, 2),
+            (table_hash, 3, 2),
+        ]);
+
+        let cast_time = |id, base| SpellCastTimesEntry {
+            id,
+            base,
+            per_level: 1,
+            minimum: 2,
+        };
+        let mut cast_times =
+            SpellCastTimesStore::from_entries([cast_time(1, 1_500), cast_time(2, 2_500)]);
+        cast_times.overlay_effective_row_like_cpp(cast_time(1, 0));
+        cast_times.overlay_effective_row_like_cpp(cast_time(3, 3_500));
+        cast_times.overlay_effective_row_like_cpp(cast_time(1, 4_500));
+        cast_times.apply_hotfix_removals_with_table_hash_like_cpp(table_hash, &removals);
+        assert_eq!(cast_times.get(1), Some(&cast_time(1, 4_500)));
+        assert!(cast_times.get(2).is_none());
+        assert!(cast_times.get(3).is_none());
+
+        let duration = |id, duration| SpellDurationEntry {
+            id,
+            duration,
+            duration_per_level: 0,
+            max_duration: duration,
+        };
+        let mut durations = SpellDurationStore::from_entries([duration(1, 10), duration(2, 20)]);
+        durations.overlay_effective_row_like_cpp(duration(1, 30));
+        durations.overlay_effective_row_like_cpp(duration(3, 40));
+        durations.overlay_effective_row_like_cpp(duration(1, -1));
+        durations.apply_hotfix_removals_with_table_hash_like_cpp(table_hash, &removals);
+        assert_eq!(
+            durations.get(1),
+            Some(&duration(1, -1)),
+            "a hotfixed permanent duration must survive as the effective row"
+        );
+        assert!(durations.get(2).is_none());
+        assert!(durations.get(3).is_none());
+
+        let category = |id, flags| SpellCategoryEntry {
+            id,
+            name: format!("category {id}"),
+            flags,
+            uses_per_week: 0,
+            max_charges: 0,
+            charge_recovery_time: 0,
+            type_mask: 0,
+        };
+        let mut categories = SpellCategoryStore::from_entries([category(1, 0), category(2, 0)]);
+        categories.overlay_effective_row_like_cpp(category(1, 0x1));
+        categories.overlay_effective_row_like_cpp(category(3, 0x1));
+        // The cooldown-starts-on-event flag is what the AI cooldown proof reads,
+        // so the last overlay of it has to win.
+        categories.overlay_effective_row_like_cpp(category(1, 0x8));
+        categories.apply_hotfix_removals_with_table_hash_like_cpp(table_hash, &removals);
+        assert_eq!(categories.get(1).map(|entry| entry.flags), Some(0x8));
+        assert!(categories.get(2).is_none());
+        assert!(categories.get(3).is_none());
+
+        let radius = |id, radius| SpellRadiusEntry {
+            id,
+            radius,
+            radius_per_level: 0.0,
+            radius_min: 0.0,
+            radius_max: radius,
+        };
+        let mut radii = SpellRadiusStore::from_entries([radius(1, 5.0), radius(2, 6.0)]);
+        radii.overlay_effective_row_like_cpp(radius(1, 7.0));
+        radii.overlay_effective_row_like_cpp(radius(3, 8.0));
+        radii.overlay_effective_row_like_cpp(radius(1, 9.0));
+        radii.apply_hotfix_removals_with_table_hash_like_cpp(table_hash, &removals);
+        assert_eq!(radii.get(1), Some(&radius(1, 9.0)));
+        assert!(radii.get(2).is_none());
+        assert!(radii.get(3).is_none());
+
+        let shapeshift = |id, spell_id, mask| SpellShapeshiftEntry {
+            id,
+            spell_id,
+            stance_bar_order: 0,
+            shapeshift_exclude: [0, 0],
+            shapeshift_mask: [mask, 0],
+        };
+        let mut shapeshifts =
+            SpellShapeshiftStore::from_entries([shapeshift(1, 100, 0x1), shapeshift(2, 200, 0x2)]);
+        shapeshifts.overlay_effective_row_like_cpp(shapeshift(1, 100, 0x4));
+        shapeshifts.overlay_effective_row_like_cpp(shapeshift(3, 300, 0x8));
+        shapeshifts.overlay_effective_row_like_cpp(shapeshift(1, 100, 0x10));
+        shapeshifts.apply_hotfix_removals_with_table_hash_like_cpp(table_hash, &removals);
+        assert_eq!(shapeshifts.get(1), Some(&shapeshift(1, 100, 0x10)));
+        assert!(
+            shapeshifts.get(2).is_none(),
+            "a tombstoned row must stop gating its spell's stance requirement"
+        );
+        assert!(shapeshifts.get(3).is_none());
+
+        let interrupts = |id, spell_id, aura| SpellInterruptsEntry {
+            id,
+            difficulty_id: 0,
+            interrupt_flags: 1,
+            aura_interrupt_flags: [aura, 0],
+            channel_interrupt_flags: [0, 0],
+            spell_id,
+        };
+        let mut interrupt_rows =
+            SpellInterruptsStore::from_entries([interrupts(1, 100, 0x1), interrupts(2, 200, 0x2)]);
+        interrupt_rows.overlay_effective_row_like_cpp(interrupts(1, 100, 0x4));
+        interrupt_rows.overlay_effective_row_like_cpp(interrupts(3, 300, 0x8));
+        interrupt_rows.overlay_effective_row_like_cpp(interrupts(1, 100, 0x10));
+        interrupt_rows.apply_hotfix_removals_with_table_hash_like_cpp(table_hash, &removals);
+        assert_eq!(interrupt_rows.get(1), Some(&interrupts(1, 100, 0x10)));
+        assert!(interrupt_rows.get(2).is_none());
+        assert!(interrupt_rows.get(3).is_none());
     }
 
     #[test]

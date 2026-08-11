@@ -90,12 +90,33 @@ impl SharedClientVisibleGuidsLikeCpp {
     /// would skip a viewer that never actually lost the object.
     pub fn retain_and_extend_like_cpp(
         &self,
-        mut keep: impl FnMut(&ObjectGuid) -> bool,
+        keep: impl FnMut(&ObjectGuid) -> bool,
         added: impl IntoIterator<Item = ObjectGuid>,
     ) {
+        self.publish_transition_like_cpp(keep, added, || ());
+    }
+
+    /// Publish a visibility transition together with the packets that carry it.
+    ///
+    /// The membership and its `SMSG_UPDATE_OBJECT` form one client-visible step.
+    /// A producer that read the old membership while the create block was
+    /// already queued would skip a viewer whose client now has the object, and
+    /// one that read the new membership while the out-of-range block was queued
+    /// would address an object the client is destroying. Running `publish` under
+    /// the same write makes both intermediate states unobservable.
+    ///
+    /// `publish` must not touch this set again — it would deadlock on the write
+    /// it is already inside.
+    pub fn publish_transition_like_cpp<R>(
+        &self,
+        mut keep: impl FnMut(&ObjectGuid) -> bool,
+        added: impl IntoIterator<Item = ObjectGuid>,
+        publish: impl FnOnce() -> R,
+    ) -> R {
         let mut guard = self.write_like_cpp();
         guard.retain(|guid| keep(guid));
         guard.extend(added);
+        publish()
     }
 
     /// Copy the current membership. Callers that need to iterate must take this
@@ -494,8 +515,12 @@ pub struct SendCreatureSpellCastIfVisibleLikeCppCommand {
     pub map_id: u16,
     pub instance_id: u32,
     pub start_packet_bytes: Vec<u8>,
-    pub basic_go_packet_bytes: Vec<u8>,
-    pub full_go_packet_bytes: Vec<u8>,
+    /// The GO frame chosen for this recipient when the cast resolved.
+    ///
+    /// C++ selects the basic or full combat-log representation synchronously
+    /// while distributing the cast, so the choice cannot depend on a preference
+    /// the client may toggle before this command is drained.
+    pub go_packet_bytes: Vec<u8>,
     /// The visibility membership this recipient decision was committed against.
     ///
     /// C++ picks recipients synchronously inside `SendSpellGo`, so the answer
@@ -1176,6 +1201,12 @@ pub struct PlayerBroadcastInfo {
     /// is resolved read it here instead of leaving the receiving session to
     /// re-derive visibility from state that moved on in the meantime.
     pub client_visible_guids_like_cpp: SharedClientVisibleGuidsLikeCpp,
+    /// Shared C++ advanced-combat-logging preference for this session.
+    ///
+    /// `WorldObject::SendCombatLogMessage` picks the basic or full `SMSG_SPELL_GO`
+    /// frame per receiver while it distributes the cast, so a producer reads this
+    /// when the cast resolves rather than leaving the choice to drain time.
+    pub advanced_combat_logging_enabled_like_cpp: Arc<AtomicBool>,
     /// Durable/coalesced equivalent of C++'s retained visibility notify bit.
     ///
     /// Senders set this before attempting the bounded command queue. The owning
@@ -1334,6 +1365,59 @@ pub type PlayerRegistry = DashMap<ObjectGuid, PlayerBroadcastInfo>;
 mod tests {
     use super::*;
 
+    /// A producer selecting recipients must never observe a visibility
+    /// transition half applied, nor the old membership while the packets that
+    /// replace it are already queued.
+    #[test]
+    fn visibility_transition_publishes_membership_and_packets_as_one_step_like_cpp() {
+        use std::sync::mpsc;
+        use std::time::Duration;
+
+        let visibility = SharedClientVisibleGuidsLikeCpp::default();
+        let leaving = ObjectGuid::create_player(1, 1);
+        let arriving = ObjectGuid::create_player(1, 2);
+        visibility.insert(leaving);
+
+        let reader_handle = visibility.clone();
+        let (entered_tx, entered_rx) = mpsc::channel();
+        let (observed_tx, observed_rx) = mpsc::channel();
+        let reader = std::thread::spawn(move || {
+            entered_rx
+                .recv()
+                .expect("transition entered its publish step");
+            // This read can only complete once the transition released its write.
+            observed_tx
+                .send(reader_handle.snapshot_like_cpp())
+                .expect("reader reported its snapshot");
+        });
+
+        visibility.publish_transition_like_cpp(
+            |guid| *guid != leaving,
+            [arriving],
+            || {
+                entered_tx.send(()).expect("reader was signalled");
+                std::thread::sleep(Duration::from_millis(50));
+                assert!(
+                    observed_rx.try_recv().is_err(),
+                    "no reader may observe the set while its packets are being published"
+                );
+            },
+        );
+
+        let observed = observed_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("reader snapshot");
+        reader.join().expect("reader finished");
+        assert!(
+            !observed.contains(&leaving),
+            "the departed object is gone once the transition is observable"
+        );
+        assert!(
+            observed.contains(&arriving),
+            "the arrived object is present once the transition is observable"
+        );
+    }
+
     /// Verify that `PlayerBroadcastInfo` carries `instance_id` so that
     /// cross-instance delivery can be filtered (Slice 4A.1b).
     /// C++ anchor: `GridNotifiersImpl.h : MessageDistDeliverer::Visit` — instance
@@ -1354,6 +1438,7 @@ mod tests {
             command_tx,
             durable_creature_runtime_commands_like_cpp: Default::default(),
             client_visible_guids_like_cpp: Default::default(),
+            advanced_combat_logging_enabled_like_cpp: Default::default(),
             visibility_refresh_pending_like_cpp: Default::default(),
             durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),
@@ -1445,7 +1530,7 @@ mod tests {
     }
 
     #[test]
-    fn creature_spell_start_and_both_go_variants_use_one_durable_queue_element_like_cpp() {
+    fn creature_spell_start_and_committed_go_use_one_durable_queue_element_like_cpp() {
         let source_guid = ObjectGuid::create_world_object(
             wow_core::guid::HighGuid::Creature,
             0,
@@ -1461,8 +1546,7 @@ mod tests {
             map_id: 571,
             instance_id: 4,
             start_packet_bytes: vec![0x37, 0x2C, 0xAA],
-            basic_go_packet_bytes: vec![0x36, 0x2C, 0xBB],
-            full_go_packet_bytes: vec![0x36, 0x2C, 0xCC],
+            go_packet_bytes: vec![0x36, 0x2C, 0xBB],
             committed_visibility_like_cpp: SharedClientVisibleGuidsLikeCpp::default(),
         };
         let mut durable = DurableCreatureRuntimeCommandsLikeCpp::default();

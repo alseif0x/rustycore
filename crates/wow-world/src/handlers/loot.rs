@@ -5200,9 +5200,7 @@ impl WorldSession {
         };
         if opcode(&command.start_packet_bytes)
             != Some(wow_constants::ServerOpcodes::SpellStart as u16)
-            || opcode(&command.basic_go_packet_bytes)
-                != Some(wow_constants::ServerOpcodes::SpellGo as u16)
-            || opcode(&command.full_go_packet_bytes)
+            || opcode(&command.go_packet_bytes)
                 != Some(wow_constants::ServerOpcodes::SpellGo as u16)
         {
             return;
@@ -5234,12 +5232,11 @@ impl WorldSession {
             return;
         }
 
+        // The basic/full combat-log representation was already chosen for this
+        // recipient when the cast resolved, so a preference the client toggled
+        // since then cannot retroactively change an earlier cast's frame.
         self.send_raw_packet(&command.start_packet_bytes);
-        if self.represented_advanced_combat_logging_enabled_like_cpp() {
-            self.send_raw_packet(&command.full_go_packet_bytes);
-        } else {
-            self.send_raw_packet(&command.basic_go_packet_bytes);
-        }
+        self.send_raw_packet(&command.go_packet_bytes);
     }
 
     /// Per-session gate for addon chat delivery.
@@ -13834,24 +13831,25 @@ mod tests {
         (session, send_rx, source_guid)
     }
 
+    /// One committed cast. `go_marker` distinguishes the basic frame (`0xBB`)
+    /// the producer commits for an ordinary receiver from the full combat-log
+    /// frame (`0xCC`) it commits for an advanced-logging receiver.
     fn creature_spell_cast_command_like_cpp(
         source_guid: ObjectGuid,
         committed_visibility_like_cpp: wow_network::SharedClientVisibleGuidsLikeCpp,
+        go_marker: u8,
     ) -> SendCreatureSpellCastIfVisibleLikeCppCommand {
         let mut start_packet_bytes = (ServerOpcodes::SpellStart as u16).to_le_bytes().to_vec();
         start_packet_bytes.push(0xAA);
-        let mut basic_go_packet_bytes = (ServerOpcodes::SpellGo as u16).to_le_bytes().to_vec();
-        basic_go_packet_bytes.push(0xBB);
-        let mut full_go_packet_bytes = (ServerOpcodes::SpellGo as u16).to_le_bytes().to_vec();
-        full_go_packet_bytes.push(0xCC);
+        let mut go_packet_bytes = (ServerOpcodes::SpellGo as u16).to_le_bytes().to_vec();
+        go_packet_bytes.push(go_marker);
         SendCreatureSpellCastIfVisibleLikeCppCommand {
             queued_at: Instant::now(),
             source_guid,
             map_id: 571,
             instance_id: 0,
             start_packet_bytes,
-            basic_go_packet_bytes,
-            full_go_packet_bytes,
+            go_packet_bytes,
             committed_visibility_like_cpp,
         }
     }
@@ -13862,9 +13860,10 @@ mod tests {
         let command = creature_spell_cast_command_like_cpp(
             source_guid,
             session.client_visible_guids_like_cpp.clone(),
+            0xBB,
         );
         let expected_start = command.start_packet_bytes.clone();
-        let expected_go = command.basic_go_packet_bytes.clone();
+        let expected_go = command.go_packet_bytes.clone();
         session
             .session_command_tx()
             .try_send(SessionCommand::SendCreatureSpellCastIfVisibleLikeCpp(
@@ -13882,16 +13881,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn advanced_combat_logging_receives_full_creature_spell_go_like_cpp() {
+    async fn advanced_combat_logging_receives_the_committed_full_creature_spell_go_like_cpp() {
+        // The producer committed the full combat-log frame for this receiver.
         let (mut session, send_rx, source_guid) = make_visible_creature_spell_session_like_cpp();
+        session.represented_set_advanced_combat_logging_like_cpp(true);
         let command = creature_spell_cast_command_like_cpp(
             source_guid,
             session.client_visible_guids_like_cpp.clone(),
+            0xCC,
         );
         let expected_start = command.start_packet_bytes.clone();
-        let expected_go = command.full_go_packet_bytes.clone();
-        let rejected_basic = command.basic_go_packet_bytes.clone();
-        session.represented_set_advanced_combat_logging_like_cpp(true);
+        let expected_go = command.go_packet_bytes.clone();
         session
             .session_command_tx()
             .try_send(SessionCommand::SendCreatureSpellCastIfVisibleLikeCpp(
@@ -13904,9 +13904,40 @@ mod tests {
             .await;
 
         assert_eq!(send_rx.try_recv().expect("START frame"), expected_start);
-        let delivered_go = send_rx.try_recv().expect("full GO frame");
-        assert_eq!(delivered_go, expected_go);
-        assert_ne!(delivered_go, rejected_basic);
+        assert_eq!(send_rx.try_recv().expect("full GO frame"), expected_go);
+        assert!(send_rx.try_recv().is_err(), "no partial or extra frame");
+    }
+
+    #[tokio::test]
+    async fn creature_spell_go_keeps_the_committed_frame_after_a_preference_toggle_like_cpp() {
+        // C++ chooses the combat-log representation while distributing the cast,
+        // so toggling advanced logging before this drain must not retroactively
+        // change the frame an earlier cast committed.
+        let (mut session, send_rx, source_guid) = make_visible_creature_spell_session_like_cpp();
+        let command = creature_spell_cast_command_like_cpp(
+            source_guid,
+            session.client_visible_guids_like_cpp.clone(),
+            0xBB,
+        );
+        let expected_go = command.go_packet_bytes.clone();
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::SendCreatureSpellCastIfVisibleLikeCpp(
+                command,
+            ))
+            .expect("atomic spell command queued");
+        session.represented_set_advanced_combat_logging_like_cpp(true);
+
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        let _start = send_rx.try_recv().expect("START frame");
+        assert_eq!(
+            send_rx.try_recv().expect("GO frame"),
+            expected_go,
+            "the committed basic frame survives a later advanced-logging toggle"
+        );
         assert!(send_rx.try_recv().is_err(), "no partial or extra frame");
     }
 
@@ -13919,9 +13950,10 @@ mod tests {
         let command = creature_spell_cast_command_like_cpp(
             source_guid,
             session.client_visible_guids_like_cpp.clone(),
+            0xBB,
         );
         let expected_start = command.start_packet_bytes.clone();
-        let expected_go = command.basic_go_packet_bytes.clone();
+        let expected_go = command.go_packet_bytes.clone();
         session
             .session_command_tx()
             .try_send(SessionCommand::SendCreatureSpellCastIfVisibleLikeCpp(
@@ -13956,7 +13988,7 @@ mod tests {
                 .shares_storage_like_cpp(&previous_incarnation),
             "the fixture models two distinct session incarnations"
         );
-        let command = creature_spell_cast_command_like_cpp(source_guid, previous_incarnation);
+        let command = creature_spell_cast_command_like_cpp(source_guid, previous_incarnation, 0xBB);
         session
             .session_command_tx()
             .try_send(SessionCommand::SendCreatureSpellCastIfVisibleLikeCpp(
@@ -18411,6 +18443,7 @@ mod tests {
             command_tx,
             durable_creature_runtime_commands_like_cpp: Default::default(),
             client_visible_guids_like_cpp: Default::default(),
+            advanced_combat_logging_enabled_like_cpp: Default::default(),
             visibility_refresh_pending_like_cpp: Default::default(),
             durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),

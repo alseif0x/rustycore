@@ -2284,8 +2284,14 @@ async fn main() -> Result<ExitCode> {
         pet_default_spell_store.count()
     );
     let spell_category_store = Arc::new(
-        wow_data::SpellCategoryStore::load(&data_dir, &locale)
-            .context("Failed to load SpellCategory.db2")?,
+        wow_data::SpellCategoryStore::load_effective_like_cpp(
+            &data_dir,
+            &locale,
+            &hotfix_db,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellCategory authority")?,
     );
     info!(
         "Loaded {} spell categories from SpellCategory.db2",
@@ -2410,8 +2416,14 @@ async fn main() -> Result<ExitCode> {
         spell_procs_per_minute_store.len()
     );
     let spell_duration_store = Arc::new(
-        wow_data::SpellDurationStore::load(&data_dir, &locale)
-            .context("Failed to load SpellDuration.db2")?,
+        wow_data::SpellDurationStore::load_effective_like_cpp(
+            &data_dir,
+            &locale,
+            &hotfix_db,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellDuration authority")?,
     );
     info!("Loaded {} spell duration rows", spell_duration_store.len());
     let spell_cooldowns_store = Arc::new(
@@ -3515,8 +3527,14 @@ async fn main() -> Result<ExitCode> {
 
     // Load spell metadata (cast time, cooldown, effects, etc.) — Phase 2
     let spell_radius_store = Arc::new(
-        wow_data::SpellRadiusStore::load(&data_dir, &locale)
-            .context("Failed to load SpellRadius.db2")?,
+        wow_data::SpellRadiusStore::load_effective_like_cpp(
+            &data_dir,
+            &locale,
+            &hotfix_db,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellRadius authority")?,
     );
     info!("Loaded {} spell radius rows", spell_radius_store.len());
     let spell_range_store = Arc::new(
@@ -14152,6 +14170,7 @@ fn resolve_runtime_event_candidates_like_cpp(
             struct Candidate {
                 durable: Arc<std::sync::Mutex<wow_network::DurableCreatureRuntimeCommandsLikeCpp>>,
                 committed_visibility_like_cpp: wow_network::SharedClientVisibleGuidsLikeCpp,
+                advanced_combat_logging_like_cpp: bool,
                 skip_reason: Option<DurableSpellCastSkipReason>,
             }
             enum DurableSpellCastSkipReason {
@@ -14192,6 +14211,11 @@ fn resolve_runtime_event_candidates_like_cpp(
                     Candidate {
                         durable: Arc::clone(&info.durable_creature_runtime_commands_like_cpp),
                         committed_visibility_like_cpp: info.client_visible_guids_like_cpp.clone(),
+                        // C++ `WorldObject::SendCombatLogMessage` reads each
+                        // receiver's preference while distributing the cast.
+                        advanced_combat_logging_like_cpp: info
+                            .advanced_combat_logging_enabled_like_cpp
+                            .load(std::sync::atomic::Ordering::Relaxed),
                         skip_reason,
                     }
                 })
@@ -14228,8 +14252,11 @@ fn resolve_runtime_event_candidates_like_cpp(
                         map_id: *map_id,
                         instance_id: *instance_id,
                         start_packet_bytes: event.packet_bytes.clone(),
-                        basic_go_packet_bytes: basic_go_packet_bytes.clone(),
-                        full_go_packet_bytes: full_go_packet_bytes.clone(),
+                        go_packet_bytes: if candidate.advanced_combat_logging_like_cpp {
+                            full_go_packet_bytes.clone()
+                        } else {
+                            basic_go_packet_bytes.clone()
+                        },
                         committed_visibility_like_cpp: candidate.committed_visibility_like_cpp,
                     };
                 if candidate.durable.lock().is_ok_and(|mut durable| {
@@ -15613,6 +15640,7 @@ mod tests {
             command_tx,
             durable_creature_runtime_commands_like_cpp: Default::default(),
             client_visible_guids_like_cpp: Default::default(),
+            advanced_combat_logging_enabled_like_cpp: Default::default(),
             visibility_refresh_pending_like_cpp: Default::default(),
             durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),
@@ -22310,6 +22338,7 @@ mmap.enablePathFinding = 0
                 command_tx,
                 durable_creature_runtime_commands_like_cpp: Default::default(),
                 client_visible_guids_like_cpp: Default::default(),
+                advanced_combat_logging_enabled_like_cpp: Default::default(),
                 visibility_refresh_pending_like_cpp: Default::default(),
                 durable_loot_money_tracker_like_cpp: Default::default(),
                 active_loot_rolls: Vec::new(),
@@ -26048,21 +26077,19 @@ mmap.enablePathFinding = 0
             panic!("observer must receive one atomic START+GO command: {observer_commands:?}");
         };
         assert_eq!(cast.start_packet_bytes, start_bytes);
-        assert_eq!(cast.basic_go_packet_bytes, basic_go_bytes);
-        assert_eq!(cast.full_go_packet_bytes, full_go_bytes);
+        assert_eq!(
+            cast.go_packet_bytes, basic_go_bytes,
+            "a receiver without advanced combat logging commits the basic frame"
+        );
+        assert_ne!(cast.go_packet_bytes, full_go_bytes);
         assert_eq!(
             u16::from_le_bytes(cast.start_packet_bytes[..2].try_into().unwrap()),
             ServerOpcodes::SpellStart as u16
         );
         assert_eq!(
-            u16::from_le_bytes(cast.basic_go_packet_bytes[..2].try_into().unwrap()),
+            u16::from_le_bytes(cast.go_packet_bytes[..2].try_into().unwrap()),
             ServerOpcodes::SpellGo as u16
         );
-        assert_eq!(
-            u16::from_le_bytes(cast.full_go_packet_bytes[..2].try_into().unwrap()),
-            ServerOpcodes::SpellGo as u16
-        );
-        assert_ne!(cast.basic_go_packet_bytes, cast.full_go_packet_bytes);
 
         // The victim's untouched FIFO retains one indivisible copy as well.
         let victim_commands =
@@ -26073,8 +26100,7 @@ mmap.enablePathFinding = 0
             panic!("victim FIFO must contain one atomic START+GO command: {victim_commands:?}");
         };
         assert_eq!(victim_cast.start_packet_bytes, start_bytes);
-        assert_eq!(victim_cast.basic_go_packet_bytes, basic_go_bytes);
-        assert_eq!(victim_cast.full_go_packet_bytes, full_go_bytes);
+        assert_eq!(victim_cast.go_packet_bytes, basic_go_bytes);
     }
 
     #[test]
@@ -26119,8 +26145,7 @@ mmap.enablePathFinding = 0
             panic!("victim must retain one atomic START+GO command: {victim_commands:?}");
         };
         assert_eq!(cast.start_packet_bytes, start_bytes);
-        assert_eq!(cast.basic_go_packet_bytes, basic_go_bytes);
-        assert_eq!(cast.full_go_packet_bytes, full_go_bytes);
+        assert_eq!(cast.go_packet_bytes, basic_go_bytes);
     }
 
     /// C++ selects recipients inside `SendSpellGo` from each viewer's

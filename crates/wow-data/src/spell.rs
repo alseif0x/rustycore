@@ -18,9 +18,7 @@ use std::f32::consts::TAU;
 use anyhow::Result;
 use tracing::info;
 use wow_constants::{PowerType, SpellCastResult};
-use wow_database::{
-    HotfixDatabase, HotfixStatements, StatementDef, WorldDatabase, WorldStatements,
-};
+use wow_database::{HotfixDatabase, StatementDef, WorldDatabase, WorldStatements};
 use wow_entities::PetAuraLikeCpp;
 
 use crate::{
@@ -6525,9 +6523,24 @@ impl SpellStore {
         )
         .await?;
         let spell_shapeshift_store =
-            crate::spell_db2::SpellShapeshiftStore::load(data_dir, locale)?;
+            crate::spell_db2::SpellShapeshiftStore::load_effective_like_cpp(
+                data_dir,
+                locale,
+                hotfix_db,
+                hotfix_removals,
+            )
+            .await?;
+        // The effective interrupt store already carries the official/custom SQL
+        // rows, so overlaying them onto the hydrated SpellStore afterwards would
+        // both duplicate the work and skip the tombstone pass.
         let spell_interrupts_store =
-            crate::spell_db2::SpellInterruptsStore::load(data_dir, locale)?;
+            crate::spell_db2::SpellInterruptsStore::load_effective_like_cpp(
+                data_dir,
+                locale,
+                hotfix_db,
+                hotfix_removals,
+            )
+            .await?;
         let mut store = Self::from_spell_db2_stores_like_cpp(
             &spell_categories_store,
             &spell_misc_store,
@@ -6536,10 +6549,6 @@ impl SpellStore {
         );
         store.spell_info_keys_like_cpp = spell_info_keys_like_cpp;
         store.apply_db2_interrupts_like_cpp(&spell_interrupts_store);
-        let hotfix_interrupt_rows = store.apply_hotfix_interrupts_like_cpp(hotfix_db).await?;
-        if hotfix_interrupt_rows != 0 {
-            info!("Loaded {hotfix_interrupt_rows} SpellInterrupts hotfix rows");
-        }
 
         // C++ builds every SpellInfo field from the DB2 stores composed above,
         // each of which already carries official/custom SQL overlays and the
@@ -6550,7 +6559,14 @@ impl SpellStore {
 
         // [M0.1/#14] Join DB2 SpellCastTimes via SpellMisc.CastingTimeIndex.
         // C++ sSpellCastTimesStore.
-        let spell_cast_times_store = crate::spell_db2::SpellCastTimesStore::load(data_dir, locale)?;
+        let spell_cast_times_store =
+            crate::spell_db2::SpellCastTimesStore::load_effective_like_cpp(
+                data_dir,
+                locale,
+                hotfix_db,
+                hotfix_removals,
+            )
+            .await?;
         store.apply_db2_cast_times_like_cpp(&spell_misc_store, &spell_cast_times_store);
 
         // [M0.1/#14] Join DB2 SpellCooldowns (per-spell cooldown).
@@ -6878,49 +6894,6 @@ impl SpellStore {
         for row in self.spell_interrupt_rows_by_id.values() {
             self.spell_interrupt_flags.insert(row.key, row.flags);
         }
-    }
-
-    /// Overlay the typed hotfix mirror of `SpellInterrupts.db2` after the
-    /// client-file rows. C++ `DB2StorageBase::LoadFromDB` loads official rows
-    /// first and custom rows second; a present SQL row replaces its exact DB2
-    /// record ID before the relational spell/difficulty lookup is rebuilt.
-    async fn apply_hotfix_interrupts_like_cpp(&mut self, db: &HotfixDatabase) -> Result<usize> {
-        let mut count = 0usize;
-        for official in [true, false] {
-            let mut stmt = db.prepare(HotfixStatements::SEL_SPELL_INTERRUPTS);
-            stmt.set_bool(0, official);
-            let mut result = db.query(&stmt).await?;
-            if result.is_empty() {
-                continue;
-            }
-
-            loop {
-                let difficulty_id = result.try_read::<u8>(1).unwrap_or(0);
-                if let (Some(row_id), Some(spell_id)) =
-                    (result.try_read::<u32>(0), result.try_read::<u32>(7))
-                {
-                    count += usize::from(self.store_signed_interrupt_row_by_id_like_cpp(
-                        row_id,
-                        spell_id,
-                        difficulty_id,
-                        [
-                            result.try_read::<i32>(3).unwrap_or(0),
-                            result.try_read::<i32>(4).unwrap_or(0),
-                        ],
-                        [
-                            result.try_read::<i32>(5).unwrap_or(0),
-                            result.try_read::<i32>(6).unwrap_or(0),
-                        ],
-                    ));
-                }
-
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-        self.rebuild_interrupt_flags_from_rows_like_cpp();
-        Ok(count)
     }
 
     /// Import world-DB `serverside_spell` interrupt masks into the same
