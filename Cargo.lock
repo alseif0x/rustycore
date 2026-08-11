@@ -3325,8 +3325,6 @@ dependencies = [
  "wow-core",
  "wow-crypto",
  "wow-data",
- "wow-database",
- "wow-instances",
  "wow-loot",
  "wow-packet",
 ]

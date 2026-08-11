@@ -21,8 +21,6 @@ wow-crypto = { workspace = true }
 wow-packet = { workspace = true }
 wow-constants = { workspace = true }
 wow-data = { workspace = true }
-wow-database = { workspace = true }
-wow-instances = { workspace = true }
 wow-loot = { workspace = true }
 
 [dev-dependencies]

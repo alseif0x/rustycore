@@ -8,10 +8,12 @@ that old counts remain exact.
 - `wow-world` is the central application/god crate and directly knows most internal crates.
 - `WorldSession` contains session state, shared stores, represented player state, gameplay helpers,
   runtime bridges, persistence coordination, dispatch, and extensive inline tests.
-- `wow-network::accept::SessionResources` currently carries application, database, catalog, loot,
-  instance, runtime, and configuration resources across the network boundary.
+- Private `world-server::session_resources::SessionResources` carries application, database,
+  catalog, loot, instance, runtime, and gameplay configuration resources inside the composition
+  root. The outer session callback captures it; `wow-network` receives only transport-owned
+  `WorldListenerPolicyLikeCpp` and authenticated connection outputs.
 - `wow-network::player_registry::SessionCommand` contains gameplay commands and packet payloads;
-  network therefore depends upward on game data, database, instances, and loot.
+  network therefore still depends upward on game data and loot.
 - Legacy `wow_world::MapManager`, canonical `wow_map::MapManager`, and the global world loop coexist.
   The accepted runtime ADR requires one tick owner and method-by-method convergence.
 - Player and creature state still have represented/session, legacy map, canonical entity/map, and
@@ -48,7 +50,10 @@ Adjust commands when generated files or test modules would distort the question.
 
 Inspect these as project-wide symptoms:
 
-- `crates/wow-network/src/accept.rs`: network/application resource boundary.
+- `crates/wow-network/src/accept.rs`: transport-owned listener/authentication boundary; guard
+  against application resources re-entering its public API.
+- `crates/world-server/src/session_resources.rs`: private application session-construction
+  aggregate; #136 must hide its field-by-field projection behind a private session factory.
 - `crates/wow-network/src/player_registry.rs` and `group_registry.rs`: application commands and
   social state inside network.
 - `crates/wow-world/src/session.rs`: state ownership, dispatch, stores, runtime mirrors.
@@ -76,7 +81,8 @@ mixed state, I/O, rules, and ownership over raw line count.
 
 Inspect rather than blindly preserve:
 
-- `wow-network -> wow-data, wow-database, wow-instances, wow-loot`;
+- `wow-network -> wow-data, wow-loot` through registry commands and payloads; #134 retired its
+  direct `wow-database` and `wow-instances` edges;
 - `wow-data -> wow-database, wow-entities, wow-movement`;
 - `wow-packet -> wow-loot, wow-movement`;
 - broad `wow-world` and `world-server` dependency sets.
@@ -86,7 +92,8 @@ Do not add new upward edges. Remove them one seam at a time with compatibility t
 ## Recommended campaign order
 
 1. Document owners, allowed edges, mirrors, and no-growth guardrails.
-2. Decouple socket acceptance from application `SessionResources`.
+2. Extract the private `world-server` session factory (#136) while preserving #134's transport
+   boundary: application `SessionResources` must not re-enter `wow-network`.
 3. Introduce typed catalogs, repositories, and runtime handles; replace setter groups
    incrementally.
 4. Split obvious feature dumping grounds mechanically without changing behavior.

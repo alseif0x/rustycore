@@ -39,6 +39,10 @@ use crate::phasing::{
     party_member_phase_states_like_cpp,
 };
 use crate::reputation::{ReputationMgrLikeCpp, reputation_to_rank_like_cpp};
+use crate::session_policy::{
+    ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
+    LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, ReputationRatesLikeCpp,
+};
 use wow_ai::{
     CURRENT_EXPANSION_LIKE_CPP, CreatureAiCanAttackInputLikeCpp, CreatureAiKindLikeCpp,
     CreatureAiSelectionInputLikeCpp, CreatureAttackDistanceInputLikeCpp,
@@ -197,16 +201,15 @@ use wow_map::coords::SIZE_OF_GRID_CELL;
 use wow_network::player_registry::SendIfVisibleLikeCppCommand;
 use wow_network::session_mgr::{InstanceLink, SessionManager};
 use wow_network::{
-    ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
     DurableLootMoneyCompletionLikeCpp, DurableLootMoneyPersistenceGuardLikeCpp,
     DurableLootMoneyPersistenceTrackerLikeCpp, DurableLootMoneySaveFenceLikeCpp,
     GameEventQuestCompleteClientOutcomeLikeCpp, GameEventQuestCompleteCommandLikeCpp, GroupInfo,
     GroupInstanceResetMethodLikeCpp, GroupInstanceResetResultLikeCpp, GroupRegistry,
-    KickLikeCppCommand, LootDropRatesLikeCpp, LootRollCommandIdentityLikeCpp,
-    NotifyLootMoneyRemovedLikeCppCommand, PacketSpoofConfigLikeCpp, PendingInvites,
-    PlayerBroadcastInfo, PlayerRegistry, RefreshVisibleWorldCreaturesLikeCppCommand,
-    ReputationRatesLikeCpp, SessionCommand, SharedClientVisibleGuidsLikeCpp, SocketTimeoutsLikeCpp,
-    SocketWriteFenceLikeCpp, SocketWriteFenceWaitResultLikeCpp, group_guid_by_db_store_id_like_cpp,
+    KickLikeCppCommand, LootRollCommandIdentityLikeCpp, NotifyLootMoneyRemovedLikeCppCommand,
+    PendingInvites, PlayerBroadcastInfo, PlayerRegistry,
+    RefreshVisibleWorldCreaturesLikeCppCommand, SessionCommand, SharedClientVisibleGuidsLikeCpp,
+    SocketTimeoutsLikeCpp, SocketWriteFenceLikeCpp, SocketWriteFenceWaitResultLikeCpp,
+    group_guid_by_db_store_id_like_cpp,
 };
 use wow_packet::packets::chat::{ChatMsg, ChatPkt, PrintNotification};
 use wow_packet::packets::gossip::ClientGossipText;
@@ -106370,9 +106373,9 @@ mod tests {
     fn reputation_low_level_rate_uses_script_adjusted_gray_level_like_cpp() {
         let (mut session, _pkt_tx, _send_rx) = make_session();
         session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
-        session.set_reputation_rates_like_cpp(wow_network::ReputationRatesLikeCpp {
+        session.set_reputation_rates_like_cpp(ReputationRatesLikeCpp {
             low_level_quest: 0.5,
-            ..wow_network::ReputationRatesLikeCpp::default()
+            ..ReputationRatesLikeCpp::default()
         });
 
         assert_eq!(
@@ -106408,10 +106411,10 @@ mod tests {
         session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
         session.set_player_position_like_cpp(Position::ZERO);
         session.set_recruiter_id_like_cpp(2);
-        session.set_reputation_rates_like_cpp(wow_network::ReputationRatesLikeCpp {
+        session.set_reputation_rates_like_cpp(ReputationRatesLikeCpp {
             recruit_a_friend_bonus: 0.1,
             recruit_a_friend_distance: 100.0,
-            ..wow_network::ReputationRatesLikeCpp::default()
+            ..ReputationRatesLikeCpp::default()
         });
 
         let (recruit_tx, _recruit_rx) = flume::bounded(10);
@@ -106465,10 +106468,10 @@ mod tests {
         session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
         session.set_player_position_like_cpp(Position::ZERO);
         session.set_recruiter_id_like_cpp(2);
-        session.set_reputation_rates_like_cpp(wow_network::ReputationRatesLikeCpp {
+        session.set_reputation_rates_like_cpp(ReputationRatesLikeCpp {
             recruit_a_friend_bonus: 0.1,
             recruit_a_friend_distance: 10.0,
-            ..wow_network::ReputationRatesLikeCpp::default()
+            ..ReputationRatesLikeCpp::default()
         });
 
         let (recruit_tx, _recruit_rx) = flume::bounded(10);

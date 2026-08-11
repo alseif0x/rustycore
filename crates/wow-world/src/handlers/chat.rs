@@ -1574,12 +1574,12 @@ fn secs_to_full_time_string_like_cpp(time_in_secs: u64) -> String {
 mod tests {
     use super::*;
     use crate::session::AuraApplication;
+    use crate::session_policy::{
+        ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
+    };
     use std::collections::{HashMap, HashSet};
     use std::sync::Arc;
-    use wow_network::{
-        ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
-        PendingInvites, PlayerBroadcastInfo, PlayerRegistry,
-    };
+    use wow_network::{PendingInvites, PlayerBroadcastInfo, PlayerRegistry};
 
     const LANG_COMMON_LIKE_CPP: i32 = 7;
 
