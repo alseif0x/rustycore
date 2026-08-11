@@ -460,11 +460,13 @@ run_format() {
 }
 
 run_architecture() {
-  log "Architecture dependency boundaries and source hotspots"
+  log "Architecture dependency, handler, and ownership boundaries"
   ((DRY_RUN)) || require_command python3
   run_cmd python3 "$ARCHITECTURE_CHECKER" check
   cargo_cmd test --locked --manifest-path "$HANDLER_CONTRACT_CHECK_MANIFEST"
   cargo_cmd run --locked --manifest-path "$HANDLER_CONTRACT_CHECK_MANIFEST" -- check
+  cargo_cmd run --locked --manifest-path "$HANDLER_CONTRACT_CHECK_MANIFEST" \
+    --bin session-ownership-check -- check
 }
 
 run_check() {
@@ -998,6 +1000,9 @@ run_self_test() {
     "run --locked --manifest-path $HANDLER_CONTRACT_CHECK_MANIFEST -- check" 1 \
     "local CI handler-contract repository check"
   require_exact_occurrences "$ci_dry_run_output" \
+    "run --locked --manifest-path $HANDLER_CONTRACT_CHECK_MANIFEST --bin session-ownership-check -- check" 1 \
+    "local CI session-ownership repository check"
+  require_exact_occurrences "$ci_dry_run_output" \
     "fmt --manifest-path $HANDLER_CONTRACT_CHECK_MANIFEST -- --check" 1 \
     "local CI handler-contract checker formatting"
   [[ "$ci_dry_run_output" == *"clippy --locked --no-deps --message-format short -p wow-loot"* ]] || die \
@@ -1043,6 +1048,9 @@ run_self_test() {
   require_exact_occurrences "$github_workflow_text" \
     "cargo +1.88.0 run --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml -- check" 1 \
     "GitHub workflow handler-contract repository check"
+  require_exact_occurrences "$github_workflow_text" \
+    "cargo +1.88.0 run --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml --bin session-ownership-check -- check" 1 \
+    "GitHub workflow session-ownership repository check"
   require_exact_occurrences "$github_workflow_text" \
     "cargo +1.88.0 fmt --manifest-path tools/architecture/handler-contract-check/Cargo.toml -- --check" 1 \
     "GitHub workflow handler-contract checker formatting"

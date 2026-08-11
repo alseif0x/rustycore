@@ -12,9 +12,13 @@
 //! enforcing `crate::handlers` as the sole registration location for the
 //! audited direct and macro-generated grammar.
 
+mod bridge_access;
 mod dispatcher;
 mod ownership;
+mod persistence_access;
 mod registrations;
+mod registry_access;
+mod session_ownership;
 mod snapshot;
 
 use std::collections::BTreeSet;
@@ -28,6 +32,11 @@ use dispatcher::{
 use ownership::audit_registration_ownership;
 use registrations::{EXPECTED_REGISTRATION_MACROS, analyze_handler_source};
 use snapshot::parse_snapshot_contract;
+
+pub use session_ownership::{
+    check_repository as check_session_ownership_repository,
+    print_repository_baseline as print_session_ownership_baseline,
+};
 
 fn repository_root() -> Result<PathBuf, String> {
     Path::new(env!("CARGO_MANIFEST_DIR"))

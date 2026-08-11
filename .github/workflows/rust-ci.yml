@@ -81,6 +81,7 @@ jobs:
           python3 tools/architecture/check_architecture.py check
           cargo +1.88.0 test --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml
           cargo +1.88.0 run --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml -- check
+          cargo +1.88.0 run --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml --bin session-ownership-check -- check
 
       - name: Cargo check
         run: |

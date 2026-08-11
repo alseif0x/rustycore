@@ -5,9 +5,11 @@ issue #133. It records the current owners and intentional mirrors before code is
 machine-readable dependency rules live in
 `tools/architecture/dependency-policy.json`; `tools/architecture/check_architecture.py check`
 enforces them. The checked-in issue ledger
-`tools/architecture/architecture-issue-ledger.json` records every architecture issue, its
-state, and the audited refactor order; the checker keeps this document, the ledger, and the
-JSON policy in agreement without contacting GitHub.
+`tools/architecture/architecture-issue-ledger.json` records every architecture epic and
+implementation slice, its parents, its prerequisites, and one deterministic topological display
+of the audited DAG. External prerequisites such as QA issue #177 are explicit nodes rather than
+implicit prose. The checker keeps this document, the ledger, and the JSON policy in agreement
+without contacting GitHub; independent nodes may still execute in parallel.
 
 ## Decision
 
@@ -110,17 +112,19 @@ last-writer-wins policy.
 |---|---|---|---|---|---|
 | Authenticated world connection | `wow-network::accept` and the connection task | socket/authentication task | `WorldSession` dispatch boundary | one connection; created after authentication and dropped on disconnect | Remains a network responsibility. #134 narrowed the listener to transport-owned configuration and authenticated connection outputs. |
 | Gameplay session construction aggregate | private `SessionResources` in `crates/world-server/src/session_resources.rs` | `world-server` bootstrap constructs it; the outer session callback captures and clones the `Arc` | `world-server::create_session` copies stores, registries, DB adapters, and runtime handles into each `WorldSession`; the aggregate never enters `wow-network` | process lifetime; no independent clock | #134 moved the aggregate to composition code and retired the direct `wow-network → wow-database` / `wow-network → wow-instances` edges. #136 next extracts a private session factory. |
-| Session mailbox and connected-player registry | `wow_network::player_registry::{SessionCommand, PlayerRegistry}`; registry is a `DashMap<ObjectGuid, PlayerBroadcastInfo>` | session login/logout and state publication write the registry; session/global runtime producers enqueue mailbox and durable-rail commands | global routing reads registry snapshots; the owning session consumes its mailbox; chat/movement/combat/loot producers request fanout through these seams | registry lives for the process; mailbox lives for a connection/session task; FIFO command order is observable | #138 moves this application coordination seam out of `wow-network`. |
-| Group registry | `wow_network::group_registry::GroupRegistry`, currently a `DashMap<u64, GroupInfo>` | group handlers and group timer/ready-check paths | group handlers, connected-player fanout, world-server ready-check loop | process lifetime; timed group work is driven outside the network listener | #137 moves gameplay group ownership out of `wow-network`. |
-| Legacy creature runtime | shared `wow_world::MapManager` behind `Arc<RwLock<_>>` | production `GlobalLegacy` runtime tick plus explicit spawn/respawn bridges; `Session` writer exists only for tests and the diagnostic config override | world handlers, global runtime bridge, visibility/fanout routing | process lifetime; production startup defaults `RuntimeTickOwner` to `GlobalLegacy` and uses the configured map-update interval; session ticks read the shared owner and must skip to prevent double resolution | Retire only method-by-method into the canonical map/entity runtime under `docs/migration/adr-runtime-tick-ownership.md`. |
-| Canonical map runtime | `wow_map::MapManager` | canonical global map loop, grid/spawn/respawn paths, explicit selected legacy-result adapters | world-server orchestration and session map/player bridges | process lifetime; canonical loop uses the configured map interval; preserves the C++ `Map::Update` phase order represented by the ADR | Becomes the sole map/entity authority only after every migrated method has parity tests and the corresponding legacy writer is removed. |
-| Creature legacy/canonical mirror | canonical loaded-grid records are mirrored into `wow_world::MapManager`; selected lifecycle, movement, aggro, attack-stop, melee, health, and respawn outcomes are explicitly bridged back to canonical state | named bridge functions in `world-server`, including `mirror_loaded_grid_creature_to_legacy_like_cpp` and the `run_legacy_creature_*_and_deliver_once_like_cpp` family | both runtimes and post-lock packet/command delivery | load/respawn synchronization begins canonical → legacy; only explicitly modelled runtime outcomes travel legacy → canonical; delivery occurs after map locks are released | Remove one bridge only when its destination runtime becomes authoritative for that whole transition. Never add a generic bidirectional sync. |
-| Represented player gameplay state | mostly fields on `wow_world::WorldSession`; canonical value types and partial state also exist in `wow_entities::Player` | session handlers and session update code | packet builders, persistence helpers, `PlayerRegistry` summaries, canonical snapshot bridges | connection/selected-character lifetime; `canonical_player_entity_snapshot_*_like_cpp` currently rebuilds a `Player` snapshot from represented session fields | #133's later ownership work must migrate one complete responsibility at a time until `Player` is the mutable gameplay owner and `WorldSession` is only the connection/session bridge. |
+| Session directory | `wow_network::player_registry::PlayerRegistry`; backing storage is a `DashMap<ObjectGuid, PlayerBroadcastInfo>` | session login/logout and state publication write the directory | global routing, handlers, and gameplay fanout currently read broad snapshots | process lifetime; presence and generation/addressability are Session concerns, while gameplay fields are temporary mirrors | #150 introduces the opaque facade; #192-#195 burn down production consumers; #196 closes storage and fixtures; #138 then relocates the already-opaque directory. |
+| Session mailbox and durable rails | `wow_network::player_registry::SessionCommand` plus ordinary and durable payloads in the same network module | session/global runtime and gameplay producers enqueue commands; one session task consumes them | the owning session consumes FIFO commands and publishes acknowledgements | connection/session lifetime; queue identity, capacity, FIFO, incarnation fences, acknowledgements, and shutdown drain are observable | #189 removes durable loot persistence coordination; after #138, #191 relocates the ordinary mailbox protocol and #190 relocates the durable creature-runtime rail. #140 then extracts the pump without changing queue semantics. |
+| Group registry and pending invites | `wow_network::group_registry::{GroupRegistry, PendingInvites}`, currently backed by concurrent maps | group handlers and group timer/ready-check paths | group handlers, connected-player fanout, world-server ready-check loop | process lifetime; timed group work is driven outside the network listener | #151 creates opaque facades; #197 and #198 centralize atomic transitions; #199 separates persistence/publication and closes storage; #195 adapts session addressing; #137 finally moves the owner into `wow-social`. |
+| Legacy creature runtime | shared `wow_world::MapManager` behind `Arc<RwLock<_>>` | production `GlobalLegacy` runtime tick plus explicit spawn/respawn bridges; `Session` writer exists only for tests and the diagnostic config override | world handlers, global runtime bridge, visibility/fanout routing | process lifetime; production startup defaults `RuntimeTickOwner` to `GlobalLegacy` and uses the configured map-update interval; session ticks read the shared owner and must skip to prevent double resolution | #188 freezes clocks, phases, and bridge behavior. #28 may perform one bounded authority cut; later cuts retire legacy behavior method-by-method under `docs/migration/adr-runtime-tick-ownership.md`. |
+| Canonical map runtime | `wow_map::MapManager` | canonical global map loop, grid/spawn/respawn paths, explicit selected legacy-result adapters | world-server orchestration and session map/player bridges | process lifetime; canonical loop uses the configured map interval; preserves the C++ `Map::Update` phase order represented by the ADR | #188 records the current phase trace. It becomes the sole map/entity authority only after each later method cut has parity tests and removes the corresponding legacy writer. |
+| Creature legacy/canonical mirror | canonical loaded-grid records are mirrored into `wow_world::MapManager`; selected lifecycle, movement, aggro, attack-stop, melee, health, and respawn outcomes are explicitly bridged back to canonical state | named bridge functions in `world-server`, including `mirror_loaded_grid_creature_to_legacy_like_cpp` and the `run_legacy_creature_*_and_deliver_once_like_cpp` family | both runtimes and post-lock packet/command delivery | load/respawn synchronization begins canonical → legacy; only explicitly modelled runtime outcomes travel legacy → canonical; delivery occurs after map locks are released | #181 inventories every bridge and #188 freezes its phase trace. Remove one bridge only when its destination runtime becomes authoritative for that whole transition; never add generic bidirectional sync. |
+| Represented player gameplay state | mostly fields on `wow_world::WorldSession`; canonical value types and partial state also exist in `wow_entities::Player` | session handlers and session update code | packet builders, persistence helpers, `PlayerRegistry` summaries, canonical snapshot bridges | connection/selected-character lifetime; `canonical_player_entity_snapshot_*_like_cpp` currently rebuilds a `Player` snapshot from represented session fields | #181 records field families, writers, mirrors, and cutover owners. After the Session shell lands, #153 materializes one-responsibility cuts until `Player` is the mutable gameplay owner and `WorldSession` is only the connection/session bridge. |
+| Concrete persistence access | SQLx/MySQL pools, rows, transactions, prepared statements, and raw SQL currently leak through `wow-world`, data loaders, instances, handlers, and Session resources | application/gameplay code and concrete `wow-database` adapters both assemble durable work | handlers, lifecycle, runtime recovery, and publication paths consume concrete outcomes | statement order, connection affinity, commit/rollback/unknown-commit classification, fences, and publication order are observable | #186 inventories and ratchets leaks; #187 freezes ordered behavior; #200 earns the SQLx-free `wow-persistence` boundary with Player lifecycle; #189 moves durable loot coordination. Epic #169 and post-shell gate #153 own the remaining vertical cuts. |
 | Effective skill metadata | `wow_data::SkillLineStore` owns final `SkillLine` identity/acquisition fields; `wow_data::SkillStore` owns final `SkillLineAbility` and `SkillRaceClassInfo` rows plus their derived indexes | `world-server` bootstrap composes WDC4 → official SQL → custom SQL → final removals once; no runtime writer | spell loaders and gameplay validation read immutable stores shared with sessions | process lifetime; `SkillLine` is composed first, then dependent rows are filtered and every index is rebuilt from final records in ascending ID order | Retire the specialized acquisition projections only when the general effective DB2 authority carries the same checked payload and coverage states. Never reactivate the raw WDC-only `SkillStore::load` path in production. |
 | Effective spell-acquisition metadata | `wow_data::SpellAcquisitionCatalogLikeCpp`, a compact immutable projection of the seven acquisition source families | `world-server` bootstrap composes and publishes one `Arc`; no handler or session mutates it | derived spell-learning loaders now; trainer planning in #164; sessions receive the same `Arc`, not the seven raw stores | process lifetime; exact regular SpellInfo keys seed covered/zero distinction, while server-side keys without validated acquisition payload are explicitly indeterminate | Remove the specialized catalog, or feed it from the general store, once full effective `SpellInfo` payload authority exists. This row does not authorize packet, persistence, spell, skill, money, or battle-pet mutation. |
 | Immutable spell-acquisition projection and application | `wow_world::spell_acquisition` owns the pure fixed-point plan plus its validation/transaction/publication boundary; the live player and Character DB remain the runtime/durable owners | planning mutates only a private ordered copy; #158 locks one character row and commits the complete durable result; #159 extends that same transaction with guarded money and keeps the exclusion through runtime/packet publication | #157 consumes ordered primary-profession outcomes; #158 consumes the exact source/result plan and generic player `EffectLearnSpell`; #159 consumes a startup-audited cast/craft authority plus a fresh player effect mask and owns trainer charge/wrapper/visual orchestration | one acquisition operation; complete spell/skill/trait/override authority, exact slot occupancy and wrapper static/live proofs are mandatory. Unknown COMMIT outcomes reconcile money plus all spell/favorite/skill rows before publication; see [the detailed contract](spell-acquisition-plan.md) | Retire the specialized seam only when canonical `Player` methods expose the same atomic dry-run/apply contract. Never reconstruct capacity or criteria from a flat trigger list, sort profession outcomes, infer “no immunity” from missing runtime state, or publish before the durable boundary. |
 | Battle-pet trainer purchase saga | `wow_world::battle_pet_purchase` owns the durable command (`character_battle_pet_purchase`), its state transitions and login recovery; Character DB money stays under the #159 exclusive per-character guard; the pet itself stays under the #160 account owner | the saga is the sole writer of the command table and the sole caller that turns a trainer offer into a #160 add; it spawns no tasks and holds no lock across `.await` other than the pre-existing async money mutex | buy handler adapts request → offer decision → saga; the #160 owner keeps fence/journal-lease/capacity authority; the #163 catalog keeps species-classification authority; the world-DB selection store keeps breed/quality/display authority | one purchase command per 128-bit request key (shared with the #160 receipt); charge+command, publication marker, completion, and refund+flip are each single Character DB transactions; `PetApplied` is derived from the Login DB receipt and a Completed row with a clear `published` marker is owed its publication by recovery | Retire only when a portable cross-pool transaction exists. Never publish before the pet is durable, never refund a durable pet, never recover from in-memory flags, never activate the `TrainerBuySpell` dispatcher arm outside #142. |
-| Handler registration and dispatch-arm contract | the sole `inventory::collect!(PacketHandlerEntry)` in `wow-handler`, link-time `inventory::iter<PacketHandlerEntry>` consumed by `wow_handler`/`WorldSession`, and the concrete `WorldSession::dispatch_packet` opcode arms | unconditional module-item `inventory::submit!` declarations owned logically by `wow_world::handlers`, plus the dispatcher implementation | dispatch table and session update driver | compile/link lifetime; no mutable clock | The distribution inside `crate::handlers` may change. The exact opcode set, opcode value, `SessionStatus`, `PacketProcessing`, handler name, and presence on both sides of dispatch are guarded and must change deliberately. This proves arm presence, not the semantics of each arm body. Issue #142 removed the final one-sided entries; exact equality now has zero exceptions. |
+| Handler registration and dispatch-arm contract | the sole `inventory::collect!(PacketHandlerEntry)` in `wow-handler`, link-time `inventory::iter<PacketHandlerEntry>` consumed by `wow_handler`/`WorldSession`, and the concrete `WorldSession::dispatch_packet` opcode arms | unconditional module-item `inventory::submit!` declarations owned logically by `wow_world::handlers`, plus the dispatcher implementation | dispatch table and session update driver | compile/link lifetime; no mutable clock | #142 removed the final one-sided entries. #185 makes module ownership enforceable, #139 proves one thin capability, and #152 moves admission/dispatch without altering the exact opcode/metadata/arm contract. The terminal router inversion is re-audited by #153. |
 
 ## Non-negotiable runtime invariants
 
@@ -144,8 +148,15 @@ The refactor campaign must preserve:
 python3 tools/architecture/check_architecture.py self-test
 python3 tools/architecture/check_architecture.py check
 python3 tools/architecture/check_architecture.py hotspots --limit 20
+cargo +1.88.0 run --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml --bin session-ownership-check -- check
 ./tools/pr-preflight.sh architecture
 ```
+
+Ledger schema v2 distinguishes epics from one-PR slices, validates parents and internal/external
+prerequisites, rejects unknown dependencies, self-dependencies and cycles, and proves that the
+documented sequence is a complete topological ordering of the slices. A closed slice cannot depend
+on an open prerequisite. The checked-in state remains an offline reviewed snapshot; the guard does
+not contact GitHub or silently rewrite titles, states, or higher baselines.
 
 `self-test` pins the locked/all-features Cargo metadata command and proves a permitted downward
 workspace edge (`wow-combat → wow-math`), a rejected
@@ -183,6 +194,14 @@ include, inventory call, meta-macro, or macro body that can synthesize `mod`, `m
 `PacketHandlerEntry`, an inventory registration path, or one of the audited registration macros
 fails. This prevents an upstream workspace crate outside the reverse closure from exporting or
 mounting a hidden generator that is later invoked by a handler-linked crate.
+
+The sibling `session-ownership-check` binary reuses that logical module walk but evaluates `cfg`
+satisfiability to classify production, test-fixture, dead, and generated-input surfaces. It stores
+exact normalized identities rather than line numbers, follows the three transitional registry
+aliases through ordinary wrappers/imports/locals/returns, and fails closed when a macro, alias,
+glob, `include!`, or malformed `cfg` would make ownership unknowable. Splitting or combining
+physical `impl` blocks is therefore neutral; moving or changing an associated item, field, payload,
+factory call, or direct registry operation is a reviewed baseline delta.
 
 Ownership is logical, not a path-prefix convention: only sources mounted as
 `wow_world::handlers` or descendants may submit `PacketHandlerEntry`. A file physically below
@@ -230,55 +249,134 @@ Do not regenerate a baseline merely to make CI green.
    concrete removal issue.
 6. Run the architecture self-test, architecture check, focused Rust tests, and full PR preflight.
 
-## First-tranche hotspot evidence
+## Audited ownership and hotspot evidence
 
-Measured at the #154 baseline (HEAD `c697827c`); refresh these numbers as tranche PRs land:
+The current baseline was audited on branch `3.4.3` at HEAD `002d3d87`. Production and test lines
+are reported separately because moving an inline test module must not masquerade as ownership
+progress:
 
-- At that baseline, `wow-network::accept::SessionResources` carried 244 public fields in
-  `crates/wow-network/src/accept.rs` (lines 190-513). #134 has since moved that aggregate to the
-  composition side, removed it from the listener API, and retired the direct database and instance
-  dependencies from `wow-network`.
-- `crates/world-server/src/main.rs` spans 27,484 lines and `create_session` alone about 812
-  (lines 12,796-13,607); #136 extracts that construction behind a private session factory.
-- `crates/wow-world/src/session.rs` spans 156,394 lines including tests; #152 and #140 extract
-  the packet admission/dispatch and update/lifecycle drivers into private modules.
-- `crates/wow-world/src/handlers/misc.rs` holds 198 `inventory::submit!` registrations in
-  18,785 lines; #139 extracts the 15 Calendar registrations as the first vertical split.
+| Hotspot | Production | Tests | Total |
+|---|---:|---:|---:|
+| `crates/wow-world/src/session.rs` | 71,997 | 94,772 | 166,769 |
+| `crates/wow-map/src/map.rs` | 15,247 | 18,413 | 33,660 |
+| `crates/wow-world/src/handlers/character.rs` | 20,235 | 10,618 | 30,853 |
+| `crates/wow-world/src/handlers/loot.rs` | 13,660 | 16,193 | 29,853 |
+| `crates/world-server/src/main.rs` | 15,380 | 12,795 | 28,175 |
+| `crates/wow-world/src/handlers/misc.rs` | 7,315 | 11,473 | 18,788 |
+| `crates/wow-world/src/handlers/quest.rs` | 8,231 | 10,241 | 18,472 |
+| `crates/wow-entities/src/player.rs` | 9,265 | 8,907 | 18,172 |
 
-Closing the first tranche only proves the boundary pattern on these hotspots; it does not close
-the parent epic, which still owns the remaining handler families, the canonical `Player`
-ownership migration, and every generic exception the closing re-audit must classify.
+At the same HEAD, the syntax-aware ratchet records 738 `WorldSession` fields: 727 production and
+11 `cfg(test)` fixtures. It also records all 20 logical inherent-impl owners and 3,339 exact
+associated-item signatures rather than freezing the number of physical `impl` blocks. Private
+composition-side `SessionResources` has 243 fields, of which 186 are optional;
+`PlayerBroadcastInfo` has 80 fields; and `SessionCommand` has 37 variants plus 42 transitively
+reachable payload types. The factory has 247 `set_*` and one `install_*` call: two setters are
+multiline calls that the earlier text-only count missed. The generated-input surface has 44 exact
+records, and direct access to `PlayerRegistry`, `GroupRegistry`, or `PendingInvites` is frozen as
+685 exact AST rows with multiplicity 705. The workspace-wide persistence inventory adds 278 exact
+rows (326 with multiplicity) for concrete types, queries, transactions, pool escapes and macro
+boundaries. The legacy/canonical inventory contains 71 definition/seam rows, including eight
+curated anchors; it deliberately avoids duplicating every caller of an already inventoried typed
+helper. `#134` already moved `SessionResources` out of `wow-network`; #136 extracts the factory
+without turning the aggregate into another public dependency bag.
+
+The reproducible syntax snapshot is
+`tools/architecture/session-ownership-policy.json`; the curated owner/writer/mirror and retirement
+mapping is `tools/architecture/runtime-ownership-ledger.json`. The Python guard cross-checks their
+exact field/variant memberships, while `session-ownership-check` rejects added, removed, retyped,
+re-visibility-scoped, re-owned, generated, factory-wiring, command-payload, broadcast, and direct
+registry, persistence, and bridge surfaces. `print-baseline` only writes reviewed JSON to stdout;
+it never updates either baseline automatically.
+
+These numbers are diagnostics, not completion criteria. #181 owns reproducible counters and
+non-growth rules; each later slice must reduce or retire a named ownership smell rather than
+merely moving lines.
 
 ## Refactor sequence
 
-The child issues of #133 execute in semantic order, regardless of their GitHub creation number.
-The checked-in issue ledger records the same sequence and each issue's state, and the checker
-fails when this sequence, the ledger, and the JSON policy disagree:
+The ledger is the offline source of truth for the dependency DAG. The list below is only one
+deterministic topological display used to detect documentation drift; it does **not** serialize
+independent work. Epics #133 and #169 are parents rather than implementation PRs, and external QA
+prerequisite #177 is represented separately in the ledger.
 
-1. #135 — executable boundary guardrails (this baseline);
-2. #143 — model C++ interaction provenance before activating the buy arm;
-3. #146 — model exact effective SpellInfo key authority;
-4. #148 — model exact effective SkillLine key authority;
-5. #144 — validate trainer load inputs before activation;
-6. #156 — model independent primary-profession capacity;
-7. #163 — compose effective spell-acquisition metadata;
-8. #164 — freeze a complete trainer acquisition plan;
-9. #157, #158, #159, #160 and #161 — apply the trainer plan in bounded behavioral slices;
-10. #142 — reconcile the pre-existing dispatcher/registration mismatches;
-11. #154 — align this policy and the issue ledger with the audited tranche;
-12. #134 — remove gameplay `SessionResources` from the listener;
-13. #136 — private world-server session factory;
-14. #138 — session mailbox/player registry ownership (mechanical relocation);
-15. #150 — encapsulate the relocated player registry behind a narrow facade;
-16. #137 — group registry ownership (mechanical relocation);
-17. #151 — encapsulate the relocated group registry and pending invites behind atomic APIs;
-18. #139 — extract Calendar handlers from `misc.rs`;
-19. #152 — extract WorldSession packet admission and dispatch;
-20. #140 — extract the WorldSession update/lifecycle driver;
-21. #153 — mandatory post-tranche re-audit; owns the final classification of every remaining
-    generic parent-owned exception and the handler/packet/network boundary decisions that
-    private-module extractions inside `wow-world` cannot remove.
+1. #135 — executable boundary guardrails;
+2. #143 — interaction provenance;
+3. #146 — effective SpellInfo authority;
+4. #148 — effective SkillLine authority;
+5. #144 — validated trainer load inputs;
+6. #156 — primary-profession capacity;
+7. #163 — effective spell-acquisition metadata;
+8. #164 — deterministic acquisition outcomes;
+9. #157 — trainer offer and eligibility decisions;
+10. #158 — durable prepared spell learning;
+11. #159 — atomic normal trainer teaching;
+12. #160 — durable account-atomic battle-pet ownership;
+13. #161 — recoverable battle-pet trainer purchase;
+14. #142 — dispatcher/registration reconciliation;
+15. #154 — audited policy alignment;
+16. #134 — listener/SessionResources decoupling;
+17. #181 — ownership baseline and submodule ratchets;
+18. #185 — module-aware architecture and handler guards;
+19. #186 — persistence-leak inventory and ratchet;
+20. #188 — world/map clock and bridge trace;
+21. #136 — private world-server session factory;
+22. #187 — persistence transaction/publication golden;
+23. #150 — opaque PlayerRegistry facade in place;
+24. #151 — opaque GroupRegistry/PendingInvites facades in place;
+25. #139 — Calendar thin-capability pathfinder;
+26. #152 — packet admission and dispatch submodules;
+27. #200 — Player lifecycle persistence port;
+28. #189 — durable loot persistence coordination;
+29. #192 — runtime/fanout directory consumer burn-down;
+30. #193 — combat/loot directory consumer burn-down;
+31. #194 — quest/spell/movement directory consumer burn-down;
+32. #197 — atomic invite/create/capacity transitions;
+33. #198 — atomic membership/leadership/ready transitions;
+34. #199 — Group persistence/publication and storage closure;
+35. #195 — social/group session-addressing adapters;
+36. #196 — PlayerRegistry storage and fixture closure;
+37. #138 — opaque session-directory relocation;
+38. #191 — ordinary mailbox-protocol relocation;
+39. #137 — encapsulated Group owner move;
+40. #190 — durable creature-runtime rail relocation;
+41. #140 — ordinary/durable Session command pump;
+42. #182 — logical realm/instance routing;
+43. #183 — Session-only phase driver;
+44. #184 — login/logout lifecycle over persistence ports;
+45. #153 — post-shell re-audit and remaining semantic cuts.
 
-Each issue is one branch and one PR. The next issue starts only after the current PR is
-capture-clean where applicable, all actionable review is resolved, required CI is green on the
-current HEAD, and the PR is merged.
+The open dependency graph is:
+
+```text
+#134 ─► #181
+#134 + #181 ─► #136
+#181 ─► #185, #186, #188
+#181 + #185 ─► #150, #151, #152
+#185 ─► #139
+#186 ─► #187 ─► #189
+#186 + #187 ─► #200
+
+#150 + #188 ─► #192
+#150 + #187 ─► #193
+#150 + #188 ─► #194
+#151 ─► #197 ─► #198
+#187 + #198 ─► #199
+#150 + #199 ─► #195
+#192 + #193 + #194 + #195 ─► #196
+#136 + #196 ─► #138 ─► #191
+#195 + #199 + #191 ─► #137
+#188 + #191 ─► #190
+
+#152 + #191 + #190 ─► #140
+#140 + external #177 ─► #182
+#182 + #188 ─► #183
+#183 + #187 + #200 + external #177 ─► #184
+#184 ─► #153
+```
+
+Some direct dependencies repeat a transitive evidence gate deliberately; for example #184 names
+#187 even though #200 also depends on it. A slice may start when every declared prerequisite is
+merged and its own branch is current. Unrelated branches may proceed in parallel, but each issue
+still maps to one reviewable PR with focused validation and no behavior-changing extraction hidden
+inside a mechanical move.
