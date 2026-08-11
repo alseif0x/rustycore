@@ -114,6 +114,15 @@ pub struct DisableWorldObjectRefLikeCpp {
     pub player_map_difficulty: Option<u8>,
 }
 
+/// Result of evaluating a creature spell row when the caller may not have
+/// hydrated every location field required by the row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CreatureSpellDisableDecisionLikeCpp {
+    Enabled,
+    Disabled,
+    ContextUnrepresented,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DisableMgrLikeCpp {
     by_type: [HashMap<u32, DisableDataLikeCpp>; MAX_DISABLE_TYPES as usize],
@@ -216,6 +225,53 @@ impl DisableMgrLikeCpp {
 
     pub fn is_vmap_disabled_for_like_cpp(&self, entry: u32, flags: u8) -> bool {
         self.is_disabled_for_like_cpp(DISABLE_TYPE_VMAP, entry, None, flags, None)
+    }
+
+    pub fn creature_spell_disable_decision_like_cpp(
+        &self,
+        spell_id: u32,
+        map_id: u32,
+        area_id: Option<u32>,
+        is_battle_arena: Option<bool>,
+        is_battleground: Option<bool>,
+    ) -> CreatureSpellDisableDecisionLikeCpp {
+        let Some(data) = self.by_type[DISABLE_TYPE_SPELL as usize].get(&spell_id) else {
+            return CreatureSpellDisableDecisionLikeCpp::Enabled;
+        };
+        if data.flags & SPELL_DISABLE_CREATURE == 0 {
+            return CreatureSpellDisableDecisionLikeCpp::Enabled;
+        }
+
+        if (data.flags & SPELL_DISABLE_ARENAS != 0 && is_battle_arena == Some(true))
+            || (data.flags & SPELL_DISABLE_BATTLEGROUNDS != 0 && is_battleground == Some(true))
+            || (data.flags & SPELL_DISABLE_MAP != 0 && data.params_0.contains(&map_id))
+        {
+            return CreatureSpellDisableDecisionLikeCpp::Disabled;
+        }
+
+        if (data.flags & SPELL_DISABLE_ARENAS != 0 && is_battle_arena.is_none())
+            || (data.flags & SPELL_DISABLE_BATTLEGROUNDS != 0 && is_battleground.is_none())
+        {
+            return CreatureSpellDisableDecisionLikeCpp::ContextUnrepresented;
+        }
+
+        if data.flags & SPELL_DISABLE_AREA != 0 {
+            return match area_id {
+                Some(area_id) if data.params_1.contains(&area_id) => {
+                    CreatureSpellDisableDecisionLikeCpp::Disabled
+                }
+                Some(_) => CreatureSpellDisableDecisionLikeCpp::Enabled,
+                None => CreatureSpellDisableDecisionLikeCpp::ContextUnrepresented,
+            };
+        }
+
+        let contextual_flags =
+            SPELL_DISABLE_ARENAS | SPELL_DISABLE_BATTLEGROUNDS | SPELL_DISABLE_MAP;
+        if data.flags & contextual_flags == 0 {
+            CreatureSpellDisableDecisionLikeCpp::Disabled
+        } else {
+            CreatureSpellDisableDecisionLikeCpp::Enabled
+        }
     }
 
     pub fn is_pathfinding_enabled_like_cpp(&self, map_id: u32, config_enable_mmaps: bool) -> bool {
@@ -642,6 +698,101 @@ mod tests {
         assert_eq!(normalize_signed_db_u16_like_cpp(0x0200), 0x0200);
         assert_eq!(normalize_signed_db_u16_like_cpp(-1), u16::MAX);
         assert_eq!(normalize_signed_db_u16_like_cpp(0x1_0000), 0);
+    }
+
+    #[test]
+    fn creature_spell_disable_decision_fails_closed_for_missing_area_context_like_cpp() {
+        let make_mgr = |flags, params_0: &str, params_1: &str| {
+            DisableMgrLikeCpp::from_rows_like_cpp(
+                [DisableDbRowLikeCpp {
+                    source_type: DISABLE_TYPE_SPELL,
+                    entry: 123,
+                    flags,
+                    params_0: params_0.to_string(),
+                    params_1: params_1.to_string(),
+                }],
+                DisableMgrRefsLikeCpp::default(),
+            )
+            .0
+        };
+
+        let global = make_mgr(SPELL_DISABLE_CREATURE, "", "");
+        assert_eq!(
+            global.creature_spell_disable_decision_like_cpp(
+                123,
+                571,
+                None,
+                Some(false),
+                Some(false),
+            ),
+            CreatureSpellDisableDecisionLikeCpp::Disabled
+        );
+
+        let player_only = make_mgr(SPELL_DISABLE_PLAYER, "", "");
+        assert_eq!(
+            player_only.creature_spell_disable_decision_like_cpp(
+                123,
+                571,
+                None,
+                Some(false),
+                Some(false),
+            ),
+            CreatureSpellDisableDecisionLikeCpp::Enabled
+        );
+
+        let map_scoped = make_mgr(SPELL_DISABLE_CREATURE | SPELL_DISABLE_MAP, "571", "");
+        assert_eq!(
+            map_scoped.creature_spell_disable_decision_like_cpp(
+                123,
+                571,
+                None,
+                Some(false),
+                Some(false),
+            ),
+            CreatureSpellDisableDecisionLikeCpp::Disabled
+        );
+        assert_eq!(
+            map_scoped.creature_spell_disable_decision_like_cpp(
+                123,
+                0,
+                None,
+                Some(false),
+                Some(false),
+            ),
+            CreatureSpellDisableDecisionLikeCpp::Enabled
+        );
+
+        let area_scoped = make_mgr(SPELL_DISABLE_CREATURE | SPELL_DISABLE_AREA, "", "42");
+        assert_eq!(
+            area_scoped.creature_spell_disable_decision_like_cpp(
+                123,
+                571,
+                None,
+                Some(false),
+                Some(false),
+            ),
+            CreatureSpellDisableDecisionLikeCpp::ContextUnrepresented
+        );
+        assert_eq!(
+            area_scoped.creature_spell_disable_decision_like_cpp(
+                123,
+                571,
+                Some(42),
+                Some(false),
+                Some(false),
+            ),
+            CreatureSpellDisableDecisionLikeCpp::Disabled
+        );
+        assert_eq!(
+            area_scoped.creature_spell_disable_decision_like_cpp(
+                123,
+                571,
+                Some(7),
+                Some(false),
+                Some(false),
+            ),
+            CreatureSpellDisableDecisionLikeCpp::Enabled
+        );
     }
 
     #[test]

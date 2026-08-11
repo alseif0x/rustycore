@@ -26,6 +26,12 @@ pub const SMSG_LOOT_REMOVED: u16 = 0x2615;
 /// `SMSG_SEND_KNOWN_SPELLS` in the 3.4.3 opcode table.
 pub const SMSG_SEND_KNOWN_SPELLS: u16 = 0x2C27;
 
+/// `SMSG_SPELL_GO` in the 3.4.3 opcode table.
+pub const SMSG_SPELL_GO: u16 = 0x2C36;
+
+/// `SMSG_SPELL_START` in the 3.4.3 opcode table.
+pub const SMSG_SPELL_START: u16 = 0x2C37;
+
 /// `SMSG_ITEM_PUSH_RESULT` in the 3.4.3 opcode table.
 pub const SMSG_ITEM_PUSH_RESULT: u16 = 0x2623;
 
@@ -46,9 +52,12 @@ pub const SMSG_ON_MONSTER_MOVE: u16 = 0x2DD4;
 
 const OBJECT_GUID_COUNTER_MASK: u64 = 0x0000_00FF_FFFF_FFFF;
 const HIGH_GUID_CREATURE: u8 = 8;
+const HIGH_GUID_CAST: u8 = 47;
 const HIGH_GUID_ITEM: u8 = 3;
 const HIGH_GUID_LOOT_OBJECT: u8 = 15;
 const HIGH_GUID_PLAYER: u8 = 2;
+const SPELL_CAST_SOURCE_NORMAL: u8 = 3;
+const SPELL_MISS_REFLECT: u8 = 11;
 const GLOBAL_GUID_RESERVED_HIGH_BITS_MASK: u64 = (1_u64 << 42) - 1;
 const XP_GAIN_REASON_KILL: u8 = 0;
 const VALUES_TYPE_UNIT: u32 = 1 << 5;
@@ -93,6 +102,15 @@ const ISSUE_24_CREATURE_IDENTITY: StableObjectGuid = StableObjectGuid {
     subtype: 0,
     server_id: 0,
 };
+const ISSUE_26_CREATURE_ENTRY: u32 = 22_378;
+const ISSUE_26_REALM_ID: u16 = 1;
+const ISSUE_26_MAP_ID: u16 = 530;
+const ISSUE_26_SPELL_ID: i32 = 15_691;
+const ISSUE_26_SPELL_X_SPELL_VISUAL_ID: i32 = 244_493;
+const ISSUE_26_PLAYER_COUNTER: u64 = 15;
+const ISSUE_26_START_CAST_FLAGS: u32 = 0x0000_0002;
+const ISSUE_26_GO_CAST_FLAGS: u32 = 0x0000_0100;
+const ISSUE_26_UNIT_TARGET_FLAGS: u32 = 0x0000_0002;
 pub const ISSUE_24_PING_FENCE_WIRE: [u8; 4] = *b"DTOR";
 pub const ISSUE_24_PING_FENCE_SERIAL: u32 = u32::from_le_bytes(ISSUE_24_PING_FENCE_WIRE);
 const ISSUE_24_PING_BODY: [u8; 8] = [
@@ -202,6 +220,132 @@ pub struct SendKnownSpellsBody {
     pub initial_login: bool,
     pub known_spells: Vec<u32>,
     pub favorite_spells: Vec<u32>,
+}
+
+/// One exact target location embedded in `SpellTargetData` or TargetPoints.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SpellTargetLocationBody {
+    pub transport: ExactObjectGuid,
+    pub position: WirePosition,
+}
+
+/// A spell GUID reference that is either exact or explicitly correlated to
+/// the packet's Creature caster. Only exact equality with CasterGUID on that
+/// same side produces `Caster`; arbitrary Creature targets remain exact.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum CorrelatedSpellGuidBody {
+    Caster,
+    Exact { guid: ExactObjectGuid },
+}
+
+/// Complete stable wire representation of `SpellTargetData`.
+///
+/// Floating-point values retain their exact IEEE-754 bits. The target name is
+/// retained as bytes so the comparator never performs a lossy text
+/// normalization.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SpellTargetDataBody {
+    pub flags: u32,
+    pub unit: CorrelatedSpellGuidBody,
+    pub item: ExactObjectGuid,
+    pub src_location: Option<SpellTargetLocationBody>,
+    pub dst_location: Option<SpellTargetLocationBody>,
+    pub orientation_bits: Option<u32>,
+    pub map_id: Option<i32>,
+    pub name: Vec<u8>,
+}
+
+/// One miss result. `reflect_status` is present only for
+/// `SPELL_MISS_REFLECT`, exactly as in the C++ serializer.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SpellMissStatusBody {
+    pub reason: u8,
+    pub reflect_status: Option<u8>,
+}
+
+/// One stable RemainingPower entry.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SpellPowerDataBody {
+    pub cost: i32,
+    pub power_type: i8,
+}
+
+/// Complete optional rune state carried by `SpellCastData`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SpellRuneDataBody {
+    pub start: u8,
+    pub count: u8,
+    pub cooldowns: Vec<u8>,
+}
+
+/// Stable semantic representation of a complete 3.4.3 `SMSG_SPELL_GO` body.
+///
+/// C++ and Rust allocate the lower 40-bit counters of the Creature caster and
+/// `CastID`, plus the wrapping `CastTime`, independently. The two GUIDs retain
+/// every other identity field. `OriginalCastID` remains completely exact and
+/// the creature-AI contract requires it to be EMPTY. Every other byte of
+/// `SpellCastData`, including visual/flags, target data, hit/miss topology,
+/// optional resource state, and the basic combat-log bit, is decoded and
+/// compared.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SpellGoBody {
+    pub caster_guid: StableObjectGuid,
+    pub caster_unit: StableObjectGuid,
+    pub cast_id: StableObjectGuid,
+    pub original_cast_id: ExactObjectGuid,
+    pub spell_id: i32,
+    pub spell_visual_id: i32,
+    pub cast_flags: u32,
+    pub cast_flags_ex: u32,
+    pub missile_travel_time: u32,
+    pub missile_pitch_bits: u32,
+    pub dest_loc_spell_cast_index: u8,
+    pub immunities_school: u32,
+    pub immunities_value: u32,
+    pub prediction_points: u32,
+    pub prediction_type: u8,
+    pub prediction_beacon: ExactObjectGuid,
+    pub target: SpellTargetDataBody,
+    pub hit_targets: Vec<CorrelatedSpellGuidBody>,
+    pub miss_targets: Vec<CorrelatedSpellGuidBody>,
+    pub miss_status: Vec<SpellMissStatusBody>,
+    pub remaining_power: Vec<SpellPowerDataBody>,
+    pub remaining_runes: Option<SpellRuneDataBody>,
+    pub target_points: Vec<SpellTargetLocationBody>,
+    pub ammo_display_id: Option<i32>,
+    pub ammo_inventory_type: Option<i32>,
+}
+
+/// Stable `SMSG_SPELL_START` representation. It shares the complete
+/// SpellCastData shape with [`SpellGoBody`], but START's CastTime is the cast
+/// duration and therefore remains exact rather than normalized.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SpellStartBody {
+    pub cast: SpellGoBody,
+    pub cast_time: u32,
+}
+
+/// Full `SMSG_SPELL_GO` decode, retaining the three explicitly normalized
+/// exact GUIDs and timestamp for diagnostics and independent contract
+/// validation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DecodedSpellGoBody {
+    pub body: SpellGoBody,
+    pub exact_caster_guid: ExactObjectGuid,
+    pub exact_caster_unit: ExactObjectGuid,
+    pub cast_id: ExactObjectGuid,
+    pub cast_time: u32,
+}
+
+/// Full START decode with exact same-side GUIDs retained for START→GO
+/// correlation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DecodedSpellStartBody {
+    pub body: SpellStartBody,
+    pub exact_caster_guid: ExactObjectGuid,
+    pub exact_caster_unit: ExactObjectGuid,
+    pub cast_id: ExactObjectGuid,
 }
 
 /// One exact `ActivePlayerData::InvSlots` value in a normalized player VALUES
@@ -367,6 +511,10 @@ pub struct SemanticBodySide {
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub send_known_spells: Option<SendKnownSpellsBody>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub spell_go: Option<SpellGoBody>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub spell_start: Option<SpellStartBody>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
     pub update_object_inv_slots: Option<UpdateObjectInvSlotsBody>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub monster_move: Option<MonsterMoveBody>,
@@ -396,6 +544,8 @@ impl SemanticBodySide {
                     loot_removed: None,
                     buy_succeeded: None,
                     send_known_spells: None,
+                    spell_go: None,
+                    spell_start: None,
                     update_object_inv_slots: None,
                     monster_move: None,
                     decode_error: Some(
@@ -409,6 +559,8 @@ impl SemanticBodySide {
                 loot_removed: None,
                 buy_succeeded: None,
                 send_known_spells: None,
+                spell_go: None,
+                spell_start: None,
                 update_object_inv_slots: None,
                 monster_move: None,
                 decode_error: None,
@@ -419,6 +571,8 @@ impl SemanticBodySide {
                 loot_removed: None,
                 buy_succeeded: None,
                 send_known_spells: None,
+                spell_go: None,
+                spell_start: None,
                 update_object_inv_slots: None,
                 monster_move: None,
                 decode_error: Some(error),
@@ -440,6 +594,8 @@ impl SemanticBodySide {
                     loot_removed: Some(decoded.body),
                     buy_succeeded: None,
                     send_known_spells: None,
+                    spell_go: None,
+                    spell_start: None,
                     update_object_inv_slots: None,
                     monster_move: None,
                     decode_error: shape_error,
@@ -455,6 +611,8 @@ impl SemanticBodySide {
                 loot_removed: None,
                 buy_succeeded: None,
                 send_known_spells: None,
+                spell_go: None,
+                spell_start: None,
                 update_object_inv_slots: None,
                 monster_move: None,
                 decode_error: Some(error),
@@ -476,6 +634,8 @@ impl SemanticBodySide {
                     loot_removed: None,
                     buy_succeeded: Some(decoded.body),
                     send_known_spells: None,
+                    spell_go: None,
+                    spell_start: None,
                     update_object_inv_slots: None,
                     monster_move: None,
                     decode_error: shape_error,
@@ -487,6 +647,8 @@ impl SemanticBodySide {
                 loot_removed: None,
                 buy_succeeded: None,
                 send_known_spells: None,
+                spell_go: None,
+                spell_start: None,
                 update_object_inv_slots: None,
                 monster_move: None,
                 decode_error: Some(error),
@@ -505,6 +667,8 @@ impl SemanticBodySide {
                 loot_removed: None,
                 buy_succeeded: None,
                 send_known_spells: Some(decoded),
+                spell_go: None,
+                spell_start: None,
                 update_object_inv_slots: None,
                 monster_move: None,
                 decode_error: None,
@@ -515,6 +679,98 @@ impl SemanticBodySide {
                 loot_removed: None,
                 buy_succeeded: None,
                 send_known_spells: None,
+                spell_go: None,
+                spell_start: None,
+                update_object_inv_slots: None,
+                monster_move: None,
+                decode_error: Some(error),
+                raw_body_sha256: Some(raw_body_sha256(raw_body)),
+            },
+        }
+    }
+
+    fn from_decoded_spell_go(decoded: Result<DecodedSpellGoBody, String>, raw_body: &[u8]) -> Self {
+        match decoded {
+            Ok(decoded) => {
+                // Keep this normalization specific to a unit Creature cast.
+                // Player/item casts retain their raw digest and therefore stay
+                // byte-exact even though they share SMSG_SPELL_GO.
+                let creature_candidate = exact_guid_high_type(decoded.exact_caster_guid)
+                    == HIGH_GUID_CREATURE
+                    || exact_guid_high_type(decoded.exact_caster_unit) == HIGH_GUID_CREATURE;
+                let shape_error = creature_candidate
+                    .then(|| validate_decoded_creature_spell_go(&decoded).err())
+                    .flatten();
+                let creature_cast = creature_candidate && shape_error.is_none();
+                Self {
+                    log_xp_gain: None,
+                    loot_removed: None,
+                    buy_succeeded: None,
+                    send_known_spells: None,
+                    spell_go: Some(decoded.body),
+                    spell_start: None,
+                    update_object_inv_slots: None,
+                    monster_move: None,
+                    decode_error: shape_error,
+                    raw_body_sha256: (!creature_cast).then(|| raw_body_sha256(raw_body)),
+                }
+            }
+            Err(error) => Self {
+                log_xp_gain: None,
+                loot_removed: None,
+                buy_succeeded: None,
+                send_known_spells: None,
+                spell_go: None,
+                spell_start: None,
+                update_object_inv_slots: None,
+                monster_move: None,
+                decode_error: Some(error),
+                raw_body_sha256: Some(raw_body_sha256(raw_body)),
+            },
+        }
+    }
+
+    fn from_decoded_spell_start(
+        decoded: Result<DecodedSpellStartBody, String>,
+        raw_body: &[u8],
+    ) -> Self {
+        match decoded {
+            Ok(decoded) => {
+                let creature_candidate = exact_guid_high_type(decoded.exact_caster_guid)
+                    == HIGH_GUID_CREATURE
+                    || exact_guid_high_type(decoded.exact_caster_unit) == HIGH_GUID_CREATURE;
+                let shape_error = creature_candidate
+                    .then(|| {
+                        validate_creature_spell_cast_shape(
+                            &decoded.body.cast,
+                            decoded.exact_caster_guid,
+                            decoded.exact_caster_unit,
+                            decoded.cast_id,
+                        )
+                        .err()
+                    })
+                    .flatten();
+                let creature_cast = creature_candidate && shape_error.is_none();
+                Self {
+                    log_xp_gain: None,
+                    loot_removed: None,
+                    buy_succeeded: None,
+                    send_known_spells: None,
+                    spell_go: None,
+                    spell_start: Some(decoded.body),
+                    update_object_inv_slots: None,
+                    monster_move: None,
+                    decode_error: shape_error,
+                    raw_body_sha256: (!creature_cast).then(|| raw_body_sha256(raw_body)),
+                }
+            }
+            Err(error) => Self {
+                log_xp_gain: None,
+                loot_removed: None,
+                buy_succeeded: None,
+                send_known_spells: None,
+                spell_go: None,
+                spell_start: None,
                 update_object_inv_slots: None,
                 monster_move: None,
                 decode_error: Some(error),
@@ -533,6 +789,8 @@ impl SemanticBodySide {
                 loot_removed: None,
                 buy_succeeded: None,
                 send_known_spells: None,
+                spell_go: None,
+                spell_start: None,
                 update_object_inv_slots: Some(decoded.body),
                 monster_move: None,
                 decode_error: None,
@@ -543,6 +801,8 @@ impl SemanticBodySide {
                 loot_removed: None,
                 buy_succeeded: None,
                 send_known_spells: None,
+                spell_go: None,
+                spell_start: None,
                 update_object_inv_slots: None,
                 monster_move: None,
                 decode_error: Some(format!(
@@ -555,6 +815,8 @@ impl SemanticBodySide {
                 loot_removed: None,
                 buy_succeeded: None,
                 send_known_spells: None,
+                spell_go: None,
+                spell_start: None,
                 update_object_inv_slots: None,
                 monster_move: None,
                 decode_error: Some(error),
@@ -579,6 +841,8 @@ impl SemanticBodySide {
                     loot_removed: None,
                     buy_succeeded: None,
                     send_known_spells: None,
+                    spell_go: None,
+                    spell_start: None,
                     update_object_inv_slots: None,
                     monster_move: Some(decoded.body),
                     decode_error: fixture_error
@@ -594,6 +858,8 @@ impl SemanticBodySide {
                 loot_removed: None,
                 buy_succeeded: None,
                 send_known_spells: None,
+                spell_go: None,
+                spell_start: None,
                 update_object_inv_slots: None,
                 monster_move: None,
                 decode_error: Some(error),
@@ -626,6 +892,8 @@ impl SemanticBodyDiff {
             && self.cpp.loot_removed == self.rust.loot_removed
             && self.cpp.buy_succeeded == self.rust.buy_succeeded
             && self.cpp.send_known_spells == self.rust.send_known_spells
+            && self.cpp.spell_go == self.rust.spell_go
+            && self.cpp.spell_start == self.rust.spell_start
             && self.cpp.update_object_inv_slots == self.rust.update_object_inv_slots
             && self.cpp.monster_move == self.rust.monster_move
             && self.cpp.raw_body_sha256 == self.rust.raw_body_sha256
@@ -658,6 +926,20 @@ impl SemanticBodyDiff {
             self.rust.send_known_spells.as_ref(),
         ) {
             return mismatch_send_known_spells(cpp, rust);
+        }
+
+        if let (Some(cpp), Some(rust)) = (self.cpp.spell_go.as_ref(), self.rust.spell_go.as_ref()) {
+            return mismatch_spell_go(cpp, rust, &self.cpp, &self.rust);
+        }
+
+        if let (Some(cpp), Some(rust)) = (
+            self.cpp.spell_start.as_ref(),
+            self.rust.spell_start.as_ref(),
+        ) {
+            if cpp.cast_time != rust.cast_time {
+                return "mismatched field(s): cast_time".to_string();
+            }
+            return mismatch_spell_go(&cpp.cast, &rust.cast, &self.cpp, &self.rust);
         }
 
         if let (Some(cpp), Some(rust)) = (
@@ -774,6 +1056,94 @@ fn mismatch_send_known_spells(cpp: &SendKnownSpellsBody, rust: &SendKnownSpellsB
 
     if fields.is_empty() {
         "semantic values are equal".to_string()
+    } else {
+        format!("mismatched field(s): {}", fields.join(", "))
+    }
+}
+
+fn mismatch_spell_go(
+    cpp: &SpellGoBody,
+    rust: &SpellGoBody,
+    cpp_side: &SemanticBodySide,
+    rust_side: &SemanticBodySide,
+) -> String {
+    let mut fields = Vec::new();
+    if cpp.caster_guid != rust.caster_guid {
+        fields.push("caster_guid");
+    }
+    if cpp.caster_unit != rust.caster_unit {
+        fields.push("caster_unit");
+    }
+    if cpp.cast_id != rust.cast_id {
+        fields.push("cast_id.identity");
+    }
+    if cpp.original_cast_id != rust.original_cast_id {
+        fields.push("original_cast_id");
+    }
+    if cpp.spell_id != rust.spell_id {
+        fields.push("spell_id");
+    }
+    if cpp.spell_visual_id != rust.spell_visual_id {
+        fields.push("spell_visual_id");
+    }
+    if cpp.cast_flags != rust.cast_flags {
+        fields.push("cast_flags");
+    }
+    if cpp.cast_flags_ex != rust.cast_flags_ex {
+        fields.push("cast_flags_ex");
+    }
+    if cpp.missile_travel_time != rust.missile_travel_time
+        || cpp.missile_pitch_bits != rust.missile_pitch_bits
+    {
+        fields.push("missile_trajectory");
+    }
+    if cpp.dest_loc_spell_cast_index != rust.dest_loc_spell_cast_index {
+        fields.push("dest_loc_spell_cast_index");
+    }
+    if cpp.immunities_school != rust.immunities_school
+        || cpp.immunities_value != rust.immunities_value
+    {
+        fields.push("immunities");
+    }
+    if cpp.prediction_points != rust.prediction_points
+        || cpp.prediction_type != rust.prediction_type
+        || cpp.prediction_beacon != rust.prediction_beacon
+    {
+        fields.push("prediction");
+    }
+    if cpp.target != rust.target {
+        fields.push("target");
+    }
+    if cpp.hit_targets != rust.hit_targets {
+        fields.push("hit_targets");
+    }
+    if cpp.miss_targets != rust.miss_targets {
+        fields.push("miss_targets");
+    }
+    if cpp.miss_status != rust.miss_status {
+        fields.push("miss_status");
+    }
+    if cpp.remaining_power != rust.remaining_power {
+        fields.push("remaining_power");
+    }
+    if cpp.remaining_runes != rust.remaining_runes {
+        fields.push("remaining_runes");
+    }
+    if cpp.target_points != rust.target_points {
+        fields.push("target_points");
+    }
+    if cpp.ammo_display_id != rust.ammo_display_id {
+        fields.push("ammo_display_id");
+    }
+    if cpp.ammo_inventory_type != rust.ammo_inventory_type {
+        fields.push("ammo_inventory_type");
+    }
+    if fields.is_empty() {
+        if cpp_side.raw_body_sha256 == rust_side.raw_body_sha256 {
+            "semantic values are equal".to_string()
+        } else {
+            "raw body identity differs outside the reviewed Creature-cast shape".to_string()
+        }
     } else {
         format!("mismatched field(s): {}", fields.join(", "))
     }
@@ -966,9 +1336,27 @@ pub fn compare_packet_bodies(
         SMSG_LOOT_REMOVED => compare_loot_removed_bodies(cpp, rust),
         SMSG_BUY_SUCCEEDED => compare_buy_succeeded_bodies(cpp, rust),
         SMSG_SEND_KNOWN_SPELLS => Some(compare_send_known_spells_bodies(cpp, rust)),
+        SMSG_SPELL_GO => Some(compare_spell_go_bodies(cpp, rust)),
+        SMSG_SPELL_START => Some(compare_spell_start_bodies(cpp, rust)),
         SMSG_UPDATE_OBJECT => compare_update_object_inv_slots_bodies(cpp, rust),
         SMSG_ON_MONSTER_MOVE => compare_monster_move_bodies(cpp, rust),
         _ => None,
+    }
+}
+
+fn compare_spell_go_bodies(cpp: &[u8], rust: &[u8]) -> SemanticBodyDiff {
+    SemanticBodyDiff {
+        comparator: "smsg_spell_go_creature_runtime_counters_and_cast_time".to_string(),
+        cpp: SemanticBodySide::from_decoded_spell_go(decode_spell_go_body(cpp), cpp),
+        rust: SemanticBodySide::from_decoded_spell_go(decode_spell_go_body(rust), rust),
+    }
+}
+
+fn compare_spell_start_bodies(cpp: &[u8], rust: &[u8]) -> SemanticBodyDiff {
+    SemanticBodyDiff {
+        comparator: "smsg_spell_start_creature_runtime_counters".to_string(),
+        cpp: SemanticBodySide::from_decoded_spell_start(decode_spell_start_body(cpp), cpp),
+        rust: SemanticBodySide::from_decoded_spell_start(decode_spell_start_body(rust), rust),
     }
 }
 
@@ -1869,6 +2257,246 @@ fn validate_issue_24_heartbeat(body: &[u8]) -> Result<(), String> {
     Ok(())
 }
 
+/// Validate the semantic payload boundary for the future
+/// `creature-spell-casting-v1` required flow.
+///
+/// Exact outer action boundaries and socket routing remain the responsibility
+/// of the requirement manifest. This independent payload contract requires
+/// exactly one adjacent server `SpellStart -> SpellGo` pair, correlated
+/// Creature CasterGUID/CasterUnit and CastID values, identical spell/visual/
+/// target data across that pair, a normal Cast GUID whose stable identity
+/// matches realm/map/spell, EMPTY OriginalCastID, and complete fail-closed
+/// SpellCastData decoding on both packets.
+pub fn validate_creature_spell_casting_capture(capture: &Capture) -> Result<(), String> {
+    let spell_starts = capture
+        .packets
+        .iter()
+        .enumerate()
+        .filter(|(_, packet)| packet.opcode == SMSG_SPELL_START)
+        .collect::<Vec<_>>();
+    let spell_goes = capture
+        .packets
+        .iter()
+        .enumerate()
+        .filter(|(_, packet)| packet.opcode == SMSG_SPELL_GO)
+        .collect::<Vec<_>>();
+    let [(start_index, start_packet)] = spell_starts.as_slice() else {
+        return Err(format!(
+            "{} contains {} SMSG_SPELL_START packet(s); creature-spell-casting-v1 requires exactly one",
+            capture.source,
+            spell_starts.len()
+        ));
+    };
+    let [(go_index, go_packet)] = spell_goes.as_slice() else {
+        return Err(format!(
+            "{} contains {} SMSG_SPELL_GO packet(s); creature-spell-casting-v1 requires exactly one",
+            capture.source,
+            spell_goes.len()
+        ));
+    };
+    if start_packet.direction != Direction::S2C || go_packet.direction != Direction::S2C {
+        return Err(format!(
+            "{} carries SpellStart/SpellGo on {}/{}, expected s2c/s2c",
+            capture.source, start_packet.direction, go_packet.direction
+        ));
+    }
+    if *go_index != *start_index + 1 {
+        return Err(format!(
+            "{} does not contain adjacent SMSG_SPELL_START -> SMSG_SPELL_GO (indices {start_index} and {go_index})",
+            capture.source
+        ));
+    }
+
+    let start = decode_spell_start_body(&start_packet.body)?;
+    let go = decode_spell_go_body(&go_packet.body)?;
+    validate_creature_spell_cast_shape(
+        &start.body.cast,
+        start.exact_caster_guid,
+        start.exact_caster_unit,
+        start.cast_id,
+    )?;
+    validate_decoded_creature_spell_go(&go)?;
+    validate_issue_26_creature_spell_start(&start)?;
+    validate_issue_26_creature_spell_go(&go)?;
+
+    let mut mismatches = Vec::new();
+    if start.exact_caster_guid != go.exact_caster_guid
+        || start.exact_caster_unit != go.exact_caster_unit
+    {
+        mismatches.push("caster");
+    }
+    if start.cast_id != go.cast_id {
+        mismatches.push("cast_id");
+    }
+    if start.body.cast.spell_id != go.body.spell_id {
+        mismatches.push("spell_id");
+    }
+    if start.body.cast.spell_visual_id != go.body.spell_visual_id {
+        mismatches.push("spell_visual_id");
+    }
+    if start.body.cast.target != go.body.target {
+        mismatches.push("target");
+    }
+    if mismatches.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "SMSG_SPELL_START and SMSG_SPELL_GO do not correlate field(s): {}",
+            mismatches.join(", ")
+        ))
+    }
+}
+
+fn validate_issue_26_creature_spell_start(start: &DecodedSpellStartBody) -> Result<(), String> {
+    validate_issue_26_creature_spell_common(&start.body.cast, "SMSG_SPELL_START")?;
+    if start.body.cast.cast_flags != ISSUE_26_START_CAST_FLAGS {
+        return Err(format!(
+            "SMSG_SPELL_START CastFlags is 0x{:08X}, expected issue-#26 fixture value 0x{ISSUE_26_START_CAST_FLAGS:08X}",
+            start.body.cast.cast_flags
+        ));
+    }
+    if start.body.cast_time != 0 {
+        return Err(format!(
+            "SMSG_SPELL_START CastTime is {}, expected instant issue-#26 fixture value 0",
+            start.body.cast_time
+        ));
+    }
+    if !start.body.cast.hit_targets.is_empty() {
+        return Err(
+            "SMSG_SPELL_START contains HitTargets; issue-#26 requires result topology only in SMSG_SPELL_GO"
+                .to_string(),
+        );
+    }
+    Ok(())
+}
+
+fn validate_issue_26_creature_spell_go(go: &DecodedSpellGoBody) -> Result<(), String> {
+    let victim = validate_issue_26_creature_spell_common(&go.body, "SMSG_SPELL_GO")?;
+    if go.body.cast_flags != ISSUE_26_GO_CAST_FLAGS {
+        return Err(format!(
+            "SMSG_SPELL_GO CastFlags is 0x{:08X}, expected issue-#26 fixture value 0x{ISSUE_26_GO_CAST_FLAGS:08X}",
+            go.body.cast_flags
+        ));
+    }
+    let expected_hits = [CorrelatedSpellGuidBody::Exact { guid: victim }];
+    if go.body.hit_targets.as_slice() != expected_hits {
+        return Err(
+            "SMSG_SPELL_GO HitTargets is not exactly the explicit player victim once".to_string(),
+        );
+    }
+    Ok(())
+}
+
+fn validate_issue_26_creature_spell_common(
+    body: &SpellGoBody,
+    packet: &str,
+) -> Result<ExactObjectGuid, String> {
+    let caster = body.caster_guid;
+    if caster.high_type != HIGH_GUID_CREATURE
+        || caster.realm_id != ISSUE_26_REALM_ID
+        || caster.map_id != ISSUE_26_MAP_ID
+        || caster.entry != ISSUE_26_CREATURE_ENTRY
+        || caster.subtype != 0
+        || caster.server_id != 0
+    {
+        return Err(format!(
+            "{packet} caster identity {:?} is not issue-#26 Cabal Interrogator entry {ISSUE_26_CREATURE_ENTRY} on realm {ISSUE_26_REALM_ID}, map {ISSUE_26_MAP_ID}",
+            caster
+        ));
+    }
+    if body.spell_id != ISSUE_26_SPELL_ID {
+        return Err(format!(
+            "{packet} SpellID is {}, expected issue-#26 Eviscerate {ISSUE_26_SPELL_ID}",
+            body.spell_id
+        ));
+    }
+    if body.spell_visual_id != ISSUE_26_SPELL_X_SPELL_VISUAL_ID {
+        return Err(format!(
+            "{packet} SpellXSpellVisualID is {}, expected issue-#26 fixture value {ISSUE_26_SPELL_X_SPELL_VISUAL_ID}",
+            body.spell_visual_id
+        ));
+    }
+    if body.cast_flags_ex != 0 {
+        return Err(format!(
+            "{packet} CastFlagsEx is 0x{:08X}, expected 0",
+            body.cast_flags_ex
+        ));
+    }
+    if body.missile_travel_time != 0 || body.missile_pitch_bits != 0.0_f32.to_bits() {
+        return Err(format!(
+            "{packet} carries a missile trajectory; issue-#26 Eviscerate is zero-speed"
+        ));
+    }
+    if body.dest_loc_spell_cast_index != 0 {
+        return Err(format!(
+            "{packet} DestLocSpellCastIndex is {}, expected 0",
+            body.dest_loc_spell_cast_index
+        ));
+    }
+    if body.immunities_school != 0 || body.immunities_value != 0 {
+        return Err(format!(
+            "{packet} carries creature immunities; issue-#26 fixture expects none"
+        ));
+    }
+    if body.prediction_points != 0
+        || body.prediction_type != 0
+        || body.prediction_beacon != (ExactObjectGuid { low: 0, high: 0 })
+    {
+        return Err(format!(
+            "{packet} carries heal prediction; issue-#26 fixture expects none"
+        ));
+    }
+
+    let CorrelatedSpellGuidBody::Exact { guid: victim } = &body.target.unit else {
+        return Err(format!(
+            "{packet} explicit unit target is not a distinct player victim"
+        ));
+    };
+    let victim = *victim;
+    let stable_victim = stable_object_guid(victim.low, victim.high);
+    if exact_guid_high_type(victim) != HIGH_GUID_PLAYER
+        || stable_victim.realm_id != ISSUE_26_REALM_ID
+        || stable_victim.map_id != 0
+        || stable_victim.entry != 0
+        || stable_victim.subtype != 0
+        || stable_victim.server_id != 0
+        || victim.low & OBJECT_GUID_COUNTER_MASK != ISSUE_26_PLAYER_COUNTER
+    {
+        return Err(format!(
+            "{packet} explicit unit target {victim:?} is not canonical issue-#26 realm-{ISSUE_26_REALM_ID} Player {ISSUE_26_PLAYER_COUNTER}"
+        ));
+    }
+    let target = &body.target;
+    if target.flags != ISSUE_26_UNIT_TARGET_FLAGS
+        || target.item != (ExactObjectGuid { low: 0, high: 0 })
+        || target.src_location.is_some()
+        || target.dst_location.is_some()
+        || target.orientation_bits.is_some()
+        || target.map_id.is_some()
+        || !target.name.is_empty()
+    {
+        return Err(format!(
+            "{packet} SpellTargetData is not the exact issue-#26 unit-only target topology"
+        ));
+    }
+    if !body.miss_targets.is_empty() || !body.miss_status.is_empty() {
+        return Err(format!(
+            "{packet} carries miss topology; issue-#26 fixture requires a successful hit"
+        ));
+    }
+    if !body.remaining_power.is_empty()
+        || body.remaining_runes.is_some()
+        || !body.target_points.is_empty()
+        || body.ammo_display_id.is_some()
+        || body.ammo_inventory_type.is_some()
+    {
+        return Err(format!(
+            "{packet} carries power/rune/target-point/ammo optionals absent from issue-#26 Eviscerate"
+        ));
+    }
+    Ok(victim)
+}
+
 fn require_position_near(
     actual: WirePosition,
     expected: WirePosition,
@@ -2735,6 +3363,343 @@ pub fn decode_send_known_spells_body(body: &[u8]) -> Result<SendKnownSpellsBody,
     })
 }
 
+/// Decode the complete opcode-less C++ `WorldPackets::Spells::SpellGo` body.
+///
+/// This follows `operator<<(ByteBuffer&, SpellCastData const&)` field for
+/// field, including both packed-bit headers and every optional vector. The
+/// trailing `CombatLogServerPacket` bit must select the basic packet: a full
+/// advanced-combat-log payload is deliberately rejected because accepting it
+/// without decoding `SpellCastLogData` would ignore stable bytes.
+///
+/// The returned stable body normalizes only the lower 40-bit counters of the
+/// correlated Creature caster and Cast GUID plus the wrapping CastTime. Exact
+/// GUIDs and CastTime remain available on [`DecodedSpellGoBody`] for contract
+/// validation and diagnostics.
+pub fn decode_spell_go_body(body: &[u8]) -> Result<DecodedSpellGoBody, String> {
+    decode_spell_cast_data_body(body, true)
+}
+
+/// Decode the complete opcode-less C++ `WorldPackets::Spells::SpellStart`
+/// body. START has no combat-log suffix and its CastTime is retained as the
+/// exact cast duration.
+pub fn decode_spell_start_body(body: &[u8]) -> Result<DecodedSpellStartBody, String> {
+    let decoded = decode_spell_cast_data_body(body, false)?;
+    Ok(DecodedSpellStartBody {
+        body: SpellStartBody {
+            cast: decoded.body,
+            cast_time: decoded.cast_time,
+        },
+        exact_caster_guid: decoded.exact_caster_guid,
+        exact_caster_unit: decoded.exact_caster_unit,
+        cast_id: decoded.cast_id,
+    })
+}
+
+fn decode_spell_cast_data_body(
+    body: &[u8],
+    has_spell_go_combat_log_suffix: bool,
+) -> Result<DecodedSpellGoBody, String> {
+    let mut cursor = 0usize;
+    let exact_caster_guid = read_exact_guid(body, &mut cursor, "CasterGUID")?;
+    let exact_caster_unit = read_exact_guid(body, &mut cursor, "CasterUnit")?;
+    let cast_id = read_exact_guid(body, &mut cursor, "CastID")?;
+    let original_cast_id = read_exact_guid(body, &mut cursor, "OriginalCastID")?;
+    let spell_id = read_i32(body, &mut cursor, "SpellID")?;
+    let spell_visual_id = read_i32(body, &mut cursor, "Visual.SpellXSpellVisualID")?;
+    let cast_flags = read_u32(body, &mut cursor, "CastFlags")?;
+    let cast_flags_ex = read_u32(body, &mut cursor, "CastFlagsEx")?;
+    let cast_time = read_u32(body, &mut cursor, "CastTime")?;
+    let missile_travel_time = read_u32(body, &mut cursor, "MissileTrajectory.TravelTime")?;
+    let missile_pitch_bits = read_f32_bits(body, &mut cursor, "MissileTrajectory.Pitch")?;
+    let dest_loc_spell_cast_index = read_u8(body, &mut cursor, "DestLocSpellCastIndex")?;
+    let immunities_school = read_u32(body, &mut cursor, "Immunities.School")?;
+    let immunities_value = read_u32(body, &mut cursor, "Immunities.Value")?;
+    let prediction_points = read_u32(body, &mut cursor, "Predict.Points")?;
+    let prediction_type = read_u8(body, &mut cursor, "Predict.Type")?;
+    let prediction_beacon = read_exact_guid(body, &mut cursor, "Predict.BeaconGUID")?;
+
+    let mut counts = MsbBitReader::new(body, cursor, "SpellCastData counts");
+    let hit_count = counts.read(16, "HitTargets")? as usize;
+    let miss_count = counts.read(16, "MissTargets")? as usize;
+    let miss_status_count = counts.read(16, "MissStatus")? as usize;
+    let remaining_power_count = counts.read(9, "RemainingPower")? as usize;
+    let has_remaining_runes = counts.read(1, "RemainingRunes")? != 0;
+    let target_point_count = counts.read(16, "TargetPoints")? as usize;
+    let has_ammo_display_id = counts.read(1, "AmmoDisplayID")? != 0;
+    let has_ammo_inventory_type = counts.read(1, "AmmoInventoryType")? != 0;
+    counts.finish(&mut cursor)?;
+
+    if miss_count != miss_status_count {
+        return Err(format!(
+            "SpellCastData has {miss_count} MissTargets but {miss_status_count} MissStatus entries"
+        ));
+    }
+
+    let target = read_spell_target_data(body, &mut cursor, exact_caster_guid)?;
+
+    ensure_count_fits_minimum(body, cursor, hit_count, 2, "HitTargets")?;
+    let mut hit_targets = Vec::with_capacity(hit_count);
+    for index in 0..hit_count {
+        let guid = read_exact_guid(body, &mut cursor, &format!("HitTargets[{index}]"))?;
+        hit_targets.push(correlate_caster_guid(guid, exact_caster_guid));
+    }
+
+    ensure_count_fits_minimum(body, cursor, miss_count, 2, "MissTargets")?;
+    let mut miss_targets = Vec::with_capacity(miss_count);
+    for index in 0..miss_count {
+        let guid = read_exact_guid(body, &mut cursor, &format!("MissTargets[{index}]"))?;
+        miss_targets.push(correlate_caster_guid(guid, exact_caster_guid));
+    }
+
+    ensure_count_fits_minimum(body, cursor, miss_status_count, 1, "MissStatus")?;
+    let mut miss_status = Vec::with_capacity(miss_status_count);
+    for index in 0..miss_status_count {
+        let reason = read_u8(body, &mut cursor, &format!("MissStatus[{index}].Reason"))?;
+        let reflect_status = if reason == SPELL_MISS_REFLECT {
+            Some(read_u8(
+                body,
+                &mut cursor,
+                &format!("MissStatus[{index}].ReflectStatus"),
+            )?)
+        } else {
+            None
+        };
+        miss_status.push(SpellMissStatusBody {
+            reason,
+            reflect_status,
+        });
+    }
+
+    ensure_count_fits_minimum(body, cursor, remaining_power_count, 5, "RemainingPower")?;
+    let mut remaining_power = Vec::with_capacity(remaining_power_count);
+    for index in 0..remaining_power_count {
+        remaining_power.push(SpellPowerDataBody {
+            cost: read_i32(body, &mut cursor, &format!("RemainingPower[{index}].Cost"))?,
+            power_type: read_i8(body, &mut cursor, &format!("RemainingPower[{index}].Type"))?,
+        });
+    }
+
+    let remaining_runes = if has_remaining_runes {
+        let start = read_u8(body, &mut cursor, "RemainingRunes.Start")?;
+        let count = read_u8(body, &mut cursor, "RemainingRunes.Count")?;
+        let cooldown_count = read_u32(body, &mut cursor, "RemainingRunes.CooldownsCount")? as usize;
+        let cooldowns = read_bytes(
+            body,
+            &mut cursor,
+            cooldown_count,
+            "RemainingRunes.Cooldowns",
+        )?
+        .to_vec();
+        Some(SpellRuneDataBody {
+            start,
+            count,
+            cooldowns,
+        })
+    } else {
+        None
+    };
+
+    ensure_count_fits_minimum(body, cursor, target_point_count, 14, "TargetPoints")?;
+    let mut target_points = Vec::with_capacity(target_point_count);
+    for index in 0..target_point_count {
+        target_points.push(read_spell_target_location(
+            body,
+            &mut cursor,
+            &format!("TargetPoints[{index}]"),
+        )?);
+    }
+
+    let ammo_display_id = has_ammo_display_id
+        .then(|| read_i32(body, &mut cursor, "AmmoDisplayID"))
+        .transpose()?;
+    let ammo_inventory_type = has_ammo_inventory_type
+        .then(|| read_i32(body, &mut cursor, "AmmoInventoryType"))
+        .transpose()?;
+
+    if has_spell_go_combat_log_suffix {
+        let mut combat_log = MsbBitReader::new(body, cursor, "SpellGo combat-log bit");
+        let has_full_combat_log = combat_log.read(1, "HasLogData")? != 0;
+        combat_log.finish(&mut cursor)?;
+        if has_full_combat_log {
+            return Err(
+                "SpellGo carries full SpellCastLogData; creature-spell contract permits only the fully decoded basic packet"
+                    .to_string(),
+            );
+        }
+    }
+    if cursor != body.len() {
+        return Err(format!(
+            "trailing bytes after {}: decoded {cursor} of {} bytes",
+            if has_spell_go_combat_log_suffix {
+                "SpellGo combat-log bit"
+            } else {
+                "SpellStart SpellCastData"
+            },
+            body.len()
+        ));
+    }
+
+    Ok(DecodedSpellGoBody {
+        body: SpellGoBody {
+            caster_guid: stable_object_guid(exact_caster_guid.low, exact_caster_guid.high),
+            caster_unit: stable_object_guid(exact_caster_unit.low, exact_caster_unit.high),
+            cast_id: stable_object_guid(cast_id.low, cast_id.high),
+            original_cast_id,
+            spell_id,
+            spell_visual_id,
+            cast_flags,
+            cast_flags_ex,
+            missile_travel_time,
+            missile_pitch_bits,
+            dest_loc_spell_cast_index,
+            immunities_school,
+            immunities_value,
+            prediction_points,
+            prediction_type,
+            prediction_beacon,
+            target,
+            hit_targets,
+            miss_targets,
+            miss_status,
+            remaining_power,
+            remaining_runes,
+            target_points,
+            ammo_display_id,
+            ammo_inventory_type,
+        },
+        exact_caster_guid,
+        exact_caster_unit,
+        cast_id,
+        cast_time,
+    })
+}
+
+fn read_spell_target_data(
+    body: &[u8],
+    cursor: &mut usize,
+    caster: ExactObjectGuid,
+) -> Result<SpellTargetDataBody, String> {
+    let mut bits = MsbBitReader::new(body, *cursor, "SpellTargetData bits");
+    let flags = bits.read(28, "Flags")?;
+    let has_src_location = bits.read(1, "HasSrcLocation")? != 0;
+    let has_dst_location = bits.read(1, "HasDstLocation")? != 0;
+    let has_orientation = bits.read(1, "HasOrientation")? != 0;
+    let has_map_id = bits.read(1, "HasMapID")? != 0;
+    let name_len = bits.read(7, "NameLength")? as usize;
+    bits.finish(cursor)?;
+
+    let unit = correlate_caster_guid(read_exact_guid(body, cursor, "Target.Unit")?, caster);
+    let item = read_exact_guid(body, cursor, "Target.Item")?;
+    let src_location = has_src_location
+        .then(|| read_spell_target_location(body, cursor, "Target.SrcLocation"))
+        .transpose()?;
+    let dst_location = has_dst_location
+        .then(|| read_spell_target_location(body, cursor, "Target.DstLocation"))
+        .transpose()?;
+    let orientation_bits = has_orientation
+        .then(|| read_f32_bits(body, cursor, "Target.Orientation"))
+        .transpose()?;
+    let map_id = has_map_id
+        .then(|| read_i32(body, cursor, "Target.MapID"))
+        .transpose()?;
+    let name = read_bytes(body, cursor, name_len, "Target.Name")?.to_vec();
+
+    Ok(SpellTargetDataBody {
+        flags,
+        unit,
+        item,
+        src_location,
+        dst_location,
+        orientation_bits,
+        map_id,
+        name,
+    })
+}
+
+fn read_spell_target_location(
+    body: &[u8],
+    cursor: &mut usize,
+    field: &str,
+) -> Result<SpellTargetLocationBody, String> {
+    Ok(SpellTargetLocationBody {
+        transport: read_exact_guid(body, cursor, &format!("{field}.Transport"))?,
+        position: read_wire_position(body, cursor, &format!("{field}.Location"))?,
+    })
+}
+
+fn correlate_caster_guid(
+    guid: ExactObjectGuid,
+    caster: ExactObjectGuid,
+) -> CorrelatedSpellGuidBody {
+    if guid == caster {
+        CorrelatedSpellGuidBody::Caster
+    } else {
+        CorrelatedSpellGuidBody::Exact { guid }
+    }
+}
+
+fn validate_decoded_creature_spell_go(decoded: &DecodedSpellGoBody) -> Result<(), String> {
+    validate_creature_spell_cast_shape(
+        &decoded.body,
+        decoded.exact_caster_guid,
+        decoded.exact_caster_unit,
+        decoded.cast_id,
+    )
+}
+
+fn validate_creature_spell_cast_shape(
+    body: &SpellGoBody,
+    exact_caster_guid: ExactObjectGuid,
+    exact_caster_unit: ExactObjectGuid,
+    exact_cast_id: ExactObjectGuid,
+) -> Result<(), String> {
+    if exact_caster_guid != exact_caster_unit {
+        return Err("Creature SpellCast CasterGUID does not equal CasterUnit".to_string());
+    }
+    if exact_guid_high_type(exact_caster_guid) != HIGH_GUID_CREATURE {
+        return Err("Creature SpellCast caster is not a Creature GUID".to_string());
+    }
+    if exact_caster_guid.low & OBJECT_GUID_COUNTER_MASK == 0 {
+        return Err("Creature SpellCast caster has a zero runtime counter".to_string());
+    }
+    if body.spell_id <= 0 {
+        return Err(format!(
+            "Creature SpellCast has invalid spell ID {}",
+            body.spell_id
+        ));
+    }
+    if body.original_cast_id != (ExactObjectGuid { low: 0, high: 0 }) {
+        return Err("Creature AI SpellCast OriginalCastID is not EMPTY".to_string());
+    }
+    let cast = body.cast_id;
+    if cast.high_type != HIGH_GUID_CAST {
+        return Err(format!(
+            "Creature SpellCast CastID HighGuid is {}, expected Cast ({HIGH_GUID_CAST})",
+            cast.high_type
+        ));
+    }
+    if cast.subtype != SPELL_CAST_SOURCE_NORMAL {
+        return Err(format!(
+            "Creature SpellCast CastID source is {}, expected NORMAL ({SPELL_CAST_SOURCE_NORMAL})",
+            cast.subtype
+        ));
+    }
+    if cast.realm_id != body.caster_guid.realm_id
+        || cast.map_id != body.caster_guid.map_id
+        || cast.entry != body.spell_id as u32
+        || cast.server_id != 0
+    {
+        return Err(format!(
+            "Creature SpellCast CastID identity {:?} does not match caster realm/map and spell {} with server 0",
+            cast, body.spell_id
+        ));
+    }
+    if exact_cast_id.low & OBJECT_GUID_COUNTER_MASK == 0 {
+        return Err("Creature SpellCast CastID has a zero runtime counter".to_string());
+    }
+    Ok(())
+}
+
 fn decode_buy_succeeded_body_with_counter(body: &[u8]) -> Result<DecodedBuySucceededBody, String> {
     let mut cursor = 0usize;
     let (vendor_low, vendor_high) = read_packed_guid(body, &mut cursor, "VendorGUID")?;
@@ -2827,6 +3792,127 @@ fn stable_object_guid(low: u64, high: u64) -> StableObjectGuid {
         entry: ((high >> 6) & 0x7F_FFFF) as u32,
         subtype: (high & 0x3F) as u8,
         server_id: ((stable_low >> 40) & 0xFF_FFFF) as u32,
+    }
+}
+
+fn exact_guid_high_type(guid: ExactObjectGuid) -> u8 {
+    ((guid.high >> 58) & 0x3F) as u8
+}
+
+fn read_exact_guid(
+    body: &[u8],
+    cursor: &mut usize,
+    field: &str,
+) -> Result<ExactObjectGuid, String> {
+    let (low, high) = read_packed_guid(body, cursor, field)?;
+    Ok(ExactObjectGuid { low, high })
+}
+
+fn ensure_count_fits_minimum(
+    body: &[u8],
+    cursor: usize,
+    count: usize,
+    minimum_width: usize,
+    field: &str,
+) -> Result<(), String> {
+    let minimum = count
+        .checked_mul(minimum_width)
+        .ok_or_else(|| format!("{field} minimum byte length overflows usize"))?;
+    let remaining = body.len().saturating_sub(cursor);
+    if minimum > remaining {
+        return Err(format!(
+            "{field} count {count} needs at least {minimum} bytes but only {remaining} remain"
+        ));
+    }
+    Ok(())
+}
+
+fn read_bytes<'a>(
+    body: &'a [u8],
+    cursor: &mut usize,
+    len: usize,
+    field: &str,
+) -> Result<&'a [u8], String> {
+    let end = cursor
+        .checked_add(len)
+        .ok_or_else(|| format!("offset overflow while reading {field}"))?;
+    let bytes = body
+        .get(*cursor..end)
+        .ok_or_else(|| format!("truncated while reading {field} at byte {cursor}"))?;
+    *cursor = end;
+    Ok(bytes)
+}
+
+/// MSB-first bit reader matching TrinityCore `ByteBuffer::ReadBits`.
+///
+/// Each SpellCastData bit section is explicitly flushed before byte fields.
+/// `finish` therefore rejects nonzero low padding bits rather than silently
+/// skipping them.
+struct MsbBitReader<'a> {
+    body: &'a [u8],
+    start: usize,
+    bit_offset: usize,
+    section: &'static str,
+}
+
+impl<'a> MsbBitReader<'a> {
+    fn new(body: &'a [u8], start: usize, section: &'static str) -> Self {
+        Self {
+            body,
+            start,
+            bit_offset: 0,
+            section,
+        }
+    }
+
+    fn read(&mut self, width: usize, field: &str) -> Result<u32, String> {
+        if width > 32 {
+            return Err(format!(
+                "{} field {field} requests unsupported {width}-bit width",
+                self.section
+            ));
+        }
+        let end_bit = self
+            .bit_offset
+            .checked_add(width)
+            .ok_or_else(|| format!("{} bit offset overflow", self.section))?;
+        let available_bits = self.body.len().saturating_sub(self.start).saturating_mul(8);
+        if end_bit > available_bits {
+            return Err(format!(
+                "truncated while reading {}.{field} at bit {}",
+                self.section, self.bit_offset
+            ));
+        }
+
+        let mut value = 0u32;
+        while self.bit_offset < end_bit {
+            let byte = self.body[self.start + self.bit_offset / 8];
+            let shift = 7 - (self.bit_offset % 8);
+            value = (value << 1) | u32::from((byte >> shift) & 1);
+            self.bit_offset += 1;
+        }
+        Ok(value)
+    }
+
+    fn finish(self, cursor: &mut usize) -> Result<(), String> {
+        let used_bytes = self.bit_offset.div_ceil(8);
+        let remainder = self.bit_offset % 8;
+        if remainder != 0 {
+            let padding_width = 8 - remainder;
+            let padding_mask = ((1u16 << padding_width) - 1) as u8;
+            let byte = self.body[self.start + used_bytes - 1];
+            if byte & padding_mask != 0 {
+                return Err(format!(
+                    "{} has non-canonical padding bits in byte 0x{byte:02X}",
+                    self.section
+                ));
+            }
+        }
+        *cursor = self
+            .start
+            .checked_add(used_bytes)
+            .ok_or_else(|| format!("{} byte offset overflow", self.section))?;
+        Ok(())
     }
 }
 

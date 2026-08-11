@@ -1,3 +1,95 @@
+# `#NEXT.R8.ENTITIES.1249` — bounded creature combat spell wire lifecycle.
+
+Issue #26 closes the M2.6 subset that makes the stock `CombatAI` and `TurretAI` template-spell
+decision live inside the existing single-owner creature frame. C++ copies the creature-template
+spell list into `Creature::m_spells`, classifies it through `UnitAI::FillAISpellInfo`, schedules
+`CombatAI` events or attempts Turret slot zero, and resets combat timers around a successful cast
+(`Creature.cpp:563`, `UnitAI.cpp:61-82,190-235`, `CombatAI.cpp:45-113,191-223`,
+`Spell.cpp:8363-8372`). Rust now hydrates the required cooldown, duration, visual, spell and
+difficulty stores; preserves the active-map-difficulty lookup, target/range and raw cooldown
+decisions; serializes the reduced C++ `Spell::SendSpellStart`/`SendSpellGo` shape; and commits the
+adjacent pair as one ordered visible-observer command before the same-frame melee phase. Missing
+or unsupported metadata, target topology, power/aura cost, projectile or optional packet shapes
+fail closed.
+
+The final issue-#26 P1 hardening removes the former unconditional-hit assumption from
+`SMSG_SPELL_GO`. Its represented C++ resolution is deliberately limited to a physical
+`DmgClass=MELEE` Creature spell whose sole target is a Player attacked from behind, whose spell
+and represented effect mechanics are zero, and whose complete Creature/Player source authority
+proves every omitted spell-hit source hit-inert. Completeness is not an emptiness shortcut:
+persisted and login-derived sources may be present only when their exact effects are proven
+neutral to this bounded result; the reduced runtime's canonical local aura
+application/modifier/visible containers still must be empty until their full C++ semantics exist.
+
+Player accreditation fails closed unless persistence and login/zone reconciliation prove the
+exact map and area ancestry, guild and skill state, active/rewarded/auto-push quests, glyphs,
+active-specialization traits, pets and battle-pet slots, FFA/PvP/war mode, SpellArea and
+outdoor/battlefield sources, and script, legacy/all-rank and SpellLinked hooks. Both valid linked
+hooks and the absolute trigger IDs retained from rejected SpellLinked loader rows reject a
+candidate; a malformed row cannot be treated as proof that no hook exists.
+
+The final live-path audit also corrects the external-ID WDC4 field offsets for
+`AreaTable`: Shattrath area `3697` now resolves to map `530` and parent zone
+`3519` like C++. OutdoorPvPTF's exact source spell `33377` is admitted only
+after its effective aura `200` (XP percentage) and aura `79` (outgoing damage)
+and all runtime-hook sources are proven hit-inert for this incoming Creature
+spell result. The four Auchindoun dungeon zone IDs remain fail-closed because
+this authority does not model C++'s `(Map*, zone)` registration key. Effective
+`ChrSpecialization` hotfix rows are also overlaid before active-specialization
+trait authority is evaluated.
+
+The Creature owns a uniform `0..=9_999` hit roll: values below `500` produce the base 5% `MISS`,
+all others produce `HIT`. CombatAI's initial and due-event causal order is cast then repeat
+schedule, while hit is rolled before the cooldown draw; `NO_ATTACK_MISS` consumes exactly one hit
+roll before forcing `HIT`. The due EventMap slot is cleared before cast. An accepted HIT is
+published and then tombstones before repeat scheduling because C++ next consumes an
+unconditional launch critical roll and possible effect-value draws outside this slice; MISS does
+not enter those target-effect draws and may retain authority for its repeat delay. Spell, melee
+and movement randomness share one permanent fail-closed tombstone on the runtime Creature, so an
+unrepresented random branch prevents later consumers from manufacturing a different sequence. In
+particular,
+a valid melee swing that reaches the unrepresented C++ damage/outcome/proc calculation sets the
+tombstone and publishes no fabricated damage or melee wire; attack-timer rearm and attacking-aura
+cleanup remain deterministic lifecycle work. C++ has one process-global RNG while Rust has one
+RNG per Creature. The bounded parity claim is therefore the same distributions and local causal
+draw order, not the exact global random sequence or cross-Creature interleaving.
+
+Any unaccredited or unsupported state publishes neither START nor GO. Deterministic event-slot
+clearing and reset work already performed remains, while an RNG tombstone blocks subsequent
+random-dependent scheduling/movement/melee. This is outcome topology only; no damage or spell
+effect executes.
+
+The first guarded Rust attempt found that the live login path had never hydrated
+`player_faction_template_like_cpp`: the registry therefore published `0` and the existing
+hostility gate rejected the player before engagement. The loaded identity now derives that value
+from `ChrRacesStore` and installs it in both the session/registry snapshot and the canonical
+`Player`. A focused login regression proves identity → registry → canonical faction without the
+manual faction setter that had masked the defect in creature-runtime tests.
+
+The final v2 guarded live run derives its C++ source from base HEAD
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd` plus one-file patch SHA-256
+`ef8b3c29f46fe537e1ae4e826b5610afcd534999f900ec9554ee0534e7847262`, yielding patched HEAD
+`8cfed90bf1720dbf8b9dc109113c8d7d9173ff6c`. The patch changes only the
+`ChrSpecialization` index-container bound required by the installed DB2 dataset, not AI, spell,
+or packet behavior. Both capture wrappers pin clean Rust harness HEAD
+`42977e9accb24fc3921af075f4122e1f0180f4a2` and fixture contract v2, whose atomic CAS changes
+only `SmartAI/StaticFlags1=0` to `CombatAI/CREATURE_STATIC_FLAG_NO_MELEE` during capture and
+restores the exact original pair afterward. Cabal Interrogator `22378` casts Eviscerate `15691`
+at character `15`; strict import selects exactly the adjacent START/GO pair on each side and
+produces an empty divergence baseline. The C++ RAW PKT is
+`b52cc8ba962160be63286e72eb7611c6282b0cdc3a1cee0082fc6d6d7bf2c7b9`, the Rust RAW tree is
+`9aee309d9ffb2e2e1e5a33167c228ccaa8d1634d917efd026e1a525f2a5db94a`, the filtered C++ PKT is
+`a6b32206e3277e455e25f6aa8e491606aa5cd9449e2bf24245ea9dd5db79d932`, the normalized Rust
+tree is `cc8d53b06c2727c95990eda80fd095a1a7e390da0af16981429d07176e0c003b`, and the lineage file is
+`f443539e7857ac27dfb2029012f1e889d92ed27a224f89f7a6247f9510f0479d`. The pair is one
+observed **HIT** sample, not evidence of deterministic hit behavior. Strict diff reports 2/2
+matched packets with zero divergences, and `verify-required creature-spell-casting` is CLEAN.
+
+This remains `represented-partial`. The wire hit/miss topology does not execute Eviscerate effects or
+mutate damage, health, aura, or power state; full `Spell` preparation/check/cast/effect ownership,
+non-instant casts, broader target/optional shapes, the remaining AI families, SmartAI, creature
+text, and dedicated live coverage for TurretAI remain open. No manual-client claim is made.
+
 # `#NEXT.R8.ENTITIES.1248` — exact world-handler registration/dispatch equality.
 
 Issue #142 removes the last known one-sided world-handler wiring, after the ordered trainer

@@ -18,9 +18,7 @@ use std::f32::consts::TAU;
 use anyhow::Result;
 use tracing::info;
 use wow_constants::{PowerType, SpellCastResult};
-use wow_database::{
-    HotfixDatabase, HotfixStatements, StatementDef, WorldDatabase, WorldStatements,
-};
+use wow_database::{HotfixDatabase, StatementDef, WorldDatabase, WorldStatements};
 use wow_entities::PetAuraLikeCpp;
 
 use crate::{
@@ -419,6 +417,7 @@ pub mod aura_types {
     pub const SPELL_AURA_MOD_DAMAGE_DONE: i32 = 13;
     pub const SPELL_AURA_MOD_DAMAGE_TAKEN: i32 = 14;
     pub const SPELL_AURA_MOD_STEALTH: i32 = 16;
+    pub const SPELL_AURA_MOD_STEALTH_DETECT: i32 = 17;
     pub const SPELL_AURA_MOD_INVISIBILITY: i32 = 18;
     pub const SPELL_AURA_MOD_RESISTANCE: i32 = 22;
     pub const SPELL_AURA_MOD_ROOT: i32 = 26;
@@ -469,12 +468,15 @@ pub mod aura_types {
     pub const SPELL_AURA_FORCE_REACTION: i32 = 139;
     pub const SPELL_AURA_MOD_RANGED_HASTE: i32 = 140;
     pub const SPELL_AURA_MOD_DETECTED_RANGE: i32 = 152;
+    pub const SPELL_AURA_MOD_REPUTATION_GAIN: i32 = 156;
     pub const SPELL_AURA_MOD_ATTACK_POWER_PCT: i32 = 166;
     pub const SPELL_AURA_MOD_SPEED_NOT_STACK: i32 = 171;
     pub const SPELL_AURA_MOD_MOUNTED_SPEED_NOT_STACK: i32 = 172;
     pub const SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE: i32 = 184;
     pub const SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED: i32 = 191;
     pub const SPELL_AURA_MOD_MELEE_RANGED_HASTE: i32 = 192;
+    /// C++ `AuraType::SPELL_AURA_MOD_XP_PCT`.
+    pub const SPELL_AURA_MOD_XP_PCT: i32 = 200;
     pub const SPELL_AURA_FLY: i32 = 201;
     pub const SPELL_AURA_MOD_INCREASE_VEHICLE_FLIGHT_SPEED: i32 = 206;
     pub const SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED: i32 = 207;
@@ -485,6 +487,7 @@ pub mod aura_types {
     pub const SPELL_AURA_MOD_DETAUNT: i32 = 221;
     pub const SPELL_AURA_PERIODIC_DUMMY: i32 = 226;
     pub const SPELL_AURA_PROC_TRIGGER_SPELL_WITH_VALUE: i32 = 231;
+    pub const SPELL_AURA_MOD_EXPERTISE: i32 = 240;
     pub const SPELL_AURA_ABILITY_IGNORE_AURASTATE: i32 = 262;
     pub const SPELL_AURA_MOD_SCHOOL_MASK_DAMAGE_FROM_CASTER: i32 = 270;
     pub const SPELL_AURA_MOD_SPELL_DAMAGE_FROM_CASTER: i32 = 271;
@@ -533,6 +536,8 @@ pub mod attributes {
     pub const SPELL_ATTR0_ONLY_OUTDOORS: u32 = 0x0000_8000;
     /// C++ `SPELL_ATTR0_ALLOW_WHILE_MOUNTED` (`SharedDefines.h`).
     pub const SPELL_ATTR0_ALLOW_WHILE_MOUNTED: u32 = 0x0100_0000;
+    /// C++ `SPELL_ATTR0_NOT_IN_COMBAT_ONLY_PEACEFUL` (`SharedDefines.h`).
+    pub const SPELL_ATTR0_NOT_IN_COMBAT_ONLY_PEACEFUL: u32 = 0x1000_0000;
     /// C++ `SPELL_ATTR0_NO_AURA_CANCEL` (`SharedDefines.h`).
     pub const SPELL_ATTR0_NO_AURA_CANCEL: u32 = 0x8000_0000;
 
@@ -547,6 +552,8 @@ pub mod attributes {
     pub const SPELL_ATTR1_NO_AUTOCAST_AI: u32 = 0x0002_0000;
     /// C++ `SPELL_ATTR1_NO_AURA_ICON` (`SharedDefines.h`).
     pub const SPELL_ATTR1_NO_AURA_ICON: u32 = 0x1000_0000;
+    /// C++ `SPELL_ATTR2_IGNORE_LINE_OF_SIGHT` (`SharedDefines.h`).
+    pub const SPELL_ATTR2_IGNORE_LINE_OF_SIGHT: u32 = 0x0000_0004;
     /// C++ `SPELL_ATTR2_ALLOW_WHILE_NOT_SHAPESHIFTED_CASTER_FORM` (`SharedDefines.h`).
     pub const SPELL_ATTR2_ALLOW_WHILE_NOT_SHAPESHIFTED_CASTER_FORM: u32 = 0x0008_0000;
     /// C++ `SPELL_ATTR2_NO_INITIAL_THREAT` (`SharedDefines.h`).
@@ -599,6 +606,23 @@ pub struct SpellInfo {
     pub effects: Vec<SpellEffectInfo>,
 }
 
+/// Difficulty-aware spell metadata used by C++ spell-hit resolution.
+///
+/// Each effect mechanic is keyed by `SpellEffectEntry::EffectIndex`. A zero
+/// value is retained when the effect row exists so that an exact-difficulty
+/// row still suppresses the same effect slot from a fallback difficulty.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SpellHitMetadataLikeCpp {
+    /// C++ `SpellInfo::CategoryId`, resolved from `SpellCategories`.
+    pub category_id: u32,
+    /// C++ `SpellInfo::ChargeCategoryId`, resolved from `SpellCategories`.
+    pub charge_category_id: u32,
+    pub defense_type: i8,
+    pub spell_mechanic: i8,
+    pub school_mask: u8,
+    pub effect_mechanics: BTreeMap<u32, i32>,
+}
+
 /// Missing or malformed data that prevents safe C++ primary-profession
 /// classification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -626,8 +650,11 @@ pub struct SpellPowerCostInfoLikeCpp {
     pub order_index: u8,
     pub power_type: i8,
     pub mana_cost: i32,
+    pub mana_cost_per_level: i32,
+    pub mana_per_second: i32,
     pub power_cost_pct: f32,
     pub power_cost_max_pct: f32,
+    pub power_pct_per_second: f32,
     pub required_aura_spell_id: i32,
     pub optional_cost: u32,
 }
@@ -6245,6 +6272,27 @@ struct SpellInterruptRowLikeCpp {
     flags: ([u32; 2], [u32; 2]),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct SpellHitCategoriesRowLikeCpp {
+    record_id: u32,
+    category_id: u32,
+    charge_category_id: u32,
+    defense_type: i8,
+    spell_mechanic: i8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct SpellHitMiscRowLikeCpp {
+    record_id: u32,
+    school_mask: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct SpellHitEffectMechanicRowLikeCpp {
+    record_id: u32,
+    mechanic: i32,
+}
+
 #[derive(Default)]
 pub struct SpellStore {
     spells: HashMap<i32, SpellInfo>,
@@ -6254,6 +6302,10 @@ pub struct SpellStore {
     spell_misc_attributes_by_difficulty: HashMap<(i32, u8), [u32; 15]>,
     spell_interrupt_flags: HashMap<(i32, u8), ([u32; 2], [u32; 2])>,
     spell_interrupt_rows_by_id: BTreeMap<u32, SpellInterruptRowLikeCpp>,
+    spell_hit_categories_by_difficulty: HashMap<(i32, u8), SpellHitCategoriesRowLikeCpp>,
+    spell_hit_misc_by_difficulty: HashMap<(i32, u8), SpellHitMiscRowLikeCpp>,
+    spell_hit_effect_mechanics_by_difficulty:
+        HashMap<(i32, u8), BTreeMap<u32, SpellHitEffectMechanicRowLikeCpp>>,
     spell_shapeshift_masks: HashMap<i32, (u64, u64)>,
     implicit_target_conditions: HashMap<(i32, u32), ConditionsReference>,
 }
@@ -6269,6 +6321,9 @@ impl SpellStore {
             spell_misc_attributes_by_difficulty: HashMap::new(),
             spell_interrupt_flags: HashMap::new(),
             spell_interrupt_rows_by_id: BTreeMap::new(),
+            spell_hit_categories_by_difficulty: HashMap::new(),
+            spell_hit_misc_by_difficulty: HashMap::new(),
+            spell_hit_effect_mechanics_by_difficulty: HashMap::new(),
             spell_shapeshift_masks: HashMap::new(),
             implicit_target_conditions: HashMap::new(),
         }
@@ -6301,6 +6356,77 @@ impl SpellStore {
                 .map_or(0, |difficulty| difficulty.fallback_difficulty_id);
         }
         self.spells.get(&spell_id).map(|spell| spell.effects())
+    }
+
+    /// Resolve the fields consumed by C++ spell-hit logic through the
+    /// requested difficulty and its `FallbackDifficultyID` chain.
+    ///
+    /// `SpellCategories`, `SpellMisc`, and every `SpellEffect` slot fall back
+    /// independently. This matters when a difficulty overrides only one of
+    /// those contributors.
+    pub fn hit_metadata_for_difficulty_like_cpp(
+        &self,
+        spell_id: i32,
+        requested_difficulty_id: u8,
+        difficulty_store: Option<&crate::difficulty::DifficultyStore>,
+    ) -> Option<SpellHitMetadataLikeCpp> {
+        let mut metadata = SpellHitMetadataLikeCpp::default();
+        let mut has_metadata = false;
+        let mut categories_resolved = false;
+        let mut misc_resolved = false;
+        let mut difficulty_id = requested_difficulty_id;
+        let mut visited = [false; 256];
+
+        loop {
+            let visited_slot = &mut visited[usize::from(difficulty_id)];
+            if *visited_slot {
+                break;
+            }
+            *visited_slot = true;
+
+            if !categories_resolved
+                && let Some(categories) = self
+                    .spell_hit_categories_by_difficulty
+                    .get(&(spell_id, difficulty_id))
+            {
+                metadata.category_id = categories.category_id;
+                metadata.charge_category_id = categories.charge_category_id;
+                metadata.defense_type = categories.defense_type;
+                metadata.spell_mechanic = categories.spell_mechanic;
+                categories_resolved = true;
+                has_metadata = true;
+            }
+            if !misc_resolved
+                && let Some(misc) = self
+                    .spell_hit_misc_by_difficulty
+                    .get(&(spell_id, difficulty_id))
+            {
+                metadata.school_mask = misc.school_mask;
+                misc_resolved = true;
+                has_metadata = true;
+            }
+            if let Some(effect_mechanics) = self
+                .spell_hit_effect_mechanics_by_difficulty
+                .get(&(spell_id, difficulty_id))
+            {
+                has_metadata = true;
+                for (&effect_index, effect) in effect_mechanics {
+                    metadata
+                        .effect_mechanics
+                        .entry(effect_index)
+                        .or_insert(effect.mechanic);
+                }
+            }
+
+            if difficulty_id == 0 {
+                break;
+            }
+            difficulty_id = difficulty_store
+                .and_then(|store| store.get(u32::from(difficulty_id)))
+                .map_or(0, |difficulty| difficulty.fallback_difficulty_id);
+        }
+
+        has_metadata.then_some(metadata)
     }
 
     fn empty_spell_info_like_cpp(spell_id: i32) -> SpellInfo {
@@ -6351,46 +6477,6 @@ impl SpellStore {
         }
     }
 
-    fn merge_spell_info_like_cpp(&mut self, mut incoming: SpellInfo) {
-        Self::hydrate_primary_effect_like_cpp(&mut incoming);
-        let entry = self
-            .spells
-            .entry(incoming.spell_id)
-            .or_insert_with(|| Self::empty_spell_info_like_cpp(incoming.spell_id));
-        entry.cast_time_ms = incoming.cast_time_ms;
-        entry.cooldown_ms = incoming.cooldown_ms;
-        entry.recovery_time_ms = incoming.recovery_time_ms;
-        entry.requires_spell_focus = incoming.requires_spell_focus;
-        entry.display_flags = incoming.display_flags;
-        if !incoming.power_costs.is_empty() {
-            entry.power_costs = incoming.power_costs;
-        }
-
-        let overlays_effects = !incoming.effects.is_empty();
-        if overlays_effects {
-            for hotfix_effect in incoming.effects {
-                entry
-                    .effects
-                    .retain(|effect| effect.effect_index != hotfix_effect.effect_index);
-                entry.effects.push(hotfix_effect);
-            }
-        }
-
-        Self::hydrate_primary_effect_like_cpp(entry);
-        if overlays_effects {
-            self.spell_effects_by_difficulty
-                .insert((entry.spell_id, 0), entry.effects.clone());
-        }
-    }
-
-    fn merge_spell_misc_attributes_like_cpp(&mut self, incoming: HashMap<i32, [u32; 15]>) {
-        for (spell_id, attributes) in incoming {
-            self.spell_misc_attributes.insert(spell_id, attributes);
-            self.spell_misc_attributes_by_difficulty
-                .insert((spell_id, 0), attributes);
-        }
-    }
-
     /// Load base spell data from DB2 and overlay SQL hotfix rows.
     ///
     /// C++ builds `SpellInfo` primarily from `sSpellEffectStore` and
@@ -6414,44 +6500,115 @@ impl SpellStore {
                 hotfix_removals,
             )
             .await?;
-        let spell_misc_store = crate::spell_db2::SpellMiscStore::load(data_dir, locale)?;
-        let spell_effect_store = crate::spell_db2::SpellEffectDb2Store::load(data_dir, locale)?;
+        let spell_categories_store =
+            crate::spell_db2::SpellCategoriesStore::load_effective_like_cpp(
+                data_dir,
+                locale,
+                hotfix_db,
+                hotfix_removals,
+            )
+            .await?;
+        let spell_misc_store = crate::spell_db2::SpellMiscStore::load_effective_like_cpp(
+            data_dir,
+            locale,
+            hotfix_db,
+            hotfix_removals,
+        )
+        .await?;
+        let spell_effect_store = crate::spell_db2::SpellEffectDb2Store::load_effective_like_cpp(
+            data_dir,
+            locale,
+            hotfix_db,
+            hotfix_removals,
+        )
+        .await?;
         let spell_shapeshift_store =
-            crate::spell_db2::SpellShapeshiftStore::load(data_dir, locale)?;
+            crate::spell_db2::SpellShapeshiftStore::load_effective_like_cpp(
+                data_dir,
+                locale,
+                hotfix_db,
+                hotfix_removals,
+            )
+            .await?;
+        // The effective interrupt store already carries the official/custom SQL
+        // rows, so overlaying them onto the hydrated SpellStore afterwards would
+        // both duplicate the work and skip the tombstone pass.
         let spell_interrupts_store =
-            crate::spell_db2::SpellInterruptsStore::load(data_dir, locale)?;
+            crate::spell_db2::SpellInterruptsStore::load_effective_like_cpp(
+                data_dir,
+                locale,
+                hotfix_db,
+                hotfix_removals,
+            )
+            .await?;
         let mut store = Self::from_spell_db2_stores_like_cpp(
+            &spell_categories_store,
             &spell_misc_store,
             &spell_effect_store,
             &spell_shapeshift_store,
         );
         store.spell_info_keys_like_cpp = spell_info_keys_like_cpp;
         store.apply_db2_interrupts_like_cpp(&spell_interrupts_store);
-        let hotfix_interrupt_rows = store.apply_hotfix_interrupts_like_cpp(hotfix_db).await?;
-        if hotfix_interrupt_rows != 0 {
-            info!("Loaded {hotfix_interrupt_rows} SpellInterrupts hotfix rows");
-        }
 
-        let hotfix_store = Self::load(hotfix_db).await?;
-        for spell in hotfix_store.spells.into_values() {
-            store.merge_spell_info_like_cpp(spell);
-        }
-        store.merge_spell_misc_attributes_like_cpp(hotfix_store.spell_misc_attributes);
+        // C++ builds every SpellInfo field from the DB2 stores composed above,
+        // each of which already carries official/custom SQL overlays and the
+        // final `hotfix_data` tombstones. Re-merging a raw
+        // `hotfixes.spell_effect`/`spell_misc` query here would resurrect rows
+        // the tombstone pass just removed, so the remaining SQL-only column,
+        // `RequiresSpellFocus`, is hydrated from its own effective store below.
 
-        // [M0.1/#14] Join DB2 SpellCastTimes via SpellMisc.CastingTimeIndex AFTER the
-        // hotfix merge (the merge overwrites cast_time_ms). C++ sSpellCastTimesStore.
-        let spell_cast_times_store = crate::spell_db2::SpellCastTimesStore::load(data_dir, locale)?;
+        // [M0.1/#14] Join DB2 SpellCastTimes via SpellMisc.CastingTimeIndex.
+        // C++ sSpellCastTimesStore.
+        let spell_cast_times_store =
+            crate::spell_db2::SpellCastTimesStore::load_effective_like_cpp(
+                data_dir,
+                locale,
+                hotfix_db,
+                hotfix_removals,
+            )
+            .await?;
         store.apply_db2_cast_times_like_cpp(&spell_misc_store, &spell_cast_times_store);
 
-        // [M0.1/#14] Join DB2 SpellCooldowns (per-spell cooldown), also after the merge.
-        let spell_cooldowns_store = crate::spell_db2::SpellCooldownsStore::load(data_dir, locale)?;
+        // [M0.1/#14] Join DB2 SpellCooldowns (per-spell cooldown).
+        let spell_cooldowns_store = crate::spell_db2::SpellCooldownsStore::load_effective_like_cpp(
+            data_dir,
+            locale,
+            hotfix_db,
+            hotfix_removals,
+        )
+        .await?;
         store.apply_db2_cooldowns_like_cpp(&spell_cooldowns_store);
+
+        // C++ `SpellMgr::LoadSpellInfoStore` reads
+        // `SpellCastingRequirements::RequiresSpellFocus` from the same effective
+        // store the cast-time gates use.
+        let spell_casting_requirements_store =
+            crate::spell_db2::SpellCastingRequirementsStore::load_effective_like_cpp(
+                data_dir,
+                locale,
+                hotfix_db,
+                hotfix_removals,
+            )
+            .await?;
+        store.apply_db2_casting_requirements_like_cpp(&spell_casting_requirements_store);
 
         // [M0.1/#72] C++ SpellMgr loads SpellInfo::PowerCosts from
         // `sSpellPowerStore` after base SpellInfo construction.
-        let spell_power_store = crate::spell_db2::SpellPowerStore::load(data_dir, locale)?;
+        let spell_power_store = crate::spell_db2::SpellPowerStore::load_effective_like_cpp(
+            data_dir,
+            locale,
+            hotfix_db,
+            hotfix_removals,
+        )
+        .await?;
         let spell_power_difficulty_store =
-            crate::spell_db2::SpellPowerDifficultyStore::load(data_dir, locale)?;
+            crate::spell_db2::SpellPowerDifficultyStore::load_effective_like_cpp(
+                data_dir,
+                locale,
+                hotfix_db,
+                hotfix_removals,
+            )
+            .await?;
         store.apply_db2_power_costs_like_cpp(&spell_power_store, &spell_power_difficulty_store);
         store.apply_interrupt_flag_corrections_like_cpp();
 
@@ -6520,12 +6677,96 @@ impl SpellStore {
         self.spell_info_keys_like_cpp.len()
     }
 
+    fn apply_db2_hit_metadata_like_cpp(
+        &mut self,
+        spell_categories_store: &crate::spell_db2::SpellCategoriesStore,
+        spell_misc_store: &crate::spell_db2::SpellMiscStore,
+        spell_effect_store: &crate::spell_db2::SpellEffectDb2Store,
+    ) {
+        for categories in spell_categories_store.entries_like_cpp() {
+            let Ok(spell_id) = i32::try_from(categories.spell_id) else {
+                continue;
+            };
+            let row = SpellHitCategoriesRowLikeCpp {
+                record_id: categories.id,
+                // C++ assigns the signed DB2 fields directly into the
+                // corresponding uint32 SpellInfo members.
+                category_id: categories.category as u32,
+                charge_category_id: categories.charge_category as u32,
+                defense_type: categories.defense_type,
+                spell_mechanic: categories.mechanic,
+            };
+            self.spell_hit_categories_by_difficulty
+                .entry((spell_id, categories.difficulty_id))
+                .and_modify(|current| {
+                    if row.record_id > current.record_id {
+                        *current = row;
+                    }
+                })
+                .or_insert(row);
+        }
+
+        for misc in spell_misc_store.entries_like_cpp() {
+            let Ok(spell_id) = i32::try_from(misc.spell_id) else {
+                continue;
+            };
+            let row = SpellHitMiscRowLikeCpp {
+                record_id: misc.id,
+                school_mask: misc.school_mask,
+            };
+            self.spell_hit_misc_by_difficulty
+                .entry((spell_id, misc.difficulty_id))
+                .and_modify(|current| {
+                    if row.record_id > current.record_id {
+                        *current = row;
+                    }
+                })
+                .or_insert(row);
+        }
+
+        for effect in spell_effect_store.entries_like_cpp() {
+            let Ok(spell_id) = i32::try_from(effect.spell_id) else {
+                continue;
+            };
+            let Ok(difficulty_id) = u8::try_from(effect.difficulty_id) else {
+                continue;
+            };
+            let Ok(effect_index) = u32::try_from(effect.effect_index) else {
+                continue;
+            };
+            if effect_index >= MAX_SPELL_EFFECTS_LIKE_CPP as u32 {
+                continue;
+            }
+            let row = SpellHitEffectMechanicRowLikeCpp {
+                record_id: effect.id,
+                mechanic: effect.effect_mechanic,
+            };
+            self.spell_hit_effect_mechanics_by_difficulty
+                .entry((spell_id, difficulty_id))
+                .or_default()
+                .entry(effect_index)
+                .and_modify(|current| {
+                    if row.record_id > current.record_id {
+                        *current = row;
+                    }
+                })
+                .or_insert(row);
+        }
+    }
+
     fn from_spell_db2_stores_like_cpp(
+        spell_categories_store: &crate::spell_db2::SpellCategoriesStore,
         spell_misc_store: &crate::spell_db2::SpellMiscStore,
         spell_effect_store: &crate::spell_db2::SpellEffectDb2Store,
         spell_shapeshift_store: &crate::spell_db2::SpellShapeshiftStore,
     ) -> Self {
         let mut store = Self::new();
+
+        store.apply_db2_hit_metadata_like_cpp(
+            spell_categories_store,
+            spell_misc_store,
+            spell_effect_store,
+        );
 
         for misc in spell_misc_store.entries_like_cpp() {
             let Ok(spell_id) = i32::try_from(misc.spell_id) else {
@@ -6655,49 +6896,6 @@ impl SpellStore {
         }
     }
 
-    /// Overlay the typed hotfix mirror of `SpellInterrupts.db2` after the
-    /// client-file rows. C++ `DB2StorageBase::LoadFromDB` loads official rows
-    /// first and custom rows second; a present SQL row replaces its exact DB2
-    /// record ID before the relational spell/difficulty lookup is rebuilt.
-    async fn apply_hotfix_interrupts_like_cpp(&mut self, db: &HotfixDatabase) -> Result<usize> {
-        let mut count = 0usize;
-        for official in [true, false] {
-            let mut stmt = db.prepare(HotfixStatements::SEL_SPELL_INTERRUPTS);
-            stmt.set_bool(0, official);
-            let mut result = db.query(&stmt).await?;
-            if result.is_empty() {
-                continue;
-            }
-
-            loop {
-                let difficulty_id = result.try_read::<u8>(1).unwrap_or(0);
-                if let (Some(row_id), Some(spell_id)) =
-                    (result.try_read::<u32>(0), result.try_read::<u32>(7))
-                {
-                    count += usize::from(self.store_signed_interrupt_row_by_id_like_cpp(
-                        row_id,
-                        spell_id,
-                        difficulty_id,
-                        [
-                            result.try_read::<i32>(3).unwrap_or(0),
-                            result.try_read::<i32>(4).unwrap_or(0),
-                        ],
-                        [
-                            result.try_read::<i32>(5).unwrap_or(0),
-                            result.try_read::<i32>(6).unwrap_or(0),
-                        ],
-                    ));
-                }
-
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-        self.rebuild_interrupt_flags_from_rows_like_cpp();
-        Ok(count)
-    }
-
     /// Import world-DB `serverside_spell` interrupt masks into the same
     /// effective lookup used by live aura/channel decisions. C++ inserts these
     /// SpellInfo rows before applying corrections; effective file plus SQL
@@ -6823,6 +7021,37 @@ impl SpellStore {
     /// Mirrors C++ `SpellMgr::LoadSpellInfoStore`, which stores
     /// `SpellPowerEntry` rows in `SpellInfo::PowerCosts` keyed by
     /// `SpellID`/difficulty/order (`SpellMgr.cpp:2550`, `DB2Stores.cpp:301`).
+    /// C++ `SpellMgr::LoadSpellInfoStore` copies
+    /// `SpellCastingRequirements::RequiresSpellFocus` into an already
+    /// constructed `SpellInfo`. It never creates a spell from this table, so a
+    /// requirements row for an unknown spell stays inert.
+    fn apply_db2_casting_requirements_like_cpp(
+        &mut self,
+        spell_casting_requirements_store: &crate::spell_db2::SpellCastingRequirementsStore,
+    ) {
+        // C++'s DB2 iteration assigns this DIFFICULTY_NONE slot in record-ID
+        // order, so a duplicated SpellID resolves to the highest record ID.
+        let mut effective_by_spell: HashMap<i32, (u32, u16)> = HashMap::new();
+        for entry in spell_casting_requirements_store.entries_like_cpp() {
+            effective_by_spell
+                .entry(entry.spell_id)
+                .and_modify(|current| {
+                    if entry.id > current.0 {
+                        *current = (entry.id, entry.requires_spell_focus);
+                    }
+                })
+                .or_insert((entry.id, entry.requires_spell_focus));
+        }
+
+        for spell in self.spells.values_mut() {
+            spell.requires_spell_focus = effective_by_spell
+                .get(&spell.spell_id)
+                .map_or(0, |(_, requires_spell_focus)| {
+                    u32::from(*requires_spell_focus)
+                });
+        }
+    }
+
     fn apply_db2_power_costs_like_cpp(
         &mut self,
         spell_power_store: &crate::spell_db2::SpellPowerStore,
@@ -6832,7 +7061,10 @@ impl SpellStore {
             spell.power_costs.clear();
         }
 
-        for power in spell_power_store.entries_like_cpp() {
+        // C++ walks `sSpellPowerStore` through its record-ID ordered index, so
+        // two rows that collide on the same spell and order index must resolve
+        // to the highest record ID rather than to a `HashMap` iteration order.
+        for power in spell_power_store.entries_by_record_id_like_cpp() {
             if power.spell_id == 0 {
                 continue;
             }
@@ -6855,8 +7087,11 @@ impl SpellStore {
                 order_index,
                 power_type: power.power_type,
                 mana_cost: power.mana_cost,
+                mana_cost_per_level: power.mana_cost_per_level,
+                mana_per_second: power.mana_per_second,
                 power_cost_pct: power.power_cost_pct,
                 power_cost_max_pct: power.power_cost_max_pct,
+                power_pct_per_second: power.power_pct_per_second,
                 required_aura_spell_id: power.required_aura_spell_id,
                 optional_cost: power.optional_cost,
             };
@@ -6872,135 +7107,6 @@ impl SpellStore {
             }
             spell.power_costs.sort_by_key(|entry| entry.order_index);
         }
-    }
-
-    /// Load spell data from hotfixes database.
-    ///
-    /// Queries `hotfixes.spell_misc` (cast time, cooldowns) and
-    /// `hotfixes.spell_effect` (effect type, damage/healing parameters).
-    ///
-    /// # Arguments
-    ///
-    /// * `db` - HotfixDatabase connection pool
-    ///
-    /// # Returns
-    ///
-    /// A populated SpellStore on success, or a database error on failure.
-    pub async fn load(db: &HotfixDatabase) -> Result<Self> {
-        let mut store = Self::new();
-
-        // Query spell_misc and spell_effect from hotfixes database
-        // NOTE: Phase 1 — cast_time_ms and cooldown_ms are hardcoded to 0 (instant).
-        // Phase 2+ will load from SpellCastTimes.dbc and SpellDuration.dbc using
-        // CastingTimeIndex and DurationIndex respectively.
-        let sql = r#"
-SELECT 
-    CAST(sm.ID AS SIGNED) as spell_id,
-    CAST(0 AS UNSIGNED) as cast_time_ms,
-    CAST(0 AS UNSIGNED) as cooldown_ms,
-    CAST(0 AS UNSIGNED) as recovery_time_ms,
-    CAST(COALESCE(se.Effect, 0) AS UNSIGNED) as effect_type,
-    CAST(COALESCE(se.EffectBasePoints, 0) AS SIGNED) as effect_base_points,
-    CAST(COALESCE(se.EffectBonusCoefficient, 0.0) AS DECIMAL(10,2)) as effect_bonus_coeff,
-    CAST(COALESCE(se.EffectAura, 0) AS SIGNED) as effect_aura,
-    CAST(COALESCE(se.EffectMiscValue1, 0) AS SIGNED) as effect_misc_value_1,
-    CAST(COALESCE(se.EffectMiscValue2, 0) AS SIGNED) as effect_misc_value_2,
-    CAST(COALESCE(se.EffectTriggerSpell, 0) AS SIGNED) as effect_trigger_spell,
-    CAST(COALESCE(se.EffectRadiusIndex1, 0) AS UNSIGNED) as effect_radius_index_1,
-    CAST(COALESCE(se.EffectPosFacing, 0.0) AS DECIMAL(10,4)) as position_facing,
-    CAST(COALESCE(se.EffectIndex, 0) AS UNSIGNED) as effect_index,
-    CAST(COALESCE(se.EffectChainTargets, 0) AS SIGNED) as effect_chain_targets,
-    CAST(COALESCE(se.ImplicitTarget1, 0) AS UNSIGNED) as implicit_target_1,
-    CAST(COALESCE(se.ImplicitTarget2, 0) AS UNSIGNED) as implicit_target_2,
-    CAST(COALESCE(scr.RequiresSpellFocus, 0) AS UNSIGNED) as requires_spell_focus,
-    CAST(COALESCE(se.EffectSpellClassMask1, 0) AS UNSIGNED) as effect_spell_class_mask_1,
-    CAST(COALESCE(se.EffectSpellClassMask2, 0) AS UNSIGNED) as effect_spell_class_mask_2,
-    CAST(COALESCE(se.EffectSpellClassMask3, 0) AS UNSIGNED) as effect_spell_class_mask_3,
-    CAST(COALESCE(se.EffectSpellClassMask4, 0) AS UNSIGNED) as effect_spell_class_mask_4,
-    CAST(COALESCE(se.EffectDieSides, 0) AS SIGNED) as effect_die_sides
-FROM hotfixes.spell_misc sm
-LEFT JOIN hotfixes.spell_effect se 
-    ON sm.ID = se.SpellID AND se.DifficultyID = 0
-LEFT JOIN hotfixes.spell_casting_requirements scr
-    ON sm.ID = scr.SpellID
-ORDER BY sm.ID, se.EffectIndex
-        "#;
-
-        let mut result = db.direct_query(sql).await?;
-
-        if !result.is_empty() {
-            loop {
-                let spell_id: i32 = result.read(0);
-                let cast_time_ms: u32 = result.read(1);
-                let cooldown_ms: u32 = result.read(2);
-                let recovery_time_ms: u32 = result.read(3);
-                let effect_type: u32 = result.try_read(4).unwrap_or(0);
-                let effect_base_points: i32 = result.try_read(5).unwrap_or(0);
-                let effect_bonus_coefficient: f32 = result.try_read(6).unwrap_or(0.0);
-                let aura_type: Option<i32> = result.try_read(7);
-                let effect_misc_value_1: i32 = result.try_read(8).unwrap_or(0);
-                let effect_misc_value_2: i32 = result.try_read(9).unwrap_or(0);
-                let effect_trigger_spell: i32 = result.try_read(10).unwrap_or(0);
-                let effect_radius_index_1: u32 = result.try_read(11).unwrap_or(0);
-                let position_facing: f32 = result.try_read(12).unwrap_or(0.0);
-                let effect_index: u32 = result.try_read(13).unwrap_or(0);
-                let effect_chain_targets: i32 = result.try_read(14).unwrap_or(0);
-                let implicit_target_1: u32 = result.try_read(15).unwrap_or(0);
-                let implicit_target_2: u32 = result.try_read(16).unwrap_or(0);
-                let requires_spell_focus: u32 = result.try_read(17).unwrap_or(0);
-                let effect_spell_class_mask = [
-                    result.try_read(18).unwrap_or(0),
-                    result.try_read(19).unwrap_or(0),
-                    result.try_read(20).unwrap_or(0),
-                    result.try_read(21).unwrap_or(0),
-                ];
-                let effect_die_sides: i32 = result.try_read(22).unwrap_or(0);
-
-                let spell_info = store.spells.entry(spell_id).or_insert_with(|| SpellInfo {
-                    spell_id,
-                    cast_time_ms,
-                    cooldown_ms,
-                    recovery_time_ms,
-                    effect_type,
-                    effect_base_points,
-                    effect_bonus_coefficient,
-                    aura_type,
-                    display_flags: 0,
-                    requires_spell_focus,
-                    power_costs: Vec::new(),
-                    effects: Vec::new(),
-                });
-
-                if effect_type != 0 {
-                    spell_info.effects.push(SpellEffectInfo {
-                        effect_index,
-                        effect: effect_type,
-                        effect_aura: aura_type.unwrap_or(0),
-                        effect_base_points,
-                        effect_die_sides,
-                        effect_spell_class_mask,
-                        effect_misc_value_1,
-                        effect_misc_value_2,
-                        effect_trigger_spell,
-                        effect_radius_index_1,
-                        position_facing,
-                        chain_targets: effect_chain_targets,
-                        implicit_target_1,
-                        implicit_target_2,
-                    });
-                }
-
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        info!(
-            "Loaded {} spells from hotfixes database",
-            store.spells.len()
-        );
-        Ok(store)
     }
 
     /// Look up a spell by ID.
@@ -7345,6 +7451,58 @@ ORDER BY sm.ID, se.EffectIndex
         }
     }
 
+    /// Insert one synthetic hit-metadata projection for focused tests or
+    /// dynamic registration without widening `SpellInfo`/`SpellEffectInfo`.
+    #[allow(dead_code)]
+    pub fn insert_spell_hit_metadata_for_difficulty_like_cpp(
+        &mut self,
+        spell_id: i32,
+        difficulty_id: u8,
+        metadata: SpellHitMetadataLikeCpp,
+    ) {
+        let SpellHitMetadataLikeCpp {
+            category_id,
+            charge_category_id,
+            defense_type,
+            spell_mechanic,
+            school_mask,
+            effect_mechanics,
+        } = metadata;
+        self.spell_hit_categories_by_difficulty.insert(
+            (spell_id, difficulty_id),
+            SpellHitCategoriesRowLikeCpp {
+                record_id: u32::MAX,
+                category_id,
+                charge_category_id,
+                defense_type,
+                spell_mechanic,
+            },
+        );
+        self.spell_hit_misc_by_difficulty.insert(
+            (spell_id, difficulty_id),
+            SpellHitMiscRowLikeCpp {
+                record_id: u32::MAX,
+                school_mask,
+            },
+        );
+        self.spell_hit_effect_mechanics_by_difficulty.insert(
+            (spell_id, difficulty_id),
+            effect_mechanics
+                .into_iter()
+                .filter(|(effect_index, _)| *effect_index < MAX_SPELL_EFFECTS_LIKE_CPP as u32)
+                .map(|(effect_index, mechanic)| {
+                    (
+                        effect_index,
+                        SpellHitEffectMechanicRowLikeCpp {
+                            record_id: u32::MAX,
+                            mechanic,
+                        },
+                    )
+                })
+                .collect(),
+        );
+    }
+
     #[allow(dead_code)]
     pub fn insert_spell_interrupt_flags_like_cpp(
         &mut self,
@@ -7428,25 +7586,6 @@ mod tests {
             effect: spell_effect_types::SPELL_EFFECT_SKILL,
             effect_misc_value_1: skill_id,
             ..Default::default()
-        }
-    }
-
-    fn test_effect_like_cpp(effect_index: u32, effect_aura: i32) -> SpellEffectInfo {
-        SpellEffectInfo {
-            effect_index,
-            effect: spell_effect_types::SPELL_EFFECT_APPLY_AURA,
-            effect_aura,
-            effect_base_points: 0,
-            effect_die_sides: 0,
-            effect_spell_class_mask: [0; 4],
-            effect_misc_value_1: 0,
-            effect_misc_value_2: 0,
-            effect_trigger_spell: 0,
-            effect_radius_index_1: 0,
-            position_facing: 0.0,
-            chain_targets: 0,
-            implicit_target_1: 0,
-            implicit_target_2: 0,
         }
     }
 
@@ -7658,24 +7797,121 @@ mod tests {
     }
 
     #[test]
-    fn hotfix_base_effect_replaces_difficulty_zero_lookup_like_cpp() {
-        let mut store = SpellStore::new();
-        let mut base = SpellStore::empty_spell_info_like_cpp(100);
-        base.effects
-            .push(test_effect_like_cpp(0, aura_types::SPELL_AURA_MOD_THREAT));
-        store.merge_spell_info_like_cpp(base);
+    fn effective_effect_store_is_the_only_difficulty_zero_effect_authority_like_cpp() {
+        let spell_id = 100u32;
+        let build = |effects: Vec<crate::spell_db2::SpellEffectDb2Entry>| {
+            SpellStore::from_spell_db2_stores_like_cpp(
+                &crate::spell_db2::SpellCategoriesStore::from_entries([]),
+                &crate::spell_db2::SpellMiscStore::from_entries([test_spell_misc_entry_like_cpp(
+                    1, spell_id, 0, 0,
+                )]),
+                &crate::spell_db2::SpellEffectDb2Store::from_entries(effects),
+                &crate::spell_db2::SpellShapeshiftStore::from_entries([]),
+            )
+        };
+        let effect = |id, effect_index, effect_aura: i32| {
+            let mut entry = test_spell_effect_db2_entry_like_cpp(
+                id,
+                spell_id,
+                0,
+                effect_index,
+                spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                0,
+            );
+            entry.effect_aura = effect_aura as i16;
+            entry
+        };
 
-        let mut hotfix = SpellStore::empty_spell_info_like_cpp(100);
-        hotfix
-            .effects
-            .push(test_effect_like_cpp(0, aura_types::SPELL_AURA_MOD_TAUNT));
-        store.merge_spell_info_like_cpp(hotfix);
+        let before_tombstone = build(vec![
+            effect(1, 0, aura_types::SPELL_AURA_MOD_THREAT),
+            effect(2, 1, aura_types::SPELL_AURA_MOD_TAUNT),
+        ]);
+        assert_eq!(
+            before_tombstone
+                .effects_for_difficulty_like_cpp(spell_id as i32, 0, None)
+                .expect("both effective rows")
+                .len(),
+            2
+        );
 
-        let effects = store
-            .effects_for_difficulty_like_cpp(100, 0, None)
-            .expect("hotfixed base effect");
+        // A final `hotfix_data` tombstone leaves the effective store without
+        // record 2. No other authority may reintroduce that effect index.
+        let after_tombstone = build(vec![effect(1, 0, aura_types::SPELL_AURA_MOD_THREAT)]);
+        let effects = after_tombstone
+            .effects_for_difficulty_like_cpp(spell_id as i32, 0, None)
+            .expect("surviving effective row");
         assert_eq!(effects.len(), 1);
-        assert_eq!(effects[0].effect_aura, aura_types::SPELL_AURA_MOD_TAUNT);
+        assert_eq!(effects[0].effect_index, 0);
+        assert_eq!(effects[0].effect_aura, aura_types::SPELL_AURA_MOD_THREAT);
+
+        let spell = after_tombstone
+            .get(spell_id as i32)
+            .expect("spell from effective SpellMisc");
+        assert_eq!(spell.effects.len(), 1);
+        assert_eq!(spell.aura_type, Some(aura_types::SPELL_AURA_MOD_THREAT));
+    }
+
+    #[test]
+    fn casting_requirements_hydrate_requires_spell_focus_from_effective_store_like_cpp() {
+        let requirements = |id, spell_id: i32, requires_spell_focus| {
+            crate::spell_db2::SpellCastingRequirementsEntry {
+                id,
+                spell_id,
+                facing_caster_flags: 0,
+                min_faction_id: 0,
+                min_reputation: 0,
+                required_areas_id: 0,
+                required_aura_vision: 0,
+                requires_spell_focus,
+            }
+        };
+        let build_spell_store = || {
+            SpellStore::from_spell_db2_stores_like_cpp(
+                &crate::spell_db2::SpellCategoriesStore::from_entries([]),
+                &crate::spell_db2::SpellMiscStore::from_entries([
+                    test_spell_misc_entry_like_cpp(1, 100, 0, 0),
+                    test_spell_misc_entry_like_cpp(2, 200, 0, 0),
+                ]),
+                &crate::spell_db2::SpellEffectDb2Store::from_entries([]),
+                &crate::spell_db2::SpellShapeshiftStore::from_entries([]),
+            )
+        };
+
+        let mut store = build_spell_store();
+        store.apply_db2_casting_requirements_like_cpp(
+            &crate::spell_db2::SpellCastingRequirementsStore::from_entries([
+                requirements(1, 100, 181),
+                // A malformed duplicate resolves to the highest record ID, the
+                // slot C++'s record-ID ordered DB2 iteration assigns last.
+                requirements(2, 100, 23),
+            ]),
+        );
+        assert_eq!(
+            store.get(100).map(|spell| spell.requires_spell_focus),
+            Some(23)
+        );
+        assert!(
+            store
+                .get(100)
+                .expect("spell 100")
+                .requires_spell_focus_like_cpp()
+        );
+        assert_eq!(
+            store.get(200).map(|spell| spell.requires_spell_focus),
+            Some(0),
+            "a spell without a requirements row keeps the C++ default"
+        );
+
+        // A final tombstone removes the only row, so the spell must fall back to
+        // zero instead of keeping a resurrected focus object.
+        let mut tombstoned = build_spell_store();
+        tombstoned.apply_db2_casting_requirements_like_cpp(
+            &crate::spell_db2::SpellCastingRequirementsStore::from_entries([]),
+        );
+        assert_eq!(
+            tombstoned.get(100).map(|spell| spell.requires_spell_focus),
+            Some(0)
+        );
     }
 
     #[test]
@@ -7710,6 +7946,169 @@ mod tests {
             attributes::SPELL_ATTR1_NO_THREAT,
         ));
     }
+
+    #[test]
+    fn hit_metadata_composes_each_db2_contributor_and_effect_slot_like_cpp() {
+        let spell_id = 90_001;
+        let categories = |id, difficulty_id, category, charge_category, defense_type, mechanic| {
+            crate::spell_db2::SpellCategoriesEntry {
+                id,
+                difficulty_id,
+                category,
+                defense_type,
+                dispel_type: 0,
+                mechanic,
+                prevention_type: 0,
+                start_recovery_category: 0,
+                charge_category,
+                spell_id,
+            }
+        };
+        let category_store = crate::spell_db2::SpellCategoriesStore::from_entries([
+            categories(10, 0, 7, 8, 1, 2),
+            categories(19, 2, 50, 60, 5, 6),
+            categories(20, 2, 30, 40, 3, 4),
+        ]);
+
+        let mut base_misc = test_spell_misc_entry_like_cpp(10, spell_id, 0, 0);
+        base_misc.school_mask = 1;
+        let mut lower_duplicate_misc = test_spell_misc_entry_like_cpp(9, spell_id, 0, 0);
+        lower_duplicate_misc.school_mask = 2;
+        let misc_store =
+            crate::spell_db2::SpellMiscStore::from_entries([base_misc, lower_duplicate_misc]);
+
+        let effect_store = crate::spell_db2::SpellEffectDb2Store::from_entries([
+            test_spell_effect_db2_entry_like_cpp(10, spell_id, 0, 0, 2, 7),
+            // The row itself exists even though Effect=NONE, so it suppresses
+            // the base slot's mechanic during per-effect fallback.
+            test_spell_effect_db2_entry_like_cpp(20, spell_id, 2, 0, 0, 0),
+            test_spell_effect_db2_entry_like_cpp(11, spell_id, 0, 1, 2, 8),
+            test_spell_effect_db2_entry_like_cpp(21, spell_id, 1, 1, 2, 9),
+            test_spell_effect_db2_entry_like_cpp(18, spell_id, 2, 2, 2, 5),
+            test_spell_effect_db2_entry_like_cpp(22, spell_id, 2, 2, 2, 11),
+            test_spell_effect_db2_entry_like_cpp(
+                30,
+                spell_id,
+                2,
+                MAX_SPELL_EFFECTS_LIKE_CPP,
+                2,
+                99,
+            ),
+        ]);
+        let store = SpellStore::from_spell_db2_stores_like_cpp(
+            &category_store,
+            &misc_store,
+            &effect_store,
+            &crate::spell_db2::SpellShapeshiftStore::from_entries([]),
+        );
+        let difficulties = crate::DifficultyStore::from_entries([
+            crate::DifficultyEntry {
+                id: 2,
+                instance_type: 0,
+                flags: 0,
+                fallback_difficulty_id: 1,
+                toggle_difficulty_id: 0,
+            },
+            crate::DifficultyEntry {
+                id: 1,
+                instance_type: 0,
+                flags: 0,
+                fallback_difficulty_id: 0,
+                toggle_difficulty_id: 0,
+            },
+        ]);
+
+        assert_eq!(
+            store.hit_metadata_for_difficulty_like_cpp(spell_id as i32, 2, Some(&difficulties)),
+            Some(SpellHitMetadataLikeCpp {
+                category_id: 30,
+                charge_category_id: 40,
+                defense_type: 3,
+                spell_mechanic: 4,
+                school_mask: 1,
+                effect_mechanics: BTreeMap::from([(0, 0), (1, 9), (2, 11)]),
+            })
+        );
+        assert_eq!(
+            store.hit_metadata_for_difficulty_like_cpp(spell_id as i32, 3, None),
+            Some(SpellHitMetadataLikeCpp {
+                category_id: 7,
+                charge_category_id: 8,
+                defense_type: 1,
+                spell_mechanic: 2,
+                school_mask: 1,
+                effect_mechanics: BTreeMap::from([(0, 7), (1, 8)]),
+            })
+        );
+        assert!(
+            store
+                .hit_metadata_for_difficulty_like_cpp(99_999, 2, Some(&difficulties))
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn synthetic_hit_metadata_insertion_supports_focused_consumers() {
+        let mut store = SpellStore::new();
+        let metadata = SpellHitMetadataLikeCpp {
+            category_id: 13,
+            charge_category_id: 17,
+            defense_type: 2,
+            spell_mechanic: 7,
+            school_mask: 4,
+            effect_mechanics: BTreeMap::from([(0, 0), (2, 12)]),
+        };
+        store.insert_spell_hit_metadata_for_difficulty_like_cpp(90_002, 2, metadata.clone());
+
+        assert_eq!(
+            store.hit_metadata_for_difficulty_like_cpp(90_002, 2, None),
+            Some(metadata)
+        );
+    }
+
+    #[test]
+    fn real_spell_15691_hit_metadata_matches_db2_when_data_exists() {
+        let data_dir = std::env::var("RUSTYCORE_REAL_DATA_DIR")
+            .unwrap_or_else(|_| "/home/server/woltk-server-core/Data".to_string());
+        let locale = std::env::var("RUSTYCORE_REAL_LOCALE").unwrap_or_else(|_| "enUS".to_string());
+        let dbc_dir = std::path::Path::new(&data_dir).join("dbc").join(&locale);
+        if ["SpellCategories.db2", "SpellMisc.db2", "SpellEffect.db2"]
+            .into_iter()
+            .any(|file| !dbc_dir.join(file).is_file())
+        {
+            eprintln!(
+                "Skipping real spell hit-metadata fixture: DB2 files not found at {}",
+                dbc_dir.display()
+            );
+            return;
+        }
+
+        let category_store = crate::spell_db2::SpellCategoriesStore::load(&data_dir, &locale)
+            .expect("load real SpellCategories.db2");
+        let misc_store = crate::spell_db2::SpellMiscStore::load(&data_dir, &locale)
+            .expect("load real SpellMisc.db2");
+        let effect_store = crate::spell_db2::SpellEffectDb2Store::load(&data_dir, &locale)
+            .expect("load real SpellEffect.db2");
+        let store = SpellStore::from_spell_db2_stores_like_cpp(
+            &category_store,
+            &misc_store,
+            &effect_store,
+            &crate::spell_db2::SpellShapeshiftStore::from_entries([]),
+        );
+
+        assert_eq!(
+            store.hit_metadata_for_difficulty_like_cpp(15_691, 0, None),
+            Some(SpellHitMetadataLikeCpp {
+                category_id: 0,
+                charge_category_id: 0,
+                defense_type: 2,
+                spell_mechanic: 0,
+                school_mask: 1,
+                effect_mechanics: BTreeMap::from([(0, 0)]),
+            })
+        );
+    }
+
     use crate::{Condition, ConditionEntriesByTypeStore};
     use wow_constants::{ConditionSourceType, ConditionType};
 
@@ -7921,6 +8320,7 @@ mod tests {
 
         let shapeshift_store = crate::spell_db2::SpellShapeshiftStore::from_entries([]);
         let store = SpellStore::from_spell_db2_stores_like_cpp(
+            &crate::spell_db2::SpellCategoriesStore::from_entries([]),
             &misc_store,
             &effect_store,
             &shapeshift_store,
@@ -7953,6 +8353,7 @@ mod tests {
 
         let shapeshift_store = crate::spell_db2::SpellShapeshiftStore::from_entries([]);
         let store = SpellStore::from_spell_db2_stores_like_cpp(
+            &crate::spell_db2::SpellCategoriesStore::from_entries([]),
             &misc_store,
             &effect_store,
             &shapeshift_store,
@@ -8303,13 +8704,13 @@ mod tests {
                 id: 10,
                 order_index: 1,
                 mana_cost: 40,
-                mana_cost_per_level: 0,
-                mana_per_second: 0,
+                mana_cost_per_level: 4,
+                mana_per_second: 5,
                 power_display_id: 0,
                 alt_power_bar_id: 0,
                 power_cost_pct: 10.0,
                 power_cost_max_pct: 0.0,
-                power_pct_per_second: 0.0,
+                power_pct_per_second: 6.5,
                 power_type: PowerType::Mana as i8,
                 required_aura_spell_id: 0,
                 optional_cost: 0,
@@ -8345,7 +8746,10 @@ mod tests {
         assert_eq!(costs.len(), 1, "non-default difficulty rows are skipped");
         assert_eq!(costs[0].order_index, 1);
         assert_eq!(costs[0].mana_cost, 40);
+        assert_eq!(costs[0].mana_cost_per_level, 4);
+        assert_eq!(costs[0].mana_per_second, 5);
         assert_eq!(costs[0].power_cost_pct, 10.0);
+        assert_eq!(costs[0].power_pct_per_second, 6.5);
         assert_eq!(costs[0].power_type, PowerType::Mana as i8);
     }
 
@@ -8356,8 +8760,11 @@ mod tests {
             order_index: 0,
             power_type: PowerType::Mana as i8,
             mana_cost: 50,
+            mana_cost_per_level: 0,
+            mana_per_second: 0,
             power_cost_pct: 12.5,
             power_cost_max_pct: 0.0,
+            power_pct_per_second: 0.0,
             required_aura_spell_id: 0,
             optional_cost: 0,
         });
@@ -8380,8 +8787,11 @@ mod tests {
             order_index: 0,
             power_type: PowerType::Mana as i8,
             mana_cost: 0,
+            mana_cost_per_level: 0,
+            mana_per_second: 0,
             power_cost_pct: 0.0,
             power_cost_max_pct: 18.0,
+            power_pct_per_second: 0.0,
             required_aura_spell_id: 0,
             optional_cost: 0,
         });
@@ -8410,6 +8820,7 @@ mod tests {
         ]);
         let form = shapeshift_form(shapeshift_form_flags::STANCE);
         let store = SpellStore::from_spell_db2_stores_like_cpp(
+            &crate::spell_db2::SpellCategoriesStore::from_entries([]),
             &misc_store,
             &effect_store,
             &shapeshift_store,
@@ -8447,6 +8858,7 @@ mod tests {
             },
         ]);
         let store = SpellStore::from_spell_db2_stores_like_cpp(
+            &crate::spell_db2::SpellCategoriesStore::from_entries([]),
             &misc_store,
             &effect_store,
             &shapeshift_store,
@@ -12552,6 +12964,48 @@ mod tests {
             active_icon_file_data_id: 0,
             content_tuning_id: 0,
             show_future_spell_player_condition_id: 0,
+            spell_id,
+        }
+    }
+
+    fn test_spell_effect_db2_entry_like_cpp(
+        id: u32,
+        spell_id: u32,
+        difficulty_id: i32,
+        effect_index: i32,
+        effect: u32,
+        effect_mechanic: i32,
+    ) -> crate::spell_db2::SpellEffectDb2Entry {
+        crate::spell_db2::SpellEffectDb2Entry {
+            id,
+            difficulty_id,
+            effect_index,
+            effect,
+            effect_amplitude: 0.0,
+            effect_attributes: 0,
+            effect_aura: 0,
+            effect_aura_period: 0,
+            effect_base_points: 0,
+            effect_bonus_coefficient: 0.0,
+            effect_chain_amplitude: 0.0,
+            effect_chain_targets: 0,
+            effect_die_sides: 0,
+            effect_item_type: 0,
+            effect_mechanic,
+            effect_points_per_resource: 0.0,
+            effect_pos_facing: 0.0,
+            effect_real_points_per_level: 0.0,
+            effect_trigger_spell: 0,
+            bonus_coefficient_from_ap: 0.0,
+            pvp_multiplier: 0.0,
+            coefficient: 0.0,
+            variance: 0.0,
+            resource_coefficient: 0.0,
+            group_size_base_points_coefficient: 0.0,
+            effect_misc_value: [0; 2],
+            effect_radius_index: [0; 2],
+            effect_spell_class_mask: [0; 4],
+            implicit_target: [0; 2],
             spell_id,
         }
     }

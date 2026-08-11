@@ -875,6 +875,7 @@ impl WorldSession {
         &mut self,
         quest: &wow_data::quest::QuestTemplate,
     ) -> bool {
+        self.invalidate_player_quest_status_authority_like_cpp();
         let old_status = {
             let Some(status) = self.player_quests.get_mut(&quest.id) else {
                 return false;
@@ -1027,6 +1028,10 @@ impl WorldSession {
             .collect::<Vec<_>>();
         duplicate_quest_ids.sort_unstable();
         duplicate_quest_ids.dedup();
+
+        if !duplicate_quest_ids.is_empty() {
+            self.invalidate_player_quest_status_authority_like_cpp();
+        }
 
         for quest_id in &duplicate_quest_ids {
             self.player_quests.remove(quest_id);
@@ -1527,6 +1532,7 @@ impl WorldSession {
     /// recompute matching item objectives from carried (non-bank) contents and
     /// move completed quests back to incomplete when the requirement is lost.
     pub(crate) fn apply_quest_item_removed_like_cpp(&mut self, entry_id: u32) -> Vec<u32> {
+        self.invalidate_player_quest_status_authority_like_cpp();
         let Some(quest_store) = self.quest_store.clone() else {
             return Vec::new();
         };
@@ -1555,6 +1561,7 @@ impl WorldSession {
         quest_log_item_id: u32,
         count: u32,
     ) -> Vec<u32> {
+        self.invalidate_player_quest_status_authority_like_cpp();
         let Some(quest_store) = self.quest_store.clone() else {
             return Vec::new();
         };
@@ -1574,6 +1581,7 @@ impl WorldSession {
         quest_log_item_id: u32,
         count: u32,
     ) -> Vec<u32> {
+        self.invalidate_player_quest_status_authority_like_cpp();
         let Some(quest_store) = self.quest_store.clone() else {
             return Vec::new();
         };
@@ -2027,6 +2035,7 @@ impl WorldSession {
         object_id: i32,
         count_i32: i32,
     ) -> Vec<(u32, i32)> {
+        self.invalidate_player_quest_status_authority_like_cpp();
         let mut updated_counts = Vec::new();
         let mut quests_to_complete = Vec::new();
         let ordered_quest_ids = self.quest_bound_item_objective_quest_order_like_cpp();
@@ -2419,6 +2428,7 @@ impl WorldSession {
             Self::represented_accept_and_end_time_for_new_quest_like_cpp(&quest);
 
         // Add to local state
+        self.invalidate_player_quest_status_authority_like_cpp();
         self.player_quests.insert(
             quest_id,
             PlayerQuestStatus {
@@ -2531,6 +2541,7 @@ impl WorldSession {
         let (accept_time_secs, end_time_secs) =
             Self::represented_accept_and_end_time_for_new_quest_like_cpp(quest);
 
+        self.invalidate_player_quest_status_authority_like_cpp();
         self.player_quests.insert(
             quest.id,
             PlayerQuestStatus {
@@ -5646,6 +5657,7 @@ impl WorldSession {
             return;
         };
 
+        self.invalidate_player_quest_status_authority_like_cpp();
         self.player_quests.remove(&qid);
         self.delete_quest_from_db(qid).await;
         self.sync_player_registry_state_like_cpp();
@@ -6602,6 +6614,7 @@ impl WorldSession {
         let xp = self.quest_xp_reward_like_cpp(quest);
         let rewarded_slot = self.find_quest_slot_like_cpp(quest_id);
 
+        self.invalidate_player_quest_status_authority_like_cpp();
         self.player_quests.remove(&quest_id);
         if !quest.is_repeatable() {
             self.rewarded_quests.insert(quest_id);
@@ -7785,6 +7798,8 @@ impl WorldSession {
     pub(crate) async fn load_player_quests(&mut self) {
         use wow_database::CharStatements;
 
+        self.begin_player_quest_status_authority_load_like_cpp();
+
         let player_guid = match self.player_guid() {
             Some(g) => g,
             None => return,
@@ -7811,17 +7826,40 @@ impl WorldSession {
         self.player_quests.clear();
         self.rewarded_quests.clear();
 
+        let mut quest_status_rows_coherent_like_cpp = true;
         let mut next_active_slot: u8 = 0;
         let mut stale_rewarded_active_rows = Vec::new();
 
         if !result.is_empty() {
             let mut result = result;
             loop {
-                let quest_id: u32 = result.try_read::<u32>(0).unwrap_or(0);
-                let status: u8 = result.try_read::<u8>(1).unwrap_or(0);
-                let explored: bool = result.try_read::<u8>(2).unwrap_or(0) != 0;
-                let accept_time_secs: i64 = result.try_read::<i64>(3).unwrap_or(0);
-                let end_time_secs: i64 = result.try_read::<i64>(4).unwrap_or(0);
+                let row = (
+                    result.try_read::<u32>(0),
+                    result.try_read::<u8>(1),
+                    result.try_read::<u8>(2),
+                    result.try_read::<i64>(3),
+                    result.try_read::<i64>(4),
+                );
+                let (
+                    Some(quest_id),
+                    Some(status),
+                    Some(explored),
+                    Some(accept_time_secs),
+                    Some(end_time_secs),
+                ) = row
+                else {
+                    quest_status_rows_coherent_like_cpp = false;
+                    if !result.next_row() {
+                        break;
+                    }
+                    continue;
+                };
+                let status = if status < 7 {
+                    status
+                } else {
+                    QUEST_STATUS_INCOMPLETE_LIKE_CPP
+                };
+                let explored = explored != 0;
 
                 if status == QUEST_STATUS_REWARDED_LIKE_CPP {
                     // Rewarded (C++ QuestStatus::QUEST_STATUS_REWARDED / m_RewardedQuests).
@@ -7839,6 +7877,9 @@ impl WorldSession {
                         .as_ref()
                         .and_then(|s| s.get(quest_id))
                         .map_or(0, |q| q.objectives.len());
+                    if self.player_quests.contains_key(&quest_id) {
+                        quest_status_rows_coherent_like_cpp = false;
+                    }
                     self.player_quests.insert(
                         quest_id,
                         PlayerQuestStatus {
@@ -7906,18 +7947,25 @@ impl WorldSession {
             }
         }
 
+        let mut rewarded_rows_coherent_like_cpp = false;
         let mut rewarded_stmt = char_db.prepare(CharStatements::SEL_CHARACTER_QUESTSTATUSREW);
         Self::bind_player_quest_status_load_guid_like_cpp(&mut rewarded_stmt, player_guid);
         match char_db.query(&rewarded_stmt).await {
             Ok(rewarded_rows) if !rewarded_rows.is_empty() => {
+                rewarded_rows_coherent_like_cpp = true;
                 let mut rewarded_rows = rewarded_rows;
                 loop {
-                    let quest_id = rewarded_rows.try_read::<u32>(0).unwrap_or(0);
+                    let Some(quest_id) = rewarded_rows.try_read::<u32>(0) else {
+                        rewarded_rows_coherent_like_cpp = false;
+                        if !rewarded_rows.next_row() {
+                            break;
+                        }
+                        continue;
+                    };
+                    self.record_represented_rewarded_quest_row_like_cpp(quest_id);
                     if self
-                        .quest_store
-                        .as_ref()
-                        .and_then(|store| store.get(quest_id))
-                        .is_some()
+                        .represented_quest_can_increase_rewarded_counters_like_cpp(quest_id)
+                        .is_some_and(|can_increase| can_increase)
                     {
                         self.rewarded_quests.insert(quest_id);
                     }
@@ -7927,7 +7975,7 @@ impl WorldSession {
                     }
                 }
             }
-            Ok(_) => {}
+            Ok(_) => rewarded_rows_coherent_like_cpp = true,
             Err(e) => {
                 warn!(
                     account = self.account_id,
@@ -7948,6 +7996,10 @@ impl WorldSession {
             );
             self.save_quest_to_db(quest_id, QUEST_STATUS_REWARDED_LIKE_CPP)
                 .await;
+        }
+
+        if quest_status_rows_coherent_like_cpp && rewarded_rows_coherent_like_cpp {
+            self.complete_player_quest_status_authority_load_like_cpp();
         }
 
         self.df_quests_like_cpp.clear();
