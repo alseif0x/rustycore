@@ -31,8 +31,12 @@ therefore may be smaller and more cohesive while preserving the same semantic ow
 
 This direction also follows Rust's native boundaries: modules control visibility inside a crate,
 while Cargo packages are separate compilation and public-API boundaries. A line count is a signal
-for review, not an architecture rule. The checker reports production/test hotspots but never
-fails solely because a file crosses an arbitrary size.
+for review, not a universal size rule. The checker reports the largest production/test hotspots.
+For the explicitly audited paths in `runtime-ownership-ledger.json`, the recorded production,
+test, and total counts are independent non-growth ceilings: extraction and reduction pass without
+a baseline edit, while growth in any one metric requires an explicit reviewed baseline change.
+An audited path cannot disappear or be renamed until its ledger row is explicitly retired or
+replaced.
 
 ## Dependency direction
 
@@ -167,9 +171,10 @@ external exceptions, external allowlist entries, and the raw-network rejection o
 (`wow-network → sqlx`) while retaining its reviewed Tokio runtime. Malformed/duplicate JSON and
 Cargo identities, canonical/path/Git/alternate-registry origins, both valid Cargo Git-ID forms,
 inactive target-specific dependencies, and ambiguous external identities are adversarially
-covered. `check` evaluates the real locked Cargo workspace, including direct third-party
-`normal`/`build` dependencies, rejects stale policy entries, and prints informational source
-hotspots.
+covered. The hotspot self-test independently rejects production, test, and total growth and
+accepts a reduction. `check` evaluates the real locked Cargo workspace, including direct
+third-party `normal`/`build` dependencies, rejects stale policy entries, enforces non-growth for
+the curated hotspot paths, and still prints the broader source-hotspot report.
 
 The exact handler snapshot is `tools/architecture/world-handler-contract.tsv`. Its Rust test
 enumerates the linked `inventory` registry, so macro-generated registrations are included. A
@@ -274,9 +279,10 @@ composition-side `SessionResources` has 243 fields, of which 186 are optional;
 reachable payload types. The factory has 247 `set_*` and one `install_*` call: two setters are
 multiline calls that the earlier text-only count missed. The generated-input surface has 44 exact
 records, and direct access to `PlayerRegistry`, `GroupRegistry`, or `PendingInvites` is frozen as
-685 exact AST rows with multiplicity 705. The workspace-wide persistence inventory adds 278 exact
-rows (326 with multiplicity) for concrete types, queries, transactions, pool escapes and macro
-boundaries. The legacy/canonical inventory contains 71 definition/seam rows, including eight
+685 exact AST rows with multiplicity 705. The workspace-wide persistence inventory adds 309 exact
+rows—278 production and 31 test-fixture rows—with multiplicity 366 (326 production and 40 test)
+for concrete types, queries, transactions, pool escapes and macro boundaries. The
+legacy/canonical inventory contains 71 definition/seam rows, including eight
 curated anchors; it deliberately avoids duplicating every caller of an already inventoried typed
 helper. `#134` already moved `SessionResources` out of `wow-network`; #136 extracts the factory
 without turning the aggregate into another public dependency bag.

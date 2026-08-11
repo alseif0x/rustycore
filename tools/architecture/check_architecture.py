@@ -798,7 +798,14 @@ def validate_runtime_ownership_ledger(
                     f"runtime ownership inventory {inventory_name} entry {index} "
                     "must be an object"
                 )
-            entry_id = entry.get("id", entry.get("path"))
+            if inventory_name == "hotspots":
+                entry_id = entry.get("path")
+                if not isinstance(entry_id, str) or not entry_id.strip():
+                    raise ArchitectureError(
+                        f"runtime ownership hotspot entry {index} needs a non-empty path"
+                    )
+            else:
+                entry_id = entry.get("id", entry.get("path"))
             if not isinstance(entry_id, str) or not entry_id.strip():
                 raise ArchitectureError(
                     f"runtime ownership inventory {inventory_name} entry {index} "
@@ -964,6 +971,28 @@ def run_runtime_ownership_self_tests(
     invalid_hotspot = clone()
     invalid_hotspot["inventories"]["hotspots"]["entries"][0]["total_lines"] += 1
     cases.append(("hotspot-arithmetic", invalid_hotspot, "line counts do not add up"))
+
+    missing_hotspot_path = clone()
+    missing_hotspot_path["inventories"]["hotspots"]["entries"][0].pop("path")
+    cases.append(
+        (
+            "missing-hotspot-path",
+            missing_hotspot_path,
+            "needs a non-empty path",
+        )
+    )
+
+    duplicate_hotspot_path = clone()
+    duplicate_hotspot_path["inventories"]["hotspots"]["entries"][1]["path"] = (
+        duplicate_hotspot_path["inventories"]["hotspots"]["entries"][0]["path"]
+    )
+    cases.append(
+        (
+            "duplicate-hotspot-path",
+            duplicate_hotspot_path,
+            "duplicate runtime ownership inventory hotspots entry",
+        )
+    )
 
     invented_commit = clone()
     invented_commit["baseline_commit"] = "f" * 40
@@ -1650,7 +1679,7 @@ def test_module_start(lines: list[str]) -> int | None:
     return None
 
 
-def hotspot_rows(limit: int = 10) -> list[tuple[int, int, int, str]]:
+def hotspot_rows(limit: int | None = 10) -> list[tuple[int, int, int, str]]:
     rows: list[tuple[int, int, int, str]] = []
     crates_root = REPO_ROOT / "crates"
     for path in crates_root.glob("*/src/**/*.rs"):
@@ -1670,12 +1699,140 @@ def hotspot_rows(limit: int = 10) -> list[tuple[int, int, int, str]]:
             )
         )
     rows.sort(key=lambda row: (-row[0], row[3]))
-    return rows[:limit]
+    return rows if limit is None else rows[:limit]
+
+
+def validate_hotspot_non_growth(
+    runtime: dict[str, Any],
+    live_rows: list[tuple[int, int, int, str]] | None = None,
+) -> int:
+    """Reject growth in any audited hotspot production/test/total metric.
+
+    The checked-in ledger values are independent upper bounds, not exact
+    snapshots: a hotspot may shrink without editing the baseline. An audited
+    path must remain present until its ledger row is deliberately retired, so
+    renaming a file cannot silently evade its ceiling. Reporting remains
+    broader; only paths explicitly curated in the runtime ledger are ratcheted
+    here.
+    """
+    if live_rows is None:
+        live_rows = hotspot_rows(limit=None)
+
+    live_by_path: dict[str, tuple[int, int, int]] = {}
+    for total, production, tests, path in live_rows:
+        if (
+            type(total) is not int
+            or type(production) is not int
+            or type(tests) is not int
+            or not isinstance(path, str)
+            or not path
+            or min(total, production, tests) < 0
+            or production + tests != total
+        ):
+            raise ArchitectureError(
+                f"live hotspot metrics for {path!r} must be non-negative and add up"
+            )
+        if path in live_by_path:
+            raise ArchitectureError(f"duplicate live hotspot metrics for {path}")
+        live_by_path[path] = (production, tests, total)
+
+    entries = runtime["inventories"]["hotspots"]["entries"]
+    violations: list[str] = []
+    for entry in entries:
+        path = entry["path"]
+        live = live_by_path.get(path)
+        if live is None:
+            violations.append(
+                f"audited hotspot path {path} is missing; retire or replace "
+                "its ledger row explicitly"
+            )
+            continue
+        for index, key in enumerate(
+            ("production_lines", "test_lines", "total_lines")
+        ):
+            baseline_value = entry[key]
+            live_value = live[index]
+            if live_value > baseline_value:
+                violations.append(
+                    f"{path} {key} grew from {baseline_value} to {live_value} "
+                    f"(+{live_value - baseline_value})"
+                )
+    if violations:
+        raise ArchitectureError(
+            "runtime ownership hotspot LOC ratchet failed:\n- "
+            + "\n- ".join(violations)
+        )
+    return len(entries)
+
+
+def run_hotspot_ratchet_self_tests(runtime: dict[str, Any]) -> tuple[int, int]:
+    """Prove independent growth rejection and below-baseline reduction acceptance."""
+    baseline_rows = [
+        (
+            entry["total_lines"],
+            entry["production_lines"],
+            entry["test_lines"],
+            entry["path"],
+        )
+        for entry in runtime["inventories"]["hotspots"]["entries"]
+    ]
+    validate_hotspot_non_growth(runtime, baseline_rows)
+
+    total, production, tests, path = baseline_rows[0]
+    growth_cases = [
+        (
+            "production-growth-with-stable-total",
+            (total, production + 1, tests - 1, path),
+            "production_lines grew",
+        ),
+        (
+            "test-growth-with-stable-total",
+            (total, production - 1, tests + 1, path),
+            "test_lines grew",
+        ),
+        (
+            "total-growth",
+            (total + 1, production + 1, tests, path),
+            "total_lines grew",
+        ),
+    ]
+    for name, replacement, expected in growth_cases:
+        candidate = [replacement, *baseline_rows[1:]]
+        try:
+            validate_hotspot_non_growth(runtime, candidate)
+        except ArchitectureError as exc:
+            if expected not in str(exc):
+                raise ArchitectureError(
+                    f"hotspot ratchet self-test {name} returned the wrong failure: {exc}"
+                ) from exc
+        else:
+            raise ArchitectureError(
+                f"hotspot ratchet self-test {name} was not rejected"
+            )
+
+    try:
+        validate_hotspot_non_growth(runtime, baseline_rows[1:])
+    except ArchitectureError as exc:
+        if "audited hotspot path" not in str(exc) or "is missing" not in str(exc):
+            raise ArchitectureError(
+                f"hotspot ratchet self-test missing-path returned the wrong failure: {exc}"
+            ) from exc
+    else:
+        raise ArchitectureError(
+            "hotspot ratchet self-test missing-path was not rejected"
+        )
+
+    reduced = [
+        (total - 2, production - 1, tests - 1, path),
+        *baseline_rows[1:],
+    ]
+    validate_hotspot_non_growth(runtime, reduced)
+    return len(growth_cases) + 1, 1
 
 
 def print_hotspots(limit: int = 10) -> None:
     print(
-        "Architecture hotspots (informational; inline #[cfg(test)] module split is approximate):"
+        "Architecture hotspots (reporting; inline #[cfg(test)] module split is approximate):"
     )
     print(f"{'total':>8} {'prod':>8} {'tests':>8}  path")
     for total, production, tests, path in hotspot_rows(limit):
@@ -2572,7 +2729,9 @@ def main() -> int:
         help="session ownership syntax policy JSON (default: repository policy)",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
-    subparsers.add_parser("check", help="check dependencies and report source hotspots")
+    subparsers.add_parser(
+        "check", help="check architecture ratchets and report source hotspots"
+    )
     subparsers.add_parser("self-test", help="validate policy and focused fixtures")
     hotspots_parser = subparsers.add_parser(
         "hotspots", help="report source hotspots without enforcing a line limit"
@@ -2588,6 +2747,7 @@ def main() -> int:
             runtime_ledger = validate_runtime_ownership_ledger(
                 load_json(args.runtime_ledger), ledger
             )
+            audited_hotspots = validate_hotspot_non_growth(runtime_ledger)
             session_ownership_policy = load_json(args.session_ownership_policy)
             validate_runtime_syntax_coverage(
                 runtime_ledger, session_ownership_policy
@@ -2599,11 +2759,16 @@ def main() -> int:
             runtime_ownership_rejections = run_runtime_ownership_self_tests(
                 runtime_ledger, ledger
             )
+            hotspot_ratchet_rejections, hotspot_reduction_acceptances = (
+                run_hotspot_ratchet_self_tests(runtime_ledger)
+            )
             print(
                 "Architecture self-test: PASS "
                 f"({len(list(FIXTURES_DIR.glob('*.json')))} fixtures, "
                 f"{debt_ownership_fixtures} debt-ownership rejections, "
-                f"{runtime_ownership_rejections} runtime-ownership rejections)"
+                f"{runtime_ownership_rejections} runtime-ownership rejections, "
+                f"{hotspot_ratchet_rejections} hotspot-ratchet rejections, "
+                f"{hotspot_reduction_acceptances} hotspot-reduction acceptance)"
             )
         elif args.command == "hotspots":
             if args.limit <= 0:
@@ -2633,6 +2798,11 @@ def main() -> int:
                 f"{len(syntax['session_command']['variants'])} command variants, "
                 f"{len(runtime_ledger['world_session_responsibility_families']['families'])} "
                 "semantic responsibility families)"
+            )
+            print(
+                "Architecture hotspot ratchet: PASS "
+                f"({audited_hotspots} audited files; production/test/total "
+                "metrics are at or below baseline)"
             )
             print_hotspots()
     except ArchitectureError as exc:

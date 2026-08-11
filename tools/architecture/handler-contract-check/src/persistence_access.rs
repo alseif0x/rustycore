@@ -28,9 +28,11 @@ use syn::{
     ItemUse, Local, Member, Pat, ReturnType, Stmt, Type, UseTree, Visibility,
 };
 
-use crate::ownership::{cfg_context_allows_production, extend_cfg_context};
+use crate::ownership::{
+    cfg_context_allows_production, cfg_context_allows_test, extend_cfg_context,
+};
 
-const PERSISTENCE_SCHEMA_VERSION: u32 = 1;
+const PERSISTENCE_SCHEMA_VERSION: u32 = 2;
 
 const QUERY_CONSTRUCTORS: &[&str] = &[
     "query",
@@ -159,6 +161,7 @@ impl PersistenceOperation {
 #[serde(deny_unknown_fields)]
 pub(crate) struct PersistenceAccessRecord {
     pub(crate) classification: String,
+    pub(crate) source_class: String,
     pub(crate) package: String,
     pub(crate) module: String,
     pub(crate) source: String,
@@ -180,9 +183,10 @@ pub(crate) struct PersistenceAccessBaseline {
     pub(crate) accesses: Vec<PersistenceAccessRecord>,
 }
 
-/// One production source mount assigned to a runtime-ledger classification.
-/// The repository walker owns file discovery and classification; this parser
-/// rejects test-only mounts and inventories production-capable nested items.
+/// One production/test source mount assigned to a runtime-ledger
+/// classification. The repository walker owns file discovery and logical cfg
+/// ancestry; this parser inventories production-capable and test-only items
+/// as distinct exact baseline rows.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ClassifiedPersistenceSource<'a> {
     pub(crate) classification: &'a str,
@@ -196,6 +200,7 @@ pub(crate) struct ClassifiedPersistenceSource<'a> {
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 struct AccessIdentity {
     classification: String,
+    source_class: String,
     package: String,
     module: String,
     source: String,
@@ -212,6 +217,7 @@ impl PersistenceAccessRecord {
     fn identity(&self) -> AccessIdentity {
         AccessIdentity {
             classification: self.classification.clone(),
+            source_class: self.source_class.clone(),
             package: self.package.clone(),
             module: self.module.clone(),
             source: self.source.clone(),
@@ -226,8 +232,25 @@ impl PersistenceAccessRecord {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum PersistenceSourceClass {
+    Production,
+    TestFixture,
+}
+
+impl PersistenceSourceClass {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Production => "production",
+            Self::TestFixture => "test_fixture",
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
 struct RecordContext<'a> {
     classification: &'a str,
+    source_class: PersistenceSourceClass,
     package: &'a str,
     module: &'a str,
     source: &'a str,
@@ -250,8 +273,19 @@ struct AccessAccumulator {
 
 impl AccessAccumulator {
     fn add(&mut self, context: &RecordContext<'_>, access: NewAccess<'_>) {
+        // The test view needs production-visible imports and aliases for exact
+        // name/value resolution, but those rows already belong to the
+        // production view. Only retain syntax that is satisfiable with
+        // `cfg(test)` and impossible without it.
+        if context.source_class == PersistenceSourceClass::TestFixture
+            && cfg_context_allows_production(access.cfg, &[])
+                .expect("persistence cfg was validated before recording")
+        {
+            return;
+        }
         let identity = AccessIdentity {
             classification: context.classification.to_owned(),
+            source_class: context.source_class.as_str().to_owned(),
             package: context.package.to_owned(),
             module: context.module.to_owned(),
             source: context.source.to_owned(),
@@ -274,6 +308,7 @@ impl AccessAccumulator {
                 .into_iter()
                 .map(|(identity, count)| PersistenceAccessRecord {
                     classification: identity.classification,
+                    source_class: identity.source_class,
                     package: identity.package,
                     module: identity.module,
                     source: identity.source,
@@ -353,16 +388,27 @@ fn item_cfg(parent: &[String], attributes: &[Attribute]) -> Vec<String> {
     extend_cfg_context(parent, attributes)
 }
 
-fn production(
+fn source_class_allows(
+    source_class: PersistenceSourceClass,
     parent: &[String],
     attributes: &[Attribute],
     errors: &mut Vec<String>,
     owner: &str,
 ) -> bool {
-    match cfg_context_allows_production(parent, attributes) {
-        Ok(production) => production,
-        Err(error) => {
-            errors.push(format!("invalid cfg on {owner}: {error}"));
+    let production = cfg_context_allows_production(parent, attributes);
+    let test = cfg_context_allows_test(parent, attributes);
+    match (production, test) {
+        (Ok(production), Ok(test)) => match source_class {
+            PersistenceSourceClass::Production => production,
+            PersistenceSourceClass::TestFixture => test,
+        },
+        (production, test) => {
+            if let Err(error) = production {
+                errors.push(format!("invalid cfg (production) on {owner}: {error}"));
+            }
+            if let Err(error) = test {
+                errors.push(format!("invalid cfg (test) on {owner}: {error}"));
+            }
             false
         }
     }
@@ -662,6 +708,7 @@ fn collect_module_symbols(
     items: &[Item],
     parent: Option<&ModuleSymbols>,
     cfg: &[String],
+    source_class: PersistenceSourceClass,
     errors: &mut Vec<String>,
 ) -> ModuleSymbols {
     let mut symbols = parent.cloned().unwrap_or_default();
@@ -670,12 +717,24 @@ fn collect_module_symbols(
         for item in items {
             match item {
                 Item::Use(item_use)
-                    if production(cfg, &item_use.attrs, errors, "use declaration") =>
+                    if source_class_allows(
+                        source_class,
+                        cfg,
+                        &item_use.attrs,
+                        errors,
+                        "use declaration",
+                    ) =>
                 {
                     changed |= apply_import_symbols(item_use, &mut symbols);
                 }
                 Item::ExternCrate(extern_crate)
-                    if production(cfg, &extern_crate.attrs, errors, "extern crate") =>
+                    if source_class_allows(
+                        source_class,
+                        cfg,
+                        &extern_crate.attrs,
+                        errors,
+                        "extern crate",
+                    ) =>
                 {
                     let source = normalized_ident(&extern_crate.ident);
                     let local = extern_crate
@@ -687,7 +746,15 @@ fn collect_module_symbols(
                         changed |= symbols.sqlx_namespaces.insert(local);
                     }
                 }
-                Item::Type(alias) if production(cfg, &alias.attrs, errors, "type alias") => {
+                Item::Type(alias)
+                    if source_class_allows(
+                        source_class,
+                        cfg,
+                        &alias.attrs,
+                        errors,
+                        "type alias",
+                    ) =>
+                {
                     let targets = targets_in_type(&alias.ty, &symbols);
                     if !targets.is_empty() {
                         let entry = symbols
@@ -709,9 +776,12 @@ fn collect_module_symbols(
 
     for item in items {
         match item {
-            Item::Struct(item_struct) if production(cfg, &item_struct.attrs, errors, "struct") => {
+            Item::Struct(item_struct)
+                if source_class_allows(source_class, cfg, &item_struct.attrs, errors, "struct") =>
+            {
                 for field in &item_struct.fields {
-                    if !production(cfg, &field.attrs, errors, "struct field") {
+                    if !source_class_allows(source_class, cfg, &field.attrs, errors, "struct field")
+                    {
                         continue;
                     }
                     let targets = targets_in_type(&field.ty, &symbols);
@@ -730,13 +800,27 @@ fn collect_module_symbols(
                         .extend(targets);
                 }
             }
-            Item::Enum(item_enum) if production(cfg, &item_enum.attrs, errors, "enum") => {
+            Item::Enum(item_enum)
+                if source_class_allows(source_class, cfg, &item_enum.attrs, errors, "enum") =>
+            {
                 for variant in &item_enum.variants {
-                    if !production(cfg, &variant.attrs, errors, "enum variant") {
+                    if !source_class_allows(
+                        source_class,
+                        cfg,
+                        &variant.attrs,
+                        errors,
+                        "enum variant",
+                    ) {
                         continue;
                     }
                     for field in &variant.fields {
-                        if !production(cfg, &field.attrs, errors, "enum field") {
+                        if !source_class_allows(
+                            source_class,
+                            cfg,
+                            &field.attrs,
+                            errors,
+                            "enum field",
+                        ) {
                             continue;
                         }
                         let targets = targets_in_type(&field.ty, &symbols);
@@ -756,7 +840,9 @@ fn collect_module_symbols(
                     }
                 }
             }
-            Item::Fn(function) if production(cfg, &function.attrs, errors, "function") => {
+            Item::Fn(function)
+                if source_class_allows(source_class, cfg, &function.attrs, errors, "function") =>
+            {
                 if let ReturnType::Type(_, ty) = &function.sig.output {
                     let targets = targets_in_type(ty, &symbols);
                     if !targets.is_empty() {
@@ -766,12 +852,15 @@ fn collect_module_symbols(
                     }
                 }
             }
-            Item::Impl(item_impl) if production(cfg, &item_impl.attrs, errors, "impl") => {
+            Item::Impl(item_impl)
+                if source_class_allows(source_class, cfg, &item_impl.attrs, errors, "impl") =>
+            {
                 for item in &item_impl.items {
                     let ImplItem::Fn(method) = item else {
                         continue;
                     };
-                    if !production(cfg, &method.attrs, errors, "impl method") {
+                    if !source_class_allows(source_class, cfg, &method.attrs, errors, "impl method")
+                    {
                         continue;
                     }
                     if let ReturnType::Type(_, ty) = &method.sig.output {
@@ -1021,8 +1110,14 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         );
     }
 
-    fn allows_production(&mut self, attributes: &[Attribute], owner: &str) -> bool {
-        let allowed = production(&self.cfg, attributes, self.errors, owner);
+    fn allows_source_class(&mut self, attributes: &[Attribute], owner: &str) -> bool {
+        let allowed = source_class_allows(
+            self.context.source_class,
+            &self.cfg,
+            attributes,
+            self.errors,
+            owner,
+        );
         if allowed {
             let cfg = item_cfg(&self.cfg, attributes);
             add_attribute_records(
@@ -1302,7 +1397,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
     }
 
     fn audit_macro(&mut self, mac: &syn::Macro, attributes: &[Attribute], owner: &str) {
-        if !self.allows_production(attributes, owner) {
+        if !self.allows_source_class(attributes, owner) {
             return;
         }
         let names = path_names(&mac.path);
@@ -1390,7 +1485,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             let FnArg::Typed(typed) = input else {
                 continue;
             };
-            if !self.allows_production(&typed.attrs, "function parameter") {
+            if !self.allows_source_class(&typed.attrs, "function parameter") {
                 continue;
             }
             let info = self.info_from_type(&typed.ty);
@@ -1436,7 +1531,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
     }
 
     fn visit_local(&mut self, local: &'ast Local) {
-        if !self.allows_production(&local.attrs, "local binding") {
+        if !self.allows_source_class(&local.attrs, "local binding") {
             return;
         }
         let previous_cfg = self.cfg.clone();
@@ -1485,7 +1580,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
     }
 
     fn visit_expr_path(&mut self, path: &'ast syn::ExprPath) {
-        if !self.allows_production(&path.attrs, "expression path") {
+        if !self.allows_source_class(&path.attrs, "expression path") {
             return;
         }
         if path.qself.is_none() && path.path.segments.len() == 1 {
@@ -1508,7 +1603,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
     }
 
     fn visit_expr_field(&mut self, field: &'ast ExprField) {
-        if !self.allows_production(&field.attrs, "field expression") {
+        if !self.allows_source_class(&field.attrs, "field expression") {
             return;
         }
         self.visit_expr(&field.base);
@@ -1530,7 +1625,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
     }
 
     fn visit_expr_call(&mut self, call: &'ast ExprCall) {
-        if !self.allows_production(&call.attrs, "function call") {
+        if !self.allows_source_class(&call.attrs, "function call") {
             return;
         }
         let cfg = item_cfg(&self.cfg, &call.attrs);
@@ -1599,7 +1694,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
     }
 
     fn visit_expr_method_call(&mut self, method: &'ast ExprMethodCall) {
-        if !self.allows_production(&method.attrs, "method call") {
+        if !self.allows_source_class(&method.attrs, "method call") {
             return;
         }
         let cfg = item_cfg(&self.cfg, &method.attrs);
@@ -1662,7 +1757,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
     }
 
     fn visit_expr_assign(&mut self, assignment: &'ast syn::ExprAssign) {
-        if !self.allows_production(&assignment.attrs, "assignment") {
+        if !self.allows_source_class(&assignment.attrs, "assignment") {
             return;
         }
         self.visit_expr(&assignment.right);
@@ -1690,7 +1785,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
     }
 
     fn visit_expr_struct(&mut self, structure: &'ast ExprStruct) {
-        if !self.allows_production(&structure.attrs, "struct expression") {
+        if !self.allows_source_class(&structure.attrs, "struct expression") {
             return;
         }
         let cfg = item_cfg(&self.cfg, &structure.attrs);
@@ -1732,7 +1827,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
     }
 
     fn visit_expr_return(&mut self, returned: &'ast ExprReturn) {
-        if !self.allows_production(&returned.attrs, "return expression") {
+        if !self.allows_source_class(&returned.attrs, "return expression") {
             return;
         }
         if let Some(expression) = &returned.expr {
@@ -1758,7 +1853,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
     }
 
     fn visit_expr_closure(&mut self, closure: &'ast ExprClosure) {
-        if !self.allows_production(&closure.attrs, "closure") {
+        if !self.allows_source_class(&closure.attrs, "closure") {
             return;
         }
         let previous_cfg = self.cfg.clone();
@@ -1891,7 +1986,13 @@ fn analyze_struct(
         cfg,
     );
     for field in &item_struct.fields {
-        if !production(cfg, &field.attrs, errors, "struct field") {
+        if !source_class_allows(
+            context.source_class,
+            cfg,
+            &field.attrs,
+            errors,
+            "struct field",
+        ) {
             continue;
         }
         let symbol = field
@@ -1957,7 +2058,13 @@ fn analyze_enum(
         cfg,
     );
     for variant in &item_enum.variants {
-        if !production(cfg, &variant.attrs, errors, "enum variant") {
+        if !source_class_allows(
+            context.source_class,
+            cfg,
+            &variant.attrs,
+            errors,
+            "enum variant",
+        ) {
             continue;
         }
         let enclosing = format!(
@@ -1978,7 +2085,13 @@ fn analyze_enum(
             },
         );
         for field in &variant.fields {
-            if !production(&variant_cfg, &field.attrs, errors, "enum field") {
+            if !source_class_allows(
+                context.source_class,
+                &variant_cfg,
+                &field.attrs,
+                errors,
+                "enum field",
+            ) {
                 continue;
             }
             let symbol = field
@@ -2159,7 +2272,13 @@ fn analyze_impl(
             }
             continue;
         };
-        if !production(&cfg, &method.attrs, errors, "impl method") {
+        if !source_class_allows(
+            context.source_class,
+            &cfg,
+            &method.attrs,
+            errors,
+            "impl method",
+        ) {
             continue;
         }
         let method_cfg = item_cfg(&cfg, &method.attrs);
@@ -2201,6 +2320,7 @@ fn analyze_impl(
         let mut analyzer = BodyAnalyzer::new(
             RecordContext {
                 classification: context.classification,
+                source_class: context.source_class,
                 package: context.package,
                 module: context.module,
                 source: context.source,
@@ -2284,11 +2404,17 @@ fn analyze_module_items(
     accumulator: &mut AccessAccumulator,
     errors: &mut Vec<String>,
 ) {
-    let symbols = collect_module_symbols(items, parent_symbols, &cfg, errors);
+    let symbols = collect_module_symbols(items, parent_symbols, &cfg, context.source_class, errors);
     for item in items {
         match item {
             Item::Use(item_use) => {
-                if !production(&cfg, &item_use.attrs, errors, "use declaration") {
+                if !source_class_allows(
+                    context.source_class,
+                    &cfg,
+                    &item_use.attrs,
+                    errors,
+                    "use declaration",
+                ) {
                     continue;
                 }
                 analyze_import(
@@ -2301,7 +2427,13 @@ fn analyze_module_items(
                 );
             }
             Item::ExternCrate(extern_crate) => {
-                if !production(&cfg, &extern_crate.attrs, errors, "extern crate") {
+                if !source_class_allows(
+                    context.source_class,
+                    &cfg,
+                    &extern_crate.attrs,
+                    errors,
+                    "extern crate",
+                ) {
                     continue;
                 }
                 let source = normalized_ident(&extern_crate.ident);
@@ -2339,7 +2471,13 @@ fn analyze_module_items(
                 }
             }
             Item::Type(alias) => {
-                if !production(&cfg, &alias.attrs, errors, "type alias") {
+                if !source_class_allows(
+                    context.source_class,
+                    &cfg,
+                    &alias.attrs,
+                    errors,
+                    "type alias",
+                ) {
                     continue;
                 }
                 analyze_type_alias(
@@ -2351,7 +2489,13 @@ fn analyze_module_items(
                 );
             }
             Item::Struct(item_struct) => {
-                if !production(&cfg, &item_struct.attrs, errors, "struct") {
+                if !source_class_allows(
+                    context.source_class,
+                    &cfg,
+                    &item_struct.attrs,
+                    errors,
+                    "struct",
+                ) {
                     continue;
                 }
                 analyze_struct(
@@ -2364,7 +2508,13 @@ fn analyze_module_items(
                 );
             }
             Item::Enum(item_enum) => {
-                if !production(&cfg, &item_enum.attrs, errors, "enum") {
+                if !source_class_allows(
+                    context.source_class,
+                    &cfg,
+                    &item_enum.attrs,
+                    errors,
+                    "enum",
+                ) {
                     continue;
                 }
                 analyze_enum(
@@ -2377,13 +2527,20 @@ fn analyze_module_items(
                 );
             }
             Item::Fn(function) => {
-                if !production(&cfg, &function.attrs, errors, "function") {
+                if !source_class_allows(
+                    context.source_class,
+                    &cfg,
+                    &function.attrs,
+                    errors,
+                    "function",
+                ) {
                     continue;
                 }
                 analyze_function(
                     function,
                     RecordContext {
                         classification: context.classification,
+                        source_class: context.source_class,
                         package: context.package,
                         module: context.module,
                         source: context.source,
@@ -2395,13 +2552,20 @@ fn analyze_module_items(
                 );
             }
             Item::Impl(item_impl) => {
-                if !production(&cfg, &item_impl.attrs, errors, "impl") {
+                if !source_class_allows(
+                    context.source_class,
+                    &cfg,
+                    &item_impl.attrs,
+                    errors,
+                    "impl",
+                ) {
                     continue;
                 }
                 analyze_impl(
                     item_impl,
                     RecordContext {
                         classification: context.classification,
+                        source_class: context.source_class,
                         package: context.package,
                         module: context.module,
                         source: context.source,
@@ -2413,7 +2577,13 @@ fn analyze_module_items(
                 );
             }
             Item::Const(item_const) => {
-                if !production(&cfg, &item_const.attrs, errors, "const") {
+                if !source_class_allows(
+                    context.source_class,
+                    &cfg,
+                    &item_const.attrs,
+                    errors,
+                    "const",
+                ) {
                     continue;
                 }
                 let item_cfg = item_cfg(&cfg, &item_const.attrs);
@@ -2443,6 +2613,7 @@ fn analyze_module_items(
                 let mut analyzer = BodyAnalyzer::new(
                     RecordContext {
                         classification: context.classification,
+                        source_class: context.source_class,
                         package: context.package,
                         module: context.module,
                         source: context.source,
@@ -2457,7 +2628,13 @@ fn analyze_module_items(
                 analyzer.visit_expr(&item_const.expr);
             }
             Item::Static(item_static) => {
-                if !production(&cfg, &item_static.attrs, errors, "static") {
+                if !source_class_allows(
+                    context.source_class,
+                    &cfg,
+                    &item_static.attrs,
+                    errors,
+                    "static",
+                ) {
                     continue;
                 }
                 let item_cfg = item_cfg(&cfg, &item_static.attrs);
@@ -2488,6 +2665,7 @@ fn analyze_module_items(
                 let mut analyzer = BodyAnalyzer::new(
                     RecordContext {
                         classification: context.classification,
+                        source_class: context.source_class,
                         package: context.package,
                         module: context.module,
                         source: context.source,
@@ -2502,7 +2680,13 @@ fn analyze_module_items(
                 analyzer.visit_expr(&item_static.expr);
             }
             Item::Macro(item_macro) => {
-                if !production(&cfg, &item_macro.attrs, errors, "item macro") {
+                if !source_class_allows(
+                    context.source_class,
+                    &cfg,
+                    &item_macro.attrs,
+                    errors,
+                    "item macro",
+                ) {
                     continue;
                 }
                 let macro_cfg = item_cfg(&cfg, &item_macro.attrs);
@@ -2532,7 +2716,8 @@ fn analyze_module_items(
                 content: Some((_, child_items)),
                 ..
             }) => {
-                if !production(&cfg, attrs, errors, "inline module") {
+                if !source_class_allows(context.source_class, &cfg, attrs, errors, "inline module")
+                {
                     continue;
                 }
                 let child_module = format!("{}::{}", context.module, normalized_ident(ident));
@@ -2552,6 +2737,7 @@ fn analyze_module_items(
                     child_items,
                     RecordContext {
                         classification: context.classification,
+                        source_class: context.source_class,
                         package: context.package,
                         module: &child_module,
                         source: context.source,
@@ -2575,8 +2761,11 @@ fn analyze_module_items(
     }
 }
 
-/// Parse and inventory an already-classified set of production source mounts.
-/// Source order is irrelevant and duplicate logical mounts fail closed.
+/// Parse and inventory already-classified production/test source mounts.
+/// Source order is irrelevant and duplicate logical mounts fail closed. Each
+/// mount is analyzed once with `cfg(test) = false` and once with
+/// `cfg(test) = true`; the test pass retains only syntax that cannot exist in
+/// production, so shared imports and helpers are not double-counted.
 pub(crate) fn inventory_persistence_accesses(
     sources: &[ClassifiedPersistenceSource<'_>],
 ) -> Result<PersistenceAccessBaseline, String> {
@@ -2587,12 +2776,14 @@ pub(crate) fn inventory_persistence_accesses(
             left.package,
             left.module,
             left.source_path,
+            left.inherited_cfg,
         )
             .cmp(&(
                 right.classification,
                 right.package,
                 right.module,
                 right.source_path,
+                right.inherited_cfg,
             ))
     });
     let mut seen_mounts = BTreeSet::new();
@@ -2610,7 +2801,12 @@ pub(crate) fn inventory_persistence_accesses(
             );
             continue;
         }
-        if !seen_mounts.insert((source.package, source.module, source.source_path)) {
+        if !seen_mounts.insert((
+            source.package,
+            source.module,
+            source.source_path,
+            source.inherited_cfg,
+        )) {
             errors.push(format!(
                 "duplicate classified persistence source mount {} {} {}",
                 source.package, source.module, source.source_path
@@ -2627,36 +2823,60 @@ pub(crate) fn inventory_persistence_accesses(
                 continue;
             }
         };
-        match cfg_context_allows_production(source.inherited_cfg, &syntax.attrs) {
-            Ok(true) => {}
-            Ok(false) => {
-                errors.push(format!(
-                    "source {} was classified as production persistence but its file attributes are test-only",
-                    source.source_path
-                ));
+        let cfg = extend_cfg_context(source.inherited_cfg, &syntax.attrs);
+        let production = cfg_context_allows_production(&cfg, &[]);
+        let test = cfg_context_allows_test(&cfg, &[]);
+        let (production, test) = match (production, test) {
+            (Ok(production), Ok(test)) => (production, test),
+            (production, test) => {
+                if let Err(error) = production {
+                    errors.push(format!(
+                        "invalid file cfg (production) in persistence source {}: {error}",
+                        source.source_path
+                    ));
+                }
+                if let Err(error) = test {
+                    errors.push(format!(
+                        "invalid file cfg (test) in persistence source {}: {error}",
+                        source.source_path
+                    ));
+                }
                 continue;
             }
-            Err(error) => {
-                errors.push(format!(
-                    "invalid file cfg in persistence source {}: {error}",
-                    source.source_path
-                ));
-                continue;
-            }
+        };
+        if !production && !test {
+            errors.push(format!(
+                "persistence source {} is unreachable in both production and test cfg",
+                source.source_path
+            ));
+            continue;
         }
-        analyze_module_items(
-            &syntax.items,
-            RecordContext {
-                classification: source.classification,
-                package: source.package,
-                module: source.module,
-                source: source.source_path,
-            },
-            None,
-            extend_cfg_context(source.inherited_cfg, &syntax.attrs),
-            &mut accumulator,
-            &mut errors,
-        );
+        for source_class in [
+            PersistenceSourceClass::Production,
+            PersistenceSourceClass::TestFixture,
+        ] {
+            let enabled = match source_class {
+                PersistenceSourceClass::Production => production,
+                PersistenceSourceClass::TestFixture => test,
+            };
+            if !enabled {
+                continue;
+            }
+            analyze_module_items(
+                &syntax.items,
+                RecordContext {
+                    classification: source.classification,
+                    source_class,
+                    package: source.package,
+                    module: source.module,
+                    source: source.source_path,
+                },
+                None,
+                cfg.clone(),
+                &mut accumulator,
+                &mut errors,
+            );
+        }
     }
     if errors.is_empty() {
         Ok(accumulator.finish())
@@ -2680,6 +2900,12 @@ fn validated_baseline_map(
     let mut map = BTreeMap::new();
     let mut previous: Option<AccessIdentity> = None;
     for record in &baseline.accesses {
+        if !matches!(record.source_class.as_str(), "production" | "test_fixture") {
+            return Err(format!(
+                "{label} persistence baseline contains invalid source_class {:?}",
+                record.source_class
+            ));
+        }
         if record.count == 0 {
             return Err(format!(
                 "{label} persistence baseline contains zero-count row for {:?} {}",
@@ -2709,8 +2935,9 @@ fn validated_baseline_map(
 
 fn describe_identity(identity: &AccessIdentity) -> String {
     format!(
-        "{} {} {} {}::{} {} {:?} {:?} {} [{}]",
+        "{} {} {} {} {}::{} {} {:?} {:?} {} [{}]",
         identity.classification,
+        identity.source_class,
         identity.package,
         identity.source,
         identity.module,
@@ -3018,18 +3245,26 @@ mod tests {
                 fn production_capable(pool: sqlx::PgPool) { pool.begin(); }
             "#,
         )
-        .expect("production satisfiability is classified");
+        .expect("production and test satisfiability are classified");
         assert!(
             baseline
                 .accesses
                 .iter()
-                .all(|record| record.enclosing != "fn test_only")
+                .filter(|record| record.enclosing == "fn test_only")
+                .all(|record| record.source_class == "test_fixture")
         );
         assert!(
             baseline
                 .accesses
                 .iter()
-                .any(|record| record.enclosing == "fn production_capable")
+                .any(|record| record.enclosing == "fn test_only")
+        );
+        assert!(
+            baseline
+                .accesses
+                .iter()
+                .filter(|record| record.enclosing == "fn production_capable")
+                .all(|record| record.source_class == "production")
         );
 
         let error = inventory(
@@ -3040,6 +3275,100 @@ mod tests {
         )
         .expect_err("malformed cfg_attr must fail closed");
         assert!(error.contains("invalid cfg"), "{error}");
+    }
+
+    #[test]
+    fn persistence_inventory_keeps_production_and_test_alias_graphs_separate() {
+        let baseline = inventory(
+            r#"
+                #[cfg(not(test))]
+                use sqlx::MySqlPool as Pool;
+                #[cfg(test)]
+                use sqlx::PgPool as Pool;
+
+                #[cfg(not(test))]
+                fn production_only(pool: Pool) { pool.begin(); }
+                #[cfg(test)]
+                fn test_only(pool: Pool) { pool.begin(); }
+
+                #[cfg(test)]
+                macro_rules! generated_test_query {
+                    () => { sqlx::query("SELECT 1") };
+                }
+            "#,
+        )
+        .expect("mutually exclusive aliases resolve in their logical cfg views");
+
+        let production_targets = baseline
+            .accesses
+            .iter()
+            .filter(|record| record.enclosing == "fn production_only")
+            .map(|record| (record.target, record.source_class.as_str()))
+            .collect::<BTreeSet<_>>();
+        assert!(production_targets.contains(&(PersistenceTarget::MySqlPool, "production")));
+        assert!(
+            !production_targets
+                .iter()
+                .any(|(target, _)| *target == PersistenceTarget::PgPool)
+        );
+
+        let test_targets = baseline
+            .accesses
+            .iter()
+            .filter(|record| record.enclosing == "fn test_only")
+            .map(|record| (record.target, record.source_class.as_str()))
+            .collect::<BTreeSet<_>>();
+        assert!(test_targets.contains(&(PersistenceTarget::PgPool, "test_fixture")));
+        assert!(
+            !test_targets
+                .iter()
+                .any(|(target, _)| *target == PersistenceTarget::MySqlPool)
+        );
+
+        assert!(baseline.accesses.iter().any(|record| {
+            record.operation == PersistenceOperation::MacroReference
+                && record.symbol == "generated_test_query"
+                && record.source_class == "test_fixture"
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_accepts_test_only_mounts_and_ratchets_their_growth() {
+        let test_cfg = vec!["cfg(test)".to_owned()];
+        let test_mount = |source| ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "fixture",
+            module: "crate::tests",
+            source_path: "src/tests.rs",
+            inherited_cfg: &test_cfg,
+            source,
+        };
+        let expected = inventory_persistence_accesses(&[test_mount(
+            "fn existing(pool: sqlx::PgPool) { pool.begin(); }",
+        )])
+        .expect("test-only source mounts are part of the baseline");
+        assert!(!expected.accesses.is_empty());
+        assert!(
+            expected
+                .accesses
+                .iter()
+                .all(|record| record.source_class == "test_fixture")
+        );
+
+        let actual = inventory_persistence_accesses(&[test_mount(
+            r#"
+                fn existing(pool: sqlx::PgPool) { pool.begin(); }
+                fn added(pool: sqlx::PgPool) { pool.begin(); }
+            "#,
+        )])
+        .unwrap();
+        let error = compare_persistence_access_baseline(&expected, &actual)
+            .expect_err("new test-only concrete persistence must trip the ratchet");
+        assert!(
+            error.contains("untracked direct persistence access"),
+            "{error}"
+        );
+        assert!(error.contains("test_fixture"), "{error}");
     }
 
     #[test]

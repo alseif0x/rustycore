@@ -30,8 +30,8 @@ use crate::ownership::{
     cfg_context_allows_test, extend_cfg_context, workspace_source_mounts,
 };
 use crate::persistence_access::{
-    ClassifiedPersistenceSource, PersistenceAccessBaseline, compare_persistence_access_baseline,
-    inventory_persistence_accesses,
+    ClassifiedPersistenceSource, PersistenceAccessBaseline, PersistenceOperation,
+    compare_persistence_access_baseline, inventory_persistence_accesses,
 };
 use crate::registry_access::{
     ProductionRegistrySource, RegistryAccessBaseline, compare_registry_access_baseline,
@@ -1782,7 +1782,7 @@ fn collect_workspace_persistence_baseline(
     let mut sources = Vec::new();
     for (mount, relative_path) in mounts.iter().zip(relative_paths.iter()) {
         for context in &mount.contexts {
-            if !context.production_possible {
+            if !context.production_possible && !context.test_possible {
                 continue;
             }
             sources.push(ClassifiedPersistenceSource {
@@ -2020,12 +2020,32 @@ pub fn check_repository(policy_path: Option<&Path>) -> Result<String, String> {
         .iter()
         .filter(|field| field.source_class == "test_fixture")
         .count();
+    let production_persistence_rows = actual
+        .persistence_accesses
+        .accesses
+        .iter()
+        .filter(|access| access.source_class == "production")
+        .count();
+    let test_persistence_rows = actual
+        .persistence_accesses
+        .accesses
+        .iter()
+        .filter(|access| access.source_class == "test_fixture")
+        .count();
+    let generated_persistence_rows = actual
+        .persistence_accesses
+        .accesses
+        .iter()
+        .filter(|access| access.operation == PersistenceOperation::MacroReference)
+        .count();
     Ok(format!(
         "session ownership: PASS ({production_session_fields} production + {test_session_fields} \
          test-fixture WorldSession fields; {} impl owners / {} exact associated \
          items; {} SessionResources fields; {} factory setter/install calls; {} SessionCommand \
          variants / {} transitive payload types; {} PlayerBroadcastInfo fields; {} exact generated \
-         inputs; {} exact direct-registry rows; {} exact persistence rows; {} exact bridge rows; \
+         inputs; {} exact direct-registry rows; {production_persistence_rows} production + \
+         {test_persistence_rows} test-fixture persistence rows \
+         ({generated_persistence_rows} generated-input rows); {} exact bridge rows; \
          include/target-macro surfaces fail closed)",
         actual.world_session.impls.len(),
         actual.world_session.impl_items.len(),
@@ -2036,7 +2056,6 @@ pub fn check_repository(policy_path: Option<&Path>) -> Result<String, String> {
         actual.player_broadcast_info.fields.len(),
         actual.generated_surface_inputs.len(),
         actual.registry_accesses.accesses.len(),
-        actual.persistence_accesses.accesses.len(),
         actual.bridge_accesses.bridges.len(),
     ))
 }
@@ -2086,7 +2105,7 @@ mod tests {
                 unit(PackageRole::Network, "wow-network/src/lib.rs", network),
             ],
             PersistenceAccessBaseline {
-                schema_version: 1,
+                schema_version: 2,
                 accesses: Vec::new(),
             },
         )

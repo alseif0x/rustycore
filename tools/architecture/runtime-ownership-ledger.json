@@ -18,6 +18,8 @@
       "a new source member may not be accepted by merely raising a count; its exact identifier must be deliberately assigned to a reviewed semantic family or to the explicit unresolved residual",
       "no family may omit sole_writer, clock_lifetime, mirror_direction, rollback_condition, or retirement_condition",
       "production, cfg(test), and generated members are reported separately",
+      "each curated hotspot production_lines, test_lines, and total_lines value is an independent non-growth ceiling; live reductions are accepted without editing the baseline",
+      "a curated hotspot path must remain measurable until its ledger row is explicitly retired or replaced",
       "a removed source member must also disappear from this ledger or have its family retirement evidence updated"
     ],
     "field_identity": "Rust named-field identifier. The baseline contains 738 distinct identifiers; source_class is retained by the syntax baseline and the 11 test_fixture members are listed in test_only_fixtures."
@@ -2033,7 +2035,7 @@
     "hotspots": {
       "coverage_source": {
         "command": "python3 tools/architecture/check_architecture.py hotspots --limit 20",
-        "measurement": "physical Rust lines split approximately at inline cfg(test) modules; generated code reported separately",
+        "measurement": "physical checked-in Rust source lines split approximately at the first inline cfg(test) module; each recorded production/test/total metric is an independent non-growth ceiling and reductions are accepted",
         "baseline_commit": "002d3d8795ad895ee2d639375b59f4b6ca38df67"
       },
       "entries": [
@@ -2167,7 +2169,7 @@
     },
     {
       "id": "persistence_syntax_is_not_behavioral_proof",
-      "detail": "The #181 AST snapshot freezes exact production persistence types, queries, transaction calls, macros and pool escapes. #186 owns classifying and retiring the concrete leaks; #187 owns statement, transaction, fence and publication-order goldens that syntax alone cannot prove."
+      "detail": "The #181 AST snapshot freezes exact production and test-fixture persistence types, queries, transaction calls, macros and pool escapes. #186 owns classifying and retiring the concrete leaks; #187 owns statement, transaction, fence and publication-order goldens that syntax alone cannot prove."
     },
     {
       "id": "handler_snapshot_proves_wiring_not_semantics",

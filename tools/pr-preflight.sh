@@ -40,7 +40,7 @@ Options:
 
 Commands:
   self-test           Test harness parsing and pinned-version invariants.
-  architecture        Check dependency boundaries and report source hotspots.
+  architecture        Check architecture ratchets and report source hotspots.
   format              Run the three formatting checks used by GitHub Actions.
   check               Run the locked core checks and server builds used by CI.
   test                Run focused suites, loot-race tests, and required capture gates used by CI.

@@ -65058,10 +65058,11 @@
       ]
     },
     "persistence_accesses": {
-      "schema_version": 1,
+      "schema_version": 2,
       "accesses": [
         {
           "classification": "composition",
+          "source_class": "production",
           "package": "bnet-server",
           "module": "crate",
           "source": "crates/bnet-server/src/main.rs",
@@ -65076,6 +65077,7 @@
         },
         {
           "classification": "composition",
+          "source_class": "production",
           "package": "world-server",
           "module": "crate",
           "source": "crates/world-server/src/main.rs",
@@ -65090,6 +65092,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65104,6 +65107,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65118,6 +65122,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65132,6 +65137,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65146,6 +65152,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65160,6 +65167,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65174,6 +65182,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65188,6 +65197,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65202,6 +65212,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65216,6 +65227,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65230,6 +65242,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65244,6 +65257,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65258,6 +65272,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65272,6 +65287,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65286,6 +65302,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65300,6 +65317,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65314,6 +65332,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65328,6 +65347,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65342,6 +65362,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65356,6 +65377,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65370,6 +65392,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65384,6 +65407,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65398,6 +65422,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65412,6 +65437,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65426,6 +65452,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65440,6 +65467,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65454,6 +65482,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65468,6 +65497,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65482,6 +65512,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65496,6 +65527,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65510,6 +65542,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65524,6 +65557,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65538,6 +65572,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65552,6 +65587,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65566,6 +65602,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65580,6 +65617,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65594,6 +65632,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65608,6 +65647,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65622,6 +65662,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65636,6 +65677,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65650,6 +65692,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65664,6 +65707,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65678,6 +65722,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65692,6 +65737,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65706,6 +65752,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65720,6 +65767,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65734,6 +65782,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65748,6 +65797,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::battle_pet_account",
           "source": "crates/wow-world/src/battle_pet_account.rs",
@@ -65762,6 +65812,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::group",
           "source": "crates/wow-world/src/handlers/group.rs",
@@ -65776,6 +65827,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::group",
           "source": "crates/wow-world/src/handlers/group.rs",
@@ -65790,6 +65842,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::group",
           "source": "crates/wow-world/src/handlers/group.rs",
@@ -65804,6 +65857,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::group",
           "source": "crates/wow-world/src/handlers/group.rs",
@@ -65818,6 +65872,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::loot",
           "source": "crates/wow-world/src/handlers/loot.rs",
@@ -65832,6 +65887,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::loot",
           "source": "crates/wow-world/src/handlers/loot.rs",
@@ -65846,6 +65902,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::loot",
           "source": "crates/wow-world/src/handlers/loot.rs",
@@ -65860,6 +65917,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::loot",
           "source": "crates/wow-world/src/handlers/loot.rs",
@@ -65874,6 +65932,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::loot",
           "source": "crates/wow-world/src/handlers/loot.rs",
@@ -65888,6 +65947,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::loot",
           "source": "crates/wow-world/src/handlers/loot.rs",
@@ -65902,6 +65962,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::loot",
           "source": "crates/wow-world/src/handlers/loot.rs",
@@ -65916,6 +65977,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::loot",
           "source": "crates/wow-world/src/handlers/loot.rs",
@@ -65930,6 +65992,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::loot",
           "source": "crates/wow-world/src/handlers/loot.rs",
@@ -65944,6 +66007,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::quest",
           "source": "crates/wow-world/src/handlers/quest.rs",
@@ -65958,6 +66022,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::quest",
           "source": "crates/wow-world/src/handlers/quest.rs",
@@ -65972,6 +66037,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::quest",
           "source": "crates/wow-world/src/handlers/quest.rs",
@@ -65986,6 +66052,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::quest",
           "source": "crates/wow-world/src/handlers/quest.rs",
@@ -66000,6 +66067,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::quest",
           "source": "crates/wow-world/src/handlers/quest.rs",
@@ -66014,6 +66082,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::quest",
           "source": "crates/wow-world/src/handlers/quest.rs",
@@ -66028,6 +66097,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::quest",
           "source": "crates/wow-world/src/handlers/quest.rs",
@@ -66042,6 +66112,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::social",
           "source": "crates/wow-world/src/handlers/social.rs",
@@ -66056,6 +66127,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::social",
           "source": "crates/wow-world/src/handlers/social.rs",
@@ -66070,6 +66142,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::social",
           "source": "crates/wow-world/src/handlers/social.rs",
@@ -66084,6 +66157,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::social",
           "source": "crates/wow-world/src/handlers/social.rs",
@@ -66098,6 +66172,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::social",
           "source": "crates/wow-world/src/handlers/social.rs",
@@ -66112,6 +66187,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::social",
           "source": "crates/wow-world/src/handlers/social.rs",
@@ -66126,6 +66202,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::social",
           "source": "crates/wow-world/src/handlers/social.rs",
@@ -66140,6 +66217,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::social",
           "source": "crates/wow-world/src/handlers/social.rs",
@@ -66154,6 +66232,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::social",
           "source": "crates/wow-world/src/handlers/social.rs",
@@ -66168,6 +66247,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::social",
           "source": "crates/wow-world/src/handlers/social.rs",
@@ -66182,6 +66262,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::social",
           "source": "crates/wow-world/src/handlers/social.rs",
@@ -66196,6 +66277,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::social",
           "source": "crates/wow-world/src/handlers/social.rs",
@@ -66210,6 +66292,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::social",
           "source": "crates/wow-world/src/handlers/social.rs",
@@ -66224,6 +66307,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::social",
           "source": "crates/wow-world/src/handlers/social.rs",
@@ -66238,6 +66322,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::social",
           "source": "crates/wow-world/src/handlers/social.rs",
@@ -66252,6 +66337,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::social",
           "source": "crates/wow-world/src/handlers/social.rs",
@@ -66266,6 +66352,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::social",
           "source": "crates/wow-world/src/handlers/social.rs",
@@ -66280,6 +66367,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::social",
           "source": "crates/wow-world/src/handlers/social.rs",
@@ -66294,6 +66382,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::social",
           "source": "crates/wow-world/src/handlers/social.rs",
@@ -66308,6 +66397,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::handlers::social",
           "source": "crates/wow-world/src/handlers/social.rs",
@@ -66322,6 +66412,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::session",
           "source": "crates/wow-world/src/session.rs",
@@ -66336,6 +66427,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::session",
           "source": "crates/wow-world/src/session.rs",
@@ -66350,6 +66442,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::session",
           "source": "crates/wow-world/src/session.rs",
@@ -66364,6 +66457,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::session",
           "source": "crates/wow-world/src/session.rs",
@@ -66378,6 +66472,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::session",
           "source": "crates/wow-world/src/session.rs",
@@ -66392,6 +66487,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::session",
           "source": "crates/wow-world/src/session.rs",
@@ -66406,6 +66502,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::session",
           "source": "crates/wow-world/src/session.rs",
@@ -66420,6 +66517,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::session",
           "source": "crates/wow-world/src/session.rs",
@@ -66434,6 +66532,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66448,6 +66547,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66462,6 +66562,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66476,6 +66577,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66490,6 +66592,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66504,6 +66607,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66518,6 +66622,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66532,6 +66637,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66546,6 +66652,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66560,6 +66667,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66574,6 +66682,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66588,6 +66697,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66602,6 +66712,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66616,6 +66727,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66630,6 +66742,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66644,6 +66757,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66658,6 +66772,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66672,6 +66787,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66686,6 +66802,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66700,6 +66817,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66714,6 +66832,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66728,6 +66847,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66742,6 +66862,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66756,6 +66877,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66770,6 +66892,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66784,6 +66907,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66798,6 +66922,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66812,6 +66937,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66826,6 +66952,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66840,6 +66967,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66854,6 +66982,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66868,6 +66997,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66882,6 +67012,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66896,6 +67027,7 @@
         },
         {
           "classification": "direct_application_or_domain_access",
+          "source_class": "production",
           "package": "wow-world",
           "module": "crate::spell_acquisition::application",
           "source": "crates/wow-world/src/spell_acquisition/application.rs",
@@ -66909,7 +67041,229 @@
           "count": 1
         },
         {
+          "classification": "direct_application_or_domain_access",
+          "source_class": "test_fixture",
+          "package": "wow-world",
+          "module": "crate::handlers::character::tests",
+          "source": "crates/wow-world/src/handlers/character.rs",
+          "enclosing": "fn auto_equip_item_slot_commit_failure_does_not_apply_item_mods_like_cpp",
+          "target": "sqlx",
+          "operation": "path_reference",
+          "symbol": "new",
+          "visibility": "",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "fingerprint": "sqlx::mysql::MySqlPoolOptions::new",
+          "count": 1
+        },
+        {
+          "classification": "direct_application_or_domain_access",
+          "source_class": "test_fixture",
+          "package": "wow-world",
+          "module": "crate::handlers::character::tests",
+          "source": "crates/wow-world/src/handlers/character.rs",
+          "enclosing": "fn autobank_item_commit_failure_keeps_runtime_unchanged_like_cpp",
+          "target": "sqlx",
+          "operation": "path_reference",
+          "symbol": "new",
+          "visibility": "",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "fingerprint": "sqlx::mysql::MySqlPoolOptions::new",
+          "count": 1
+        },
+        {
+          "classification": "direct_application_or_domain_access",
+          "source_class": "test_fixture",
+          "package": "wow-world",
+          "module": "crate::handlers::character::tests",
+          "source": "crates/wow-world/src/handlers/character.rs",
+          "enclosing": "fn recursive_destroy_commit_failure_keeps_bag_and_children_like_cpp",
+          "target": "sqlx",
+          "operation": "path_reference",
+          "symbol": "new",
+          "visibility": "",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "fingerprint": "sqlx::mysql::MySqlPoolOptions::new",
+          "count": 1
+        },
+        {
+          "classification": "direct_application_or_domain_access",
+          "source_class": "test_fixture",
+          "package": "wow-world",
+          "module": "crate::handlers::character::tests",
+          "source": "crates/wow-world/src/handlers/character.rs",
+          "enclosing": "fn swap_inv_item_commit_failure_keeps_runtime_unchanged_like_cpp",
+          "target": "sqlx",
+          "operation": "path_reference",
+          "symbol": "new",
+          "visibility": "",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "fingerprint": "sqlx::mysql::MySqlPoolOptions::new",
+          "count": 1
+        },
+        {
+          "classification": "direct_application_or_domain_access",
+          "source_class": "test_fixture",
+          "package": "wow-world",
+          "module": "crate::handlers::character::vendor_atomicity_tests",
+          "source": "crates/wow-world/src/handlers/character_vendor_atomicity_tests.rs",
+          "enclosing": "fn vendor_currency_purchase_definite_rollback_keeps_runtime_unchanged_like_cpp",
+          "target": "sqlx",
+          "operation": "path_reference",
+          "symbol": "new",
+          "visibility": "",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "fingerprint": "sqlx::mysql::MySqlPoolOptions::new",
+          "count": 2
+        },
+        {
+          "classification": "direct_application_or_domain_access",
+          "source_class": "test_fixture",
+          "package": "wow-world",
+          "module": "crate::handlers::loot::tests",
+          "source": "crates/wow-world/src/handlers/loot.rs",
+          "enclosing": "fn existing_stack_count_and_binding_share_one_sql_transaction",
+          "target": "sqlx",
+          "operation": "path_reference",
+          "symbol": "new",
+          "visibility": "",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "fingerprint": "sqlx::mysql::MySqlPoolOptions::new",
+          "count": 1
+        },
+        {
+          "classification": "direct_application_or_domain_access",
+          "source_class": "test_fixture",
+          "package": "wow-world",
+          "module": "crate::handlers::loot::tests",
+          "source": "crates/wow-world/src/handlers/loot.rs",
+          "enclosing": "fn failed_existing_stack_store_publishes_neither_count_nor_binding",
+          "target": "sqlx",
+          "operation": "path_reference",
+          "symbol": "new",
+          "visibility": "",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "fingerprint": "sqlx::mysql::MySqlPoolOptions::new",
+          "count": 1
+        },
+        {
+          "classification": "direct_application_or_domain_access",
+          "source_class": "test_fixture",
+          "package": "wow-world",
+          "module": "crate::handlers::void_storage::tests",
+          "source": "crates/wow-world/src/handlers/void_storage_tests.rs",
+          "enclosing": "fn deposit_definite_rollback_keeps_money_inventory_and_void_state_unchanged",
+          "target": "sqlx",
+          "operation": "path_reference",
+          "symbol": "new",
+          "visibility": "",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "fingerprint": "sqlx::mysql::MySqlPoolOptions::new",
+          "count": 1
+        },
+        {
+          "classification": "direct_application_or_domain_access",
+          "source_class": "test_fixture",
+          "package": "wow-world",
+          "module": "crate::handlers::void_storage::tests",
+          "source": "crates/wow-world/src/handlers/void_storage_tests.rs",
+          "enclosing": "fn deposit_definite_rollback_retains_active_item_loot_view_atomically",
+          "target": "sqlx",
+          "operation": "path_reference",
+          "symbol": "new",
+          "visibility": "",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "fingerprint": "sqlx::mysql::MySqlPoolOptions::new",
+          "count": 1
+        },
+        {
+          "classification": "direct_application_or_domain_access",
+          "source_class": "test_fixture",
+          "package": "wow-world",
+          "module": "crate::handlers::void_storage::tests",
+          "source": "crates/wow-world/src/handlers/void_storage_tests.rs",
+          "enclosing": "fn mixed_transfer_validation_failure_publishes_no_partial_deposit",
+          "target": "sqlx",
+          "operation": "path_reference",
+          "symbol": "new",
+          "visibility": "",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "fingerprint": "sqlx::mysql::MySqlPoolOptions::new",
+          "count": 1
+        },
+        {
+          "classification": "direct_application_or_domain_access",
+          "source_class": "test_fixture",
+          "package": "wow-world",
+          "module": "crate::handlers::void_storage::tests",
+          "source": "crates/wow-world/src/handlers/void_storage_tests.rs",
+          "enclosing": "fn nonempty_bag_deposit_plan_destroys_children_before_parent_atomically",
+          "target": "sqlx",
+          "operation": "path_reference",
+          "symbol": "new",
+          "visibility": "",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "fingerprint": "sqlx::mysql::MySqlPoolOptions::new",
+          "count": 1
+        },
+        {
+          "classification": "direct_application_or_domain_access",
+          "source_class": "test_fixture",
+          "package": "wow-world",
+          "module": "crate::handlers::void_storage::tests",
+          "source": "crates/wow-world/src/handlers/void_storage_tests.rs",
+          "enclosing": "fn swap_definite_rollback_keeps_void_slots_unchanged",
+          "target": "sqlx",
+          "operation": "path_reference",
+          "symbol": "new",
+          "visibility": "",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "fingerprint": "sqlx::mysql::MySqlPoolOptions::new",
+          "count": 1
+        },
+        {
+          "classification": "direct_application_or_domain_access",
+          "source_class": "test_fixture",
+          "package": "wow-world",
+          "module": "crate::handlers::void_storage::tests",
+          "source": "crates/wow-world/src/handlers/void_storage_tests.rs",
+          "enclosing": "fn withdrawal_store_plan_merges_before_empty_slots_with_atomic_overlays_like_cpp",
+          "target": "sqlx",
+          "operation": "path_reference",
+          "symbol": "new",
+          "visibility": "",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "fingerprint": "sqlx::mysql::MySqlPoolOptions::new",
+          "count": 1
+        },
+        {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -66924,6 +67278,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -66938,6 +67293,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -66952,6 +67308,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -66966,6 +67323,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -66980,6 +67338,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -66994,6 +67353,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67008,6 +67368,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67022,6 +67383,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67036,6 +67398,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67050,6 +67413,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67064,6 +67428,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67078,6 +67443,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67092,6 +67458,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67106,6 +67473,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67120,6 +67488,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67134,6 +67503,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67148,6 +67518,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67162,6 +67533,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67176,6 +67548,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67190,6 +67563,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67204,6 +67578,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67218,6 +67593,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67232,6 +67608,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67246,6 +67623,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67260,6 +67638,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67274,6 +67653,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67288,6 +67668,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67302,6 +67683,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67316,6 +67698,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67330,6 +67713,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67344,6 +67728,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67358,6 +67743,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67372,6 +67758,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67386,6 +67773,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67400,6 +67788,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67414,6 +67803,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67428,6 +67818,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67442,6 +67833,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67456,6 +67848,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67470,6 +67863,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67484,6 +67878,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67498,6 +67893,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67512,6 +67908,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67526,6 +67923,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67540,6 +67938,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67554,6 +67953,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67568,6 +67968,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67582,6 +67983,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67596,6 +67998,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::database",
           "source": "crates/wow-database/src/database.rs",
@@ -67610,6 +68013,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::error",
           "source": "crates/wow-database/src/error.rs",
@@ -67624,6 +68028,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::error",
           "source": "crates/wow-database/src/error.rs",
@@ -67638,6 +68043,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::error",
           "source": "crates/wow-database/src/error.rs",
@@ -67652,6 +68058,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::error",
           "source": "crates/wow-database/src/error.rs",
@@ -67666,6 +68073,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::result",
           "source": "crates/wow-database/src/result.rs",
@@ -67680,6 +68088,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::result",
           "source": "crates/wow-database/src/result.rs",
@@ -67694,6 +68103,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::result",
           "source": "crates/wow-database/src/result.rs",
@@ -67708,6 +68118,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::result",
           "source": "crates/wow-database/src/result.rs",
@@ -67722,6 +68133,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::result",
           "source": "crates/wow-database/src/result.rs",
@@ -67736,6 +68148,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::result",
           "source": "crates/wow-database/src/result.rs",
@@ -67750,6 +68163,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::result",
           "source": "crates/wow-database/src/result.rs",
@@ -67764,6 +68178,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::result",
           "source": "crates/wow-database/src/result.rs",
@@ -67778,6 +68193,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::result",
           "source": "crates/wow-database/src/result.rs",
@@ -67792,6 +68208,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::result",
           "source": "crates/wow-database/src/result.rs",
@@ -67806,6 +68223,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::result",
           "source": "crates/wow-database/src/result.rs",
@@ -67820,6 +68238,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::transaction",
           "source": "crates/wow-database/src/transaction.rs",
@@ -67834,6 +68253,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::transaction",
           "source": "crates/wow-database/src/transaction.rs",
@@ -67848,6 +68268,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::transaction",
           "source": "crates/wow-database/src/transaction.rs",
@@ -67862,6 +68283,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::transaction",
           "source": "crates/wow-database/src/transaction.rs",
@@ -67876,6 +68298,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::transaction",
           "source": "crates/wow-database/src/transaction.rs",
@@ -67890,6 +68313,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::transaction",
           "source": "crates/wow-database/src/transaction.rs",
@@ -67904,6 +68328,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::transaction",
           "source": "crates/wow-database/src/transaction.rs",
@@ -67918,6 +68343,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::transaction",
           "source": "crates/wow-database/src/transaction.rs",
@@ -67932,6 +68358,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::transaction",
           "source": "crates/wow-database/src/transaction.rs",
@@ -67946,6 +68373,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::transaction",
           "source": "crates/wow-database/src/transaction.rs",
@@ -67960,6 +68388,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::transaction",
           "source": "crates/wow-database/src/transaction.rs",
@@ -67974,6 +68403,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::transaction",
           "source": "crates/wow-database/src/transaction.rs",
@@ -67988,6 +68418,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::transaction",
           "source": "crates/wow-database/src/transaction.rs",
@@ -68002,6 +68433,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::transaction",
           "source": "crates/wow-database/src/transaction.rs",
@@ -68016,6 +68448,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::transaction",
           "source": "crates/wow-database/src/transaction.rs",
@@ -68030,6 +68463,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::transaction",
           "source": "crates/wow-database/src/transaction.rs",
@@ -68044,6 +68478,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::transaction",
           "source": "crates/wow-database/src/transaction.rs",
@@ -68058,6 +68493,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::transaction",
           "source": "crates/wow-database/src/transaction.rs",
@@ -68072,6 +68508,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::transaction",
           "source": "crates/wow-database/src/transaction.rs",
@@ -68086,6 +68523,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::transaction",
           "source": "crates/wow-database/src/transaction.rs",
@@ -68100,6 +68538,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::transaction",
           "source": "crates/wow-database/src/transaction.rs",
@@ -68114,6 +68553,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::transaction",
           "source": "crates/wow-database/src/transaction.rs",
@@ -68128,6 +68568,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::transaction",
           "source": "crates/wow-database/src/transaction.rs",
@@ -68142,6 +68583,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::transaction",
           "source": "crates/wow-database/src/transaction.rs",
@@ -68156,6 +68598,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::transaction",
           "source": "crates/wow-database/src/transaction.rs",
@@ -68170,6 +68613,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::transaction",
           "source": "crates/wow-database/src/transaction.rs",
@@ -68184,6 +68628,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::transaction",
           "source": "crates/wow-database/src/transaction.rs",
@@ -68198,6 +68643,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::transaction",
           "source": "crates/wow-database/src/transaction.rs",
@@ -68212,6 +68658,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::transaction",
           "source": "crates/wow-database/src/transaction.rs",
@@ -68226,6 +68673,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68240,6 +68688,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68254,6 +68703,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68268,6 +68718,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68282,6 +68733,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68296,6 +68748,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68310,6 +68763,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68324,6 +68778,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68338,6 +68793,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68352,6 +68808,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68366,6 +68823,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68380,6 +68838,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68394,6 +68853,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68408,6 +68868,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68422,6 +68883,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68436,6 +68898,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68450,6 +68913,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68464,6 +68928,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68478,6 +68943,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68492,6 +68958,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68506,6 +68973,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68520,6 +68988,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68534,6 +69003,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68548,6 +69018,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68562,6 +69033,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68576,6 +69048,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68590,6 +69063,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68604,6 +69078,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68618,6 +69093,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68632,6 +69108,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68646,6 +69123,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68660,6 +69138,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68674,6 +69153,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68688,6 +69168,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68702,6 +69183,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68716,6 +69198,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68730,6 +69213,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68744,6 +69228,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68758,6 +69243,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68772,6 +69258,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68786,6 +69273,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68800,6 +69288,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68814,6 +69303,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68828,6 +69318,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68842,6 +69333,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68856,6 +69348,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68870,6 +69363,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68884,6 +69378,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68898,6 +69393,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68912,6 +69408,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68926,6 +69423,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68940,6 +69438,7 @@
         },
         {
           "classification": "reviewed_adapter",
+          "source_class": "production",
           "package": "wow-database",
           "module": "crate::updater",
           "source": "crates/wow-database/src/updater.rs",
@@ -68950,6 +69449,312 @@
           "visibility": "",
           "cfg": [],
           "fingerprint": "MySqlPool",
+          "count": 1
+        },
+        {
+          "classification": "reviewed_adapter",
+          "source_class": "test_fixture",
+          "package": "wow-database",
+          "module": "crate::database::tests",
+          "source": "crates/wow-database/src/database.rs",
+          "enclosing": "module",
+          "target": "sqlx",
+          "operation": "import",
+          "symbol": "MySqlConnectOptions",
+          "visibility": "",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "fingerprint": "sqlx::mysql::MySqlConnectOptions",
+          "count": 1
+        },
+        {
+          "classification": "reviewed_adapter",
+          "source_class": "test_fixture",
+          "package": "wow-database",
+          "module": "crate::updater::tests",
+          "source": "crates/wow-database/src/updater.rs",
+          "enclosing": "fn live_mariadb_populate_and_update_records_updates_like_cpp",
+          "target": "sqlx",
+          "operation": "path_reference",
+          "symbol": "query",
+          "visibility": "",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "fingerprint": "sqlx::query",
+          "count": 2
+        },
+        {
+          "classification": "reviewed_adapter",
+          "source_class": "test_fixture",
+          "package": "wow-database",
+          "module": "crate::updater::tests",
+          "source": "crates/wow-database/src/updater.rs",
+          "enclosing": "fn live_mariadb_populate_and_update_records_updates_like_cpp",
+          "target": "sqlx",
+          "operation": "path_reference",
+          "symbol": "query_as",
+          "visibility": "",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "fingerprint": "sqlx::query_as",
+          "count": 6
+        },
+        {
+          "classification": "reviewed_adapter",
+          "source_class": "test_fixture",
+          "package": "wow-database",
+          "module": "crate::updater::tests",
+          "source": "crates/wow-database/src/updater.rs",
+          "enclosing": "fn live_mariadb_populate_and_update_records_updates_like_cpp",
+          "target": "sqlx",
+          "operation": "query",
+          "symbol": "query",
+          "visibility": "",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "fingerprint": "sqlx :: query(& format ! (\"CREATE DATABASE `{database}` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci\"))",
+          "count": 1
+        },
+        {
+          "classification": "reviewed_adapter",
+          "source_class": "test_fixture",
+          "package": "wow-database",
+          "module": "crate::updater::tests",
+          "source": "crates/wow-database/src/updater.rs",
+          "enclosing": "fn live_mariadb_populate_and_update_records_updates_like_cpp",
+          "target": "sqlx",
+          "operation": "query",
+          "symbol": "query",
+          "visibility": "",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "fingerprint": "sqlx :: query(& format ! (\"DROP DATABASE IF EXISTS `{database}`\"))",
+          "count": 1
+        },
+        {
+          "classification": "reviewed_adapter",
+          "source_class": "test_fixture",
+          "package": "wow-database",
+          "module": "crate::updater::tests",
+          "source": "crates/wow-database/src/updater.rs",
+          "enclosing": "fn live_mariadb_populate_and_update_records_updates_like_cpp",
+          "target": "sqlx",
+          "operation": "query",
+          "symbol": "query_as",
+          "visibility": "",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "fingerprint": "sqlx :: query_as(\"SELECT COUNT(*) FROM `base_marker`\")",
+          "count": 1
+        },
+        {
+          "classification": "reviewed_adapter",
+          "source_class": "test_fixture",
+          "package": "wow-database",
+          "module": "crate::updater::tests",
+          "source": "crates/wow-database/src/updater.rs",
+          "enclosing": "fn live_mariadb_populate_and_update_records_updates_like_cpp",
+          "target": "sqlx",
+          "operation": "query",
+          "symbol": "query_as",
+          "visibility": "",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "fingerprint": "sqlx :: query_as(\"SELECT COUNT(*) FROM `update_marker`\")",
+          "count": 1
+        },
+        {
+          "classification": "reviewed_adapter",
+          "source_class": "test_fixture",
+          "package": "wow-database",
+          "module": "crate::updater::tests",
+          "source": "crates/wow-database/src/updater.rs",
+          "enclosing": "fn live_mariadb_populate_and_update_records_updates_like_cpp",
+          "target": "sqlx",
+          "operation": "query",
+          "symbol": "query_as",
+          "visibility": "",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "fingerprint": "sqlx :: query_as(\"SELECT DEFAULT_CHARACTER_SET_NAME, DEFAULT_COLLATION_NAME\n                 FROM information_schema.SCHEMATA\n                 WHERE SCHEMA_NAME = DATABASE()\")",
+          "count": 1
+        },
+        {
+          "classification": "reviewed_adapter",
+          "source_class": "test_fixture",
+          "package": "wow-database",
+          "module": "crate::updater::tests",
+          "source": "crates/wow-database/src/updater.rs",
+          "enclosing": "fn live_mariadb_populate_and_update_records_updates_like_cpp",
+          "target": "sqlx",
+          "operation": "query",
+          "symbol": "query_as",
+          "visibility": "",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "fingerprint": "sqlx :: query_as(\"SELECT `id` FROM `update_order` ORDER BY `id`\")",
+          "count": 1
+        },
+        {
+          "classification": "reviewed_adapter",
+          "source_class": "test_fixture",
+          "package": "wow-database",
+          "module": "crate::updater::tests",
+          "source": "crates/wow-database/src/updater.rs",
+          "enclosing": "fn live_mariadb_populate_and_update_records_updates_like_cpp",
+          "target": "sqlx",
+          "operation": "query",
+          "symbol": "query_as",
+          "visibility": "",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "fingerprint": "sqlx :: query_as(\"SELECT `name`, `state` FROM `updates` ORDER BY `name`\")",
+          "count": 2
+        },
+        {
+          "classification": "reviewed_adapter",
+          "source_class": "test_fixture",
+          "package": "wow-database",
+          "module": "crate::updater::tests",
+          "source": "crates/wow-database/src/updater.rs",
+          "enclosing": "fn live_mariadb_populate_and_update_records_updates_like_cpp",
+          "target": "sqlx",
+          "operation": "execute",
+          "symbol": "execute",
+          "visibility": "",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "fingerprint": "sqlx :: query (& format ! (\"CREATE DATABASE `{database}` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci\")).execute(& server_pool)",
+          "count": 1
+        },
+        {
+          "classification": "reviewed_adapter",
+          "source_class": "test_fixture",
+          "package": "wow-database",
+          "module": "crate::updater::tests",
+          "source": "crates/wow-database/src/updater.rs",
+          "enclosing": "fn live_mariadb_populate_and_update_records_updates_like_cpp",
+          "target": "sqlx",
+          "operation": "execute",
+          "symbol": "execute",
+          "visibility": "",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "fingerprint": "sqlx :: query (& format ! (\"DROP DATABASE IF EXISTS `{database}`\")).execute(& server_pool)",
+          "count": 1
+        },
+        {
+          "classification": "reviewed_adapter",
+          "source_class": "test_fixture",
+          "package": "wow-database",
+          "module": "crate::updater::tests",
+          "source": "crates/wow-database/src/updater.rs",
+          "enclosing": "fn live_mariadb_populate_and_update_records_updates_like_cpp",
+          "target": "sqlx",
+          "operation": "fetch_all",
+          "symbol": "fetch_all",
+          "visibility": "",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "fingerprint": "sqlx :: query_as (\"SELECT `id` FROM `update_order` ORDER BY `id`\").fetch_all(& pool)",
+          "count": 1
+        },
+        {
+          "classification": "reviewed_adapter",
+          "source_class": "test_fixture",
+          "package": "wow-database",
+          "module": "crate::updater::tests",
+          "source": "crates/wow-database/src/updater.rs",
+          "enclosing": "fn live_mariadb_populate_and_update_records_updates_like_cpp",
+          "target": "sqlx",
+          "operation": "fetch_all",
+          "symbol": "fetch_all",
+          "visibility": "",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "fingerprint": "sqlx :: query_as (\"SELECT `name`, `state` FROM `updates` ORDER BY `name`\").fetch_all(& pool)",
+          "count": 2
+        },
+        {
+          "classification": "reviewed_adapter",
+          "source_class": "test_fixture",
+          "package": "wow-database",
+          "module": "crate::updater::tests",
+          "source": "crates/wow-database/src/updater.rs",
+          "enclosing": "fn live_mariadb_populate_and_update_records_updates_like_cpp",
+          "target": "sqlx",
+          "operation": "fetch_one",
+          "symbol": "fetch_one",
+          "visibility": "",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "fingerprint": "sqlx :: query_as (\"SELECT COUNT(*) FROM `base_marker`\").fetch_one(& pool)",
+          "count": 1
+        },
+        {
+          "classification": "reviewed_adapter",
+          "source_class": "test_fixture",
+          "package": "wow-database",
+          "module": "crate::updater::tests",
+          "source": "crates/wow-database/src/updater.rs",
+          "enclosing": "fn live_mariadb_populate_and_update_records_updates_like_cpp",
+          "target": "sqlx",
+          "operation": "fetch_one",
+          "symbol": "fetch_one",
+          "visibility": "",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "fingerprint": "sqlx :: query_as (\"SELECT COUNT(*) FROM `update_marker`\").fetch_one(& pool)",
+          "count": 1
+        },
+        {
+          "classification": "reviewed_adapter",
+          "source_class": "test_fixture",
+          "package": "wow-database",
+          "module": "crate::updater::tests",
+          "source": "crates/wow-database/src/updater.rs",
+          "enclosing": "fn live_mariadb_populate_and_update_records_updates_like_cpp",
+          "target": "sqlx",
+          "operation": "fetch_one",
+          "symbol": "fetch_one",
+          "visibility": "",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "fingerprint": "sqlx :: query_as (\"SELECT DEFAULT_CHARACTER_SET_NAME, DEFAULT_COLLATION_NAME\n                 FROM information_schema.SCHEMATA\n                 WHERE SCHEMA_NAME = DATABASE()\" ,).fetch_one(& pool)",
+          "count": 1
+        },
+        {
+          "classification": "reviewed_adapter",
+          "source_class": "test_fixture",
+          "package": "wow-database",
+          "module": "crate::updater::tests",
+          "source": "crates/wow-database/src/updater.rs",
+          "enclosing": "module",
+          "target": "sqlx",
+          "operation": "import",
+          "symbol": "MySqlPoolOptions",
+          "visibility": "",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "fingerprint": "sqlx::mysql::MySqlPoolOptions",
           "count": 1
         }
       ]

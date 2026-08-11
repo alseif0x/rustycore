@@ -23,7 +23,7 @@ Printing `review` or `full` with `--dry-run` does not require Codex or its execu
 | Command | Purpose | Starts services or mutates a database? |
 |---|---|---:|
 | `self-test` | Test harness parsing and pinned-version invariants | No |
-| `architecture` | Enforce workspace dependency direction and report source hotspots | No |
+| `architecture` | Enforce architecture ratchets and report source hotspots | No |
 | `diff [BASE]` | Whitespace-check committed, staged, and unstaged changes | No |
 | `format` | Run harness self-tests and all three formatting checks from CI | No |
 | `check` | Run locked core checks, bot check, and server builds from CI | No |
@@ -54,8 +54,11 @@ to the policy's canonical crates.io source: same-named path, Git, or alternate-r
 dependencies fail closed. Metadata identity is validated globally; duplicate JSON keys,
 package/node/member IDs, and ambiguous multi-ID direct dependencies also fail closed. The
 self-test pins the exact locked/all-features Cargo metadata command. The profile additionally
-prints an informational split of the largest Rust source files into production and trailing
-inline-test lines. File size is not a gate by itself. Run
+prints a split of the largest Rust source files into production and trailing inline-test lines.
+File size is not a universal gate, but each hotspot explicitly curated in
+`runtime-ownership-ledger.json` has independent production, test, and total non-growth ceilings;
+reductions pass without a baseline edit, while a rename/removal requires explicitly retiring or
+replacing the audited path. Run
 `python3 tools/architecture/check_architecture.py self-test` to exercise the workspace and
 third-party dependency fixtures. Ownership, mirror rules, handler snapshot updates, and the
 deliberate baseline-change procedure are documented in
