@@ -1,6 +1,11 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**Date:** 2026-07-28 · **Base:** `3.4.3` @ `26f4058b` plus local issue #25 threat-runtime closeout.
+**Date:** 2026-08-09 · **Base:** `3.4.3` @ `42977e9a` including issue #26's final bounded
+creature-spell P1 wire/lifecycle acceptance and login faction hydration.
+
+The guarded C++ and Rust `15691` evidence was recaptured from clean harness HEAD
+`42977e9accb24fc3921af075f4122e1f0180f4a2`; strict diff is CLEAN at 2/2 packets and
+`verify-required creature-spell-casting` is CLEAN.
 
 This document replaces the drifting status snapshots in `_INDEX.md` (2026-05-01, "5–15%"),
 the `MIGRATION_ROADMAP.md` §3 inherited table (which tells you not to trust it), and the
@@ -95,11 +100,12 @@ Most of the server is built on a **`represented_*_like_cpp` pattern**: a packet 
 the actual game-state mutation to a live runtime layer that mostly does not exist yet.**
 
 - Where the mutation path *was* wired, the feature genuinely **WORKS** (melee combat,
-  inventory move/equip/destroy, loot, quest accept/turn-in, vendor, trainer, groups — all
-  persist to DB).
+  bounded creature aggro/threat and spell-wire publication, inventory move/equip/destroy,
+  loot, quest accept/turn-in, vendor, trainer, groups — durable state paths persist to DB).
 - Where only the represented layer exists, the feature **looks handled but does nothing**
   observable (mail, auction, trade, taxi, resurrection, hearthstone bind, GO-use/portals,
-  most spell effects, creature AI beyond aggro+melee).
+  most spell effects and creature AI families beyond the bounded aggro/threat/melee/template-
+  spell slices).
 
 This is why the old "98% represented" metric and "bags don't open" coexist without
 contradiction: ~98% of logic is *represented*, a much smaller fraction is *live*. The plan's
@@ -254,9 +260,8 @@ The connected gate is now represented by the fail-closed
 `detour-chase-around-obstacle` capture flow. It pins a generated MMap tile, disposable
 character/spawn identity, exact heartbeat → compressed `SMSG_ON_MONSTER_MOVE` → ping window,
 full MonsterMove decoding (normalizing only the process-global spline ID), source/binary
-revision provenance, and guarded private-DataDir/database restoration. Its requirement remains
-`awaiting-real-captures` until the same action has been recorded, reviewed and strictly imported
-from both the pinned C++ and the clean committed Rust HEAD.
+revision provenance, and guarded private-DataDir/database restoration. Its reviewed C++/Rust
+pair is strict-CLEAN across all three selected packets with an empty divergence baseline.
 
 Still absent, and explicitly **not** claimed: **point/charge, fleeing and confused** generators are
 complete, unit-tested ports with no live trigger — nothing sets `UNIT_STATE_FLEEING`/`CONFUSED`
@@ -296,6 +301,90 @@ DB, and private DataDir snapshot exactly. That wire window does not exercise hea
 assistance, or evade; those branches remain covered by focused C++-anchored regressions rather
 than dedicated live captures.
 
+M2.6 / issue #26 closes the bounded stock `CombatAI`/`TurretAI` template-spell publication
+slice. The globally owned creature frame reads the hydrated template slots and active-difficulty
+spell metadata, schedules only the represented instant target shapes with the C++ raw cooldown
+rules, and commits an atomic adjacent `SMSG_SPELL_START`/`SMSG_SPELL_GO` pair before the
+same-frame melee phase. The final P1 hardening removes GO's unconditional-hit assumption.
+It permits publication only for the bounded C++ resolution of a physical
+`DmgClass=MELEE` Creature spell whose sole target is a Player attacked from behind, whose spell
+and represented effect mechanics are all zero, and whose complete Creature/Player source
+authority proves every omitted spell-hit source hit-inert. Completeness does not require every
+external source to be empty: persistence/login sources may be nonempty when every exact effect is neutral
+to this bounded result, but the reduced runtime's canonical local aura
+application/modifier/visible containers still must be empty until their full C++ semantics are
+owned. Player authority fails closed across persistence and login/zone reconciliation, map/area
+ancestry, guild, skills, active/rewarded/auto-push quests, glyphs, active-specialization traits,
+pets and battle-pet slots, FFA/PvP/war-mode state, SpellArea/outdoor/battlefield sources, and
+script, legacy/all-rank and SpellLinked hooks. A valid SpellLinked hook blocks its candidate, as
+does the absolute trigger ID retained from a rejected loader row.
+
+A Creature-owned uniform roll in `0..=9_999` resolves base `MISS` below `500` (5%) and `HIT`
+otherwise. C++ causal order is preserved locally: cast before repeat schedule and hit roll before
+the cooldown draw; `NO_ATTACK_MISS` consumes exactly one hit roll before forcing `HIT`. The due
+EventMap slot is cleared before cast, so a blocked post-cast schedule cannot create an immediate
+retry loop. After publishing an accepted HIT, Rust tombstones before scheduling: C++'s launch
+phase next consumes an unconditional critical roll and possible effect-value draws outside this
+wire slice. MISS does not enter those target-effect draws and may retain authority for its repeat
+delay. Spell, melee and movement randomness share a fail-closed Creature tombstone. A valid
+melee swing that reaches the still-unrepresented C++ damage/outcome/proc calculation sets it and
+publishes no invented damage or wire. C++ has one process-global RNG whereas Rust has one RNG per
+Creature; P1 therefore claims equal distributions and local causal draw order, not the exact
+global stream or cross-Creature interleaving. Missing or unsupported metadata, authority, power,
+aura, projectile, target, visual, difficulty and optional-payload shapes fail closed with neither
+START nor GO. Already-performed deterministic event/reset work remains, while a tombstone blocks
+subsequent random-dependent work. This is a **wire/lifecycle subset only**: GO's resolved hit/miss
+topology does not apply spell effects, damage, health, aura, or power mutation, and it is not
+evidence of the full `Spell` pipeline or M3 combat math.
+
+The first Rust live attempt exposed a real login bridge defect rather than a casting mismatch:
+`player_faction_template_like_cpp` remained unset, the player registry published faction template
+`0`, and the creature-hostility gate correctly rejected that unrepresented identity before
+`AttackStart`. The final HEAD derives the player's faction template from `ChrRacesStore`
+when the loaded identity is installed and mirrors it into the canonical `Player`; the regression
+covers identity → registry → canonical player without manually seeding a faction. The accredited C++ source
+derivation starts at base HEAD `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`, applies the reviewed
+one-file patch SHA-256
+`ef8b3c29f46fe537e1ae4e826b5610afcd534999f900ec9554ee0534e7847262`, and yields patched HEAD
+`8cfed90bf1720dbf8b9dc109113c8d7d9173ff6c`. That patch only corrects the
+`ChrSpecialization` index-container bound needed to load the installed DB2 dataset; it does not
+touch creature AI, spell selection, casting, or packet serialization.
+
+The final fixture guard uses contract `creature-spell-casting-shell-fixture-v2`. It verifies the
+installed stock `AIName=SmartAI` and difficulty-0 `StaticFlags1=0`, CAS-switches the capture
+window to `CombatAI` and `0x00100000` (`CREATURE_STATIC_FLAG_NO_MELEE`), then CAS-restores the
+exact `SmartAI`/`0` pair and verifies cleanup. Suppressing auto-melee prevents that unrelated path
+from consuming melee damage RNG before CombatAI's due spell without disabling its EventMap cast.
+The final live authority also loads effective `ChrSpecialization` hotfix rows and corrects
+external-ID `AreaTable` WDC4 offsets, so Shattrath area `3697` resolves to map `530` and Terokkar
+zone `3519` like C++. OutdoorPvPTF source spell `33377` is admitted only after its effective XP
+and outgoing-damage auras plus exact runtime-hook authority prove it hit-inert; the four
+Auchindoun dungeon IDs remain fail-closed without C++'s `(Map*, zone)` registration authority.
+
+Both C++ and Rust were recaptured from clean harness HEAD
+`42977e9accb24fc3921af075f4122e1f0180f4a2`. The final guarded Cabal Interrogator `22378` /
+Eviscerate `15691` import contains exactly the adjacent START/GO pair on both sides with no
+accepted divergence. It records one observed **HIT** branch and does not prove that `15691`
+always hits. Its current review identities are:
+
+- C++ RAW PKT:
+  `b52cc8ba962160be63286e72eb7611c6282b0cdc3a1cee0082fc6d6d7bf2c7b9`;
+- Rust RAW tree:
+  `9aee309d9ffb2e2e1e5a33167c228ccaa8d1634d917efd026e1a525f2a5db94a`;
+- C++ / Rust capture manifests:
+  `d40e3615b3337a26a3c4d4e380dc665c23719133ec0b3c7a05febdfd640e849d` /
+  `3c942209db52f9f36b3d661477f0cad766e7e2ee49cf1fc97d68a74d996f0da0`;
+- filtered C++ PKT:
+  `a6b32206e3277e455e25f6aa8e491606aa5cd9449e2bf24245ea9dd5db79d932`;
+- normalized Rust tree:
+  `cc8d53b06c2727c95990eda80fd095a1a7e390da0af16981429d07176e0c003b`;
+- `capture-lineage.json` file:
+  `f443539e7857ac27dfb2029012f1e889d92ed27a224f89f7a6247f9510f0479d`.
+
+`diff creature-spell-casting --strict` reports 2 matched packets with zero value, routing,
+missing, or extra differences. `verify-required creature-spell-casting` is CLEAN with exact
+topology/order and correlated payload semantics.
+
 ---
 
 ## 1. The honest progress picture (three axes, not one number)
@@ -303,7 +392,7 @@ than dedicated live captures.
 | Axis | Estimate | Meaning |
 |---|---:|---|
 | **A. Breadth represented** | ~98% of R8 rows touched | Logic exists/contrasted in the represented model. **Retired as a headline** — rewards breadth over working features. |
-| **B. Live-playable core** | **partial, holed, buggy** | Core loop (login→move→melee→loot→quest→vendor→group) is live. The scoped D-C1…D-C9 CRIT integrity track is closed, but combat math and multiple HIGH/MED gameplay/runtime gaps remain. Spells, creature AI, world-interaction and death are represented-only. |
+| **B. Live-playable core** | **partial, holed, buggy** | Core loop (login→move→melee→loot→quest→vendor→group) is live. The scoped D-C1…D-C9 CRIT integrity track is closed, but combat math and multiple HIGH/MED gameplay/runtime gaps remain. Spells and creature AI have bounded live subsets; most spell effects/AI families, world-interaction and death remain represented-only or absent. |
 | **C. Full 1:1 parity** | **low** | Long tail absent: ~108 spell effects, ~255 aura types, content scripts (0/294k LOC), mail/AH/calendar live, BG/arena/instances, ~215 stat/data stores. |
 
 Part 1 of the plan drives **B** to complete; Part 2 drives **C** to complete.
@@ -363,16 +452,16 @@ fanout, or a per-Player `RestMgr`/`Player::Update` owner. The aggregate
 ### Engines — PARTIAL / STUB (the gameplay-quality gap)
 | Capability | Status | Evidence |
 |---|---|---|
-| Spell cast → SPELL_START / SPELL_GO | WORKS | `handlers/spell.rs:203-483` |
+| Spell cast → SPELL_START / SPELL_GO | **WORKS (bounded paths; issue #26 P1 verified)** | the represented player-cast handler publishes its existing START/GO path; issue #26 adds one map-owned creature path. P1 no longer presumes HIT: only a physical melee Creature spell against a rear-attacked Player, with zero mechanics and complete source authority proving omitted sources hit-inert, may publish the atomic pair; canonical local aura containers remain empty. Player persistence/login/zone/map/guild/skill/quest/glyph/trait/pet/FFA/SpellArea/hook evidence fails closed, including valid and rejected-trigger SpellLinked rows. The Creature roll maps `<500` to base `MISS` and the rest to `HIT`; local order is cast→schedule and hit→cooldown, with `NO_ATTACK_MISS` still consuming a hit roll. An accepted HIT publishes then tombstones before scheduling because subsequent launch/effect RNG is omitted; MISS may retain authority for its repeat delay. Spell/melee/movement share the tombstone. C++ global-vs-Rust per-Creature RNG parity is distribution/local-order only. Guard v2 recaptured C++ and Rust from clean `42977e9a`, temporarily switching stock `SmartAI`/`0` to `CombatAI`/`NO_MELEE` and restoring it; strict 2/2 and `verify-required` are CLEAN. This does not claim effect execution or the full Spell pipeline. |
 | Spell effects dispatched | PARTIAL **~42/150** | `session.rs:48774-49383` |
-| Spell cast cost/timing/cooldown | **PARTIAL** | SpellCastTimes/SpellCooldowns/SpellPower DB2 now hydrate represented `SpellInfo`; flat + mana-pct costs are checked/deducted, but full C++ SpellHistory/modifiers/range/LOS/reagents are still absent |
+| Spell cast cost/timing/cooldown | **PARTIAL** | SpellCastTimes/SpellCooldowns/SpellPower DB2 hydrate represented `SpellInfo`; the player path checks/deducts flat + mana-pct costs, while creature `CombatAI` uses raw `RecoveryTime`, floors missing/short values at C++'s 5-second AI default, and re-arms every repeat attempt in `[cooldown, 2×cooldown]`. Full C++ SpellHistory/modifiers and general cast lifecycle remain open. |
 | Spell damage calc (coeff/crit/resist/absorb) | **ABSENT** | `SpellEffectDb2Entry` parsed but unused |
-| Spell LOS/range/facing/reagent checks | **ABSENT** | `handlers/spell.rs:341` only checks GCD + active-cast |
+| Spell LOS/range/facing/reagent checks | **PARTIAL** | issue #26 revalidates the live canonical creature/victim, C++ min/max range with combat reaches and movement allowance, and map LOS immediately before publication; the final bounded P1 slice additionally requires that the Creature caster is behind its Player target. General player-cast range/facing/reagent coverage and real VMap-backed LOS remain incomplete; the shared VMap foundation is still a stub. |
 | Aura apply + client update | PARTIAL | `session.rs:26431` |
 | Aura periodic tick (DoT/HoT) + ~255 aura types | **STUB** (~5 types) | `session.rs:27810` expiry only; `unit_subsystems.rs:12-14` |
 | Proc system | **ABSENT** | `SpellAuraOptionsEntry` fields unused |
 | Channeled / missiles / ground-AOE / DynamicObject | **ABSENT** | no lifecycle state machine |
-| Creature AI (threat gen / spell cast / waypoints / SmartAI / text) | **PARTIAL** | random wander and DB waypoint patrol are live; threat generation, combat spells/text and SmartAI interpretation remain absent |
+| Creature AI (threat gen / spell cast / waypoints / SmartAI / text) | **PARTIAL** | random wander, DB waypoint patrol, threat/taunt/assistance/evade, and bounded CombatAI/TurretAI template-spell START/GO publication are live; spell effects, other AI families, text and SmartAI interpretation remain open |
 | Creature movement: spline broadcast (SMSG_MONSTER_MOVE) | **PARTIAL** | global legacy tick continuously launches and broadcasts random/waypoint splines on measured elapsed cadence; exact captured compressed-waypoint body is byte-clean |
 | MotionMaster tick | **PARTIAL** | persistent per-creature stack is ticked once by the global frame and selects random/waypoint/chase priority; concrete owner-bound bodies and broader generator callbacks remain |
 | Pathfinding (Detour navmesh query) | **PARTIAL** (random/waypoint/chase/home live) | real vendored Detour + ported `FindSmoothPath`; owner-derived filter, single `BuildPointPath`, both endpoint tiles demand-loaded, C++-exact no-navmesh shortcut, fly/falling mesh-hole exceptions, `IGNORE_PATHFINDING`, corridor reuse + `GetPathPolyByPosition`. Point/flee/confused have no live trigger; raycast/straight-path unreachable; mutual chase, VMAP LOS and liquid-aware `NormalizePath` absent |
@@ -397,7 +486,7 @@ fanout, or a per-Player `RestMgr`/`Player::Update` owner. The aggregate
 | Terrain height (GetHeightZ / ground correction) | **ABSENT** | creatures spawn at DB Z; no ground snap |
 | VMap line-of-sight | **STUB** (returns `true`) | `world_object.rs:1551`; spells/pathing tunnel walls |
 | Stat-formula GameTables (Gt* crit/dodge/HP) | **PARTIAL** | `CombatRatings.txt` now drives represented crit/dodge/parry/block rating scaling; HP/MP/regen/class stat tables still incomplete |
-| `ChrClasses`, `FactionTemplate`, `CharBaseInfo` stores | **ABSENT** | class scaling hardcoded; **NPC hostility checks broken** |
+| `ChrClasses`, `ChrRaces`, `FactionTemplate`, `CharBaseInfo` stores | **PARTIAL (live)** | the first three stores are loaded and login now publishes the race-derived player faction to the registry/canonical Player, closing the faction-0 creature-hostility failure; full `CharBaseInfo` and wider create/stat parity remain open |
 | `SpellPower`/`SpellCastTimes`/`SpellCooldowns` stores | **PARTIAL** | loaded into represented spell metadata for normal difficulty; full C++ modifier and runtime integration still incomplete |
 | DBC/DB2 store coverage | **~110 / ~325 (34%)** | `cpp-db2-stores.tsv` |
 | Player periodic save | **REPRESENTED-PARTIAL** | session timer now uses `CONFIG_INTERVAL_SAVE` / `PlayerSaveInterval` and queues represented `Player::SaveToDB`; installed runtime passed bot login/logout and action/travel/quest-objective preservation QA, while first-save randomization, capture diff, and manual live-client QA remain pending |

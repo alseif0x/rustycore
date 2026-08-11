@@ -52,6 +52,14 @@
 #                   detour-chase-around-obstacle. That flow uses the bot
 #                   journal path as a shell-owned DB recovery journal and a
 #                   private synthetic-MMap DataDir
+#   CREATURE_SPELL_CAPTURE_ACK_FIXTURE_MUTATION must be 1 for
+#                   creature-spell-casting. The wrapper journals and
+#                   atomically CAS-switches Cabal Interrogator 22378 from
+#                   SmartAI/StaticFlags1=0 to CombatAI/NO_MELEE only while
+#                   both worlds are stopped
+#   CREATURE_SPELL_FIXTURE_JOURNAL fresh absolute recovery-journal path in a
+#                   canonical mode-0700 directory. Cleanup replaces it with a
+#                   hash-bound marker before normal Rust resumes
 #
 # This stops the live RustyCore world server (disconnecting players). It refuses
 # to run without confirmation; pass --yes to skip the prompt.
@@ -88,6 +96,24 @@ WOW_BOT_FIXTURE_JOURNAL="${WOW_BOT_FIXTURE_JOURNAL:-}"
 WOW_BOT_EXEC="${WOW_BOT_EXEC:-}"
 WOW_BOT_EXEC_SHA256="${WOW_BOT_EXEC_SHA256:-}"
 WOW_BOT_REPORT="${WOW_BOT_REPORT:-}"
+CREATURE_SPELL_CAPTURE_ACK_FIXTURE_MUTATION="${CREATURE_SPELL_CAPTURE_ACK_FIXTURE_MUTATION:-0}"
+CREATURE_SPELL_FIXTURE_JOURNAL="${CREATURE_SPELL_FIXTURE_JOURNAL:-}"
+CREATURE_SPELL_FIXTURE_CLEANUP_MARKER=""
+CREATURE_SPELL_FIXTURE_DB_CONF=""
+CREATURE_SPELL_FIXTURE_DB_CONF_SHA256=""
+CREATURE_SPELL_FIXTURE_DB_CONF_IDENTITY=""
+CREATURE_SPELL_FIXTURE_SIDE=""
+CREATURE_SPELL_FIXTURE_PM2_RUST_WORLD=""
+CREATURE_SPELL_FIXTURE_PM2_CPP_WORLD=""
+CREATURE_SPELL_FIXTURE_WORLD_PORT=""
+CREATURE_SPELL_FIXTURE_INSTANCE_PORT=""
+CREATURE_SPELL_FIXTURE_ORCHESTRATION_LOCK=""
+CREATURE_SPELL_FIXTURE_MANIFEST=""
+CREATURE_SPELL_FIXTURE_MANIFEST_SHA256=""
+CREATURE_SPELL_FIXTURE_DATABASE_SNAPSHOT_SHA256=""
+CREATURE_SPELL_FIXTURE_JOURNAL_SHA256=""
+CREATURE_SPELL_FIXTURE_DB_APPLIED=0
+CREATURE_SPELL_FIXTURE_CLEANUP_VERIFIED=0
 LOOT_FIXTURE_CLEANUP_MARKER=""
 LOOT_FIXTURE_ENTRY=21779
 LOOT_FIXTURE_EXPECTED_HEALTH_MODIFIER=1
@@ -122,6 +148,7 @@ CPP_CAPTURE_HARNESS_WORKTREE_CLEAN=0
 CPP_CAPTURE_HARNESS_WORKTREE_SHA256=""
 CPP_CAPTURE_SOURCE_WORKTREE_DIRTY=0
 CPP_CAPTURE_SOURCE_WORKTREE_SHA256=""
+CPP_CAPTURE_SOURCE_DERIVATION_JSON=null
 CPP_CAPTURE_PM2_ENTRY_PID=""
 CPP_CAPTURE_PM2_ENTRY_STARTTIME=""
 CPP_CAPTURE_PM2_EXEC_PATH=""
@@ -162,11 +189,41 @@ source "$(dirname "${BASH_SOURCE[0]}")/loot-fixture-common.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/capture-service-common.sh"
 # shellcheck source=detour-chase-fixture-common.sh
 source "$(dirname "${BASH_SOURCE[0]}")/detour-chase-fixture-common.sh"
+# shellcheck source=creature-spell-casting-fixture-common.sh
+source "$(dirname "${BASH_SOURCE[0]}")/creature-spell-casting-fixture-common.sh"
 capture_validate_world_timeouts || exit 2
 
 if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
   LOOT_FIXTURE_GUARD_ENABLED=1
   DETOUR_FIXTURE_DB_CONF="$CPP_CAPTURE_DB_CONF"
+fi
+
+if [ "$FLOW" = "creature-spell-casting" ]; then
+  [ "$CREATURE_SPELL_CAPTURE_ACK_FIXTURE_MUTATION" = 1 ] || {
+    echo "error: creature-spell-casting requires CREATURE_SPELL_CAPTURE_ACK_FIXTURE_MUTATION=1" >&2
+    exit 2
+  }
+  [ -n "$CPP_CAPTURE_EXEC" ] && [ -n "$CPP_CAPTURE_EXEC_SHA256" ] || {
+    echo "error: creature spell evidence requires CPP_CAPTURE_EXEC and CPP_CAPTURE_EXEC_SHA256" >&2
+    exit 2
+  }
+  [ -n "$WOW_BOT_EXEC" ] && [ -n "$WOW_BOT_EXEC_SHA256" ] \
+    && [ -n "$WOW_BOT_REPORT" ] || {
+    echo "error: creature spell evidence requires WOW_BOT_EXEC, WOW_BOT_EXEC_SHA256, and WOW_BOT_REPORT" >&2
+    exit 2
+  }
+  [[ "$WOW_BOT_EXEC_SHA256" =~ ^[0-9A-Fa-f]{64}$ ]] || {
+    echo "error: WOW_BOT_EXEC_SHA256 must contain exactly 64 hexadecimal characters" >&2
+    exit 2
+  }
+  WOW_BOT_EXEC_SHA256="${WOW_BOT_EXEC_SHA256,,}"
+  capture_validate_fresh_bot_inputs \
+    "$WOW_BOT_EXEC" "$WOW_BOT_EXEC_SHA256" "$WOW_BOT_REPORT" || {
+    echo "error: creature spell bot executable/report inputs are not fresh, canonical, and pinned" >&2
+    exit 2
+  }
+  creature_spell_fixture_validate_fresh_journal || exit 2
+  creature_spell_fixture_validate_committed_fixture "$REPO_ROOT" || exit 2
 fi
 
 [[ "$CPP_WORLD_PORT" =~ ^[1-9][0-9]*$ ]] \
@@ -288,16 +345,17 @@ elif [ -n "$CPP_CAPTURE_EXEC_SHA256" ]; then
   exit 2
 fi
 
-for dependency in awk chmod cp date dirname flock git grep id jq mkdir mktemp mv \
+for dependency in awk chmod cmp cp date dirname flock git grep id jq mkdir mktemp mv \
   pm2 realpath rg sed sha256sum sleep ss stat sync tail; do
   command -v "$dependency" >/dev/null 2>&1 || {
     echo "error: required command not found: $dependency" >&2
     exit 2
   }
 done
-if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
+if [ "$FLOW" = "detour-chase-around-obstacle" ] \
+    || [ "$FLOW" = "creature-spell-casting" ]; then
   command -v mysql >/dev/null 2>&1 || {
-    echo "error: mysql is required by the detour fixture guard" >&2
+    echo "error: mysql is required by the selected shell fixture guard" >&2
     exit 2
   }
   load_loot_fixture_database_credentials || exit 2
@@ -330,7 +388,8 @@ CPP_CAPTURE_SOURCE_WORKTREE_SHA256="$(
   exit 2
 }
 if capture_git_repo_is_dirty "$CPP_CAPTURE_SOURCE_REPO"; then
-  if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
+  if [ "$FLOW" = "detour-chase-around-obstacle" ] \
+      || [ "$FLOW" = "creature-spell-casting" ]; then
     echo "error: capture evidence requires a clean committed legacy C++ source worktree (including untracked files)" >&2
     exit 2
   fi
@@ -339,6 +398,14 @@ fi
 if [ "$CPP_CAPTURE_HARNESS_WORKTREE_CLEAN" -ne 1 ]; then
   echo "error: capture evidence requires a clean committed RustyCore harness worktree (including untracked files)" >&2
   exit 2
+fi
+if [ "$FLOW" = "creature-spell-casting" ]; then
+  creature_spell_fixture_validate_cpp_source_derivation \
+    "$REPO_ROOT" "$CPP_CAPTURE_SOURCE_REPO" || {
+      echo "error: legacy C++ source does not match the reviewed creature spell derivation" >&2
+      exit 2
+    }
+  CPP_CAPTURE_SOURCE_DERIVATION_JSON="$CREATURE_SPELL_FIXTURE_SOURCE_DERIVATION_JSON"
 fi
 
 if [ "$CPP_CAPTURE_PINNED" -eq 1 ] \
@@ -352,7 +419,8 @@ if [ "$CPP_CAPTURE_PINNED" -eq 1 ]; then
   CPP_CAPTURE_SOURCE_EXEC="$CPP_CAPTURE_EXEC"
   CPP_CAPTURE_SOURCE_SHA256="$CPP_CAPTURE_EXEC_SHA256"
 fi
-if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
+if [ "$FLOW" = "detour-chase-around-obstacle" ] \
+    || [ "$FLOW" = "creature-spell-casting" ]; then
   CPP_CAPTURE_EXEC_SOURCE_HEAD="$(
     cpp_capture_embedded_source_head "$CPP_CAPTURE_EXEC"
   )" || {
@@ -512,6 +580,9 @@ finalize_cpp_capture_artifact() {
   if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
     fixture_guard_enabled=1
   fi
+  if [ "$FLOW" = "creature-spell-casting" ]; then
+    fixture_guard_enabled=1
+  fi
   capture_fixture_cleanup_verified_for_publication \
     "$fixture_guard_enabled" \
     "$CPP_CAPTURE_FIXTURE_CLEANUP_VERIFIED" || return 1
@@ -524,6 +595,10 @@ finalize_cpp_capture_artifact() {
       bot_evidence="$(capture_vendor_bot_evidence \
         "$WOW_BOT_REPORT" "$WOW_BOT_EXEC" "$WOW_BOT_EXEC_SHA256")" || return 1
       ;;
+    creature-spell-casting)
+      bot_evidence="$(creature_spell_fixture_bot_evidence \
+        "$WOW_BOT_REPORT" "$WOW_BOT_EXEC" "$WOW_BOT_EXEC_SHA256")" || return 1
+      ;;
   esac
   if [ -n "$bot_evidence" ]; then
     IFS=$'\t' read -r CPP_CAPTURE_BOT_EXEC CPP_CAPTURE_BOT_EXEC_SHA256 \
@@ -531,6 +606,10 @@ finalize_cpp_capture_artifact() {
   fi
   if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
     capture_evidence="$(detour_chase_capture_evidence)" || return 1
+  elif [ "$FLOW" = "creature-spell-casting" ]; then
+    capture_evidence="$(creature_spell_fixture_capture_evidence \
+      "$CPP_CAPTURE_BOT_EXEC" "$CPP_CAPTURE_BOT_EXEC_SHA256" \
+      "$CPP_CAPTURE_BOT_REPORT" "$CPP_CAPTURE_BOT_REPORT_SHA256")" || return 1
   else
     capture_evidence="$(capture_bot_manifest_evidence \
       "$FLOW" "$CPP_CAPTURE_BOT_EXEC" "$CPP_CAPTURE_BOT_EXEC_SHA256" \
@@ -544,9 +623,13 @@ finalize_cpp_capture_artifact() {
       = "$CPP_CAPTURE_HARNESS_WORKTREE_SHA256" ] \
     && [ "$(git -C "$CPP_CAPTURE_SOURCE_REPO" rev-parse HEAD 2>/dev/null)" \
       = "$CPP_CAPTURE_SOURCE_REPO_HEAD" ] \
-    && { [ "$FLOW" != "detour-chase-around-obstacle" ] \
+    && { { [ "$FLOW" != "detour-chase-around-obstacle" ] \
+        && [ "$FLOW" != "creature-spell-casting" ]; } \
       || [ "$(cpp_capture_embedded_source_head "$CPP_CAPTURE_EXEC")" \
         = "$CPP_CAPTURE_EXEC_SOURCE_HEAD" ]; } \
+    && { [ "$FLOW" != "creature-spell-casting" ] \
+      || creature_spell_fixture_validate_cpp_source_derivation \
+        "$REPO_ROOT" "$CPP_CAPTURE_SOURCE_REPO"; } \
     && [ "$(capture_git_worktree_state_sha256 "$CPP_CAPTURE_SOURCE_REPO")" \
       = "$CPP_CAPTURE_SOURCE_WORKTREE_SHA256" ] || return 1
   capture_require_canonical_directory "$OUT_DIR" \
@@ -579,6 +662,7 @@ finalize_cpp_capture_artifact() {
       --arg bot_report_sha256 "$CPP_CAPTURE_BOT_REPORT_SHA256" \
       --arg packet_sha256 "$packet_sha" \
       --argjson capture_evidence "$capture_evidence" \
+      --argjson source_derivation "$CPP_CAPTURE_SOURCE_DERIVATION_JSON" \
       --argjson pm2_entry_pid "$CPP_CAPTURE_PM2_ENTRY_PID" \
       --argjson pm2_entry_starttime "$CPP_CAPTURE_PM2_ENTRY_STARTTIME" \
       --argjson listener_runtime_pid "$CPP_CAPTURE_PID" \
@@ -631,7 +715,10 @@ finalize_cpp_capture_artifact() {
           size: $packet_size,
           sha256: $packet_sha256
         }
-      }' >"$manifest_stage"; then
+      }
+      + (if $source_derivation == null then {}
+         else {source_derivation: $source_derivation}
+         end)' >"$manifest_stage"; then
     rm -f -- "$manifest_stage"
     return 1
   fi
@@ -664,6 +751,9 @@ if [ "$CPP_CAPTURE_PINNED" -eq 1 ]; then
 fi
 echo "pkt file     : ${CPP_LOGS_DIR}/${PKT_NAME}"
 echo "output       : ${OUT_PKT}"
+if [ "$FLOW" = "creature-spell-casting" ]; then
+  echo "DB fixture   : Cabal entry ${CREATURE_SPELL_FIXTURE_ENTRY}, spawn ${CREATURE_SPELL_FIXTURE_SPAWN_GUID}, spell ${CREATURE_SPELL_FIXTURE_SPELL_ID}; SmartAI/StaticFlags1=0 -> CombatAI/StaticFlags1=${CREATURE_SPELL_FIXTURE_TEMP_STATIC_FLAGS_1} (NO_MELEE)"
+fi
 echo
 echo "This will STOP ${PM2_RUST_WORLD} and START ${PM2_CPP_WORLD} (shared DBs/ports)."
 
@@ -686,12 +776,17 @@ capture_git_repo_clean_at_head "$REPO_ROOT" "$CPP_CAPTURE_HARNESS_REPO_HEAD" \
     = "$CPP_CAPTURE_HARNESS_WORKTREE_SHA256" ] \
   && [ "$(git -C "$CPP_CAPTURE_SOURCE_REPO" rev-parse HEAD 2>/dev/null)" \
     = "$CPP_CAPTURE_SOURCE_REPO_HEAD" ] \
-  && { [ "$FLOW" != "detour-chase-around-obstacle" ] \
+  && { { [ "$FLOW" != "detour-chase-around-obstacle" ] \
+      && [ "$FLOW" != "creature-spell-casting" ]; } \
     || capture_git_repo_clean_at_head \
       "$CPP_CAPTURE_SOURCE_REPO" "$CPP_CAPTURE_SOURCE_REPO_HEAD"; } \
-  && { [ "$FLOW" != "detour-chase-around-obstacle" ] \
+  && { { [ "$FLOW" != "detour-chase-around-obstacle" ] \
+      && [ "$FLOW" != "creature-spell-casting" ]; } \
     || [ "$(cpp_capture_embedded_source_head "$CPP_CAPTURE_EXEC")" \
       = "$CPP_CAPTURE_EXEC_SOURCE_HEAD" ]; } \
+  && { [ "$FLOW" != "creature-spell-casting" ] \
+    || creature_spell_fixture_validate_cpp_source_derivation \
+      "$REPO_ROOT" "$CPP_CAPTURE_SOURCE_REPO"; } \
   && [ "$(capture_git_worktree_state_sha256 "$CPP_CAPTURE_SOURCE_REPO")" \
     = "$CPP_CAPTURE_SOURCE_WORKTREE_SHA256" ] || {
   echo "error: harness/source worktree provenance changed before service mutation" >&2
@@ -761,6 +856,18 @@ restore() {
       restore_status=1
     fi
     if [ "$restore_status" -eq 0 ] \
+        && [ "$FLOW" = "creature-spell-casting" ] \
+        && ! creature_spell_fixture_record_post_login_snapshot; then
+      echo "WARNING: failed to durably snapshot the exact post-login creature spell character state" >&2
+      restore_status=1
+    fi
+    if [ "$restore_status" -eq 0 ] \
+        && [ "$FLOW" = "creature-spell-casting" ] \
+        && ! creature_spell_fixture_restore_guard; then
+      echo "WARNING: failed to restore the guarded Cabal creature spell fixture" >&2
+      restore_status=1
+    fi
+    if [ "$restore_status" -eq 0 ] \
         && [ "$FLOW" = "detour-chase-around-obstacle" ] \
         && ! detour_chase_restore_fixture_guard; then
       echo "WARNING: failed to restore the guarded detour creature/character fixture" >&2
@@ -775,6 +882,10 @@ restore() {
     fi
     if [ "$restore_status" -eq 0 ] \
         && [ "$CPP_CAPTURE_LOOT_FIXTURE_GUARD" = "1" ]; then
+      CPP_CAPTURE_FIXTURE_CLEANUP_VERIFIED=1
+    fi
+    if [ "$restore_status" -eq 0 ] \
+        && [ "$FLOW" = "creature-spell-casting" ]; then
       CPP_CAPTURE_FIXTURE_CLEANUP_VERIFIED=1
     fi
   fi
@@ -856,6 +967,13 @@ restore() {
     echo "WARNING: failed to remove the consumed bot cleanup marker" >&2
     restore_status=1
   fi
+  if [ "$restore_status" -eq 0 ] \
+      && [ "$CAPTURE_SWAPPED" -eq 1 ] \
+      && [ "$FLOW" = "creature-spell-casting" ] \
+      && ! creature_spell_fixture_remove_cleanup_marker; then
+    echo "WARNING: failed to remove the consumed creature spell cleanup marker" >&2
+    restore_status=1
+  fi
   if [ "$restore_status" -eq 0 ] && [ "$capture_status" -eq 0 ]; then
     if ! finalize_cpp_capture_artifact; then
       echo "WARNING: capture cleanup succeeded, but atomic packet/manifest publication failed" >&2
@@ -877,6 +995,37 @@ trap restore EXIT
 trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
+
+if [ "$FLOW" = "creature-spell-casting" ]; then
+  # If the credential source is the active C++ config, pin its pristine backup:
+  # PacketLogFile/Bot.AccountPrefix are edited before the DB CAS, and a fresh
+  # recovery shell must never trust those mutable bytes.
+  CPP_CAPTURE_DB_CONF_PATH="$(realpath -e -- "$CPP_CAPTURE_DB_CONF")" || exit 1
+  if [ "$CPP_CAPTURE_DB_CONF_PATH" = "$CPP_CONF" ]; then
+    CREATURE_SPELL_FIXTURE_DB_CONF="$CONF_BAK"
+    CREATURE_SPELL_FIXTURE_DB_CONF_SHA256="$CPP_CONF_BACKUP_SHA256"
+    CREATURE_SPELL_FIXTURE_DB_CONF_IDENTITY="$CPP_CONF_BACKUP_IDENTITY"
+  else
+    CREATURE_SPELL_FIXTURE_DB_CONF="$CPP_CAPTURE_DB_CONF_PATH"
+    CREATURE_SPELL_FIXTURE_DB_CONF_SHA256="$(
+      creature_spell_fixture_sha256_of_file \
+        "$CREATURE_SPELL_FIXTURE_DB_CONF"
+    )"
+    CREATURE_SPELL_FIXTURE_DB_CONF_IDENTITY="$(
+      stat -c '%d:%i' -- "$CREATURE_SPELL_FIXTURE_DB_CONF"
+    )"
+  fi
+  CREATURE_SPELL_FIXTURE_SIDE=cpp
+  CREATURE_SPELL_FIXTURE_PM2_RUST_WORLD="$PM2_RUST_WORLD"
+  CREATURE_SPELL_FIXTURE_PM2_CPP_WORLD="$PM2_CPP_WORLD"
+  CREATURE_SPELL_FIXTURE_WORLD_PORT="$CPP_WORLD_PORT"
+  CREATURE_SPELL_FIXTURE_INSTANCE_PORT="$CPP_INSTANCE_PORT"
+  CREATURE_SPELL_FIXTURE_ORCHESTRATION_LOCK="$CAPTURE_ORCHESTRATION_LOCK"
+  creature_spell_fixture_validate_db_config || {
+    echo "error: creature spell recovery DB config is not canonical and pinned" >&2
+    exit 1
+  }
+fi
 
 if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
   detour_chase_allocate_private_data_dir
@@ -967,6 +1116,9 @@ if [ "$CPP_CAPTURE_LOOT_FIXTURE_GUARD" = "1" ]; then
   loot_fixture_wait_until_all_characters_offline
   apply_creature_health_fixture_guard
 fi
+if [ "$FLOW" = "creature-spell-casting" ]; then
+  creature_spell_fixture_apply_guard
+fi
 if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
   detour_chase_apply_fixture_guard
 fi
@@ -992,7 +1144,14 @@ if [ "$FLOW" = "detour-chase-around-obstacle" ]; then
   DETOUR_FIXTURE_BOT_READY=1
 fi
 echo
-echo ">>> Perform the '${FLOW}' flow with the client now."
+if [ "$FLOW" = "creature-spell-casting" ]; then
+  echo ">>> Run the pinned bot once while this capture world is active:"
+  printf '>>> WOW_BOT_REPORT=%q %q --creature-spell-capture --single %q --creature-spell-fixture-manifest %q\n' \
+    "$WOW_BOT_REPORT" "$WOW_BOT_EXEC" "$CREATURE_SPELL_FIXTURE_ACCOUNT" \
+    "$CREATURE_SPELL_FIXTURE_MANIFEST"
+else
+  echo ">>> Perform the '${FLOW}' flow with the client now."
+fi
 read -r -p ">>> Press ENTER when the flow is complete to collect the capture... " _
 
 [ "$(capture_world_ready_once "$PM2_CPP_WORLD")" = "$CPP_CAPTURE_IDENTITY" ] || {

@@ -25,6 +25,130 @@ use wow_packet::packets::party::{
 };
 use wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate;
 
+/// C++ `Player::m_clientGUIDs` held behind a shared handle.
+///
+/// The owning session is the only writer, but recipient selection for durable
+/// fan-out runs on the map tick, which has no access to session-local state.
+/// Publishing the membership through the player registry lets a producer commit
+/// the recipient decision at the moment the message is resolved instead of
+/// re-deriving it from mutable state when the receiving session drains.
+#[derive(Clone, Default)]
+pub struct SharedClientVisibleGuidsLikeCpp {
+    inner: Arc<std::sync::RwLock<HashSet<ObjectGuid>>>,
+}
+
+impl SharedClientVisibleGuidsLikeCpp {
+    fn read_like_cpp(&self) -> std::sync::RwLockReadGuard<'_, HashSet<ObjectGuid>> {
+        self.inner
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    fn write_like_cpp(&self) -> std::sync::RwLockWriteGuard<'_, HashSet<ObjectGuid>> {
+        self.inner
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    pub fn insert(&self, guid: ObjectGuid) -> bool {
+        self.write_like_cpp().insert(guid)
+    }
+
+    pub fn remove(&self, guid: &ObjectGuid) -> bool {
+        self.write_like_cpp().remove(guid)
+    }
+
+    pub fn contains(&self, guid: &ObjectGuid) -> bool {
+        self.read_like_cpp().contains(guid)
+    }
+
+    pub fn len(&self) -> usize {
+        self.read_like_cpp().len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.read_like_cpp().is_empty()
+    }
+
+    pub fn clear(&self) {
+        self.write_like_cpp().clear();
+    }
+
+    pub fn retain(&self, mut keep: impl FnMut(&ObjectGuid) -> bool) {
+        self.write_like_cpp().retain(|guid| keep(guid));
+    }
+
+    pub fn extend(&self, guids: impl IntoIterator<Item = ObjectGuid>) {
+        self.write_like_cpp().extend(guids);
+    }
+
+    /// Drop the objects a visibility refresh no longer sees and add the ones it
+    /// found, under a single write.
+    ///
+    /// Removing and re-adding in separate steps would briefly publish a
+    /// half-rebuilt set, and a producer selecting recipients inside that window
+    /// would skip a viewer that never actually lost the object.
+    pub fn retain_and_extend_like_cpp(
+        &self,
+        keep: impl FnMut(&ObjectGuid) -> bool,
+        added: impl IntoIterator<Item = ObjectGuid>,
+    ) {
+        self.publish_transition_like_cpp(keep, added, || ());
+    }
+
+    /// Publish a visibility transition together with the packets that carry it.
+    ///
+    /// The membership and its `SMSG_UPDATE_OBJECT` form one client-visible step.
+    /// A producer that read the old membership while the create block was
+    /// already queued would skip a viewer whose client now has the object, and
+    /// one that read the new membership while the out-of-range block was queued
+    /// would address an object the client is destroying. Running `publish` under
+    /// the same write makes both intermediate states unobservable.
+    ///
+    /// `publish` must not touch this set again — it would deadlock on the write
+    /// it is already inside.
+    pub fn publish_transition_like_cpp<R>(
+        &self,
+        mut keep: impl FnMut(&ObjectGuid) -> bool,
+        added: impl IntoIterator<Item = ObjectGuid>,
+        publish: impl FnOnce() -> R,
+    ) -> R {
+        let mut guard = self.write_like_cpp();
+        guard.retain(|guid| keep(guid));
+        guard.extend(added);
+        publish()
+    }
+
+    /// Copy the current membership. Callers that need to iterate must take this
+    /// snapshot rather than hold the lock across session work.
+    pub fn snapshot_like_cpp(&self) -> HashSet<ObjectGuid> {
+        self.read_like_cpp().clone()
+    }
+
+    /// Whether both handles are the same allocation, and therefore the same
+    /// session incarnation. A relogin or a replaced session builds a new set,
+    /// so a command committed against the previous one cannot be honored.
+    pub fn shares_storage_like_cpp(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.inner, &other.inner)
+    }
+}
+
+impl PartialEq for SharedClientVisibleGuidsLikeCpp {
+    fn eq(&self, other: &Self) -> bool {
+        self.shares_storage_like_cpp(other)
+    }
+}
+
+impl Eq for SharedClientVisibleGuidsLikeCpp {}
+
+impl std::fmt::Debug for SharedClientVisibleGuidsLikeCpp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SharedClientVisibleGuidsLikeCpp")
+            .field("len", &self.len())
+            .finish()
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum SessionCommand {
     KickLikeCpp(KickLikeCppCommand),
@@ -80,6 +204,10 @@ pub enum SessionCommand {
     /// world-server; the per-session gate is in
     /// `handle_send_if_visible_like_cpp_command_like_cpp` (Slice 4A.1b).
     SendIfVisibleLikeCpp(SendIfVisibleLikeCppCommand),
+    /// Deliver one creature spell START+GO pair after one shared visibility
+    /// gate, selecting the basic or full GO by the receiving player's C++
+    /// advanced-combat-log preference.
+    SendCreatureSpellCastIfVisibleLikeCpp(SendCreatureSpellCastIfVisibleLikeCppCommand),
     /// Same visibility/phase/range gate as `SendIfVisibleLikeCpp`, but route
     /// the accepted packet through the receiver's realm connection.
     SendRealmIfVisibleLikeCpp(SendIfVisibleLikeCppCommand),
@@ -203,12 +331,15 @@ pub enum GroupDifficultyKindLikeCpp {
     LegacyRaid,
 }
 
-/// Payload for a map-owned creature melee hit against one player session.
+/// Payload for the transitional map-owned creature melee compatibility hit
+/// against one player session.
 ///
-/// Future global creature combat will compute the swing once from the map tick,
-/// set the canonical player health to `victim_health_after`, then enqueue this
-/// command to the victim's session. The session side is idempotent: it sets the
-/// represented player health to the final value and sends one combat packet.
+/// The compatibility driver preserves the pre-existing damage bridge while the
+/// full C++ `CalculateMeleeDamage` outcome/proc pipeline remains unrepresented.
+/// It sets canonical health once and enqueues this command to the victim. The
+/// session side treats the command as presentation-only: the monotonic health
+/// revision suppresses replay, while health/death are reread from canonical
+/// state instead of being written back from this delayed payload.
 #[derive(Clone, Debug)]
 pub struct ApplyCreatureMeleeDamageLikeCppCommand {
     pub attacker_guid: ObjectGuid,
@@ -219,6 +350,7 @@ pub struct ApplyCreatureMeleeDamageLikeCppCommand {
     pub over_damage: i32,
     pub target_level: u8,
     pub victim_health_after: u64,
+    pub victim_health_state_revision_after: u64,
 }
 
 /// Payload for a map-owned creature aggro transition against one player.
@@ -321,6 +453,17 @@ impl DurableCreatureRuntimeCommandsLikeCpp {
         self.publish_like_cpp(SessionCommand::SendIfVisibleLikeCpp(command))
     }
 
+    /// Publish START+GO as one queue element so capacity checks and session
+    /// drains cannot observe only one half of a committed spell cast.
+    pub fn publish_creature_spell_cast_if_visible_like_cpp(
+        &mut self,
+        command: SendCreatureSpellCastIfVisibleLikeCppCommand,
+    ) -> bool {
+        self.publish_like_cpp(SessionCommand::SendCreatureSpellCastIfVisibleLikeCpp(
+            command,
+        ))
+    }
+
     pub fn drain_like_cpp(&mut self) -> Vec<SessionCommand> {
         self.commands.drain(..).collect()
     }
@@ -353,6 +496,39 @@ pub struct SendIfVisibleLikeCppCommand {
     pub instance_id: u32,
     /// Already-serialised wire payload ready to write to the socket.
     pub packet_bytes: Vec<u8>,
+}
+
+/// Atomic session handoff for one represented creature spell cast.
+///
+/// The two serialized frames remain separate so the socket writer sees the
+/// normal START then GO packet boundary. They share one addressing envelope,
+/// one durable queue slot and one session visibility gate. Both C++ packet
+/// variants are committed together; the receiving session selects exactly one
+/// GO representation from its player-local logging preference.
+/// This atomicity ends at the session handoff: the current socket channel is
+/// frame-oriented, so two later `send` calls are not a transactional batch
+/// against cloned producers or a receiver that closes between frames.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SendCreatureSpellCastIfVisibleLikeCppCommand {
+    pub queued_at: Instant,
+    pub source_guid: ObjectGuid,
+    pub map_id: u16,
+    pub instance_id: u32,
+    pub start_packet_bytes: Vec<u8>,
+    /// The GO frame chosen for this recipient when the cast resolved.
+    ///
+    /// C++ selects the basic or full combat-log representation synchronously
+    /// while distributing the cast, so the choice cannot depend on a preference
+    /// the client may toggle before this command is drained.
+    pub go_packet_bytes: Vec<u8>,
+    /// The visibility membership this recipient decision was committed against.
+    ///
+    /// C++ picks recipients synchronously inside `SendSpellGo`, so the answer
+    /// belongs to the moment the cast resolved. Carrying the producer's handle
+    /// lets the receiving session honor that decision instead of re-deriving it
+    /// from a `HaveAtClient` set that has moved on, while still proving the
+    /// command belongs to this session incarnation.
+    pub committed_visibility_like_cpp: SharedClientVisibleGuidsLikeCpp,
 }
 
 /// Carries C++ `WorldSession::DoLootRelease`'s forced creature DynamicFlags
@@ -1019,6 +1195,18 @@ pub struct PlayerBroadcastInfo {
     /// Durable FIFO rail for authoritative creature combat transitions.
     pub durable_creature_runtime_commands_like_cpp:
         Arc<Mutex<DurableCreatureRuntimeCommandsLikeCpp>>,
+    /// Shared C++ `Player::m_clientGUIDs` membership for this session.
+    ///
+    /// Producers that must commit a recipient decision at the moment a message
+    /// is resolved read it here instead of leaving the receiving session to
+    /// re-derive visibility from state that moved on in the meantime.
+    pub client_visible_guids_like_cpp: SharedClientVisibleGuidsLikeCpp,
+    /// Shared C++ advanced-combat-logging preference for this session.
+    ///
+    /// `WorldObject::SendCombatLogMessage` picks the basic or full `SMSG_SPELL_GO`
+    /// frame per receiver while it distributes the cast, so a producer reads this
+    /// when the cast resolves rather than leaving the choice to drain time.
+    pub advanced_combat_logging_enabled_like_cpp: Arc<AtomicBool>,
     /// Durable/coalesced equivalent of C++'s retained visibility notify bit.
     ///
     /// Senders set this before attempting the bounded command queue. The owning
@@ -1177,6 +1365,59 @@ pub type PlayerRegistry = DashMap<ObjectGuid, PlayerBroadcastInfo>;
 mod tests {
     use super::*;
 
+    /// A producer selecting recipients must never observe a visibility
+    /// transition half applied, nor the old membership while the packets that
+    /// replace it are already queued.
+    #[test]
+    fn visibility_transition_publishes_membership_and_packets_as_one_step_like_cpp() {
+        use std::sync::mpsc;
+        use std::time::Duration;
+
+        let visibility = SharedClientVisibleGuidsLikeCpp::default();
+        let leaving = ObjectGuid::create_player(1, 1);
+        let arriving = ObjectGuid::create_player(1, 2);
+        visibility.insert(leaving);
+
+        let reader_handle = visibility.clone();
+        let (entered_tx, entered_rx) = mpsc::channel();
+        let (observed_tx, observed_rx) = mpsc::channel();
+        let reader = std::thread::spawn(move || {
+            entered_rx
+                .recv()
+                .expect("transition entered its publish step");
+            // This read can only complete once the transition released its write.
+            observed_tx
+                .send(reader_handle.snapshot_like_cpp())
+                .expect("reader reported its snapshot");
+        });
+
+        visibility.publish_transition_like_cpp(
+            |guid| *guid != leaving,
+            [arriving],
+            || {
+                entered_tx.send(()).expect("reader was signalled");
+                std::thread::sleep(Duration::from_millis(50));
+                assert!(
+                    observed_rx.try_recv().is_err(),
+                    "no reader may observe the set while its packets are being published"
+                );
+            },
+        );
+
+        let observed = observed_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("reader snapshot");
+        reader.join().expect("reader finished");
+        assert!(
+            !observed.contains(&leaving),
+            "the departed object is gone once the transition is observable"
+        );
+        assert!(
+            observed.contains(&arriving),
+            "the arrived object is present once the transition is observable"
+        );
+    }
+
     /// Verify that `PlayerBroadcastInfo` carries `instance_id` so that
     /// cross-instance delivery can be filtered (Slice 4A.1b).
     /// C++ anchor: `GridNotifiersImpl.h : MessageDistDeliverer::Visit` — instance
@@ -1196,6 +1437,8 @@ mod tests {
             send_tx,
             command_tx,
             durable_creature_runtime_commands_like_cpp: Default::default(),
+            client_visible_guids_like_cpp: Default::default(),
+            advanced_combat_logging_enabled_like_cpp: Default::default(),
             visibility_refresh_pending_like_cpp: Default::default(),
             durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),
@@ -1286,6 +1529,44 @@ mod tests {
         assert_eq!(cmd.instance_id, 99);
     }
 
+    #[test]
+    fn creature_spell_start_and_committed_go_use_one_durable_queue_element_like_cpp() {
+        let source_guid = ObjectGuid::create_world_object(
+            wow_core::guid::HighGuid::Creature,
+            0,
+            1,
+            571,
+            0,
+            123,
+            458,
+        );
+        let command = SendCreatureSpellCastIfVisibleLikeCppCommand {
+            queued_at: Instant::now(),
+            source_guid,
+            map_id: 571,
+            instance_id: 4,
+            start_packet_bytes: vec![0x37, 0x2C, 0xAA],
+            go_packet_bytes: vec![0x36, 0x2C, 0xBB],
+            committed_visibility_like_cpp: SharedClientVisibleGuidsLikeCpp::default(),
+        };
+        let mut durable = DurableCreatureRuntimeCommandsLikeCpp::default();
+
+        assert!(durable.publish_creature_spell_cast_if_visible_like_cpp(command.clone()));
+        let drained = durable.drain_like_cpp();
+
+        assert_eq!(
+            drained.len(),
+            1,
+            "a drain cannot split START from GO because the pair occupies one FIFO element"
+        );
+        let [SessionCommand::SendCreatureSpellCastIfVisibleLikeCpp(drained_command)] =
+            drained.as_slice()
+        else {
+            panic!("expected one atomic spell cast command: {drained:?}");
+        };
+        assert_eq!(drained_command, &command);
+    }
+
     /// Verify that creature visibility refresh commands are scoped by both map
     /// and instance. The receiving `WorldSession` applies the same gates before
     /// forcing its visibility pass.
@@ -1322,6 +1603,7 @@ mod tests {
             over_damage: -1,
             target_level: 80,
             victim_health_after: 89,
+            victim_health_state_revision_after: 7,
         };
 
         assert_eq!(cmd.attacker_guid, attacker);
@@ -1329,6 +1611,7 @@ mod tests {
         assert_eq!(cmd.map_id, 571);
         assert_eq!(cmd.instance_id, 3);
         assert_eq!(cmd.victim_health_after, 89);
+        assert_eq!(cmd.victim_health_state_revision_after, 7);
     }
 
     #[test]
@@ -1488,7 +1771,7 @@ mod tests {
                 instance_id: 0,
             }
         ));
-        for victim_health_after in [90, 75] {
+        for (victim_health_after, victim_health_state_revision_after) in [(90, 7), (75, 8)] {
             assert!(pending.publish_melee_damage_like_cpp(
                 ApplyCreatureMeleeDamageLikeCppCommand {
                     attacker_guid: attacker,
@@ -1499,6 +1782,7 @@ mod tests {
                     over_damage: -1,
                     target_level: 80,
                     victim_health_after,
+                    victim_health_state_revision_after,
                 }
             ));
         }
@@ -1524,7 +1808,9 @@ mod tests {
             panic!("expected second melee event");
         };
         assert_eq!(first_melee.victim_health_after, 90);
+        assert_eq!(first_melee.victim_health_state_revision_after, 7);
         assert_eq!(second_melee.victim_health_after, 75);
+        assert_eq!(second_melee.victim_health_state_revision_after, 8);
         assert!(pending.drain_like_cpp().is_empty());
     }
 

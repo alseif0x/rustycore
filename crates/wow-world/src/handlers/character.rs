@@ -67,7 +67,9 @@ use wow_packet::packets::update::*;
 use wow_packet::{ClientPacket, WorldPacket};
 
 use crate::handlers::quest::RepresentedQuestGiverStatusSourceLikeCpp;
-use crate::map_manager::zone_and_area_for_position_like_cpp;
+use crate::map_manager::{
+    terrain_grid_area_id_for_position_like_cpp, zone_and_area_for_position_like_cpp,
+};
 use crate::reputation::mgr::CharacterReputationRowLikeCpp;
 use crate::session::{
     ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP, CharacterPetAuraEffectRowLikeCpp,
@@ -5634,6 +5636,39 @@ impl WorldSession {
                 }
             }
         };
+        let loaded_guild_id_like_cpp = {
+            let mut guild_stmt = char_db.prepare(CharStatements::SEL_GUILD_MEMBER);
+            guild_stmt.set_u64(0, guid.counter() as u64);
+            match char_db.query(&guild_stmt).await {
+                Ok(guild_result) if guild_result.is_empty() => Some(0),
+                Ok(mut guild_result) => {
+                    let guild_id = guild_result.try_read::<u64>(0);
+                    if guild_result.next_row() {
+                        warn!(
+                            player_guid = guid.counter(),
+                            "Keeping guild membership authority incomplete: duplicate rows"
+                        );
+                        None
+                    } else if guild_id.is_none() {
+                        warn!(
+                            player_guid = guid.counter(),
+                            "Keeping guild membership authority incomplete: malformed row"
+                        );
+                        None
+                    } else {
+                        guild_id
+                    }
+                }
+                Err(error) => {
+                    warn!(
+                        player_guid = guid.counter(),
+                        %error,
+                        "Failed to load guild membership for player login"
+                    );
+                    None
+                }
+            }
+        };
         let valid_login_homebind = loaded_login_homebind.filter(|homebind| {
             usable_character_homebind_like_cpp(
                 *homebind,
@@ -5733,7 +5768,9 @@ impl WorldSession {
                 .expect("validated character homebind must have an area ID"),
             position: login_homebind.position,
         });
-        self.set_represented_guild_id_like_cpp(result.try_read::<u64>(11).unwrap_or(0));
+        if let Some(guild_id) = loaded_guild_id_like_cpp {
+            self.set_represented_guild_id_like_cpp(guild_id);
+        }
         self.load_represented_player_difficulties_like_cpp(
             result.try_read::<u32>(44).unwrap_or(0),
             result.try_read::<u32>(67).unwrap_or(0),
@@ -5763,6 +5800,7 @@ impl WorldSession {
                 );
             }
         }
+        self.begin_represented_character_pet_authority_load_like_cpp();
         {
             let mut pets_stmt = char_db.prepare(CharStatements::SEL_CHAR_PETS);
             pets_stmt.set_u64(0, guid.counter() as u64);
@@ -6178,11 +6216,13 @@ impl WorldSession {
         self.clear_inventory_items_and_objects_like_cpp();
         self.clear_player_currencies_like_cpp();
         {
+            self.begin_player_equipment_inventory_authority_load_like_cpp();
             let mut eq_stmt = char_db.prepare(CharStatements::SEL_CHAR_EQUIPMENT);
             eq_stmt.set_u64(0, guid.counter() as u64);
             let mut refund_cleanup_tx = SqlTransaction::new();
             match char_db.query(&eq_stmt).await {
                 Ok(mut eq_result) => {
+                    let equipment_inventory_source_is_proven_empty = eq_result.is_empty();
                     if !eq_result.is_empty() {
                         loop {
                             let slot: u8 = eq_result.read(0);
@@ -6396,6 +6436,9 @@ impl WorldSession {
                                 break;
                             }
                         }
+                    }
+                    if equipment_inventory_source_is_proven_empty {
+                        self.complete_player_equipment_inventory_authority_load_like_cpp();
                     }
                 }
                 Err(e) => {
@@ -7835,11 +7878,23 @@ impl WorldSession {
         self.send_loaded_equipped_item_enchantment_updates_like_cpp(&loaded_enchantment_updates);
         self.apply_represented_login_spell_reset_if_needed_like_cpp();
         self.apply_represented_login_talent_reset_if_needed_like_cpp();
-        if self.apply_represented_first_login_flag_if_needed_like_cpp() {
+        let applied_first_login_like_cpp =
+            self.apply_represented_first_login_flag_if_needed_like_cpp();
+        if applied_first_login_like_cpp {
             self.apply_represented_first_login_cast_spells_like_cpp()
                 .await;
             self.apply_represented_first_login_explored_zones_like_cpp();
             self.apply_represented_first_login_reputation_like_cpp();
+        }
+
+        // C++ processes reset-at-login and first-login casts after the initial
+        // map packet sequence. Publish only after those normal mutations. The
+        // first-login cast closure is not represented losslessly, so that
+        // Player remains fail-closed for this entire session.
+        if applied_first_login_like_cpp {
+            self.tombstone_player_spell_hit_aura_authority_like_cpp();
+        } else {
+            let _ = self.sync_player_spell_hit_aura_authority_to_canonical_like_cpp();
         }
 
         // Mark online in DB
@@ -8635,19 +8690,25 @@ impl WorldSession {
                 ));
             }
 
-            if !blocks.is_empty() {
-                let update = UpdateObject::create_creatures(blocks, map_id);
-                if std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some() {
-                    for line in update.debug_create_summary_like_cpp() {
-                        info!("RUST_UPDATEOBJECT map_owned_creatures {line}");
+            // Publish the creature membership and its create blocks as one step;
+            // see `publish_transition_like_cpp`.
+            let visibility_like_cpp = self.client_visible_guids_like_cpp.clone();
+            visibility_like_cpp.publish_transition_like_cpp(
+                |guid| !guid.is_any_type_creature(),
+                visible_guids.iter().copied(),
+                || {
+                    if blocks.is_empty() {
+                        return;
                     }
-                }
-                self.send_packet(&update);
-            }
-            self.client_visible_guids_like_cpp
-                .retain(|guid| !guid.is_any_type_creature());
-            self.client_visible_guids_like_cpp
-                .extend(visible_guids.iter().copied());
+                    let update = UpdateObject::create_creatures(blocks, map_id);
+                    if std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some() {
+                        for line in update.debug_create_summary_like_cpp() {
+                            info!("RUST_UPDATEOBJECT map_owned_creatures {line}");
+                        }
+                    }
+                    self.send_packet(&update);
+                },
+            );
             self.last_visibility_pos = Some(*position);
             debug!(
                 "Sent {} map-owned creatures to account {} on map {}",
@@ -8740,13 +8801,16 @@ impl WorldSession {
                 info!("RUST_UPDATEOBJECT nearby_creatures {line}");
             }
         }
-        self.send_packet(&update);
         // Mirror C++ Player::m_clientGUIDs semantics: this is the exact set
         // of creatures sent to this client, not every creature loaded on map.
-        self.client_visible_guids_like_cpp
-            .retain(|guid| !guid.is_any_type_creature());
-        self.client_visible_guids_like_cpp
-            .extend(visible_guids.iter().copied());
+        // The membership and its packet are published as one step; see
+        // `publish_transition_like_cpp`.
+        let visibility_like_cpp = self.client_visible_guids_like_cpp.clone();
+        visibility_like_cpp.publish_transition_like_cpp(
+            |guid| !guid.is_any_type_creature(),
+            visible_guids.iter().copied(),
+            || self.send_packet(&update),
+        );
         self.last_visibility_pos = Some(*position);
         let mob_count = visible_guids
             .iter()
@@ -8924,9 +8988,9 @@ impl WorldSession {
 
             let removed_creatures: Vec<ObjectGuid> = self
                 .client_visible_guids_like_cpp
-                .iter()
+                .snapshot_like_cpp()
+                .into_iter()
                 .filter(|g| g.is_any_type_creature() && !new_visible_creatures.contains(g))
-                .copied()
                 .collect();
             if !removed_creatures.is_empty() {
                 debug!(
@@ -8949,9 +9013,9 @@ impl WorldSession {
                 }
                 let removed_gos: Vec<ObjectGuid> = self
                     .client_visible_guids_like_cpp
-                    .iter()
+                    .snapshot_like_cpp()
+                    .into_iter()
                     .filter(|g| g.is_game_object() && !new_visible_gos.contains(g))
-                    .copied()
                     .collect();
                 for guid in &removed_gos {
                     self.represented_gameobject_phase_shifts.remove(guid);
@@ -8983,9 +9047,9 @@ impl WorldSession {
                 }
                 let removed_dynamic_objects: Vec<ObjectGuid> = self
                     .client_visible_guids_like_cpp
-                    .iter()
+                    .snapshot_like_cpp()
+                    .into_iter()
                     .filter(|g| g.is_dynamic_object() && !new_visible_dynamic_objects.contains(g))
-                    .copied()
                     .collect();
 
                 if !removed_dynamic_objects.is_empty() {
@@ -9013,9 +9077,9 @@ impl WorldSession {
                 }
                 let removed_area_triggers: Vec<ObjectGuid> = self
                     .client_visible_guids_like_cpp
-                    .iter()
+                    .snapshot_like_cpp()
+                    .into_iter()
                     .filter(|g| g.is_area_trigger() && !new_visible_area_triggers.contains(g))
-                    .copied()
                     .collect();
 
                 if !removed_area_triggers.is_empty() {
@@ -9063,13 +9127,13 @@ impl WorldSession {
 
                 let removed_misc_objects: Vec<ObjectGuid> = self
                     .client_visible_guids_like_cpp
-                    .iter()
+                    .snapshot_like_cpp()
+                    .into_iter()
                     .filter(|guid| {
                         (guid.is_corpse() && !new_visible_corpses.contains(guid))
                             || (guid.is_scene_object() && !new_visible_scene_objects.contains(guid))
                             || (guid.is_conversation() && !new_visible_conversations.contains(guid))
                     })
-                    .copied()
                     .collect();
                 out_of_range_guids.extend(removed_misc_objects);
             }
@@ -9088,80 +9152,86 @@ impl WorldSession {
             }
             let removed_players: Vec<ObjectGuid> = self
                 .client_visible_guids_like_cpp
-                .iter()
+                .snapshot_like_cpp()
+                .into_iter()
                 .filter(|guid| guid.is_player() && !new_visible_players.contains(guid))
-                .copied()
                 .collect();
             out_of_range_guids.extend(removed_players);
 
-            if !update_blocks.is_empty() || !out_of_range_guids.is_empty() {
-                let update = UpdateObject {
-                    map_id,
-                    num_updates: update_blocks.len() as u32,
-                    destroy_guids: Vec::new(),
-                    out_of_range_guids,
-                    blocks: update_blocks,
-                };
-                if std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some() {
-                    info!(
-                        map_id,
-                        created_creatures,
-                        created_gameobjects,
-                        created_dynamic_objects,
-                        created_area_triggers,
-                        created_corpses,
-                        created_scene_objects,
-                        created_conversations,
-                        created_players,
-                        "RUST_UPDATEOBJECT visibility_update plan"
-                    );
-                    for line in update.debug_create_summary_like_cpp() {
-                        info!("RUST_UPDATEOBJECT visibility_update {line}");
+            // The membership replacement and the UpdateObject that carries it are
+            // one client-visible step. A cast resolving between them would either
+            // skip a viewer whose client already received the create block, or
+            // address a caster whose out-of-range block is already queued, so
+            // publish both under the same write.
+            let visibility_like_cpp = self.client_visible_guids_like_cpp.clone();
+            visibility_like_cpp.publish_transition_like_cpp(
+                |guid| {
+                    !guid.is_any_type_creature()
+                        && !guid.is_game_object()
+                        && !guid.is_dynamic_object()
+                        && !guid.is_area_trigger()
+                        && !guid.is_corpse()
+                        && !guid.is_scene_object()
+                        && !guid.is_conversation()
+                        && !guid.is_player()
+                },
+                new_visible_creatures
+                    .iter()
+                    .chain(new_visible_gos.iter())
+                    .chain(new_visible_dynamic_objects.iter())
+                    .chain(new_visible_area_triggers.iter())
+                    .chain(new_visible_corpses.iter())
+                    .chain(new_visible_scene_objects.iter())
+                    .chain(new_visible_conversations.iter())
+                    .chain(new_visible_players.iter())
+                    .copied(),
+                || {
+                    if update_blocks.is_empty() && out_of_range_guids.is_empty() {
+                        return;
                     }
-                }
-                self.send_packet(&update);
-                for creature in &initial_visible_creatures_like_cpp {
-                    self.send_initial_visible_packets_for_creature_like_cpp(creature);
-                }
-            }
-
-            self.client_visible_guids_like_cpp.retain(|guid| {
-                !guid.is_any_type_creature()
-                    && !guid.is_game_object()
-                    && !guid.is_dynamic_object()
-                    && !guid.is_area_trigger()
-                    && !guid.is_corpse()
-                    && !guid.is_scene_object()
-                    && !guid.is_conversation()
-                    && !guid.is_player()
-            });
-            self.client_visible_guids_like_cpp
-                .extend(new_visible_creatures.iter().copied());
-            self.client_visible_guids_like_cpp
-                .extend(new_visible_gos.iter().copied());
-            self.client_visible_guids_like_cpp
-                .extend(new_visible_dynamic_objects.iter().copied());
-            self.client_visible_guids_like_cpp
-                .extend(new_visible_area_triggers.iter().copied());
-            self.client_visible_guids_like_cpp
-                .extend(new_visible_corpses.iter().copied());
-            self.client_visible_guids_like_cpp
-                .extend(new_visible_scene_objects.iter().copied());
-            self.client_visible_guids_like_cpp
-                .extend(new_visible_conversations.iter().copied());
-            self.client_visible_guids_like_cpp
-                .extend(new_visible_players.iter().copied());
+                    let update = UpdateObject {
+                        map_id,
+                        num_updates: update_blocks.len() as u32,
+                        destroy_guids: Vec::new(),
+                        out_of_range_guids,
+                        blocks: update_blocks,
+                    };
+                    if std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some() {
+                        info!(
+                            map_id,
+                            created_creatures,
+                            created_gameobjects,
+                            created_dynamic_objects,
+                            created_area_triggers,
+                            created_corpses,
+                            created_scene_objects,
+                            created_conversations,
+                            created_players,
+                            "RUST_UPDATEOBJECT visibility_update plan"
+                        );
+                        for line in update.debug_create_summary_like_cpp() {
+                            info!("RUST_UPDATEOBJECT visibility_update {line}");
+                        }
+                    }
+                    self.send_packet(&update);
+                    for creature in &initial_visible_creatures_like_cpp {
+                        self.send_initial_visible_packets_for_creature_like_cpp(creature);
+                    }
+                },
+            );
             self.last_visibility_pos = Some(pos);
             debug!(
                 "Visibility updated at ({:.1}, {:.1}): {} creatures / {} GOs in range",
                 pos.x,
                 pos.y,
                 self.client_visible_guids_like_cpp
-                    .iter()
+                    .snapshot_like_cpp()
+                    .into_iter()
                     .filter(|guid| guid.is_any_type_creature())
                     .count(),
                 self.client_visible_guids_like_cpp
-                    .iter()
+                    .snapshot_like_cpp()
+                    .into_iter()
                     .filter(|guid| guid.is_game_object())
                     .count()
             );
@@ -9223,9 +9293,9 @@ impl WorldSession {
         // Creatures that left range → out-of-range
         let removed_creatures: Vec<ObjectGuid> = self
             .client_visible_guids_like_cpp
-            .iter()
+            .snapshot_like_cpp()
+            .into_iter()
             .filter(|g| g.is_any_type_creature() && !new_visible_creatures.contains(g))
-            .cloned()
             .collect();
 
         if !removed_creatures.is_empty() {
@@ -9484,9 +9554,9 @@ impl WorldSession {
 
         let removed_gos: Vec<ObjectGuid> = self
             .client_visible_guids_like_cpp
-            .iter()
+            .snapshot_like_cpp()
+            .into_iter()
             .filter(|g| g.is_game_object() && !new_visible_gos.contains(g))
-            .cloned()
             .collect();
         for guid in &removed_gos {
             self.represented_gameobject_phase_shifts.remove(guid);
@@ -9536,11 +9606,13 @@ impl WorldSession {
             pos.x,
             pos.y,
             self.client_visible_guids_like_cpp
-                .iter()
+                .snapshot_like_cpp()
+                .into_iter()
                 .filter(|guid| guid.is_any_type_creature())
                 .count(),
             self.client_visible_guids_like_cpp
-                .iter()
+                .snapshot_like_cpp()
+                .into_iter()
                 .filter(|guid| guid.is_game_object())
                 .count()
         );
@@ -15099,8 +15171,11 @@ impl WorldSession {
             self.account_id
         );
 
-        let visible_guids: Vec<ObjectGuid> =
-            self.client_visible_guids_like_cpp.iter().copied().collect();
+        let visible_guids: Vec<ObjectGuid> = self
+            .client_visible_guids_like_cpp
+            .snapshot_like_cpp()
+            .into_iter()
+            .collect();
         let statuses = self.collect_quest_giver_status_multiple_like_cpp(visible_guids);
         self.send_packet(&QuestGiverStatusMultiple { statuses });
     }
@@ -18419,6 +18494,7 @@ impl WorldSession {
         &mut self,
         guid: ObjectGuid,
     ) -> Vec<TraitConfigCreateData> {
+        self.begin_represented_trait_config_authority_load_like_cpp();
         let Some(char_db) = self.char_db().map(Arc::clone) else {
             return Vec::new();
         };
@@ -18427,20 +18503,44 @@ impl WorldSession {
         entries_stmt.set_u64(0, guid.counter() as u64);
         let mut entries_by_config = BTreeMap::<i32, Vec<TraitEntryCreateData>>::new();
         let mut entries_complete_like_cpp = false;
+        let mut entries_empty_like_cpp = false;
         match char_db.query(&entries_stmt).await {
             Ok(mut result) => {
                 entries_complete_like_cpp = true;
+                entries_empty_like_cpp = result.is_empty();
                 if !result.is_empty() {
                     loop {
-                        let trait_config_id = result.try_read::<i32>(0).unwrap_or(0);
-                        entries_by_config.entry(trait_config_id).or_default().push(
-                            TraitEntryCreateData {
-                                trait_node_id: result.try_read::<i32>(1).unwrap_or(0),
-                                trait_node_entry_id: result.try_read::<i32>(2).unwrap_or(0),
-                                rank: result.try_read::<i32>(3).unwrap_or(0),
-                                granted_ranks: result.try_read::<i32>(4).unwrap_or(0),
-                            },
-                        );
+                        match (
+                            result.try_read::<i32>(0),
+                            result.try_read::<i32>(1),
+                            result.try_read::<i32>(2),
+                            result.try_read::<i32>(3),
+                            result.try_read::<i32>(4),
+                        ) {
+                            (
+                                Some(trait_config_id),
+                                Some(trait_node_id),
+                                Some(trait_node_entry_id),
+                                Some(rank),
+                                Some(granted_ranks),
+                            ) => {
+                                entries_by_config.entry(trait_config_id).or_default().push(
+                                    TraitEntryCreateData {
+                                        trait_node_id,
+                                        trait_node_entry_id,
+                                        rank,
+                                        granted_ranks,
+                                    },
+                                );
+                            }
+                            _ => {
+                                entries_complete_like_cpp = false;
+                                warn!(
+                                    player_guid = guid.counter(),
+                                    "Keeping trait-entry authority incomplete: malformed row"
+                                );
+                            }
+                        }
 
                         if !result.next_row() {
                             break;
@@ -18465,19 +18565,47 @@ impl WorldSession {
                 let mut configs = Vec::new();
                 if !result.is_empty() {
                     loop {
-                        let id = result.try_read::<i32>(0).unwrap_or(0);
-                        let config_type = result.try_read::<i32>(1).unwrap_or(0);
-                        configs.push(TraitConfigCreateData {
-                            id,
-                            config_type,
-                            chr_specialization_id: result.try_read::<i32>(2).unwrap_or(0),
-                            combat_config_flags: result.try_read::<i32>(3).unwrap_or(0),
-                            local_identifier: result.try_read::<i32>(4).unwrap_or(0),
-                            skill_line_id: result.try_read::<i32>(5).unwrap_or(0),
-                            trait_system_id: result.try_read::<i32>(6).unwrap_or(0),
-                            name: result.try_read::<String>(7).unwrap_or_default(),
-                            entries: entries_by_config.remove(&id).unwrap_or_default(),
-                        });
+                        let id = result.try_read::<i32>(0);
+                        let config_type = result.try_read::<i32>(1);
+                        let chr_specialization_id = result.try_read::<i32>(2);
+                        let combat_config_flags = result.try_read::<i32>(3);
+                        let local_identifier = result.try_read::<i32>(4);
+                        let skill_line_id = result.try_read::<i32>(5);
+                        let trait_system_id = result.try_read::<i32>(6);
+                        let name = result.try_read::<String>(7);
+                        let type_columns_complete = match config_type {
+                            Some(1) => {
+                                chr_specialization_id.is_some()
+                                    && combat_config_flags.is_some()
+                                    && local_identifier.is_some()
+                            }
+                            Some(2) => skill_line_id.is_some(),
+                            Some(3) => trait_system_id.is_some(),
+                            Some(_) => true,
+                            None => false,
+                        };
+                        match (id, config_type, name, type_columns_complete) {
+                            (Some(id), Some(config_type), Some(name), true) => {
+                                configs.push(TraitConfigCreateData {
+                                    id,
+                                    config_type,
+                                    chr_specialization_id: chr_specialization_id.unwrap_or(0),
+                                    combat_config_flags: combat_config_flags.unwrap_or(0),
+                                    local_identifier: local_identifier.unwrap_or(0),
+                                    skill_line_id: skill_line_id.unwrap_or(0),
+                                    trait_system_id: trait_system_id.unwrap_or(0),
+                                    name,
+                                    entries: entries_by_config.remove(&id).unwrap_or_default(),
+                                });
+                            }
+                            _ => {
+                                configs_complete_like_cpp = false;
+                                warn!(
+                                    player_guid = guid.counter(),
+                                    "Keeping trait-config authority incomplete: malformed row"
+                                );
+                            }
+                        }
 
                         if !result.next_row() {
                             break;
@@ -18495,7 +18623,21 @@ impl WorldSession {
             }
         };
 
-        if entries_complete_like_cpp && configs_complete_like_cpp {
+        let trait_query_authority_complete_like_cpp = entries_complete_like_cpp
+            && configs_complete_like_cpp
+            && self.complete_represented_trait_config_authority_load_like_cpp(
+                configs.iter().map(|config| {
+                    (
+                        config.id,
+                        config.config_type,
+                        config.chr_specialization_id,
+                        config.combat_config_flags,
+                    )
+                }),
+                entries_empty_like_cpp,
+            );
+
+        if trait_query_authority_complete_like_cpp {
             let exact_traits = self
                 .trait_node_entry_store()
                 .zip(self.trait_definition_store())
@@ -18812,6 +18954,14 @@ impl WorldSession {
             );
         }
 
+        let terrain_area_authority_complete = terrain_grid_area_id_for_position_like_cpp(
+            &self.mmap_runtime_config_like_cpp().data_dir,
+            map_id as u32,
+            position.x,
+            position.y,
+        )
+        .is_ok_and(|area_id| area_id.is_some_and(|area_id| area_id != 0));
+
         match zone_and_area_for_position_like_cpp(
             &self.mmap_runtime_config_like_cpp().data_dir,
             map_id as u32,
@@ -18829,6 +18979,11 @@ impl WorldSession {
                 self.update_zone_represented_without_rest_update_packet_like_cpp(
                     resolved_zone_id,
                     resolved_area_id,
+                );
+                self.set_player_zone_area_authority_complete_like_cpp(
+                    terrain_area_authority_complete
+                        && resolved_zone_id != 0
+                        && resolved_area_id != 0,
                 );
                 info!(
                     map_id,
@@ -18852,6 +19007,7 @@ impl WorldSession {
                     seeded_zone_id,
                     seeded_area_id,
                 );
+                self.set_player_zone_area_authority_complete_like_cpp(false);
             }
         }
         let rest_flag_update_dirty = self.take_deferred_rest_flag_update_dirty_like_cpp();
@@ -22061,6 +22217,66 @@ mod tests {
             assert!(accessor.read().find_connected_player_entity(guid).is_none());
             assert!(send_rx.try_recv().is_err());
         });
+    }
+
+    #[test]
+    fn login_identity_hydrates_race_faction_into_registry_and_canonical_player_like_cpp() {
+        let (mut session, _send_rx) = make_session_with_send_capacity(1);
+        let guid = ObjectGuid::create_player(1, 42_001);
+        let canonical: crate::session::SharedCanonicalMapManager =
+            Arc::new(std::sync::Mutex::new(wow_map::MapManager::default()));
+        let registry = Arc::new(wow_network::PlayerRegistry::default());
+        let mut race_entry = chr_race_entry(1, 0);
+        race_entry.faction_id = 1;
+
+        session.set_chr_races_store(Arc::new(ChrRacesStore::from_entries([race_entry])));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_player_registry(Arc::clone(&registry));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 571,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+
+        // Mirror the real LoadFromDB order: identity is loaded from the
+        // character row before the controller/map/registry publication.
+        session.set_player_guid(Some(guid));
+        session.set_loaded_player_identity_like_cpp(571, 1, 1, 10, 0);
+        assert!(session.ensure_login_player_controller_like_cpp(
+            guid,
+            "FactionLogin".to_string(),
+            Position::ZERO,
+            571,
+            1,
+            1,
+            10,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        session.register_in_player_registry();
+
+        assert_eq!(
+            registry
+                .get(&guid)
+                .expect("login player registry entry")
+                .faction_template_id,
+            1,
+            "the aggro candidate bridge must not receive faction template 0"
+        );
+        let manager = canonical.lock().unwrap();
+        let player = manager
+            .find_map(571, 0)
+            .expect("login map")
+            .map()
+            .get_typed_player(guid)
+            .expect("canonical login player");
+        assert_eq!(player.unit().data().faction_template, 1);
     }
 
     #[test]

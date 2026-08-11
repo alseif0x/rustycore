@@ -1653,14 +1653,25 @@ async fn main() -> Result<ExitCode> {
         item_set_spell_store.len()
     );
 
-    // Load ChrSpecialization.db2 for C++ loot-specialization validation.
+    let db2_hotfix_removals = wow_data::Db2HotfixRemovalStoreLikeCpp::load_like_cpp(&hotfix_db)
+        .await
+        .context("Failed to load effective DB2 hotfix removals")?;
+
+    // Load effective ChrSpecialization authority for C++ specialization validation.
     let chr_specialization_store = Arc::new(
-        wow_data::ChrSpecializationStore::load(&data_dir, &locale).context(
-            "Failed to load ChrSpecialization.db2 — check DataDir and DBC.Locale config",
+        wow_data::ChrSpecializationStore::load_effective_like_cpp(
+            &data_dir,
+            &locale,
+            &hotfix_db,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context(
+            "Failed to load effective ChrSpecialization store — check DataDir and DBC.Locale config",
         )?,
     );
     info!(
-        "Loaded {} chr specializations from ChrSpecialization.db2",
+        "Loaded {} effective chr specializations from ChrSpecialization.db2 and SQL overlays",
         chr_specialization_store.len()
     );
 
@@ -1887,9 +1898,6 @@ async fn main() -> Result<ExitCode> {
         trivial: world_config_f32(&world_configs, "Rate.Creature.Health.Trivial", 1.0),
         minus_mob: world_config_f32(&world_configs, "Rate.Creature.Health.MinusMob", 1.0),
     };
-    let db2_hotfix_removals = wow_data::Db2HotfixRemovalStoreLikeCpp::load_like_cpp(&hotfix_db)
-        .await
-        .context("Failed to load effective DB2 hotfix removals")?;
     let difficulty_store = Arc::new(
         wow_data::DifficultyStore::load_effective_like_cpp(
             &data_dir,
@@ -2276,8 +2284,14 @@ async fn main() -> Result<ExitCode> {
         pet_default_spell_store.count()
     );
     let spell_category_store = Arc::new(
-        wow_data::SpellCategoryStore::load(&data_dir, &locale)
-            .context("Failed to load SpellCategory.db2")?,
+        wow_data::SpellCategoryStore::load_effective_like_cpp(
+            &data_dir,
+            &locale,
+            &hotfix_db,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellCategory authority")?,
     );
     info!(
         "Loaded {} spell categories from SpellCategory.db2",
@@ -2356,10 +2370,19 @@ async fn main() -> Result<ExitCode> {
         spell_target_restrictions_store.len()
     );
     let spell_misc_store = Arc::new(
-        wow_data::SpellMiscStore::load(&data_dir, &locale)
-            .context("Failed to load SpellMisc.db2")?,
+        wow_data::SpellMiscStore::load_effective_like_cpp(
+            &data_dir,
+            &locale,
+            &hotfix_db,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellMisc authority")?,
     );
-    info!("Loaded {} spell misc rows", spell_misc_store.len());
+    info!(
+        "Loaded {} effective spell misc rows",
+        spell_misc_store.len()
+    );
     let pet_family_spell_store = Arc::new(wow_data::PetFamilySpellStoreLikeCpp::load_like_cpp(
         skill_store.as_ref(),
         creature_family_store.entries_like_cpp(),
@@ -2393,10 +2416,27 @@ async fn main() -> Result<ExitCode> {
         spell_procs_per_minute_store.len()
     );
     let spell_duration_store = Arc::new(
-        wow_data::SpellDurationStore::load(&data_dir, &locale)
-            .context("Failed to load SpellDuration.db2")?,
+        wow_data::SpellDurationStore::load_effective_like_cpp(
+            &data_dir,
+            &locale,
+            &hotfix_db,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellDuration authority")?,
     );
     info!("Loaded {} spell duration rows", spell_duration_store.len());
+    let spell_cooldowns_store = Arc::new(
+        wow_data::SpellCooldownsStore::load_effective_like_cpp(
+            &data_dir,
+            &locale,
+            &hotfix_db,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellCooldowns authority")?,
+    );
+    info!("Loaded {} spell cooldown rows", spell_cooldowns_store.len());
     let spell_shapeshift_form_store = Arc::new(
         wow_data::SpellShapeshiftFormStore::load(&data_dir, &locale)
             .context("Failed to load SpellShapeshiftForm.db2")?,
@@ -3487,13 +3527,25 @@ async fn main() -> Result<ExitCode> {
 
     // Load spell metadata (cast time, cooldown, effects, etc.) — Phase 2
     let spell_radius_store = Arc::new(
-        wow_data::SpellRadiusStore::load(&data_dir, &locale)
-            .context("Failed to load SpellRadius.db2")?,
+        wow_data::SpellRadiusStore::load_effective_like_cpp(
+            &data_dir,
+            &locale,
+            &hotfix_db,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellRadius authority")?,
     );
     info!("Loaded {} spell radius rows", spell_radius_store.len());
     let spell_range_store = Arc::new(
-        wow_data::SpellRangeStore::load(&data_dir, &locale)
-            .context("Failed to load SpellRange.db2")?,
+        wow_data::SpellRangeStore::load_effective_like_cpp(
+            &data_dir,
+            &locale,
+            &hotfix_db,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellRange authority")?,
     );
     info!("Loaded {} spell range rows", spell_range_store.len());
     let serverside_spell_effect_outcome =
@@ -4499,6 +4551,16 @@ async fn main() -> Result<ExitCode> {
     let _player_choice_store = Arc::new(player_choice_outcome.store);
     let spell_visual_store = wow_data::SpellVisualStore::load(&data_dir, &locale)
         .context("Failed to load SpellVisual.db2 for C++ jump_charge_params validation")?;
+    let spell_x_spell_visual_store = Arc::new(
+        wow_data::SpellXSpellVisualStore::load_effective_like_cpp(
+            &data_dir,
+            &locale,
+            &hotfix_db,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellXSpellVisual authority for creature casts")?,
+    );
     let jump_charge_params_outcome = wow_data::JumpChargeParamsStoreLikeCpp::load_like_cpp(
         world_db.as_ref(),
         |id| spell_visual_store.get(id).is_some(),
@@ -4969,6 +5031,13 @@ async fn main() -> Result<ExitCode> {
         wow_data::SpellLinkedStoreLikeCpp::load_like_cpp(world_db.as_ref(), &spell_store)
             .await
             .context("Failed to load C++ spell_linked_spell rows")?;
+    let spell_linked_rejected_trigger_spell_ids = Arc::new(
+        spell_linked_outcome
+            .errors
+            .iter()
+            .map(|error| error.row.spell_trigger.unsigned_abs())
+            .collect::<BTreeSet<_>>(),
+    );
     let spell_linked_store = Arc::new(spell_linked_outcome.store);
     info!(
         "Loaded {} C++ spell_linked_spell rows ({} validation issues, {} warnings)",
@@ -5024,9 +5093,18 @@ async fn main() -> Result<ExitCode> {
         Arc::new(trainer_spell_static_authority.safe_cast_spell_ids);
     let spell_acquisition_valid_craft_spell_ids =
         Arc::new(trainer_spell_static_authority.valid_craft_spell_ids);
+    let spell_script_exact_spell_ids =
+        Arc::new(trainer_spell_static_authority.spell_script_exact_spell_ids);
+    let spell_script_all_rank_root_spell_ids =
+        Arc::new(trainer_spell_static_authority.spell_script_all_rank_root_spell_ids);
+    let legacy_spell_script_spell_ids =
+        Arc::new(trainer_spell_static_authority.legacy_spell_script_spell_ids);
     info!(
         safe_cast_count = spell_acquisition_safe_cast_spell_ids.len(),
         valid_craft_count = spell_acquisition_valid_craft_spell_ids.len(),
+        spell_script_exact_count = spell_script_exact_spell_ids.len(),
+        spell_script_all_rank_count = spell_script_all_rank_root_spell_ids.len(),
+        legacy_spell_script_count = legacy_spell_script_spell_ids.len(),
         "Loaded fail-closed normal trainer spell-acquisition authority"
     );
     let spell_store = Arc::new(spell_store);
@@ -5432,6 +5510,14 @@ async fn main() -> Result<ExitCode> {
         spell_acquisition_valid_craft_spell_ids: Some(Arc::clone(
             &spell_acquisition_valid_craft_spell_ids,
         )),
+        spell_script_exact_spell_ids: Some(Arc::clone(&spell_script_exact_spell_ids)),
+        spell_script_all_rank_root_spell_ids: Some(Arc::clone(
+            &spell_script_all_rank_root_spell_ids,
+        )),
+        legacy_spell_script_spell_ids: Some(Arc::clone(&legacy_spell_script_spell_ids)),
+        spell_linked_rejected_trigger_spell_ids: Some(Arc::clone(
+            &spell_linked_rejected_trigger_spell_ids,
+        )),
         spell_levels_store: Some(Arc::clone(&spell_levels_store)),
         spell_category_store: Some(Arc::clone(&spell_category_store)),
         npc_spell_click_store: Some(Arc::clone(&npc_spell_click_store)),
@@ -5781,8 +5867,35 @@ async fn main() -> Result<ExitCode> {
     legacy_creature_aggro_config.faction_template_store = Some(Arc::clone(&faction_template_store));
     legacy_creature_aggro_config.faction_store = Some(Arc::clone(&progression_faction_store));
     legacy_creature_aggro_config.map_store = Some(Arc::clone(&map_store));
+    legacy_creature_aggro_config.disable_mgr = Some(Arc::clone(&disable_mgr));
     legacy_creature_aggro_config.spell_misc_store = Some(Arc::clone(&spell_misc_store));
     legacy_creature_aggro_config.spell_range_store = Some(Arc::clone(&spell_range_store));
+    legacy_creature_aggro_config.spell_duration_store = Some(Arc::clone(&spell_duration_store));
+    legacy_creature_aggro_config.spell_cooldowns_store = Some(Arc::clone(&spell_cooldowns_store));
+    legacy_creature_aggro_config.spell_category_store = Some(Arc::clone(&spell_category_store));
+    legacy_creature_aggro_config.spell_x_spell_visual_store =
+        Some(Arc::clone(&spell_x_spell_visual_store));
+    legacy_creature_aggro_config.spell_target_restrictions_store =
+        Some(Arc::clone(&spell_target_restrictions_store));
+    legacy_creature_aggro_config.spell_casting_requirements_store =
+        Some(Arc::clone(&spell_casting_requirements_store));
+    legacy_creature_aggro_config.spell_aura_restrictions_store =
+        Some(Arc::clone(&spell_aura_restrictions_store));
+    legacy_creature_aggro_config.spell_store = Some(Arc::clone(&spell_store));
+    legacy_creature_aggro_config.spell_chain_store = Some(Arc::clone(&spell_chain_store));
+    legacy_creature_aggro_config.spell_linked_store = Some(Arc::clone(&spell_linked_store));
+    legacy_creature_aggro_config.spell_condition_store = Some(Arc::clone(&condition_store));
+    legacy_creature_aggro_config.spell_script_exact_spell_ids_like_cpp =
+        Some(Arc::clone(&spell_script_exact_spell_ids));
+    legacy_creature_aggro_config.spell_script_all_rank_root_spell_ids_like_cpp =
+        Some(Arc::clone(&spell_script_all_rank_root_spell_ids));
+    legacy_creature_aggro_config.legacy_spell_script_spell_ids_like_cpp =
+        Some(Arc::clone(&legacy_spell_script_spell_ids));
+    legacy_creature_aggro_config.spell_linked_rejected_trigger_spell_ids_like_cpp =
+        Some(Arc::clone(&spell_linked_rejected_trigger_spell_ids));
+    legacy_creature_aggro_config.spell_custom_attribute_store =
+        Some(Arc::clone(&spell_custom_attribute_store));
+    legacy_creature_aggro_config.difficulty_store = Some(Arc::clone(&difficulty_store));
 
     let (realm_listener_ready_tx, realm_listener_ready_rx) = tokio::sync::oneshot::channel();
     let (instance_listener_ready_tx, instance_listener_ready_rx) = tokio::sync::oneshot::channel();
@@ -13138,6 +13251,19 @@ async fn create_session(
             crafts.iter().copied(),
         );
     }
+    if let (Some(exact), Some(all_ranks), Some(legacy), Some(rejected_linked_triggers)) = (
+        resources.spell_script_exact_spell_ids.as_ref(),
+        resources.spell_script_all_rank_root_spell_ids.as_ref(),
+        resources.legacy_spell_script_spell_ids.as_ref(),
+        resources.spell_linked_rejected_trigger_spell_ids.as_ref(),
+    ) {
+        session.set_spell_runtime_script_authority_like_cpp(
+            Arc::clone(exact),
+            Arc::clone(all_ranks),
+            Arc::clone(legacy),
+            Arc::clone(rejected_linked_triggers),
+        );
+    }
     if let Some(ref store) = resources.spell_levels_store {
         session.set_spell_levels_store(Arc::clone(store));
     }
@@ -13713,6 +13839,9 @@ struct RuntimeDeliverySummaryLikeCpp {
     pub candidates_skipped_not_in_world: usize,
     /// Candidates rejected because they were out of distance range.
     pub candidates_skipped_distance: usize,
+    /// Candidates rejected because the source was not in their `HaveAtClient`
+    /// set at the moment the message was resolved.
+    pub candidates_skipped_not_visible: usize,
     /// `SelfOnly` events skipped (no broadcast; session delivers its own packets).
     pub self_only_skipped: usize,
     /// `try_send` calls that returned `Err` (channel full or disconnected).
@@ -14027,6 +14156,118 @@ fn resolve_runtime_event_candidates_like_cpp(
                 }
             }
         }
+        RecipientRule::NearbyVisibleDurableSpellCast {
+            source_guid,
+            map_id,
+            instance_id,
+            source_position,
+            range,
+            required_3d,
+            basic_go_packet_bytes,
+            full_go_packet_bytes,
+        } => {
+            let range_sq = range * range;
+            struct Candidate {
+                durable: Arc<std::sync::Mutex<wow_network::DurableCreatureRuntimeCommandsLikeCpp>>,
+                committed_visibility_like_cpp: wow_network::SharedClientVisibleGuidsLikeCpp,
+                advanced_combat_logging_like_cpp: bool,
+                skip_reason: Option<DurableSpellCastSkipReason>,
+            }
+            enum DurableSpellCastSkipReason {
+                NotInWorld,
+                WrongMap,
+                WrongInstance,
+                Distance,
+                NotVisible,
+            }
+            let candidates: Vec<Candidate> = registry
+                .iter()
+                .map(|entry| {
+                    let info = entry.value();
+                    let dx = info.position.x - source_position.x;
+                    let dy = info.position.y - source_position.y;
+                    let dz = info.position.z - source_position.z;
+                    let distance_sq = if *required_3d {
+                        dx * dx + dy * dy + dz * dz
+                    } else {
+                        dx * dx + dy * dy
+                    };
+                    let skip_reason = if !info.is_in_world {
+                        Some(DurableSpellCastSkipReason::NotInWorld)
+                    } else if info.map_id != *map_id {
+                        Some(DurableSpellCastSkipReason::WrongMap)
+                    } else if info.instance_id != *instance_id {
+                        Some(DurableSpellCastSkipReason::WrongInstance)
+                    } else if distance_sq > range_sq {
+                        Some(DurableSpellCastSkipReason::Distance)
+                    } else if !info.client_visible_guids_like_cpp.contains(source_guid) {
+                        // C++ `MessageDistDeliverer` reads `HaveAtClient` while
+                        // `SendSpellGo` runs, so the recipient decision belongs
+                        // here and is committed into the queued command.
+                        Some(DurableSpellCastSkipReason::NotVisible)
+                    } else {
+                        None
+                    };
+                    Candidate {
+                        durable: Arc::clone(&info.durable_creature_runtime_commands_like_cpp),
+                        committed_visibility_like_cpp: info.client_visible_guids_like_cpp.clone(),
+                        // C++ `WorldObject::SendCombatLogMessage` reads each
+                        // receiver's preference while distributing the cast.
+                        advanced_combat_logging_like_cpp: info
+                            .advanced_combat_logging_enabled_like_cpp
+                            .load(std::sync::atomic::Ordering::Relaxed),
+                        skip_reason,
+                    }
+                })
+                .collect();
+            for candidate in candidates {
+                summary.candidates_seen += 1;
+                match candidate.skip_reason {
+                    Some(DurableSpellCastSkipReason::NotInWorld) => {
+                        summary.candidates_skipped_not_in_world += 1;
+                        continue;
+                    }
+                    Some(DurableSpellCastSkipReason::WrongMap) => {
+                        summary.candidates_skipped_wrong_map += 1;
+                        continue;
+                    }
+                    Some(DurableSpellCastSkipReason::WrongInstance) => {
+                        summary.candidates_skipped_wrong_instance += 1;
+                        continue;
+                    }
+                    Some(DurableSpellCastSkipReason::Distance) => {
+                        summary.candidates_skipped_distance += 1;
+                        continue;
+                    }
+                    Some(DurableSpellCastSkipReason::NotVisible) => {
+                        summary.candidates_skipped_not_visible += 1;
+                        continue;
+                    }
+                    None => {}
+                }
+                let command =
+                    wow_network::player_registry::SendCreatureSpellCastIfVisibleLikeCppCommand {
+                        queued_at: Instant::now(),
+                        source_guid: *source_guid,
+                        map_id: *map_id,
+                        instance_id: *instance_id,
+                        start_packet_bytes: event.packet_bytes.clone(),
+                        go_packet_bytes: if candidate.advanced_combat_logging_like_cpp {
+                            full_go_packet_bytes.clone()
+                        } else {
+                            basic_go_packet_bytes.clone()
+                        },
+                        committed_visibility_like_cpp: candidate.committed_visibility_like_cpp,
+                    };
+                if candidate.durable.lock().is_ok_and(|mut durable| {
+                    durable.publish_creature_spell_cast_if_visible_like_cpp(command)
+                }) {
+                    summary.candidates_queued += 1;
+                } else {
+                    summary.send_failed += 1;
+                }
+            }
+        }
         RecipientRule::NearbyVisibleDurable {
             source_guid: _,
             map_id,
@@ -14214,6 +14455,7 @@ fn collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
                     player_guid: guid,
                     map_id: info.map_id,
                     instance_id: info.instance_id,
+                    map_difficulty_id: 0,
                     position: info.position,
                     player_visibility_represented: false,
                     player_phase_shift: wow_entities::PhaseShift::default(),
@@ -14257,6 +14499,7 @@ fn collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
             let Some(player) = managed.map().get_typed_player(candidate.player_guid) else {
                 continue;
             };
+            candidate.map_difficulty_id = managed.difficulty();
             candidate.player_visibility_represented = true;
             candidate.player_phase_shift = player.unit().world().phase_shift().clone();
             candidate.player_visibility_detection =
@@ -14332,8 +14575,26 @@ fn legacy_creature_aggro_config_like_cpp(
         faction_template_store: None,
         faction_store: None,
         map_store: None,
+        disable_mgr: Some(Arc::new(wow_data::DisableMgrLikeCpp::default())),
         spell_misc_store: None,
         spell_range_store: None,
+        spell_duration_store: None,
+        spell_cooldowns_store: None,
+        spell_category_store: None,
+        spell_x_spell_visual_store: None,
+        spell_target_restrictions_store: None,
+        spell_casting_requirements_store: None,
+        spell_aura_restrictions_store: None,
+        spell_store: None,
+        spell_chain_store: None,
+        spell_linked_store: None,
+        spell_condition_store: None,
+        spell_script_exact_spell_ids_like_cpp: None,
+        spell_script_all_rank_root_spell_ids_like_cpp: None,
+        legacy_spell_script_spell_ids_like_cpp: None,
+        spell_linked_rejected_trigger_spell_ids_like_cpp: None,
+        spell_custom_attribute_store: None,
+        difficulty_store: None,
     }
 }
 
@@ -14815,6 +15076,26 @@ fn run_legacy_creature_melee_tick_and_deliver_once_like_cpp(
     (outcome, delivery, plan_delivery)
 }
 
+fn run_legacy_creature_spell_tick_and_deliver_once_like_cpp(
+    legacy_map_manager: &SharedMapManager,
+    canonical_map_manager: Option<&wow_world::session::SharedCanonicalMapManager>,
+    registry: &wow_network::PlayerRegistry,
+    config: &wow_world::session::LegacyCreatureAggroConfigLikeCpp,
+) -> (
+    wow_world::session::LegacyCreatureSpellTickOutcomeLikeCpp,
+    RuntimeDeliverySummaryLikeCpp,
+) {
+    let outcome = wow_world::session::run_legacy_creature_spell_tick_once_like_cpp(
+        legacy_map_manager,
+        canonical_map_manager,
+        config,
+    );
+    // START and GO are committed map events and enter every eligible
+    // observer's durable FIFO in plan order.
+    let plan_delivery = deliver_runtime_plan_like_cpp(&outcome.plan, registry);
+    (outcome, plan_delivery)
+}
+
 /// Combined single-shot legacy creature runtime bridge.
 ///
 /// This is the production loop body behind the
@@ -14831,6 +15112,8 @@ struct LegacyCreatureRuntimeTickBridgeOutcomeLikeCpp {
     pub aggro: wow_world::session::LegacyCreatureAggroTickOutcomeLikeCpp,
     pub aggro_delivery: RuntimeCreatureAttackStartDeliverySummaryLikeCpp,
     pub aggro_plan_delivery: RuntimeDeliverySummaryLikeCpp,
+    pub spell: wow_world::session::LegacyCreatureSpellTickOutcomeLikeCpp,
+    pub spell_plan_delivery: RuntimeDeliverySummaryLikeCpp,
     pub melee: wow_world::session::LegacyCreatureMeleeTickOutcomeLikeCpp,
     pub melee_delivery: RuntimeCreatureMeleeDeliverySummaryLikeCpp,
     pub melee_plan_delivery: RuntimeDeliverySummaryLikeCpp,
@@ -14889,8 +15172,14 @@ fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
             legacy_map_manager,
             canonical_map_manager,
             registry,
-            aggro_config,
+            aggro_config.clone(),
         );
+    let (spell, spell_plan_delivery) = run_legacy_creature_spell_tick_and_deliver_once_like_cpp(
+        legacy_map_manager,
+        canonical_map_manager,
+        registry,
+        &aggro_config,
+    );
     let (melee, melee_delivery, melee_plan_delivery) =
         run_legacy_creature_melee_tick_and_deliver_once_like_cpp(
             legacy_map_manager,
@@ -14906,6 +15195,8 @@ fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
         aggro,
         aggro_delivery,
         aggro_plan_delivery,
+        spell,
+        spell_plan_delivery,
         melee,
         melee_delivery,
         melee_plan_delivery,
@@ -15013,6 +15304,7 @@ fn spawn_legacy_creature_runtime_update_loop_like_cpp(
             let touched_creatures = outcome.lifecycle.corpses_despawned
                 + outcome.movement.movement_packets
                 + outcome.aggro.aggro_starts
+                + outcome.spell.casts_ready
                 + outcome.melee.canonical_hits;
             if touched_creatures > 0 {
                 debug!(
@@ -15036,7 +15328,35 @@ fn spawn_legacy_creature_runtime_update_loop_like_cpp(
                     aggro_alerts = outcome.aggro.alert_triggers,
                     aggro_movement_interrupts = outcome.aggro.movement_interrupts,
                     aggro_plan_commands = outcome.aggro_plan_delivery.candidates_queued,
-                    melee_hits = outcome.melee.canonical_hits,
+                    creature_spell_casts = outcome.spell.casts_ready,
+                    creature_spell_plan_events = outcome.spell_plan_delivery.events_seen,
+                    creature_spell_plan_commands = outcome.spell_plan_delivery.candidates_queued,
+                    creature_spell_plan_skipped_not_in_world =
+                        outcome.spell_plan_delivery.candidates_skipped_not_in_world,
+                    creature_spell_plan_skipped_wrong_map =
+                        outcome.spell_plan_delivery.candidates_skipped_wrong_map,
+                    creature_spell_plan_skipped_wrong_instance = outcome
+                        .spell_plan_delivery
+                        .candidates_skipped_wrong_instance,
+                    creature_spell_plan_skipped_distance =
+                        outcome.spell_plan_delivery.candidates_skipped_distance,
+                    creature_spell_plan_send_failed = outcome.spell_plan_delivery.send_failed,
+                    creature_spell_noninstant_unrepresented =
+                        outcome.spell.noninstant_casts_unrepresented,
+                    creature_spell_effects_unrepresented =
+                        outcome.spell.spell_effects_unrepresented,
+                    creature_spell_projectiles_unrepresented =
+                        outcome.spell.spell_projectiles_unrepresented,
+                    creature_spell_visuals_unrepresented =
+                        outcome.spell.spell_visuals_unrepresented,
+                    creature_spell_range_rejections = outcome.spell.spell_range_rejections,
+                    creature_spell_los_rejections = outcome.spell.spell_los_rejections,
+                    melee_compatibility_hits = outcome.melee.canonical_hits,
+                    melee_outcomes_unrepresented = outcome.melee.melee_outcomes_unrepresented,
+                    melee_attacker_incarnation_rejections =
+                        outcome.melee.attacker_incarnation_rejections,
+                    melee_creature_victim_sync_cas_rejections =
+                        outcome.melee.legacy_creature_victim_sync_cas_rejections,
                     melee_commands = outcome.melee_delivery.candidates_queued,
                     melee_plan_commands = outcome.melee_plan_delivery.candidates_queued,
                     "Legacy global creature runtime tick produced visible work"
@@ -15143,7 +15463,7 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::{Arc, Mutex, RwLock};
     use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-    use wow_constants::{ConditionSourceType, ConditionType};
+    use wow_constants::{ConditionSourceType, ConditionType, ServerOpcodes};
     use wow_core::{ObjectGuid, ObjectGuidGenerator, Position, guid::HighGuid};
     use wow_data::{Condition, ConditionEntriesByTypeStore};
     use wow_database::{
@@ -15312,12 +15632,15 @@ mod tests {
             instance_id: 0,
             position: wow_core::Position::ZERO,
             combat_reach: 0.0,
+            in_combat: false,
             liquid_status: 0,
             is_in_world: true,
             realm_send_tx: send_tx.clone(),
             send_tx,
             command_tx,
             durable_creature_runtime_commands_like_cpp: Default::default(),
+            client_visible_guids_like_cpp: Default::default(),
+            advanced_combat_logging_enabled_like_cpp: Default::default(),
             visibility_refresh_pending_like_cpp: Default::default(),
             durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),
@@ -22007,12 +22330,15 @@ mmap.enablePathFinding = 0
                 instance_id: 0,
                 position: wow_core::Position::ZERO,
                 combat_reach: 0.0,
+                in_combat: false,
                 liquid_status: 0,
                 is_in_world: true,
                 realm_send_tx: send_tx.clone(),
                 send_tx,
                 command_tx,
                 durable_creature_runtime_commands_like_cpp: Default::default(),
+                client_visible_guids_like_cpp: Default::default(),
+                advanced_combat_logging_enabled_like_cpp: Default::default(),
                 visibility_refresh_pending_like_cpp: Default::default(),
                 durable_loot_money_tracker_like_cpp: Default::default(),
                 active_loot_rolls: Vec::new(),
@@ -25366,6 +25692,87 @@ mmap.enablePathFinding = 0
         }
     }
 
+    fn make_creature_spell_runtime_plan_like_cpp(
+        target_guid: ObjectGuid,
+    ) -> (
+        wow_world::map_manager::RuntimePlan,
+        Vec<u8>,
+        Vec<u8>,
+        Vec<u8>,
+    ) {
+        use wow_packet::packets::spell::{
+            SpellCastLogData, SpellCastVisual, SpellGoPkt, SpellLogPowerData, SpellStartPkt,
+            SpellTargetData,
+        };
+
+        let caster_guid = make_source_guid();
+        let cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 3, 1, 571, 0, 12_345, 77);
+        let visual = SpellCastVisual {
+            spell_visual_id: 987,
+            script_visual_id: 0,
+        };
+        let target = SpellTargetData {
+            flags: 0x2,
+            unit: target_guid,
+            item: ObjectGuid::EMPTY,
+            ..Default::default()
+        };
+        let start_bytes = SpellStartPkt {
+            caster: caster_guid,
+            cast_id,
+            original_cast_id: ObjectGuid::EMPTY,
+            spell_id: 12_345,
+            visual: visual.clone(),
+            cast_flags: 0x0000_0002,
+            cast_flags_ex: 0,
+            cast_time_ms: 0,
+            target: target.clone(),
+        }
+        .to_bytes();
+        let go = SpellGoPkt {
+            caster: caster_guid,
+            cast_id,
+            original_cast_id: ObjectGuid::EMPTY,
+            spell_id: 12_345,
+            visual,
+            cast_flags: 0x0004_0100,
+            cast_flags_ex: 0,
+            cast_time_ms: 123,
+            target,
+            hit_targets: vec![target_guid],
+            miss_targets: Vec::new(),
+        };
+        let basic_go_bytes = go.to_bytes();
+        let full_go_bytes = go.to_full_log_bytes_like_cpp(&SpellCastLogData {
+            health: 321,
+            attack_power: 45,
+            spell_power: 0,
+            armor: 67,
+            power_data: vec![SpellLogPowerData {
+                power_type: 0,
+                amount: 89,
+                cost: 0,
+            }],
+        });
+        let plan = wow_world::map_manager::RuntimePlan {
+            events: vec![wow_world::map_manager::RuntimeEvent {
+                source_guid: caster_guid,
+                recipients: wow_world::map_manager::RecipientRule::NearbyVisibleDurableSpellCast {
+                    source_guid: caster_guid,
+                    map_id: 571,
+                    instance_id: 0,
+                    source_position: Position::ZERO,
+                    range: 100.0,
+                    required_3d: false,
+                    basic_go_packet_bytes: basic_go_bytes.clone(),
+                    full_go_packet_bytes: full_go_bytes.clone(),
+                },
+                packet_bytes: start_bytes.clone(),
+            }],
+        };
+        (plan, start_bytes, basic_go_bytes, full_go_bytes)
+    }
+
     fn make_registry_player_like_cpp(
         map_id: u16,
         instance_id: u32,
@@ -25443,6 +25850,39 @@ mmap.enablePathFinding = 0
             .map_mut()
             .insert_map_object_record(MapObjectRecord::new_creature(creature).unwrap())
             .unwrap();
+    }
+
+    fn mirror_canonical_melee_test_creature_like_cpp(
+        canonical: &wow_world::SharedCanonicalMapManager,
+        guid: ObjectGuid,
+        map_id: u32,
+        instance_id: u32,
+    ) -> wow_world::map_manager::WorldCreature {
+        let mut creature = canonical
+            .lock()
+            .unwrap()
+            .find_map(map_id, instance_id)
+            .unwrap()
+            .map()
+            .get_typed_creature(guid)
+            .expect("canonical test creature")
+            .clone();
+        creature.set_ai_home_position(creature.position());
+        creature.set_ai_identity_runtime(100, 14, 0, 0);
+        creature.unit_mut().set_weapon_damage(
+            wow_constants::WeaponAttackType::BaseAttack,
+            3.0,
+            5.0,
+        );
+        {
+            let ai = creature.ai_ownership_mut();
+            ai.aggro_radius = 20.0;
+            ai.min_damage = 3;
+            ai.max_damage = 5;
+        }
+        let create_data =
+            wow_world::map_manager::WorldCreature::create_data_from_canonical_like_cpp(&creature);
+        wow_world::map_manager::WorldCreature::from_canonical(creature, create_data)
     }
 
     /// (1) NearbyVisible: players on a different map_id are not enqueued.
@@ -25600,6 +26040,154 @@ mmap.enablePathFinding = 0
             [SessionCommand::SendIfVisibleLikeCpp(command)]
                 if command.packet_bytes == vec![0xAA]
         ));
+    }
+
+    #[test]
+    fn creature_spell_start_go_is_one_atomic_observer_command_without_victim_drain_like_cpp() {
+        let registry = PlayerRegistry::default();
+        let victim_guid = ObjectGuid::create_player(1, 80);
+        let observer_guid = ObjectGuid::create_player(1, 81);
+        let (victim_info, _victim_command_rx) =
+            make_registry_player_like_cpp(571, 0, Position::ZERO, true);
+        let (observer_info, _observer_command_rx) =
+            make_registry_player_like_cpp(571, 0, Position::new(25.0, 0.0, 0.0, 0.0), true);
+        victim_info
+            .client_visible_guids_like_cpp
+            .insert(make_source_guid());
+        observer_info
+            .client_visible_guids_like_cpp
+            .insert(make_source_guid());
+        registry.insert(victim_guid, victim_info);
+        registry.insert(observer_guid, observer_info);
+
+        let (plan, start_bytes, basic_go_bytes, full_go_bytes) =
+            make_creature_spell_runtime_plan_like_cpp(victim_guid);
+        let plan_delivery = deliver_runtime_plan_like_cpp(&plan, &registry);
+        assert_eq!(plan_delivery.events_seen, 1);
+        assert_eq!(plan_delivery.candidates_seen, 2);
+        assert_eq!(plan_delivery.candidates_queued, 2);
+
+        // Drain the observer first: its START/GO delivery does not depend on
+        // the victim session making progress on its own durable FIFO.
+        let observer_commands =
+            drain_durable_creature_runtime_commands_like_cpp(&registry, observer_guid);
+        let [SessionCommand::SendCreatureSpellCastIfVisibleLikeCpp(cast)] =
+            observer_commands.as_slice()
+        else {
+            panic!("observer must receive one atomic START+GO command: {observer_commands:?}");
+        };
+        assert_eq!(cast.start_packet_bytes, start_bytes);
+        assert_eq!(
+            cast.go_packet_bytes, basic_go_bytes,
+            "a receiver without advanced combat logging commits the basic frame"
+        );
+        assert_ne!(cast.go_packet_bytes, full_go_bytes);
+        assert_eq!(
+            u16::from_le_bytes(cast.start_packet_bytes[..2].try_into().unwrap()),
+            ServerOpcodes::SpellStart as u16
+        );
+        assert_eq!(
+            u16::from_le_bytes(cast.go_packet_bytes[..2].try_into().unwrap()),
+            ServerOpcodes::SpellGo as u16
+        );
+
+        // The victim's untouched FIFO retains one indivisible copy as well.
+        let victim_commands =
+            drain_durable_creature_runtime_commands_like_cpp(&registry, victim_guid);
+        let [SessionCommand::SendCreatureSpellCastIfVisibleLikeCpp(victim_cast)] =
+            victim_commands.as_slice()
+        else {
+            panic!("victim FIFO must contain one atomic START+GO command: {victim_commands:?}");
+        };
+        assert_eq!(victim_cast.start_packet_bytes, start_bytes);
+        assert_eq!(victim_cast.go_packet_bytes, basic_go_bytes);
+    }
+
+    #[test]
+    fn creature_spell_plan_skips_invisible_observer_but_reaches_victim_like_cpp() {
+        let registry = PlayerRegistry::default();
+        let victim_guid = ObjectGuid::create_player(1, 82);
+        let invisible_observer_guid = ObjectGuid::create_player(1, 83);
+        let (victim_info, _victim_command_rx) =
+            make_registry_player_like_cpp(571, 0, Position::ZERO, true);
+        let (invisible_observer_info, _observer_command_rx) =
+            make_registry_player_like_cpp(571, 0, Position::new(250.0, 0.0, 0.0, 0.0), true);
+        // Both viewers already have the caster at client; only range separates
+        // them here.
+        victim_info
+            .client_visible_guids_like_cpp
+            .insert(make_source_guid());
+        invisible_observer_info
+            .client_visible_guids_like_cpp
+            .insert(make_source_guid());
+        registry.insert(victim_guid, victim_info);
+        registry.insert(invisible_observer_guid, invisible_observer_info);
+
+        let (plan, start_bytes, basic_go_bytes, full_go_bytes) =
+            make_creature_spell_runtime_plan_like_cpp(victim_guid);
+        let plan_delivery = deliver_runtime_plan_like_cpp(&plan, &registry);
+        assert_eq!(plan_delivery.events_seen, 1);
+        assert_eq!(plan_delivery.candidates_seen, 2);
+        assert_eq!(plan_delivery.candidates_queued, 1);
+        assert_eq!(plan_delivery.candidates_skipped_distance, 1);
+
+        assert!(
+            drain_durable_creature_runtime_commands_like_cpp(&registry, invisible_observer_guid)
+                .is_empty(),
+            "out-of-range observer must not receive START or GO"
+        );
+
+        let victim_commands =
+            drain_durable_creature_runtime_commands_like_cpp(&registry, victim_guid);
+        let [SessionCommand::SendCreatureSpellCastIfVisibleLikeCpp(cast)] =
+            victim_commands.as_slice()
+        else {
+            panic!("victim must retain one atomic START+GO command: {victim_commands:?}");
+        };
+        assert_eq!(cast.start_packet_bytes, start_bytes);
+        assert_eq!(cast.go_packet_bytes, basic_go_bytes);
+    }
+
+    /// C++ selects recipients inside `SendSpellGo` from each viewer's
+    /// `HaveAtClient`, so a viewer that does not have the caster at client when
+    /// the cast resolves never gets a command — becoming visible afterwards
+    /// cannot deliver the older cast.
+    #[test]
+    fn creature_spell_plan_commits_have_at_client_at_resolution_like_cpp() {
+        let registry = PlayerRegistry::default();
+        let victim_guid = ObjectGuid::create_player(1, 84);
+        let unaware_guid = ObjectGuid::create_player(1, 85);
+        let (victim_info, _victim_command_rx) =
+            make_registry_player_like_cpp(571, 0, Position::ZERO, true);
+        let (unaware_info, _unaware_command_rx) =
+            make_registry_player_like_cpp(571, 0, Position::new(25.0, 0.0, 0.0, 0.0), true);
+        victim_info
+            .client_visible_guids_like_cpp
+            .insert(make_source_guid());
+        let unaware_visibility = unaware_info.client_visible_guids_like_cpp.clone();
+        registry.insert(victim_guid, victim_info);
+        registry.insert(unaware_guid, unaware_info);
+
+        let (plan, _start_bytes, _basic_go_bytes, _full_go_bytes) =
+            make_creature_spell_runtime_plan_like_cpp(victim_guid);
+        let plan_delivery = deliver_runtime_plan_like_cpp(&plan, &registry);
+
+        assert_eq!(plan_delivery.candidates_seen, 2);
+        assert_eq!(plan_delivery.candidates_queued, 1);
+        assert_eq!(plan_delivery.candidates_skipped_not_visible, 1);
+        assert_eq!(plan_delivery.candidates_skipped_distance, 0);
+
+        // The caster becoming visible after the cast resolved must not conjure a
+        // command that was never committed.
+        unaware_visibility.insert(make_source_guid());
+        assert!(
+            drain_durable_creature_runtime_commands_like_cpp(&registry, unaware_guid).is_empty(),
+            "a viewer that was not selected at commit time receives nothing"
+        );
+        assert_eq!(
+            drain_durable_creature_runtime_commands_like_cpp(&registry, victim_guid).len(),
+            1
+        );
     }
 
     /// (6) MapBroadcastVisible: enqueues all players on the same map/instance
@@ -25893,6 +26481,10 @@ mmap.enablePathFinding = 0
 
         let canonical: wow_world::SharedCanonicalMapManager =
             Arc::new(Mutex::new(wow_map::MapManager::default()));
+        canonical
+            .lock()
+            .unwrap()
+            .create_map_entry(571, 2, 2, wow_map::ManagedMapKind::World);
         add_canonical_test_player_on_map_like_cpp(&canonical, player_guid, position, 571, 2, 100);
         {
             let mut guard = canonical.lock().unwrap();
@@ -25954,6 +26546,7 @@ mmap.enablePathFinding = 0
         );
 
         assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].map_difficulty_id, 2);
         assert!(candidates[0].player_visibility_represented);
         assert!(candidates[0].player_phase_shift.has_phase_like_cpp(77));
         assert_ne!(
@@ -26230,7 +26823,8 @@ mmap.enablePathFinding = 0
 
     /// 4C.4 bridge coverage: the combined global runtime body can perform the
     /// C++ `CreatureAI::MoveInLineOfSight`-style aggro transition once from the
-    /// map owner and deliver one attack-start command to the victim session.
+    /// map owner and deliver both the authoritative session transition and its
+    /// visible attack-start packet to the victim session in FIFO order.
     #[test]
     fn legacy_creature_runtime_bridge_delivers_aggro_start_like_cpp() {
         let legacy: wow_world::SharedMapManager =
@@ -26348,20 +26942,32 @@ mmap.enablePathFinding = 0
         assert_eq!(outcome.aggro_delivery.candidates_seen, 1);
         assert_eq!(outcome.aggro_delivery.candidates_queued, 1);
         assert_eq!(outcome.aggro_delivery.candidates_skipped_wrong_map, 0);
+        assert_eq!(outcome.aggro_plan_delivery.events_seen, 1);
+        assert_eq!(outcome.aggro_plan_delivery.candidates_seen, 2);
+        assert_eq!(outcome.aggro_plan_delivery.candidates_queued, 1);
+        assert_eq!(outcome.aggro_plan_delivery.candidates_skipped_distance, 1);
         assert_eq!(outcome.movement.movement_packets, 0);
         assert_eq!(outcome.melee.swings_ready, 0);
 
-        let SessionCommand::CreatureAttackStartLikeCpp(command) =
-            drain_durable_creature_runtime_commands_like_cpp(&registry, victim)
-                .pop()
-                .expect("victim must receive global aggro attack-start")
+        let commands = drain_durable_creature_runtime_commands_like_cpp(&registry, victim);
+        let [
+            SessionCommand::CreatureAttackStartLikeCpp(command),
+            SessionCommand::SendIfVisibleLikeCpp(visual),
+        ] = commands.as_slice()
         else {
-            panic!("expected CreatureAttackStartLikeCpp command");
+            panic!("expected authoritative then visual attack-start commands: {commands:?}");
         };
         assert_eq!(command.attacker_guid, attacker);
         assert_eq!(command.victim_guid, victim);
         assert_eq!(command.map_id, 0);
         assert_eq!(command.instance_id, 0);
+        assert_eq!(visual.source_guid, attacker);
+        assert_eq!(visual.map_id, 0);
+        assert_eq!(visual.instance_id, 0);
+        assert_eq!(
+            u16::from_le_bytes([visual.packet_bytes[0], visual.packet_bytes[1]]),
+            wow_constants::ServerOpcodes::AttackStart as u16
+        );
         assert!(victim_rx.try_recv().is_err());
         assert!(wrong_map_rx.try_recv().is_err());
 
@@ -26402,6 +27008,7 @@ mmap.enablePathFinding = 0
                 over_damage: -1,
                 target_level: 80,
                 victim_health_after: 83,
+                victim_health_state_revision_after: 7,
             },
         ];
         let summary = deliver_creature_melee_damage_commands_like_cpp(&commands, &registry);
@@ -26419,6 +27026,7 @@ mmap.enablePathFinding = 0
         assert_eq!(command.attacker_guid, attacker);
         assert_eq!(command.victim_guid, victim);
         assert_eq!(command.victim_health_after, 83);
+        assert_eq!(command.victim_health_state_revision_after, 7);
         assert!(
             other_rx.try_recv().is_err(),
             "non-victim session is untouched"
@@ -26454,6 +27062,7 @@ mmap.enablePathFinding = 0
                 over_damage: -1,
                 target_level: 80,
                 victim_health_after: 95,
+                victim_health_state_revision_after: 1,
             };
         let commands = vec![
             make_command(wrong_map),
@@ -26505,6 +27114,7 @@ mmap.enablePathFinding = 0
                 over_damage: -1,
                 target_level: 80,
                 victim_health_after: 95,
+                victim_health_state_revision_after: 1,
             },
         ];
         let summary = deliver_creature_melee_damage_commands_like_cpp(&commands, &registry);
@@ -26538,6 +27148,7 @@ mmap.enablePathFinding = 0
             over_damage: -1,
             target_level: 80,
             victim_health_after: 95,
+            victim_health_state_revision_after: 7,
         };
         command_tx
             .send(SessionCommand::ApplyCreatureMeleeDamageLikeCpp(
@@ -26547,6 +27158,7 @@ mmap.enablePathFinding = 0
 
         let mut latest = command.clone();
         latest.victim_health_after = 90;
+        latest.victim_health_state_revision_after = 8;
         let summary =
             deliver_creature_melee_damage_commands_like_cpp(&[command, latest], &registry);
         assert_eq!(summary.candidates_queued, 2);
@@ -26565,14 +27177,16 @@ mmap.enablePathFinding = 0
             panic!("expected second durable melee command");
         };
         assert_eq!(first.victim_health_after, 95);
+        assert_eq!(first.victim_health_state_revision_after, 7);
         assert_eq!(second.victim_health_after, 90);
+        assert_eq!(second.victim_health_state_revision_after, 8);
     }
 
-    /// 4C.3 bridge: the global creature melee body applies canonical health
-    /// once, then world-server delivers the final-health command to the victim
-    /// session outside all map locks.
+    /// 4C.3 compatibility bridge: canonical health is applied once and the
+    /// final-health command is delivered outside all map locks. The outcome is
+    /// still marked unrepresented until full `CalculateMeleeDamage` exists.
     #[test]
-    fn legacy_creature_melee_tick_delivers_victim_command_like_cpp() {
+    fn legacy_creature_melee_tick_delivers_compatibility_victim_command_like_cpp() {
         let legacy: wow_world::SharedMapManager =
             Arc::new(std::sync::RwLock::new(wow_world::MapManager::new()));
         let canonical: wow_world::SharedCanonicalMapManager =
@@ -26584,20 +27198,16 @@ mmap.enablePathFinding = 0
             ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 9001, 90_059);
         let attacker_position = Position::new(5.0, 5.0, 0.0, 0.0);
         add_canonical_test_player_on_map_like_cpp(&canonical, victim, attacker_position, 0, 0, 100);
-        let mut world_creature = wow_world::map_manager::WorldCreature::new(
+        add_canonical_test_creature_on_map_like_cpp(
+            &canonical,
             attacker,
-            9001,
             attacker_position,
+            0,
+            0,
             25,
-            2,
-            3,
-            5,
-            20.0,
-            100,
-            14,
-            0,
-            0,
         );
+        let mut world_creature =
+            mirror_canonical_melee_test_creature_like_cpp(&canonical, attacker, 0, 0);
         world_creature.enter_combat(victim);
         world_creature.creature.ai_ownership_mut().swing_timer_ms = 0;
 
@@ -26629,13 +27239,14 @@ mmap.enablePathFinding = 0
         assert_eq!(outcome.maps_seen, 1);
         assert_eq!(outcome.creatures_seen, 1);
         assert_eq!(outcome.swings_ready, 1);
+        assert_eq!(outcome.melee_outcomes_unrepresented, 1);
+        assert_eq!(outcome.runtime_rng_authority_rejections, 0);
         assert_eq!(outcome.canonical_hits, 1);
         assert_eq!(outcome.commands.len(), 1);
         assert_eq!(delivery.commands_seen, 1);
         assert_eq!(delivery.candidates_seen, 1);
         assert_eq!(delivery.candidates_queued, 1);
         assert_eq!(plan_delivery.events_seen, 0);
-
         let command = match drain_durable_creature_runtime_commands_like_cpp(&registry, victim)
             .pop()
             .expect("victim session receives final-health melee command")
@@ -26658,12 +27269,12 @@ mmap.enablePathFinding = 0
             .unit()
             .data()
             .health;
-        assert_eq!(command.victim_health_after, canonical_health);
+        assert_eq!(canonical_health, command.victim_health_after);
         assert_eq!(canonical_health, 100 - u64::from(command.damage));
     }
 
     #[test]
-    fn legacy_creature_melee_tick_delivers_creature_victim_plan_to_viewers_like_cpp() {
+    fn legacy_creature_melee_tick_delivers_compatibility_creature_plan_like_cpp() {
         let legacy: wow_world::SharedMapManager =
             Arc::new(std::sync::RwLock::new(wow_world::MapManager::new()));
         let canonical: wow_world::SharedCanonicalMapManager =
@@ -26675,10 +27286,9 @@ mmap.enablePathFinding = 0
             ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 9001, 90_061);
         let position = Position::new(5.0, 5.0, 0.0, 0.0);
         add_canonical_test_creature_on_map_like_cpp(&canonical, victim, position, 0, 0, 100);
-
-        let mut world_creature = wow_world::map_manager::WorldCreature::new(
-            attacker, 9001, position, 25, 2, 3, 5, 20.0, 100, 14, 0, 0,
-        );
+        add_canonical_test_creature_on_map_like_cpp(&canonical, attacker, position, 0, 0, 25);
+        let mut world_creature =
+            mirror_canonical_melee_test_creature_like_cpp(&canonical, attacker, 0, 0);
         world_creature.enter_combat(victim);
         world_creature.creature.ai_ownership_mut().swing_timer_ms = 0;
 
@@ -26707,13 +27317,14 @@ mmap.enablePathFinding = 0
             );
 
         assert_eq!(outcome.swings_ready, 1);
+        assert_eq!(outcome.melee_outcomes_unrepresented, 1);
+        assert_eq!(outcome.runtime_rng_authority_rejections, 0);
         assert_eq!(outcome.canonical_hits, 1);
         assert_eq!(outcome.canonical_creature_hits, 1);
         assert!(outcome.commands.is_empty());
         assert_eq!(delivery.commands_seen, 0);
         assert_eq!(plan_delivery.events_seen, 2);
         assert_eq!(plan_delivery.candidates_queued, 2);
-
         for _ in 0..2 {
             let SessionCommand::SendIfVisibleLikeCpp(command) = viewer_rx
                 .try_recv()
@@ -26965,11 +27576,11 @@ mmap.enablePathFinding = 0
 
     /// Combined runtime bridge: one test-only task runs lifecycle first
     /// (map-owned despawn/respawn visibility refresh), then movement
-    /// (NearbyVisible MonsterMove fanout), then creature melee (explicit victim
-    /// command), all while `GlobalLegacy` is enabled only inside the test.
+    /// (NearbyVisible MonsterMove fanout), then the transitional melee
+    /// compatibility bridge while retaining the unrepresented-outcome marker.
+    /// `GlobalLegacy` is enabled only inside the test.
     #[tokio::test]
-    async fn legacy_creature_global_runtime_task_delivers_lifecycle_refresh_and_movement_like_cpp()
-    {
+    async fn legacy_creature_global_runtime_task_delivers_lifecycle_movement_and_melee_like_cpp() {
         let legacy: wow_world::SharedMapManager =
             Arc::new(std::sync::RwLock::new(wow_world::MapManager::new()));
         let canonical: wow_world::SharedCanonicalMapManager =
@@ -26977,7 +27588,7 @@ mmap.enablePathFinding = 0
         canonical.lock().unwrap().create_world_map(0, 0);
 
         let melee_victim = ObjectGuid::create_player(1, 92_004);
-        let melee_position = Position::new(30.0, 30.0, 0.0, 0.0);
+        let melee_position = Position::new(300.0, 300.0, 0.0, 0.0);
         add_canonical_test_player_on_map_like_cpp(
             &canonical,
             melee_victim,
@@ -27059,20 +27670,16 @@ mmap.enablePathFinding = 0
 
         let melee_guid =
             ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 9001, 90_015);
-        let mut melee_creature = wow_world::map_manager::WorldCreature::new(
+        add_canonical_test_creature_on_map_like_cpp(
+            &canonical,
             melee_guid,
-            9001,
             melee_position,
+            0,
+            0,
             25,
-            2,
-            3,
-            5,
-            20.0,
-            100,
-            14,
-            0,
-            0,
         );
+        let mut melee_creature =
+            mirror_canonical_melee_test_creature_like_cpp(&canonical, melee_guid, 0, 0);
         melee_creature.enter_combat(melee_victim);
         melee_creature.creature.ai_ownership_mut().swing_timer_ms = 0;
 
@@ -27115,12 +27722,45 @@ mmap.enablePathFinding = 0
         let (wrong_map_info, wrong_map_rx) =
             make_registry_player_like_cpp(1, 0, Position::new(10.0, 10.0, 0.0, 0.0), true);
         registry.insert(wrong_map, wrong_map_info);
-        let (victim_info, victim_rx) =
-            make_registry_player_like_cpp(0, 0, Position::new(5000.0, 0.0, 0.0, 0.0), true);
+        let (mut victim_info, victim_rx) =
+            make_registry_player_like_cpp(0, 0, melee_position, true);
+        victim_info.faction_template_id = 1;
         registry.insert(melee_victim, victim_info);
 
         let mmap_config = wow_world::MMapRuntimeConfigLikeCpp {
             enabled: false,
+            ..Default::default()
+        };
+        let aggro_config = wow_world::session::LegacyCreatureAggroConfigLikeCpp {
+            faction_template_store: Some(Arc::new(
+                wow_data::progression_rewards::FactionTemplateStore::from_entries([
+                    wow_data::progression_rewards::FactionTemplateEntry {
+                        id: 14,
+                        faction: 72,
+                        flags: 0,
+                        faction_group: 0,
+                        friend_group: 0,
+                        enemy_group: 0,
+                        enemies: [930, 0, 0, 0, 0, 0, 0, 0],
+                        friend: [0; 8],
+                    },
+                    wow_data::progression_rewards::FactionTemplateEntry {
+                        id: 1,
+                        faction: 930,
+                        flags: 0,
+                        faction_group: 0,
+                        friend_group: 0,
+                        enemy_group: 0,
+                        enemies: [0; 8],
+                        friend: [0; 8],
+                    },
+                ]),
+            )),
+            faction_store: Some(Arc::new(
+                wow_data::progression_rewards::FactionStore::from_entries([
+                    wow_data::progression_rewards::FactionEntry::for_test_like_cpp(72, 1),
+                ]),
+            )),
             ..Default::default()
         };
         let legacy_for_task = Arc::clone(&legacy);
@@ -27136,7 +27776,7 @@ mmap.enablePathFinding = 0
                     &map_store_for_task,
                     &mmap_config,
                     None,
-                    wow_world::session::LegacyCreatureAggroConfigLikeCpp::default(),
+                    aggro_config,
                     10,
                     tick_now,
                     registry_for_task.as_ref(),
@@ -27161,12 +27801,12 @@ mmap.enablePathFinding = 0
         assert!(!outcome.movement.skipped_owner_not_global);
         assert_eq!(outcome.movement.maps_seen, 1);
         assert_eq!(outcome.movement.creatures_seen, 2);
-        assert_eq!(outcome.movement.movement_packets, 1);
-        assert_eq!(outcome.movement_delivery.events_seen, 1);
-        assert_eq!(outcome.movement_delivery.candidates_seen, 4);
-        assert_eq!(outcome.movement_delivery.candidates_queued, 2);
-        assert_eq!(outcome.movement_delivery.candidates_skipped_distance, 1);
-        assert_eq!(outcome.movement_delivery.candidates_skipped_wrong_map, 1);
+        assert_eq!(outcome.movement.movement_packets, 2);
+        assert_eq!(outcome.movement_delivery.events_seen, 2);
+        assert_eq!(outcome.movement_delivery.candidates_seen, 8);
+        assert_eq!(outcome.movement_delivery.candidates_queued, 3);
+        assert_eq!(outcome.movement_delivery.candidates_skipped_distance, 3);
+        assert_eq!(outcome.movement_delivery.candidates_skipped_wrong_map, 2);
 
         assert!(!outcome.aggro.skipped_owner_not_global);
         assert_eq!(outcome.aggro.maps_seen, 1);
@@ -27180,6 +27820,8 @@ mmap.enablePathFinding = 0
         assert_eq!(outcome.melee.maps_seen, 1);
         assert_eq!(outcome.melee.creatures_seen, 2);
         assert_eq!(outcome.melee.swings_ready, 1);
+        assert_eq!(outcome.melee.melee_outcomes_unrepresented, 1);
+        assert_eq!(outcome.melee.runtime_rng_authority_rejections, 0);
         assert_eq!(outcome.melee.canonical_hits, 1);
         assert_eq!(outcome.melee_delivery.commands_seen, 1);
         assert_eq!(outcome.melee_delivery.candidates_seen, 1);
@@ -27218,10 +27860,23 @@ mmap.enablePathFinding = 0
         };
         assert_eq!(refresh.map_id, 0);
         assert_eq!(refresh.instance_id, 0);
+        let SessionCommand::SendIfVisibleLikeCpp(chase_stop) = victim_rx
+            .try_recv()
+            .expect("melee victim receives its attacker's in-range chase stop")
+        else {
+            panic!("expected SendIfVisibleLikeCpp chase-stop command for victim");
+        };
+        assert_eq!(chase_stop.source_guid, melee_guid);
+        assert_eq!(chase_stop.map_id, 0);
+        assert_eq!(chase_stop.instance_id, 0);
+        assert_eq!(
+            u16::from_le_bytes([chase_stop.packet_bytes[0], chase_stop.packet_bytes[1]]),
+            wow_constants::ServerOpcodes::OnMonsterMove as u16
+        );
         let SessionCommand::ApplyCreatureMeleeDamageLikeCpp(melee_command) =
             drain_durable_creature_runtime_commands_like_cpp(registry.as_ref(), melee_victim)
                 .pop()
-                .expect("victim must receive the creature melee command")
+                .expect("victim must receive the compatibility melee command")
         else {
             panic!("expected ApplyCreatureMeleeDamageLikeCpp command for victim");
         };
@@ -27230,7 +27885,7 @@ mmap.enablePathFinding = 0
         assert!((3..=5).contains(&melee_command.damage));
         assert!(
             victim_rx.try_recv().is_err(),
-            "victim is outside movement range"
+            "victim receives only its own attacker's chase stop"
         );
         assert!(wrong_map_rx.try_recv().is_err());
 

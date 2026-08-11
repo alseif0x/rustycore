@@ -172,10 +172,11 @@ pub use db2_hotfix::Db2HotfixRemovalStoreLikeCpp;
 pub use db2_id_store::Db2IdStore;
 pub use difficulty::{DifficultyEntry, DifficultyStore};
 pub use disable_mgr::{
-    DISABLE_TYPE_BATTLEGROUND, DISABLE_TYPE_CRITERIA, DISABLE_TYPE_LFG_MAP, DISABLE_TYPE_MAP,
-    DISABLE_TYPE_MMAP, DISABLE_TYPE_OUTDOORPVP, DISABLE_TYPE_QUEST, DISABLE_TYPE_SPELL,
-    DISABLE_TYPE_VMAP, DisableDbRowLikeCpp, DisableLoadReportLikeCpp, DisableMgrLikeCpp,
-    DisableMgrRefsLikeCpp, DisableWorldObjectRefLikeCpp,
+    CreatureSpellDisableDecisionLikeCpp, DISABLE_TYPE_BATTLEGROUND, DISABLE_TYPE_CRITERIA,
+    DISABLE_TYPE_LFG_MAP, DISABLE_TYPE_MAP, DISABLE_TYPE_MMAP, DISABLE_TYPE_OUTDOORPVP,
+    DISABLE_TYPE_QUEST, DISABLE_TYPE_SPELL, DISABLE_TYPE_VMAP, DisableDbRowLikeCpp,
+    DisableLoadReportLikeCpp, DisableMgrLikeCpp, DisableMgrRefsLikeCpp,
+    DisableWorldObjectRefLikeCpp, SPELL_DISABLE_CREATURE,
 };
 pub use dungeon_encounter::{DungeonEncounterEntry, DungeonEncounterStore};
 pub use entities_movement::{
@@ -471,9 +472,10 @@ pub use spell::{
     SpellGroupStackRuleLikeCpp, SpellGroupStackRuleLoadErrorKindLikeCpp,
     SpellGroupStackRuleLoadErrorLikeCpp, SpellGroupStackRuleLoadOutcomeLikeCpp,
     SpellGroupStackRuleRowLikeCpp, SpellGroupStackRuleStoreLikeCpp, SpellGroupStoreLikeCpp,
-    SpellInfo, SpellLearnSkillEffectLikeCpp, SpellLearnSkillIndeterminateReasonLikeCpp,
-    SpellLearnSkillLoadErrorKindLikeCpp, SpellLearnSkillLoadErrorLikeCpp,
-    SpellLearnSkillLoadOutcomeLikeCpp, SpellLearnSkillLookupLikeCpp, SpellLearnSkillNodeLikeCpp,
+    SpellHitMetadataLikeCpp, SpellInfo, SpellLearnSkillEffectLikeCpp,
+    SpellLearnSkillIndeterminateReasonLikeCpp, SpellLearnSkillLoadErrorKindLikeCpp,
+    SpellLearnSkillLoadErrorLikeCpp, SpellLearnSkillLoadOutcomeLikeCpp,
+    SpellLearnSkillLookupLikeCpp, SpellLearnSkillNodeLikeCpp,
     SpellLearnSkillSourceSpellInfoLikeCpp, SpellLearnSkillStoreLikeCpp,
     SpellLearnSourceSpellInfoLikeCpp, SpellLearnSpellEffectLikeCpp,
     SpellLearnSpellLoadErrorKindLikeCpp, SpellLearnSpellLoadErrorLikeCpp,
