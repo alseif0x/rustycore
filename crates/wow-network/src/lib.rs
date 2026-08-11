@@ -50,8 +50,8 @@ pub use player_registry::{
     SendAddonIfRegisteredLikeCppCommand, SendCreatureLootReleaseValuesUpdateLikeCppCommand,
     SendCreatureSpellCastIfVisibleLikeCppCommand, SendIfVisibleLikeCppCommand,
     SendPartyUpdateLikeCppCommand, SendRealmPacketLikeCppCommand,
-    SendVisibleObjectValuesUpdateCommand, SessionCommand, WorldSessionShutdownFlushLikeCppCommand,
-    WorldSessionShutdownFlushResultLikeCpp,
+    SendVisibleObjectValuesUpdateCommand, SessionCommand, SharedClientVisibleGuidsLikeCpp,
+    WorldSessionShutdownFlushLikeCppCommand, WorldSessionShutdownFlushResultLikeCpp,
 };
 pub use session_mgr::{InstanceLink, SessionManager};
 pub use world_socket::{

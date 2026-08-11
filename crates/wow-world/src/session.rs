@@ -205,8 +205,8 @@ use wow_network::{
     KickLikeCppCommand, LootDropRatesLikeCpp, LootRollCommandIdentityLikeCpp,
     NotifyLootMoneyRemovedLikeCppCommand, PacketSpoofConfigLikeCpp, PendingInvites,
     PlayerBroadcastInfo, PlayerRegistry, RefreshVisibleWorldCreaturesLikeCppCommand,
-    ReputationRatesLikeCpp, SessionCommand, SocketTimeoutsLikeCpp, SocketWriteFenceLikeCpp,
-    SocketWriteFenceWaitResultLikeCpp, group_guid_by_db_store_id_like_cpp,
+    ReputationRatesLikeCpp, SessionCommand, SharedClientVisibleGuidsLikeCpp, SocketTimeoutsLikeCpp,
+    SocketWriteFenceLikeCpp, SocketWriteFenceWaitResultLikeCpp, group_guid_by_db_store_id_like_cpp,
 };
 use wow_packet::packets::chat::{ChatMsg, ChatPkt, PrintNotification};
 use wow_packet::packets::gossip::ClientGossipText;
@@ -4608,6 +4608,12 @@ pub struct LegacyCreatureSpellTickOutcomeLikeCpp {
     pub spell_casting_requirements_unrepresented: usize,
     pub spell_disable_context_unrepresented: usize,
     pub spells_disabled: usize,
+    /// TurretAI attempts whose rejected `CastSpell` still consumed BASE_ATTACK
+    /// because the raw combat-range gate had admitted them.
+    pub turret_rejected_attempt_swings: usize,
+    /// Casts dropped because the live creature was no longer the incarnation the
+    /// plan had been captured from.
+    pub caster_incarnation_rejections: usize,
     pub spell_effects_unrepresented: usize,
     pub spell_projectiles_unrepresented: usize,
     pub spell_visuals_unrepresented: usize,
@@ -6674,7 +6680,7 @@ pub struct WorldSession {
     // ── Dynamic visibility tracking ───────────────────────────────
     /// C++ `Player::m_clientGUIDs`: exact objects currently known by this client.
     /// Updated on login and each visibility refresh (player movement).
-    pub(crate) client_visible_guids_like_cpp: std::collections::HashSet<wow_core::ObjectGuid>,
+    pub(crate) client_visible_guids_like_cpp: SharedClientVisibleGuidsLikeCpp,
     /// C++ `PlayerData::Customizations` loaded before the self CREATE and
     /// retained for non-owner visibility CREATE blocks.
     loaded_player_customizations_like_cpp:
@@ -8381,7 +8387,7 @@ impl WorldSession {
             represented_locked_dungeon_encounters: std::collections::HashSet::new(),
             represented_personal_loot_money: std::collections::HashMap::new(),
             represented_personal_loot_owners: std::collections::HashSet::new(),
-            client_visible_guids_like_cpp: std::collections::HashSet::new(),
+            client_visible_guids_like_cpp: SharedClientVisibleGuidsLikeCpp::default(),
             loaded_player_customizations_like_cpp: Box::default(),
             client_visible_transports_like_cpp: std::collections::HashSet::new(),
             player_transport_login_state_like_cpp: None,
@@ -14648,8 +14654,8 @@ impl WorldSession {
         let mut sent = 0;
         let visible_guids = self
             .client_visible_guids_like_cpp
-            .iter()
-            .copied()
+            .snapshot_like_cpp()
+            .into_iter()
             .collect::<Vec<_>>();
         for guid in visible_guids {
             if !guid.is_game_object() {
@@ -14700,8 +14706,8 @@ impl WorldSession {
         let mut sent = 0;
         let visible_guids = self
             .client_visible_guids_like_cpp
-            .iter()
-            .copied()
+            .snapshot_like_cpp()
+            .into_iter()
             .collect::<Vec<_>>();
         for guid in visible_guids {
             if !guid.is_creature_or_vehicle() {
@@ -15883,7 +15889,8 @@ impl WorldSession {
         Self::creature_message_to_set_target_allows_like_cpp(
             guid,
             creature,
-            &self.client_visible_guids_like_cpp,
+            // The HaveAtClient membership was proven above.
+            true,
             player_map_id,
             player_instance_id,
             &player_position,
@@ -15895,14 +15902,14 @@ impl WorldSession {
     fn creature_message_to_set_target_allows_like_cpp(
         guid: ObjectGuid,
         creature: &crate::map_manager::WorldCreature,
-        visible_guids: &std::collections::HashSet<ObjectGuid>,
+        source_is_visible_like_cpp: bool,
         player_map_id: u32,
         player_instance_id: u32,
         player_position: &Position,
         player_phase_shift: &PhaseShift,
         required_3d: bool,
     ) -> bool {
-        if !visible_guids.contains(&guid) {
+        if !source_is_visible_like_cpp {
             return false;
         }
         if creature.map_id() != player_map_id || creature.instance_id() != player_instance_id {
@@ -35686,6 +35693,7 @@ impl WorldSession {
                 durable_creature_runtime_commands_like_cpp: Arc::clone(
                     &self.durable_creature_runtime_commands_like_cpp,
                 ),
+                client_visible_guids_like_cpp: self.client_visible_guids_like_cpp.clone(),
                 visibility_refresh_pending_like_cpp: Arc::clone(
                     &self.visibility_refresh_pending_like_cpp,
                 ),
@@ -62372,6 +62380,58 @@ fn creature_ai_spell_go_cast_flags_like_cpp(
             .unwrap_or(0)
 }
 
+/// The exact creature incarnation a cast plan was captured from.
+///
+/// A GUID and an engagement epoch cannot separate a replacement that reused
+/// both, so carry the same three-part identity the melee synchronization path
+/// proves: spawn ID, loot-storage authority and health-state revision
+/// authority. Holding the two authorities keeps their allocations alive, so
+/// neither identity can be recycled while the plan is in flight.
+#[derive(Clone)]
+struct CreatureSpellCasterIncarnationLikeCpp {
+    spawn_id: u64,
+    authority: OwnedLootAuthority,
+    health_state_revision_authority: wow_entities::HealthStateRevisionAuthorityLikeCpp,
+}
+
+impl CreatureSpellCasterIncarnationLikeCpp {
+    fn capture_like_cpp(creature: &wow_entities::Creature) -> Self {
+        Self {
+            spawn_id: creature.spawn_id(),
+            authority: creature.loot_authority_like_cpp().clone(),
+            health_state_revision_authority: creature
+                .unit()
+                .health_state_revision_authority_like_cpp(),
+        }
+    }
+
+    fn matches_like_cpp(&self, creature: &wow_entities::Creature) -> bool {
+        creature.spawn_id() == self.spawn_id
+            && creature
+                .loot_authority_like_cpp()
+                .shares_storage_like_cpp(&self.authority)
+            && creature
+                .unit()
+                .shares_health_state_revision_authority_like_cpp(
+                    &self.health_state_revision_authority,
+                )
+    }
+}
+
+impl std::fmt::Debug for CreatureSpellCasterIncarnationLikeCpp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // `OwnedLootAuthority` is deliberately not `Debug`: its identity is the
+        // shared allocation, not a printable value.
+        f.debug_struct("CreatureSpellCasterIncarnationLikeCpp")
+            .field("spawn_id", &self.spawn_id)
+            .field(
+                "health_state_revision_authority",
+                &self.health_state_revision_authority,
+            )
+            .finish_non_exhaustive()
+    }
+}
+
 #[derive(Debug, Clone)]
 struct CreatureSpellCastPlanLikeCpp {
     caster_guid: ObjectGuid,
@@ -62383,6 +62443,7 @@ struct CreatureSpellCastPlanLikeCpp {
     cast_time_ms: u32,
     spell_go_cast_flags: u32,
     engagement_epoch: u64,
+    caster_incarnation: CreatureSpellCasterIncarnationLikeCpp,
 }
 
 fn creature_ai_successful_untriggered_spell_resets_combat_timers_like_cpp(
@@ -62442,6 +62503,9 @@ fn creature_ai_spell_plan_like_cpp(
             config,
         ),
         engagement_epoch: creature.creature_spell_engagement_epoch_like_cpp(),
+        caster_incarnation: CreatureSpellCasterIncarnationLikeCpp::capture_like_cpp(
+            &creature.creature,
+        ),
     })
 }
 
@@ -62885,6 +62949,9 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
     enum PendingCreatureSpellActionLikeCpp {
         Cast(PendingCreatureSpellCastLikeCpp),
         Schedule(PendingCreatureSpellScheduleLikeCpp),
+        /// A TurretAI attempt C++ would still have made through `CastSpell`,
+        /// whose swing reset depends only on the raw combat-range gate.
+        TurretRejectedAttempt(TurretRejectedCastAttemptLikeCpp),
     }
 
     let mut outcome = LegacyCreatureSpellTickOutcomeLikeCpp::default();
@@ -63414,6 +63481,26 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
                         CreatureSpellDisableDecisionLikeCpp::Enabled => {}
                         CreatureSpellDisableDecisionLikeCpp::Disabled => {
                             outcome.spells_disabled += 1;
+                            // C++ reaches `CastSpell` and lets `Spell::CheckCast`
+                            // reject the disabled spell, so BASE_ATTACK is still
+                            // consumed whenever the raw combat-range gate in
+                            // `DoSpellAttackIfReady` admitted the attempt.
+                            // Deciding that here would use the pre-tick legacy
+                            // position, so defer it to the canonical drain.
+                            pending_actions.push(
+                                PendingCreatureSpellActionLikeCpp::TurretRejectedAttempt(
+                                    TurretRejectedCastAttemptLikeCpp {
+                                        caster_guid: guid,
+                                        target_guid: recipient_guid,
+                                        map_id,
+                                        instance_id,
+                                        engagement_epoch: creature
+                                            .creature_spell_engagement_epoch_like_cpp(),
+                                        spell_id,
+                                        difficulty_id,
+                                    },
+                                ),
+                            );
                             continue;
                         }
                         CreatureSpellDisableDecisionLikeCpp::ContextUnrepresented => {
@@ -63558,6 +63645,20 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
                 creature.schedule_creature_spell_slot_after_like_cpp(schedule.slot, delay);
                 continue;
             }
+            PendingCreatureSpellActionLikeCpp::TurretRejectedAttempt(attempt) => {
+                let Some(canonical_map_manager) = canonical_map_manager else {
+                    continue;
+                };
+                if apply_turret_rejected_cast_attempt_like_cpp(
+                    canonical_map_manager,
+                    legacy_map_manager,
+                    &attempt,
+                    config,
+                ) {
+                    outcome.turret_rejected_attempt_swings += 1;
+                }
+                continue;
+            }
             PendingCreatureSpellActionLikeCpp::Cast(pending_cast) => pending_cast,
         };
         let Some(canonical_map_manager) = canonical_map_manager else {
@@ -63613,6 +63714,11 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
                 outcome.casts_ready = outcome.casts_ready.saturating_sub(1);
                 continue;
             }
+            CreatureSpellCastValidationResultLikeCpp::CasterIncarnationRejected => {
+                outcome.caster_incarnation_rejections += 1;
+                outcome.casts_ready = outcome.casts_ready.saturating_sub(1);
+                continue;
+            }
             CreatureSpellCastValidationResultLikeCpp::RuntimeRngAuthorityRejected => {
                 outcome.runtime_rng_authority_rejections += 1;
                 outcome.casts_ready = outcome.casts_ready.saturating_sub(1);
@@ -63633,6 +63739,7 @@ enum CreatureSpellCastValidationResultLikeCpp {
     CooldownRejected,
     HitResultUnrepresented,
     RuntimeRngAuthorityRejected,
+    CasterIncarnationRejected,
 }
 
 #[cfg(test)]
@@ -63743,6 +63850,118 @@ fn creature_spell_target_is_valid_attack_target_like_cpp(
     wow_entities::Unit::is_valid_attack_target_represented_like_cpp(&context)
 }
 
+/// Resolve the effective `SpellRange` row C++ `Spell::GetMinMaxRange` reads.
+///
+/// C++ walks the difficulty-specific `SpellMisc.RangeIndex` into
+/// `sSpellRangeStore`, whose rows already carry official/custom SQL overlays
+/// and the final `hotfix_data` removals. Both the cast-time range gate and the
+/// TurretAI attempt gate must read that same authority or a hotfixed range
+/// silently applies to one of them only.
+fn creature_ai_effective_spell_range_like_cpp<'a>(
+    spell_id: u32,
+    difficulty_id: u8,
+    config: &'a LegacyCreatureAggroConfigLikeCpp,
+) -> Option<&'a wow_data::SpellRangeEntry> {
+    let misc = config
+        .spell_misc_store
+        .as_ref()?
+        .entry_for_spell_difficulty_with_fallback_like_cpp(
+            spell_id,
+            difficulty_id,
+            config.difficulty_store.as_deref(),
+        )?;
+    config
+        .spell_range_store
+        .as_ref()?
+        .get(u32::from(misc.range_index))
+}
+
+/// A TurretAI cast attempt that a represented `Spell::CheckCast` rejection
+/// stopped before any plan was built.
+struct TurretRejectedCastAttemptLikeCpp {
+    caster_guid: ObjectGuid,
+    target_guid: ObjectGuid,
+    map_id: u16,
+    instance_id: u32,
+    engagement_epoch: u64,
+    spell_id: u32,
+    difficulty_id: u8,
+}
+
+/// Consume the BASE_ATTACK swing of a TurretAI attempt C++ would have made.
+///
+/// C++ `UnitAI::DoSpellAttackIfReady` runs the strict
+/// `IsWithinCombatRange(GetMaxRange(false))` gate, then calls `CastSpell` and
+/// `resetAttackTimer` inside that branch. The reset therefore happens even when
+/// `Spell::CheckCast` rejects the cast — for a `disables` row, for instance —
+/// but never when the victim is out of that raw range or exactly on its bound.
+/// Returns whether the swing was consumed.
+fn apply_turret_rejected_cast_attempt_like_cpp(
+    canonical_map_manager: &SharedCanonicalMapManager,
+    legacy_map_manager: &crate::map_manager::SharedMapManager,
+    attempt: &TurretRejectedCastAttemptLikeCpp,
+    config: &LegacyCreatureAggroConfigLikeCpp,
+) -> bool {
+    let Ok(manager) = canonical_map_manager.lock() else {
+        return false;
+    };
+    // Same canonical -> legacy lock order the cast validation path uses.
+    let mut legacy_guard = legacy_map_manager
+        .write()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let Some(legacy_caster) =
+        legacy_guard.find_creature(attempt.map_id, attempt.instance_id, attempt.caster_guid)
+    else {
+        return false;
+    };
+    if !legacy_caster.is_alive()
+        || legacy_caster.state() != wow_entities::CreatureAiState::InCombat
+        || legacy_caster.creature.ai_ownership().combat_target != Some(attempt.target_guid)
+        || legacy_caster.creature_spell_engagement_epoch_like_cpp() != attempt.engagement_epoch
+    {
+        return false;
+    }
+    let Some(range) =
+        creature_ai_effective_spell_range_like_cpp(attempt.spell_id, attempt.difficulty_id, config)
+    else {
+        return false;
+    };
+    let Some(managed) = manager.find_map(u32::from(attempt.map_id), attempt.instance_id) else {
+        return false;
+    };
+    let within_raw_combat_range = {
+        let map = managed.map();
+        let Some(caster) = map.get_typed_creature(attempt.caster_guid) else {
+            return false;
+        };
+        let Some(victim) = map.get_typed_player(attempt.target_guid) else {
+            return false;
+        };
+        if !caster.unit().is_alive() || !victim.unit().is_alive() {
+            return false;
+        }
+        let reach_sum = caster.unit().world().combat_reach().max(0.0)
+            + victim.unit().world().combat_reach().max(0.0);
+        let turret_combat_maximum = range.range_max[0].max(0.0) + reach_sum;
+        let distance_sq = caster
+            .unit()
+            .world()
+            .position()
+            .distance_sq(&victim.unit().world().position());
+        distance_sq < turret_combat_maximum * turret_combat_maximum
+    };
+    if !within_raw_combat_range {
+        return false;
+    }
+    let Some(creature) =
+        legacy_guard.find_creature_mut(attempt.map_id, attempt.instance_id, attempt.caster_guid)
+    else {
+        return false;
+    };
+    creature.record_swing();
+    true
+}
+
 fn validate_and_append_creature_spell_cast_like_cpp(
     canonical_map_manager: &SharedCanonicalMapManager,
     legacy_map_manager: &crate::map_manager::SharedMapManager,
@@ -63777,6 +63996,15 @@ fn validate_and_append_creature_spell_cast_like_cpp(
     {
         return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
     }
+    // The planning phase read this creature before the canonical tick could
+    // replace it. Prove the live legacy creature is still that incarnation
+    // before any cooldown, timer or RNG state is consumed from it.
+    if !command
+        .caster_incarnation
+        .matches_like_cpp(&legacy_caster.creature)
+    {
+        return CreatureSpellCastValidationResultLikeCpp::CasterIncarnationRejected;
+    }
     let cooldown_now_ms = legacy_caster.now_ms();
     let cooldown_profile = u32::try_from(command.spell_id).ok().and_then(|spell_id| {
         creature_ai_spell_cooldown_profile_like_cpp(spell_id, difficulty_id, config)
@@ -63805,6 +64033,14 @@ fn validate_and_append_creature_spell_cast_like_cpp(
         let Some(caster) = map.get_typed_creature(command.caster_guid) else {
             return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
         };
+        // A canonical replacement can hold the same GUID as the legacy creature
+        // the plan was built from. Validating, starting cooldowns and publishing
+        // START/GO from it while the timers and RNG come from the stale legacy
+        // creature would mix two incarnations, so require the same identity here
+        // too.
+        if !command.caster_incarnation.matches_like_cpp(caster) {
+            return CreatureSpellCastValidationResultLikeCpp::CasterIncarnationRejected;
+        }
         let Some(victim) = map.get_typed_player(command.target_guid) else {
             return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
         };
@@ -63820,22 +64056,8 @@ fn validate_and_append_creature_spell_cast_like_cpp(
         let Some(spell_id_u32) = u32::try_from(command.spell_id).ok() else {
             return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
         };
-        let Some(range) = config
-            .spell_misc_store
-            .as_ref()
-            .and_then(|store| {
-                store.entry_for_spell_difficulty_with_fallback_like_cpp(
-                    spell_id_u32,
-                    difficulty_id,
-                    config.difficulty_store.as_deref(),
-                )
-            })
-            .and_then(|misc| {
-                config
-                    .spell_range_store
-                    .as_ref()
-                    .and_then(|store| store.get(u32::from(misc.range_index)))
-            })
+        let Some(range) =
+            creature_ai_effective_spell_range_like_cpp(spell_id_u32, difficulty_id, config)
         else {
             return CreatureSpellCastValidationResultLikeCpp::OutOfRange;
         };
@@ -65175,7 +65397,7 @@ impl WorldSession {
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
                 .terrain()
         });
-        let visible_guids = self.client_visible_guids_like_cpp.clone();
+        let visible_guids = self.client_visible_guids_like_cpp.snapshot_like_cpp();
         let player_position = self.player_position_like_cpp();
         let player_map_id = u32::from(self.player_map_id_like_cpp());
         let player_instance_id = self
@@ -65210,7 +65432,7 @@ impl WorldSession {
                 if !Self::creature_message_to_set_target_allows_like_cpp(
                     guid,
                     creature,
-                    &visible_guids,
+                    visible_guids.contains(&guid),
                     player_map_id,
                     player_instance_id,
                     &player_position,
@@ -87440,8 +87662,8 @@ mod tests {
 
         let summoned_guid = session
             .client_visible_guids_like_cpp
-            .iter()
-            .copied()
+            .snapshot_like_cpp()
+            .into_iter()
             .find(ObjectGuid::is_game_object)
             .expect("force visibility should make the newly summoned GameObject visible");
         let manager = canonical.lock().unwrap();
@@ -87510,8 +87732,8 @@ mod tests {
 
         let summoned_guid = session
             .client_visible_guids_like_cpp
-            .iter()
-            .copied()
+            .snapshot_like_cpp()
+            .into_iter()
             .find(ObjectGuid::is_game_object)
             .expect("force visibility should make the newly slotted GameObject visible");
         let manager = canonical.lock().unwrap();
@@ -87654,8 +87876,8 @@ mod tests {
         let managed = manager.find_map(571, 0).expect("canonical map");
         let summoned_guid = session
             .client_visible_guids_like_cpp
-            .iter()
-            .copied()
+            .snapshot_like_cpp()
+            .into_iter()
             .filter(ObjectGuid::is_game_object)
             .find(|guid| {
                 managed
@@ -87741,8 +87963,8 @@ mod tests {
         let managed = manager.find_map(571, 0).expect("canonical map");
         let summoned_guid = session
             .client_visible_guids_like_cpp
-            .iter()
-            .copied()
+            .snapshot_like_cpp()
+            .into_iter()
             .filter(ObjectGuid::is_game_object)
             .find(|guid| {
                 managed
@@ -87820,8 +88042,8 @@ mod tests {
         let managed = manager.find_map(571, 0).expect("canonical map");
         let summoned_guid = session
             .client_visible_guids_like_cpp
-            .iter()
-            .copied()
+            .snapshot_like_cpp()
+            .into_iter()
             .filter(ObjectGuid::is_game_object)
             .find(|guid| {
                 managed
@@ -87912,8 +88134,8 @@ mod tests {
         let managed = manager.find_map(571, 0).expect("canonical map");
         let summoned_guid = session
             .client_visible_guids_like_cpp
-            .iter()
-            .copied()
+            .snapshot_like_cpp()
+            .into_iter()
             .filter(ObjectGuid::is_game_object)
             .find(|guid| {
                 managed
@@ -88018,8 +88240,8 @@ mod tests {
         let managed = manager.find_map(571, 0).expect("canonical map");
         let summoned_guid = session
             .client_visible_guids_like_cpp
-            .iter()
-            .copied()
+            .snapshot_like_cpp()
+            .into_iter()
             .filter(ObjectGuid::is_game_object)
             .find(|guid| {
                 managed
@@ -88119,8 +88341,8 @@ mod tests {
         let managed = manager.find_map(571, 0).expect("canonical map");
         let summoned_guid = session
             .client_visible_guids_like_cpp
-            .iter()
-            .copied()
+            .snapshot_like_cpp()
+            .into_iter()
             .filter(ObjectGuid::is_game_object)
             .find(|guid| {
                 managed
@@ -88233,8 +88455,8 @@ mod tests {
         let managed = manager.find_map(571, 0).expect("canonical map");
         let summoned_guid = session
             .client_visible_guids_like_cpp
-            .iter()
-            .copied()
+            .snapshot_like_cpp()
+            .into_iter()
             .filter(ObjectGuid::is_game_object)
             .find(|guid| {
                 managed
@@ -88347,8 +88569,8 @@ mod tests {
         let managed = manager.find_map(571, 0).expect("canonical map");
         let summoned_guid = session
             .client_visible_guids_like_cpp
-            .iter()
-            .copied()
+            .snapshot_like_cpp()
+            .into_iter()
             .filter(ObjectGuid::is_game_object)
             .find(|guid| {
                 managed
@@ -88459,8 +88681,8 @@ mod tests {
         let managed = manager.find_map(571, 0).expect("canonical map");
         let summoned_guid = session
             .client_visible_guids_like_cpp
-            .iter()
-            .copied()
+            .snapshot_like_cpp()
+            .into_iter()
             .filter(ObjectGuid::is_game_object)
             .find(|guid| {
                 managed
@@ -88590,8 +88812,8 @@ mod tests {
         let managed = manager.find_map(571, 0).expect("canonical map");
         let summoned_guid = session
             .client_visible_guids_like_cpp
-            .iter()
-            .copied()
+            .snapshot_like_cpp()
+            .into_iter()
             .filter(ObjectGuid::is_game_object)
             .filter(|guid| {
                 *guid != near_target_guid && *guid != far_target_guid && *guid != wrong_entry_guid
@@ -88754,8 +88976,8 @@ mod tests {
         let managed = manager.find_map(571, 0).expect("canonical map");
         let summoned_guid = session
             .client_visible_guids_like_cpp
-            .iter()
-            .copied()
+            .snapshot_like_cpp()
+            .into_iter()
             .filter(ObjectGuid::is_game_object)
             .find(|guid| {
                 managed
@@ -88872,8 +89094,8 @@ mod tests {
         let managed = manager.find_map(571, 0).expect("canonical map");
         let summoned_guid = session
             .client_visible_guids_like_cpp
-            .iter()
-            .copied()
+            .snapshot_like_cpp()
+            .into_iter()
             .filter(ObjectGuid::is_game_object)
             .find(|guid| {
                 managed
@@ -88955,8 +89177,8 @@ mod tests {
         assert!(
             session
                 .client_visible_guids_like_cpp
-                .iter()
-                .copied()
+                .snapshot_like_cpp()
+                .into_iter()
                 .all(|guid| !guid.is_game_object()),
             "C++ TARGET_DEST_NEARBY_ENTRY must not fall back to a caster-based GameObject when no nearby target exists"
         );
@@ -89057,8 +89279,8 @@ mod tests {
         let managed = manager.find_map(571, 0).expect("canonical map");
         let summoned_guid = session
             .client_visible_guids_like_cpp
-            .iter()
-            .copied()
+            .snapshot_like_cpp()
+            .into_iter()
             .filter(ObjectGuid::is_game_object)
             .find(|guid| {
                 managed
@@ -89149,8 +89371,8 @@ mod tests {
         let managed = manager.find_map(571, 0).expect("canonical map");
         let summoned_guid = session
             .client_visible_guids_like_cpp
-            .iter()
-            .copied()
+            .snapshot_like_cpp()
+            .into_iter()
             .filter(ObjectGuid::is_game_object)
             .find(|guid| {
                 managed
@@ -90303,8 +90525,8 @@ mod tests {
         let managed = manager.find_map(571, 0).expect("canonical map");
         let summoned = session
             .client_visible_guids_like_cpp
-            .iter()
-            .copied()
+            .snapshot_like_cpp()
+            .into_iter()
             .filter(ObjectGuid::is_game_object)
             .find_map(|guid| managed.map().get_typed_game_object(guid))
             .expect("creature-cast summon should be visible");
@@ -90394,8 +90616,8 @@ mod tests {
         let managed = manager.find_map(571, 0).expect("canonical map");
         let summoned_guid = session
             .client_visible_guids_like_cpp
-            .iter()
-            .copied()
+            .snapshot_like_cpp()
+            .into_iter()
             .filter(ObjectGuid::is_game_object)
             .find(|guid| {
                 managed
@@ -90465,8 +90687,8 @@ mod tests {
         assert!(
             session
                 .client_visible_guids_like_cpp
-                .iter()
-                .copied()
+                .snapshot_like_cpp()
+                .into_iter()
                 .all(|guid| !guid.is_game_object()),
             "focus-required summons must not fabricate a caster-based GO without SearchSpellFocus or aura bypass"
         );
@@ -90594,8 +90816,8 @@ mod tests {
         let managed = manager.find_map(571, 0).expect("canonical map");
         let summoned_guid = session
             .client_visible_guids_like_cpp
-            .iter()
-            .copied()
+            .snapshot_like_cpp()
+            .into_iter()
             .filter(ObjectGuid::is_game_object)
             .find(|guid| {
                 managed
@@ -105557,6 +105779,24 @@ mod tests {
             .expect("registered test creature must remain available");
     }
 
+    /// Register a legacy creature the way production does: through a session
+    /// that already owns the canonical map manager.
+    ///
+    /// `register_world_creature` reconciles the legacy and canonical loot and
+    /// health-state authorities while mirroring, which is what makes the two
+    /// entities one incarnation. Cast and melee paths that prove that identity
+    /// need this fixture rather than two independently constructed creatures.
+    fn register_test_creature_mirrored_like_cpp(
+        session: &mut WorldSession,
+        manager: crate::map_manager::SharedMapManager,
+        canonical: &SharedCanonicalMapManager,
+        guid: ObjectGuid,
+        hp: u32,
+    ) {
+        session.set_canonical_map_manager(Arc::clone(canonical));
+        register_test_creature(session, manager, guid, hp);
+    }
+
     #[test]
     fn creature_create_stats_uses_spawn_curmana_when_health_regen_disabled_like_cpp() {
         let (mut session, _, _) = make_session();
@@ -107977,6 +108217,7 @@ mod tests {
             send_tx,
             command_tx,
             durable_creature_runtime_commands_like_cpp: Default::default(),
+            client_visible_guids_like_cpp: Default::default(),
             visibility_refresh_pending_like_cpp: Default::default(),
             durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),
@@ -159645,33 +159886,13 @@ mod tests {
         let canonical_victim_position = Position::new(41.0, 10.0, 0.0, 0.0);
 
         add_canonical_creature_spell_test_pair_like_cpp(&canonical, creature_guid, victim_guid);
-        {
-            let mut canonical = canonical.lock().unwrap();
-            let map = canonical.find_map_mut(0, 0).unwrap().map_mut();
-            map.relocate_map_object_like_cpp(creature_guid, canonical_position)
-                .unwrap();
-            map.relocate_map_object_like_cpp(victim_guid, canonical_victim_position)
-                .unwrap();
-            let caster = map.get_typed_creature_mut(creature_guid).unwrap();
-            caster
-                .unit_mut()
-                .world_mut()
-                .set_visibility_distance_override_like_cpp(
-                    wow_entities::VisibilityDistanceTypeLikeCpp::Large,
-                );
-            caster.unit_mut().set_max_health(5_000);
-            caster.unit_mut().set_health(4_321);
-            caster.set_power_type(PowerType::Rage);
-            caster.unit_mut().set_max_power(PowerType::Rage, 100);
-            caster.unit_mut().set_power(PowerType::Rage, 55);
-            caster.set_combat_log_stats_like_cpp(wow_entities::CreatureCombatLogStatsLikeCpp {
-                attack_power: 111,
-                ranged_attack_power: 222,
-                spell_power: 333,
-                armor: 444,
-            });
-        }
-        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        register_test_creature_mirrored_like_cpp(
+            &mut session,
+            manager.clone(),
+            &canonical,
+            creature_guid,
+            25,
+        );
         session
             .mutate_world_creature(creature_guid, |creature| {
                 assert_eq!(creature.position(), legacy_position);
@@ -159709,6 +159930,34 @@ mod tests {
                 creature.enter_combat(victim_guid);
             })
             .unwrap();
+        // Registration mirrors the legacy creature into the canonical map, so
+        // establish the diverging canonical commit snapshot afterwards.
+        {
+            let mut canonical = canonical.lock().unwrap();
+            let map = canonical.find_map_mut(0, 0).unwrap().map_mut();
+            map.relocate_map_object_like_cpp(creature_guid, canonical_position)
+                .unwrap();
+            map.relocate_map_object_like_cpp(victim_guid, canonical_victim_position)
+                .unwrap();
+            let caster = map.get_typed_creature_mut(creature_guid).unwrap();
+            caster
+                .unit_mut()
+                .world_mut()
+                .set_visibility_distance_override_like_cpp(
+                    wow_entities::VisibilityDistanceTypeLikeCpp::Large,
+                );
+            caster.unit_mut().set_max_health(5_000);
+            caster.unit_mut().set_health(4_321);
+            caster.set_power_type(PowerType::Rage);
+            caster.unit_mut().set_max_power(PowerType::Rage, 100);
+            caster.unit_mut().set_power(PowerType::Rage, 55);
+            caster.set_combat_log_stats_like_cpp(wow_entities::CreatureCombatLogStatsLikeCpp {
+                attack_power: 111,
+                ranged_attack_power: 222,
+                spell_power: 333,
+                armor: 444,
+            });
+        }
         manager
             .write()
             .unwrap()
@@ -159957,7 +160206,13 @@ mod tests {
         let aggro_spell_id = 70_104_i32;
         let combat_spell_id = 70_105_i32;
         add_canonical_creature_spell_test_pair_like_cpp(&canonical, creature_guid, victim_guid);
-        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        register_test_creature_mirrored_like_cpp(
+            &mut session,
+            manager.clone(),
+            &canonical,
+            creature_guid,
+            25,
+        );
         session
             .mutate_world_creature(creature_guid, |creature| {
                 creature
@@ -160217,7 +160472,18 @@ mod tests {
         let spell_id = 70_212_i32;
         let category_id = 77_u32;
         add_canonical_creature_spell_test_pair_like_cpp(&canonical, creature_guid, victim_guid);
-        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        register_test_creature_mirrored_like_cpp(
+            &mut session,
+            manager.clone(),
+            &canonical,
+            creature_guid,
+            25,
+        );
+        // Registration establishes the shared incarnation exactly as production
+        // does. Detach the session mirror afterwards so the later legacy
+        // mutations in this test cannot overwrite the canonical spell history
+        // whose cooldown deadlines it asserts.
+        session.canonical_map_manager = None;
         session
             .mutate_world_creature(creature_guid, |creature| {
                 creature
@@ -160364,7 +160630,13 @@ mod tests {
         let spell_id = 70_001_i32;
         let canonical = shared_canonical_map_manager();
         add_canonical_creature_spell_test_pair_like_cpp(&canonical, creature_guid, victim_guid);
-        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        register_test_creature_mirrored_like_cpp(
+            &mut session,
+            manager.clone(),
+            &canonical,
+            creature_guid,
+            25,
+        );
         session
             .mutate_world_creature(creature_guid, |creature| {
                 creature
@@ -160534,7 +160806,13 @@ mod tests {
         let victim_guid = ObjectGuid::create_player(1, 91_301);
         let spell_id = 15_691_i32;
         add_canonical_creature_spell_test_pair_like_cpp(&canonical, creature_guid, victim_guid);
-        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        register_test_creature_mirrored_like_cpp(
+            &mut session,
+            manager.clone(),
+            &canonical,
+            creature_guid,
+            25,
+        );
         session
             .mutate_world_creature(creature_guid, |creature| {
                 creature
@@ -160671,6 +160949,157 @@ mod tests {
     }
 
     #[test]
+    fn legacy_creature_spell_tick_rejects_same_guid_caster_replacement_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+
+        // The canonical tick can replace a creature between the lifecycle and
+        // spell phases while the legacy map still holds the engaged one. The
+        // plan carries the incarnation it was captured from, so the replacement
+        // must neither cast nor mutate any state.
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let (mut session, _, _) = make_session();
+        let creature_guid = test_creature_guid(91_324);
+        let victim_guid = ObjectGuid::create_player(1, 91_325);
+        let spell_id = 15_691_i32;
+        add_canonical_creature_spell_test_pair_like_cpp(&canonical, creature_guid, victim_guid);
+        register_test_creature_mirrored_like_cpp(
+            &mut session,
+            manager.clone(),
+            &canonical,
+            creature_guid,
+            25,
+        );
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature
+                    .creature
+                    .set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
+                creature
+                    .creature
+                    .set_spell(0, u32::try_from(spell_id).unwrap());
+                creature.enter_combat(victim_guid);
+            })
+            .unwrap();
+        manager
+            .write()
+            .unwrap()
+            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+        let mut config = creature_ai_spell_test_config_like_cpp(
+            creature_ai_test_spell_info_like_cpp(spell_id, 6, 0),
+            false,
+            30.0,
+        );
+        Arc::get_mut(config.spell_store.as_mut().unwrap())
+            .unwrap()
+            .insert_spell_misc_attributes_like_cpp(
+                spell_id,
+                represented_creature_spell_test_attributes_like_cpp(false),
+            );
+
+        let initialized =
+            run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+        assert_eq!(initialized.schedules_initialized, 1);
+        assert_eq!(initialized.casts_ready, 0);
+        session
+            .mutate_world_creature(creature_guid, |creature| {
+                creature.backdate_runtime_clock_for_test(Duration::from_secs(60));
+                creature.creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+                assert!(creature.can_swing());
+            })
+            .unwrap();
+
+        let legacy_health_authority = manager
+            .read()
+            .unwrap()
+            .find_creature(0, 0, creature_guid)
+            .unwrap()
+            .creature
+            .unit()
+            .health_state_revision_authority_like_cpp();
+        let mut replacement = crate::map_manager::WorldCreature::new(
+            creature_guid,
+            9001,
+            Position::new(10.0, 10.0, 0.0, 0.0),
+            25,
+            80,
+            3,
+            5,
+            20.0,
+            1,
+            35,
+            0,
+            0,
+        )
+        .creature;
+        replacement.unit_mut().world_mut().set_map(0, 0).unwrap();
+        replacement
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .add_to_world();
+        replacement.unit_mut().set_faction(14);
+        replacement
+            .unit_mut()
+            .subsystems_mut()
+            .auras
+            .set_spell_cast_log_aura_authority_inert_like_cpp(true);
+        assert!(
+            !replacement
+                .unit()
+                .shares_health_state_revision_authority_like_cpp(&legacy_health_authority),
+            "the replacement must be a distinct incarnation"
+        );
+        canonical
+            .lock()
+            .unwrap()
+            .find_map_mut(0, 0)
+            .unwrap()
+            .map_mut()
+            .insert_map_object_record(
+                wow_entities::MapObjectRecord::new_creature(replacement).unwrap(),
+            )
+            .unwrap();
+
+        let rejected =
+            run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+
+        assert_eq!(
+            rejected.caster_incarnation_rejections, 1,
+            "spell tick outcome: {rejected:?}"
+        );
+        assert_eq!(rejected.casts_ready, 0);
+        assert_eq!(rejected.canonical_cast_preconditions_passed, 0);
+        assert_eq!(rejected.spell_hits, 0);
+        assert_eq!(rejected.spell_misses, 0);
+        assert!(rejected.plan.events.is_empty());
+        assert!(
+            canonical
+                .lock()
+                .unwrap()
+                .find_map(0, 0)
+                .unwrap()
+                .map()
+                .get_typed_creature(creature_guid)
+                .unwrap()
+                .unit()
+                .subsystems()
+                .spells
+                .history
+                .cooldown(spell_id as u32)
+                .is_none(),
+            "no cooldown may start on the replacement"
+        );
+        assert!(
+            session
+                .mutate_world_creature(creature_guid, |creature| creature.can_swing())
+                .unwrap(),
+            "the stale legacy creature keeps its swing because no cast happened"
+        );
+    }
+
+    #[test]
     fn legacy_combat_ai_no_melee_fixture_preserves_rng_until_due_15691_hit_like_cpp() {
         use crate::map_manager::RuntimeTickOwner;
 
@@ -160695,7 +161124,13 @@ mod tests {
                 .world_mut()
                 .relocate(Position::new(14.0, 10.0, 0.0, 0.0));
         }
-        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        register_test_creature_mirrored_like_cpp(
+            &mut session,
+            manager.clone(),
+            &canonical,
+            creature_guid,
+            25,
+        );
 
         let miss_threshold = creature_melee_spell_miss_threshold_3_3_5_like_cpp();
         assert_eq!(miss_threshold, 500);
@@ -160902,7 +161337,13 @@ mod tests {
             .unit_mut()
             .world_mut()
             .relocate(Position::new(100.0, 10.0, 0.0, 0.0));
-        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        register_test_creature_mirrored_like_cpp(
+            &mut session,
+            manager.clone(),
+            &canonical,
+            creature_guid,
+            25,
+        );
         session
             .mutate_world_creature(creature_guid, |creature| {
                 creature
@@ -160958,7 +161399,13 @@ mod tests {
         let victim_guid = ObjectGuid::create_player(1, 91_337);
         let spell_id = 70_209_i32;
         add_canonical_creature_spell_test_pair_like_cpp(&canonical, creature_guid, victim_guid);
-        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        register_test_creature_mirrored_like_cpp(
+            &mut session,
+            manager.clone(),
+            &canonical,
+            creature_guid,
+            25,
+        );
         session
             .mutate_world_creature(creature_guid, |creature| {
                 creature
@@ -161028,7 +161475,13 @@ mod tests {
         let victim_guid = ObjectGuid::create_player(1, 91_209);
         let spell_id = 70_007_i32;
         add_canonical_creature_spell_test_pair_like_cpp(&canonical, creature_guid, victim_guid);
-        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        register_test_creature_mirrored_like_cpp(
+            &mut session,
+            manager.clone(),
+            &canonical,
+            creature_guid,
+            25,
+        );
         session
             .mutate_world_creature(creature_guid, |creature| {
                 creature
@@ -161089,7 +161542,13 @@ mod tests {
         let victim_guid = ObjectGuid::create_player(1, 91_303);
         let spell_id = 70_101_i32;
         add_canonical_creature_spell_test_pair_like_cpp(&canonical, creature_guid, victim_guid);
-        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        register_test_creature_mirrored_like_cpp(
+            &mut session,
+            manager.clone(),
+            &canonical,
+            creature_guid,
+            25,
+        );
         session
             .mutate_world_creature(creature_guid, |creature| {
                 creature
@@ -161133,6 +161592,125 @@ mod tests {
     }
 
     #[test]
+    fn legacy_turret_ai_disabled_spell_resets_swing_only_inside_raw_range_like_cpp() {
+        use crate::map_manager::RuntimeTickOwner;
+
+        // C++ `DoSpellAttackIfReady` gates on `IsWithinCombatRange(max +
+        // combat reaches)` and only then calls `CastSpell`/`resetAttackTimer`.
+        // A `disables` row makes `Spell::CheckCast` reject the cast, so the
+        // swing is still consumed inside that raw range but never outside it.
+        const SPELL_ID: u32 = 70_141;
+        const RANGE_MAX: f32 = 5.0;
+        const COMBAT_REACH: f32 = 1.0;
+
+        let attempt = |victim_x: f32| {
+            let manager = shared_map_manager();
+            let canonical = shared_canonical_map_manager();
+            let (mut session, _, _) = make_session();
+            let creature_guid = test_creature_guid(91_312);
+            let victim_guid = ObjectGuid::create_player(1, 91_313);
+            add_canonical_creature_spell_test_pair_like_cpp(&canonical, creature_guid, victim_guid);
+            register_test_creature_mirrored_like_cpp(
+                &mut session,
+                manager.clone(),
+                &canonical,
+                creature_guid,
+                25,
+            );
+            session
+                .mutate_world_creature(creature_guid, |creature| {
+                    creature
+                        .creature
+                        .set_ai_identity_names_runtime_like_cpp("TurretAI", String::new());
+                    creature.creature.set_spell(0, SPELL_ID);
+                    creature.enter_combat(victim_guid);
+                    creature.creature.ai_ownership_mut().last_swing_ms = 0;
+                    creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+                    assert!(creature.can_swing());
+                })
+                .unwrap();
+            // Both registration and legacy mutation mirror into the canonical
+            // map, so pin the exact range inputs last.
+            {
+                let mut canonical = canonical.lock().unwrap();
+                let map = canonical.find_map_mut(0, 0).unwrap().map_mut();
+                let caster = map.get_typed_creature_mut(creature_guid).unwrap();
+                caster.unit_mut().world_mut().set_combat_reach(COMBAT_REACH);
+                let victim = map.get_typed_player_mut(victim_guid).unwrap();
+                victim.unit_mut().world_mut().set_combat_reach(COMBAT_REACH);
+                victim
+                    .unit_mut()
+                    .world_mut()
+                    .relocate(Position::new(victim_x, 10.0, 0.0, 0.0));
+            }
+            manager
+                .write()
+                .unwrap()
+                .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+            let mut config = creature_ai_spell_test_config_like_cpp(
+                creature_ai_test_spell_info_like_cpp(SPELL_ID as i32, 6, 0),
+                false,
+                RANGE_MAX,
+            );
+            config.spell_range_store = Some(Arc::new(wow_data::SpellRangeStore::from_entries([
+                spell_range_entry_like_cpp(71, 0.0, RANGE_MAX),
+            ])));
+            config.disable_mgr = Some(Arc::new(
+                wow_data::DisableMgrLikeCpp::from_rows_like_cpp(
+                    [wow_data::DisableDbRowLikeCpp {
+                        source_type: wow_data::DISABLE_TYPE_SPELL,
+                        entry: SPELL_ID,
+                        flags: wow_data::SPELL_DISABLE_CREATURE,
+                        params_0: String::new(),
+                        params_1: String::new(),
+                    }],
+                    wow_data::DisableMgrRefsLikeCpp::default(),
+                )
+                .0,
+            ));
+
+            let outcome =
+                run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+            let swing_ready = session
+                .mutate_world_creature(creature_guid, |creature| creature.can_swing())
+                .unwrap();
+            (outcome, swing_ready)
+        };
+
+        // Center distance 6 is strictly inside max 5 + reaches 1 + 1.
+        let (inside, swing_ready) = attempt(16.0);
+        assert_eq!(inside.spells_disabled, 1, "spell tick outcome: {inside:?}");
+        assert_eq!(inside.casts_ready, 0);
+        assert!(inside.plan.events.is_empty());
+        assert_eq!(inside.turret_rejected_attempt_swings, 1);
+        assert!(
+            !swing_ready,
+            "an in-range disabled spell still consumes the TurretAI swing"
+        );
+
+        // `IsWithinCombatRange` is strict, so the bound itself is out of range.
+        let (bound, swing_ready) = attempt(17.0);
+        assert_eq!(bound.spells_disabled, 1, "spell tick outcome: {bound:?}");
+        assert_eq!(bound.turret_rejected_attempt_swings, 0);
+        assert!(
+            swing_ready,
+            "the raw max + reaches bound itself must not reset BASE_ATTACK"
+        );
+
+        let (outside, swing_ready) = attempt(30.0);
+        assert_eq!(
+            outside.spells_disabled, 1,
+            "spell tick outcome: {outside:?}"
+        );
+        assert_eq!(outside.turret_rejected_attempt_swings, 0);
+        assert!(
+            swing_ready,
+            "an out-of-range disabled spell leaves BASE_ATTACK ready"
+        );
+    }
+
+    #[test]
     fn legacy_turret_ai_ignores_noninstant_spells_outside_slot_zero_like_cpp() {
         use crate::map_manager::RuntimeTickOwner;
 
@@ -161144,7 +161722,13 @@ mod tests {
         let turret_spell_id = 70_102_i32;
         let ignored_spell_id = 70_103_i32;
         add_canonical_creature_spell_test_pair_like_cpp(&canonical, creature_guid, victim_guid);
-        register_test_creature(&mut session, manager.clone(), creature_guid, 25);
+        register_test_creature_mirrored_like_cpp(
+            &mut session,
+            manager.clone(),
+            &canonical,
+            creature_guid,
+            25,
+        );
         session
             .mutate_world_creature(creature_guid, |creature| {
                 creature

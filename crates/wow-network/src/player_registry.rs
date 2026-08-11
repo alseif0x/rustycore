@@ -25,6 +25,93 @@ use wow_packet::packets::party::{
 };
 use wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate;
 
+/// C++ `Player::m_clientGUIDs` held behind a shared handle.
+///
+/// The owning session is the only writer, but recipient selection for durable
+/// fan-out runs on the map tick, which has no access to session-local state.
+/// Publishing the membership through the player registry lets a producer commit
+/// the recipient decision at the moment the message is resolved instead of
+/// re-deriving it from mutable state when the receiving session drains.
+#[derive(Clone, Default)]
+pub struct SharedClientVisibleGuidsLikeCpp {
+    inner: Arc<std::sync::RwLock<HashSet<ObjectGuid>>>,
+}
+
+impl SharedClientVisibleGuidsLikeCpp {
+    fn read_like_cpp(&self) -> std::sync::RwLockReadGuard<'_, HashSet<ObjectGuid>> {
+        self.inner
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    fn write_like_cpp(&self) -> std::sync::RwLockWriteGuard<'_, HashSet<ObjectGuid>> {
+        self.inner
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    pub fn insert(&self, guid: ObjectGuid) -> bool {
+        self.write_like_cpp().insert(guid)
+    }
+
+    pub fn remove(&self, guid: &ObjectGuid) -> bool {
+        self.write_like_cpp().remove(guid)
+    }
+
+    pub fn contains(&self, guid: &ObjectGuid) -> bool {
+        self.read_like_cpp().contains(guid)
+    }
+
+    pub fn len(&self) -> usize {
+        self.read_like_cpp().len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.read_like_cpp().is_empty()
+    }
+
+    pub fn clear(&self) {
+        self.write_like_cpp().clear();
+    }
+
+    pub fn retain(&self, mut keep: impl FnMut(&ObjectGuid) -> bool) {
+        self.write_like_cpp().retain(|guid| keep(guid));
+    }
+
+    pub fn extend(&self, guids: impl IntoIterator<Item = ObjectGuid>) {
+        self.write_like_cpp().extend(guids);
+    }
+
+    /// Copy the current membership. Callers that need to iterate must take this
+    /// snapshot rather than hold the lock across session work.
+    pub fn snapshot_like_cpp(&self) -> HashSet<ObjectGuid> {
+        self.read_like_cpp().clone()
+    }
+
+    /// Whether both handles are the same allocation, and therefore the same
+    /// session incarnation. A relogin or a replaced session builds a new set,
+    /// so a command committed against the previous one cannot be honored.
+    pub fn shares_storage_like_cpp(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.inner, &other.inner)
+    }
+}
+
+impl PartialEq for SharedClientVisibleGuidsLikeCpp {
+    fn eq(&self, other: &Self) -> bool {
+        self.shares_storage_like_cpp(other)
+    }
+}
+
+impl Eq for SharedClientVisibleGuidsLikeCpp {}
+
+impl std::fmt::Debug for SharedClientVisibleGuidsLikeCpp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SharedClientVisibleGuidsLikeCpp")
+            .field("len", &self.len())
+            .finish()
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum SessionCommand {
     KickLikeCpp(KickLikeCppCommand),
@@ -393,6 +480,14 @@ pub struct SendCreatureSpellCastIfVisibleLikeCppCommand {
     pub start_packet_bytes: Vec<u8>,
     pub basic_go_packet_bytes: Vec<u8>,
     pub full_go_packet_bytes: Vec<u8>,
+    /// The visibility membership this recipient decision was committed against.
+    ///
+    /// C++ picks recipients synchronously inside `SendSpellGo`, so the answer
+    /// belongs to the moment the cast resolved. Carrying the producer's handle
+    /// lets the receiving session honor that decision instead of re-deriving it
+    /// from a `HaveAtClient` set that has moved on, while still proving the
+    /// command belongs to this session incarnation.
+    pub committed_visibility_like_cpp: SharedClientVisibleGuidsLikeCpp,
 }
 
 /// Carries C++ `WorldSession::DoLootRelease`'s forced creature DynamicFlags
@@ -1059,6 +1154,12 @@ pub struct PlayerBroadcastInfo {
     /// Durable FIFO rail for authoritative creature combat transitions.
     pub durable_creature_runtime_commands_like_cpp:
         Arc<Mutex<DurableCreatureRuntimeCommandsLikeCpp>>,
+    /// Shared C++ `Player::m_clientGUIDs` membership for this session.
+    ///
+    /// Producers that must commit a recipient decision at the moment a message
+    /// is resolved read it here instead of leaving the receiving session to
+    /// re-derive visibility from state that moved on in the meantime.
+    pub client_visible_guids_like_cpp: SharedClientVisibleGuidsLikeCpp,
     /// Durable/coalesced equivalent of C++'s retained visibility notify bit.
     ///
     /// Senders set this before attempting the bounded command queue. The owning
@@ -1236,6 +1337,7 @@ mod tests {
             send_tx,
             command_tx,
             durable_creature_runtime_commands_like_cpp: Default::default(),
+            client_visible_guids_like_cpp: Default::default(),
             visibility_refresh_pending_like_cpp: Default::default(),
             durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),
@@ -1345,6 +1447,7 @@ mod tests {
             start_packet_bytes: vec![0x37, 0x2C, 0xAA],
             basic_go_packet_bytes: vec![0x36, 0x2C, 0xBB],
             full_go_packet_bytes: vec![0x36, 0x2C, 0xCC],
+            committed_visibility_like_cpp: SharedClientVisibleGuidsLikeCpp::default(),
         };
         let mut durable = DurableCreatureRuntimeCommandsLikeCpp::default();
 

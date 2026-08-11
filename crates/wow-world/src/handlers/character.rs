@@ -8979,9 +8979,9 @@ impl WorldSession {
 
             let removed_creatures: Vec<ObjectGuid> = self
                 .client_visible_guids_like_cpp
-                .iter()
+                .snapshot_like_cpp()
+                .into_iter()
                 .filter(|g| g.is_any_type_creature() && !new_visible_creatures.contains(g))
-                .copied()
                 .collect();
             if !removed_creatures.is_empty() {
                 debug!(
@@ -9004,9 +9004,9 @@ impl WorldSession {
                 }
                 let removed_gos: Vec<ObjectGuid> = self
                     .client_visible_guids_like_cpp
-                    .iter()
+                    .snapshot_like_cpp()
+                    .into_iter()
                     .filter(|g| g.is_game_object() && !new_visible_gos.contains(g))
-                    .copied()
                     .collect();
                 for guid in &removed_gos {
                     self.represented_gameobject_phase_shifts.remove(guid);
@@ -9038,9 +9038,9 @@ impl WorldSession {
                 }
                 let removed_dynamic_objects: Vec<ObjectGuid> = self
                     .client_visible_guids_like_cpp
-                    .iter()
+                    .snapshot_like_cpp()
+                    .into_iter()
                     .filter(|g| g.is_dynamic_object() && !new_visible_dynamic_objects.contains(g))
-                    .copied()
                     .collect();
 
                 if !removed_dynamic_objects.is_empty() {
@@ -9068,9 +9068,9 @@ impl WorldSession {
                 }
                 let removed_area_triggers: Vec<ObjectGuid> = self
                     .client_visible_guids_like_cpp
-                    .iter()
+                    .snapshot_like_cpp()
+                    .into_iter()
                     .filter(|g| g.is_area_trigger() && !new_visible_area_triggers.contains(g))
-                    .copied()
                     .collect();
 
                 if !removed_area_triggers.is_empty() {
@@ -9118,13 +9118,13 @@ impl WorldSession {
 
                 let removed_misc_objects: Vec<ObjectGuid> = self
                     .client_visible_guids_like_cpp
-                    .iter()
+                    .snapshot_like_cpp()
+                    .into_iter()
                     .filter(|guid| {
                         (guid.is_corpse() && !new_visible_corpses.contains(guid))
                             || (guid.is_scene_object() && !new_visible_scene_objects.contains(guid))
                             || (guid.is_conversation() && !new_visible_conversations.contains(guid))
                     })
-                    .copied()
                     .collect();
                 out_of_range_guids.extend(removed_misc_objects);
             }
@@ -9143,9 +9143,9 @@ impl WorldSession {
             }
             let removed_players: Vec<ObjectGuid> = self
                 .client_visible_guids_like_cpp
-                .iter()
+                .snapshot_like_cpp()
+                .into_iter()
                 .filter(|guid| guid.is_player() && !new_visible_players.contains(guid))
-                .copied()
                 .collect();
             out_of_range_guids.extend(removed_players);
 
@@ -9212,11 +9212,13 @@ impl WorldSession {
                 pos.x,
                 pos.y,
                 self.client_visible_guids_like_cpp
-                    .iter()
+                    .snapshot_like_cpp()
+                    .into_iter()
                     .filter(|guid| guid.is_any_type_creature())
                     .count(),
                 self.client_visible_guids_like_cpp
-                    .iter()
+                    .snapshot_like_cpp()
+                    .into_iter()
                     .filter(|guid| guid.is_game_object())
                     .count()
             );
@@ -9278,9 +9280,9 @@ impl WorldSession {
         // Creatures that left range → out-of-range
         let removed_creatures: Vec<ObjectGuid> = self
             .client_visible_guids_like_cpp
-            .iter()
+            .snapshot_like_cpp()
+            .into_iter()
             .filter(|g| g.is_any_type_creature() && !new_visible_creatures.contains(g))
-            .cloned()
             .collect();
 
         if !removed_creatures.is_empty() {
@@ -9539,9 +9541,9 @@ impl WorldSession {
 
         let removed_gos: Vec<ObjectGuid> = self
             .client_visible_guids_like_cpp
-            .iter()
+            .snapshot_like_cpp()
+            .into_iter()
             .filter(|g| g.is_game_object() && !new_visible_gos.contains(g))
-            .cloned()
             .collect();
         for guid in &removed_gos {
             self.represented_gameobject_phase_shifts.remove(guid);
@@ -9591,11 +9593,13 @@ impl WorldSession {
             pos.x,
             pos.y,
             self.client_visible_guids_like_cpp
-                .iter()
+                .snapshot_like_cpp()
+                .into_iter()
                 .filter(|guid| guid.is_any_type_creature())
                 .count(),
             self.client_visible_guids_like_cpp
-                .iter()
+                .snapshot_like_cpp()
+                .into_iter()
                 .filter(|guid| guid.is_game_object())
                 .count()
         );
@@ -15154,8 +15158,11 @@ impl WorldSession {
             self.account_id
         );
 
-        let visible_guids: Vec<ObjectGuid> =
-            self.client_visible_guids_like_cpp.iter().copied().collect();
+        let visible_guids: Vec<ObjectGuid> = self
+            .client_visible_guids_like_cpp
+            .snapshot_like_cpp()
+            .into_iter()
+            .collect();
         let statuses = self.collect_quest_giver_status_multiple_like_cpp(visible_guids);
         self.send_packet(&QuestGiverStatusMultiple { statuses });
     }

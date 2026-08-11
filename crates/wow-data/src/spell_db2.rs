@@ -1131,6 +1131,13 @@ impl SpellNameStore {
 }
 
 impl SpellPowerStore {
+    const HOTFIX_OVERLAY_SQL_LIKE_CPP: &'static str = concat!(
+        "SELECT ID, OrderIndex, ManaCost, ManaCostPerLevel, ManaPerSecond, ",
+        "PowerDisplayID, AltPowerBarID, PowerCostPct, PowerCostMaxPct, ",
+        "PowerPctPerSecond, PowerType, RequiredAuraSpellID, OptionalCost, SpellID ",
+        "FROM spell_power WHERE (`VerifiedBuild` > 0) = ?"
+    );
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SpellPower.db2", |_id, idx, r| {
             SpellPowerEntry {
@@ -1151,9 +1158,90 @@ impl SpellPowerStore {
             }
         })
     }
+
+    /// Load C++'s effective power-cost authority: DB2, official SQL, custom
+    /// SQL, then final `hotfix_data` tombstones.
+    pub async fn load_effective_like_cpp(
+        data_dir: &str,
+        locale: &str,
+        db: &HotfixDatabase,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) -> Result<Self> {
+        let mut store = Self::load(data_dir, locale)?;
+        for official in [true, false] {
+            let mut statement =
+                db.prepare(HotfixStatements::base(Self::HOTFIX_OVERLAY_SQL_LIKE_CPP));
+            statement.set_bool(0, official);
+            let mut result = db
+                .query(&statement)
+                .await
+                .context("failed to load SpellPower SQL overlay")?;
+            if result.is_empty() {
+                continue;
+            }
+            loop {
+                store.overlay_effective_row_like_cpp(SpellPowerEntry {
+                    id: result.try_read::<u32>(0).unwrap_or(0),
+                    order_index: result.try_read::<u8>(1).unwrap_or(0),
+                    mana_cost: result.try_read::<i32>(2).unwrap_or(0),
+                    mana_cost_per_level: result.try_read::<i32>(3).unwrap_or(0),
+                    mana_per_second: result.try_read::<i32>(4).unwrap_or(0),
+                    power_display_id: result.try_read::<u32>(5).unwrap_or(0),
+                    alt_power_bar_id: result.try_read::<i32>(6).unwrap_or(0),
+                    power_cost_pct: result.try_read::<f32>(7).unwrap_or(0.0),
+                    power_cost_max_pct: result.try_read::<f32>(8).unwrap_or(0.0),
+                    power_pct_per_second: result.try_read::<f32>(9).unwrap_or(0.0),
+                    power_type: result.try_read::<i8>(10).unwrap_or(0),
+                    required_aura_spell_id: result.try_read::<i32>(11).unwrap_or(0),
+                    optional_cost: result.try_read::<u32>(12).unwrap_or(0),
+                    spell_id: result.try_read::<u32>(13).unwrap_or(0),
+                });
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        let table_hash = store
+            .table_hash_like_cpp()
+            .context("SpellPower.db2 store is missing its WDC4 table hash")?;
+        store.apply_hotfix_removals_with_table_hash_like_cpp(table_hash, removals);
+        Ok(store)
+    }
+
+    fn overlay_effective_row_like_cpp(&mut self, entry: SpellPowerEntry) {
+        self.entries.insert(entry.id, entry);
+    }
+
+    fn apply_hotfix_removals_with_table_hash_like_cpp(
+        &mut self,
+        table_hash: u32,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) {
+        self.entries
+            .retain(|record_id, _| !removals.contains_like_cpp(table_hash, *record_id as i32));
+    }
+
+    /// Iterate effective rows in ascending record-ID order.
+    ///
+    /// C++ applies `SpellPower` rows while iterating its DB2 storage, whose
+    /// index is record-ID ordered. The Rust store is a `HashMap`, so callers
+    /// that fold several rows into one `SpellInfo` must impose that order
+    /// explicitly or a spell with multiple power rows resolves
+    /// non-deterministically.
+    pub fn entries_by_record_id_like_cpp(&self) -> Vec<&SpellPowerEntry> {
+        let mut entries: Vec<&SpellPowerEntry> = self.entries.values().collect();
+        entries.sort_by_key(|entry| entry.id);
+        entries
+    }
 }
 
 impl SpellPowerDifficultyStore {
+    const HOTFIX_OVERLAY_SQL_LIKE_CPP: &'static str = concat!(
+        "SELECT ID, DifficultyID, OrderIndex FROM spell_power_difficulty ",
+        "WHERE (`VerifiedBuild` > 0) = ?"
+    );
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(
             data_dir,
@@ -1165,6 +1253,58 @@ impl SpellPowerDifficultyStore {
                 order_index: r.get_field_u8(idx, 2),
             },
         )
+    }
+
+    /// Load C++'s effective power-difficulty authority: DB2, official SQL,
+    /// custom SQL, then final `hotfix_data` tombstones.
+    pub async fn load_effective_like_cpp(
+        data_dir: &str,
+        locale: &str,
+        db: &HotfixDatabase,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) -> Result<Self> {
+        let mut store = Self::load(data_dir, locale)?;
+        for official in [true, false] {
+            let mut statement =
+                db.prepare(HotfixStatements::base(Self::HOTFIX_OVERLAY_SQL_LIKE_CPP));
+            statement.set_bool(0, official);
+            let mut result = db
+                .query(&statement)
+                .await
+                .context("failed to load SpellPowerDifficulty SQL overlay")?;
+            if result.is_empty() {
+                continue;
+            }
+            loop {
+                store.overlay_effective_row_like_cpp(SpellPowerDifficultyEntry {
+                    id: result.try_read::<u32>(0).unwrap_or(0),
+                    difficulty_id: result.try_read::<u8>(1).unwrap_or(0),
+                    order_index: result.try_read::<u8>(2).unwrap_or(0),
+                });
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        let table_hash = store
+            .table_hash_like_cpp()
+            .context("SpellPowerDifficulty.db2 store is missing its WDC4 table hash")?;
+        store.apply_hotfix_removals_with_table_hash_like_cpp(table_hash, removals);
+        Ok(store)
+    }
+
+    fn overlay_effective_row_like_cpp(&mut self, entry: SpellPowerDifficultyEntry) {
+        self.entries.insert(entry.id, entry);
+    }
+
+    fn apply_hotfix_removals_with_table_hash_like_cpp(
+        &mut self,
+        table_hash: u32,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) {
+        self.entries
+            .retain(|record_id, _| !removals.contains_like_cpp(table_hash, *record_id as i32));
     }
 }
 
@@ -1255,6 +1395,12 @@ impl SpellRadiusStore {
 }
 
 impl SpellRangeStore {
+    const HOTFIX_OVERLAY_SQL_LIKE_CPP: &'static str = concat!(
+        "SELECT ID, DisplayName, DisplayNameShort, Flags, ",
+        "RangeMin1, RangeMin2, RangeMax1, RangeMax2 ",
+        "FROM spell_range WHERE (`VerifiedBuild` > 0) = ?"
+    );
+
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
         load_store(data_dir, locale, "SpellRange.db2", |id, idx, r| {
             SpellRangeEntry {
@@ -1266,6 +1412,67 @@ impl SpellRangeStore {
                 range_max: f32_array::<2>(r, idx, 4),
             }
         })
+    }
+
+    /// Load C++'s effective range authority: DB2, official SQL, custom SQL,
+    /// then final `hotfix_data` tombstones.
+    pub async fn load_effective_like_cpp(
+        data_dir: &str,
+        locale: &str,
+        db: &HotfixDatabase,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) -> Result<Self> {
+        let mut store = Self::load(data_dir, locale)?;
+        for official in [true, false] {
+            let mut statement =
+                db.prepare(HotfixStatements::base(Self::HOTFIX_OVERLAY_SQL_LIKE_CPP));
+            statement.set_bool(0, official);
+            let mut result = db
+                .query(&statement)
+                .await
+                .context("failed to load SpellRange SQL overlay")?;
+            if result.is_empty() {
+                continue;
+            }
+            loop {
+                store.overlay_effective_row_like_cpp(SpellRangeEntry {
+                    id: result.try_read::<u32>(0).unwrap_or(0),
+                    display_name: result.try_read::<String>(1).unwrap_or_default(),
+                    display_name_short: result.try_read::<String>(2).unwrap_or_default(),
+                    flags: result.try_read::<u8>(3).unwrap_or(0),
+                    range_min: [
+                        result.try_read::<f32>(4).unwrap_or(0.0),
+                        result.try_read::<f32>(5).unwrap_or(0.0),
+                    ],
+                    range_max: [
+                        result.try_read::<f32>(6).unwrap_or(0.0),
+                        result.try_read::<f32>(7).unwrap_or(0.0),
+                    ],
+                });
+                if !result.next_row() {
+                    break;
+                }
+            }
+        }
+
+        let table_hash = store
+            .table_hash_like_cpp()
+            .context("SpellRange.db2 store is missing its WDC4 table hash")?;
+        store.apply_hotfix_removals_with_table_hash_like_cpp(table_hash, removals);
+        Ok(store)
+    }
+
+    fn overlay_effective_row_like_cpp(&mut self, entry: SpellRangeEntry) {
+        self.entries.insert(entry.id, entry);
+    }
+
+    fn apply_hotfix_removals_with_table_hash_like_cpp(
+        &mut self,
+        table_hash: u32,
+        removals: &crate::Db2HotfixRemovalStoreLikeCpp,
+    ) {
+        self.entries
+            .retain(|record_id, _| !removals.contains_like_cpp(table_hash, *record_id as i32));
     }
 }
 
@@ -2498,6 +2705,103 @@ mod tests {
         assert_eq!(visuals.get(1), Some(&visual(1, 102, 50)));
         assert!(visuals.get(2).is_none());
         assert!(visuals.get(3).is_none());
+    }
+
+    #[test]
+    fn range_and_power_stores_overlay_then_apply_final_removals_like_cpp() {
+        let table_hash = 0xAABB_CCDD;
+        let removals = crate::Db2HotfixRemovalStoreLikeCpp::from_status_rows_like_cpp([
+            (table_hash, 2, 2),
+            (table_hash, 3, 2),
+        ]);
+
+        let range = |id, range_max| SpellRangeEntry {
+            id,
+            display_name: format!("range {id}"),
+            display_name_short: format!("r{id}"),
+            flags: 1,
+            range_min: [0.0, 0.0],
+            range_max: [range_max, range_max],
+        };
+        let mut ranges = SpellRangeStore::from_entries([range(1, 10.0), range(2, 20.0)]);
+        // Official overlay, then a custom overlay that must win, plus a custom
+        // row that the final tombstone pass has to drop again.
+        ranges.overlay_effective_row_like_cpp(range(1, 30.0));
+        ranges.overlay_effective_row_like_cpp(range(3, 40.0));
+        ranges.overlay_effective_row_like_cpp(range(1, 50.0));
+        ranges.apply_hotfix_removals_with_table_hash_like_cpp(table_hash, &removals);
+        assert_eq!(ranges.get(1), Some(&range(1, 50.0)));
+        assert!(ranges.get(2).is_none());
+        assert!(ranges.get(3).is_none());
+
+        let power = |id, spell_id, mana_cost| SpellPowerEntry {
+            id,
+            order_index: 0,
+            mana_cost,
+            mana_cost_per_level: 1,
+            mana_per_second: 2,
+            power_display_id: 3,
+            alt_power_bar_id: 4,
+            power_cost_pct: 5.0,
+            power_cost_max_pct: 6.0,
+            power_pct_per_second: 7.0,
+            power_type: 0,
+            required_aura_spell_id: 8,
+            optional_cost: 9,
+            spell_id,
+        };
+        let mut powers = SpellPowerStore::from_entries([power(1, 100, 0), power(2, 200, 20)]);
+        powers.overlay_effective_row_like_cpp(power(1, 100, 30));
+        powers.overlay_effective_row_like_cpp(power(3, 300, 40));
+        powers.overlay_effective_row_like_cpp(power(1, 100, 50));
+        powers.apply_hotfix_removals_with_table_hash_like_cpp(table_hash, &removals);
+        assert_eq!(powers.get(1), Some(&power(1, 100, 50)));
+        assert!(powers.get(2).is_none());
+        assert!(powers.get(3).is_none());
+
+        let difficulty = |id, order_index| SpellPowerDifficultyEntry {
+            id,
+            difficulty_id: 2,
+            order_index,
+        };
+        let mut difficulties =
+            SpellPowerDifficultyStore::from_entries([difficulty(1, 0), difficulty(2, 1)]);
+        difficulties.overlay_effective_row_like_cpp(difficulty(1, 3));
+        difficulties.overlay_effective_row_like_cpp(difficulty(3, 4));
+        difficulties.overlay_effective_row_like_cpp(difficulty(1, 5));
+        difficulties.apply_hotfix_removals_with_table_hash_like_cpp(table_hash, &removals);
+        assert_eq!(difficulties.get(1), Some(&difficulty(1, 5)));
+        assert!(difficulties.get(2).is_none());
+        assert!(difficulties.get(3).is_none());
+    }
+
+    #[test]
+    fn spell_power_effective_rows_iterate_in_record_id_order_like_cpp() {
+        let power = |id, spell_id| SpellPowerEntry {
+            id,
+            order_index: 0,
+            mana_cost: id as i32,
+            mana_cost_per_level: 0,
+            mana_per_second: 0,
+            power_display_id: 0,
+            alt_power_bar_id: 0,
+            power_cost_pct: 0.0,
+            power_cost_max_pct: 0.0,
+            power_pct_per_second: 0.0,
+            power_type: 0,
+            required_aura_spell_id: 0,
+            optional_cost: 0,
+            spell_id,
+        };
+        let store = SpellPowerStore::from_entries([power(30, 100), power(10, 100), power(20, 100)]);
+        assert_eq!(
+            store
+                .entries_by_record_id_like_cpp()
+                .into_iter()
+                .map(|entry| entry.id)
+                .collect::<Vec<_>>(),
+            vec![10, 20, 30]
+        );
     }
 
     #[test]

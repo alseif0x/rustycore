@@ -5207,14 +5207,30 @@ impl WorldSession {
         {
             return;
         }
-        if !self.send_if_visible_like_cpp_gate_passes_like_cpp(
-            command.queued_at,
-            command.source_guid,
-            command.map_id,
-            command.instance_id,
-            &command.start_packet_bytes,
-            false,
-        ) {
+        // Recipient selection already happened where C++ performs it: inside the
+        // synchronous `SendSpellGo` fan-out, against this session's
+        // `HaveAtClient` set. Re-deriving it here from the drain-time set would
+        // drop a correctly committed pair after a visibility exit and deliver a
+        // stale cast to a viewer that only became visible afterwards. Validate
+        // that the command belongs to this session incarnation and that the
+        // session is still on the map it was committed for, then honor it.
+        if !self
+            .client_visible_guids_like_cpp
+            .shares_storage_like_cpp(&command.committed_visibility_like_cpp)
+        {
+            return;
+        }
+        if self.state() != crate::session::SessionState::LoggedIn {
+            return;
+        }
+        if self.player_map_id_like_cpp() != command.map_id {
+            return;
+        }
+        let session_instance_id = self
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        if session_instance_id != command.instance_id {
             return;
         }
 
@@ -13820,6 +13836,7 @@ mod tests {
 
     fn creature_spell_cast_command_like_cpp(
         source_guid: ObjectGuid,
+        committed_visibility_like_cpp: wow_network::SharedClientVisibleGuidsLikeCpp,
     ) -> SendCreatureSpellCastIfVisibleLikeCppCommand {
         let mut start_packet_bytes = (ServerOpcodes::SpellStart as u16).to_le_bytes().to_vec();
         start_packet_bytes.push(0xAA);
@@ -13835,13 +13852,17 @@ mod tests {
             start_packet_bytes,
             basic_go_packet_bytes,
             full_go_packet_bytes,
+            committed_visibility_like_cpp,
         }
     }
 
     #[tokio::test]
     async fn creature_spell_cast_command_sends_start_then_basic_go_after_one_gate_like_cpp() {
         let (mut session, send_rx, source_guid) = make_visible_creature_spell_session_like_cpp();
-        let command = creature_spell_cast_command_like_cpp(source_guid);
+        let command = creature_spell_cast_command_like_cpp(
+            source_guid,
+            session.client_visible_guids_like_cpp.clone(),
+        );
         let expected_start = command.start_packet_bytes.clone();
         let expected_go = command.basic_go_packet_bytes.clone();
         session
@@ -13863,7 +13884,10 @@ mod tests {
     #[tokio::test]
     async fn advanced_combat_logging_receives_full_creature_spell_go_like_cpp() {
         let (mut session, send_rx, source_guid) = make_visible_creature_spell_session_like_cpp();
-        let command = creature_spell_cast_command_like_cpp(source_guid);
+        let command = creature_spell_cast_command_like_cpp(
+            source_guid,
+            session.client_visible_guids_like_cpp.clone(),
+        );
         let expected_start = command.start_packet_bytes.clone();
         let expected_go = command.full_go_packet_bytes.clone();
         let rejected_basic = command.basic_go_packet_bytes.clone();
@@ -13884,6 +13908,70 @@ mod tests {
         assert_eq!(delivered_go, expected_go);
         assert_ne!(delivered_go, rejected_basic);
         assert!(send_rx.try_recv().is_err(), "no partial or extra frame");
+    }
+
+    #[tokio::test]
+    async fn creature_spell_cast_honors_commit_time_visibility_after_exit_like_cpp() {
+        // C++ picks recipients synchronously inside `SendSpellGo`, so a
+        // visibility exit between that commit and this drain cannot retract a
+        // pair the viewer was already selected for.
+        let (mut session, send_rx, source_guid) = make_visible_creature_spell_session_like_cpp();
+        let command = creature_spell_cast_command_like_cpp(
+            source_guid,
+            session.client_visible_guids_like_cpp.clone(),
+        );
+        let expected_start = command.start_packet_bytes.clone();
+        let expected_go = command.basic_go_packet_bytes.clone();
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::SendCreatureSpellCastIfVisibleLikeCpp(
+                command,
+            ))
+            .expect("atomic spell command queued");
+        assert!(
+            session.client_visible_guids_like_cpp.remove(&source_guid),
+            "the caster leaves the client's visible set before the drain"
+        );
+
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        assert_eq!(send_rx.try_recv().expect("START frame"), expected_start);
+        assert_eq!(send_rx.try_recv().expect("GO frame"), expected_go);
+        assert!(send_rx.try_recv().is_err(), "no partial or extra frame");
+    }
+
+    #[tokio::test]
+    async fn creature_spell_cast_rejects_command_committed_for_another_session_like_cpp() {
+        // A replaced session owns a fresh `HaveAtClient` allocation, so a pair
+        // committed against the previous incarnation must not be delivered even
+        // when the caster is visible again.
+        let (mut session, send_rx, source_guid) = make_visible_creature_spell_session_like_cpp();
+        let previous_incarnation = wow_network::SharedClientVisibleGuidsLikeCpp::default();
+        previous_incarnation.insert(source_guid);
+        assert!(
+            !session
+                .client_visible_guids_like_cpp
+                .shares_storage_like_cpp(&previous_incarnation),
+            "the fixture models two distinct session incarnations"
+        );
+        let command = creature_spell_cast_command_like_cpp(source_guid, previous_incarnation);
+        session
+            .session_command_tx()
+            .try_send(SessionCommand::SendCreatureSpellCastIfVisibleLikeCpp(
+                command,
+            ))
+            .expect("atomic spell command queued");
+
+        session
+            .process_represented_session_commands_like_cpp()
+            .await;
+
+        assert!(
+            send_rx.try_recv().is_err(),
+            "a command committed for another incarnation delivers nothing"
+        );
     }
 
     #[test]
@@ -18322,6 +18410,7 @@ mod tests {
             send_tx,
             command_tx,
             durable_creature_runtime_commands_like_cpp: Default::default(),
+            client_visible_guids_like_cpp: Default::default(),
             visibility_refresh_pending_like_cpp: Default::default(),
             durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),

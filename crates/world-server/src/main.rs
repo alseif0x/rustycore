@@ -3520,8 +3520,14 @@ async fn main() -> Result<ExitCode> {
     );
     info!("Loaded {} spell radius rows", spell_radius_store.len());
     let spell_range_store = Arc::new(
-        wow_data::SpellRangeStore::load(&data_dir, &locale)
-            .context("Failed to load SpellRange.db2")?,
+        wow_data::SpellRangeStore::load_effective_like_cpp(
+            &data_dir,
+            &locale,
+            &hotfix_db,
+            &db2_hotfix_removals,
+        )
+        .await
+        .context("Failed to load effective SpellRange authority")?,
     );
     info!("Loaded {} spell range rows", spell_range_store.len());
     let serverside_spell_effect_outcome =
@@ -13815,6 +13821,9 @@ struct RuntimeDeliverySummaryLikeCpp {
     pub candidates_skipped_not_in_world: usize,
     /// Candidates rejected because they were out of distance range.
     pub candidates_skipped_distance: usize,
+    /// Candidates rejected because the source was not in their `HaveAtClient`
+    /// set at the moment the message was resolved.
+    pub candidates_skipped_not_visible: usize,
     /// `SelfOnly` events skipped (no broadcast; session delivers its own packets).
     pub self_only_skipped: usize,
     /// `try_send` calls that returned `Err` (channel full or disconnected).
@@ -14142,6 +14151,7 @@ fn resolve_runtime_event_candidates_like_cpp(
             let range_sq = range * range;
             struct Candidate {
                 durable: Arc<std::sync::Mutex<wow_network::DurableCreatureRuntimeCommandsLikeCpp>>,
+                committed_visibility_like_cpp: wow_network::SharedClientVisibleGuidsLikeCpp,
                 skip_reason: Option<DurableSpellCastSkipReason>,
             }
             enum DurableSpellCastSkipReason {
@@ -14149,6 +14159,7 @@ fn resolve_runtime_event_candidates_like_cpp(
                 WrongMap,
                 WrongInstance,
                 Distance,
+                NotVisible,
             }
             let candidates: Vec<Candidate> = registry
                 .iter()
@@ -14170,11 +14181,17 @@ fn resolve_runtime_event_candidates_like_cpp(
                         Some(DurableSpellCastSkipReason::WrongInstance)
                     } else if distance_sq > range_sq {
                         Some(DurableSpellCastSkipReason::Distance)
+                    } else if !info.client_visible_guids_like_cpp.contains(source_guid) {
+                        // C++ `MessageDistDeliverer` reads `HaveAtClient` while
+                        // `SendSpellGo` runs, so the recipient decision belongs
+                        // here and is committed into the queued command.
+                        Some(DurableSpellCastSkipReason::NotVisible)
                     } else {
                         None
                     };
                     Candidate {
                         durable: Arc::clone(&info.durable_creature_runtime_commands_like_cpp),
+                        committed_visibility_like_cpp: info.client_visible_guids_like_cpp.clone(),
                         skip_reason,
                     }
                 })
@@ -14198,6 +14215,10 @@ fn resolve_runtime_event_candidates_like_cpp(
                         summary.candidates_skipped_distance += 1;
                         continue;
                     }
+                    Some(DurableSpellCastSkipReason::NotVisible) => {
+                        summary.candidates_skipped_not_visible += 1;
+                        continue;
+                    }
                     None => {}
                 }
                 let command =
@@ -14209,6 +14230,7 @@ fn resolve_runtime_event_candidates_like_cpp(
                         start_packet_bytes: event.packet_bytes.clone(),
                         basic_go_packet_bytes: basic_go_packet_bytes.clone(),
                         full_go_packet_bytes: full_go_packet_bytes.clone(),
+                        committed_visibility_like_cpp: candidate.committed_visibility_like_cpp,
                     };
                 if candidate.durable.lock().is_ok_and(|mut durable| {
                     durable.publish_creature_spell_cast_if_visible_like_cpp(command)
@@ -15590,6 +15612,7 @@ mod tests {
             send_tx,
             command_tx,
             durable_creature_runtime_commands_like_cpp: Default::default(),
+            client_visible_guids_like_cpp: Default::default(),
             visibility_refresh_pending_like_cpp: Default::default(),
             durable_loot_money_tracker_like_cpp: Default::default(),
             active_loot_rolls: Vec::new(),
@@ -22286,6 +22309,7 @@ mmap.enablePathFinding = 0
                 send_tx,
                 command_tx,
                 durable_creature_runtime_commands_like_cpp: Default::default(),
+                client_visible_guids_like_cpp: Default::default(),
                 visibility_refresh_pending_like_cpp: Default::default(),
                 durable_loot_money_tracker_like_cpp: Default::default(),
                 active_loot_rolls: Vec::new(),
@@ -25998,6 +26022,12 @@ mmap.enablePathFinding = 0
             make_registry_player_like_cpp(571, 0, Position::ZERO, true);
         let (observer_info, _observer_command_rx) =
             make_registry_player_like_cpp(571, 0, Position::new(25.0, 0.0, 0.0, 0.0), true);
+        victim_info
+            .client_visible_guids_like_cpp
+            .insert(make_source_guid());
+        observer_info
+            .client_visible_guids_like_cpp
+            .insert(make_source_guid());
         registry.insert(victim_guid, victim_info);
         registry.insert(observer_guid, observer_info);
 
@@ -26056,6 +26086,14 @@ mmap.enablePathFinding = 0
             make_registry_player_like_cpp(571, 0, Position::ZERO, true);
         let (invisible_observer_info, _observer_command_rx) =
             make_registry_player_like_cpp(571, 0, Position::new(250.0, 0.0, 0.0, 0.0), true);
+        // Both viewers already have the caster at client; only range separates
+        // them here.
+        victim_info
+            .client_visible_guids_like_cpp
+            .insert(make_source_guid());
+        invisible_observer_info
+            .client_visible_guids_like_cpp
+            .insert(make_source_guid());
         registry.insert(victim_guid, victim_info);
         registry.insert(invisible_observer_guid, invisible_observer_info);
 
@@ -26083,6 +26121,48 @@ mmap.enablePathFinding = 0
         assert_eq!(cast.start_packet_bytes, start_bytes);
         assert_eq!(cast.basic_go_packet_bytes, basic_go_bytes);
         assert_eq!(cast.full_go_packet_bytes, full_go_bytes);
+    }
+
+    /// C++ selects recipients inside `SendSpellGo` from each viewer's
+    /// `HaveAtClient`, so a viewer that does not have the caster at client when
+    /// the cast resolves never gets a command — becoming visible afterwards
+    /// cannot deliver the older cast.
+    #[test]
+    fn creature_spell_plan_commits_have_at_client_at_resolution_like_cpp() {
+        let registry = PlayerRegistry::default();
+        let victim_guid = ObjectGuid::create_player(1, 84);
+        let unaware_guid = ObjectGuid::create_player(1, 85);
+        let (victim_info, _victim_command_rx) =
+            make_registry_player_like_cpp(571, 0, Position::ZERO, true);
+        let (unaware_info, _unaware_command_rx) =
+            make_registry_player_like_cpp(571, 0, Position::new(25.0, 0.0, 0.0, 0.0), true);
+        victim_info
+            .client_visible_guids_like_cpp
+            .insert(make_source_guid());
+        let unaware_visibility = unaware_info.client_visible_guids_like_cpp.clone();
+        registry.insert(victim_guid, victim_info);
+        registry.insert(unaware_guid, unaware_info);
+
+        let (plan, _start_bytes, _basic_go_bytes, _full_go_bytes) =
+            make_creature_spell_runtime_plan_like_cpp(victim_guid);
+        let plan_delivery = deliver_runtime_plan_like_cpp(&plan, &registry);
+
+        assert_eq!(plan_delivery.candidates_seen, 2);
+        assert_eq!(plan_delivery.candidates_queued, 1);
+        assert_eq!(plan_delivery.candidates_skipped_not_visible, 1);
+        assert_eq!(plan_delivery.candidates_skipped_distance, 0);
+
+        // The caster becoming visible after the cast resolved must not conjure a
+        // command that was never committed.
+        unaware_visibility.insert(make_source_guid());
+        assert!(
+            drain_durable_creature_runtime_commands_like_cpp(&registry, unaware_guid).is_empty(),
+            "a viewer that was not selected at commit time receives nothing"
+        );
+        assert_eq!(
+            drain_durable_creature_runtime_commands_like_cpp(&registry, victim_guid).len(),
+            1
+        );
     }
 
     /// (6) MapBroadcastVisible: enqueues all players on the same map/instance

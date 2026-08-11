@@ -6479,46 +6479,6 @@ impl SpellStore {
         }
     }
 
-    fn merge_spell_info_like_cpp(&mut self, mut incoming: SpellInfo) {
-        Self::hydrate_primary_effect_like_cpp(&mut incoming);
-        let entry = self
-            .spells
-            .entry(incoming.spell_id)
-            .or_insert_with(|| Self::empty_spell_info_like_cpp(incoming.spell_id));
-        entry.cast_time_ms = incoming.cast_time_ms;
-        entry.cooldown_ms = incoming.cooldown_ms;
-        entry.recovery_time_ms = incoming.recovery_time_ms;
-        entry.requires_spell_focus = incoming.requires_spell_focus;
-        entry.display_flags = incoming.display_flags;
-        if !incoming.power_costs.is_empty() {
-            entry.power_costs = incoming.power_costs;
-        }
-
-        let overlays_effects = !incoming.effects.is_empty();
-        if overlays_effects {
-            for hotfix_effect in incoming.effects {
-                entry
-                    .effects
-                    .retain(|effect| effect.effect_index != hotfix_effect.effect_index);
-                entry.effects.push(hotfix_effect);
-            }
-        }
-
-        Self::hydrate_primary_effect_like_cpp(entry);
-        if overlays_effects {
-            self.spell_effects_by_difficulty
-                .insert((entry.spell_id, 0), entry.effects.clone());
-        }
-    }
-
-    fn merge_spell_misc_attributes_like_cpp(&mut self, incoming: HashMap<i32, [u32; 15]>) {
-        for (spell_id, attributes) in incoming {
-            self.spell_misc_attributes.insert(spell_id, attributes);
-            self.spell_misc_attributes_by_difficulty
-                .insert((spell_id, 0), attributes);
-        }
-    }
-
     /// Load base spell data from DB2 and overlay SQL hotfix rows.
     ///
     /// C++ builds `SpellInfo` primarily from `sSpellEffectStore` and
@@ -6581,18 +6541,19 @@ impl SpellStore {
             info!("Loaded {hotfix_interrupt_rows} SpellInterrupts hotfix rows");
         }
 
-        let hotfix_store = Self::load(hotfix_db).await?;
-        for spell in hotfix_store.spells.into_values() {
-            store.merge_spell_info_like_cpp(spell);
-        }
-        store.merge_spell_misc_attributes_like_cpp(hotfix_store.spell_misc_attributes);
+        // C++ builds every SpellInfo field from the DB2 stores composed above,
+        // each of which already carries official/custom SQL overlays and the
+        // final `hotfix_data` tombstones. Re-merging a raw
+        // `hotfixes.spell_effect`/`spell_misc` query here would resurrect rows
+        // the tombstone pass just removed, so the remaining SQL-only column,
+        // `RequiresSpellFocus`, is hydrated from its own effective store below.
 
-        // [M0.1/#14] Join DB2 SpellCastTimes via SpellMisc.CastingTimeIndex AFTER the
-        // hotfix merge (the merge overwrites cast_time_ms). C++ sSpellCastTimesStore.
+        // [M0.1/#14] Join DB2 SpellCastTimes via SpellMisc.CastingTimeIndex.
+        // C++ sSpellCastTimesStore.
         let spell_cast_times_store = crate::spell_db2::SpellCastTimesStore::load(data_dir, locale)?;
         store.apply_db2_cast_times_like_cpp(&spell_misc_store, &spell_cast_times_store);
 
-        // [M0.1/#14] Join DB2 SpellCooldowns (per-spell cooldown), also after the merge.
+        // [M0.1/#14] Join DB2 SpellCooldowns (per-spell cooldown).
         let spell_cooldowns_store = crate::spell_db2::SpellCooldownsStore::load_effective_like_cpp(
             data_dir,
             locale,
@@ -6602,11 +6563,36 @@ impl SpellStore {
         .await?;
         store.apply_db2_cooldowns_like_cpp(&spell_cooldowns_store);
 
+        // C++ `SpellMgr::LoadSpellInfoStore` reads
+        // `SpellCastingRequirements::RequiresSpellFocus` from the same effective
+        // store the cast-time gates use.
+        let spell_casting_requirements_store =
+            crate::spell_db2::SpellCastingRequirementsStore::load_effective_like_cpp(
+                data_dir,
+                locale,
+                hotfix_db,
+                hotfix_removals,
+            )
+            .await?;
+        store.apply_db2_casting_requirements_like_cpp(&spell_casting_requirements_store);
+
         // [M0.1/#72] C++ SpellMgr loads SpellInfo::PowerCosts from
         // `sSpellPowerStore` after base SpellInfo construction.
-        let spell_power_store = crate::spell_db2::SpellPowerStore::load(data_dir, locale)?;
+        let spell_power_store = crate::spell_db2::SpellPowerStore::load_effective_like_cpp(
+            data_dir,
+            locale,
+            hotfix_db,
+            hotfix_removals,
+        )
+        .await?;
         let spell_power_difficulty_store =
-            crate::spell_db2::SpellPowerDifficultyStore::load(data_dir, locale)?;
+            crate::spell_db2::SpellPowerDifficultyStore::load_effective_like_cpp(
+                data_dir,
+                locale,
+                hotfix_db,
+                hotfix_removals,
+            )
+            .await?;
         store.apply_db2_power_costs_like_cpp(&spell_power_store, &spell_power_difficulty_store);
         store.apply_interrupt_flag_corrections_like_cpp();
 
@@ -7062,6 +7048,37 @@ impl SpellStore {
     /// Mirrors C++ `SpellMgr::LoadSpellInfoStore`, which stores
     /// `SpellPowerEntry` rows in `SpellInfo::PowerCosts` keyed by
     /// `SpellID`/difficulty/order (`SpellMgr.cpp:2550`, `DB2Stores.cpp:301`).
+    /// C++ `SpellMgr::LoadSpellInfoStore` copies
+    /// `SpellCastingRequirements::RequiresSpellFocus` into an already
+    /// constructed `SpellInfo`. It never creates a spell from this table, so a
+    /// requirements row for an unknown spell stays inert.
+    fn apply_db2_casting_requirements_like_cpp(
+        &mut self,
+        spell_casting_requirements_store: &crate::spell_db2::SpellCastingRequirementsStore,
+    ) {
+        // C++'s DB2 iteration assigns this DIFFICULTY_NONE slot in record-ID
+        // order, so a duplicated SpellID resolves to the highest record ID.
+        let mut effective_by_spell: HashMap<i32, (u32, u16)> = HashMap::new();
+        for entry in spell_casting_requirements_store.entries_like_cpp() {
+            effective_by_spell
+                .entry(entry.spell_id)
+                .and_modify(|current| {
+                    if entry.id > current.0 {
+                        *current = (entry.id, entry.requires_spell_focus);
+                    }
+                })
+                .or_insert((entry.id, entry.requires_spell_focus));
+        }
+
+        for spell in self.spells.values_mut() {
+            spell.requires_spell_focus = effective_by_spell
+                .get(&spell.spell_id)
+                .map_or(0, |(_, requires_spell_focus)| {
+                    u32::from(*requires_spell_focus)
+                });
+        }
+    }
+
     fn apply_db2_power_costs_like_cpp(
         &mut self,
         spell_power_store: &crate::spell_db2::SpellPowerStore,
@@ -7071,7 +7088,10 @@ impl SpellStore {
             spell.power_costs.clear();
         }
 
-        for power in spell_power_store.entries_like_cpp() {
+        // C++ walks `sSpellPowerStore` through its record-ID ordered index, so
+        // two rows that collide on the same spell and order index must resolve
+        // to the highest record ID rather than to a `HashMap` iteration order.
+        for power in spell_power_store.entries_by_record_id_like_cpp() {
             if power.spell_id == 0 {
                 continue;
             }
@@ -7114,135 +7134,6 @@ impl SpellStore {
             }
             spell.power_costs.sort_by_key(|entry| entry.order_index);
         }
-    }
-
-    /// Load spell data from hotfixes database.
-    ///
-    /// Queries `hotfixes.spell_misc` (cast time, cooldowns) and
-    /// `hotfixes.spell_effect` (effect type, damage/healing parameters).
-    ///
-    /// # Arguments
-    ///
-    /// * `db` - HotfixDatabase connection pool
-    ///
-    /// # Returns
-    ///
-    /// A populated SpellStore on success, or a database error on failure.
-    pub async fn load(db: &HotfixDatabase) -> Result<Self> {
-        let mut store = Self::new();
-
-        // Query spell_misc and spell_effect from hotfixes database
-        // NOTE: Phase 1 — cast_time_ms and cooldown_ms are hardcoded to 0 (instant).
-        // Phase 2+ will load from SpellCastTimes.dbc and SpellDuration.dbc using
-        // CastingTimeIndex and DurationIndex respectively.
-        let sql = r#"
-SELECT 
-    CAST(sm.ID AS SIGNED) as spell_id,
-    CAST(0 AS UNSIGNED) as cast_time_ms,
-    CAST(0 AS UNSIGNED) as cooldown_ms,
-    CAST(0 AS UNSIGNED) as recovery_time_ms,
-    CAST(COALESCE(se.Effect, 0) AS UNSIGNED) as effect_type,
-    CAST(COALESCE(se.EffectBasePoints, 0) AS SIGNED) as effect_base_points,
-    CAST(COALESCE(se.EffectBonusCoefficient, 0.0) AS DECIMAL(10,2)) as effect_bonus_coeff,
-    CAST(COALESCE(se.EffectAura, 0) AS SIGNED) as effect_aura,
-    CAST(COALESCE(se.EffectMiscValue1, 0) AS SIGNED) as effect_misc_value_1,
-    CAST(COALESCE(se.EffectMiscValue2, 0) AS SIGNED) as effect_misc_value_2,
-    CAST(COALESCE(se.EffectTriggerSpell, 0) AS SIGNED) as effect_trigger_spell,
-    CAST(COALESCE(se.EffectRadiusIndex1, 0) AS UNSIGNED) as effect_radius_index_1,
-    CAST(COALESCE(se.EffectPosFacing, 0.0) AS DECIMAL(10,4)) as position_facing,
-    CAST(COALESCE(se.EffectIndex, 0) AS UNSIGNED) as effect_index,
-    CAST(COALESCE(se.EffectChainTargets, 0) AS SIGNED) as effect_chain_targets,
-    CAST(COALESCE(se.ImplicitTarget1, 0) AS UNSIGNED) as implicit_target_1,
-    CAST(COALESCE(se.ImplicitTarget2, 0) AS UNSIGNED) as implicit_target_2,
-    CAST(COALESCE(scr.RequiresSpellFocus, 0) AS UNSIGNED) as requires_spell_focus,
-    CAST(COALESCE(se.EffectSpellClassMask1, 0) AS UNSIGNED) as effect_spell_class_mask_1,
-    CAST(COALESCE(se.EffectSpellClassMask2, 0) AS UNSIGNED) as effect_spell_class_mask_2,
-    CAST(COALESCE(se.EffectSpellClassMask3, 0) AS UNSIGNED) as effect_spell_class_mask_3,
-    CAST(COALESCE(se.EffectSpellClassMask4, 0) AS UNSIGNED) as effect_spell_class_mask_4,
-    CAST(COALESCE(se.EffectDieSides, 0) AS SIGNED) as effect_die_sides
-FROM hotfixes.spell_misc sm
-LEFT JOIN hotfixes.spell_effect se 
-    ON sm.ID = se.SpellID AND se.DifficultyID = 0
-LEFT JOIN hotfixes.spell_casting_requirements scr
-    ON sm.ID = scr.SpellID
-ORDER BY sm.ID, se.EffectIndex
-        "#;
-
-        let mut result = db.direct_query(sql).await?;
-
-        if !result.is_empty() {
-            loop {
-                let spell_id: i32 = result.read(0);
-                let cast_time_ms: u32 = result.read(1);
-                let cooldown_ms: u32 = result.read(2);
-                let recovery_time_ms: u32 = result.read(3);
-                let effect_type: u32 = result.try_read(4).unwrap_or(0);
-                let effect_base_points: i32 = result.try_read(5).unwrap_or(0);
-                let effect_bonus_coefficient: f32 = result.try_read(6).unwrap_or(0.0);
-                let aura_type: Option<i32> = result.try_read(7);
-                let effect_misc_value_1: i32 = result.try_read(8).unwrap_or(0);
-                let effect_misc_value_2: i32 = result.try_read(9).unwrap_or(0);
-                let effect_trigger_spell: i32 = result.try_read(10).unwrap_or(0);
-                let effect_radius_index_1: u32 = result.try_read(11).unwrap_or(0);
-                let position_facing: f32 = result.try_read(12).unwrap_or(0.0);
-                let effect_index: u32 = result.try_read(13).unwrap_or(0);
-                let effect_chain_targets: i32 = result.try_read(14).unwrap_or(0);
-                let implicit_target_1: u32 = result.try_read(15).unwrap_or(0);
-                let implicit_target_2: u32 = result.try_read(16).unwrap_or(0);
-                let requires_spell_focus: u32 = result.try_read(17).unwrap_or(0);
-                let effect_spell_class_mask = [
-                    result.try_read(18).unwrap_or(0),
-                    result.try_read(19).unwrap_or(0),
-                    result.try_read(20).unwrap_or(0),
-                    result.try_read(21).unwrap_or(0),
-                ];
-                let effect_die_sides: i32 = result.try_read(22).unwrap_or(0);
-
-                let spell_info = store.spells.entry(spell_id).or_insert_with(|| SpellInfo {
-                    spell_id,
-                    cast_time_ms,
-                    cooldown_ms,
-                    recovery_time_ms,
-                    effect_type,
-                    effect_base_points,
-                    effect_bonus_coefficient,
-                    aura_type,
-                    display_flags: 0,
-                    requires_spell_focus,
-                    power_costs: Vec::new(),
-                    effects: Vec::new(),
-                });
-
-                if effect_type != 0 {
-                    spell_info.effects.push(SpellEffectInfo {
-                        effect_index,
-                        effect: effect_type,
-                        effect_aura: aura_type.unwrap_or(0),
-                        effect_base_points,
-                        effect_die_sides,
-                        effect_spell_class_mask,
-                        effect_misc_value_1,
-                        effect_misc_value_2,
-                        effect_trigger_spell,
-                        effect_radius_index_1,
-                        position_facing,
-                        chain_targets: effect_chain_targets,
-                        implicit_target_1,
-                        implicit_target_2,
-                    });
-                }
-
-                if !result.next_row() {
-                    break;
-                }
-            }
-        }
-
-        info!(
-            "Loaded {} spells from hotfixes database",
-            store.spells.len()
-        );
-        Ok(store)
     }
 
     /// Look up a spell by ID.
@@ -7725,25 +7616,6 @@ mod tests {
         }
     }
 
-    fn test_effect_like_cpp(effect_index: u32, effect_aura: i32) -> SpellEffectInfo {
-        SpellEffectInfo {
-            effect_index,
-            effect: spell_effect_types::SPELL_EFFECT_APPLY_AURA,
-            effect_aura,
-            effect_base_points: 0,
-            effect_die_sides: 0,
-            effect_spell_class_mask: [0; 4],
-            effect_misc_value_1: 0,
-            effect_misc_value_2: 0,
-            effect_trigger_spell: 0,
-            effect_radius_index_1: 0,
-            position_facing: 0.0,
-            chain_targets: 0,
-            implicit_target_1: 0,
-            implicit_target_2: 0,
-        }
-    }
-
     #[test]
     fn primary_profession_spell_classifier_matches_cpp_root_and_rank_rules() {
         let skill_lines = crate::skill_talent::SkillLineStore::from_entries([
@@ -7952,24 +7824,121 @@ mod tests {
     }
 
     #[test]
-    fn hotfix_base_effect_replaces_difficulty_zero_lookup_like_cpp() {
-        let mut store = SpellStore::new();
-        let mut base = SpellStore::empty_spell_info_like_cpp(100);
-        base.effects
-            .push(test_effect_like_cpp(0, aura_types::SPELL_AURA_MOD_THREAT));
-        store.merge_spell_info_like_cpp(base);
+    fn effective_effect_store_is_the_only_difficulty_zero_effect_authority_like_cpp() {
+        let spell_id = 100u32;
+        let build = |effects: Vec<crate::spell_db2::SpellEffectDb2Entry>| {
+            SpellStore::from_spell_db2_stores_like_cpp(
+                &crate::spell_db2::SpellCategoriesStore::from_entries([]),
+                &crate::spell_db2::SpellMiscStore::from_entries([test_spell_misc_entry_like_cpp(
+                    1, spell_id, 0, 0,
+                )]),
+                &crate::spell_db2::SpellEffectDb2Store::from_entries(effects),
+                &crate::spell_db2::SpellShapeshiftStore::from_entries([]),
+            )
+        };
+        let effect = |id, effect_index, effect_aura: i32| {
+            let mut entry = test_spell_effect_db2_entry_like_cpp(
+                id,
+                spell_id,
+                0,
+                effect_index,
+                spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                0,
+            );
+            entry.effect_aura = effect_aura as i16;
+            entry
+        };
 
-        let mut hotfix = SpellStore::empty_spell_info_like_cpp(100);
-        hotfix
-            .effects
-            .push(test_effect_like_cpp(0, aura_types::SPELL_AURA_MOD_TAUNT));
-        store.merge_spell_info_like_cpp(hotfix);
+        let before_tombstone = build(vec![
+            effect(1, 0, aura_types::SPELL_AURA_MOD_THREAT),
+            effect(2, 1, aura_types::SPELL_AURA_MOD_TAUNT),
+        ]);
+        assert_eq!(
+            before_tombstone
+                .effects_for_difficulty_like_cpp(spell_id as i32, 0, None)
+                .expect("both effective rows")
+                .len(),
+            2
+        );
 
-        let effects = store
-            .effects_for_difficulty_like_cpp(100, 0, None)
-            .expect("hotfixed base effect");
+        // A final `hotfix_data` tombstone leaves the effective store without
+        // record 2. No other authority may reintroduce that effect index.
+        let after_tombstone = build(vec![effect(1, 0, aura_types::SPELL_AURA_MOD_THREAT)]);
+        let effects = after_tombstone
+            .effects_for_difficulty_like_cpp(spell_id as i32, 0, None)
+            .expect("surviving effective row");
         assert_eq!(effects.len(), 1);
-        assert_eq!(effects[0].effect_aura, aura_types::SPELL_AURA_MOD_TAUNT);
+        assert_eq!(effects[0].effect_index, 0);
+        assert_eq!(effects[0].effect_aura, aura_types::SPELL_AURA_MOD_THREAT);
+
+        let spell = after_tombstone
+            .get(spell_id as i32)
+            .expect("spell from effective SpellMisc");
+        assert_eq!(spell.effects.len(), 1);
+        assert_eq!(spell.aura_type, Some(aura_types::SPELL_AURA_MOD_THREAT));
+    }
+
+    #[test]
+    fn casting_requirements_hydrate_requires_spell_focus_from_effective_store_like_cpp() {
+        let requirements = |id, spell_id: i32, requires_spell_focus| {
+            crate::spell_db2::SpellCastingRequirementsEntry {
+                id,
+                spell_id,
+                facing_caster_flags: 0,
+                min_faction_id: 0,
+                min_reputation: 0,
+                required_areas_id: 0,
+                required_aura_vision: 0,
+                requires_spell_focus,
+            }
+        };
+        let build_spell_store = || {
+            SpellStore::from_spell_db2_stores_like_cpp(
+                &crate::spell_db2::SpellCategoriesStore::from_entries([]),
+                &crate::spell_db2::SpellMiscStore::from_entries([
+                    test_spell_misc_entry_like_cpp(1, 100, 0, 0),
+                    test_spell_misc_entry_like_cpp(2, 200, 0, 0),
+                ]),
+                &crate::spell_db2::SpellEffectDb2Store::from_entries([]),
+                &crate::spell_db2::SpellShapeshiftStore::from_entries([]),
+            )
+        };
+
+        let mut store = build_spell_store();
+        store.apply_db2_casting_requirements_like_cpp(
+            &crate::spell_db2::SpellCastingRequirementsStore::from_entries([
+                requirements(1, 100, 181),
+                // A malformed duplicate resolves to the highest record ID, the
+                // slot C++'s record-ID ordered DB2 iteration assigns last.
+                requirements(2, 100, 23),
+            ]),
+        );
+        assert_eq!(
+            store.get(100).map(|spell| spell.requires_spell_focus),
+            Some(23)
+        );
+        assert!(
+            store
+                .get(100)
+                .expect("spell 100")
+                .requires_spell_focus_like_cpp()
+        );
+        assert_eq!(
+            store.get(200).map(|spell| spell.requires_spell_focus),
+            Some(0),
+            "a spell without a requirements row keeps the C++ default"
+        );
+
+        // A final tombstone removes the only row, so the spell must fall back to
+        // zero instead of keeping a resurrected focus object.
+        let mut tombstoned = build_spell_store();
+        tombstoned.apply_db2_casting_requirements_like_cpp(
+            &crate::spell_db2::SpellCastingRequirementsStore::from_entries([]),
+        );
+        assert_eq!(
+            tombstoned.get(100).map(|spell| spell.requires_spell_focus),
+            Some(0)
+        );
     }
 
     #[test]
