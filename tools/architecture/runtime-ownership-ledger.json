@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "baseline_commit": "002d3d8795ad895ee2d639375b59f4b6ca38df67",
-  "curated_at": "2026-08-11",
-  "purpose": "Offline semantic ownership, mirror, clock, and retirement baseline for ARCH issue #181. This file records audited responsibility families; it does not infer runtime authority from line counts or names alone.",
+  "baseline_commit": "2d94ee51254ea4628c54ad15fa20d5342d1f2be7",
+  "curated_at": "2026-08-12",
+  "purpose": "Offline semantic ownership, mirror, clock, retirement, and exact persistence-boundary baseline through architecture issue #186.",
   "authorities": {
     "behavior": "C++ under /home/server/woltk-trinity-legacy and committed packet/runtime traces",
     "syntax": "Rust AST at baseline_commit",
@@ -239,7 +239,6 @@
         "mirror_direction": "Durable rows load into represented Session/Player state; committed application outcomes publish outward. Unknown commit reconciles from durable truth before publication.",
         "target_owner": "wow-session lifecycle orchestration over SQLx-free wow-persistence ports; wow-database remains the sole concrete SQLx/dialect adapter.",
         "cutover_issues": [
-          186,
           187,
           200,
           189,
@@ -1153,7 +1152,6 @@
           ],
           "owner": "world-server composition currently stores concrete adapters; wow-database owns their implementation.",
           "open_retirement_issues": [
-            186,
             187,
             200,
             169
@@ -1858,104 +1856,26 @@
     },
     "sql_pool_access": {
       "coverage_source": {
-        "scope": "workspace production and test Rust sources",
-        "discovery_rule": "AST imports/types/macros/calls that reference sqlx, concrete wow_database pools/rows/transactions, raw SQL construction, or direct pool access; split production/test/generated",
-        "default_entry": "unclassified_concrete_persistence_access"
+        "snapshot": "tools/architecture/persistence-access-snapshot.json",
+        "workflow_annotations": "tools/architecture/persistence-boundary-workflows.json",
+        "semantic_policy": "tools/architecture/persistence-boundary-policy.json",
+        "scope": "workspace production and test Rust lib/bin module graphs",
+        "discovery_rule": "Exact AST inventory of SQLx plus concrete wow-database types, statements, pools, transactions, raw/interpolated SQL, generated IDs, advisory locks, and escapes; production/test_fixture are disjoint and generated inputs are an orthogonal subset",
+        "coverage_rule": "Every exact row matches exactly one semantic group; unmatched, overlapping, stale groups, stale issue owners, identity drift, and multiplicity drift fail"
       },
       "entries": [
         {
-          "id": "database_adapter_core",
-          "path_prefixes": [
-            "crates/wow-database/src/"
-          ],
-          "owner": "wow-database is the reviewed concrete SQLx/dialect adapter owner.",
-          "open_retirement_issues": [
-            169,
-            186
-          ],
-          "retirement_condition": "This is a stable adapter boundary: retire only accidental non-adapter submodules; concrete SQLx remains confined here."
-        },
-        {
-          "id": "wow_world_concrete_persistence_leaks",
-          "path_prefixes": [
-            "crates/wow-world/src/"
-          ],
-          "owner": "wow-world application/handlers currently perform concrete SQLx/MySQL and wow-database work directly.",
-          "open_retirement_issues": [
-            186,
-            187,
-            189,
-            200,
-            169,
-            153
-          ],
-          "retirement_condition": "Production wow-world imports only typed wow-persistence capabilities/outcomes and contains no pool, row, raw SQL, SQLx transaction, or dialect error."
-        },
-        {
-          "id": "world_server_adapter_composition",
-          "path_prefixes": [
-            "crates/world-server/src/"
-          ],
-          "owner": "world-server composition currently constructs concrete adapters and also contains bootstrap/runtime queries that #186 must classify.",
+          "id": "exact_persistence_semantic_policy",
+          "owner": "persistence-boundary-workflows.json is the reviewed semantic authority; persistence-boundary-policy.json is its canonical generated projection over the exact snapshot.",
           "open_retirement_issues": [
             136,
-            186,
-            200,
-            169,
-            153
-          ],
-          "retirement_condition": "Concrete adapter construction remains in composition, while queries/workflows move behind wow-database adapters and typed ports before listeners start."
-        },
-        {
-          "id": "data_instance_and_map_leaks",
-          "path_prefixes": [
-            "crates/wow-data/src/",
-            "crates/wow-instances/src/",
-            "crates/wow-map/src/"
-          ],
-          "owner": "Current containing package; these are exceptions or suspected leaks, not approved domain ownership.",
-          "open_retirement_issues": [
-            186,
-            169,
-            153
-          ],
-          "retirement_condition": "Domain/runtime and immutable-data owners consume SQLx-free data-source/persistence ports; concrete adapter code is in wow-database."
-        },
-        {
-          "id": "authentication_composition_access",
-          "path_prefixes": [
-            "crates/bnet-server/src/"
-          ],
-          "owner": "bnet-server composition/auth application currently accesses concrete authentication persistence.",
-          "open_retirement_issues": [
-            169,
-            186,
-            153
-          ],
-          "retirement_condition": "Concrete adapter construction remains composition-owned and authentication workflows use a typed capability if #169 confirms this boundary is in scope."
-        },
-        {
-          "id": "test_only_concrete_persistence",
-          "cfg_any": [
-            "test"
-          ],
-          "owner": "Focused test fixture; it must exercise a real adapter contract and cannot justify a production leak.",
-          "open_retirement_issues": [
-            186,
+            153,
             187,
+            189,
+            199,
             200
           ],
-          "retirement_condition": "Tests use recording/conformance adapters where semantics permit; concrete pools remain only in adapter integration tests."
-        },
-        {
-          "id": "unclassified_concrete_persistence_access",
-          "path_prefixes": [],
-          "owner": "Unclassified containing module; direct infrastructure ownership is not inferred.",
-          "open_retirement_issues": [
-            186,
-            169
-          ],
-          "retirement_condition": "Every discovered site is classified as reviewed adapter/composition/test access or assigned to a concrete removal slice."
+          "retirement_condition": "Each non-stable group disappears with its typed capability migration; wow-database remains the sole stable concrete adapter boundary."
         }
       ]
     },
@@ -2157,7 +2077,7 @@
     },
     {
       "id": "persistence_syntax_is_not_behavioral_proof",
-      "detail": "The #181 AST snapshot freezes exact production and test-fixture persistence types, queries, transaction calls, macros and pool escapes. #186 owns classifying and retiring the concrete leaks; #187 owns statement, transaction, fence and publication-order goldens that syntax alone cannot prove."
+      "detail": "The #186 exact snapshot and zero-gap semantic policy ratchet concrete persistence ownership, logical databases and declared affinity/error constraints. Syntax still cannot prove runtime statement, transaction, fence or publication order; #187 owns executable behavior goldens."
     },
     {
       "id": "handler_snapshot_proves_wiring_not_semantics",

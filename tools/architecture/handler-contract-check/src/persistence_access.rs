@@ -32,7 +32,7 @@ use crate::ownership::{
     cfg_context_allows_production, cfg_context_allows_test, extend_cfg_context,
 };
 
-const PERSISTENCE_SCHEMA_VERSION: u32 = 2;
+const PERSISTENCE_SCHEMA_VERSION: u32 = 3;
 
 const QUERY_CONSTRUCTORS: &[&str] = &[
     "query",
@@ -54,6 +54,7 @@ const FLOW_PASSTHROUGH_METHODS: &[&str] = &[
     "expect",
     "inspect",
     "map",
+    "map_err",
     "ok_or",
     "ok_or_else",
     "or",
@@ -61,6 +62,8 @@ const FLOW_PASSTHROUGH_METHODS: &[&str] = &[
     "unwrap",
     "unwrap_or",
     "unwrap_or_else",
+    "context",
+    "with_context",
 ];
 
 const OPAQUE_PERSISTENCE_MACROS: &[&str] = &[
@@ -72,10 +75,13 @@ const OPAQUE_PERSISTENCE_MACROS: &[&str] = &[
     "debug_assert_eq",
     "debug_assert_ne",
     "error",
+    "ensure",
     "info",
     "matches",
+    "panic",
     "select",
     "trace",
+    "vec",
     "warn",
 ];
 
@@ -87,6 +93,27 @@ pub(crate) enum PersistenceTarget {
     MySqlPool,
     PgPool,
     DatabaseConnection,
+    SqlxTransaction,
+    Database,
+    LoginDatabase,
+    WorldDatabase,
+    CharacterDatabase,
+    HotfixDatabase,
+    LoginStatements,
+    WorldStatements,
+    CharStatements,
+    HotfixStatements,
+    PreparedStatement,
+    SqlParam,
+    SqlTransaction,
+    SqlTransactionCommitError,
+    SqlResult,
+    SqlFields,
+    SqlQueryHolder,
+    SqlQueryHolderResult,
+    StatementDef,
+    DatabaseError,
+    ItemGuidAllocatorAdvisoryLockLikeCpp,
 }
 
 impl PersistenceTarget {
@@ -96,6 +123,29 @@ impl PersistenceTarget {
             "MySqlPool" => Some(Self::MySqlPool),
             "PgPool" => Some(Self::PgPool),
             "DatabaseConnection" => Some(Self::DatabaseConnection),
+            "Transaction" => Some(Self::SqlxTransaction),
+            "Database" => Some(Self::Database),
+            "LoginDatabase" => Some(Self::LoginDatabase),
+            "WorldDatabase" => Some(Self::WorldDatabase),
+            "CharacterDatabase" => Some(Self::CharacterDatabase),
+            "HotfixDatabase" => Some(Self::HotfixDatabase),
+            "LoginStatements" => Some(Self::LoginStatements),
+            "WorldStatements" => Some(Self::WorldStatements),
+            "CharStatements" => Some(Self::CharStatements),
+            "HotfixStatements" => Some(Self::HotfixStatements),
+            "PreparedStatement" => Some(Self::PreparedStatement),
+            "SqlParam" => Some(Self::SqlParam),
+            "SqlTransaction" => Some(Self::SqlTransaction),
+            "SqlTransactionCommitError" => Some(Self::SqlTransactionCommitError),
+            "SqlResult" => Some(Self::SqlResult),
+            "SqlFields" => Some(Self::SqlFields),
+            "SqlQueryHolder" => Some(Self::SqlQueryHolder),
+            "SqlQueryHolderResult" => Some(Self::SqlQueryHolderResult),
+            "StatementDef" => Some(Self::StatementDef),
+            "DatabaseError" => Some(Self::DatabaseError),
+            "ItemGuidAllocatorAdvisoryLockLikeCpp" => {
+                Some(Self::ItemGuidAllocatorAdvisoryLockLikeCpp)
+            }
             _ => None,
         }
     }
@@ -106,11 +156,43 @@ impl PersistenceTarget {
             Self::MySqlPool => "MySqlPool",
             Self::PgPool => "PgPool",
             Self::DatabaseConnection => "DatabaseConnection",
+            Self::SqlxTransaction => "Transaction",
+            Self::Database => "Database",
+            Self::LoginDatabase => "LoginDatabase",
+            Self::WorldDatabase => "WorldDatabase",
+            Self::CharacterDatabase => "CharacterDatabase",
+            Self::HotfixDatabase => "HotfixDatabase",
+            Self::LoginStatements => "LoginStatements",
+            Self::WorldStatements => "WorldStatements",
+            Self::CharStatements => "CharStatements",
+            Self::HotfixStatements => "HotfixStatements",
+            Self::PreparedStatement => "PreparedStatement",
+            Self::SqlParam => "SqlParam",
+            Self::SqlTransaction => "SqlTransaction",
+            Self::SqlTransactionCommitError => "SqlTransactionCommitError",
+            Self::SqlResult => "SqlResult",
+            Self::SqlFields => "SqlFields",
+            Self::SqlQueryHolder => "SqlQueryHolder",
+            Self::SqlQueryHolderResult => "SqlQueryHolderResult",
+            Self::StatementDef => "StatementDef",
+            Self::DatabaseError => "DatabaseError",
+            Self::ItemGuidAllocatorAdvisoryLockLikeCpp => "ItemGuidAllocatorAdvisoryLockLikeCpp",
         }
     }
 
-    fn is_pool(self) -> bool {
-        !matches!(self, Self::Sqlx)
+    fn carries_persistence_flow(self) -> bool {
+        !matches!(
+            self,
+            Self::Sqlx
+                | Self::LoginStatements
+                | Self::WorldStatements
+                | Self::CharStatements
+                | Self::HotfixStatements
+                | Self::SqlParam
+                | Self::StatementDef
+                | Self::DatabaseError
+                | Self::SqlTransactionCommitError
+        )
     }
 }
 
@@ -137,6 +219,19 @@ pub(crate) enum PersistenceOperation {
     ArgumentEscape,
     ReturnEscape,
     StoreEscape,
+    PoolAccess,
+    PrepareStatement,
+    DirectQuery,
+    DirectExecute,
+    RawSql,
+    NonliteralSql,
+    InterpolatedSql,
+    TransactionAppend,
+    GeneratedIdRead,
+    AdvisoryLock,
+    DatabaseOpen,
+    TransactionConstruct,
+    StatementBuilder,
 }
 
 impl PersistenceOperation {
@@ -151,6 +246,25 @@ impl PersistenceOperation {
             "begin" => Some(Self::Begin),
             "commit" => Some(Self::Commit),
             "rollback" => Some(Self::Rollback),
+            "pool" => Some(Self::PoolAccess),
+            "prepare" => Some(Self::PrepareStatement),
+            "direct_query" => Some(Self::DirectQuery),
+            "direct_execute" => Some(Self::DirectExecute),
+            "commit_transaction" | "commit_with_outcome_like_cpp" => Some(Self::Commit),
+            "append" | "append_expect_rows_affected" | "execute_or_append" => {
+                Some(Self::TransactionAppend)
+            }
+            "append_raw_sql_like_cpp" | "raw_sql_like_cpp" => Some(Self::RawSql),
+            "last_insert_id" => Some(Self::GeneratedIdRead),
+            "acquire_like_cpp" | "release_like_cpp" | "wait_until_lost_like_cpp" => {
+                Some(Self::AdvisoryLock)
+            }
+            "open"
+            | "open_with_pool_size"
+            | "open_with_pool_size_and_auto_create_like_cpp"
+            | "from_pool" => Some(Self::DatabaseOpen),
+            "new" => Some(Self::TransactionConstruct),
+            "with_capacity_like_cpp" => Some(Self::StatementBuilder),
             _ => None,
         }
     }
@@ -172,6 +286,7 @@ pub(crate) struct PersistenceAccessRecord {
     pub(crate) visibility: String,
     pub(crate) cfg: Vec<String>,
     pub(crate) fingerprint: String,
+    pub(crate) generated_input: bool,
     pub(crate) count: usize,
 }
 
@@ -181,6 +296,15 @@ pub(crate) struct PersistenceAccessRecord {
 pub(crate) struct PersistenceAccessBaseline {
     pub(crate) schema_version: u32,
     pub(crate) accesses: Vec<PersistenceAccessRecord>,
+}
+
+impl Default for PersistenceAccessBaseline {
+    fn default() -> Self {
+        Self {
+            schema_version: PERSISTENCE_SCHEMA_VERSION,
+            accesses: Vec::new(),
+        }
+    }
 }
 
 /// One production/test source mount assigned to a runtime-ledger
@@ -211,6 +335,7 @@ struct AccessIdentity {
     visibility: String,
     cfg: Vec<String>,
     fingerprint: String,
+    generated_input: bool,
 }
 
 impl PersistenceAccessRecord {
@@ -228,6 +353,7 @@ impl PersistenceAccessRecord {
             visibility: self.visibility.clone(),
             cfg: self.cfg.clone(),
             fingerprint: self.fingerprint.clone(),
+            generated_input: self.generated_input,
         }
     }
 }
@@ -264,6 +390,7 @@ struct NewAccess<'a> {
     visibility: &'a str,
     cfg: &'a [String],
     fingerprint: String,
+    generated_input: bool,
 }
 
 #[derive(Default)]
@@ -296,6 +423,7 @@ impl AccessAccumulator {
             visibility: access.visibility.to_owned(),
             cfg: access.cfg.to_vec(),
             fingerprint: access.fingerprint,
+            generated_input: access.generated_input,
         };
         *self.rows.entry(identity).or_insert(0) += 1;
     }
@@ -319,6 +447,7 @@ impl AccessAccumulator {
                     visibility: identity.visibility,
                     cfg: identity.cfg,
                     fingerprint: identity.fingerprint,
+                    generated_input: identity.generated_input,
                     count,
                 })
                 .collect(),
@@ -384,6 +513,67 @@ fn canonical_method(method: &ExprMethodCall) -> String {
     )
 }
 
+fn sql_is_advisory_lock(fingerprint: &str) -> bool {
+    ["GET_LOCK", "RELEASE_LOCK", "IS_USED_LOCK"]
+        .iter()
+        .any(|needle| fingerprint.contains(needle))
+}
+
+fn sqlx_calls_in_tokens(tokens: TokenStream, output: &mut Vec<(String, String)>) {
+    let trees = tokens.into_iter().collect::<Vec<_>>();
+    let mut index = 0;
+    while index < trees.len() {
+        if let TokenTree::Group(group) = &trees[index] {
+            sqlx_calls_in_tokens(group.stream(), output);
+        }
+        let is_sqlx =
+            matches!(&trees[index], TokenTree::Ident(ident) if normalized_ident(ident) == "sqlx");
+        if is_sqlx && index + 3 < trees.len() {
+            let separator = matches!(&trees[index + 1], TokenTree::Punct(punct) if punct.as_char() == ':')
+                && matches!(&trees[index + 2], TokenTree::Punct(punct) if punct.as_char() == ':');
+            if separator && let TokenTree::Ident(callable) = &trees[index + 3] {
+                let callable = normalized_ident(callable);
+                if is_query_name(&callable) {
+                    let fingerprint = trees[index + 4..]
+                        .iter()
+                        .find_map(|token| match token {
+                            TokenTree::Group(group)
+                                if group.delimiter() == proc_macro2::Delimiter::Parenthesis =>
+                            {
+                                Some(format!("sqlx::{callable}({})", group.stream()))
+                            }
+                            _ => None,
+                        })
+                        .unwrap_or_else(|| format!("sqlx::{callable}(opaque-macro-arguments)"));
+                    output.push((callable, fingerprint));
+                }
+            }
+        }
+        index += 1;
+    }
+}
+
+fn persistence_methods_in_tokens(
+    tokens: TokenStream,
+    names: &BTreeSet<String>,
+    output: &mut Vec<String>,
+) {
+    let trees = tokens.into_iter().collect::<Vec<_>>();
+    for (index, token) in trees.iter().enumerate() {
+        if let TokenTree::Group(group) = token {
+            persistence_methods_in_tokens(group.stream(), names, output);
+        }
+        if matches!(token, TokenTree::Punct(punct) if punct.as_char() == '.')
+            && let Some(TokenTree::Ident(method)) = trees.get(index + 1)
+        {
+            let method = normalized_ident(method);
+            if names.contains(&method) {
+                output.push(method);
+            }
+        }
+    }
+}
+
 fn item_cfg(parent: &[String], attributes: &[Attribute]) -> Vec<String> {
     extend_cfg_context(parent, attributes)
 }
@@ -433,7 +623,7 @@ impl Flow {
             targets
                 .iter()
                 .copied()
-                .filter(|target| target.is_pool())
+                .filter(|target| target.carries_persistence_flow())
                 .map(|target| (target, FlowStage::Pool))
                 .collect(),
         )
@@ -480,9 +670,18 @@ impl Flow {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+enum SqlExpressionKind {
+    #[default]
+    Static,
+    Nonliteral,
+    Interpolated,
+}
+
 #[derive(Clone, Debug, Default)]
 struct VariableInfo {
     flow: Flow,
+    sql_expression: SqlExpressionKind,
 }
 
 #[derive(Clone, Debug)]
@@ -516,8 +715,74 @@ impl Default for ModuleSymbols {
     }
 }
 
+impl ModuleSymbols {
+    fn for_package(package: &str) -> Self {
+        let mut symbols = Self::default();
+        if package == "wow-database" {
+            symbols.database_namespaces.insert("crate".to_owned());
+            for target in [
+                PersistenceTarget::Database,
+                PersistenceTarget::LoginDatabase,
+                PersistenceTarget::WorldDatabase,
+                PersistenceTarget::CharacterDatabase,
+                PersistenceTarget::HotfixDatabase,
+                PersistenceTarget::LoginStatements,
+                PersistenceTarget::WorldStatements,
+                PersistenceTarget::CharStatements,
+                PersistenceTarget::HotfixStatements,
+                PersistenceTarget::PreparedStatement,
+                PersistenceTarget::SqlParam,
+                PersistenceTarget::SqlTransaction,
+                PersistenceTarget::SqlTransactionCommitError,
+                PersistenceTarget::SqlResult,
+                PersistenceTarget::SqlFields,
+                PersistenceTarget::SqlQueryHolder,
+                PersistenceTarget::SqlQueryHolderResult,
+                PersistenceTarget::StatementDef,
+                PersistenceTarget::DatabaseError,
+                PersistenceTarget::ItemGuidAllocatorAdvisoryLockLikeCpp,
+            ] {
+                symbols
+                    .type_aliases
+                    .insert(target.source_name().to_owned(), BTreeSet::from([target]));
+            }
+        }
+        symbols
+    }
+}
+
 fn is_query_name(name: &str) -> bool {
     QUERY_CONSTRUCTORS.contains(&name) || name.starts_with("query_")
+}
+
+fn database_getter_target(name: &str) -> Option<PersistenceTarget> {
+    match name {
+        "login_db" | "login_database" => Some(PersistenceTarget::LoginDatabase),
+        "world_db" | "world_database" => Some(PersistenceTarget::WorldDatabase),
+        "char_db" | "character_db" | "character_database" => {
+            Some(PersistenceTarget::CharacterDatabase)
+        }
+        "hotfix_db" | "hotfix_database" => Some(PersistenceTarget::HotfixDatabase),
+        _ => None,
+    }
+}
+
+fn database_field_target(name: &str) -> Option<PersistenceTarget> {
+    match name {
+        "login_db" => Some(PersistenceTarget::LoginDatabase),
+        "world_db" => Some(PersistenceTarget::WorldDatabase),
+        "char_db" | "character_db" => Some(PersistenceTarget::CharacterDatabase),
+        "hotfix_db" => Some(PersistenceTarget::HotfixDatabase),
+        _ => None,
+    }
+}
+
+fn is_generated_id_read_statement(name: &str) -> bool {
+    name.starts_with("SEL_MAX_")
+        || name.starts_with("SEL_BNET_MAX_")
+        || name.contains("_MAXID")
+        || name.ends_with("_MAX_NODEID")
+        || name.ends_with("_MAX_PATHID")
 }
 
 fn is_flow_passthrough_call(names: &[String]) -> bool {
@@ -545,19 +810,35 @@ fn targets_for_names(names: &[String], symbols: &ModuleSymbols) -> TargetSet {
     };
     let last = names.last().expect("non-empty path");
     if symbols.sqlx_namespaces.contains(first) {
-        targets.insert(PersistenceTarget::from_name(last).unwrap_or(PersistenceTarget::Sqlx));
+        targets.insert(
+            match names.iter().find_map(|name| match name.as_str() {
+                "Transaction" => Some(PersistenceTarget::SqlxTransaction),
+                _ => None,
+            }) {
+                Some(target) => target,
+                None => match last.as_str() {
+                    "MySqlPool" => PersistenceTarget::MySqlPool,
+                    "PgPool" => PersistenceTarget::PgPool,
+                    "DatabaseConnection" => PersistenceTarget::DatabaseConnection,
+                    _ => PersistenceTarget::Sqlx,
+                },
+            },
+        );
     }
-    if symbols.database_namespaces.contains(first) && last == "DatabaseConnection" {
-        targets.insert(PersistenceTarget::DatabaseConnection);
-    }
-    for name in names {
-        if let Some(alias_targets) = symbols.type_aliases.get(name) {
-            targets.extend(alias_targets);
-        } else if let Some(target) = PersistenceTarget::from_name(name) {
-            if target.is_pool() {
+    if symbols.database_namespaces.contains(first) {
+        for name in names.iter().skip(1) {
+            if let Some(target) = PersistenceTarget::from_name(name) {
                 targets.insert(target);
+                break;
             }
         }
+    }
+    // A locally imported type alias can only own the root of a path. Looking
+    // at every segment makes an unrelated enum variant such as
+    // `DatabaseError::Transaction` inherit an in-scope `sqlx::Transaction`
+    // import merely because the leaf names collide.
+    if let Some(alias_targets) = symbols.type_aliases.get(first) {
+        targets.extend(alias_targets);
     }
     targets
 }
@@ -672,7 +953,19 @@ fn source_is_database(source: &[String], symbols: &ModuleSymbols) -> bool {
 }
 
 fn targets_for_use_leaf(leaf: &UseLeaf, symbols: &ModuleSymbols) -> TargetSet {
-    targets_for_names(&leaf.source, symbols)
+    let mut targets = targets_for_names(&leaf.source, symbols);
+    // `use` paths resolve the imported symbol at the leaf, unlike expression
+    // paths where only the root can be an in-scope type alias. The adapter's
+    // own `crate`/`self`/`super` re-exports therefore need leaf resolution,
+    // while consumer crates must still avoid same-named local imports.
+    if symbols.database_namespaces.contains("crate") {
+        if let Some(last) = leaf.source.last() {
+            if let Some(alias_targets) = symbols.type_aliases.get(last) {
+                targets.extend(alias_targets);
+            }
+        }
+    }
+    targets
 }
 
 fn apply_import_symbols(item_use: &ItemUse, symbols: &mut ModuleSymbols) -> bool {
@@ -687,14 +980,11 @@ fn apply_import_symbols(item_use: &ItemUse, symbols: &mut ModuleSymbols) -> bool
         if leaf.source.len() == 1 && source_is_database {
             changed |= symbols.database_namespaces.insert(leaf.local.clone());
         }
-        let pool_targets = targets_for_use_leaf(&leaf, symbols)
-            .into_iter()
-            .filter(|target| target.is_pool())
-            .collect::<TargetSet>();
-        if !pool_targets.is_empty() {
+        let imported_targets = targets_for_use_leaf(&leaf, symbols);
+        if !imported_targets.is_empty() {
             let entry = symbols.type_aliases.entry(leaf.local.clone()).or_default();
             let before = entry.len();
-            entry.extend(pool_targets);
+            entry.extend(imported_targets);
             changed |= entry.len() != before;
         }
         if source_is_sqlx && leaf.source.last().is_some_and(|name| is_query_name(name)) {
@@ -707,11 +997,14 @@ fn apply_import_symbols(item_use: &ItemUse, symbols: &mut ModuleSymbols) -> bool
 fn collect_module_symbols(
     items: &[Item],
     parent: Option<&ModuleSymbols>,
+    package: &str,
     cfg: &[String],
     source_class: PersistenceSourceClass,
     errors: &mut Vec<String>,
 ) -> ModuleSymbols {
-    let mut symbols = parent.cloned().unwrap_or_default();
+    let mut symbols = parent
+        .cloned()
+        .unwrap_or_else(|| ModuleSymbols::for_package(package));
     for _ in 0..=items.len() {
         let mut changed = false;
         for item in items {
@@ -901,6 +1194,7 @@ fn add_type_records(
                 visibility,
                 cfg,
                 fingerprint: normalized_tokens(ty),
+                generated_input: false,
             },
         );
     }
@@ -926,6 +1220,7 @@ fn add_generics_records(
                 visibility,
                 cfg,
                 fingerprint: normalized_tokens(generics),
+                generated_input: false,
             },
         );
     }
@@ -979,6 +1274,27 @@ fn tokens_contain_identifier(tokens: TokenStream, names: &BTreeSet<String>) -> b
     })
 }
 
+fn tokens_contain_path_root(tokens: TokenStream, names: &BTreeSet<String>) -> bool {
+    let tokens = tokens.into_iter().collect::<Vec<_>>();
+    for window in tokens.windows(3) {
+        if let [
+            TokenTree::Ident(ident),
+            TokenTree::Punct(first),
+            TokenTree::Punct(second),
+        ] = window
+            && names.contains(&normalized_ident(ident))
+            && first.as_char() == ':'
+            && second.as_char() == ':'
+        {
+            return true;
+        }
+    }
+    tokens.into_iter().any(|token| match token {
+        TokenTree::Group(group) => tokens_contain_path_root(group.stream(), names),
+        _ => false,
+    })
+}
+
 fn module_persistence_names(symbols: &ModuleSymbols) -> BTreeSet<String> {
     let mut names = BTreeSet::from([
         "sqlx".to_owned(),
@@ -999,11 +1315,7 @@ fn syntax_mentions_persistence(value: &impl ToTokens, symbols: &ModuleSymbols) -
 
 fn targets_in_tokens(tokens: TokenStream, symbols: &ModuleSymbols) -> TargetSet {
     let mut targets = TargetSet::new();
-    if symbols
-        .sqlx_namespaces
-        .iter()
-        .any(|name| tokens_contain_identifier(tokens.clone(), &BTreeSet::from([name.clone()])))
-    {
+    if tokens_contain_path_root(tokens.clone(), &symbols.sqlx_namespaces) {
         targets.insert(PersistenceTarget::Sqlx);
     }
     for (name, alias_targets) in &symbols.type_aliases {
@@ -1049,6 +1361,7 @@ fn add_attribute_records(
                     visibility: record.visibility,
                     cfg: record.cfg,
                     fingerprint: normalized_tokens(attribute),
+                    generated_input: true,
                 },
             );
         }
@@ -1106,6 +1419,30 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 visibility: &self.visibility,
                 cfg,
                 fingerprint,
+                generated_input: false,
+            },
+        );
+    }
+
+    fn add_generated(
+        &mut self,
+        target: PersistenceTarget,
+        operation: PersistenceOperation,
+        symbol: &str,
+        cfg: &[String],
+        fingerprint: String,
+    ) {
+        self.accumulator.add(
+            &self.context,
+            NewAccess {
+                enclosing: &self.enclosing,
+                target,
+                operation,
+                symbol,
+                visibility: &self.visibility,
+                cfg,
+                fingerprint,
+                generated_input: true,
             },
         );
     }
@@ -1162,12 +1499,14 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
     fn info_from_type(&self, ty: &Type) -> VariableInfo {
         VariableInfo {
             flow: Flow::pools(&targets_in_type(ty, self.symbols)),
+            sql_expression: SqlExpressionKind::Static,
         }
     }
 
     fn info_from_expr(&self, expression: &Expr) -> VariableInfo {
         VariableInfo {
             flow: self.flow_of_expr(expression),
+            sql_expression: self.sql_expression_kind(expression),
         }
     }
 
@@ -1224,14 +1563,60 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 if pattern.elems.len() == tuple.elems.len() =>
             {
                 for (pattern, expression) in pattern.elems.iter().zip(&tuple.elems) {
-                    let info = self.info_from_expr(expression);
+                    let mut info = self.info_from_expr(expression);
+                    info.sql_expression = self.sql_expression_kind(expression);
                     self.bind_pattern(pattern, &info);
                 }
             }
             _ => {
-                let info = self.info_from_expr(expression);
+                let mut info = self.info_from_expr(expression);
+                info.sql_expression = self.sql_expression_kind(expression);
                 self.bind_pattern(pattern, &info);
             }
+        }
+    }
+
+    fn sql_expression_kind(&self, expression: &Expr) -> SqlExpressionKind {
+        match expression {
+            Expr::Lit(literal) if matches!(literal.lit, syn::Lit::Str(_)) => {
+                SqlExpressionKind::Static
+            }
+            Expr::Reference(reference) => self.sql_expression_kind(&reference.expr),
+            Expr::Paren(paren) => self.sql_expression_kind(&paren.expr),
+            Expr::Group(group) => self.sql_expression_kind(&group.expr),
+            Expr::Path(path) if path.qself.is_none() && path.path.segments.len() == 1 => {
+                last_path_name(&path.path)
+                    .and_then(|name| self.lookup(&name))
+                    .map(|info| info.sql_expression)
+                    .unwrap_or(SqlExpressionKind::Nonliteral)
+            }
+            Expr::Macro(mac)
+                if last_path_name(&mac.mac.path)
+                    .is_some_and(|name| matches!(name.as_str(), "format" | "format_args")) =>
+            {
+                SqlExpressionKind::Interpolated
+            }
+            Expr::MethodCall(method) if normalized_ident(&method.method) == "sql" => {
+                let mut targets = self.flow_of_expr(&method.receiver).targets();
+                if let Expr::Path(path) = method.receiver.as_ref() {
+                    targets.extend(targets_for_path(&path.path, self.symbols));
+                }
+                if targets.iter().any(|target| {
+                    matches!(
+                        target,
+                        PersistenceTarget::PreparedStatement
+                            | PersistenceTarget::LoginStatements
+                            | PersistenceTarget::WorldStatements
+                            | PersistenceTarget::CharStatements
+                            | PersistenceTarget::HotfixStatements
+                    )
+                }) {
+                    SqlExpressionKind::Static
+                } else {
+                    SqlExpressionKind::Nonliteral
+                }
+            }
+            _ => SqlExpressionKind::Nonliteral,
         }
     }
 
@@ -1242,6 +1627,9 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         };
         if let Some(targets) = self.symbols.field_targets.get(&name) {
             return Flow::pools(targets);
+        }
+        if let Some(target) = database_field_target(&name) {
+            return Flow::pools(&BTreeSet::from([target]));
         }
         self.flow_of_expr(&field.base)
             .map_pool_stage(FlowStage::DerivedPool)
@@ -1279,6 +1667,10 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             }
             return flow;
         }
+        let path_targets = targets_for_path(&path.path, self.symbols);
+        if !path_targets.is_empty() {
+            return Flow::pools(&path_targets);
+        }
         self.symbols
             .function_returns
             .get(last)
@@ -1289,9 +1681,17 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
     fn flow_of_method(&self, method: &ExprMethodCall) -> Flow {
         let receiver = self.flow_of_expr(&method.receiver);
         let name = normalized_ident(&method.method);
+        if let Some(target) = database_getter_target(&name) {
+            return Flow::pools(&BTreeSet::from([target]));
+        }
         match name.as_str() {
             "begin" => receiver.map_pool_stage(FlowStage::Transaction),
-            "acquire" => receiver.map_pool_stage(FlowStage::DerivedPool),
+            "acquire" | "pool" => receiver.map_pool_stage(FlowStage::DerivedPool),
+            "prepare" => receiver.map_pool_stage(FlowStage::Query),
+            "query" | "direct_query" | "delay_query_holder_like_cpp" => {
+                receiver.map_pool_stage(FlowStage::Query)
+            }
+            "execute" | "direct_execute" => receiver.map_pool_stage(FlowStage::Query),
             name if FLOW_PASSTHROUGH_METHODS.contains(&name) => receiver,
             _ => self
                 .symbols
@@ -1323,7 +1723,12 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 flow
             }
             Expr::Match(match_expression) => {
-                let mut flow = Flow::default();
+                // Conservatively retain the scrutinee flow because match-arm
+                // bindings can return an adapter-derived value (for example
+                // `Some(db) => Arc::clone(db)`). A future type-aware data-flow
+                // pass may narrow decoded scalar arms without losing those
+                // bindings.
+                let mut flow = self.flow_of_expr(&match_expression.expr);
                 for arm in &match_expression.arms {
                     flow.union(self.flow_of_expr(&arm.body));
                 }
@@ -1408,13 +1813,23 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         let imported_query = names.len() == 1 && self.symbols.query_callables.contains(&name);
         let cfg = item_cfg(&self.cfg, attributes);
         if (rooted_sqlx && is_query_name(&name)) || imported_query {
-            self.add(
+            let fingerprint = normalized_tokens(mac);
+            self.add_generated(
                 PersistenceTarget::Sqlx,
                 PersistenceOperation::Query,
                 &name,
                 &cfg,
-                normalized_tokens(mac),
+                fingerprint.clone(),
             );
+            if sql_is_advisory_lock(&fingerprint) {
+                self.add_generated(
+                    PersistenceTarget::Sqlx,
+                    PersistenceOperation::AdvisoryLock,
+                    &name,
+                    &cfg,
+                    fingerprint,
+                );
+            }
             return;
         }
         let direct_targets = targets_for_path(&mac.path, self.symbols);
@@ -1425,7 +1840,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 direct_targets
             };
             for target in targets {
-                self.add(
+                self.add_generated(
                     target,
                     PersistenceOperation::MacroReference,
                     &name,
@@ -1440,6 +1855,57 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             return;
         }
         if OPAQUE_PERSISTENCE_MACROS.contains(&name.as_str()) {
+            let fingerprint = normalized_tokens(mac);
+            let mut sqlx_calls = Vec::new();
+            sqlx_calls_in_tokens(mac.tokens.clone(), &mut sqlx_calls);
+            for (callable, call_fingerprint) in sqlx_calls {
+                self.add(
+                    PersistenceTarget::Sqlx,
+                    PersistenceOperation::Query,
+                    &callable,
+                    &cfg,
+                    call_fingerprint.clone(),
+                );
+                if sql_is_advisory_lock(&call_fingerprint) {
+                    self.add(
+                        PersistenceTarget::Sqlx,
+                        PersistenceOperation::AdvisoryLock,
+                        &callable,
+                        &cfg,
+                        call_fingerprint,
+                    );
+                }
+            }
+            let advisory_methods = BTreeSet::from([
+                "acquire_like_cpp".to_owned(),
+                "release_like_cpp".to_owned(),
+                "wait_until_lost_like_cpp".to_owned(),
+            ]);
+            let mut methods = Vec::new();
+            persistence_methods_in_tokens(mac.tokens.clone(), &advisory_methods, &mut methods);
+            methods.sort();
+            for method in methods {
+                let mut targets = TargetSet::new();
+                for scope in &self.scopes {
+                    for (local, info) in scope {
+                        if tokens_contain_identifier(
+                            mac.tokens.clone(),
+                            &BTreeSet::from([local.clone()]),
+                        ) {
+                            targets.extend(info.flow.targets());
+                        }
+                    }
+                }
+                for target in targets {
+                    self.add(
+                        target,
+                        PersistenceOperation::AdvisoryLock,
+                        &method,
+                        &cfg,
+                        format!("opaque-macro-method:{method}"),
+                    );
+                }
+            }
             let mut targets = targets_in_tokens(mac.tokens.clone(), self.symbols);
             let mut escaped = Flow::default();
             for scope in &self.scopes {
@@ -1459,15 +1925,24 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                     PersistenceOperation::MacroReference,
                     &name,
                     &cfg,
-                    normalized_tokens(mac),
+                    fingerprint.clone(),
                 );
+                if target == PersistenceTarget::Sqlx && sql_is_advisory_lock(&fingerprint) {
+                    self.add(
+                        target,
+                        PersistenceOperation::AdvisoryLock,
+                        &name,
+                        &cfg,
+                        fingerprint.clone(),
+                    );
+                }
             }
             self.record_pool_escape(
                 &escaped,
                 PersistenceOperation::ArgumentEscape,
                 &format!("macro:{name}"),
                 &cfg,
-                normalized_tokens(mac),
+                fingerprint,
             );
         } else {
             self.errors.push(format!(
@@ -1591,14 +2066,31 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             }
         }
         let cfg = item_cfg(&self.cfg, &path.attrs);
+        let symbol = last_path_name(&path.path).unwrap_or_default();
         for target in targets_for_path(&path.path, self.symbols) {
             self.add(
                 target,
                 PersistenceOperation::PathReference,
-                &last_path_name(&path.path).unwrap_or_default(),
+                &symbol,
                 &cfg,
                 canonical_path(&path.path),
             );
+            if matches!(
+                target,
+                PersistenceTarget::LoginStatements
+                    | PersistenceTarget::WorldStatements
+                    | PersistenceTarget::CharStatements
+                    | PersistenceTarget::HotfixStatements
+            ) && is_generated_id_read_statement(&symbol)
+            {
+                self.add(
+                    target,
+                    PersistenceOperation::GeneratedIdRead,
+                    &symbol,
+                    &cfg,
+                    canonical_path(&path.path),
+                );
+            }
         }
     }
 
@@ -1650,16 +2142,43 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                 _ => (String::new(), false, false, TargetSet::new(), false),
             };
         let query = (rooted_sqlx && is_query_name(&name)) || imported_query;
+        let has_path_targets = !path_targets.is_empty();
         if query {
+            let fingerprint = canonical_call(call);
             self.add(
                 PersistenceTarget::Sqlx,
                 PersistenceOperation::Query,
                 &name,
                 &cfg,
-                canonical_call(call),
+                fingerprint.clone(),
             );
-        } else if let Some(operation) =
-            PersistenceOperation::from_executor_method(&name).filter(|_| rooted_sqlx)
+            if sql_is_advisory_lock(&fingerprint) {
+                self.add(
+                    PersistenceTarget::Sqlx,
+                    PersistenceOperation::AdvisoryLock,
+                    &name,
+                    &cfg,
+                    fingerprint,
+                );
+            }
+            if let Some(argument) = call.args.first()
+                && let kind @ (SqlExpressionKind::Nonliteral | SqlExpressionKind::Interpolated) =
+                    self.sql_expression_kind(argument)
+            {
+                self.add(
+                    PersistenceTarget::Sqlx,
+                    match kind {
+                        SqlExpressionKind::Interpolated => PersistenceOperation::InterpolatedSql,
+                        SqlExpressionKind::Nonliteral => PersistenceOperation::NonliteralSql,
+                        SqlExpressionKind::Static => unreachable!(),
+                    },
+                    &name,
+                    &cfg,
+                    normalized_tokens(argument),
+                );
+            }
+        } else if let Some(operation) = PersistenceOperation::from_executor_method(&name)
+            .filter(|_| rooted_sqlx || has_path_targets)
         {
             let mut targets = path_targets;
             for argument in &call.args {
@@ -1669,12 +2188,25 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                 targets.insert(PersistenceTarget::Sqlx);
             }
             for target in targets {
+                let operation = match (name.as_str(), target) {
+                    ("new", PersistenceTarget::PreparedStatement)
+                    | ("new", PersistenceTarget::SqlQueryHolder)
+                    | ("with_capacity_like_cpp", PersistenceTarget::PreparedStatement) => {
+                        PersistenceOperation::StatementBuilder
+                    }
+                    ("new", PersistenceTarget::SqlTransaction) => {
+                        PersistenceOperation::TransactionConstruct
+                    }
+                    ("new", _) => PersistenceOperation::PathReference,
+                    _ => operation,
+                };
                 self.add(target, operation, &name, &cfg, canonical_call(call));
             }
         }
 
-        let known_persistence_call =
-            query || (rooted_sqlx && PersistenceOperation::from_executor_method(&name).is_some());
+        let known_persistence_call = query
+            || ((rooted_sqlx || has_path_targets)
+                && PersistenceOperation::from_executor_method(&name).is_some());
         if !flow_passthrough && !known_persistence_call {
             for argument in &call.args {
                 let flow = self.flow_of_expr(argument);
@@ -1709,9 +2241,26 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             let valid = match operation {
                 PersistenceOperation::Commit | PersistenceOperation::Rollback => {
                     receiver.has_stage(FlowStage::Transaction)
+                        || receiver
+                            .targets()
+                            .contains(&PersistenceTarget::SqlTransaction)
+                        || receiver
+                            .targets()
+                            .contains(&PersistenceTarget::SqlxTransaction)
+                        || (name == "commit_transaction" && !receiver.0.is_empty())
                 }
                 PersistenceOperation::Begin => !receiver.pool_targets().is_empty(),
-                PersistenceOperation::Query => !receiver.0.is_empty(),
+                PersistenceOperation::Query
+                | PersistenceOperation::PoolAccess
+                | PersistenceOperation::PrepareStatement
+                | PersistenceOperation::DirectQuery
+                | PersistenceOperation::DirectExecute
+                | PersistenceOperation::RawSql
+                | PersistenceOperation::TransactionAppend
+                | PersistenceOperation::GeneratedIdRead
+                | PersistenceOperation::AdvisoryLock
+                | PersistenceOperation::NonliteralSql
+                | PersistenceOperation::InterpolatedSql => !receiver.0.is_empty(),
                 _ => {
                     receiver.has_stage(FlowStage::Query)
                         || receiver.has_stage(FlowStage::Transaction)
@@ -1725,6 +2274,29 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                 }
                 for target in targets {
                     self.add(target, operation, &name, &cfg, canonical_method(method));
+                    if matches!(
+                        operation,
+                        PersistenceOperation::DirectQuery | PersistenceOperation::DirectExecute
+                    ) && let Some(argument) = method.args.first()
+                        && let kind @ (SqlExpressionKind::Nonliteral
+                        | SqlExpressionKind::Interpolated) = self.sql_expression_kind(argument)
+                    {
+                        self.add(
+                            target,
+                            match kind {
+                                SqlExpressionKind::Interpolated => {
+                                    PersistenceOperation::InterpolatedSql
+                                }
+                                SqlExpressionKind::Nonliteral => {
+                                    PersistenceOperation::NonliteralSql
+                                }
+                                SqlExpressionKind::Static => unreachable!(),
+                            },
+                            &name,
+                            &cfg,
+                            normalized_tokens(argument),
+                        );
+                    }
                 }
             }
         } else if !FLOW_PASSTHROUGH_METHODS.contains(&name.as_str()) {
@@ -1844,6 +2416,72 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         }
     }
 
+    fn visit_expr_match(&mut self, expression: &'ast syn::ExprMatch) {
+        if !self.allows_source_class(&expression.attrs, "match expression") {
+            return;
+        }
+        self.visit_expr(&expression.expr);
+        let scrutinee = self.info_from_expr(&expression.expr);
+        for arm in &expression.arms {
+            self.scopes.push(BTreeMap::new());
+            self.bind_pattern(&arm.pat, &scrutinee);
+            if let Some((_, guard)) = &arm.guard {
+                self.visit_expr(guard);
+            }
+            self.visit_expr(&arm.body);
+            self.scopes.pop();
+        }
+    }
+
+    fn visit_expr_if(&mut self, expression: &'ast syn::ExprIf) {
+        if !self.allows_source_class(&expression.attrs, "if expression") {
+            return;
+        }
+        self.visit_expr(&expression.cond);
+        self.scopes.push(BTreeMap::new());
+        if let Expr::Let(let_expression) = expression.cond.as_ref() {
+            self.bind_pattern_from_expr(&let_expression.pat, &let_expression.expr);
+        }
+        self.visit_block(&expression.then_branch);
+        self.scopes.pop();
+        if let Some((_, else_expression)) = &expression.else_branch {
+            self.visit_expr(else_expression);
+        }
+    }
+
+    fn visit_item_macro(&mut self, item: &'ast syn::ItemMacro) {
+        let cfg = item_cfg(&self.cfg, &item.attrs);
+        let symbol = item
+            .ident
+            .as_ref()
+            .map(normalized_ident)
+            .or_else(|| last_path_name(&item.mac.path))
+            .unwrap_or_else(|| "macro".to_owned());
+        let mut targets = targets_in_tokens(item.mac.tokens.clone(), self.symbols);
+        for scope in &self.scopes {
+            for (local, info) in scope {
+                if tokens_contain_identifier(
+                    item.mac.tokens.clone(),
+                    &BTreeSet::from([local.clone()]),
+                ) {
+                    targets.extend(info.flow.targets());
+                }
+            }
+        }
+        if targets.is_empty() {
+            return;
+        }
+        for target in targets {
+            self.add_generated(
+                target,
+                PersistenceOperation::MacroReference,
+                &symbol,
+                &cfg,
+                normalized_tokens(&item.mac),
+            );
+        }
+    }
+
     fn visit_expr_macro(&mut self, expression: &'ast ExprMacro) {
         self.audit_macro(&expression.mac, &expression.attrs, "macro expression");
     }
@@ -1908,6 +2546,7 @@ fn analyze_import(
                     visibility: &normalized_visibility(&item_use.vis),
                     cfg,
                     fingerprint: leaf.fingerprint.clone(),
+                    generated_input: false,
                 },
             );
         }
@@ -2258,6 +2897,7 @@ fn analyze_impl(
                     visibility: "",
                     cfg: &cfg,
                     fingerprint: normalized_tokens(trait_path),
+                    generated_input: false,
                 },
             );
         }
@@ -2391,6 +3031,7 @@ fn analyze_item_macro(
                 visibility: "",
                 cfg,
                 fingerprint: normalized_tokens(&item_macro.mac),
+                generated_input: true,
             },
         );
     }
@@ -2404,7 +3045,14 @@ fn analyze_module_items(
     accumulator: &mut AccessAccumulator,
     errors: &mut Vec<String>,
 ) {
-    let symbols = collect_module_symbols(items, parent_symbols, &cfg, context.source_class, errors);
+    let symbols = collect_module_symbols(
+        items,
+        parent_symbols,
+        context.package,
+        &cfg,
+        context.source_class,
+        errors,
+    );
     for item in items {
         match item {
             Item::Use(item_use) => {
@@ -2466,6 +3114,7 @@ fn analyze_module_items(
                             visibility: &extern_visibility,
                             cfg: &extern_cfg,
                             fingerprint: format!("extern crate {source} as {local}"),
+                            generated_input: false,
                         },
                     );
                 }
@@ -2678,6 +3327,45 @@ fn analyze_module_items(
                     item_cfg,
                 );
                 analyzer.visit_expr(&item_static.expr);
+            }
+            Item::Trait(item_trait) => {
+                if !source_class_allows(
+                    context.source_class,
+                    &cfg,
+                    &item_trait.attrs,
+                    errors,
+                    "trait",
+                ) {
+                    continue;
+                }
+                let name = normalized_ident(&item_trait.ident);
+                let targets = symbols.type_aliases.get(&name).cloned().unwrap_or_default();
+                if context.package != "wow-database" || targets.is_empty() {
+                    if syntax_mentions_persistence(item_trait, &symbols) {
+                        errors.push(format!(
+                            "{} contains persistence syntax in an unsupported item grammar; expose an explicit import/type/function/impl before baselining: {}",
+                            context.module,
+                            normalized_tokens(item_trait)
+                        ));
+                    }
+                    continue;
+                }
+                let trait_cfg = item_cfg(&cfg, &item_trait.attrs);
+                for target in targets {
+                    accumulator.add(
+                        &context,
+                        NewAccess {
+                            enclosing: &format!("trait {name}"),
+                            target,
+                            operation: PersistenceOperation::TypeReference,
+                            symbol: &name,
+                            visibility: &normalized_visibility(&item_trait.vis),
+                            cfg: &trait_cfg,
+                            fingerprint: normalized_tokens(item_trait),
+                            generated_input: false,
+                        },
+                    );
+                }
             }
             Item::Macro(item_macro) => {
                 if !source_class_allows(
@@ -2986,14 +3674,45 @@ pub(crate) fn compare_persistence_access_baseline(
     }
 }
 
+/// Render the large snapshot with one canonical compact JSON object per row.
+pub(crate) fn render_persistence_access_baseline(
+    baseline: &PersistenceAccessBaseline,
+) -> Result<String, String> {
+    validated_baseline_map("rendered", baseline)?;
+    let mut output = format!(
+        "{{\n  \"schema_version\": {},\n  \"accesses\": [\n",
+        baseline.schema_version
+    );
+    for (index, access) in baseline.accesses.iter().enumerate() {
+        output.push_str("    ");
+        output.push_str(
+            &serde_json::to_string(access)
+                .map_err(|error| format!("cannot serialize persistence access row: {error}"))?,
+        );
+        if index + 1 != baseline.accesses.len() {
+            output.push(',');
+        }
+        output.push('\n');
+    }
+    output.push_str("  ]\n}");
+    Ok(output)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn inventory(source: &str) -> Result<PersistenceAccessBaseline, String> {
+        inventory_for_package("fixture", source)
+    }
+
+    fn inventory_for_package(
+        package: &str,
+        source: &str,
+    ) -> Result<PersistenceAccessBaseline, String> {
         inventory_persistence_accesses(&[ClassifiedPersistenceSource {
             classification: "database_adapter_core",
-            package: "fixture",
+            package,
             module: "crate::fixture",
             source_path: "src/fixture.rs",
             inherited_cfg: &[],
@@ -3188,6 +3907,227 @@ mod tests {
         )
         .expect_err("unsupported item grammars must fail closed");
         assert!(error.contains("unsupported item grammar"), "{error}");
+    }
+
+    #[test]
+    fn persistence_inventory_resolves_typed_database_paths_getters_and_dynamic_sql() {
+        let baseline = inventory(
+            r#"
+                use wow_database::{CharacterDatabase, DatabaseError as DbError, SqlTransaction};
+                struct Session;
+                impl Session {
+                    fn character_db(&self) -> Option<&CharacterDatabase> { None }
+                    async fn query(&self) {
+                        let db = self.character_db().unwrap();
+                        let sql = format!("SELECT {}", 1);
+                        db.direct_query(&sql).await.unwrap();
+                        let _tx = wow_database::SqlTransaction::new();
+                        let _error = wow_database::DatabaseError::Query("x".into());
+                    }
+                }
+            "#,
+        )
+        .expect("typed database imports, getters and qualified paths are explicit grammar");
+        let found = operations(&baseline);
+        for expected in [
+            (
+                PersistenceTarget::CharacterDatabase,
+                PersistenceOperation::DirectQuery,
+                "direct_query".to_owned(),
+            ),
+            (
+                PersistenceTarget::CharacterDatabase,
+                PersistenceOperation::InterpolatedSql,
+                "direct_query".to_owned(),
+            ),
+            (
+                PersistenceTarget::SqlTransaction,
+                PersistenceOperation::TransactionConstruct,
+                "new".to_owned(),
+            ),
+            (
+                PersistenceTarget::DatabaseError,
+                PersistenceOperation::PathReference,
+                "Query".to_owned(),
+            ),
+        ] {
+            assert!(
+                found.contains(&expected),
+                "missing {expected:?} from {found:#?}"
+            );
+        }
+        assert!(baseline.accesses.iter().any(|row| {
+            row.target == PersistenceTarget::DatabaseError
+                && row.operation == PersistenceOperation::Import
+                && row.symbol == "DbError"
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_avoids_local_database_and_sqlx_variant_collisions() {
+        let innocent = inventory(
+            r#"
+                enum LogFilter { Database }
+                struct Database;
+                fn local(_: Database) { let _ = LogFilter::Database; }
+            "#,
+        )
+        .expect("local names are ordinary Rust symbols");
+        assert!(innocent.accesses.is_empty(), "{:#?}", innocent.accesses);
+
+        let sqlx = inventory(
+            r#"
+                fn classify(error: sqlx::Error) {
+                    if let sqlx::Error::Database(inner) = error { drop(inner); }
+                }
+            "#,
+        )
+        .expect("sqlx variant paths stay in the sqlx target");
+        assert!(
+            sqlx.accesses
+                .iter()
+                .any(|row| row.target == PersistenceTarget::Sqlx)
+        );
+        assert!(
+            !sqlx
+                .accesses
+                .iter()
+                .any(|row| row.target == PersistenceTarget::Database),
+            "{:#?}",
+            sqlx.accesses
+        );
+
+        let adapter = inventory_for_package(
+            "wow-database",
+            "fn local(statement: PreparedStatement) -> SqlResult { todo!() }",
+        )
+        .expect("wow-database owns its unqualified concrete types");
+        assert!(adapter.accesses.iter().any(|row| {
+            row.target == PersistenceTarget::PreparedStatement
+                && row.operation == PersistenceOperation::TypeReference
+        }));
+        let adapter_reexports = inventory_for_package(
+            "wow-database",
+            r#"
+                pub use database::Database;
+                use super::StatementDef;
+            "#,
+        )
+        .expect("adapter-local re-exports resolve their imported leaf");
+        for expected in [PersistenceTarget::Database, PersistenceTarget::StatementDef] {
+            assert!(adapter_reexports.accesses.iter().any(|row| {
+                row.target == expected && row.operation == PersistenceOperation::Import
+            }));
+        }
+
+        let transaction_variant = inventory(
+            r#"
+                use sqlx::Transaction;
+                use wow_database::DatabaseError;
+                fn classify(error: DatabaseError) {
+                    if let DatabaseError::Transaction(inner) = error { drop(inner); }
+                }
+            "#,
+        )
+        .expect("an imported sqlx type must not capture a same-named enum variant");
+        assert!(
+            !transaction_variant
+                .accesses
+                .iter()
+                .any(|row| row.target == PersistenceTarget::SqlxTransaction
+                    && row.symbol == "Transaction"
+                    && row.operation != PersistenceOperation::Import),
+            "{:#?}",
+            transaction_variant.accesses
+        );
+
+        let generated_id = inventory(
+            r#"
+                use wow_database::CharStatements;
+                fn allocator_seed() { let _ = CharStatements::SEL_MAX_ITEM_GUID; }
+            "#,
+        )
+        .expect("MAX-ID statement reads are explicit inventory operations");
+        assert!(generated_id.accesses.iter().any(|row| {
+            row.target == PersistenceTarget::CharStatements
+                && row.operation == PersistenceOperation::GeneratedIdRead
+                && row.symbol == "SEL_MAX_ITEM_GUID"
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_tracks_head_shaped_transactions_fields_branches_and_locks() {
+        let baseline = inventory(
+            r#"
+                use sqlx::Acquire;
+                use wow_database::{CharacterDatabase, ItemGuidAllocatorAdvisoryLockLikeCpp};
+                struct State { login_db: wow_database::LoginDatabase }
+                struct Session;
+                impl Session { fn char_db(&self) -> Option<&CharacterDatabase> { None } }
+                async fn work(state: &State, session: &Session, db: &CharacterDatabase) {
+                    state.login_db.direct_query("SELECT 1").await.unwrap();
+                    let mut tx = db.pool().begin().await.map_err(map_error).context("begin").unwrap();
+                    tx.rollback().await.unwrap();
+                    let mut tx = db.pool().begin().await.unwrap();
+                    tx.commit().await.unwrap();
+                    if let Some(char_db) = session.char_db() {
+                        char_db.execute(&char_db.prepare(TODO)).await.unwrap();
+                    }
+                    let lock = ItemGuidAllocatorAdvisoryLockLikeCpp::acquire_like_cpp(db.pool()).await.unwrap();
+                    lock.wait_until_lost_like_cpp().await.unwrap();
+                    lock.release_like_cpp().await.unwrap();
+                }
+            "#,
+        )
+        .expect("HEAD-shaped persistence flow remains visible");
+        let found = operations(&baseline);
+        for expected in [
+            (
+                PersistenceTarget::LoginDatabase,
+                PersistenceOperation::DirectQuery,
+                "direct_query",
+            ),
+            (
+                PersistenceTarget::CharacterDatabase,
+                PersistenceOperation::Rollback,
+                "rollback",
+            ),
+            (
+                PersistenceTarget::CharacterDatabase,
+                PersistenceOperation::Commit,
+                "commit",
+            ),
+            (
+                PersistenceTarget::CharacterDatabase,
+                PersistenceOperation::Execute,
+                "execute",
+            ),
+            (
+                PersistenceTarget::CharacterDatabase,
+                PersistenceOperation::PoolAccess,
+                "pool",
+            ),
+            (
+                PersistenceTarget::ItemGuidAllocatorAdvisoryLockLikeCpp,
+                PersistenceOperation::AdvisoryLock,
+                "acquire_like_cpp",
+            ),
+            (
+                PersistenceTarget::ItemGuidAllocatorAdvisoryLockLikeCpp,
+                PersistenceOperation::AdvisoryLock,
+                "wait_until_lost_like_cpp",
+            ),
+            (
+                PersistenceTarget::ItemGuidAllocatorAdvisoryLockLikeCpp,
+                PersistenceOperation::AdvisoryLock,
+                "release_like_cpp",
+            ),
+        ] {
+            assert!(
+                found.contains(&(expected.0, expected.1, expected.2.to_owned())),
+                "missing {expected:?} from {found:#?}"
+            );
+        }
     }
 
     #[test]

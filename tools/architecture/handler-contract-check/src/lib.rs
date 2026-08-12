@@ -17,6 +17,7 @@ mod dispatcher;
 mod module_policy;
 mod ownership;
 mod persistence_access;
+mod persistence_policy;
 mod registrations;
 mod registry_access;
 mod session_ownership;
@@ -38,6 +39,8 @@ use snapshot::parse_snapshot_contract;
 pub use session_ownership::{
     check_repository as check_session_ownership_repository,
     print_repository_baseline as print_session_ownership_baseline,
+    print_repository_persistence_baseline as print_persistence_access_baseline,
+    print_repository_persistence_policy as print_persistence_boundary_policy,
 };
 
 fn repository_root() -> Result<PathBuf, String> {

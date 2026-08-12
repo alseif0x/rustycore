@@ -30,8 +30,8 @@ use crate::ownership::{
     cfg_context_allows_test, extend_cfg_context, workspace_source_mounts,
 };
 use crate::persistence_access::{
-    ClassifiedPersistenceSource, PersistenceAccessBaseline, PersistenceOperation,
-    compare_persistence_access_baseline, inventory_persistence_accesses,
+    ClassifiedPersistenceSource, PersistenceAccessBaseline, compare_persistence_access_baseline,
+    inventory_persistence_accesses, render_persistence_access_baseline,
 };
 use crate::registry_access::{
     ProductionRegistrySource, RegistryAccessBaseline, compare_registry_access_baseline,
@@ -39,6 +39,11 @@ use crate::registry_access::{
 };
 
 const POLICY_RELATIVE_PATH: &str = "tools/architecture/session-ownership-policy.json";
+const PERSISTENCE_POLICY_RELATIVE_PATH: &str =
+    "tools/architecture/persistence-boundary-policy.json";
+const PERSISTENCE_ANNOTATIONS_RELATIVE_PATH: &str =
+    "tools/architecture/persistence-boundary-workflows.json";
+const ISSUE_LEDGER_RELATIVE_PATH: &str = "tools/architecture/architecture-issue-ledger.json";
 const WORLD_PACKAGE_ROOT: &str = "crates/wow-world";
 const WORLD_CRATE_ROOT: &str = "crates/wow-world/src/lib.rs";
 const SERVER_PACKAGE_ROOT: &str = "crates/world-server";
@@ -206,6 +211,7 @@ pub struct SessionSyntaxBaseline {
     pub player_broadcast_info: TypeSurface,
     pub generated_surface_inputs: Vec<GeneratedSurfaceInput>,
     pub(crate) registry_accesses: RegistryAccessBaseline,
+    #[serde(skip)]
     pub(crate) persistence_accesses: PersistenceAccessBaseline,
     pub(crate) bridge_accesses: BridgeAccessBaseline,
 }
@@ -214,7 +220,9 @@ pub struct SessionSyntaxBaseline {
 struct PolicyEnvelope {
     schema_version: u64,
     syntax_baseline: SessionSyntaxBaseline,
-    /// The Python policy validator owns the semantic responsibility ledger.
+    persistence_access_snapshot: String,
+    /// Legacy semantic fields remain accepted here; the Rust workflow-policy
+    /// validator owns the exact persistence responsibility ledger.
     /// Keeping that data flattened here isolates the AST schema from it.
     #[serde(flatten)]
     _semantic_policy: BTreeMap<String, Value>,
@@ -223,6 +231,7 @@ struct PolicyEnvelope {
 #[derive(Serialize)]
 struct BaselineEnvelope<'a> {
     schema_version: u64,
+    persistence_access_snapshot: &'static str,
     syntax_baseline: &'a SessionSyntaxBaseline,
 }
 
@@ -1963,12 +1972,6 @@ fn compare_baseline(
     {
         errors.push(error);
     }
-    if let Err(error) = compare_persistence_access_baseline(
-        &expected.persistence_accesses,
-        &actual.persistence_accesses,
-    ) {
-        errors.push(error);
-    }
     if let Err(error) =
         compare_bridge_access_baseline(&expected.bridge_accesses, &actual.bridge_accesses)
     {
@@ -2008,6 +2011,33 @@ pub fn check_repository(policy_path: Option<&Path>) -> Result<String, String> {
     let policy = load_policy(&policy_path)?;
     let actual = collect_repository_baseline(&repository_root)?;
     compare_baseline(&policy.syntax_baseline, &actual)?;
+    let persistence_snapshot_path = repository_root.join(&policy.persistence_access_snapshot);
+    let persistence_snapshot_source =
+        fs::read_to_string(&persistence_snapshot_path).map_err(|error| {
+            format!(
+                "cannot read {}: {error}",
+                persistence_snapshot_path.display()
+            )
+        })?;
+    let expected_persistence: PersistenceAccessBaseline =
+        serde_json::from_str(&persistence_snapshot_source).map_err(|error| {
+            format!(
+                "invalid persistence access snapshot {}: {error}",
+                persistence_snapshot_path.display()
+            )
+        })?;
+    compare_persistence_access_baseline(&expected_persistence, &actual.persistence_accesses)?;
+    let persistence_policy_path = repository_root.join(PERSISTENCE_POLICY_RELATIVE_PATH);
+    let persistence_annotations_path = repository_root.join(PERSISTENCE_ANNOTATIONS_RELATIVE_PATH);
+    let issue_ledger_path = repository_root.join(ISSUE_LEDGER_RELATIVE_PATH);
+    let (semantic_production_rows, semantic_test_rows, generated_persistence_rows, semantic_groups) =
+        crate::persistence_policy::validate_persistence_policy(
+            &persistence_policy_path,
+            &persistence_annotations_path,
+            &issue_ledger_path,
+            &actual.persistence_accesses,
+        )
+        .map_err(|error| format!("invalid persistence semantic ownership:\n{error}"))?;
     let production_session_fields = actual
         .world_session
         .fields
@@ -2032,12 +2062,8 @@ pub fn check_repository(policy_path: Option<&Path>) -> Result<String, String> {
         .iter()
         .filter(|access| access.source_class == "test_fixture")
         .count();
-    let generated_persistence_rows = actual
-        .persistence_accesses
-        .accesses
-        .iter()
-        .filter(|access| access.operation == PersistenceOperation::MacroReference)
-        .count();
+    debug_assert_eq!(production_persistence_rows, semantic_production_rows);
+    debug_assert_eq!(test_persistence_rows, semantic_test_rows);
     Ok(format!(
         "session ownership: PASS ({production_session_fields} production + {test_session_fields} \
          test-fixture WorldSession fields; {} impl owners / {} exact associated \
@@ -2045,7 +2071,7 @@ pub fn check_repository(policy_path: Option<&Path>) -> Result<String, String> {
          variants / {} transitive payload types; {} PlayerBroadcastInfo fields; {} exact generated \
          inputs; {} exact direct-registry rows; {production_persistence_rows} production + \
          {test_persistence_rows} test-fixture persistence rows \
-         ({generated_persistence_rows} generated-input rows); {} exact bridge rows; \
+         ({generated_persistence_rows} generated-input rows, subset; {semantic_groups} exact semantic groups); {} exact bridge rows; \
          include/target-macro surfaces fail closed)",
         actual.world_session.impls.len(),
         actual.world_session.impl_items.len(),
@@ -2069,9 +2095,27 @@ pub fn print_repository_baseline() -> Result<String, String> {
     let baseline = collect_repository_baseline(&repository_root)?;
     serde_json::to_string_pretty(&BaselineEnvelope {
         schema_version: 1,
+        persistence_access_snapshot: "tools/architecture/persistence-access-snapshot.json",
         syntax_baseline: &baseline,
     })
     .map_err(|error| format!("cannot serialize session ownership baseline: {error}"))
+}
+
+/// Render the dedicated exact persistence snapshot without editing it.
+pub fn print_repository_persistence_baseline() -> Result<String, String> {
+    let repository_root = crate::repository_root()?;
+    let baseline = collect_workspace_persistence_baseline(&repository_root)?;
+    render_persistence_access_baseline(&baseline)
+}
+
+/// Render the canonical semantic policy derived from reviewed workflow annotations.
+pub fn print_repository_persistence_policy() -> Result<String, String> {
+    let repository_root = crate::repository_root()?;
+    let baseline = collect_workspace_persistence_baseline(&repository_root)?;
+    crate::persistence_policy::render_persistence_policy(
+        &repository_root.join(PERSISTENCE_ANNOTATIONS_RELATIVE_PATH),
+        &baseline,
+    )
 }
 
 #[cfg(test)]
@@ -2105,7 +2149,7 @@ mod tests {
                 unit(PackageRole::Network, "wow-network/src/lib.rs", network),
             ],
             PersistenceAccessBaseline {
-                schema_version: 2,
+                schema_version: 3,
                 accesses: Vec::new(),
             },
         )
@@ -2596,6 +2640,7 @@ mod tests {
             .expect("baseline parses");
         let mut value = serde_json::to_value(BaselineEnvelope {
             schema_version: 1,
+            persistence_access_snapshot: "tools/architecture/persistence-access-snapshot.json",
             syntax_baseline: &baseline,
         })
         .expect("baseline serializes");

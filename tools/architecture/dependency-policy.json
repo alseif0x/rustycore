@@ -108,8 +108,8 @@
     {
       "from": "wow-data",
       "to": "wow-database",
-      "tracking_issue": 133,
-      "reason": "Static-data loaders still own concrete database access."
+      "tracking_issue": 153,
+      "reason": "Static-data loaders still own concrete world/hotfix/characters access. The #186 exact inventory assigns these sites to #153, which must materialize typed data-source children before this edge can be removed."
     },
     {
       "from": "wow-data",
@@ -132,8 +132,8 @@
     {
       "from": "wow-instances",
       "to": "wow-database",
-      "tracking_issue": 133,
-      "reason": "Instance state still persists through a concrete database adapter."
+      "tracking_issue": 153,
+      "reason": "Instance-lock state still loads and appends concrete characters statements. #187 freezes its ordering; #153 must materialize the typed capability child that removes this edge."
     },
     {
       "from": "wow-network",
@@ -180,8 +180,8 @@
     {
       "from": "wow-world",
       "to": "wow-database",
-      "tracking_issue": 133,
-      "reason": "The mixed world application crate still performs concrete persistence."
+      "tracking_issue": 153,
+      "reason": "The #186 exact inventory assigns concrete gameplay persistence to #189 loot, #199 group, #200 Player lifecycle, and measured #153 capability children; #153 owns removal of the final residual wow-database edge."
     },
     {
       "from": "wow-world",
@@ -402,8 +402,8 @@
         "from": "wow-world",
         "to": "sqlx",
         "kind": "normal",
-        "tracking_issue": 133,
-        "reason": "The mixed world application crate still performs concrete SQL persistence directly."
+        "tracking_issue": 153,
+        "reason": "The #186 exact inventory assigns direct SQLx workflows to #187 behavior goldens, #189 durable loot, #199 group, #200 Player lifecycle, and #153 residual capability children; #153 owns removal of the final edge."
       },
       {
         "from": "wow-world",

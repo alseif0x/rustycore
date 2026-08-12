@@ -8,7 +8,9 @@ use std::process::ExitCode;
 fn usage() -> ExitCode {
     eprintln!(
         "usage: session-ownership-check check [--policy PATH]\n       \
-         session-ownership-check print-baseline"
+         session-ownership-check print-baseline\n       \
+         session-ownership-check print-persistence-baseline\n       \
+         session-ownership-check print-persistence-policy"
     );
     ExitCode::FAILURE
 }
@@ -25,6 +27,12 @@ fn main() -> ExitCode {
         }
         [command] if command == "print-baseline" => {
             handler_contract_check::print_session_ownership_baseline()
+        }
+        [command] if command == "print-persistence-baseline" => {
+            handler_contract_check::print_persistence_access_baseline()
+        }
+        [command] if command == "print-persistence-policy" => {
+            handler_contract_check::print_persistence_boundary_policy()
         }
         _ => return usage(),
     };
