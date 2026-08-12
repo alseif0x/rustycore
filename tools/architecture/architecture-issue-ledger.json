@@ -1,7 +1,15 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "parent_issue": 133,
   "reaudit_issue": 153,
+  "external_prerequisites": [
+    {
+      "number": 177,
+      "state": "open",
+      "title": "[QA] wow-test-bot --login-only incompatible with mandatory ConnectTo flow: realm socket dropped, cross-socket fence kicks session",
+      "kind": "external-prerequisite"
+    }
+  ],
   "sequence": [
     135,
     143,
@@ -19,146 +27,590 @@
     142,
     154,
     134,
+    181,
+    185,
+    186,
+    188,
     136,
-    138,
+    187,
     150,
-    137,
     151,
     139,
     152,
+    200,
+    189,
+    192,
+    193,
+    194,
+    197,
+    198,
+    199,
+    195,
+    196,
+    138,
+    191,
+    137,
+    190,
     140,
+    182,
+    183,
+    184,
     153
   ],
   "issues": [
     {
       "number": 133,
       "state": "open",
-      "title": "[ARCH.2] Modularize RustyCore around ownership and stable boundaries"
+      "title": "[ARCH.2] Modularize RustyCore around ownership, clocks and stable boundaries",
+      "kind": "epic",
+      "parents": [],
+      "depends_on": []
+    },
+    {
+      "number": 169,
+      "state": "open",
+      "title": "[ARCH.DB] Establish SQLx-free persistence ownership and dialect adapters",
+      "kind": "epic",
+      "parents": [
+        133
+      ],
+      "depends_on": []
     },
     {
       "number": 134,
       "state": "closed",
-      "title": "[ARCH.2.2] Decouple the world listener from gameplay SessionResources"
+      "title": "[ARCH.2.2] Decouple the world listener from gameplay SessionResources",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": []
     },
     {
       "number": 135,
       "state": "closed",
-      "title": "[ARCH.2.1] Add executable architecture boundary guardrails"
+      "title": "[ARCH.2.1] Add executable architecture boundary guardrails",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": []
     },
     {
       "number": 136,
       "state": "open",
-      "title": "[ARCH.2.3] Extract a private world-server session factory"
+      "title": "[ARCH.2.3] Extract a private world-server session factory",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        134,
+        181
+      ]
     },
     {
       "number": 137,
       "state": "open",
-      "title": "[ARCH.2.5] Move gameplay group registries out of wow-network"
+      "title": "[ARCH.2.5e] Move the encapsulated Group owner into wow-social",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        195,
+        199,
+        191
+      ]
     },
     {
       "number": 138,
       "state": "open",
-      "title": "[ARCH.2.4] Move the session mailbox and player registry out of wow-network"
+      "title": "[ARCH.2.4g] Relocate the opaque session directory out of wow-network",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        136,
+        196
+      ]
     },
     {
       "number": 139,
       "state": "open",
-      "title": "[ARCH.2.6] Extract Calendar handlers from the misc dumping ground"
+      "title": "[ARCH.2.6] Extract Calendar as the first thin handler capability",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        185
+      ]
     },
     {
       "number": 140,
       "state": "open",
-      "title": "[ARCH.2.7b] Extract the WorldSession update and lifecycle driver"
+      "title": "[ARCH.2.7b] Extract the ordinary/durable Session command pump",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        152,
+        191,
+        190
+      ]
     },
     {
       "number": 142,
       "state": "closed",
-      "title": "[ARCH.2.1a] Reconcile world dispatcher and registration drift"
+      "title": "[ARCH.2.1a] Reconcile world dispatcher and registration drift",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": []
     },
     {
       "number": 143,
       "state": "closed",
-      "title": "[ARCH.2.1a-pre] Model C++ interaction provenance before activating TrainerBuySpell"
+      "title": "[ARCH.2.1a-pre] Model C++ interaction provenance before activating TrainerBuySpell",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": []
     },
     {
       "number": 144,
       "state": "closed",
-      "title": "[ARCH.2.1a-pre2] Validate trainer load inputs before activation"
+      "title": "[ARCH.2.1a-pre2] Validate trainer load inputs before activation",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": []
     },
     {
       "number": 146,
       "state": "closed",
-      "title": "[ARCH.2.1a-pre2a] Model exact effective SpellInfo key authority"
+      "title": "[ARCH.2.1a-pre2a] Model exact effective SpellInfo key authority",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": []
     },
     {
       "number": 148,
       "state": "closed",
-      "title": "[ARCH.2.1a-pre2b] Model exact effective SkillLine key authority"
+      "title": "[ARCH.2.1a-pre2b] Model exact effective SkillLine key authority",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": []
     },
     {
       "number": 150,
       "state": "open",
-      "title": "[ARCH.2.4b] Encapsulate PlayerRegistry behind a narrow application facade"
+      "title": "[ARCH.2.4a] Introduce an opaque PlayerRegistry facade in place",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        181,
+        185
+      ]
     },
     {
       "number": 151,
       "state": "open",
-      "title": "[ARCH.2.5b] Encapsulate GroupRegistry and pending invites behind atomic APIs"
+      "title": "[ARCH.2.5a] Introduce opaque GroupRegistry and PendingInvites facades in place",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        181,
+        185
+      ]
     },
     {
       "number": 152,
       "state": "open",
-      "title": "[ARCH.2.7a] Extract WorldSession packet admission and dispatch"
+      "title": "[ARCH.2.7a] Extract WorldSession packet admission and dispatch submodules",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        181,
+        185
+      ]
     },
     {
       "number": 153,
       "state": "open",
-      "title": "[ARCH.2.8] Re-audit architecture after the first modularization tranche"
+      "title": "[ARCH.2.8] Re-audit the Session shell and materialize remaining semantic cuts",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        184
+      ]
     },
     {
       "number": 154,
       "state": "closed",
-      "title": "[ARCH.2.1b] Align architecture policy with the audited refactor tranche"
+      "title": "[ARCH.2.1b] Align architecture policy with the audited refactor tranche",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": []
     },
     {
       "number": 156,
       "state": "closed",
-      "title": "[ARCH.2.1a-pre3a] Model independent primary-profession capacity"
+      "title": "[ARCH.2.1a-pre3a] Model independent primary-profession capacity",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": []
     },
     {
       "number": 157,
       "state": "closed",
-      "title": "[ARCH.2.1a-pre3b] Unify faithful trainer offer and eligibility decisions"
+      "title": "[ARCH.2.1a-pre3b] Unify faithful trainer offer and eligibility decisions",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": []
     },
     {
       "number": 158,
       "state": "closed",
-      "title": "[ARCH.2.1a-pre4a] Persist and publish prepared player spell learning"
+      "title": "[ARCH.2.1a-pre4a] Persist and publish prepared player spell learning",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": []
     },
     {
       "number": 159,
       "state": "closed",
-      "title": "[ARCH.2.1a-pre4b] Make normal trainer teaching atomic and complete"
+      "title": "[ARCH.2.1a-pre4b] Make normal trainer teaching atomic and complete",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": []
     },
     {
       "number": 160,
       "state": "closed",
-      "title": "[ARCH.2.1a-pre4c] Make battle-pet ownership durable and account-atomic"
+      "title": "[ARCH.2.1a-pre4c] Make battle-pet ownership durable and account-atomic",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": []
     },
     {
       "number": 161,
       "state": "closed",
-      "title": "[ARCH.2.1a-pre4d] Complete recoverable battle-pet trainer purchases"
+      "title": "[ARCH.2.1a-pre4d] Complete recoverable battle-pet trainer purchases",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": []
     },
     {
       "number": 163,
       "state": "closed",
-      "title": "[ARCH.2.1a-pre3a1] Compose effective spell-acquisition metadata"
+      "title": "[ARCH.2.1a-pre3a1] Compose effective spell-acquisition metadata",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": []
     },
     {
       "number": 164,
       "state": "closed",
-      "title": "[ARCH.2.1a-pre3a2] Project deterministic player spell-acquisition outcomes"
+      "title": "[ARCH.2.1a-pre3a2] Project deterministic player spell-acquisition outcomes",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": []
+    },
+    {
+      "number": 181,
+      "state": "open",
+      "title": "[ARCH.2.1c] Baseline ownership and install submodule ratchets",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        134
+      ]
+    },
+    {
+      "number": 182,
+      "state": "open",
+      "title": "[ARCH.2.7c] Extract logical realm/instance connection routing",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        140,
+        177
+      ]
+    },
+    {
+      "number": 183,
+      "state": "open",
+      "title": "[ARCH.2.7d] Extract the Session-only phase driver",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        182,
+        188
+      ]
+    },
+    {
+      "number": 184,
+      "state": "open",
+      "title": "[ARCH.2.7e] Extract Session login/logout lifecycle over persistence ports",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        177,
+        183,
+        187,
+        200
+      ]
+    },
+    {
+      "number": 185,
+      "state": "open",
+      "title": "[ARCH.2.1d] Make architecture and handler guards module-aware",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        181
+      ]
+    },
+    {
+      "number": 186,
+      "state": "open",
+      "title": "[ARCH.DB.1] Inventory and ratchet concrete persistence leakage",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        181
+      ]
+    },
+    {
+      "number": 187,
+      "state": "open",
+      "title": "[ARCH.DB.2] Freeze persistence transaction and publication order before ports",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        186
+      ]
+    },
+    {
+      "number": 188,
+      "state": "open",
+      "title": "[ARCH.RUNTIME.1] Trace current world/map clocks and phase ownership before convergence",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        181
+      ]
+    },
+    {
+      "number": 189,
+      "state": "open",
+      "title": "[ARCH.DB.3] Move durable loot persistence coordination out of wow-network",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        187
+      ]
+    },
+    {
+      "number": 190,
+      "state": "open",
+      "title": "[ARCH.2.4i] Move durable creature-runtime command storage out of wow-network",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        188,
+        191
+      ]
+    },
+    {
+      "number": 191,
+      "state": "open",
+      "title": "[ARCH.2.4h] Relocate the session mailbox protocol out of wow-network",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        138
+      ]
+    },
+    {
+      "number": 192,
+      "state": "open",
+      "title": "[ARCH.2.4b] Replace runtime fanout access with session-directory queries",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        150,
+        188
+      ]
+    },
+    {
+      "number": 193,
+      "state": "open",
+      "title": "[ARCH.2.4c] Replace combat and loot access with bounded directory capabilities",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        150,
+        187
+      ]
+    },
+    {
+      "number": 194,
+      "state": "open",
+      "title": "[ARCH.2.4d] Replace quest, spell and movement access with bounded directory capabilities",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        150,
+        188
+      ]
+    },
+    {
+      "number": 195,
+      "state": "open",
+      "title": "[ARCH.2.4e] Replace social and group access with session-addressing APIs",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        150,
+        199
+      ]
+    },
+    {
+      "number": 196,
+      "state": "open",
+      "title": "[ARCH.2.4f] Privatize PlayerRegistry storage and migrate compatibility fixtures",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        192,
+        193,
+        194,
+        195
+      ]
+    },
+    {
+      "number": 197,
+      "state": "open",
+      "title": "[ARCH.2.5b] Encapsulate group invite, creation and capacity transitions",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        151
+      ]
+    },
+    {
+      "number": 198,
+      "state": "open",
+      "title": "[ARCH.2.5c] Encapsulate group membership, leadership and ready-state transitions",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        197
+      ]
+    },
+    {
+      "number": 199,
+      "state": "open",
+      "title": "[ARCH.2.5d] Separate group persistence/publication and close GroupRegistry storage",
+      "kind": "slice",
+      "parents": [
+        133
+      ],
+      "depends_on": [
+        187,
+        198
+      ]
+    },
+    {
+      "number": 200,
+      "state": "open",
+      "title": "[ARCH.DB.4] Earn wow-persistence with the Player lifecycle port",
+      "kind": "slice",
+      "parents": [
+        133,
+        169
+      ],
+      "depends_on": [
+        186,
+        187
+      ]
     }
   ]
 }

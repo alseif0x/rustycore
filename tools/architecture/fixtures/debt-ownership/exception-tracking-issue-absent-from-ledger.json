@@ -30,14 +30,15 @@
     }
   },
   "ledger": {
-    "schema_version": 1,
+    "schema_version": 2,
     "parent_issue": 133,
     "reaudit_issue": 153,
+    "external_prerequisites": [],
     "sequence": [135, 153],
     "issues": [
-      {"number": 133, "state": "open", "title": "Parent epic"},
-      {"number": 153, "state": "open", "title": "Post-tranche re-audit"},
-      {"number": 135, "state": "closed", "title": "Completed slice"}
+      {"number": 133, "state": "open", "title": "Parent epic", "kind": "epic", "parents": [], "depends_on": []},
+      {"number": 153, "state": "open", "title": "Post-tranche re-audit", "kind": "slice", "parents": [133], "depends_on": [135]},
+      {"number": 135, "state": "closed", "title": "Completed slice", "kind": "slice", "parents": [133], "depends_on": []}
     ]
   }
 }

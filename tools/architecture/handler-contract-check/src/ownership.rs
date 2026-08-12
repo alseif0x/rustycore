@@ -15,9 +15,12 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use quote::ToTokens;
 use serde_json::Value;
+use syn::parse::Parser;
+use syn::punctuated::Punctuated;
 use syn::visit::Visit;
-use syn::{Item, ItemMod};
+use syn::{Item, ItemMod, Meta, Token};
 
 use crate::registrations::{
     analyze_registration_syntax_outside_handlers, exported_macro_names,
@@ -407,14 +410,270 @@ fn package_audit_scopes(
 struct SourceGraph {
     mounts: BTreeMap<PathBuf, SourceMount>,
     explicit_path_declarations: BTreeSet<(PathBuf, String, PathBuf)>,
-    visited_mounts: BTreeSet<(PathBuf, String)>,
+    visited_mounts: BTreeSet<(PathBuf, SourceMountContext)>,
     active_sources: Vec<PathBuf>,
 }
 
 #[derive(Debug)]
 struct SourceMount {
     module_directory: PathBuf,
-    logical_paths: BTreeSet<String>,
+    contexts: BTreeSet<SourceMountContext>,
+}
+
+/// One logical mount of a physical source file.
+///
+/// The handler audit intentionally inspects every cfg branch. Session surface
+/// ratchets additionally need to distinguish source that can participate in a
+/// non-test production build from exact `cfg(test)`-only source, while still
+/// retaining the normalized cfg ancestry in the checked-in baseline.
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub(crate) struct SourceMountContext {
+    pub(crate) logical_module_path: String,
+    pub(crate) cfg: Vec<String>,
+    pub(crate) production_possible: bool,
+    pub(crate) test_possible: bool,
+}
+
+#[derive(Clone, Debug)]
+enum CfgExpression {
+    Constant(bool),
+    Atom(String),
+    Not(Box<CfgExpression>),
+    All(Vec<CfgExpression>),
+    Any(Vec<CfgExpression>),
+}
+
+fn cfg_meta_expression(meta: &Meta, test_enabled: bool) -> Result<CfgExpression, String> {
+    match meta {
+        Meta::Path(path) if path.is_ident("test") => Ok(CfgExpression::Constant(test_enabled)),
+        Meta::Path(_) | Meta::NameValue(_) => {
+            Ok(CfgExpression::Atom(meta.to_token_stream().to_string()))
+        }
+        Meta::List(list) if list.path.is_ident("all") => {
+            let items = Punctuated::<Meta, Token![,]>::parse_terminated
+                .parse2(list.tokens.clone())
+                .map_err(|error| format!("cannot parse cfg(all(...)): {error}"))?;
+            Ok(CfgExpression::All(
+                items
+                    .iter()
+                    .map(|meta| cfg_meta_expression(meta, test_enabled))
+                    .collect::<Result<_, _>>()?,
+            ))
+        }
+        Meta::List(list) if list.path.is_ident("any") => {
+            let items = Punctuated::<Meta, Token![,]>::parse_terminated
+                .parse2(list.tokens.clone())
+                .map_err(|error| format!("cannot parse cfg(any(...)): {error}"))?;
+            Ok(CfgExpression::Any(
+                items
+                    .iter()
+                    .map(|meta| cfg_meta_expression(meta, test_enabled))
+                    .collect::<Result<_, _>>()?,
+            ))
+        }
+        Meta::List(list) if list.path.is_ident("not") => {
+            let items = Punctuated::<Meta, Token![,]>::parse_terminated
+                .parse2(list.tokens.clone())
+                .map_err(|error| format!("cannot parse cfg(not(...)): {error}"))?;
+            if items.len() != 1 {
+                return Err("cfg(not(...)) must contain exactly one predicate".to_owned());
+            }
+            let item = items.first().expect("one cfg item after length check");
+            Ok(CfgExpression::Not(Box::new(cfg_meta_expression(
+                item,
+                test_enabled,
+            )?)))
+        }
+        Meta::List(_) => Ok(CfgExpression::Atom(meta.to_token_stream().to_string())),
+    }
+}
+
+fn cfg_attribute_expression(meta: &Meta, test_enabled: bool) -> Result<CfgExpression, String> {
+    let Meta::List(list) = meta else {
+        return Err("cfg attribute must use list syntax".to_owned());
+    };
+    let predicate = syn::parse2::<Meta>(list.tokens.clone())
+        .map_err(|error| format!("cannot parse cfg predicate: {error}"))?;
+    cfg_meta_expression(&predicate, test_enabled)
+}
+
+fn cfg_attr_expression(meta: &Meta, test_enabled: bool) -> Result<CfgExpression, String> {
+    let Meta::List(list) = meta else {
+        return Err("cfg_attr attribute must use list syntax".to_owned());
+    };
+    let items = Punctuated::<Meta, Token![,]>::parse_terminated
+        .parse2(list.tokens.clone())
+        .map_err(|error| format!("cannot parse cfg_attr arguments: {error}"))?;
+    let mut items = items.iter();
+    let predicate = items
+        .next()
+        .ok_or_else(|| "cfg_attr requires a predicate and at least one attribute".to_owned())?;
+    let nested: Vec<_> = items.collect();
+    if nested.is_empty() {
+        return Err("cfg_attr requires at least one conditional attribute".to_owned());
+    }
+    let predicate = cfg_meta_expression(predicate, test_enabled)?;
+    let effects = nested
+        .into_iter()
+        .map(|attribute| {
+            if attribute.path().is_ident("cfg") {
+                cfg_attribute_expression(attribute, test_enabled)
+            } else if attribute.path().is_ident("cfg_attr") {
+                cfg_attr_expression(attribute, test_enabled)
+            } else {
+                Ok(CfgExpression::Constant(true))
+            }
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(CfgExpression::Any(vec![
+        CfgExpression::Not(Box::new(predicate)),
+        CfgExpression::All(effects),
+    ]))
+}
+
+fn cfg_atoms(expression: &CfgExpression, atoms: &mut BTreeSet<String>) {
+    match expression {
+        CfgExpression::Atom(atom) => {
+            atoms.insert(atom.clone());
+        }
+        CfgExpression::Not(inner) => cfg_atoms(inner, atoms),
+        CfgExpression::All(items) | CfgExpression::Any(items) => {
+            for item in items {
+                cfg_atoms(item, atoms);
+            }
+        }
+        CfgExpression::Constant(_) => {}
+    }
+}
+
+fn evaluate_cfg(expression: &CfgExpression, assignments: &BTreeMap<String, bool>) -> Option<bool> {
+    match expression {
+        CfgExpression::Constant(value) => Some(*value),
+        CfgExpression::Atom(atom) => assignments.get(atom).copied(),
+        CfgExpression::Not(inner) => evaluate_cfg(inner, assignments).map(|value| !value),
+        CfgExpression::All(items) => {
+            let values: Vec<_> = items
+                .iter()
+                .map(|item| evaluate_cfg(item, assignments))
+                .collect();
+            if values.contains(&Some(false)) {
+                Some(false)
+            } else if values.iter().all(Option::is_some) {
+                Some(true)
+            } else {
+                None
+            }
+        }
+        CfgExpression::Any(items) => {
+            let values: Vec<_> = items
+                .iter()
+                .map(|item| evaluate_cfg(item, assignments))
+                .collect();
+            if values.contains(&Some(true)) {
+                Some(true)
+            } else if values.iter().all(Option::is_some) {
+                Some(false)
+            } else {
+                None
+            }
+        }
+    }
+}
+
+fn cfg_satisfiable(expression: &CfgExpression) -> bool {
+    let mut atoms = BTreeSet::new();
+    cfg_atoms(expression, &mut atoms);
+    let atoms: Vec<_> = atoms.into_iter().collect();
+
+    fn search(
+        expression: &CfgExpression,
+        atoms: &[String],
+        assignments: &mut BTreeMap<String, bool>,
+    ) -> bool {
+        match evaluate_cfg(expression, assignments) {
+            Some(value) => return value,
+            None => {}
+        }
+        let Some(atom) = atoms.iter().find(|atom| !assignments.contains_key(*atom)) else {
+            return false;
+        };
+        let atom = atom.clone();
+        for value in [false, true] {
+            assignments.insert(atom.clone(), value);
+            if search(expression, atoms, assignments) {
+                assignments.remove(&atom);
+                return true;
+            }
+        }
+        assignments.remove(&atom);
+        false
+    }
+
+    search(expression, &atoms, &mut BTreeMap::new())
+}
+
+pub(crate) fn normalized_cfg_attributes(attributes: &[syn::Attribute]) -> Vec<String> {
+    let mut cfg: Vec<_> = attributes
+        .iter()
+        .filter(|attribute| {
+            attribute.path().is_ident("cfg") || attribute.path().is_ident("cfg_attr")
+        })
+        .map(|attribute| attribute.meta.to_token_stream().to_string())
+        .collect();
+    cfg.sort();
+    cfg.dedup();
+    cfg
+}
+
+fn cfg_context_satisfiable(
+    parent: &[String],
+    attributes: &[syn::Attribute],
+    test_enabled: bool,
+) -> Result<bool, String> {
+    let mut expressions = Vec::new();
+    for fingerprint in parent {
+        let meta: Meta = syn::parse_str(fingerprint)
+            .map_err(|error| format!("cannot parse inherited cfg {fingerprint:?}: {error}"))?;
+        if meta.path().is_ident("cfg") {
+            expressions.push(cfg_attribute_expression(&meta, test_enabled)?);
+        } else if meta.path().is_ident("cfg_attr") {
+            expressions.push(cfg_attr_expression(&meta, test_enabled)?);
+        } else {
+            return Err(format!(
+                "unsupported inherited cfg fingerprint {fingerprint:?}"
+            ));
+        }
+    }
+    for attribute in attributes {
+        if attribute.path().is_ident("cfg") {
+            expressions.push(cfg_attribute_expression(&attribute.meta, test_enabled)?);
+        } else if attribute.path().is_ident("cfg_attr") {
+            expressions.push(cfg_attr_expression(&attribute.meta, test_enabled)?);
+        }
+    }
+    Ok(cfg_satisfiable(&CfgExpression::All(expressions)))
+}
+
+pub(crate) fn cfg_context_allows_production(
+    parent: &[String],
+    attributes: &[syn::Attribute],
+) -> Result<bool, String> {
+    cfg_context_satisfiable(parent, attributes, false)
+}
+
+pub(crate) fn cfg_context_allows_test(
+    parent: &[String],
+    attributes: &[syn::Attribute],
+) -> Result<bool, String> {
+    cfg_context_satisfiable(parent, attributes, true)
+}
+
+pub(crate) fn extend_cfg_context(parent: &[String], attributes: &[syn::Attribute]) -> Vec<String> {
+    let mut cfg = parent.to_vec();
+    cfg.extend(normalized_cfg_attributes(attributes));
+    cfg.sort();
+    cfg.dedup();
+    cfg
 }
 
 struct NestedModuleCollector<'ast> {
@@ -547,11 +806,33 @@ fn walk_module(
     source_path: &Path,
     module_directory: &Path,
     logical_module_path: &str,
+    cfg: &[String],
+    production_possible: bool,
+    test_possible: bool,
     inside_inline_module: bool,
     package_root: &Path,
     graph: &mut SourceGraph,
 ) -> Result<(), String> {
     let child_logical_path = format!("{logical_module_path}::{}", module.ident);
+    let child_cfg = extend_cfg_context(cfg, &module.attrs);
+    let child_context_possible =
+        cfg_context_allows_production(&child_cfg, &[]).map_err(|error| {
+            format!(
+                "cannot evaluate cfg on module {} in {}: {error}",
+                module.ident,
+                source_path.display()
+            )
+        })?;
+    let child_production_possible = production_possible && child_context_possible;
+    let child_test_context_possible =
+        cfg_context_allows_test(&child_cfg, &[]).map_err(|error| {
+            format!(
+                "cannot evaluate test cfg on module {} in {}: {error}",
+                module.ident,
+                source_path.display()
+            )
+        })?;
+    let child_test_possible = test_possible && child_test_context_possible;
     if let Some((_, inline_items)) = &module.content {
         if explicit_path(&module.attrs)?.is_some() {
             return Err(format!(
@@ -566,6 +847,9 @@ fn walk_module(
             source_path,
             &module_directory.join(module.ident.to_string()),
             &child_logical_path,
+            &child_cfg,
+            child_production_possible,
+            child_test_possible,
             true,
             package_root,
             graph,
@@ -586,6 +870,9 @@ fn walk_module(
         &child_source,
         &child_directory,
         &child_logical_path,
+        &child_cfg,
+        child_production_possible,
+        child_test_possible,
         package_root,
         graph,
     )
@@ -596,6 +883,9 @@ fn walk_items(
     source_path: &Path,
     module_directory: &Path,
     logical_module_path: &str,
+    cfg: &[String],
+    production_possible: bool,
+    test_possible: bool,
     inside_inline_module: bool,
     package_root: &Path,
     graph: &mut SourceGraph,
@@ -607,6 +897,9 @@ fn walk_items(
                 source_path,
                 module_directory,
                 logical_module_path,
+                cfg,
+                production_possible,
+                test_possible,
                 inside_inline_module,
                 package_root,
                 graph,
@@ -634,10 +927,40 @@ fn walk_source_file(
     source_path: &Path,
     module_directory: &Path,
     logical_module_path: &str,
+    inherited_cfg: &[String],
+    inherited_production_possible: bool,
+    inherited_test_possible: bool,
     package_root: &Path,
     graph: &mut SourceGraph,
 ) -> Result<(), String> {
     let resolved = validate_source_file(source_path, package_root, "production module source")?;
+    if graph.active_sources.contains(&resolved) {
+        return Err(format!(
+            "recursive Rust module source while mounting {} as {logical_module_path}",
+            resolved.display()
+        ));
+    }
+    let source = fs::read_to_string(&resolved)
+        .map_err(|error| format!("cannot read {}: {error}", resolved.display()))?;
+    let syntax = syn::parse_file(&source)
+        .map_err(|error| format!("cannot parse {}: {error}", resolved.display()))?;
+    let cfg = extend_cfg_context(inherited_cfg, &syntax.attrs);
+    let source_context_possible = cfg_context_allows_production(&cfg, &[])
+        .map_err(|error| format!("cannot evaluate cfg in {}: {error}", resolved.display()))?;
+    let production_possible = inherited_production_possible && source_context_possible;
+    let test_context_possible = cfg_context_allows_test(&cfg, &[]).map_err(|error| {
+        format!(
+            "cannot evaluate test cfg in {}: {error}",
+            resolved.display()
+        )
+    })?;
+    let test_possible = inherited_test_possible && test_context_possible;
+    let context = SourceMountContext {
+        logical_module_path: logical_module_path.to_owned(),
+        cfg,
+        production_possible,
+        test_possible,
+    };
     if let Some(previous_mount) = graph.mounts.get_mut(&resolved) {
         if previous_mount.module_directory != module_directory {
             return Err(format!(
@@ -647,41 +970,32 @@ fn walk_source_file(
                 module_directory.display()
             ));
         }
-        previous_mount
-            .logical_paths
-            .insert(logical_module_path.to_owned());
+        previous_mount.contexts.insert(context.clone());
     } else {
         graph.mounts.insert(
             resolved.clone(),
             SourceMount {
                 module_directory: module_directory.to_owned(),
-                logical_paths: BTreeSet::from([logical_module_path.to_owned()]),
+                contexts: BTreeSet::from([context.clone()]),
             },
         );
     }
-    if graph.active_sources.contains(&resolved) {
-        return Err(format!(
-            "recursive Rust module source while mounting {} as {logical_module_path}",
-            resolved.display()
-        ));
-    }
     if !graph
         .visited_mounts
-        .insert((resolved.clone(), logical_module_path.to_owned()))
+        .insert((resolved.clone(), context.clone()))
     {
         return Ok(());
     }
 
     graph.active_sources.push(resolved.clone());
-    let source = fs::read_to_string(&resolved)
-        .map_err(|error| format!("cannot read {}: {error}", resolved.display()))?;
-    let syntax = syn::parse_file(&source)
-        .map_err(|error| format!("cannot parse {}: {error}", resolved.display()))?;
     let result = walk_items(
         &syntax.items,
         &resolved,
         module_directory,
         logical_module_path,
+        &context.cfg,
+        context.production_possible,
+        context.test_possible,
         false,
         package_root,
         graph,
@@ -694,10 +1008,10 @@ fn walk_source_file(
     result
 }
 
-pub(crate) fn audit_package_source_graph(
+pub(crate) fn audit_package_source_mounts(
     package_root: &Path,
     production_roots: &[PathBuf],
-) -> Result<(BTreeMap<PathBuf, BTreeSet<String>>, usize), String> {
+) -> Result<(BTreeMap<PathBuf, BTreeSet<SourceMountContext>>, usize), String> {
     let package_root = package_root.canonicalize().map_err(|error| {
         format!(
             "cannot resolve package root {}: {error}",
@@ -716,6 +1030,9 @@ pub(crate) fn audit_package_source_graph(
             production_root,
             root_parent,
             "crate",
+            &[],
+            true,
+            true,
             &package_root,
             &mut graph,
         )?;
@@ -724,10 +1041,83 @@ pub(crate) fn audit_package_source_graph(
         graph
             .mounts
             .into_iter()
-            .map(|(source, mount)| (source, mount.logical_paths))
+            .map(|(source, mount)| (source, mount.contexts))
             .collect(),
         graph.explicit_path_declarations.len(),
     ))
+}
+
+pub(crate) fn audit_package_source_graph(
+    package_root: &Path,
+    production_roots: &[PathBuf],
+) -> Result<(BTreeMap<PathBuf, BTreeSet<String>>, usize), String> {
+    let (mounts, explicit_paths) = audit_package_source_mounts(package_root, production_roots)?;
+    Ok((
+        mounts
+            .into_iter()
+            .map(|(source, contexts)| {
+                (
+                    source,
+                    contexts
+                        .into_iter()
+                        .map(|context| context.logical_module_path)
+                        .collect(),
+                )
+            })
+            .collect(),
+        explicit_paths,
+    ))
+}
+
+/// One physical source and all of its logical production/test mount contexts
+/// in a Cargo workspace package.
+pub(crate) struct WorkspaceSourceMount {
+    pub(crate) package: String,
+    pub(crate) source_path: PathBuf,
+    pub(crate) contexts: BTreeSet<SourceMountContext>,
+    pub(crate) source: String,
+}
+
+/// Resolve every workspace production lib/bin module graph using the same
+/// locked Cargo metadata and path rules as the handler ownership audit.
+pub(crate) fn workspace_source_mounts(
+    repository_root: &Path,
+) -> Result<Vec<WorkspaceSourceMount>, String> {
+    let metadata = workspace_metadata(repository_root)?;
+    let workspace_members: BTreeSet<_> = required_array(&metadata, "workspace_members", "root")?
+        .iter()
+        .map(|member| {
+            member
+                .as_str()
+                .map(str::to_owned)
+                .ok_or_else(|| "cargo metadata workspace member is not a string".to_owned())
+        })
+        .collect::<Result<_, _>>()?;
+    let scopes = package_audit_scopes(&metadata, &workspace_members)?;
+    let mut result = Vec::new();
+    for scope in scopes {
+        let (mounts, _) = audit_package_source_mounts(&scope.root, &scope.production_roots)
+            .map_err(|error| {
+                format!(
+                    "invalid production source graph for {}: {error}",
+                    scope.name
+                )
+            })?;
+        for (source_path, contexts) in mounts {
+            let source = fs::read_to_string(&source_path)
+                .map_err(|error| format!("cannot read {}: {error}", source_path.display()))?;
+            result.push(WorkspaceSourceMount {
+                package: scope.name.clone(),
+                source_path,
+                contexts,
+                source,
+            });
+        }
+    }
+    result.sort_by(|left, right| {
+        (&left.package, &left.source_path).cmp(&(&right.package, &right.source_path))
+    });
+    Ok(result)
 }
 
 fn is_owned_handler_mount(package_name: &str, logical_paths: &BTreeSet<String>) -> bool {
