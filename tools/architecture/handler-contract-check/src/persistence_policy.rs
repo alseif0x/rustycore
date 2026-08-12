@@ -272,13 +272,13 @@ fn generate_policy(
                     | PersistenceOperation::TransactionAppend
             ) || matches!(
                 row.target,
-                PersistenceTarget::SqlTransaction
-                    | PersistenceTarget::SqlxTransaction
-                    | PersistenceTarget::SqlTransactionCommitError
+                PersistenceTarget::SqlTransaction | PersistenceTarget::SqlxTransaction
             )
         });
         let unknown_commit = rows.iter().any(|row| {
             row.target == PersistenceTarget::SqlTransactionCommitError
+                || (row.operation == PersistenceOperation::Commit
+                    && row.symbol == "commit_with_outcome_like_cpp")
                 || row.symbol.to_ascii_lowercase().contains("unknown")
         });
         let logical = annotation.logical_databases.join(", ");
@@ -816,6 +816,57 @@ mod tests {
             generate_policy(&annotations, &mixed)
                 .expect_err("a newly typed logical database cannot be auto-authorized")
                 .contains("omits exact typed logical database login")
+        );
+    }
+
+    #[test]
+    fn generated_policy_separates_explicit_transactions_from_unknown_commit_outcomes() {
+        let source = "crates/wow-world/src/handlers/character.rs";
+
+        let mut outcome_commit = row(source);
+        outcome_commit.operation = PersistenceOperation::Commit;
+        outcome_commit.symbol = "commit_with_outcome_like_cpp".to_owned();
+        outcome_commit.fingerprint = "tx.commit_with_outcome_like_cpp()".to_owned();
+        let generated = generate_policy(
+            &WorkflowAnnotations {
+                schema_version: 1,
+                workflows: vec![annotation(source)],
+            },
+            &PersistenceAccessBaseline {
+                schema_version: 3,
+                accesses: vec![outcome_commit],
+            },
+        )
+        .expect("an outcome-aware commit generates a semantic policy");
+        assert!(
+            generated.groups[0]
+                .failure_and_unknown_commit
+                .contains("unknown commit outcome")
+        );
+
+        let mut error_type = row(source);
+        error_type.target = PersistenceTarget::SqlTransactionCommitError;
+        error_type.operation = PersistenceOperation::TypeReference;
+        error_type.symbol = "SqlTransactionCommitError".to_owned();
+        error_type.fingerprint = "SqlTransactionCommitError".to_owned();
+        let generated = generate_policy(
+            &WorkflowAnnotations {
+                schema_version: 1,
+                workflows: vec![annotation(source)],
+            },
+            &PersistenceAccessBaseline {
+                schema_version: 3,
+                accesses: vec![error_type],
+            },
+        )
+        .expect("an outcome error type generates a semantic policy");
+        let group = &generated.groups[0];
+        assert!(group.connection_affinity.contains("no wider transaction"));
+        assert!(group.current_order.contains("source and await order"));
+        assert!(
+            group
+                .failure_and_unknown_commit
+                .contains("unknown commit outcome")
         );
     }
 

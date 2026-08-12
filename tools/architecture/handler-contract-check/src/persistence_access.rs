@@ -1037,6 +1037,8 @@ fn collect_module_symbols(
                         .unwrap_or_else(|| source.clone());
                     if symbols.sqlx_namespaces.contains(&source) {
                         changed |= symbols.sqlx_namespaces.insert(local);
+                    } else if source == "wow_database" {
+                        changed |= symbols.database_namespaces.insert(local);
                     }
                 }
                 Item::Type(alias)
@@ -3098,17 +3100,22 @@ fn analyze_module_items(
                         cfg: &extern_cfg,
                     },
                 );
-                if source == "sqlx" {
-                    let local = extern_crate
-                        .rename
-                        .as_ref()
-                        .map(|(_, rename)| normalized_ident(rename))
-                        .unwrap_or_else(|| source.clone());
+                let local = extern_crate
+                    .rename
+                    .as_ref()
+                    .map(|(_, rename)| normalized_ident(rename))
+                    .unwrap_or_else(|| source.clone());
+                let import_target = match source.as_str() {
+                    "sqlx" => Some(PersistenceTarget::Sqlx),
+                    "wow_database" => Some(PersistenceTarget::Database),
+                    _ => None,
+                };
+                if let Some(target) = import_target {
                     accumulator.add(
                         &context,
                         NewAccess {
                             enclosing: "module",
-                            target: PersistenceTarget::Sqlx,
+                            target,
                             operation: PersistenceOperation::Import,
                             symbol: &local,
                             visibility: &extern_visibility,
@@ -3803,6 +3810,74 @@ mod tests {
             }),
             "the explicit Arc::clone grammar is value flow, not an unknown escape"
         );
+    }
+
+    #[test]
+    fn persistence_inventory_tracks_renamed_database_extern_crates_without_false_positives() {
+        let baseline = inventory(
+            r#"
+                extern crate wow_database as db;
+
+                async fn leak(database: &db::CharacterDatabase) {
+                    let mut tx = database.pool().begin().await.unwrap();
+                    tx.rollback().await.unwrap();
+                }
+            "#,
+        )
+        .expect("renamed wow_database extern crate resolves");
+        let found = operations(&baseline);
+        for expected in [
+            (
+                PersistenceTarget::Database,
+                PersistenceOperation::Import,
+                "db".to_owned(),
+            ),
+            (
+                PersistenceTarget::CharacterDatabase,
+                PersistenceOperation::TypeReference,
+                "database".to_owned(),
+            ),
+            (
+                PersistenceTarget::CharacterDatabase,
+                PersistenceOperation::PoolAccess,
+                "pool".to_owned(),
+            ),
+            (
+                PersistenceTarget::CharacterDatabase,
+                PersistenceOperation::Begin,
+                "begin".to_owned(),
+            ),
+            (
+                PersistenceTarget::CharacterDatabase,
+                PersistenceOperation::Rollback,
+                "rollback".to_owned(),
+            ),
+        ] {
+            assert!(
+                found.contains(&expected),
+                "missing {expected:?}: {found:#?}"
+            );
+        }
+        assert!(baseline.accesses.iter().any(|row| {
+            row.operation == PersistenceOperation::Import
+                && row.fingerprint == "extern crate wow_database as db"
+        }));
+
+        let error = compare_persistence_access_baseline(&inventory("").unwrap(), &baseline)
+            .expect_err("a renamed database extern crate must trip the non-growth ratchet");
+        assert!(
+            error.contains("untracked direct persistence access"),
+            "{error}"
+        );
+
+        let unrelated = inventory(
+            r#"
+                extern crate unrelated as db;
+                fn innocent(_: db::CharacterDatabase) {}
+            "#,
+        )
+        .expect("an unrelated extern crate remains ordinary Rust syntax");
+        assert!(unrelated.accesses.is_empty(), "{:#?}", unrelated.accesses);
     }
 
     #[test]

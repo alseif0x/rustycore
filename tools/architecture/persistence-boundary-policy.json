@@ -13826,7 +13826,7 @@
       ],
       "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow fn is_outcome_deadlock_like_cpp in crates/wow-database/src/transaction.rs.",
       "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
@@ -14195,7 +14195,7 @@
       ],
       "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow impl SqlTransaction::commit in crates/wow-database/src/transaction.rs.",
       "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
@@ -14225,7 +14225,7 @@
       ],
       "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow impl SqlTransaction::commit_with_outcome_like_cpp in crates/wow-database/src/transaction.rs.",
       "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
@@ -14255,7 +14255,7 @@
       ],
       "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow impl SqlTransaction::try_commit in crates/wow-database/src/transaction.rs.",
       "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
@@ -14315,7 +14315,7 @@
       ],
       "capability_owner": "wow-database typed adapter currently owns the complete wow-database workflow impl SqlTransactionCommitError in crates/wow-database/src/transaction.rs.",
       "connection_affinity": "The typed adapter is instantiated against exactly one of characters, hotfix, login, world per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
@@ -15731,7 +15731,7 @@
       "capability_owner": "durable player progression capability currently owns the complete wow-world workflow impl LoginBattlePetPersistenceLikeCpp::delete_pet in crates/wow-world/src/battle_pet_account.rs.",
       "connection_affinity": "The workflow preserves one explicit login connection/transaction across its current statement sequence.",
       "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
+      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
       "target_issues": [
         153,
         187
@@ -15911,7 +15911,7 @@
       "capability_owner": "durable player progression capability currently owns the complete wow-world workflow impl LoginBattlePetPersistenceLikeCpp::replace_slots in crates/wow-world/src/battle_pet_account.rs.",
       "connection_affinity": "The workflow preserves one explicit login connection/transaction across its current statement sequence.",
       "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
+      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
       "target_issues": [
         153,
         187
@@ -16091,7 +16091,7 @@
       "capability_owner": "durable player progression capability currently owns the complete wow-world workflow impl CharacterBattlePetPurchaseStoreLikeCpp::charge_and_insert_command in crates/wow-world/src/battle_pet_purchase.rs.",
       "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
       "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
+      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
       "target_issues": [
         153,
         187
@@ -16121,7 +16121,7 @@
       "capability_owner": "durable player progression capability currently owns the complete wow-world workflow impl CharacterBattlePetPurchaseStoreLikeCpp::compensate in crates/wow-world/src/battle_pet_purchase.rs.",
       "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
       "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
+      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
       "target_issues": [
         153,
         187
@@ -16241,7 +16241,7 @@
       "capability_owner": "durable player progression capability currently owns the complete wow-world workflow impl CharacterBattlePetPurchaseStoreLikeCpp::mark_compensation_pending in crates/wow-world/src/battle_pet_purchase.rs.",
       "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
       "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
+      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
       "target_issues": [
         153,
         187
@@ -16271,7 +16271,7 @@
       "capability_owner": "durable player progression capability currently owns the complete wow-world workflow impl CharacterBattlePetPurchaseStoreLikeCpp::mark_completed in crates/wow-world/src/battle_pet_purchase.rs.",
       "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
       "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
+      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
       "target_issues": [
         153,
         187
@@ -16301,7 +16301,7 @@
       "capability_owner": "durable player progression capability currently owns the complete wow-world workflow impl CharacterBattlePetPurchaseStoreLikeCpp::mark_published in crates/wow-world/src/battle_pet_purchase.rs.",
       "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
       "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
+      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
       "target_issues": [
         153,
         187
@@ -16361,7 +16361,7 @@
       "capability_owner": "durable player progression capability currently owns the complete wow-world workflow impl CharacterBattlePetPurchaseStoreLikeCpp::mark_terminal_failure in crates/wow-world/src/battle_pet_purchase.rs.",
       "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
       "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
+      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
       "target_issues": [
         153,
         187
@@ -19373,8 +19373,8 @@
         "characters"
       ],
       "capability_owner": "durable loot persistence/publication capability currently owns the complete wow-world workflow fn spawn_sql_loot_claim_persistence_worker_like_cpp in crates/wow-world/src/handlers/loot.rs.",
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
+      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
       "target_issues": [
         187,
@@ -19611,7 +19611,7 @@
       "capability_owner": "durable loot persistence/publication capability currently owns the complete wow-world workflow impl WorldSession::store_direct_disenchant_batch_like_cpp in crates/wow-world/src/handlers/loot.rs.",
       "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
       "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
+      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
       "target_issues": [
         187,
         189
@@ -19641,7 +19641,7 @@
       "capability_owner": "durable loot persistence/publication capability currently owns the complete wow-world workflow impl WorldSession::store_direct_loot_item_with_source_like_cpp in crates/wow-world/src/handlers/loot.rs.",
       "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
       "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
+      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
       "target_issues": [
         187,
         189
@@ -23323,7 +23323,7 @@
       "capability_owner": "Session residual persistence boundary currently owns the complete wow-world workflow impl WorldSession::commit_exclusive_player_money_transaction_like_cpp in crates/wow-world/src/session.rs.",
       "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
       "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
+      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
       "target_issues": [
         153,
         187
@@ -24126,7 +24126,7 @@
       "capability_owner": "Player lifecycle persistence capability currently owns the complete wow-world workflow impl WorldSession::save_current_player_to_db_like_cpp in crates/wow-world/src/session.rs.",
       "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
       "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
-      "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
+      "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
       "target_issues": [
         187,
         200
@@ -25168,8 +25168,8 @@
         "characters"
       ],
       "capability_owner": "durable player progression capability currently owns the complete wow-world workflow fn persist_prepared_player_spell_acquisition_like_cpp in crates/wow-world/src/spell_acquisition/application.rs.",
-      "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
-      "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
+      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.",
       "target_issues": [
         153,
