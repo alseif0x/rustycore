@@ -13,6 +13,9 @@ use quote::ToTokens;
 use syn::visit::Visit;
 use syn::{Attribute, Expr, Item, ItemMacro, Lit, Meta, UseTree};
 
+use crate::module_policy::CapabilityOwner;
+use crate::ownership::WorkspaceSourceMount;
+
 pub(crate) const EXPECTED_REGISTRATION_MACROS: &[&str] = &[
     "register_chat_channel_command_handler",
     "register_chat_channel_player_command_handler",
@@ -439,7 +442,7 @@ impl<'ast> Visit<'ast> for InventoryAliasCollector {
         if use_tree_can_alias_expected_registration_macro(&item.tree) {
             self.violations.push(format!(
                 "import {} aliases or reexports an audited handler registration macro; \
-                 registration macros must remain private to crate::handlers and use their \
+                 registration macros must remain private to the declared handler-registration owner and use their \
                  unqualified audited names",
                 item.to_token_stream()
             ));
@@ -695,7 +698,7 @@ pub(crate) fn analyze_registration_syntax_outside_handlers(
         .filter(macro_definition_may_generate_handler)
     {
         violations.push(format!(
-            "{} defines handler-capable macro_rules! {} outside crate::handlers",
+            "{} defines handler-capable macro_rules! {} outside the declared handler-registration owner",
             source_path.display(),
             definition.name
         ));
@@ -703,7 +706,7 @@ pub(crate) fn analyze_registration_syntax_outside_handlers(
     for call in token_macro_calls(&tokens) {
         if call.path.last().is_some_and(|name| name == "include") {
             violations.push(format!(
-                "{} uses include! outside crate::handlers; included source could hide a handler \
+                "{} uses include! outside the declared handler-registration owner; included source could hide a handler \
                  registration",
                 source_path.display()
             ));
@@ -717,7 +720,7 @@ pub(crate) fn analyze_registration_syntax_outside_handlers(
             .is_some_and(|name| is_inventory_registration_macro_name(name))
         {
             violations.push(format!(
-                "{} invokes inventory registration macro {}! outside crate::handlers; all \
+                "{} invokes inventory registration macro {}! outside the declared handler-registration owner; all \
                  production submissions belong to the audited handler owner",
                 source_path.display(),
                 call.path.join("::")
@@ -725,25 +728,25 @@ pub(crate) fn analyze_registration_syntax_outside_handlers(
         } else if token_stream_mentions_inventory_registration_path(&call.body) {
             violations.push(format!(
                 "{} passes an inventory registration path through macro {}! outside \
-                 crate::handlers; registration forwarders are outside the audited grammar",
+                 the declared handler-registration owner; registration forwarders are outside the audited grammar",
                 source_path.display(),
                 call.path.join("::")
             ));
         } else if macro_call_mentions_handler_entry(&call.body) {
             violations.push(format!(
-                "{} contains a macro call mentioning PacketHandlerEntry outside crate::handlers",
+                "{} contains a macro call mentioning PacketHandlerEntry outside the declared handler-registration owner",
                 source_path.display()
             ));
         } else if token_stream_may_generate_handler(&call.body) {
             violations.push(format!(
                 "{} passes handler-capable source tokens through macro {}! outside \
-                 crate::handlers; source-generating macro calls are outside the audited grammar",
+                 the declared handler-registration owner; source-generating macro calls are outside the audited grammar",
                 source_path.display(),
                 call.path.join("::")
             ));
         } else if is_registration_macro_invocation(&call.path) {
             violations.push(format!(
-                "{} invokes audited handler registration macro {}! outside crate::handlers",
+                "{} invokes audited handler registration macro {}! outside the declared handler-registration owner",
                 source_path.display(),
                 call.path.join("::")
             ));
@@ -880,7 +883,7 @@ fn collect_macro_item(
             {
                 collection.unsupported_registration_generators.push(format!(
                     "handler-capable macro {normalized_name} uses #[macro_export] in {location}; \
-                     registration macros must remain private to crate::handlers"
+                     registration macros must remain private to the declared handler-registration owner"
                 ));
             }
             let calls = token_macro_calls(&item_macro.mac.tokens);
@@ -1045,6 +1048,7 @@ fn collect_items(
     module_dir: &Path,
     module_path: &str,
     inside_inline_module: bool,
+    follow_external_modules: bool,
     inherited_condition: Option<String>,
     collection: &mut SourceCollection,
     file_stack: &mut Vec<PathBuf>,
@@ -1082,11 +1086,12 @@ fn collect_items(
                         &child_module_dir,
                         &child_module_path,
                         true,
+                        follow_external_modules,
                         child_condition,
                         collection,
                         file_stack,
                     )?;
-                } else {
+                } else if follow_external_modules {
                     if inside_inline_module && path_override(&item_mod.attrs)?.is_some() {
                         return Err(format!(
                             "#[path] module {} in {} is declared inside an inline module; this \
@@ -1158,6 +1163,7 @@ fn collect_source_file(
         module_dir,
         module_path,
         false,
+        true,
         file_condition,
         collection,
         file_stack,
@@ -1352,75 +1358,69 @@ fn classify_registration_sources(
     }
 }
 
-pub(crate) fn analyze_handler_source(
-    crate_root: &Path,
+pub(crate) fn analyze_handler_mounts(
+    mounts: &[WorkspaceSourceMount],
+    owner: &CapabilityOwner,
 ) -> Result<RegistrationSourceReport, String> {
-    let crate_root = crate_root.canonicalize().map_err(|error| {
-        format!(
-            "cannot resolve crate root {}: {error}",
-            crate_root.display()
-        )
-    })?;
-    let source_dir = crate_root
-        .parent()
-        .ok_or_else(|| format!("crate root {} has no parent", crate_root.display()))?;
-    let source = fs::read_to_string(&crate_root)
-        .map_err(|error| format!("cannot read {}: {error}", crate_root.display()))?;
-    let alias_violations = registration_alias_violations(&source)?;
-    if !alias_violations.is_empty() {
-        return Err(format!(
-            "{}: {}",
-            crate_root.display(),
-            alias_violations.join("; ")
-        ));
-    }
-    let syntax = syn::parse_file(&source)
-        .map_err(|error| format!("cannot parse {}: {error}", crate_root.display()))?;
-    let root_condition =
-        with_conditional_context(None, &syntax.attrs, &module_location(&crate_root, "crate"));
-    let handlers_modules: Vec<_> = syntax
-        .items
-        .iter()
-        .filter_map(|item| match item {
-            Item::Mod(item_mod) if ident_is(&item_mod.ident, "handlers") => Some(item_mod),
-            _ => None,
-        })
-        .collect();
-    if handlers_modules.len() != 1 {
-        return Err(format!(
-            "expected exactly one crate::handlers module declaration, found {}",
-            handlers_modules.len()
-        ));
-    }
-    let handlers_module = handlers_modules[0];
-    let handlers_condition = with_conditional_context(
-        root_condition,
-        &handlers_module.attrs,
-        &module_location(&crate_root, "crate::handlers"),
-    );
-
     let mut collection = SourceCollection::default();
-    if let Some((_, inline_items)) = &handlers_module.content {
+    for mount in mounts.iter().filter(|mount| mount.package == owner.package) {
+        let owner_contexts: Vec<_> = mount
+            .contexts
+            .iter()
+            .filter(|context| owner.owns_module(&mount.package, &context.logical_module_path))
+            .collect();
+        if owner_contexts.is_empty() {
+            continue;
+        }
+        if owner_contexts.len() != mount.contexts.len() || owner_contexts.len() != 1 {
+            return Err(format!(
+                "registration source {} has duplicate or mixed logical ownership: {:?}",
+                mount.source_path.display(),
+                mount
+                    .contexts
+                    .iter()
+                    .map(|context| &context.logical_module_path)
+                    .collect::<Vec<_>>()
+            ));
+        }
+        let context = owner_contexts[0];
+        let alias_violations = registration_alias_violations(&mount.source)?;
+        if !alias_violations.is_empty() {
+            return Err(format!(
+                "{}: {}",
+                mount.source_path.display(),
+                alias_violations.join("; ")
+            ));
+        }
+        let syntax = syn::parse_file(&mount.source)
+            .map_err(|error| format!("cannot parse {}: {error}", mount.source_path.display()))?;
+        let inherited_condition = (!context.cfg.is_empty()).then(|| {
+            format!(
+                "logical module {} in {} is conditionally mounted by {:?}",
+                context.logical_module_path,
+                mount.source_path.display(),
+                context.cfg
+            )
+        });
+        let file_condition = with_conditional_context(
+            inherited_condition,
+            &syntax.attrs,
+            &module_location(&mount.source_path, &context.logical_module_path),
+        );
+        let module_dir = mount
+            .source_path
+            .parent()
+            .ok_or_else(|| format!("{} has no parent", mount.source_path.display()))?;
         collect_items(
-            inline_items,
-            &crate_root,
-            &source_dir.join("handlers"),
-            "crate::handlers",
-            true,
-            handlers_condition,
+            &syntax.items,
+            &mount.source_path,
+            module_dir,
+            &context.logical_module_path,
+            false,
+            false,
+            file_condition,
             &mut collection,
-            &mut vec![crate_root.clone()],
-        )?;
-    } else {
-        let (handlers_source, handlers_module_dir) =
-            resolve_external_module(&crate_root, source_dir, handlers_module)?;
-        collect_source_file(
-            &handlers_source,
-            &handlers_module_dir,
-            "crate::handlers",
-            handlers_condition,
-            &mut collection,
-            &mut vec![crate_root.clone()],
+            &mut Vec::new(),
         )?;
     }
     classify_registration_sources(collection)
@@ -1443,6 +1443,7 @@ pub(crate) fn analyze_inline_source(source: &str) -> Result<RegistrationSourceRe
         Path::new("."),
         "crate",
         false,
+        true,
         file_condition,
         &mut collection,
         &mut Vec::new(),

@@ -9,11 +9,12 @@
 //! `WorldSession::dispatch_packet` arms and walks the real handler module tree
 //! to reject registrations hidden behind conditional compilation. Every other
 //! Rust source in the `wow-world` crate is tokenized without evaluating `cfg`,
-//! enforcing `crate::handlers` as the sole registration location for the
-//! audited direct and macro-generated grammar.
+//! enforcing the logical owners declared in `handler-module-policy.json` for
+//! the audited direct and macro-generated grammar.
 
 mod bridge_access;
 mod dispatcher;
+mod module_policy;
 mod ownership;
 mod persistence_access;
 mod registrations;
@@ -27,10 +28,11 @@ use std::path::{Path, PathBuf};
 
 use dispatcher::{
     DISPATCH_ARM_WITHOUT_REGISTRATION, REGISTERED_WITHOUT_DISPATCH_ARM, compare_dispatch_sides,
-    dispatcher_contract_from_source,
+    dispatcher_contract_from_mounts,
 };
-use ownership::audit_registration_ownership;
-use registrations::{EXPECTED_REGISTRATION_MACROS, analyze_handler_source};
+use module_policy::load_handler_module_policy;
+use ownership::{audit_registration_ownership, workspace_source_mounts};
+use registrations::{EXPECTED_REGISTRATION_MACROS, analyze_handler_mounts};
 use snapshot::parse_snapshot_contract;
 
 pub use session_ownership::{
@@ -49,17 +51,23 @@ fn repository_root() -> Result<PathBuf, String> {
 pub fn check_repository() -> Result<String, String> {
     let repository_root = repository_root()?;
     let snapshot_path = repository_root.join("tools/architecture/world-handler-contract.tsv");
-    let session_path = repository_root.join("crates/wow-world/src/session.rs");
-    let wow_world_crate = repository_root.join("crates/wow-world");
-    let crate_root = wow_world_crate.join("src/lib.rs");
+    let module_policy_path = repository_root.join("tools/architecture/handler-module-policy.json");
 
     let snapshot_source = fs::read_to_string(&snapshot_path)
         .map_err(|error| format!("cannot read {}: {error}", snapshot_path.display()))?;
     let snapshot = parse_snapshot_contract(&snapshot_source)
         .map_err(|error| format!("invalid handler contract snapshot: {error}"))?;
-    let session_source = fs::read_to_string(&session_path)
-        .map_err(|error| format!("cannot read {}: {error}", session_path.display()))?;
-    let dispatcher = dispatcher_contract_from_source(&session_source)
+    let module_policy = load_handler_module_policy(&module_policy_path)?;
+    let registration_owner = module_policy.owner("handler_registration");
+    let dispatcher_owner = module_policy.owner("packet_dispatcher");
+
+    // Run the complete source/module ownership audit before the focused
+    // parsers so unsupported include/macro/path shapes cannot hide source.
+    let ownership = audit_registration_ownership(&repository_root, registration_owner)
+        .map_err(|error| format!("invalid handler registration ownership:\n{error}"))?;
+    let mounts = workspace_source_mounts(&repository_root)
+        .map_err(|error| format!("invalid workspace module graph: {error}"))?;
+    let dispatcher = dispatcher_contract_from_mounts(&mounts, dispatcher_owner)
         .map_err(|error| format!("invalid world-session dispatcher: {error}"))?;
     compare_dispatch_sides(
         &snapshot.opcode_names,
@@ -69,9 +77,7 @@ pub fn check_repository() -> Result<String, String> {
     )
     .map_err(|error| format!("world handler dispatch/registration drift:\n{error}"))?;
 
-    let ownership = audit_registration_ownership(&repository_root)
-        .map_err(|error| format!("invalid handler registration ownership:\n{error}"))?;
-    let source_report = analyze_handler_source(&crate_root)
+    let source_report = analyze_handler_mounts(&mounts, registration_owner)
         .map_err(|error| format!("invalid handler registration source contract:\n{error}"))?;
     if source_report.represented_entries() != snapshot.row_count {
         return Err(format!(

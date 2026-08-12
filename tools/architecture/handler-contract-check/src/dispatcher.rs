@@ -6,7 +6,13 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use syn::{Attribute, Expr, ImplItem, Item, Pat, Stmt, Type};
+use syn::{Expr, ImplItem, ImplItemFn, Item, Pat, Stmt, Type};
+
+use crate::module_policy::CapabilityOwner;
+use crate::ownership::{
+    WorkspaceSourceMount, cfg_context_allows_production, cfg_context_controls_presence,
+    extend_cfg_context,
+};
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct KnownDispatchDrift {
@@ -21,6 +27,13 @@ pub(crate) const DISPATCH_ARM_WITHOUT_REGISTRATION: &[KnownDispatchDrift] = &[];
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) struct DispatcherContract {
     pub(crate) opcode_names: BTreeSet<String>,
+}
+
+#[derive(Debug)]
+struct LocatedDispatcher {
+    contract: DispatcherContract,
+    logical_module: String,
+    source_path: String,
 }
 
 fn is_path_named(expr: &Expr, name: &str) -> bool {
@@ -39,10 +52,47 @@ fn is_type_named(type_expression: &Type, name: &str) -> bool {
     )
 }
 
-fn has_conditional_compilation(attributes: &[Attribute]) -> bool {
-    attributes
+fn resolved_self_type_module(type_expression: &Type, logical_module: &str) -> Option<String> {
+    let Type::Path(type_path) = type_expression else {
+        return None;
+    };
+    if type_path.qself.is_some() {
+        return None;
+    }
+    let mut segments: Vec<_> = type_path
+        .path
+        .segments
         .iter()
-        .any(|attribute| attribute.path().is_ident("cfg") || attribute.path().is_ident("cfg_attr"))
+        .map(|segment| segment.ident.to_string())
+        .collect();
+    if segments.last().map(String::as_str) != Some("WorldSession") {
+        return None;
+    }
+    segments.pop();
+    if segments.is_empty() {
+        return Some(logical_module.to_owned());
+    }
+
+    let mut resolved: Vec<String> = logical_module.split("::").map(str::to_owned).collect();
+    match segments.first().map(String::as_str) {
+        Some("crate") => resolved = vec!["crate".to_owned()],
+        Some("self") => {}
+        Some("super") => {}
+        _ => return None,
+    }
+    for segment in segments {
+        match segment.as_str() {
+            "crate" | "self" => {}
+            "super" => {
+                if resolved.len() == 1 {
+                    return None;
+                }
+                resolved.pop();
+            }
+            _ => resolved.push(segment),
+        }
+    }
+    Some(resolved.join("::"))
 }
 
 fn collect_dispatch_pattern(
@@ -83,12 +133,9 @@ fn collect_dispatch_pattern(
     }
 }
 
-pub(crate) fn dispatcher_contract_from_source(source: &str) -> Result<DispatcherContract, String> {
-    let syntax = syn::parse_file(source)
-        .map_err(|error| format!("cannot parse world-session source: {error}"))?;
+fn dispatch_methods_in_items<'a>(items: &'a [Item]) -> Vec<(&'a syn::ItemImpl, &'a ImplItemFn)> {
     let mut dispatch_methods = Vec::new();
-
-    for item in &syntax.items {
+    for item in items {
         let Item::Impl(item_impl) = item else {
             continue;
         };
@@ -100,27 +147,15 @@ pub(crate) fn dispatcher_contract_from_source(source: &str) -> Result<Dispatcher
                 continue;
             };
             if method.sig.ident == "dispatch_packet" {
-                if has_conditional_compilation(&item_impl.attrs)
-                    || has_conditional_compilation(&method.attrs)
-                {
-                    return Err(
-                        "WorldSession::dispatch_packet must not be conditionally compiled"
-                            .to_owned(),
-                    );
-                }
-                dispatch_methods.push(method);
+                dispatch_methods.push((item_impl, method));
             }
         }
     }
+    dispatch_methods
+}
 
-    if dispatch_methods.len() != 1 {
-        return Err(format!(
-            "expected exactly one WorldSession::dispatch_packet method, found {}",
-            dispatch_methods.len()
-        ));
-    }
-
-    let dispatch_matches: Vec<_> = dispatch_methods[0]
+fn dispatcher_contract_from_method(method: &ImplItemFn) -> Result<DispatcherContract, String> {
+    let dispatch_matches: Vec<_> = method
         .block
         .stmts
         .iter()
@@ -139,14 +174,14 @@ pub(crate) fn dispatcher_contract_from_source(source: &str) -> Result<Dispatcher
     }
 
     let dispatch_match = dispatch_matches[0];
-    if has_conditional_compilation(&dispatch_match.attrs) {
+    if cfg_context_controls_presence(&[], &dispatch_match.attrs)? {
         return Err("dispatch_packet opcode match must not be conditionally compiled".to_owned());
     }
 
     let mut opcode_names = BTreeSet::new();
     let mut wildcard_arms = 0usize;
     for (index, arm) in dispatch_match.arms.iter().enumerate() {
-        if has_conditional_compilation(&arm.attrs) {
+        if cfg_context_controls_presence(&[], &arm.attrs)? {
             return Err(
                 "dispatch_packet opcode arms must not be conditionally compiled".to_owned(),
             );
@@ -171,6 +206,194 @@ pub(crate) fn dispatcher_contract_from_source(source: &str) -> Result<Dispatcher
     }
 
     Ok(DispatcherContract { opcode_names })
+}
+
+#[cfg(test)]
+pub(crate) fn dispatcher_contract_from_source(source: &str) -> Result<DispatcherContract, String> {
+    let syntax = syn::parse_file(source)
+        .map_err(|error| format!("cannot parse world-session source: {error}"))?;
+    let dispatch_methods = dispatch_methods_in_items(&syntax.items);
+
+    if dispatch_methods.len() != 1 {
+        return Err(format!(
+            "expected exactly one WorldSession::dispatch_packet method, found {}",
+            dispatch_methods.len()
+        ));
+    }
+    let (item_impl, method) = dispatch_methods[0];
+    if cfg_context_controls_presence(&[], &item_impl.attrs)?
+        || cfg_context_controls_presence(&[], &method.attrs)?
+    {
+        return Err("WorldSession::dispatch_packet must not be conditionally compiled".to_owned());
+    }
+    dispatcher_contract_from_method(method)
+}
+
+fn collect_module_dispatchers(
+    items: &[Item],
+    source_path: &str,
+    package: &str,
+    logical_module: &str,
+    inherited_cfg: &[String],
+    owner: &CapabilityOwner,
+    dispatchers: &mut Vec<LocatedDispatcher>,
+) -> Result<(), String> {
+    for (item_impl, method) in dispatch_methods_in_items(items) {
+        let impl_cfg = extend_cfg_context(inherited_cfg, &item_impl.attrs);
+        let method_cfg = extend_cfg_context(&impl_cfg, &method.attrs);
+        if !cfg_context_allows_production(&method_cfg, &[])? {
+            continue;
+        }
+        if cfg_context_controls_presence(&impl_cfg, &method.attrs)? {
+            return Err(format!(
+                "WorldSession::dispatch_packet in {source_path} ({logical_module}) has conditional module/impl/method ownership: {method_cfg:?}"
+            ));
+        }
+        if !owner.owns_module(package, logical_module) {
+            return Err(format!(
+                "WorldSession::dispatch_packet in {source_path} is owned by logical module {logical_module}, outside declared capability owner {}::{}",
+                owner.package, owner.module
+            ));
+        }
+        if resolved_self_type_module(&item_impl.self_ty, logical_module).as_deref()
+            != Some(owner.module.as_str())
+        {
+            return Err(format!(
+                "dispatch_packet in {source_path} ({logical_module}) does not implement the canonical {}::WorldSession; private child modules must use an explicit self/super/crate path",
+                owner.module
+            ));
+        }
+        let contract = dispatcher_contract_from_method(method)?;
+        dispatchers.push(LocatedDispatcher {
+            contract,
+            logical_module: logical_module.to_owned(),
+            source_path: source_path.to_owned(),
+        });
+    }
+
+    for item in items {
+        let Item::Mod(module) = item else {
+            continue;
+        };
+        let Some((_, inline_items)) = &module.content else {
+            continue;
+        };
+        let child_cfg = extend_cfg_context(inherited_cfg, &module.attrs);
+        if !cfg_context_allows_production(&child_cfg, &[])? {
+            continue;
+        }
+        let child_logical_module = format!("{logical_module}::{}", module.ident);
+        collect_module_dispatchers(
+            inline_items,
+            source_path,
+            package,
+            &child_logical_module,
+            &child_cfg,
+            owner,
+            dispatchers,
+        )?;
+    }
+    Ok(())
+}
+
+fn collect_world_session_definitions(
+    items: &[Item],
+    source_path: &str,
+    logical_module: &str,
+    inherited_cfg: &[String],
+    definitions: &mut Vec<String>,
+) -> Result<(), String> {
+    for item in items {
+        if let Item::Struct(item_struct) = item
+            && item_struct.ident == "WorldSession"
+            && cfg_context_allows_production(inherited_cfg, &item_struct.attrs)?
+        {
+            if cfg_context_controls_presence(inherited_cfg, &item_struct.attrs)? {
+                return Err(format!(
+                    "WorldSession definition in {source_path} ({logical_module}) is conditionally owned"
+                ));
+            }
+            definitions.push(format!("{logical_module} ({source_path})"));
+        }
+        let Item::Mod(module) = item else {
+            continue;
+        };
+        let Some((_, inline_items)) = &module.content else {
+            continue;
+        };
+        let child_cfg = extend_cfg_context(inherited_cfg, &module.attrs);
+        if cfg_context_allows_production(&child_cfg, &[])? {
+            collect_world_session_definitions(
+                inline_items,
+                source_path,
+                &format!("{logical_module}::{}", module.ident),
+                &child_cfg,
+                definitions,
+            )?;
+        }
+    }
+    Ok(())
+}
+
+/// Find the sole concrete dispatcher through the already validated workspace
+/// module graph, independent of its physical source filename.
+pub(crate) fn dispatcher_contract_from_mounts(
+    mounts: &[WorkspaceSourceMount],
+    owner: &CapabilityOwner,
+) -> Result<DispatcherContract, String> {
+    let mut dispatchers = Vec::new();
+    let mut definitions = Vec::new();
+    for mount in mounts.iter().filter(|mount| mount.package == owner.package) {
+        let syntax = syn::parse_file(&mount.source)
+            .map_err(|error| format!("cannot parse {}: {error}", mount.source_path.display()))?;
+        for context in mount
+            .contexts
+            .iter()
+            .filter(|context| context.production_possible)
+        {
+            collect_world_session_definitions(
+                &syntax.items,
+                &mount.source_path.display().to_string(),
+                &context.logical_module_path,
+                &context.cfg,
+                &mut definitions,
+            )?;
+            collect_module_dispatchers(
+                &syntax.items,
+                &mount.source_path.display().to_string(),
+                &mount.package,
+                &context.logical_module_path,
+                &context.cfg,
+                owner,
+                &mut dispatchers,
+            )?;
+        }
+    }
+    let expected_definition_prefix = format!("{} (", owner.module);
+    if definitions.len() != 1 || !definitions[0].starts_with(&expected_definition_prefix) {
+        return Err(format!(
+            "expected exactly one canonical {}::WorldSession definition and no production homonyms, found {}: {:?}",
+            owner.module,
+            definitions.len(),
+            definitions
+        ));
+    }
+    if dispatchers.len() != 1 {
+        let locations: Vec<_> = dispatchers
+            .iter()
+            .map(|dispatcher| format!("{} ({})", dispatcher.source_path, dispatcher.logical_module))
+            .collect();
+        return Err(format!(
+            "expected exactly one production WorldSession::dispatch_packet owner, found {}{}",
+            dispatchers.len(),
+            if locations.is_empty() {
+                String::new()
+            } else {
+                format!(": {}", locations.join(", "))
+            }
+        ));
+    }
+    Ok(dispatchers.pop().expect("one dispatcher").contract)
 }
 
 fn known_drift_map(

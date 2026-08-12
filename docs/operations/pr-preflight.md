@@ -76,13 +76,18 @@ registrations from outside that closure. The existing 23 `wow-logging` exports, 
 generated includes, and seven `wow-script` non-handler inventory calls are exact removal/addition
 ratchets; no neighboring source-generation capability is implied. Explicit module paths are
 restricted to unconditional, in-package, non-symlink `.rs` files declared from file modules.
-Inventory `collect`/`submit` aliases, nested or conditional registration grammar, macro-path or
+The logical registration and dispatcher roots come from the strict
+`tools/architecture/handler-module-policy.json`, whose tracking issues must remain present and open
+in the architecture ledger. The same Cargo module graph locates the single concrete
+`WorldSession::dispatch_packet` independently of filename, including private external/inline
+children and supported `#[path]` mounts. Production-capable conditional ownership, overlapping or
+duplicate logical mounts, missing/duplicate dispatchers, and a dispatcher or registration outside
+its declared owner fail closed. Inventory `collect`/`submit` aliases, nested or conditional registration grammar, macro-path or
 metavariable forwarders, and registrations outside the owner fail closed; the sole handler
 collector is the exact unconditional `inventory::collect!(PacketHandlerEntry)` at the
 Cargo-declared `wow-handler` production `lib` root. Arbitrary expansion inside third-party crates
 or external procedural macros is not claimed and must be made inspectable before use. The tool
-also parses `WorldSession::dispatch_packet` and ratchets registration-to-dispatch-arm coverage
-against the checked-in snapshot.
+ratchets registration-to-dispatch-arm coverage against the checked-in snapshot.
 
 The focused test profile separately runs both the four-test `wow-handler` integration suite and
 the production-linked `wow-world` snapshot. Integration targets can exercise their own registry
