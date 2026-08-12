@@ -279,7 +279,6 @@ fn generate_policy(
             row.target == PersistenceTarget::SqlTransactionCommitError
                 || (row.operation == PersistenceOperation::Commit
                     && row.symbol == "commit_with_outcome_like_cpp")
-                || row.symbol.to_ascii_lowercase().contains("unknown")
         });
         let logical = annotation.logical_databases.join(", ");
         let affinity = if annotation.stable_boundary {
@@ -867,6 +866,27 @@ mod tests {
             group
                 .failure_and_unknown_commit
                 .contains("unknown commit outcome")
+        );
+
+        let mut unrelated_unknown = row(source);
+        unrelated_unknown.target = PersistenceTarget::MySqlPool;
+        unrelated_unknown.operation = PersistenceOperation::ArgumentEscape;
+        unrelated_unknown.symbol = "is_unknown_database_error_like_cpp".to_owned();
+        let generated = generate_policy(
+            &WorkflowAnnotations {
+                schema_version: 1,
+                workflows: vec![annotation(source)],
+            },
+            &PersistenceAccessBaseline {
+                schema_version: 3,
+                accesses: vec![unrelated_unknown],
+            },
+        )
+        .expect("unrelated unknown vocabulary generates an ordinary policy");
+        assert!(
+            generated.groups[0]
+                .failure_and_unknown_commit
+                .contains("syntax alone adds no unknown-commit guarantee")
         );
     }
 

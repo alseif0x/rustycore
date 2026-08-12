@@ -640,6 +640,10 @@ impl Flow {
         self.0.extend(other.0);
     }
 
+    fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
     fn targets(&self) -> TargetSet {
         self.0.iter().map(|(target, _)| *target).collect()
     }
@@ -678,17 +682,58 @@ enum SqlExpressionKind {
     Interpolated,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 struct VariableInfo {
     flow: Flow,
     sql_expression: SqlExpressionKind,
+    nominal_types: BTreeSet<String>,
+    payload_variants: BTreeSet<Vec<NominalShape>>,
+    tuple_items: Vec<VariableInfo>,
+}
+
+impl VariableInfo {
+    fn union(&mut self, other: &Self) {
+        self.flow.union(other.flow.clone());
+        self.nominal_types
+            .extend(other.nominal_types.iter().cloned());
+        self.payload_variants
+            .extend(other.payload_variants.iter().cloned());
+        if self.sql_expression == SqlExpressionKind::Static {
+            self.sql_expression = other.sql_expression;
+        } else if other.sql_expression == SqlExpressionKind::Interpolated {
+            self.sql_expression = SqlExpressionKind::Interpolated;
+        }
+        if self.tuple_items.len() < other.tuple_items.len() {
+            self.tuple_items
+                .resize_with(other.tuple_items.len(), VariableInfo::default);
+        }
+        for (item, other_item) in self.tuple_items.iter_mut().zip(&other.tuple_items) {
+            item.union(other_item);
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct NominalShape {
+    nominal_types: BTreeSet<String>,
+    arguments: Vec<NominalShape>,
 }
 
 #[derive(Clone, Debug)]
 struct ModuleSymbols {
     type_aliases: BTreeMap<String, TargetSet>,
-    field_targets: BTreeMap<String, TargetSet>,
-    function_returns: BTreeMap<String, Flow>,
+    nominal_type_aliases: BTreeMap<String, BTreeSet<String>>,
+    type_alias_info: BTreeMap<String, VariableInfo>,
+    path_aliases: BTreeMap<String, Vec<String>>,
+    traits_in_scope: BTreeMap<String, String>,
+    anonymous_traits_in_scope: BTreeSet<String>,
+    module_path: Vec<String>,
+    field_targets: BTreeMap<(String, String), TargetSet>,
+    field_owners: BTreeMap<String, BTreeSet<String>>,
+    tuple_field_targets: BTreeMap<(String, String), TargetSet>,
+    field_nominal_types: BTreeMap<(String, String), BTreeSet<String>>,
+    function_returns: BTreeMap<String, VariableInfo>,
+    method_returns: BTreeMap<(String, Option<String>, String), VariableInfo>,
     sqlx_namespaces: BTreeSet<String>,
     database_namespaces: BTreeSet<String>,
     query_callables: BTreeSet<String>,
@@ -706,8 +751,18 @@ impl Default for ModuleSymbols {
         }
         Self {
             type_aliases,
+            nominal_type_aliases: BTreeMap::new(),
+            type_alias_info: BTreeMap::new(),
+            path_aliases: BTreeMap::new(),
+            traits_in_scope: BTreeMap::new(),
+            anonymous_traits_in_scope: BTreeSet::new(),
+            module_path: Vec::new(),
             field_targets: BTreeMap::new(),
+            field_owners: BTreeMap::new(),
+            tuple_field_targets: BTreeMap::new(),
+            field_nominal_types: BTreeMap::new(),
             function_returns: BTreeMap::new(),
+            method_returns: BTreeMap::new(),
             sqlx_namespaces: BTreeSet::from(["sqlx".to_owned()]),
             database_namespaces: BTreeSet::from(["wow_database".to_owned()]),
             query_callables: BTreeSet::new(),
@@ -878,11 +933,239 @@ fn targets_in_generics(generics: &syn::Generics, symbols: &ModuleSymbols) -> Tar
     collector.targets
 }
 
+fn nominal_types_in_type(ty: &Type) -> BTreeSet<String> {
+    match ty {
+        Type::Path(path) => last_path_name(&path.path)
+            .map(|name| BTreeSet::from([name]))
+            .unwrap_or_default(),
+        Type::Reference(reference) => nominal_types_in_type(&reference.elem),
+        Type::Ptr(pointer) => nominal_types_in_type(&pointer.elem),
+        Type::Paren(paren) => nominal_types_in_type(&paren.elem),
+        Type::Group(group) => nominal_types_in_type(&group.elem),
+        _ => BTreeSet::new(),
+    }
+}
+
+fn receiver_nominal_types_in_type(ty: &Type) -> BTreeSet<String> {
+    match ty {
+        Type::Path(path) => {
+            let Some(segment) = path.path.segments.last() else {
+                return BTreeSet::new();
+            };
+            let name = normalized_ident(&segment.ident);
+            if matches!(name.as_str(), "Box" | "Arc" | "Rc" | "Pin")
+                && let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments
+                && let Some(syn::GenericArgument::Type(inner)) = arguments.args.first()
+            {
+                receiver_nominal_types_in_type(inner)
+            } else {
+                BTreeSet::from([name])
+            }
+        }
+        Type::Reference(reference) => receiver_nominal_types_in_type(&reference.elem),
+        Type::Ptr(pointer) => receiver_nominal_types_in_type(&pointer.elem),
+        Type::Paren(paren) => receiver_nominal_types_in_type(&paren.elem),
+        Type::Group(group) => receiver_nominal_types_in_type(&group.elem),
+        _ => BTreeSet::new(),
+    }
+}
+
+fn nominal_shape_in_type(ty: &Type, symbols: &ModuleSymbols) -> Option<NominalShape> {
+    match ty {
+        Type::Tuple(tuple) => Some(NominalShape {
+            nominal_types: BTreeSet::new(),
+            arguments: tuple
+                .elems
+                .iter()
+                .map(|element| {
+                    nominal_shape_in_type(element, symbols).unwrap_or_else(|| NominalShape {
+                        nominal_types: BTreeSet::new(),
+                        arguments: Vec::new(),
+                    })
+                })
+                .collect(),
+        }),
+        Type::Path(path) => path.path.segments.last().map(|segment| NominalShape {
+            nominal_types: resolve_nominal_types(
+                BTreeSet::from([normalized_ident(&segment.ident)]),
+                symbols,
+            ),
+            arguments: match &segment.arguments {
+                syn::PathArguments::AngleBracketed(arguments) => arguments
+                    .args
+                    .iter()
+                    .filter_map(|argument| match argument {
+                        syn::GenericArgument::Type(inner) => nominal_shape_in_type(inner, symbols),
+                        _ => None,
+                    })
+                    .collect(),
+                _ => Vec::new(),
+            },
+        }),
+        Type::Reference(reference) => nominal_shape_in_type(&reference.elem, symbols),
+        Type::Ptr(pointer) => nominal_shape_in_type(&pointer.elem, symbols),
+        Type::Paren(paren) => nominal_shape_in_type(&paren.elem, symbols),
+        Type::Group(group) => nominal_shape_in_type(&group.elem, symbols),
+        _ => None,
+    }
+}
+
+fn payload_variants_in_type(ty: &Type, symbols: &ModuleSymbols) -> BTreeSet<Vec<NominalShape>> {
+    nominal_shape_in_type(ty, symbols)
+        .and_then(|shape| (!shape.arguments.is_empty()).then_some(shape.arguments))
+        .map(|arguments| BTreeSet::from([arguments]))
+        .unwrap_or_default()
+}
+
+fn tuple_items_in_type(ty: &Type, symbols: &ModuleSymbols) -> Vec<VariableInfo> {
+    match ty {
+        Type::Tuple(tuple) => tuple
+            .elems
+            .iter()
+            .map(|element| VariableInfo {
+                flow: Flow::pools(&targets_in_type(element, symbols)),
+                sql_expression: SqlExpressionKind::Static,
+                nominal_types: resolve_nominal_types(
+                    receiver_nominal_types_in_type(element),
+                    symbols,
+                ),
+                payload_variants: payload_variants_in_type(element, symbols),
+                tuple_items: tuple_items_in_type(element, symbols),
+            })
+            .collect(),
+        Type::Reference(reference) => tuple_items_in_type(&reference.elem, symbols),
+        Type::Ptr(pointer) => tuple_items_in_type(&pointer.elem, symbols),
+        Type::Paren(paren) => tuple_items_in_type(&paren.elem, symbols),
+        Type::Group(group) => tuple_items_in_type(&group.elem, symbols),
+        Type::Path(path) => path
+            .path
+            .segments
+            .last()
+            .and_then(|segment| {
+                symbols
+                    .type_alias_info
+                    .get(&normalized_ident(&segment.ident))
+            })
+            .map(|info| info.tuple_items.clone())
+            .unwrap_or_default(),
+        _ => Vec::new(),
+    }
+}
+
+fn variable_info_in_type(ty: &Type, symbols: &ModuleSymbols) -> VariableInfo {
+    let mut info = VariableInfo {
+        flow: Flow::pools(&targets_in_type(ty, symbols)),
+        sql_expression: SqlExpressionKind::Static,
+        nominal_types: resolve_nominal_types(receiver_nominal_types_in_type(ty), symbols),
+        payload_variants: payload_variants_in_type(ty, symbols),
+        tuple_items: tuple_items_in_type(ty, symbols),
+    };
+    if let Type::Path(path) = ty
+        && let Some(alias) = path.path.segments.last().and_then(|segment| {
+            symbols
+                .type_alias_info
+                .get(&normalized_ident(&segment.ident))
+        })
+    {
+        info.union(alias);
+    }
+    info
+}
+
+fn payload_variants_in_path(
+    path: &syn::Path,
+    symbols: &ModuleSymbols,
+) -> BTreeSet<Vec<NominalShape>> {
+    path.segments
+        .last()
+        .and_then(|segment| match &segment.arguments {
+            syn::PathArguments::AngleBracketed(arguments) => {
+                let arguments = arguments
+                    .args
+                    .iter()
+                    .filter_map(|argument| match argument {
+                        syn::GenericArgument::Type(inner) => nominal_shape_in_type(inner, symbols),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
+                (!arguments.is_empty()).then_some(BTreeSet::from([arguments]))
+            }
+            _ => None,
+        })
+        .unwrap_or_default()
+}
+
+fn resolve_nominal_types(types: BTreeSet<String>, symbols: &ModuleSymbols) -> BTreeSet<String> {
+    types
+        .into_iter()
+        .flat_map(|nominal| {
+            symbols
+                .nominal_type_aliases
+                .get(&nominal)
+                .cloned()
+                .unwrap_or_else(|| BTreeSet::from([nominal]))
+        })
+        .collect()
+}
+
+fn canonical_path_names(mut names: Vec<String>, symbols: &ModuleSymbols) -> Vec<String> {
+    let mut absolute = false;
+    let mut base = symbols.module_path.clone();
+    match names.first().map(String::as_str) {
+        Some("crate") => {
+            names.remove(0);
+            base.clear();
+            absolute = true;
+        }
+        Some("self") => {
+            names.remove(0);
+            absolute = true;
+        }
+        Some("super") => {
+            while names.first().is_some_and(|name| name == "super") {
+                names.remove(0);
+                base.pop();
+            }
+            absolute = true;
+        }
+        _ => {}
+    }
+    let mut seen = BTreeSet::new();
+    while let Some(first) = names.first().cloned() {
+        if !seen.insert(first.clone()) {
+            break;
+        }
+        let Some(source) = symbols.path_aliases.get(&first) else {
+            break;
+        };
+        if source.len() == 1 && source[0] == first {
+            break;
+        }
+        let mut expanded = source.clone();
+        expanded.extend(names.into_iter().skip(1));
+        names = expanded;
+        base.clear();
+        absolute = true;
+    }
+    if !absolute {
+        base.extend(names);
+        base
+    } else {
+        base.extend(names);
+        base
+    }
+}
+
+fn canonical_trait_path(path: &syn::Path, symbols: &ModuleSymbols) -> String {
+    canonical_path_names(path_names(path), symbols).join("::")
+}
+
 #[derive(Clone, Debug)]
 struct UseLeaf {
     source: Vec<String>,
     local: String,
     fingerprint: String,
+    namespace_self: bool,
 }
 
 fn flatten_use_tree(
@@ -899,8 +1182,9 @@ fn flatten_use_tree(
         }
         UseTree::Name(name) => {
             let name = normalized_ident(&name.ident);
+            let namespace_self = name == "self";
             let mut source = prefix.clone();
-            let local = if name == "self" {
+            let local = if namespace_self {
                 prefix.last().cloned().unwrap_or_else(|| name.clone())
             } else {
                 source.push(name.clone());
@@ -911,17 +1195,26 @@ fn flatten_use_tree(
                 source,
                 local,
                 fingerprint,
+                namespace_self,
             });
         }
         UseTree::Rename(rename) => {
             let source_name = normalized_ident(&rename.ident);
             let local = normalized_ident(&rename.rename);
             let mut source = prefix.clone();
-            source.push(source_name);
+            let namespace_self = source_name == "self";
+            if !namespace_self {
+                source.push(source_name.clone());
+            }
             leaves.push(UseLeaf {
-                fingerprint: format!("{} as {local}", source.join("::")),
+                fingerprint: if namespace_self {
+                    format!("{}::self as {local}", source.join("::"))
+                } else {
+                    format!("{} as {local}", source.join("::"))
+                },
                 source,
                 local,
+                namespace_self,
             });
         }
         UseTree::Group(group) => {
@@ -954,6 +1247,14 @@ fn source_is_database(source: &[String], symbols: &ModuleSymbols) -> bool {
 
 fn targets_for_use_leaf(leaf: &UseLeaf, symbols: &ModuleSymbols) -> TargetSet {
     let mut targets = targets_for_names(&leaf.source, symbols);
+    if leaf.namespace_self {
+        if source_is_sqlx(&leaf.source, symbols) {
+            targets.insert(PersistenceTarget::Sqlx);
+        }
+        if source_is_database(&leaf.source, symbols) {
+            targets.insert(PersistenceTarget::Database);
+        }
+    }
     // `use` paths resolve the imported symbol at the leaf, unlike expression
     // paths where only the root can be an in-scope type alias. The adapter's
     // own `crate`/`self`/`super` re-exports therefore need leaf resolution,
@@ -972,12 +1273,28 @@ fn apply_import_symbols(item_use: &ItemUse, symbols: &mut ModuleSymbols) -> bool
     let (leaves, _) = use_leaves(item_use);
     let mut changed = false;
     for leaf in leaves {
+        let canonical_source = canonical_path_names(leaf.source.clone(), symbols);
+        if symbols.path_aliases.get(&leaf.local) != Some(&canonical_source) {
+            symbols
+                .path_aliases
+                .insert(leaf.local.clone(), canonical_source.clone());
+            changed = true;
+        }
+        let canonical_trait = canonical_source.join("::");
+        if leaf.local == "_" {
+            changed |= symbols.anonymous_traits_in_scope.insert(canonical_trait);
+        } else if symbols.traits_in_scope.get(&leaf.local) != Some(&canonical_trait) {
+            symbols
+                .traits_in_scope
+                .insert(leaf.local.clone(), canonical_trait);
+            changed = true;
+        }
         let source_is_sqlx = source_is_sqlx(&leaf.source, symbols);
         let source_is_database = source_is_database(&leaf.source, symbols);
-        if leaf.source.len() == 1 && source_is_sqlx {
+        if (leaf.namespace_self || leaf.source.len() == 1) && source_is_sqlx {
             changed |= symbols.sqlx_namespaces.insert(leaf.local.clone());
         }
-        if leaf.source.len() == 1 && source_is_database {
+        if (leaf.namespace_self || leaf.source.len() == 1) && source_is_database {
             changed |= symbols.database_namespaces.insert(leaf.local.clone());
         }
         let imported_targets = targets_for_use_leaf(&leaf, symbols);
@@ -998,6 +1315,7 @@ fn collect_module_symbols(
     items: &[Item],
     parent: Option<&ModuleSymbols>,
     package: &str,
+    module: &str,
     cfg: &[String],
     source_class: PersistenceSourceClass,
     errors: &mut Vec<String>,
@@ -1005,10 +1323,35 @@ fn collect_module_symbols(
     let mut symbols = parent
         .cloned()
         .unwrap_or_else(|| ModuleSymbols::for_package(package));
+    symbols.module_path = module
+        .split("::")
+        .filter(|segment| *segment != "crate")
+        .map(str::to_owned)
+        .collect();
+    symbols.traits_in_scope.clear();
+    symbols.anonymous_traits_in_scope.clear();
     for _ in 0..=items.len() {
         let mut changed = false;
         for item in items {
             match item {
+                Item::Trait(item_trait)
+                    if source_class_allows(
+                        source_class,
+                        cfg,
+                        &item_trait.attrs,
+                        errors,
+                        "trait",
+                    ) =>
+                {
+                    let local = normalized_ident(&item_trait.ident);
+                    let mut path = symbols.module_path.clone();
+                    path.push(local.clone());
+                    let canonical = path.join("::");
+                    if symbols.traits_in_scope.get(&local) != Some(&canonical) {
+                        symbols.traits_in_scope.insert(local, canonical);
+                        changed = true;
+                    }
+                }
                 Item::Use(item_use)
                     if source_class_allows(
                         source_class,
@@ -1060,6 +1403,34 @@ fn collect_module_symbols(
                         entry.extend(targets);
                         changed |= entry.len() != before;
                     }
+                    let nominal_targets = receiver_nominal_types_in_type(&alias.ty);
+                    if !nominal_targets.is_empty() {
+                        let resolved_targets = nominal_targets
+                            .into_iter()
+                            .flat_map(|nominal| {
+                                symbols
+                                    .nominal_type_aliases
+                                    .get(&nominal)
+                                    .cloned()
+                                    .unwrap_or_else(|| BTreeSet::from([nominal]))
+                            })
+                            .collect::<BTreeSet<_>>();
+                        let entry = symbols
+                            .nominal_type_aliases
+                            .entry(normalized_ident(&alias.ident))
+                            .or_default();
+                        let before = entry.len();
+                        entry.extend(resolved_targets);
+                        changed |= entry.len() != before;
+                    }
+                    let alias_info = variable_info_in_type(&alias.ty, &symbols);
+                    let entry = symbols
+                        .type_alias_info
+                        .entry(normalized_ident(&alias.ident))
+                        .or_default();
+                    let before = entry.clone();
+                    entry.union(&alias_info);
+                    changed |= *entry != before;
                 }
                 _ => {}
             }
@@ -1074,25 +1445,58 @@ fn collect_module_symbols(
             Item::Struct(item_struct)
                 if source_class_allows(source_class, cfg, &item_struct.attrs, errors, "struct") =>
             {
-                for field in &item_struct.fields {
+                for (index, field) in item_struct.fields.iter().enumerate() {
                     if !source_class_allows(source_class, cfg, &field.attrs, errors, "struct field")
                     {
                         continue;
                     }
                     let targets = targets_in_type(&field.ty, &symbols);
-                    if targets.is_empty() {
-                        continue;
-                    }
-                    let name = field
+                    let field_name = field
                         .ident
                         .as_ref()
                         .map(normalized_ident)
-                        .unwrap_or_else(|| "tuple_field".to_owned());
+                        .unwrap_or_else(|| index.to_string());
                     symbols
-                        .field_targets
-                        .entry(name)
+                        .field_owners
+                        .entry(field_name.clone())
                         .or_default()
-                        .extend(targets);
+                        .insert(normalized_ident(&item_struct.ident));
+                    let nominal_types = receiver_nominal_types_in_type(&field.ty)
+                        .into_iter()
+                        .flat_map(|nominal| {
+                            symbols
+                                .nominal_type_aliases
+                                .get(&nominal)
+                                .cloned()
+                                .unwrap_or_else(|| BTreeSet::from([nominal]))
+                        })
+                        .collect::<BTreeSet<_>>();
+                    if !nominal_types.is_empty() {
+                        symbols
+                            .field_nominal_types
+                            .entry((normalized_ident(&item_struct.ident), field_name))
+                            .or_default()
+                            .extend(nominal_types);
+                    }
+                    if targets.is_empty() {
+                        continue;
+                    }
+                    if let Some(ident) = &field.ident {
+                        symbols
+                            .field_targets
+                            .entry((
+                                normalized_ident(&item_struct.ident),
+                                normalized_ident(ident),
+                            ))
+                            .or_default()
+                            .extend(targets);
+                    } else {
+                        symbols
+                            .tuple_field_targets
+                            .entry((normalized_ident(&item_struct.ident), index.to_string()))
+                            .or_default()
+                            .extend(targets);
+                    }
                 }
             }
             Item::Enum(item_enum)
@@ -1108,7 +1512,7 @@ fn collect_module_symbols(
                     ) {
                         continue;
                     }
-                    for field in &variant.fields {
+                    for (index, field) in variant.fields.iter().enumerate() {
                         if !source_class_allows(
                             source_class,
                             cfg,
@@ -1119,19 +1523,54 @@ fn collect_module_symbols(
                             continue;
                         }
                         let targets = targets_in_type(&field.ty, &symbols);
-                        if targets.is_empty() {
-                            continue;
-                        }
-                        let name = field
+                        let variant_owner = format!(
+                            "{}::{}",
+                            normalized_ident(&item_enum.ident),
+                            normalized_ident(&variant.ident)
+                        );
+                        let field_name = field
                             .ident
                             .as_ref()
                             .map(normalized_ident)
-                            .unwrap_or_else(|| "tuple_field".to_owned());
+                            .unwrap_or_else(|| index.to_string());
                         symbols
-                            .field_targets
-                            .entry(name)
+                            .field_owners
+                            .entry(field_name.clone())
                             .or_default()
-                            .extend(targets);
+                            .insert(variant_owner.clone());
+                        let nominal_types = receiver_nominal_types_in_type(&field.ty)
+                            .into_iter()
+                            .flat_map(|nominal| {
+                                symbols
+                                    .nominal_type_aliases
+                                    .get(&nominal)
+                                    .cloned()
+                                    .unwrap_or_else(|| BTreeSet::from([nominal]))
+                            })
+                            .collect::<BTreeSet<_>>();
+                        if !nominal_types.is_empty() {
+                            symbols
+                                .field_nominal_types
+                                .entry((variant_owner.clone(), field_name))
+                                .or_default()
+                                .extend(nominal_types);
+                        }
+                        if targets.is_empty() {
+                            continue;
+                        }
+                        if let Some(ident) = &field.ident {
+                            symbols
+                                .field_targets
+                                .entry((variant_owner, normalized_ident(ident)))
+                                .or_default()
+                                .extend(targets);
+                        } else {
+                            symbols
+                                .tuple_field_targets
+                                .entry((variant_owner, index.to_string()))
+                                .or_default()
+                                .extend(targets);
+                        }
                     }
                 }
             }
@@ -1139,17 +1578,36 @@ fn collect_module_symbols(
                 if source_class_allows(source_class, cfg, &function.attrs, errors, "function") =>
             {
                 if let ReturnType::Type(_, ty) = &function.sig.output {
-                    let targets = targets_in_type(ty, &symbols);
-                    if !targets.is_empty() {
+                    let mut return_info = variable_info_in_type(ty, &symbols);
+                    return_info.sql_expression = SqlExpressionKind::Nonliteral;
+                    if !return_info.flow.is_empty()
+                        || !return_info.nominal_types.is_empty()
+                        || !return_info.payload_variants.is_empty()
+                        || !return_info.tuple_items.is_empty()
+                    {
                         symbols
                             .function_returns
-                            .insert(normalized_ident(&function.sig.ident), Flow::pools(&targets));
+                            .insert(normalized_ident(&function.sig.ident), return_info);
                     }
                 }
             }
             Item::Impl(item_impl)
                 if source_class_allows(source_class, cfg, &item_impl.attrs, errors, "impl") =>
             {
+                let trait_name = item_impl
+                    .trait_
+                    .as_ref()
+                    .map(|(_, path, _)| canonical_trait_path(path, &symbols));
+                let receiver_types = nominal_types_in_type(&item_impl.self_ty)
+                    .into_iter()
+                    .flat_map(|nominal| {
+                        symbols
+                            .nominal_type_aliases
+                            .get(&nominal)
+                            .cloned()
+                            .unwrap_or_else(|| BTreeSet::from([nominal]))
+                    })
+                    .collect::<BTreeSet<_>>();
                 for item in &item_impl.items {
                     let ImplItem::Fn(method) = item else {
                         continue;
@@ -1159,11 +1617,25 @@ fn collect_module_symbols(
                         continue;
                     }
                     if let ReturnType::Type(_, ty) = &method.sig.output {
-                        let targets = targets_in_type(ty, &symbols);
-                        if !targets.is_empty() {
-                            symbols
-                                .function_returns
-                                .insert(normalized_ident(&method.sig.ident), Flow::pools(&targets));
+                        let mut return_info = variable_info_in_type(ty, &symbols);
+                        return_info.sql_expression = SqlExpressionKind::Nonliteral;
+                        if !return_info.flow.is_empty()
+                            || !return_info.nominal_types.is_empty()
+                            || !return_info.payload_variants.is_empty()
+                            || !return_info.tuple_items.is_empty()
+                        {
+                            let method_name = normalized_ident(&method.sig.ident);
+                            for receiver_type in &receiver_types {
+                                let info = symbols
+                                    .method_returns
+                                    .entry((
+                                        receiver_type.clone(),
+                                        trait_name.clone(),
+                                        method_name.clone(),
+                                    ))
+                                    .or_default();
+                                info.union(&return_info);
+                            }
                         }
                     }
                 }
@@ -1379,6 +1851,26 @@ struct BodyAnalyzer<'a, 'b> {
     visibility: String,
     cfg: Vec<String>,
     scopes: Vec<BTreeMap<String, VariableInfo>>,
+    local_path_alias_scopes: Vec<BTreeMap<String, Vec<String>>>,
+    anonymous_trait_scopes: Vec<BTreeSet<String>>,
+}
+
+struct DirectChildFlowCollector<'analyzer, 'a, 'b> {
+    analyzer: &'analyzer BodyAnalyzer<'a, 'b>,
+    flow: Flow,
+    at_root: bool,
+}
+
+impl<'ast> Visit<'ast> for DirectChildFlowCollector<'_, '_, '_> {
+    fn visit_expr(&mut self, expression: &'ast Expr) {
+        if self.at_root {
+            self.at_root = false;
+            visit::visit_expr(self, expression);
+        } else {
+            self.flow.union(self.analyzer.flow_of_expr(expression));
+            visit::visit_expr(self, expression);
+        }
+    }
 }
 
 impl<'a, 'b> BodyAnalyzer<'a, 'b> {
@@ -1400,7 +1892,92 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             visibility,
             cfg,
             scopes: vec![BTreeMap::new()],
+            local_path_alias_scopes: vec![BTreeMap::new()],
+            anonymous_trait_scopes: vec![BTreeSet::new()],
         }
+    }
+
+    fn canonical_local_path_names(&self, names: Vec<String>) -> Vec<String> {
+        if let Some(first) = names.first().cloned()
+            && let Some(source) = self
+                .local_path_alias_scopes
+                .iter()
+                .rev()
+                .find_map(|scope| scope.get(&first))
+        {
+            let mut expanded = source.clone();
+            expanded.extend(names.into_iter().skip(1));
+            return expanded;
+        }
+        canonical_path_names(names, self.symbols)
+    }
+
+    fn register_local_uses(&mut self, statements: &[Stmt]) {
+        let uses = statements.iter().filter_map(|statement| match statement {
+            Stmt::Item(Item::Use(item_use)) => Some(item_use),
+            _ => None,
+        });
+        for item_use in uses {
+            if !source_class_allows(
+                self.context.source_class,
+                &self.cfg,
+                &item_use.attrs,
+                self.errors,
+                "local use declaration",
+            ) {
+                continue;
+            }
+            let (leaves, _) = use_leaves(item_use);
+            for leaf in leaves {
+                let source = self.canonical_local_path_names(leaf.source);
+                if leaf.local == "_" {
+                    self.anonymous_trait_scopes
+                        .last_mut()
+                        .expect("body analyzer has a lexical scope")
+                        .insert(source.join("::"));
+                } else {
+                    self.local_path_alias_scopes
+                        .last_mut()
+                        .expect("body analyzer has a lexical scope")
+                        .insert(leaf.local, source);
+                }
+            }
+        }
+    }
+
+    fn push_scope(&mut self) {
+        self.scopes.push(BTreeMap::new());
+        self.local_path_alias_scopes.push(BTreeMap::new());
+        self.anonymous_trait_scopes.push(BTreeSet::new());
+    }
+
+    fn pop_scope(&mut self) {
+        self.scopes.pop();
+        self.local_path_alias_scopes.pop();
+        self.anonymous_trait_scopes.pop();
+    }
+
+    fn trait_is_in_scope(&self, trait_name: &str) -> bool {
+        if self.symbols.anonymous_traits_in_scope.contains(trait_name)
+            || self
+                .anonymous_trait_scopes
+                .iter()
+                .any(|scope| scope.contains(trait_name))
+        {
+            return true;
+        }
+        let mut shadowed = BTreeSet::new();
+        for scope in self.local_path_alias_scopes.iter().rev() {
+            for (local, path) in scope {
+                if shadowed.insert(local) && path.join("::") == trait_name {
+                    return true;
+                }
+            }
+        }
+        self.symbols
+            .traits_in_scope
+            .iter()
+            .any(|(local, path)| !shadowed.contains(local) && path == trait_name)
     }
 
     fn add(
@@ -1499,17 +2076,461 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
     }
 
     fn info_from_type(&self, ty: &Type) -> VariableInfo {
-        VariableInfo {
-            flow: Flow::pools(&targets_in_type(ty, self.symbols)),
-            sql_expression: SqlExpressionKind::Static,
+        variable_info_in_type(ty, self.symbols)
+    }
+
+    fn method_return_info(&self, method: &ExprMethodCall) -> VariableInfo {
+        let method_name = normalized_ident(&method.method);
+        let mut result = VariableInfo::default();
+        for receiver_type in self.nominal_types_of_expr(&method.receiver) {
+            if let Some(info) =
+                self.symbols
+                    .method_returns
+                    .get(&(receiver_type.clone(), None, method_name.clone()))
+            {
+                result.union(info);
+                continue;
+            }
+            for ((owner, trait_name, candidate), info) in &self.symbols.method_returns {
+                if owner == &receiver_type
+                    && trait_name
+                        .as_ref()
+                        .is_some_and(|trait_name| self.trait_is_in_scope(trait_name))
+                    && candidate == &method_name
+                {
+                    result.union(info);
+                }
+            }
         }
+        if method_name == "recv" {
+            result
+                .payload_variants
+                .extend(self.info_from_expr(&method.receiver).payload_variants);
+        }
+        result
+    }
+
+    fn associated_return_info(&self, expression: &syn::ExprPath) -> VariableInfo {
+        let path = &expression.path;
+        if expression.qself.is_none() && path.segments.len() < 2 {
+            return VariableInfo::default();
+        }
+        let method_name = normalized_ident(&path.segments.last().expect("path has a method").ident);
+        let trait_name = expression.qself.as_ref().and_then(|qself| {
+            (qself.position > 0).then(|| {
+                self.canonical_local_path_names(
+                    path.segments
+                        .iter()
+                        .take(qself.position)
+                        .map(|segment| normalized_ident(&segment.ident))
+                        .collect(),
+                )
+                .join("::")
+            })
+        });
+        let receiver_types = if let Some(qself) = &expression.qself {
+            receiver_nominal_types_in_type(&qself.ty)
+                .into_iter()
+                .flat_map(|owner| {
+                    self.symbols
+                        .nominal_type_aliases
+                        .get(&owner)
+                        .cloned()
+                        .unwrap_or_else(|| BTreeSet::from([owner]))
+                })
+                .collect()
+        } else {
+            let owner = normalized_ident(
+                &path
+                    .segments
+                    .iter()
+                    .nth_back(1)
+                    .expect("path has an owner")
+                    .ident,
+            );
+            if owner == "Self" {
+                self.lookup("Self")
+                    .map(|info| info.nominal_types.clone())
+                    .unwrap_or_default()
+            } else {
+                self.symbols
+                    .nominal_type_aliases
+                    .get(&owner)
+                    .cloned()
+                    .unwrap_or_else(|| BTreeSet::from([owner]))
+            }
+        };
+        let mut result = VariableInfo::default();
+        for receiver_type in receiver_types {
+            if let Some(info) = self.symbols.method_returns.get(&(
+                receiver_type,
+                trait_name.clone(),
+                method_name.clone(),
+            )) {
+                result.union(info);
+            }
+        }
+        result
     }
 
     fn info_from_expr(&self, expression: &Expr) -> VariableInfo {
+        match expression {
+            Expr::Reference(reference) => return self.info_from_expr(&reference.expr),
+            Expr::Paren(paren) => return self.info_from_expr(&paren.expr),
+            Expr::Group(group) => return self.info_from_expr(&group.expr),
+            Expr::Try(try_expression) => return self.info_from_expr(&try_expression.expr),
+            Expr::Await(await_expression) => return self.info_from_expr(&await_expression.base),
+            _ => {}
+        }
+        if let Expr::Path(path) = expression
+            && path.qself.is_none()
+            && path.path.segments.len() == 1
+            && let Some(name) = last_path_name(&path.path)
+            && let Some(info) = self.lookup(&name)
+        {
+            return info.clone();
+        }
+        if let Expr::Call(call) = expression
+            && let Expr::Path(path) = call.func.as_ref()
+        {
+            if path.path.segments.len() == 1
+                && let Some(name) = last_path_name(&path.path)
+                && let Some(info) = self.symbols.function_returns.get(&name)
+            {
+                return info.clone();
+            }
+            let return_info = self.associated_return_info(path);
+            if !return_info.flow.is_empty()
+                || !return_info.nominal_types.is_empty()
+                || !return_info.payload_variants.is_empty()
+                || !return_info.tuple_items.is_empty()
+            {
+                return return_info;
+            }
+            if let Some(variant) = last_path_name(&path.path)
+                && matches!(variant.as_str(), "Some" | "Ok" | "Err")
+            {
+                let arguments = call
+                    .args
+                    .iter()
+                    .map(|argument| self.nominal_shape_from_expr(argument))
+                    .collect::<Vec<_>>();
+                let mut info = VariableInfo {
+                    flow: self.flow_of_expr(expression),
+                    sql_expression: self.sql_expression_kind(expression),
+                    nominal_types: BTreeSet::from([variant]),
+                    ..VariableInfo::default()
+                };
+                if arguments.iter().any(Option::is_some) {
+                    info.payload_variants.insert(
+                        arguments
+                            .into_iter()
+                            .map(|shape| {
+                                shape.unwrap_or_else(|| NominalShape {
+                                    nominal_types: BTreeSet::new(),
+                                    arguments: Vec::new(),
+                                })
+                            })
+                            .collect(),
+                    );
+                }
+                return info;
+            }
+        }
+        if let Expr::MethodCall(method) = expression {
+            let return_info = self.method_return_info(method);
+            return VariableInfo {
+                flow: self.flow_of_expr(expression),
+                sql_expression: self.sql_expression_kind(expression),
+                nominal_types: return_info.nominal_types,
+                payload_variants: return_info.payload_variants,
+                tuple_items: return_info.tuple_items,
+            };
+        }
+        if let Expr::Call(call) = expression
+            && let Expr::Path(path) = call.func.as_ref()
+            && let Some(owner) = last_path_name(&path.path)
+        {
+            let nominal_types = if path.qself.is_none()
+                && path.path.segments.len() >= 2
+                && matches!(owner.as_str(), "default" | "new")
+            {
+                path.path
+                    .segments
+                    .iter()
+                    .nth_back(1)
+                    .map(|segment| BTreeSet::from([normalized_ident(&segment.ident)]))
+                    .unwrap_or_default()
+            } else {
+                BTreeSet::from([owner])
+            };
+            return VariableInfo {
+                flow: self.flow_of_expr(expression),
+                sql_expression: self.sql_expression_kind(expression),
+                nominal_types,
+                payload_variants: payload_variants_in_path(&path.path, self.symbols),
+                tuple_items: Vec::new(),
+            };
+        }
+        if let Expr::Tuple(tuple) = expression {
+            return VariableInfo {
+                flow: self.flow_of_expr(expression),
+                sql_expression: self.sql_expression_kind(expression),
+                tuple_items: tuple
+                    .elems
+                    .iter()
+                    .map(|element| self.info_from_expr(element))
+                    .collect(),
+                ..VariableInfo::default()
+            };
+        }
         VariableInfo {
             flow: self.flow_of_expr(expression),
             sql_expression: self.sql_expression_kind(expression),
+            nominal_types: BTreeSet::new(),
+            payload_variants: BTreeSet::new(),
+            tuple_items: Vec::new(),
         }
+    }
+
+    fn nominal_shape_from_expr(&self, expression: &Expr) -> Option<NominalShape> {
+        if let Expr::Tuple(tuple) = expression {
+            return Some(NominalShape {
+                nominal_types: BTreeSet::new(),
+                arguments: tuple
+                    .elems
+                    .iter()
+                    .map(|element| {
+                        self.nominal_shape_from_expr(element)
+                            .unwrap_or_else(|| NominalShape {
+                                nominal_types: BTreeSet::new(),
+                                arguments: Vec::new(),
+                            })
+                    })
+                    .collect(),
+            });
+        }
+        let info = self.info_from_expr(expression);
+        (!info.nominal_types.is_empty()).then(|| NominalShape {
+            nominal_types: info.nominal_types,
+            arguments: info.payload_variants.into_iter().next().unwrap_or_default(),
+        })
+    }
+
+    fn nominal_types_of_expr(&self, expression: &Expr) -> BTreeSet<String> {
+        match expression {
+            Expr::Path(path) if path.qself.is_none() => last_path_name(&path.path)
+                .map(|name| {
+                    self.lookup(&name)
+                        .map(|info| info.nominal_types.clone())
+                        .or_else(|| self.symbols.nominal_type_aliases.get(&name).cloned())
+                        .unwrap_or_else(|| {
+                            let known_owner = self
+                                .symbols
+                                .method_returns
+                                .keys()
+                                .any(|(owner, _, _)| owner == &name)
+                                || self
+                                    .symbols
+                                    .tuple_field_targets
+                                    .keys()
+                                    .any(|(owner, _)| owner == &name);
+                            known_owner
+                                .then(|| BTreeSet::from([name]))
+                                .unwrap_or_default()
+                        })
+                })
+                .unwrap_or_default(),
+            Expr::Reference(reference) => self.nominal_types_of_expr(&reference.expr),
+            Expr::Paren(paren) => self.nominal_types_of_expr(&paren.expr),
+            Expr::Group(group) => self.nominal_types_of_expr(&group.expr),
+            Expr::Try(try_expression) => self.nominal_types_of_expr(&try_expression.expr),
+            Expr::Await(await_expression) => self.nominal_types_of_expr(&await_expression.base),
+            Expr::Unary(unary) if matches!(unary.op, syn::UnOp::Deref(_)) => {
+                self.nominal_types_of_expr(&unary.expr)
+            }
+            Expr::Field(field) => {
+                let field_name = match &field.member {
+                    Member::Named(ident) => normalized_ident(ident),
+                    Member::Unnamed(index) => index.index.to_string(),
+                };
+                let mut nominal_types = BTreeSet::new();
+                for owner in self.nominal_types_of_expr(&field.base) {
+                    if let Some(field_types) = self
+                        .symbols
+                        .field_nominal_types
+                        .get(&(owner, field_name.clone()))
+                    {
+                        nominal_types.extend(field_types.iter().cloned());
+                    }
+                }
+                nominal_types
+            }
+            Expr::Call(call) => match call.func.as_ref() {
+                Expr::Path(path) if path.path.segments.len() == 1 => last_path_name(&path.path)
+                    .map(|name| {
+                        self.symbols
+                            .function_returns
+                            .get(&name)
+                            .map(|info| info.nominal_types.clone())
+                            .unwrap_or_else(|| BTreeSet::from([name]))
+                    })
+                    .unwrap_or_default(),
+                Expr::Path(path) => self.associated_return_info(path).nominal_types,
+                _ => BTreeSet::new(),
+            },
+            Expr::MethodCall(method) => self.method_return_info(method).nominal_types,
+            Expr::Struct(expression) => last_path_name(&expression.path)
+                .map(|name| {
+                    self.symbols
+                        .nominal_type_aliases
+                        .get(&name)
+                        .cloned()
+                        .unwrap_or_else(|| BTreeSet::from([name]))
+                })
+                .unwrap_or_default(),
+            _ => BTreeSet::new(),
+        }
+    }
+
+    fn flow_in_block(&self, block: &syn::Block) -> Flow {
+        let mut collector = DirectChildFlowCollector {
+            analyzer: self,
+            flow: Flow::default(),
+            at_root: false,
+        };
+        collector.visit_block(block);
+        collector.flow
+    }
+
+    fn declared_field_info(&self, owner: &str, field: &str, named: bool) -> VariableInfo {
+        let owners = self
+            .symbols
+            .nominal_type_aliases
+            .get(owner)
+            .cloned()
+            .unwrap_or_else(|| BTreeSet::from([owner.to_owned()]));
+        let mut info = VariableInfo::default();
+        for owner in owners {
+            let targets = if named {
+                self.symbols
+                    .field_targets
+                    .get(&(owner.clone(), field.to_owned()))
+            } else {
+                self.symbols
+                    .tuple_field_targets
+                    .get(&(owner.clone(), field.to_owned()))
+            };
+            if let Some(targets) = targets {
+                info.flow.union(Flow::pools(targets));
+            }
+            if let Some(types) = self
+                .symbols
+                .field_nominal_types
+                .get(&(owner, field.to_owned()))
+            {
+                info.nominal_types.extend(types.iter().cloned());
+            }
+        }
+        info
+    }
+
+    fn has_declared_fields(&self, owner: &str) -> bool {
+        let owners = self
+            .symbols
+            .nominal_type_aliases
+            .get(owner)
+            .cloned()
+            .unwrap_or_else(|| BTreeSet::from([owner.to_owned()]));
+        owners.iter().any(|owner| {
+            self.symbols
+                .field_targets
+                .keys()
+                .any(|(field_owner, _)| field_owner == owner)
+                || self
+                    .symbols
+                    .tuple_field_targets
+                    .keys()
+                    .any(|(field_owner, _)| field_owner == owner)
+                || self
+                    .symbols
+                    .field_nominal_types
+                    .keys()
+                    .any(|(field_owner, _)| field_owner == owner)
+        })
+    }
+
+    fn pattern_owner(&self, path: &syn::Path) -> String {
+        let names = path_names(path);
+        if names.len() < 2 {
+            return names.last().cloned().unwrap_or_default();
+        }
+        let variant = names.last().cloned().unwrap_or_default();
+        let owner = names.get(names.len() - 2).cloned().unwrap_or_default();
+        let owner = self
+            .symbols
+            .nominal_type_aliases
+            .get(&owner)
+            .and_then(|owners| {
+                (owners.len() == 1)
+                    .then(|| owners.iter().next().cloned())
+                    .flatten()
+            })
+            .unwrap_or(owner);
+        format!("{owner}::{variant}")
+    }
+
+    fn wrapper_payload_info(&self, owner: &str, info: &VariableInfo) -> Option<VariableInfo> {
+        let argument_index = match owner.rsplit("::").next().unwrap_or(owner) {
+            "Some" | "Ok" => 0,
+            "Err" => 1,
+            _ => return None,
+        };
+        let shapes = info
+            .payload_variants
+            .iter()
+            .filter_map(|arguments| arguments.get(argument_index))
+            .collect::<Vec<_>>();
+        if shapes.is_empty() {
+            return None;
+        }
+        let mut payload = VariableInfo {
+            flow: info.flow.clone(),
+            sql_expression: info.sql_expression,
+            ..VariableInfo::default()
+        };
+        for shape in shapes {
+            payload
+                .nominal_types
+                .extend(shape.nominal_types.iter().cloned());
+            if !shape.arguments.is_empty() {
+                if shape.nominal_types.is_empty() {
+                    payload.tuple_items =
+                        shape.arguments.iter().map(Self::info_from_shape).collect();
+                } else {
+                    payload.payload_variants.insert(shape.arguments.clone());
+                }
+            }
+        }
+        for nominal in payload.nominal_types.clone() {
+            if let Some(alias) = self.symbols.type_alias_info.get(&nominal) {
+                payload.union(alias);
+            }
+        }
+        Some(payload)
+    }
+
+    fn info_from_shape(shape: &NominalShape) -> VariableInfo {
+        let mut info = VariableInfo {
+            nominal_types: shape.nominal_types.clone(),
+            ..VariableInfo::default()
+        };
+        if shape.nominal_types.is_empty() {
+            info.tuple_items = shape.arguments.iter().map(Self::info_from_shape).collect();
+        } else if !shape.arguments.is_empty() {
+            info.payload_variants.insert(shape.arguments.clone());
+        }
+        info
     }
 
     fn bind_pattern(&mut self, pattern: &Pat, info: &VariableInfo) {
@@ -1522,26 +2543,55 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             }
             Pat::Reference(reference) => self.bind_pattern(&reference.pat, info),
             Pat::Type(typed) => {
-                let typed_info = self.info_from_type(&typed.ty);
-                if typed_info.flow.0.is_empty() {
-                    self.bind_pattern(&typed.pat, info);
-                } else {
-                    self.bind_pattern(&typed.pat, &typed_info);
+                let mut typed_info = self.info_from_type(&typed.ty);
+                typed_info.flow.union(info.flow.clone());
+                typed_info
+                    .nominal_types
+                    .extend(info.nominal_types.iter().cloned());
+                typed_info
+                    .payload_variants
+                    .extend(info.payload_variants.iter().cloned());
+                if typed_info.sql_expression == SqlExpressionKind::Static {
+                    typed_info.sql_expression = info.sql_expression;
                 }
+                self.bind_pattern(&typed.pat, &typed_info);
             }
             Pat::Tuple(tuple) => {
-                for element in &tuple.elems {
-                    self.bind_pattern(element, info);
+                for (index, element) in tuple.elems.iter().enumerate() {
+                    self.bind_pattern(element, info.tuple_items.get(index).unwrap_or(info));
                 }
             }
             Pat::TupleStruct(tuple) => {
-                for element in &tuple.elems {
-                    self.bind_pattern(element, info);
+                let owner = self.pattern_owner(&tuple.path);
+                for (index, element) in tuple.elems.iter().enumerate() {
+                    if self.has_declared_fields(&owner) {
+                        let field_info =
+                            self.declared_field_info(&owner, &index.to_string(), false);
+                        self.bind_pattern(element, &field_info);
+                    } else if let Some(payload_info) = self.wrapper_payload_info(&owner, info) {
+                        self.bind_pattern(element, &payload_info);
+                    } else {
+                        self.bind_pattern(element, info);
+                    }
                 }
             }
             Pat::Struct(structure) => {
+                let owner = self.pattern_owner(&structure.path);
                 for field in &structure.fields {
-                    self.bind_pattern(&field.pat, info);
+                    let field_name = match &field.member {
+                        Member::Named(ident) => normalized_ident(ident),
+                        Member::Unnamed(index) => index.index.to_string(),
+                    };
+                    if self.has_declared_fields(&owner) {
+                        let field_info = self.declared_field_info(
+                            &owner,
+                            &field_name,
+                            matches!(field.member, Member::Named(_)),
+                        );
+                        self.bind_pattern(&field.pat, &field_info);
+                    } else {
+                        self.bind_pattern(&field.pat, info);
+                    }
                 }
             }
             Pat::Slice(slice) => {
@@ -1627,8 +2677,39 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             Member::Named(ident) => normalized_ident(ident),
             Member::Unnamed(index) => index.index.to_string(),
         };
-        if let Some(targets) = self.symbols.field_targets.get(&name) {
-            return Flow::pools(targets);
+        let mut targets = TargetSet::new();
+        for owner in self.nominal_types_of_expr(&field.base) {
+            let field_targets = match &field.member {
+                Member::Named(_) => self.symbols.field_targets.get(&(owner, name.clone())),
+                Member::Unnamed(_) => self.symbols.tuple_field_targets.get(&(owner, name.clone())),
+            };
+            if let Some(field_targets) = field_targets {
+                targets.extend(field_targets);
+            }
+        }
+        if targets.is_empty()
+            && matches!(field.member, Member::Named(_))
+            && let Some(owners) = self.symbols.field_owners.get(&name)
+            && !owners.is_empty()
+            && owners.iter().all(|owner| {
+                self.symbols
+                    .field_targets
+                    .get(&(owner.clone(), name.clone()))
+                    .is_some_and(|targets| !targets.is_empty())
+            })
+        {
+            for owner in owners {
+                if let Some(field_targets) = self
+                    .symbols
+                    .field_targets
+                    .get(&(owner.clone(), name.clone()))
+                {
+                    targets.extend(field_targets);
+                }
+            }
+        }
+        if !targets.is_empty() {
+            return Flow::pools(&targets);
         }
         if let Some(target) = database_field_target(&name) {
             return Flow::pools(&BTreeSet::from([target]));
@@ -1673,10 +2754,14 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         if !path_targets.is_empty() {
             return Flow::pools(&path_targets);
         }
+        let associated = self.associated_return_info(path).flow;
+        if !associated.is_empty() {
+            return associated;
+        }
         self.symbols
             .function_returns
             .get(last)
-            .cloned()
+            .map(|info| info.flow.clone())
             .unwrap_or_default()
     }
 
@@ -1694,13 +2779,9 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 receiver.map_pool_stage(FlowStage::Query)
             }
             "execute" | "direct_execute" => receiver.map_pool_stage(FlowStage::Query),
+            "bind" if receiver.has_stage(FlowStage::Query) => receiver,
             name if FLOW_PASSTHROUGH_METHODS.contains(&name) => receiver,
-            _ => self
-                .symbols
-                .function_returns
-                .get(&name)
-                .cloned()
-                .unwrap_or_default(),
+            _ => self.method_return_info(method).flow,
         }
     }
 
@@ -1744,8 +2825,24 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 }
                 flow
             }
+            // These expressions always evaluate to `()`; persistence used by
+            // their bodies is inventoried at the actual call/store sites and
+            // must not be misreported as their result value.
+            Expr::ForLoop(_) | Expr::While(_) => Flow::default(),
             Expr::Macro(expression) => self.flow_of_macro(&expression.mac),
-            _ => Flow::default(),
+            _ => {
+                // `syn::Expr` is non-exhaustive. Conservatively propagate the
+                // flow of every direct child for syntax that has no more
+                // precise rule above, so present and future wrappers cannot
+                // silently launder a concrete persistence value.
+                let mut collector = DirectChildFlowCollector {
+                    analyzer: self,
+                    flow: Flow::default(),
+                    at_root: true,
+                };
+                collector.visit_expr(expression);
+                collector.flow
+            }
         }
     }
 
@@ -1999,12 +3096,108 @@ fn simple_assignment_name(expression: &Expr) -> Option<String> {
 }
 
 impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
+    fn visit_expr_for_loop(&mut self, expression: &'ast syn::ExprForLoop) {
+        if !self.allows_source_class(&expression.attrs, "for-loop expression") {
+            return;
+        }
+        let cfg = item_cfg(&self.cfg, &expression.attrs);
+        self.visit_expr(&expression.expr);
+        let iterator_info = self.info_from_expr(&expression.expr);
+        self.record_pool_escape(
+            &iterator_info.flow,
+            PersistenceOperation::ArgumentEscape,
+            "for_iter",
+            &cfg,
+            normalized_tokens(&expression.expr),
+        );
+        self.push_scope();
+        self.register_local_uses(&expression.body.stmts);
+        self.bind_pattern(&expression.pat, &iterator_info);
+        for statement in &expression.body.stmts {
+            self.visit_stmt(statement);
+        }
+        self.pop_scope();
+    }
+
+    fn visit_expr_while(&mut self, expression: &'ast syn::ExprWhile) {
+        if !self.allows_source_class(&expression.attrs, "while expression") {
+            return;
+        }
+        self.visit_expr(&expression.cond);
+        self.push_scope();
+        self.register_local_uses(&expression.body.stmts);
+        if let Expr::Let(let_expression) = expression.cond.as_ref() {
+            let mut info = self.info_from_expr(&let_expression.expr);
+            if info.flow.0.is_empty()
+                && let Expr::MethodCall(method) = let_expression.expr.as_ref()
+            {
+                info = self.info_from_expr(&method.receiver);
+            }
+            self.bind_pattern(&let_expression.pat, &info);
+        }
+        for statement in &expression.body.stmts {
+            self.visit_stmt(statement);
+        }
+        self.pop_scope();
+    }
+
+    fn visit_expr_async(&mut self, expression: &'ast syn::ExprAsync) {
+        if !self.allows_source_class(&expression.attrs, "async expression") {
+            return;
+        }
+        let cfg = item_cfg(&self.cfg, &expression.attrs);
+        let flow = self.flow_in_block(&expression.block);
+        self.record_pool_escape(
+            &flow,
+            PersistenceOperation::ArgumentEscape,
+            "async_capture",
+            &cfg,
+            normalized_tokens(expression),
+        );
+        self.visit_block(&expression.block);
+    }
+
+    fn visit_expr_array(&mut self, expression: &'ast syn::ExprArray) {
+        if !self.allows_source_class(&expression.attrs, "array expression") {
+            return;
+        }
+        let cfg = item_cfg(&self.cfg, &expression.attrs);
+        let flow = self.flow_of_expr(&Expr::Array(expression.clone()));
+        self.record_pool_escape(
+            &flow,
+            PersistenceOperation::ArgumentEscape,
+            "array_value",
+            &cfg,
+            normalized_tokens(expression),
+        );
+        for element in &expression.elems {
+            self.visit_expr(element);
+        }
+    }
+
+    fn visit_expr_loop(&mut self, expression: &'ast syn::ExprLoop) {
+        if !self.allows_source_class(&expression.attrs, "loop expression") {
+            return;
+        }
+        let cfg = item_cfg(&self.cfg, &expression.attrs);
+        let flow = self.flow_in_block(&expression.body);
+        self.record_pool_escape(
+            &flow,
+            PersistenceOperation::ArgumentEscape,
+            "loop_value",
+            &cfg,
+            normalized_tokens(expression),
+        );
+        self.visit_block(&expression.body);
+    }
+
     fn visit_block(&mut self, block: &'ast syn::Block) {
-        self.scopes.push(BTreeMap::new());
+        self.push_scope();
+        self.register_local_uses(&block.stmts);
         for statement in &block.stmts {
             self.visit_stmt(statement);
         }
-        self.scopes.pop();
+        self.pop_scope();
     }
 
     fn visit_local(&mut self, local: &'ast Local) {
@@ -2234,11 +3427,14 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         let cfg = item_cfg(&self.cfg, &method.attrs);
         let name = normalized_ident(&method.method);
         let receiver = self.flow_of_expr(&method.receiver);
+        let validated_flow_passthrough = FLOW_PASSTHROUGH_METHODS.contains(&name.as_str())
+            || (name == "bind" && receiver.has_stage(FlowStage::Query));
         let operation = if is_query_name(&name) && !receiver.0.is_empty() {
             Some(PersistenceOperation::Query)
         } else {
             PersistenceOperation::from_executor_method(&name)
         };
+        let mut valid_persistence_method = false;
         if let Some(operation) = operation {
             let valid = match operation {
                 PersistenceOperation::Commit | PersistenceOperation::Rollback => {
@@ -2270,6 +3466,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                 }
             };
             if valid {
+                valid_persistence_method = true;
                 let mut targets = receiver.targets();
                 for argument in &method.args {
                     targets.extend(self.flow_of_expr(argument).targets());
@@ -2301,7 +3498,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                     }
                 }
             }
-        } else if !FLOW_PASSTHROUGH_METHODS.contains(&name.as_str()) {
+        } else if !validated_flow_passthrough {
             self.record_pool_escape(
                 &receiver,
                 PersistenceOperation::ArgumentEscape,
@@ -2311,8 +3508,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             );
         }
 
-        let known_persistence_method = operation.is_some();
-        if !known_persistence_method && !FLOW_PASSTHROUGH_METHODS.contains(&name.as_str()) {
+        if !valid_persistence_method && !validated_flow_passthrough {
             for argument in &method.args {
                 let flow = self.flow_of_expr(argument);
                 self.record_pool_escape(
@@ -2425,13 +3621,13 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         self.visit_expr(&expression.expr);
         let scrutinee = self.info_from_expr(&expression.expr);
         for arm in &expression.arms {
-            self.scopes.push(BTreeMap::new());
+            self.push_scope();
             self.bind_pattern(&arm.pat, &scrutinee);
             if let Some((_, guard)) = &arm.guard {
                 self.visit_expr(guard);
             }
             self.visit_expr(&arm.body);
-            self.scopes.pop();
+            self.pop_scope();
         }
     }
 
@@ -2440,12 +3636,12 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             return;
         }
         self.visit_expr(&expression.cond);
-        self.scopes.push(BTreeMap::new());
+        self.push_scope();
         if let Expr::Let(let_expression) = expression.cond.as_ref() {
             self.bind_pattern_from_expr(&let_expression.pat, &let_expression.expr);
         }
         self.visit_block(&expression.then_branch);
-        self.scopes.pop();
+        self.pop_scope();
         if let Some((_, else_expression)) = &expression.else_branch {
             self.visit_expr(else_expression);
         }
@@ -2498,12 +3694,12 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         }
         let previous_cfg = self.cfg.clone();
         self.cfg = item_cfg(&self.cfg, &closure.attrs);
-        self.scopes.push(BTreeMap::new());
+        self.push_scope();
         for input in &closure.inputs {
             self.bind_pattern(input, &VariableInfo::default());
         }
         self.visit_expr(&closure.body);
-        self.scopes.pop();
+        self.pop_scope();
         self.cfg = previous_cfg;
     }
 }
@@ -2626,7 +3822,7 @@ fn analyze_struct(
         &visibility,
         cfg,
     );
-    for field in &item_struct.fields {
+    for (index, field) in item_struct.fields.iter().enumerate() {
         if !source_class_allows(
             context.source_class,
             cfg,
@@ -2640,7 +3836,7 @@ fn analyze_struct(
             .ident
             .as_ref()
             .map(normalized_ident)
-            .unwrap_or_else(|| "tuple_field".to_owned());
+            .unwrap_or_else(|| index.to_string());
         let field_cfg = item_cfg(cfg, &field.attrs);
         let field_visibility = normalized_visibility(&field.vis);
         add_attribute_records(
@@ -2725,7 +3921,7 @@ fn analyze_enum(
                 cfg: &variant_cfg,
             },
         );
-        for field in &variant.fields {
+        for (index, field) in variant.fields.iter().enumerate() {
             if !source_class_allows(
                 context.source_class,
                 &variant_cfg,
@@ -2739,7 +3935,7 @@ fn analyze_enum(
                 .ident
                 .as_ref()
                 .map(normalized_ident)
-                .unwrap_or_else(|| "tuple_field".to_owned());
+                .unwrap_or_else(|| index.to_string());
             let field_cfg = item_cfg(&variant_cfg, &field.attrs);
             let field_visibility = normalized_visibility(&field.vis);
             add_attribute_records(
@@ -2820,6 +4016,7 @@ fn analyze_function(
         visibility,
         cfg.clone(),
     );
+    analyzer.register_local_uses(&function.block.stmts);
     analyzer.register_parameters(&function.sig.inputs);
     for statement in &function.block.stmts {
         analyzer.visit_stmt(statement);
@@ -2974,6 +4171,13 @@ fn analyze_impl(
             visibility,
             method_cfg.clone(),
         );
+        analyzer.register_local_uses(&method.block.stmts);
+        let mut self_info = analyzer.info_from_type(&item_impl.self_ty);
+        self_info.flow = Flow::default();
+        analyzer.bind("Self".to_owned(), self_info.clone());
+        if method.sig.receiver().is_some() {
+            analyzer.bind("self".to_owned(), self_info);
+        }
         analyzer.register_parameters(&method.sig.inputs);
         for statement in &method.block.stmts {
             analyzer.visit_stmt(statement);
@@ -3051,6 +4255,7 @@ fn analyze_module_items(
         items,
         parent_symbols,
         context.package,
+        context.module,
         &cfg,
         context.source_class,
         errors,
@@ -3720,7 +4925,7 @@ mod tests {
         inventory_persistence_accesses(&[ClassifiedPersistenceSource {
             classification: "database_adapter_core",
             package,
-            module: "crate::fixture",
+            module: "crate",
             source_path: "src/fixture.rs",
             inherited_cfg: &[],
             source,
@@ -3881,6 +5086,751 @@ mod tests {
     }
 
     #[test]
+    fn persistence_inventory_tracks_grouped_namespace_self_aliases() {
+        let baseline = inventory(
+            r#"
+                async fn leak(database: &db::CharacterDatabase) {
+                    database.pool().begin().await.unwrap();
+                }
+                use wow_database::{self as db};
+            "#,
+        )
+        .expect("grouped self rename resolves independent of item order");
+        let found = operations(&baseline);
+        for expected in [
+            (
+                PersistenceTarget::Database,
+                PersistenceOperation::Import,
+                "db".to_owned(),
+            ),
+            (
+                PersistenceTarget::CharacterDatabase,
+                PersistenceOperation::PoolAccess,
+                "pool".to_owned(),
+            ),
+            (
+                PersistenceTarget::CharacterDatabase,
+                PersistenceOperation::Begin,
+                "begin".to_owned(),
+            ),
+        ] {
+            assert!(
+                found.contains(&expected),
+                "missing {expected:?}: {found:#?}"
+            );
+        }
+        assert!(baseline.accesses.iter().any(|row| {
+            row.operation == PersistenceOperation::Import
+                && row.fingerprint == "wow_database::self as db"
+        }));
+        assert!(
+            compare_persistence_access_baseline(&inventory("").unwrap(), &baseline)
+                .unwrap_err()
+                .contains("untracked direct persistence access")
+        );
+
+        let unrelated = inventory(
+            r#"
+                use unrelated::{self as db};
+                fn innocent(_: db::CharacterDatabase) {}
+            "#,
+        )
+        .unwrap();
+        assert!(unrelated.accesses.is_empty(), "{:#?}", unrelated.accesses);
+    }
+
+    #[test]
+    fn persistence_inventory_tracks_numeric_tuple_fields() {
+        let baseline = inventory(
+            r#"
+                struct Holder(u8, wow_database::CharacterDatabase);
+                enum Wrapped { Database(u8, wow_database::CharacterDatabase) }
+                fn leak(holder: &Holder) { holder.1.pool(); }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "struct Holder"
+                && row.operation == PersistenceOperation::TypeReference
+                && row.symbol == "1"
+        }));
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "enum Wrapped::Database"
+                && row.operation == PersistenceOperation::TypeReference
+                && row.symbol == "1"
+        }));
+        let found = operations(&baseline);
+        assert!(found.contains(&(
+            PersistenceTarget::CharacterDatabase,
+            PersistenceOperation::PathReference,
+            "1".to_owned(),
+        )));
+        assert!(found.contains(&(
+            PersistenceTarget::CharacterDatabase,
+            PersistenceOperation::PoolAccess,
+            "pool".to_owned(),
+        )));
+
+        let collision = inventory(
+            r#"
+                struct DatabaseHolder(wow_database::CharacterDatabase);
+                struct Innocent(u8);
+                fn clean(value: &Innocent) { consume(value.0); }
+            "#,
+        )
+        .unwrap();
+        assert!(
+            !collision.accesses.iter().any(|row| {
+                row.enclosing == "fn clean"
+                    && matches!(
+                        row.operation,
+                        PersistenceOperation::PathReference | PersistenceOperation::ArgumentEscape
+                    )
+            }),
+            "tuple fields from unrelated owner types must not contaminate each other: {:#?}",
+            collision.accesses
+        );
+
+        let method_name_collisions = inventory(
+            r#"
+                struct DbHolder(u8, wow_database::CharacterDatabase);
+                struct Plain(u8, u8);
+                struct DbFactory;
+                impl DbFactory {
+                    fn make(&self) -> DbHolder { unreachable!() }
+                    fn get(&self) -> wow_database::CharacterDatabase { unreachable!() }
+                }
+                struct PlainFactory;
+                impl PlainFactory {
+                    fn make(&self) -> Plain { Plain(0, 0) }
+                    fn get(&self) -> u8 { 0 }
+                }
+                fn clean(factory: &PlainFactory) {
+                    consume(factory.make().1);
+                    consume(factory.get());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(
+            !method_name_collisions
+                .accesses
+                .iter()
+                .any(|row| row.enclosing == "fn clean"),
+            "methods with the same name on unrelated receiver types must not contaminate each other: {:#?}",
+            method_name_collisions.accesses
+        );
+
+        let aliases_and_constructors = inventory(
+            r#"
+                struct Holder(u8, wow_database::CharacterDatabase);
+                type Alias = Holder;
+                fn alias(value: &Alias) { value.1.pool(); }
+                fn constructed(database: wow_database::CharacterDatabase) {
+                    let value = Holder(0, database);
+                    value.1.pool();
+                }
+                fn make(database: wow_database::CharacterDatabase) -> Holder {
+                    Holder(0, database)
+                }
+                fn returned(database: wow_database::CharacterDatabase) {
+                    make(database).1.pool();
+                }
+                struct Factory(wow_database::CharacterDatabase);
+                impl Factory {
+                    fn make(&self) -> Holder { Holder(0, self.0.clone()) }
+                    fn self_returned(&self) { self.make().1.pool(); }
+                    fn associated_make() -> Holder { unreachable!() }
+                    fn self_associated_returned() { Self::associated_make().1.pool(); }
+                }
+                fn method_returned(factory: &Factory) { factory.make().1.pool(); }
+                fn associated_returned() { Factory::associated_make().1.pool(); }
+                struct UnitFactory;
+                impl UnitFactory {
+                    fn make(&self) -> Holder { unreachable!() }
+                }
+                fn inline_unit_returned() { UnitFactory.make().1.pool(); }
+                struct StructFactory {}
+                impl StructFactory {
+                    fn make(&self) -> Holder { unreachable!() }
+                }
+                fn inline_struct_returned() { StructFactory {}.make().1.pool(); }
+                struct Outer { factory: Factory }
+                fn field_receiver(value: &Outer) { value.factory.make().1.pool(); }
+                struct TupleOuter(Factory);
+                fn tuple_field_receiver(value: &TupleOuter) { value.0.make().1.pool(); }
+                fn deref_receiver(factory: &Factory) { (*factory).make().1.pool(); }
+                fn destructured_receiver(value: Outer) {
+                    let Outer { factory } = value;
+                    factory.make().1.pool();
+                }
+                fn tuple_destructured_receiver(value: TupleOuter) {
+                    let TupleOuter(factory) = value;
+                    factory.make().1.pool();
+                }
+                trait Maker { fn make() -> Holder; }
+                impl Maker for Factory { fn make() -> Holder { unreachable!() } }
+                fn ufcs_returned() { <Factory as Maker>::make().1.pool(); }
+                struct DbOuter { database: wow_database::CharacterDatabase }
+                fn destructured_database(value: DbOuter) {
+                    let DbOuter { database } = value;
+                    database.pool();
+                }
+                fn build_factory() -> Factory { unreachable!() }
+                fn typed_local_receiver() {
+                    let factory: Factory = build_factory();
+                    factory.make().1.pool();
+                }
+                fn boxed_receiver(factory: Box<Factory>) { factory.make().1.pool(); }
+                enum Receivers {
+                    Tuple(Factory),
+                    Named { factory: Factory },
+                }
+                fn enum_tuple_receiver(value: Receivers) {
+                    if let Receivers::Tuple(factory) = value {
+                        factory.make().1.pool();
+                    }
+                }
+                fn enum_named_receiver(value: Receivers) {
+                    if let Receivers::Named { factory } = value {
+                        factory.make().1.pool();
+                    }
+                }
+                struct Plan { statements: Vec<wow_database::PreparedStatement> }
+                struct Planner;
+                impl Planner {
+                    fn plan(&self) -> Option<Plan> { None }
+                    fn consume_plan(&self) {
+                        let Some(plan) = self.plan() else { return };
+                        consume(plan.statements);
+                    }
+                }
+                struct Job { statement: wow_database::PreparedStatement }
+                async fn consume_received(rx: &Receiver<Job>) {
+                    while let Some(job) = rx.recv().await {
+                        consume(job.statement);
+                    }
+                }
+                fn consume_channel() {
+                    let (_, mut rx) = unbounded_channel::<Job>();
+                    async move {
+                        while let Some(job) = rx.recv().await {
+                            consume(job.statement);
+                        }
+                    };
+                }
+                fn nested_plan() -> Option<Option<Plan>> { None }
+                fn consume_nested_plan() {
+                    let Some(inner) = nested_plan() else { return };
+                    let Some(plan) = inner else { return };
+                    consume(plan.statements);
+                }
+                async fn consume_result(rx: &Receiver<Result<u8, Job>>) {
+                    while let Some(Err(job)) = rx.recv().await {
+                        consume(job.statement);
+                    }
+                }
+                fn inferred_wrappers(job: Job) {
+                    let wrapped = Some(job);
+                    let Some(job) = wrapped else { return };
+                    consume(job.statement);
+                }
+                fn inferred_err(job: Job) {
+                    let wrapped: Result<u8, Job> = Err(job);
+                    let Err(job) = wrapped else { return };
+                    consume(job.statement);
+                }
+                fn inferred_tuple(factory: Factory) {
+                    let pair = (factory, 0_u8);
+                    let (factory, _) = pair;
+                    factory.make().1.pool();
+                }
+                fn inferred_wrapped_tuple(factory: Factory) {
+                    let wrapped = Some((factory, 0_u8));
+                    let Some((factory, _)) = wrapped else { return };
+                    factory.make().1.pool();
+                }
+                fn pair() -> (Factory, u8) { unreachable!() }
+                fn tuple_returned() {
+                    let (factory, _) = pair();
+                    factory.make().1.pool();
+                }
+                impl Factory {
+                    fn pair(&self) -> (Factory, u8) { unreachable!() }
+                    fn method_tuple_returned(&self) {
+                        let (factory, _) = self.pair();
+                        factory.make().1.pool();
+                    }
+                }
+                fn tuple_parameter(pair: (Factory, u8)) {
+                    let (factory, _) = pair;
+                    factory.make().1.pool();
+                }
+                fn referenced_tuple_parameter(pair: &(Factory, u8)) {
+                    let (factory, _) = pair;
+                    factory.make().1.pool();
+                }
+                fn wrapped_pair() -> Option<(Factory, u8)> { None }
+                fn wrapped_tuple_returned() {
+                    let Some((factory, _)) = wrapped_pair() else { return };
+                    factory.make().1.pool();
+                }
+                fn reversed_pair() -> (u8, Factory) { unreachable!() }
+                fn reversed_tuple_returned() {
+                    let (_, factory) = reversed_pair();
+                    factory.make().1.pool();
+                }
+                type PairAlias = (Factory, u8);
+                type NestedPairAlias = PairAlias;
+                fn aliased_pair() -> NestedPairAlias { unreachable!() }
+                fn aliased_tuple_returned() {
+                    let (factory, _) = aliased_pair();
+                    factory.make().1.pool();
+                }
+                type WrappedPairAlias = Option<PairAlias>;
+                fn aliased_wrapped_pair() -> WrappedPairAlias { None }
+                fn aliased_wrapped_tuple_returned() {
+                    let Some((factory, _)) = aliased_wrapped_pair() else { return };
+                    factory.make().1.pool();
+                }
+                fn qualified_enum(value: Receivers) {
+                    if let self::Receivers::Named { factory } = value {
+                        factory.make().1.pool();
+                    }
+                }
+            "#,
+        )
+        .unwrap();
+        for enclosing in [
+            "fn alias",
+            "fn constructed",
+            "fn returned",
+            "fn method_returned",
+            "impl Factory::self_returned",
+            "impl Factory::self_associated_returned",
+            "fn associated_returned",
+            "fn inline_unit_returned",
+            "fn inline_struct_returned",
+            "fn field_receiver",
+            "fn tuple_field_receiver",
+            "fn deref_receiver",
+            "fn destructured_receiver",
+            "fn tuple_destructured_receiver",
+            "fn ufcs_returned",
+            "fn destructured_database",
+            "fn typed_local_receiver",
+            "fn boxed_receiver",
+            "fn enum_tuple_receiver",
+            "fn enum_named_receiver",
+            "fn qualified_enum",
+            "fn tuple_returned",
+            "impl Factory::method_tuple_returned",
+            "fn tuple_parameter",
+            "fn referenced_tuple_parameter",
+            "fn wrapped_tuple_returned",
+            "fn reversed_tuple_returned",
+            "fn aliased_tuple_returned",
+            "fn aliased_wrapped_tuple_returned",
+        ] {
+            assert!(
+                aliases_and_constructors.accesses.iter().any(|row| {
+                    row.enclosing == enclosing
+                        && row.target == PersistenceTarget::CharacterDatabase
+                        && row.operation == PersistenceOperation::PoolAccess
+                }),
+                "tuple-field owner lost in {enclosing}: {:#?}",
+                aliases_and_constructors.accesses
+            );
+        }
+        for enclosing in [
+            "impl Planner::consume_plan",
+            "fn consume_received",
+            "fn consume_channel",
+            "fn consume_nested_plan",
+            "fn consume_result",
+            "fn inferred_wrappers",
+            "fn inferred_err",
+        ] {
+            assert!(
+                aliases_and_constructors.accesses.iter().any(|row| {
+                    row.enclosing == enclosing
+                        && row.target == PersistenceTarget::PreparedStatement
+                        && row.operation == PersistenceOperation::PathReference
+                }),
+                "wrapper payload owner lost in {enclosing}: {:#?}",
+                aliases_and_constructors.accesses
+            );
+        }
+        for enclosing in ["fn inferred_tuple", "fn inferred_wrapped_tuple"] {
+            assert!(aliases_and_constructors.accesses.iter().any(|row| {
+                row.enclosing == enclosing
+                    && row.target == PersistenceTarget::CharacterDatabase
+                    && row.operation == PersistenceOperation::PoolAccess
+            }));
+        }
+
+        let field_owner_collision = inventory(
+            r#"
+                struct Holder(wow_database::CharacterDatabase);
+                struct DbFactory;
+                impl DbFactory { fn make(&self) -> Holder { unreachable!() } }
+                struct PlainFactory;
+                impl PlainFactory { fn make(&self) -> u8 { 0 } }
+                struct DbOuter { factory: DbFactory }
+                struct PlainOuter { factory: PlainFactory }
+                fn clean(value: &PlainOuter) { consume(value.factory.make()); }
+                struct Wrapper<T>(T);
+                impl<T> Wrapper<T> { fn make(&self) -> u8 { 0 } }
+                fn generic_clean(value: &Wrapper<DbFactory>) { consume(value.make()); }
+                trait PlainMaker { fn make() -> u8; }
+                impl PlainMaker for PlainFactory { fn make() -> u8 { 0 } }
+                fn ufcs_clean() { consume(<PlainFactory as PlainMaker>::make()); }
+                enum DbEvent { Ready { factory: DbFactory } }
+                enum PlainEvent { Ready { factory: PlainFactory } }
+                fn enum_clean(value: PlainEvent) {
+                    if let PlainEvent::Ready { factory } = value {
+                        consume(factory.make());
+                    }
+                }
+                struct DbJob { statement: wow_database::PreparedStatement }
+                async fn result_sibling_clean(rx: &Receiver<Result<DbJob, u8>>) {
+                    while let Some(Err(code)) = rx.recv().await {
+                        consume(code);
+                    }
+                }
+                fn db_pair() -> (DbFactory, u8) { unreachable!() }
+                fn tuple_sibling_clean() {
+                    let (_, code) = db_pair();
+                    consume(code);
+                }
+                type DbPairAlias = (DbFactory, u8);
+                fn aliased_db_pair() -> DbPairAlias { unreachable!() }
+                fn aliased_tuple_sibling_clean() {
+                    let (_, code) = aliased_db_pair();
+                    consume(code);
+                }
+                struct TraitFactory;
+                trait DbMaker { fn make(&self) -> Holder; }
+                trait PlainTraitMaker { fn make(&self) -> u8; }
+                impl DbMaker for TraitFactory {
+                    fn make(&self) -> Holder { unreachable!() }
+                }
+                impl PlainTraitMaker for TraitFactory {
+                    fn make(&self) -> u8 { 0 }
+                }
+                fn trait_ufcs_clean(factory: &TraitFactory) {
+                    consume(<TraitFactory as PlainTraitMaker>::make(factory));
+                }
+                mod db_trait {
+                    pub trait Maker { fn make(&self) -> super::Holder; }
+                }
+                mod plain_trait {
+                    pub trait Maker { fn make(&self) -> u8; }
+                }
+                impl crate::db_trait::Maker for TraitFactory {
+                    fn make(&self) -> Holder { unreachable!() }
+                }
+                impl plain_trait::Maker for TraitFactory {
+                    fn make(&self) -> u8 { 0 }
+                }
+                fn qualified_trait_ufcs_persistent(factory: &TraitFactory) {
+                    consume(<TraitFactory as db_trait::Maker>::make(factory).0.pool());
+                }
+                fn qualified_trait_ufcs_clean(factory: &TraitFactory) {
+                    consume(<TraitFactory as plain_trait::Maker>::make(factory));
+                }
+                use plain_trait::Maker as ImportedPlainMaker;
+                fn imported_trait_ufcs_clean(factory: &TraitFactory) {
+                    consume(<TraitFactory as ImportedPlainMaker>::make(factory));
+                }
+                mod db_method_scope {
+                    use super::db_trait::Maker;
+                    fn scoped_trait_method_persistent(factory: &super::TraitFactory) {
+                        consume(factory.make().0.pool());
+                    }
+                }
+                mod plain_method_scope {
+                    use super::plain_trait::Maker;
+                    fn scoped_trait_method_clean(factory: &super::TraitFactory) {
+                        consume(factory.make());
+                    }
+                }
+                mod module_anonymous_method_scope {
+                    mod marker_trait {
+                        pub trait Marker { fn marker(&self); }
+                    }
+                    impl marker_trait::Marker for super::TraitFactory {
+                        fn marker(&self) {}
+                    }
+                    use super::db_trait::Maker as _;
+                    use marker_trait::Marker as _;
+                    fn anonymous_module_traits_are_additive(factory: &super::TraitFactory) {
+                        factory.marker();
+                        consume(factory.make().0.pool());
+                    }
+                }
+                mod local_method_scope {
+                    mod marker_trait {
+                        pub trait Marker { fn marker(&self); }
+                    }
+                    impl marker_trait::Marker for super::TraitFactory {
+                        fn marker(&self) {}
+                    }
+                    fn local_trait_method_persistent(factory: &super::TraitFactory) {
+                        use super::db_trait::Maker;
+                        consume(factory.make().0.pool());
+                    }
+                    fn nested_local_trait_method_persistent(factory: &super::TraitFactory) {
+                        {
+                            use super::db_trait::Maker;
+                            consume(factory.make().0.pool());
+                        }
+                    }
+                    fn local_trait_method_clean(factory: &super::TraitFactory) {
+                        use super::plain_trait::Maker;
+                        consume(factory.make());
+                    }
+                    fn disabled_local_trait_is_ignored(factory: &super::TraitFactory) {
+                        use super::plain_trait::Maker;
+                        #[cfg(any())]
+                        use super::db_trait::Maker;
+                        consume(factory.make());
+                    }
+                    fn disabled_anonymous_trait_is_ignored(factory: &super::TraitFactory) {
+                        use super::plain_trait::Maker;
+                        #[cfg(any())]
+                        use super::db_trait::Maker as _;
+                        consume(factory.make());
+                    }
+                    fn anonymous_local_traits_are_additive(factory: &super::TraitFactory) {
+                        use super::db_trait::Maker as _;
+                        use marker_trait::Marker as _;
+                        factory.marker();
+                        consume(factory.make().0.pool());
+                    }
+                    fn local_trait_scope_does_not_escape(factory: &super::TraitFactory) {
+                        use super::plain_trait::Maker;
+                        {
+                            use super::db_trait::Maker;
+                            consume(factory.make().0.pool());
+                        }
+                        consume(factory.make());
+                    }
+                }
+                #[cfg(test)]
+                fn test_only_local_trait(factory: &TraitFactory) {
+                    #[cfg(test)]
+                    use db_trait::Maker;
+                    consume(factory.make().0.pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(
+            !field_owner_collision.accesses.iter().any(|row| matches!(
+                row.enclosing.as_str(),
+                "fn clean"
+                    | "fn generic_clean"
+                    | "fn ufcs_clean"
+                    | "fn enum_clean"
+                    | "fn result_sibling_clean"
+                    | "fn tuple_sibling_clean"
+                    | "fn aliased_tuple_sibling_clean"
+                    | "fn trait_ufcs_clean"
+                    | "fn qualified_trait_ufcs_clean"
+                    | "fn imported_trait_ufcs_clean"
+                    | "fn scoped_trait_method_clean"
+                    | "fn local_trait_method_clean"
+                    | "fn disabled_local_trait_is_ignored"
+                    | "fn disabled_anonymous_trait_is_ignored"
+            )),
+            "named fields on unrelated owner types must not contaminate receiver identity: {:#?}",
+            field_owner_collision.accesses
+        );
+        assert!(field_owner_collision.accesses.iter().any(|row| {
+            row.enclosing == "fn qualified_trait_ufcs_persistent"
+                && row.target == PersistenceTarget::CharacterDatabase
+                && row.operation == PersistenceOperation::PoolAccess
+        }));
+        assert!(field_owner_collision.accesses.iter().any(|row| {
+            row.enclosing == "fn scoped_trait_method_persistent"
+                && row.target == PersistenceTarget::CharacterDatabase
+                && row.operation == PersistenceOperation::PoolAccess
+        }));
+        for enclosing in [
+            "fn local_trait_method_persistent",
+            "fn nested_local_trait_method_persistent",
+            "fn local_trait_scope_does_not_escape",
+            "fn anonymous_local_traits_are_additive",
+            "fn anonymous_module_traits_are_additive",
+        ] {
+            assert!(field_owner_collision.accesses.iter().any(|row| {
+                row.enclosing == enclosing
+                    && row.target == PersistenceTarget::CharacterDatabase
+                    && row.operation == PersistenceOperation::PoolAccess
+            }));
+        }
+        assert_eq!(
+            field_owner_collision
+                .accesses
+                .iter()
+                .filter(|row| {
+                    row.enclosing == "fn local_trait_scope_does_not_escape"
+                        && row.target == PersistenceTarget::CharacterDatabase
+                        && row.operation == PersistenceOperation::PoolAccess
+                })
+                .map(|row| row.count)
+                .sum::<usize>(),
+            1,
+            "a nested persistent trait import must not contaminate its scalar sibling scope"
+        );
+        assert!(
+            field_owner_collision.accesses.iter().any(|row| {
+                row.enclosing == "fn test_only_local_trait"
+                    && row.source_class == "test_fixture"
+                    && row.target == PersistenceTarget::CharacterDatabase
+                    && row.operation == PersistenceOperation::PoolAccess
+            }),
+            "cfg(test) local trait import was not isolated: {:#?}",
+            field_owner_collision
+                .accesses
+                .iter()
+                .filter(|row| row.enclosing == "fn test_only_local_trait")
+                .collect::<Vec<_>>()
+        );
+        assert!(!field_owner_collision.accesses.iter().any(|row| {
+            row.enclosing == "fn test_only_local_trait"
+                && row.source_class == "production"
+                && row.target == PersistenceTarget::CharacterDatabase
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_records_pool_escape_for_unvalidated_executor_names() {
+        let baseline = inventory(
+            r#"
+                struct LocalExecutor;
+                fn leak(local: &LocalExecutor, pool: &sqlx::PgPool) {
+                    local.execute(pool);
+                }
+                fn valid(pool: &sqlx::PgPool) {
+                    sqlx::query("SELECT 1").execute(pool);
+                }
+                fn bound(pool: &sqlx::PgPool) {
+                    sqlx::query("SELECT ?").bind(1_u32).execute(pool);
+                }
+                struct LocalBinder;
+                fn unrelated(local: &LocalBinder, pool: &sqlx::PgPool) {
+                    local.bind(pool);
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn leak"
+                && row.target == PersistenceTarget::PgPool
+                && row.operation == PersistenceOperation::ArgumentEscape
+                && row.symbol == "execute"
+        }));
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn leak"
+                && row.target == PersistenceTarget::PgPool
+                && row.operation == PersistenceOperation::Execute
+        }));
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn bound" && row.operation == PersistenceOperation::Execute
+        }));
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn unrelated"
+                && row.operation == PersistenceOperation::ArgumentEscape
+                && row.symbol == "bind"
+        }));
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn valid" && row.operation == PersistenceOperation::Execute
+        }));
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn valid"
+                && row.operation == PersistenceOperation::ArgumentEscape
+                && row.symbol == "execute"
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_conservatively_propagates_unmodeled_expression_children() {
+        let baseline = inventory(
+            r#"
+                fn array(pool: sqlx::PgPool) { consume([pool]); }
+                fn index(pool: sqlx::PgPool) { consume([pool][0]); }
+                async fn async_block(pool: sqlx::PgPool) { consume(async { pool }.await); }
+                fn loop_value(pool: sqlx::PgPool) { consume(loop { break pool }); }
+                fn for_binding(databases: Vec<wow_database::CharacterDatabase>) {
+                    for database in databases { database.pool(); }
+                }
+                fn for_capture(pool: sqlx::PgPool) { for _ in [pool] {} }
+                fn standalone_async(pool: sqlx::PgPool) { async move { pool }; }
+                fn async_non_tail(pool: sqlx::PgPool, flag: bool) {
+                    async move {
+                        if flag { pool; 0_u8 } else { 0_u8 };
+                        0_u8
+                    };
+                }
+                fn loop_standalone(pool: sqlx::PgPool) { loop { break pool; }; }
+                fn array_standalone(pool: sqlx::PgPool) { [pool]; }
+                fn while_binding(mut databases: Vec<wow_database::CharacterDatabase>) {
+                    while let Some(database) = databases.pop() { database.pool(); }
+                }
+                fn scalars(value: u32) {
+                    consume([value]); consume([value][0]); consume(loop { break value });
+                    for _ in [value] {} async move { value };
+                }
+            "#,
+        )
+        .unwrap();
+        for enclosing in ["fn array", "fn index", "fn async_block", "fn loop_value"] {
+            assert!(
+                baseline.accesses.iter().any(|row| {
+                    row.enclosing == enclosing
+                        && row.target == PersistenceTarget::PgPool
+                        && row.operation == PersistenceOperation::ArgumentEscape
+                }),
+                "missing propagated escape for {enclosing}"
+            );
+        }
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn for_binding"
+                && row.target == PersistenceTarget::CharacterDatabase
+                && row.operation == PersistenceOperation::PoolAccess
+        }));
+        for enclosing in [
+            "fn for_capture",
+            "fn standalone_async",
+            "fn async_non_tail",
+            "fn loop_standalone",
+            "fn array_standalone",
+        ] {
+            assert!(
+                baseline.accesses.iter().any(|row| {
+                    row.enclosing == enclosing
+                        && row.target == PersistenceTarget::PgPool
+                        && row.operation == PersistenceOperation::ArgumentEscape
+                }),
+                "missing standalone wrapper escape for {enclosing}"
+            );
+        }
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn while_binding"
+                && row.target == PersistenceTarget::CharacterDatabase
+                && row.operation == PersistenceOperation::PoolAccess
+        }));
+        assert!(
+            !baseline
+                .accesses
+                .iter()
+                .any(|row| row.enclosing == "fn scalars")
+        );
+    }
+
+    #[test]
     fn persistence_inventory_follows_module_and_type_aliases_independent_of_order() {
         let baseline = inventory(
             r#"
@@ -4000,6 +5950,20 @@ mod tests {
                         let _error = wow_database::DatabaseError::Query("x".into());
                     }
                 }
+                struct Store;
+                impl Store {
+                    fn transaction(&self) -> SqlTransaction { unreachable!() }
+                    async fn commit(&self) {
+                        let transaction = self.transaction();
+                        transaction.commit_with_outcome_like_cpp().await.unwrap();
+                    }
+                }
+                fn split_sql(content: &str) -> Vec<&str> { vec![content] }
+                fn dynamic(content: &str) {
+                    for statement in split_sql(content) {
+                        sqlx::query(statement);
+                    }
+                }
             "#,
         )
         .expect("typed database imports, getters and qualified paths are explicit grammar");
@@ -4024,6 +5988,16 @@ mod tests {
                 PersistenceTarget::DatabaseError,
                 PersistenceOperation::PathReference,
                 "Query".to_owned(),
+            ),
+            (
+                PersistenceTarget::SqlTransaction,
+                PersistenceOperation::Commit,
+                "commit_with_outcome_like_cpp".to_owned(),
+            ),
+            (
+                PersistenceTarget::Sqlx,
+                PersistenceOperation::NonliteralSql,
+                "query".to_owned(),
             ),
         ] {
             assert!(
