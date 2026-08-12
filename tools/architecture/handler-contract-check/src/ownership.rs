@@ -22,6 +22,7 @@ use syn::punctuated::Punctuated;
 use syn::visit::Visit;
 use syn::{Item, ItemMod, Meta, Token};
 
+use crate::module_policy::CapabilityOwner;
 use crate::registrations::{
     analyze_registration_syntax_outside_handlers, exported_macro_names,
     handler_capable_macro_definitions, handler_capable_macro_invocations, include_macro_bodies,
@@ -29,7 +30,6 @@ use crate::registrations::{
 };
 
 const HANDLER_PACKAGE_NAME: &str = "wow-handler";
-const WORLD_PACKAGE_NAME: &str = "wow-world";
 const WOW_PROTO_PACKAGE_NAME: &str = "wow-proto";
 const WOW_PROTO_GENERATED_INCLUDE_SUFFIXES: &[&str] = &[
     "/bgs.protocol.rs",
@@ -676,6 +676,49 @@ pub(crate) fn extend_cfg_context(parent: &[String], attributes: &[syn::Attribute
     cfg
 }
 
+fn meta_controls_presence(meta: &Meta) -> Result<bool, String> {
+    if meta.path().is_ident("cfg") {
+        return Ok(true);
+    }
+    if !meta.path().is_ident("cfg_attr") {
+        return Ok(false);
+    }
+    let Meta::List(list) = meta else {
+        return Err("cfg_attr attribute must use list syntax".to_owned());
+    };
+    let items = Punctuated::<Meta, Token![,]>::parse_terminated
+        .parse2(list.tokens.clone())
+        .map_err(|error| format!("cannot parse cfg_attr arguments: {error}"))?;
+    if items.len() < 2 {
+        return Err("cfg_attr requires a predicate and at least one attribute".to_owned());
+    }
+    items.iter().skip(1).try_fold(false, |controls, item| {
+        Ok(controls || meta_controls_presence(item)?)
+    })
+}
+
+/// Whether the inherited fingerprints or new attributes can remove an item
+/// from a production build. Inert cfg_attr effects such as lints do not make
+/// ownership ambiguous.
+pub(crate) fn cfg_context_controls_presence(
+    parent: &[String],
+    attributes: &[syn::Attribute],
+) -> Result<bool, String> {
+    for fingerprint in parent {
+        let meta: Meta = syn::parse_str(fingerprint)
+            .map_err(|error| format!("cannot parse inherited cfg {fingerprint:?}: {error}"))?;
+        if meta_controls_presence(&meta)? {
+            return Ok(true);
+        }
+    }
+    for attribute in attributes {
+        if meta_controls_presence(&attribute.meta)? {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 struct NestedModuleCollector<'ast> {
     modules: Vec<&'ast ItemMod>,
 }
@@ -1120,23 +1163,49 @@ pub(crate) fn workspace_source_mounts(
     Ok(result)
 }
 
-fn is_owned_handler_mount(package_name: &str, logical_paths: &BTreeSet<String>) -> bool {
-    package_name == WORLD_PACKAGE_NAME
-        && !logical_paths.is_empty()
+fn is_owned_handler_mount(
+    package_name: &str,
+    logical_paths: &BTreeSet<String>,
+    owner: &CapabilityOwner,
+) -> bool {
+    package_name == owner.package
+        && logical_paths.len() == 1
         && logical_paths
             .iter()
-            .all(|path| path == "crate::handlers" || path.starts_with("crate::handlers::"))
+            .all(|path| owner.owns_module(package_name, path))
 }
 
+#[cfg(test)]
 pub(crate) fn audit_package_registration_sources(
     package_name: &str,
     sources: &BTreeMap<PathBuf, BTreeSet<String>>,
     production_lib_roots: &BTreeSet<PathBuf>,
 ) -> Result<(), String> {
+    let test_owner = CapabilityOwner {
+        capability: "handler_registration".to_owned(),
+        package: "wow-world".to_owned(),
+        module: "crate::handlers".to_owned(),
+        allow_descendants: true,
+        tracking_issue: 153,
+    };
+    audit_package_registration_sources_with_owner(
+        package_name,
+        sources,
+        production_lib_roots,
+        &test_owner,
+    )
+}
+
+pub(crate) fn audit_package_registration_sources_with_owner(
+    package_name: &str,
+    sources: &BTreeMap<PathBuf, BTreeSet<String>>,
+    production_lib_roots: &BTreeSet<PathBuf>,
+    owner: &CapabilityOwner,
+) -> Result<(), String> {
     let mut errors = Vec::new();
     let mut exact_collectors = 0usize;
     for (source_path, logical_paths) in sources {
-        if is_owned_handler_mount(package_name, logical_paths) {
+        if is_owned_handler_mount(package_name, logical_paths, owner) {
             continue;
         }
         let source = fs::read_to_string(source_path)
@@ -1164,6 +1233,7 @@ pub(crate) fn audit_package_registration_sources(
 
 pub(crate) fn audit_registration_ownership(
     repository_root: &Path,
+    owner: &CapabilityOwner,
 ) -> Result<RegistrationOwnershipReport, String> {
     let metadata = workspace_metadata(repository_root)?;
     let registry_capable = registry_capable_package_ids(&metadata)?;
@@ -1266,7 +1336,7 @@ pub(crate) fn audit_registration_ownership(
             if !definitions.is_empty() {
                 errors.push(format!(
                     "package {} source {} defines handler-capable macro_rules! outside the \
-                     audited crate::handlers owner: {}",
+                     declared handler-registration owner: {}",
                     scope.name,
                     source_path.display(),
                     definitions.join(", ")
@@ -1276,7 +1346,7 @@ pub(crate) fn audit_registration_ownership(
             if !invocations.is_empty() {
                 errors.push(format!(
                     "package {} source {} invokes macros with handler-capable paths or source \
-                     tokens outside the audited crate::handlers owner: {}",
+                     tokens outside the declared handler-registration owner: {}",
                     scope.name,
                     source_path.display(),
                     invocations.join(", ")
@@ -1289,10 +1359,11 @@ pub(crate) fn audit_registration_ownership(
             for source_path in sources.keys() {
                 scanned_files.insert((scope.name.clone(), source_path.clone()));
             }
-            if let Err(error) = audit_package_registration_sources(
+            if let Err(error) = audit_package_registration_sources_with_owner(
                 &scope.name,
                 &sources,
                 &scope.production_lib_roots,
+                owner,
             ) {
                 errors.push(error);
             }

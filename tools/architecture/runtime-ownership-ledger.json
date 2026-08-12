@@ -66,7 +66,6 @@
         "mirror_direction": "Test replacement or observation only; it must not be treated as a production mirror.",
         "target_owner": "Test-only builders colocated with the capability exercised by the test.",
         "cutover_issues": [
-          181,
           153
         ],
         "rollback_condition": "Revert a fixture move if the real public entry point can no longer be exercised without adding production visibility.",
@@ -129,8 +128,6 @@
         "mirror_direction": "No gameplay mirror is authorized; status and counters are Session-owned protocol state.",
         "target_owner": "transitional wow_world::session::{admission,dispatch}, terminal wow-session with wow-handler metadata contracts.",
         "cutover_issues": [
-          181,
-          185,
           152,
           183,
           153
@@ -493,7 +490,6 @@
         "mirror_direction": "Loaded/respawn state begins canonical to legacy; only explicitly named legacy outcomes flow back to canonical. No generic bidirectional synchronization is allowed.",
         "target_owner": "wow-map runtime/storage for live map entities and clocks; wow-entities for entity state; Session retains only PlayerHandle and delivery adaptation.",
         "cutover_issues": [
-          181,
           188,
           28,
           190,
@@ -1113,7 +1109,6 @@
         "mirror_direction": "Unclassified. A field in this family cannot be claimed as a stable mirror or stable Session responsibility.",
         "target_owner": "Unresolved; #153 must materialize a bounded cut or document a reviewed stable Session boundary from evidence.",
         "cutover_issues": [
-          181,
           153
         ],
         "rollback_condition": "Do not move the field until writer, readers, clock, persistence/publication order, and target owner are proven.",
@@ -1827,7 +1822,6 @@
           "direction": "represented WorldSession player fields -> rebuilt wow_entities::Player snapshot -> canonical map",
           "owner": "WorldSession remains the current mutable represented-player writer; the snapshot is not an independent writer.",
           "open_retirement_issues": [
-            181,
             194,
             196,
             153
@@ -1981,7 +1975,6 @@
           ],
           "owner": "wow-handler owns metadata/registry contracts; wow_world::handlers owns concrete registrations and WorldSession currently owns the dispatch arms.",
           "open_retirement_issues": [
-            185,
             152,
             153
           ],
@@ -1994,7 +1987,6 @@
           ],
           "owner": "wow_world::handlers::misc currently; Calendar capability target is inside wow-world until its API/owner is proven.",
           "open_retirement_issues": [
-            185,
             139,
             153
           ],
@@ -2025,7 +2017,6 @@
           ],
           "owner": "Concrete wow-world handler module; semantic owner remains its current implementation until #153 creates a measured vertical cut.",
           "open_retirement_issues": [
-            185,
             153
           ],
           "retirement_condition": "Every family has module-aware ownership, thin adapter boundaries, colocated entry-point tests, and no unclassified misc dumping-ground registration."
@@ -2046,7 +2037,6 @@
           "total_lines": 166769,
           "owner": "wow-world WorldSession/application monolith.",
           "open_retirement_issues": [
-            181,
             152,
             140,
             182,
@@ -2076,7 +2066,6 @@
           "total_lines": 30853,
           "owner": "wow-world character handler adapter plus mixed gameplay/persistence logic.",
           "open_retirement_issues": [
-            185,
             192,
             194,
             200,
@@ -2119,7 +2108,6 @@
           "total_lines": 18788,
           "owner": "wow-world misc handler dumping ground.",
           "open_retirement_issues": [
-            185,
             139,
             153
           ],

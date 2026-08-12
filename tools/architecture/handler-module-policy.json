@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "introduced_by_issue": 185,
+  "capability_owners": [
+    {
+      "capability": "handler_registration",
+      "package": "wow-world",
+      "module": "crate::handlers",
+      "allow_descendants": true,
+      "tracking_issue": 153
+    },
+    {
+      "capability": "packet_dispatcher",
+      "package": "wow-world",
+      "module": "crate::session",
+      "allow_descendants": true,
+      "tracking_issue": 152
+    }
+  ]
+}

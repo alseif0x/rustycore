@@ -19,12 +19,14 @@ DEFAULT_POLICY = ARCHITECTURE_DIR / "dependency-policy.json"
 DEFAULT_ISSUE_LEDGER = ARCHITECTURE_DIR / "architecture-issue-ledger.json"
 DEFAULT_RUNTIME_OWNERSHIP_LEDGER = ARCHITECTURE_DIR / "runtime-ownership-ledger.json"
 DEFAULT_SESSION_OWNERSHIP_POLICY = ARCHITECTURE_DIR / "session-ownership-policy.json"
+DEFAULT_HANDLER_MODULE_POLICY = ARCHITECTURE_DIR / "handler-module-policy.json"
 ARCHITECTURE_DOC = REPO_ROOT / "docs" / "architecture" / "ownership-and-boundaries.md"
 HANDLER_SNAPSHOT = ARCHITECTURE_DIR / "world-handler-contract.tsv"
 FIXTURES_DIR = ARCHITECTURE_DIR / "fixtures"
 DEBT_OWNERSHIP_FIXTURES_DIR = FIXTURES_DIR / "debt-ownership"
 LEDGER_ISSUE_STATES = {"open", "closed"}
 LEDGER_ISSUE_KINDS = {"epic", "slice"}
+HANDLER_MODULE_CAPABILITIES = {"handler_registration", "packet_dispatcher"}
 PRODUCT_DEPENDENCY_KINDS = {"normal", "build"}
 IGNORED_DEPENDENCY_KINDS = {"dev"}
 CRATES_IO_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
@@ -66,6 +68,158 @@ def load_json(path: pathlib.Path) -> Any:
     except OSError as exc:
         raise ArchitectureError(f"cannot read {path}: {exc}") from exc
     return parse_json(text, str(path))
+
+
+def validate_handler_module_policy(
+    policy: Any, ledger: dict[str, Any]
+) -> dict[str, Any]:
+    """Validate logical handler capability owners and their open retirement issues."""
+    root_keys = {"schema_version", "introduced_by_issue", "capability_owners"}
+    if not isinstance(policy, dict) or policy.get("schema_version") != 1:
+        raise ArchitectureError("handler module policy must be a schema_version 1 object")
+    if set(policy) != root_keys:
+        raise ArchitectureError(
+            "handler module policy must contain exactly " + ", ".join(sorted(root_keys))
+        )
+    introduced_by = policy.get("introduced_by_issue")
+    owners = policy.get("capability_owners")
+    if not isinstance(introduced_by, int) or isinstance(introduced_by, bool) or introduced_by <= 0:
+        raise ArchitectureError("handler module policy introduced_by_issue must be positive")
+    if not isinstance(owners, list):
+        raise ArchitectureError("handler module policy capability_owners must be an array")
+
+    issues = {entry["number"]: entry for entry in ledger["issues"]}
+    if introduced_by not in issues:
+        raise ArchitectureError(
+            f"handler module policy introduced_by_issue #{introduced_by} is absent from the architecture issue ledger"
+        )
+
+    owner_keys = {
+        "capability",
+        "package",
+        "module",
+        "allow_descendants",
+        "tracking_issue",
+    }
+    seen_capabilities: set[str] = set()
+    declared_owners: list[dict[str, Any]] = []
+    logical_module = re.compile(r"^crate(?:::[A-Za-z_][A-Za-z0-9_]*)*$")
+    for index, owner in enumerate(owners):
+        if not isinstance(owner, dict) or set(owner) != owner_keys:
+            raise ArchitectureError(
+                f"handler module policy owner {index} must contain exactly "
+                + ", ".join(sorted(owner_keys))
+            )
+        capability = owner["capability"]
+        package = owner["package"]
+        module = owner["module"]
+        allow_descendants = owner["allow_descendants"]
+        tracking_issue = owner["tracking_issue"]
+        if not isinstance(capability, str) or capability not in HANDLER_MODULE_CAPABILITIES:
+            raise ArchitectureError(
+                f"handler module policy owner {index} has unknown capability {capability!r}"
+            )
+        if capability in seen_capabilities:
+            raise ArchitectureError(
+                f"handler module policy declares duplicate capability {capability}"
+            )
+        seen_capabilities.add(capability)
+        if not isinstance(package, str) or not package:
+            raise ArchitectureError(
+                f"handler module policy capability {capability} needs a package"
+            )
+        if not isinstance(module, str) or not logical_module.fullmatch(module):
+            raise ArchitectureError(
+                f"handler module policy capability {capability} has invalid logical module {module!r}"
+            )
+        if not isinstance(allow_descendants, bool):
+            raise ArchitectureError(
+                f"handler module policy capability {capability} allow_descendants must be boolean"
+            )
+        for previous in declared_owners:
+            same_package = package == previous["package"]
+            this_below_previous = module == previous["module"] or (
+                previous["allow_descendants"]
+                and module.startswith(previous["module"] + "::")
+            )
+            previous_below_this = previous["module"] == module or (
+                allow_descendants
+                and previous["module"].startswith(module + "::")
+            )
+            if same_package and (this_below_previous or previous_below_this):
+                raise ArchitectureError(
+                    "handler module policy capabilities "
+                    f"{previous['capability']} and {capability} have overlapping logical owners"
+                )
+        declared_owners.append(owner)
+        if (
+            not isinstance(tracking_issue, int)
+            or isinstance(tracking_issue, bool)
+            or tracking_issue <= 0
+        ):
+            raise ArchitectureError(
+                f"handler module policy capability {capability} needs a positive tracking_issue"
+            )
+        tracked = issues.get(tracking_issue)
+        if tracked is None:
+            raise ArchitectureError(
+                f"handler module policy capability {capability} tracking issue #{tracking_issue} is absent from the architecture issue ledger"
+            )
+        if tracked["state"] != "open":
+            raise ArchitectureError(
+                f"handler module policy capability {capability} has stale closed tracking issue #{tracking_issue}"
+            )
+
+    if seen_capabilities != HANDLER_MODULE_CAPABILITIES:
+        missing = sorted(HANDLER_MODULE_CAPABILITIES - seen_capabilities)
+        raise ArchitectureError(
+            f"handler module policy is missing required capabilities: {missing}"
+        )
+    return policy
+
+
+def run_handler_module_policy_self_tests(
+    policy: dict[str, Any], ledger: dict[str, Any]
+) -> int:
+    mutations: list[tuple[str, dict[str, Any], str]] = []
+
+    duplicate = json.loads(json.dumps(policy))
+    duplicate["capability_owners"].append(duplicate["capability_owners"][0])
+    mutations.append(("duplicate-capability", duplicate, "duplicate capability"))
+
+    invalid_module = json.loads(json.dumps(policy))
+    invalid_module["capability_owners"][0]["module"] = "handlers"
+    mutations.append(("invalid-module", invalid_module, "invalid logical module"))
+
+    unknown_field = json.loads(json.dumps(policy))
+    unknown_field["unexpected"] = True
+    mutations.append(("unknown-field", unknown_field, "must contain exactly"))
+
+    stale = json.loads(json.dumps(policy))
+    stale["capability_owners"][0]["tracking_issue"] = 134
+    mutations.append(("stale-issue", stale, "stale closed tracking issue #134"))
+
+    absent = json.loads(json.dumps(policy))
+    absent["capability_owners"][0]["tracking_issue"] = 999999
+    mutations.append(("absent-issue", absent, "absent from the architecture issue ledger"))
+
+    overlap = json.loads(json.dumps(policy))
+    overlap["capability_owners"][0]["module"] = "crate::session::handlers"
+    mutations.append(("overlapping-owners", overlap, "overlapping logical owners"))
+
+    for name, mutant, expected_error in mutations:
+        try:
+            validate_handler_module_policy(mutant, ledger)
+        except ArchitectureError as exc:
+            if expected_error not in str(exc):
+                raise ArchitectureError(
+                    f"handler module policy self-test {name} returned the wrong failure: {exc}"
+                ) from exc
+        else:
+            raise ArchitectureError(
+                f"handler module policy self-test {name} was not rejected"
+            )
+    return len(mutations)
 
 
 def validate_policy(policy: Any) -> dict[str, Any]:
@@ -3126,6 +3280,12 @@ def main() -> int:
         default=DEFAULT_SESSION_OWNERSHIP_POLICY,
         help="session ownership syntax policy JSON (default: repository policy)",
     )
+    parser.add_argument(
+        "--handler-module-policy",
+        type=pathlib.Path,
+        default=DEFAULT_HANDLER_MODULE_POLICY,
+        help="handler logical-module ownership policy JSON (default: repository policy)",
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser(
         "check", help="check architecture ratchets and report source hotspots"
@@ -3141,6 +3301,9 @@ def main() -> int:
         policy = validate_policy(load_json(args.policy))
         if args.command in {"check", "self-test"}:
             ledger = validate_issue_ledger(load_json(args.ledger))
+            handler_module_policy = validate_handler_module_policy(
+                load_json(args.handler_module_policy), ledger
+            )
             validate_debt_ownership(policy, ledger)
             runtime_ledger = validate_runtime_ownership_ledger(
                 load_json(args.runtime_ledger), ledger
@@ -3153,6 +3316,9 @@ def main() -> int:
             validate_documented_sequence(ledger)
         if args.command == "self-test":
             run_fixture_self_tests(policy)
+            handler_module_policy_rejections = run_handler_module_policy_self_tests(
+                handler_module_policy, ledger
+            )
             debt_ownership_fixtures = run_debt_ownership_fixture_tests()
             runtime_ownership_rejections = run_runtime_ownership_self_tests(
                 runtime_ledger, ledger
@@ -3168,7 +3334,8 @@ def main() -> int:
                 f"{runtime_ownership_rejections} runtime-ownership rejections, "
                 f"{hotspot_classifier_fixtures} hotspot-classifier fixture, "
                 f"{hotspot_ratchet_rejections} hotspot-ratchet rejections, "
-                f"{hotspot_reduction_acceptances} hotspot-reduction acceptance)"
+                f"{hotspot_reduction_acceptances} hotspot-reduction acceptance, "
+                f"{handler_module_policy_rejections} handler-module-policy rejections)"
             )
         elif args.command == "hotspots":
             if args.limit <= 0:
