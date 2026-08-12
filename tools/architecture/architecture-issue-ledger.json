@@ -355,7 +355,7 @@
     },
     {
       "number": 181,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.2.1c] Baseline ownership and install submodule ratchets",
       "kind": "slice",
       "parents": [
@@ -408,7 +408,7 @@
     },
     {
       "number": 185,
-      "state": "open",
+      "state": "closed",
       "title": "[ARCH.2.1d] Make architecture and handler guards module-aware",
       "kind": "slice",
       "parents": [

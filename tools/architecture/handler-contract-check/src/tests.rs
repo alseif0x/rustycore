@@ -8,13 +8,17 @@ use std::path::{Path, PathBuf};
 
 use super::check_repository;
 use crate::dispatcher::{
-    DispatcherContract, KnownDispatchDrift, compare_dispatch_sides, dispatcher_contract_from_source,
+    DispatcherContract, KnownDispatchDrift, compare_dispatch_sides,
+    dispatcher_contract_from_mounts, dispatcher_contract_from_source,
 };
+use crate::module_policy::{CapabilityOwner, parse_handler_module_policy};
 use crate::ownership::{
-    audit_package_registration_sources, audit_package_source_graph, registry_capable_package_ids,
+    WorkspaceSourceMount, audit_package_registration_sources,
+    audit_package_registration_sources_with_owner, audit_package_source_graph,
+    audit_package_source_mounts, registry_capable_package_ids,
 };
 use crate::registrations::{
-    RegistrationSourceReport, analyze_inline_source, exported_macro_names,
+    RegistrationSourceReport, analyze_handler_mounts, analyze_inline_source, exported_macro_names,
     handler_capable_macro_definitions, handler_capable_macro_invocations, include_macro_bodies,
     inventory_registration_macro_fingerprints, registration_alias_violations,
     reject_registration_syntax_outside_handlers,
@@ -140,6 +144,340 @@ fn dispatcher_parser_rejects_unreachable_conditional_guarded_and_duplicate_arms(
     }
 }
 
+fn dispatcher_owner() -> CapabilityOwner {
+    CapabilityOwner {
+        capability: "packet_dispatcher".to_owned(),
+        package: "wow-world".to_owned(),
+        module: "crate::session".to_owned(),
+        allow_descendants: true,
+        tracking_issue: 152,
+    }
+}
+
+fn dispatcher_body(opcode: &str) -> String {
+    format!(
+        r#"
+            impl crate::session::WorldSession {{
+                async fn dispatch_packet(&mut self) {{
+                    match opcode {{
+                        ClientOpcodes::{opcode} => {{}},
+                        _ => {{}},
+                    }}
+                }}
+            }}
+        "#
+    )
+}
+
+fn fixture_workspace_mounts(
+    package: &str,
+    package_root: &Path,
+    crate_root: &Path,
+) -> Vec<WorkspaceSourceMount> {
+    let (mounts, _) = audit_package_source_mounts(package_root, &[crate_root.to_owned()])
+        .expect("fixture module graph resolves");
+    mounts
+        .into_iter()
+        .map(|(source_path, contexts)| WorkspaceSourceMount {
+            package: package.to_owned(),
+            source: fs::read_to_string(&source_path).expect("read fixture source"),
+            source_path,
+            contexts,
+        })
+        .collect()
+}
+
+#[test]
+fn module_aware_dispatcher_follows_a_private_child_independent_of_filename() {
+    let fixture = source_graph_fixture("dispatcher-private-child");
+    let crate_root = fixture.join("src/lib.rs");
+    let session = fixture.join("src/session.rs");
+    let private_child = fixture.join("src/session/router.rs");
+    fs::create_dir_all(private_child.parent().expect("private child parent"))
+        .expect("create dispatcher fixture");
+    fs::write(&crate_root, "mod session;\n").expect("write crate root");
+    fs::write(&session, "pub struct WorldSession;\nmod router;\n").expect("write session module");
+    fs::write(
+        &private_child,
+        dispatcher_body("Alpha").replace(
+            "impl crate::session::WorldSession",
+            "#[cfg_attr(feature = \"lint-only\", allow(dead_code))]\nimpl crate::session::WorldSession",
+        ),
+    )
+    .expect("write private dispatcher");
+
+    let mounts = fixture_workspace_mounts("wow-world", &fixture, &crate_root);
+    let contract = dispatcher_contract_from_mounts(&mounts, &dispatcher_owner())
+        .expect("private child dispatcher remains valid");
+    assert_eq!(contract.opcode_names, BTreeSet::from(["Alpha".to_owned()]));
+
+    fs::remove_dir_all(&fixture).expect("remove dispatcher fixture");
+
+    let inline_fixture = source_graph_fixture("dispatcher-inline-child");
+    let inline_root = inline_fixture.join("src/lib.rs");
+    let inline_session = inline_fixture.join("src/session.rs");
+    fs::create_dir_all(inline_root.parent().expect("inline crate root parent"))
+        .expect("create inline dispatcher fixture");
+    fs::write(&inline_root, "mod session;\n").expect("write inline crate root");
+    fs::write(
+        &inline_session,
+        format!(
+            "pub struct WorldSession;\nmod private_router {{ {} }}\n",
+            dispatcher_body("Beta")
+        ),
+    )
+    .expect("write inline private dispatcher");
+    let mounts = fixture_workspace_mounts("wow-world", &inline_fixture, &inline_root);
+    let contract = dispatcher_contract_from_mounts(&mounts, &dispatcher_owner())
+        .expect("inline private child dispatcher remains valid");
+    assert_eq!(contract.opcode_names, BTreeSet::from(["Beta".to_owned()]));
+    fs::remove_dir_all(&inline_fixture).expect("remove inline dispatcher fixture");
+
+    let path_fixture = source_graph_fixture("dispatcher-path-child");
+    let path_root = path_fixture.join("src/lib.rs");
+    let path_session = path_fixture.join("src/session.rs");
+    let path_child = path_fixture.join("src/session/nonstandard-name.rs");
+    fs::create_dir_all(path_child.parent().expect("path child parent"))
+        .expect("create path dispatcher fixture");
+    fs::write(&path_root, "mod session;\n").expect("write path crate root");
+    fs::write(
+        &path_session,
+        "pub struct WorldSession;\n#[path = \"session/nonstandard-name.rs\"] mod router;\n",
+    )
+    .expect("write path session module");
+    fs::write(&path_child, dispatcher_body("Gamma")).expect("write path dispatcher");
+    let mounts = fixture_workspace_mounts("wow-world", &path_fixture, &path_root);
+    let contract = dispatcher_contract_from_mounts(&mounts, &dispatcher_owner())
+        .expect("supported path dispatcher remains valid");
+    assert_eq!(contract.opcode_names, BTreeSet::from(["Gamma".to_owned()]));
+    fs::remove_dir_all(&path_fixture).expect("remove path dispatcher fixture");
+}
+
+#[test]
+fn module_aware_dispatcher_rejects_missing_duplicate_conditional_and_outside_owners() {
+    for (name, crate_source, files, expected_error) in [
+        (
+            "missing",
+            "mod session;\n",
+            vec![("src/session.rs", "pub struct WorldSession;\n".to_owned())],
+            "found 0",
+        ),
+        (
+            "duplicate",
+            "mod session;\n",
+            vec![
+                (
+                    "src/session.rs",
+                    "pub struct WorldSession; mod first; mod second;\n".to_owned(),
+                ),
+                ("src/session/first.rs", dispatcher_body("Alpha")),
+                ("src/session/second.rs", dispatcher_body("Beta")),
+            ],
+            "found 2",
+        ),
+        (
+            "conditional",
+            "mod session;\n",
+            vec![
+                (
+                    "src/session.rs",
+                    "pub struct WorldSession;\n#[cfg(feature = \"conditional-dispatch\")] mod router;\n".to_owned(),
+                ),
+                ("src/session/router.rs", dispatcher_body("Alpha")),
+            ],
+            "conditional module/impl/method ownership",
+        ),
+        (
+            "outside-owner",
+            "mod session;\n#[path = \"session/router.rs\"] mod shadow;\n",
+            vec![
+                ("src/session.rs", "pub struct WorldSession;\n".to_owned()),
+                ("src/session/router.rs", dispatcher_body("Alpha")),
+            ],
+            "outside declared capability owner",
+        ),
+        (
+            "homonym",
+            "mod session;\n",
+            vec![
+                (
+                    "src/session.rs",
+                    "pub struct WorldSession; mod fake;\n".to_owned(),
+                ),
+                (
+                    "src/session/fake.rs",
+                    dispatcher_body("Alpha")
+                        .replace("crate::session::WorldSession", "WorldSession")
+                        .replacen("impl WorldSession", "struct WorldSession; impl WorldSession", 1),
+                ),
+            ],
+            "does not implement the canonical",
+        ),
+        (
+            "remount",
+            "mod session;\n",
+            vec![
+                (
+                    "src/session.rs",
+                    "pub struct WorldSession;\n\
+                     #[path = \"session/shared.rs\"] mod first;\n\
+                     #[path = \"session/shared.rs\"] mod second;\n"
+                        .to_owned(),
+                ),
+                ("src/session/shared.rs", dispatcher_body("Alpha")),
+            ],
+            "found 2",
+        ),
+    ] {
+        let fixture = source_graph_fixture(name);
+        let crate_root = fixture.join("src/lib.rs");
+        fs::create_dir_all(crate_root.parent().expect("crate root parent"))
+            .expect("create dispatcher rejection fixture");
+        fs::write(&crate_root, crate_source).expect("write crate root");
+        for (relative_path, source) in files {
+            let path = fixture.join(relative_path);
+            fs::create_dir_all(path.parent().expect("fixture source parent"))
+                .expect("create fixture source parent");
+            fs::write(path, source).expect("write fixture source");
+        }
+        let mounts = fixture_workspace_mounts("wow-world", &fixture, &crate_root);
+        let error = dispatcher_contract_from_mounts(&mounts, &dispatcher_owner())
+            .expect_err("invalid module-aware dispatcher ownership must fail");
+        assert!(
+            error.contains(expected_error),
+            "{name}: expected {expected_error:?}, got {error:?}"
+        );
+        fs::remove_dir_all(&fixture).expect("remove dispatcher rejection fixture");
+    }
+}
+
+#[test]
+fn module_aware_registration_scan_uses_logical_mounts_and_rejects_duplicate_owners() {
+    let owner = CapabilityOwner {
+        capability: "handler_registration".to_owned(),
+        package: "wow-world".to_owned(),
+        module: "crate::handlers".to_owned(),
+        allow_descendants: true,
+        tracking_issue: 153,
+    };
+    let fixture = source_graph_fixture("registration-logical-mounts");
+    let crate_root = fixture.join("src/lib.rs");
+    let handlers = fixture.join("src/handlers.rs");
+    let child = fixture.join("src/handlers/child.rs");
+    fs::create_dir_all(child.parent().expect("registration child parent"))
+        .expect("create registration fixture");
+    fs::write(&crate_root, "mod handlers;\n").expect("write registration crate root");
+    fs::write(&handlers, "mod child;\n").expect("write registration owner root");
+    fs::write(
+        &child,
+        "inventory::submit! { PacketHandlerEntry { opcode: ClientOpcodes::Alpha } }\n",
+    )
+    .expect("write child registration");
+    let mounts = fixture_workspace_mounts("wow-world", &fixture, &crate_root);
+    let report = analyze_handler_mounts(&mounts, &owner)
+        .expect("registration scanner follows the logical owner mounts");
+    assert_eq!(report.direct_submissions, 1);
+    fs::remove_dir_all(&fixture).expect("remove registration fixture");
+
+    let duplicate_fixture = source_graph_fixture("registration-duplicate-owner");
+    let duplicate_root = duplicate_fixture.join("src/lib.rs");
+    let duplicate_handlers = duplicate_fixture.join("src/handlers.rs");
+    let shared = duplicate_fixture.join("src/handlers/shared.rs");
+    fs::create_dir_all(shared.parent().expect("shared registration parent"))
+        .expect("create duplicate registration fixture");
+    fs::write(&duplicate_root, "mod handlers;\n").expect("write duplicate crate root");
+    fs::write(
+        &duplicate_handlers,
+        "#[path = \"handlers/shared.rs\"] mod first;\n\
+         #[path = \"handlers/shared.rs\"] mod second;\n",
+    )
+    .expect("write duplicate logical mounts");
+    fs::write(&shared, "pub fn harmless() {}\n").expect("write shared registration source");
+    let mounts = fixture_workspace_mounts("wow-world", &duplicate_fixture, &duplicate_root);
+    let error = analyze_handler_mounts(&mounts, &owner)
+        .expect_err("a source mounted under two capability owners must fail");
+    assert!(
+        error.contains("duplicate or mixed logical ownership"),
+        "{error}"
+    );
+    fs::remove_dir_all(&duplicate_fixture).expect("remove duplicate registration fixture");
+}
+
+#[test]
+fn handler_module_policy_is_strict_and_registration_uses_declared_owner() {
+    let valid = r#"{
+        "schema_version": 1,
+        "introduced_by_issue": 185,
+        "capability_owners": [
+            {"capability":"handler_registration","package":"wow-world","module":"crate::installers","allow_descendants":true,"tracking_issue":153},
+            {"capability":"packet_dispatcher","package":"wow-world","module":"crate::session","allow_descendants":true,"tracking_issue":152}
+        ]
+    }"#;
+    let policy = parse_handler_module_policy(valid).expect("valid module policy");
+    let owner = policy.owner("handler_registration");
+
+    let fixture = source_graph_fixture("declared-registration-owner");
+    let outside = fixture.join("outside.rs");
+    fs::create_dir_all(&fixture).expect("create registration owner fixture");
+    fs::write(
+        &outside,
+        "inventory::submit! { E { opcode: ClientOpcodes::Hidden } }\n",
+    )
+    .expect("write outside registration");
+    let sources = BTreeMap::from([(
+        outside.canonicalize().expect("canonical outside source"),
+        BTreeSet::from(["crate::handlers".to_owned()]),
+    )]);
+    let error = audit_package_registration_sources_with_owner(
+        "wow-world",
+        &sources,
+        &BTreeSet::new(),
+        owner,
+    )
+    .expect_err("registration outside declared policy owner must fail");
+    assert!(error.contains("inventory registration macro"), "{error}");
+    fs::remove_dir_all(&fixture).expect("remove registration owner fixture");
+
+    for (source, expected_error) in [
+        (
+            valid.replace("\"schema_version\": 1", "\"schema_version\": 2"),
+            "schema_version must be 1",
+        ),
+        (
+            valid.replace("\"tracking_issue\":152", "\"tracking_issue\":0"),
+            "has no tracking issue",
+        ),
+        (
+            valid.replace("crate::session", "session"),
+            "invalid logical module",
+        ),
+        (
+            valid.replace(
+                "\"capability\":\"packet_dispatcher\"",
+                "\"capability\":\"handler_registration\"",
+            ),
+            "duplicate capability",
+        ),
+        (
+            valid.replace(
+                "\"schema_version\": 1,",
+                "\"schema_version\": 1, \"unknown\": true,",
+            ),
+            "unknown field",
+        ),
+        (
+            valid.replace("crate::installers", "crate::session::installers"),
+            "overlapping logical owners",
+        ),
+    ] {
+        let error = parse_handler_module_policy(&source).expect_err("malformed policy must fail");
+        assert!(
+            error.contains(expected_error),
+            "expected {expected_error:?}, got {error:?}"
+        );
+    }
+}
+
 #[test]
 fn dispatch_comparison_rejects_new_and_obsolete_mismatches() {
     fn names(values: &[&str]) -> BTreeSet<String> {
@@ -258,8 +596,8 @@ fn ownership_guard_rejects_cfg_inactive_session_registration() {
     .expect_err("a target-inactive handler registration outside handlers must fail");
     assert!(
         error.contains(
-            "session.rs invokes inventory registration macro inventory::submit! outside \
-             crate::handlers"
+            "session.rs invokes inventory registration macro inventory::submit! outside the \
+             declared handler-registration owner"
         ),
         "{error}"
     );
@@ -280,7 +618,9 @@ fn ownership_guard_rejects_cfg_inactive_session_registration() {
     )
     .expect_err("a submission alias mentioning PacketHandlerEntry must fail");
     assert!(
-        alias_error.contains("macro call mentioning PacketHandlerEntry outside crate::handlers"),
+        alias_error.contains(
+            "macro call mentioning PacketHandlerEntry outside the declared handler-registration owner"
+        ),
         "{alias_error}"
     );
 
@@ -294,8 +634,8 @@ fn ownership_guard_rejects_cfg_inactive_session_registration() {
     .expect_err("a target-inactive audited registration macro outside handlers must fail");
     assert!(
         macro_error.contains(
-            "session.rs invokes audited handler registration macro register_move! outside \
-             crate::handlers"
+            "session.rs invokes audited handler registration macro register_move! outside the \
+             declared handler-registration owner"
         ),
         "{macro_error}"
     );
@@ -309,7 +649,8 @@ fn ownership_guard_rejects_cfg_inactive_session_registration() {
     )
     .expect_err("include! outside handlers must fail even when target-inactive");
     assert!(
-        include_error.contains("session.rs uses include! outside crate::handlers"),
+        include_error
+            .contains("session.rs uses include! outside the declared handler-registration owner"),
         "{include_error}"
     );
 
@@ -835,7 +1176,7 @@ fn ownership_is_logical_not_a_physical_handlers_prefix() {
         .expect_err("a physical handlers prefix must not confer logical ownership");
     assert!(
         error.contains(
-            "invokes inventory registration macro inventory::submit! outside crate::handlers"
+            "invokes inventory registration macro inventory::submit! outside the declared handler-registration owner"
         ),
         "{error}"
     );
