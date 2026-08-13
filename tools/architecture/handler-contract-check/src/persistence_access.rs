@@ -720,12 +720,59 @@ impl VariableInfo {
             item.union(other_item);
         }
     }
+
+    fn substitute_self(
+        &mut self,
+        receiver_types: &BTreeSet<String>,
+        trait_bounds: &BTreeSet<String>,
+    ) -> bool {
+        let mut replaced = self.nominal_types.remove("Self");
+        if replaced {
+            self.nominal_types.extend(receiver_types.iter().cloned());
+        }
+        let mut variants = BTreeSet::new();
+        for variant in std::mem::take(&mut self.payload_variants) {
+            let mut shapes = variant;
+            let mut variant_replaced = false;
+            for shape in &mut shapes {
+                variant_replaced |= shape.substitute_self(receiver_types);
+            }
+            if variant_replaced {
+                replaced = true;
+            }
+            variants.insert(shapes);
+        }
+        self.payload_variants = variants;
+        for item in &mut self.tuple_items {
+            replaced |= item.substitute_self(receiver_types, trait_bounds);
+        }
+        for item in self.field_items.values_mut() {
+            replaced |= item.substitute_self(receiver_types, trait_bounds);
+        }
+        if replaced {
+            self.trait_bounds.extend(trait_bounds.iter().cloned());
+        }
+        replaced
+    }
 }
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 struct NominalShape {
     nominal_types: BTreeSet<String>,
     arguments: Vec<NominalShape>,
+}
+
+impl NominalShape {
+    fn substitute_self(&mut self, receiver_types: &BTreeSet<String>) -> bool {
+        let mut replaced = self.nominal_types.remove("Self");
+        if replaced {
+            self.nominal_types.extend(receiver_types.iter().cloned());
+        }
+        for argument in &mut self.arguments {
+            replaced |= argument.substitute_self(receiver_types);
+        }
+        replaced
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -745,6 +792,7 @@ struct ModuleSymbols {
     method_returns: BTreeMap<(String, Option<String>, String), VariableInfo>,
     trait_method_returns: std::sync::Arc<BTreeMap<(String, String), VariableInfo>>,
     trait_supertraits: std::sync::Arc<BTreeMap<String, BTreeSet<String>>>,
+    named_type_info: std::sync::Arc<BTreeMap<String, VariableInfo>>,
     sqlx_namespaces: BTreeSet<String>,
     database_namespaces: BTreeSet<String>,
     query_callables: BTreeSet<String>,
@@ -776,6 +824,7 @@ impl Default for ModuleSymbols {
             method_returns: BTreeMap::new(),
             trait_method_returns: std::sync::Arc::new(BTreeMap::new()),
             trait_supertraits: std::sync::Arc::new(BTreeMap::new()),
+            named_type_info: std::sync::Arc::new(BTreeMap::new()),
             sqlx_namespaces: BTreeSet::from(["sqlx".to_owned()]),
             database_namespaces: BTreeSet::from(["wow_database".to_owned()]),
             query_callables: BTreeSet::new(),
@@ -1085,6 +1134,19 @@ fn variable_info_in_type(ty: &Type, symbols: &ModuleSymbols) -> VariableInfo {
         })
     {
         info.union(alias);
+    }
+    let canonical = match ty {
+        Type::Path(path) => Some(canonical_path_names(path_names(&path.path), symbols).join("::")),
+        Type::Reference(reference) => return variable_info_in_type(&reference.elem, symbols),
+        Type::Ptr(pointer) => return variable_info_in_type(&pointer.elem, symbols),
+        Type::Paren(paren) => return variable_info_in_type(&paren.elem, symbols),
+        Type::Group(group) => return variable_info_in_type(&group.elem, symbols),
+        _ => None,
+    };
+    if let Some(canonical) = canonical
+        && let Some(named) = symbols.named_type_info.get(&canonical)
+    {
+        info.union(named);
     }
     info
 }
@@ -1871,6 +1933,85 @@ fn collect_module_symbols(
     symbols
 }
 
+fn collect_named_type_info(
+    items: &[Item],
+    parent: &ModuleSymbols,
+    package: &str,
+    module: &str,
+    cfg: &[String],
+    source_class: PersistenceSourceClass,
+    errors: &mut Vec<String>,
+    output: &mut BTreeMap<String, VariableInfo>,
+) {
+    let symbols = collect_module_symbols(
+        items,
+        Some(parent),
+        package,
+        module,
+        cfg,
+        source_class,
+        errors,
+    );
+    for item in items {
+        match item {
+            Item::Type(alias)
+                if source_class_allows(source_class, cfg, &alias.attrs, errors, "type alias") =>
+            {
+                let mut path = symbols.module_path.clone();
+                path.push(normalized_ident(&alias.ident));
+                output
+                    .entry(path.join("::"))
+                    .or_default()
+                    .union(&variable_info_in_type(&alias.ty, &symbols));
+            }
+            Item::Struct(item_struct)
+                if source_class_allows(source_class, cfg, &item_struct.attrs, errors, "struct") =>
+            {
+                let mut path = symbols.module_path.clone();
+                path.push(normalized_ident(&item_struct.ident));
+                let entry = output.entry(path.join("::")).or_default();
+                for (index, field) in item_struct.fields.iter().enumerate() {
+                    if source_class_allows(source_class, cfg, &field.attrs, errors, "struct field")
+                    {
+                        let name = field
+                            .ident
+                            .as_ref()
+                            .map(normalized_ident)
+                            .unwrap_or_else(|| index.to_string());
+                        entry
+                            .field_items
+                            .entry(name)
+                            .or_default()
+                            .union(&variable_info_in_type(&field.ty, &symbols));
+                    }
+                }
+            }
+            Item::Mod(item_mod)
+                if source_class_allows(
+                    source_class,
+                    cfg,
+                    &item_mod.attrs,
+                    errors,
+                    "inline module",
+                ) && item_mod.content.is_some() =>
+            {
+                let child_module = format!("{module}::{}", normalized_ident(&item_mod.ident));
+                collect_named_type_info(
+                    &item_mod.content.as_ref().expect("checked content").1,
+                    &symbols,
+                    package,
+                    &child_module,
+                    &item_cfg(cfg, &item_mod.attrs),
+                    source_class,
+                    errors,
+                    output,
+                );
+            }
+            _ => {}
+        }
+    }
+}
+
 fn add_type_records(
     accumulator: &mut AccessAccumulator,
     context: &RecordContext<'_>,
@@ -2079,7 +2220,9 @@ struct BodyAnalyzer<'a, 'b> {
     local_path_alias_scopes: Vec<BTreeMap<String, Vec<String>>>,
     anonymous_trait_scopes: Vec<BTreeSet<String>>,
     generic_trait_bounds: BTreeMap<String, BTreeSet<String>>,
-    flow_cache: std::cell::RefCell<BTreeMap<usize, Flow>>,
+    flow_cache: std::cell::RefCell<BTreeMap<(String, u64), Flow>>,
+    subtree_flow_cache: std::cell::RefCell<BTreeMap<(String, u64), Flow>>,
+    context_version: u64,
 }
 
 struct DirectChildFlowCollector<'analyzer, 'a, 'b> {
@@ -2094,8 +2237,7 @@ impl<'ast> Visit<'ast> for DirectChildFlowCollector<'_, '_, '_> {
             self.at_root = false;
             visit::visit_expr(self, expression);
         } else {
-            self.flow.union(self.analyzer.flow_of_expr(expression));
-            visit::visit_expr(self, expression);
+            self.flow.union(self.analyzer.subtree_flow(expression));
         }
     }
 }
@@ -2123,7 +2265,15 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             anonymous_trait_scopes: vec![BTreeSet::new()],
             generic_trait_bounds: BTreeMap::new(),
             flow_cache: std::cell::RefCell::new(BTreeMap::new()),
+            subtree_flow_cache: std::cell::RefCell::new(BTreeMap::new()),
+            context_version: 0,
         }
+    }
+
+    fn bump_context(&mut self) {
+        self.context_version = self.context_version.wrapping_add(1);
+        self.flow_cache.get_mut().clear();
+        self.subtree_flow_cache.get_mut().clear();
     }
 
     fn canonical_local_path_names(&self, names: Vec<String>) -> Vec<String> {
@@ -2142,6 +2292,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
     }
 
     fn register_local_uses(&mut self, statements: &[Stmt]) {
+        self.bump_context();
         let uses = statements.iter().filter_map(|statement| match statement {
             Stmt::Item(Item::Use(item_use)) => Some(item_use),
             _ => None,
@@ -2175,12 +2326,14 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
     }
 
     fn push_scope(&mut self) {
+        self.bump_context();
         self.scopes.push(BTreeMap::new());
         self.local_path_alias_scopes.push(BTreeMap::new());
         self.anonymous_trait_scopes.push(BTreeSet::new());
     }
 
     fn pop_scope(&mut self) {
+        self.bump_context();
         self.scopes.pop();
         self.local_path_alias_scopes.pop();
         self.anonymous_trait_scopes.pop();
@@ -2285,7 +2438,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
     }
 
     fn bind(&mut self, name: String, info: VariableInfo) {
-        self.flow_cache.get_mut().clear();
+        self.bump_context();
         self.scopes
             .last_mut()
             .expect("body analyzer always has a scope")
@@ -2293,7 +2446,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
     }
 
     fn assign(&mut self, name: &str, info: VariableInfo) {
-        self.flow_cache.get_mut().clear();
+        self.bump_context();
         if let Some(scope) = self
             .scopes
             .iter_mut()
@@ -2349,6 +2502,26 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 }
             }
         }
+        let expanded_trait_bounds = self.expand_trait_bounds(trait_bounds);
+        for trait_bound in &expanded_trait_bounds {
+            if let Some(info) = self
+                .symbols
+                .trait_method_returns
+                .get(&(trait_bound.clone(), method_name.clone()))
+            {
+                result.union(info);
+            }
+        }
+        result.substitute_self(&receiver_types, &expanded_trait_bounds);
+        if method_name == "recv" {
+            result
+                .payload_variants
+                .extend(self.info_from_expr(&method.receiver).payload_variants);
+        }
+        result
+    }
+
+    fn expand_trait_bounds(&self, trait_bounds: BTreeSet<String>) -> BTreeSet<String> {
         let mut pending = trait_bounds.into_iter().collect::<Vec<_>>();
         let mut expanded_trait_bounds = BTreeSet::new();
         while let Some(trait_bound) = pending.pop() {
@@ -2359,25 +2532,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 pending.extend(supertraits.iter().cloned());
             }
         }
-        for trait_bound in &expanded_trait_bounds {
-            if let Some(info) = self
-                .symbols
-                .trait_method_returns
-                .get(&(trait_bound.clone(), method_name.clone()))
-            {
-                result.union(info);
-            }
-        }
-        if result.nominal_types.remove("Self") {
-            result.nominal_types.extend(receiver_types);
-            result.trait_bounds.extend(expanded_trait_bounds);
-        }
-        if method_name == "recv" {
-            result
-                .payload_variants
-                .extend(self.info_from_expr(&method.receiver).payload_variants);
-        }
-        result
+        expanded_trait_bounds
     }
 
     fn shallow_trait_bounds_of_expr(&self, expression: &Expr) -> BTreeSet<String> {
@@ -2462,15 +2617,35 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             }
         };
         let mut result = VariableInfo::default();
-        for receiver_type in receiver_types {
+        for receiver_type in &receiver_types {
             if let Some(info) = self.symbols.method_returns.get(&(
-                receiver_type,
+                receiver_type.clone(),
                 trait_name.clone(),
                 method_name.clone(),
             )) {
                 result.union(info);
             }
         }
+        let mut bounds = BTreeSet::new();
+        if let Some(trait_name) = trait_name {
+            bounds.insert(trait_name);
+        }
+        for receiver_type in &receiver_types {
+            if let Some(generic_bounds) = self.generic_trait_bounds.get(receiver_type) {
+                bounds.extend(generic_bounds.iter().cloned());
+            }
+        }
+        let expanded = self.expand_trait_bounds(bounds);
+        for trait_bound in &expanded {
+            if let Some(info) = self
+                .symbols
+                .trait_method_returns
+                .get(&(trait_bound.clone(), method_name.clone()))
+            {
+                result.union(info);
+            }
+        }
+        result.substitute_self(&receiver_types, &expanded);
         result
     }
 
@@ -2668,6 +2843,10 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 self.nominal_types_of_expr(&unary.expr)
             }
             Expr::Field(field) => {
+                let info = self.info_from_expr(expression);
+                if !info.nominal_types.is_empty() {
+                    return info.nominal_types;
+                }
                 let field_name = match &field.member {
                     Member::Named(ident) => normalized_ident(ident),
                     Member::Unnamed(index) => index.index.to_string(),
@@ -2684,19 +2863,25 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 }
                 nominal_types
             }
-            Expr::Call(call) => match call.func.as_ref() {
-                Expr::Path(path) if path.path.segments.len() == 1 => last_path_name(&path.path)
-                    .map(|name| {
-                        self.symbols
-                            .function_returns
-                            .get(&name)
-                            .map(|info| info.nominal_types.clone())
-                            .unwrap_or_else(|| BTreeSet::from([name]))
-                    })
-                    .unwrap_or_default(),
-                Expr::Path(path) => self.associated_return_info(path).nominal_types,
-                _ => BTreeSet::new(),
-            },
+            Expr::Call(call) => {
+                let info = self.info_from_expr(expression);
+                if !info.nominal_types.is_empty() {
+                    return info.nominal_types;
+                }
+                match call.func.as_ref() {
+                    Expr::Path(path) if path.path.segments.len() == 1 => last_path_name(&path.path)
+                        .map(|name| {
+                            self.symbols
+                                .function_returns
+                                .get(&name)
+                                .map(|info| info.nominal_types.clone())
+                                .unwrap_or_else(|| BTreeSet::from([name]))
+                        })
+                        .unwrap_or_default(),
+                    Expr::Path(path) => self.associated_return_info(path).nominal_types,
+                    _ => BTreeSet::new(),
+                }
+            }
             Expr::MethodCall(method) => self.method_return_info(method).nominal_types,
             Expr::Struct(expression) => last_path_name(&expression.path)
                 .map(|name| {
@@ -2815,8 +3000,12 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         let mut payload = VariableInfo {
             flow: info.flow.clone(),
             sql_expression: info.sql_expression,
+            trait_bounds: info.trait_bounds.clone(),
             ..VariableInfo::default()
         };
+        payload
+            .trait_bounds
+            .extend(info.trait_bounds.iter().cloned());
         for shape in shapes {
             payload
                 .nominal_types
@@ -3107,12 +3296,31 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
     }
 
     fn flow_of_expr(&self, expression: &Expr) -> Flow {
-        let key = expression as *const Expr as usize;
+        let key = (normalized_tokens(expression), self.context_version);
         if let Some(flow) = self.flow_cache.borrow().get(&key) {
             return flow.clone();
         }
         let flow = self.compute_flow_of_expr(expression);
         self.flow_cache.borrow_mut().insert(key, flow.clone());
+        flow
+    }
+
+    fn subtree_flow(&self, expression: &Expr) -> Flow {
+        let key = (normalized_tokens(expression), self.context_version);
+        if let Some(flow) = self.subtree_flow_cache.borrow().get(&key) {
+            return flow.clone();
+        }
+        let mut flow = self.flow_of_expr(expression);
+        let mut collector = DirectChildFlowCollector {
+            analyzer: self,
+            flow: Flow::default(),
+            at_root: true,
+        };
+        collector.visit_expr(expression);
+        flow.union(collector.flow);
+        self.subtree_flow_cache
+            .borrow_mut()
+            .insert(key, flow.clone());
         flow
     }
 
@@ -3149,7 +3357,6 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 flow
             }
             Expr::Block(block) => implicit_tail_flow(&block.block, self),
-            Expr::Async(async_expression) => self.flow_in_block(&async_expression.block),
             Expr::Tuple(tuple) => {
                 let mut flow = Flow::default();
                 for element in &tuple.elems {
@@ -3411,6 +3618,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
     }
 
     fn register_generic_bounds(&mut self, generics: &syn::Generics) {
+        self.bump_context();
         for parameter in &generics.params {
             let syn::GenericParam::Type(parameter) = parameter else {
                 continue;
@@ -5068,6 +5276,43 @@ pub(crate) fn inventory_persistence_accesses(
     let mut seen_mounts = BTreeSet::new();
     let mut accumulator = AccessAccumulator::default();
     let mut errors = Vec::new();
+    let mut named_type_registries =
+        BTreeMap::<(String, PersistenceSourceClass), BTreeMap<String, VariableInfo>>::new();
+    for _ in 0..=ordered.len() {
+        let before = named_type_registries.clone();
+        for source in &ordered {
+            let Ok(syntax) = syn::parse_file(source.source) else {
+                continue;
+            };
+            let cfg = extend_cfg_context(source.inherited_cfg, &syntax.attrs);
+            for source_class in [
+                PersistenceSourceClass::Production,
+                PersistenceSourceClass::TestFixture,
+            ] {
+                if !source_class_allows(source_class, &cfg, &[], &mut errors, "source file") {
+                    continue;
+                }
+                let key = (source.package.to_owned(), source_class);
+                let current = named_type_registries.get(&key).cloned().unwrap_or_default();
+                let mut base = ModuleSymbols::for_package(source.package);
+                base.named_type_info = std::sync::Arc::new(current);
+                let output = named_type_registries.entry(key).or_default();
+                collect_named_type_info(
+                    &syntax.items,
+                    &base,
+                    source.package,
+                    source.module,
+                    &cfg,
+                    source_class,
+                    &mut errors,
+                    output,
+                );
+            }
+        }
+        if named_type_registries == before {
+            break;
+        }
+    }
     let mut trait_registries = BTreeMap::<
         (String, PersistenceSourceClass),
         (
@@ -5090,24 +5335,36 @@ pub(crate) fn inventory_persistence_accesses(
             if !source_class_allows(source_class, &cfg, &[], &mut errors, "source file") {
                 continue;
             }
-            let symbols = collect_module_symbols(
+            let mut base = ModuleSymbols::for_package(source.package);
+            base.named_type_info = std::sync::Arc::new(
+                named_type_registries
+                    .get(&(source.package.to_owned(), source_class))
+                    .cloned()
+                    .unwrap_or_default(),
+            );
+            let mut symbols = collect_module_symbols(
                 &syntax.items,
-                None,
+                Some(&base),
                 source.package,
                 source.module,
                 &cfg,
                 source_class,
                 &mut errors,
             );
+            collect_nested_trait_returns(
+                &syntax.items,
+                &symbols.module_path.clone(),
+                &cfg,
+                source_class,
+                &mut symbols,
+                &mut errors,
+            );
             let registry = trait_registries
                 .entry((source.package.to_owned(), source_class))
                 .or_default();
-            registry.0.extend(
-                symbols
-                    .trait_method_returns
-                    .iter()
-                    .map(|(key, info)| (key.clone(), info.clone())),
-            );
+            for (key, info) in symbols.trait_method_returns.iter() {
+                registry.0.entry(key.clone()).or_default().union(info);
+            }
             for (trait_path, supertraits) in symbols.trait_supertraits.iter() {
                 registry
                     .1
@@ -5191,6 +5448,12 @@ pub(crate) fn inventory_persistence_accesses(
                 continue;
             }
             let mut package_symbols = ModuleSymbols::for_package(source.package);
+            package_symbols.named_type_info = std::sync::Arc::new(
+                named_type_registries
+                    .get(&(source.package.to_owned(), source_class))
+                    .cloned()
+                    .unwrap_or_default(),
+            );
             if let Some((methods, supertraits)) =
                 trait_registries.get(&(source.package.to_owned(), source_class))
             {
@@ -5393,6 +5656,18 @@ mod tests {
 
     #[test]
     fn persistence_inventory_resolves_trait_signatures_across_source_files() {
+        let dto = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "fixture",
+            module: "crate::dto",
+            source_path: "src/dto.rs",
+            inherited_cfg: &[],
+            source: r#"
+                pub type Db = wow_database::CharacterDatabase;
+                pub struct Holder(pub Db);
+                pub struct Plain(pub u8);
+            "#,
+        };
         let declaration = ClassifiedPersistenceSource {
             classification: "database_adapter_core",
             package: "fixture",
@@ -5400,8 +5675,9 @@ mod tests {
             source_path: "src/maker.rs",
             inherited_cfg: &[],
             source: r#"
-                pub struct Holder(pub wow_database::CharacterDatabase);
+                use crate::dto::{Holder, Plain};
                 pub trait Maker { fn make(&self) -> Holder; }
+                pub trait PlainMaker { fn make(&self) -> Plain; }
             "#,
         };
         let consumer = ClassifiedPersistenceSource {
@@ -5414,15 +5690,24 @@ mod tests {
                 fn cross_file_persistent(factory: &dyn crate::maker::Maker) {
                     consume(factory.make().0.pool());
                 }
+                fn cross_file_clean(factory: &dyn crate::maker::PlainMaker) {
+                    consume(factory.make().0);
+                }
             "#,
         };
 
-        let baseline = inventory_persistence_accesses(&[consumer, declaration]).unwrap();
+        let baseline = inventory_persistence_accesses(&[consumer, declaration, dto]).unwrap();
         assert!(baseline.accesses.iter().any(|row| {
             row.enclosing == "fn cross_file_persistent"
                 && row.target == PersistenceTarget::CharacterDatabase
                 && row.operation == PersistenceOperation::PoolAccess
         }));
+        assert!(
+            !baseline
+                .accesses
+                .iter()
+                .any(|row| row.enclosing == "fn cross_file_clean")
+        );
     }
 
     #[test]
@@ -6007,12 +6292,12 @@ mod tests {
                 mod db_trait {
                     pub trait Maker { fn make(&self) -> super::Holder; }
                     pub trait Derived: Maker {}
-                    pub trait Chained: Maker + Sized { fn again(&self) -> Self; }
+                    pub trait Chained: Maker + Sized { fn again(&self) -> Option<Self>; }
                 }
                 mod plain_trait {
                     pub trait Maker { fn make(&self) -> u8; }
                     pub trait Derived: Maker {}
-                    pub trait Chained: Maker + Sized { fn again(&self) -> Self; }
+                    pub trait Chained: Maker + Sized { fn again(&self) -> Option<Self>; }
                 }
                 impl crate::db_trait::Maker for TraitFactory {
                     fn make(&self) -> Holder { unreachable!() }
@@ -6055,10 +6340,16 @@ mod tests {
                     consume(factory.make());
                 }
                 fn self_return_persistent<T: db_trait::Chained>(factory: &T) {
-                    consume(factory.again().make().0.pool());
+                    let Some(next) = factory.again() else { return };
+                    consume(next.make().0.pool());
                 }
                 fn self_return_clean<T: plain_trait::Chained>(factory: &T) {
-                    consume(factory.again().make());
+                    let Some(next) = factory.again() else { return };
+                    consume(next.make());
+                }
+                fn ufcs_self_return_persistent<T: db_trait::Chained>(factory: &T) {
+                    let Some(next) = T::again(factory) else { return };
+                    consume(next.make().0.pool());
                 }
                 fn persistent_provider() -> impl db_trait::Maker { unreachable!() }
                 fn plain_provider() -> impl plain_trait::Maker { unreachable!() }
@@ -6225,6 +6516,7 @@ mod tests {
             "fn where_trait_persistent",
             "fn dyn_supertrait_persistent",
             "fn self_return_persistent",
+            "fn ufcs_self_return_persistent",
             "fn impl_trait_function_persistent",
             "fn impl_trait_method_persistent",
             "fn namespace_self_persistent",
