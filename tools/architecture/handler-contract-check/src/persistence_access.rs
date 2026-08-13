@@ -689,6 +689,7 @@ struct VariableInfo {
     nominal_types: BTreeSet<String>,
     payload_variants: BTreeSet<Vec<NominalShape>>,
     tuple_items: Vec<VariableInfo>,
+    trait_bounds: BTreeSet<String>,
 }
 
 impl VariableInfo {
@@ -698,6 +699,7 @@ impl VariableInfo {
             .extend(other.nominal_types.iter().cloned());
         self.payload_variants
             .extend(other.payload_variants.iter().cloned());
+        self.trait_bounds.extend(other.trait_bounds.iter().cloned());
         if self.sql_expression == SqlExpressionKind::Static {
             self.sql_expression = other.sql_expression;
         } else if other.sql_expression == SqlExpressionKind::Interpolated {
@@ -734,6 +736,8 @@ struct ModuleSymbols {
     field_nominal_types: BTreeMap<(String, String), BTreeSet<String>>,
     function_returns: BTreeMap<String, VariableInfo>,
     method_returns: BTreeMap<(String, Option<String>, String), VariableInfo>,
+    trait_method_returns: std::sync::Arc<BTreeMap<(String, String), VariableInfo>>,
+    trait_supertraits: std::sync::Arc<BTreeMap<String, BTreeSet<String>>>,
     sqlx_namespaces: BTreeSet<String>,
     database_namespaces: BTreeSet<String>,
     query_callables: BTreeSet<String>,
@@ -763,6 +767,8 @@ impl Default for ModuleSymbols {
             field_nominal_types: BTreeMap::new(),
             function_returns: BTreeMap::new(),
             method_returns: BTreeMap::new(),
+            trait_method_returns: std::sync::Arc::new(BTreeMap::new()),
+            trait_supertraits: std::sync::Arc::new(BTreeMap::new()),
             sqlx_namespaces: BTreeSet::from(["sqlx".to_owned()]),
             database_namespaces: BTreeSet::from(["wow_database".to_owned()]),
             query_callables: BTreeSet::new(),
@@ -1031,6 +1037,7 @@ fn tuple_items_in_type(ty: &Type, symbols: &ModuleSymbols) -> Vec<VariableInfo> 
                 ),
                 payload_variants: payload_variants_in_type(element, symbols),
                 tuple_items: tuple_items_in_type(element, symbols),
+                trait_bounds: trait_bounds_in_type(element, symbols),
             })
             .collect(),
         Type::Reference(reference) => tuple_items_in_type(&reference.elem, symbols),
@@ -1059,6 +1066,7 @@ fn variable_info_in_type(ty: &Type, symbols: &ModuleSymbols) -> VariableInfo {
         nominal_types: resolve_nominal_types(receiver_nominal_types_in_type(ty), symbols),
         payload_variants: payload_variants_in_type(ty, symbols),
         tuple_items: tuple_items_in_type(ty, symbols),
+        trait_bounds: trait_bounds_in_type(ty, symbols),
     };
     if let Type::Path(path) = ty
         && let Some(alias) = path.path.segments.last().and_then(|segment| {
@@ -1158,6 +1166,61 @@ fn canonical_path_names(mut names: Vec<String>, symbols: &ModuleSymbols) -> Vec<
 
 fn canonical_trait_path(path: &syn::Path, symbols: &ModuleSymbols) -> String {
     canonical_path_names(path_names(path), symbols).join("::")
+}
+
+fn canonical_trait_path_in_module(
+    path: &syn::Path,
+    module_path: &[String],
+    symbols: &ModuleSymbols,
+) -> String {
+    let mut scoped = symbols.clone();
+    scoped.module_path = module_path.to_vec();
+    canonical_trait_path(path, &scoped)
+}
+
+fn record_trait_supertraits(
+    trait_path: &str,
+    bounds: &syn::punctuated::Punctuated<syn::TypeParamBound, syn::token::Plus>,
+    module_path: &[String],
+    symbols: &mut ModuleSymbols,
+) {
+    let supertraits = bounds
+        .iter()
+        .filter_map(|bound| match bound {
+            syn::TypeParamBound::Trait(bound) => Some(canonical_trait_path_in_module(
+                &bound.path,
+                module_path,
+                symbols,
+            )),
+            _ => None,
+        })
+        .collect::<BTreeSet<_>>();
+    if !supertraits.is_empty() {
+        std::sync::Arc::make_mut(&mut symbols.trait_supertraits)
+            .entry(trait_path.to_owned())
+            .or_default()
+            .extend(supertraits);
+    }
+}
+
+fn trait_bounds_in_type(ty: &Type, symbols: &ModuleSymbols) -> BTreeSet<String> {
+    let bounds = match ty {
+        Type::TraitObject(object) => Some(&object.bounds),
+        Type::ImplTrait(object) => Some(&object.bounds),
+        Type::Reference(reference) => return trait_bounds_in_type(&reference.elem, symbols),
+        Type::Ptr(pointer) => return trait_bounds_in_type(&pointer.elem, symbols),
+        Type::Paren(paren) => return trait_bounds_in_type(&paren.elem, symbols),
+        Type::Group(group) => return trait_bounds_in_type(&group.elem, symbols),
+        _ => None,
+    };
+    bounds
+        .into_iter()
+        .flatten()
+        .filter_map(|bound| match bound {
+            syn::TypeParamBound::Trait(bound) => Some(canonical_trait_path(&bound.path, symbols)),
+            _ => None,
+        })
+        .collect()
 }
 
 #[derive(Clone, Debug)]
@@ -1273,15 +1336,35 @@ fn apply_import_symbols(item_use: &ItemUse, symbols: &mut ModuleSymbols) -> bool
     let (leaves, _) = use_leaves(item_use);
     let mut changed = false;
     for leaf in leaves {
-        let canonical_source = canonical_path_names(leaf.source.clone(), symbols);
-        if symbols.path_aliases.get(&leaf.local) != Some(&canonical_source) {
+        let canonical_source = match leaf.source.first() {
+            // `use foo::foo` binds the leaf, not a recursively expanding
+            // alias for its own root. Preserve the external/root path.
+            Some(first) if leaf.source.len() > 1 && first == &leaf.local => leaf.source.clone(),
+            Some(first) if leaf.source.len() > 1 => symbols
+                .path_aliases
+                .get(first)
+                .map(|mapped| {
+                    let mut source = mapped.clone();
+                    source.extend(leaf.source.iter().skip(1).cloned());
+                    source
+                })
+                .unwrap_or_else(|| canonical_path_names(leaf.source.clone(), symbols)),
+            _ => canonical_path_names(leaf.source.clone(), symbols),
+        };
+        if leaf.local != "_"
+            && !leaf.namespace_self
+            && symbols.path_aliases.get(&leaf.local) != Some(&canonical_source)
+        {
             symbols
                 .path_aliases
                 .insert(leaf.local.clone(), canonical_source.clone());
             changed = true;
         }
         let canonical_trait = canonical_source.join("::");
-        if leaf.local == "_" {
+        if leaf.namespace_self {
+            // A namespace-self import puts the module in scope; it does not
+            // import a trait under that local module name.
+        } else if leaf.local == "_" {
             changed |= symbols.anonymous_traits_in_scope.insert(canonical_trait);
         } else if symbols.traits_in_scope.get(&leaf.local) != Some(&canonical_trait) {
             symbols
@@ -1311,6 +1394,84 @@ fn apply_import_symbols(item_use: &ItemUse, symbols: &mut ModuleSymbols) -> bool
     changed
 }
 
+fn collect_nested_trait_returns(
+    items: &[Item],
+    module_path: &[String],
+    cfg: &[String],
+    source_class: PersistenceSourceClass,
+    symbols: &mut ModuleSymbols,
+    errors: &mut Vec<String>,
+) {
+    for item in items {
+        match item {
+            Item::Trait(item_trait)
+                if source_class_allows(source_class, cfg, &item_trait.attrs, errors, "trait") =>
+            {
+                let mut trait_path = module_path.to_vec();
+                trait_path.push(normalized_ident(&item_trait.ident));
+                let trait_path = trait_path.join("::");
+                record_trait_supertraits(
+                    &trait_path,
+                    &item_trait.supertraits,
+                    module_path,
+                    symbols,
+                );
+                for item in &item_trait.items {
+                    let syn::TraitItem::Fn(method) = item else {
+                        continue;
+                    };
+                    if !source_class_allows(
+                        source_class,
+                        cfg,
+                        &method.attrs,
+                        errors,
+                        "trait method",
+                    ) {
+                        continue;
+                    }
+                    if let ReturnType::Type(_, ty) = &method.sig.output {
+                        let mut info = variable_info_in_type(ty, symbols);
+                        info.sql_expression = SqlExpressionKind::Nonliteral;
+                        if !info.flow.is_empty()
+                            || !info.nominal_types.is_empty()
+                            || !info.payload_variants.is_empty()
+                            || !info.tuple_items.is_empty()
+                            || !info.trait_bounds.is_empty()
+                        {
+                            std::sync::Arc::make_mut(&mut symbols.trait_method_returns).insert(
+                                (trait_path.clone(), normalized_ident(&method.sig.ident)),
+                                info,
+                            );
+                        }
+                    }
+                }
+            }
+            Item::Mod(item_mod)
+                if source_class_allows(
+                    source_class,
+                    cfg,
+                    &item_mod.attrs,
+                    errors,
+                    "inline module",
+                ) && item_mod.content.is_some() =>
+            {
+                let mut child_path = module_path.to_vec();
+                child_path.push(normalized_ident(&item_mod.ident));
+                let child_cfg = item_cfg(cfg, &item_mod.attrs);
+                collect_nested_trait_returns(
+                    &item_mod.content.as_ref().expect("checked content").1,
+                    &child_path,
+                    &child_cfg,
+                    source_class,
+                    symbols,
+                    errors,
+                );
+            }
+            _ => {}
+        }
+    }
+}
+
 fn collect_module_symbols(
     items: &[Item],
     parent: Option<&ModuleSymbols>,
@@ -1320,6 +1481,7 @@ fn collect_module_symbols(
     source_class: PersistenceSourceClass,
     errors: &mut Vec<String>,
 ) -> ModuleSymbols {
+    let is_root_collection = parent.is_none();
     let mut symbols = parent
         .cloned()
         .unwrap_or_else(|| ModuleSymbols::for_package(package));
@@ -1438,6 +1600,17 @@ fn collect_module_symbols(
         if !changed {
             break;
         }
+    }
+
+    if is_root_collection {
+        collect_nested_trait_returns(
+            items,
+            &symbols.module_path.clone(),
+            cfg,
+            source_class,
+            &mut symbols,
+            errors,
+        );
     }
 
     for item in items {
@@ -1853,6 +2026,7 @@ struct BodyAnalyzer<'a, 'b> {
     scopes: Vec<BTreeMap<String, VariableInfo>>,
     local_path_alias_scopes: Vec<BTreeMap<String, Vec<String>>>,
     anonymous_trait_scopes: Vec<BTreeSet<String>>,
+    generic_trait_bounds: BTreeMap<String, BTreeSet<String>>,
 }
 
 struct DirectChildFlowCollector<'analyzer, 'a, 'b> {
@@ -1894,6 +2068,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             scopes: vec![BTreeMap::new()],
             local_path_alias_scopes: vec![BTreeMap::new()],
             anonymous_trait_scopes: vec![BTreeSet::new()],
+            generic_trait_bounds: BTreeMap::new(),
         }
     }
 
@@ -2076,13 +2251,29 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
     }
 
     fn info_from_type(&self, ty: &Type) -> VariableInfo {
-        variable_info_in_type(ty, self.symbols)
+        let mut info = variable_info_in_type(ty, self.symbols);
+        for name in info.nominal_types.clone() {
+            if let Some(bounds) = self.generic_trait_bounds.get(&name) {
+                info.trait_bounds.extend(bounds.iter().cloned());
+            }
+        }
+        info
     }
 
     fn method_return_info(&self, method: &ExprMethodCall) -> VariableInfo {
         let method_name = normalized_ident(&method.method);
         let mut result = VariableInfo::default();
-        for receiver_type in self.nominal_types_of_expr(&method.receiver) {
+        let receiver_types = self.nominal_types_of_expr(&method.receiver);
+        let mut trait_bounds = BTreeSet::new();
+        for receiver_type in &receiver_types {
+            if let Some(bounds) = self.generic_trait_bounds.get(receiver_type) {
+                trait_bounds.extend(bounds.iter().cloned());
+            }
+        }
+        if receiver_types.is_empty() {
+            trait_bounds.extend(self.shallow_trait_bounds_of_expr(&method.receiver));
+        }
+        for receiver_type in receiver_types {
             if let Some(info) =
                 self.symbols
                     .method_returns
@@ -2102,12 +2293,53 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 }
             }
         }
+        let mut pending = trait_bounds.into_iter().collect::<Vec<_>>();
+        let mut expanded_trait_bounds = BTreeSet::new();
+        while let Some(trait_bound) = pending.pop() {
+            if !expanded_trait_bounds.insert(trait_bound.clone()) {
+                continue;
+            }
+            if let Some(supertraits) = self.symbols.trait_supertraits.get(&trait_bound) {
+                pending.extend(supertraits.iter().cloned());
+            }
+        }
+        for trait_bound in &expanded_trait_bounds {
+            if let Some(info) = self
+                .symbols
+                .trait_method_returns
+                .get(&(trait_bound.clone(), method_name.clone()))
+            {
+                result.union(info);
+            }
+        }
         if method_name == "recv" {
             result
                 .payload_variants
                 .extend(self.info_from_expr(&method.receiver).payload_variants);
         }
         result
+    }
+
+    fn shallow_trait_bounds_of_expr(&self, expression: &Expr) -> BTreeSet<String> {
+        match expression {
+            Expr::Path(path) if path.qself.is_none() && path.path.segments.len() == 1 => {
+                last_path_name(&path.path)
+                    .and_then(|name| self.lookup(&name))
+                    .map(|info| info.trait_bounds.clone())
+                    .unwrap_or_default()
+            }
+            Expr::Reference(reference) => self.shallow_trait_bounds_of_expr(&reference.expr),
+            Expr::Paren(paren) => self.shallow_trait_bounds_of_expr(&paren.expr),
+            Expr::Group(group) => self.shallow_trait_bounds_of_expr(&group.expr),
+            Expr::Try(try_expression) => self.shallow_trait_bounds_of_expr(&try_expression.expr),
+            Expr::Await(await_expression) => {
+                self.shallow_trait_bounds_of_expr(&await_expression.base)
+            }
+            Expr::Unary(unary) if matches!(unary.op, syn::UnOp::Deref(_)) => {
+                self.shallow_trait_bounds_of_expr(&unary.expr)
+            }
+            _ => BTreeSet::new(),
+        }
     }
 
     fn associated_return_info(&self, expression: &syn::ExprPath) -> VariableInfo {
@@ -2245,6 +2477,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 nominal_types: return_info.nominal_types,
                 payload_variants: return_info.payload_variants,
                 tuple_items: return_info.tuple_items,
+                trait_bounds: return_info.trait_bounds,
             };
         }
         if let Expr::Call(call) = expression
@@ -2270,6 +2503,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 nominal_types,
                 payload_variants: payload_variants_in_path(&path.path, self.symbols),
                 tuple_items: Vec::new(),
+                trait_bounds: BTreeSet::new(),
             };
         }
         if let Expr::Tuple(tuple) = expression {
@@ -2290,6 +2524,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             nominal_types: BTreeSet::new(),
             payload_variants: BTreeSet::new(),
             tuple_items: Vec::new(),
+            trait_bounds: BTreeSet::new(),
         }
     }
 
@@ -3075,6 +3310,50 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 &item_cfg(&self.cfg, &typed.attrs),
                 PersistenceOperation::TypeReference,
             );
+        }
+    }
+
+    fn register_generic_bounds(&mut self, generics: &syn::Generics) {
+        for parameter in &generics.params {
+            let syn::GenericParam::Type(parameter) = parameter else {
+                continue;
+            };
+            let name = normalized_ident(&parameter.ident);
+            for bound in &parameter.bounds {
+                if let syn::TypeParamBound::Trait(bound) = bound {
+                    let trait_path = self
+                        .canonical_local_path_names(path_names(&bound.path))
+                        .join("::");
+                    self.generic_trait_bounds
+                        .entry(name.clone())
+                        .or_default()
+                        .insert(trait_path);
+                }
+            }
+        }
+        if let Some(where_clause) = &generics.where_clause {
+            for predicate in &where_clause.predicates {
+                let syn::WherePredicate::Type(predicate) = predicate else {
+                    continue;
+                };
+                let Type::Path(path) = &predicate.bounded_ty else {
+                    continue;
+                };
+                let Some(name) = last_path_name(&path.path) else {
+                    continue;
+                };
+                for bound in &predicate.bounds {
+                    if let syn::TypeParamBound::Trait(bound) = bound {
+                        let trait_path = self
+                            .canonical_local_path_names(path_names(&bound.path))
+                            .join("::");
+                        self.generic_trait_bounds
+                            .entry(name.clone())
+                            .or_default()
+                            .insert(trait_path);
+                    }
+                }
+            }
         }
     }
 }
@@ -4017,6 +4296,7 @@ fn analyze_function(
         cfg.clone(),
     );
     analyzer.register_local_uses(&function.block.stmts);
+    analyzer.register_generic_bounds(&function.sig.generics);
     analyzer.register_parameters(&function.sig.inputs);
     for statement in &function.block.stmts {
         analyzer.visit_stmt(statement);
@@ -4172,6 +4452,8 @@ fn analyze_impl(
             method_cfg.clone(),
         );
         analyzer.register_local_uses(&method.block.stmts);
+        analyzer.register_generic_bounds(&item_impl.generics);
+        analyzer.register_generic_bounds(&method.sig.generics);
         let mut self_info = analyzer.info_from_type(&item_impl.self_ty);
         self_info.flow = Flow::default();
         analyzer.bind("Self".to_owned(), self_info.clone());
@@ -4943,6 +5225,20 @@ mod tests {
     }
 
     #[test]
+    fn same_named_nested_import_reaches_a_fixed_point() {
+        let item_use: ItemUse = syn::parse_quote!(
+            use bitflags::bitflags;
+        );
+        let mut symbols = ModuleSymbols::for_package("fixture");
+        symbols.module_path = vec!["realm".to_owned()];
+
+        assert!(apply_import_symbols(&item_use, &mut symbols));
+        let aliases = symbols.path_aliases.clone();
+        assert!(!apply_import_symbols(&item_use, &mut symbols));
+        assert_eq!(symbols.path_aliases, aliases);
+    }
+
+    #[test]
     fn persistence_inventory_tracks_aliases_queries_transactions_and_pool_returns() {
         let baseline = inventory(
             r#"
@@ -5523,9 +5819,11 @@ mod tests {
                 }
                 mod db_trait {
                     pub trait Maker { fn make(&self) -> super::Holder; }
+                    pub trait Derived: Maker {}
                 }
                 mod plain_trait {
                     pub trait Maker { fn make(&self) -> u8; }
+                    pub trait Derived: Maker {}
                 }
                 impl crate::db_trait::Maker for TraitFactory {
                     fn make(&self) -> Holder { unreachable!() }
@@ -5542,6 +5840,39 @@ mod tests {
                 use plain_trait::Maker as ImportedPlainMaker;
                 fn imported_trait_ufcs_clean(factory: &TraitFactory) {
                     consume(<TraitFactory as ImportedPlainMaker>::make(factory));
+                }
+                fn dyn_trait_persistent(factory: &dyn db_trait::Maker) {
+                    consume(factory.make().0.pool());
+                }
+                fn generic_trait_persistent<T: db_trait::Maker>(factory: &T) {
+                    consume(factory.make().0.pool());
+                }
+                fn where_trait_persistent<T>(factory: &T)
+                where
+                    T: db_trait::Maker,
+                {
+                    consume(factory.make().0.pool());
+                }
+                fn dyn_trait_clean(factory: &dyn plain_trait::Maker) {
+                    consume(factory.make());
+                }
+                fn generic_trait_clean<T: plain_trait::Maker>(factory: &T) {
+                    consume(factory.make());
+                }
+                fn dyn_supertrait_persistent(factory: &dyn db_trait::Derived) {
+                    consume(factory.make().0.pool());
+                }
+                fn dyn_supertrait_clean(factory: &dyn plain_trait::Derived) {
+                    consume(factory.make());
+                }
+                struct ImplBound<T>(T);
+                impl<T> ImplBound<T>
+                where
+                    T: db_trait::Maker,
+                {
+                    fn impl_bound_persistent(&self) {
+                        consume(self.0.make().0.pool());
+                    }
                 }
                 mod db_method_scope {
                     use super::db_trait::Maker;
@@ -5643,6 +5974,9 @@ mod tests {
                     | "fn local_trait_method_clean"
                     | "fn disabled_local_trait_is_ignored"
                     | "fn disabled_anonymous_trait_is_ignored"
+                    | "fn dyn_trait_clean"
+                    | "fn generic_trait_clean"
+                    | "fn dyn_supertrait_clean"
             )),
             "named fields on unrelated owner types must not contaminate receiver identity: {:#?}",
             field_owner_collision.accesses
@@ -5663,12 +5997,20 @@ mod tests {
             "fn local_trait_scope_does_not_escape",
             "fn anonymous_local_traits_are_additive",
             "fn anonymous_module_traits_are_additive",
+            "fn dyn_trait_persistent",
+            "fn generic_trait_persistent",
+            "fn where_trait_persistent",
+            "fn dyn_supertrait_persistent",
+            "impl ImplBound < T >::impl_bound_persistent",
         ] {
-            assert!(field_owner_collision.accesses.iter().any(|row| {
-                row.enclosing == enclosing
-                    && row.target == PersistenceTarget::CharacterDatabase
-                    && row.operation == PersistenceOperation::PoolAccess
-            }));
+            assert!(
+                field_owner_collision.accesses.iter().any(|row| {
+                    row.enclosing == enclosing
+                        && row.target == PersistenceTarget::CharacterDatabase
+                        && row.operation == PersistenceOperation::PoolAccess
+                }),
+                "missing bounded trait return in {enclosing}"
+            );
         }
         assert_eq!(
             field_owner_collision
