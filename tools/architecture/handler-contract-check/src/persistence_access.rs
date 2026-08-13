@@ -358,7 +358,7 @@ impl PersistenceAccessRecord {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum PersistenceSourceClass {
     Production,
     TestFixture,
@@ -689,6 +689,7 @@ struct VariableInfo {
     nominal_types: BTreeSet<String>,
     payload_variants: BTreeSet<Vec<NominalShape>>,
     tuple_items: Vec<VariableInfo>,
+    field_items: BTreeMap<String, VariableInfo>,
     trait_bounds: BTreeSet<String>,
 }
 
@@ -700,6 +701,12 @@ impl VariableInfo {
         self.payload_variants
             .extend(other.payload_variants.iter().cloned());
         self.trait_bounds.extend(other.trait_bounds.iter().cloned());
+        for (field, other_info) in &other.field_items {
+            self.field_items
+                .entry(field.clone())
+                .or_default()
+                .union(other_info);
+        }
         if self.sql_expression == SqlExpressionKind::Static {
             self.sql_expression = other.sql_expression;
         } else if other.sql_expression == SqlExpressionKind::Interpolated {
@@ -1037,6 +1044,7 @@ fn tuple_items_in_type(ty: &Type, symbols: &ModuleSymbols) -> Vec<VariableInfo> 
                 ),
                 payload_variants: payload_variants_in_type(element, symbols),
                 tuple_items: tuple_items_in_type(element, symbols),
+                field_items: BTreeMap::new(),
                 trait_bounds: trait_bounds_in_type(element, symbols),
             })
             .collect(),
@@ -1066,6 +1074,7 @@ fn variable_info_in_type(ty: &Type, symbols: &ModuleSymbols) -> VariableInfo {
         nominal_types: resolve_nominal_types(receiver_nominal_types_in_type(ty), symbols),
         payload_variants: payload_variants_in_type(ty, symbols),
         tuple_items: tuple_items_in_type(ty, symbols),
+        field_items: BTreeMap::new(),
         trait_bounds: trait_bounds_in_type(ty, symbols),
     };
     if let Type::Path(path) = ty
@@ -1152,6 +1161,9 @@ fn canonical_path_names(mut names: Vec<String>, symbols: &ModuleSymbols) -> Vec<
         let mut expanded = source.clone();
         expanded.extend(names.into_iter().skip(1));
         names = expanded;
+        if names.first().is_some_and(|name| name == "crate") {
+            names.remove(0);
+        }
         base.clear();
         absolute = true;
     }
@@ -1351,13 +1363,17 @@ fn apply_import_symbols(item_use: &ItemUse, symbols: &mut ModuleSymbols) -> bool
                 .unwrap_or_else(|| canonical_path_names(leaf.source.clone(), symbols)),
             _ => canonical_path_names(leaf.source.clone(), symbols),
         };
-        if leaf.local != "_"
-            && !leaf.namespace_self
-            && symbols.path_aliases.get(&leaf.local) != Some(&canonical_source)
-        {
+        let alias_source = if leaf.namespace_self {
+            let mut absolute = vec!["crate".to_owned()];
+            absolute.extend(canonical_source.iter().cloned());
+            absolute
+        } else {
+            canonical_source.clone()
+        };
+        if leaf.local != "_" && symbols.path_aliases.get(&leaf.local) != Some(&alias_source) {
             symbols
                 .path_aliases
-                .insert(leaf.local.clone(), canonical_source.clone());
+                .insert(leaf.local.clone(), alias_source);
             changed = true;
         }
         let canonical_trait = canonical_source.join("::");
@@ -1757,6 +1773,7 @@ fn collect_module_symbols(
                         || !return_info.nominal_types.is_empty()
                         || !return_info.payload_variants.is_empty()
                         || !return_info.tuple_items.is_empty()
+                        || !return_info.trait_bounds.is_empty()
                     {
                         symbols
                             .function_returns
@@ -1796,6 +1813,7 @@ fn collect_module_symbols(
                             || !return_info.nominal_types.is_empty()
                             || !return_info.payload_variants.is_empty()
                             || !return_info.tuple_items.is_empty()
+                            || !return_info.trait_bounds.is_empty()
                         {
                             let method_name = normalized_ident(&method.sig.ident);
                             for receiver_type in &receiver_types {
@@ -1814,6 +1832,40 @@ fn collect_module_symbols(
                 }
             }
             _ => {}
+        }
+    }
+    let field_targets = symbols.field_targets.clone();
+    let tuple_field_targets = symbols.tuple_field_targets.clone();
+    let field_nominal_types = symbols.field_nominal_types.clone();
+    for info in std::sync::Arc::make_mut(&mut symbols.trait_method_returns).values_mut() {
+        for owner in info.nominal_types.clone() {
+            for ((candidate_owner, field), targets) in &field_targets {
+                if candidate_owner == &owner {
+                    info.field_items
+                        .entry(field.clone())
+                        .or_default()
+                        .flow
+                        .union(Flow::pools(targets));
+                }
+            }
+            for ((candidate_owner, field), targets) in &tuple_field_targets {
+                if candidate_owner == &owner {
+                    info.field_items
+                        .entry(field.clone())
+                        .or_default()
+                        .flow
+                        .union(Flow::pools(targets));
+                }
+            }
+            for ((candidate_owner, field), nominal_types) in &field_nominal_types {
+                if candidate_owner == &owner {
+                    info.field_items
+                        .entry(field.clone())
+                        .or_default()
+                        .nominal_types
+                        .extend(nominal_types.iter().cloned());
+                }
+            }
         }
     }
     symbols
@@ -2027,6 +2079,7 @@ struct BodyAnalyzer<'a, 'b> {
     local_path_alias_scopes: Vec<BTreeMap<String, Vec<String>>>,
     anonymous_trait_scopes: Vec<BTreeSet<String>>,
     generic_trait_bounds: BTreeMap<String, BTreeSet<String>>,
+    flow_cache: std::cell::RefCell<BTreeMap<usize, Flow>>,
 }
 
 struct DirectChildFlowCollector<'analyzer, 'a, 'b> {
@@ -2069,6 +2122,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             local_path_alias_scopes: vec![BTreeMap::new()],
             anonymous_trait_scopes: vec![BTreeSet::new()],
             generic_trait_bounds: BTreeMap::new(),
+            flow_cache: std::cell::RefCell::new(BTreeMap::new()),
         }
     }
 
@@ -2231,6 +2285,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
     }
 
     fn bind(&mut self, name: String, info: VariableInfo) {
+        self.flow_cache.get_mut().clear();
         self.scopes
             .last_mut()
             .expect("body analyzer always has a scope")
@@ -2238,6 +2293,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
     }
 
     fn assign(&mut self, name: &str, info: VariableInfo) {
+        self.flow_cache.get_mut().clear();
         if let Some(scope) = self
             .scopes
             .iter_mut()
@@ -2273,7 +2329,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         if receiver_types.is_empty() {
             trait_bounds.extend(self.shallow_trait_bounds_of_expr(&method.receiver));
         }
-        for receiver_type in receiver_types {
+        for receiver_type in &receiver_types {
             if let Some(info) =
                 self.symbols
                     .method_returns
@@ -2283,7 +2339,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 continue;
             }
             for ((owner, trait_name, candidate), info) in &self.symbols.method_returns {
-                if owner == &receiver_type
+                if owner == receiver_type
                     && trait_name
                         .as_ref()
                         .is_some_and(|trait_name| self.trait_is_in_scope(trait_name))
@@ -2312,6 +2368,10 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 result.union(info);
             }
         }
+        if result.nominal_types.remove("Self") {
+            result.nominal_types.extend(receiver_types);
+            result.trait_bounds.extend(expanded_trait_bounds);
+        }
         if method_name == "recv" {
             result
                 .payload_variants
@@ -2338,6 +2398,15 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             Expr::Unary(unary) if matches!(unary.op, syn::UnOp::Deref(_)) => {
                 self.shallow_trait_bounds_of_expr(&unary.expr)
             }
+            Expr::Call(call) => match call.func.as_ref() {
+                Expr::Path(path) if path.path.segments.len() == 1 => last_path_name(&path.path)
+                    .and_then(|name| self.symbols.function_returns.get(&name))
+                    .map(|info| info.trait_bounds.clone())
+                    .unwrap_or_default(),
+                Expr::Path(path) => self.associated_return_info(path).trait_bounds,
+                _ => BTreeSet::new(),
+            },
+            Expr::MethodCall(method) => self.method_return_info(method).trait_bounds,
             _ => BTreeSet::new(),
         }
     }
@@ -2436,6 +2505,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 || !return_info.nominal_types.is_empty()
                 || !return_info.payload_variants.is_empty()
                 || !return_info.tuple_items.is_empty()
+                || !return_info.trait_bounds.is_empty()
             {
                 return return_info;
             }
@@ -2477,8 +2547,19 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 nominal_types: return_info.nominal_types,
                 payload_variants: return_info.payload_variants,
                 tuple_items: return_info.tuple_items,
+                field_items: return_info.field_items,
                 trait_bounds: return_info.trait_bounds,
             };
+        }
+        if let Expr::Field(field) = expression {
+            let field_name = match &field.member {
+                Member::Named(ident) => normalized_ident(ident),
+                Member::Unnamed(index) => index.index.to_string(),
+            };
+            let base_info = self.info_from_expr(&field.base);
+            if let Some(info) = base_info.field_items.get(&field_name) {
+                return info.clone();
+            }
         }
         if let Expr::Call(call) = expression
             && let Expr::Path(path) = call.func.as_ref()
@@ -2503,6 +2584,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 nominal_types,
                 payload_variants: payload_variants_in_path(&path.path, self.symbols),
                 tuple_items: Vec::new(),
+                field_items: BTreeMap::new(),
                 trait_bounds: BTreeSet::new(),
             };
         }
@@ -2524,6 +2606,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             nominal_types: BTreeSet::new(),
             payload_variants: BTreeSet::new(),
             tuple_items: Vec::new(),
+            field_items: BTreeMap::new(),
             trait_bounds: BTreeSet::new(),
         }
     }
@@ -2913,6 +2996,9 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             Member::Unnamed(index) => index.index.to_string(),
         };
         let mut targets = TargetSet::new();
+        if let Some(info) = self.info_from_expr(&field.base).field_items.get(&name) {
+            targets.extend(info.flow.pool_targets());
+        }
         for owner in self.nominal_types_of_expr(&field.base) {
             let field_targets = match &field.member {
                 Member::Named(_) => self.symbols.field_targets.get(&(owner, name.clone())),
@@ -3021,6 +3107,16 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
     }
 
     fn flow_of_expr(&self, expression: &Expr) -> Flow {
+        let key = expression as *const Expr as usize;
+        if let Some(flow) = self.flow_cache.borrow().get(&key) {
+            return flow.clone();
+        }
+        let flow = self.compute_flow_of_expr(expression);
+        self.flow_cache.borrow_mut().insert(key, flow.clone());
+        flow
+    }
+
+    fn compute_flow_of_expr(&self, expression: &Expr) -> Flow {
         match expression {
             Expr::Path(path) => self.flow_of_path(path),
             Expr::Field(field) => self.field_flow(field),
@@ -3053,6 +3149,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 flow
             }
             Expr::Block(block) => implicit_tail_flow(&block.block, self),
+            Expr::Async(async_expression) => self.flow_in_block(&async_expression.block),
             Expr::Tuple(tuple) => {
                 let mut flow = Flow::default();
                 for element in &tuple.elems {
@@ -4971,6 +5068,55 @@ pub(crate) fn inventory_persistence_accesses(
     let mut seen_mounts = BTreeSet::new();
     let mut accumulator = AccessAccumulator::default();
     let mut errors = Vec::new();
+    let mut trait_registries = BTreeMap::<
+        (String, PersistenceSourceClass),
+        (
+            BTreeMap<(String, String), VariableInfo>,
+            BTreeMap<String, BTreeSet<String>>,
+        ),
+    >::new();
+    // Trait declarations and their consumers may live in different physical
+    // files (`mod maker;`). Build a package-wide, cfg-aware signature registry
+    // before analyzing any body so source order cannot hide bounded returns.
+    for source in &ordered {
+        let Ok(syntax) = syn::parse_file(source.source) else {
+            continue;
+        };
+        let cfg = extend_cfg_context(source.inherited_cfg, &syntax.attrs);
+        for source_class in [
+            PersistenceSourceClass::Production,
+            PersistenceSourceClass::TestFixture,
+        ] {
+            if !source_class_allows(source_class, &cfg, &[], &mut errors, "source file") {
+                continue;
+            }
+            let symbols = collect_module_symbols(
+                &syntax.items,
+                None,
+                source.package,
+                source.module,
+                &cfg,
+                source_class,
+                &mut errors,
+            );
+            let registry = trait_registries
+                .entry((source.package.to_owned(), source_class))
+                .or_default();
+            registry.0.extend(
+                symbols
+                    .trait_method_returns
+                    .iter()
+                    .map(|(key, info)| (key.clone(), info.clone())),
+            );
+            for (trait_path, supertraits) in symbols.trait_supertraits.iter() {
+                registry
+                    .1
+                    .entry(trait_path.clone())
+                    .or_default()
+                    .extend(supertraits.iter().cloned());
+            }
+        }
+    }
     for source in ordered {
         if source.classification.is_empty()
             || source.package.is_empty()
@@ -5044,6 +5190,13 @@ pub(crate) fn inventory_persistence_accesses(
             if !enabled {
                 continue;
             }
+            let mut package_symbols = ModuleSymbols::for_package(source.package);
+            if let Some((methods, supertraits)) =
+                trait_registries.get(&(source.package.to_owned(), source_class))
+            {
+                package_symbols.trait_method_returns = std::sync::Arc::new(methods.clone());
+                package_symbols.trait_supertraits = std::sync::Arc::new(supertraits.clone());
+            }
             analyze_module_items(
                 &syntax.items,
                 RecordContext {
@@ -5053,7 +5206,7 @@ pub(crate) fn inventory_persistence_accesses(
                     module: source.module,
                     source: source.source_path,
                 },
-                None,
+                Some(&package_symbols),
                 cfg.clone(),
                 &mut accumulator,
                 &mut errors,
@@ -5236,6 +5389,40 @@ mod tests {
         let aliases = symbols.path_aliases.clone();
         assert!(!apply_import_symbols(&item_use, &mut symbols));
         assert_eq!(symbols.path_aliases, aliases);
+    }
+
+    #[test]
+    fn persistence_inventory_resolves_trait_signatures_across_source_files() {
+        let declaration = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "fixture",
+            module: "crate::maker",
+            source_path: "src/maker.rs",
+            inherited_cfg: &[],
+            source: r#"
+                pub struct Holder(pub wow_database::CharacterDatabase);
+                pub trait Maker { fn make(&self) -> Holder; }
+            "#,
+        };
+        let consumer = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "fixture",
+            module: "crate::consumer",
+            source_path: "src/consumer.rs",
+            inherited_cfg: &[],
+            source: r#"
+                fn cross_file_persistent(factory: &dyn crate::maker::Maker) {
+                    consume(factory.make().0.pool());
+                }
+            "#,
+        };
+
+        let baseline = inventory_persistence_accesses(&[consumer, declaration]).unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn cross_file_persistent"
+                && row.target == PersistenceTarget::CharacterDatabase
+                && row.operation == PersistenceOperation::PoolAccess
+        }));
     }
 
     #[test]
@@ -5820,10 +6007,12 @@ mod tests {
                 mod db_trait {
                     pub trait Maker { fn make(&self) -> super::Holder; }
                     pub trait Derived: Maker {}
+                    pub trait Chained: Maker + Sized { fn again(&self) -> Self; }
                 }
                 mod plain_trait {
                     pub trait Maker { fn make(&self) -> u8; }
                     pub trait Derived: Maker {}
+                    pub trait Chained: Maker + Sized { fn again(&self) -> Self; }
                 }
                 impl crate::db_trait::Maker for TraitFactory {
                     fn make(&self) -> Holder { unreachable!() }
@@ -5864,6 +6053,37 @@ mod tests {
                 }
                 fn dyn_supertrait_clean(factory: &dyn plain_trait::Derived) {
                     consume(factory.make());
+                }
+                fn self_return_persistent<T: db_trait::Chained>(factory: &T) {
+                    consume(factory.again().make().0.pool());
+                }
+                fn self_return_clean<T: plain_trait::Chained>(factory: &T) {
+                    consume(factory.again().make());
+                }
+                fn persistent_provider() -> impl db_trait::Maker { unreachable!() }
+                fn plain_provider() -> impl plain_trait::Maker { unreachable!() }
+                fn impl_trait_function_persistent() {
+                    consume(persistent_provider().make().0.pool());
+                }
+                fn impl_trait_function_clean() {
+                    consume(plain_provider().make());
+                }
+                struct Provider;
+                impl Provider {
+                    fn persistent(&self) -> impl db_trait::Maker { unreachable!() }
+                    fn plain(&self) -> impl plain_trait::Maker { unreachable!() }
+                }
+                fn impl_trait_method_persistent(provider: &Provider) {
+                    consume(provider.persistent().make().0.pool());
+                }
+                fn impl_trait_method_clean(provider: &Provider) {
+                    consume(provider.plain().make());
+                }
+                mod namespace_self_scope {
+                    use crate::db_trait::{self};
+                    fn namespace_self_persistent(factory: &dyn db_trait::Maker) {
+                        consume(factory.make().0.pool());
+                    }
                 }
                 struct ImplBound<T>(T);
                 impl<T> ImplBound<T>
@@ -5977,6 +6197,9 @@ mod tests {
                     | "fn dyn_trait_clean"
                     | "fn generic_trait_clean"
                     | "fn dyn_supertrait_clean"
+                    | "fn self_return_clean"
+                    | "fn impl_trait_function_clean"
+                    | "fn impl_trait_method_clean"
             )),
             "named fields on unrelated owner types must not contaminate receiver identity: {:#?}",
             field_owner_collision.accesses
@@ -6001,6 +6224,10 @@ mod tests {
             "fn generic_trait_persistent",
             "fn where_trait_persistent",
             "fn dyn_supertrait_persistent",
+            "fn self_return_persistent",
+            "fn impl_trait_function_persistent",
+            "fn impl_trait_method_persistent",
+            "fn namespace_self_persistent",
             "impl ImplBound < T >::impl_bound_persistent",
         ] {
             assert!(
