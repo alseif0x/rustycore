@@ -1516,10 +1516,10 @@ fn collect_nested_trait_returns(
                             || !info.tuple_items.is_empty()
                             || !info.trait_bounds.is_empty()
                         {
-                            std::sync::Arc::make_mut(&mut symbols.trait_method_returns).insert(
-                                (trait_path.clone(), normalized_ident(&method.sig.ident)),
-                                info,
-                            );
+                            std::sync::Arc::make_mut(&mut symbols.trait_method_returns)
+                                .entry((trait_path.clone(), normalized_ident(&method.sig.ident)))
+                                .or_default()
+                                .union(&info);
                         }
                     }
                 }
@@ -1839,7 +1839,9 @@ fn collect_module_symbols(
                     {
                         symbols
                             .function_returns
-                            .insert(normalized_ident(&function.sig.ident), return_info);
+                            .entry(normalized_ident(&function.sig.ident))
+                            .or_default()
+                            .union(&return_info);
                     }
                 }
             }
@@ -2220,8 +2222,8 @@ struct BodyAnalyzer<'a, 'b> {
     local_path_alias_scopes: Vec<BTreeMap<String, Vec<String>>>,
     anonymous_trait_scopes: Vec<BTreeSet<String>>,
     generic_trait_bounds: BTreeMap<String, BTreeSet<String>>,
-    flow_cache: std::cell::RefCell<BTreeMap<(String, u64), Flow>>,
-    subtree_flow_cache: std::cell::RefCell<BTreeMap<(String, u64), Flow>>,
+    flow_cache: std::cell::RefCell<BTreeMap<(usize, u64), Flow>>,
+    subtree_flow_cache: std::cell::RefCell<BTreeMap<(usize, u64), Flow>>,
     context_version: u64,
 }
 
@@ -3296,7 +3298,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
     }
 
     fn flow_of_expr(&self, expression: &Expr) -> Flow {
-        let key = (normalized_tokens(expression), self.context_version);
+        let key = (expression as *const Expr as usize, self.context_version);
         if let Some(flow) = self.flow_cache.borrow().get(&key) {
             return flow.clone();
         }
@@ -3306,7 +3308,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
     }
 
     fn subtree_flow(&self, expression: &Expr) -> Flow {
-        let key = (normalized_tokens(expression), self.context_version);
+        let key = (expression as *const Expr as usize, self.context_version);
         if let Some(flow) = self.subtree_flow_cache.borrow().get(&key) {
             return flow.clone();
         }
@@ -3746,7 +3748,10 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             return;
         }
         let cfg = item_cfg(&self.cfg, &expression.attrs);
-        let flow = self.flow_of_expr(&Expr::Array(expression.clone()));
+        let mut flow = Flow::default();
+        for element in &expression.elems {
+            flow.union(self.subtree_flow(element));
+        }
         self.record_pool_escape(
             &flow,
             PersistenceOperation::ArgumentEscape,
@@ -5708,6 +5713,60 @@ mod tests {
                 .iter()
                 .any(|row| row.enclosing == "fn cross_file_clean")
         );
+    }
+
+    #[test]
+    fn persistence_inventory_unions_cfg_alternative_trait_signatures() {
+        let baseline = inventory(
+            r#"
+                struct Holder(wow_database::CharacterDatabase);
+
+                #[cfg(feature = "database")]
+                trait Maker { fn make(&self) -> Holder; }
+
+                #[cfg(not(feature = "database"))]
+                trait Maker { fn make(&self) -> u8; }
+
+                #[cfg(feature = "database")]
+                fn persistent(factory: &dyn Maker) {
+                    consume(factory.make().0.pool());
+                }
+            "#,
+        )
+        .unwrap();
+
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent"
+                && row.target == PersistenceTarget::CharacterDatabase
+                && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_unions_cfg_alternative_function_signatures() {
+        let baseline = inventory(
+            r#"
+                struct Holder(wow_database::CharacterDatabase);
+
+                #[cfg(feature = "database")]
+                fn make() -> Holder { todo!() }
+
+                #[cfg(not(feature = "database"))]
+                fn make() -> u8 { 0 }
+
+                #[cfg(feature = "database")]
+                fn persistent() {
+                    consume(make().0.pool());
+                }
+            "#,
+        )
+        .unwrap();
+
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent"
+                && row.target == PersistenceTarget::CharacterDatabase
+                && row.operation == PersistenceOperation::PoolAccess
+        }));
     }
 
     #[test]
