@@ -383,6 +383,64 @@
       "stable_boundary": false
     },
     {
+      "id": "workflow:bnet-server:crate::rest::handlers:crates/bnet-server/src/rest/handlers.rs::fn create_login_ticket",
+      "source_class": "production",
+      "packages": [
+        "bnet-server"
+      ],
+      "sources": [
+        "crates/bnet-server/src/rest/handlers.rs"
+      ],
+      "source_prefixes": [],
+      "enclosings": [
+        "fn create_login_ticket"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "login"
+      ],
+      "capability_owner": "BNet authentication capability currently owns the complete bnet-server workflow fn create_login_ticket in crates/bnet-server/src/rest/handlers.rs.",
+      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153
+      ],
+      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:bnet-server:crate::rest::handlers:crates/bnet-server/src/rest/handlers.rs::fn get_form",
+      "source_class": "production",
+      "packages": [
+        "bnet-server"
+      ],
+      "sources": [
+        "crates/bnet-server/src/rest/handlers.rs"
+      ],
+      "source_prefixes": [],
+      "enclosings": [
+        "fn get_form"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "login"
+      ],
+      "capability_owner": "BNet authentication capability currently owns the complete bnet-server workflow fn get_form in crates/bnet-server/src/rest/handlers.rs.",
+      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153
+      ],
+      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
       "id": "workflow:bnet-server:crate::rest::handlers:crates/bnet-server/src/rest/handlers.rs::fn get_game_accounts",
       "source_class": "production",
       "packages": [
@@ -402,6 +460,35 @@
         "login"
       ],
       "capability_owner": "BNet authentication capability currently owns the complete bnet-server workflow fn get_game_accounts in crates/bnet-server/src/rest/handlers.rs.",
+      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153
+      ],
+      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:bnet-server:crate::rest::handlers:crates/bnet-server/src/rest/handlers.rs::fn get_portal",
+      "source_class": "production",
+      "packages": [
+        "bnet-server"
+      ],
+      "sources": [
+        "crates/bnet-server/src/rest/handlers.rs"
+      ],
+      "source_prefixes": [],
+      "enclosings": [
+        "fn get_portal"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "login"
+      ],
+      "capability_owner": "BNet authentication capability currently owns the complete bnet-server workflow fn get_portal in crates/bnet-server/src/rest/handlers.rs.",
       "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
@@ -528,6 +615,35 @@
       "stable_boundary": false
     },
     {
+      "id": "workflow:bnet-server:crate::rest::handlers:crates/bnet-server/src/rest/handlers.rs::fn route",
+      "source_class": "production",
+      "packages": [
+        "bnet-server"
+      ],
+      "sources": [
+        "crates/bnet-server/src/rest/handlers.rs"
+      ],
+      "source_prefixes": [],
+      "enclosings": [
+        "fn route"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "login"
+      ],
+      "capability_owner": "BNet authentication capability currently owns the complete bnet-server workflow fn route in crates/bnet-server/src/rest/handlers.rs.",
+      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153
+      ],
+      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
       "id": "workflow:bnet-server:crate::rest::handlers:crates/bnet-server/src/rest/handlers.rs::fn store_login_ticket",
       "source_class": "production",
       "packages": [
@@ -547,6 +663,35 @@
         "login"
       ],
       "capability_owner": "BNet authentication capability currently owns the complete bnet-server workflow fn store_login_ticket in crates/bnet-server/src/rest/handlers.rs.",
+      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153
+      ],
+      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:bnet-server:crate::rest::handlers:crates/bnet-server/src/rest/handlers.rs::fn wrong_password_remote_ip_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "bnet-server"
+      ],
+      "sources": [
+        "crates/bnet-server/src/rest/handlers.rs"
+      ],
+      "source_prefixes": [],
+      "enclosings": [
+        "fn wrong_password_remote_ip_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "login"
+      ],
+      "capability_owner": "BNet authentication capability currently owns the complete bnet-server workflow fn wrong_password_remote_ip_like_cpp in crates/bnet-server/src/rest/handlers.rs.",
       "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
@@ -605,6 +750,35 @@
         "login"
       ],
       "capability_owner": "BNet authentication capability currently owns the complete bnet-server workflow fn handle_generate_web_credentials in crates/bnet-server/src/rpc/services/authentication.rs.",
+      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153
+      ],
+      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:bnet-server:crate::rpc::services::authentication:crates/bnet-server/src/rpc/services/authentication.rs::fn handle_logon",
+      "source_class": "production",
+      "packages": [
+        "bnet-server"
+      ],
+      "sources": [
+        "crates/bnet-server/src/rpc/services/authentication.rs"
+      ],
+      "source_prefixes": [],
+      "enclosings": [
+        "fn handle_logon"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "login"
+      ],
+      "capability_owner": "BNet authentication capability currently owns the complete bnet-server workflow fn handle_logon in crates/bnet-server/src/rpc/services/authentication.rs.",
       "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
@@ -731,6 +905,64 @@
       "stable_boundary": false
     },
     {
+      "id": "workflow:bnet-server:crate::rpc::services::game_utilities:crates/bnet-server/src/rpc/services/game_utilities.rs::fn get_last_char_played",
+      "source_class": "production",
+      "packages": [
+        "bnet-server"
+      ],
+      "sources": [
+        "crates/bnet-server/src/rpc/services/game_utilities.rs"
+      ],
+      "source_prefixes": [],
+      "enclosings": [
+        "fn get_last_char_played"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "login"
+      ],
+      "capability_owner": "BNet authentication capability currently owns the complete bnet-server workflow fn get_last_char_played in crates/bnet-server/src/rpc/services/game_utilities.rs.",
+      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153
+      ],
+      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:bnet-server:crate::rpc::services::game_utilities:crates/bnet-server/src/rpc/services/game_utilities.rs::fn get_realm_list",
+      "source_class": "production",
+      "packages": [
+        "bnet-server"
+      ],
+      "sources": [
+        "crates/bnet-server/src/rpc/services/game_utilities.rs"
+      ],
+      "source_prefixes": [],
+      "enclosings": [
+        "fn get_realm_list"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "login"
+      ],
+      "capability_owner": "BNet authentication capability currently owns the complete bnet-server workflow fn get_realm_list in crates/bnet-server/src/rpc/services/game_utilities.rs.",
+      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153
+      ],
+      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
       "id": "workflow:bnet-server:crate::rpc::services::game_utilities:crates/bnet-server/src/rpc/services/game_utilities.rs::fn get_realm_list_ticket",
       "source_class": "production",
       "packages": [
@@ -750,6 +982,35 @@
         "login"
       ],
       "capability_owner": "BNet authentication capability currently owns the complete bnet-server workflow fn get_realm_list_ticket in crates/bnet-server/src/rpc/services/game_utilities.rs.",
+      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153
+      ],
+      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:bnet-server:crate::rpc::services::game_utilities:crates/bnet-server/src/rpc/services/game_utilities.rs::fn handle_get_all_values_for_attribute",
+      "source_class": "production",
+      "packages": [
+        "bnet-server"
+      ],
+      "sources": [
+        "crates/bnet-server/src/rpc/services/game_utilities.rs"
+      ],
+      "source_prefixes": [],
+      "enclosings": [
+        "fn handle_get_all_values_for_attribute"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "login"
+      ],
+      "capability_owner": "BNet authentication capability currently owns the complete bnet-server workflow fn handle_get_all_values_for_attribute in crates/bnet-server/src/rpc/services/game_utilities.rs.",
       "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
@@ -1098,6 +1359,35 @@
         "characters"
       ],
       "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow const ITEM_GUID_DANGLING_REFERENCE_CLEANUP_STATEMENTS_LIKE_CPP in crates/world-server/src/main.rs.",
+      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153
+      ],
+      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:world-server:crate:crates/world-server/src/main.rs::fn canonical_map_update_tick_set_inactive_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "world-server"
+      ],
+      "sources": [
+        "crates/world-server/src/main.rs"
+      ],
+      "source_prefixes": [],
+      "enclosings": [
+        "fn canonical_map_update_tick_set_inactive_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn canonical_map_update_tick_set_inactive_like_cpp in crates/world-server/src/main.rs.",
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
@@ -2358,6 +2648,35 @@
         "characters"
       ],
       "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow impl RespawnDbRetryQueueLikeCpp::enqueue_latest in crates/world-server/src/main.rs.",
+      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153
+      ],
+      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:world-server:crate:crates/world-server/src/main.rs::impl RespawnDbRetryQueueLikeCpp::retry_failed",
+      "source_class": "production",
+      "packages": [
+        "world-server"
+      ],
+      "sources": [
+        "crates/world-server/src/main.rs"
+      ],
+      "source_prefixes": [],
+      "enclosings": [
+        "impl RespawnDbRetryQueueLikeCpp::retry_failed"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow impl RespawnDbRetryQueueLikeCpp::retry_failed in crates/world-server/src/main.rs.",
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
@@ -18544,6 +18863,38 @@
       "stable_boundary": false
     },
     {
+      "id": "workflow:wow-world:crate::handlers::group:crates/wow-world/src/handlers/group.rs::fn current_player_party_invite_map_instance_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-world"
+      ],
+      "sources": [
+        "crates/wow-world/src/handlers/group.rs"
+      ],
+      "source_prefixes": [],
+      "enclosings": [
+        "fn current_player_party_invite_map_instance_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "capability_owner": "group persistence/publication capability currently owns the complete wow-world workflow fn current_player_party_invite_map_instance_like_cpp in crates/wow-world/src/handlers/group.rs.",
+      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        187,
+        199
+      ],
+      "retirement_condition": "The annotated issues [187, 199] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
       "id": "workflow:wow-world:crate::handlers::group:crates/wow-world/src/handlers/group.rs::fn group_delete_statement_like_cpp",
       "source_class": "production",
       "packages": [
@@ -18834,6 +19185,38 @@
       ],
       "capability_owner": "group persistence/publication capability currently owns the complete wow-world workflow fn group_type_update_statement_like_cpp in crates/wow-world/src/handlers/group.rs.",
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        187,
+        199
+      ],
+      "retirement_condition": "The annotated issues [187, 199] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:wow-world:crate::handlers::group:crates/wow-world/src/handlers/group.rs::fn send_party_uninvite_result_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-world"
+      ],
+      "sources": [
+        "crates/wow-world/src/handlers/group.rs"
+      ],
+      "source_prefixes": [],
+      "enclosings": [
+        "fn send_party_uninvite_result_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "capability_owner": "group persistence/publication capability currently owns the complete wow-world workflow fn send_party_uninvite_result_like_cpp in crates/wow-world/src/handlers/group.rs.",
+      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
@@ -20155,6 +20538,37 @@
       "stable_boundary": false
     },
     {
+      "id": "workflow:wow-world:crate::handlers::quest:crates/wow-world/src/handlers/quest.rs::impl WorldSession::handle_quest_confirm_accept",
+      "source_class": "production",
+      "packages": [
+        "wow-world"
+      ],
+      "sources": [
+        "crates/wow-world/src/handlers/quest.rs"
+      ],
+      "source_prefixes": [],
+      "enclosings": [
+        "impl WorldSession::handle_quest_confirm_accept"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "capability_owner": "wow-world residual persistence boundary currently owns the complete wow-world workflow impl WorldSession::handle_quest_confirm_accept in crates/wow-world/src/handlers/quest.rs.",
+      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153
+      ],
+      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
       "id": "workflow:wow-world:crate::handlers::quest:crates/wow-world/src/handlers/quest.rs::impl WorldSession::handle_quest_giver_hello",
       "source_class": "production",
       "packages": [
@@ -20950,6 +21364,68 @@
       "stable_boundary": false
     },
     {
+      "id": "workflow:wow-world:crate::handlers::trainer:crates/wow-world/src/handlers/trainer.rs::fn trainer_spell_class_race_fit_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-world"
+      ],
+      "sources": [
+        "crates/wow-world/src/handlers/trainer.rs"
+      ],
+      "source_prefixes": [],
+      "enclosings": [
+        "fn trainer_spell_class_race_fit_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "capability_owner": "wow-world residual persistence boundary currently owns the complete wow-world workflow fn trainer_spell_class_race_fit_like_cpp in crates/wow-world/src/handlers/trainer.rs.",
+      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153
+      ],
+      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:wow-world:crate::handlers::trainer:crates/wow-world/src/handlers/trainer.rs::fn trainer_spell_product_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-world"
+      ],
+      "sources": [
+        "crates/wow-world/src/handlers/trainer.rs"
+      ],
+      "source_prefixes": [],
+      "enclosings": [
+        "fn trainer_spell_product_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "capability_owner": "wow-world residual persistence boundary currently owns the complete wow-world workflow fn trainer_spell_product_like_cpp in crates/wow-world/src/handlers/trainer.rs.",
+      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153
+      ],
+      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
       "id": "workflow:wow-world:crate::handlers::trainer:crates/wow-world/src/handlers/trainer.rs::impl WorldSession::handle_trainer_buy_spell",
       "source_class": "production",
       "packages": [
@@ -21644,6 +22120,37 @@
       ],
       "capability_owner": "Session residual persistence boundary currently owns the complete wow-world workflow fn run_legacy_creature_lifecycle_tick_once_like_cpp in crates/wow-world/src/session.rs.",
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153
+      ],
+      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:wow-world:crate::session:crates/wow-world/src/session.rs::impl RepresentedPlayerConditionContextLikeCpp::as_context",
+      "source_class": "production",
+      "packages": [
+        "wow-world"
+      ],
+      "sources": [
+        "crates/wow-world/src/session.rs"
+      ],
+      "source_prefixes": [],
+      "enclosings": [
+        "impl RepresentedPlayerConditionContextLikeCpp::as_context"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "capability_owner": "Session residual persistence boundary currently owns the complete wow-world workflow impl RepresentedPlayerConditionContextLikeCpp::as_context in crates/wow-world/src/session.rs.",
+      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
@@ -23838,6 +24345,36 @@
       "stable_boundary": false
     },
     {
+      "id": "workflow:wow-world:crate::session:crates/wow-world/src/session.rs::impl WorldSession::mark_current_player_save_to_db_committed_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-world"
+      ],
+      "sources": [
+        "crates/wow-world/src/session.rs"
+      ],
+      "source_prefixes": [],
+      "enclosings": [
+        "impl WorldSession::mark_current_player_save_to_db_committed_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "Player lifecycle persistence capability currently owns the complete wow-world workflow impl WorldSession::mark_current_player_save_to_db_committed_like_cpp in crates/wow-world/src/session.rs.",
+      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        187,
+        200
+      ],
+      "retirement_condition": "The annotated issues [187, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
       "id": "workflow:wow-world:crate::session:crates/wow-world/src/session.rs::impl WorldSession::mutate_and_persist_player_gold_exclusive_like_cpp",
       "source_class": "production",
       "packages": [
@@ -25118,6 +25655,262 @@
       "stable_boundary": false
     },
     {
+      "id": "workflow:wow-world:crate::spell_acquisition::application:crates/wow-world/src/spell_acquisition/application.rs::fn apply_player_spell_acquisition_non_packet_runtime_actions_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-world"
+      ],
+      "sources": [
+        "crates/wow-world/src/spell_acquisition/application.rs"
+      ],
+      "source_prefixes": [],
+      "enclosings": [
+        "fn apply_player_spell_acquisition_non_packet_runtime_actions_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "capability_owner": "durable player progression capability currently owns the complete wow-world workflow fn apply_player_spell_acquisition_non_packet_runtime_actions_like_cpp in crates/wow-world/src/spell_acquisition/application.rs.",
+      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153,
+        187
+      ],
+      "retirement_condition": "The annotated issues [153, 187] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:wow-world:crate::spell_acquisition::application:crates/wow-world/src/spell_acquisition/application.rs::fn apply_player_spell_acquisition_runtime_snapshot_with_before_actions_and_fault_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-world"
+      ],
+      "sources": [
+        "crates/wow-world/src/spell_acquisition/application.rs"
+      ],
+      "source_prefixes": [],
+      "enclosings": [
+        "fn apply_player_spell_acquisition_runtime_snapshot_with_before_actions_and_fault_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "capability_owner": "durable player progression capability currently owns the complete wow-world workflow fn apply_player_spell_acquisition_runtime_snapshot_with_before_actions_and_fault_like_cpp in crates/wow-world/src/spell_acquisition/application.rs.",
+      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153,
+        187
+      ],
+      "retirement_condition": "The annotated issues [153, 187] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:wow-world:crate::spell_acquisition::application:crates/wow-world/src/spell_acquisition/application.rs::fn apply_player_spell_acquisition_runtime_snapshot_with_fault_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-world"
+      ],
+      "sources": [
+        "crates/wow-world/src/spell_acquisition/application.rs"
+      ],
+      "source_prefixes": [],
+      "enclosings": [
+        "fn apply_player_spell_acquisition_runtime_snapshot_with_fault_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "capability_owner": "durable player progression capability currently owns the complete wow-world workflow fn apply_player_spell_acquisition_runtime_snapshot_with_fault_like_cpp in crates/wow-world/src/spell_acquisition/application.rs.",
+      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153,
+        187
+      ],
+      "retirement_condition": "The annotated issues [153, 187] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:wow-world:crate::spell_acquisition::application:crates/wow-world/src/spell_acquisition/application.rs::fn apply_prepared_player_spell_acquisition_actions_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-world"
+      ],
+      "sources": [
+        "crates/wow-world/src/spell_acquisition/application.rs"
+      ],
+      "source_prefixes": [],
+      "enclosings": [
+        "fn apply_prepared_player_spell_acquisition_actions_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "capability_owner": "durable player progression capability currently owns the complete wow-world workflow fn apply_prepared_player_spell_acquisition_actions_like_cpp in crates/wow-world/src/spell_acquisition/application.rs.",
+      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153,
+        187
+      ],
+      "retirement_condition": "The annotated issues [153, 187] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:wow-world:crate::spell_acquisition::application:crates/wow-world/src/spell_acquisition/application.rs::fn apply_prepared_player_spell_acquisition_before_save_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-world"
+      ],
+      "sources": [
+        "crates/wow-world/src/spell_acquisition/application.rs"
+      ],
+      "source_prefixes": [],
+      "enclosings": [
+        "fn apply_prepared_player_spell_acquisition_before_save_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "capability_owner": "durable player progression capability currently owns the complete wow-world workflow fn apply_prepared_player_spell_acquisition_before_save_like_cpp in crates/wow-world/src/spell_acquisition/application.rs.",
+      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153,
+        187
+      ],
+      "retirement_condition": "The annotated issues [153, 187] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:wow-world:crate::spell_acquisition::application:crates/wow-world/src/spell_acquisition/application.rs::fn apply_prepared_player_spell_acquisition_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-world"
+      ],
+      "sources": [
+        "crates/wow-world/src/spell_acquisition/application.rs"
+      ],
+      "source_prefixes": [],
+      "enclosings": [
+        "fn apply_prepared_player_spell_acquisition_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "capability_owner": "durable player progression capability currently owns the complete wow-world workflow fn apply_prepared_player_spell_acquisition_like_cpp in crates/wow-world/src/spell_acquisition/application.rs.",
+      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153,
+        187
+      ],
+      "retirement_condition": "The annotated issues [153, 187] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:wow-world:crate::spell_acquisition::application:crates/wow-world/src/spell_acquisition/application.rs::fn apply_prepared_player_spell_acquisition_with_before_actions_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-world"
+      ],
+      "sources": [
+        "crates/wow-world/src/spell_acquisition/application.rs"
+      ],
+      "source_prefixes": [],
+      "enclosings": [
+        "fn apply_prepared_player_spell_acquisition_with_before_actions_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "capability_owner": "durable player progression capability currently owns the complete wow-world workflow fn apply_prepared_player_spell_acquisition_with_before_actions_like_cpp in crates/wow-world/src/spell_acquisition/application.rs.",
+      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153,
+        187
+      ],
+      "retirement_condition": "The annotated issues [153, 187] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:wow-world:crate::spell_acquisition::application:crates/wow-world/src/spell_acquisition/application.rs::fn apply_prepared_player_spell_acquisition_with_fault_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-world"
+      ],
+      "sources": [
+        "crates/wow-world/src/spell_acquisition/application.rs"
+      ],
+      "source_prefixes": [],
+      "enclosings": [
+        "fn apply_prepared_player_spell_acquisition_with_fault_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "capability_owner": "durable player progression capability currently owns the complete wow-world workflow fn apply_prepared_player_spell_acquisition_with_fault_like_cpp in crates/wow-world/src/spell_acquisition/application.rs.",
+      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153,
+        187
+      ],
+      "retirement_condition": "The annotated issues [153, 187] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
       "id": "workflow:wow-world:crate::spell_acquisition::application:crates/wow-world/src/spell_acquisition/application.rs::fn execute_player_spell_acquisition_operation_like_cpp",
       "source_class": "production",
       "packages": [
@@ -25140,6 +25933,70 @@
       "connection_affinity": "The workflow preserves one explicit characters connection/transaction across its current statement sequence.",
       "current_order": "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.",
       "failure_and_unknown_commit": "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.",
+      "target_issues": [
+        153,
+        187
+      ],
+      "retirement_condition": "The annotated issues [153, 187] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:wow-world:crate::spell_acquisition::application:crates/wow-world/src/spell_acquisition/application.rs::fn install_prepared_player_spell_acquisition_actions_runtime_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-world"
+      ],
+      "sources": [
+        "crates/wow-world/src/spell_acquisition/application.rs"
+      ],
+      "source_prefixes": [],
+      "enclosings": [
+        "fn install_prepared_player_spell_acquisition_actions_runtime_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "capability_owner": "durable player progression capability currently owns the complete wow-world workflow fn install_prepared_player_spell_acquisition_actions_runtime_like_cpp in crates/wow-world/src/spell_acquisition/application.rs.",
+      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153,
+        187
+      ],
+      "retirement_condition": "The annotated issues [153, 187] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:wow-world:crate::spell_acquisition::application:crates/wow-world/src/spell_acquisition/application.rs::fn install_prepared_player_spell_acquisition_runtime_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-world"
+      ],
+      "sources": [
+        "crates/wow-world/src/spell_acquisition/application.rs"
+      ],
+      "source_prefixes": [],
+      "enclosings": [
+        "fn install_prepared_player_spell_acquisition_runtime_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "capability_owner": "durable player progression capability currently owns the complete wow-world workflow fn install_prepared_player_spell_acquisition_runtime_like_cpp in crates/wow-world/src/spell_acquisition/application.rs.",
+      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
         153,
         187
@@ -25238,6 +26095,70 @@
       "stable_boundary": false
     },
     {
+      "id": "workflow:wow-world:crate::spell_acquisition::application:crates/wow-world/src/spell_acquisition/application.rs::fn preflight_player_spell_acquisition_runtime_owners_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-world"
+      ],
+      "sources": [
+        "crates/wow-world/src/spell_acquisition/application.rs"
+      ],
+      "source_prefixes": [],
+      "enclosings": [
+        "fn preflight_player_spell_acquisition_runtime_owners_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "capability_owner": "durable player progression capability currently owns the complete wow-world workflow fn preflight_player_spell_acquisition_runtime_owners_like_cpp in crates/wow-world/src/spell_acquisition/application.rs.",
+      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153,
+        187
+      ],
+      "retirement_condition": "The annotated issues [153, 187] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:wow-world:crate::spell_acquisition::application:crates/wow-world/src/spell_acquisition/application.rs::fn publish_player_spell_acquisition_actions_with_fault_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-world"
+      ],
+      "sources": [
+        "crates/wow-world/src/spell_acquisition/application.rs"
+      ],
+      "source_prefixes": [],
+      "enclosings": [
+        "fn publish_player_spell_acquisition_actions_with_fault_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "capability_owner": "durable player progression capability currently owns the complete wow-world workflow fn publish_player_spell_acquisition_actions_with_fault_like_cpp in crates/wow-world/src/spell_acquisition/application.rs.",
+      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153,
+        187
+      ],
+      "retirement_condition": "The annotated issues [153, 187] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
       "id": "workflow:wow-world:crate::spell_acquisition::application:crates/wow-world/src/spell_acquisition/application.rs::fn read_durable_authority_in_transaction_like_cpp",
       "source_class": "production",
       "packages": [
@@ -25328,6 +26249,38 @@
       "stable_boundary": false
     },
     {
+      "id": "workflow:wow-world:crate::spell_acquisition::application:crates/wow-world/src/spell_acquisition/application.rs::fn require_prepared_session_character_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-world"
+      ],
+      "sources": [
+        "crates/wow-world/src/spell_acquisition/application.rs"
+      ],
+      "source_prefixes": [],
+      "enclosings": [
+        "fn require_prepared_session_character_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "capability_owner": "durable player progression capability currently owns the complete wow-world workflow fn require_prepared_session_character_like_cpp in crates/wow-world/src/spell_acquisition/application.rs.",
+      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153,
+        187
+      ],
+      "retirement_condition": "The annotated issues [153, 187] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
       "id": "workflow:wow-world:crate::spell_acquisition::application:crates/wow-world/src/spell_acquisition/application.rs::fn rollback_player_spell_acquisition_like_cpp",
       "source_class": "production",
       "packages": [
@@ -25378,6 +26331,70 @@
       ],
       "capability_owner": "durable player progression capability currently owns the complete wow-world workflow fn validate_prepared_character_counter_like_cpp in crates/wow-world/src/spell_acquisition/application.rs.",
       "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153,
+        187
+      ],
+      "retirement_condition": "The annotated issues [153, 187] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:wow-world:crate::spell_acquisition::application:crates/wow-world/src/spell_acquisition/application.rs::fn validate_prepared_player_spell_acquisition_actions_runtime_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-world"
+      ],
+      "sources": [
+        "crates/wow-world/src/spell_acquisition/application.rs"
+      ],
+      "source_prefixes": [],
+      "enclosings": [
+        "fn validate_prepared_player_spell_acquisition_actions_runtime_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "capability_owner": "durable player progression capability currently owns the complete wow-world workflow fn validate_prepared_player_spell_acquisition_actions_runtime_like_cpp in crates/wow-world/src/spell_acquisition/application.rs.",
+      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153,
+        187
+      ],
+      "retirement_condition": "The annotated issues [153, 187] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:wow-world:crate::spell_acquisition::application:crates/wow-world/src/spell_acquisition/application.rs::fn validate_prepared_player_spell_acquisition_runtime_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "wow-world"
+      ],
+      "sources": [
+        "crates/wow-world/src/spell_acquisition/application.rs"
+      ],
+      "source_prefixes": [],
+      "enclosings": [
+        "fn validate_prepared_player_spell_acquisition_runtime_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "capability_owner": "durable player progression capability currently owns the complete wow-world workflow fn validate_prepared_player_spell_acquisition_runtime_like_cpp in crates/wow-world/src/spell_acquisition/application.rs.",
+      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
@@ -25533,13 +26550,18 @@
         "wow-world"
       ],
       "sources": [
+        "crates/wow-world/src/battle_pet_purchase.rs",
         "crates/wow-world/src/handlers/character.rs",
         "crates/wow-world/src/handlers/character_vendor_atomicity_tests.rs",
+        "crates/wow-world/src/handlers/chat.rs",
         "crates/wow-world/src/handlers/group.rs",
         "crates/wow-world/src/handlers/loot.rs",
         "crates/wow-world/src/handlers/misc.rs",
+        "crates/wow-world/src/handlers/movement.rs",
         "crates/wow-world/src/handlers/quest.rs",
+        "crates/wow-world/src/handlers/spell.rs",
         "crates/wow-world/src/handlers/talent.rs",
+        "crates/wow-world/src/handlers/trainer.rs",
         "crates/wow-world/src/handlers/void_storage_tests.rs",
         "crates/wow-world/src/map_manager.rs",
         "crates/wow-world/src/reputation/mgr.rs",

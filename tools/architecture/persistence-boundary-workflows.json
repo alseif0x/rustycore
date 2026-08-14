@@ -12452,6 +12452,528 @@
         187
       ],
       "stable_boundary": false
+    },
+    {
+      "package": "bnet-server",
+      "module": "crate::rest::handlers",
+      "source": "crates/bnet-server/src/rest/handlers.rs",
+      "enclosing": "fn create_login_ticket",
+      "logical_databases": [
+        "login"
+      ],
+      "boundary": "BNet authentication capability",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "bnet-server",
+      "module": "crate::rest::handlers",
+      "source": "crates/bnet-server/src/rest/handlers.rs",
+      "enclosing": "fn get_form",
+      "logical_databases": [
+        "login"
+      ],
+      "boundary": "BNet authentication capability",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "bnet-server",
+      "module": "crate::rest::handlers",
+      "source": "crates/bnet-server/src/rest/handlers.rs",
+      "enclosing": "fn get_portal",
+      "logical_databases": [
+        "login"
+      ],
+      "boundary": "BNet authentication capability",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "bnet-server",
+      "module": "crate::rest::handlers",
+      "source": "crates/bnet-server/src/rest/handlers.rs",
+      "enclosing": "fn route",
+      "logical_databases": [
+        "login"
+      ],
+      "boundary": "BNet authentication capability",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "bnet-server",
+      "module": "crate::rest::handlers",
+      "source": "crates/bnet-server/src/rest/handlers.rs",
+      "enclosing": "fn wrong_password_remote_ip_like_cpp",
+      "logical_databases": [
+        "login"
+      ],
+      "boundary": "BNet authentication capability",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "bnet-server",
+      "module": "crate::rpc::services::authentication",
+      "source": "crates/bnet-server/src/rpc/services/authentication.rs",
+      "enclosing": "fn handle_logon",
+      "logical_databases": [
+        "login"
+      ],
+      "boundary": "BNet authentication capability",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "bnet-server",
+      "module": "crate::rpc::services::game_utilities",
+      "source": "crates/bnet-server/src/rpc/services/game_utilities.rs",
+      "enclosing": "fn get_last_char_played",
+      "logical_databases": [
+        "login"
+      ],
+      "boundary": "BNet authentication capability",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "bnet-server",
+      "module": "crate::rpc::services::game_utilities",
+      "source": "crates/bnet-server/src/rpc/services/game_utilities.rs",
+      "enclosing": "fn get_realm_list",
+      "logical_databases": [
+        "login"
+      ],
+      "boundary": "BNet authentication capability",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "bnet-server",
+      "module": "crate::rpc::services::game_utilities",
+      "source": "crates/bnet-server/src/rpc/services/game_utilities.rs",
+      "enclosing": "fn handle_get_all_values_for_attribute",
+      "logical_databases": [
+        "login"
+      ],
+      "boundary": "BNet authentication capability",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "world-server",
+      "module": "crate",
+      "source": "crates/world-server/src/main.rs",
+      "enclosing": "fn canonical_map_update_tick_set_inactive_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "world-server bootstrap/data-source boundary",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "world-server",
+      "module": "crate",
+      "source": "crates/world-server/src/main.rs",
+      "enclosing": "impl RespawnDbRetryQueueLikeCpp::retry_failed",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "world-server bootstrap/data-source boundary",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::handlers::group",
+      "source": "crates/wow-world/src/handlers/group.rs",
+      "enclosing": "fn current_player_party_invite_map_instance_like_cpp",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "group persistence/publication capability",
+      "target_issues": [
+        187,
+        199
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::handlers::group",
+      "source": "crates/wow-world/src/handlers/group.rs",
+      "enclosing": "fn send_party_uninvite_result_like_cpp",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "group persistence/publication capability",
+      "target_issues": [
+        187,
+        199
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::handlers::quest",
+      "source": "crates/wow-world/src/handlers/quest.rs",
+      "enclosing": "impl WorldSession::handle_quest_confirm_accept",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "wow-world residual persistence boundary",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::handlers::trainer",
+      "source": "crates/wow-world/src/handlers/trainer.rs",
+      "enclosing": "fn trainer_spell_class_race_fit_like_cpp",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "wow-world residual persistence boundary",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::handlers::trainer",
+      "source": "crates/wow-world/src/handlers/trainer.rs",
+      "enclosing": "fn trainer_spell_product_like_cpp",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "wow-world residual persistence boundary",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::session",
+      "source": "crates/wow-world/src/session.rs",
+      "enclosing": "impl RepresentedPlayerConditionContextLikeCpp::as_context",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "Session residual persistence boundary",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::session",
+      "source": "crates/wow-world/src/session.rs",
+      "enclosing": "impl WorldSession::mark_current_player_save_to_db_committed_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "Player lifecycle persistence capability",
+      "target_issues": [
+        187,
+        200
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::spell_acquisition::application",
+      "source": "crates/wow-world/src/spell_acquisition/application.rs",
+      "enclosing": "fn apply_player_spell_acquisition_non_packet_runtime_actions_like_cpp",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "durable player progression capability",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::spell_acquisition::application",
+      "source": "crates/wow-world/src/spell_acquisition/application.rs",
+      "enclosing": "fn apply_player_spell_acquisition_runtime_snapshot_with_before_actions_and_fault_like_cpp",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "durable player progression capability",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::spell_acquisition::application",
+      "source": "crates/wow-world/src/spell_acquisition/application.rs",
+      "enclosing": "fn apply_player_spell_acquisition_runtime_snapshot_with_fault_like_cpp",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "durable player progression capability",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::spell_acquisition::application",
+      "source": "crates/wow-world/src/spell_acquisition/application.rs",
+      "enclosing": "fn apply_prepared_player_spell_acquisition_actions_like_cpp",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "durable player progression capability",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::spell_acquisition::application",
+      "source": "crates/wow-world/src/spell_acquisition/application.rs",
+      "enclosing": "fn apply_prepared_player_spell_acquisition_before_save_like_cpp",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "durable player progression capability",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::spell_acquisition::application",
+      "source": "crates/wow-world/src/spell_acquisition/application.rs",
+      "enclosing": "fn apply_prepared_player_spell_acquisition_like_cpp",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "durable player progression capability",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::spell_acquisition::application",
+      "source": "crates/wow-world/src/spell_acquisition/application.rs",
+      "enclosing": "fn apply_prepared_player_spell_acquisition_with_before_actions_like_cpp",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "durable player progression capability",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::spell_acquisition::application",
+      "source": "crates/wow-world/src/spell_acquisition/application.rs",
+      "enclosing": "fn apply_prepared_player_spell_acquisition_with_fault_like_cpp",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "durable player progression capability",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::spell_acquisition::application",
+      "source": "crates/wow-world/src/spell_acquisition/application.rs",
+      "enclosing": "fn install_prepared_player_spell_acquisition_actions_runtime_like_cpp",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "durable player progression capability",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::spell_acquisition::application",
+      "source": "crates/wow-world/src/spell_acquisition/application.rs",
+      "enclosing": "fn install_prepared_player_spell_acquisition_runtime_like_cpp",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "durable player progression capability",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::spell_acquisition::application",
+      "source": "crates/wow-world/src/spell_acquisition/application.rs",
+      "enclosing": "fn preflight_player_spell_acquisition_runtime_owners_like_cpp",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "durable player progression capability",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::spell_acquisition::application",
+      "source": "crates/wow-world/src/spell_acquisition/application.rs",
+      "enclosing": "fn publish_player_spell_acquisition_actions_with_fault_like_cpp",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "durable player progression capability",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::spell_acquisition::application",
+      "source": "crates/wow-world/src/spell_acquisition/application.rs",
+      "enclosing": "fn require_prepared_session_character_like_cpp",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "durable player progression capability",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::spell_acquisition::application",
+      "source": "crates/wow-world/src/spell_acquisition/application.rs",
+      "enclosing": "fn validate_prepared_player_spell_acquisition_actions_runtime_like_cpp",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "durable player progression capability",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "wow-world",
+      "module": "crate::spell_acquisition::application",
+      "source": "crates/wow-world/src/spell_acquisition/application.rs",
+      "enclosing": "fn validate_prepared_player_spell_acquisition_runtime_like_cpp",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "durable player progression capability",
+      "target_issues": [
+        153,
+        187
+      ],
+      "stable_boundary": false
     }
   ]
 }
