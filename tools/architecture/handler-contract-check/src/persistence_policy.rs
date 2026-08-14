@@ -76,6 +76,12 @@ struct WorkflowAnnotations {
 #[serde(deny_unknown_fields)]
 struct WorkflowAnnotation {
     package: String,
+    // The canonical module belongs to the identity: one physical file can
+    // hold same-named persistence functions in different inline modules, and
+    // dropping it would merge their rows under a single annotation while
+    // assigning potentially different owners, ordering, and retirement
+    // conditions to the merged workflow.
+    module: String,
     source: String,
     enclosing: String,
     logical_databases: Vec<String>,
@@ -84,7 +90,7 @@ struct WorkflowAnnotation {
     stable_boundary: bool,
 }
 
-type WorkflowKey = (String, String, String);
+type WorkflowKey = (String, String, String, String);
 
 fn non_empty(value: &str) -> bool {
     !value.trim().is_empty()
@@ -108,8 +114,13 @@ fn load_annotations(path: &Path) -> Result<WorkflowAnnotations, String> {
     Ok(annotations)
 }
 
-fn workflow_key(package: &str, source: &str, enclosing: &str) -> WorkflowKey {
-    (package.to_owned(), source.to_owned(), enclosing.to_owned())
+fn workflow_key(package: &str, module: &str, source: &str, enclosing: &str) -> WorkflowKey {
+    (
+        package.to_owned(),
+        module.to_owned(),
+        source.to_owned(),
+        enclosing.to_owned(),
+    )
 }
 
 fn target_logical_database(target: PersistenceTarget) -> Option<&'static str> {
@@ -135,6 +146,7 @@ fn generate_policy(
             production_rows
                 .entry(workflow_key(
                     &access.package,
+                    &access.module,
                     &access.source,
                     &access.enclosing,
                 ))
@@ -153,6 +165,7 @@ fn generate_policy(
     for annotation in &annotations.workflows {
         let key = workflow_key(
             &annotation.package,
+            &annotation.module,
             &annotation.source,
             &annotation.enclosing,
         );
@@ -257,7 +270,7 @@ fn generate_policy(
     let mut groups = Vec::new();
     for (key, rows) in production_rows {
         let annotation = annotation_map[&key];
-        let (package, source, enclosing) = key;
+        let (package, module, source, enclosing) = key;
         let dependency_surface = matches!(enclosing.as_str(), "module")
             || enclosing.starts_with("struct ")
             || enclosing.starts_with("enum ")
@@ -317,7 +330,7 @@ fn generate_policy(
             "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.".to_owned()
         };
         groups.push(Group {
-            id: format!("workflow:{package}:{source}::{enclosing}"),
+            id: format!("workflow:{package}:{module}:{source}::{enclosing}"),
             source_class: "production".to_owned(),
             packages: vec![package.clone()],
             sources: vec![source.clone()],
@@ -733,6 +746,7 @@ mod tests {
     fn annotation(source: &str) -> WorkflowAnnotation {
         WorkflowAnnotation {
             package: "wow-world".to_owned(),
+            module: "crate::handlers::character".to_owned(),
             source: source.to_owned(),
             enclosing: "fn save".to_owned(),
             logical_databases: vec!["characters".to_owned()],
@@ -815,6 +829,59 @@ mod tests {
             generate_policy(&annotations, &mixed)
                 .expect_err("a newly typed logical database cannot be auto-authorized")
                 .contains("omits exact typed logical database login")
+        );
+    }
+
+    #[test]
+    fn generated_policy_distinguishes_same_named_workflows_across_modules() {
+        let source = "crates/wow-world/src/handlers/character.rs";
+        // One physical file with same-named persistence functions in two
+        // inline modules: the rows stay distinct by module, so the
+        // annotations must too, or owners/ordering/retirement would merge.
+        let mut inner_row = row(source);
+        inner_row.module = "crate::handlers::character::inner".to_owned();
+        let baseline = PersistenceAccessBaseline {
+            schema_version: 3,
+            accesses: vec![row(source), inner_row],
+        };
+        let mut inner_annotation = annotation(source);
+        inner_annotation.module = "crate::handlers::character::inner".to_owned();
+        inner_annotation.boundary = "Inner module persistence capability".to_owned();
+        let both = WorkflowAnnotations {
+            schema_version: 1,
+            workflows: vec![annotation(source), inner_annotation.clone()],
+        };
+        let policy = generate_policy(&both, &baseline).expect("both modules annotated");
+        assert!(policy
+            .groups
+            .iter()
+            .any(|group| group.id
+                == "workflow:wow-world:crate::handlers::character:crates/wow-world/src/handlers/character.rs::fn save"));
+        assert!(policy.groups.iter().any(|group| group.id
+            == "workflow:wow-world:crate::handlers::character::inner:crates/wow-world/src/handlers/character.rs::fn save"));
+
+        // An annotation missing the second module's identity fails closed.
+        let outer_only = WorkflowAnnotations {
+            schema_version: 1,
+            workflows: vec![annotation(source)],
+        };
+        assert!(
+            generate_policy(&outer_only, &baseline)
+                .expect_err("the inner-module workflow needs its own annotation")
+                .contains("has no annotation")
+        );
+
+        // And a stale module annotation does not merge into the outer one.
+        let mut stale_module = annotation(source);
+        stale_module.module = "crate::handlers::character::gone".to_owned();
+        let stale = WorkflowAnnotations {
+            schema_version: 1,
+            workflows: vec![annotation(source), stale_module],
+        };
+        assert!(
+            generate_policy(&stale, &baseline)
+                .expect_err("dead module annotations fail")
+                .contains("obsolete persistence workflow annotation")
         );
     }
 

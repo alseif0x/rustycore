@@ -77,6 +77,7 @@ const OPAQUE_PERSISTENCE_MACROS: &[&str] = &[
     "assert",
     "assert_eq",
     "assert_ne",
+    "bail",
     "debug",
     "debug_assert",
     "debug_assert_eq",
@@ -901,9 +902,18 @@ struct ModuleSymbols {
     named_type_info: std::sync::Arc<BTreeMap<String, VariableInfo>>,
     package_function_returns: std::sync::Arc<BTreeMap<String, VariableInfo>>,
     package_function_generic_params: std::sync::Arc<BTreeMap<String, Vec<String>>>,
+    // Package-wide registries for inherent impl methods (keyed by canonical
+    // crate-relative owner path): without them `factory.make()` only resolves
+    // when the impl lives in the same module as the call.
+    package_method_returns: std::sync::Arc<BTreeMap<(String, String), VariableInfo>>,
+    package_method_generic_params: std::sync::Arc<BTreeMap<(String, String), Vec<String>>>,
     sqlx_namespaces: BTreeSet<String>,
     database_namespaces: BTreeSet<String>,
     query_callables: BTreeSet<String>,
+    // `macro_rules!` definitions whose body already reaches concrete
+    // persistence: the definition is baselined once, and this registry makes
+    // every later invocation leave its own row too.
+    persistence_macros: BTreeMap<String, TargetSet>,
 }
 
 impl Default for ModuleSymbols {
@@ -939,9 +949,12 @@ impl Default for ModuleSymbols {
             named_type_info: std::sync::Arc::new(BTreeMap::new()),
             package_function_returns: std::sync::Arc::new(BTreeMap::new()),
             package_function_generic_params: std::sync::Arc::new(BTreeMap::new()),
+            package_method_returns: std::sync::Arc::new(BTreeMap::new()),
+            package_method_generic_params: std::sync::Arc::new(BTreeMap::new()),
             sqlx_namespaces: BTreeSet::from(["sqlx".to_owned()]),
             database_namespaces: BTreeSet::from(["wow_database".to_owned()]),
             query_callables: BTreeSet::new(),
+            persistence_macros: BTreeMap::new(),
         }
     }
 }
@@ -1961,6 +1974,29 @@ fn collect_module_symbols(
                     }
                 }
             }
+            Item::Macro(item_macro)
+                if source_class_allows(
+                    source_class,
+                    cfg,
+                    &item_macro.attrs,
+                    errors,
+                    "macro definition",
+                ) =>
+            {
+                // A `macro_rules!` whose body reaches concrete persistence is
+                // inventoried at its definition site, but that row covers the
+                // definition only: register the macro name so `audit_macro`
+                // inventories every later invocation instead of letting a new
+                // call site slip past both ratchets unannotated.
+                if let Some(name) = &item_macro.ident {
+                    let targets = targets_in_tokens(item_macro.mac.tokens.clone(), &symbols);
+                    if !targets.is_empty() {
+                        symbols
+                            .persistence_macros
+                            .insert(normalized_ident(name), targets);
+                    }
+                }
+            }
             Item::Fn(function)
                 if source_class_allows(source_class, cfg, &function.attrs, errors, "function") =>
             {
@@ -2774,6 +2810,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 result.union(&info);
                 continue;
             }
+            let mut trait_impl_hit = false;
             for ((owner, trait_name, candidate), info) in &self.symbols.method_returns {
                 if owner == receiver_type
                     && trait_name
@@ -2786,6 +2823,25 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                         trait_name.clone(),
                         candidate.clone(),
                     ));
+                    let info = self.apply_turbofish_args(info, params, method.turbofish.as_ref());
+                    result.union(&info);
+                    trait_impl_hit = true;
+                }
+            }
+            if !trait_impl_hit {
+                // Inherent impl declared in another source module: resolve
+                // through the package-wide registry keyed by canonical owner
+                // path, the same way free functions already resolve.
+                let owner_key = self.package_function_key(vec![receiver_type.clone()]);
+                if let Some(info) = self
+                    .symbols
+                    .package_method_returns
+                    .get(&(owner_key.clone(), method_name.clone()))
+                {
+                    let params = self
+                        .symbols
+                        .package_method_generic_params
+                        .get(&(owner_key, method_name.clone()));
                     let info = self.apply_turbofish_args(info, params, method.turbofish.as_ref());
                     result.union(&info);
                 }
@@ -2974,6 +3030,37 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                     .trait_method_generic_params
                     .get(&(trait_bound.clone(), method_name.clone()));
                 let info = self.apply_turbofish_args(&info, params, turbofish);
+                result.union(&info);
+            }
+        }
+        if result.flow.is_empty()
+            && result.nominal_types.is_empty()
+            && result.payload_variants.is_empty()
+            && result.tuple_items.is_empty()
+            && result.trait_bounds.is_empty()
+        {
+            // Inherent impl declared in another module
+            // (`crate::dto::Factory::make()`): the owner path is the callee
+            // path minus its method segment, resolved package-wide. No early
+            // return: `-> Self` returns still need the substitute below, and
+            // a persistence-typed owner path contributes its flow like the
+            // ordinary call fallback does.
+            let names = path_names(path);
+            let owner_key =
+                self.package_function_key(names[..names.len().saturating_sub(1)].to_vec());
+            if let Some(info) = self
+                .symbols
+                .package_method_returns
+                .get(&(owner_key.clone(), method_name.clone()))
+            {
+                let params = self
+                    .symbols
+                    .package_method_generic_params
+                    .get(&(owner_key, method_name.clone()));
+                let mut info = self.apply_turbofish_args(info, params, turbofish);
+                info.substitute_self(&receiver_types, &expanded);
+                info.flow
+                    .union(Flow::pools(&targets_for_path(path, self.symbols)));
                 result.union(&info);
             }
         }
@@ -3734,7 +3821,35 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 flow
             }
             name if FLOW_PASSTHROUGH_METHODS.contains(&name) => receiver,
-            _ => self.method_return_info(method).flow,
+            _ => {
+                // An unmodelled (external) method can transform or wrap a
+                // capability-carrying receiver without dropping the value,
+                // e.g. `Some(database).iter().next()` later unwrapped into
+                // `.pool()`. Keep only capability flow: query-stage flow and
+                // data containers (row results, fields, holders) reading
+                // scalars are ordinary data access already inventoried at the
+                // query/execute call sites, and unioning them would drown the
+                // ratchet in value_alias noise.
+                let mut flow = Flow(
+                    receiver
+                        .0
+                        .iter()
+                        .filter(|(target, stage)| {
+                            !matches!(stage, FlowStage::Query)
+                                && !matches!(
+                                    target,
+                                    PersistenceTarget::SqlResult
+                                        | PersistenceTarget::SqlFields
+                                        | PersistenceTarget::SqlQueryHolder
+                                        | PersistenceTarget::SqlQueryHolderResult
+                                )
+                        })
+                        .copied()
+                        .collect(),
+                );
+                flow.union(self.method_return_info(method).flow);
+                flow
+            }
         }
     }
 
@@ -3942,6 +4057,24 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             };
             for target in targets {
                 self.add_generated(
+                    target,
+                    PersistenceOperation::MacroReference,
+                    &name,
+                    &cfg,
+                    normalized_tokens(mac),
+                );
+            }
+            return;
+        }
+        if names.len() == 1
+            && let Some(targets) = self.symbols.persistence_macros.get(&name).cloned()
+        {
+            // Invocation of a registered persistence-generating `macro_rules!`:
+            // the definition row covers the body, but each call site must
+            // leave its own row so adding another invocation cannot bypass
+            // both ratchets without touching the generated artifacts.
+            for target in targets {
+                self.add(
                     target,
                     PersistenceOperation::MacroReference,
                     &name,
@@ -6073,6 +6206,13 @@ pub(crate) fn inventory_persistence_accesses(
         BTreeMap::<(String, PersistenceSourceClass), BTreeMap<String, VariableInfo>>::new();
     let mut function_generic_registries =
         BTreeMap::<(String, PersistenceSourceClass), BTreeMap<String, Vec<String>>>::new();
+    let mut method_registries = BTreeMap::<
+        (String, PersistenceSourceClass),
+        BTreeMap<(String, String), VariableInfo>,
+    >::new();
+    let mut method_generic_registries =
+        BTreeMap::<(String, PersistenceSourceClass), BTreeMap<(String, String), Vec<String>>>::new(
+        );
     // Trait declarations and their consumers may live in different physical
     // files (`mod maker;`). Build a package-wide, cfg-aware signature registry
     // before analyzing any body so source order cannot hide bounded returns.
@@ -6163,6 +6303,44 @@ pub(crate) fn inventory_persistence_accesses(
                 registry
                     .3
                     .entry(key.clone())
+                    .or_insert_with(|| generic_params.clone());
+            }
+            // Inherent (non-trait) impl methods also get a package-wide
+            // registry keyed by canonical owner path, so a call like
+            // `factory.make()` resolves when the impl lives in another module.
+            let method_registry = method_registries
+                .entry((source.package.to_owned(), source_class))
+                .or_default();
+            for ((owner, trait_name, method), info) in symbols.method_returns.iter() {
+                if trait_name.is_some() {
+                    continue;
+                }
+                let canonical_owner = if module_prefix.is_empty() {
+                    owner.clone()
+                } else {
+                    format!("{module_prefix}::{owner}")
+                };
+                method_registry
+                    .entry((canonical_owner, method.clone()))
+                    .or_default()
+                    .union(info);
+            }
+            let method_generic_registry = method_generic_registries
+                .entry((source.package.to_owned(), source_class))
+                .or_default();
+            for ((owner, trait_name, method), generic_params) in
+                symbols.method_generic_params.iter()
+            {
+                if trait_name.is_some() {
+                    continue;
+                }
+                let canonical_owner = if module_prefix.is_empty() {
+                    owner.clone()
+                } else {
+                    format!("{module_prefix}::{owner}")
+                };
+                method_generic_registry
+                    .entry((canonical_owner, method.clone()))
                     .or_insert_with(|| generic_params.clone());
             }
         }
@@ -6264,6 +6442,18 @@ pub(crate) fn inventory_persistence_accesses(
             );
             package_symbols.package_function_generic_params = std::sync::Arc::new(
                 function_generic_registries
+                    .get(&(source.package.to_owned(), source_class))
+                    .cloned()
+                    .unwrap_or_default(),
+            );
+            package_symbols.package_method_returns = std::sync::Arc::new(
+                method_registries
+                    .get(&(source.package.to_owned(), source_class))
+                    .cloned()
+                    .unwrap_or_default(),
+            );
+            package_symbols.package_method_generic_params = std::sync::Arc::new(
+                method_generic_registries
                     .get(&(source.package.to_owned(), source_class))
                     .cloned()
                     .unwrap_or_default(),
@@ -8664,5 +8854,107 @@ mod tests {
         assert!(!baseline.accesses.iter().any(|row| {
             row.enclosing == "fn clean" && row.operation == PersistenceOperation::AdvisoryLock
         }));
+    }
+
+    #[test]
+    fn persistence_inventory_resolves_inherent_methods_across_source_files() {
+        let dto = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "fixture",
+            module: "crate::dto",
+            source_path: "src/dto.rs",
+            inherited_cfg: &[],
+            source: r#"
+                pub type Db = wow_database::CharacterDatabase;
+                pub struct Factory;
+                impl Factory { pub fn make(&self) -> Db { unreachable!() } }
+            "#,
+        };
+        let consumer = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "fixture",
+            module: "crate::consumer",
+            source_path: "src/consumer.rs",
+            inherited_cfg: &[],
+            source: r#"
+                use crate::dto::Factory;
+                fn persistent(factory: &Factory) {
+                    consume(factory.make().pool());
+                }
+                fn persistent_qualified(factory: &Factory) {
+                    consume(crate::dto::Factory::make(factory).pool());
+                }
+            "#,
+        };
+
+        let baseline = inventory_persistence_accesses(&[consumer, dto]).unwrap();
+        for enclosing in ["fn persistent", "fn persistent_qualified"] {
+            assert!(
+                baseline.accesses.iter().any(|row| {
+                    row.enclosing == enclosing
+                        && row.target == PersistenceTarget::CharacterDatabase
+                        && row.operation == PersistenceOperation::PoolAccess
+                }),
+                "missing pool-access row for {enclosing}"
+            );
+        }
+    }
+
+    #[test]
+    fn persistence_inventory_preserves_receiver_flow_through_unmodeled_methods() {
+        let baseline = inventory(
+            r#"
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    let wrapped = Some(database).iter().next();
+                    consume(wrapped.unwrap().pool());
+                }
+                fn clean() {
+                    let wrapped = Some(1_u8).iter().next();
+                    consume(wrapped.unwrap());
+                }
+            "#,
+        )
+        .unwrap();
+
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent"
+                && row.target == PersistenceTarget::CharacterDatabase
+                && row.operation == PersistenceOperation::PoolAccess
+        }));
+        assert!(
+            !baseline
+                .accesses
+                .iter()
+                .any(|row| row.enclosing == "fn clean")
+        );
+    }
+
+    #[test]
+    fn persistence_inventory_inventories_every_registered_macro_invocation() {
+        let baseline = inventory(
+            r#"
+                macro_rules! hidden_query { () => { sqlx::query("SELECT 1") } }
+                fn persistent() {
+                    consume(hidden_query!());
+                }
+                fn clean() {
+                    consume(1_u8);
+                }
+            "#,
+        )
+        .unwrap();
+
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent"
+                && row.target == PersistenceTarget::Sqlx
+                && row.operation == PersistenceOperation::MacroReference
+                && row.symbol == "hidden_query"
+        }));
+        assert!(
+            !baseline
+                .accesses
+                .iter()
+                .any(|row| row.enclosing == "fn clean")
+        );
     }
 }
