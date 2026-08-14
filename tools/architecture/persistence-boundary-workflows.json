@@ -9161,6 +9161,19 @@
     {
       "package": "wow-world",
       "source": "crates/wow-world/src/handlers/quest.rs",
+      "enclosing": "impl WorldSession::handle_quest_giver_hello",
+      "logical_databases": [
+        "world"
+      ],
+      "boundary": "wow-world residual persistence boundary",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "wow-world",
+      "source": "crates/wow-world/src/handlers/quest.rs",
       "enclosing": "impl WorldSession::load_player_quests",
       "logical_databases": [
         "characters"
