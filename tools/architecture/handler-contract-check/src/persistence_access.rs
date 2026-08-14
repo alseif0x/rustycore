@@ -496,6 +496,20 @@ fn last_path_name(path: &syn::Path) -> Option<String> {
         .map(|segment| normalized_ident(&segment.ident))
 }
 
+/// Names of the type parameters declared by a signature (`fn make<T, U>`),
+/// in declaration order, so an explicit turbofish at the call site can be
+/// mapped positionally onto the recorded return.
+fn generic_type_param_names(generics: &syn::Generics) -> Vec<String> {
+    generics
+        .params
+        .iter()
+        .filter_map(|parameter| match parameter {
+            syn::GenericParam::Type(parameter) => Some(normalized_ident(&parameter.ident)),
+            _ => None,
+        })
+        .collect()
+}
+
 fn canonical_call(call: &ExprCall) -> String {
     let arguments = call
         .args
@@ -521,9 +535,13 @@ fn canonical_method(method: &ExprMethodCall) -> String {
 }
 
 fn sql_is_advisory_lock(fingerprint: &str) -> bool {
+    // Valid MySQL spells these functions in any case (`SELECT get_lock(...)`);
+    // a case-sensitive test would lose the AdvisoryLock identity and with it
+    // the connection-affinity fact the semantic ledger must preserve.
+    let normalized = fingerprint.to_ascii_uppercase();
     ["GET_LOCK", "RELEASE_LOCK", "IS_USED_LOCK"]
         .iter()
-        .any(|needle| fingerprint.contains(needle))
+        .any(|needle| normalized.contains(needle))
 }
 
 fn sqlx_calls_in_tokens(tokens: TokenStream, output: &mut Vec<(String, String)>) {
@@ -788,10 +806,7 @@ impl NominalShape {
 /// recorded argument carries its full `VariableInfo`, so the named-type
 /// registry data (flow, fields, payloads) of the concrete type arrives with
 /// the substitution.
-fn substitute_shape_params(
-    shape: &mut NominalShape,
-    map: &BTreeMap<String, VariableInfo>,
-) -> bool {
+fn substitute_shape_params(shape: &mut NominalShape, map: &BTreeMap<String, VariableInfo>) -> bool {
     let mut replaced = false;
     let original = std::mem::take(&mut shape.nominal_types);
     shape.nominal_types = original
@@ -873,11 +888,19 @@ struct ModuleSymbols {
     field_nominal_types: BTreeMap<(String, String), BTreeSet<String>>,
     function_returns: BTreeMap<String, VariableInfo>,
     method_returns: BTreeMap<(String, Option<String>, String), VariableInfo>,
+    // Generic parameter name lists, recorded next to the return registries so
+    // an explicit turbofish at the call site can be substituted into the
+    // recorded return instead of letting `make::<CharacterDatabase>()` bypass
+    // both ratchets.
+    function_generic_params: BTreeMap<String, Vec<String>>,
+    method_generic_params: BTreeMap<(String, Option<String>, String), Vec<String>>,
     trait_method_returns: std::sync::Arc<BTreeMap<(String, String), VariableInfo>>,
     trait_supertraits: std::sync::Arc<BTreeMap<String, BTreeSet<String>>>,
     trait_generic_params: std::sync::Arc<BTreeMap<String, Vec<String>>>,
+    trait_method_generic_params: std::sync::Arc<BTreeMap<(String, String), Vec<String>>>,
     named_type_info: std::sync::Arc<BTreeMap<String, VariableInfo>>,
     package_function_returns: std::sync::Arc<BTreeMap<String, VariableInfo>>,
+    package_function_generic_params: std::sync::Arc<BTreeMap<String, Vec<String>>>,
     sqlx_namespaces: BTreeSet<String>,
     database_namespaces: BTreeSet<String>,
     query_callables: BTreeSet<String>,
@@ -907,11 +930,15 @@ impl Default for ModuleSymbols {
             field_nominal_types: BTreeMap::new(),
             function_returns: BTreeMap::new(),
             method_returns: BTreeMap::new(),
+            function_generic_params: BTreeMap::new(),
+            method_generic_params: BTreeMap::new(),
             trait_method_returns: std::sync::Arc::new(BTreeMap::new()),
             trait_supertraits: std::sync::Arc::new(BTreeMap::new()),
             trait_generic_params: std::sync::Arc::new(BTreeMap::new()),
+            trait_method_generic_params: std::sync::Arc::new(BTreeMap::new()),
             named_type_info: std::sync::Arc::new(BTreeMap::new()),
             package_function_returns: std::sync::Arc::new(BTreeMap::new()),
+            package_function_generic_params: std::sync::Arc::new(BTreeMap::new()),
             sqlx_namespaces: BTreeSet::from(["sqlx".to_owned()]),
             database_namespaces: BTreeSet::from(["wow_database".to_owned()]),
             query_callables: BTreeSet::new(),
@@ -1609,6 +1636,13 @@ fn collect_nested_trait_returns(
                     ) {
                         continue;
                     }
+                    let method_generic_params = generic_type_param_names(&method.sig.generics);
+                    if !method_generic_params.is_empty() {
+                        std::sync::Arc::make_mut(&mut symbols.trait_method_generic_params).insert(
+                            (trait_path.clone(), normalized_ident(&method.sig.ident)),
+                            method_generic_params,
+                        );
+                    }
                     if let ReturnType::Type(_, ty) = &method.sig.output {
                         let mut info = variable_info_in_type(ty, symbols);
                         info.sql_expression = SqlExpressionKind::Nonliteral;
@@ -1930,6 +1964,12 @@ fn collect_module_symbols(
             Item::Fn(function)
                 if source_class_allows(source_class, cfg, &function.attrs, errors, "function") =>
             {
+                let generic_params = generic_type_param_names(&function.sig.generics);
+                if !generic_params.is_empty() {
+                    symbols
+                        .function_generic_params
+                        .insert(normalized_ident(&function.sig.ident), generic_params);
+                }
                 if let ReturnType::Type(_, ty) = &function.sig.output {
                     let mut return_info = variable_info_in_type(ty, &symbols);
                     return_info.sql_expression = SqlExpressionKind::Nonliteral;
@@ -1975,6 +2015,20 @@ fn collect_module_symbols(
                     if let ReturnType::Type(_, ty) = &method.sig.output {
                         let mut return_info = variable_info_in_type(ty, &symbols);
                         return_info.sql_expression = SqlExpressionKind::Nonliteral;
+                        let generic_params = generic_type_param_names(&method.sig.generics);
+                        if !generic_params.is_empty() {
+                            let method_name = normalized_ident(&method.sig.ident);
+                            for receiver_type in &receiver_types {
+                                symbols.method_generic_params.insert(
+                                    (
+                                        receiver_type.clone(),
+                                        trait_name.clone(),
+                                        method_name.clone(),
+                                    ),
+                                    generic_params.clone(),
+                                );
+                            }
+                        }
                         if !return_info.flow.is_empty()
                             || !return_info.nominal_types.is_empty()
                             || !return_info.payload_variants.is_empty()
@@ -2319,11 +2373,50 @@ fn syntax_mentions_persistence(value: &impl ToTokens, symbols: &ModuleSymbols) -
     tokens_contain_identifier(value.to_token_stream(), &module_persistence_names(symbols))
 }
 
+/// Extracts concrete persistence targets from fully qualified adapter paths
+/// (`wow_database::CharacterDatabase::open(...)`) inside an opaque token
+/// stream, reusing the same name mapping as ordinary paths. Without this an
+/// allowed opaque macro such as `assert!(wow_database::...)` would emit
+/// neither a database row nor a fail-closed error.
+fn database_targets_in_tokens(tokens: TokenStream, symbols: &ModuleSymbols) -> TargetSet {
+    let mut targets = TargetSet::new();
+    let trees = tokens.into_iter().collect::<Vec<_>>();
+    let mut index = 0;
+    while index < trees.len() {
+        if let TokenTree::Group(group) = &trees[index] {
+            targets.extend(database_targets_in_tokens(group.stream(), symbols));
+        }
+        if let TokenTree::Ident(ident) = &trees[index] {
+            let root = normalized_ident(ident);
+            if symbols.database_namespaces.contains(&root) {
+                let mut names = vec![root];
+                let mut cursor = index + 1;
+                while cursor + 2 < trees.len()
+                    && matches!(&trees[cursor], TokenTree::Punct(punct) if punct.as_char() == ':')
+                    && matches!(&trees[cursor + 1], TokenTree::Punct(punct) if punct.as_char() == ':')
+                {
+                    let TokenTree::Ident(segment) = &trees[cursor + 2] else {
+                        break;
+                    };
+                    names.push(normalized_ident(segment));
+                    cursor += 3;
+                }
+                if names.len() > 1 {
+                    targets.extend(targets_for_names(&names, symbols));
+                }
+            }
+        }
+        index += 1;
+    }
+    targets
+}
+
 fn targets_in_tokens(tokens: TokenStream, symbols: &ModuleSymbols) -> TargetSet {
     let mut targets = TargetSet::new();
     if tokens_contain_path_root(tokens.clone(), &symbols.sqlx_namespaces) {
         targets.insert(PersistenceTarget::Sqlx);
     }
+    targets.extend(database_targets_in_tokens(tokens.clone(), symbols));
     for (name, alias_targets) in &symbols.type_aliases {
         if tokens_contain_identifier(tokens.clone(), &BTreeSet::from([name.clone()])) {
             targets.extend(alias_targets);
@@ -2672,7 +2765,13 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                     .method_returns
                     .get(&(receiver_type.clone(), None, method_name.clone()))
             {
-                result.union(info);
+                let params = self.symbols.method_generic_params.get(&(
+                    receiver_type.clone(),
+                    None,
+                    method_name.clone(),
+                ));
+                let info = self.apply_turbofish_args(info, params, method.turbofish.as_ref());
+                result.union(&info);
                 continue;
             }
             for ((owner, trait_name, candidate), info) in &self.symbols.method_returns {
@@ -2682,7 +2781,13 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                         .is_some_and(|trait_name| self.trait_is_in_scope(trait_name))
                     && candidate == &method_name
                 {
-                    result.union(info);
+                    let params = self.symbols.method_generic_params.get(&(
+                        owner.clone(),
+                        trait_name.clone(),
+                        candidate.clone(),
+                    ));
+                    let info = self.apply_turbofish_args(info, params, method.turbofish.as_ref());
+                    result.union(&info);
                 }
             }
         }
@@ -2694,6 +2799,11 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 .get(&(trait_bound.clone(), method_name.clone()))
             {
                 let info = self.apply_bound_generic_args(info, trait_bound, &receiver_types);
+                let params = self
+                    .symbols
+                    .trait_method_generic_params
+                    .get(&(trait_bound.clone(), method_name.clone()));
+                let info = self.apply_turbofish_args(&info, params, method.turbofish.as_ref());
                 result.union(&info);
             }
         }
@@ -2702,6 +2812,18 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             result
                 .payload_variants
                 .extend(self.info_from_expr(&method.receiver).payload_variants);
+        }
+        if result.flow.is_empty()
+            && result.nominal_types.is_empty()
+            && result.payload_variants.is_empty()
+            && result.tuple_items.is_empty()
+            && result.trait_bounds.is_empty()
+        {
+            // The callee is not recorded anywhere (external or unmodelled).
+            // A persistence-bearing turbofish can still select the return
+            // type (`factory.make::<CharacterDatabase>()`), so keep the
+            // argument visible instead of dropping the call's result.
+            result = self.apply_turbofish_args(&result, None, method.turbofish.as_ref());
         }
         result
     }
@@ -2760,6 +2882,16 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             return VariableInfo::default();
         }
         let method_name = normalized_ident(&path.segments.last().expect("path has a method").ident);
+        // An explicit turbofish on the callee (`Factory::make::<T>()`)
+        // selects generic returns; it must be substituted into the recorded
+        // return below instead of being dropped.
+        let turbofish = path
+            .segments
+            .last()
+            .and_then(|segment| match &segment.arguments {
+                syn::PathArguments::AngleBracketed(arguments) => Some(arguments),
+                _ => None,
+            });
         let trait_name = expression.qself.as_ref().and_then(|qself| {
             (qself.position > 0).then(|| {
                 self.canonical_local_path_names(
@@ -2811,7 +2943,13 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 trait_name.clone(),
                 method_name.clone(),
             )) {
-                result.union(info);
+                let params = self.symbols.method_generic_params.get(&(
+                    receiver_type.clone(),
+                    trait_name.clone(),
+                    method_name.clone(),
+                ));
+                let info = self.apply_turbofish_args(info, params, turbofish);
+                result.union(&info);
             }
         }
         let mut bounds = BTreeSet::new();
@@ -2831,6 +2969,11 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 .get(&(trait_bound.clone(), method_name.clone()))
             {
                 let info = self.apply_bound_generic_args(info, trait_bound, &receiver_types);
+                let params = self
+                    .symbols
+                    .trait_method_generic_params
+                    .get(&(trait_bound.clone(), method_name.clone()));
+                let info = self.apply_turbofish_args(&info, params, turbofish);
                 result.union(&info);
             }
         }
@@ -2845,10 +2988,21 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             // same way trait returns already do.
             let key = self.package_function_key(path_names(path));
             if let Some(info) = self.symbols.package_function_returns.get(&key) {
-                return info.clone();
+                let params = self.symbols.package_function_generic_params.get(&key);
+                return self.apply_turbofish_args(info, params, turbofish);
             }
         }
         result.substitute_self(&receiver_types, &expanded);
+        if result.flow.is_empty()
+            && result.nominal_types.is_empty()
+            && result.payload_variants.is_empty()
+            && result.tuple_items.is_empty()
+            && result.trait_bounds.is_empty()
+        {
+            // Unrecorded associated callee: a persistence-bearing turbofish
+            // can still select the return type, so keep the argument visible.
+            result = self.apply_turbofish_args(&result, None, turbofish);
+        }
         result
     }
 
@@ -2885,14 +3039,24 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 if let Some(info) = self.lookup(&name) {
                     return info.clone();
                 }
+                let turbofish =
+                    path.path
+                        .segments
+                        .last()
+                        .and_then(|segment| match &segment.arguments {
+                            syn::PathArguments::AngleBracketed(arguments) => Some(arguments),
+                            _ => None,
+                        });
                 if let Some(info) = self.symbols.function_returns.get(&name) {
-                    return info.clone();
+                    let params = self.symbols.function_generic_params.get(&name);
+                    return self.apply_turbofish_args(info, params, turbofish);
                 }
                 // Free functions declared in another source module resolve
                 // through the package-wide canonical-path registry.
                 let key = self.package_function_key(vec![name]);
                 if let Some(info) = self.symbols.package_function_returns.get(&key) {
-                    return info.clone();
+                    let params = self.symbols.package_function_generic_params.get(&key);
+                    return self.apply_turbofish_args(info, params, turbofish);
                 }
             }
             let return_info = self.associated_return_info(path);
@@ -3516,11 +3680,24 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             if let Some(info) = self.lookup(last) {
                 return info.flow.clone();
             }
+            let turbofish =
+                path.path
+                    .segments
+                    .last()
+                    .and_then(|segment| match &segment.arguments {
+                        syn::PathArguments::AngleBracketed(arguments) => Some(arguments),
+                        _ => None,
+                    });
+            if let Some(info) = self.symbols.function_returns.get(last) {
+                let params = self.symbols.function_generic_params.get(last);
+                return self.apply_turbofish_args(info, params, turbofish).flow;
+            }
             // Free functions declared in another source module resolve
             // through the package-wide canonical-path registry.
             let key = self.package_function_key(names.clone());
             if let Some(info) = self.symbols.package_function_returns.get(&key) {
-                return info.flow.clone();
+                let params = self.symbols.package_function_generic_params.get(&key);
+                return self.apply_turbofish_args(info, params, turbofish).flow;
             }
         }
         self.symbols
@@ -3661,6 +3838,26 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             || (names.len() == 1 && self.symbols.query_callables.contains(last))
         {
             Flow::query()
+        } else if names.len() == 1 && last == "vec" {
+            // `vec!` is whitelisted as an opaque macro but it produces a
+            // value: its result flow is the union of every in-scope
+            // persistence value named in its input. Without this,
+            // `let values = vec![database]; values[0].pool()` escapes both
+            // ratchets.
+            let mut flow = Flow::default();
+            for scope in &self.scopes {
+                for (local, info) in scope {
+                    if !info.flow.is_empty()
+                        && tokens_contain_identifier(
+                            mac.tokens.clone(),
+                            &BTreeSet::from([local.clone()]),
+                        )
+                    {
+                        flow.union(info.flow.clone());
+                    }
+                }
+            }
+            flow
         } else {
             Flow::default()
         }
@@ -3976,12 +4173,54 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             else {
                 continue;
             };
-            let map: BTreeMap<String, VariableInfo> = params
-                .iter()
-                .cloned()
-                .zip(args.iter().cloned())
-                .collect();
+            let map: BTreeMap<String, VariableInfo> =
+                params.iter().cloned().zip(args.iter().cloned()).collect();
             substitute_nominal_params(&mut info, &map);
+        }
+        info
+    }
+
+    /// Applies an explicit method/function turbofish (`make::<T>()`) to a
+    /// recorded return. When the callee's generic parameter list is known,
+    /// the arguments are substituted positionally into the return. When it is
+    /// not recorded (external or unmodelled callee), a persistence-bearing
+    /// turbofish argument is unioned into the result instead: the argument
+    /// may select the return type, so dropping it would let the call bypass
+    /// both ratchets.
+    fn apply_turbofish_args(
+        &self,
+        info: &VariableInfo,
+        params: Option<&Vec<String>>,
+        turbofish: Option<&syn::AngleBracketedGenericArguments>,
+    ) -> VariableInfo {
+        let Some(turbofish) = turbofish else {
+            return info.clone();
+        };
+        let args: Vec<VariableInfo> = turbofish
+            .args
+            .iter()
+            .filter_map(|argument| match argument {
+                syn::GenericArgument::Type(inner) => {
+                    Some(variable_info_in_type(inner, self.symbols))
+                }
+                _ => None,
+            })
+            .collect();
+        if args.is_empty() {
+            return info.clone();
+        }
+        let mut info = info.clone();
+        let substituted = params.is_some_and(|params| {
+            let map: BTreeMap<String, VariableInfo> =
+                params.iter().cloned().zip(args.iter().cloned()).collect();
+            substitute_nominal_params(&mut info, &map)
+        });
+        if !substituted {
+            for argument in &args {
+                if !argument.flow.is_empty() || !argument.trait_bounds.is_empty() {
+                    info.union(argument);
+                }
+            }
         }
         info
     }
@@ -4054,6 +4293,10 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             &cfg,
             normalized_tokens(&expression.expr),
         );
+        // The body may run zero times (empty iterator), so its assignments
+        // to outer locals cannot be applied unconditionally: conservatively
+        // union the pre-loop state with the post-body state.
+        let pre_loop_scopes = self.scopes.clone();
         self.push_scope();
         self.register_local_uses(&expression.body.stmts);
         self.bind_pattern(&expression.pat, &iterator_info);
@@ -4061,6 +4304,8 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             self.visit_stmt(statement);
         }
         self.pop_scope();
+        merge_scope_stacks(&mut self.scopes, &pre_loop_scopes);
+        self.bump_context();
     }
 
     fn visit_expr_while(&mut self, expression: &'ast syn::ExprWhile) {
@@ -4068,6 +4313,10 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             return;
         }
         self.visit_expr(&expression.cond);
+        // The body may run zero times (false condition), so its assignments
+        // to outer locals cannot be applied unconditionally: conservatively
+        // union the pre-loop state with the post-body state.
+        let pre_loop_scopes = self.scopes.clone();
         self.push_scope();
         self.register_local_uses(&expression.body.stmts);
         if let Expr::Let(let_expression) = expression.cond.as_ref() {
@@ -4083,6 +4332,8 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             self.visit_stmt(statement);
         }
         self.pop_scope();
+        merge_scope_stacks(&mut self.scopes, &pre_loop_scopes);
+        self.bump_context();
     }
 
     fn visit_expr_async(&mut self, expression: &'ast syn::ExprAsync) {
@@ -4631,15 +4882,27 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             return;
         }
         self.visit_expr(&expression.cond);
+        // The then/else branches are mutually exclusive: visiting them
+        // sequentially against one shared scope lets the else branch erase
+        // flow the then branch assigned to an outer local. Like match arms,
+        // snapshot the pre-if state and conservatively union both outcomes,
+        // including the no-`else` path.
+        let pre_if_scopes = self.scopes.clone();
         self.push_scope();
         if let Expr::Let(let_expression) = expression.cond.as_ref() {
             self.bind_pattern_from_expr(&let_expression.pat, &let_expression.expr);
         }
         self.visit_block(&expression.then_branch);
         self.pop_scope();
+        let post_then = self.scopes.clone();
+        self.scopes = pre_if_scopes;
         if let Some((_, else_expression)) = &expression.else_branch {
             self.visit_expr(else_expression);
         }
+        let post_else = self.scopes.clone();
+        self.scopes = post_then;
+        merge_scope_stacks(&mut self.scopes, &post_else);
+        self.bump_context();
     }
 
     fn visit_item_macro(&mut self, item: &'ast syn::ItemMacro) {
@@ -5803,12 +6066,13 @@ pub(crate) fn inventory_persistence_accesses(
             BTreeMap<(String, String), VariableInfo>,
             BTreeMap<String, BTreeSet<String>>,
             BTreeMap<String, Vec<String>>,
+            BTreeMap<(String, String), Vec<String>>,
         ),
     >::new();
-    let mut function_registries = BTreeMap::<
-        (String, PersistenceSourceClass),
-        BTreeMap<String, VariableInfo>,
-    >::new();
+    let mut function_registries =
+        BTreeMap::<(String, PersistenceSourceClass), BTreeMap<String, VariableInfo>>::new();
+    let mut function_generic_registries =
+        BTreeMap::<(String, PersistenceSourceClass), BTreeMap<String, Vec<String>>>::new();
     // Trait declarations and their consumers may live in different physical
     // files (`mod maker;`). Build a package-wide, cfg-aware signature registry
     // before analyzing any body so source order cannot hide bounded returns.
@@ -5861,10 +6125,20 @@ pub(crate) fn inventory_persistence_accesses(
                 } else {
                     format!("{module_prefix}::{name}")
                 };
-                function_registry
+                function_registry.entry(canonical).or_default().union(info);
+            }
+            let function_generic_registry = function_generic_registries
+                .entry((source.package.to_owned(), source_class))
+                .or_default();
+            for (name, generic_params) in symbols.function_generic_params.iter() {
+                let canonical = if module_prefix.is_empty() {
+                    name.clone()
+                } else {
+                    format!("{module_prefix}::{name}")
+                };
+                function_generic_registry
                     .entry(canonical)
-                    .or_default()
-                    .union(info);
+                    .or_insert_with(|| generic_params.clone());
             }
             let registry = trait_registries
                 .entry((source.package.to_owned(), source_class))
@@ -5883,6 +6157,12 @@ pub(crate) fn inventory_persistence_accesses(
                 registry
                     .2
                     .entry(trait_path.clone())
+                    .or_insert_with(|| generic_params.clone());
+            }
+            for (key, generic_params) in symbols.trait_method_generic_params.iter() {
+                registry
+                    .3
+                    .entry(key.clone())
                     .or_insert_with(|| generic_params.clone());
             }
         }
@@ -5967,16 +6247,23 @@ pub(crate) fn inventory_persistence_accesses(
                     .cloned()
                     .unwrap_or_default(),
             );
-            if let Some((methods, supertraits, generic_params)) =
+            if let Some((methods, supertraits, generic_params, method_generic_params)) =
                 trait_registries.get(&(source.package.to_owned(), source_class))
             {
                 package_symbols.trait_method_returns = std::sync::Arc::new(methods.clone());
                 package_symbols.trait_supertraits = std::sync::Arc::new(supertraits.clone());
-                package_symbols.trait_generic_params =
-                    std::sync::Arc::new(generic_params.clone());
+                package_symbols.trait_generic_params = std::sync::Arc::new(generic_params.clone());
+                package_symbols.trait_method_generic_params =
+                    std::sync::Arc::new(method_generic_params.clone());
             }
             package_symbols.package_function_returns = std::sync::Arc::new(
                 function_registries
+                    .get(&(source.package.to_owned(), source_class))
+                    .cloned()
+                    .unwrap_or_default(),
+            );
+            package_symbols.package_function_generic_params = std::sync::Arc::new(
+                function_generic_registries
                     .get(&(source.package.to_owned(), source_class))
                     .cloned()
                     .unwrap_or_default(),
@@ -8163,6 +8450,219 @@ mod tests {
             row.enclosing == "fn cross_file_where"
                 && row.target == PersistenceTarget::CharacterDatabase
                 && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_unions_if_else_branch_assignments() {
+        let baseline = inventory(
+            r#"
+                fn persistent(database: wow_database::CharacterDatabase, pick: bool) {
+                    let mut value = None;
+                    if pick { value = Some(database); } else { value = None; }
+                    if let Some(database) = value {
+                        consume(database.pool());
+                    }
+                }
+                fn persistent_no_else(database: wow_database::CharacterDatabase, pick: bool) {
+                    let mut value = None;
+                    if pick { value = Some(database); }
+                    if let Some(database) = value {
+                        consume(database.pool());
+                    }
+                }
+                fn clean(pick: bool) {
+                    let mut value = None;
+                    if pick { value = Some(1_u8); } else { value = None; }
+                    if let Some(value) = value {
+                        consume(value);
+                    }
+                }
+            "#,
+        )
+        .unwrap();
+
+        for enclosing in ["fn persistent", "fn persistent_no_else"] {
+            assert!(
+                baseline.accesses.iter().any(|row| {
+                    row.enclosing == enclosing
+                        && row.target == PersistenceTarget::CharacterDatabase
+                        && row.operation == PersistenceOperation::PoolAccess
+                }),
+                "missing pool-access row for {enclosing}"
+            );
+        }
+        assert!(
+            !baseline
+                .accesses
+                .iter()
+                .any(|row| row.enclosing == "fn clean")
+        );
+    }
+
+    #[test]
+    fn persistence_inventory_retains_pre_loop_flow_for_zero_iteration_paths() {
+        let baseline = inventory(
+            r#"
+                fn persistent_for(database: wow_database::CharacterDatabase, items: Vec<u8>) {
+                    let mut value = Some(database);
+                    for _ in items { value = None; }
+                    if let Some(database) = value {
+                        consume(database.pool());
+                    }
+                }
+                fn persistent_while(database: wow_database::CharacterDatabase, running: bool) {
+                    let mut value = Some(database);
+                    while running { value = None; }
+                    if let Some(database) = value {
+                        consume(database.pool());
+                    }
+                }
+            "#,
+        )
+        .unwrap();
+
+        for enclosing in ["fn persistent_for", "fn persistent_while"] {
+            assert!(
+                baseline.accesses.iter().any(|row| {
+                    row.enclosing == enclosing
+                        && row.target == PersistenceTarget::CharacterDatabase
+                        && row.operation == PersistenceOperation::PoolAccess
+                }),
+                "missing pool-access row for {enclosing}"
+            );
+        }
+    }
+
+    #[test]
+    fn persistence_inventory_propagates_vec_macro_result_flow() {
+        let baseline = inventory(
+            r#"
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    let values = vec![database];
+                    consume(values[0].pool());
+                }
+                fn clean() {
+                    let values = vec![1_u8];
+                    consume(values[0]);
+                }
+            "#,
+        )
+        .unwrap();
+
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent"
+                && row.target == PersistenceTarget::CharacterDatabase
+                && row.operation == PersistenceOperation::PoolAccess
+        }));
+        assert!(
+            !baseline
+                .accesses
+                .iter()
+                .any(|row| row.enclosing == "fn clean"
+                    && row.operation == PersistenceOperation::PoolAccess)
+        );
+    }
+
+    #[test]
+    fn persistence_inventory_substitutes_turbofish_into_recorded_returns() {
+        let baseline = inventory(
+            r#"
+                struct Factory;
+                impl Factory { fn make<T>(&self) -> T { unreachable!() } }
+                fn make_selected<T>() -> T { unreachable!() }
+                pub struct External;
+                fn persistent_method() {
+                    consume(Factory.make::<wow_database::CharacterDatabase>().pool());
+                }
+                fn persistent_free() {
+                    consume(make_selected::<wow_database::WorldDatabase>().pool());
+                }
+                fn persistent_unknown(external: &External) {
+                    consume(external.make::<wow_database::LoginDatabase>().pool());
+                }
+                fn clean() {
+                    consume(Factory.make::<u8>());
+                }
+            "#,
+        )
+        .unwrap();
+
+        let pool_row = |enclosing: &str, target: PersistenceTarget| {
+            baseline.accesses.iter().any(|row| {
+                row.enclosing == enclosing
+                    && row.target == target
+                    && row.operation == PersistenceOperation::PoolAccess
+            })
+        };
+        assert!(pool_row(
+            "fn persistent_method",
+            PersistenceTarget::CharacterDatabase
+        ));
+        assert!(pool_row(
+            "fn persistent_free",
+            PersistenceTarget::WorldDatabase
+        ));
+        assert!(pool_row(
+            "fn persistent_unknown",
+            PersistenceTarget::LoginDatabase
+        ));
+        assert!(
+            !baseline
+                .accesses
+                .iter()
+                .any(|row| row.enclosing == "fn clean")
+        );
+    }
+
+    #[test]
+    fn persistence_inventory_resolves_database_paths_in_opaque_macro_tokens() {
+        let baseline = inventory(
+            r#"
+                fn persistent() {
+                    assert!(wow_database::CharacterDatabase::open("dsn").is_ok());
+                }
+                fn clean() {
+                    assert!(true);
+                }
+            "#,
+        )
+        .unwrap();
+
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent"
+                && row.target == PersistenceTarget::CharacterDatabase
+                && row.operation == PersistenceOperation::MacroReference
+        }));
+        assert!(
+            !baseline
+                .accesses
+                .iter()
+                .any(|row| row.enclosing == "fn clean")
+        );
+    }
+
+    #[test]
+    fn persistence_inventory_matches_advisory_lock_sql_case_insensitively() {
+        let baseline = inventory(
+            r#"
+                fn persistent() {
+                    sqlx::query("select get_lock('k', 0)");
+                }
+                fn clean() {
+                    sqlx::query("select 1");
+                }
+            "#,
+        )
+        .unwrap();
+
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent"
+                && row.target == PersistenceTarget::Sqlx
+                && row.operation == PersistenceOperation::AdvisoryLock
+        }));
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn clean" && row.operation == PersistenceOperation::AdvisoryLock
         }));
     }
 }

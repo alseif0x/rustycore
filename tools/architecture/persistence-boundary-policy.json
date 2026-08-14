@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "generated_code": {
-    "expected_rows": 3,
+    "expected_rows": 4,
     "discovery_rule": "Exact attribute, query-macro, and item-macro inputs which can generate concrete persistence syntax; this is an orthogonal subset of production/test_fixture rows."
   },
   "groups": [
