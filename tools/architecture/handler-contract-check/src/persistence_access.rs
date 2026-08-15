@@ -1644,7 +1644,7 @@ fn collect_public_callable_reexports(
                         "public use declaration",
                     ) =>
             {
-                let (leaves, _) = use_leaves(item_use);
+                let (leaves, globs) = use_leaves(item_use);
                 for leaf in leaves {
                     let mut export = symbols.module_path.clone();
                     export.push(leaf.local);
@@ -1652,6 +1652,16 @@ fn collect_public_callable_reexports(
                     if source.first().is_some_and(|segment| segment == "crate") {
                         source.remove(0);
                     }
+                    output.push((export.join("::"), source.join("::")));
+                }
+                for glob in globs {
+                    let mut export = symbols.module_path.clone();
+                    export.push("*".to_owned());
+                    let mut source = canonical_path_names(glob, &symbols);
+                    if source.first().is_some_and(|segment| segment == "crate") {
+                        source.remove(0);
+                    }
+                    source.push("*".to_owned());
                     output.push((export.join("::"), source.join("::")));
                 }
             }
@@ -3690,7 +3700,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         if let Expr::Call(call) = expression
             && let Expr::Path(path) = call.func.as_ref()
         {
-            if is_standard_identity(&path_names(&path.path))
+            if is_standard_identity(&self.canonical_local_path_names(path_names(&path.path)))
                 && let Some(argument) = call.args.first()
             {
                 // `std::convert::identity` is shape-preserving as well as a
@@ -3850,7 +3860,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 // a durable projection boundary, however, so retain the
                 // initializer subtree on that exact field without tainting
                 // its siblings.
-                field_info.flow.union(self.subtree_flow(&field.expr));
+                field_info.flow.union(self.produced_value_flow(&field.expr));
                 info.field_items.insert(name, field_info);
             }
             if let Some(rest) = &structure.rest {
@@ -4495,7 +4505,9 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         {
             return Flow::query();
         }
-        if is_flow_passthrough_call(&names) {
+        if is_flow_passthrough_call(&names)
+            || is_standard_identity(&self.canonical_local_path_names(names.clone()))
+        {
             let mut flow = Flow::default();
             for argument in &call.args {
                 flow.union(self.flow_of_expr(argument));
@@ -4617,6 +4629,81 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 flow.union(self.method_return_info(method).flow);
                 flow
             }
+        }
+    }
+
+    /// Flow carried by the value an expression produces, excluding unrelated
+    /// side effects evaluated before that value. This is narrower than
+    /// `subtree_flow` and is used at named-field projection boundaries.
+    fn produced_value_flow(&self, expression: &Expr) -> Flow {
+        let direct = self.flow_of_expr(expression);
+        if !direct.is_empty() {
+            return direct;
+        }
+        match expression {
+            Expr::Reference(reference) => self.produced_value_flow(&reference.expr),
+            Expr::Paren(paren) => self.produced_value_flow(&paren.expr),
+            Expr::Group(group) => self.produced_value_flow(&group.expr),
+            Expr::Try(try_expression) => self.produced_value_flow(&try_expression.expr),
+            Expr::Await(await_expression) => self.produced_value_flow(&await_expression.base),
+            Expr::Cast(cast) => self.produced_value_flow(&cast.expr),
+            Expr::Unary(unary) => self.produced_value_flow(&unary.expr),
+            Expr::MethodCall(method) => {
+                let name = normalized_ident(&method.method);
+                if matches!(name.as_str(), "try_read" | "read" | "read_string")
+                    || FLOW_PASSTHROUGH_METHODS.contains(&name.as_str())
+                    || FLOW_TRANSFORMING_METHODS.contains(&name.as_str())
+                {
+                    let mut flow = self.produced_value_flow(&method.receiver);
+                    if FLOW_TRANSFORMING_METHODS.contains(&name.as_str()) {
+                        for argument in &method.args {
+                            flow.union(self.produced_value_flow(argument));
+                        }
+                    }
+                    flow
+                } else {
+                    Flow::default()
+                }
+            }
+            Expr::Block(block) => block
+                .block
+                .stmts
+                .last()
+                .and_then(|statement| match statement {
+                    Stmt::Expr(tail, None) => Some(self.produced_value_flow(tail)),
+                    _ => None,
+                })
+                .unwrap_or_default(),
+            Expr::If(if_expression) => {
+                let mut flow = if_expression
+                    .then_branch
+                    .stmts
+                    .last()
+                    .and_then(|statement| match statement {
+                        Stmt::Expr(tail, None) => Some(self.produced_value_flow(tail)),
+                        _ => None,
+                    })
+                    .unwrap_or_default();
+                if let Some((_, alternative)) = &if_expression.else_branch {
+                    flow.union(self.produced_value_flow(alternative));
+                }
+                flow
+            }
+            Expr::Match(match_expression) => {
+                let mut flow = Flow::default();
+                for arm in &match_expression.arms {
+                    flow.union(self.produced_value_flow(&arm.body));
+                }
+                flow
+            }
+            Expr::Tuple(tuple) => {
+                let mut flow = Flow::default();
+                for element in &tuple.elems {
+                    flow.union(self.produced_value_flow(element));
+                }
+                flow
+            }
+            _ => Flow::default(),
         }
     }
 
@@ -7351,6 +7438,18 @@ fn resolve_public_callable_reexports(
                 PersistenceSourceClass::TestFixture => dependencies.test.get(consumer),
             };
             for (export, source) in aliases {
+                let glob = (source == "*" || source.ends_with("::*"))
+                    && (export == "*" || export.ends_with("::*"));
+                let source = if source == "*" {
+                    ""
+                } else {
+                    source.strip_suffix("::*").unwrap_or(source)
+                };
+                let export = if export == "*" {
+                    ""
+                } else {
+                    export.strip_suffix("::*").unwrap_or(export)
+                };
                 let mut source_parts = source.split("::");
                 let source_root = source_parts.next().unwrap_or_default();
                 let dependency_root = dependency_roots
@@ -7377,52 +7476,234 @@ fn resolve_public_callable_reexports(
                             Some(provider_root.as_str()),
                         )
                     } else {
-                        (consumer_key.clone(), source.clone(), None)
+                        (consumer_key.clone(), source.to_owned(), None)
                     };
-                let Some(source_info) = function_snapshot
-                    .get(&provider_key)
-                    .and_then(|registry| registry.get(&provider_entry))
-                else {
+                let Some(provider_registry) = function_snapshot.get(&provider_key) else {
                     continue;
                 };
-                let info = if let Some(provider_root) = provider_root {
-                    let named = named_type_registries
-                        .get(&provider_key)
-                        .cloned()
+                let entries = if glob {
+                    let prefix = (!provider_entry.is_empty())
+                        .then(|| format!("{provider_entry}::"))
                         .unwrap_or_default();
-                    qualify_dependency_info(provider_root, &named, source_info)
+                    provider_registry
+                        .iter()
+                        .filter_map(|(entry, info)| {
+                            entry.strip_prefix(&prefix).map(|suffix| {
+                                let exported = if export.is_empty() {
+                                    suffix.to_owned()
+                                } else {
+                                    format!("{export}::{suffix}")
+                                };
+                                (exported, entry.clone(), info.clone())
+                            })
+                        })
+                        .collect::<Vec<_>>()
                 } else {
-                    source_info.clone()
+                    provider_registry
+                        .get(&provider_entry)
+                        .cloned()
+                        .map(|info| vec![(export.to_owned(), provider_entry.clone(), info)])
+                        .unwrap_or_default()
                 };
-                function_registries
-                    .entry(consumer_key.clone())
-                    .or_default()
-                    .entry(export.clone())
-                    .or_default()
-                    .union(&info);
-                if let Some(params) = generic_snapshot
-                    .get(&provider_key)
-                    .and_then(|registry| registry.get(&provider_entry))
-                {
-                    generic_registries
+                for (exported, source_entry, source_info) in entries {
+                    let info = if let Some(provider_root) = provider_root {
+                        let named = named_type_registries
+                            .get(&provider_key)
+                            .cloned()
+                            .unwrap_or_default();
+                        qualify_dependency_info(provider_root, &named, &source_info)
+                    } else {
+                        source_info
+                    };
+                    function_registries
                         .entry(consumer_key.clone())
                         .or_default()
-                        .entry(export.clone())
-                        .or_insert_with(|| params.clone());
-                }
-                if let Some(inputs) = generic_input_snapshot
-                    .get(&provider_key)
-                    .and_then(|registry| registry.get(&provider_entry))
-                {
-                    generic_input_registries
-                        .entry(consumer_key.clone())
+                        .entry(exported.clone())
                         .or_default()
-                        .entry(export.clone())
-                        .or_insert_with(|| inputs.clone());
+                        .union(&info);
+                    if let Some(params) = generic_snapshot
+                        .get(&provider_key)
+                        .and_then(|registry| registry.get(&source_entry))
+                    {
+                        generic_registries
+                            .entry(consumer_key.clone())
+                            .or_default()
+                            .entry(exported.clone())
+                            .or_insert_with(|| params.clone());
+                    }
+                    if let Some(inputs) = generic_input_snapshot
+                        .get(&provider_key)
+                        .and_then(|registry| registry.get(&source_entry))
+                    {
+                        generic_input_registries
+                            .entry(consumer_key.clone())
+                            .or_default()
+                            .entry(exported)
+                            .or_insert_with(|| inputs.clone());
+                    }
                 }
             }
         }
         if function_registries == &before {
+            break;
+        }
+    }
+}
+
+type TraitSignatureRegistry = (
+    BTreeMap<(String, String), VariableInfo>,
+    BTreeMap<String, BTreeSet<String>>,
+    BTreeMap<String, Vec<String>>,
+    BTreeMap<(String, String), Vec<String>>,
+    BTreeMap<(String, String), Vec<BTreeSet<String>>>,
+);
+
+fn resolve_public_trait_reexports(
+    reexports: &BTreeMap<(String, PersistenceSourceClass), Vec<(String, String)>>,
+    named_type_registries: &BTreeMap<
+        (String, PersistenceSourceClass),
+        BTreeMap<String, VariableInfo>,
+    >,
+    dependencies: &WorkspaceDependencyAliases,
+    registries: &mut BTreeMap<(String, PersistenceSourceClass), TraitSignatureRegistry>,
+) {
+    let pass_limit = reexports.values().map(Vec::len).sum::<usize>() + 1;
+    for _ in 0..pass_limit {
+        let before = registries.clone();
+        let snapshot = registries.clone();
+        for (consumer_key, aliases) in reexports {
+            let (consumer, source_class) = (&consumer_key.0, consumer_key.1);
+            let dependency_roots = match source_class {
+                PersistenceSourceClass::Production => dependencies.production.get(consumer),
+                PersistenceSourceClass::TestFixture => dependencies.test.get(consumer),
+            };
+            for (export, source) in aliases {
+                let glob = (source == "*" || source.ends_with("::*"))
+                    && (export == "*" || export.ends_with("::*"));
+                let source = if source == "*" {
+                    ""
+                } else {
+                    source.strip_suffix("::*").unwrap_or(source)
+                };
+                let export = if export == "*" {
+                    ""
+                } else {
+                    export.strip_suffix("::*").unwrap_or(export)
+                };
+                let mut source_parts = source.split("::");
+                let source_root = source_parts.next().unwrap_or_default();
+                let dependency_root = dependency_roots
+                    .into_iter()
+                    .flat_map(|aliases| aliases.values())
+                    .find(|root| root.as_str() == source_root);
+                let (provider_key, source_trait, provider_root) =
+                    if let Some(provider_root) = dependency_root {
+                        let provider = snapshot.keys().find_map(|(candidate, candidate_class)| {
+                            (*candidate_class == source_class
+                                && candidate.replace('-', "_") == provider_root.as_str())
+                            .then_some(candidate.clone())
+                        });
+                        let Some(provider) = provider else {
+                            continue;
+                        };
+                        (
+                            (provider, source_class),
+                            source_parts.collect::<Vec<_>>().join("::"),
+                            Some(provider_root.as_str()),
+                        )
+                    } else {
+                        (consumer_key.clone(), source.to_owned(), None)
+                    };
+                let Some(provider) = snapshot.get(&provider_key) else {
+                    continue;
+                };
+                let mut provider_traits = provider
+                    .0
+                    .keys()
+                    .map(|(trait_path, _)| trait_path.clone())
+                    .collect::<BTreeSet<_>>();
+                provider_traits.extend(provider.1.keys().cloned());
+                provider_traits.extend(provider.2.keys().cloned());
+                provider_traits.extend(provider.3.keys().map(|(path, _)| path.clone()));
+                provider_traits.extend(provider.4.keys().map(|(path, _)| path.clone()));
+                let source_prefix = (!source_trait.is_empty())
+                    .then(|| format!("{source_trait}::"))
+                    .unwrap_or_default();
+                let candidates = provider_traits
+                    .into_iter()
+                    .filter_map(|trait_path| {
+                        if glob {
+                            let suffix = trait_path.strip_prefix(&source_prefix)?.to_owned();
+                            let exported = if export.is_empty() {
+                                suffix
+                            } else {
+                                format!("{export}::{suffix}")
+                            };
+                            Some((exported, trait_path))
+                        } else {
+                            (trait_path == source_trait).then(|| (export.to_owned(), trait_path))
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                for (exported_trait, source_trait) in candidates {
+                    let mut pending = vec![source_trait.clone()];
+                    let mut inherited = BTreeSet::new();
+                    while let Some(trait_path) = pending.pop() {
+                        if !inherited.insert(trait_path.clone()) {
+                            continue;
+                        }
+                        if let Some(supertraits) = provider.1.get(&trait_path) {
+                            pending.extend(supertraits.iter().cloned());
+                        }
+                    }
+                    let target = registries.entry(consumer_key.clone()).or_default();
+                    for inherited_trait in inherited {
+                        for ((trait_path, method), info) in &provider.0 {
+                            if trait_path != &inherited_trait {
+                                continue;
+                            }
+                            let info = if let Some(provider_root) = provider_root {
+                                let named = named_type_registries
+                                    .get(&provider_key)
+                                    .cloned()
+                                    .unwrap_or_default();
+                                qualify_dependency_info(provider_root, &named, info)
+                            } else {
+                                info.clone()
+                            };
+                            target
+                                .0
+                                .entry((exported_trait.clone(), method.clone()))
+                                .or_default()
+                                .union(&info);
+                            if let Some(params) =
+                                provider.3.get(&(trait_path.clone(), method.clone()))
+                            {
+                                target
+                                    .3
+                                    .entry((exported_trait.clone(), method.clone()))
+                                    .or_insert_with(|| params.clone());
+                            }
+                            if let Some(inputs) =
+                                provider.4.get(&(trait_path.clone(), method.clone()))
+                            {
+                                target
+                                    .4
+                                    .entry((exported_trait.clone(), method.clone()))
+                                    .or_insert_with(|| inputs.clone());
+                            }
+                        }
+                    }
+                    if let Some(params) = provider.2.get(&source_trait) {
+                        target
+                            .2
+                            .entry(exported_trait)
+                            .or_insert_with(|| params.clone());
+                    }
+                }
+            }
+        }
+        if registries == &before {
             break;
         }
     }
@@ -7434,27 +7715,68 @@ fn dependency_scoped_trait_supertrait_cache(
     dependencies: &WorkspaceDependencyAliases,
 ) -> BTreeMap<(String, PersistenceSourceClass), std::sync::Arc<BTreeMap<String, BTreeSet<String>>>>
 {
-    dependency_scoped_registry_cache(
-        registries,
-        &BTreeMap::new(),
-        dependencies,
-        |provider_root, key| format!("{provider_root}::{key}"),
-        |provider_root, _, supertraits| {
-            let provider_names = trait_names.iter().find_map(|((package, _), names)| {
-                (package.replace('-', "_") == provider_root).then_some(names)
-            });
-            supertraits
-                .iter()
-                .map(|supertrait| {
-                    if provider_names.is_some_and(|names| names.contains(supertrait)) {
-                        format!("{provider_root}::{supertrait}")
-                    } else {
-                        supertrait.clone()
+    let mut consumers = registries.keys().cloned().collect::<BTreeSet<_>>();
+    consumers.extend(
+        dependencies
+            .production
+            .keys()
+            .cloned()
+            .map(|package| (package, PersistenceSourceClass::Production)),
+    );
+    consumers.extend(
+        dependencies
+            .test
+            .keys()
+            .cloned()
+            .map(|package| (package, PersistenceSourceClass::TestFixture)),
+    );
+    consumers
+        .into_iter()
+        .map(|key| {
+            let (package, source_class) = (&key.0, key.1);
+            let mut scoped = registries.get(&key).cloned().unwrap_or_default();
+            let aliases = match source_class {
+                PersistenceSourceClass::Production => dependencies.production.get(package),
+                PersistenceSourceClass::TestFixture => dependencies.test.get(package),
+            };
+            for provider_root in aliases
+                .into_iter()
+                .flat_map(|aliases| aliases.values())
+                .collect::<BTreeSet<_>>()
+            {
+                let provider = registries.keys().find_map(|(candidate, candidate_class)| {
+                    (*candidate_class == source_class
+                        && candidate.replace('-', "_") == provider_root.as_str())
+                    .then_some(candidate)
+                });
+                let Some(provider) = provider else {
+                    continue;
+                };
+                let provider_key = (provider.clone(), source_class);
+                let provider_names = trait_names.get(&provider_key);
+                if let Some(entries) = registries.get(&provider_key) {
+                    for (trait_path, supertraits) in entries {
+                        scoped.insert(
+                            format!("{provider_root}::{trait_path}"),
+                            supertraits
+                                .iter()
+                                .map(|supertrait| {
+                                    if provider_names
+                                        .is_some_and(|names| names.contains(supertrait))
+                                    {
+                                        format!("{provider_root}::{supertrait}")
+                                    } else {
+                                        supertrait.clone()
+                                    }
+                                })
+                                .collect(),
+                        );
                     }
-                })
-                .collect()
-        },
-    )
+                }
+            }
+            (key, std::sync::Arc::new(scoped))
+        })
+        .collect()
 }
 
 fn dependency_scoped_registry_cache<K, V, QualifyKey, QualifyValue>(
@@ -7635,16 +7957,8 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
     let named_type_workspace_cache =
         workspace_named_type_info_cache(&named_type_registries, dependencies);
     let named_type_package_cache = package_named_type_info_cache(&named_type_registries);
-    let mut trait_registries = BTreeMap::<
-        (String, PersistenceSourceClass),
-        (
-            BTreeMap<(String, String), VariableInfo>,
-            BTreeMap<String, BTreeSet<String>>,
-            BTreeMap<String, Vec<String>>,
-            BTreeMap<(String, String), Vec<String>>,
-            BTreeMap<(String, String), Vec<BTreeSet<String>>>,
-        ),
-    >::new();
+    let mut trait_registries =
+        BTreeMap::<(String, PersistenceSourceClass), TraitSignatureRegistry>::new();
     let mut function_registries =
         BTreeMap::<(String, PersistenceSourceClass), BTreeMap<String, VariableInfo>>::new();
     let mut function_generic_registries =
@@ -7883,6 +8197,12 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
         &mut function_registries,
         &mut function_generic_registries,
         &mut function_generic_input_registries,
+    );
+    resolve_public_trait_reexports(
+        &callable_reexports,
+        &named_type_registries,
+        dependencies,
+        &mut trait_registries,
     );
     let trait_method_registries = trait_registries
         .iter()
@@ -11800,13 +12120,24 @@ mod tests {
             inherited_cfg: &[],
             source: "pub use provider_a_alias::make as create;",
         };
+        let glob_reexporter = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "provider-glob",
+            module: "crate",
+            source_path: "src/lib.rs",
+            inherited_cfg: &[],
+            source: "pub use provider_a_alias::*;",
+        };
         let consumer = ClassifiedPersistenceSource {
             classification: "database_adapter_core",
             package: "consumer-c",
             module: "crate",
             source_path: "src/lib.rs",
             inherited_cfg: &[],
-            source: "fn persistent() { consume(provider_b_alias::create().0.pool()); }",
+            source: r#"
+                fn persistent() { consume(provider_b_alias::create().0.pool()); }
+                fn globbed() { consume(provider_glob_alias::make().0.pool()); }
+            "#,
         };
         let dependencies = WorkspaceDependencyAliases {
             production: BTreeMap::from([
@@ -11816,19 +12147,31 @@ mod tests {
                 ),
                 (
                     "consumer-c".to_owned(),
-                    BTreeMap::from([("provider_b_alias".to_owned(), "provider_b".to_owned())]),
+                    BTreeMap::from([
+                        ("provider_b_alias".to_owned(), "provider_b".to_owned()),
+                        ("provider_glob_alias".to_owned(), "provider_glob".to_owned()),
+                    ]),
+                ),
+                (
+                    "provider-glob".to_owned(),
+                    BTreeMap::from([("provider_a_alias".to_owned(), "provider_a".to_owned())]),
                 ),
             ]),
             test: BTreeMap::new(),
         };
         let baseline = inventory_persistence_accesses_with_dependencies(
-            &[consumer, reexporter, provider],
+            &[consumer, reexporter, glob_reexporter, provider],
             &dependencies,
         )
         .unwrap();
-        assert!(baseline.accesses.iter().any(|row| {
-            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
-        }));
+        for enclosing in ["fn persistent", "fn globbed"] {
+            assert!(
+                baseline.accesses.iter().any(|row| {
+                    row.enclosing == enclosing && row.operation == PersistenceOperation::PoolAccess
+                }),
+                "missing pool flow for {enclosing}"
+            );
+        }
     }
 
     #[test]
@@ -11863,21 +12206,100 @@ mod tests {
                 }
             "#,
         };
+        let facade = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "provider-b",
+            module: "crate",
+            source_path: "src/lib.rs",
+            inherited_cfg: &[],
+            source: "pub use provider_alias::Maker;",
+        };
+        let downstream = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "consumer-c",
+            module: "crate",
+            source_path: "src/lib.rs",
+            inherited_cfg: &[],
+            source: r#"
+                fn reexported<T: facade_alias::Maker>(value: &T) {
+                    consume(value.make().0.pool());
+                }
+            "#,
+        };
         let dependencies = WorkspaceDependencyAliases {
-            production: BTreeMap::from([(
-                "consumer-b".to_owned(),
-                BTreeMap::from([("provider_alias".to_owned(), "provider_a".to_owned())]),
-            )]),
+            production: BTreeMap::from([
+                (
+                    "consumer-b".to_owned(),
+                    BTreeMap::from([("provider_alias".to_owned(), "provider_a".to_owned())]),
+                ),
+                (
+                    "provider-b".to_owned(),
+                    BTreeMap::from([("provider_alias".to_owned(), "provider_a".to_owned())]),
+                ),
+                (
+                    "consumer-c".to_owned(),
+                    BTreeMap::from([("facade_alias".to_owned(), "provider_b".to_owned())]),
+                ),
+            ]),
             test: BTreeMap::new(),
         };
-        let baseline =
-            inventory_persistence_accesses_with_dependencies(&[consumer, provider], &dependencies)
-                .unwrap();
-        for enclosing in ["fn declared", "fn inferred"] {
+        let baseline = inventory_persistence_accesses_with_dependencies(
+            &[consumer, downstream, facade, provider],
+            &dependencies,
+        )
+        .unwrap();
+        for enclosing in ["fn declared", "fn inferred", "fn reexported"] {
             assert!(baseline.accesses.iter().any(|row| {
                 row.enclosing == enclosing && row.operation == PersistenceOperation::PoolAccess
             }));
         }
+    }
+
+    #[test]
+    fn persistence_inventory_qualifies_test_only_dependency_supertraits() {
+        let provider = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "provider-a",
+            module: "crate",
+            source_path: "src/lib.rs",
+            inherited_cfg: &[],
+            source: r#"
+                #[cfg(test)]
+                pub struct Holder(pub wow_database::CharacterDatabase);
+                #[cfg(test)]
+                pub trait Base { fn make(&self) -> Holder; }
+                #[cfg(test)]
+                pub trait Maker: Base {}
+            "#,
+        };
+        let consumer = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "consumer-b",
+            module: "crate",
+            source_path: "src/lib.rs",
+            inherited_cfg: &[],
+            source: r#"
+                #[cfg(test)]
+                fn test_only<T: provider_alias::Maker>(value: &T) {
+                    consume(value.make().0.pool());
+                }
+            "#,
+        };
+        let dependencies = WorkspaceDependencyAliases {
+            production: BTreeMap::new(),
+            test: BTreeMap::from([(
+                "consumer-b".to_owned(),
+                BTreeMap::from([("provider_alias".to_owned(), "provider_a".to_owned())]),
+            )]),
+        };
+        let baseline =
+            inventory_persistence_accesses_with_dependencies(&[consumer, provider], &dependencies)
+                .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn test_only"
+                && row.source_class == "test_fixture"
+                && row.operation == PersistenceOperation::PoolAccess
+        }));
     }
 
     #[test]
@@ -11886,6 +12308,10 @@ mod tests {
             r#"
                 fn persistent(database: wow_database::CharacterDatabase) {
                     consume(std::convert::identity(database).pool());
+                }
+                use std::convert::identity;
+                fn imported(database: wow_database::CharacterDatabase) {
+                    consume(identity(database).pool());
                 }
                 mod custom {
                     pub fn identity(value: bool) -> bool { value }
@@ -11896,9 +12322,11 @@ mod tests {
             "#,
         )
         .unwrap();
-        assert!(baseline.accesses.iter().any(|row| {
-            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
-        }));
+        for enclosing in ["fn persistent", "fn imported"] {
+            assert!(baseline.accesses.iter().any(|row| {
+                row.enclosing == enclosing && row.operation == PersistenceOperation::PoolAccess
+            }));
+        }
         assert!(
             !baseline
                 .accesses
@@ -11923,6 +12351,13 @@ mod tests {
                     let holder = Holder { database, clean: false };
                     consume(holder.database.pool());
                 }
+                fn side_effect(database: wow_database::CharacterDatabase) {
+                    let holder = Holder {
+                        database: wow_database::CharacterDatabase::default(),
+                        clean: { drop(database); false },
+                    };
+                    consume(holder.clean);
+                }
                 struct Decoded {
                     value: u32,
                     clean: bool,
@@ -11946,6 +12381,11 @@ mod tests {
         }));
         assert!(baseline.accesses.iter().any(|row| {
             row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn side_effect"
+                && row.symbol == "consume"
+                && row.operation == PersistenceOperation::ArgumentEscape
         }));
         assert!(baseline.accesses.iter().any(|row| {
             row.enclosing == "fn decoded"
