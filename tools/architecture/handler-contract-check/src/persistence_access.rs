@@ -3360,6 +3360,10 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 .join("::")
             })
         });
+        let explicit_owner_key = expression.qself.is_none().then(|| {
+            let names = path_names(path);
+            self.package_function_key(names[..names.len().saturating_sub(1)].to_vec())
+        });
         let receiver_types = if let Some(qself) = &expression.qself {
             receiver_nominal_types_in_type(&qself.ty)
                 .into_iter()
@@ -3385,11 +3389,16 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                     .map(|info| info.nominal_types.clone())
                     .unwrap_or_default()
             } else {
-                self.symbols
+                let mut owners = self
+                    .symbols
                     .nominal_type_aliases
                     .get(&owner)
                     .cloned()
-                    .unwrap_or_else(|| BTreeSet::from([owner]))
+                    .unwrap_or_else(|| BTreeSet::from([owner]));
+                if let Some(owner_key) = &explicit_owner_key {
+                    owners.insert(owner_key.clone());
+                }
+                owners
             }
         };
         let mut result = VariableInfo::default();
@@ -3452,13 +3461,11 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             // return: `-> Self` returns still need the substitute below, and
             // a persistence-typed owner path contributes its flow like the
             // ordinary call fallback does.
-            let names = path_names(path);
-            let owner_key =
-                self.package_function_key(names[..names.len().saturating_sub(1)].to_vec());
-            if let Some(info) = self
-                .symbols
-                .package_method_returns
-                .get(&(owner_key.clone(), method_name.clone()))
+            if let Some(owner_key) = &explicit_owner_key
+                && let Some(info) = self
+                    .symbols
+                    .package_method_returns
+                    .get(&(owner_key.clone(), method_name.clone()))
             {
                 let key = (owner_key.clone(), method_name.clone());
                 let params = self.symbols.package_method_generic_params.get(&key);
@@ -3469,7 +3476,6 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                     self.symbols.package_method_generic_input_params.get(&key),
                     call_args,
                 );
-                info.substitute_self(&receiver_types, &expanded);
                 info.flow
                     .union(Flow::pools(&targets_for_path(path, self.symbols)));
                 result.union(&info);
@@ -3496,7 +3502,30 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 );
             }
         }
-        result.substitute_self(&receiver_types, &expanded);
+        if result.substitute_self(&receiver_types, &expanded) {
+            // A dependency method may declare `-> Self`. Substitution must
+            // recover that exact owner's registered fields (for example
+            // `wow_database::DbUpdater::new(...).pool`) without broadly
+            // expanding ordinary short return names such as `Holder`, which
+            // can legitimately occur in many modules and dependencies.
+            for receiver_type in &receiver_types {
+                let dependency_owner = receiver_type.split("::").next().is_some_and(|root| {
+                    self.symbols
+                        .dependency_crate_aliases
+                        .values()
+                        .any(|provider_root| provider_root == root)
+                });
+                if dependency_owner
+                    && let Some(named) = self
+                        .symbols
+                        .workspace_named_type_info
+                        .get(receiver_type)
+                        .cloned()
+                {
+                    result.union(&named);
+                }
+            }
+        }
         if result.flow.is_empty()
             && result.nominal_types.is_empty()
             && result.payload_variants.is_empty()
@@ -3538,6 +3567,29 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             let key = self.package_function_key(path_names(&path.path));
             if let Some(info) = self.symbols.package_item_values.get(&key) {
                 return info.clone();
+            }
+            // Function items carry their declared return information when
+            // stored in a local (`let factory = crate::make; factory()`).
+            // Resolve the same local/package/associated registries used by a
+            // direct call before the lexical binding hides the declaration.
+            if path.path.segments.len() == 1
+                && let Some(name) = last_path_name(&path.path)
+                && let Some(info) = self.symbols.function_returns.get(&name)
+            {
+                return info.clone();
+            }
+            if let Some(info) = self.symbols.package_function_returns.get(&key) {
+                return info.clone();
+            }
+            let associated = self.associated_return_info(path, None);
+            if !associated.flow.is_empty()
+                || !associated.nominal_types.is_empty()
+                || !associated.payload_variants.is_empty()
+                || !associated.tuple_items.is_empty()
+                || !associated.field_items.is_empty()
+                || !associated.trait_bounds.is_empty()
+            {
+                return associated;
             }
         }
         if let Expr::Call(call) = expression
@@ -4538,6 +4590,22 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             || (names.len() == 1 && self.symbols.query_callables.contains(last))
         {
             Flow::query()
+        } else if let Some(targets) = (names.len() == 1)
+            .then(|| self.symbols.persistence_macros.get(last))
+            .flatten()
+            .or_else(|| {
+                let key = self.package_function_key(names.clone());
+                self.symbols
+                    .package_persistence_macros
+                    .get(&key)
+                    .or_else(|| self.symbols.package_persistence_macros.get(last))
+            })
+        {
+            // A registered macro's definition already proves its concrete
+            // targets. Preserve that result flow as well as auditing the call
+            // site so `database!().pool()` cannot disappear behind the
+            // definition's existing baseline row.
+            Flow::pools(targets)
         } else if matches!(last, "vec" | "join" | "try_join" | "select") {
             // `vec!` is whitelisted as an opaque macro but it produces a
             // value: its result flow is the union of every in-scope
@@ -4665,7 +4733,13 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         let registered_macro_targets = (names.len() == 1)
             .then(|| self.symbols.persistence_macros.get(&name))
             .flatten()
-            .or_else(|| self.symbols.package_persistence_macros.get(&name))
+            .or_else(|| {
+                let key = self.package_function_key(names.clone());
+                self.symbols
+                    .package_persistence_macros
+                    .get(&key)
+                    .or_else(|| self.symbols.package_persistence_macros.get(&name))
+            })
             .cloned();
         if let Some(targets) = registered_macro_targets {
             // Invocation of a registered persistence-generating `macro_rules!`:
@@ -5143,6 +5217,25 @@ fn assign_destructured_expr(
 }
 
 impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
+    fn visit_expr_binary(&mut self, expression: &'ast syn::ExprBinary) {
+        if !self.allows_source_class(&expression.attrs, "binary expression") {
+            return;
+        }
+        self.visit_expr(&expression.left);
+        if matches!(expression.op, syn::BinOp::And(_) | syn::BinOp::Or(_)) {
+            // The right side of `&&`/`||` may not execute. Audit it, but
+            // retain both the pre-RHS and post-RHS binding states so a
+            // conditional assignment cannot erase persistence flow that is
+            // still reachable through the short-circuit path.
+            let pre_rhs_scopes = self.scopes.clone();
+            self.visit_expr(&expression.right);
+            merge_scope_stacks(&mut self.scopes, &pre_rhs_scopes);
+            self.bump_context();
+        } else {
+            self.visit_expr(&expression.right);
+        }
+    }
+
     fn visit_expr_for_loop(&mut self, expression: &'ast syn::ExprForLoop) {
         if !self.allows_source_class(&expression.attrs, "for-loop expression") {
             return;
@@ -7028,6 +7121,132 @@ fn dependency_alias_cache(
         .collect()
 }
 
+fn qualify_dependency_shape(
+    shape: &mut NominalShape,
+    provider_root: &str,
+    provider_named_types: &BTreeMap<String, VariableInfo>,
+) {
+    shape.nominal_types = std::mem::take(&mut shape.nominal_types)
+        .into_iter()
+        .map(|name| {
+            if provider_named_types.contains_key(&name) {
+                format!("{provider_root}::{name}")
+            } else {
+                name
+            }
+        })
+        .collect();
+    for argument in &mut shape.arguments {
+        qualify_dependency_shape(argument, provider_root, provider_named_types);
+    }
+}
+
+fn qualify_dependency_info(
+    provider_root: &str,
+    provider_named_types: &BTreeMap<String, VariableInfo>,
+    info: &VariableInfo,
+) -> VariableInfo {
+    let mut qualified = info.clone();
+    qualified.nominal_types = std::mem::take(&mut qualified.nominal_types)
+        .into_iter()
+        .map(|name| {
+            if provider_named_types.contains_key(&name) {
+                format!("{provider_root}::{name}")
+            } else {
+                name
+            }
+        })
+        .collect();
+    qualified.payload_variants = std::mem::take(&mut qualified.payload_variants)
+        .into_iter()
+        .map(|mut variant| {
+            for shape in &mut variant {
+                qualify_dependency_shape(shape, provider_root, provider_named_types);
+            }
+            variant
+        })
+        .collect();
+    for item in &mut qualified.tuple_items {
+        *item = qualify_dependency_info(provider_root, provider_named_types, item);
+    }
+    for item in qualified.field_items.values_mut() {
+        *item = qualify_dependency_info(provider_root, provider_named_types, item);
+    }
+    qualified
+}
+
+fn dependency_scoped_registry_cache<K, V, QualifyKey, QualifyValue>(
+    registries: &BTreeMap<(String, PersistenceSourceClass), BTreeMap<K, V>>,
+    named_type_registries: &BTreeMap<
+        (String, PersistenceSourceClass),
+        BTreeMap<String, VariableInfo>,
+    >,
+    dependencies: &WorkspaceDependencyAliases,
+    qualify_key: QualifyKey,
+    qualify_value: QualifyValue,
+) -> BTreeMap<(String, PersistenceSourceClass), std::sync::Arc<BTreeMap<K, V>>>
+where
+    K: Clone + Ord,
+    V: Clone,
+    QualifyKey: Fn(&str, &K) -> K,
+    QualifyValue: Fn(&str, &BTreeMap<String, VariableInfo>, &V) -> V,
+{
+    let mut consumers = registries.keys().cloned().collect::<BTreeSet<_>>();
+    consumers.extend(
+        dependencies
+            .production
+            .keys()
+            .cloned()
+            .map(|package| (package, PersistenceSourceClass::Production)),
+    );
+    consumers.extend(
+        dependencies
+            .test
+            .keys()
+            .cloned()
+            .map(|package| (package, PersistenceSourceClass::TestFixture)),
+    );
+    consumers
+        .into_iter()
+        .map(|key| {
+            let (package, source_class) = (&key.0, key.1);
+            let mut scoped = registries.get(&key).cloned().unwrap_or_default();
+            let aliases = match source_class {
+                PersistenceSourceClass::Production => dependencies.production.get(package),
+                PersistenceSourceClass::TestFixture => dependencies.test.get(package),
+            };
+            for provider_root in aliases
+                .into_iter()
+                .flat_map(|aliases| aliases.values())
+                .collect::<BTreeSet<_>>()
+            {
+                let provider = registries.keys().find_map(|(candidate, candidate_class)| {
+                    (*candidate_class == source_class
+                        && candidate.replace('-', "_") == provider_root.as_str())
+                    .then_some(candidate)
+                });
+                let Some(provider) = provider else {
+                    continue;
+                };
+                let provider_key = (provider.clone(), source_class);
+                let provider_named_types = named_type_registries
+                    .get(&provider_key)
+                    .cloned()
+                    .unwrap_or_default();
+                if let Some(entries) = registries.get(&provider_key) {
+                    for (entry_key, value) in entries {
+                        scoped.insert(
+                            qualify_key(provider_root, entry_key),
+                            qualify_value(provider_root, &provider_named_types, value),
+                        );
+                    }
+                }
+            }
+            (key, std::sync::Arc::new(scoped))
+        })
+        .collect()
+}
+
 #[cfg(test)]
 pub(crate) fn inventory_persistence_accesses(
     sources: &[ClassifiedPersistenceSource<'_>],
@@ -7434,6 +7653,62 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
             }
         }
     }
+    let function_registry_cache = dependency_scoped_registry_cache(
+        &function_registries,
+        &named_type_registries,
+        dependencies,
+        |provider_root, key| format!("{provider_root}::{key}"),
+        qualify_dependency_info,
+    );
+    let function_generic_registry_cache = dependency_scoped_registry_cache(
+        &function_generic_registries,
+        &named_type_registries,
+        dependencies,
+        |provider_root, key| format!("{provider_root}::{key}"),
+        |_, _, value| value.clone(),
+    );
+    let function_generic_input_registry_cache = dependency_scoped_registry_cache(
+        &function_generic_input_registries,
+        &named_type_registries,
+        dependencies,
+        |provider_root, key| format!("{provider_root}::{key}"),
+        |_, _, value| value.clone(),
+    );
+    let method_registry_cache = dependency_scoped_registry_cache(
+        &method_registries,
+        &named_type_registries,
+        dependencies,
+        |provider_root, (owner, method)| (format!("{provider_root}::{owner}"), method.clone()),
+        qualify_dependency_info,
+    );
+    let method_generic_registry_cache = dependency_scoped_registry_cache(
+        &method_generic_registries,
+        &named_type_registries,
+        dependencies,
+        |provider_root, (owner, method)| (format!("{provider_root}::{owner}"), method.clone()),
+        |_, _, value| value.clone(),
+    );
+    let method_generic_input_registry_cache = dependency_scoped_registry_cache(
+        &method_generic_input_registries,
+        &named_type_registries,
+        dependencies,
+        |provider_root, (owner, method)| (format!("{provider_root}::{owner}"), method.clone()),
+        |_, _, value| value.clone(),
+    );
+    let item_value_registry_cache = dependency_scoped_registry_cache(
+        &item_value_registries,
+        &named_type_registries,
+        dependencies,
+        |provider_root, key| format!("{provider_root}::{key}"),
+        qualify_dependency_info,
+    );
+    let macro_registry_cache = dependency_scoped_registry_cache(
+        &macro_registries,
+        &named_type_registries,
+        dependencies,
+        |provider_root, key| format!("{provider_root}::{key}"),
+        |_, _, value| value.clone(),
+    );
     for source in ordered {
         if source.classification.is_empty()
             || source.package.is_empty()
@@ -7536,54 +7811,41 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
                 package_symbols.trait_method_generic_input_params =
                     std::sync::Arc::new(method_generic_input_params.clone());
             }
-            package_symbols.package_function_returns = std::sync::Arc::new(
-                function_registries
-                    .get(&(source.package.to_owned(), source_class))
+            let registry_key = (source.package.to_owned(), source_class);
+            package_symbols.package_function_returns = function_registry_cache
+                .get(&registry_key)
+                .cloned()
+                .unwrap_or_else(|| std::sync::Arc::new(BTreeMap::new()));
+            package_symbols.package_function_generic_params = function_generic_registry_cache
+                .get(&registry_key)
+                .cloned()
+                .unwrap_or_else(|| std::sync::Arc::new(BTreeMap::new()));
+            package_symbols.package_function_generic_input_params =
+                function_generic_input_registry_cache
+                    .get(&registry_key)
                     .cloned()
-                    .unwrap_or_default(),
-            );
-            package_symbols.package_function_generic_params = std::sync::Arc::new(
-                function_generic_registries
-                    .get(&(source.package.to_owned(), source_class))
+                    .unwrap_or_else(|| std::sync::Arc::new(BTreeMap::new()));
+            package_symbols.package_method_returns = method_registry_cache
+                .get(&registry_key)
+                .cloned()
+                .unwrap_or_else(|| std::sync::Arc::new(BTreeMap::new()));
+            package_symbols.package_method_generic_params = method_generic_registry_cache
+                .get(&registry_key)
+                .cloned()
+                .unwrap_or_else(|| std::sync::Arc::new(BTreeMap::new()));
+            package_symbols.package_method_generic_input_params =
+                method_generic_input_registry_cache
+                    .get(&registry_key)
                     .cloned()
-                    .unwrap_or_default(),
-            );
-            package_symbols.package_function_generic_input_params = std::sync::Arc::new(
-                function_generic_input_registries
-                    .get(&(source.package.to_owned(), source_class))
-                    .cloned()
-                    .unwrap_or_default(),
-            );
-            package_symbols.package_method_returns = std::sync::Arc::new(
-                method_registries
-                    .get(&(source.package.to_owned(), source_class))
-                    .cloned()
-                    .unwrap_or_default(),
-            );
-            package_symbols.package_method_generic_params = std::sync::Arc::new(
-                method_generic_registries
-                    .get(&(source.package.to_owned(), source_class))
-                    .cloned()
-                    .unwrap_or_default(),
-            );
-            package_symbols.package_method_generic_input_params = std::sync::Arc::new(
-                method_generic_input_registries
-                    .get(&(source.package.to_owned(), source_class))
-                    .cloned()
-                    .unwrap_or_default(),
-            );
-            package_symbols.package_item_values = std::sync::Arc::new(
-                item_value_registries
-                    .get(&(source.package.to_owned(), source_class))
-                    .cloned()
-                    .unwrap_or_default(),
-            );
-            package_symbols.package_persistence_macros = std::sync::Arc::new(
-                macro_registries
-                    .get(&(source.package.to_owned(), source_class))
-                    .cloned()
-                    .unwrap_or_default(),
-            );
+                    .unwrap_or_else(|| std::sync::Arc::new(BTreeMap::new()));
+            package_symbols.package_item_values = item_value_registry_cache
+                .get(&registry_key)
+                .cloned()
+                .unwrap_or_else(|| std::sync::Arc::new(BTreeMap::new()));
+            package_symbols.package_persistence_macros = macro_registry_cache
+                .get(&registry_key)
+                .cloned()
+                .unwrap_or_else(|| std::sync::Arc::new(BTreeMap::new()));
             analyze_module_items(
                 &syntax.items,
                 RecordContext {
@@ -10920,5 +11182,214 @@ mod tests {
                 .any(|row| row.enclosing == "fn persistent"
                     && row.operation == PersistenceOperation::PoolAccess)
         );
+    }
+
+    #[test]
+    fn persistence_inventory_resolves_dependency_callable_returns() {
+        let provider = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "provider-a",
+            module: "crate",
+            source_path: "src/lib.rs",
+            inherited_cfg: &[],
+            source: r#"
+                pub struct Holder(pub wow_database::CharacterDatabase);
+                pub struct Factory;
+                impl Factory {
+                    pub fn make() -> Holder { unreachable!() }
+                }
+                pub struct Constructed(pub wow_database::CharacterDatabase);
+                impl Constructed {
+                    pub fn new(database: wow_database::CharacterDatabase) -> Self {
+                        Self(database)
+                    }
+                }
+                pub fn make() -> Holder { unreachable!() }
+            "#,
+        };
+        let consumer = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "consumer-b",
+            module: "crate",
+            source_path: "src/lib.rs",
+            inherited_cfg: &[],
+            source: r#"
+                fn free_function() { consume(provider_alias::make().0.pool()); }
+                fn associated_function() {
+                    consume(provider_alias::Factory::make().0.pool());
+                }
+                fn self_constructor(database: wow_database::CharacterDatabase) {
+                    let value = provider_alias::Constructed::new(database);
+                    consume(value.0.pool());
+                }
+            "#,
+        };
+        let dependencies = WorkspaceDependencyAliases {
+            production: BTreeMap::from([(
+                "consumer-b".to_owned(),
+                BTreeMap::from([("provider_alias".to_owned(), "provider_a".to_owned())]),
+            )]),
+            test: BTreeMap::new(),
+        };
+        let baseline =
+            inventory_persistence_accesses_with_dependencies(&[consumer, provider], &dependencies)
+                .unwrap();
+        for enclosing in [
+            "fn free_function",
+            "fn associated_function",
+            "fn self_constructor",
+        ] {
+            assert!(baseline.accesses.iter().any(|row| {
+                row.enclosing == enclosing && row.operation == PersistenceOperation::PoolAccess
+            }));
+        }
+    }
+
+    #[test]
+    fn persistence_inventory_preserves_function_item_return_flow() {
+        let baseline = inventory(
+            r#"
+                fn database() -> wow_database::CharacterDatabase { unreachable!() }
+                struct Factory;
+                impl Factory {
+                    fn database() -> wow_database::CharacterDatabase { unreachable!() }
+                }
+                fn free_alias() {
+                    let factory = crate::database;
+                    consume(factory().pool());
+                }
+                fn associated_alias() {
+                    let factory = Factory::database;
+                    consume(factory().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        for enclosing in ["fn free_alias", "fn associated_alias"] {
+            assert!(baseline.accesses.iter().any(|row| {
+                row.enclosing == enclosing && row.operation == PersistenceOperation::PoolAccess
+            }));
+        }
+    }
+
+    #[test]
+    fn persistence_inventory_propagates_dependency_macro_result_flow() {
+        let provider = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "provider-a",
+            module: "crate",
+            source_path: "src/lib.rs",
+            inherited_cfg: &[],
+            source: r#"
+                #[macro_export]
+                macro_rules! hidden_database {
+                    () => { wow_database::CharacterDatabase::default() };
+                }
+            "#,
+        };
+        let consumer = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "consumer-b",
+            module: "crate",
+            source_path: "src/lib.rs",
+            inherited_cfg: &[],
+            source: r#"
+                fn persistent() {
+                    consume(provider_alias::hidden_database!().pool());
+                }
+            "#,
+        };
+        let dependencies = WorkspaceDependencyAliases {
+            production: BTreeMap::from([(
+                "consumer-b".to_owned(),
+                BTreeMap::from([("provider_alias".to_owned(), "provider_a".to_owned())]),
+            )]),
+            test: BTreeMap::new(),
+        };
+        let baseline =
+            inventory_persistence_accesses_with_dependencies(&[consumer, provider], &dependencies)
+                .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent"
+                && row.operation == PersistenceOperation::MacroReference
+        }));
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_does_not_import_unrelated_callables_or_macros() {
+        let provider = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "unrelated-provider",
+            module: "crate",
+            source_path: "src/lib.rs",
+            inherited_cfg: &[],
+            source: r#"
+                pub struct Holder(pub wow_database::CharacterDatabase);
+                pub fn make() -> Holder { unreachable!() }
+                #[macro_export]
+                macro_rules! hidden_database {
+                    () => { wow_database::CharacterDatabase::default() };
+                }
+            "#,
+        };
+        let consumer = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "consumer-b",
+            module: "crate",
+            source_path: "src/lib.rs",
+            inherited_cfg: &[],
+            source: r#"
+                fn clean() {
+                    consume(unrelated_provider::make().0.pool());
+                    consume(unrelated_provider::hidden_database!().pool());
+                }
+            "#,
+        };
+        let baseline = inventory_persistence_accesses_with_dependencies(
+            &[consumer, provider],
+            &WorkspaceDependencyAliases::default(),
+        )
+        .unwrap();
+        assert!(
+            !baseline
+                .accesses
+                .iter()
+                .any(|row| row.enclosing == "fn clean")
+        );
+    }
+
+    #[test]
+    fn persistence_inventory_preserves_state_across_short_circuit_rhs() {
+        let baseline = inventory(
+            r#"
+                fn or_path(database: wow_database::CharacterDatabase, stop: bool) {
+                    let mut value = Some(database);
+                    stop || { value = None; true };
+                    consume(value.unwrap().pool());
+                }
+                fn and_path(database: wow_database::CharacterDatabase, proceed: bool) {
+                    let mut value = Some(database);
+                    proceed && { value = None; true };
+                    consume(value.unwrap().pool());
+                }
+                fn unconditional(database: wow_database::CharacterDatabase) {
+                    let mut value = Some(database);
+                    value = None;
+                    consume(value.unwrap().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        for enclosing in ["fn or_path", "fn and_path"] {
+            assert!(baseline.accesses.iter().any(|row| {
+                row.enclosing == enclosing && row.operation == PersistenceOperation::PoolAccess
+            }));
+        }
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn unconditional" && row.operation == PersistenceOperation::PoolAccess
+        }));
     }
 }

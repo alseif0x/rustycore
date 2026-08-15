@@ -964,6 +964,20 @@
       "package": "world-server",
       "module": "crate",
       "source": "crates/world-server/src/main.rs",
+      "enclosing": "fn run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "world-server bootstrap/data-source boundary",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "world-server",
+      "module": "crate",
+      "source": "crates/world-server/src/main.rs",
       "enclosing": "fn set_realm_offline",
       "logical_databases": [
         "login"
