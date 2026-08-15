@@ -1715,6 +1715,63 @@ fn collect_nested_trait_returns(
     }
 }
 
+fn collect_nested_item_values(
+    items: &[Item],
+    module_path: &[String],
+    cfg: &[String],
+    source_class: PersistenceSourceClass,
+    symbols: &ModuleSymbols,
+    output: &mut BTreeMap<String, VariableInfo>,
+    errors: &mut Vec<String>,
+) {
+    for item in items {
+        match item {
+            Item::Const(item_const)
+                if source_class_allows(source_class, cfg, &item_const.attrs, errors, "const") =>
+            {
+                let mut path = module_path.to_vec();
+                path.push(normalized_ident(&item_const.ident));
+                output
+                    .entry(path.join("::"))
+                    .or_default()
+                    .union(&variable_info_in_type(&item_const.ty, symbols));
+            }
+            Item::Static(item_static)
+                if source_class_allows(source_class, cfg, &item_static.attrs, errors, "static") =>
+            {
+                let mut path = module_path.to_vec();
+                path.push(normalized_ident(&item_static.ident));
+                output
+                    .entry(path.join("::"))
+                    .or_default()
+                    .union(&variable_info_in_type(&item_static.ty, symbols));
+            }
+            Item::Mod(item_mod)
+                if source_class_allows(
+                    source_class,
+                    cfg,
+                    &item_mod.attrs,
+                    errors,
+                    "inline module",
+                ) && item_mod.content.is_some() =>
+            {
+                let mut child_path = module_path.to_vec();
+                child_path.push(normalized_ident(&item_mod.ident));
+                collect_nested_item_values(
+                    &item_mod.content.as_ref().expect("checked content").1,
+                    &child_path,
+                    &item_cfg(cfg, &item_mod.attrs),
+                    source_class,
+                    symbols,
+                    output,
+                    errors,
+                );
+            }
+            _ => {}
+        }
+    }
+}
+
 fn collect_module_symbols(
     items: &[Item],
     parent: Option<&ModuleSymbols>,
@@ -2114,6 +2171,32 @@ fn collect_module_symbols(
                         })
                     })
                     .collect::<BTreeMap<_, _>>();
+                if let Some(trait_name) = &trait_name {
+                    let inherited = symbols
+                        .trait_method_returns
+                        .iter()
+                        .filter(|((candidate_trait, _), _)| {
+                            candidate_trait == trait_name
+                                || candidate_trait.ends_with(&format!("::{trait_name}"))
+                                || trait_name.ends_with(&format!("::{candidate_trait}"))
+                        })
+                        .map(|((_, method), info)| (method.clone(), info.clone()))
+                        .collect::<Vec<_>>();
+                    for (method_name, mut return_info) in inherited {
+                        substitute_nominal_params(&mut return_info, &associated_types);
+                        for receiver_type in &receiver_types {
+                            symbols
+                                .method_returns
+                                .entry((
+                                    receiver_type.clone(),
+                                    Some(trait_name.clone()),
+                                    method_name.clone(),
+                                ))
+                                .or_default()
+                                .union(&return_info);
+                        }
+                    }
+                }
                 for item in &item_impl.items {
                     let ImplItem::Fn(method) = item else {
                         continue;
@@ -3220,7 +3303,11 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 // a local closure or function-valued binding may carry the
                 // persistence return flow.
                 if let Some(info) = self.lookup(&name) {
-                    return info.clone();
+                    let mut result = info.clone();
+                    for argument in &call.args {
+                        result.union(&self.info_from_expr(argument));
+                    }
+                    return result;
                 }
                 let turbofish =
                     path.path
@@ -3284,7 +3371,10 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         if let Expr::Call(call) = expression
             && !matches!(call.func.as_ref(), Expr::Path(_))
         {
-            let callable = self.info_from_expr(&call.func);
+            let mut callable = self.info_from_expr(&call.func);
+            for argument in &call.args {
+                callable.union(&self.info_from_expr(argument));
+            }
             if !callable.flow.is_empty()
                 || !callable.nominal_types.is_empty()
                 || !callable.payload_variants.is_empty()
@@ -3350,6 +3440,9 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             let key = self.package_function_key(names);
             if let Some(named) = self.symbols.named_type_info.get(&key) {
                 info.union(named);
+            }
+            for argument in &call.args {
+                info.union(&self.info_from_expr(argument));
             }
             return info;
         }
@@ -3862,7 +3955,11 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
 
     fn flow_of_call(&self, call: &ExprCall) -> Flow {
         let Expr::Path(path) = call.func.as_ref() else {
-            return self.info_from_expr(&call.func).flow;
+            let mut flow = self.info_from_expr(&call.func).flow;
+            for argument in &call.args {
+                flow.union(self.flow_of_expr(argument));
+            }
+            return flow;
         };
         let names = path_names(&path.path);
         let last = names.last().map(String::as_str).unwrap_or_default();
@@ -3891,7 +3988,11 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         }
         if names.len() == 1 {
             if let Some(info) = self.lookup(last) {
-                return info.flow.clone();
+                let mut flow = info.flow.clone();
+                for argument in &call.args {
+                    flow.union(self.flow_of_expr(argument));
+                }
+                return flow;
             }
             let turbofish =
                 path.path
@@ -4079,7 +4180,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             || (names.len() == 1 && self.symbols.query_callables.contains(last))
         {
             Flow::query()
-        } else if names.len() == 1 && last == "vec" {
+        } else if matches!(last, "vec" | "join" | "try_join" | "select") {
             // `vec!` is whitelisted as an opaque macro but it produces a
             // value: its result flow is the union of every in-scope
             // persistence value named in its input. Without this,
@@ -4540,6 +4641,48 @@ fn simple_assignment_name(expression: &Expr) -> Option<String> {
         .flatten()
 }
 
+fn assign_destructured_expr(
+    analyzer: &mut BodyAnalyzer<'_, '_>,
+    expression: &Expr,
+    info: &VariableInfo,
+) -> bool {
+    match expression {
+        Expr::Path(_) => {
+            let Some(name) = simple_assignment_name(expression) else {
+                return false;
+            };
+            analyzer.assign(&name, info.clone());
+            true
+        }
+        Expr::Tuple(tuple) => {
+            let mut all_supported = true;
+            for (index, element) in tuple.elems.iter().enumerate() {
+                let item = info.tuple_items.get(index).unwrap_or(info);
+                if !assign_destructured_expr(analyzer, element, item) {
+                    all_supported = false;
+                }
+            }
+            all_supported
+        }
+        Expr::Array(array) => {
+            let mut all_supported = true;
+            for (index, element) in array.elems.iter().enumerate() {
+                if !assign_destructured_expr(
+                    analyzer,
+                    element,
+                    info.tuple_items.get(index).unwrap_or(info),
+                ) {
+                    all_supported = false;
+                }
+            }
+            all_supported
+        }
+        Expr::Paren(paren) => assign_destructured_expr(analyzer, &paren.expr, info),
+        Expr::Group(group) => assign_destructured_expr(analyzer, &group.expr, info),
+        _ => false,
+    }
+}
+
 impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
     fn visit_expr_for_loop(&mut self, expression: &'ast syn::ExprForLoop) {
         if !self.allows_source_class(&expression.attrs, "for-loop expression") {
@@ -4648,7 +4791,12 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             &cfg,
             normalized_tokens(expression),
         );
+        let pre_loop_scopes = self.scopes.clone();
         self.visit_block(&expression.body);
+        // An early `break` can preserve any state visible before the loop;
+        // unioning it prevents later statements in the body from erasing
+        // persistence flow that remains reachable along that exit path.
+        merge_scope_stacks(&mut self.scopes, &pre_loop_scopes);
     }
 
     fn visit_stmt(&mut self, statement: &'ast syn::Stmt) {
@@ -5034,6 +5182,14 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                 &info.flow,
                 PersistenceOperation::ValueAlias,
                 &name,
+                &cfg,
+                normalized_tokens(assignment),
+            );
+        } else if assign_destructured_expr(self, &assignment.left, &info) {
+            self.record_flow(
+                &info.flow,
+                PersistenceOperation::ValueAlias,
+                "destructuring_assignment",
                 &cfg,
                 normalized_tokens(assignment),
             );
@@ -6395,17 +6551,15 @@ pub(crate) fn inventory_persistence_accesses(
             let item_value_registry = item_value_registries
                 .entry((source.package.to_owned(), source_class))
                 .or_default();
-            for (name, info) in &symbols.item_values {
-                let canonical = if module_prefix.is_empty() {
-                    name.clone()
-                } else {
-                    format!("{module_prefix}::{name}")
-                };
-                item_value_registry
-                    .entry(canonical)
-                    .or_default()
-                    .union(info);
-            }
+            collect_nested_item_values(
+                &syntax.items,
+                &symbols.module_path,
+                &cfg,
+                source_class,
+                &symbols,
+                item_value_registry,
+                &mut errors,
+            );
             let macro_registry = macro_registries
                 .entry((source.package.to_owned(), source_class))
                 .or_default();
@@ -6498,6 +6652,64 @@ pub(crate) fn inventory_persistence_accesses(
                 method_generic_registry
                     .entry((canonical_owner, method.clone()))
                     .or_insert_with(|| generic_params.clone());
+            }
+        }
+    }
+    // Trait declarations and implementations can live in different files.
+    // Once the first pass has the complete trait-return registry, revisit
+    // impls so associated bindings can instantiate inherited default method
+    // returns and publish them under the concrete receiver package-wide.
+    for source in &ordered {
+        let Ok(syntax) = syn::parse_file(source.source) else {
+            continue;
+        };
+        let cfg = extend_cfg_context(source.inherited_cfg, &syntax.attrs);
+        for source_class in [
+            PersistenceSourceClass::Production,
+            PersistenceSourceClass::TestFixture,
+        ] {
+            if !source_class_allows(source_class, &cfg, &[], &mut errors, "source file") {
+                continue;
+            }
+            let mut base = ModuleSymbols::for_package(source.package);
+            base.named_type_info = std::sync::Arc::new(
+                named_type_registries
+                    .get(&(source.package.to_owned(), source_class))
+                    .cloned()
+                    .unwrap_or_default(),
+            );
+            if let Some((methods, supertraits, generic_params, method_generic_params)) =
+                trait_registries.get(&(source.package.to_owned(), source_class))
+            {
+                base.trait_method_returns = std::sync::Arc::new(methods.clone());
+                base.trait_supertraits = std::sync::Arc::new(supertraits.clone());
+                base.trait_generic_params = std::sync::Arc::new(generic_params.clone());
+                base.trait_method_generic_params =
+                    std::sync::Arc::new(method_generic_params.clone());
+            }
+            let symbols = collect_module_symbols(
+                &syntax.items,
+                Some(&base),
+                source.package,
+                source.module,
+                &cfg,
+                source_class,
+                &mut errors,
+            );
+            let module_prefix = symbols.module_path.join("::");
+            let method_registry = method_registries
+                .entry((source.package.to_owned(), source_class))
+                .or_default();
+            for ((owner, _, method), info) in &symbols.method_returns {
+                let canonical_owner = if module_prefix.is_empty() {
+                    owner.clone()
+                } else {
+                    format!("{module_prefix}::{owner}")
+                };
+                method_registry
+                    .entry((canonical_owner, method.clone()))
+                    .or_default()
+                    .union(info);
             }
         }
     }
@@ -9310,5 +9522,181 @@ mod tests {
                 .iter()
                 .any(|row| row.enclosing == "fn clean")
         );
+    }
+
+    #[test]
+    fn persistence_inventory_applies_associated_bindings_to_inherited_default_methods() {
+        let baseline = inventory(
+            r#"
+                struct Holder(wow_database::CharacterDatabase);
+                trait Maker {
+                    type Product;
+                    fn make(&self) -> Self::Product { unreachable!() }
+                }
+                struct Factory;
+                impl Maker for Factory { type Product = Holder; }
+                fn persistent(factory: &Factory) { consume(factory.make().0.pool()); }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent"
+                && row.target == PersistenceTarget::CharacterDatabase
+                && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_tracks_inline_module_values_across_source_files() {
+        let values = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "fixture",
+            module: "crate::values",
+            source_path: "src/values.rs",
+            inherited_cfg: &[],
+            source: r#"
+                mod nested {
+                    static POOL: std::sync::OnceLock<sqlx::MySqlPool> = std::sync::OnceLock::new();
+                }
+            "#,
+        };
+        let consumer = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "fixture",
+            module: "crate::consumer",
+            source_path: "src/consumer.rs",
+            inherited_cfg: &[],
+            source: r#"
+                fn persistent() {
+                    consume(crate::values::nested::POOL.get().unwrap().acquire());
+                }
+            "#,
+        };
+        let baseline = inventory_persistence_accesses(&[consumer, values]).unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent"
+                && row.target == PersistenceTarget::MySqlPool
+                && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_propagates_arguments_through_callable_results() {
+        let baseline = inventory(
+            r#"
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    let identity = |value| value;
+                    consume(identity(database).pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent"
+                && row.target == PersistenceTarget::CharacterDatabase
+                && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_preserves_state_reachable_through_loop_breaks() {
+        let baseline = inventory(
+            r#"
+                fn persistent(database: wow_database::CharacterDatabase, stop: bool) {
+                    let mut value = Some(database);
+                    loop {
+                        if stop { break; }
+                        value = None;
+                    }
+                    consume(value.unwrap().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent"
+                && row.target == PersistenceTarget::CharacterDatabase
+                && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_preserves_join_macro_result_flow() {
+        let baseline = inventory(
+            r#"
+                async fn persistent(database: wow_database::CharacterDatabase) {
+                    let (database,) = tokio::join!(async { database });
+                    consume(database.pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent"
+                && row.target == PersistenceTarget::CharacterDatabase
+                && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_instantiates_generic_container_flow() {
+        let baseline = inventory(
+            r#"
+                struct Holder<T>(T);
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    let holder = Holder(database);
+                    send(holder);
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent"
+                && row.target == PersistenceTarget::CharacterDatabase
+                && row.operation == PersistenceOperation::ArgumentEscape
+                && row.symbol == "send"
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_updates_destructuring_assignment_bindings() {
+        let baseline = inventory(
+            r#"
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    let mut value = None;
+                    (value,) = (Some(database),);
+                    consume(value.unwrap().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent"
+                && row.target == PersistenceTarget::CharacterDatabase
+                && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_updates_supported_places_in_mixed_assignments() {
+        let baseline = inventory(
+            r#"
+                struct Holder { field: u8 }
+                fn persistent(
+                    database: wow_database::CharacterDatabase,
+                    mut holder: Holder,
+                ) {
+                    let mut value = None;
+                    (holder.field, value) = (1_u8, Some(database));
+                    consume(value.unwrap().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent"
+                && row.target == PersistenceTarget::CharacterDatabase
+                && row.operation == PersistenceOperation::PoolAccess
+        }));
     }
 }

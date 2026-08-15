@@ -48,6 +48,8 @@ struct Group {
     #[serde(default)]
     source_prefixes: Vec<String>,
     #[serde(default)]
+    modules: Vec<String>,
+    #[serde(default)]
     enclosings: Vec<String>,
     #[serde(default)]
     enclosing_prefixes: Vec<String>,
@@ -335,6 +337,7 @@ fn generate_policy(
             packages: vec![package.clone()],
             sources: vec![source.clone()],
             source_prefixes: Vec::new(),
+            modules: vec![module.clone()],
             enclosings: vec![enclosing.clone()],
             enclosing_prefixes: Vec::new(),
             targets: Vec::new(),
@@ -367,6 +370,7 @@ fn generate_policy(
             packages: vec![package.clone()],
             sources: sources.into_iter().collect(),
             source_prefixes: Vec::new(),
+            modules: Vec::new(),
             enclosings: Vec::new(),
             enclosing_prefixes: Vec::new(),
             targets: Vec::new(),
@@ -408,6 +412,7 @@ fn group_matches(
     group: &Group,
     source_class: &str,
     package: &str,
+    module: &str,
     source: &str,
     enclosing: &str,
     target: &str,
@@ -415,6 +420,7 @@ fn group_matches(
 ) -> bool {
     group.source_class == source_class
         && group.packages.iter().any(|candidate| candidate == package)
+        && (group.modules.is_empty() || group.modules.iter().any(|candidate| candidate == module))
         && (group.sources.iter().any(|candidate| candidate == source)
             || group
                 .source_prefixes
@@ -602,6 +608,7 @@ fn validate_policy(
                     group,
                     &access.source_class,
                     &access.package,
+                    &access.module,
                     &access.source,
                     &access.enclosing,
                     &target,
@@ -859,6 +866,11 @@ mod tests {
                 == "workflow:wow-world:crate::handlers::character:crates/wow-world/src/handlers/character.rs::fn save"));
         assert!(policy.groups.iter().any(|group| group.id
             == "workflow:wow-world:crate::handlers::character::inner:crates/wow-world/src/handlers/character.rs::fn save"));
+        validate(
+            &serde_json::to_string(&policy).unwrap(),
+            baseline.accesses.clone(),
+        )
+        .expect("module selectors make the generated groups disjoint");
 
         // An annotation missing the second module's identity fails closed.
         let outer_only = WorkflowAnnotations {
