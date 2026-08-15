@@ -1695,6 +1695,100 @@ fn collect_public_callable_reexports(
     }
 }
 
+fn collect_public_named_type_paths(
+    items: &[Item],
+    parent_symbols: &ModuleSymbols,
+    cfg: &[String],
+    source_class: PersistenceSourceClass,
+    errors: &mut Vec<String>,
+    output: &mut BTreeSet<String>,
+) {
+    for item in items {
+        match item {
+            Item::Type(alias)
+                if matches!(alias.vis, Visibility::Public(_))
+                    && source_class_allows(
+                        source_class,
+                        cfg,
+                        &alias.attrs,
+                        errors,
+                        "public type alias",
+                    ) =>
+            {
+                let mut path = parent_symbols.module_path.clone();
+                path.push(normalized_ident(&alias.ident));
+                output.insert(path.join("::"));
+            }
+            Item::Struct(item_struct)
+                if matches!(item_struct.vis, Visibility::Public(_))
+                    && source_class_allows(
+                        source_class,
+                        cfg,
+                        &item_struct.attrs,
+                        errors,
+                        "public struct",
+                    ) =>
+            {
+                let mut path = parent_symbols.module_path.clone();
+                path.push(normalized_ident(&item_struct.ident));
+                output.insert(path.join("::"));
+            }
+            Item::Enum(item_enum)
+                if matches!(item_enum.vis, Visibility::Public(_))
+                    && source_class_allows(
+                        source_class,
+                        cfg,
+                        &item_enum.attrs,
+                        errors,
+                        "public enum",
+                    ) =>
+            {
+                let mut path = parent_symbols.module_path.clone();
+                path.push(normalized_ident(&item_enum.ident));
+                output.insert(path.join("::"));
+                for variant in &item_enum.variants {
+                    if source_class_allows(
+                        source_class,
+                        cfg,
+                        &variant.attrs,
+                        errors,
+                        "public enum variant",
+                    ) {
+                        let mut variant_path = path.clone();
+                        variant_path.push(normalized_ident(&variant.ident));
+                        output.insert(variant_path.join("::"));
+                    }
+                }
+            }
+            Item::Mod(item_mod)
+                if source_class_allows(
+                    source_class,
+                    cfg,
+                    &item_mod.attrs,
+                    errors,
+                    "inline module",
+                ) =>
+            {
+                if let Some((_, nested)) = &item_mod.content {
+                    let mut nested_symbols = parent_symbols.clone();
+                    nested_symbols
+                        .module_path
+                        .push(normalized_ident(&item_mod.ident));
+                    collect_public_named_type_paths(
+                        nested,
+                        &nested_symbols,
+                        &item_cfg(cfg, &item_mod.attrs),
+                        source_class,
+                        errors,
+                        output,
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
 fn source_is_sqlx(source: &[String], symbols: &ModuleSymbols) -> bool {
     source
         .first()
@@ -5536,7 +5630,15 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             &cfg,
             normalized_tokens(expression),
         );
+        // Constructing a future does not execute its body. Audit the body for
+        // captures and accesses, but keep both the declaration-time bindings
+        // and the bindings that would result if the future were later polled.
+        let declaration_scopes = self.scopes.clone();
+        self.push_scope();
         self.visit_block(&expression.block);
+        self.pop_scope();
+        merge_scope_stacks(&mut self.scopes, &declaration_scopes);
+        self.bump_context();
     }
 
     fn visit_expr_array(&mut self, expression: &'ast syn::ExprArray) {
@@ -5934,7 +6036,8 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                     }
                 }
             }
-        } else if !validated_flow_passthrough {
+        }
+        if !valid_persistence_method && !validated_flow_passthrough {
             self.record_pool_escape(
                 &receiver,
                 PersistenceOperation::ArgumentEscape,
@@ -7405,6 +7508,120 @@ fn qualify_dependency_info(
     qualified
 }
 
+fn resolve_public_named_type_reexports(
+    reexports: &BTreeMap<(String, PersistenceSourceClass), Vec<(String, String)>>,
+    dependencies: &WorkspaceDependencyAliases,
+    registries: &mut BTreeMap<(String, PersistenceSourceClass), BTreeMap<String, VariableInfo>>,
+    public_paths: &mut BTreeMap<(String, PersistenceSourceClass), BTreeSet<String>>,
+) {
+    let pass_limit = reexports.values().map(Vec::len).sum::<usize>() + 1;
+    for _ in 0..pass_limit {
+        let before = registries.clone();
+        let snapshot = registries.clone();
+        let public_snapshot = public_paths.clone();
+        for (consumer_key, aliases) in reexports {
+            let (consumer, source_class) = (&consumer_key.0, consumer_key.1);
+            let dependency_roots = match source_class {
+                PersistenceSourceClass::Production => dependencies.production.get(consumer),
+                PersistenceSourceClass::TestFixture => dependencies.test.get(consumer),
+            };
+            for (export, source) in aliases {
+                let glob = (source == "*" || source.ends_with("::*"))
+                    && (export == "*" || export.ends_with("::*"));
+                let source = if source == "*" {
+                    ""
+                } else {
+                    source.strip_suffix("::*").unwrap_or(source)
+                };
+                let export = if export == "*" {
+                    ""
+                } else {
+                    export.strip_suffix("::*").unwrap_or(export)
+                };
+                let mut source_parts = source.split("::");
+                let source_root = source_parts.next().unwrap_or_default();
+                let dependency_root = dependency_roots
+                    .into_iter()
+                    .flat_map(|aliases| aliases.values())
+                    .find(|root| root.as_str() == source_root);
+                let (provider_key, provider_entry, provider_root) =
+                    if let Some(provider_root) = dependency_root {
+                        let provider = snapshot.keys().find_map(|(candidate, candidate_class)| {
+                            (*candidate_class == source_class
+                                && candidate.replace('-', "_") == provider_root.as_str())
+                            .then_some(candidate.clone())
+                        });
+                        let Some(provider) = provider else {
+                            continue;
+                        };
+                        (
+                            (provider, source_class),
+                            source_parts.collect::<Vec<_>>().join("::"),
+                            Some(provider_root.as_str()),
+                        )
+                    } else {
+                        (consumer_key.clone(), source.to_owned(), None)
+                    };
+                let Some(provider_registry) = snapshot.get(&provider_key) else {
+                    continue;
+                };
+                let provider_public = public_snapshot
+                    .get(&provider_key)
+                    .cloned()
+                    .unwrap_or_default();
+                let entries = if glob {
+                    let prefix = (!provider_entry.is_empty())
+                        .then(|| format!("{provider_entry}::"))
+                        .unwrap_or_default();
+                    provider_registry
+                        .iter()
+                        .filter_map(|(entry, info)| {
+                            if !provider_public.contains(entry) {
+                                return None;
+                            }
+                            entry.strip_prefix(&prefix).map(|suffix| {
+                                let exported = if export.is_empty() {
+                                    suffix.to_owned()
+                                } else {
+                                    format!("{export}::{suffix}")
+                                };
+                                (exported, info.clone())
+                            })
+                        })
+                        .collect::<Vec<_>>()
+                } else {
+                    provider_public
+                        .contains(&provider_entry)
+                        .then(|| provider_registry.get(&provider_entry).cloned())
+                        .flatten()
+                        .map(|info| vec![(export.to_owned(), info)])
+                        .unwrap_or_default()
+                };
+                for (exported, source_info) in entries {
+                    let info = if let Some(provider_root) = provider_root {
+                        qualify_dependency_info(provider_root, provider_registry, &source_info)
+                    } else {
+                        source_info
+                    };
+                    registries
+                        .entry(consumer_key.clone())
+                        .or_default()
+                        .entry(exported.clone())
+                        .or_default()
+                        .union(&info);
+                    public_paths
+                        .entry(consumer_key.clone())
+                        .or_default()
+                        .insert(exported);
+                }
+            }
+        }
+        if registries == &before {
+            break;
+        }
+    }
+}
+
 fn resolve_public_callable_reexports(
     reexports: &BTreeMap<(String, PersistenceSourceClass), Vec<(String, String)>>,
     named_type_registries: &BTreeMap<
@@ -7954,6 +8171,72 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
             break;
         }
     }
+    let mut callable_reexports =
+        BTreeMap::<(String, PersistenceSourceClass), Vec<(String, String)>>::new();
+    let mut public_named_type_paths =
+        BTreeMap::<(String, PersistenceSourceClass), BTreeSet<String>>::new();
+    let initial_named_type_workspace_cache =
+        workspace_named_type_info_cache(&named_type_registries, dependencies);
+    let initial_named_type_package_cache = package_named_type_info_cache(&named_type_registries);
+    for source in &ordered {
+        let Ok(syntax) = syn::parse_file(source.source) else {
+            continue;
+        };
+        let cfg = extend_cfg_context(source.inherited_cfg, &syntax.attrs);
+        for source_class in [
+            PersistenceSourceClass::Production,
+            PersistenceSourceClass::TestFixture,
+        ] {
+            if !source_class_allows(source_class, &cfg, &[], &mut errors, "source file") {
+                continue;
+            }
+            let key = (source.package.to_owned(), source_class);
+            let mut base = ModuleSymbols::for_package(source.package);
+            base.named_type_info = initial_named_type_package_cache
+                .get(&key)
+                .cloned()
+                .unwrap_or_else(|| std::sync::Arc::new(BTreeMap::new()));
+            base.workspace_named_type_info = initial_named_type_workspace_cache
+                .get(&key)
+                .cloned()
+                .unwrap_or_else(|| std::sync::Arc::new(BTreeMap::new()));
+            base.dependency_crate_aliases = dependency_aliases
+                .get(&key)
+                .cloned()
+                .unwrap_or_else(|| std::sync::Arc::new(BTreeMap::new()));
+            let symbols = collect_module_symbols(
+                &syntax.items,
+                Some(&base),
+                source.package,
+                source.module,
+                &cfg,
+                source_class,
+                &mut errors,
+            );
+            collect_public_callable_reexports(
+                &syntax.items,
+                &symbols,
+                &cfg,
+                source_class,
+                &mut errors,
+                callable_reexports.entry(key.clone()).or_default(),
+            );
+            collect_public_named_type_paths(
+                &syntax.items,
+                &symbols,
+                &cfg,
+                source_class,
+                &mut errors,
+                public_named_type_paths.entry(key).or_default(),
+            );
+        }
+    }
+    resolve_public_named_type_reexports(
+        &callable_reexports,
+        dependencies,
+        &mut named_type_registries,
+        &mut public_named_type_paths,
+    );
     let named_type_workspace_cache =
         workspace_named_type_info_cache(&named_type_registries, dependencies);
     let named_type_package_cache = package_named_type_info_cache(&named_type_registries);
@@ -7981,8 +8264,6 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
         BTreeMap::<(String, PersistenceSourceClass), BTreeMap<String, VariableInfo>>::new();
     let mut macro_registries =
         BTreeMap::<(String, PersistenceSourceClass), BTreeMap<String, TargetSet>>::new();
-    let mut callable_reexports =
-        BTreeMap::<(String, PersistenceSourceClass), Vec<(String, String)>>::new();
     // Trait declarations and their consumers may live in different physical
     // files (`mod maker;`). Build a package-wide, cfg-aware signature registry
     // before analyzing any body so source order cannot hide bounded returns.
@@ -8030,16 +8311,6 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
                 source_class,
                 &mut symbols,
                 &mut errors,
-            );
-            collect_public_callable_reexports(
-                &syntax.items,
-                &symbols,
-                &cfg,
-                source_class,
-                &mut errors,
-                callable_reexports
-                    .entry((source.package.to_owned(), source_class))
-                    .or_default(),
             );
             let function_registry = function_registries
                 .entry((source.package.to_owned(), source_class))
@@ -9958,6 +10229,27 @@ mod tests {
     }
 
     #[test]
+    fn persistence_inventory_records_rejected_named_persistence_receiver_as_escape() {
+        let baseline = inventory(
+            r#"
+                struct Holder(wow_database::CharacterDatabase);
+                impl Holder { fn commit(&self) {} }
+                fn persistent(holder: Holder) { holder.commit(); }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent"
+                && row.target == PersistenceTarget::CharacterDatabase
+                && row.operation == PersistenceOperation::ArgumentEscape
+                && row.symbol == "receiver:commit"
+        }));
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::Commit
+        }));
+    }
+
+    #[test]
     fn persistence_inventory_resolves_typed_database_paths_getters_and_dynamic_sql() {
         let baseline = inventory(
             r#"
@@ -11814,6 +12106,28 @@ mod tests {
     }
 
     #[test]
+    fn persistence_inventory_does_not_apply_async_side_effects_at_future_creation() {
+        let baseline = inventory(
+            r#"
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    let mut value = Some(database);
+                    let future = async { value = None; };
+                    drop(future);
+                    consume(value.unwrap().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(
+            baseline
+                .accesses
+                .iter()
+                .any(|row| row.enclosing == "fn persistent"
+                    && row.operation == PersistenceOperation::PoolAccess)
+        );
+    }
+
+    #[test]
     fn persistence_inventory_retains_values_inserted_into_mutable_containers() {
         let baseline = inventory(
             r#"
@@ -12109,6 +12423,7 @@ mod tests {
             inherited_cfg: &[],
             source: r#"
                 pub struct Holder(pub wow_database::CharacterDatabase);
+                struct Hidden(pub wow_database::CharacterDatabase);
                 pub fn make() -> Holder { unreachable!() }
             "#,
         };
@@ -12118,7 +12433,7 @@ mod tests {
             module: "crate",
             source_path: "src/lib.rs",
             inherited_cfg: &[],
-            source: "pub use provider_a_alias::make as create;",
+            source: "pub use provider_a_alias::{make as create, Holder as ExportedHolder};",
         };
         let glob_reexporter = ClassifiedPersistenceSource {
             classification: "database_adapter_core",
@@ -12137,6 +12452,15 @@ mod tests {
             source: r#"
                 fn persistent() { consume(provider_b_alias::create().0.pool()); }
                 fn globbed() { consume(provider_glob_alias::make().0.pool()); }
+                fn named_type(holder: provider_b_alias::ExportedHolder) {
+                    consume(holder.0.pool());
+                }
+                fn globbed_type(holder: provider_glob_alias::Holder) {
+                    consume(holder.0.pool());
+                }
+                fn private_glob(holder: provider_glob_alias::Hidden) {
+                    consume(holder.0.pool());
+                }
             "#,
         };
         let dependencies = WorkspaceDependencyAliases {
@@ -12164,7 +12488,12 @@ mod tests {
             &dependencies,
         )
         .unwrap();
-        for enclosing in ["fn persistent", "fn globbed"] {
+        for enclosing in [
+            "fn persistent",
+            "fn globbed",
+            "fn named_type",
+            "fn globbed_type",
+        ] {
             assert!(
                 baseline.accesses.iter().any(|row| {
                     row.enclosing == enclosing && row.operation == PersistenceOperation::PoolAccess
@@ -12172,6 +12501,9 @@ mod tests {
                 "missing pool flow for {enclosing}"
             );
         }
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn private_glob" && row.operation == PersistenceOperation::PoolAccess
+        }));
     }
 
     #[test]

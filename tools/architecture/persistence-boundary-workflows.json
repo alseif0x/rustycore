@@ -538,6 +538,22 @@
       "package": "world-server",
       "module": "crate",
       "source": "crates/world-server/src/main.rs",
+      "enclosing": "fn create_session",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
+      ],
+      "boundary": "world-server bootstrap/data-source boundary",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "world-server",
+      "module": "crate",
+      "source": "crates/world-server/src/main.rs",
       "enclosing": "fn execute_game_event_quest_complete_condition_save_db_bridge_like_cpp",
       "logical_databases": [
         "characters"
@@ -967,6 +983,22 @@
       "enclosing": "fn run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp",
       "logical_databases": [
         "characters"
+      ],
+      "boundary": "world-server bootstrap/data-source boundary",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "world-server",
+      "module": "crate",
+      "source": "crates/world-server/src/main.rs",
+      "enclosing": "fn run_world_session_until_disconnect_like_cpp",
+      "logical_databases": [
+        "characters",
+        "login",
+        "world"
       ],
       "boundary": "world-server bootstrap/data-source boundary",
       "target_issues": [
