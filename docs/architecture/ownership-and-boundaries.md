@@ -294,16 +294,15 @@ composition-side `SessionResources` has 243 fields, of which 186 are optional;
 reachable payload types. The factory has 247 `set_*` and one `install_*` call: two setters are
 multiline calls that the earlier text-only count missed. The generated-input surface has 44 exact
 records, and direct access to `PlayerRegistry`, `GroupRegistry`, or `PendingInvites` is frozen as
-685 exact AST rows with multiplicity 705. The workspace-wide persistence inventory contains 8,128
-exact rows—5,890 production and 2,238 test-fixture—with multiplicity 9,099 (6,834 production and
-2,265 test). Three generated-source inputs are an orthogonal subset, not a third source class. Schema
+685 exact AST rows with multiplicity 705. The workspace-wide persistence inventory contains 20,445
+exact rows—7,168 production and 13,277 test-fixture—with multiplicity 22,467 (8,180 production and
+14,287 test). Four generated-source inputs are an orthogonal subset, not a third source class. Schema
 v3 covers SQLx and concrete `wow_database` types/imports, typed statements/results/errors,
 prepare/query/execute/direct/raw/nonliteral/interpolated SQL, pool access, transaction construction/append/commit,
-database opening, advisory locks, value flow and escapes. The 868 semantic groups classify every
+database opening, advisory locks, value flow and escapes. The 902 semantic groups classify every
 row exactly once by logical database, capability owner, connection/transaction affinity, current
 order, failure/unknown-commit behavior and open removal/decision issue; unmatched, overlapping or
-stale groups fail. The
-legacy/canonical inventory contains 71 definition/seam rows, including eight
+stale groups fail. The legacy/canonical inventory contains 71 definition/seam rows, including eight
 curated anchors; it deliberately avoids duplicating every caller of an already inventoried typed
 helper. `#134` already moved `SessionResources` out of `wow-network`; #136 extracts the factory
 without turning the aggregate into another public dependency bag.

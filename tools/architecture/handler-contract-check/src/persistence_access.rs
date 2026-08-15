@@ -924,10 +924,13 @@ struct ModuleSymbols {
     function_generic_params: BTreeMap<String, Vec<String>>,
     function_generic_input_params: BTreeMap<String, Vec<BTreeSet<String>>>,
     method_generic_params: BTreeMap<(String, Option<String>, String), Vec<String>>,
+    method_generic_input_params: BTreeMap<(String, Option<String>, String), Vec<BTreeSet<String>>>,
     trait_method_returns: std::sync::Arc<BTreeMap<(String, String), VariableInfo>>,
     trait_supertraits: std::sync::Arc<BTreeMap<String, BTreeSet<String>>>,
     trait_generic_params: std::sync::Arc<BTreeMap<String, Vec<String>>>,
     trait_method_generic_params: std::sync::Arc<BTreeMap<(String, String), Vec<String>>>,
+    trait_method_generic_input_params:
+        std::sync::Arc<BTreeMap<(String, String), Vec<BTreeSet<String>>>>,
     named_type_info: std::sync::Arc<BTreeMap<String, VariableInfo>>,
     package_function_returns: std::sync::Arc<BTreeMap<String, VariableInfo>>,
     package_function_generic_params: std::sync::Arc<BTreeMap<String, Vec<String>>>,
@@ -937,6 +940,8 @@ struct ModuleSymbols {
     // when the impl lives in the same module as the call.
     package_method_returns: std::sync::Arc<BTreeMap<(String, String), VariableInfo>>,
     package_method_generic_params: std::sync::Arc<BTreeMap<(String, String), Vec<String>>>,
+    package_method_generic_input_params:
+        std::sync::Arc<BTreeMap<(String, String), Vec<BTreeSet<String>>>>,
     // Module constants/statics are value bindings, not lexical locals. Keep
     // both the current module's names and a package-wide canonical registry
     // so their declared persistence-bearing types survive path resolution.
@@ -982,16 +987,19 @@ impl Default for ModuleSymbols {
             function_generic_params: BTreeMap::new(),
             function_generic_input_params: BTreeMap::new(),
             method_generic_params: BTreeMap::new(),
+            method_generic_input_params: BTreeMap::new(),
             trait_method_returns: std::sync::Arc::new(BTreeMap::new()),
             trait_supertraits: std::sync::Arc::new(BTreeMap::new()),
             trait_generic_params: std::sync::Arc::new(BTreeMap::new()),
             trait_method_generic_params: std::sync::Arc::new(BTreeMap::new()),
+            trait_method_generic_input_params: std::sync::Arc::new(BTreeMap::new()),
             named_type_info: std::sync::Arc::new(BTreeMap::new()),
             package_function_returns: std::sync::Arc::new(BTreeMap::new()),
             package_function_generic_params: std::sync::Arc::new(BTreeMap::new()),
             package_function_generic_input_params: std::sync::Arc::new(BTreeMap::new()),
             package_method_returns: std::sync::Arc::new(BTreeMap::new()),
             package_method_generic_params: std::sync::Arc::new(BTreeMap::new()),
+            package_method_generic_input_params: std::sync::Arc::new(BTreeMap::new()),
             item_values: BTreeMap::new(),
             package_item_values: std::sync::Arc::new(BTreeMap::new()),
             sqlx_namespaces: BTreeSet::from(["sqlx".to_owned()]),
@@ -1707,6 +1715,11 @@ fn collect_nested_trait_returns(
                     }
                     let method_generic_params = generic_type_param_names(&method.sig.generics);
                     if !method_generic_params.is_empty() {
+                        std::sync::Arc::make_mut(&mut symbols.trait_method_generic_input_params)
+                            .insert(
+                                (trait_path.clone(), normalized_ident(&method.sig.ident)),
+                                generic_params_by_input(&method.sig.inputs, &method_generic_params),
+                            );
                         std::sync::Arc::make_mut(&mut symbols.trait_method_generic_params).insert(
                             (trait_path.clone(), normalized_ident(&method.sig.ident)),
                             method_generic_params,
@@ -2282,16 +2295,47 @@ fn collect_module_symbols(
                     for (method_name, mut return_info) in inherited {
                         substitute_nominal_params(&mut return_info, &trait_substitutions);
                         substitute_nominal_params(&mut return_info, &associated_types);
+                        let generic_params = symbols
+                            .trait_method_generic_params
+                            .iter()
+                            .find(|((candidate_trait, candidate_method), _)| {
+                                candidate_method == &method_name
+                                    && (candidate_trait == trait_name
+                                        || candidate_trait.ends_with(&format!("::{trait_name}"))
+                                        || trait_name.ends_with(&format!("::{candidate_trait}")))
+                            })
+                            .map(|(_, params)| params.clone());
+                        let generic_input_params = symbols
+                            .trait_method_generic_input_params
+                            .iter()
+                            .find(|((candidate_trait, candidate_method), _)| {
+                                candidate_method == &method_name
+                                    && (candidate_trait == trait_name
+                                        || candidate_trait.ends_with(&format!("::{trait_name}"))
+                                        || trait_name.ends_with(&format!("::{candidate_trait}")))
+                            })
+                            .map(|(_, params)| params.clone());
                         for receiver_type in &receiver_types {
+                            let key = (
+                                receiver_type.clone(),
+                                Some(trait_name.clone()),
+                                method_name.clone(),
+                            );
                             symbols
                                 .method_returns
-                                .entry((
-                                    receiver_type.clone(),
-                                    Some(trait_name.clone()),
-                                    method_name.clone(),
-                                ))
+                                .entry(key.clone())
                                 .or_default()
                                 .union(&return_info);
+                            if let Some(generic_params) = &generic_params {
+                                symbols
+                                    .method_generic_params
+                                    .insert(key.clone(), generic_params.clone());
+                            }
+                            if let Some(generic_input_params) = &generic_input_params {
+                                symbols
+                                    .method_generic_input_params
+                                    .insert(key, generic_input_params.clone());
+                            }
                         }
                     }
                 }
@@ -2313,7 +2357,17 @@ fn collect_module_symbols(
                         let generic_params = generic_type_param_names(&method.sig.generics);
                         if !generic_params.is_empty() {
                             let method_name = normalized_ident(&method.sig.ident);
+                            let input_params =
+                                generic_params_by_input(&method.sig.inputs, &generic_params);
                             for receiver_type in &receiver_types {
+                                symbols.method_generic_input_params.insert(
+                                    (
+                                        receiver_type.clone(),
+                                        trait_name.clone(),
+                                        method_name.clone(),
+                                    ),
+                                    input_params.clone(),
+                                );
                                 symbols.method_generic_params.insert(
                                     (
                                         receiver_type.clone(),
@@ -3090,12 +3144,15 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                     .method_returns
                     .get(&(receiver_type.clone(), None, method_name.clone()))
             {
-                let params = self.symbols.method_generic_params.get(&(
-                    receiver_type.clone(),
-                    None,
-                    method_name.clone(),
-                ));
+                let key = (receiver_type.clone(), None, method_name.clone());
+                let params = self.symbols.method_generic_params.get(&key);
                 let info = self.apply_turbofish_args(info, params, method.turbofish.as_ref());
+                let info = self.apply_inferred_args(
+                    &info,
+                    params,
+                    self.symbols.method_generic_input_params.get(&key),
+                    &method.args,
+                );
                 result.union(&info);
                 continue;
             }
@@ -3107,12 +3164,15 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                         .is_some_and(|trait_name| self.trait_is_in_scope(trait_name))
                     && candidate == &method_name
                 {
-                    let params = self.symbols.method_generic_params.get(&(
-                        owner.clone(),
-                        trait_name.clone(),
-                        candidate.clone(),
-                    ));
+                    let key = (owner.clone(), trait_name.clone(), candidate.clone());
+                    let params = self.symbols.method_generic_params.get(&key);
                     let info = self.apply_turbofish_args(info, params, method.turbofish.as_ref());
+                    let info = self.apply_inferred_args(
+                        &info,
+                        params,
+                        self.symbols.method_generic_input_params.get(&key),
+                        &method.args,
+                    );
                     result.union(&info);
                     trait_impl_hit = true;
                 }
@@ -3134,11 +3194,15 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                     .package_method_returns
                     .get(&(owner_key.clone(), method_name.clone()))
                 {
-                    let params = self
-                        .symbols
-                        .package_method_generic_params
-                        .get(&(owner_key, method_name.clone()));
+                    let key = (owner_key.clone(), method_name.clone());
+                    let params = self.symbols.package_method_generic_params.get(&key);
                     let info = self.apply_turbofish_args(info, params, method.turbofish.as_ref());
+                    let info = self.apply_inferred_args(
+                        &info,
+                        params,
+                        self.symbols.package_method_generic_input_params.get(&key),
+                        &method.args,
+                    );
                     result.union(&info);
                 }
             }
@@ -3151,11 +3215,15 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 .get(&(trait_bound.clone(), method_name.clone()))
             {
                 let info = self.apply_bound_generic_args(info, trait_bound, &receiver_types);
-                let params = self
-                    .symbols
-                    .trait_method_generic_params
-                    .get(&(trait_bound.clone(), method_name.clone()));
+                let key = (trait_bound.clone(), method_name.clone());
+                let params = self.symbols.trait_method_generic_params.get(&key);
                 let info = self.apply_turbofish_args(&info, params, method.turbofish.as_ref());
+                let info = self.apply_inferred_args(
+                    &info,
+                    params,
+                    self.symbols.trait_method_generic_input_params.get(&key),
+                    &method.args,
+                );
                 result.union(&info);
             }
         }
@@ -3220,7 +3288,10 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                     })
                     .map(|info| info.trait_bounds.clone())
                     .unwrap_or_default(),
-                Expr::Path(path) => self.associated_return_info(path).trait_bounds,
+                Expr::Path(path) => {
+                    self.associated_return_info(path, Some(&call.args))
+                        .trait_bounds
+                }
                 _ => BTreeSet::new(),
             },
             Expr::MethodCall(method) => self.method_return_info(method).trait_bounds,
@@ -3228,7 +3299,11 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         }
     }
 
-    fn associated_return_info(&self, expression: &syn::ExprPath) -> VariableInfo {
+    fn associated_return_info(
+        &self,
+        expression: &syn::ExprPath,
+        call_args: Option<&syn::punctuated::Punctuated<Expr, syn::token::Comma>>,
+    ) -> VariableInfo {
         let path = &expression.path;
         if expression.qself.is_none() && path.segments.len() < 2 {
             return VariableInfo::default();
@@ -3290,17 +3365,20 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         };
         let mut result = VariableInfo::default();
         for receiver_type in &receiver_types {
-            if let Some(info) = self.symbols.method_returns.get(&(
+            let key = (
                 receiver_type.clone(),
                 trait_name.clone(),
                 method_name.clone(),
-            )) {
-                let params = self.symbols.method_generic_params.get(&(
-                    receiver_type.clone(),
-                    trait_name.clone(),
-                    method_name.clone(),
-                ));
+            );
+            if let Some(info) = self.symbols.method_returns.get(&key) {
+                let params = self.symbols.method_generic_params.get(&key);
                 let info = self.apply_turbofish_args(info, params, turbofish);
+                let info = self.apply_optional_inferred_args(
+                    &info,
+                    params,
+                    self.symbols.method_generic_input_params.get(&key),
+                    call_args,
+                );
                 result.union(&info);
             }
         }
@@ -3321,11 +3399,15 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 .get(&(trait_bound.clone(), method_name.clone()))
             {
                 let info = self.apply_bound_generic_args(info, trait_bound, &receiver_types);
-                let params = self
-                    .symbols
-                    .trait_method_generic_params
-                    .get(&(trait_bound.clone(), method_name.clone()));
+                let key = (trait_bound.clone(), method_name.clone());
+                let params = self.symbols.trait_method_generic_params.get(&key);
                 let info = self.apply_turbofish_args(&info, params, turbofish);
+                let info = self.apply_optional_inferred_args(
+                    &info,
+                    params,
+                    self.symbols.trait_method_generic_input_params.get(&key),
+                    call_args,
+                );
                 result.union(&info);
             }
         }
@@ -3349,11 +3431,15 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 .package_method_returns
                 .get(&(owner_key.clone(), method_name.clone()))
             {
-                let params = self
-                    .symbols
-                    .package_method_generic_params
-                    .get(&(owner_key, method_name.clone()));
+                let key = (owner_key.clone(), method_name.clone());
+                let params = self.symbols.package_method_generic_params.get(&key);
                 let mut info = self.apply_turbofish_args(info, params, turbofish);
+                info = self.apply_optional_inferred_args(
+                    &info,
+                    params,
+                    self.symbols.package_method_generic_input_params.get(&key),
+                    call_args,
+                );
                 info.substitute_self(&receiver_types, &expanded);
                 info.flow
                     .union(Flow::pools(&targets_for_path(path, self.symbols)));
@@ -3372,7 +3458,13 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             let key = self.package_function_key(path_names(path));
             if let Some(info) = self.symbols.package_function_returns.get(&key) {
                 let params = self.symbols.package_function_generic_params.get(&key);
-                return self.apply_turbofish_args(info, params, turbofish);
+                let info = self.apply_turbofish_args(info, params, turbofish);
+                return self.apply_optional_inferred_args(
+                    &info,
+                    params,
+                    self.symbols.package_function_generic_input_params.get(&key),
+                    call_args,
+                );
             }
         }
         result.substitute_self(&receiver_types, &expanded);
@@ -3447,7 +3539,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 if let Some(info) = self.symbols.function_returns.get(&name) {
                     let params = self.symbols.function_generic_params.get(&name);
                     let result = self.apply_turbofish_args(info, params, turbofish);
-                    return self.apply_inferred_function_args(
+                    return self.apply_inferred_args(
                         &result,
                         params,
                         self.symbols.function_generic_input_params.get(&name),
@@ -3460,7 +3552,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 if let Some(info) = self.symbols.package_function_returns.get(&key) {
                     let params = self.symbols.package_function_generic_params.get(&key);
                     let result = self.apply_turbofish_args(info, params, turbofish);
-                    return self.apply_inferred_function_args(
+                    return self.apply_inferred_args(
                         &result,
                         params,
                         self.symbols.package_function_generic_input_params.get(&key),
@@ -3468,7 +3560,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                     );
                 }
             }
-            let return_info = self.associated_return_info(path);
+            let return_info = self.associated_return_info(path, Some(&call.args));
             if !return_info.flow.is_empty()
                 || !return_info.nominal_types.is_empty()
                 || !return_info.payload_variants.is_empty()
@@ -3700,7 +3792,10 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                                 .unwrap_or_else(|| BTreeSet::from([name]))
                         })
                         .unwrap_or_default(),
-                    Expr::Path(path) => self.associated_return_info(path).nominal_types,
+                    Expr::Path(path) => {
+                        self.associated_return_info(path, Some(&call.args))
+                            .nominal_types
+                    }
                     _ => BTreeSet::new(),
                 }
             }
@@ -4121,7 +4216,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         if !path_targets.is_empty() {
             return Flow::pools(&path_targets);
         }
-        let associated = self.associated_return_info(path).flow;
+        let associated = self.associated_return_info(path, Some(&call.args)).flow;
         if !associated.is_empty() {
             return associated;
         }
@@ -4145,7 +4240,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 let params = self.symbols.function_generic_params.get(last);
                 let result = self.apply_turbofish_args(info, params, turbofish);
                 return self
-                    .apply_inferred_function_args(
+                    .apply_inferred_args(
                         &result,
                         params,
                         self.symbols.function_generic_input_params.get(last),
@@ -4160,7 +4255,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 let params = self.symbols.package_function_generic_params.get(&key);
                 let result = self.apply_turbofish_args(info, params, turbofish);
                 return self
-                    .apply_inferred_function_args(
+                    .apply_inferred_args(
                         &result,
                         params,
                         self.symbols.package_function_generic_input_params.get(&key),
@@ -4754,7 +4849,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         info
     }
 
-    fn apply_inferred_function_args(
+    fn apply_inferred_args(
         &self,
         info: &VariableInfo,
         params: Option<&Vec<String>>,
@@ -4781,6 +4876,17 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         let mut result = info.clone();
         substitute_nominal_params(&mut result, &substitutions);
         result
+    }
+
+    fn apply_optional_inferred_args(
+        &self,
+        info: &VariableInfo,
+        params: Option<&Vec<String>>,
+        input_params: Option<&Vec<BTreeSet<String>>>,
+        args: Option<&syn::punctuated::Punctuated<Expr, syn::token::Comma>>,
+    ) -> VariableInfo {
+        args.map(|args| self.apply_inferred_args(info, params, input_params, args))
+            .unwrap_or_else(|| info.clone())
     }
 }
 
@@ -6701,6 +6807,7 @@ pub(crate) fn inventory_persistence_accesses(
             BTreeMap<String, BTreeSet<String>>,
             BTreeMap<String, Vec<String>>,
             BTreeMap<(String, String), Vec<String>>,
+            BTreeMap<(String, String), Vec<BTreeSet<String>>>,
         ),
     >::new();
     let mut function_registries =
@@ -6717,6 +6824,10 @@ pub(crate) fn inventory_persistence_accesses(
     let mut method_generic_registries =
         BTreeMap::<(String, PersistenceSourceClass), BTreeMap<(String, String), Vec<String>>>::new(
         );
+    let mut method_generic_input_registries = BTreeMap::<
+        (String, PersistenceSourceClass),
+        BTreeMap<(String, String), Vec<BTreeSet<String>>>,
+    >::new();
     let mut item_value_registries =
         BTreeMap::<(String, PersistenceSourceClass), BTreeMap<String, VariableInfo>>::new();
     let mut macro_registries =
@@ -6848,6 +6959,12 @@ pub(crate) fn inventory_persistence_accesses(
                     .entry(key.clone())
                     .or_insert_with(|| generic_params.clone());
             }
+            for (key, input_params) in symbols.trait_method_generic_input_params.iter() {
+                registry
+                    .4
+                    .entry(key.clone())
+                    .or_insert_with(|| input_params.clone());
+            }
             // Inherent (non-trait) impl methods also get a package-wide
             // registry keyed by canonical owner path, so a call like
             // `factory.make()` resolves when the impl lives in another module.
@@ -6886,6 +7003,24 @@ pub(crate) fn inventory_persistence_accesses(
                     .entry((canonical_owner, method.clone()))
                     .or_insert_with(|| generic_params.clone());
             }
+            let method_generic_input_registry = method_generic_input_registries
+                .entry((source.package.to_owned(), source_class))
+                .or_default();
+            for ((owner, trait_name, method), input_params) in
+                symbols.method_generic_input_params.iter()
+            {
+                if trait_name.is_some() {
+                    continue;
+                }
+                let canonical_owner = if module_prefix.is_empty() || owner.contains("::") {
+                    owner.clone()
+                } else {
+                    format!("{module_prefix}::{owner}")
+                };
+                method_generic_input_registry
+                    .entry((canonical_owner, method.clone()))
+                    .or_insert_with(|| input_params.clone());
+            }
         }
     }
     // Trait declarations and implementations can live in different files.
@@ -6911,14 +7046,21 @@ pub(crate) fn inventory_persistence_accesses(
                     .cloned()
                     .unwrap_or_default(),
             );
-            if let Some((methods, supertraits, generic_params, method_generic_params)) =
-                trait_registries.get(&(source.package.to_owned(), source_class))
+            if let Some((
+                methods,
+                supertraits,
+                generic_params,
+                method_generic_params,
+                method_generic_input_params,
+            )) = trait_registries.get(&(source.package.to_owned(), source_class))
             {
                 base.trait_method_returns = std::sync::Arc::new(methods.clone());
                 base.trait_supertraits = std::sync::Arc::new(supertraits.clone());
                 base.trait_generic_params = std::sync::Arc::new(generic_params.clone());
                 base.trait_method_generic_params =
                     std::sync::Arc::new(method_generic_params.clone());
+                base.trait_method_generic_input_params =
+                    std::sync::Arc::new(method_generic_input_params.clone());
             }
             let symbols = collect_module_symbols(
                 &syntax.items,
@@ -7026,14 +7168,21 @@ pub(crate) fn inventory_persistence_accesses(
                     .cloned()
                     .unwrap_or_default(),
             );
-            if let Some((methods, supertraits, generic_params, method_generic_params)) =
-                trait_registries.get(&(source.package.to_owned(), source_class))
+            if let Some((
+                methods,
+                supertraits,
+                generic_params,
+                method_generic_params,
+                method_generic_input_params,
+            )) = trait_registries.get(&(source.package.to_owned(), source_class))
             {
                 package_symbols.trait_method_returns = std::sync::Arc::new(methods.clone());
                 package_symbols.trait_supertraits = std::sync::Arc::new(supertraits.clone());
                 package_symbols.trait_generic_params = std::sync::Arc::new(generic_params.clone());
                 package_symbols.trait_method_generic_params =
                     std::sync::Arc::new(method_generic_params.clone());
+                package_symbols.trait_method_generic_input_params =
+                    std::sync::Arc::new(method_generic_input_params.clone());
             }
             package_symbols.package_function_returns = std::sync::Arc::new(
                 function_registries
@@ -7061,6 +7210,12 @@ pub(crate) fn inventory_persistence_accesses(
             );
             package_symbols.package_method_generic_params = std::sync::Arc::new(
                 method_generic_registries
+                    .get(&(source.package.to_owned(), source_class))
+                    .cloned()
+                    .unwrap_or_default(),
+            );
+            package_symbols.package_method_generic_input_params = std::sync::Arc::new(
+                method_generic_input_registries
                     .get(&(source.package.to_owned(), source_class))
                     .cloned()
                     .unwrap_or_default(),
@@ -10015,6 +10170,69 @@ mod tests {
                 .any(|row| row.enclosing == "fn clean"
                     && row.operation == PersistenceOperation::PoolAccess)
         );
+    }
+
+    #[test]
+    fn persistence_inventory_propagates_inferred_generic_method_arguments() {
+        let baseline = inventory(
+            r#"
+                struct Factory;
+                impl Factory { fn identity<T>(&self, value: T) -> T { value } }
+                fn persistent(factory: &Factory, database: wow_database::CharacterDatabase) {
+                    consume(factory.identity(database).pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_propagates_qualified_generic_function_arguments() {
+        let factory = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "fixture",
+            module: "crate::factory",
+            source_path: "src/factory.rs",
+            inherited_cfg: &[],
+            source: "fn identity<T>(value: T) -> T { value }",
+        };
+        let consumer = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "fixture",
+            module: "crate::consumer",
+            source_path: "src/consumer.rs",
+            inherited_cfg: &[],
+            source: r#"
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    consume(crate::factory::identity(database).pool());
+                }
+            "#,
+        };
+        let baseline = inventory_persistence_accesses(&[consumer, factory]).unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_propagates_inferred_generic_trait_method_arguments() {
+        let baseline = inventory(
+            r#"
+                trait Identity { fn identity<T>(&self, value: T) -> T { value } }
+                struct Factory;
+                impl Identity for Factory {}
+                fn persistent(factory: &Factory, database: wow_database::CharacterDatabase) {
+                    consume(factory.identity(database).pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
     }
 
     #[test]
