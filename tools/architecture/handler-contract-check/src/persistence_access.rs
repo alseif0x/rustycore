@@ -1110,6 +1110,17 @@ fn is_flow_passthrough_call(names: &[String]) -> bool {
                     | ("Result", "Ok")
             )
     ) || matches!(names, [name] if matches!(name.as_str(), "Some" | "Ok"))
+        || is_standard_identity(names)
+}
+
+fn is_standard_identity(names: &[String]) -> bool {
+    matches!(
+        names,
+        [root, module, function]
+            if matches!(root.as_str(), "std" | "core")
+                && module == "convert"
+                && function == "identity"
+    )
 }
 
 fn targets_for_names(names: &[String], symbols: &ModuleSymbols) -> TargetSet {
@@ -1588,6 +1599,90 @@ fn use_leaves(item_use: &ItemUse) -> (Vec<UseLeaf>, Vec<Vec<String>>) {
     let mut globs = Vec::new();
     flatten_use_tree(&item_use.tree, &mut Vec::new(), &mut leaves, &mut globs);
     (leaves, globs)
+}
+
+fn collect_public_callable_reexports(
+    items: &[Item],
+    parent_symbols: &ModuleSymbols,
+    cfg: &[String],
+    source_class: PersistenceSourceClass,
+    errors: &mut Vec<String>,
+    output: &mut Vec<(String, String)>,
+) {
+    let mut symbols = parent_symbols.clone();
+    // Resolve sibling aliases before interpreting a public re-export. This
+    // mirrors module symbol collection without treating the re-export itself
+    // as proof that its source is callable.
+    for _ in 0..=items.len() {
+        let mut changed = false;
+        for item in items {
+            if let Item::Use(item_use) = item
+                && source_class_allows(
+                    source_class,
+                    cfg,
+                    &item_use.attrs,
+                    errors,
+                    "use declaration",
+                )
+            {
+                changed |= apply_import_symbols(item_use, &mut symbols);
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    for item in items {
+        match item {
+            Item::Use(item_use)
+                if matches!(item_use.vis, Visibility::Public(_))
+                    && source_class_allows(
+                        source_class,
+                        cfg,
+                        &item_use.attrs,
+                        errors,
+                        "public use declaration",
+                    ) =>
+            {
+                let (leaves, _) = use_leaves(item_use);
+                for leaf in leaves {
+                    let mut export = symbols.module_path.clone();
+                    export.push(leaf.local);
+                    let mut source = canonical_path_names(leaf.source, &symbols);
+                    if source.first().is_some_and(|segment| segment == "crate") {
+                        source.remove(0);
+                    }
+                    output.push((export.join("::"), source.join("::")));
+                }
+            }
+            Item::Mod(item_mod)
+                if source_class_allows(
+                    source_class,
+                    cfg,
+                    &item_mod.attrs,
+                    errors,
+                    "inline module",
+                ) =>
+            {
+                if let Some((_, nested)) = &item_mod.content {
+                    let mut nested_symbols = symbols.clone();
+                    nested_symbols
+                        .module_path
+                        .push(normalized_ident(&item_mod.ident));
+                    let nested_cfg = item_cfg(cfg, &item_mod.attrs);
+                    collect_public_callable_reexports(
+                        nested,
+                        &nested_symbols,
+                        &nested_cfg,
+                        source_class,
+                        errors,
+                        output,
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
 }
 
 fn source_is_sqlx(source: &[String], symbols: &ModuleSymbols) -> bool {
@@ -3595,6 +3690,14 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         if let Expr::Call(call) = expression
             && let Expr::Path(path) = call.func.as_ref()
         {
+            if is_standard_identity(&path_names(&path.path))
+                && let Some(argument) = call.args.first()
+            {
+                // `std::convert::identity` is shape-preserving as well as a
+                // flow passthrough. Returning the argument's complete value
+                // information keeps tuple/field projections sound.
+                return self.info_from_expr(argument);
+            }
             if path.path.segments.len() == 1
                 && let Some(name) = last_path_name(&path.path)
             {
@@ -3718,6 +3821,46 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             if let Some(info) = base_info.field_items.get(&field_name) {
                 return info.clone();
             }
+        }
+        if let Expr::Struct(structure) = expression {
+            let key = self.package_function_key(path_names(&structure.path));
+            let mut info = VariableInfo {
+                flow: self.flow_of_expr(expression),
+                sql_expression: self.sql_expression_kind(expression),
+                nominal_types: BTreeSet::from([key.clone()]),
+                ..VariableInfo::default()
+            };
+            if let Some(named) = self.symbols.named_type_info.get(&key) {
+                info.union(named);
+            }
+            if let Some(named) = self.symbols.workspace_named_type_info.get(&key) {
+                info.union(named);
+            }
+            // Explicit initializers are authoritative for this value. In
+            // particular, a clean boolean field must not inherit aggregate
+            // flow from a persistence-bearing sibling.
+            for field in &structure.fields {
+                let name = match &field.member {
+                    Member::Named(ident) => normalized_ident(ident),
+                    Member::Unnamed(index) => index.index.to_string(),
+                };
+                let mut field_info = self.info_from_expr(&field.expr);
+                // Scalar-reading methods intentionally discard aggregate
+                // SqlResult flow in ordinary expressions. A struct field is
+                // a durable projection boundary, however, so retain the
+                // initializer subtree on that exact field without tainting
+                // its siblings.
+                field_info.flow.union(self.subtree_flow(&field.expr));
+                info.field_items.insert(name, field_info);
+            }
+            if let Some(rest) = &structure.rest {
+                let rest = self.info_from_expr(rest);
+                for (name, field) in rest.field_items {
+                    info.field_items.entry(name).or_insert(field);
+                }
+                info.flow.union(rest.flow);
+            }
+            return info;
         }
         if let Expr::Call(call) = expression
             && let Expr::Path(path) = call.func.as_ref()
@@ -7175,6 +7318,145 @@ fn qualify_dependency_info(
     qualified
 }
 
+fn resolve_public_callable_reexports(
+    reexports: &BTreeMap<(String, PersistenceSourceClass), Vec<(String, String)>>,
+    named_type_registries: &BTreeMap<
+        (String, PersistenceSourceClass),
+        BTreeMap<String, VariableInfo>,
+    >,
+    dependencies: &WorkspaceDependencyAliases,
+    function_registries: &mut BTreeMap<
+        (String, PersistenceSourceClass),
+        BTreeMap<String, VariableInfo>,
+    >,
+    generic_registries: &mut BTreeMap<
+        (String, PersistenceSourceClass),
+        BTreeMap<String, Vec<String>>,
+    >,
+    generic_input_registries: &mut BTreeMap<
+        (String, PersistenceSourceClass),
+        BTreeMap<String, Vec<BTreeSet<String>>>,
+    >,
+) {
+    let pass_limit = reexports.values().map(Vec::len).sum::<usize>() + 1;
+    for _ in 0..pass_limit {
+        let before = function_registries.clone();
+        let function_snapshot = function_registries.clone();
+        let generic_snapshot = generic_registries.clone();
+        let generic_input_snapshot = generic_input_registries.clone();
+        for (consumer_key, aliases) in reexports {
+            let (consumer, source_class) = (&consumer_key.0, consumer_key.1);
+            let dependency_roots = match source_class {
+                PersistenceSourceClass::Production => dependencies.production.get(consumer),
+                PersistenceSourceClass::TestFixture => dependencies.test.get(consumer),
+            };
+            for (export, source) in aliases {
+                let mut source_parts = source.split("::");
+                let source_root = source_parts.next().unwrap_or_default();
+                let dependency_root = dependency_roots
+                    .into_iter()
+                    .flat_map(|aliases| aliases.values())
+                    .find(|root| root.as_str() == source_root);
+                let (provider_key, provider_entry, provider_root) =
+                    if let Some(provider_root) = dependency_root {
+                        let provider =
+                            function_snapshot
+                                .keys()
+                                .find_map(|(candidate, candidate_class)| {
+                                    (*candidate_class == source_class
+                                        && candidate.replace('-', "_") == provider_root.as_str())
+                                    .then_some(candidate.clone())
+                                });
+                        let Some(provider) = provider else {
+                            continue;
+                        };
+                        let entry = source_parts.collect::<Vec<_>>().join("::");
+                        (
+                            (provider, source_class),
+                            entry,
+                            Some(provider_root.as_str()),
+                        )
+                    } else {
+                        (consumer_key.clone(), source.clone(), None)
+                    };
+                let Some(source_info) = function_snapshot
+                    .get(&provider_key)
+                    .and_then(|registry| registry.get(&provider_entry))
+                else {
+                    continue;
+                };
+                let info = if let Some(provider_root) = provider_root {
+                    let named = named_type_registries
+                        .get(&provider_key)
+                        .cloned()
+                        .unwrap_or_default();
+                    qualify_dependency_info(provider_root, &named, source_info)
+                } else {
+                    source_info.clone()
+                };
+                function_registries
+                    .entry(consumer_key.clone())
+                    .or_default()
+                    .entry(export.clone())
+                    .or_default()
+                    .union(&info);
+                if let Some(params) = generic_snapshot
+                    .get(&provider_key)
+                    .and_then(|registry| registry.get(&provider_entry))
+                {
+                    generic_registries
+                        .entry(consumer_key.clone())
+                        .or_default()
+                        .entry(export.clone())
+                        .or_insert_with(|| params.clone());
+                }
+                if let Some(inputs) = generic_input_snapshot
+                    .get(&provider_key)
+                    .and_then(|registry| registry.get(&provider_entry))
+                {
+                    generic_input_registries
+                        .entry(consumer_key.clone())
+                        .or_default()
+                        .entry(export.clone())
+                        .or_insert_with(|| inputs.clone());
+                }
+            }
+        }
+        if function_registries == &before {
+            break;
+        }
+    }
+}
+
+fn dependency_scoped_trait_supertrait_cache(
+    registries: &BTreeMap<(String, PersistenceSourceClass), BTreeMap<String, BTreeSet<String>>>,
+    trait_names: &BTreeMap<(String, PersistenceSourceClass), BTreeSet<String>>,
+    dependencies: &WorkspaceDependencyAliases,
+) -> BTreeMap<(String, PersistenceSourceClass), std::sync::Arc<BTreeMap<String, BTreeSet<String>>>>
+{
+    dependency_scoped_registry_cache(
+        registries,
+        &BTreeMap::new(),
+        dependencies,
+        |provider_root, key| format!("{provider_root}::{key}"),
+        |provider_root, _, supertraits| {
+            let provider_names = trait_names.iter().find_map(|((package, _), names)| {
+                (package.replace('-', "_") == provider_root).then_some(names)
+            });
+            supertraits
+                .iter()
+                .map(|supertrait| {
+                    if provider_names.is_some_and(|names| names.contains(supertrait)) {
+                        format!("{provider_root}::{supertrait}")
+                    } else {
+                        supertrait.clone()
+                    }
+                })
+                .collect()
+        },
+    )
+}
+
 fn dependency_scoped_registry_cache<K, V, QualifyKey, QualifyValue>(
     registries: &BTreeMap<(String, PersistenceSourceClass), BTreeMap<K, V>>,
     named_type_registries: &BTreeMap<
@@ -7385,6 +7667,8 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
         BTreeMap::<(String, PersistenceSourceClass), BTreeMap<String, VariableInfo>>::new();
     let mut macro_registries =
         BTreeMap::<(String, PersistenceSourceClass), BTreeMap<String, TargetSet>>::new();
+    let mut callable_reexports =
+        BTreeMap::<(String, PersistenceSourceClass), Vec<(String, String)>>::new();
     // Trait declarations and their consumers may live in different physical
     // files (`mod maker;`). Build a package-wide, cfg-aware signature registry
     // before analyzing any body so source order cannot hide bounded returns.
@@ -7432,6 +7716,16 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
                 source_class,
                 &mut symbols,
                 &mut errors,
+            );
+            collect_public_callable_reexports(
+                &syntax.items,
+                &symbols,
+                &cfg,
+                source_class,
+                &mut errors,
+                callable_reexports
+                    .entry((source.package.to_owned(), source_class))
+                    .or_default(),
             );
             let function_registry = function_registries
                 .entry((source.package.to_owned(), source_class))
@@ -7582,6 +7876,88 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
             }
         }
     }
+    resolve_public_callable_reexports(
+        &callable_reexports,
+        &named_type_registries,
+        dependencies,
+        &mut function_registries,
+        &mut function_generic_registries,
+        &mut function_generic_input_registries,
+    );
+    let trait_method_registries = trait_registries
+        .iter()
+        .map(|(key, registry)| (key.clone(), registry.0.clone()))
+        .collect::<BTreeMap<_, _>>();
+    let trait_supertrait_registries = trait_registries
+        .iter()
+        .map(|(key, registry)| (key.clone(), registry.1.clone()))
+        .collect::<BTreeMap<_, _>>();
+    let trait_generic_registries = trait_registries
+        .iter()
+        .map(|(key, registry)| (key.clone(), registry.2.clone()))
+        .collect::<BTreeMap<_, _>>();
+    let trait_method_generic_registries = trait_registries
+        .iter()
+        .map(|(key, registry)| (key.clone(), registry.3.clone()))
+        .collect::<BTreeMap<_, _>>();
+    let trait_method_generic_input_registries = trait_registries
+        .iter()
+        .map(|(key, registry)| (key.clone(), registry.4.clone()))
+        .collect::<BTreeMap<_, _>>();
+    let trait_names = trait_registries
+        .iter()
+        .map(|(key, registry)| {
+            let mut names = registry
+                .0
+                .keys()
+                .map(|(trait_path, _)| trait_path.clone())
+                .collect::<BTreeSet<_>>();
+            names.extend(registry.1.keys().cloned());
+            names.extend(registry.2.keys().cloned());
+            names.extend(registry.3.keys().map(|(trait_path, _)| trait_path.clone()));
+            names.extend(registry.4.keys().map(|(trait_path, _)| trait_path.clone()));
+            (key.clone(), names)
+        })
+        .collect::<BTreeMap<_, _>>();
+    let trait_method_registry_cache = dependency_scoped_registry_cache(
+        &trait_method_registries,
+        &named_type_registries,
+        dependencies,
+        |provider_root, (trait_path, method)| {
+            (format!("{provider_root}::{trait_path}"), method.clone())
+        },
+        qualify_dependency_info,
+    );
+    let trait_supertrait_registry_cache = dependency_scoped_trait_supertrait_cache(
+        &trait_supertrait_registries,
+        &trait_names,
+        dependencies,
+    );
+    let trait_generic_registry_cache = dependency_scoped_registry_cache(
+        &trait_generic_registries,
+        &named_type_registries,
+        dependencies,
+        |provider_root, trait_path| format!("{provider_root}::{trait_path}"),
+        |_, _, value| value.clone(),
+    );
+    let trait_method_generic_registry_cache = dependency_scoped_registry_cache(
+        &trait_method_generic_registries,
+        &named_type_registries,
+        dependencies,
+        |provider_root, (trait_path, method)| {
+            (format!("{provider_root}::{trait_path}"), method.clone())
+        },
+        |_, _, value| value.clone(),
+    );
+    let trait_method_generic_input_registry_cache = dependency_scoped_registry_cache(
+        &trait_method_generic_input_registries,
+        &named_type_registries,
+        dependencies,
+        |provider_root, (trait_path, method)| {
+            (format!("{provider_root}::{trait_path}"), method.clone())
+        },
+        |_, _, value| value.clone(),
+    );
     // Trait declarations and implementations can live in different files.
     // Once the first pass has the complete trait-return registry, revisit
     // impls so associated bindings can instantiate inherited default method
@@ -7611,22 +7987,27 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
                 .get(&(source.package.to_owned(), source_class))
                 .cloned()
                 .unwrap_or_else(|| std::sync::Arc::new(BTreeMap::new()));
-            if let Some((
-                methods,
-                supertraits,
-                generic_params,
-                method_generic_params,
-                method_generic_input_params,
-            )) = trait_registries.get(&(source.package.to_owned(), source_class))
-            {
-                base.trait_method_returns = std::sync::Arc::new(methods.clone());
-                base.trait_supertraits = std::sync::Arc::new(supertraits.clone());
-                base.trait_generic_params = std::sync::Arc::new(generic_params.clone());
-                base.trait_method_generic_params =
-                    std::sync::Arc::new(method_generic_params.clone());
-                base.trait_method_generic_input_params =
-                    std::sync::Arc::new(method_generic_input_params.clone());
-            }
+            let registry_key = (source.package.to_owned(), source_class);
+            base.trait_method_returns = trait_method_registry_cache
+                .get(&registry_key)
+                .cloned()
+                .unwrap_or_else(|| std::sync::Arc::new(BTreeMap::new()));
+            base.trait_supertraits = trait_supertrait_registry_cache
+                .get(&registry_key)
+                .cloned()
+                .unwrap_or_else(|| std::sync::Arc::new(BTreeMap::new()));
+            base.trait_generic_params = trait_generic_registry_cache
+                .get(&registry_key)
+                .cloned()
+                .unwrap_or_else(|| std::sync::Arc::new(BTreeMap::new()));
+            base.trait_method_generic_params = trait_method_generic_registry_cache
+                .get(&registry_key)
+                .cloned()
+                .unwrap_or_else(|| std::sync::Arc::new(BTreeMap::new()));
+            base.trait_method_generic_input_params = trait_method_generic_input_registry_cache
+                .get(&registry_key)
+                .cloned()
+                .unwrap_or_else(|| std::sync::Arc::new(BTreeMap::new()));
             let symbols = collect_module_symbols(
                 &syntax.items,
                 Some(&base),
@@ -7795,23 +8176,28 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
                 .get(&(source.package.to_owned(), source_class))
                 .cloned()
                 .unwrap_or_else(|| std::sync::Arc::new(BTreeMap::new()));
-            if let Some((
-                methods,
-                supertraits,
-                generic_params,
-                method_generic_params,
-                method_generic_input_params,
-            )) = trait_registries.get(&(source.package.to_owned(), source_class))
-            {
-                package_symbols.trait_method_returns = std::sync::Arc::new(methods.clone());
-                package_symbols.trait_supertraits = std::sync::Arc::new(supertraits.clone());
-                package_symbols.trait_generic_params = std::sync::Arc::new(generic_params.clone());
-                package_symbols.trait_method_generic_params =
-                    std::sync::Arc::new(method_generic_params.clone());
-                package_symbols.trait_method_generic_input_params =
-                    std::sync::Arc::new(method_generic_input_params.clone());
-            }
             let registry_key = (source.package.to_owned(), source_class);
+            package_symbols.trait_method_returns = trait_method_registry_cache
+                .get(&registry_key)
+                .cloned()
+                .unwrap_or_else(|| std::sync::Arc::new(BTreeMap::new()));
+            package_symbols.trait_supertraits = trait_supertrait_registry_cache
+                .get(&registry_key)
+                .cloned()
+                .unwrap_or_else(|| std::sync::Arc::new(BTreeMap::new()));
+            package_symbols.trait_generic_params = trait_generic_registry_cache
+                .get(&registry_key)
+                .cloned()
+                .unwrap_or_else(|| std::sync::Arc::new(BTreeMap::new()));
+            package_symbols.trait_method_generic_params = trait_method_generic_registry_cache
+                .get(&registry_key)
+                .cloned()
+                .unwrap_or_else(|| std::sync::Arc::new(BTreeMap::new()));
+            package_symbols.trait_method_generic_input_params =
+                trait_method_generic_input_registry_cache
+                    .get(&registry_key)
+                    .cloned()
+                    .unwrap_or_else(|| std::sync::Arc::new(BTreeMap::new()));
             package_symbols.package_function_returns = function_registry_cache
                 .get(&registry_key)
                 .cloned()
@@ -11390,6 +11776,181 @@ mod tests {
         }
         assert!(!baseline.accesses.iter().any(|row| {
             row.enclosing == "fn unconditional" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_resolves_callable_returns_through_dependency_reexports() {
+        let provider = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "provider-a",
+            module: "crate",
+            source_path: "src/lib.rs",
+            inherited_cfg: &[],
+            source: r#"
+                pub struct Holder(pub wow_database::CharacterDatabase);
+                pub fn make() -> Holder { unreachable!() }
+            "#,
+        };
+        let reexporter = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "provider-b",
+            module: "crate",
+            source_path: "src/lib.rs",
+            inherited_cfg: &[],
+            source: "pub use provider_a_alias::make as create;",
+        };
+        let consumer = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "consumer-c",
+            module: "crate",
+            source_path: "src/lib.rs",
+            inherited_cfg: &[],
+            source: "fn persistent() { consume(provider_b_alias::create().0.pool()); }",
+        };
+        let dependencies = WorkspaceDependencyAliases {
+            production: BTreeMap::from([
+                (
+                    "provider-b".to_owned(),
+                    BTreeMap::from([("provider_a_alias".to_owned(), "provider_a".to_owned())]),
+                ),
+                (
+                    "consumer-c".to_owned(),
+                    BTreeMap::from([("provider_b_alias".to_owned(), "provider_b".to_owned())]),
+                ),
+            ]),
+            test: BTreeMap::new(),
+        };
+        let baseline = inventory_persistence_accesses_with_dependencies(
+            &[consumer, reexporter, provider],
+            &dependencies,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_imports_dependency_trait_return_registries() {
+        let provider = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "provider-a",
+            module: "crate",
+            source_path: "src/lib.rs",
+            inherited_cfg: &[],
+            source: r#"
+                pub struct Holder(pub wow_database::CharacterDatabase);
+                pub trait Base {
+                    fn make(&self) -> Holder;
+                    fn pass<T>(&self, value: T) -> T;
+                }
+                pub trait Maker: Base {}
+            "#,
+        };
+        let consumer = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "consumer-b",
+            module: "crate",
+            source_path: "src/lib.rs",
+            inherited_cfg: &[],
+            source: r#"
+                fn declared<T: provider_alias::Maker>(value: &T) {
+                    consume(value.make().0.pool());
+                }
+                fn inferred<T: provider_alias::Maker>(value: &T, database: wow_database::CharacterDatabase) {
+                    consume(value.pass(database).pool());
+                }
+            "#,
+        };
+        let dependencies = WorkspaceDependencyAliases {
+            production: BTreeMap::from([(
+                "consumer-b".to_owned(),
+                BTreeMap::from([("provider_alias".to_owned(), "provider_a".to_owned())]),
+            )]),
+            test: BTreeMap::new(),
+        };
+        let baseline =
+            inventory_persistence_accesses_with_dependencies(&[consumer, provider], &dependencies)
+                .unwrap();
+        for enclosing in ["fn declared", "fn inferred"] {
+            assert!(baseline.accesses.iter().any(|row| {
+                row.enclosing == enclosing && row.operation == PersistenceOperation::PoolAccess
+            }));
+        }
+    }
+
+    #[test]
+    fn persistence_inventory_preserves_standard_identity_flow() {
+        let baseline = inventory(
+            r#"
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    consume(std::convert::identity(database).pool());
+                }
+                mod custom {
+                    pub fn identity(value: bool) -> bool { value }
+                }
+                fn clean(value: bool) {
+                    consume(custom::identity(value));
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+        assert!(
+            !baseline
+                .accesses
+                .iter()
+                .any(|row| row.enclosing == "fn clean")
+        );
+    }
+
+    #[test]
+    fn persistence_inventory_retains_struct_literal_nominal_fields() {
+        let baseline = inventory(
+            r#"
+                struct Holder {
+                    database: wow_database::CharacterDatabase,
+                    clean: bool,
+                }
+                fn clean(database: wow_database::CharacterDatabase) {
+                    let holder = Holder { database, clean: false };
+                    consume(holder.clean);
+                }
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    let holder = Holder { database, clean: false };
+                    consume(holder.database.pool());
+                }
+                struct Decoded {
+                    value: u32,
+                    clean: bool,
+                }
+                fn decoded(result: wow_database::SqlResult) {
+                    let decoded = Decoded {
+                        value: result.try_read(0).unwrap_or(0),
+                        clean: false,
+                    };
+                    consume(decoded.value);
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn clean"
+                && matches!(
+                    row.operation,
+                    PersistenceOperation::ArgumentEscape | PersistenceOperation::PoolAccess
+                )
+        }));
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn decoded"
+                && row.target == PersistenceTarget::SqlResult
+                && row.operation == PersistenceOperation::ArgumentEscape
         }));
     }
 }
