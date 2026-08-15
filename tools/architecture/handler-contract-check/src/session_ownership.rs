@@ -27,11 +27,12 @@ use crate::bridge_access::{
 };
 use crate::ownership::{
     SourceMountContext, audit_package_source_mounts, cfg_context_allows_production,
-    cfg_context_allows_test, extend_cfg_context, workspace_source_mounts,
+    cfg_context_allows_test, extend_cfg_context, workspace_dependency_aliases,
+    workspace_source_mounts,
 };
 use crate::persistence_access::{
     ClassifiedPersistenceSource, PersistenceAccessBaseline, compare_persistence_access_baseline,
-    inventory_persistence_accesses, render_persistence_access_baseline,
+    inventory_persistence_accesses_with_dependencies, render_persistence_access_baseline,
 };
 use crate::registry_access::{
     ProductionRegistrySource, RegistryAccessBaseline, compare_registry_access_baseline,
@@ -1784,6 +1785,7 @@ fn collect_workspace_persistence_baseline(
     repository_root: &Path,
 ) -> Result<PersistenceAccessBaseline, String> {
     let mounts = workspace_source_mounts(repository_root)?;
+    let dependencies = workspace_dependency_aliases(repository_root)?;
     let relative_paths = mounts
         .iter()
         .map(|mount| repository_relative_path(repository_root, &mount.source_path))
@@ -1804,7 +1806,7 @@ fn collect_workspace_persistence_baseline(
             });
         }
     }
-    inventory_persistence_accesses(&sources)
+    inventory_persistence_accesses_with_dependencies(&sources, &dependencies)
         .map_err(|error| format!("cannot inventory persistence accesses:\n{error}"))
 }
 

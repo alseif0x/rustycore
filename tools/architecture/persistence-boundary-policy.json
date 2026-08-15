@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "generated_code": {
-    "expected_rows": 4,
+    "expected_rows": 6,
     "discovery_rule": "Exact attribute, query-macro, and item-macro inputs which can generate concrete persistence syntax; this is an orthogonal subset of production/test_fixture rows."
   },
   "groups": [
@@ -92,38 +92,6 @@
         "login"
       ],
       "capability_owner": "BNet authentication capability currently owns the complete bnet-server workflow fn start_ban_expiry_timer in crates/bnet-server/src/main.rs.",
-      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:bnet-server:crate:crates/bnet-server/src/main.rs::fn start_database_keep_alive_timer",
-      "source_class": "production",
-      "packages": [
-        "bnet-server"
-      ],
-      "sources": [
-        "crates/bnet-server/src/main.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate"
-      ],
-      "enclosings": [
-        "fn start_database_keep_alive_timer"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "login"
-      ],
-      "capability_owner": "BNet authentication capability currently owns the complete bnet-server workflow fn start_database_keep_alive_timer in crates/bnet-server/src/main.rs.",
       "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
@@ -454,38 +422,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:bnet-server:crate::rest::handlers:crates/bnet-server/src/rest/handlers.rs::fn get_form",
-      "source_class": "production",
-      "packages": [
-        "bnet-server"
-      ],
-      "sources": [
-        "crates/bnet-server/src/rest/handlers.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::rest::handlers"
-      ],
-      "enclosings": [
-        "fn get_form"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "login"
-      ],
-      "capability_owner": "BNet authentication capability currently owns the complete bnet-server workflow fn get_form in crates/bnet-server/src/rest/handlers.rs.",
-      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:bnet-server:crate::rest::handlers:crates/bnet-server/src/rest/handlers.rs::fn get_game_accounts",
       "source_class": "production",
       "packages": [
@@ -508,38 +444,6 @@
         "login"
       ],
       "capability_owner": "BNet authentication capability currently owns the complete bnet-server workflow fn get_game_accounts in crates/bnet-server/src/rest/handlers.rs.",
-      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:bnet-server:crate::rest::handlers:crates/bnet-server/src/rest/handlers.rs::fn get_portal",
-      "source_class": "production",
-      "packages": [
-        "bnet-server"
-      ],
-      "sources": [
-        "crates/bnet-server/src/rest/handlers.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::rest::handlers"
-      ],
-      "enclosings": [
-        "fn get_portal"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "login"
-      ],
-      "capability_owner": "BNet authentication capability currently owns the complete bnet-server workflow fn get_portal in crates/bnet-server/src/rest/handlers.rs.",
       "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
@@ -732,38 +636,6 @@
         "login"
       ],
       "capability_owner": "BNet authentication capability currently owns the complete bnet-server workflow fn store_login_ticket in crates/bnet-server/src/rest/handlers.rs.",
-      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:bnet-server:crate::rest::handlers:crates/bnet-server/src/rest/handlers.rs::fn wrong_password_remote_ip_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "bnet-server"
-      ],
-      "sources": [
-        "crates/bnet-server/src/rest/handlers.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::rest::handlers"
-      ],
-      "enclosings": [
-        "fn wrong_password_remote_ip_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "login"
-      ],
-      "capability_owner": "BNet authentication capability currently owns the complete bnet-server workflow fn wrong_password_remote_ip_like_cpp in crates/bnet-server/src/rest/handlers.rs.",
       "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
@@ -998,70 +870,6 @@
       "stable_boundary": false
     },
     {
-      "id": "workflow:bnet-server:crate::rpc::services::game_utilities:crates/bnet-server/src/rpc/services/game_utilities.rs::fn get_last_char_played",
-      "source_class": "production",
-      "packages": [
-        "bnet-server"
-      ],
-      "sources": [
-        "crates/bnet-server/src/rpc/services/game_utilities.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::rpc::services::game_utilities"
-      ],
-      "enclosings": [
-        "fn get_last_char_played"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "login"
-      ],
-      "capability_owner": "BNet authentication capability currently owns the complete bnet-server workflow fn get_last_char_played in crates/bnet-server/src/rpc/services/game_utilities.rs.",
-      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:bnet-server:crate::rpc::services::game_utilities:crates/bnet-server/src/rpc/services/game_utilities.rs::fn get_realm_list",
-      "source_class": "production",
-      "packages": [
-        "bnet-server"
-      ],
-      "sources": [
-        "crates/bnet-server/src/rpc/services/game_utilities.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::rpc::services::game_utilities"
-      ],
-      "enclosings": [
-        "fn get_realm_list"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "login"
-      ],
-      "capability_owner": "BNet authentication capability currently owns the complete bnet-server workflow fn get_realm_list in crates/bnet-server/src/rpc/services/game_utilities.rs.",
-      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
       "id": "workflow:bnet-server:crate::rpc::services::game_utilities:crates/bnet-server/src/rpc/services/game_utilities.rs::fn get_realm_list_ticket",
       "source_class": "production",
       "packages": [
@@ -1084,38 +892,6 @@
         "login"
       ],
       "capability_owner": "BNet authentication capability currently owns the complete bnet-server workflow fn get_realm_list_ticket in crates/bnet-server/src/rpc/services/game_utilities.rs.",
-      "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        153
-      ],
-      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:bnet-server:crate::rpc::services::game_utilities:crates/bnet-server/src/rpc/services/game_utilities.rs::fn handle_get_all_values_for_attribute",
-      "source_class": "production",
-      "packages": [
-        "bnet-server"
-      ],
-      "sources": [
-        "crates/bnet-server/src/rpc/services/game_utilities.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::rpc::services::game_utilities"
-      ],
-      "enclosings": [
-        "fn handle_get_all_values_for_attribute"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "login"
-      ],
-      "capability_owner": "BNet authentication capability currently owns the complete bnet-server workflow fn handle_get_all_values_for_attribute in crates/bnet-server/src/rpc/services/game_utilities.rs.",
       "connection_affinity": "The workflow acquires or uses the login adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
@@ -1572,42 +1348,6 @@
         153
       ],
       "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:world-server:crate:crates/world-server/src/main.rs::fn create_session",
-      "source_class": "production",
-      "packages": [
-        "world-server"
-      ],
-      "sources": [
-        "crates/world-server/src/main.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate"
-      ],
-      "enclosings": [
-        "fn create_session"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters",
-        "login",
-        "world"
-      ],
-      "capability_owner": "world-server session composition boundary currently owns the complete world-server workflow fn create_session in crates/world-server/src/main.rs.",
-      "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        136,
-        153,
-        200
-      ],
-      "retirement_condition": "The annotated issues [136, 153, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {
@@ -2698,6 +2438,38 @@
       ],
       "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn spawn_db_keepalive_loop_like_cpp in crates/world-server/src/main.rs.",
       "connection_affinity": "The workflow uses independent characters, login, world connections/pools in source order; no distributed ACID boundary is inferred.",
+      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
+      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
+      "target_issues": [
+        153
+      ],
+      "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
+      "stable_boundary": false
+    },
+    {
+      "id": "workflow:world-server:crate:crates/world-server/src/main.rs::fn spawn_legacy_creature_runtime_update_loop_like_cpp",
+      "source_class": "production",
+      "packages": [
+        "world-server"
+      ],
+      "sources": [
+        "crates/world-server/src/main.rs"
+      ],
+      "source_prefixes": [],
+      "modules": [
+        "crate"
+      ],
+      "enclosings": [
+        "fn spawn_legacy_creature_runtime_update_loop_like_cpp"
+      ],
+      "enclosing_prefixes": [],
+      "targets": [],
+      "operations": [],
+      "logical_databases": [
+        "characters"
+      ],
+      "capability_owner": "world-server bootstrap/data-source boundary currently owns the complete world-server workflow fn spawn_legacy_creature_runtime_update_loop_like_cpp in crates/world-server/src/main.rs.",
+      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
       "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
       "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
       "target_issues": [
@@ -26826,39 +26598,6 @@
         153
       ],
       "retirement_condition": "The annotated issues [153] must migrate or explicitly decide the entire workflow before this exception can disappear.",
-      "stable_boundary": false
-    },
-    {
-      "id": "workflow:wow-world:crate::session:crates/wow-world/src/session.rs::impl WorldSession::mark_current_player_save_to_db_committed_like_cpp",
-      "source_class": "production",
-      "packages": [
-        "wow-world"
-      ],
-      "sources": [
-        "crates/wow-world/src/session.rs"
-      ],
-      "source_prefixes": [],
-      "modules": [
-        "crate::session"
-      ],
-      "enclosings": [
-        "impl WorldSession::mark_current_player_save_to_db_committed_like_cpp"
-      ],
-      "enclosing_prefixes": [],
-      "targets": [],
-      "operations": [],
-      "logical_databases": [
-        "characters"
-      ],
-      "capability_owner": "Player lifecycle persistence capability currently owns the complete wow-world workflow impl WorldSession::mark_current_player_save_to_db_committed_like_cpp in crates/wow-world/src/session.rs.",
-      "connection_affinity": "The workflow acquires or uses the characters adapter as currently coded; no wider transaction is inferred.",
-      "current_order": "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.",
-      "failure_and_unknown_commit": "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.",
-      "target_issues": [
-        187,
-        200
-      ],
-      "retirement_condition": "The annotated issues [187, 200] must migrate or explicitly decide the entire workflow before this exception can disappear.",
       "stable_boundary": false
     },
     {

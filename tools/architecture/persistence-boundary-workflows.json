@@ -103,20 +103,6 @@
       "package": "bnet-server",
       "module": "crate",
       "source": "crates/bnet-server/src/main.rs",
-      "enclosing": "fn start_database_keep_alive_timer",
-      "logical_databases": [
-        "login"
-      ],
-      "boundary": "BNet authentication capability",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false
-    },
-    {
-      "package": "bnet-server",
-      "module": "crate",
-      "source": "crates/bnet-server/src/main.rs",
       "enclosing": "module",
       "logical_databases": [
         "login"
@@ -545,24 +531,6 @@
       "boundary": "world-server bootstrap/data-source boundary",
       "target_issues": [
         153
-      ],
-      "stable_boundary": false
-    },
-    {
-      "package": "world-server",
-      "module": "crate",
-      "source": "crates/world-server/src/main.rs",
-      "enclosing": "fn create_session",
-      "logical_databases": [
-        "characters",
-        "login",
-        "world"
-      ],
-      "boundary": "world-server session composition boundary",
-      "target_issues": [
-        136,
-        153,
-        200
       ],
       "stable_boundary": false
     },
@@ -1043,6 +1011,20 @@
         "characters",
         "login",
         "world"
+      ],
+      "boundary": "world-server bootstrap/data-source boundary",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "world-server",
+      "module": "crate",
+      "source": "crates/world-server/src/main.rs",
+      "enclosing": "fn spawn_legacy_creature_runtime_update_loop_like_cpp",
+      "logical_databases": [
+        "characters"
       ],
       "boundary": "world-server bootstrap/data-source boundary",
       "target_issues": [
@@ -12471,49 +12453,7 @@
       "package": "bnet-server",
       "module": "crate::rest::handlers",
       "source": "crates/bnet-server/src/rest/handlers.rs",
-      "enclosing": "fn get_form",
-      "logical_databases": [
-        "login"
-      ],
-      "boundary": "BNet authentication capability",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false
-    },
-    {
-      "package": "bnet-server",
-      "module": "crate::rest::handlers",
-      "source": "crates/bnet-server/src/rest/handlers.rs",
-      "enclosing": "fn get_portal",
-      "logical_databases": [
-        "login"
-      ],
-      "boundary": "BNet authentication capability",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false
-    },
-    {
-      "package": "bnet-server",
-      "module": "crate::rest::handlers",
-      "source": "crates/bnet-server/src/rest/handlers.rs",
       "enclosing": "fn route",
-      "logical_databases": [
-        "login"
-      ],
-      "boundary": "BNet authentication capability",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false
-    },
-    {
-      "package": "bnet-server",
-      "module": "crate::rest::handlers",
-      "source": "crates/bnet-server/src/rest/handlers.rs",
-      "enclosing": "fn wrong_password_remote_ip_like_cpp",
       "logical_databases": [
         "login"
       ],
@@ -12528,48 +12468,6 @@
       "module": "crate::rpc::services::authentication",
       "source": "crates/bnet-server/src/rpc/services/authentication.rs",
       "enclosing": "fn handle_logon",
-      "logical_databases": [
-        "login"
-      ],
-      "boundary": "BNet authentication capability",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false
-    },
-    {
-      "package": "bnet-server",
-      "module": "crate::rpc::services::game_utilities",
-      "source": "crates/bnet-server/src/rpc/services/game_utilities.rs",
-      "enclosing": "fn get_last_char_played",
-      "logical_databases": [
-        "login"
-      ],
-      "boundary": "BNet authentication capability",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false
-    },
-    {
-      "package": "bnet-server",
-      "module": "crate::rpc::services::game_utilities",
-      "source": "crates/bnet-server/src/rpc/services/game_utilities.rs",
-      "enclosing": "fn get_realm_list",
-      "logical_databases": [
-        "login"
-      ],
-      "boundary": "BNet authentication capability",
-      "target_issues": [
-        153
-      ],
-      "stable_boundary": false
-    },
-    {
-      "package": "bnet-server",
-      "module": "crate::rpc::services::game_utilities",
-      "source": "crates/bnet-server/src/rpc/services/game_utilities.rs",
-      "enclosing": "fn handle_get_all_values_for_attribute",
       "logical_databases": [
         "login"
       ],
@@ -12702,21 +12600,6 @@
       "boundary": "Session residual persistence boundary",
       "target_issues": [
         153
-      ],
-      "stable_boundary": false
-    },
-    {
-      "package": "wow-world",
-      "module": "crate::session",
-      "source": "crates/wow-world/src/session.rs",
-      "enclosing": "impl WorldSession::mark_current_player_save_to_db_committed_like_cpp",
-      "logical_databases": [
-        "characters"
-      ],
-      "boundary": "Player lifecycle persistence capability",
-      "target_issues": [
-        187,
-        200
       ],
       "stable_boundary": false
     },
