@@ -515,6 +515,30 @@ fn generic_type_param_names(generics: &syn::Generics) -> Vec<String> {
         .collect()
 }
 
+fn generic_params_by_input(
+    inputs: &syn::punctuated::Punctuated<FnArg, syn::token::Comma>,
+    params: &[String],
+) -> Vec<BTreeSet<String>> {
+    inputs
+        .iter()
+        .filter_map(|input| match input {
+            FnArg::Typed(typed) => Some(
+                params
+                    .iter()
+                    .filter(|param| {
+                        tokens_contain_identifier(
+                            typed.ty.to_token_stream(),
+                            &BTreeSet::from([(*param).clone()]),
+                        )
+                    })
+                    .cloned()
+                    .collect(),
+            ),
+            FnArg::Receiver(_) => None,
+        })
+        .collect()
+}
+
 fn canonical_call(call: &ExprCall) -> String {
     let arguments = call
         .args
@@ -898,6 +922,7 @@ struct ModuleSymbols {
     // recorded return instead of letting `make::<CharacterDatabase>()` bypass
     // both ratchets.
     function_generic_params: BTreeMap<String, Vec<String>>,
+    function_generic_input_params: BTreeMap<String, Vec<BTreeSet<String>>>,
     method_generic_params: BTreeMap<(String, Option<String>, String), Vec<String>>,
     trait_method_returns: std::sync::Arc<BTreeMap<(String, String), VariableInfo>>,
     trait_supertraits: std::sync::Arc<BTreeMap<String, BTreeSet<String>>>,
@@ -906,6 +931,7 @@ struct ModuleSymbols {
     named_type_info: std::sync::Arc<BTreeMap<String, VariableInfo>>,
     package_function_returns: std::sync::Arc<BTreeMap<String, VariableInfo>>,
     package_function_generic_params: std::sync::Arc<BTreeMap<String, Vec<String>>>,
+    package_function_generic_input_params: std::sync::Arc<BTreeMap<String, Vec<BTreeSet<String>>>>,
     // Package-wide registries for inherent impl methods (keyed by canonical
     // crate-relative owner path): without them `factory.make()` only resolves
     // when the impl lives in the same module as the call.
@@ -954,6 +980,7 @@ impl Default for ModuleSymbols {
             function_returns: BTreeMap::new(),
             method_returns: BTreeMap::new(),
             function_generic_params: BTreeMap::new(),
+            function_generic_input_params: BTreeMap::new(),
             method_generic_params: BTreeMap::new(),
             trait_method_returns: std::sync::Arc::new(BTreeMap::new()),
             trait_supertraits: std::sync::Arc::new(BTreeMap::new()),
@@ -962,6 +989,7 @@ impl Default for ModuleSymbols {
             named_type_info: std::sync::Arc::new(BTreeMap::new()),
             package_function_returns: std::sync::Arc::new(BTreeMap::new()),
             package_function_generic_params: std::sync::Arc::new(BTreeMap::new()),
+            package_function_generic_input_params: std::sync::Arc::new(BTreeMap::new()),
             package_method_returns: std::sync::Arc::new(BTreeMap::new()),
             package_method_generic_params: std::sync::Arc::new(BTreeMap::new()),
             item_values: BTreeMap::new(),
@@ -1277,6 +1305,18 @@ fn variable_info_in_type(ty: &Type, symbols: &ModuleSymbols) -> VariableInfo {
         })
     {
         info.union(alias);
+    }
+    if let Type::Path(path) = ty {
+        let names = path_names(&path.path);
+        if names
+            .first()
+            .is_some_and(|name| matches!(name.as_str(), "crate" | "self" | "super"))
+        {
+            let canonical = canonical_path_names(names, symbols).join("::");
+            if !canonical.is_empty() {
+                info.nominal_types.insert(canonical);
+            }
+        }
     }
     let canonical = match ty {
         Type::Path(path) => Some(canonical_path_names(path_names(&path.path), symbols).join("::")),
@@ -1718,6 +1758,7 @@ fn collect_nested_trait_returns(
 fn collect_nested_item_values(
     items: &[Item],
     module_path: &[String],
+    package: &str,
     cfg: &[String],
     source_class: PersistenceSourceClass,
     symbols: &ModuleSymbols,
@@ -1757,12 +1798,23 @@ fn collect_nested_item_values(
             {
                 let mut child_path = module_path.to_vec();
                 child_path.push(normalized_ident(&item_mod.ident));
+                let child_cfg = item_cfg(cfg, &item_mod.attrs);
+                let child_symbols = collect_module_symbols(
+                    &item_mod.content.as_ref().expect("checked content").1,
+                    Some(symbols),
+                    package,
+                    &child_path.join("::"),
+                    &child_cfg,
+                    source_class,
+                    errors,
+                );
                 collect_nested_item_values(
                     &item_mod.content.as_ref().expect("checked content").1,
                     &child_path,
-                    &item_cfg(cfg, &item_mod.attrs),
+                    package,
+                    &child_cfg,
                     source_class,
-                    symbols,
+                    &child_symbols,
                     output,
                     errors,
                 );
@@ -2111,6 +2163,10 @@ fn collect_module_symbols(
             {
                 let generic_params = generic_type_param_names(&function.sig.generics);
                 if !generic_params.is_empty() {
+                    symbols.function_generic_input_params.insert(
+                        normalized_ident(&function.sig.ident),
+                        generic_params_by_input(&function.sig.inputs, &generic_params),
+                    );
                     symbols
                         .function_generic_params
                         .insert(normalized_ident(&function.sig.ident), generic_params);
@@ -2139,7 +2195,7 @@ fn collect_module_symbols(
                     .trait_
                     .as_ref()
                     .map(|(_, path, _)| canonical_trait_path(path, &symbols));
-                let receiver_types = nominal_types_in_type(&item_impl.self_ty)
+                let mut receiver_types = nominal_types_in_type(&item_impl.self_ty)
                     .into_iter()
                     .flat_map(|nominal| {
                         symbols
@@ -2149,6 +2205,15 @@ fn collect_module_symbols(
                             .unwrap_or_else(|| BTreeSet::from([nominal]))
                     })
                     .collect::<BTreeSet<_>>();
+                if let Type::Path(path) = item_impl.self_ty.as_ref() {
+                    let mut names = path_names(&path.path);
+                    if names.first().is_some_and(|name| name == "crate") {
+                        names.remove(0);
+                    }
+                    if names.len() > 1 {
+                        receiver_types.insert(names.join("::"));
+                    }
+                }
                 let associated_types = item_impl
                     .items
                     .iter()
@@ -2172,6 +2237,38 @@ fn collect_module_symbols(
                     })
                     .collect::<BTreeMap<_, _>>();
                 if let Some(trait_name) = &trait_name {
+                    let trait_arguments = item_impl
+                        .trait_
+                        .as_ref()
+                        .and_then(|(_, path, _)| path.segments.last())
+                        .and_then(|segment| match &segment.arguments {
+                            syn::PathArguments::AngleBracketed(arguments) => Some(arguments),
+                            _ => None,
+                        });
+                    let trait_params = symbols
+                        .trait_generic_params
+                        .iter()
+                        .find(|(candidate, _)| {
+                            *candidate == trait_name
+                                || candidate.ends_with(&format!("::{trait_name}"))
+                                || trait_name.ends_with(&format!("::{candidate}"))
+                        })
+                        .map(|(_, params)| params.clone())
+                        .unwrap_or_default();
+                    let trait_substitutions = trait_arguments
+                        .map(|arguments| {
+                            trait_params
+                                .iter()
+                                .zip(arguments.args.iter().filter_map(|argument| match argument {
+                                    syn::GenericArgument::Type(ty) => {
+                                        Some(variable_info_in_type(ty, &symbols))
+                                    }
+                                    _ => None,
+                                }))
+                                .map(|(param, info)| (param.clone(), info))
+                                .collect::<BTreeMap<_, _>>()
+                        })
+                        .unwrap_or_default();
                     let inherited = symbols
                         .trait_method_returns
                         .iter()
@@ -2183,6 +2280,7 @@ fn collect_module_symbols(
                         .map(|((_, method), info)| (method.clone(), info.clone()))
                         .collect::<Vec<_>>();
                     for (method_name, mut return_info) in inherited {
+                        substitute_nominal_params(&mut return_info, &trait_substitutions);
                         substitute_nominal_params(&mut return_info, &associated_types);
                         for receiver_type in &receiver_types {
                             symbols
@@ -2537,6 +2635,28 @@ fn tokens_contain_identifier(tokens: TokenStream, names: &BTreeSet<String>) -> b
         TokenTree::Group(group) => tokens_contain_identifier(group.stream(), names),
         TokenTree::Punct(_) | TokenTree::Literal(_) => false,
     })
+}
+
+fn tokens_contain_callable_invocation(tokens: TokenStream, names: &BTreeSet<String>) -> bool {
+    let tokens = tokens.into_iter().collect::<Vec<_>>();
+    for (index, token) in tokens.iter().enumerate() {
+        if let TokenTree::Group(group) = token
+            && tokens_contain_callable_invocation(group.stream(), names)
+        {
+            return true;
+        }
+        if let TokenTree::Ident(ident) = token
+            && names.contains(&normalized_ident(ident))
+            && matches!(
+                tokens.get(index + 1),
+                Some(TokenTree::Group(group))
+                    if group.delimiter() == proc_macro2::Delimiter::Parenthesis
+            )
+        {
+            return true;
+        }
+    }
+    false
 }
 
 fn tokens_contain_path_root(tokens: TokenStream, names: &BTreeSet<String>) -> bool {
@@ -3001,7 +3121,14 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 // Inherent impl declared in another source module: resolve
                 // through the package-wide registry keyed by canonical owner
                 // path, the same way free functions already resolve.
-                let owner_key = self.package_function_key(vec![receiver_type.clone()]);
+                let owner_key = if receiver_type.contains("::") {
+                    receiver_type
+                        .strip_prefix("crate::")
+                        .unwrap_or(receiver_type)
+                        .to_owned()
+                } else {
+                    self.package_function_key(vec![receiver_type.clone()])
+                };
                 if let Some(info) = self
                     .symbols
                     .package_method_returns
@@ -3319,14 +3446,26 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                         });
                 if let Some(info) = self.symbols.function_returns.get(&name) {
                     let params = self.symbols.function_generic_params.get(&name);
-                    return self.apply_turbofish_args(info, params, turbofish);
+                    let result = self.apply_turbofish_args(info, params, turbofish);
+                    return self.apply_inferred_function_args(
+                        &result,
+                        params,
+                        self.symbols.function_generic_input_params.get(&name),
+                        &call.args,
+                    );
                 }
                 // Free functions declared in another source module resolve
                 // through the package-wide canonical-path registry.
                 let key = self.package_function_key(vec![name]);
                 if let Some(info) = self.symbols.package_function_returns.get(&key) {
                     let params = self.symbols.package_function_generic_params.get(&key);
-                    return self.apply_turbofish_args(info, params, turbofish);
+                    let result = self.apply_turbofish_args(info, params, turbofish);
+                    return self.apply_inferred_function_args(
+                        &result,
+                        params,
+                        self.symbols.package_function_generic_input_params.get(&key),
+                        &call.args,
+                    );
                 }
             }
             let return_info = self.associated_return_info(path);
@@ -4004,14 +4143,30 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                     });
             if let Some(info) = self.symbols.function_returns.get(last) {
                 let params = self.symbols.function_generic_params.get(last);
-                return self.apply_turbofish_args(info, params, turbofish).flow;
+                let result = self.apply_turbofish_args(info, params, turbofish);
+                return self
+                    .apply_inferred_function_args(
+                        &result,
+                        params,
+                        self.symbols.function_generic_input_params.get(last),
+                        &call.args,
+                    )
+                    .flow;
             }
             // Free functions declared in another source module resolve
             // through the package-wide canonical-path registry.
             let key = self.package_function_key(names.clone());
             if let Some(info) = self.symbols.package_function_returns.get(&key) {
                 let params = self.symbols.package_function_generic_params.get(&key);
-                return self.apply_turbofish_args(info, params, turbofish).flow;
+                let result = self.apply_turbofish_args(info, params, turbofish);
+                return self
+                    .apply_inferred_function_args(
+                        &result,
+                        params,
+                        self.symbols.package_function_generic_input_params.get(&key),
+                        &call.args,
+                    )
+                    .flow;
             }
         }
         self.symbols
@@ -4197,6 +4352,17 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                     {
                         flow.union(info.flow.clone());
                     }
+                }
+            }
+            for (callable, info) in self.symbols.package_function_returns.iter() {
+                let leaf = callable.rsplit("::").next().unwrap_or(callable);
+                if !info.flow.is_empty()
+                    && tokens_contain_callable_invocation(
+                        mac.tokens.clone(),
+                        &BTreeSet::from([leaf.to_owned()]),
+                    )
+                {
+                    flow.union(info.flow.clone());
                 }
             }
             flow
@@ -4587,6 +4753,35 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         }
         info
     }
+
+    fn apply_inferred_function_args(
+        &self,
+        info: &VariableInfo,
+        params: Option<&Vec<String>>,
+        input_params: Option<&Vec<BTreeSet<String>>>,
+        args: &syn::punctuated::Punctuated<Expr, syn::token::Comma>,
+    ) -> VariableInfo {
+        let (Some(params), Some(input_params)) = (params, input_params) else {
+            return info.clone();
+        };
+        let mut substitutions = BTreeMap::<String, VariableInfo>::new();
+        for (argument, formal_params) in args.iter().zip(input_params) {
+            if formal_params.is_empty() {
+                continue;
+            }
+            let argument_info = self.info_from_expr(argument);
+            for param in formal_params {
+                substitutions
+                    .entry(param.clone())
+                    .or_default()
+                    .union(&argument_info);
+            }
+        }
+        substitutions.retain(|param, _| params.contains(param));
+        let mut result = info.clone();
+        substitute_nominal_params(&mut result, &substitutions);
+        result
+    }
 }
 
 fn item_attributes(item: &Item) -> &[Attribute] {
@@ -4851,7 +5046,10 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         if let Some(init) = &local.init {
             self.visit_expr(&init.expr);
             if let Some((_, diverge)) = &init.diverge {
+                let continuing_scopes = self.scopes.clone();
                 self.visit_expr(diverge);
+                self.scopes = continuing_scopes;
+                self.bump_context();
             }
             let info = self.info_from_expr(&init.expr);
             let mut names = Vec::new();
@@ -5162,6 +5360,20 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                 );
             }
         }
+        if matches!(
+            name.as_str(),
+            "push" | "push_back" | "push_front" | "insert" | "extend" | "append"
+        ) && let Some(receiver_name) = simple_assignment_name(&method.receiver)
+        {
+            let mut stored = self.lookup(&receiver_name).cloned().unwrap_or_default();
+            let before = stored.clone();
+            for argument in &method.args {
+                stored.union(&self.info_from_expr(argument));
+            }
+            if stored != before {
+                self.assign(&receiver_name, stored);
+            }
+        }
         self.visit_expr(&method.receiver);
         for argument in &method.args {
             self.visit_expr(argument);
@@ -5369,6 +5581,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             return;
         }
         let previous_cfg = self.cfg.clone();
+        let declaration_scopes = self.scopes.clone();
         self.cfg = item_cfg(&self.cfg, &closure.attrs);
         self.push_scope();
         for input in &closure.inputs {
@@ -5376,6 +5589,8 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         }
         self.visit_expr(&closure.body);
         self.pop_scope();
+        self.scopes = declaration_scopes;
+        self.bump_context();
         self.cfg = previous_cfg;
     }
 }
@@ -5428,6 +5643,7 @@ fn analyze_trait_default_bodies(
         );
         analyzer.register_generic_bounds(&item_trait.generics);
         analyzer.register_generic_bounds(&method.sig.generics);
+        analyzer.register_parameters(&method.sig.inputs);
         analyzer.bind(
             "self".to_owned(),
             VariableInfo {
@@ -6491,6 +6707,9 @@ pub(crate) fn inventory_persistence_accesses(
         BTreeMap::<(String, PersistenceSourceClass), BTreeMap<String, VariableInfo>>::new();
     let mut function_generic_registries =
         BTreeMap::<(String, PersistenceSourceClass), BTreeMap<String, Vec<String>>>::new();
+    let mut function_generic_input_registries =
+        BTreeMap::<(String, PersistenceSourceClass), BTreeMap<String, Vec<BTreeSet<String>>>>::new(
+        );
     let mut method_registries = BTreeMap::<
         (String, PersistenceSourceClass),
         BTreeMap<(String, String), VariableInfo>,
@@ -6554,6 +6773,7 @@ pub(crate) fn inventory_persistence_accesses(
             collect_nested_item_values(
                 &syntax.items,
                 &symbols.module_path,
+                source.package,
                 &cfg,
                 source_class,
                 &symbols,
@@ -6590,6 +6810,19 @@ pub(crate) fn inventory_persistence_accesses(
                     .entry(canonical)
                     .or_insert_with(|| generic_params.clone());
             }
+            let function_generic_input_registry = function_generic_input_registries
+                .entry((source.package.to_owned(), source_class))
+                .or_default();
+            for (name, input_params) in symbols.function_generic_input_params.iter() {
+                let canonical = if module_prefix.is_empty() {
+                    name.clone()
+                } else {
+                    format!("{module_prefix}::{name}")
+                };
+                function_generic_input_registry
+                    .entry(canonical)
+                    .or_insert_with(|| input_params.clone());
+            }
             let registry = trait_registries
                 .entry((source.package.to_owned(), source_class))
                 .or_default();
@@ -6625,7 +6858,7 @@ pub(crate) fn inventory_persistence_accesses(
                 if trait_name.is_some() {
                     continue;
                 }
-                let canonical_owner = if module_prefix.is_empty() {
+                let canonical_owner = if module_prefix.is_empty() || owner.contains("::") {
                     owner.clone()
                 } else {
                     format!("{module_prefix}::{owner}")
@@ -6644,7 +6877,7 @@ pub(crate) fn inventory_persistence_accesses(
                 if trait_name.is_some() {
                     continue;
                 }
-                let canonical_owner = if module_prefix.is_empty() {
+                let canonical_owner = if module_prefix.is_empty() || owner.contains("::") {
                     owner.clone()
                 } else {
                     format!("{module_prefix}::{owner}")
@@ -6701,7 +6934,7 @@ pub(crate) fn inventory_persistence_accesses(
                 .entry((source.package.to_owned(), source_class))
                 .or_default();
             for ((owner, _, method), info) in &symbols.method_returns {
-                let canonical_owner = if module_prefix.is_empty() {
+                let canonical_owner = if module_prefix.is_empty() || owner.contains("::") {
                     owner.clone()
                 } else {
                     format!("{module_prefix}::{owner}")
@@ -6810,6 +7043,12 @@ pub(crate) fn inventory_persistence_accesses(
             );
             package_symbols.package_function_generic_params = std::sync::Arc::new(
                 function_generic_registries
+                    .get(&(source.package.to_owned(), source_class))
+                    .cloned()
+                    .unwrap_or_default(),
+            );
+            package_symbols.package_function_generic_input_params = std::sync::Arc::new(
+                function_generic_input_registries
                     .get(&(source.package.to_owned(), source_class))
                     .cloned()
                     .unwrap_or_default(),
@@ -9698,5 +9937,245 @@ mod tests {
                 && row.target == PersistenceTarget::CharacterDatabase
                 && row.operation == PersistenceOperation::PoolAccess
         }));
+    }
+
+    #[test]
+    fn persistence_inventory_resolves_inline_module_value_aliases() {
+        let baseline = inventory(
+            r#"
+                mod nested {
+                    type Db = wow_database::CharacterDatabase;
+                    static DATABASE: Db = unreachable!();
+                    fn persistent() { consume(DATABASE.pool()); }
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_substitutes_generic_trait_arguments_in_default_returns() {
+        let baseline = inventory(
+            r#"
+                struct Holder(wow_database::CharacterDatabase);
+                trait Maker<T> { fn make(&self) -> T { unreachable!() } }
+                struct Factory;
+                impl Maker<Holder> for Factory {}
+                fn persistent(factory: &Factory) { consume(factory.make().0.pool()); }
+            "#,
+        )
+        .unwrap();
+        assert!(
+            baseline
+                .accesses
+                .iter()
+                .any(|row| row.enclosing == "fn persistent"
+                    && row.operation == PersistenceOperation::PoolAccess)
+        );
+    }
+
+    #[test]
+    fn persistence_inventory_propagates_inferred_generic_function_arguments() {
+        let baseline = inventory(
+            r#"
+                fn identity<T>(value: T) -> T { value }
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    consume(identity(database).pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(
+            baseline
+                .accesses
+                .iter()
+                .any(|row| row.enclosing == "fn persistent"
+                    && row.operation == PersistenceOperation::PoolAccess)
+        );
+    }
+
+    #[test]
+    fn persistence_inventory_maps_inferred_generics_to_their_formal_inputs() {
+        let baseline = inventory(
+            r#"
+                fn first<T, U>(first: T, _second: U) -> T { first }
+                fn clean(database: wow_database::CharacterDatabase) {
+                    consume(first(1_u8, database).pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(
+            !baseline
+                .accesses
+                .iter()
+                .any(|row| row.enclosing == "fn clean"
+                    && row.operation == PersistenceOperation::PoolAccess)
+        );
+    }
+
+    #[test]
+    fn persistence_inventory_resolves_registered_callables_inside_join_macros() {
+        let baseline = inventory(
+            r#"
+                fn database() -> wow_database::CharacterDatabase { unreachable!() }
+                async fn persistent() {
+                    let database = tokio::join!(async { database() }).0;
+                    consume(database.pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(
+            baseline
+                .accesses
+                .iter()
+                .any(|row| row.enclosing == "fn persistent"
+                    && row.operation == PersistenceOperation::PoolAccess)
+        );
+    }
+
+    #[test]
+    fn persistence_inventory_does_not_treat_macro_identifiers_as_function_calls() {
+        let baseline = inventory(
+            r#"
+                fn error() -> wow_database::CharacterDatabase { unreachable!() }
+                async fn clean(message: &str) {
+                    let value = tokio::join!(async { tracing::error!(message) }).0;
+                    consume(value.pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(
+            !baseline
+                .accesses
+                .iter()
+                .any(|row| row.enclosing == "fn clean"
+                    && row.operation == PersistenceOperation::PoolAccess)
+        );
+    }
+
+    #[test]
+    fn persistence_inventory_does_not_apply_diverging_let_else_state() {
+        let baseline = inventory(
+            r#"
+                fn persistent(database: wow_database::CharacterDatabase, maybe: Option<u8>) {
+                    let mut value = Some(database);
+                    let Some(_) = maybe else { value = None; return; };
+                    consume(value.unwrap().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(
+            baseline
+                .accesses
+                .iter()
+                .any(|row| row.enclosing == "fn persistent"
+                    && row.operation == PersistenceOperation::PoolAccess)
+        );
+    }
+
+    #[test]
+    fn persistence_inventory_does_not_apply_closure_side_effects_at_declaration() {
+        let baseline = inventory(
+            r#"
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    let mut value = Some(database);
+                    let clear = || { value = None; };
+                    drop(clear);
+                    consume(value.unwrap().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(
+            baseline
+                .accesses
+                .iter()
+                .any(|row| row.enclosing == "fn persistent"
+                    && row.operation == PersistenceOperation::PoolAccess)
+        );
+    }
+
+    #[test]
+    fn persistence_inventory_retains_values_inserted_into_mutable_containers() {
+        let baseline = inventory(
+            r#"
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    let mut values = Vec::new();
+                    values.push(database);
+                    consume(values[0].pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(
+            baseline
+                .accesses
+                .iter()
+                .any(|row| row.enclosing == "fn persistent"
+                    && row.operation == PersistenceOperation::PoolAccess)
+        );
+    }
+
+    #[test]
+    fn persistence_inventory_registers_default_trait_method_parameters() {
+        let baseline = inventory(
+            r#"
+                struct Holder(wow_database::CharacterDatabase);
+                trait Access {
+                    fn leak(&self, holder: Holder) { consume(holder.0.pool()); }
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(
+            baseline
+                .accesses
+                .iter()
+                .any(|row| row.enclosing == "trait Access::leak"
+                    && row.operation == PersistenceOperation::PoolAccess)
+        );
+    }
+
+    #[test]
+    fn persistence_inventory_canonicalizes_qualified_inherent_impl_owners() {
+        let dto = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "fixture",
+            module: "crate::dto",
+            source_path: "src/dto.rs",
+            inherited_cfg: &[],
+            source: "struct Holder(wow_database::CharacterDatabase); struct Factory;",
+        };
+        let extensions = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "fixture",
+            module: "crate::extensions",
+            source_path: "src/extensions.rs",
+            inherited_cfg: &[],
+            source: "impl crate::dto::Factory { fn make(&self) -> crate::dto::Holder { unreachable!() } }",
+        };
+        let consumer = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "fixture",
+            module: "crate::consumer",
+            source_path: "src/consumer.rs",
+            inherited_cfg: &[],
+            source: "fn persistent(factory: crate::dto::Factory) { consume(factory.make().0.pool()); }",
+        };
+        let baseline = inventory_persistence_accesses(&[consumer, dto, extensions]).unwrap();
+        assert!(
+            baseline
+                .accesses
+                .iter()
+                .any(|row| row.enclosing == "fn persistent"
+                    && row.operation == PersistenceOperation::PoolAccess)
+        );
     }
 }
