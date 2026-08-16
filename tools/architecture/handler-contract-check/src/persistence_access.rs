@@ -893,6 +893,55 @@ fn called_parameter_inputs(function: &ItemFn) -> BTreeSet<usize> {
     visitor.called
 }
 
+#[derive(Default)]
+struct MutableParameterWrites {
+    parameters: BTreeMap<String, usize>,
+    written: BTreeSet<usize>,
+}
+
+impl<'ast> Visit<'ast> for MutableParameterWrites {
+    fn visit_expr_assign(&mut self, assignment: &'ast syn::ExprAssign) {
+        if let Expr::Unary(unary) = assignment.left.as_ref()
+            && matches!(unary.op, syn::UnOp::Deref(_))
+            && let Some(name) = simple_assignment_name(&unary.expr)
+            && let Some(index) = self.parameters.get(&name)
+        {
+            self.written.insert(*index);
+        }
+        syn::visit::visit_expr_assign(self, assignment);
+    }
+}
+
+fn mutable_parameter_writes(function: &ItemFn) -> BTreeSet<usize> {
+    let parameters = function
+        .sig
+        .inputs
+        .iter()
+        .enumerate()
+        .filter_map(|(index, input)| {
+            let FnArg::Typed(typed) = input else {
+                return None;
+            };
+            let Type::Reference(reference) = typed.ty.as_ref() else {
+                return None;
+            };
+            if reference.mutability.is_none() {
+                return None;
+            }
+            let Pat::Ident(ident) = typed.pat.as_ref() else {
+                return None;
+            };
+            Some((normalized_ident(&ident.ident), index))
+        })
+        .collect();
+    let mut visitor = MutableParameterWrites {
+        parameters,
+        ..MutableParameterWrites::default()
+    };
+    visitor.visit_block(&function.block);
+    visitor.written
+}
+
 fn item_cfg(parent: &[String], attributes: &[Attribute]) -> Vec<String> {
     extend_cfg_context(parent, attributes)
 }
@@ -1169,6 +1218,7 @@ struct VariableInfo {
     callable_signatures: BTreeSet<CallableSignature>,
     closure_mutations: BTreeMap<String, VariableInfo>,
     mutable_pointees: BTreeSet<String>,
+    query_callable: bool,
 }
 
 impl VariableInfo {
@@ -1200,6 +1250,7 @@ impl VariableInfo {
         self.sql_sources.extend(other.sql_sources.iter().cloned());
         self.mutable_pointees
             .extend(other.mutable_pointees.iter().cloned());
+        self.query_callable |= other.query_callable;
         if self.tuple_items.len() < other.tuple_items.len() {
             self.tuple_items
                 .resize_with(other.tuple_items.len(), VariableInfo::default);
@@ -1284,6 +1335,7 @@ fn flatten_reachable_variable_info(root: &VariableInfo) -> VariableInfo {
         flattened
             .callable_signatures
             .extend(info.callable_signatures.iter().cloned());
+        flattened.query_callable |= info.query_callable;
         flattened.sql_expression = flattened.sql_expression.max(info.sql_expression);
         pending.extend(info.tuple_items.iter());
         pending.extend(info.field_items.values());
@@ -1407,6 +1459,7 @@ struct ModuleSymbols {
     field_nominal_types: BTreeMap<(String, String), BTreeSet<String>>,
     function_returns: BTreeMap<String, VariableInfo>,
     function_called_inputs: BTreeMap<String, BTreeSet<usize>>,
+    function_mutable_writes: BTreeMap<String, BTreeMap<usize, VariableInfo>>,
     method_returns: BTreeMap<(String, Option<String>, String), VariableInfo>,
     // Generic parameter name lists, recorded next to the return registries so
     // an explicit turbofish at the call site can be substituted into the
@@ -1429,6 +1482,8 @@ struct ModuleSymbols {
     workspace_named_type_info: std::sync::Arc<BTreeMap<String, VariableInfo>>,
     dependency_crate_aliases: std::sync::Arc<BTreeMap<String, String>>,
     package_function_returns: std::sync::Arc<BTreeMap<String, VariableInfo>>,
+    package_function_mutable_writes:
+        std::sync::Arc<BTreeMap<String, BTreeMap<usize, VariableInfo>>>,
     package_function_generic_params: std::sync::Arc<BTreeMap<String, Vec<String>>>,
     package_function_generic_input_params: std::sync::Arc<BTreeMap<String, Vec<GenericInputSpec>>>,
     // Package-wide registries for inherent impl methods (keyed by canonical
@@ -1480,6 +1535,7 @@ impl Default for ModuleSymbols {
             field_nominal_types: BTreeMap::new(),
             function_returns: BTreeMap::new(),
             function_called_inputs: BTreeMap::new(),
+            function_mutable_writes: BTreeMap::new(),
             method_returns: BTreeMap::new(),
             function_generic_params: BTreeMap::new(),
             function_generic_input_params: BTreeMap::new(),
@@ -1494,6 +1550,7 @@ impl Default for ModuleSymbols {
             workspace_named_type_info: std::sync::Arc::new(BTreeMap::new()),
             dependency_crate_aliases: std::sync::Arc::new(BTreeMap::new()),
             package_function_returns: std::sync::Arc::new(BTreeMap::new()),
+            package_function_mutable_writes: std::sync::Arc::new(BTreeMap::new()),
             package_function_generic_params: std::sync::Arc::new(BTreeMap::new()),
             package_function_generic_input_params: std::sync::Arc::new(BTreeMap::new()),
             package_method_returns: std::sync::Arc::new(BTreeMap::new()),
@@ -1799,6 +1856,7 @@ fn tuple_items_in_type(ty: &Type, symbols: &ModuleSymbols) -> Vec<VariableInfo> 
                 callable_signatures: BTreeSet::new(),
                 closure_mutations: BTreeMap::new(),
                 mutable_pointees: BTreeSet::new(),
+                query_callable: false,
             })
             .collect(),
         Type::Reference(reference) => tuple_items_in_type(&reference.elem, symbols),
@@ -1868,6 +1926,7 @@ fn variable_info_in_type(ty: &Type, symbols: &ModuleSymbols) -> VariableInfo {
         callable_signatures: BTreeSet::new(),
         closure_mutations: BTreeMap::new(),
         mutable_pointees: BTreeSet::new(),
+        query_callable: false,
     };
     if let Type::Path(path) = ty
         && let Some(alias) = path.path.segments.last().and_then(|segment| {
@@ -2958,6 +3017,20 @@ fn collect_module_symbols(
                         .function_called_inputs
                         .insert(normalized_ident(&function.sig.ident), called_inputs);
                 }
+                let mutable_writes = mutable_parameter_writes(function)
+                    .into_iter()
+                    .filter_map(|index| {
+                        let FnArg::Typed(typed) = function.sig.inputs.iter().nth(index)? else {
+                            return None;
+                        };
+                        Some((index, variable_info_in_type(&typed.ty, &symbols)))
+                    })
+                    .collect::<BTreeMap<_, _>>();
+                if !mutable_writes.is_empty() {
+                    symbols
+                        .function_mutable_writes
+                        .insert(normalized_ident(&function.sig.ident), mutable_writes);
+                }
                 let generic_params = generic_type_param_names(&function.sig.generics);
                 if !generic_params.is_empty() {
                     symbols.function_generic_input_params.insert(
@@ -3747,6 +3820,7 @@ struct LoopFlowCollector {
 struct BlockExitCollector {
     label: String,
     exits: Option<Vec<BTreeMap<String, VariableInfo>>>,
+    result: VariableInfo,
 }
 
 struct DirectChildFlowCollector<'analyzer, 'a, 'b> {
@@ -4645,6 +4719,20 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             }
         }
         if let Expr::Path(path) = expression {
+            let names = path_names(&path.path);
+            if names
+                .first()
+                .is_some_and(|root| self.symbols.sqlx_namespaces.contains(root))
+                && names.last().is_some_and(|name| is_query_name(name))
+            {
+                return VariableInfo {
+                    flow: Flow::query(),
+                    query_callable: true,
+                    ..VariableInfo::default()
+                };
+            }
+        }
+        if let Expr::Path(path) = expression {
             let key = self.package_function_key(path_names(&path.path));
             if let Some(info) = self.symbols.package_item_values.get(&key) {
                 return info.clone();
@@ -4870,6 +4958,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 callable_signatures: BTreeSet::new(),
                 closure_mutations: BTreeMap::new(),
                 mutable_pointees: BTreeSet::new(),
+                query_callable: false,
             };
         }
         if let Expr::Field(field) = expression {
@@ -4953,6 +5042,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 callable_signatures: BTreeSet::new(),
                 closure_mutations: BTreeMap::new(),
                 mutable_pointees: BTreeSet::new(),
+                query_callable: false,
             };
             let mut names = path_names(&path.path);
             if is_constructor_method {
@@ -4995,6 +5085,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             callable_signatures: BTreeSet::new(),
             closure_mutations: BTreeMap::new(),
             mutable_pointees: BTreeSet::new(),
+            query_callable: false,
         }
     }
 
@@ -5203,6 +5294,37 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 .get(key)
                 .is_some_and(|info| info.field_items.contains_key(field))
         })
+    }
+
+    fn union_into_declared_projections(&self, aggregate: &mut VariableInfo, value: &VariableInfo) {
+        for owner in aggregate.nominal_types.clone() {
+            let suffix = format!("::{owner}");
+            for (key, declared) in self
+                .symbols
+                .named_type_info
+                .iter()
+                .chain(self.symbols.workspace_named_type_info.iter())
+            {
+                if key != &owner && !key.ends_with(&suffix) {
+                    continue;
+                }
+                if aggregate.tuple_items.len() < declared.tuple_items.len() {
+                    aggregate
+                        .tuple_items
+                        .resize_with(declared.tuple_items.len(), VariableInfo::default);
+                }
+                for item in &mut aggregate.tuple_items {
+                    item.union(value);
+                }
+                for field in declared.field_items.keys() {
+                    aggregate
+                        .field_items
+                        .entry(field.clone())
+                        .or_default()
+                        .union(value);
+                }
+            }
+        }
     }
 
     fn has_declared_fields(&self, owner: &str) -> bool {
@@ -5725,6 +5847,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             .is_some_and(|first| self.symbols.sqlx_namespaces.contains(first));
         if (rooted_sqlx && is_query_name(last))
             || (names.len() == 1 && self.symbols.query_callables.contains(last))
+            || (names.len() == 1 && self.lookup(last).is_some_and(|info| info.query_callable))
         {
             return Flow::query();
         }
@@ -6883,6 +7006,44 @@ fn assign_place_projection(
     }
 }
 
+fn union_into_assignment_place(
+    analyzer: &mut BodyAnalyzer<'_, '_>,
+    place: &Expr,
+    info: &VariableInfo,
+) -> bool {
+    if let Some(root) = simple_assignment_name(place) {
+        let mut aggregate = analyzer.lookup(&root).cloned().unwrap_or_default();
+        aggregate.union(info);
+        analyzer.assign(&root, aggregate);
+        return true;
+    }
+    let Some((root, projections)) = assignment_place(place) else {
+        return false;
+    };
+    let mut aggregate = analyzer.lookup(&root).cloned().unwrap_or_default();
+    let mut projected = VariableInfo::default();
+    assign_place_projection(&mut projected, &projections, info);
+    aggregate.union(&projected);
+    analyzer.assign(&root, aggregate);
+    true
+}
+
+fn is_assignment_binop(operation: &syn::BinOp) -> bool {
+    matches!(
+        operation,
+        syn::BinOp::AddAssign(_)
+            | syn::BinOp::SubAssign(_)
+            | syn::BinOp::MulAssign(_)
+            | syn::BinOp::DivAssign(_)
+            | syn::BinOp::RemAssign(_)
+            | syn::BinOp::BitXorAssign(_)
+            | syn::BinOp::BitAndAssign(_)
+            | syn::BinOp::BitOrAssign(_)
+            | syn::BinOp::ShlAssign(_)
+            | syn::BinOp::ShrAssign(_)
+    )
+}
+
 fn mutable_storage_receiver_name(expression: &Expr) -> Option<String> {
     match expression {
         Expr::Reference(reference) if reference.mutability.is_some() => {
@@ -6890,6 +7051,15 @@ fn mutable_storage_receiver_name(expression: &Expr) -> Option<String> {
         }
         Expr::Paren(paren) => mutable_storage_receiver_name(&paren.expr),
         Expr::Group(group) => mutable_storage_receiver_name(&group.expr),
+        _ => None,
+    }
+}
+
+fn mutable_storage_place(expression: &Expr) -> Option<&Expr> {
+    match expression {
+        Expr::Reference(reference) if reference.mutability.is_some() => Some(&reference.expr),
+        Expr::Paren(paren) => mutable_storage_place(&paren.expr),
+        Expr::Group(group) => mutable_storage_place(&group.expr),
         _ => None,
     }
 }
@@ -7003,6 +7173,25 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             self.bump_context();
         } else {
             self.visit_expr(&expression.right);
+        }
+        if is_assignment_binop(&expression.op) {
+            let info = self.info_from_expr(&expression.right);
+            union_into_assignment_place(self, &expression.left, &info);
+            let root = simple_assignment_name(&expression.left)
+                .or_else(|| assignment_place(&expression.left).map(|(root, _)| root));
+            if let Some(root) = root {
+                let mut aggregate = self.lookup(&root).cloned().unwrap_or_default();
+                self.union_into_declared_projections(&mut aggregate, &info);
+                self.assign(&root, aggregate);
+            }
+            let cfg = item_cfg(&self.cfg, &expression.attrs);
+            self.record_pool_escape(
+                &info.flow,
+                PersistenceOperation::StoreEscape,
+                "compound_assignment",
+                &cfg,
+                normalized_tokens(expression),
+            );
         }
     }
 
@@ -7516,8 +7705,9 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                     let rooted_sqlx = names
                         .first()
                         .is_some_and(|first| self.symbols.sqlx_namespaces.contains(first));
-                    let imported_query =
-                        names.len() == 1 && self.symbols.query_callables.contains(&name);
+                    let imported_query = names.len() == 1
+                        && (self.symbols.query_callables.contains(&name)
+                            || self.lookup(&name).is_some_and(|info| info.query_callable));
                     (
                         name,
                         rooted_sqlx,
@@ -7711,18 +7901,50 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             }
             self.assign(&binding, updated);
         }
-        if let Expr::Path(path) = call.func.as_ref()
-            && path.qself.is_none()
-            && path.path.segments.len() == 1
-            && let Some(callee) = last_path_name(&path.path)
-        {
-            let mutations = self
-                .lookup(&callee)
-                .map(|info| self.closure_mutations_for_args(info, &argument_infos))
+        if let Expr::Path(path) = call.func.as_ref() {
+            let names = path_names(&path.path);
+            let callee = names.last().cloned().unwrap_or_default();
+            let package_key = self.package_function_key(names.clone());
+            let effects = (names.len() == 1)
+                .then(|| self.symbols.function_mutable_writes.get(&callee))
+                .flatten()
+                .or_else(|| {
+                    self.symbols
+                        .package_function_mutable_writes
+                        .get(&package_key)
+                })
+                .cloned()
                 .unwrap_or_default();
-            for (captured, info) in mutations {
-                self.assign(&captured, info);
+            for (index, effect) in effects {
+                let Some(place) = call.args.get(index).and_then(mutable_storage_place) else {
+                    continue;
+                };
+                let effect = self.apply_inferred_args(
+                    &effect,
+                    self.symbols
+                        .function_generic_params
+                        .get(&callee)
+                        .or_else(|| {
+                            self.symbols
+                                .package_function_generic_params
+                                .get(&package_key)
+                        }),
+                    self.symbols
+                        .function_generic_input_params
+                        .get(&callee)
+                        .or_else(|| {
+                            self.symbols
+                                .package_function_generic_input_params
+                                .get(&package_key)
+                        }),
+                    &call.args,
+                );
+                union_into_assignment_place(self, place, &effect);
             }
+        }
+        let callee_info = self.info_from_expr(&call.func);
+        for (captured, info) in self.closure_mutations_for_args(&callee_info, &argument_infos) {
+            self.assign(&captured, info);
         }
         if !known_persistence_call && !flow_passthrough {
             let before_callback = self.scopes.clone();
@@ -7908,16 +8130,12 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                 | "extend"
                 | "append"
                 | "replace"
-        ) && let Some(receiver_name) = simple_assignment_name(&method.receiver)
-        {
-            let mut stored = self.lookup(&receiver_name).cloned().unwrap_or_default();
-            let before = stored.clone();
+        ) {
+            let mut stored = VariableInfo::default();
             for argument in &method.args {
                 stored.union(&self.info_from_expr(argument));
             }
-            if stored != before {
-                self.assign(&receiver_name, stored);
-            }
+            union_into_assignment_place(self, &method.receiver, &stored);
         }
         self.visit_expr(&method.receiver);
         for argument in &method.args {
@@ -8075,6 +8293,18 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         }
         if let Some(value) = &expression.expr {
             self.visit_expr(value);
+            if let Some(label) = &expression.label {
+                let label = normalized_ident(&label.ident);
+                let info = self.info_from_expr(value);
+                if let Some(collector) = self
+                    .block_exit_collectors
+                    .iter_mut()
+                    .rev()
+                    .find(|collector| collector.label == label)
+                {
+                    collector.result.union(&info);
+                }
+            }
         }
         self.capture_loop_control(expression.label.as_ref(), true);
     }
@@ -8103,6 +8333,11 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             .block_exit_collectors
             .pop()
             .expect("labeled block collector was installed");
+        self.block_result_infos
+            .borrow_mut()
+            .entry(&expression.block as *const syn::Block as usize)
+            .or_default()
+            .union(&collector.result);
         if let Some(exits) = collector.exits {
             merge_scope_stacks(&mut self.scopes, &exits);
             self.bump_context();
@@ -10409,6 +10644,10 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
         BTreeMap::<(String, PersistenceSourceClass), TraitSignatureRegistry>::new();
     let mut function_registries =
         BTreeMap::<(String, PersistenceSourceClass), BTreeMap<String, VariableInfo>>::new();
+    let mut function_mutable_write_registries = BTreeMap::<
+        (String, PersistenceSourceClass),
+        BTreeMap<String, BTreeMap<usize, VariableInfo>>,
+    >::new();
     let mut function_generic_registries =
         BTreeMap::<(String, PersistenceSourceClass), BTreeMap<String, Vec<String>>>::new();
     let mut function_generic_input_registries =
@@ -10510,6 +10749,22 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
                     format!("{module_prefix}::{name}")
                 };
                 function_registry.entry(canonical).or_default().union(info);
+            }
+            let function_mutable_write_registry = function_mutable_write_registries
+                .entry((source.package.to_owned(), source_class))
+                .or_default();
+            for (name, effects) in &symbols.function_mutable_writes {
+                let canonical = if module_prefix.is_empty() {
+                    name.clone()
+                } else {
+                    format!("{module_prefix}::{name}")
+                };
+                let target = function_mutable_write_registry
+                    .entry(canonical)
+                    .or_default();
+                for (index, info) in effects {
+                    target.entry(*index).or_default().union(info);
+                }
             }
             let function_generic_registry = function_generic_registries
                 .entry((source.package.to_owned(), source_class))
@@ -10808,6 +11063,18 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
         |provider_root, key| format!("{provider_root}::{key}"),
         qualify_dependency_info,
     );
+    let function_mutable_write_registry_cache = dependency_scoped_registry_cache(
+        &function_mutable_write_registries,
+        &named_type_registries,
+        dependencies,
+        |provider_root, key| format!("{provider_root}::{key}"),
+        |provider_root, named, effects| {
+            effects
+                .iter()
+                .map(|(index, info)| (*index, qualify_dependency_info(provider_root, named, info)))
+                .collect()
+        },
+    );
     let function_generic_registry_cache = dependency_scoped_registry_cache(
         &function_generic_registries,
         &named_type_registries,
@@ -10966,6 +11233,10 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
                     .cloned()
                     .unwrap_or_else(|| std::sync::Arc::new(BTreeMap::new()));
             package_symbols.package_function_returns = function_registry_cache
+                .get(&registry_key)
+                .cloned()
+                .unwrap_or_else(|| std::sync::Arc::new(BTreeMap::new()));
+            package_symbols.package_function_mutable_writes = function_mutable_write_registry_cache
                 .get(&registry_key)
                 .cloned()
                 .unwrap_or_else(|| std::sync::Arc::new(BTreeMap::new()));
@@ -16313,5 +16584,158 @@ mod tests {
                 .count(),
             2
         );
+    }
+
+    #[test]
+    fn persistence_inventory_updates_projected_option_receivers() {
+        let baseline = inventory(
+            r#"
+                struct Holder<T> { slot: Option<T> }
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    let mut holder = Holder { slot: None };
+                    holder.slot.get_or_insert(database);
+                    consume(holder.slot.as_ref().unwrap().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_applies_synthesized_mutable_helper_writes() {
+        let baseline = inventory(
+            r#"
+                fn make_database() -> wow_database::CharacterDatabase { unreachable!() }
+                fn install(slot: &mut Option<wow_database::CharacterDatabase>) {
+                    *slot = Some(make_database());
+                }
+                fn persistent() {
+                    let mut slot = None;
+                    install(&mut slot);
+                    consume(slot.unwrap().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_applies_mutable_helper_writes_across_source_files() {
+        let helper = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "fixture",
+            module: "crate::helper",
+            source_path: "src/helper.rs",
+            inherited_cfg: &[],
+            source: r#"
+                pub fn install(slot: &mut Option<wow_database::CharacterDatabase>) {
+                    *slot = Some(unreachable!());
+                }
+            "#,
+        };
+        let consumer = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "fixture",
+            module: "crate::consumer",
+            source_path: "src/consumer.rs",
+            inherited_cfg: &[],
+            source: r#"
+                fn persistent() {
+                    let mut slot = None;
+                    crate::helper::install(&mut slot);
+                    consume(slot.unwrap().pool());
+                }
+            "#,
+        };
+        let baseline = inventory_persistence_accesses(&[consumer, helper]).unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_applies_expression_callee_closure_effects() {
+        let baseline = inventory(
+            r#"
+                struct Callbacks<F> { install: F }
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    let mut slot = None;
+                    let callbacks = Callbacks { install: || slot = Some(database) };
+                    (callbacks.install)();
+                    consume(slot.unwrap().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_preserves_labeled_break_values() {
+        let baseline = inventory(
+            r#"
+                fn persistent(database: wow_database::CharacterDatabase, choose: bool) {
+                    let selected = 'done: {
+                        if choose { break 'done database; }
+                        panic!()
+                    };
+                    consume(selected.pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_propagates_compound_assignment_writes() {
+        let baseline = inventory(
+            r#"
+                struct Holder<T>(Option<T>);
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    let mut holder = Holder(None);
+                    holder += database;
+                    consume(holder.0.unwrap().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_preserves_local_sqlx_query_alias_semantics() {
+        let baseline = inventory(
+            r#"
+                fn persistent(sql: &str, pool: sqlx::MySqlPool) {
+                    let query_fn = sqlx::query::<sqlx::MySql>;
+                    query_fn(sql).execute(&pool);
+                }
+            "#,
+        )
+        .unwrap();
+        for operation in [
+            PersistenceOperation::Query,
+            PersistenceOperation::NonliteralSql,
+        ] {
+            assert!(
+                baseline
+                    .accesses
+                    .iter()
+                    .any(|row| { row.enclosing == "fn persistent" && row.operation == operation })
+            );
+        }
     }
 }
