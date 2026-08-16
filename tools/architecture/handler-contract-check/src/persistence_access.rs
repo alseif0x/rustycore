@@ -787,6 +787,39 @@ fn persistence_methods_in_tokens(
     }
 }
 
+#[derive(Default)]
+struct PersistenceOperationSyntax {
+    symbols: BTreeSet<String>,
+}
+
+impl<'ast> Visit<'ast> for PersistenceOperationSyntax {
+    fn visit_expr_method_call(&mut self, method: &'ast ExprMethodCall) {
+        let name = normalized_ident(&method.method);
+        if name != "new" && PersistenceOperation::from_executor_method(&name).is_some() {
+            self.symbols.insert(name);
+        }
+        syn::visit::visit_expr_method_call(self, method);
+    }
+
+    fn visit_expr_call(&mut self, call: &'ast ExprCall) {
+        if let Expr::Path(path) = call.func.as_ref()
+            && path.path.segments.len() >= 2
+            && let Some(name) = last_path_name(&path.path)
+            && name != "new"
+            && PersistenceOperation::from_executor_method(&name).is_some()
+        {
+            self.symbols.insert(name);
+        }
+        syn::visit::visit_expr_call(self, call);
+    }
+}
+
+fn persistence_operations_in_syntax(item: &Item) -> BTreeSet<String> {
+    let mut visitor = PersistenceOperationSyntax::default();
+    visitor.visit_item(item);
+    visitor.symbols
+}
+
 fn item_cfg(parent: &[String], attributes: &[Attribute]) -> Vec<String> {
     extend_cfg_context(parent, attributes)
 }
@@ -887,11 +920,12 @@ impl Flow {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
 enum SqlExpressionKind {
     #[default]
     Static,
     Nonliteral,
+    Included,
     Interpolated,
 }
 
@@ -901,21 +935,107 @@ struct CallableSignature {
     generic_inputs: Vec<GenericInputSpec>,
 }
 
-fn closure_callable_signature(closure: &ExprClosure) -> CallableSignature {
-    let generic_params = (0..closure.inputs.len())
-        .map(|index| format!("$closure_arg_{index}"))
-        .collect::<Vec<_>>();
-    let generic_inputs = generic_params
-        .iter()
-        .map(|param| GenericInputSpec {
-            params: BTreeSet::from([param.clone()]),
-            tuple_paths: BTreeMap::new(),
-        })
-        .collect();
-    CallableSignature {
-        generic_params,
-        generic_inputs,
+fn closure_pattern_info(
+    pattern: &Pat,
+    input_index: usize,
+    path: &mut Vec<usize>,
+    generic_params: &mut Vec<String>,
+    input: &mut GenericInputSpec,
+) -> VariableInfo {
+    match pattern {
+        Pat::Ident(_) => {
+            let suffix = path
+                .iter()
+                .map(usize::to_string)
+                .collect::<Vec<_>>()
+                .join("_");
+            let marker = if suffix.is_empty() {
+                format!("$closure_arg_{input_index}")
+            } else {
+                format!("$closure_arg_{input_index}_{suffix}")
+            };
+            generic_params.push(marker.clone());
+            input.params.insert(marker.clone());
+            if !path.is_empty() {
+                input
+                    .tuple_paths
+                    .entry(marker.clone())
+                    .or_default()
+                    .push(path.clone());
+            }
+            VariableInfo {
+                nominal_types: BTreeSet::from([marker]),
+                ..VariableInfo::default()
+            }
+        }
+        Pat::Tuple(tuple) => VariableInfo {
+            tuple_items: tuple
+                .elems
+                .iter()
+                .enumerate()
+                .map(|(index, element)| {
+                    path.push(index);
+                    let info =
+                        closure_pattern_info(element, input_index, path, generic_params, input);
+                    path.pop();
+                    info
+                })
+                .collect(),
+            ..VariableInfo::default()
+        },
+        Pat::Reference(reference) => {
+            closure_pattern_info(&reference.pat, input_index, path, generic_params, input)
+        }
+        Pat::Type(typed) => {
+            closure_pattern_info(&typed.pat, input_index, path, generic_params, input)
+        }
+        Pat::Paren(paren) => {
+            closure_pattern_info(&paren.pat, input_index, path, generic_params, input)
+        }
+        Pat::Wild(_) => VariableInfo::default(),
+        _ => {
+            // Non-tuple projections do not have a structural path model yet.
+            // Retain the complete argument conservatively instead of losing it.
+            let marker = format!("$closure_arg_{input_index}");
+            if !generic_params.contains(&marker) {
+                generic_params.push(marker.clone());
+            }
+            input.params.insert(marker.clone());
+            VariableInfo {
+                nominal_types: BTreeSet::from([marker]),
+                ..VariableInfo::default()
+            }
+        }
     }
+}
+
+fn closure_callable_model(closure: &ExprClosure) -> (CallableSignature, Vec<VariableInfo>) {
+    let mut generic_params = Vec::new();
+    let mut generic_inputs = Vec::new();
+    let mut parameter_infos = Vec::new();
+    for (input_index, pattern) in closure.inputs.iter().enumerate() {
+        let mut input = GenericInputSpec::default();
+        let info = closure_pattern_info(
+            pattern,
+            input_index,
+            &mut Vec::new(),
+            &mut generic_params,
+            &mut input,
+        );
+        generic_inputs.push(input);
+        parameter_infos.push(info);
+    }
+    (
+        CallableSignature {
+            generic_params,
+            generic_inputs,
+        },
+        parameter_infos,
+    )
+}
+
+fn closure_callable_signature(closure: &ExprClosure) -> CallableSignature {
+    closure_callable_model(closure).0
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -957,11 +1077,7 @@ impl VariableInfo {
                 .or_default()
                 .union(other_info);
         }
-        if self.sql_expression == SqlExpressionKind::Static {
-            self.sql_expression = other.sql_expression;
-        } else if other.sql_expression == SqlExpressionKind::Interpolated {
-            self.sql_expression = SqlExpressionKind::Interpolated;
-        }
+        self.sql_expression = self.sql_expression.max(other.sql_expression);
         if self.tuple_items.len() < other.tuple_items.len() {
             self.tuple_items
                 .resize_with(other.tuple_items.len(), VariableInfo::default);
@@ -1046,11 +1162,7 @@ fn flatten_reachable_variable_info(root: &VariableInfo) -> VariableInfo {
         flattened
             .callable_signatures
             .extend(info.callable_signatures.iter().cloned());
-        if flattened.sql_expression == SqlExpressionKind::Static {
-            flattened.sql_expression = info.sql_expression;
-        } else if info.sql_expression == SqlExpressionKind::Interpolated {
-            flattened.sql_expression = SqlExpressionKind::Interpolated;
-        }
+        flattened.sql_expression = flattened.sql_expression.max(info.sql_expression);
         pending.extend(info.tuple_items.iter());
         pending.extend(info.field_items.values());
         pending.extend(info.closure_mutations.values());
@@ -4916,9 +5028,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 typed_info
                     .payload_variants
                     .extend(info.payload_variants.iter().cloned());
-                if typed_info.sql_expression == SqlExpressionKind::Static {
-                    typed_info.sql_expression = info.sql_expression;
-                }
+                typed_info.sql_expression = typed_info.sql_expression.max(info.sql_expression);
                 self.bind_pattern(&typed.pat, &typed_info);
             }
             Pat::Tuple(tuple) => {
@@ -5008,18 +5118,28 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                     .unwrap_or(SqlExpressionKind::Nonliteral)
             }
             Expr::Macro(mac)
-                if last_path_name(&mac.mac.path)
+                if self
+                    .canonical_local_path_names(path_names(&mac.mac.path))
+                    .last()
                     .is_some_and(|name| matches!(name.as_str(), "format" | "format_args")) =>
             {
                 SqlExpressionKind::Interpolated
             }
             Expr::Macro(mac)
-                if last_path_name(&mac.mac.path).is_some_and(|name| {
-                    matches!(
-                        name.as_str(),
-                        "concat" | "env" | "include_str" | "stringify"
-                    )
-                }) =>
+                if self
+                    .canonical_local_path_names(path_names(&mac.mac.path))
+                    .last()
+                    .is_some_and(|name| name == "include_str") =>
+            {
+                SqlExpressionKind::Included
+            }
+            Expr::Macro(mac)
+                if self
+                    .canonical_local_path_names(path_names(&mac.mac.path))
+                    .last()
+                    .is_some_and(|name| {
+                        matches!(name.as_str(), "concat" | "env" | "stringify")
+                    }) =>
             {
                 SqlExpressionKind::Static
             }
@@ -5668,8 +5788,17 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             }
             return;
         }
+        let mut argument_flow = Flow::default();
+        if let Ok(expressions) =
+            syn::punctuated::Punctuated::<Expr, syn::Token![,]>::parse_terminated
+                .parse2(mac.tokens.clone())
+        {
+            for expression in expressions {
+                argument_flow.union(self.subtree_flow(&expression));
+            }
+        }
         let known = self.known_persistence_names();
-        if !tokens_contain_identifier(mac.tokens.clone(), &known) {
+        if !tokens_contain_identifier(mac.tokens.clone(), &known) && argument_flow.is_empty() {
             return;
         }
         if OPAQUE_PERSISTENCE_MACROS.contains(&name.as_str()) {
@@ -6077,17 +6206,16 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         }
         let mut instantiated = BTreeMap::<String, VariableInfo>::new();
         for signature in &info.callable_signatures {
-            let substitutions = signature
-                .generic_params
-                .iter()
-                .enumerate()
-                .filter_map(|(index, param)| {
-                    arguments
-                        .get(index)
-                        .or_else(|| arguments.last())
-                        .map(|argument| (param.clone(), argument.clone()))
-                })
-                .collect::<BTreeMap<_, _>>();
+            let mut substitutions = BTreeMap::<String, VariableInfo>::new();
+            for (argument, formal_input) in arguments.iter().zip(&signature.generic_inputs) {
+                for param in &formal_input.params {
+                    substitutions
+                        .entry(param.clone())
+                        .or_default()
+                        .union(&projected_generic_argument(argument, formal_input, param));
+                }
+            }
+            substitutions.retain(|param, _| signature.generic_params.contains(param));
             for (captured, mutation) in &info.closure_mutations {
                 let mut mutation = mutation.clone();
                 substitute_nominal_params(&mut mutation, &substitutions);
@@ -6684,6 +6812,15 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                     self.context.module,
                     normalized_tokens(item)
                 ));
+            } else if matches!(item, Item::Fn(_)) {
+                let operations = persistence_operations_in_syntax(item);
+                if !operations.is_empty() {
+                    self.errors.push(format!(
+                        "{} contains a block-local function with persistence-shaped operations ({}) whose generic receiver cannot be audited at call sites; hoist it to module scope",
+                        self.context.module,
+                        operations.into_iter().collect::<Vec<_>>().join(", ")
+                    ));
+                }
             }
             return;
         }
@@ -6876,24 +7013,45 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                     fingerprint,
                 );
             }
-            if let Some(argument) = call.args.first()
-                && let kind @ (SqlExpressionKind::Nonliteral | SqlExpressionKind::Interpolated) =
-                    self.sql_expression_kind(argument)
-            {
-                self.add(
-                    PersistenceTarget::Sqlx,
-                    match kind {
-                        SqlExpressionKind::Interpolated => PersistenceOperation::InterpolatedSql,
-                        SqlExpressionKind::Nonliteral => PersistenceOperation::NonliteralSql,
-                        SqlExpressionKind::Static => unreachable!(),
-                    },
-                    &name,
-                    &cfg,
-                    normalized_tokens(argument),
-                );
+            if let Some(argument) = call.args.first() {
+                match self.sql_expression_kind(argument) {
+                    SqlExpressionKind::Static => {}
+                    SqlExpressionKind::Included => self.errors.push(format!(
+                        "{} passes include_str! SQL whose content is outside the persistence snapshot; mount and fingerprint the included SQL source explicitly",
+                        self.enclosing
+                    )),
+                    kind @ (SqlExpressionKind::Nonliteral | SqlExpressionKind::Interpolated) => {
+                        self.add(
+                            PersistenceTarget::Sqlx,
+                            match kind {
+                                SqlExpressionKind::Interpolated => {
+                                    PersistenceOperation::InterpolatedSql
+                                }
+                                SqlExpressionKind::Nonliteral => {
+                                    PersistenceOperation::NonliteralSql
+                                }
+                                SqlExpressionKind::Static | SqlExpressionKind::Included => {
+                                    unreachable!()
+                                }
+                            },
+                            &name,
+                            &cfg,
+                            normalized_tokens(argument),
+                        );
+                    }
+                }
             }
-        } else if let Some(operation) = PersistenceOperation::from_executor_method(&name)
-            .filter(|_| rooted_sqlx || has_path_targets)
+        } else if let Some(operation) = PersistenceOperation::from_executor_method(&name).filter(
+            |_| {
+                rooted_sqlx
+                    || has_path_targets
+                    || (matches!(call.func.as_ref(), Expr::Path(path) if path.path.segments.len() >= 2)
+                        && call
+                            .args
+                            .first()
+                            .is_some_and(|receiver| !self.flow_of_expr(receiver).is_empty()))
+            },
+        )
         {
             let mut targets = path_targets;
             for argument in &call.args {
@@ -6920,8 +7078,14 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         }
 
         let known_persistence_call = query
-            || ((rooted_sqlx || has_path_targets)
-                && PersistenceOperation::from_executor_method(&name).is_some());
+            || (PersistenceOperation::from_executor_method(&name).is_some()
+                && (rooted_sqlx
+                    || has_path_targets
+                    || (matches!(call.func.as_ref(), Expr::Path(path) if path.path.segments.len() >= 2)
+                        && call
+                            .args
+                            .first()
+                            .is_some_and(|receiver| !self.flow_of_expr(receiver).is_empty()))));
         if !flow_passthrough && !known_persistence_call {
             for argument in &call.args {
                 let flow = self.flow_of_expr(argument);
@@ -7049,24 +7213,32 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                         operation,
                         PersistenceOperation::DirectQuery | PersistenceOperation::DirectExecute
                     ) && let Some(argument) = method.args.first()
-                        && let kind @ (SqlExpressionKind::Nonliteral
-                        | SqlExpressionKind::Interpolated) = self.sql_expression_kind(argument)
                     {
-                        self.add(
-                            target,
-                            match kind {
-                                SqlExpressionKind::Interpolated => {
-                                    PersistenceOperation::InterpolatedSql
-                                }
-                                SqlExpressionKind::Nonliteral => {
-                                    PersistenceOperation::NonliteralSql
-                                }
-                                SqlExpressionKind::Static => unreachable!(),
-                            },
-                            &name,
-                            &cfg,
-                            normalized_tokens(argument),
-                        );
+                        match self.sql_expression_kind(argument) {
+                            SqlExpressionKind::Static => {}
+                            SqlExpressionKind::Included => self.errors.push(format!(
+                                "{} passes include_str! SQL whose content is outside the persistence snapshot; mount and fingerprint the included SQL source explicitly",
+                                self.enclosing
+                            )),
+                            kind @ (SqlExpressionKind::Nonliteral
+                            | SqlExpressionKind::Interpolated) => self.add(
+                                target,
+                                match kind {
+                                    SqlExpressionKind::Interpolated => {
+                                        PersistenceOperation::InterpolatedSql
+                                    }
+                                    SqlExpressionKind::Nonliteral => {
+                                        PersistenceOperation::NonliteralSql
+                                    }
+                                    SqlExpressionKind::Static | SqlExpressionKind::Included => {
+                                        unreachable!()
+                                    }
+                                },
+                                &name,
+                                &cfg,
+                                normalized_tokens(argument),
+                            ),
+                        }
                     }
                 }
             }
@@ -7341,15 +7513,9 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         let declaration_scopes = self.scopes.clone();
         self.cfg = item_cfg(&self.cfg, &closure.attrs);
         self.push_scope();
-        let signature = closure_callable_signature(closure);
-        for (input, marker) in closure.inputs.iter().zip(&signature.generic_params) {
-            self.bind_pattern(
-                input,
-                &VariableInfo {
-                    nominal_types: BTreeSet::from([marker.clone()]),
-                    ..VariableInfo::default()
-                },
-            );
+        let (_, parameter_infos) = closure_callable_model(closure);
+        for (input, info) in closure.inputs.iter().zip(&parameter_infos) {
+            self.bind_pattern(input, info);
         }
         self.visit_expr(&closure.body);
         let result_info = self.info_from_expr(&closure.body);
@@ -13791,14 +13957,80 @@ mod tests {
                 fn persistent() {
                     consume(sqlx::query(concat!("SELECT ", "* FROM account")));
                 }
+                fn aliased() {
+                    use std::concat as static_sql;
+                    consume(sqlx::query(static_sql!("SELECT ", "1")));
+                }
+            "#,
+        )
+        .unwrap();
+        for enclosing in ["fn persistent", "fn aliased"] {
+            assert!(baseline.accesses.iter().any(|row| {
+                row.enclosing == enclosing && row.operation == PersistenceOperation::Query
+            }));
+            assert!(!baseline.accesses.iter().any(|row| {
+                row.enclosing == enclosing && row.operation == PersistenceOperation::NonliteralSql
+            }));
+        }
+    }
+
+    #[test]
+    fn persistence_inventory_rejects_unmounted_include_str_sql() {
+        for source in [
+            r#"fn direct() { consume(sqlx::query(include_str!("query.sql"))); }"#,
+            r#"fn aliased() { let sql = include_str!("query.sql"); consume(sqlx::query(sql)); }"#,
+        ] {
+            let error = inventory(source).unwrap_err();
+            assert!(error.contains("include_str! SQL"), "{error}");
+        }
+    }
+
+    #[test]
+    fn persistence_inventory_rejects_returning_calls_hidden_in_unknown_macros() {
+        let error = inventory(
+            r#"
+                macro_rules! forward { ($value:expr) => { $value.pool() } }
+                fn make_database() -> wow_database::CharacterDatabase { unreachable!() }
+                fn hidden() { forward!(make_database()); }
+            "#,
+        )
+        .unwrap_err();
+        assert!(error.contains("unknown macro forward"), "{error}");
+    }
+
+    #[test]
+    fn persistence_inventory_rejects_generic_persistence_in_block_local_functions() {
+        let error = inventory(
+            r#"
+                trait HasPool { fn pool(&self); }
+                fn hidden(database: wow_database::CharacterDatabase) {
+                    fn use_pool<T: HasPool>(value: T) { value.pool(); }
+                    use_pool(database);
+                }
+            "#,
+        )
+        .unwrap_err();
+        assert!(
+            error.contains("block-local function with persistence-shaped operations (pool)"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn persistence_inventory_classifies_trait_ufcs_from_receiver_flow() {
+        let baseline = inventory(
+            r#"
+                trait PoolProvider { fn pool(&self); }
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    PoolProvider::pool(&database);
+                }
             "#,
         )
         .unwrap();
         assert!(baseline.accesses.iter().any(|row| {
-            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::Query
-        }));
-        assert!(!baseline.accesses.iter().any(|row| {
-            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::NonliteralSql
+            row.enclosing == "fn persistent"
+                && row.operation == PersistenceOperation::PoolAccess
+                && row.target == PersistenceTarget::CharacterDatabase
         }));
     }
 
@@ -13909,6 +14141,35 @@ mod tests {
         assert!(!baseline.accesses.iter().any(|row| {
             row.enclosing == "fn explicit_clean"
                 && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_projects_destructured_closure_parameters() {
+        let baseline = inventory(
+            r#"
+                struct Clean;
+                impl Clean { fn pool(self) {} }
+                fn clean(database: wow_database::CharacterDatabase) {
+                    let mut slot = None;
+                    let install = |(value, _)| slot = Some(value);
+                    install((Clean, database));
+                    consume(slot.unwrap().pool());
+                }
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    let mut slot = None;
+                    let install = |(value, _)| slot = Some(value);
+                    install((database, Clean));
+                    consume(slot.unwrap().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn clean" && row.operation == PersistenceOperation::PoolAccess
+        }));
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
         }));
     }
 
