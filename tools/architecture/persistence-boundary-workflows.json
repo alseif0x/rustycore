@@ -1152,7 +1152,7 @@
       "package": "world-server",
       "module": "crate",
       "source": "crates/world-server/src/main.rs",
-      "enclosing": "impl DbAccountLookup::lookup_account",
+      "enclosing": "impl wow_network::world_socket::AccountLookup for DbAccountLookup::lookup_account",
       "logical_databases": [
         "login"
       ],
@@ -4409,7 +4409,7 @@
       "package": "wow-data",
       "module": "crate::spell_acquisition",
       "source": "crates/wow-data/src/spell_acquisition.rs",
-      "enclosing": "impl SpellEffectSqlResultSourceLikeCpp < '_ >::f32_bits",
+      "enclosing": "impl spell_acquisition::SpellEffectSqlFieldSourceLikeCpp for SpellEffectSqlResultSourceLikeCpp < '_ >::f32_bits",
       "logical_databases": [
         "world"
       ],
@@ -4423,7 +4423,7 @@
       "package": "wow-data",
       "module": "crate::spell_acquisition",
       "source": "crates/wow-data/src/spell_acquisition.rs",
-      "enclosing": "impl SpellEffectSqlResultSourceLikeCpp < '_ >::raw",
+      "enclosing": "impl spell_acquisition::SpellEffectSqlFieldSourceLikeCpp for SpellEffectSqlResultSourceLikeCpp < '_ >::raw",
       "logical_databases": [
         "world"
       ],
@@ -5514,7 +5514,7 @@
       "package": "wow-database",
       "module": "crate::database",
       "source": "crates/wow-database/src/database.rs",
-      "enclosing": "impl Database < S >::fmt",
+      "enclosing": "impl database::std::fmt::Debug for Database < S >::fmt",
       "logical_databases": [
         "characters",
         "hotfix",
@@ -5724,7 +5724,7 @@
       "package": "wow-database",
       "module": "crate::error",
       "source": "crates/wow-database/src/error.rs",
-      "enclosing": "impl DatabaseError::from",
+      "enclosing": "impl error::From for DatabaseError::from",
       "logical_databases": [
         "characters",
         "hotfix",
@@ -6612,7 +6612,7 @@
       "package": "wow-database",
       "module": "crate::statements::login",
       "source": "crates/wow-database/src/statements/login.rs",
-      "enclosing": "impl LoginStatements",
+      "enclosing": "impl statements::StatementDef for LoginStatements",
       "logical_databases": [
         "login"
       ],
@@ -6666,7 +6666,7 @@
       "package": "wow-database",
       "module": "crate::statements::world",
       "source": "crates/wow-database/src/statements/world.rs",
-      "enclosing": "impl WorldStatements",
+      "enclosing": "impl statements::StatementDef for WorldStatements",
       "logical_databases": [
         "world"
       ],
@@ -7652,7 +7652,7 @@
       "package": "wow-world",
       "module": "crate::battle_pet_account",
       "source": "crates/wow-world/src/battle_pet_account.rs",
-      "enclosing": "impl LoginBattlePetPersistenceLikeCpp::allocate_guid_counter_like_cpp",
+      "enclosing": "impl battle_pet_account::BattlePetPersistenceLikeCpp for LoginBattlePetPersistenceLikeCpp::allocate_guid_counter_like_cpp",
       "logical_databases": [
         "login"
       ],
@@ -7667,7 +7667,7 @@
       "package": "wow-world",
       "module": "crate::battle_pet_account",
       "source": "crates/wow-world/src/battle_pet_account.rs",
-      "enclosing": "impl LoginBattlePetPersistenceLikeCpp::delete_pet",
+      "enclosing": "impl battle_pet_account::BattlePetPersistenceLikeCpp for LoginBattlePetPersistenceLikeCpp::delete_pet",
       "logical_databases": [
         "login"
       ],
@@ -7712,7 +7712,7 @@
       "package": "wow-world",
       "module": "crate::battle_pet_account",
       "source": "crates/wow-world/src/battle_pet_account.rs",
-      "enclosing": "impl LoginBattlePetPersistenceLikeCpp::insert_pet_idempotently",
+      "enclosing": "impl battle_pet_account::BattlePetPersistenceLikeCpp for LoginBattlePetPersistenceLikeCpp::insert_pet_idempotently",
       "logical_databases": [
         "login"
       ],
@@ -7727,7 +7727,7 @@
       "package": "wow-world",
       "module": "crate::battle_pet_account",
       "source": "crates/wow-world/src/battle_pet_account.rs",
-      "enclosing": "impl LoginBattlePetPersistenceLikeCpp::load_account",
+      "enclosing": "impl battle_pet_account::BattlePetPersistenceLikeCpp for LoginBattlePetPersistenceLikeCpp::load_account",
       "logical_databases": [
         "login"
       ],
@@ -7757,7 +7757,7 @@
       "package": "wow-world",
       "module": "crate::battle_pet_account",
       "source": "crates/wow-world/src/battle_pet_account.rs",
-      "enclosing": "impl LoginBattlePetPersistenceLikeCpp::replace_slots",
+      "enclosing": "impl battle_pet_account::BattlePetPersistenceLikeCpp for LoginBattlePetPersistenceLikeCpp::replace_slots",
       "logical_databases": [
         "login"
       ],
@@ -7787,7 +7787,7 @@
       "package": "wow-world",
       "module": "crate::battle_pet_account",
       "source": "crates/wow-world/src/battle_pet_account.rs",
-      "enclosing": "impl LoginBattlePetPersistenceLikeCpp::try_acquire_process_lease",
+      "enclosing": "impl battle_pet_account::BattlePetPersistenceLikeCpp for LoginBattlePetPersistenceLikeCpp::try_acquire_process_lease",
       "logical_databases": [
         "login"
       ],
@@ -7802,7 +7802,7 @@
       "package": "wow-world",
       "module": "crate::battle_pet_account",
       "source": "crates/wow-world/src/battle_pet_account.rs",
-      "enclosing": "impl LoginBattlePetPersistenceLikeCpp::update_pet",
+      "enclosing": "impl battle_pet_account::BattlePetPersistenceLikeCpp for LoginBattlePetPersistenceLikeCpp::update_pet",
       "logical_databases": [
         "login"
       ],
@@ -7847,7 +7847,7 @@
       "package": "wow-world",
       "module": "crate::battle_pet_purchase",
       "source": "crates/wow-world/src/battle_pet_purchase.rs",
-      "enclosing": "impl CharacterBattlePetPurchaseStoreLikeCpp::charge_and_insert_command",
+      "enclosing": "impl battle_pet_purchase::BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp::charge_and_insert_command",
       "logical_databases": [
         "characters"
       ],
@@ -7862,7 +7862,7 @@
       "package": "wow-world",
       "module": "crate::battle_pet_purchase",
       "source": "crates/wow-world/src/battle_pet_purchase.rs",
-      "enclosing": "impl CharacterBattlePetPurchaseStoreLikeCpp::compensate",
+      "enclosing": "impl battle_pet_purchase::BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp::compensate",
       "logical_databases": [
         "characters"
       ],
@@ -7907,7 +7907,7 @@
       "package": "wow-world",
       "module": "crate::battle_pet_purchase",
       "source": "crates/wow-world/src/battle_pet_purchase.rs",
-      "enclosing": "impl CharacterBattlePetPurchaseStoreLikeCpp::load_pending_commands",
+      "enclosing": "impl battle_pet_purchase::BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp::load_pending_commands",
       "logical_databases": [
         "characters"
       ],
@@ -7922,7 +7922,7 @@
       "package": "wow-world",
       "module": "crate::battle_pet_purchase",
       "source": "crates/wow-world/src/battle_pet_purchase.rs",
-      "enclosing": "impl CharacterBattlePetPurchaseStoreLikeCpp::mark_compensation_pending",
+      "enclosing": "impl battle_pet_purchase::BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp::mark_compensation_pending",
       "logical_databases": [
         "characters"
       ],
@@ -7937,7 +7937,7 @@
       "package": "wow-world",
       "module": "crate::battle_pet_purchase",
       "source": "crates/wow-world/src/battle_pet_purchase.rs",
-      "enclosing": "impl CharacterBattlePetPurchaseStoreLikeCpp::mark_completed",
+      "enclosing": "impl battle_pet_purchase::BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp::mark_completed",
       "logical_databases": [
         "characters"
       ],
@@ -7952,7 +7952,7 @@
       "package": "wow-world",
       "module": "crate::battle_pet_purchase",
       "source": "crates/wow-world/src/battle_pet_purchase.rs",
-      "enclosing": "impl CharacterBattlePetPurchaseStoreLikeCpp::mark_published",
+      "enclosing": "impl battle_pet_purchase::BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp::mark_published",
       "logical_databases": [
         "characters"
       ],
@@ -7982,7 +7982,7 @@
       "package": "wow-world",
       "module": "crate::battle_pet_purchase",
       "source": "crates/wow-world/src/battle_pet_purchase.rs",
-      "enclosing": "impl CharacterBattlePetPurchaseStoreLikeCpp::mark_terminal_failure",
+      "enclosing": "impl battle_pet_purchase::BattlePetPurchaseStoreLikeCpp for CharacterBattlePetPurchaseStoreLikeCpp::mark_terminal_failure",
       "logical_databases": [
         "characters"
       ],
@@ -12903,6 +12903,119 @@
         187
       ],
       "stable_boundary": false
+    },
+    {
+      "package": "world-server",
+      "module": "crate",
+      "source": "crates/world-server/src/main.rs",
+      "enclosing": "fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "world-server bootstrap/data-source boundary",
+      "target_issues": [
+        153
+      ],
+      "stable_boundary": false
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::database",
+      "source": "crates/wow-database/src/database.rs",
+      "enclosing": "impl database::std::fmt::Debug for Database < S >",
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "boundary": "wow-database typed adapter",
+      "target_issues": [],
+      "stable_boundary": true
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::error",
+      "source": "crates/wow-database/src/error.rs",
+      "enclosing": "impl error::From for DatabaseError",
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "boundary": "wow-database typed adapter",
+      "target_issues": [],
+      "stable_boundary": true
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::result",
+      "source": "crates/wow-database/src/result.rs",
+      "enclosing": "impl result::std::fmt::Debug for SqlResult",
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "boundary": "wow-database typed adapter",
+      "target_issues": [],
+      "stable_boundary": true
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::statements::character",
+      "source": "crates/wow-database/src/statements/character.rs",
+      "enclosing": "impl statements::StatementDef for CharStatements",
+      "logical_databases": [
+        "characters"
+      ],
+      "boundary": "wow-database typed adapter",
+      "target_issues": [],
+      "stable_boundary": true
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::statements::hotfix",
+      "source": "crates/wow-database/src/statements/hotfix.rs",
+      "enclosing": "impl statements::StatementDef for HotfixStatements",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "wow-database typed adapter",
+      "target_issues": [],
+      "stable_boundary": true
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::transaction",
+      "source": "crates/wow-database/src/transaction.rs",
+      "enclosing": "impl transaction::std::error::Error for SqlTransactionCommitError",
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "boundary": "wow-database typed adapter",
+      "target_issues": [],
+      "stable_boundary": true
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::transaction",
+      "source": "crates/wow-database/src/transaction.rs",
+      "enclosing": "impl transaction::std::fmt::Display for SqlTransactionCommitError",
+      "logical_databases": [
+        "characters",
+        "hotfix",
+        "login",
+        "world"
+      ],
+      "boundary": "wow-database typed adapter",
+      "target_issues": [],
+      "stable_boundary": true
     }
   ]
 }

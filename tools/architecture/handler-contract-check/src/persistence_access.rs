@@ -1025,6 +1025,51 @@ impl NominalShape {
     }
 }
 
+/// Collapse an arbitrarily deep value shape into its reachable persistence
+/// facts without recursively cloning that shape. Generic recursive types can
+/// otherwise grow one structural layer per workspace fixed-point pass and
+/// eventually overflow the stack before the registry converges.
+fn flatten_reachable_variable_info(root: &VariableInfo) -> VariableInfo {
+    let mut flattened = VariableInfo::default();
+    let mut pending = vec![root];
+    while let Some(info) = pending.pop() {
+        flattened.flow.union(info.flow.clone());
+        flattened
+            .nominal_types
+            .extend(info.nominal_types.iter().cloned());
+        flattened
+            .trait_bounds
+            .extend(info.trait_bounds.iter().cloned());
+        if flattened.type_generic_params.is_empty() {
+            flattened.type_generic_params = info.type_generic_params.clone();
+        }
+        flattened
+            .callable_signatures
+            .extend(info.callable_signatures.iter().cloned());
+        if flattened.sql_expression == SqlExpressionKind::Static {
+            flattened.sql_expression = info.sql_expression;
+        } else if info.sql_expression == SqlExpressionKind::Interpolated {
+            flattened.sql_expression = SqlExpressionKind::Interpolated;
+        }
+        pending.extend(info.tuple_items.iter());
+        pending.extend(info.field_items.values());
+        pending.extend(info.closure_mutations.values());
+
+        let mut shapes = info
+            .payload_variants
+            .iter()
+            .flat_map(|variant| variant.iter())
+            .collect::<Vec<_>>();
+        while let Some(shape) = shapes.pop() {
+            flattened
+                .nominal_types
+                .extend(shape.nominal_types.iter().cloned());
+            shapes.extend(shape.arguments.iter());
+        }
+    }
+    flattened
+}
+
 /// Replaces generic parameter names with the bound's recorded type
 /// arguments, recursively (e.g. a `Maker<T>` return resolved through
 /// `M: Maker<Holder>` must surface `Holder`, not the nominal `T`). The
@@ -1043,7 +1088,12 @@ fn substitute_shape_params(
         .flat_map(|name| match map.get(&name) {
             Some(replacement) => {
                 replaced = true;
-                merged.union(replacement);
+                // A concrete generic argument may itself contain this nominal
+                // payload recursively. Flatten its reachable information
+                // before merging so workspace named-type discovery has a
+                // finite abstract state while remaining conservative.
+                let widened = flatten_reachable_variable_info(replacement);
+                merged.union(&widened);
                 replacement
                     .nominal_types
                     .iter()
@@ -5546,7 +5596,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             .is_some_and(|first| self.symbols.sqlx_namespaces.contains(first));
         let imported_query = names.len() == 1 && self.symbols.query_callables.contains(&name);
         let cfg = item_cfg(&self.cfg, attributes);
-        if name == "include" {
+        if name == "include" && !is_pinned_wow_proto_include(&self.context, mac) {
             self.errors.push(format!(
                 "{} contains include! whose Rust source is outside the persistence AST inventory; mount and parse the included source explicitly",
                 self.enclosing
@@ -7920,7 +7970,7 @@ fn analyze_item_macro(
         .unwrap_or_else(|| path_name.clone());
     let mut targets = targets_for_path(&item_macro.mac.path, symbols);
     targets.extend(targets_in_tokens(item_macro.mac.tokens.clone(), symbols));
-    if path_name == "include" {
+    if path_name == "include" && !is_pinned_wow_proto_include(context, &item_macro.mac) {
         errors.push(format!(
             "{} contains include! whose Rust source is outside the persistence AST inventory; mount and parse the included source explicitly",
             context.module
@@ -7942,6 +7992,26 @@ fn analyze_item_macro(
             },
         );
     }
+}
+
+fn is_pinned_wow_proto_include(context: &RecordContext<'_>, mac: &syn::Macro) -> bool {
+    if context.package != "wow-proto" || context.source != "crates/wow-proto/src/lib.rs" {
+        return false;
+    }
+    let suffix = match context.module {
+        "crate::bgs::protocol" => "/bgs.protocol.rs",
+        "crate::bgs::protocol::account::v1" => "/bgs.protocol.account.v1.rs",
+        "crate::bgs::protocol::authentication::v1" => "/bgs.protocol.authentication.v1.rs",
+        "crate::bgs::protocol::challenge::v1" => "/bgs.protocol.challenge.v1.rs",
+        "crate::bgs::protocol::connection::v1" => "/bgs.protocol.connection.v1.rs",
+        "crate::bgs::protocol::game_utilities::v1" => "/bgs.protocol.game_utilities.v1.rs",
+        _ => return false,
+    };
+    let expected: syn::ItemMacro = syn::parse_str(&format!(
+        "include!(concat!(env!(\"OUT_DIR\"), {suffix:?}));"
+    ))
+    .expect("pinned wow-proto include syntax is valid");
+    normalized_tokens(mac) == normalized_tokens(&expected.mac)
 }
 
 fn analyze_module_items(
@@ -13691,6 +13761,26 @@ mod tests {
         assert!(
             body_error.contains("include! whose Rust source is outside"),
             "{body_error}"
+        );
+
+        let pinned = |suffix: &str| {
+            let source = format!(
+                "pub mod bgs {{ pub mod protocol {{ include!(concat!(env!(\"OUT_DIR\"), {suffix:?})); }} }}"
+            );
+            inventory_persistence_accesses(&[ClassifiedPersistenceSource {
+                classification: "direct_application_or_domain_access",
+                package: "wow-proto",
+                module: "crate",
+                source_path: "crates/wow-proto/src/lib.rs",
+                inherited_cfg: &[],
+                source: &source,
+            }])
+        };
+        pinned("/bgs.protocol.rs").expect("the exact pinned generated include is accepted");
+        let changed = pinned("/unreviewed.rs").unwrap_err();
+        assert!(
+            changed.contains("include! whose Rust source is outside"),
+            "{changed}"
         );
     }
 
