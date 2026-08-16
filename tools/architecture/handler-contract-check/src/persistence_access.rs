@@ -796,12 +796,15 @@ fn persistence_methods_in_tokens(
 #[derive(Default)]
 struct PersistenceOperationSyntax {
     symbols: BTreeSet<String>,
+    generic_types: BTreeSet<String>,
 }
 
 impl<'ast> Visit<'ast> for PersistenceOperationSyntax {
     fn visit_expr_method_call(&mut self, method: &'ast ExprMethodCall) {
         let name = normalized_ident(&method.method);
-        if name != "new" && PersistenceOperation::from_executor_method(&name).is_some() {
+        if !matches!(name.as_str(), "new" | "open")
+            && PersistenceOperation::from_executor_method(&name).is_some()
+        {
             self.symbols.insert(name);
         }
         syn::visit::visit_expr_method_call(self, method);
@@ -814,7 +817,17 @@ impl<'ast> Visit<'ast> for PersistenceOperationSyntax {
             && name != "new"
             && PersistenceOperation::from_executor_method(&name).is_some()
         {
-            self.symbols.insert(name);
+            let owner = path
+                .path
+                .segments
+                .iter()
+                .nth_back(1)
+                .map(|segment| normalized_ident(&segment.ident));
+            if name != "open"
+                || owner.is_some_and(|owner| self.generic_types.contains(&owner))
+            {
+                self.symbols.insert(name);
+            }
         }
         syn::visit::visit_expr_call(self, call);
     }
@@ -826,10 +839,60 @@ fn persistence_operations_in_syntax(item: &Item) -> BTreeSet<String> {
     visitor.symbols
 }
 
-fn persistence_operations_in_block(block: &syn::Block) -> BTreeSet<String> {
-    let mut visitor = PersistenceOperationSyntax::default();
+fn persistence_operations_in_block(
+    block: &syn::Block,
+    generic_types: BTreeSet<String>,
+) -> BTreeSet<String> {
+    let mut visitor = PersistenceOperationSyntax {
+        generic_types,
+        ..PersistenceOperationSyntax::default()
+    };
     visitor.visit_block(block);
     visitor.symbols
+}
+
+#[derive(Default)]
+struct CalledParameterInputs {
+    parameters: BTreeMap<String, usize>,
+    called: BTreeSet<usize>,
+}
+
+impl<'ast> Visit<'ast> for CalledParameterInputs {
+    fn visit_expr_call(&mut self, call: &'ast ExprCall) {
+        if let Expr::Path(path) = call.func.as_ref()
+            && path.qself.is_none()
+            && path.path.segments.len() == 1
+            && let Some(name) = last_path_name(&path.path)
+            && let Some(index) = self.parameters.get(&name)
+        {
+            self.called.insert(*index);
+        }
+        syn::visit::visit_expr_call(self, call);
+    }
+}
+
+fn called_parameter_inputs(function: &ItemFn) -> BTreeSet<usize> {
+    let parameters = function
+        .sig
+        .inputs
+        .iter()
+        .enumerate()
+        .filter_map(|(index, input)| {
+            let FnArg::Typed(typed) = input else {
+                return None;
+            };
+            let Pat::Ident(ident) = typed.pat.as_ref() else {
+                return None;
+            };
+            Some((normalized_ident(&ident.ident), index))
+        })
+        .collect();
+    let mut visitor = CalledParameterInputs {
+        parameters,
+        ..CalledParameterInputs::default()
+    };
+    visitor.visit_block(&function.block);
+    visitor.called
 }
 
 fn item_cfg(parent: &[String], attributes: &[Attribute]) -> Vec<String> {
@@ -940,6 +1003,49 @@ enum SqlExpressionKind {
     Included,
     Environment,
     Interpolated,
+}
+
+fn source_sql_info(expression: &Expr) -> (SqlExpressionKind, BTreeSet<String>) {
+    match expression {
+        Expr::Lit(literal) if matches!(literal.lit, syn::Lit::Str(_)) => (
+            SqlExpressionKind::Static,
+            BTreeSet::from([normalized_tokens(expression)]),
+        ),
+        Expr::Reference(reference) => source_sql_info(&reference.expr),
+        Expr::Paren(paren) => source_sql_info(&paren.expr),
+        Expr::Group(group) => source_sql_info(&group.expr),
+        Expr::Macro(mac) => {
+            let name = last_path_name(&mac.mac.path).unwrap_or_default();
+            match name.as_str() {
+                "env" => (SqlExpressionKind::Environment, BTreeSet::new()),
+                "include_str" => (SqlExpressionKind::Included, BTreeSet::new()),
+                "format" | "format_args" => (SqlExpressionKind::Interpolated, BTreeSet::new()),
+                "stringify" => (
+                    SqlExpressionKind::Static,
+                    BTreeSet::from([normalized_tokens(expression)]),
+                ),
+                "concat" => {
+                    let Some(arguments) =
+                        syn::punctuated::Punctuated::<Expr, syn::Token![,]>::parse_terminated
+                            .parse2(mac.mac.tokens.clone())
+                            .ok()
+                    else {
+                        return (SqlExpressionKind::Nonliteral, BTreeSet::new());
+                    };
+                    let mut kind = SqlExpressionKind::Static;
+                    let mut sources = BTreeSet::new();
+                    for argument in arguments {
+                        let (argument_kind, argument_sources) = source_sql_info(&argument);
+                        kind = kind.max(argument_kind);
+                        sources.extend(argument_sources);
+                    }
+                    (kind, sources)
+                }
+                _ => (SqlExpressionKind::Nonliteral, BTreeSet::new()),
+            }
+        }
+        _ => (SqlExpressionKind::Nonliteral, BTreeSet::new()),
+    }
 }
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -1055,6 +1161,7 @@ fn closure_callable_signature(closure: &ExprClosure) -> CallableSignature {
 struct VariableInfo {
     flow: Flow,
     sql_expression: SqlExpressionKind,
+    sql_sources: BTreeSet<String>,
     nominal_types: BTreeSet<String>,
     payload_variants: BTreeSet<Vec<NominalShape>>,
     tuple_items: Vec<VariableInfo>,
@@ -1063,6 +1170,7 @@ struct VariableInfo {
     type_generic_params: Vec<String>,
     callable_signatures: BTreeSet<CallableSignature>,
     closure_mutations: BTreeMap<String, VariableInfo>,
+    mutable_pointees: BTreeSet<String>,
 }
 
 impl VariableInfo {
@@ -1091,6 +1199,9 @@ impl VariableInfo {
                 .union(other_info);
         }
         self.sql_expression = self.sql_expression.max(other.sql_expression);
+        self.sql_sources.extend(other.sql_sources.iter().cloned());
+        self.mutable_pointees
+            .extend(other.mutable_pointees.iter().cloned());
         if self.tuple_items.len() < other.tuple_items.len() {
             self.tuple_items
                 .resize_with(other.tuple_items.len(), VariableInfo::default);
@@ -1297,6 +1408,7 @@ struct ModuleSymbols {
     tuple_field_targets: BTreeMap<(String, String), TargetSet>,
     field_nominal_types: BTreeMap<(String, String), BTreeSet<String>>,
     function_returns: BTreeMap<String, VariableInfo>,
+    function_called_inputs: BTreeMap<String, BTreeSet<usize>>,
     method_returns: BTreeMap<(String, Option<String>, String), VariableInfo>,
     // Generic parameter name lists, recorded next to the return registries so
     // an explicit turbofish at the call site can be substituted into the
@@ -1369,6 +1481,7 @@ impl Default for ModuleSymbols {
             tuple_field_targets: BTreeMap::new(),
             field_nominal_types: BTreeMap::new(),
             function_returns: BTreeMap::new(),
+            function_called_inputs: BTreeMap::new(),
             method_returns: BTreeMap::new(),
             function_generic_params: BTreeMap::new(),
             function_generic_input_params: BTreeMap::new(),
@@ -1665,6 +1778,7 @@ fn tuple_items_in_type(ty: &Type, symbols: &ModuleSymbols) -> Vec<VariableInfo> 
             .map(|element| VariableInfo {
                 flow: Flow::pools(&targets_in_type(element, symbols)),
                 sql_expression: SqlExpressionKind::Static,
+                sql_sources: BTreeSet::new(),
                 nominal_types: resolve_nominal_types(
                     receiver_nominal_types_in_type(element),
                     symbols,
@@ -1676,6 +1790,7 @@ fn tuple_items_in_type(ty: &Type, symbols: &ModuleSymbols) -> Vec<VariableInfo> 
                 type_generic_params: Vec::new(),
                 callable_signatures: BTreeSet::new(),
                 closure_mutations: BTreeMap::new(),
+                mutable_pointees: BTreeSet::new(),
             })
             .collect(),
         Type::Reference(reference) => tuple_items_in_type(&reference.elem, symbols),
@@ -1735,6 +1850,7 @@ fn variable_info_in_type(ty: &Type, symbols: &ModuleSymbols) -> VariableInfo {
     let mut info = VariableInfo {
         flow: Flow::pools(&targets_in_type(ty, symbols)),
         sql_expression: SqlExpressionKind::Static,
+        sql_sources: BTreeSet::new(),
         nominal_types: resolve_nominal_types(receiver_nominal_types_in_type(ty), symbols),
         payload_variants: payload_variants_in_type(ty, symbols),
         tuple_items: tuple_items_in_type(ty, symbols),
@@ -1743,6 +1859,7 @@ fn variable_info_in_type(ty: &Type, symbols: &ModuleSymbols) -> VariableInfo {
         type_generic_params: Vec::new(),
         callable_signatures: BTreeSet::new(),
         closure_mutations: BTreeMap::new(),
+        mutable_pointees: BTreeSet::new(),
     };
     if let Type::Path(path) = ty
         && let Some(alias) = path.path.segments.last().and_then(|segment| {
@@ -2430,20 +2547,28 @@ fn collect_nested_item_values(
             {
                 let mut path = module_path.to_vec();
                 path.push(normalized_ident(&item_const.ident));
+                let mut info = variable_info_in_type(&item_const.ty, symbols);
+                let (kind, sources) = source_sql_info(&item_const.expr);
+                info.sql_expression = kind;
+                info.sql_sources = sources;
                 output
                     .entry(path.join("::"))
                     .or_default()
-                    .union(&variable_info_in_type(&item_const.ty, symbols));
+                    .union(&info);
             }
             Item::Static(item_static)
                 if source_class_allows(source_class, cfg, &item_static.attrs, errors, "static") =>
             {
                 let mut path = module_path.to_vec();
                 path.push(normalized_ident(&item_static.ident));
+                let mut info = variable_info_in_type(&item_static.ty, symbols);
+                let (kind, sources) = source_sql_info(&item_static.expr);
+                info.sql_expression = kind;
+                info.sql_sources = sources;
                 output
                     .entry(path.join("::"))
                     .or_default()
-                    .union(&variable_info_in_type(&item_static.ty, symbols));
+                    .union(&info);
             }
             Item::Mod(item_mod)
                 if source_class_allows(
@@ -2613,7 +2738,10 @@ fn collect_module_symbols(
                         "const",
                     ) =>
                 {
-                    let info = variable_info_in_type(&item_const.ty, &symbols);
+                    let mut info = variable_info_in_type(&item_const.ty, &symbols);
+                    let (kind, sources) = source_sql_info(&item_const.expr);
+                    info.sql_expression = kind;
+                    info.sql_sources = sources;
                     let entry = symbols
                         .item_values
                         .entry(normalized_ident(&item_const.ident))
@@ -2631,7 +2759,10 @@ fn collect_module_symbols(
                         "static",
                     ) =>
                 {
-                    let info = variable_info_in_type(&item_static.ty, &symbols);
+                    let mut info = variable_info_in_type(&item_static.ty, &symbols);
+                    let (kind, sources) = source_sql_info(&item_static.expr);
+                    info.sql_expression = kind;
+                    info.sql_sources = sources;
                     let entry = symbols
                         .item_values
                         .entry(normalized_ident(&item_static.ident))
@@ -2819,6 +2950,13 @@ fn collect_module_symbols(
             Item::Fn(function)
                 if source_class_allows(source_class, cfg, &function.attrs, errors, "function") =>
             {
+                let called_inputs = called_parameter_inputs(function);
+                if !called_inputs.is_empty() {
+                    symbols.function_called_inputs.insert(
+                        normalized_ident(&function.sig.ident),
+                        called_inputs,
+                    );
+                }
                 let generic_params = generic_type_param_names(&function.sig.generics);
                 if !generic_params.is_empty() {
                     symbols.function_generic_input_params.insert(
@@ -3590,6 +3728,8 @@ struct BodyAnalyzer<'a, 'b> {
     closure_result_infos: std::cell::RefCell<BTreeMap<usize, VariableInfo>>,
     block_result_infos: std::cell::RefCell<BTreeMap<usize, VariableInfo>>,
     loop_flow_collectors: Vec<LoopFlowCollector>,
+    block_exit_collectors: Vec<BlockExitCollector>,
+    return_exit_collectors: Vec<Option<Vec<BTreeMap<String, VariableInfo>>>>,
     context_version: u64,
     suppress_records: bool,
 }
@@ -3599,6 +3739,12 @@ struct LoopFlowCollector {
     label: Option<String>,
     exits: Option<Vec<BTreeMap<String, VariableInfo>>>,
     back_edges: Option<Vec<BTreeMap<String, VariableInfo>>>,
+}
+
+#[derive(Default)]
+struct BlockExitCollector {
+    label: String,
+    exits: Option<Vec<BTreeMap<String, VariableInfo>>>,
 }
 
 struct DirectChildFlowCollector<'analyzer, 'a, 'b> {
@@ -3648,6 +3794,8 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             closure_result_infos: std::cell::RefCell::new(BTreeMap::new()),
             block_result_infos: std::cell::RefCell::new(BTreeMap::new()),
             loop_flow_collectors: Vec::new(),
+            block_exit_collectors: Vec::new(),
+            return_exit_collectors: Vec::new(),
             context_version: 0,
             suppress_records: false,
         }
@@ -3728,14 +3876,36 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
     }
 
     fn capture_loop_control(&mut self, label: Option<&syn::Lifetime>, is_exit: bool) {
-        let target = label
-            .map(|label| normalized_ident(&label.ident))
+        let explicit_label = label.map(|label| normalized_ident(&label.ident));
+        let target = explicit_label
+            .as_ref()
             .and_then(|label| {
                 self.loop_flow_collectors
                     .iter()
                     .rposition(|collector| collector.label.as_deref() == Some(label.as_str()))
             })
-            .or_else(|| self.loop_flow_collectors.len().checked_sub(1));
+            .or_else(|| {
+                explicit_label
+                    .is_none()
+                    .then(|| self.loop_flow_collectors.len().checked_sub(1))
+                    .flatten()
+            });
+        if target.is_none()
+            && is_exit
+            && let Some(label) = explicit_label
+            && let Some(collector) = self
+                .block_exit_collectors
+                .iter_mut()
+                .rev()
+                .find(|collector| collector.label == label)
+        {
+            let scopes = self.scopes.clone();
+            match &mut collector.exits {
+                None => collector.exits = Some(scopes),
+                Some(accumulated) => merge_scope_stacks(accumulated, &scopes),
+            }
+            return;
+        }
         let Some(target) = target else {
             return;
         };
@@ -4393,7 +4563,15 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
 
     fn info_from_expr(&self, expression: &Expr) -> VariableInfo {
         match expression {
-            Expr::Reference(reference) => return self.info_from_expr(&reference.expr),
+            Expr::Reference(reference) => {
+                let mut info = self.info_from_expr(&reference.expr);
+                if reference.mutability.is_some()
+                    && let Some(name) = simple_assignment_name(&reference.expr)
+                {
+                    info.mutable_pointees.insert(name);
+                }
+                return info;
+            }
             Expr::Paren(paren) => return self.info_from_expr(&paren.expr),
             Expr::Group(group) => return self.info_from_expr(&group.expr),
             Expr::Try(try_expression) => return self.info_from_expr(&try_expression.expr),
@@ -4661,6 +4839,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             return VariableInfo {
                 flow: self.flow_of_expr(expression),
                 sql_expression: self.sql_expression_kind(expression),
+                sql_sources: self.sql_sources(expression),
                 nominal_types: return_info.nominal_types,
                 payload_variants: return_info.payload_variants,
                 tuple_items: return_info.tuple_items,
@@ -4669,6 +4848,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 type_generic_params: Vec::new(),
                 callable_signatures: BTreeSet::new(),
                 closure_mutations: BTreeMap::new(),
+                mutable_pointees: BTreeSet::new(),
             };
         }
         if let Expr::Field(field) = expression {
@@ -4686,6 +4866,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             let mut info = VariableInfo {
                 flow: self.flow_of_expr(expression),
                 sql_expression: self.sql_expression_kind(expression),
+                sql_sources: self.sql_sources(expression),
                 nominal_types: BTreeSet::from([key.clone()]),
                 ..VariableInfo::default()
             };
@@ -4741,6 +4922,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             let mut info = VariableInfo {
                 flow: self.flow_of_expr(expression),
                 sql_expression: self.sql_expression_kind(expression),
+                sql_sources: self.sql_sources(expression),
                 nominal_types,
                 payload_variants: payload_variants_in_path(&path.path, self.symbols),
                 tuple_items: Vec::new(),
@@ -4749,6 +4931,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 type_generic_params: Vec::new(),
                 callable_signatures: BTreeSet::new(),
                 closure_mutations: BTreeMap::new(),
+                mutable_pointees: BTreeSet::new(),
             };
             let mut names = path_names(&path.path);
             if is_constructor_method {
@@ -4781,6 +4964,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         VariableInfo {
             flow: self.flow_of_expr(expression),
             sql_expression: self.sql_expression_kind(expression),
+            sql_sources: self.sql_sources(expression),
             nominal_types: BTreeSet::new(),
             payload_variants: BTreeSet::new(),
             tuple_items: Vec::new(),
@@ -4789,6 +4973,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             type_generic_params: Vec::new(),
             callable_signatures: BTreeSet::new(),
             closure_mutations: BTreeMap::new(),
+            mutable_pointees: BTreeSet::new(),
         }
     }
 
@@ -5135,11 +5320,29 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                     .payload_variants
                     .extend(info.payload_variants.iter().cloned());
                 typed_info.sql_expression = typed_info.sql_expression.max(info.sql_expression);
+                typed_info.sql_sources.extend(info.sql_sources.iter().cloned());
                 self.bind_pattern(&typed.pat, &typed_info);
             }
             Pat::Tuple(tuple) => {
                 for (index, element) in tuple.elems.iter().enumerate() {
-                    self.bind_pattern(element, info.tuple_items.get(index).unwrap_or(info));
+                    if matches!(element, Pat::Rest(_)) {
+                        continue;
+                    }
+                    let source_index = tuple
+                        .elems
+                        .iter()
+                        .position(|pattern| matches!(pattern, Pat::Rest(_)))
+                        .filter(|rest| index > *rest)
+                        .and_then(|_| {
+                            info.tuple_items
+                                .len()
+                                .checked_sub(tuple.elems.len().saturating_sub(index))
+                        })
+                        .unwrap_or(index);
+                    self.bind_pattern(
+                        element,
+                        info.tuple_items.get(source_index).unwrap_or(info),
+                    );
                 }
             }
             Pat::TupleStruct(tuple) => {
@@ -5198,12 +5401,14 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 for (pattern, expression) in pattern.elems.iter().zip(&tuple.elems) {
                     let mut info = self.info_from_expr(expression);
                     info.sql_expression = self.sql_expression_kind(expression);
+                    info.sql_sources = self.sql_sources(expression);
                     self.bind_pattern(pattern, &info);
                 }
             }
             _ => {
                 let mut info = self.info_from_expr(expression);
                 info.sql_expression = self.sql_expression_kind(expression);
+                info.sql_sources = self.sql_sources(expression);
                 self.bind_pattern(pattern, &info);
             }
         }
@@ -5251,7 +5456,25 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 if self
                     .canonical_local_path_names(path_names(&mac.mac.path))
                     .last()
-                    .is_some_and(|name| matches!(name.as_str(), "concat" | "stringify")) =>
+                    .is_some_and(|name| name == "concat") =>
+            {
+                syn::punctuated::Punctuated::<Expr, syn::Token![,]>::parse_terminated
+                    .parse2(mac.mac.tokens.clone())
+                    .ok()
+                    .map(|arguments| {
+                        arguments
+                            .iter()
+                            .fold(SqlExpressionKind::Static, |kind, argument| {
+                                kind.max(self.sql_expression_kind(argument))
+                            })
+                    })
+                    .unwrap_or(SqlExpressionKind::Nonliteral)
+            }
+            Expr::Macro(mac)
+                if self
+                    .canonical_local_path_names(path_names(&mac.mac.path))
+                    .last()
+                    .is_some_and(|name| name == "stringify") =>
             {
                 SqlExpressionKind::Static
             }
@@ -5284,6 +5507,81 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 }
             }
             _ => SqlExpressionKind::Nonliteral,
+        }
+    }
+
+    fn sql_sources(&self, expression: &Expr) -> BTreeSet<String> {
+        match expression {
+            Expr::Lit(literal) if matches!(literal.lit, syn::Lit::Str(_)) => {
+                BTreeSet::from([normalized_tokens(expression)])
+            }
+            Expr::Reference(reference) => self.sql_sources(&reference.expr),
+            Expr::Paren(paren) => self.sql_sources(&paren.expr),
+            Expr::Group(group) => self.sql_sources(&group.expr),
+            Expr::Path(path) if path.qself.is_none() && path.path.segments.len() == 1 => {
+                last_path_name(&path.path)
+                    .and_then(|name| {
+                        self.lookup(&name)
+                            .or_else(|| self.symbols.item_values.get(&name))
+                    })
+                    .map(|info| info.sql_sources.clone())
+                    .unwrap_or_default()
+            }
+            Expr::Path(path) => self
+                .symbols
+                .package_item_values
+                .get(&self.package_function_key(path_names(&path.path)))
+                .map(|info| info.sql_sources.clone())
+                .unwrap_or_default(),
+            Expr::Macro(mac)
+                if self
+                    .canonical_local_path_names(path_names(&mac.mac.path))
+                    .last()
+                    .is_some_and(|name| matches!(name.as_str(), "concat" | "stringify")) =>
+            {
+                BTreeSet::from([normalized_tokens(expression)])
+            }
+            Expr::MethodCall(method)
+                if matches!(normalized_ident(&method.method).as_str(), "as_str" | "as_ref") =>
+            {
+                self.sql_sources(&method.receiver)
+            }
+            _ => BTreeSet::new(),
+        }
+    }
+
+    fn fingerprint_with_sql_source(&self, base: String, argument: Option<&Expr>) -> String {
+        let Some(argument) = argument else {
+            return base;
+        };
+        fn is_indirect(expression: &Expr) -> bool {
+            match expression {
+                Expr::Path(_) => true,
+                Expr::Reference(reference) => is_indirect(&reference.expr),
+                Expr::Paren(paren) => is_indirect(&paren.expr),
+                Expr::Group(group) => is_indirect(&group.expr),
+                Expr::MethodCall(method)
+                    if matches!(
+                        normalized_ident(&method.method).as_str(),
+                        "as_str" | "as_ref"
+                    ) =>
+                {
+                    is_indirect(&method.receiver)
+                }
+                _ => false,
+            }
+        }
+        if !is_indirect(argument) {
+            return base;
+        }
+        let sources = self.sql_sources(argument);
+        if sources.is_empty() {
+            base
+        } else {
+            format!(
+                "{base}|sql-source:{}",
+                sources.into_iter().collect::<Vec<_>>().join("|")
+            )
         }
     }
 
@@ -5836,6 +6134,13 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             return;
         }
         if (rooted_sqlx && is_query_name(&name)) || imported_query {
+            if matches!(name.as_str(), "query_file" | "query_file_as") {
+                self.errors.push(format!(
+                    "{} uses {name}! SQL whose referenced file is outside the persistence snapshot; mount and fingerprint the SQL file explicitly",
+                    self.enclosing
+                ));
+                return;
+            }
             let fingerprint = normalized_tokens(mac);
             self.add_generated(
                 PersistenceTarget::Sqlx,
@@ -6939,6 +7244,26 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             if !self.allows_source_class(item_attributes(item), "block-local item") {
                 return;
             }
+            if let Item::Const(item_const) = item {
+                let (kind, sources) = source_sql_info(&item_const.expr);
+                if kind != SqlExpressionKind::Nonliteral {
+                    let mut info = self.info_from_type(&item_const.ty);
+                    info.sql_expression = kind;
+                    info.sql_sources = sources;
+                    self.bind(normalized_ident(&item_const.ident), info);
+                    return;
+                }
+            }
+            if let Item::Static(item_static) = item {
+                let (kind, sources) = source_sql_info(&item_static.expr);
+                if kind != SqlExpressionKind::Nonliteral {
+                    let mut info = self.info_from_type(&item_static.ty);
+                    info.sql_expression = kind;
+                    info.sql_sources = sources;
+                    self.bind(normalized_ident(&item_static.ident), info);
+                    return;
+                }
+            }
             if !targets_in_tokens(item.to_token_stream(), self.symbols).is_empty()
                 || syntax_mentions_persistence(item, self.symbols)
             {
@@ -7107,6 +7432,11 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         if !self.allows_source_class(&call.attrs, "function call") {
             return;
         }
+        for argument in &call.args {
+            if matches!(argument, Expr::Closure(_)) {
+                self.visit_expr(argument);
+            }
+        }
         let cfg = item_cfg(&self.cfg, &call.attrs);
         let (name, rooted_sqlx, imported_query, path_targets, flow_passthrough) =
             match call.func.as_ref() {
@@ -7131,7 +7461,10 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         let query = (rooted_sqlx && is_query_name(&name)) || imported_query;
         let has_path_targets = !path_targets.is_empty();
         if query {
-            let fingerprint = canonical_call(call);
+            let fingerprint = self.fingerprint_with_sql_source(
+                canonical_call(call),
+                call.args.first(),
+            );
             self.add(
                 PersistenceTarget::Sqlx,
                 PersistenceOperation::Query,
@@ -7303,15 +7636,46 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                 self.assign(&captured, info);
             }
         }
+        if !known_persistence_call && !flow_passthrough {
+            let before_callback = self.scopes.clone();
+            let called_inputs = match call.func.as_ref() {
+                Expr::Path(path) if path.qself.is_none() && path.path.segments.len() == 1 => {
+                    last_path_name(&path.path)
+                        .and_then(|name| self.symbols.function_called_inputs.get(&name))
+                        .cloned()
+                        .unwrap_or_default()
+                }
+                _ => BTreeSet::new(),
+            };
+            for index in called_inputs {
+                let Some(info) = argument_infos.get(index) else {
+                    continue;
+                };
+                for (captured, mutation) in self.closure_mutations_for_args(info, &[]) {
+                    self.assign(&captured, mutation);
+                }
+            }
+            let after_callback = self.scopes.clone();
+            self.scopes = before_callback;
+            merge_scope_stacks(&mut self.scopes, &after_callback);
+            self.bump_context();
+        }
         self.visit_expr(&call.func);
         for argument in &call.args {
-            self.visit_expr(argument);
+            if !matches!(argument, Expr::Closure(_)) {
+                self.visit_expr(argument);
+            }
         }
     }
 
     fn visit_expr_method_call(&mut self, method: &'ast ExprMethodCall) {
         if !self.allows_source_class(&method.attrs, "method call") {
             return;
+        }
+        for argument in &method.args {
+            if matches!(argument, Expr::Closure(_)) {
+                self.visit_expr(argument);
+            }
         }
         let cfg = item_cfg(&self.cfg, &method.attrs);
         let name = normalized_ident(&method.method);
@@ -7361,7 +7725,24 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                     targets.extend(self.flow_of_expr(argument).targets());
                 }
                 for target in targets {
-                    self.add(target, operation, &name, &cfg, canonical_method(method));
+                    let fingerprint = self.fingerprint_with_sql_source(
+                        canonical_method(method),
+                        method.args.first(),
+                    );
+                    self.add(target, operation, &name, &cfg, fingerprint.clone());
+                    if matches!(
+                        operation,
+                        PersistenceOperation::DirectQuery | PersistenceOperation::RawSql
+                    ) && sql_is_advisory_lock(&fingerprint)
+                    {
+                        self.add(
+                            target,
+                            PersistenceOperation::AdvisoryLock,
+                            &name,
+                            &cfg,
+                            fingerprint.clone(),
+                        );
+                    }
                     if matches!(
                         operation,
                         PersistenceOperation::DirectQuery | PersistenceOperation::DirectExecute
@@ -7426,7 +7807,15 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         }
         if matches!(
             name.as_str(),
-            "push" | "push_back" | "push_front" | "insert" | "extend" | "append" | "replace"
+            "push"
+                | "push_back"
+                | "push_front"
+                | "insert"
+                | "get_or_insert"
+                | "get_or_insert_with"
+                | "extend"
+                | "append"
+                | "replace"
         ) && let Some(receiver_name) = simple_assignment_name(&method.receiver)
         {
             let mut stored = self.lookup(&receiver_name).cloned().unwrap_or_default();
@@ -7440,7 +7829,9 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         }
         self.visit_expr(&method.receiver);
         for argument in &method.args {
-            self.visit_expr(argument);
+            if !matches!(argument, Expr::Closure(_)) {
+                self.visit_expr(argument);
+            }
         }
         if CLOSURE_INVOKING_METHODS.contains(&name.as_str()) {
             let pre_call_scopes = self.scopes.clone();
@@ -7491,6 +7882,14 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                 normalized_tokens(assignment),
             );
         } else {
+            if let Expr::Unary(unary) = assignment.left.as_ref()
+                && matches!(unary.op, syn::UnOp::Deref(_))
+            {
+                let pointee = self.info_from_expr(&unary.expr);
+                for name in pointee.mutable_pointees {
+                    self.assign(&name, info.clone());
+                }
+            }
             if let Some((root, projections)) = assignment_place(&assignment.left) {
                 let mut aggregate = self.lookup(&root).cloned().unwrap_or_default();
                 assign_place_projection(&mut aggregate, &projections, &info);
@@ -7564,6 +7963,13 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                 normalized_tokens(expression),
             );
         }
+        if let Some(exits) = self.return_exit_collectors.last_mut() {
+            let scopes = self.scopes.clone();
+            match exits {
+                None => *exits = Some(scopes),
+                Some(accumulated) => merge_scope_stacks(accumulated, &scopes),
+            }
+        }
     }
 
     fn visit_expr_break(&mut self, expression: &'ast syn::ExprBreak) {
@@ -7581,6 +7987,29 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             return;
         }
         self.capture_loop_control(expression.label.as_ref(), false);
+    }
+
+    fn visit_expr_block(&mut self, expression: &'ast syn::ExprBlock) {
+        if !self.allows_source_class(&expression.attrs, "block expression") {
+            return;
+        }
+        let Some(label) = &expression.label else {
+            self.visit_block(&expression.block);
+            return;
+        };
+        self.block_exit_collectors.push(BlockExitCollector {
+            label: normalized_ident(&label.name.ident),
+            ..BlockExitCollector::default()
+        });
+        self.visit_block(&expression.block);
+        let collector = self
+            .block_exit_collectors
+            .pop()
+            .expect("labeled block collector was installed");
+        if let Some(exits) = collector.exits {
+            merge_scope_stacks(&mut self.scopes, &exits);
+            self.bump_context();
+        }
     }
 
     fn visit_expr_match(&mut self, expression: &'ast syn::ExprMatch) {
@@ -7697,11 +8126,20 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         for (input, info) in closure.inputs.iter().zip(&parameter_infos) {
             self.bind_pattern(input, info);
         }
+        self.return_exit_collectors.push(None);
         self.visit_expr(&closure.body);
         let result_info = self.info_from_expr(&closure.body);
         self.closure_result_infos
             .borrow_mut()
             .insert(closure as *const ExprClosure as usize, result_info);
+        if let Some(exits) = self
+            .return_exit_collectors
+            .pop()
+            .expect("closure return collector was installed")
+        {
+            merge_scope_stacks(&mut self.scopes, &exits);
+            self.bump_context();
+        }
         self.pop_scope();
         let mut effects = BTreeMap::new();
         for (before_scope, after_scope) in declaration_scopes.iter().zip(&self.scopes).rev() {
@@ -8056,7 +8494,14 @@ fn analyze_function(
         .params
         .iter()
         .any(|param| matches!(param, syn::GenericParam::Type(_)))
-        .then(|| persistence_operations_in_block(&function.block))
+        .then(|| {
+            persistence_operations_in_block(
+                &function.block,
+                generic_type_param_names(&function.sig.generics)
+                    .into_iter()
+                    .collect(),
+            )
+        })
         .unwrap_or_default();
     let visibility = normalized_visibility(&function.vis);
     add_attribute_records(
@@ -13393,6 +13838,29 @@ mod tests {
     }
 
     #[test]
+    fn persistence_inventory_routes_labeled_breaks_to_blocks() {
+        let baseline = inventory(
+            r#"
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    let mut slot = None;
+                    'done: {
+                        loop {
+                            slot = Some(&database);
+                            break 'done;
+                        }
+                        slot = None;
+                    }
+                    consume(slot.unwrap().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
     fn persistence_inventory_preserves_false_while_condition_mutations() {
         let baseline = inventory(
             r#"
@@ -13916,6 +14384,48 @@ mod tests {
     }
 
     #[test]
+    fn persistence_inventory_tracks_writes_through_mutable_aliases() {
+        let baseline = inventory(
+            r#"
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    let mut slot = None;
+                    let output = &mut slot;
+                    *output = Some(database);
+                    consume(slot.unwrap().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_tracks_option_insertions() {
+        let baseline = inventory(
+            r#"
+                fn direct(database: wow_database::CharacterDatabase) {
+                    let mut slot = None;
+                    slot.get_or_insert(database);
+                    consume(slot.unwrap().pool());
+                }
+                fn lazy(database: wow_database::CharacterDatabase) {
+                    let mut slot = None;
+                    slot.get_or_insert_with(|| database);
+                    consume(slot.unwrap().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        for enclosing in ["fn direct", "fn lazy"] {
+            assert!(baseline.accesses.iter().any(|row| {
+                row.enclosing == enclosing && row.operation == PersistenceOperation::PoolAccess
+            }));
+        }
+    }
+
+    #[test]
     fn persistence_inventory_retains_values_inserted_through_ufcs() {
         let baseline = inventory(
             r#"
@@ -13986,6 +14496,64 @@ mod tests {
         }));
         assert!(!baseline.accesses.iter().any(|row| {
             row.enclosing == "fn clean" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_applies_closure_mutations_through_helpers() {
+        let baseline = inventory(
+            r#"
+                fn invoke<F: FnOnce()>(callback: F) { callback() }
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    let mut slot = None;
+                    invoke(|| slot = Some(database));
+                    consume(slot.unwrap().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_preserves_closure_return_exit_mutations() {
+        let baseline = inventory(
+            r#"
+                fn persistent(database: wow_database::CharacterDatabase, stop: bool) {
+                    let mut slot = None;
+                    let install = || {
+                        slot = Some(database);
+                        if stop { return; }
+                        slot = None;
+                    };
+                    install();
+                    consume(slot.unwrap().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_projects_tuple_patterns_after_rest() {
+        let baseline = inventory(
+            r#"
+                struct Clean;
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    let tuple = (Clean, Clean, database);
+                    let (.., alias) = tuple;
+                    consume(alias.pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
         }));
     }
 
@@ -14343,6 +14911,70 @@ mod tests {
     }
 
     #[test]
+    fn persistence_inventory_rejects_nested_external_sql_sources() {
+        for source in [
+            r#"fn hidden() { consume(sqlx::query(concat!(env!("QUERY"), " LIMIT 1"))); }"#,
+            r#"fn hidden() { consume(sqlx::query(concat!(include_str!("query.sql"), " LIMIT 1"))); }"#,
+        ] {
+            assert!(inventory(source).is_err(), "{source}");
+        }
+    }
+
+    #[test]
+    fn persistence_inventory_rejects_unmounted_query_files() {
+        for source in [
+            r#"fn hidden() { consume(sqlx::query_file!("query.sql")); }"#,
+            r#"fn hidden() { consume(sqlx::query_file_as!(u8, "query.sql")); }"#,
+        ] {
+            let error = inventory(source).unwrap_err();
+            assert!(error.contains("referenced file"), "{error}");
+        }
+    }
+
+    #[test]
+    fn persistence_inventory_fingerprints_bound_static_sql() {
+        let first = inventory(
+            r#"
+                const LOCK_SQL: &str = "SELECT GET_LOCK('one', 0)";
+                fn local() { let sql = "SELECT 1"; consume(sqlx::query(sql)); }
+                fn local_const() { const SQL: &str = "SELECT 3"; consume(sqlx::query(SQL)); }
+                fn constant(db: wow_database::CharacterDatabase) { db.direct_query(LOCK_SQL); }
+            "#,
+        )
+        .unwrap();
+        let second = inventory(
+            r#"
+                const LOCK_SQL: &str = "SELECT GET_LOCK('two', 0)";
+                fn local() { let sql = "SELECT 2"; consume(sqlx::query(sql)); }
+                fn local_const() { const SQL: &str = "SELECT 4"; consume(sqlx::query(SQL)); }
+                fn constant(db: wow_database::CharacterDatabase) { db.direct_query(LOCK_SQL); }
+            "#,
+        )
+        .unwrap();
+        let fingerprints = |baseline: &PersistenceAccessBaseline, enclosing: &str| {
+            baseline
+                .accesses
+                .iter()
+                .filter(|row| row.enclosing == enclosing)
+                .map(|row| row.fingerprint.clone())
+                .collect::<BTreeSet<_>>()
+        };
+        assert_ne!(fingerprints(&first, "fn local"), fingerprints(&second, "fn local"));
+        assert_ne!(
+            fingerprints(&first, "fn constant"),
+            fingerprints(&second, "fn constant")
+        );
+        assert_ne!(
+            fingerprints(&first, "fn local_const"),
+            fingerprints(&second, "fn local_const")
+        );
+        assert!(first.accesses.iter().any(|row| {
+            row.enclosing == "fn constant"
+                && row.operation == PersistenceOperation::AdvisoryLock
+        }));
+    }
+
+    #[test]
     fn persistence_inventory_classifies_sql_parameters_as_nonliteral() {
         let baseline = inventory(
             r#"
@@ -14404,6 +15036,27 @@ mod tests {
             ),
             "{error}"
         );
+    }
+
+    #[test]
+    fn persistence_inventory_distinguishes_generic_from_concrete_open_calls() {
+        let concrete = inventory(
+            r#"
+                struct Wdc4Reader;
+                impl Wdc4Reader { fn open(_: &str) -> Self { Self } }
+                fn load<T>(path: &str) { let _ = Wdc4Reader::open(path); }
+            "#,
+        );
+        assert!(concrete.is_ok(), "{concrete:?}");
+
+        let error = inventory(
+            r#"
+                trait Opens { fn open(_: &str) -> Self; }
+                fn load<T: Opens>(path: &str) { let _ = T::open(path); }
+            "#,
+        )
+        .unwrap_err();
+        assert!(error.contains("operations (open)"), "{error}");
     }
 
     #[test]
