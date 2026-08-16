@@ -432,6 +432,7 @@ struct NewAccess<'a> {
 #[derive(Default)]
 struct AccessAccumulator {
     rows: BTreeMap<AccessIdentity, usize>,
+    transactions: Vec<Vec<AccessIdentity>>,
 }
 
 impl AccessAccumulator {
@@ -461,7 +462,41 @@ impl AccessAccumulator {
             fingerprint: access.fingerprint,
             generated_input: access.generated_input,
         };
-        *self.rows.entry(identity).or_insert(0) += 1;
+        *self.rows.entry(identity.clone()).or_insert(0) += 1;
+        if let Some(transaction) = self.transactions.last_mut() {
+            transaction.push(identity);
+        }
+    }
+
+    fn begin_transaction(&mut self) {
+        self.transactions.push(Vec::new());
+    }
+
+    fn commit_transaction(&mut self) {
+        let committed = self
+            .transactions
+            .pop()
+            .expect("persistence access transaction is active");
+        if let Some(parent) = self.transactions.last_mut() {
+            parent.extend(committed);
+        }
+    }
+
+    fn rollback_transaction(&mut self) {
+        let rolled_back = self
+            .transactions
+            .pop()
+            .expect("persistence access transaction is active");
+        for identity in rolled_back.into_iter().rev() {
+            let count = self
+                .rows
+                .get_mut(&identity)
+                .expect("transactional persistence row was recorded");
+            *count -= 1;
+            if *count == 0 {
+                self.rows.remove(&identity);
+            }
+        }
     }
 
     fn finish(self) -> PersistenceAccessBaseline {
@@ -866,6 +901,23 @@ struct CallableSignature {
     generic_inputs: Vec<GenericInputSpec>,
 }
 
+fn closure_callable_signature(closure: &ExprClosure) -> CallableSignature {
+    let generic_params = (0..closure.inputs.len())
+        .map(|index| format!("$closure_arg_{index}"))
+        .collect::<Vec<_>>();
+    let generic_inputs = generic_params
+        .iter()
+        .map(|param| GenericInputSpec {
+            params: BTreeSet::from([param.clone()]),
+            tuple_paths: BTreeMap::new(),
+        })
+        .collect();
+    CallableSignature {
+        generic_params,
+        generic_inputs,
+    }
+}
+
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 struct VariableInfo {
     flow: Flow,
@@ -979,7 +1031,11 @@ impl NominalShape {
 /// recorded argument carries its full `VariableInfo`, so the named-type
 /// registry data (flow, fields, payloads) of the concrete type arrives with
 /// the substitution.
-fn substitute_shape_params(shape: &mut NominalShape, map: &BTreeMap<String, VariableInfo>) -> bool {
+fn substitute_shape_params(
+    shape: &mut NominalShape,
+    map: &BTreeMap<String, VariableInfo>,
+    merged: &mut VariableInfo,
+) -> bool {
     let mut replaced = false;
     let original = std::mem::take(&mut shape.nominal_types);
     shape.nominal_types = original
@@ -987,6 +1043,7 @@ fn substitute_shape_params(shape: &mut NominalShape, map: &BTreeMap<String, Vari
         .flat_map(|name| match map.get(&name) {
             Some(replacement) => {
                 replaced = true;
+                merged.union(replacement);
                 replacement
                     .nominal_types
                     .iter()
@@ -997,7 +1054,7 @@ fn substitute_shape_params(shape: &mut NominalShape, map: &BTreeMap<String, Vari
         })
         .collect();
     for argument in &mut shape.arguments {
-        replaced |= substitute_shape_params(argument, map);
+        replaced |= substitute_shape_params(argument, map, merged);
     }
     replaced
 }
@@ -1030,19 +1087,24 @@ fn substitute_nominal_params(
     for item in info.field_items.values_mut() {
         replaced |= substitute_nominal_params(item, map);
     }
+    for mutation in info.closure_mutations.values_mut() {
+        replaced |= substitute_nominal_params(mutation, map);
+    }
     let variants = std::mem::take(&mut info.payload_variants);
+    let mut payload_replacements = VariableInfo::default();
     info.payload_variants = variants
         .into_iter()
         .map(|shapes| {
             shapes
                 .into_iter()
                 .map(|mut shape| {
-                    replaced |= substitute_shape_params(&mut shape, map);
+                    replaced |= substitute_shape_params(&mut shape, map, &mut payload_replacements);
                     shape
                 })
                 .collect()
         })
         .collect();
+    info.union(&payload_replacements);
     replaced
 }
 
@@ -3222,13 +3284,76 @@ fn targets_in_tokens(tokens: TokenStream, symbols: &ModuleSymbols) -> TargetSet 
     targets
 }
 
-fn targets_in_attributes(attribute: &Attribute, symbols: &ModuleSymbols) -> TargetSet {
-    if attribute.path().is_ident("cfg") || attribute.path().is_ident("cfg_attr") {
-        return TargetSet::new();
+fn cfg_predicate_allows_source(
+    predicate: &syn::Meta,
+    source_class: PersistenceSourceClass,
+) -> bool {
+    let attribute: Attribute = syn::parse_quote!(#[cfg(#predicate)]);
+    match source_class {
+        PersistenceSourceClass::Production => {
+            cfg_context_allows_production(&[], &[attribute]).unwrap_or(false)
+        }
+        PersistenceSourceClass::TestFixture => {
+            cfg_context_allows_test(&[], &[attribute]).unwrap_or(false)
+        }
     }
-    let mut targets = targets_for_path(attribute.path(), symbols);
-    targets.extend(targets_in_tokens(attribute.meta.to_token_stream(), symbols));
+}
+
+fn targets_in_attribute_meta(
+    meta: &syn::Meta,
+    symbols: &ModuleSymbols,
+    source_class: PersistenceSourceClass,
+    inherited_cfg: &[String],
+) -> Vec<(PersistenceTarget, Vec<String>)> {
+    if meta.path().is_ident("cfg") {
+        return Vec::new();
+    }
+    if meta.path().is_ident("cfg_attr") {
+        let syn::Meta::List(list) = meta else {
+            return Vec::new();
+        };
+        let Ok(items) = syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated
+            .parse2(list.tokens.clone())
+        else {
+            return Vec::new();
+        };
+        let mut items = items.iter();
+        let Some(predicate) = items.next() else {
+            return Vec::new();
+        };
+        if !cfg_predicate_allows_source(predicate, source_class) {
+            return Vec::new();
+        }
+        let conditional: Attribute = syn::parse_quote!(#[cfg(#predicate)]);
+        let mut nested_cfg = inherited_cfg.to_vec();
+        nested_cfg.push(conditional.meta.to_token_stream().to_string());
+        nested_cfg.sort();
+        nested_cfg.dedup();
+        let mut targets = Vec::new();
+        for nested in items {
+            targets.extend(targets_in_attribute_meta(
+                nested,
+                symbols,
+                source_class,
+                &nested_cfg,
+            ));
+        }
+        return targets;
+    }
+    let mut targets = targets_for_path(meta.path(), symbols);
+    targets.extend(targets_in_tokens(meta.to_token_stream(), symbols));
     targets
+        .into_iter()
+        .map(|target| (target, inherited_cfg.to_vec()))
+        .collect()
+}
+
+fn targets_in_attributes(
+    attribute: &Attribute,
+    symbols: &ModuleSymbols,
+    source_class: PersistenceSourceClass,
+) -> Vec<(PersistenceTarget, Vec<String>)> {
+    targets_in_attribute_meta(&attribute.meta, symbols, source_class, &[])
 }
 
 struct AttributeRecordContext<'a> {
@@ -3246,7 +3371,13 @@ fn add_attribute_records(
 ) {
     for attribute in attributes {
         let symbol = last_path_name(attribute.path()).unwrap_or_else(|| "attribute".to_owned());
-        for target in targets_in_attributes(attribute, symbols) {
+        for (target, conditional_cfg) in
+            targets_in_attributes(attribute, symbols, context.source_class)
+        {
+            let mut cfg = record.cfg.to_vec();
+            cfg.extend(conditional_cfg);
+            cfg.sort();
+            cfg.dedup();
             accumulator.add(
                 context,
                 NewAccess {
@@ -3255,7 +3386,7 @@ fn add_attribute_records(
                     operation: PersistenceOperation::MacroReference,
                     symbol: &symbol,
                     visibility: record.visibility,
-                    cfg: record.cfg,
+                    cfg: &cfg,
                     fingerprint: normalized_tokens(attribute),
                     generated_input: true,
                 },
@@ -3281,7 +3412,10 @@ struct BodyAnalyzer<'a, 'b> {
     flow_cache: std::cell::RefCell<BTreeMap<(usize, u64), Flow>>,
     subtree_flow_cache: std::cell::RefCell<BTreeMap<(usize, u64), Flow>>,
     closure_effects: std::cell::RefCell<BTreeMap<usize, BTreeMap<String, VariableInfo>>>,
+    closure_result_infos: std::cell::RefCell<BTreeMap<usize, VariableInfo>>,
+    block_result_infos: std::cell::RefCell<BTreeMap<usize, VariableInfo>>,
     context_version: u64,
+    suppress_records: bool,
 }
 
 struct DirectChildFlowCollector<'analyzer, 'a, 'b> {
@@ -3328,8 +3462,20 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             flow_cache: std::cell::RefCell::new(BTreeMap::new()),
             subtree_flow_cache: std::cell::RefCell::new(BTreeMap::new()),
             closure_effects: std::cell::RefCell::new(BTreeMap::new()),
+            closure_result_infos: std::cell::RefCell::new(BTreeMap::new()),
+            block_result_infos: std::cell::RefCell::new(BTreeMap::new()),
             context_version: 0,
+            suppress_records: false,
         }
+    }
+
+    fn analyze_without_records(&mut self, analyze: impl FnOnce(&mut Self)) {
+        let previous = self.suppress_records;
+        let error_count = self.errors.len();
+        self.suppress_records = true;
+        analyze(self);
+        self.suppress_records = previous;
+        self.errors.truncate(error_count);
     }
 
     fn bump_context(&mut self) {
@@ -3399,6 +3545,45 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         }
     }
 
+    fn register_local_callables(&mut self, statements: &[Stmt]) {
+        for function in statements.iter().filter_map(|statement| match statement {
+            Stmt::Item(Item::Fn(function)) => Some(function),
+            _ => None,
+        }) {
+            if !source_class_allows(
+                self.context.source_class,
+                &self.cfg,
+                &function.attrs,
+                self.errors,
+                "block-local function",
+            ) {
+                continue;
+            }
+            let ReturnType::Type(_, ty) = &function.sig.output else {
+                continue;
+            };
+            let mut info = self.info_from_type(ty);
+            info.sql_expression = SqlExpressionKind::Nonliteral;
+            let generic_params = generic_type_param_names(&function.sig.generics);
+            if !generic_params.is_empty() {
+                info.callable_signatures.insert(CallableSignature {
+                    generic_inputs: generic_params_by_input(&function.sig.inputs, &generic_params),
+                    generic_params,
+                });
+            }
+            if !info.flow.is_empty()
+                || !info.nominal_types.is_empty()
+                || !info.payload_variants.is_empty()
+                || !info.tuple_items.is_empty()
+                || !info.field_items.is_empty()
+                || !info.trait_bounds.is_empty()
+                || !info.callable_signatures.is_empty()
+            {
+                self.bind(normalized_ident(&function.sig.ident), info);
+            }
+        }
+    }
+
     fn push_scope(&mut self) {
         self.bump_context();
         self.scopes.push(BTreeMap::new());
@@ -3444,6 +3629,9 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         cfg: &[String],
         fingerprint: String,
     ) {
+        if self.suppress_records {
+            return;
+        }
         self.accumulator.add(
             &self.context,
             NewAccess {
@@ -3467,6 +3655,9 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         cfg: &[String],
         fingerprint: String,
     ) {
+        if self.suppress_records {
+            return;
+        }
         self.accumulator.add(
             &self.context,
             NewAccess {
@@ -3490,7 +3681,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             self.errors,
             owner,
         );
-        if allowed {
+        if allowed && !self.suppress_records {
             let cfg = item_cfg(&self.cfg, attributes);
             add_attribute_records(
                 self.accumulator,
@@ -3939,10 +4130,25 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             Expr::Group(group) => return self.info_from_expr(&group.expr),
             Expr::Try(try_expression) => return self.info_from_expr(&try_expression.expr),
             Expr::Await(await_expression) => return self.info_from_expr(&await_expression.base),
+            Expr::Block(block) => {
+                return self
+                    .block_result_infos
+                    .borrow()
+                    .get(&(&block.block as *const syn::Block as usize))
+                    .cloned()
+                    .unwrap_or_else(|| implicit_tail_info(&block.block, self));
+            }
             // A closure value carries what its body would produce when later
             // called through the binding (e.g. `let factory = || database;`).
             Expr::Closure(closure) => {
-                let mut info = self.info_from_expr(&closure.body);
+                let mut info = self
+                    .closure_result_infos
+                    .borrow()
+                    .get(&(closure as *const ExprClosure as usize))
+                    .cloned()
+                    .unwrap_or_else(|| self.info_from_expr(&closure.body));
+                info.callable_signatures
+                    .insert(closure_callable_signature(closure));
                 info.closure_mutations = self
                     .closure_effects
                     .borrow()
@@ -3959,6 +4165,20 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             && let Some(name) = last_path_name(&path.path)
         {
             if let Some(info) = self.lookup(&name) {
+                if let Some(syn::PathArguments::AngleBracketed(turbofish)) =
+                    path.path.segments.last().map(|segment| &segment.arguments)
+                    && !info.callable_signatures.is_empty()
+                {
+                    let mut result = VariableInfo::default();
+                    for signature in &info.callable_signatures {
+                        result.union(&self.apply_turbofish_args(
+                            info,
+                            Some(&signature.generic_params),
+                            Some(turbofish),
+                        ));
+                    }
+                    return result;
+                }
                 return info.clone();
             }
             if let Some(info) = self.symbols.item_values.get(&name) {
@@ -4048,6 +4268,14 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             if path.path.segments.len() == 1
                 && let Some(name) = last_path_name(&path.path)
             {
+                let turbofish =
+                    path.path
+                        .segments
+                        .last()
+                        .and_then(|segment| match &segment.arguments {
+                            syn::PathArguments::AngleBracketed(arguments) => Some(arguments),
+                            _ => None,
+                        });
                 // Resolve single-segment callees through the current lexical
                 // scope before falling back to module-level `function_returns`:
                 // a local closure or function-valued binding may carry the
@@ -4066,8 +4294,13 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                     return_info.callable_signatures.clear();
                     return_info.closure_mutations.clear();
                     for signature in &info.callable_signatures {
-                        result.union(&self.apply_inferred_args(
+                        let explicit = self.apply_turbofish_args(
                             &return_info,
+                            Some(&signature.generic_params),
+                            turbofish,
+                        );
+                        result.union(&self.apply_inferred_args(
+                            &explicit,
                             Some(&signature.generic_params),
                             Some(&signature.generic_inputs),
                             &call.args,
@@ -4075,14 +4308,6 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                     }
                     return result;
                 }
-                let turbofish =
-                    path.path
-                        .segments
-                        .last()
-                        .and_then(|segment| match &segment.arguments {
-                            syn::PathArguments::AngleBracketed(arguments) => Some(arguments),
-                            _ => None,
-                        });
                 if let Some(info) = self.symbols.function_returns.get(&name) {
                     let params = self.symbols.function_generic_params.get(&name);
                     let result = self.apply_turbofish_args(info, params, turbofish);
@@ -4738,6 +4963,16 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             {
                 SqlExpressionKind::Interpolated
             }
+            Expr::Macro(mac)
+                if last_path_name(&mac.mac.path).is_some_and(|name| {
+                    matches!(
+                        name.as_str(),
+                        "concat" | "env" | "include_str" | "stringify"
+                    )
+                }) =>
+            {
+                SqlExpressionKind::Static
+            }
             Expr::MethodCall(method)
                 if matches!(
                     normalized_ident(&method.method).as_str(),
@@ -4893,14 +5128,27 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             return associated;
         }
         if names.len() == 1 {
+            let turbofish =
+                path.path
+                    .segments
+                    .last()
+                    .and_then(|segment| match &segment.arguments {
+                        syn::PathArguments::AngleBracketed(arguments) => Some(arguments),
+                        _ => None,
+                    });
             if let Some(info) = self.lookup(last) {
                 if !info.callable_signatures.is_empty() {
                     let mut result = VariableInfo::default();
                     let mut return_info = info.clone();
                     return_info.callable_signatures.clear();
                     for signature in &info.callable_signatures {
-                        result.union(&self.apply_inferred_args(
+                        let explicit = self.apply_turbofish_args(
                             &return_info,
+                            Some(&signature.generic_params),
+                            turbofish,
+                        );
+                        result.union(&self.apply_inferred_args(
+                            &explicit,
                             Some(&signature.generic_params),
                             Some(&signature.generic_inputs),
                             &call.args,
@@ -4914,14 +5162,6 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 }
                 return flow;
             }
-            let turbofish =
-                path.path
-                    .segments
-                    .last()
-                    .and_then(|segment| match &segment.arguments {
-                        syn::PathArguments::AngleBracketed(arguments) => Some(arguments),
-                        _ => None,
-                    });
             if let Some(info) = self.symbols.function_returns.get(last) {
                 let params = self.symbols.function_generic_params.get(last);
                 let result = self.apply_turbofish_args(info, params, turbofish);
@@ -5306,6 +5546,13 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             .is_some_and(|first| self.symbols.sqlx_namespaces.contains(first));
         let imported_query = names.len() == 1 && self.symbols.query_callables.contains(&name);
         let cfg = item_cfg(&self.cfg, attributes);
+        if name == "include" {
+            self.errors.push(format!(
+                "{} contains include! whose Rust source is outside the persistence AST inventory; mount and parse the included source explicitly",
+                self.enclosing
+            ));
+            return;
+        }
         if (rooted_sqlx && is_query_name(&name)) || imported_query {
             let fingerprint = normalized_tokens(mac);
             self.add_generated(
@@ -5769,6 +6016,39 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         args.map(|args| self.apply_inferred_args(info, params, input_params, args))
             .unwrap_or_else(|| info.clone())
     }
+
+    fn closure_mutations_for_args(
+        &self,
+        info: &VariableInfo,
+        arguments: &[VariableInfo],
+    ) -> BTreeMap<String, VariableInfo> {
+        if info.callable_signatures.is_empty() {
+            return info.closure_mutations.clone();
+        }
+        let mut instantiated = BTreeMap::<String, VariableInfo>::new();
+        for signature in &info.callable_signatures {
+            let substitutions = signature
+                .generic_params
+                .iter()
+                .enumerate()
+                .filter_map(|(index, param)| {
+                    arguments
+                        .get(index)
+                        .or_else(|| arguments.last())
+                        .map(|argument| (param.clone(), argument.clone()))
+                })
+                .collect::<BTreeMap<_, _>>();
+            for (captured, mutation) in &info.closure_mutations {
+                let mut mutation = mutation.clone();
+                substitute_nominal_params(&mut mutation, &substitutions);
+                instantiated
+                    .entry(captured.clone())
+                    .or_default()
+                    .union(&mutation);
+            }
+        }
+        instantiated
+    }
 }
 
 fn item_attributes(item: &Item) -> &[Attribute] {
@@ -5790,11 +6070,22 @@ fn item_attributes(item: &Item) -> &[Attribute] {
     }
 }
 
-fn implicit_tail_flow(block: &syn::Block, analyzer: &BodyAnalyzer<'_, '_>) -> Flow {
-    match block.stmts.last() {
-        Some(Stmt::Expr(expression, None)) => analyzer.flow_of_expr(expression),
-        _ => Flow::default(),
+fn implicit_tail_info(block: &syn::Block, analyzer: &BodyAnalyzer<'_, '_>) -> VariableInfo {
+    if let Some(info) = analyzer
+        .block_result_infos
+        .borrow()
+        .get(&(block as *const syn::Block as usize))
+    {
+        return info.clone();
     }
+    match block.stmts.last() {
+        Some(Stmt::Expr(expression, None)) => analyzer.info_from_expr(expression),
+        _ => VariableInfo::default(),
+    }
+}
+
+fn implicit_tail_flow(block: &syn::Block, analyzer: &BodyAnalyzer<'_, '_>) -> Flow {
+    implicit_tail_info(block, analyzer).flow
 }
 
 /// Unions two scope stacks captured after mutually exclusive match arms. Both
@@ -5814,6 +6105,53 @@ fn merge_scope_stacks(
     }
 }
 
+fn collect_shape_nominals(shape: &NominalShape, output: &mut BTreeSet<String>) {
+    output.extend(shape.nominal_types.iter().cloned());
+    for argument in &shape.arguments {
+        collect_shape_nominals(argument, output);
+    }
+}
+
+/// Loop-carried values can grow without a finite structural fixed point (for
+/// example `node = Node::Branch(Box::new(node))`). Once several exact passes
+/// have failed to stabilize, collapse nested projections into the containing
+/// value while retaining every reachable flow, nominal type, trait bound and
+/// callable effect. This is a conservative widening: later projections may
+/// produce extra rows, but persistence can no longer disappear at arbitrary
+/// runtime iteration depths and the abstract loop state remains finite.
+fn widen_loop_variable(info: &mut VariableInfo) {
+    let mut nested = VariableInfo::default();
+    for item in &mut info.tuple_items {
+        widen_loop_variable(item);
+        nested.union(item);
+    }
+    for item in info.field_items.values_mut() {
+        widen_loop_variable(item);
+        nested.union(item);
+    }
+    for mutation in info.closure_mutations.values_mut() {
+        widen_loop_variable(mutation);
+        nested.union(mutation);
+    }
+    for shapes in &info.payload_variants {
+        for shape in shapes {
+            collect_shape_nominals(shape, &mut nested.nominal_types);
+        }
+    }
+    info.union(&nested);
+    info.payload_variants.clear();
+    info.tuple_items.clear();
+    info.field_items.clear();
+}
+
+fn widen_loop_scopes(scopes: &mut [BTreeMap<String, VariableInfo>]) {
+    for scope in scopes {
+        for info in scope.values_mut() {
+            widen_loop_variable(info);
+        }
+    }
+}
+
 fn simple_assignment_name(expression: &Expr) -> Option<String> {
     let Expr::Path(path) = expression else {
         return None;
@@ -5821,6 +6159,82 @@ fn simple_assignment_name(expression: &Expr) -> Option<String> {
     (path.qself.is_none() && path.path.segments.len() == 1)
         .then(|| last_path_name(&path.path))
         .flatten()
+}
+
+#[derive(Clone, Debug)]
+enum PlaceProjection {
+    Field(String),
+    Index(Option<usize>),
+}
+
+fn assignment_place(expression: &Expr) -> Option<(String, Vec<PlaceProjection>)> {
+    fn collect(expression: &Expr, projections: &mut Vec<PlaceProjection>) -> Option<String> {
+        match expression {
+            Expr::Path(_) => simple_assignment_name(expression),
+            Expr::Field(field) => {
+                let root = collect(&field.base, projections)?;
+                let name = match &field.member {
+                    Member::Named(ident) => normalized_ident(ident),
+                    Member::Unnamed(index) => index.index.to_string(),
+                };
+                projections.push(PlaceProjection::Field(name));
+                Some(root)
+            }
+            Expr::Index(index) => {
+                let root = collect(&index.expr, projections)?;
+                let numeric = match index.index.as_ref() {
+                    Expr::Lit(literal) => match &literal.lit {
+                        syn::Lit::Int(value) => value.base10_parse().ok(),
+                        _ => None,
+                    },
+                    _ => None,
+                };
+                projections.push(PlaceProjection::Index(numeric));
+                Some(root)
+            }
+            Expr::Paren(paren) => collect(&paren.expr, projections),
+            Expr::Group(group) => collect(&group.expr, projections),
+            _ => None,
+        }
+    }
+
+    let mut projections = Vec::new();
+    let root = collect(expression, &mut projections)?;
+    (!projections.is_empty()).then_some((root, projections))
+}
+
+fn assign_place_projection(
+    aggregate: &mut VariableInfo,
+    projections: &[PlaceProjection],
+    value: &VariableInfo,
+) {
+    let Some((projection, remaining)) = projections.split_first() else {
+        *aggregate = value.clone();
+        return;
+    };
+    match projection {
+        PlaceProjection::Field(name) => {
+            assign_place_projection(
+                aggregate.field_items.entry(name.clone()).or_default(),
+                remaining,
+                value,
+            );
+        }
+        PlaceProjection::Index(index) => {
+            // An index write makes the collection persistence-bearing even
+            // when the exact runtime index is unknown. Retain an exact tuple/
+            // array projection as well when a literal index is available.
+            aggregate.union(value);
+            if let Some(index) = index {
+                if aggregate.tuple_items.len() <= *index {
+                    aggregate
+                        .tuple_items
+                        .resize_with(index + 1, VariableInfo::default);
+                }
+                assign_place_projection(&mut aggregate.tuple_items[*index], remaining, value);
+            }
+        }
+    }
 }
 
 fn mutable_storage_receiver_name(expression: &Expr) -> Option<String> {
@@ -5855,7 +6269,10 @@ fn visit_let_chain_condition(
         }
         Expr::Binary(binary) if matches!(binary.op, syn::BinOp::And(_)) => {
             visit_let_chain_condition(analyzer, &binary.left, method_receiver_fallback);
+            let pre_rhs_scopes = analyzer.scopes.clone();
             visit_let_chain_condition(analyzer, &binary.right, method_receiver_fallback);
+            merge_scope_stacks(&mut analyzer.scopes, &pre_rhs_scopes);
+            analyzer.bump_context();
         }
         Expr::Paren(paren) => {
             visit_let_chain_condition(analyzer, &paren.expr, method_receiver_fallback);
@@ -5946,15 +6363,70 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         // The body may run zero times (empty iterator), so its assignments
         // to outer locals cannot be applied unconditionally: conservatively
         // union the pre-loop state with the post-body state.
-        let pre_loop_scopes = self.scopes.clone();
+        let mut accumulated_scopes = self.scopes.clone();
+        let initial_error_count = self.errors.len();
+        self.accumulator.begin_transaction();
         self.push_scope();
         self.register_local_uses(&expression.body.stmts);
+        self.register_local_callables(&expression.body.stmts);
         self.bind_pattern(&expression.pat, &iterator_info);
         for statement in &expression.body.stmts {
             self.visit_stmt(statement);
         }
         self.pop_scope();
-        merge_scope_stacks(&mut self.scopes, &pre_loop_scopes);
+        let first_post_body_scopes = self.scopes.clone();
+        let mut first_next = accumulated_scopes.clone();
+        merge_scope_stacks(&mut first_next, &first_post_body_scopes);
+        if first_next == accumulated_scopes {
+            self.accumulator.commit_transaction();
+            self.scopes = accumulated_scopes;
+            self.bump_context();
+            return;
+        }
+        self.accumulator.rollback_transaction();
+        self.errors.truncate(initial_error_count);
+        accumulated_scopes = first_next;
+        let mut stabilized = false;
+        for iteration in 0..32 {
+            self.scopes = accumulated_scopes.clone();
+            self.analyze_without_records(|analyzer| {
+                analyzer.push_scope();
+                analyzer.register_local_uses(&expression.body.stmts);
+                analyzer.register_local_callables(&expression.body.stmts);
+                analyzer.bind_pattern(&expression.pat, &iterator_info);
+                for statement in &expression.body.stmts {
+                    analyzer.visit_stmt(statement);
+                }
+                analyzer.pop_scope();
+            });
+            let post_body_scopes = self.scopes.clone();
+            let mut next = accumulated_scopes.clone();
+            merge_scope_stacks(&mut next, &post_body_scopes);
+            if iteration >= 7 {
+                widen_loop_scopes(&mut next);
+            }
+            if next == accumulated_scopes {
+                stabilized = true;
+                break;
+            }
+            accumulated_scopes = next;
+        }
+        if !stabilized {
+            self.errors.push(format!(
+                "{} for-loop persistence flow did not reach a fixed point",
+                self.enclosing
+            ));
+        }
+        self.scopes = accumulated_scopes.clone();
+        self.push_scope();
+        self.register_local_uses(&expression.body.stmts);
+        self.register_local_callables(&expression.body.stmts);
+        self.bind_pattern(&expression.pat, &iterator_info);
+        for statement in &expression.body.stmts {
+            self.visit_stmt(statement);
+        }
+        self.pop_scope();
+        self.scopes = accumulated_scopes;
         self.bump_context();
     }
 
@@ -5965,16 +6437,70 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         // The body may run zero times (false condition), so its assignments
         // to outer locals cannot be applied unconditionally: conservatively
         // union the pre-loop state with the post-body state.
+        let mut accumulated_scopes = self.scopes.clone();
+        let initial_error_count = self.errors.len();
+        self.accumulator.begin_transaction();
         self.push_scope();
         self.register_local_uses(&expression.body.stmts);
+        self.register_local_callables(&expression.body.stmts);
         visit_let_chain_condition(self, &expression.cond, true);
-        let mut pre_loop_scopes = self.scopes.clone();
-        pre_loop_scopes.pop();
         for statement in &expression.body.stmts {
             self.visit_stmt(statement);
         }
         self.pop_scope();
-        merge_scope_stacks(&mut self.scopes, &pre_loop_scopes);
+        let first_post_body_scopes = self.scopes.clone();
+        let mut first_next = accumulated_scopes.clone();
+        merge_scope_stacks(&mut first_next, &first_post_body_scopes);
+        if first_next == accumulated_scopes {
+            self.accumulator.commit_transaction();
+            self.scopes = accumulated_scopes;
+            self.bump_context();
+            return;
+        }
+        self.accumulator.rollback_transaction();
+        self.errors.truncate(initial_error_count);
+        accumulated_scopes = first_next;
+        let mut stabilized = false;
+        for iteration in 0..32 {
+            self.scopes = accumulated_scopes.clone();
+            self.analyze_without_records(|analyzer| {
+                analyzer.push_scope();
+                analyzer.register_local_uses(&expression.body.stmts);
+                analyzer.register_local_callables(&expression.body.stmts);
+                visit_let_chain_condition(analyzer, &expression.cond, true);
+                for statement in &expression.body.stmts {
+                    analyzer.visit_stmt(statement);
+                }
+                analyzer.pop_scope();
+            });
+            let post_body_scopes = self.scopes.clone();
+            let mut next = accumulated_scopes.clone();
+            merge_scope_stacks(&mut next, &post_body_scopes);
+            if iteration >= 7 {
+                widen_loop_scopes(&mut next);
+            }
+            if next == accumulated_scopes {
+                stabilized = true;
+                break;
+            }
+            accumulated_scopes = next;
+        }
+        if !stabilized {
+            self.errors.push(format!(
+                "{} while-loop persistence flow did not reach a fixed point",
+                self.enclosing
+            ));
+        }
+        self.scopes = accumulated_scopes.clone();
+        self.push_scope();
+        self.register_local_uses(&expression.body.stmts);
+        self.register_local_callables(&expression.body.stmts);
+        visit_let_chain_condition(self, &expression.cond, true);
+        for statement in &expression.body.stmts {
+            self.visit_stmt(statement);
+        }
+        self.pop_scope();
+        self.scopes = accumulated_scopes;
         self.bump_context();
     }
 
@@ -6036,12 +6562,48 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             &cfg,
             normalized_tokens(expression),
         );
-        let pre_loop_scopes = self.scopes.clone();
+        let mut accumulated_scopes = self.scopes.clone();
+        let initial_error_count = self.errors.len();
+        self.accumulator.begin_transaction();
         self.visit_block(&expression.body);
-        // An early `break` can preserve any state visible before the loop;
-        // unioning it prevents later statements in the body from erasing
-        // persistence flow that remains reachable along that exit path.
-        merge_scope_stacks(&mut self.scopes, &pre_loop_scopes);
+        let first_post_body_scopes = self.scopes.clone();
+        let mut first_next = accumulated_scopes.clone();
+        merge_scope_stacks(&mut first_next, &first_post_body_scopes);
+        if first_next == accumulated_scopes {
+            self.accumulator.commit_transaction();
+            self.scopes = accumulated_scopes;
+            self.bump_context();
+            return;
+        }
+        self.accumulator.rollback_transaction();
+        self.errors.truncate(initial_error_count);
+        accumulated_scopes = first_next;
+        let mut stabilized = false;
+        for iteration in 0..32 {
+            self.scopes = accumulated_scopes.clone();
+            self.analyze_without_records(|analyzer| analyzer.visit_block(&expression.body));
+            let post_body_scopes = self.scopes.clone();
+            let mut next = accumulated_scopes.clone();
+            merge_scope_stacks(&mut next, &post_body_scopes);
+            if iteration >= 7 {
+                widen_loop_scopes(&mut next);
+            }
+            if next == accumulated_scopes {
+                stabilized = true;
+                break;
+            }
+            accumulated_scopes = next;
+        }
+        if !stabilized {
+            self.errors.push(format!(
+                "{} loop persistence flow did not reach a fixed point",
+                self.enclosing
+            ));
+        }
+        self.scopes = accumulated_scopes.clone();
+        self.visit_block(&expression.body);
+        self.scopes = accumulated_scopes;
+        self.bump_context();
     }
 
     fn visit_stmt(&mut self, statement: &'ast syn::Stmt) {
@@ -6081,8 +6643,17 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
     fn visit_block(&mut self, block: &'ast syn::Block) {
         self.push_scope();
         self.register_local_uses(&block.stmts);
+        self.register_local_callables(&block.stmts);
         for statement in &block.stmts {
             self.visit_stmt(statement);
+        }
+        if let Some(Stmt::Expr(expression, None)) = block.stmts.last() {
+            let info = self.info_from_expr(expression);
+            self.block_result_infos
+                .borrow_mut()
+                .entry(block as *const syn::Block as usize)
+                .or_default()
+                .union(&info);
         }
         self.pop_scope();
     }
@@ -6352,9 +6923,14 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             && path.path.segments.len() == 1
             && let Some(callee) = last_path_name(&path.path)
         {
+            let argument_infos = call
+                .args
+                .iter()
+                .map(|argument| self.info_from_expr(argument))
+                .collect::<Vec<_>>();
             let mutations = self
                 .lookup(&callee)
-                .map(|info| info.closure_mutations.clone())
+                .map(|info| self.closure_mutations_for_args(info, &argument_infos))
                 .unwrap_or_default();
             for (captured, info) in mutations {
                 self.assign(&captured, info);
@@ -6487,8 +7063,16 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         }
         if CLOSURE_INVOKING_METHODS.contains(&name.as_str()) {
             let pre_call_scopes = self.scopes.clone();
+            let mut callback_argument = self.info_from_expr(&method.receiver);
             for argument in &method.args {
-                let mutations = self.info_from_expr(argument).closure_mutations;
+                if !matches!(argument, Expr::Closure(_)) {
+                    callback_argument.union(&self.info_from_expr(argument));
+                }
+            }
+            for argument in &method.args {
+                let info = self.info_from_expr(argument);
+                let mutations = self
+                    .closure_mutations_for_args(&info, std::slice::from_ref(&callback_argument));
                 for (captured, info) in mutations {
                     self.assign(&captured, info);
                 }
@@ -6526,6 +7110,11 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                 normalized_tokens(assignment),
             );
         } else {
+            if let Some((root, projections)) = assignment_place(&assignment.left) {
+                let mut aggregate = self.lookup(&root).cloned().unwrap_or_default();
+                assign_place_projection(&mut aggregate, &projections, &info);
+                self.assign(&root, aggregate);
+            }
             self.record_pool_escape(
                 &info.flow,
                 PersistenceOperation::StoreEscape,
@@ -6702,10 +7291,21 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         let declaration_scopes = self.scopes.clone();
         self.cfg = item_cfg(&self.cfg, &closure.attrs);
         self.push_scope();
-        for input in &closure.inputs {
-            self.bind_pattern(input, &VariableInfo::default());
+        let signature = closure_callable_signature(closure);
+        for (input, marker) in closure.inputs.iter().zip(&signature.generic_params) {
+            self.bind_pattern(
+                input,
+                &VariableInfo {
+                    nominal_types: BTreeSet::from([marker.clone()]),
+                    ..VariableInfo::default()
+                },
+            );
         }
         self.visit_expr(&closure.body);
+        let result_info = self.info_from_expr(&closure.body);
+        self.closure_result_infos
+            .borrow_mut()
+            .insert(closure as *const ExprClosure as usize, result_info);
         self.pop_scope();
         let mut effects = BTreeMap::new();
         for (before_scope, after_scope) in declaration_scopes.iter().zip(&self.scopes).rev() {
@@ -7098,6 +7698,7 @@ fn analyze_function(
         cfg.clone(),
     );
     analyzer.register_local_uses(&function.block.stmts);
+    analyzer.register_local_callables(&function.block.stmts);
     analyzer.register_generic_bounds(&function.sig.generics);
     analyzer.register_parameters(&function.sig.inputs);
     for statement in &function.block.stmts {
@@ -7134,7 +7735,14 @@ fn analyze_impl(
     errors: &mut Vec<String>,
 ) {
     let self_name = impl_self_name(item_impl);
-    let impl_enclosing = format!("impl {self_name}");
+    let trait_name = item_impl
+        .trait_
+        .as_ref()
+        .map(|(_, trait_path, _)| canonical_path_names(path_names(trait_path), symbols).join("::"));
+    let impl_enclosing = trait_name
+        .as_ref()
+        .map(|trait_name| format!("impl {trait_name} for {self_name}"))
+        .unwrap_or_else(|| format!("impl {self_name}"));
     add_attribute_records(
         accumulator,
         &context,
@@ -7203,7 +7811,17 @@ fn analyze_impl(
             continue;
         }
         let method_cfg = item_cfg(&cfg, &method.attrs);
-        let enclosing = format!("impl {self_name}::{}", normalized_ident(&method.sig.ident));
+        let enclosing = trait_name
+            .as_ref()
+            .map(|trait_name| {
+                format!(
+                    "impl {trait_name} for {self_name}::{}",
+                    normalized_ident(&method.sig.ident)
+                )
+            })
+            .unwrap_or_else(|| {
+                format!("impl {self_name}::{}", normalized_ident(&method.sig.ident))
+            });
         let visibility = normalized_visibility(&method.vis);
         add_attribute_records(
             accumulator,
@@ -7254,6 +7872,7 @@ fn analyze_impl(
             method_cfg.clone(),
         );
         analyzer.register_local_uses(&method.block.stmts);
+        analyzer.register_local_callables(&method.block.stmts);
         analyzer.register_generic_bounds(&item_impl.generics);
         analyzer.register_generic_bounds(&method.sig.generics);
         let mut self_info = analyzer.info_from_type(&item_impl.self_ty);
@@ -7302,12 +7921,10 @@ fn analyze_item_macro(
     let mut targets = targets_for_path(&item_macro.mac.path, symbols);
     targets.extend(targets_in_tokens(item_macro.mac.tokens.clone(), symbols));
     if path_name == "include" {
-        if !targets.is_empty() {
-            errors.push(format!(
-                "{} contains include! with concrete persistence tokens; mount and parse the included Rust source explicitly",
-                context.module
-            ));
-        }
+        errors.push(format!(
+            "{} contains include! whose Rust source is outside the persistence AST inventory; mount and parse the included source explicitly",
+            context.module
+        ));
         return;
     }
     for target in targets {
@@ -7533,6 +8150,7 @@ fn analyze_module_items(
                 }
                 let item_cfg = item_cfg(&cfg, &item_const.attrs);
                 let enclosing = format!("const {}", normalized_ident(&item_const.ident));
+                let visibility = normalized_visibility(&item_const.vis);
                 add_attribute_records(
                     accumulator,
                     &context,
@@ -7540,7 +8158,7 @@ fn analyze_module_items(
                     &item_const.attrs,
                     AttributeRecordContext {
                         enclosing: &enclosing,
-                        visibility: "",
+                        visibility: &visibility,
                         cfg: &item_cfg,
                     },
                 );
@@ -7551,7 +8169,7 @@ fn analyze_module_items(
                     &item_const.ty,
                     &enclosing,
                     &normalized_ident(&item_const.ident),
-                    "",
+                    &visibility,
                     &item_cfg,
                     PersistenceOperation::TypeReference,
                 );
@@ -7567,7 +8185,7 @@ fn analyze_module_items(
                     errors,
                     &symbols,
                     enclosing,
-                    String::new(),
+                    visibility,
                     item_cfg,
                 );
                 analyzer.visit_expr(&item_const.expr);
@@ -12917,6 +13535,290 @@ mod tests {
         .unwrap();
         assert!(baseline.accesses.iter().any(|row| {
             row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_recomputes_loop_back_edges_to_a_fixed_point() {
+        let baseline = inventory(
+            r#"
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    let source = &database;
+                    let mut slot = None;
+                    loop {
+                        if let Some(db) = slot { consume(db.pool()); break; }
+                        slot = Some(source);
+                    }
+                }
+            "#,
+        )
+        .unwrap();
+        let pool_rows = baseline
+            .accesses
+            .iter()
+            .filter(|row| {
+                row.enclosing == "fn persistent"
+                    && row.operation == PersistenceOperation::PoolAccess
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(pool_rows.len(), 1);
+        assert_eq!(pool_rows[0].count, 1);
+    }
+
+    #[test]
+    fn persistence_inventory_widens_recursively_growing_loop_values() {
+        let baseline = inventory(
+            r#"
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    let mut value = database;
+                    loop {
+                        value = (value,);
+                        consume(&value);
+                    }
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent"
+                && row.target == PersistenceTarget::CharacterDatabase
+                && row.operation == PersistenceOperation::ValueAlias
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_propagates_assignments_into_places() {
+        let baseline = inventory(
+            r#"
+                struct Holder<T> { value: T }
+                fn field(database: wow_database::CharacterDatabase) {
+                    let mut holder = Holder { value: None };
+                    holder.value = Some(database);
+                    consume(holder.value.unwrap().pool());
+                }
+                fn index(database: wow_database::CharacterDatabase) {
+                    let mut values = [None];
+                    values[0] = Some(database);
+                    consume(values[0].unwrap().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        for enclosing in ["fn field", "fn index"] {
+            assert!(baseline.accesses.iter().any(|row| {
+                row.enclosing == enclosing && row.operation == PersistenceOperation::PoolAccess
+            }));
+            assert!(baseline.accesses.iter().any(|row| {
+                row.enclosing == enclosing && row.operation == PersistenceOperation::StoreEscape
+            }));
+        }
+    }
+
+    #[test]
+    fn persistence_inventory_parameterizes_closure_mutation_effects() {
+        let baseline = inventory(
+            r#"
+                struct Clean;
+                impl Clean { fn pool(self) {} }
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    let mut slot = None;
+                    let mut install = |value| slot = Some(value);
+                    install(database);
+                    consume(slot.unwrap().pool());
+                }
+                fn clean(database: wow_database::CharacterDatabase) {
+                    let mut slot = None;
+                    let mut install = |value| slot = Some(value);
+                    install(Clean);
+                    consume(slot.unwrap().pool());
+                    drop(database);
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn clean" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_preserves_skipped_let_chain_state() {
+        let baseline = inventory(
+            r#"
+                fn persistent(
+                    database: wow_database::CharacterDatabase,
+                    maybe: Option<()>,
+                ) {
+                    let mut slot = Some(database);
+                    if let Some(_) = maybe && { slot = None; true } {}
+                    consume(slot.unwrap().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_retains_block_local_tail_values() {
+        let baseline = inventory(
+            r#"
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    let wrapped = { let alias = database; alias };
+                    consume(wrapped.pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_rejects_unmounted_include_sources() {
+        let error = inventory(r#"include!("db_impl.rs");"#).unwrap_err();
+        assert!(
+            error.contains("include! whose Rust source is outside"),
+            "{error}"
+        );
+        let body_error = inventory(r#"fn hidden() { include!("db_impl.rs"); }"#).unwrap_err();
+        assert!(
+            body_error.contains("include! whose Rust source is outside"),
+            "{body_error}"
+        );
+    }
+
+    #[test]
+    fn persistence_inventory_classifies_compile_time_string_macros_as_static_sql() {
+        let baseline = inventory(
+            r#"
+                fn persistent() {
+                    consume(sqlx::query(concat!("SELECT ", "* FROM account")));
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::Query
+        }));
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::NonliteralSql
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_distinguishes_same_named_trait_impl_workflows() {
+        let baseline = inventory(
+            r#"
+                trait LoginStore { fn save(&self); }
+                trait CharacterStore { fn save(&self); }
+                struct Worker {
+                    login: wow_database::LoginDatabase,
+                    character: wow_database::CharacterDatabase,
+                }
+                impl LoginStore for Worker {
+                    fn save(&self) { consume(self.login.pool()); }
+                }
+                impl CharacterStore for Worker {
+                    fn save(&self) { consume(self.character.pool()); }
+                }
+            "#,
+        )
+        .unwrap();
+        let workflows = baseline
+            .accesses
+            .iter()
+            .filter(|row| row.operation == PersistenceOperation::PoolAccess)
+            .map(|row| row.enclosing.clone())
+            .collect::<BTreeSet<_>>();
+        assert!(
+            workflows
+                .iter()
+                .any(|name| name.contains("LoginStore for Worker::save"))
+        );
+        assert!(
+            workflows
+                .iter()
+                .any(|name| name.contains("CharacterStore for Worker::save"))
+        );
+    }
+
+    #[test]
+    fn persistence_inventory_inspects_generated_attributes_nested_in_cfg_attr() {
+        let baseline = inventory(
+            r#"
+                #[cfg_attr(test, derive(sqlx::FromRow))]
+                struct Row;
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.source_class == "test_fixture"
+                && row.operation == PersistenceOperation::MacroReference
+                && row.generated_input
+        }));
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.source_class == "production"
+                && row.operation == PersistenceOperation::MacroReference
+                && row.generated_input
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_preserves_constant_visibility() {
+        let baseline = inventory(
+            r#"
+                pub const DATABASE: Option<wow_database::CharacterDatabase> = None;
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "const DATABASE"
+                && row.operation == PersistenceOperation::TypeReference
+                && row.visibility == "pub"
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_models_clean_block_local_callables() {
+        let baseline = inventory(
+            r#"
+                struct Clean;
+                impl Clean { fn pool(self) {} }
+                fn inferred(database: wow_database::CharacterDatabase) {
+                    fn pass<T>(value: T) -> T { value }
+                    let wrapped = pass(database);
+                    consume(wrapped.pool());
+                }
+                fn explicit_persistent(database: wow_database::CharacterDatabase) {
+                    fn make<T, U>(_input: U) -> T { unreachable!() }
+                    consume(make::<wow_database::CharacterDatabase, _>(database).pool());
+                }
+                fn explicit_clean(database: wow_database::CharacterDatabase) {
+                    fn make<T, U>(_input: U) -> T { unreachable!() }
+                    consume(make::<Clean, _>(database).pool());
+                }
+            "#,
+        )
+        .unwrap();
+        for enclosing in ["fn inferred", "fn explicit_persistent"] {
+            assert!(
+                baseline.accesses.iter().any(|row| {
+                    row.enclosing == enclosing && row.operation == PersistenceOperation::PoolAccess
+                }),
+                "missing pool access for {enclosing}: {:#?}",
+                baseline.accesses
+            );
+        }
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn explicit_clean"
+                && row.operation == PersistenceOperation::PoolAccess
         }));
     }
 
