@@ -759,6 +759,7 @@ struct VariableInfo {
     trait_bounds: BTreeSet<String>,
     type_generic_params: Vec<String>,
     callable_signatures: BTreeSet<CallableSignature>,
+    closure_mutations: BTreeMap<String, VariableInfo>,
 }
 
 impl VariableInfo {
@@ -774,6 +775,12 @@ impl VariableInfo {
         }
         self.callable_signatures
             .extend(other.callable_signatures.iter().cloned());
+        for (name, mutation) in &other.closure_mutations {
+            self.closure_mutations
+                .entry(name.clone())
+                .or_default()
+                .union(mutation);
+        }
         for (field, other_info) in &other.field_items {
             self.field_items
                 .entry(field.clone())
@@ -1313,6 +1320,7 @@ fn tuple_items_in_type(ty: &Type, symbols: &ModuleSymbols) -> Vec<VariableInfo> 
                 trait_bounds: trait_bounds_in_type(element, symbols),
                 type_generic_params: Vec::new(),
                 callable_signatures: BTreeSet::new(),
+                closure_mutations: BTreeMap::new(),
             })
             .collect(),
         Type::Reference(reference) => tuple_items_in_type(&reference.elem, symbols),
@@ -1379,6 +1387,7 @@ fn variable_info_in_type(ty: &Type, symbols: &ModuleSymbols) -> VariableInfo {
         trait_bounds: trait_bounds_in_type(ty, symbols),
         type_generic_params: Vec::new(),
         callable_signatures: BTreeSet::new(),
+        closure_mutations: BTreeMap::new(),
     };
     if let Type::Path(path) = ty
         && let Some(alias) = path.path.segments.last().and_then(|segment| {
@@ -3152,6 +3161,7 @@ struct BodyAnalyzer<'a, 'b> {
     generic_trait_bound_args: BTreeMap<(String, String), Vec<VariableInfo>>,
     flow_cache: std::cell::RefCell<BTreeMap<(usize, u64), Flow>>,
     subtree_flow_cache: std::cell::RefCell<BTreeMap<(usize, u64), Flow>>,
+    closure_effects: std::cell::RefCell<BTreeMap<usize, BTreeMap<String, VariableInfo>>>,
     context_version: u64,
 }
 
@@ -3197,6 +3207,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             generic_trait_bound_args: BTreeMap::new(),
             flow_cache: std::cell::RefCell::new(BTreeMap::new()),
             subtree_flow_cache: std::cell::RefCell::new(BTreeMap::new()),
+            closure_effects: std::cell::RefCell::new(BTreeMap::new()),
             context_version: 0,
         }
     }
@@ -3810,7 +3821,16 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             Expr::Await(await_expression) => return self.info_from_expr(&await_expression.base),
             // A closure value carries what its body would produce when later
             // called through the binding (e.g. `let factory = || database;`).
-            Expr::Closure(closure) => return self.info_from_expr(&closure.body),
+            Expr::Closure(closure) => {
+                let mut info = self.info_from_expr(&closure.body);
+                info.closure_mutations = self
+                    .closure_effects
+                    .borrow()
+                    .get(&(closure as *const ExprClosure as usize))
+                    .cloned()
+                    .unwrap_or_default();
+                return info;
+            }
             _ => {}
         }
         if let Expr::Path(path) = expression
@@ -3899,6 +3919,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 if let Some(info) = self.lookup(&name) {
                     if info.callable_signatures.is_empty() {
                         let mut result = info.clone();
+                        result.closure_mutations.clear();
                         for argument in &call.args {
                             result.union(&self.info_from_expr(argument));
                         }
@@ -3907,6 +3928,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                     let mut result = VariableInfo::default();
                     let mut return_info = info.clone();
                     return_info.callable_signatures.clear();
+                    return_info.closure_mutations.clear();
                     for signature in &info.callable_signatures {
                         result.union(&self.apply_inferred_args(
                             &return_info,
@@ -4017,6 +4039,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 trait_bounds: return_info.trait_bounds,
                 type_generic_params: Vec::new(),
                 callable_signatures: BTreeSet::new(),
+                closure_mutations: BTreeMap::new(),
             };
         }
         if let Expr::Field(field) = expression {
@@ -4096,6 +4119,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 trait_bounds: BTreeSet::new(),
                 type_generic_params: Vec::new(),
                 callable_signatures: BTreeSet::new(),
+                closure_mutations: BTreeMap::new(),
             };
             let mut names = path_names(&path.path);
             if is_constructor_method {
@@ -4135,6 +4159,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             trait_bounds: BTreeSet::new(),
             type_generic_params: Vec::new(),
             callable_signatures: BTreeSet::new(),
+            closure_mutations: BTreeMap::new(),
         }
     }
 
@@ -5627,17 +5652,45 @@ fn simple_assignment_name(expression: &Expr) -> Option<String> {
         .flatten()
 }
 
-fn bind_let_chain_patterns(analyzer: &mut BodyAnalyzer<'_, '_>, expression: &Expr) {
+fn mutable_storage_receiver_name(expression: &Expr) -> Option<String> {
+    match expression {
+        Expr::Reference(reference) if reference.mutability.is_some() => {
+            simple_assignment_name(&reference.expr)
+        }
+        Expr::Paren(paren) => mutable_storage_receiver_name(&paren.expr),
+        Expr::Group(group) => mutable_storage_receiver_name(&group.expr),
+        _ => None,
+    }
+}
+
+fn bind_let_chain_patterns(
+    analyzer: &mut BodyAnalyzer<'_, '_>,
+    expression: &Expr,
+    method_receiver_fallback: bool,
+) {
     match expression {
         Expr::Let(let_expression) => {
-            analyzer.bind_pattern_from_expr(&let_expression.pat, &let_expression.expr);
+            let mut info = analyzer.info_from_expr(&let_expression.expr);
+            if method_receiver_fallback
+                && info.flow.is_empty()
+                && let Expr::MethodCall(method) = let_expression.expr.as_ref()
+            {
+                info = analyzer.info_from_expr(&method.receiver);
+                analyzer.bind_pattern(&let_expression.pat, &info);
+            } else {
+                analyzer.bind_pattern_from_expr(&let_expression.pat, &let_expression.expr);
+            }
         }
         Expr::Binary(binary) if matches!(binary.op, syn::BinOp::And(_)) => {
-            bind_let_chain_patterns(analyzer, &binary.left);
-            bind_let_chain_patterns(analyzer, &binary.right);
+            bind_let_chain_patterns(analyzer, &binary.left, method_receiver_fallback);
+            bind_let_chain_patterns(analyzer, &binary.right, method_receiver_fallback);
         }
-        Expr::Paren(paren) => bind_let_chain_patterns(analyzer, &paren.expr),
-        Expr::Group(group) => bind_let_chain_patterns(analyzer, &group.expr),
+        Expr::Paren(paren) => {
+            bind_let_chain_patterns(analyzer, &paren.expr, method_receiver_fallback);
+        }
+        Expr::Group(group) => {
+            bind_let_chain_patterns(analyzer, &group.expr, method_receiver_fallback);
+        }
         _ => {}
     }
 }
@@ -5744,15 +5797,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         let pre_loop_scopes = self.scopes.clone();
         self.push_scope();
         self.register_local_uses(&expression.body.stmts);
-        if let Expr::Let(let_expression) = expression.cond.as_ref() {
-            let mut info = self.info_from_expr(&let_expression.expr);
-            if info.flow.0.is_empty()
-                && let Expr::MethodCall(method) = let_expression.expr.as_ref()
-            {
-                info = self.info_from_expr(&method.receiver);
-            }
-            self.bind_pattern(&let_expression.pat, &info);
-        }
+        bind_let_chain_patterns(self, &expression.cond, true);
         for statement in &expression.body.stmts {
             self.visit_stmt(statement);
         }
@@ -6096,6 +6141,34 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                 );
             }
         }
+        if matches!(
+            name.as_str(),
+            "push" | "push_back" | "push_front" | "insert" | "extend" | "append"
+        ) && matches!(call.func.as_ref(), Expr::Path(path) if path.path.segments.len() >= 2)
+            && let Some(receiver_name) = call.args.first().and_then(mutable_storage_receiver_name)
+        {
+            let mut stored = self.lookup(&receiver_name).cloned().unwrap_or_default();
+            let before = stored.clone();
+            for argument in call.args.iter().skip(1) {
+                stored.union(&self.info_from_expr(argument));
+            }
+            if stored != before {
+                self.assign(&receiver_name, stored);
+            }
+        }
+        if let Expr::Path(path) = call.func.as_ref()
+            && path.qself.is_none()
+            && path.path.segments.len() == 1
+            && let Some(callee) = last_path_name(&path.path)
+        {
+            let mutations = self
+                .lookup(&callee)
+                .map(|info| info.closure_mutations.clone())
+                .unwrap_or_default();
+            for (captured, info) in mutations {
+                self.assign(&captured, info);
+            }
+        }
         self.visit_expr(&call.func);
         for argument in &call.args {
             self.visit_expr(argument);
@@ -6362,7 +6435,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         // including the no-`else` path.
         let pre_if_scopes = self.scopes.clone();
         self.push_scope();
-        bind_let_chain_patterns(self, &expression.cond);
+        bind_let_chain_patterns(self, &expression.cond, false);
         self.visit_block(&expression.then_branch);
         self.pop_scope();
         let post_then = self.scopes.clone();
@@ -6430,6 +6503,17 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         }
         self.visit_expr(&closure.body);
         self.pop_scope();
+        let mut effects = BTreeMap::new();
+        for (before_scope, after_scope) in declaration_scopes.iter().zip(&self.scopes).rev() {
+            for (name, after) in after_scope {
+                if before_scope.get(name).is_some_and(|before| before != after) {
+                    effects.entry(name.clone()).or_insert_with(|| after.clone());
+                }
+            }
+        }
+        self.closure_effects
+            .borrow_mut()
+            .insert(closure as *const ExprClosure as usize, effects);
         self.scopes = declaration_scopes;
         self.bump_context();
         self.cfg = previous_cfg;
@@ -12303,6 +12387,80 @@ mod tests {
                 .any(|row| row.enclosing == "fn persistent"
                     && row.operation == PersistenceOperation::PoolAccess)
         );
+    }
+
+    #[test]
+    fn persistence_inventory_retains_values_inserted_through_ufcs() {
+        let baseline = inventory(
+            r#"
+                struct Clean;
+                impl Clean { fn pool(self) {} }
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    let mut values = Vec::new();
+                    Vec::push(&mut values, database);
+                    consume(values[0].pool());
+                }
+                fn clean(database: wow_database::CharacterDatabase) {
+                    let mut values = Vec::new();
+                    Vec::push(&mut values, Clean);
+                    consume(values[0].pool());
+                    drop(database);
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn clean" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_binds_let_chain_patterns_in_while_body() {
+        let baseline = inventory(
+            r#"
+                struct Holder(wow_database::CharacterDatabase);
+                fn persistent(maybe: Option<Holder>, enabled: bool) {
+                    while let Some(holder) = maybe && enabled {
+                        consume(holder.0.pool());
+                        break;
+                    }
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_applies_closure_mutations_only_when_invoked() {
+        let baseline = inventory(
+            r#"
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    let mut slot = None;
+                    let install = || { slot = Some(database); };
+                    install();
+                    consume(slot.unwrap().pool());
+                }
+                fn clean(database: wow_database::CharacterDatabase) {
+                    let mut slot = None;
+                    let install = || { slot = Some(database); };
+                    drop(install);
+                    consume(slot.unwrap().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn clean" && row.operation == PersistenceOperation::PoolAccess
+        }));
     }
 
     #[test]

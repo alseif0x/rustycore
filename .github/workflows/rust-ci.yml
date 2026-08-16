@@ -54,7 +54,9 @@ jobs:
   check:
     name: Check core crates
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    # The exact persistence inventory is intentionally scanned both by its
+    # repository test and by the boundary command before the core build.
+    timeout-minutes: 60
     env:
       CARGO_INCREMENTAL: "0"
     steps:
