@@ -742,6 +742,12 @@ enum SqlExpressionKind {
     Interpolated,
 }
 
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct CallableSignature {
+    generic_params: Vec<String>,
+    generic_inputs: Vec<BTreeSet<String>>,
+}
+
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 struct VariableInfo {
     flow: Flow,
@@ -751,6 +757,8 @@ struct VariableInfo {
     tuple_items: Vec<VariableInfo>,
     field_items: BTreeMap<String, VariableInfo>,
     trait_bounds: BTreeSet<String>,
+    type_generic_params: Vec<String>,
+    callable_signatures: BTreeSet<CallableSignature>,
 }
 
 impl VariableInfo {
@@ -761,6 +769,11 @@ impl VariableInfo {
         self.payload_variants
             .extend(other.payload_variants.iter().cloned());
         self.trait_bounds.extend(other.trait_bounds.iter().cloned());
+        if self.type_generic_params.is_empty() {
+            self.type_generic_params = other.type_generic_params.clone();
+        }
+        self.callable_signatures
+            .extend(other.callable_signatures.iter().cloned());
         for (field, other_info) in &other.field_items {
             self.field_items
                 .entry(field.clone())
@@ -1298,6 +1311,8 @@ fn tuple_items_in_type(ty: &Type, symbols: &ModuleSymbols) -> Vec<VariableInfo> 
                 tuple_items: tuple_items_in_type(element, symbols),
                 field_items: BTreeMap::new(),
                 trait_bounds: trait_bounds_in_type(element, symbols),
+                type_generic_params: Vec::new(),
+                callable_signatures: BTreeSet::new(),
             })
             .collect(),
         Type::Reference(reference) => tuple_items_in_type(&reference.elem, symbols),
@@ -1319,6 +1334,40 @@ fn tuple_items_in_type(ty: &Type, symbols: &ModuleSymbols) -> Vec<VariableInfo> 
     }
 }
 
+fn instantiate_named_type_info(
+    named: &VariableInfo,
+    path: &syn::TypePath,
+    symbols: &ModuleSymbols,
+) -> VariableInfo {
+    let mut instantiated = named.clone();
+    let arguments = path
+        .path
+        .segments
+        .last()
+        .and_then(|segment| match &segment.arguments {
+            syn::PathArguments::AngleBracketed(arguments) => Some(arguments),
+            _ => None,
+        })
+        .into_iter()
+        .flat_map(|arguments| &arguments.args)
+        .filter_map(|argument| match argument {
+            syn::GenericArgument::Type(ty) => Some(variable_info_in_type(ty, symbols)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if !arguments.is_empty() {
+        let substitutions = instantiated
+            .type_generic_params
+            .iter()
+            .cloned()
+            .zip(arguments)
+            .collect::<BTreeMap<_, _>>();
+        substitute_nominal_params(&mut instantiated, &substitutions);
+    }
+    instantiated.type_generic_params.clear();
+    instantiated
+}
+
 fn variable_info_in_type(ty: &Type, symbols: &ModuleSymbols) -> VariableInfo {
     let mut info = VariableInfo {
         flow: Flow::pools(&targets_in_type(ty, symbols)),
@@ -1328,6 +1377,8 @@ fn variable_info_in_type(ty: &Type, symbols: &ModuleSymbols) -> VariableInfo {
         tuple_items: tuple_items_in_type(ty, symbols),
         field_items: BTreeMap::new(),
         trait_bounds: trait_bounds_in_type(ty, symbols),
+        type_generic_params: Vec::new(),
+        callable_signatures: BTreeSet::new(),
     };
     if let Type::Path(path) = ty
         && let Some(alias) = path.path.segments.last().and_then(|segment| {
@@ -1360,13 +1411,15 @@ fn variable_info_in_type(ty: &Type, symbols: &ModuleSymbols) -> VariableInfo {
     };
     if let Some(canonical) = &canonical
         && let Some(named) = symbols.named_type_info.get(canonical)
+        && let Type::Path(path) = ty
     {
-        info.union(named);
+        info.union(&instantiate_named_type_info(named, path, symbols));
     }
     if let Some(canonical) = &canonical
         && let Some(named) = symbols.workspace_named_type_info.get(canonical)
+        && let Type::Path(path) = ty
     {
-        info.union(named);
+        info.union(&instantiate_named_type_info(named, path, symbols));
     }
     info
 }
@@ -2697,7 +2750,10 @@ fn collect_named_type_info(
                 output
                     .entry(path.join("::"))
                     .or_default()
-                    .union(&variable_info_in_type(&alias.ty, &symbols));
+                    .union(&VariableInfo {
+                        type_generic_params: generic_type_param_names(&alias.generics),
+                        ..variable_info_in_type(&alias.ty, &symbols)
+                    });
             }
             Item::Struct(item_struct)
                 if source_class_allows(source_class, cfg, &item_struct.attrs, errors, "struct") =>
@@ -2705,6 +2761,7 @@ fn collect_named_type_info(
                 let mut path = symbols.module_path.clone();
                 path.push(normalized_ident(&item_struct.ident));
                 let entry = output.entry(path.join("::")).or_default();
+                entry.type_generic_params = generic_type_param_names(&item_struct.generics);
                 for (index, field) in item_struct.fields.iter().enumerate() {
                     if source_class_allows(source_class, cfg, &field.attrs, errors, "struct field")
                     {
@@ -2731,6 +2788,11 @@ fn collect_named_type_info(
                 let mut path = symbols.module_path.clone();
                 path.push(normalized_ident(&item_enum.ident));
                 let enum_path = path.join("::");
+                let enum_generic_params = generic_type_param_names(&item_enum.generics);
+                output
+                    .entry(enum_path.clone())
+                    .or_default()
+                    .type_generic_params = enum_generic_params.clone();
                 let mut enum_flow = Flow::default();
                 for variant in &item_enum.variants {
                     if !source_class_allows(
@@ -2750,6 +2812,7 @@ fn collect_named_type_info(
                     variant_path.push(normalized_ident(&item_enum.ident));
                     variant_path.push(normalized_ident(&variant.ident));
                     let variant_entry = output.entry(variant_path.join("::")).or_default();
+                    variant_entry.type_generic_params = enum_generic_params.clone();
                     let mut shapes = Vec::new();
                     for (index, field) in variant.fields.iter().enumerate() {
                         if !source_class_allows(
@@ -3775,10 +3838,34 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 && let Some(name) = last_path_name(&path.path)
                 && let Some(info) = self.symbols.function_returns.get(&name)
             {
-                return info.clone();
+                let mut info = info.clone();
+                if let Some(params) = self.symbols.function_generic_params.get(&name) {
+                    info.callable_signatures.insert(CallableSignature {
+                        generic_params: params.clone(),
+                        generic_inputs: self
+                            .symbols
+                            .function_generic_input_params
+                            .get(&name)
+                            .cloned()
+                            .unwrap_or_default(),
+                    });
+                }
+                return info;
             }
             if let Some(info) = self.symbols.package_function_returns.get(&key) {
-                return info.clone();
+                let mut info = info.clone();
+                if let Some(params) = self.symbols.package_function_generic_params.get(&key) {
+                    info.callable_signatures.insert(CallableSignature {
+                        generic_params: params.clone(),
+                        generic_inputs: self
+                            .symbols
+                            .package_function_generic_input_params
+                            .get(&key)
+                            .cloned()
+                            .unwrap_or_default(),
+                    });
+                }
+                return info;
             }
             let associated = self.associated_return_info(path, None);
             if !associated.flow.is_empty()
@@ -3810,9 +3897,23 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 // a local closure or function-valued binding may carry the
                 // persistence return flow.
                 if let Some(info) = self.lookup(&name) {
-                    let mut result = info.clone();
-                    for argument in &call.args {
-                        result.union(&self.info_from_expr(argument));
+                    if info.callable_signatures.is_empty() {
+                        let mut result = info.clone();
+                        for argument in &call.args {
+                            result.union(&self.info_from_expr(argument));
+                        }
+                        return result;
+                    }
+                    let mut result = VariableInfo::default();
+                    let mut return_info = info.clone();
+                    return_info.callable_signatures.clear();
+                    for signature in &info.callable_signatures {
+                        result.union(&self.apply_inferred_args(
+                            &return_info,
+                            Some(&signature.generic_params),
+                            Some(&signature.generic_inputs),
+                            &call.args,
+                        ));
                     }
                     return result;
                 }
@@ -3914,6 +4015,8 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 tuple_items: return_info.tuple_items,
                 field_items: return_info.field_items,
                 trait_bounds: return_info.trait_bounds,
+                type_generic_params: Vec::new(),
+                callable_signatures: BTreeSet::new(),
             };
         }
         if let Expr::Field(field) = expression {
@@ -3991,6 +4094,8 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 tuple_items: Vec::new(),
                 field_items: BTreeMap::new(),
                 trait_bounds: BTreeSet::new(),
+                type_generic_params: Vec::new(),
+                callable_signatures: BTreeSet::new(),
             };
             let mut names = path_names(&path.path);
             if is_constructor_method {
@@ -4028,6 +4133,8 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             tuple_items: Vec::new(),
             field_items: BTreeMap::new(),
             trait_bounds: BTreeSet::new(),
+            type_generic_params: Vec::new(),
+            callable_signatures: BTreeSet::new(),
         }
     }
 
@@ -4470,6 +4577,14 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             {
                 SqlExpressionKind::Interpolated
             }
+            Expr::MethodCall(method)
+                if matches!(
+                    normalized_ident(&method.method).as_str(),
+                    "as_str" | "as_ref"
+                ) =>
+            {
+                self.sql_expression_kind(&method.receiver)
+            }
             Expr::MethodCall(method) if normalized_ident(&method.method) == "sql" => {
                 let mut targets = self.flow_of_expr(&method.receiver).targets();
                 if let Expr::Path(path) = method.receiver.as_ref() {
@@ -4618,6 +4733,20 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         }
         if names.len() == 1 {
             if let Some(info) = self.lookup(last) {
+                if !info.callable_signatures.is_empty() {
+                    let mut result = VariableInfo::default();
+                    let mut return_info = info.clone();
+                    return_info.callable_signatures.clear();
+                    for signature in &info.callable_signatures {
+                        result.union(&self.apply_inferred_args(
+                            &return_info,
+                            Some(&signature.generic_params),
+                            Some(&signature.generic_inputs),
+                            &call.args,
+                        ));
+                    }
+                    return result.flow;
+                }
                 let mut flow = info.flow.clone();
                 for argument in &call.args {
                     flow.union(self.flow_of_expr(argument));
@@ -5498,6 +5627,21 @@ fn simple_assignment_name(expression: &Expr) -> Option<String> {
         .flatten()
 }
 
+fn bind_let_chain_patterns(analyzer: &mut BodyAnalyzer<'_, '_>, expression: &Expr) {
+    match expression {
+        Expr::Let(let_expression) => {
+            analyzer.bind_pattern_from_expr(&let_expression.pat, &let_expression.expr);
+        }
+        Expr::Binary(binary) if matches!(binary.op, syn::BinOp::And(_)) => {
+            bind_let_chain_patterns(analyzer, &binary.left);
+            bind_let_chain_patterns(analyzer, &binary.right);
+        }
+        Expr::Paren(paren) => bind_let_chain_patterns(analyzer, &paren.expr),
+        Expr::Group(group) => bind_let_chain_patterns(analyzer, &group.expr),
+        _ => {}
+    }
+}
+
 fn assign_destructured_expr(
     analyzer: &mut BodyAnalyzer<'_, '_>,
     expression: &Expr,
@@ -6218,9 +6362,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         // including the no-`else` path.
         let pre_if_scopes = self.scopes.clone();
         self.push_scope();
-        if let Expr::Let(let_expression) = expression.cond.as_ref() {
-            self.bind_pattern_from_expr(&let_expression.pat, &let_expression.expr);
-        }
+        bind_let_chain_patterns(self, &expression.cond);
         self.visit_block(&expression.then_branch);
         self.pop_scope();
         let post_then = self.scopes.clone();
@@ -7590,12 +7732,27 @@ fn resolve_public_named_type_reexports(
                         })
                         .collect::<Vec<_>>()
                 } else {
-                    provider_public
-                        .contains(&provider_entry)
-                        .then(|| provider_registry.get(&provider_entry).cloned())
-                        .flatten()
-                        .map(|info| vec![(export.to_owned(), info)])
-                        .unwrap_or_default()
+                    let mut entries = Vec::new();
+                    if provider_public.contains(&provider_entry)
+                        && let Some(info) = provider_registry.get(&provider_entry)
+                    {
+                        entries.push((export.to_owned(), info.clone()));
+                    }
+                    let prefix = format!("{provider_entry}::");
+                    entries.extend(provider_registry.iter().filter_map(|(entry, info)| {
+                        if !provider_public.contains(entry) {
+                            return None;
+                        }
+                        entry.strip_prefix(&prefix).map(|suffix| {
+                            let exported = if export.is_empty() {
+                                suffix.to_owned()
+                            } else {
+                                format!("{export}::{suffix}")
+                            };
+                            (exported, info.clone())
+                        })
+                    }));
+                    entries
                 };
                 for (exported, source_info) in entries {
                     let info = if let Some(provider_root) = provider_root {
@@ -12724,5 +12881,159 @@ mod tests {
                 && row.target == PersistenceTarget::SqlResult
                 && row.operation == PersistenceOperation::ArgumentEscape
         }));
+    }
+
+    #[test]
+    fn persistence_inventory_resolves_public_module_alias_named_types() {
+        let provider = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "provider-a",
+            module: "crate",
+            source_path: "src/lib.rs",
+            inherited_cfg: &[],
+            source: r#"
+                pub mod dto {
+                    pub struct Holder(pub wow_database::CharacterDatabase);
+                    struct Hidden(pub wow_database::CharacterDatabase);
+                }
+            "#,
+        };
+        let facade = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "provider-b",
+            module: "crate",
+            source_path: "src/lib.rs",
+            inherited_cfg: &[],
+            source: "pub use provider_a_alias::dto as types;",
+        };
+        let consumer = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "consumer-c",
+            module: "crate",
+            source_path: "src/lib.rs",
+            inherited_cfg: &[],
+            source: r#"
+                fn persistent(holder: facade_alias::types::Holder) {
+                    consume(holder.0.pool());
+                }
+                fn private(holder: facade_alias::types::Hidden) {
+                    consume(holder.0.pool());
+                }
+            "#,
+        };
+        let dependencies = WorkspaceDependencyAliases {
+            production: BTreeMap::from([
+                (
+                    "provider-b".to_owned(),
+                    BTreeMap::from([("provider_a_alias".to_owned(), "provider_a".to_owned())]),
+                ),
+                (
+                    "consumer-c".to_owned(),
+                    BTreeMap::from([("facade_alias".to_owned(), "provider_b".to_owned())]),
+                ),
+            ]),
+            test: BTreeMap::new(),
+        };
+        let baseline = inventory_persistence_accesses_with_dependencies(
+            &[consumer, facade, provider],
+            &dependencies,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn private" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_infers_generic_function_item_alias_arguments() {
+        let baseline = inventory(
+            r#"
+                struct Clean;
+                impl Clean { fn pool(self) {} }
+                fn first<T, U>(value: T, _other: U) -> T { value }
+                fn clean(database: wow_database::CharacterDatabase) {
+                    let first_alias = first;
+                    first_alias(Clean, database).pool();
+                }
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    let first_alias = first;
+                    first_alias(database, Clean).pool();
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn clean" && row.operation == PersistenceOperation::PoolAccess
+        }));
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_binds_let_chain_patterns_in_then_branch() {
+        let baseline = inventory(
+            r#"
+                struct Holder(wow_database::CharacterDatabase);
+                fn persistent(maybe: Option<Holder>, enabled: bool) {
+                    if let Some(holder) = maybe && enabled {
+                        consume(holder.0.pool());
+                    }
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_instantiates_generic_named_type_fields() {
+        let baseline = inventory(
+            r#"
+                struct Clean;
+                impl Clean { fn pool(self) {} }
+                struct Holder<T>(T);
+                fn clean(holder: Holder<Clean>) { holder.0.pool(); }
+                fn persistent(holder: Holder<wow_database::CharacterDatabase>) {
+                    holder.0.pool();
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn clean" && row.operation == PersistenceOperation::PoolAccess
+        }));
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_preserves_interpolated_sql_through_string_views() {
+        let baseline = inventory(
+            r#"
+                fn dynamic(id: u32) {
+                    sqlx::query(format!("SELECT {id}").as_str());
+                    sqlx::query(format!("SELECT {id}").as_ref());
+                }
+            "#,
+        )
+        .unwrap();
+        assert_eq!(
+            baseline
+                .accesses
+                .iter()
+                .filter(|row| {
+                    row.enclosing == "fn dynamic"
+                        && row.operation == PersistenceOperation::InterpolatedSql
+                })
+                .count(),
+            2
+        );
     }
 }
