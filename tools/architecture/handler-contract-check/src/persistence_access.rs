@@ -5683,6 +5683,15 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         {
             return Flow::query();
         }
+        if rooted_sqlx
+            && last == "new"
+            && names
+                .iter()
+                .nth_back(1)
+                .is_some_and(|owner| owner == "QueryBuilder")
+        {
+            return Flow::query();
+        }
         if is_flow_passthrough_call(&names)
             || is_standard_identity(&self.canonical_local_path_names(names.clone()))
         {
@@ -6912,6 +6921,20 @@ fn assign_destructured_expr(
             }
             all_supported
         }
+        Expr::Struct(structure) => {
+            let mut all_supported = true;
+            for field in &structure.fields {
+                let field_name = match &field.member {
+                    Member::Named(ident) => normalized_ident(ident),
+                    Member::Unnamed(index) => index.index.to_string(),
+                };
+                let field_info = info.field_items.get(&field_name).unwrap_or(info);
+                if !assign_destructured_expr(analyzer, &field.expr, field_info) {
+                    all_supported = false;
+                }
+            }
+            all_supported
+        }
         Expr::Paren(paren) => assign_destructured_expr(analyzer, &paren.expr, info),
         Expr::Group(group) => assign_destructured_expr(analyzer, &group.expr, info),
         _ => false,
@@ -7109,7 +7132,16 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         // and the bindings that would result if the future were later polled.
         let declaration_scopes = self.scopes.clone();
         self.push_scope();
+        self.return_exit_collectors.push(None);
         self.visit_block(&expression.block);
+        if let Some(exits) = self
+            .return_exit_collectors
+            .pop()
+            .expect("async return collector was installed")
+        {
+            merge_scope_stacks(&mut self.scopes, &exits);
+            self.bump_context();
+        }
         self.pop_scope();
         merge_scope_stacks(&mut self.scopes, &declaration_scopes);
         self.bump_context();
@@ -7677,6 +7709,10 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             || (name == "bind" && receiver.has_stage(FlowStage::Query));
         let operation = if is_query_name(&name) && !receiver.0.is_empty() {
             Some(PersistenceOperation::Query)
+        } else if matches!(name.as_str(), "push" | "separated")
+            && receiver.targets().contains(&PersistenceTarget::Sqlx)
+        {
+            Some(PersistenceOperation::RawSql)
         } else {
             PersistenceOperation::from_executor_method(&name)
         };
@@ -7736,7 +7772,9 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                     }
                     if matches!(
                         operation,
-                        PersistenceOperation::DirectQuery | PersistenceOperation::DirectExecute
+                        PersistenceOperation::DirectQuery
+                            | PersistenceOperation::DirectExecute
+                            | PersistenceOperation::RawSql
                     ) && let Some(argument) = method.args.first()
                     {
                         match self.sql_expression_kind(argument) {
@@ -13926,6 +13964,24 @@ mod tests {
     }
 
     #[test]
+    fn persistence_inventory_updates_struct_destructuring_assignment_bindings() {
+        let baseline = inventory(
+            r#"
+                struct Holder { value: wow_database::CharacterDatabase, clean: u8 }
+                fn persistent(holder: Holder) {
+                    let mut slot = unreachable!();
+                    Holder { value: slot, .. } = holder;
+                    consume(slot.pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
     fn persistence_inventory_updates_supported_places_in_mixed_assignments() {
         let baseline = inventory(
             r#"
@@ -14351,6 +14407,27 @@ mod tests {
                 .any(|row| row.enclosing == "fn persistent"
                     && row.operation == PersistenceOperation::PoolAccess)
         );
+    }
+
+    #[test]
+    fn persistence_inventory_preserves_async_return_exit_mutations() {
+        let baseline = inventory(
+            r#"
+                async fn persistent(database: wow_database::CharacterDatabase, stop: bool) {
+                    let mut slot = None;
+                    async {
+                        slot = Some(database);
+                        if stop { return; }
+                        slot = None;
+                    }.await;
+                    consume(slot.unwrap().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
     }
 
     #[test]
@@ -14965,6 +15042,53 @@ mod tests {
         assert!(first.accesses.iter().any(|row| {
             row.enclosing == "fn constant" && row.operation == PersistenceOperation::AdvisoryLock
         }));
+    }
+
+    #[test]
+    fn persistence_inventory_fingerprints_query_builder_sql_fragments() {
+        let first = inventory(
+            r#"
+                fn build() {
+                    let mut builder = sqlx::QueryBuilder::new("SELECT 1");
+                    builder.push(" WHERE enabled = 1");
+                }
+            "#,
+        )
+        .unwrap();
+        let second = inventory(
+            r#"
+                fn build() {
+                    let mut builder = sqlx::QueryBuilder::new("SELECT 1");
+                    builder.push(" WHERE enabled = 0");
+                }
+            "#,
+        )
+        .unwrap();
+        let raw_sql = |baseline: &PersistenceAccessBaseline| {
+            baseline
+                .accesses
+                .iter()
+                .filter(|row| row.operation == PersistenceOperation::RawSql)
+                .map(|row| row.fingerprint.clone())
+                .collect::<BTreeSet<_>>()
+        };
+        assert_ne!(raw_sql(&first), raw_sql(&second));
+
+        let interpolated = inventory(
+            r#"
+                fn build(fragment: &str) {
+                    let mut builder = sqlx::QueryBuilder::new("SELECT 1");
+                    builder.push(format!(" WHERE {fragment}"));
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(
+            interpolated
+                .accesses
+                .iter()
+                .any(|row| row.operation == PersistenceOperation::InterpolatedSql)
+        );
     }
 
     #[test]
