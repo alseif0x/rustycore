@@ -733,9 +733,15 @@ fn sql_is_advisory_lock(fingerprint: &str) -> bool {
     // a case-sensitive test would lose the AdvisoryLock identity and with it
     // the connection-affinity fact the semantic ledger must preserve.
     let normalized = fingerprint.to_ascii_uppercase();
-    ["GET_LOCK", "RELEASE_LOCK", "IS_USED_LOCK"]
-        .iter()
-        .any(|needle| normalized.contains(needle))
+    [
+        "GET_LOCK",
+        "RELEASE_LOCK",
+        "IS_USED_LOCK",
+        "IS_FREE_LOCK",
+        "RELEASE_ALL_LOCKS",
+    ]
+    .iter()
+    .any(|needle| normalized.contains(needle))
 }
 
 fn sqlx_calls_in_tokens(tokens: TokenStream, output: &mut Vec<(String, String)>) {
@@ -897,10 +903,17 @@ fn called_parameter_inputs(function: &ItemFn) -> BTreeSet<usize> {
 struct MutableParameterWrites {
     parameters: BTreeMap<String, usize>,
     written: BTreeSet<usize>,
+    receiver_fields: BTreeSet<String>,
 }
 
 impl<'ast> Visit<'ast> for MutableParameterWrites {
     fn visit_expr_assign(&mut self, assignment: &'ast syn::ExprAssign) {
+        if let Some((root, projections)) = assignment_place(&assignment.left)
+            && root == "self"
+            && let Some(PlaceProjection::Field(field)) = projections.first()
+        {
+            self.receiver_fields.insert(field.clone());
+        }
         if let Expr::Unary(unary) = assignment.left.as_ref()
             && matches!(unary.op, syn::UnOp::Deref(_))
             && let Some(name) = simple_assignment_name(&unary.expr)
@@ -910,6 +923,42 @@ impl<'ast> Visit<'ast> for MutableParameterWrites {
         }
         syn::visit::visit_expr_assign(self, assignment);
     }
+}
+
+fn mutable_method_writes(method: &syn::ImplItemFn) -> (BTreeSet<String>, BTreeSet<usize>) {
+    let receiver_is_mutable = method.sig.inputs.first().is_some_and(
+        |input| matches!(input, FnArg::Receiver(receiver) if receiver.mutability.is_some()),
+    );
+    let parameters = method
+        .sig
+        .inputs
+        .iter()
+        .enumerate()
+        .filter_map(|(index, input)| {
+            let FnArg::Typed(typed) = input else {
+                return None;
+            };
+            let Type::Reference(reference) = typed.ty.as_ref() else {
+                return None;
+            };
+            if reference.mutability.is_none() {
+                return None;
+            }
+            let Pat::Ident(ident) = typed.pat.as_ref() else {
+                return None;
+            };
+            Some((normalized_ident(&ident.ident), index.saturating_sub(1)))
+        })
+        .collect();
+    let mut visitor = MutableParameterWrites {
+        parameters,
+        ..MutableParameterWrites::default()
+    };
+    visitor.visit_block(&method.block);
+    let receiver_fields = receiver_is_mutable
+        .then_some(visitor.receiver_fields)
+        .unwrap_or_default();
+    (receiver_fields, visitor.written)
 }
 
 fn mutable_parameter_writes(function: &ItemFn) -> BTreeSet<usize> {
@@ -1461,6 +1510,9 @@ struct ModuleSymbols {
     function_called_inputs: BTreeMap<String, BTreeSet<usize>>,
     function_mutable_writes: BTreeMap<String, BTreeMap<usize, VariableInfo>>,
     method_returns: BTreeMap<(String, Option<String>, String), VariableInfo>,
+    method_mutable_receivers: BTreeMap<(String, Option<String>, String), VariableInfo>,
+    method_mutable_writes:
+        BTreeMap<(String, Option<String>, String), BTreeMap<usize, VariableInfo>>,
     // Generic parameter name lists, recorded next to the return registries so
     // an explicit turbofish at the call site can be substituted into the
     // recorded return instead of letting `make::<CharacterDatabase>()` bypass
@@ -1490,6 +1542,9 @@ struct ModuleSymbols {
     // crate-relative owner path): without them `factory.make()` only resolves
     // when the impl lives in the same module as the call.
     package_method_returns: std::sync::Arc<BTreeMap<(String, String), VariableInfo>>,
+    package_method_mutable_receivers: std::sync::Arc<BTreeMap<(String, String), VariableInfo>>,
+    package_method_mutable_writes:
+        std::sync::Arc<BTreeMap<(String, String), BTreeMap<usize, VariableInfo>>>,
     package_method_generic_params: std::sync::Arc<BTreeMap<(String, String), Vec<String>>>,
     package_method_generic_input_params:
         std::sync::Arc<BTreeMap<(String, String), Vec<GenericInputSpec>>>,
@@ -1537,6 +1592,8 @@ impl Default for ModuleSymbols {
             function_called_inputs: BTreeMap::new(),
             function_mutable_writes: BTreeMap::new(),
             method_returns: BTreeMap::new(),
+            method_mutable_receivers: BTreeMap::new(),
+            method_mutable_writes: BTreeMap::new(),
             function_generic_params: BTreeMap::new(),
             function_generic_input_params: BTreeMap::new(),
             method_generic_params: BTreeMap::new(),
@@ -1554,6 +1611,8 @@ impl Default for ModuleSymbols {
             package_function_generic_params: std::sync::Arc::new(BTreeMap::new()),
             package_function_generic_input_params: std::sync::Arc::new(BTreeMap::new()),
             package_method_returns: std::sync::Arc::new(BTreeMap::new()),
+            package_method_mutable_receivers: std::sync::Arc::new(BTreeMap::new()),
+            package_method_mutable_writes: std::sync::Arc::new(BTreeMap::new()),
             package_method_generic_params: std::sync::Arc::new(BTreeMap::new()),
             package_method_generic_input_params: std::sync::Arc::new(BTreeMap::new()),
             item_values: BTreeMap::new(),
@@ -3204,6 +3263,61 @@ fn collect_module_symbols(
                     {
                         continue;
                     }
+                    let method_name = normalized_ident(&method.sig.ident);
+                    let (receiver_fields, parameter_writes) = mutable_method_writes(method);
+                    for receiver_type in &receiver_types {
+                        let key = (
+                            receiver_type.clone(),
+                            trait_name.clone(),
+                            method_name.clone(),
+                        );
+                        let mut receiver_write_info = VariableInfo::default();
+                        for field in &receiver_fields {
+                            let mut field_write_info = VariableInfo::default();
+                            if let Some(targets) = symbols
+                                .field_targets
+                                .get(&(receiver_type.clone(), field.clone()))
+                            {
+                                field_write_info.flow.union(Flow::pools(targets));
+                            }
+                            if let Some(types) = symbols
+                                .field_nominal_types
+                                .get(&(receiver_type.clone(), field.clone()))
+                            {
+                                field_write_info.nominal_types.extend(types.iter().cloned());
+                            }
+                            if field_write_info != VariableInfo::default() {
+                                receiver_write_info
+                                    .field_items
+                                    .entry(field.clone())
+                                    .or_default()
+                                    .union(&field_write_info);
+                            }
+                        }
+                        if receiver_write_info != VariableInfo::default() {
+                            symbols
+                                .method_mutable_receivers
+                                .entry(key.clone())
+                                .or_default()
+                                .union(&receiver_write_info);
+                        }
+                        for index in &parameter_writes {
+                            let Some(FnArg::Typed(typed)) = method.sig.inputs.iter().nth(index + 1)
+                            else {
+                                continue;
+                            };
+                            let parameter_info = flatten_reachable_variable_info(
+                                &variable_info_in_type(&typed.ty, &symbols),
+                            );
+                            symbols
+                                .method_mutable_writes
+                                .entry(key.clone())
+                                .or_default()
+                                .entry(*index)
+                                .or_default()
+                                .union(&parameter_info);
+                        }
+                    }
                     if let ReturnType::Type(_, ty) = &method.sig.output {
                         let mut return_info = variable_info_in_type(ty, &symbols);
                         // `Self::Product` is represented by syn as a nominal
@@ -3213,7 +3327,6 @@ fn collect_module_symbols(
                         return_info.sql_expression = SqlExpressionKind::Nonliteral;
                         let generic_params = generic_type_param_names(&method.sig.generics);
                         if !generic_params.is_empty() {
-                            let method_name = normalized_ident(&method.sig.ident);
                             let input_params =
                                 generic_params_by_input(&method.sig.inputs, &generic_params);
                             for receiver_type in &receiver_types {
@@ -3241,7 +3354,6 @@ fn collect_module_symbols(
                             || !return_info.tuple_items.is_empty()
                             || !return_info.trait_bounds.is_empty()
                         {
-                            let method_name = normalized_ident(&method.sig.ident);
                             for receiver_type in &receiver_types {
                                 let info = symbols
                                     .method_returns
@@ -3805,6 +3917,7 @@ struct BodyAnalyzer<'a, 'b> {
     loop_flow_collectors: Vec<LoopFlowCollector>,
     block_exit_collectors: Vec<BlockExitCollector>,
     return_exit_collectors: Vec<Option<Vec<BTreeMap<String, VariableInfo>>>>,
+    return_value_collectors: Vec<VariableInfo>,
     context_version: u64,
     suppress_records: bool,
 }
@@ -3873,6 +3986,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             loop_flow_collectors: Vec::new(),
             block_exit_collectors: Vec::new(),
             return_exit_collectors: Vec::new(),
+            return_value_collectors: Vec::new(),
             context_version: 0,
             suppress_records: false,
         }
@@ -4386,6 +4500,65 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         result
     }
 
+    fn method_mutation_effects(
+        &self,
+        method: &ExprMethodCall,
+    ) -> (VariableInfo, BTreeMap<usize, VariableInfo>) {
+        let method_name = normalized_ident(&method.method);
+        let receiver_types = self.nominal_types_of_expr(&method.receiver);
+        let mut receiver_effect = VariableInfo::default();
+        let mut parameter_effects = BTreeMap::<usize, VariableInfo>::new();
+        for receiver_type in receiver_types {
+            for ((owner, trait_name, candidate), info) in &self.symbols.method_mutable_receivers {
+                if owner == &receiver_type
+                    && candidate == &method_name
+                    && trait_name
+                        .as_ref()
+                        .is_none_or(|trait_name| self.trait_is_in_scope(trait_name))
+                {
+                    receiver_effect.union(info);
+                }
+            }
+            for ((owner, trait_name, candidate), effects) in &self.symbols.method_mutable_writes {
+                if owner == &receiver_type
+                    && candidate == &method_name
+                    && trait_name
+                        .as_ref()
+                        .is_none_or(|trait_name| self.trait_is_in_scope(trait_name))
+                {
+                    for (index, info) in effects {
+                        parameter_effects.entry(*index).or_default().union(info);
+                    }
+                }
+            }
+            let owner_key = if receiver_type.contains("::") {
+                receiver_type
+                    .strip_prefix("crate::")
+                    .unwrap_or(&receiver_type)
+                    .to_owned()
+            } else {
+                self.package_function_key(vec![receiver_type])
+            };
+            if let Some(info) = self
+                .symbols
+                .package_method_mutable_receivers
+                .get(&(owner_key.clone(), method_name.clone()))
+            {
+                receiver_effect.union(info);
+            }
+            if let Some(effects) = self
+                .symbols
+                .package_method_mutable_writes
+                .get(&(owner_key, method_name.clone()))
+            {
+                for (index, info) in effects {
+                    parameter_effects.entry(*index).or_default().union(info);
+                }
+            }
+        }
+        (receiver_effect, parameter_effects)
+    }
+
     fn expand_trait_bounds(&self, trait_bounds: BTreeSet<String>) -> BTreeSet<String> {
         let mut pending = trait_bounds.into_iter().collect::<Vec<_>>();
         let mut expanded_trait_bounds = BTreeSet::new();
@@ -4866,10 +5039,13 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 if let Some(info) = self.symbols.function_returns.get(&name) {
                     let params = self.symbols.function_generic_params.get(&name);
                     let result = self.apply_turbofish_args(info, params, turbofish);
-                    return self.apply_inferred_args(
-                        &result,
-                        params,
-                        self.symbols.function_generic_input_params.get(&name),
+                    return self.preserve_opaque_argument_info(
+                        self.apply_inferred_args(
+                            &result,
+                            params,
+                            self.symbols.function_generic_input_params.get(&name),
+                            &call.args,
+                        ),
                         &call.args,
                     );
                 }
@@ -4879,15 +5055,21 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 if let Some(info) = self.symbols.package_function_returns.get(&key) {
                     let params = self.symbols.package_function_generic_params.get(&key);
                     let result = self.apply_turbofish_args(info, params, turbofish);
-                    return self.apply_inferred_args(
-                        &result,
-                        params,
-                        self.symbols.package_function_generic_input_params.get(&key),
+                    return self.preserve_opaque_argument_info(
+                        self.apply_inferred_args(
+                            &result,
+                            params,
+                            self.symbols.package_function_generic_input_params.get(&key),
+                            &call.args,
+                        ),
                         &call.args,
                     );
                 }
             }
-            let return_info = self.associated_return_info(path, Some(&call.args));
+            let return_info = self.preserve_opaque_argument_info(
+                self.associated_return_info(path, Some(&call.args)),
+                &call.args,
+            );
             if !return_info.flow.is_empty()
                 || !return_info.nominal_types.is_empty()
                 || !return_info.payload_variants.is_empty()
@@ -5490,9 +5672,42 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             Pat::TupleStruct(tuple) => {
                 let owner = self.pattern_owner(&tuple.path);
                 for (index, element) in tuple.elems.iter().enumerate() {
+                    if matches!(element, Pat::Rest(_)) {
+                        continue;
+                    }
+                    let source_index = tuple
+                        .elems
+                        .iter()
+                        .position(|pattern| matches!(pattern, Pat::Rest(_)))
+                        .filter(|rest| index > *rest)
+                        .and_then(|_| {
+                            let declared_len = self
+                                .symbols
+                                .named_type_info
+                                .iter()
+                                .filter(|(key, _)| {
+                                    *key == &owner || key.ends_with(&format!("::{owner}"))
+                                })
+                                .map(|(_, info)| info.tuple_items.len())
+                                .max()
+                                .into_iter()
+                                .chain(
+                                    self.symbols
+                                        .tuple_field_targets
+                                        .keys()
+                                        .chain(self.symbols.field_nominal_types.keys())
+                                        .filter(|(candidate, _)| candidate == &owner)
+                                        .filter_map(|(_, field)| field.parse::<usize>().ok())
+                                        .map(|index| index + 1),
+                                )
+                                .max()
+                                .unwrap_or(tuple.elems.len());
+                            declared_len.checked_sub(tuple.elems.len().saturating_sub(index))
+                        })
+                        .unwrap_or(index);
                     if self.has_declared_fields(&owner) {
                         let field_info =
-                            self.declared_field_info(&owner, &index.to_string(), false);
+                            self.declared_field_info(&owner, &source_index.to_string(), false);
                         self.bind_pattern(element, &field_info);
                     } else if let Some(payload_info) = self.wrapper_payload_info(&owner, info) {
                         self.bind_pattern(element, &payload_info);
@@ -5916,10 +6131,13 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 let params = self.symbols.function_generic_params.get(last);
                 let result = self.apply_turbofish_args(info, params, turbofish);
                 return self
-                    .apply_inferred_args(
-                        &result,
-                        params,
-                        self.symbols.function_generic_input_params.get(last),
+                    .preserve_opaque_argument_info(
+                        self.apply_inferred_args(
+                            &result,
+                            params,
+                            self.symbols.function_generic_input_params.get(last),
+                            &call.args,
+                        ),
                         &call.args,
                     )
                     .flow;
@@ -5931,10 +6149,13 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 let params = self.symbols.package_function_generic_params.get(&key);
                 let result = self.apply_turbofish_args(info, params, turbofish);
                 return self
-                    .apply_inferred_args(
-                        &result,
-                        params,
-                        self.symbols.package_function_generic_input_params.get(&key),
+                    .preserve_opaque_argument_info(
+                        self.apply_inferred_args(
+                            &result,
+                            params,
+                            self.symbols.package_function_generic_input_params.get(&key),
+                            &call.args,
+                        ),
                         &call.args,
                     )
                     .flow;
@@ -6787,6 +7008,19 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             .unwrap_or_else(|| info.clone())
     }
 
+    fn preserve_opaque_argument_info(
+        &self,
+        mut result: VariableInfo,
+        arguments: &syn::punctuated::Punctuated<Expr, syn::token::Comma>,
+    ) -> VariableInfo {
+        if result.flow.is_empty() && !result.trait_bounds.is_empty() {
+            for argument in arguments {
+                result.union(&self.info_from_expr(argument));
+            }
+        }
+        result
+    }
+
     fn closure_mutations_for_args(
         &self,
         info: &VariableInfo,
@@ -7367,7 +7601,11 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         let declaration_scopes = self.scopes.clone();
         self.push_scope();
         self.return_exit_collectors.push(None);
+        self.return_value_collectors.push(VariableInfo::default());
         self.visit_block(&expression.block);
+        self.return_value_collectors
+            .pop()
+            .expect("async return value collector was installed");
         if let Some(exits) = self
             .return_exit_collectors
             .pop()
@@ -7718,7 +7956,17 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                 }
                 _ => (String::new(), false, false, TargetSet::new(), false),
             };
-        let query = (rooted_sqlx && is_query_name(&name)) || imported_query;
+        let query_builder_constructor = rooted_sqlx
+            && name == "new"
+            && matches!(
+                call.func.as_ref(),
+                Expr::Path(path)
+                    if path.path.segments.iter().nth_back(1).is_some_and(|segment| {
+                        normalized_ident(&segment.ident) == "QueryBuilder"
+                    })
+            );
+        let query =
+            (rooted_sqlx && is_query_name(&name)) || imported_query || query_builder_constructor;
         let has_path_targets = !path_targets.is_empty();
         if query {
             let fingerprint = self.fingerprint_with_sql_source(
@@ -8137,6 +8385,16 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             }
             union_into_assignment_place(self, &method.receiver, &stored);
         }
+        let (receiver_effect, parameter_effects) = self.method_mutation_effects(method);
+        if receiver_effect != VariableInfo::default() {
+            union_into_assignment_place(self, &method.receiver, &receiver_effect);
+        }
+        for (index, effect) in parameter_effects {
+            let Some(place) = method.args.get(index).and_then(mutable_storage_place) else {
+                continue;
+            };
+            union_into_assignment_place(self, place, &effect);
+        }
         self.visit_expr(&method.receiver);
         for argument in &method.args {
             if !matches!(argument, Expr::Closure(_)) {
@@ -8263,7 +8521,8 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         }
         if let Some(expression) = &returned.expr {
             self.visit_expr(expression);
-            let flow = self.flow_of_expr(expression);
+            let info = self.info_from_expr(expression);
+            let flow = info.flow.clone();
             let cfg = item_cfg(&self.cfg, &returned.attrs);
             self.record_pool_escape(
                 &flow,
@@ -8272,6 +8531,9 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                 &cfg,
                 normalized_tokens(expression),
             );
+            if let Some(result) = self.return_value_collectors.last_mut() {
+                result.union(&info);
+            }
         }
         self.capture_return_exit();
     }
@@ -8459,8 +8721,14 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             self.bind_pattern(input, info);
         }
         self.return_exit_collectors.push(None);
+        self.return_value_collectors.push(VariableInfo::default());
         self.visit_expr(&closure.body);
-        let result_info = self.info_from_expr(&closure.body);
+        let mut result_info = self.info_from_expr(&closure.body);
+        let returned = self
+            .return_value_collectors
+            .pop()
+            .expect("closure return value collector was installed");
+        result_info.union(&returned);
         self.closure_result_infos
             .borrow_mut()
             .insert(closure as *const ExprClosure as usize, result_info);
@@ -10657,6 +10925,14 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
         (String, PersistenceSourceClass),
         BTreeMap<(String, String), VariableInfo>,
     >::new();
+    let mut method_mutable_receiver_registries = BTreeMap::<
+        (String, PersistenceSourceClass),
+        BTreeMap<(String, String), VariableInfo>,
+    >::new();
+    let mut method_mutable_write_registries = BTreeMap::<
+        (String, PersistenceSourceClass),
+        BTreeMap<(String, String), BTreeMap<usize, VariableInfo>>,
+    >::new();
     let mut method_generic_registries =
         BTreeMap::<(String, PersistenceSourceClass), BTreeMap<(String, String), Vec<String>>>::new(
         );
@@ -10842,6 +11118,42 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
                     .entry((canonical_owner, method.clone()))
                     .or_default()
                     .union(info);
+            }
+            let mutable_receiver_registry = method_mutable_receiver_registries
+                .entry((source.package.to_owned(), source_class))
+                .or_default();
+            for ((owner, trait_name, method), info) in &symbols.method_mutable_receivers {
+                if trait_name.is_some() {
+                    continue;
+                }
+                let canonical_owner = if module_prefix.is_empty() || owner.contains("::") {
+                    owner.clone()
+                } else {
+                    format!("{module_prefix}::{owner}")
+                };
+                mutable_receiver_registry
+                    .entry((canonical_owner, method.clone()))
+                    .or_default()
+                    .union(info);
+            }
+            let mutable_write_registry = method_mutable_write_registries
+                .entry((source.package.to_owned(), source_class))
+                .or_default();
+            for ((owner, trait_name, method), effects) in &symbols.method_mutable_writes {
+                if trait_name.is_some() {
+                    continue;
+                }
+                let canonical_owner = if module_prefix.is_empty() || owner.contains("::") {
+                    owner.clone()
+                } else {
+                    format!("{module_prefix}::{owner}")
+                };
+                let target = mutable_write_registry
+                    .entry((canonical_owner, method.clone()))
+                    .or_default();
+                for (index, info) in effects {
+                    target.entry(*index).or_default().union(info);
+                }
             }
             let method_generic_registry = method_generic_registries
                 .entry((source.package.to_owned(), source_class))
@@ -11096,6 +11408,25 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
         |provider_root, (owner, method)| (format!("{provider_root}::{owner}"), method.clone()),
         qualify_dependency_info,
     );
+    let method_mutable_receiver_registry_cache = dependency_scoped_registry_cache(
+        &method_mutable_receiver_registries,
+        &named_type_registries,
+        dependencies,
+        |provider_root, (owner, method)| (format!("{provider_root}::{owner}"), method.clone()),
+        qualify_dependency_info,
+    );
+    let method_mutable_write_registry_cache = dependency_scoped_registry_cache(
+        &method_mutable_write_registries,
+        &named_type_registries,
+        dependencies,
+        |provider_root, (owner, method)| (format!("{provider_root}::{owner}"), method.clone()),
+        |provider_root, named, effects| {
+            effects
+                .iter()
+                .map(|(index, info)| (*index, qualify_dependency_info(provider_root, named, info)))
+                .collect()
+        },
+    );
     let method_generic_registry_cache = dependency_scoped_registry_cache(
         &method_generic_registries,
         &named_type_registries,
@@ -11250,6 +11581,15 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
                     .cloned()
                     .unwrap_or_else(|| std::sync::Arc::new(BTreeMap::new()));
             package_symbols.package_method_returns = method_registry_cache
+                .get(&registry_key)
+                .cloned()
+                .unwrap_or_else(|| std::sync::Arc::new(BTreeMap::new()));
+            package_symbols.package_method_mutable_receivers =
+                method_mutable_receiver_registry_cache
+                    .get(&registry_key)
+                    .cloned()
+                    .unwrap_or_else(|| std::sync::Arc::new(BTreeMap::new()));
+            package_symbols.package_method_mutable_writes = method_mutable_write_registry_cache
                 .get(&registry_key)
                 .cloned()
                 .unwrap_or_else(|| std::sync::Arc::new(BTreeMap::new()));
@@ -16737,5 +17077,177 @@ mod tests {
                     .any(|row| { row.enclosing == "fn persistent" && row.operation == operation })
             );
         }
+    }
+
+    #[test]
+    fn persistence_inventory_applies_registered_mutable_method_effects() {
+        let baseline = inventory(
+            r#"
+                struct Holder { slot: Option<wow_database::CharacterDatabase> }
+                impl Holder {
+                    fn install(&mut self) { self.slot = Some(unreachable!()); }
+                }
+                fn persistent(mut holder: Holder) {
+                    holder.install();
+                    consume(holder.slot.unwrap().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_applies_mutable_method_effects_across_source_files() {
+        let helper = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "fixture",
+            module: "crate::helper",
+            source_path: "src/helper.rs",
+            inherited_cfg: &[],
+            source: r#"
+                pub struct Holder { pub slot: Option<wow_database::CharacterDatabase> }
+                impl Holder {
+                    pub fn install(&mut self) { self.slot = Some(unreachable!()); }
+                    pub fn fill(&self, slot: &mut Option<wow_database::CharacterDatabase>) {
+                        *slot = Some(unreachable!());
+                    }
+                }
+            "#,
+        };
+        let consumer = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "fixture",
+            module: "crate::consumer",
+            source_path: "src/consumer.rs",
+            inherited_cfg: &[],
+            source: r#"
+                fn persistent(mut holder: crate::helper::Holder) {
+                    let mut other = None;
+                    holder.install();
+                    holder.fill(&mut other);
+                    consume(holder.slot.unwrap().pool());
+                    consume(other.unwrap().pool());
+                }
+            "#,
+        };
+        let baseline = inventory_persistence_accesses(&[consumer, helper]).unwrap();
+        assert_eq!(
+            baseline
+                .accesses
+                .iter()
+                .filter(|row| row.enclosing == "fn persistent"
+                    && row.operation == PersistenceOperation::PoolAccess)
+                .count(),
+            2
+        );
+    }
+
+    #[test]
+    fn persistence_inventory_classifies_query_builder_initial_sql() {
+        let baseline = inventory(
+            r#"
+                fn dynamic(id: u32) {
+                    sqlx::QueryBuilder::new(format!("SELECT {id}"));
+                }
+            "#,
+        )
+        .unwrap();
+        for operation in [
+            PersistenceOperation::Query,
+            PersistenceOperation::InterpolatedSql,
+        ] {
+            assert!(
+                baseline
+                    .accesses
+                    .iter()
+                    .any(|row| { row.enclosing == "fn dynamic" && row.operation == operation })
+            );
+        }
+        let error = inventory(r#"fn rejected() { sqlx::QueryBuilder::new(env!("QUERY")); }"#)
+            .expect_err("environment-sourced builder SQL must fail closed");
+        assert!(error.contains("env! SQL"), "{error}");
+    }
+
+    #[test]
+    fn persistence_inventory_projects_tuple_struct_patterns_after_rest() {
+        let baseline = inventory(
+            r#"
+                struct Clean;
+                struct Wrapper(Clean, Clean, wow_database::CharacterDatabase);
+                fn persistent(wrapper: Wrapper) {
+                    let Wrapper(.., alias) = wrapper;
+                    consume(alias.pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_preserves_explicit_closure_return_values() {
+        let baseline = inventory(
+            r#"
+                fn persistent(database: wow_database::CharacterDatabase, flag: bool) {
+                    let choose = || {
+                        if flag { return Some(database); }
+                        None
+                    };
+                    consume(choose().unwrap().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_preserves_opaque_return_argument_flow() {
+        let baseline = inventory(
+            r#"
+                trait HasPool { fn pool(self); }
+                impl HasPool for wow_database::CharacterDatabase { fn pool(self) {} }
+                fn make(database: wow_database::CharacterDatabase) -> impl HasPool { database }
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    make(database).pool();
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_recognizes_all_named_lock_functions() {
+        let baseline = inventory(
+            r#"
+                fn locks() {
+                    sqlx::query("SELECT GET_LOCK('x', 1)");
+                    sqlx::query("SELECT RELEASE_LOCK('x')");
+                    sqlx::query("SELECT IS_USED_LOCK('x')");
+                    sqlx::query("SELECT IS_FREE_LOCK('x')");
+                    sqlx::query("SELECT RELEASE_ALL_LOCKS()");
+                }
+            "#,
+        )
+        .unwrap();
+        assert_eq!(
+            baseline
+                .accesses
+                .iter()
+                .filter(|row| row.enclosing == "fn locks"
+                    && row.operation == PersistenceOperation::AdvisoryLock)
+                .count(),
+            5
+        );
     }
 }
