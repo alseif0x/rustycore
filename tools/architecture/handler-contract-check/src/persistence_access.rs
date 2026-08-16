@@ -75,6 +75,28 @@ const FLOW_TRANSFORMING_METHODS: &[&str] = &[
     "unwrap_or_else",
 ];
 
+const CLOSURE_INVOKING_METHODS: &[&str] = &[
+    "and_then",
+    "filter",
+    "filter_map",
+    "flat_map",
+    "for_each",
+    "get_or_init",
+    "get_or_insert_with",
+    "inspect",
+    "inspect_err",
+    "is_ok_and",
+    "is_some_and",
+    "map",
+    "map_err",
+    "map_or",
+    "map_or_else",
+    "ok_or_else",
+    "or_else",
+    "unwrap_or_else",
+    "with_context",
+];
+
 const OPAQUE_PERSISTENCE_MACROS: &[&str] = &[
     "assert",
     "assert_eq",
@@ -519,28 +541,124 @@ fn generic_type_param_names(generics: &syn::Generics) -> Vec<String> {
 
 const RECEIVER_INPUT_MARKER: &str = "$receiver";
 
+#[derive(Clone, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
+struct GenericInputSpec {
+    params: BTreeSet<String>,
+    tuple_paths: BTreeMap<String, Vec<Vec<usize>>>,
+}
+
+fn projected_generic_argument(
+    argument: &VariableInfo,
+    input: &GenericInputSpec,
+    param: &str,
+) -> VariableInfo {
+    let Some(paths) = input.tuple_paths.get(param) else {
+        return argument.clone();
+    };
+    let mut result = VariableInfo::default();
+    let mut projected_any = false;
+    for path in paths {
+        let mut projected = argument;
+        let mut complete = true;
+        for index in path {
+            let Some(item) = projected.tuple_items.get(*index) else {
+                complete = false;
+                break;
+            };
+            projected = item;
+        }
+        if complete {
+            projected_any = true;
+            result.union(projected);
+        }
+    }
+    if projected_any {
+        result
+    } else {
+        argument.clone()
+    }
+}
+
+fn collect_generic_tuple_paths(
+    ty: &Type,
+    params: &BTreeSet<String>,
+    path: &mut Vec<usize>,
+    output: &mut BTreeMap<String, Vec<Vec<usize>>>,
+) {
+    match ty {
+        Type::Path(type_path) => {
+            if let Some(name) = last_path_name(&type_path.path)
+                && params.contains(&name)
+                && !path.is_empty()
+            {
+                output.entry(name).or_default().push(path.clone());
+            }
+            for segment in &type_path.path.segments {
+                if let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments {
+                    for argument in &arguments.args {
+                        if let syn::GenericArgument::Type(inner) = argument {
+                            collect_generic_tuple_paths(inner, params, path, output);
+                        }
+                    }
+                }
+            }
+        }
+        Type::Tuple(tuple) => {
+            for (index, element) in tuple.elems.iter().enumerate() {
+                path.push(index);
+                collect_generic_tuple_paths(element, params, path, output);
+                path.pop();
+            }
+        }
+        Type::Reference(reference) => {
+            collect_generic_tuple_paths(&reference.elem, params, path, output);
+        }
+        Type::Ptr(pointer) => collect_generic_tuple_paths(&pointer.elem, params, path, output),
+        Type::Paren(paren) => collect_generic_tuple_paths(&paren.elem, params, path, output),
+        Type::Group(group) => collect_generic_tuple_paths(&group.elem, params, path, output),
+        _ => {}
+    }
+}
+
 fn generic_params_by_input(
     inputs: &syn::punctuated::Punctuated<FnArg, syn::token::Comma>,
     params: &[String],
-) -> Vec<BTreeSet<String>> {
+) -> Vec<GenericInputSpec> {
+    let all_params = params.iter().cloned().collect::<BTreeSet<_>>();
     inputs
         .iter()
         .map(|input| match input {
-            FnArg::Typed(typed) => params
-                .iter()
-                .filter(|param| {
-                    tokens_contain_identifier(
-                        typed.ty.to_token_stream(),
-                        &BTreeSet::from([(*param).clone()]),
-                    )
-                })
-                .cloned()
-                .collect(),
+            FnArg::Typed(typed) => {
+                let params = params
+                    .iter()
+                    .filter(|param| {
+                        tokens_contain_identifier(
+                            typed.ty.to_token_stream(),
+                            &BTreeSet::from([(*param).clone()]),
+                        )
+                    })
+                    .cloned()
+                    .collect();
+                let mut tuple_paths = BTreeMap::new();
+                collect_generic_tuple_paths(
+                    &typed.ty,
+                    &all_params,
+                    &mut Vec::new(),
+                    &mut tuple_paths,
+                );
+                GenericInputSpec {
+                    params,
+                    tuple_paths,
+                }
+            }
             // Keep the receiver in the formal-input sequence. A method-call
             // expression omits it and skips this marker below, while UFCS
             // supplies it explicitly and therefore keeps later generic
             // arguments aligned with their declared inputs.
-            FnArg::Receiver(_) => BTreeSet::from([RECEIVER_INPUT_MARKER.to_owned()]),
+            FnArg::Receiver(_) => GenericInputSpec {
+                params: BTreeSet::from([RECEIVER_INPUT_MARKER.to_owned()]),
+                tuple_paths: BTreeMap::new(),
+            },
         })
         .collect()
 }
@@ -745,7 +863,7 @@ enum SqlExpressionKind {
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 struct CallableSignature {
     generic_params: Vec<String>,
-    generic_inputs: Vec<BTreeSet<String>>,
+    generic_inputs: Vec<GenericInputSpec>,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -948,15 +1066,15 @@ struct ModuleSymbols {
     // recorded return instead of letting `make::<CharacterDatabase>()` bypass
     // both ratchets.
     function_generic_params: BTreeMap<String, Vec<String>>,
-    function_generic_input_params: BTreeMap<String, Vec<BTreeSet<String>>>,
+    function_generic_input_params: BTreeMap<String, Vec<GenericInputSpec>>,
     method_generic_params: BTreeMap<(String, Option<String>, String), Vec<String>>,
-    method_generic_input_params: BTreeMap<(String, Option<String>, String), Vec<BTreeSet<String>>>,
+    method_generic_input_params: BTreeMap<(String, Option<String>, String), Vec<GenericInputSpec>>,
     trait_method_returns: std::sync::Arc<BTreeMap<(String, String), VariableInfo>>,
     trait_supertraits: std::sync::Arc<BTreeMap<String, BTreeSet<String>>>,
     trait_generic_params: std::sync::Arc<BTreeMap<String, Vec<String>>>,
     trait_method_generic_params: std::sync::Arc<BTreeMap<(String, String), Vec<String>>>,
     trait_method_generic_input_params:
-        std::sync::Arc<BTreeMap<(String, String), Vec<BTreeSet<String>>>>,
+        std::sync::Arc<BTreeMap<(String, String), Vec<GenericInputSpec>>>,
     // Current-package paths stay unqualified (`dto::Holder`) while the
     // workspace registry is shared and crate-qualified
     // (`provider_crate::dto::Holder`).
@@ -965,14 +1083,14 @@ struct ModuleSymbols {
     dependency_crate_aliases: std::sync::Arc<BTreeMap<String, String>>,
     package_function_returns: std::sync::Arc<BTreeMap<String, VariableInfo>>,
     package_function_generic_params: std::sync::Arc<BTreeMap<String, Vec<String>>>,
-    package_function_generic_input_params: std::sync::Arc<BTreeMap<String, Vec<BTreeSet<String>>>>,
+    package_function_generic_input_params: std::sync::Arc<BTreeMap<String, Vec<GenericInputSpec>>>,
     // Package-wide registries for inherent impl methods (keyed by canonical
     // crate-relative owner path): without them `factory.make()` only resolves
     // when the impl lives in the same module as the call.
     package_method_returns: std::sync::Arc<BTreeMap<(String, String), VariableInfo>>,
     package_method_generic_params: std::sync::Arc<BTreeMap<(String, String), Vec<String>>>,
     package_method_generic_input_params:
-        std::sync::Arc<BTreeMap<(String, String), Vec<BTreeSet<String>>>>,
+        std::sync::Arc<BTreeMap<(String, String), Vec<GenericInputSpec>>>,
     // Module constants/statics are value bindings, not lexical locals. Keep
     // both the current module's names and a package-wide canonical registry
     // so their declared persistence-bearing types survive path resolution.
@@ -3159,6 +3277,7 @@ struct BodyAnalyzer<'a, 'b> {
     anonymous_trait_scopes: Vec<BTreeSet<String>>,
     generic_trait_bounds: BTreeMap<String, BTreeSet<String>>,
     generic_trait_bound_args: BTreeMap<(String, String), Vec<VariableInfo>>,
+    generic_trait_bound_associated: BTreeMap<(String, String), BTreeMap<String, VariableInfo>>,
     flow_cache: std::cell::RefCell<BTreeMap<(usize, u64), Flow>>,
     subtree_flow_cache: std::cell::RefCell<BTreeMap<(usize, u64), Flow>>,
     closure_effects: std::cell::RefCell<BTreeMap<usize, BTreeMap<String, VariableInfo>>>,
@@ -3205,6 +3324,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             anonymous_trait_scopes: vec![BTreeSet::new()],
             generic_trait_bounds: BTreeMap::new(),
             generic_trait_bound_args: BTreeMap::new(),
+            generic_trait_bound_associated: BTreeMap::new(),
             flow_cache: std::cell::RefCell::new(BTreeMap::new()),
             subtree_flow_cache: std::cell::RefCell::new(BTreeMap::new()),
             closure_effects: std::cell::RefCell::new(BTreeMap::new()),
@@ -3858,8 +3978,16 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 && let Some(name) = last_path_name(&path.path)
                 && let Some(info) = self.symbols.function_returns.get(&name)
             {
-                let mut info = info.clone();
-                if let Some(params) = self.symbols.function_generic_params.get(&name) {
+                let params = self.symbols.function_generic_params.get(&name);
+                let turbofish = path.path.segments.last().and_then(|segment| {
+                    if let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments {
+                        Some(arguments)
+                    } else {
+                        None
+                    }
+                });
+                let mut info = self.apply_turbofish_args(info, params, turbofish);
+                if let Some(params) = params {
                     info.callable_signatures.insert(CallableSignature {
                         generic_params: params.clone(),
                         generic_inputs: self
@@ -3873,8 +4001,16 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 return info;
             }
             if let Some(info) = self.symbols.package_function_returns.get(&key) {
-                let mut info = info.clone();
-                if let Some(params) = self.symbols.package_function_generic_params.get(&key) {
+                let params = self.symbols.package_function_generic_params.get(&key);
+                let turbofish = path.path.segments.last().and_then(|segment| {
+                    if let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments {
+                        Some(arguments)
+                    } else {
+                        None
+                    }
+                });
+                let mut info = self.apply_turbofish_args(info, params, turbofish);
+                if let Some(params) = params {
                     info.callable_signatures.insert(CallableSignature {
                         generic_params: params.clone(),
                         generic_inputs: self
@@ -5399,6 +5535,25 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             self.generic_trait_bound_args
                 .insert((name.to_owned(), trait_path.to_owned()), args);
         }
+        let associated = arguments
+            .args
+            .iter()
+            .filter_map(|argument| {
+                let syn::GenericArgument::AssocType(binding) = argument else {
+                    return None;
+                };
+                Some((
+                    normalized_ident(&binding.ident),
+                    variable_info_in_type(&binding.ty, self.symbols),
+                ))
+            })
+            .collect::<BTreeMap<_, _>>();
+        if !associated.is_empty() {
+            self.generic_trait_bound_associated
+                .entry((name.to_owned(), trait_path.to_owned()))
+                .or_default()
+                .extend(associated);
+        }
     }
 
     fn register_generic_bounds(&mut self, generics: &syn::Generics) {
@@ -5458,19 +5613,27 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         receiver_types: &BTreeSet<String>,
     ) -> VariableInfo {
         let mut info = info.clone();
-        let Some(params) = self.symbols.trait_generic_params.get(trait_bound) else {
-            return info;
-        };
+        let params = self
+            .symbols
+            .trait_generic_params
+            .get(trait_bound)
+            .cloned()
+            .unwrap_or_default();
         for receiver_type in receiver_types {
-            let Some(args) = self
+            if let Some(args) = self
                 .generic_trait_bound_args
                 .get(&(receiver_type.clone(), trait_bound.to_owned()))
-            else {
-                continue;
-            };
-            let map: BTreeMap<String, VariableInfo> =
-                params.iter().cloned().zip(args.iter().cloned()).collect();
-            substitute_nominal_params(&mut info, &map);
+            {
+                let map: BTreeMap<String, VariableInfo> =
+                    params.iter().cloned().zip(args.iter().cloned()).collect();
+                substitute_nominal_params(&mut info, &map);
+            }
+            if let Some(associated) = self
+                .generic_trait_bound_associated
+                .get(&(receiver_type.clone(), trait_bound.to_owned()))
+            {
+                substitute_nominal_params(&mut info, associated);
+            }
         }
         info
     }
@@ -5524,23 +5687,27 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         &self,
         info: &VariableInfo,
         params: Option<&Vec<String>>,
-        input_params: Option<&Vec<BTreeSet<String>>>,
+        input_params: Option<&Vec<GenericInputSpec>>,
         args: &syn::punctuated::Punctuated<Expr, syn::token::Comma>,
     ) -> VariableInfo {
         let (Some(params), Some(input_params)) = (params, input_params) else {
             return info.clone();
         };
         let mut substitutions = BTreeMap::<String, VariableInfo>::new();
-        for (argument, formal_params) in args.iter().zip(input_params) {
-            if formal_params.is_empty() {
+        for (argument, formal_input) in args.iter().zip(input_params) {
+            if formal_input.params.is_empty() {
                 continue;
             }
             let argument_info = self.info_from_expr(argument);
-            for param in formal_params {
+            for param in &formal_input.params {
                 substitutions
                     .entry(param.clone())
                     .or_default()
-                    .union(&argument_info);
+                    .union(&projected_generic_argument(
+                        &argument_info,
+                        formal_input,
+                        param,
+                    ));
             }
         }
         substitutions.retain(|param, _| params.contains(param));
@@ -5553,13 +5720,13 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         &self,
         info: &VariableInfo,
         params: Option<&Vec<String>>,
-        input_params: Option<&Vec<BTreeSet<String>>>,
+        input_params: Option<&Vec<GenericInputSpec>>,
         args: &syn::punctuated::Punctuated<Expr, syn::token::Comma>,
     ) -> VariableInfo {
         let input_params = input_params.map(|inputs| {
             if inputs
                 .first()
-                .is_some_and(|input| input.contains(RECEIVER_INPUT_MARKER))
+                .is_some_and(|input| input.params.contains(RECEIVER_INPUT_MARKER))
             {
                 &inputs[1..]
             } else {
@@ -5573,13 +5740,17 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             return info.clone();
         };
         let mut substitutions = BTreeMap::<String, VariableInfo>::new();
-        for (argument, formal_params) in args.iter().zip(input_params) {
+        for (argument, formal_input) in args.iter().zip(input_params) {
             let argument_info = self.info_from_expr(argument);
-            for param in formal_params {
+            for param in &formal_input.params {
                 substitutions
                     .entry(param.clone())
                     .or_default()
-                    .union(&argument_info);
+                    .union(&projected_generic_argument(
+                        &argument_info,
+                        formal_input,
+                        param,
+                    ));
             }
         }
         substitutions.retain(|param, _| params.contains(param));
@@ -5592,7 +5763,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         &self,
         info: &VariableInfo,
         params: Option<&Vec<String>>,
-        input_params: Option<&Vec<BTreeSet<String>>>,
+        input_params: Option<&Vec<GenericInputSpec>>,
         args: Option<&syn::punctuated::Punctuated<Expr, syn::token::Comma>>,
     ) -> VariableInfo {
         args.map(|args| self.apply_inferred_args(info, params, input_params, args))
@@ -5663,13 +5834,14 @@ fn mutable_storage_receiver_name(expression: &Expr) -> Option<String> {
     }
 }
 
-fn bind_let_chain_patterns(
+fn visit_let_chain_condition(
     analyzer: &mut BodyAnalyzer<'_, '_>,
     expression: &Expr,
     method_receiver_fallback: bool,
 ) {
     match expression {
         Expr::Let(let_expression) => {
+            analyzer.visit_expr(&let_expression.expr);
             let mut info = analyzer.info_from_expr(&let_expression.expr);
             if method_receiver_fallback
                 && info.flow.is_empty()
@@ -5682,16 +5854,16 @@ fn bind_let_chain_patterns(
             }
         }
         Expr::Binary(binary) if matches!(binary.op, syn::BinOp::And(_)) => {
-            bind_let_chain_patterns(analyzer, &binary.left, method_receiver_fallback);
-            bind_let_chain_patterns(analyzer, &binary.right, method_receiver_fallback);
+            visit_let_chain_condition(analyzer, &binary.left, method_receiver_fallback);
+            visit_let_chain_condition(analyzer, &binary.right, method_receiver_fallback);
         }
         Expr::Paren(paren) => {
-            bind_let_chain_patterns(analyzer, &paren.expr, method_receiver_fallback);
+            visit_let_chain_condition(analyzer, &paren.expr, method_receiver_fallback);
         }
         Expr::Group(group) => {
-            bind_let_chain_patterns(analyzer, &group.expr, method_receiver_fallback);
+            visit_let_chain_condition(analyzer, &group.expr, method_receiver_fallback);
         }
-        _ => {}
+        _ => analyzer.visit_expr(expression),
     }
 }
 
@@ -5790,14 +5962,14 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         if !self.allows_source_class(&expression.attrs, "while expression") {
             return;
         }
-        self.visit_expr(&expression.cond);
         // The body may run zero times (false condition), so its assignments
         // to outer locals cannot be applied unconditionally: conservatively
         // union the pre-loop state with the post-body state.
-        let pre_loop_scopes = self.scopes.clone();
         self.push_scope();
         self.register_local_uses(&expression.body.stmts);
-        bind_let_chain_patterns(self, &expression.cond, true);
+        visit_let_chain_condition(self, &expression.cond, true);
+        let mut pre_loop_scopes = self.scopes.clone();
+        pre_loop_scopes.pop();
         for statement in &expression.body.stmts {
             self.visit_stmt(statement);
         }
@@ -6156,6 +6328,25 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                 self.assign(&receiver_name, stored);
             }
         }
+        if matches!(call.func.as_ref(), Expr::Path(path) if path.path.segments.len() >= 2)
+            && matches!(name.as_str(), "replace" | "write")
+            && let Some(receiver_name) = call.args.first().and_then(mutable_storage_receiver_name)
+            && let Some(replacement) = call.args.iter().nth(1)
+        {
+            self.assign(&receiver_name, self.info_from_expr(replacement));
+        }
+        if matches!(call.func.as_ref(), Expr::Path(path) if path.path.segments.len() >= 2)
+            && name == "swap"
+            && let (Some(left), Some(right)) = (
+                call.args.first().and_then(mutable_storage_receiver_name),
+                call.args.get(1).and_then(mutable_storage_receiver_name),
+            )
+        {
+            let mut merged = self.lookup(&left).cloned().unwrap_or_default();
+            merged.union(&self.lookup(&right).cloned().unwrap_or_default());
+            self.assign(&left, merged.clone());
+            self.assign(&right, merged);
+        }
         if let Expr::Path(path) = call.func.as_ref()
             && path.qself.is_none()
             && path.path.segments.len() == 1
@@ -6278,7 +6469,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         }
         if matches!(
             name.as_str(),
-            "push" | "push_back" | "push_front" | "insert" | "extend" | "append"
+            "push" | "push_back" | "push_front" | "insert" | "extend" | "append" | "replace"
         ) && let Some(receiver_name) = simple_assignment_name(&method.receiver)
         {
             let mut stored = self.lookup(&receiver_name).cloned().unwrap_or_default();
@@ -6293,6 +6484,19 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         self.visit_expr(&method.receiver);
         for argument in &method.args {
             self.visit_expr(argument);
+        }
+        if CLOSURE_INVOKING_METHODS.contains(&name.as_str()) {
+            let pre_call_scopes = self.scopes.clone();
+            for argument in &method.args {
+                let mutations = self.info_from_expr(argument).closure_mutations;
+                for (captured, info) in mutations {
+                    self.assign(&captured, info);
+                }
+            }
+            let post_call_scopes = self.scopes.clone();
+            self.scopes = pre_call_scopes;
+            merge_scope_stacks(&mut self.scopes, &post_call_scopes);
+            self.bump_context();
         }
     }
 
@@ -6427,19 +6631,19 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         if !self.allows_source_class(&expression.attrs, "if expression") {
             return;
         }
-        self.visit_expr(&expression.cond);
         // The then/else branches are mutually exclusive: visiting them
         // sequentially against one shared scope lets the else branch erase
         // flow the then branch assigned to an outer local. Like match arms,
         // snapshot the pre-if state and conservatively union both outcomes,
         // including the no-`else` path.
-        let pre_if_scopes = self.scopes.clone();
         self.push_scope();
-        bind_let_chain_patterns(self, &expression.cond, false);
+        visit_let_chain_condition(self, &expression.cond, false);
+        let mut post_condition_scopes = self.scopes.clone();
+        post_condition_scopes.pop();
         self.visit_block(&expression.then_branch);
         self.pop_scope();
         let post_then = self.scopes.clone();
-        self.scopes = pre_if_scopes;
+        self.scopes = post_condition_scopes;
         if let Some((_, else_expression)) = &expression.else_branch {
             self.visit_expr(else_expression);
         }
@@ -7880,7 +8084,7 @@ fn resolve_public_callable_reexports(
     >,
     generic_input_registries: &mut BTreeMap<
         (String, PersistenceSourceClass),
-        BTreeMap<String, Vec<BTreeSet<String>>>,
+        BTreeMap<String, Vec<GenericInputSpec>>,
     >,
 ) {
     let pass_limit = reexports.values().map(Vec::len).sum::<usize>() + 1;
@@ -7957,11 +8161,27 @@ fn resolve_public_callable_reexports(
                         })
                         .collect::<Vec<_>>()
                 } else {
-                    provider_registry
+                    let mut entries = provider_registry
                         .get(&provider_entry)
                         .cloned()
                         .map(|info| vec![(export.to_owned(), provider_entry.clone(), info)])
-                        .unwrap_or_default()
+                        .unwrap_or_default();
+                    let prefix = if provider_entry.is_empty() {
+                        String::new()
+                    } else {
+                        format!("{provider_entry}::")
+                    };
+                    entries.extend(provider_registry.iter().filter_map(|(entry, info)| {
+                        entry.strip_prefix(&prefix).map(|suffix| {
+                            let exported = if export.is_empty() {
+                                suffix.to_owned()
+                            } else {
+                                format!("{export}::{suffix}")
+                            };
+                            (exported, entry.clone(), info.clone())
+                        })
+                    }));
+                    entries
                 };
                 for (exported, source_entry, source_info) in entries {
                     let info = if let Some(provider_root) = provider_root {
@@ -8008,12 +8228,121 @@ fn resolve_public_callable_reexports(
     }
 }
 
+fn resolve_public_macro_reexports(
+    reexports: &BTreeMap<(String, PersistenceSourceClass), Vec<(String, String)>>,
+    dependencies: &WorkspaceDependencyAliases,
+    registries: &mut BTreeMap<(String, PersistenceSourceClass), BTreeMap<String, TargetSet>>,
+) {
+    let pass_limit = reexports.values().map(Vec::len).sum::<usize>() + 1;
+    for _ in 0..pass_limit {
+        let before = registries.clone();
+        let snapshot = registries.clone();
+        for (consumer_key, aliases) in reexports {
+            let (consumer, source_class) = (&consumer_key.0, consumer_key.1);
+            let dependency_roots = match source_class {
+                PersistenceSourceClass::Production => dependencies.production.get(consumer),
+                PersistenceSourceClass::TestFixture => dependencies.test.get(consumer),
+            };
+            for (export, source) in aliases {
+                let glob = (source == "*" || source.ends_with("::*"))
+                    && (export == "*" || export.ends_with("::*"));
+                let source = if source == "*" {
+                    ""
+                } else {
+                    source.strip_suffix("::*").unwrap_or(source)
+                };
+                let export = if export == "*" {
+                    ""
+                } else {
+                    export.strip_suffix("::*").unwrap_or(export)
+                };
+                let mut source_parts = source.split("::");
+                let source_root = source_parts.next().unwrap_or_default();
+                let dependency_root = dependency_roots
+                    .into_iter()
+                    .flat_map(|aliases| aliases.values())
+                    .find(|root| root.as_str() == source_root);
+                let (provider_key, provider_entry) = if let Some(provider_root) = dependency_root {
+                    let provider = snapshot.keys().find_map(|(candidate, candidate_class)| {
+                        (*candidate_class == source_class
+                            && candidate.replace('-', "_") == provider_root.as_str())
+                        .then_some(candidate.clone())
+                    });
+                    let Some(provider) = provider else {
+                        continue;
+                    };
+                    (
+                        (provider, source_class),
+                        source_parts.collect::<Vec<_>>().join("::"),
+                    )
+                } else {
+                    (consumer_key.clone(), source.to_owned())
+                };
+                let Some(provider_registry) = snapshot.get(&provider_key) else {
+                    continue;
+                };
+                let entries = if glob {
+                    let prefix = (!provider_entry.is_empty())
+                        .then(|| format!("{provider_entry}::"))
+                        .unwrap_or_default();
+                    provider_registry
+                        .iter()
+                        .filter_map(|(entry, targets)| {
+                            entry.strip_prefix(&prefix).map(|suffix| {
+                                let exported = if export.is_empty() {
+                                    suffix.to_owned()
+                                } else {
+                                    format!("{export}::{suffix}")
+                                };
+                                (exported, targets.clone())
+                            })
+                        })
+                        .collect::<Vec<_>>()
+                } else {
+                    let mut entries = provider_registry
+                        .get(&provider_entry)
+                        .cloned()
+                        .map(|targets| vec![(export.to_owned(), targets)])
+                        .unwrap_or_default();
+                    let prefix = if provider_entry.is_empty() {
+                        String::new()
+                    } else {
+                        format!("{provider_entry}::")
+                    };
+                    entries.extend(provider_registry.iter().filter_map(|(entry, targets)| {
+                        entry.strip_prefix(&prefix).map(|suffix| {
+                            let exported = if export.is_empty() {
+                                suffix.to_owned()
+                            } else {
+                                format!("{export}::{suffix}")
+                            };
+                            (exported, targets.clone())
+                        })
+                    }));
+                    entries
+                };
+                for (exported, targets) in entries {
+                    registries
+                        .entry(consumer_key.clone())
+                        .or_default()
+                        .entry(exported)
+                        .or_default()
+                        .extend(targets);
+                }
+            }
+        }
+        if registries == &before {
+            break;
+        }
+    }
+}
+
 type TraitSignatureRegistry = (
     BTreeMap<(String, String), VariableInfo>,
     BTreeMap<String, BTreeSet<String>>,
     BTreeMap<String, Vec<String>>,
     BTreeMap<(String, String), Vec<String>>,
-    BTreeMap<(String, String), Vec<BTreeSet<String>>>,
+    BTreeMap<(String, String), Vec<GenericInputSpec>>,
 );
 
 fn resolve_public_trait_reexports(
@@ -8488,7 +8817,7 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
     let mut function_generic_registries =
         BTreeMap::<(String, PersistenceSourceClass), BTreeMap<String, Vec<String>>>::new();
     let mut function_generic_input_registries =
-        BTreeMap::<(String, PersistenceSourceClass), BTreeMap<String, Vec<BTreeSet<String>>>>::new(
+        BTreeMap::<(String, PersistenceSourceClass), BTreeMap<String, Vec<GenericInputSpec>>>::new(
         );
     let mut method_registries = BTreeMap::<
         (String, PersistenceSourceClass),
@@ -8499,7 +8828,7 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
         );
     let mut method_generic_input_registries = BTreeMap::<
         (String, PersistenceSourceClass),
-        BTreeMap<(String, String), Vec<BTreeSet<String>>>,
+        BTreeMap<(String, String), Vec<GenericInputSpec>>,
     >::new();
     let mut item_value_registries =
         BTreeMap::<(String, PersistenceSourceClass), BTreeMap<String, VariableInfo>>::new();
@@ -8710,6 +9039,17 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
         &mut function_generic_registries,
         &mut function_generic_input_registries,
     );
+    let mut item_value_generic_registries = BTreeMap::new();
+    let mut item_value_generic_input_registries = BTreeMap::new();
+    resolve_public_callable_reexports(
+        &callable_reexports,
+        &named_type_registries,
+        dependencies,
+        &mut item_value_registries,
+        &mut item_value_generic_registries,
+        &mut item_value_generic_input_registries,
+    );
+    resolve_public_macro_reexports(&callable_reexports, dependencies, &mut macro_registries);
     resolve_public_trait_reexports(
         &callable_reexports,
         &named_type_registries,
@@ -12464,6 +12804,123 @@ mod tests {
     }
 
     #[test]
+    fn persistence_inventory_binds_let_chain_values_in_later_conditions() {
+        let baseline = inventory(
+            r#"
+                struct Holder(wow_database::CharacterDatabase);
+                fn persistent(maybe: Option<Holder>) {
+                    if let Some(holder) = maybe && holder.0.pool().is_closed() {}
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_projects_nested_generic_tuple_slots_independently() {
+        let baseline = inventory(
+            r#"
+                struct Clean;
+                impl Clean { fn pool(self) {} }
+                fn first<T, U>(value: (T, U)) -> T { value.0 }
+                fn second<T, U>(value: (T, U)) -> U { value.1 }
+                fn clean(database: wow_database::CharacterDatabase) {
+                    consume(first((Clean, database)).pool());
+                }
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    consume(second((Clean, database)).pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn clean" && row.operation == PersistenceOperation::PoolAccess
+        }));
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_applies_turbofish_to_function_item_aliases() {
+        let baseline = inventory(
+            r#"
+                struct Clean;
+                impl Clean { fn pool(self) {} }
+                fn make<T>() -> T { unreachable!() }
+                fn persistent() {
+                    let factory = make::<wow_database::CharacterDatabase>;
+                    consume(factory().pool());
+                }
+                fn clean() {
+                    let factory = make::<Clean>;
+                    consume(factory().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn clean" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_applies_closure_mutations_for_combinators_conditionally() {
+        let baseline = inventory(
+            r#"
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    let mut slot = None;
+                    Some(()).map(|_| slot = Some(database));
+                    consume(slot.unwrap().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_substitutes_associated_types_in_generic_bounds() {
+        let baseline = inventory(
+            r#"
+                trait Maker { type Output; fn make(&self) -> Self::Output; }
+                fn persistent<T: Maker<Output = wow_database::CharacterDatabase>>(value: &T) {
+                    consume(value.make().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_propagates_standard_replacement_writes() {
+        let baseline = inventory(
+            r#"
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    let mut slot = None;
+                    std::mem::replace(&mut slot, Some(database));
+                    consume(slot.unwrap().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
     fn persistence_inventory_registers_default_trait_method_parameters() {
         let baseline = inventory(
             r#"
@@ -12651,6 +13108,120 @@ mod tests {
         assert!(baseline.accesses.iter().any(|row| {
             row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
         }));
+    }
+
+    #[test]
+    fn persistence_inventory_propagates_macros_and_values_through_facades() {
+        let provider = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "provider-a",
+            module: "crate",
+            source_path: "src/lib.rs",
+            inherited_cfg: &[],
+            source: r#"
+                #[macro_export]
+                macro_rules! hidden_database {
+                    () => { wow_database::CharacterDatabase::default() };
+                }
+                pub static DATABASE: wow_database::CharacterDatabase = todo!();
+            "#,
+        };
+        let named_facade = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "provider-b",
+            module: "crate",
+            source_path: "src/lib.rs",
+            inherited_cfg: &[],
+            source: r#"
+                pub use provider_a_alias::{
+                    DATABASE as EXPORTED_DATABASE,
+                    hidden_database as exported_database,
+                };
+            "#,
+        };
+        let module_facade = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "provider-module",
+            module: "crate",
+            source_path: "src/lib.rs",
+            inherited_cfg: &[],
+            source: "pub use provider_a_alias as source;",
+        };
+        let glob_facade = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "provider-glob",
+            module: "crate",
+            source_path: "src/lib.rs",
+            inherited_cfg: &[],
+            source: "pub use provider_a_alias::*;",
+        };
+        let consumer = ClassifiedPersistenceSource {
+            classification: "database_adapter_core",
+            package: "consumer-c",
+            module: "crate",
+            source_path: "src/lib.rs",
+            inherited_cfg: &[],
+            source: r#"
+                fn named_macro() { consume(provider_b_alias::exported_database!().pool()); }
+                fn named_value() { consume(provider_b_alias::EXPORTED_DATABASE.pool()); }
+                fn module_macro() {
+                    consume(provider_module_alias::source::hidden_database!().pool());
+                }
+                fn module_value() {
+                    consume(provider_module_alias::source::DATABASE.pool());
+                }
+                fn glob_macro() { consume(provider_glob_alias::hidden_database!().pool()); }
+                fn glob_value() { consume(provider_glob_alias::DATABASE.pool()); }
+            "#,
+        };
+        let dependencies = WorkspaceDependencyAliases {
+            production: BTreeMap::from([
+                (
+                    "provider-b".to_owned(),
+                    BTreeMap::from([("provider_a_alias".to_owned(), "provider_a".to_owned())]),
+                ),
+                (
+                    "provider-module".to_owned(),
+                    BTreeMap::from([("provider_a_alias".to_owned(), "provider_a".to_owned())]),
+                ),
+                (
+                    "provider-glob".to_owned(),
+                    BTreeMap::from([("provider_a_alias".to_owned(), "provider_a".to_owned())]),
+                ),
+                (
+                    "consumer-c".to_owned(),
+                    BTreeMap::from([
+                        ("provider_b_alias".to_owned(), "provider_b".to_owned()),
+                        (
+                            "provider_module_alias".to_owned(),
+                            "provider_module".to_owned(),
+                        ),
+                        ("provider_glob_alias".to_owned(), "provider_glob".to_owned()),
+                    ]),
+                ),
+            ]),
+            test: BTreeMap::new(),
+        };
+        let baseline = inventory_persistence_accesses_with_dependencies(
+            &[consumer, glob_facade, module_facade, named_facade, provider],
+            &dependencies,
+        )
+        .unwrap();
+        for enclosing in [
+            "fn named_macro",
+            "fn named_value",
+            "fn module_macro",
+            "fn module_value",
+            "fn glob_macro",
+            "fn glob_value",
+        ] {
+            assert!(
+                baseline.accesses.iter().any(|row| {
+                    row.enclosing == enclosing && row.operation == PersistenceOperation::PoolAccess
+                }),
+                "missing facade flow for {enclosing}"
+            );
+        }
     }
 
     #[test]
