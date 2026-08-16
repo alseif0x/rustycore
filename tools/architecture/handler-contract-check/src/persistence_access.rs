@@ -823,9 +823,7 @@ impl<'ast> Visit<'ast> for PersistenceOperationSyntax {
                 .iter()
                 .nth_back(1)
                 .map(|segment| normalized_ident(&segment.ident));
-            if name != "open"
-                || owner.is_some_and(|owner| self.generic_types.contains(&owner))
-            {
+            if name != "open" || owner.is_some_and(|owner| self.generic_types.contains(&owner)) {
                 self.symbols.insert(name);
             }
         }
@@ -2551,10 +2549,7 @@ fn collect_nested_item_values(
                 let (kind, sources) = source_sql_info(&item_const.expr);
                 info.sql_expression = kind;
                 info.sql_sources = sources;
-                output
-                    .entry(path.join("::"))
-                    .or_default()
-                    .union(&info);
+                output.entry(path.join("::")).or_default().union(&info);
             }
             Item::Static(item_static)
                 if source_class_allows(source_class, cfg, &item_static.attrs, errors, "static") =>
@@ -2565,10 +2560,7 @@ fn collect_nested_item_values(
                 let (kind, sources) = source_sql_info(&item_static.expr);
                 info.sql_expression = kind;
                 info.sql_sources = sources;
-                output
-                    .entry(path.join("::"))
-                    .or_default()
-                    .union(&info);
+                output.entry(path.join("::")).or_default().union(&info);
             }
             Item::Mod(item_mod)
                 if source_class_allows(
@@ -2952,10 +2944,9 @@ fn collect_module_symbols(
             {
                 let called_inputs = called_parameter_inputs(function);
                 if !called_inputs.is_empty() {
-                    symbols.function_called_inputs.insert(
-                        normalized_ident(&function.sig.ident),
-                        called_inputs,
-                    );
+                    symbols
+                        .function_called_inputs
+                        .insert(normalized_ident(&function.sig.ident), called_inputs);
                 }
                 let generic_params = generic_type_param_names(&function.sig.generics);
                 if !generic_params.is_empty() {
@@ -5320,7 +5311,9 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                     .payload_variants
                     .extend(info.payload_variants.iter().cloned());
                 typed_info.sql_expression = typed_info.sql_expression.max(info.sql_expression);
-                typed_info.sql_sources.extend(info.sql_sources.iter().cloned());
+                typed_info
+                    .sql_sources
+                    .extend(info.sql_sources.iter().cloned());
                 self.bind_pattern(&typed.pat, &typed_info);
             }
             Pat::Tuple(tuple) => {
@@ -5339,10 +5332,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                                 .checked_sub(tuple.elems.len().saturating_sub(index))
                         })
                         .unwrap_or(index);
-                    self.bind_pattern(
-                        element,
-                        info.tuple_items.get(source_index).unwrap_or(info),
-                    );
+                    self.bind_pattern(element, info.tuple_items.get(source_index).unwrap_or(info));
                 }
             }
             Pat::TupleStruct(tuple) => {
@@ -5542,7 +5532,10 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 BTreeSet::from([normalized_tokens(expression)])
             }
             Expr::MethodCall(method)
-                if matches!(normalized_ident(&method.method).as_str(), "as_str" | "as_ref") =>
+                if matches!(
+                    normalized_ident(&method.method).as_str(),
+                    "as_str" | "as_ref"
+                ) =>
             {
                 self.sql_sources(&method.receiver)
             }
@@ -7725,10 +7718,8 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                     targets.extend(self.flow_of_expr(argument).targets());
                 }
                 for target in targets {
-                    let fingerprint = self.fingerprint_with_sql_source(
-                        canonical_method(method),
-                        method.args.first(),
-                    );
+                    let fingerprint = self
+                        .fingerprint_with_sql_source(canonical_method(method), method.args.first());
                     self.add(target, operation, &name, &cfg, fingerprint.clone());
                     if matches!(
                         operation,
@@ -14959,7 +14950,10 @@ mod tests {
                 .map(|row| row.fingerprint.clone())
                 .collect::<BTreeSet<_>>()
         };
-        assert_ne!(fingerprints(&first, "fn local"), fingerprints(&second, "fn local"));
+        assert_ne!(
+            fingerprints(&first, "fn local"),
+            fingerprints(&second, "fn local")
+        );
         assert_ne!(
             fingerprints(&first, "fn constant"),
             fingerprints(&second, "fn constant")
@@ -14969,8 +14963,7 @@ mod tests {
             fingerprints(&second, "fn local_const")
         );
         assert!(first.accesses.iter().any(|row| {
-            row.enclosing == "fn constant"
-                && row.operation == PersistenceOperation::AdvisoryLock
+            row.enclosing == "fn constant" && row.operation == PersistenceOperation::AdvisoryLock
         }));
     }
 
