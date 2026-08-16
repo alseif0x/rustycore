@@ -1609,6 +1609,16 @@ fn is_standard_identity(names: &[String]) -> bool {
     )
 }
 
+fn is_standard_replacement(names: &[String]) -> bool {
+    matches!(
+        names,
+        [root, module, function]
+            if matches!(root.as_str(), "std" | "core")
+                && module == "mem"
+                && matches!(function.as_str(), "replace" | "take")
+    )
+}
+
 fn targets_for_names(names: &[String], symbols: &ModuleSymbols) -> TargetSet {
     let mut targets = TargetSet::new();
     let Some(first) = names.first() else {
@@ -3718,6 +3728,7 @@ struct BodyAnalyzer<'a, 'b> {
     closure_effects: std::cell::RefCell<BTreeMap<usize, BTreeMap<String, VariableInfo>>>,
     closure_result_infos: std::cell::RefCell<BTreeMap<usize, VariableInfo>>,
     block_result_infos: std::cell::RefCell<BTreeMap<usize, VariableInfo>>,
+    replacement_result_infos: std::cell::RefCell<BTreeMap<usize, VariableInfo>>,
     loop_flow_collectors: Vec<LoopFlowCollector>,
     block_exit_collectors: Vec<BlockExitCollector>,
     return_exit_collectors: Vec<Option<Vec<BTreeMap<String, VariableInfo>>>>,
@@ -3784,6 +3795,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             closure_effects: std::cell::RefCell::new(BTreeMap::new()),
             closure_result_infos: std::cell::RefCell::new(BTreeMap::new()),
             block_result_infos: std::cell::RefCell::new(BTreeMap::new()),
+            replacement_result_infos: std::cell::RefCell::new(BTreeMap::new()),
             loop_flow_collectors: Vec::new(),
             block_exit_collectors: Vec::new(),
             return_exit_collectors: Vec::new(),
@@ -3910,6 +3922,16 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         match destination {
             None => *destination = Some(scopes),
             Some(accumulated) => merge_scope_stacks(accumulated, &scopes),
+        }
+    }
+
+    fn capture_return_exit(&mut self) {
+        if let Some(exits) = self.return_exit_collectors.last_mut() {
+            let scopes = self.scopes.clone();
+            match exits {
+                None => *exits = Some(scopes),
+                Some(accumulated) => merge_scope_stacks(accumulated, &scopes),
+            }
         }
     }
 
@@ -4694,6 +4716,14 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         if let Expr::Call(call) = expression
             && let Expr::Path(path) = call.func.as_ref()
         {
+            if let Some(info) = self
+                .replacement_result_infos
+                .borrow()
+                .get(&(call as *const ExprCall as usize))
+                .cloned()
+            {
+                return info;
+            }
             if is_standard_identity(&self.canonical_local_path_names(path_names(&path.path)))
                 && let Some(argument) = call.args.first()
             {
@@ -5675,6 +5705,21 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         };
         let names = path_names(&path.path);
         let last = names.last().map(String::as_str).unwrap_or_default();
+        if is_standard_replacement(&self.canonical_local_path_names(names.clone()))
+            && let Some(binding) = call.args.first().and_then(mutable_storage_receiver_name)
+        {
+            if let Some(info) = self
+                .replacement_result_infos
+                .borrow()
+                .get(&(call as *const ExprCall as usize))
+            {
+                return info.flow.clone();
+            }
+            return self
+                .lookup(&binding)
+                .map(|info| info.flow.clone())
+                .unwrap_or_default();
+        }
         let rooted_sqlx = names
             .first()
             .is_some_and(|first| self.symbols.sqlx_namespaces.contains(first));
@@ -7585,6 +7630,17 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                             .args
                             .first()
                             .is_some_and(|receiver| !self.flow_of_expr(receiver).is_empty()))));
+        if let Expr::Path(path) = call.func.as_ref()
+            && is_standard_replacement(&self.canonical_local_path_names(path_names(&path.path)))
+            && let Some(binding) = call.args.first().and_then(mutable_storage_receiver_name)
+            && let Some(previous) = self.lookup(&binding).cloned()
+        {
+            self.replacement_result_infos
+                .borrow_mut()
+                .entry(call as *const ExprCall as usize)
+                .or_default()
+                .union(&previous);
+        }
         if !flow_passthrough && !known_persistence_call {
             for argument in &call.args {
                 let flow = self.flow_of_expr(argument);
@@ -7618,6 +7674,13 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             && let Some(replacement) = call.args.iter().nth(1)
         {
             self.assign(&receiver_name, self.info_from_expr(replacement));
+        }
+        if let Expr::Path(path) = call.func.as_ref()
+            && is_standard_replacement(&self.canonical_local_path_names(path_names(&path.path)))
+            && name == "take"
+            && let Some(receiver_name) = call.args.first().and_then(mutable_storage_receiver_name)
+        {
+            self.assign(&receiver_name, VariableInfo::default());
         }
         if matches!(call.func.as_ref(), Expr::Path(path) if path.path.segments.len() >= 2)
             && name == "swap"
@@ -7992,13 +8055,18 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                 normalized_tokens(expression),
             );
         }
-        if let Some(exits) = self.return_exit_collectors.last_mut() {
-            let scopes = self.scopes.clone();
-            match exits {
-                None => *exits = Some(scopes),
-                Some(accumulated) => merge_scope_stacks(accumulated, &scopes),
-            }
+        self.capture_return_exit();
+    }
+
+    fn visit_expr_try(&mut self, expression: &'ast syn::ExprTry) {
+        if !self.allows_source_class(&expression.attrs, "try expression") {
+            return;
         }
+        self.visit_expr(&expression.expr);
+        // `?` can return from the surrounding closure/async body immediately
+        // after evaluating its operand. Preserve that exit state before later
+        // statements on the success path can clear the captured binding.
+        self.capture_return_exit();
     }
 
     fn visit_expr_break(&mut self, expression: &'ast syn::ExprBreak) {
@@ -14431,6 +14499,42 @@ mod tests {
     }
 
     #[test]
+    fn persistence_inventory_preserves_try_exit_mutations_in_deferred_bodies() {
+        let baseline = inventory(
+            r#"
+                fn fallible() -> Result<(), ()> { Ok(()) }
+                fn closure(database: wow_database::CharacterDatabase) {
+                    let mut slot = None;
+                    let install = || -> Result<(), ()> {
+                        slot = Some(database);
+                        fallible()?;
+                        slot = None;
+                        Ok(())
+                    };
+                    let _ = install();
+                    consume(slot.unwrap().pool());
+                }
+                async fn asynchronous(database: wow_database::CharacterDatabase) {
+                    let mut slot = None;
+                    let _ = async {
+                        slot = Some(database);
+                        fallible()?;
+                        slot = None;
+                        Ok::<(), ()>(())
+                    }.await;
+                    consume(slot.unwrap().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        for enclosing in ["fn closure", "fn asynchronous"] {
+            assert!(baseline.accesses.iter().any(|row| {
+                row.enclosing == enclosing && row.operation == PersistenceOperation::PoolAccess
+            }));
+        }
+    }
+
+    #[test]
     fn persistence_inventory_retains_values_inserted_into_mutable_containers() {
         let baseline = inventory(
             r#"
@@ -14739,6 +14843,38 @@ mod tests {
         .unwrap();
         assert!(baseline.accesses.iter().any(|row| {
             row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_preserves_values_returned_by_standard_replacements() {
+        let baseline = inventory(
+            r#"
+                fn replace(database: wow_database::CharacterDatabase) {
+                    let mut slot = Some(database);
+                    let previous = std::mem::replace(&mut slot, None);
+                    consume(previous.unwrap().pool());
+                }
+                fn take(database: wow_database::CharacterDatabase) {
+                    let mut slot = Some(database);
+                    let previous = std::mem::take(&mut slot);
+                    consume(previous.unwrap().pool());
+                }
+                fn cleared(database: wow_database::CharacterDatabase) {
+                    let mut slot = Some(database);
+                    drop(std::mem::take(&mut slot));
+                    consume(slot.unwrap().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        for enclosing in ["fn replace", "fn take"] {
+            assert!(baseline.accesses.iter().any(|row| {
+                row.enclosing == enclosing && row.operation == PersistenceOperation::PoolAccess
+            }));
+        }
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn cleared" && row.operation == PersistenceOperation::PoolAccess
         }));
     }
 

@@ -16,6 +16,7 @@ use crate::ownership::{
     WorkspaceSourceMount, audit_package_registration_sources,
     audit_package_registration_sources_with_owner, audit_package_source_graph,
     audit_package_source_mounts, registry_capable_package_ids,
+    workspace_dependency_aliases_from_metadata,
 };
 use crate::registrations::{
     RegistrationSourceReport, analyze_handler_mounts, analyze_inline_source, exported_macro_names,
@@ -1526,6 +1527,43 @@ fn metadata_scope_rejects_non_workspace_reverse_dependencies() {
         error.contains("non-workspace package external-wrapper"),
         "{error}"
     );
+}
+
+#[test]
+fn metadata_dependency_aliases_include_renamed_external_sqlx() {
+    let metadata = json!({
+        "packages": [
+            {"id": "consumer", "name": "consumer"},
+            {"id": "sqlx", "name": "sqlx"},
+            {"id": "external", "name": "unrelated-external"}
+        ],
+        "workspace_members": ["consumer"],
+        "resolve": {
+            "nodes": [{
+                "id": "consumer",
+                "deps": [
+                    {
+                        "name": "db",
+                        "pkg": "sqlx",
+                        "dep_kinds": [{"kind": null, "target": null}]
+                    },
+                    {
+                        "name": "helper",
+                        "pkg": "external",
+                        "dep_kinds": [{"kind": null, "target": null}]
+                    }
+                ]
+            }]
+        }
+    });
+
+    let aliases = workspace_dependency_aliases_from_metadata(&metadata)
+        .expect("valid synthetic dependency aliases");
+    assert_eq!(
+        aliases.production.get("consumer"),
+        Some(&BTreeMap::from([("db".to_owned(), "sqlx".to_owned())]))
+    );
+    assert_eq!(aliases.test, aliases.production);
 }
 
 #[test]

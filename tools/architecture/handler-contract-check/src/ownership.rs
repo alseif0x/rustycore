@@ -219,10 +219,12 @@ fn workspace_metadata(repository_root: &Path) -> Result<Value, String> {
         .map_err(|error| format!("cargo metadata returned invalid JSON: {error}"))
 }
 
-/// Direct workspace dependency crate aliases, separated by whether they are
-/// available to production code or only to test-capable source. The alias is
-/// the name visible to Rust source (`deps[].name`); the value is the provider
-/// package's canonical crate root used by the persistence type registry.
+/// Direct dependency crate aliases relevant to persistence analysis, separated
+/// by whether they are available to production code or only to test-capable
+/// source. This includes workspace providers and the external persistence
+/// providers whose source paths the analyzer recognizes. The alias is the name
+/// visible to Rust source (`deps[].name`); the value is the provider package's
+/// canonical crate root used by the persistence type registry.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct WorkspaceDependencyAliases {
     pub(crate) production: BTreeMap<String, BTreeMap<String, String>>,
@@ -233,6 +235,12 @@ pub(crate) fn workspace_dependency_aliases(
     repository_root: &Path,
 ) -> Result<WorkspaceDependencyAliases, String> {
     let metadata = workspace_metadata(repository_root)?;
+    workspace_dependency_aliases_from_metadata(&metadata)
+}
+
+pub(crate) fn workspace_dependency_aliases_from_metadata(
+    metadata: &Value,
+) -> Result<WorkspaceDependencyAliases, String> {
     let workspace_members: BTreeSet<_> = required_array(&metadata, "workspace_members", "root")?
         .iter()
         .map(|member| {
@@ -266,14 +274,14 @@ pub(crate) fn workspace_dependency_aliases(
             .ok_or_else(|| format!("workspace package {package_id} is absent from metadata"))?;
         for dependency in required_array(node, "deps", package_id)? {
             let dependency_id = required_string(dependency, "pkg", "resolved dependency")?;
-            if !workspace_members.contains(dependency_id) {
-                continue;
-            }
             let provider = packages_by_id.get(dependency_id).ok_or_else(|| {
                 format!("workspace dependency {dependency_id} is absent from metadata")
             })?;
             let alias = required_string(dependency, "name", "resolved dependency")?.to_owned();
             let provider_root = provider.replace('-', "_");
+            if !workspace_members.contains(dependency_id) && provider_root != "sqlx" {
+                continue;
+            }
             let dependency_kinds = required_array(dependency, "dep_kinds", "resolved dependency")?;
             let normal = dependency_kinds
                 .iter()
