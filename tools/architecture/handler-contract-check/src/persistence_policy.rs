@@ -16,9 +16,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::persistence_access::{
-    PersistenceAccessBaseline, PersistenceOperation, PersistenceTarget,
-};
+use crate::persistence_access::{PersistenceAccessBaseline, PersistenceTarget};
 
 const POLICY_SCHEMA_VERSION: u32 = 1;
 
@@ -88,6 +86,9 @@ struct WorkflowAnnotation {
     enclosing: String,
     logical_databases: Vec<String>,
     boundary: String,
+    connection_affinity: String,
+    current_order: String,
+    failure_and_unknown_commit: String,
     target_issues: Vec<u64>,
     stable_boundary: bool,
 }
@@ -107,9 +108,9 @@ fn load_annotations(path: &Path) -> Result<WorkflowAnnotations, String> {
             path.display()
         )
     })?;
-    if annotations.schema_version != 1 {
+    if annotations.schema_version != 2 {
         return Err(format!(
-            "persistence workflow annotations schema_version must be 1, got {}",
+            "persistence workflow annotations schema_version must be 2, got {}",
             annotations.schema_version
         ));
     }
@@ -173,6 +174,9 @@ fn generate_policy(
         );
         if annotation.logical_databases.is_empty()
             || !non_empty(&annotation.boundary)
+            || !non_empty(&annotation.connection_affinity)
+            || !non_empty(&annotation.current_order)
+            || !non_empty(&annotation.failure_and_unknown_commit)
             || annotation
                 .logical_databases
                 .iter()
@@ -270,67 +274,9 @@ fn generate_policy(
     }
 
     let mut groups = Vec::new();
-    for (key, rows) in production_rows {
+    for (key, _rows) in production_rows {
         let annotation = annotation_map[&key];
         let (package, module, source, enclosing) = key;
-        let dependency_surface = matches!(enclosing.as_str(), "module")
-            || enclosing.starts_with("struct ")
-            || enclosing.starts_with("enum ")
-            || enclosing.starts_with("trait ");
-        let explicit_transaction = rows.iter().any(|row| {
-            matches!(
-                row.operation,
-                PersistenceOperation::Begin
-                    | PersistenceOperation::Commit
-                    | PersistenceOperation::Rollback
-                    | PersistenceOperation::TransactionConstruct
-                    | PersistenceOperation::TransactionAppend
-            ) || matches!(
-                row.target,
-                PersistenceTarget::SqlTransaction | PersistenceTarget::SqlxTransaction
-            )
-        });
-        let unknown_commit = rows.iter().any(|row| {
-            row.target == PersistenceTarget::SqlTransactionCommitError
-                || (row.operation == PersistenceOperation::Commit
-                    && row.symbol == "commit_with_outcome_like_cpp")
-        });
-        let logical = annotation.logical_databases.join(", ");
-        let affinity = if annotation.stable_boundary {
-            format!(
-                "The typed adapter is instantiated against exactly one of {logical} per value/transaction; the list denotes supported logical databases, not a simultaneous distributed workflow."
-            )
-        } else if dependency_surface {
-            format!(
-                "This is a shared dependency/type surface for {logical}; it does not itself imply a runtime transaction."
-            )
-        } else if annotation.logical_databases.len() > 1 {
-            format!(
-                "The workflow uses independent {logical} connections/pools in source order; no distributed ACID boundary is inferred."
-            )
-        } else if explicit_transaction {
-            format!(
-                "The workflow preserves one explicit {logical} connection/transaction across its current statement sequence."
-            )
-        } else {
-            format!(
-                "The workflow acquires or uses the {logical} adapter as currently coded; no wider transaction is inferred."
-            )
-        };
-        let order = if dependency_surface {
-            "No runtime order is inferred from this shared dependency/type surface; consumers retain their own traced order.".to_owned()
-        } else if explicit_transaction {
-            "Preserve the traced load/plan/append/commit/publication order for the whole workflow; helpers and concrete types are not independent units.".to_owned()
-        } else {
-            "Preserve the workflow's current source and await order; the inventory does not invent an atomic boundary.".to_owned()
-        };
-        let failure = if unknown_commit {
-            "Preserve the explicit distinction between definite rollback and unknown commit outcome, including quarantine/reconciliation behavior.".to_owned()
-        } else if explicit_transaction {
-            "Preserve current rollback/commit error propagation and publication suppression; no stronger retry or unknown-outcome guarantee is inferred.".to_owned()
-        } else {
-            "Preserve the workflow's current returned, logged, mapped, or ignored error path; syntax alone adds no unknown-commit guarantee.".to_owned()
-        };
         groups.push(Group {
             id: format!("workflow:{package}:{module}:{source}::{enclosing}"),
             source_class: "production".to_owned(),
@@ -347,9 +293,9 @@ fn generate_policy(
                 "{} currently owns the complete {package} workflow {enclosing} in {source}.",
                 annotation.boundary
             ),
-            connection_affinity: affinity,
-            current_order: order,
-            failure_and_unknown_commit: failure,
+            connection_affinity: annotation.connection_affinity.clone(),
+            current_order: annotation.current_order.clone(),
+            failure_and_unknown_commit: annotation.failure_and_unknown_commit.clone(),
             target_issues: annotation.target_issues.clone(),
             retirement_condition: if annotation.stable_boundary {
                 "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.".to_owned()
@@ -758,6 +704,9 @@ mod tests {
             enclosing: "fn save".to_owned(),
             logical_databases: vec!["characters".to_owned()],
             boundary: "Player lifecycle persistence capability".to_owned(),
+            connection_affinity: "reviewed characters connection affinity".to_owned(),
+            current_order: "reviewed statement and publication order".to_owned(),
+            failure_and_unknown_commit: "reviewed failure and unknown-commit behavior".to_owned(),
             target_issues: vec![153],
             stable_boundary: false,
         }
@@ -771,7 +720,7 @@ mod tests {
             accesses: vec![row(source)],
         };
         let annotations = WorkflowAnnotations {
-            schema_version: 1,
+            schema_version: 2,
             workflows: vec![annotation(source)],
         };
         let first = generate_policy(&annotations, &baseline).expect("exact annotation generates");
@@ -784,11 +733,11 @@ mod tests {
             accesses: vec![row(other), row(source)],
         };
         let forward = WorkflowAnnotations {
-            schema_version: 1,
+            schema_version: 2,
             workflows: vec![annotation(source), annotation(other)],
         };
         let reverse = WorkflowAnnotations {
-            schema_version: 1,
+            schema_version: 2,
             workflows: vec![annotation(other), annotation(source)],
         };
         assert_eq!(
@@ -798,7 +747,7 @@ mod tests {
         );
 
         let missing = WorkflowAnnotations {
-            schema_version: 1,
+            schema_version: 2,
             workflows: Vec::new(),
         };
         assert!(
@@ -809,7 +758,7 @@ mod tests {
 
         let stale_source = "crates/wow-world/src/removed.rs";
         let stale = WorkflowAnnotations {
-            schema_version: 1,
+            schema_version: 2,
             workflows: vec![annotation(stale_source)],
         };
         let error = generate_policy(&stale, &baseline).expect_err("dead annotations fail");
@@ -817,7 +766,7 @@ mod tests {
         assert!(error.contains("has no annotation"));
 
         let duplicate = WorkflowAnnotations {
-            schema_version: 1,
+            schema_version: 2,
             workflows: vec![annotation(source), annotation(source)],
         };
         assert!(
@@ -855,7 +804,7 @@ mod tests {
         inner_annotation.module = "crate::handlers::character::inner".to_owned();
         inner_annotation.boundary = "Inner module persistence capability".to_owned();
         let both = WorkflowAnnotations {
-            schema_version: 1,
+            schema_version: 2,
             workflows: vec![annotation(source), inner_annotation.clone()],
         };
         let policy = generate_policy(&both, &baseline).expect("both modules annotated");
@@ -874,7 +823,7 @@ mod tests {
 
         // An annotation missing the second module's identity fails closed.
         let outer_only = WorkflowAnnotations {
-            schema_version: 1,
+            schema_version: 2,
             workflows: vec![annotation(source)],
         };
         assert!(
@@ -887,7 +836,7 @@ mod tests {
         let mut stale_module = annotation(source);
         stale_module.module = "crate::handlers::character::gone".to_owned();
         let stale = WorkflowAnnotations {
-            schema_version: 1,
+            schema_version: 2,
             workflows: vec![annotation(source), stale_module],
         };
         assert!(
@@ -898,74 +847,30 @@ mod tests {
     }
 
     #[test]
-    fn generated_policy_separates_explicit_transactions_from_unknown_commit_outcomes() {
+    fn generated_policy_preserves_reviewed_workflow_semantics() {
         let source = "crates/wow-world/src/handlers/character.rs";
-
-        let mut outcome_commit = row(source);
-        outcome_commit.operation = PersistenceOperation::Commit;
-        outcome_commit.symbol = "commit_with_outcome_like_cpp".to_owned();
-        outcome_commit.fingerprint = "tx.commit_with_outcome_like_cpp()".to_owned();
+        let mut reviewed = annotation(source);
+        reviewed.connection_affinity = "one leased connection across prepare and commit".to_owned();
+        reviewed.current_order = "load, append, commit, then publish".to_owned();
+        reviewed.failure_and_unknown_commit =
+            "unknown commit quarantines publication until reconciliation".to_owned();
         let generated = generate_policy(
             &WorkflowAnnotations {
-                schema_version: 1,
-                workflows: vec![annotation(source)],
+                schema_version: 2,
+                workflows: vec![reviewed.clone()],
             },
             &PersistenceAccessBaseline {
                 schema_version: 3,
-                accesses: vec![outcome_commit],
+                accesses: vec![row(source)],
             },
         )
-        .expect("an outcome-aware commit generates a semantic policy");
-        assert!(
-            generated.groups[0]
-                .failure_and_unknown_commit
-                .contains("unknown commit outcome")
-        );
-
-        let mut error_type = row(source);
-        error_type.target = PersistenceTarget::SqlTransactionCommitError;
-        error_type.operation = PersistenceOperation::TypeReference;
-        error_type.symbol = "SqlTransactionCommitError".to_owned();
-        error_type.fingerprint = "SqlTransactionCommitError".to_owned();
-        let generated = generate_policy(
-            &WorkflowAnnotations {
-                schema_version: 1,
-                workflows: vec![annotation(source)],
-            },
-            &PersistenceAccessBaseline {
-                schema_version: 3,
-                accesses: vec![error_type],
-            },
-        )
-        .expect("an outcome error type generates a semantic policy");
+        .expect("reviewed semantics generate policy fields");
         let group = &generated.groups[0];
-        assert!(group.connection_affinity.contains("no wider transaction"));
-        assert!(group.current_order.contains("source and await order"));
-        assert!(
-            group
-                .failure_and_unknown_commit
-                .contains("unknown commit outcome")
-        );
-
-        let mut unrelated_unknown = row(source);
-        unrelated_unknown.target = PersistenceTarget::MySqlPool;
-        unrelated_unknown.operation = PersistenceOperation::ArgumentEscape;
-        unrelated_unknown.symbol = "is_unknown_database_error_like_cpp".to_owned();
-        let generated = generate_policy(
-            &WorkflowAnnotations {
-                schema_version: 1,
-                workflows: vec![annotation(source)],
-            },
-            &PersistenceAccessBaseline {
-                schema_version: 3,
-                accesses: vec![unrelated_unknown],
-            },
-        )
-        .expect("unrelated unknown vocabulary generates an ordinary policy");
-        assert!(
-            generated.groups[0]
-                .failure_and_unknown_commit
-                .contains("syntax alone adds no unknown-commit guarantee")
+        assert_eq!(group.connection_affinity, reviewed.connection_affinity);
+        assert_eq!(group.current_order, reviewed.current_order);
+        assert_eq!(
+            group.failure_and_unknown_commit,
+            reviewed.failure_and_unknown_commit
         );
     }
 

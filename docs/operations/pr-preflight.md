@@ -96,7 +96,8 @@ multiplicity must remain unchanged, and every row must match exactly one group i
 `tools/architecture/persistence-boundary-policy.json`. That policy is deterministically derived
 from the exact, reviewed workflow assignments in
 `tools/architecture/persistence-boundary-workflows.json`; it is not a catch-all or an
-auto-authorizing baseline. New unowned access, overlap, a semantic
+auto-authorizing baseline. Its schema v2 records connection affinity, order, and
+failure/unknown-commit behavior as reviewed inputs rather than generated boilerplate. New unowned access, overlap, a semantic
 group that matches nothing, a closed/absent removal issue, or stale syntax fails the profile.
 Review logical database, capability owner, connection affinity, order and failure/unknown-commit
 semantics before deliberately regenerating any persistence artifact. Use

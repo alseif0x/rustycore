@@ -321,6 +321,11 @@ registry, persistence, and bridge surfaces. `print-baseline` only writes reviewe
 `print-persistence-policy` derives the policy from the reviewed workflow annotations. None of these
 commands updates a checked-in artifact automatically.
 
+Workflow annotation schema v2 is the reviewed source of truth for each workflow's logical
+databases, capability boundary, connection affinity, current order, and failure/unknown-commit
+behavior. Policy generation copies those semantic fields exactly; it does not synthesize them
+from transaction-shaped syntax.
+
 These numbers are diagnostics, not completion criteria. #181 owns reproducible counters and
 non-growth rules; each later slice must reduce or retire a named ownership smell rather than
 merely moving lines.

@@ -499,6 +499,12 @@ impl AccessAccumulator {
         }
     }
 
+    fn contains_symbol(&self, enclosing: &str, symbol: &str) -> bool {
+        self.rows
+            .keys()
+            .any(|row| row.enclosing == enclosing && row.symbol == symbol)
+    }
+
     fn finish(self) -> PersistenceAccessBaseline {
         PersistenceAccessBaseline {
             schema_version: PERSISTENCE_SCHEMA_VERSION,
@@ -820,6 +826,12 @@ fn persistence_operations_in_syntax(item: &Item) -> BTreeSet<String> {
     visitor.symbols
 }
 
+fn persistence_operations_in_block(block: &syn::Block) -> BTreeSet<String> {
+    let mut visitor = PersistenceOperationSyntax::default();
+    visitor.visit_block(block);
+    visitor.symbols
+}
+
 fn item_cfg(parent: &[String], attributes: &[Attribute]) -> Vec<String> {
     extend_cfg_context(parent, attributes)
 }
@@ -926,6 +938,7 @@ enum SqlExpressionKind {
     Static,
     Nonliteral,
     Included,
+    Environment,
     Interpolated,
 }
 
@@ -3576,9 +3589,16 @@ struct BodyAnalyzer<'a, 'b> {
     closure_effects: std::cell::RefCell<BTreeMap<usize, BTreeMap<String, VariableInfo>>>,
     closure_result_infos: std::cell::RefCell<BTreeMap<usize, VariableInfo>>,
     block_result_infos: std::cell::RefCell<BTreeMap<usize, VariableInfo>>,
-    loop_exit_scopes: Vec<Option<Vec<BTreeMap<String, VariableInfo>>>>,
+    loop_flow_collectors: Vec<LoopFlowCollector>,
     context_version: u64,
     suppress_records: bool,
+}
+
+#[derive(Default)]
+struct LoopFlowCollector {
+    label: Option<String>,
+    exits: Option<Vec<BTreeMap<String, VariableInfo>>>,
+    back_edges: Option<Vec<BTreeMap<String, VariableInfo>>>,
 }
 
 struct DirectChildFlowCollector<'analyzer, 'a, 'b> {
@@ -3627,7 +3647,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             closure_effects: std::cell::RefCell::new(BTreeMap::new()),
             closure_result_infos: std::cell::RefCell::new(BTreeMap::new()),
             block_result_infos: std::cell::RefCell::new(BTreeMap::new()),
-            loop_exit_scopes: Vec::new(),
+            loop_flow_collectors: Vec::new(),
             context_version: 0,
             suppress_records: false,
         }
@@ -3648,15 +3668,88 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         self.subtree_flow_cache.get_mut().clear();
     }
 
-    fn visit_loop_block(
-        &mut self,
-        block: &syn::Block,
-    ) -> Option<Vec<BTreeMap<String, VariableInfo>>> {
-        self.loop_exit_scopes.push(None);
+    fn visit_loop_block(&mut self, block: &syn::Block, label: Option<String>) -> LoopFlowCollector {
+        self.loop_flow_collectors.push(LoopFlowCollector {
+            label,
+            ..LoopFlowCollector::default()
+        });
         self.visit_block(block);
-        self.loop_exit_scopes
+        self.loop_flow_collectors
             .pop()
-            .expect("loop exit collector was installed")
+            .expect("loop flow collector was installed")
+    }
+
+    fn visit_for_loop_body(
+        &mut self,
+        expression: &syn::ExprForLoop,
+        iterator_info: &VariableInfo,
+        label: Option<String>,
+    ) -> LoopFlowCollector {
+        self.loop_flow_collectors.push(LoopFlowCollector {
+            label,
+            ..LoopFlowCollector::default()
+        });
+        self.push_scope();
+        self.register_local_uses(&expression.body.stmts);
+        self.register_local_callables(&expression.body.stmts);
+        self.bind_pattern(&expression.pat, iterator_info);
+        for statement in &expression.body.stmts {
+            self.visit_stmt(statement);
+        }
+        self.pop_scope();
+        self.loop_flow_collectors
+            .pop()
+            .expect("for-loop flow collector was installed")
+    }
+
+    fn visit_while_loop_body(
+        &mut self,
+        expression: &syn::ExprWhile,
+        label: Option<String>,
+    ) -> LoopFlowCollector {
+        self.loop_flow_collectors.push(LoopFlowCollector {
+            label,
+            ..LoopFlowCollector::default()
+        });
+        self.push_scope();
+        self.register_local_uses(&expression.body.stmts);
+        self.register_local_callables(&expression.body.stmts);
+        visit_let_chain_condition(self, &expression.cond, true);
+        // Evaluating a false condition exits the loop with every mutation
+        // performed by that condition, before the body can overwrite it.
+        self.capture_loop_control(None, true);
+        for statement in &expression.body.stmts {
+            self.visit_stmt(statement);
+        }
+        self.pop_scope();
+        self.loop_flow_collectors
+            .pop()
+            .expect("while-loop flow collector was installed")
+    }
+
+    fn capture_loop_control(&mut self, label: Option<&syn::Lifetime>, is_exit: bool) {
+        let target = label
+            .map(|label| normalized_ident(&label.ident))
+            .and_then(|label| {
+                self.loop_flow_collectors
+                    .iter()
+                    .rposition(|collector| collector.label.as_deref() == Some(label.as_str()))
+            })
+            .or_else(|| self.loop_flow_collectors.len().checked_sub(1));
+        let Some(target) = target else {
+            return;
+        };
+        let scopes = self.scopes.clone();
+        let collector = &mut self.loop_flow_collectors[target];
+        let destination = if is_exit {
+            &mut collector.exits
+        } else {
+            &mut collector.back_edges
+        };
+        match destination {
+            None => *destination = Some(scopes),
+            Some(accumulated) => merge_scope_stacks(accumulated, &scopes),
+        }
     }
 
     fn canonical_local_path_names(&self, names: Vec<String>) -> Vec<String> {
@@ -5150,9 +5243,15 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 if self
                     .canonical_local_path_names(path_names(&mac.mac.path))
                     .last()
-                    .is_some_and(|name| {
-                        matches!(name.as_str(), "concat" | "env" | "stringify")
-                    }) =>
+                    .is_some_and(|name| name == "env") =>
+            {
+                SqlExpressionKind::Environment
+            }
+            Expr::Macro(mac)
+                if self
+                    .canonical_local_path_names(path_names(&mac.mac.path))
+                    .last()
+                    .is_some_and(|name| matches!(name.as_str(), "concat" | "stringify")) =>
             {
                 SqlExpressionKind::Static
             }
@@ -5934,7 +6033,11 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             if !self.allows_source_class(&typed.attrs, "function parameter") {
                 continue;
             }
-            let info = self.info_from_type(&typed.ty);
+            let mut info = self.info_from_type(&typed.ty);
+            // Parameter values are supplied at runtime even when their type
+            // is a source-known `&str`; only literal-producing expressions
+            // can retain the default Static classification.
+            info.sql_expression = SqlExpressionKind::Nonliteral;
             self.bind_pattern(&typed.pat, &info);
             add_type_records(
                 self.accumulator,
@@ -6555,22 +6658,25 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         // to outer locals cannot be applied unconditionally: conservatively
         // union the pre-loop state with the post-body state.
         let mut accumulated_scopes = self.scopes.clone();
+        let label = expression
+            .label
+            .as_ref()
+            .map(|label| normalized_ident(&label.name.ident));
         let initial_error_count = self.errors.len();
         self.accumulator.begin_transaction();
-        self.push_scope();
-        self.register_local_uses(&expression.body.stmts);
-        self.register_local_callables(&expression.body.stmts);
-        self.bind_pattern(&expression.pat, &iterator_info);
-        for statement in &expression.body.stmts {
-            self.visit_stmt(statement);
-        }
-        self.pop_scope();
+        let first_flow = self.visit_for_loop_body(expression, &iterator_info, label.clone());
         let first_post_body_scopes = self.scopes.clone();
         let mut first_next = accumulated_scopes.clone();
         merge_scope_stacks(&mut first_next, &first_post_body_scopes);
+        if let Some(back_edges) = &first_flow.back_edges {
+            merge_scope_stacks(&mut first_next, back_edges);
+        }
         if first_next == accumulated_scopes {
             self.accumulator.commit_transaction();
             self.scopes = accumulated_scopes;
+            if let Some(exits) = first_flow.exits {
+                merge_scope_stacks(&mut self.scopes, &exits);
+            }
             self.bump_context();
             return;
         }
@@ -6580,19 +6686,18 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         let mut stabilized = false;
         for iteration in 0..32 {
             self.scopes = accumulated_scopes.clone();
+            let mut flow = None;
             self.analyze_without_records(|analyzer| {
-                analyzer.push_scope();
-                analyzer.register_local_uses(&expression.body.stmts);
-                analyzer.register_local_callables(&expression.body.stmts);
-                analyzer.bind_pattern(&expression.pat, &iterator_info);
-                for statement in &expression.body.stmts {
-                    analyzer.visit_stmt(statement);
-                }
-                analyzer.pop_scope();
+                flow =
+                    Some(analyzer.visit_for_loop_body(expression, &iterator_info, label.clone()));
             });
+            let flow = flow.expect("for-loop analysis produced flow state");
             let post_body_scopes = self.scopes.clone();
             let mut next = accumulated_scopes.clone();
             merge_scope_stacks(&mut next, &post_body_scopes);
+            if let Some(back_edges) = &flow.back_edges {
+                merge_scope_stacks(&mut next, back_edges);
+            }
             if iteration >= 7 {
                 widen_loop_scopes(&mut next);
             }
@@ -6609,15 +6714,11 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             ));
         }
         self.scopes = accumulated_scopes.clone();
-        self.push_scope();
-        self.register_local_uses(&expression.body.stmts);
-        self.register_local_callables(&expression.body.stmts);
-        self.bind_pattern(&expression.pat, &iterator_info);
-        for statement in &expression.body.stmts {
-            self.visit_stmt(statement);
-        }
-        self.pop_scope();
+        let flow = self.visit_for_loop_body(expression, &iterator_info, label);
         self.scopes = accumulated_scopes;
+        if let Some(exits) = flow.exits {
+            merge_scope_stacks(&mut self.scopes, &exits);
+        }
         self.bump_context();
     }
 
@@ -6629,22 +6730,25 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         // to outer locals cannot be applied unconditionally: conservatively
         // union the pre-loop state with the post-body state.
         let mut accumulated_scopes = self.scopes.clone();
+        let label = expression
+            .label
+            .as_ref()
+            .map(|label| normalized_ident(&label.name.ident));
         let initial_error_count = self.errors.len();
         self.accumulator.begin_transaction();
-        self.push_scope();
-        self.register_local_uses(&expression.body.stmts);
-        self.register_local_callables(&expression.body.stmts);
-        visit_let_chain_condition(self, &expression.cond, true);
-        for statement in &expression.body.stmts {
-            self.visit_stmt(statement);
-        }
-        self.pop_scope();
+        let first_flow = self.visit_while_loop_body(expression, label.clone());
         let first_post_body_scopes = self.scopes.clone();
         let mut first_next = accumulated_scopes.clone();
         merge_scope_stacks(&mut first_next, &first_post_body_scopes);
+        if let Some(back_edges) = &first_flow.back_edges {
+            merge_scope_stacks(&mut first_next, back_edges);
+        }
         if first_next == accumulated_scopes {
             self.accumulator.commit_transaction();
             self.scopes = accumulated_scopes;
+            if let Some(exits) = first_flow.exits {
+                merge_scope_stacks(&mut self.scopes, &exits);
+            }
             self.bump_context();
             return;
         }
@@ -6654,19 +6758,17 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         let mut stabilized = false;
         for iteration in 0..32 {
             self.scopes = accumulated_scopes.clone();
+            let mut flow = None;
             self.analyze_without_records(|analyzer| {
-                analyzer.push_scope();
-                analyzer.register_local_uses(&expression.body.stmts);
-                analyzer.register_local_callables(&expression.body.stmts);
-                visit_let_chain_condition(analyzer, &expression.cond, true);
-                for statement in &expression.body.stmts {
-                    analyzer.visit_stmt(statement);
-                }
-                analyzer.pop_scope();
+                flow = Some(analyzer.visit_while_loop_body(expression, label.clone()));
             });
+            let flow = flow.expect("while-loop analysis produced flow state");
             let post_body_scopes = self.scopes.clone();
             let mut next = accumulated_scopes.clone();
             merge_scope_stacks(&mut next, &post_body_scopes);
+            if let Some(back_edges) = &flow.back_edges {
+                merge_scope_stacks(&mut next, back_edges);
+            }
             if iteration >= 7 {
                 widen_loop_scopes(&mut next);
             }
@@ -6683,15 +6785,11 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             ));
         }
         self.scopes = accumulated_scopes.clone();
-        self.push_scope();
-        self.register_local_uses(&expression.body.stmts);
-        self.register_local_callables(&expression.body.stmts);
-        visit_let_chain_condition(self, &expression.cond, true);
-        for statement in &expression.body.stmts {
-            self.visit_stmt(statement);
-        }
-        self.pop_scope();
+        let flow = self.visit_while_loop_body(expression, label);
         self.scopes = accumulated_scopes;
+        if let Some(exits) = flow.exits {
+            merge_scope_stacks(&mut self.scopes, &exits);
+        }
         self.bump_context();
     }
 
@@ -6754,16 +6852,23 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             normalized_tokens(expression),
         );
         let mut accumulated_scopes = self.scopes.clone();
+        let label = expression
+            .label
+            .as_ref()
+            .map(|label| normalized_ident(&label.name.ident));
         let initial_error_count = self.errors.len();
         self.accumulator.begin_transaction();
-        let first_exits = self.visit_loop_block(&expression.body);
+        let first_flow = self.visit_loop_block(&expression.body, label.clone());
         let first_post_body_scopes = self.scopes.clone();
         let mut first_next = accumulated_scopes.clone();
         merge_scope_stacks(&mut first_next, &first_post_body_scopes);
+        if let Some(back_edges) = &first_flow.back_edges {
+            merge_scope_stacks(&mut first_next, back_edges);
+        }
         if first_next == accumulated_scopes {
             self.accumulator.commit_transaction();
             self.scopes = accumulated_scopes;
-            if let Some(exits) = first_exits {
+            if let Some(exits) = first_flow.exits {
                 merge_scope_stacks(&mut self.scopes, &exits);
             }
             self.bump_context();
@@ -6775,12 +6880,21 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         let mut stabilized = false;
         for iteration in 0..32 {
             self.scopes = accumulated_scopes.clone();
-            self.loop_exit_scopes.push(None);
+            self.loop_flow_collectors.push(LoopFlowCollector {
+                label: label.clone(),
+                ..LoopFlowCollector::default()
+            });
             self.analyze_without_records(|analyzer| analyzer.visit_block(&expression.body));
-            self.loop_exit_scopes.pop();
+            let flow = self
+                .loop_flow_collectors
+                .pop()
+                .expect("loop flow collector was installed");
             let post_body_scopes = self.scopes.clone();
             let mut next = accumulated_scopes.clone();
             merge_scope_stacks(&mut next, &post_body_scopes);
+            if let Some(back_edges) = &flow.back_edges {
+                merge_scope_stacks(&mut next, back_edges);
+            }
             if iteration >= 7 {
                 widen_loop_scopes(&mut next);
             }
@@ -6797,9 +6911,9 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             ));
         }
         self.scopes = accumulated_scopes.clone();
-        let exits = self.visit_loop_block(&expression.body);
+        let flow = self.visit_loop_block(&expression.body, label);
         self.scopes = accumulated_scopes;
-        if let Some(exits) = exits {
+        if let Some(exits) = flow.exits {
             merge_scope_stacks(&mut self.scopes, &exits);
         }
         self.bump_context();
@@ -7041,6 +7155,10 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                         "{} passes include_str! SQL whose content is outside the persistence snapshot; mount and fingerprint the included SQL source explicitly",
                         self.enclosing
                     )),
+                    SqlExpressionKind::Environment => self.errors.push(format!(
+                        "{} passes env! SQL whose expanded content is outside the persistence snapshot; pin the SQL in reviewed source",
+                        self.enclosing
+                    )),
                     kind @ (SqlExpressionKind::Nonliteral | SqlExpressionKind::Interpolated) => {
                         self.add(
                             PersistenceTarget::Sqlx,
@@ -7051,7 +7169,9 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                                 SqlExpressionKind::Nonliteral => {
                                     PersistenceOperation::NonliteralSql
                                 }
-                                SqlExpressionKind::Static | SqlExpressionKind::Included => {
+                                SqlExpressionKind::Static
+                                | SqlExpressionKind::Included
+                                | SqlExpressionKind::Environment => {
                                     unreachable!()
                                 }
                             },
@@ -7253,6 +7373,10 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                                 "{} passes include_str! SQL whose content is outside the persistence snapshot; mount and fingerprint the included SQL source explicitly",
                                 self.enclosing
                             )),
+                            SqlExpressionKind::Environment => self.errors.push(format!(
+                                "{} passes env! SQL whose expanded content is outside the persistence snapshot; pin the SQL in reviewed source",
+                                self.enclosing
+                            )),
                             kind @ (SqlExpressionKind::Nonliteral
                             | SqlExpressionKind::Interpolated) => self.add(
                                 target,
@@ -7263,7 +7387,9 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                                     SqlExpressionKind::Nonliteral => {
                                         PersistenceOperation::NonliteralSql
                                     }
-                                    SqlExpressionKind::Static | SqlExpressionKind::Included => {
+                                    SqlExpressionKind::Static
+                                    | SqlExpressionKind::Included
+                                    | SqlExpressionKind::Environment => {
                                         unreachable!()
                                     }
                                 },
@@ -7447,12 +7573,14 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         if let Some(value) = &expression.expr {
             self.visit_expr(value);
         }
-        if let Some(exits) = self.loop_exit_scopes.last_mut() {
-            match exits {
-                None => *exits = Some(self.scopes.clone()),
-                Some(accumulated) => merge_scope_stacks(accumulated, &self.scopes),
-            }
+        self.capture_loop_control(expression.label.as_ref(), true);
+    }
+
+    fn visit_expr_continue(&mut self, expression: &'ast syn::ExprContinue) {
+        if !self.allows_source_class(&expression.attrs, "continue expression") {
+            return;
         }
+        self.capture_loop_control(expression.label.as_ref(), false);
     }
 
     fn visit_expr_match(&mut self, expression: &'ast syn::ExprMatch) {
@@ -7922,6 +8050,14 @@ fn analyze_function(
     errors: &mut Vec<String>,
 ) {
     let enclosing = format!("fn {}", normalized_ident(&function.sig.ident));
+    let generic_operations = function
+        .sig
+        .generics
+        .params
+        .iter()
+        .any(|param| matches!(param, syn::GenericParam::Type(_)))
+        .then(|| persistence_operations_in_block(&function.block))
+        .unwrap_or_default();
     let visibility = normalized_visibility(&function.vis);
     add_attribute_records(
         accumulator,
@@ -7961,7 +8097,7 @@ fn analyze_function(
         accumulator,
         errors,
         symbols,
-        enclosing,
+        enclosing.clone(),
         visibility,
         cfg.clone(),
     );
@@ -7987,6 +8123,17 @@ fn analyze_function(
             &cfg,
             fingerprint,
         );
+    }
+    drop(analyzer);
+    let unresolved = generic_operations
+        .into_iter()
+        .filter(|operation| !accumulator.contains_symbol(&enclosing, operation))
+        .collect::<Vec<_>>();
+    if !unresolved.is_empty() {
+        errors.push(format!(
+            "{enclosing} is generic and contains persistence-shaped operations ({}) that cannot be instantiated from declared flow; expose a typed module-level adapter instead",
+            unresolved.join(", ")
+        ));
     }
 }
 
@@ -13170,6 +13317,99 @@ mod tests {
     }
 
     #[test]
+    fn persistence_inventory_preserves_continue_states_as_loop_back_edges() {
+        let baseline = inventory(
+            r#"
+                fn persistent(database: wow_database::CharacterDatabase, repeat: bool) {
+                    let mut slot = None;
+                    loop {
+                        if let Some(db) = slot { consume(db.pool()); break; }
+                        slot = Some(&database);
+                        if repeat { continue; }
+                        slot = None;
+                    }
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_preserves_for_and_while_break_exits() {
+        let baseline = inventory(
+            r#"
+                fn in_while(database: wow_database::CharacterDatabase, running: bool, stop: bool) {
+                    let mut slot = None;
+                    while running {
+                        slot = Some(&database);
+                        if stop { break; }
+                        slot = None;
+                    }
+                    if let Some(db) = slot { consume(db.pool()); }
+                }
+                fn in_for(database: wow_database::CharacterDatabase, values: Vec<u8>, stop: bool) {
+                    let mut slot = None;
+                    for _ in values {
+                        slot = Some(&database);
+                        if stop { break; }
+                        slot = None;
+                    }
+                    if let Some(db) = slot { consume(db.pool()); }
+                }
+            "#,
+        )
+        .unwrap();
+        for enclosing in ["fn in_while", "fn in_for"] {
+            assert!(baseline.accesses.iter().any(|row| {
+                row.enclosing == enclosing && row.operation == PersistenceOperation::PoolAccess
+            }));
+        }
+    }
+
+    #[test]
+    fn persistence_inventory_routes_labeled_breaks_to_their_target_loop() {
+        let baseline = inventory(
+            r#"
+                fn persistent(database: wow_database::CharacterDatabase, clear: bool) {
+                    let mut slot = None;
+                    'outer: loop {
+                        loop {
+                            slot = Some(&database);
+                            break 'outer;
+                        }
+                        if clear { slot = None; }
+                    }
+                    consume(slot.unwrap().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_preserves_false_while_condition_mutations() {
+        let baseline = inventory(
+            r#"
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    let mut slot = None;
+                    while { slot = Some(&database); false } { slot = None; }
+                    consume(slot.unwrap().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
     fn persistence_inventory_preserves_join_macro_result_flow() {
         let baseline = inventory(
             r#"
@@ -14096,6 +14336,28 @@ mod tests {
     }
 
     #[test]
+    fn persistence_inventory_rejects_environment_sourced_sql() {
+        let error =
+            inventory(r#"fn hidden() { consume(sqlx::query(env!("QUERY"))); }"#).unwrap_err();
+        assert!(error.contains("passes env! SQL"), "{error}");
+    }
+
+    #[test]
+    fn persistence_inventory_classifies_sql_parameters_as_nonliteral() {
+        let baseline = inventory(
+            r#"
+                fn dynamic(db: wow_database::CharacterDatabase, query: &str) {
+                    db.direct_query(query);
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn dynamic" && row.operation == PersistenceOperation::NonliteralSql
+        }));
+    }
+
+    #[test]
     fn persistence_inventory_rejects_returning_calls_hidden_in_unknown_macros() {
         let error = inventory(
             r#"
@@ -14122,6 +14384,24 @@ mod tests {
         .unwrap_err();
         assert!(
             error.contains("block-local function with persistence-shaped operations (pool)"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn persistence_inventory_rejects_generic_module_persistence_operations() {
+        let error = inventory(
+            r#"
+                trait HasPool { fn pool(&self); }
+                fn use_pool<T: HasPool>(value: T) { value.pool(); }
+                fn hidden(database: wow_database::CharacterDatabase) { use_pool(database); }
+            "#,
+        )
+        .unwrap_err();
+        assert!(
+            error.contains(
+                "fn use_pool is generic and contains persistence-shaped operations (pool)"
+            ),
             "{error}"
         );
     }
