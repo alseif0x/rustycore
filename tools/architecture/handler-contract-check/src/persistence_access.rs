@@ -3576,6 +3576,7 @@ struct BodyAnalyzer<'a, 'b> {
     closure_effects: std::cell::RefCell<BTreeMap<usize, BTreeMap<String, VariableInfo>>>,
     closure_result_infos: std::cell::RefCell<BTreeMap<usize, VariableInfo>>,
     block_result_infos: std::cell::RefCell<BTreeMap<usize, VariableInfo>>,
+    loop_exit_scopes: Vec<Option<Vec<BTreeMap<String, VariableInfo>>>>,
     context_version: u64,
     suppress_records: bool,
 }
@@ -3626,6 +3627,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             closure_effects: std::cell::RefCell::new(BTreeMap::new()),
             closure_result_infos: std::cell::RefCell::new(BTreeMap::new()),
             block_result_infos: std::cell::RefCell::new(BTreeMap::new()),
+            loop_exit_scopes: Vec::new(),
             context_version: 0,
             suppress_records: false,
         }
@@ -3644,6 +3646,17 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         self.context_version = self.context_version.wrapping_add(1);
         self.flow_cache.get_mut().clear();
         self.subtree_flow_cache.get_mut().clear();
+    }
+
+    fn visit_loop_block(
+        &mut self,
+        block: &syn::Block,
+    ) -> Option<Vec<BTreeMap<String, VariableInfo>>> {
+        self.loop_exit_scopes.push(None);
+        self.visit_block(block);
+        self.loop_exit_scopes
+            .pop()
+            .expect("loop exit collector was installed")
     }
 
     fn canonical_local_path_names(&self, names: Vec<String>) -> Vec<String> {
@@ -6743,13 +6756,16 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         let mut accumulated_scopes = self.scopes.clone();
         let initial_error_count = self.errors.len();
         self.accumulator.begin_transaction();
-        self.visit_block(&expression.body);
+        let first_exits = self.visit_loop_block(&expression.body);
         let first_post_body_scopes = self.scopes.clone();
         let mut first_next = accumulated_scopes.clone();
         merge_scope_stacks(&mut first_next, &first_post_body_scopes);
         if first_next == accumulated_scopes {
             self.accumulator.commit_transaction();
             self.scopes = accumulated_scopes;
+            if let Some(exits) = first_exits {
+                merge_scope_stacks(&mut self.scopes, &exits);
+            }
             self.bump_context();
             return;
         }
@@ -6759,7 +6775,9 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         let mut stabilized = false;
         for iteration in 0..32 {
             self.scopes = accumulated_scopes.clone();
+            self.loop_exit_scopes.push(None);
             self.analyze_without_records(|analyzer| analyzer.visit_block(&expression.body));
+            self.loop_exit_scopes.pop();
             let post_body_scopes = self.scopes.clone();
             let mut next = accumulated_scopes.clone();
             merge_scope_stacks(&mut next, &post_body_scopes);
@@ -6779,8 +6797,11 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             ));
         }
         self.scopes = accumulated_scopes.clone();
-        self.visit_block(&expression.body);
+        let exits = self.visit_loop_block(&expression.body);
         self.scopes = accumulated_scopes;
+        if let Some(exits) = exits {
+            merge_scope_stacks(&mut self.scopes, &exits);
+        }
         self.bump_context();
     }
 
@@ -7132,16 +7153,28 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             self.assign(&left, merged.clone());
             self.assign(&right, merged);
         }
+        let argument_infos = call
+            .args
+            .iter()
+            .map(|argument| self.info_from_expr(argument))
+            .collect::<Vec<_>>();
+        for (index, argument) in call.args.iter().enumerate() {
+            let Some(binding) = mutable_storage_receiver_name(argument) else {
+                continue;
+            };
+            let mut updated = self.lookup(&binding).cloned().unwrap_or_default();
+            for (other_index, info) in argument_infos.iter().enumerate() {
+                if other_index != index {
+                    updated.union(info);
+                }
+            }
+            self.assign(&binding, updated);
+        }
         if let Expr::Path(path) = call.func.as_ref()
             && path.qself.is_none()
             && path.path.segments.len() == 1
             && let Some(callee) = last_path_name(&path.path)
         {
-            let argument_infos = call
-                .args
-                .iter()
-                .map(|argument| self.info_from_expr(argument))
-                .collect::<Vec<_>>();
             let mutations = self
                 .lookup(&callee)
                 .map(|info| self.closure_mutations_for_args(info, &argument_infos))
@@ -7407,6 +7440,21 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         }
     }
 
+    fn visit_expr_break(&mut self, expression: &'ast syn::ExprBreak) {
+        if !self.allows_source_class(&expression.attrs, "break expression") {
+            return;
+        }
+        if let Some(value) = &expression.expr {
+            self.visit_expr(value);
+        }
+        if let Some(exits) = self.loop_exit_scopes.last_mut() {
+            match exits {
+                None => *exits = Some(self.scopes.clone()),
+                Some(accumulated) => merge_scope_stacks(accumulated, &self.scopes),
+            }
+        }
+    }
+
     fn visit_expr_match(&mut self, expression: &'ast syn::ExprMatch) {
         if !self.allows_source_class(&expression.attrs, "match expression") {
             return;
@@ -7418,13 +7466,16 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         // assignment to an outer local. Snapshot the pre-match state and
         // conservatively union every arm's resulting flow instead.
         let pre_match_scopes = self.scopes.clone();
+        let mut next_arm_scopes = pre_match_scopes.clone();
         let mut merged: Option<Vec<BTreeMap<String, VariableInfo>>> = None;
         for arm in &expression.arms {
-            self.scopes = pre_match_scopes.clone();
+            self.scopes = next_arm_scopes.clone();
             self.push_scope();
             self.bind_pattern(&arm.pat, &scrutinee);
             if let Some((_, guard)) = &arm.guard {
                 self.visit_expr(guard);
+                next_arm_scopes = self.scopes.clone();
+                next_arm_scopes.pop();
             }
             self.visit_expr(&arm.body);
             self.pop_scope();
@@ -7435,6 +7486,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             }
         }
         self.scopes = merged.unwrap_or(pre_match_scopes);
+        merge_scope_stacks(&mut self.scopes, &next_arm_scopes);
         self.bump_context();
     }
 
@@ -12334,6 +12386,25 @@ mod tests {
     }
 
     #[test]
+    fn persistence_inventory_carries_failed_match_guard_mutations_to_later_arms() {
+        let baseline = inventory(
+            r#"
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    let mut slot = None;
+                    match true {
+                        true if { slot = Some(database); false } => {}
+                        _ => consume(slot.unwrap().pool()),
+                    }
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
     fn persistence_inventory_analyzes_default_trait_method_bodies() {
         let dto = ClassifiedPersistenceSource {
             classification: "database_adapter_core",
@@ -13078,6 +13149,27 @@ mod tests {
     }
 
     #[test]
+    fn persistence_inventory_preserves_mutations_at_loop_break_exits() {
+        let baseline = inventory(
+            r#"
+                fn persistent(database: wow_database::CharacterDatabase, stop: bool) {
+                    let mut slot = None;
+                    loop {
+                        slot = Some(&database);
+                        if stop { break; }
+                        slot = None;
+                    }
+                    consume(slot.unwrap().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
     fn persistence_inventory_preserves_join_macro_result_flow() {
         let baseline = inventory(
             r#"
@@ -13764,6 +13856,24 @@ mod tests {
                 fn persistent(database: wow_database::CharacterDatabase) {
                     let mut slot = None;
                     std::mem::replace(&mut slot, Some(database));
+                    consume(slot.unwrap().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_propagates_mutable_argument_writes_conservatively() {
+        let baseline = inventory(
+            r#"
+                fn install<T>(slot: &mut Option<T>, value: T) { *slot = Some(value); }
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    let mut slot = None;
+                    install(&mut slot, database);
                     consume(slot.unwrap().pool());
                 }
             "#,
