@@ -20,8 +20,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use proc_macro2::{TokenStream, TokenTree};
 use quote::ToTokens;
-use sha2::{Digest, Sha256};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use syn::parse::Parser;
 use syn::visit::{self, Visit};
 use syn::{
@@ -767,11 +767,39 @@ fn source_looks_like_sql(source: &str) -> bool {
         return true;
     }
     const KEYWORDS: &[&str] = &[
-        "SELECT", "INSERT", "UPDATE", "DELETE", "REPLACE", "WITH", "CREATE",
-        "ALTER", "DROP", "TRUNCATE", "CALL", "EXEC", "SET", "SHOW", "DESCRIBE",
-        "EXPLAIN", "BEGIN", "COMMIT", "ROLLBACK", "SAVEPOINT", "RELEASE", "GRANT",
-        "REVOKE", "USE", "LOCK", "UNLOCK", "PRAGMA", "VACUUM", "GET_LOCK",
-        "RELEASE_LOCK", "IS_USED_LOCK", "IS_FREE_LOCK", "RELEASE_ALL_LOCKS",
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "DELETE",
+        "REPLACE",
+        "WITH",
+        "CREATE",
+        "ALTER",
+        "DROP",
+        "TRUNCATE",
+        "CALL",
+        "EXEC",
+        "SET",
+        "SHOW",
+        "DESCRIBE",
+        "EXPLAIN",
+        "BEGIN",
+        "COMMIT",
+        "ROLLBACK",
+        "SAVEPOINT",
+        "RELEASE",
+        "GRANT",
+        "REVOKE",
+        "USE",
+        "LOCK",
+        "UNLOCK",
+        "PRAGMA",
+        "VACUUM",
+        "GET_LOCK",
+        "RELEASE_LOCK",
+        "IS_USED_LOCK",
+        "IS_FREE_LOCK",
+        "RELEASE_ALL_LOCKS",
     ];
     source
         .split(|character: char| !(character.is_ascii_alphanumeric() || character == '_'))
@@ -6021,14 +6049,15 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                         _ => None,
                     })
                     .unwrap_or(false);
-                let else_has_source = if_expression
-                    .else_branch
-                    .as_ref()
-                    .is_some_and(|(_, alternative)| {
-                        self.sql_sources(alternative)
-                            .iter()
-                            .any(|source| source_looks_like_sql(source))
-                    });
+                let else_has_source =
+                    if_expression
+                        .else_branch
+                        .as_ref()
+                        .is_some_and(|(_, alternative)| {
+                            self.sql_sources(alternative)
+                                .iter()
+                                .any(|source| source_looks_like_sql(source))
+                        });
                 if then_has_source || else_has_source {
                     BTreeSet::from([compact_control_flow_sql_source(expression)])
                 } else {
@@ -6036,15 +6065,11 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 }
             }
             Expr::Match(match_expression) => {
-                if match_expression
-                    .arms
-                    .iter()
-                    .any(|arm| {
-                        self.sql_sources(&arm.body)
-                            .iter()
-                            .any(|source| source_looks_like_sql(source))
-                    })
-                {
+                if match_expression.arms.iter().any(|arm| {
+                    self.sql_sources(&arm.body)
+                        .iter()
+                        .any(|source| source_looks_like_sql(source))
+                }) {
                     BTreeSet::from([compact_control_flow_sql_source(expression)])
                 } else {
                     BTreeSet::new()
@@ -10517,12 +10542,12 @@ fn workspace_sqlx_namespace_cache(
             let key = (package.clone(), PersistenceSourceClass::Production);
             let mut namespaces = registries.get(&key).cloned().unwrap_or_default();
             for provider_root in aliases.values() {
-                if let Some((_, provider_namespaces)) = registries.iter().find(
-                    |((provider, source_class), _)| {
+                if let Some((_, provider_namespaces)) =
+                    registries.iter().find(|((provider, source_class), _)| {
                         *source_class == PersistenceSourceClass::Production
                             && provider.replace('-', "_") == *provider_root
-                    },
-                ) {
+                    })
+                {
                     namespaces.extend(
                         provider_namespaces
                             .iter()
@@ -10536,12 +10561,12 @@ fn workspace_sqlx_namespace_cache(
             let key = (package.clone(), PersistenceSourceClass::TestFixture);
             let mut namespaces = registries.get(&key).cloned().unwrap_or_default();
             for provider_root in aliases.values() {
-                if let Some((_, provider_namespaces)) = registries.iter().find(
-                    |((provider, source_class), _)| {
+                if let Some((_, provider_namespaces)) =
+                    registries.iter().find(|((provider, source_class), _)| {
                         *source_class == PersistenceSourceClass::TestFixture
                             && provider.replace('-', "_") == *provider_root
-                    },
-                ) {
+                    })
+                {
                     namespaces.extend(
                         provider_namespaces
                             .iter()
@@ -11471,8 +11496,7 @@ pub(crate) fn inventory_persistence_accesses_with_dependencies(
             );
         }
     }
-    let sqlx_namespace_registries =
-        resolve_public_sqlx_namespace_reexports(&callable_reexports);
+    let sqlx_namespace_registries = resolve_public_sqlx_namespace_reexports(&callable_reexports);
     let sqlx_namespace_cache =
         workspace_sqlx_namespace_cache(&sqlx_namespace_registries, dependencies);
     resolve_public_named_type_reexports(
@@ -16583,9 +16607,7 @@ mod tests {
             PersistenceOperation::AdvisoryLock,
         ] {
             assert!(baseline.accesses.iter().any(|row| {
-                row.enclosing == "fn raw"
-                    && row.symbol == "execute"
-                    && row.operation == operation
+                row.enclosing == "fn raw" && row.symbol == "execute" && row.operation == operation
             }));
         }
     }
@@ -16665,8 +16687,7 @@ mod tests {
         .unwrap();
         for enclosing in ["fn conditional", "fn matched", "fn blocked", "fn nested"] {
             assert!(baseline.accesses.iter().any(|row| {
-                row.enclosing == enclosing
-                    && row.operation == PersistenceOperation::AdvisoryLock
+                row.enclosing == enclosing && row.operation == PersistenceOperation::AdvisoryLock
             }));
         }
     }
@@ -16700,11 +16721,9 @@ mod tests {
             )]),
             test: BTreeMap::new(),
         };
-        let baseline = inventory_persistence_accesses_with_dependencies(
-            &[consumer, facade],
-            &dependencies,
-        )
-        .unwrap();
+        let baseline =
+            inventory_persistence_accesses_with_dependencies(&[consumer, facade], &dependencies)
+                .unwrap();
         assert!(baseline.accesses.iter().any(|row| {
             row.enclosing == "fn through_facade"
                 && row.operation == PersistenceOperation::Query
