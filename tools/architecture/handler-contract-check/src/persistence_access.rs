@@ -1724,6 +1724,13 @@ fn is_flow_passthrough_call(names: &[String]) -> bool {
                     | ("Rc", "clone")
                     | ("Rc", "new")
                     | ("Box", "new")
+                    | ("Mutex", "new")
+                    | ("RwLock", "new")
+                    | ("Cell", "new")
+                    | ("RefCell", "new")
+                    | ("UnsafeCell", "new")
+                    | ("ManuallyDrop", "new")
+                    | ("Pin", "new")
                     | ("Option", "Some")
                     | ("Result", "Ok")
             )
@@ -6560,7 +6567,10 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             return;
         }
         if (rooted_sqlx && is_query_name(&name)) || imported_query {
-            if matches!(name.as_str(), "query_file" | "query_file_as") {
+            if matches!(
+                name.as_str(),
+                "query_file" | "query_file_as" | "query_file_scalar"
+            ) {
                 self.errors.push(format!(
                     "{} uses {name}! SQL whose referenced file is outside the persistence snapshot; mount and fingerprint the SQL file explicitly",
                     self.enclosing
@@ -8326,6 +8336,16 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             };
             if valid {
                 valid_persistence_method = true;
+                let executor_consumes_raw_sql = matches!(
+                    operation,
+                    PersistenceOperation::Execute
+                        | PersistenceOperation::Fetch
+                        | PersistenceOperation::FetchAll
+                        | PersistenceOperation::FetchMany
+                        | PersistenceOperation::FetchOne
+                        | PersistenceOperation::FetchOptional
+                ) && !receiver.has_stage(FlowStage::Query)
+                    && method.args.first().is_some();
                 let mut targets = receiver.targets();
                 for argument in &method.args {
                     targets.extend(self.flow_of_expr(argument).targets());
@@ -8334,14 +8354,10 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                     let fingerprint = self
                         .fingerprint_with_sql_source(canonical_method(method), method.args.first());
                     self.add(target, operation, &name, &cfg, fingerprint.clone());
-                    if matches!(
-                        operation,
-                        PersistenceOperation::DirectQuery | PersistenceOperation::RawSql
-                    ) && sql_is_advisory_lock(&fingerprint)
-                    {
+                    if executor_consumes_raw_sql {
                         self.add(
                             target,
-                            PersistenceOperation::AdvisoryLock,
+                            PersistenceOperation::RawSql,
                             &name,
                             &cfg,
                             fingerprint.clone(),
@@ -8349,11 +8365,29 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                     }
                     if matches!(
                         operation,
+                        PersistenceOperation::DirectQuery | PersistenceOperation::RawSql
+                    ) || executor_consumes_raw_sql
+                    {
+                        if sql_is_advisory_lock(&fingerprint) {
+                            self.add(
+                                target,
+                                PersistenceOperation::AdvisoryLock,
+                                &name,
+                                &cfg,
+                                fingerprint.clone(),
+                            );
+                        }
+                    }
+                    if matches!(
+                        operation,
                         PersistenceOperation::DirectQuery
                             | PersistenceOperation::DirectExecute
                             | PersistenceOperation::RawSql
-                    ) && let Some(argument) = method.args.first()
+                    ) || executor_consumes_raw_sql
                     {
+                        let Some(argument) = method.args.first() else {
+                            continue;
+                        };
                         match self.sql_expression_kind(argument) {
                             SqlExpressionKind::Static => {}
                             SqlExpressionKind::Included => self.errors.push(format!(
@@ -8445,7 +8479,13 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                 self.visit_expr(argument);
             }
         }
-        if CLOSURE_INVOKING_METHODS.contains(&name.as_str()) {
+        if CLOSURE_INVOKING_METHODS.contains(&name.as_str())
+            || (!valid_persistence_method
+                && method
+                    .args
+                    .iter()
+                    .any(|argument| matches!(argument, Expr::Closure(_))))
+        {
             let pre_call_scopes = self.scopes.clone();
             let mut callback_argument = self.info_from_expr(&method.receiver);
             for argument in &method.args {
@@ -15359,6 +15399,24 @@ mod tests {
     }
 
     #[test]
+    fn persistence_inventory_applies_closure_mutations_for_unmodeled_methods() {
+        let baseline = inventory(
+            r#"
+                struct Runner;
+                fn persistent(database: wow_database::CharacterDatabase, runner: Runner) {
+                    let mut slot = None;
+                    runner.invoke(|| slot = Some(database));
+                    consume(slot.unwrap().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
+        }));
+    }
+
+    #[test]
     fn persistence_inventory_applies_closure_mutations_through_helpers() {
         let baseline = inventory(
             r#"
@@ -15816,6 +15874,7 @@ mod tests {
         for source in [
             r#"fn hidden() { consume(sqlx::query_file!("query.sql")); }"#,
             r#"fn hidden() { consume(sqlx::query_file_as!(u8, "query.sql")); }"#,
+            r#"fn hidden() { consume(sqlx::query_file_scalar!("query.sql")); }"#,
         ] {
             let error = inventory(source).unwrap_err();
             assert!(error.contains("referenced file"), "{error}");
@@ -15897,6 +15956,52 @@ mod tests {
             row.enclosing == "fn dynamic"
                 && row.symbol == "raw_sql"
                 && row.operation == PersistenceOperation::NonliteralSql
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_classifies_raw_sql_executor_arguments() {
+        let baseline = inventory(
+            r#"
+                fn raw(pool: sqlx::MySqlPool, sql: &str) {
+                    pool.execute(sql);
+                }
+                fn inverse(pool: sqlx::MySqlPool) {
+                    sqlx::query("SELECT 1").execute(&pool);
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn raw"
+                && row.operation == PersistenceOperation::RawSql
+                && row.symbol == "execute"
+        }));
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn raw"
+                && row.operation == PersistenceOperation::NonliteralSql
+                && row.symbol == "execute"
+        }));
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn inverse"
+                && row.operation == PersistenceOperation::RawSql
+                && row.symbol == "execute"
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_preserves_standard_wrapper_constructor_flow() {
+        let baseline = inventory(
+            r#"
+                fn persistent(database: wow_database::CharacterDatabase) {
+                    let guarded = std::sync::Mutex::new(database);
+                    consume(guarded.into_inner().unwrap().pool());
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
         }));
     }
 
