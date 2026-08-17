@@ -76,7 +76,7 @@ jobs:
               )
               if result.returncode:
                   error = result.stderr.strip() or result.stdout.strip()
-                  if re.search(r"\(HTTP 5\d\d\)", error):
+                  if re.search(r"\(HTTP 5\d\d\)", error) or "unexpected end of JSON input" in error:
                       raise TransientGitHubApiError(error)
                   if "(HTTP 404)" in error:
                       raise GitHubNotFoundError(error)
@@ -90,13 +90,16 @@ jobs:
                   separator = "&" if "?" in path else "?"
                   try:
                       page_items = gh_json(f"{path}{separator}per_page=100&page={page}")
-                  except GitHubNotFoundError:
+                  except GitHubNotFoundError as error:
                       # GitHub may return 404 instead of [] after an exactly full
                       # final page. A successful first page already proved that
                       # the resource exists and the token can read it.
                       if page > 1:
                           return items
-                      raise
+                      # A PR-triggered job knows page one exists. GitHub has also
+                      # transiently returned 404 for this endpoint, so retry it
+                      # under the same bounded deadline as other API failures.
+                      raise TransientGitHubApiError(str(error)) from error
                   if not isinstance(page_items, list):
                       raise TypeError(f"Expected paginated list from gh api {path}")
                   items.extend(page_items)
