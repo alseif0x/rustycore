@@ -45,6 +45,7 @@ const QUERY_CONSTRUCTORS: &[&str] = &[
     "query_scalar",
     "query_scalar_with",
     "query_with",
+    "raw_sql",
 ];
 
 const FLOW_PASSTHROUGH_METHODS: &[&str] = &[
@@ -65,8 +66,11 @@ const FLOW_PASSTHROUGH_METHODS: &[&str] = &[
 /// receiver-only passthroughs would hide a persistence value created inside
 /// the argument, e.g. `Some(0_u8).map(|_| database).unwrap().pool()`.
 const FLOW_TRANSFORMING_METHODS: &[&str] = &[
+    "and_then",
     "map",
     "map_err",
+    "map_or",
+    "map_or_else",
     "ok_or",
     "ok_or_else",
     "or",
@@ -298,7 +302,11 @@ impl PersistenceOperation {
             "open"
             | "open_with_pool_size"
             | "open_with_pool_size_and_auto_create_like_cpp"
-            | "from_pool" => Some(Self::DatabaseOpen),
+            | "from_pool"
+            | "connect"
+            | "connect_lazy"
+            | "connect_with"
+            | "connect_lazy_with" => Some(Self::DatabaseOpen),
             "new" => Some(Self::TransactionConstruct),
             "with_capacity_like_cpp" => Some(Self::StatementBuilder),
             _ => None,
@@ -1686,6 +1694,14 @@ fn database_field_target(name: &str) -> Option<PersistenceTarget> {
         "hotfix_db" => Some(PersistenceTarget::HotfixDatabase),
         _ => None,
     }
+}
+
+fn sqlx_pool_options_target(names: &[String]) -> Option<PersistenceTarget> {
+    names.iter().find_map(|name| match name.as_str() {
+        "MySqlPoolOptions" => Some(PersistenceTarget::MySqlPool),
+        "PgPoolOptions" => Some(PersistenceTarget::PgPool),
+        _ => None,
+    })
 }
 
 fn is_generated_id_read_statement(name: &str) -> bool {
@@ -6060,6 +6076,12 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         let rooted_sqlx = names
             .first()
             .is_some_and(|first| self.symbols.sqlx_namespaces.contains(first));
+        if rooted_sqlx
+            && last == "new"
+            && let Some(target) = sqlx_pool_options_target(&names)
+        {
+            return Flow::pools(&BTreeSet::from([target]));
+        }
         if (rooted_sqlx && is_query_name(last))
             || (names.len() == 1 && self.symbols.query_callables.contains(last))
             || (names.len() == 1 && self.lookup(last).is_some_and(|info| info.query_callable))
@@ -6489,6 +6511,19 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         fingerprint: String,
     ) {
         for target in flow.pool_targets() {
+            self.add(target, operation, symbol, cfg, fingerprint.clone());
+        }
+    }
+
+    fn record_persistence_escape(
+        &mut self,
+        flow: &Flow,
+        operation: PersistenceOperation,
+        symbol: &str,
+        cfg: &[String],
+        fingerprint: String,
+    ) {
+        for target in flow.targets() {
             self.add(target, operation, symbol, cfg, fingerprint.clone());
         }
     }
@@ -7980,6 +8015,15 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                 &cfg,
                 fingerprint.clone(),
             );
+            if name == "raw_sql" {
+                self.add(
+                    PersistenceTarget::Sqlx,
+                    PersistenceOperation::RawSql,
+                    &name,
+                    &cfg,
+                    fingerprint.clone(),
+                );
+            }
             if sql_is_advisory_lock(&fingerprint) {
                 self.add(
                     PersistenceTarget::Sqlx,
@@ -8082,7 +8126,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         if !flow_passthrough && !known_persistence_call {
             for argument in &call.args {
                 let flow = self.flow_of_expr(argument);
-                self.record_pool_escape(
+                self.record_persistence_escape(
                     &flow,
                     PersistenceOperation::ArgumentEscape,
                     &name,
@@ -13568,6 +13612,38 @@ mod tests {
     }
 
     #[test]
+    fn persistence_inventory_tracks_result_producing_combinators() {
+        let baseline = inventory(
+            r#"
+                fn and_then(database: wow_database::CharacterDatabase) {
+                    consume(Some(()).and_then(|_| Some(database)).unwrap().pool());
+                }
+                fn map_or(
+                    first: wow_database::CharacterDatabase,
+                    second: wow_database::CharacterDatabase,
+                ) {
+                    consume(Some(()).map_or(first, |_| second).pool());
+                }
+                fn map_or_else(
+                    first: wow_database::CharacterDatabase,
+                    second: wow_database::CharacterDatabase,
+                ) {
+                    consume(Result::<(), ()>::Ok(()).map_or_else(|_| first, |_| second).pool());
+                }
+            "#,
+        )
+        .unwrap();
+
+        for enclosing in ["fn and_then", "fn map_or", "fn map_or_else"] {
+            assert!(baseline.accesses.iter().any(|row| {
+                row.enclosing == enclosing
+                    && row.target == PersistenceTarget::CharacterDatabase
+                    && row.operation == PersistenceOperation::PoolAccess
+            }));
+        }
+    }
+
+    #[test]
     fn persistence_inventory_resolves_local_closure_callables() {
         let baseline = inventory(
             r#"
@@ -15788,6 +15864,72 @@ mod tests {
         );
         assert!(first.accesses.iter().any(|row| {
             row.enclosing == "fn constant" && row.operation == PersistenceOperation::AdvisoryLock
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_classifies_raw_sql_constructors() {
+        let baseline = inventory(
+            r#"
+                fn locked(pool: sqlx::MySqlPool) {
+                    let sql = "SELECT GET_LOCK('inventory', 0)";
+                    sqlx::raw_sql(sql).execute(&pool);
+                }
+                fn dynamic(sql: &str) {
+                    consume(sqlx::raw_sql(sql));
+                }
+            "#,
+        )
+        .unwrap();
+
+        for operation in [
+            PersistenceOperation::Query,
+            PersistenceOperation::RawSql,
+            PersistenceOperation::AdvisoryLock,
+        ] {
+            assert!(baseline.accesses.iter().any(|row| {
+                row.enclosing == "fn locked"
+                    && row.symbol == "raw_sql"
+                    && row.operation == operation
+            }));
+        }
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn dynamic"
+                && row.symbol == "raw_sql"
+                && row.operation == PersistenceOperation::NonliteralSql
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_tracks_sqlx_pool_opens_and_transaction_escapes() {
+        let baseline = inventory(
+            r#"
+                async fn open(connection_string: &str) {
+                    sqlx::mysql::MySqlPoolOptions::new()
+                        .max_connections(4)
+                        .idle_timeout(None)
+                        .connect(connection_string)
+                        .await;
+                }
+                async fn forget_transaction(pool: sqlx::PgPool) {
+                    let tx = pool.begin().await.unwrap();
+                    std::mem::forget(tx);
+                }
+            "#,
+        )
+        .unwrap();
+
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn open"
+                && row.target == PersistenceTarget::MySqlPool
+                && row.operation == PersistenceOperation::DatabaseOpen
+                && row.symbol == "connect"
+        }));
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn forget_transaction"
+                && row.target == PersistenceTarget::PgPool
+                && row.operation == PersistenceOperation::ArgumentEscape
+                && row.symbol == "forget"
         }));
     }
 
