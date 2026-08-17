@@ -753,17 +753,29 @@ fn sql_is_advisory_lock(fingerprint: &str) -> bool {
     .any(|needle| normalized.contains(needle))
 }
 
-fn compact_control_flow_sql_source(expression: &Expr) -> String {
-    let source = normalized_tokens(expression);
-    let digest = Sha256::digest(source.as_bytes());
-    let advisory = sql_is_advisory_lock(&source)
-        .then_some("|GET_LOCK")
-        .unwrap_or_default();
-    format!("control-flow-sha256:{digest:x}{advisory}")
+fn compact_composed_sql_source(
+    kind: &str,
+    expression: &Expr,
+    resolved_sources: &BTreeSet<String>,
+) -> String {
+    let expression_source = normalized_tokens(expression);
+    let mut digest_input = expression_source.clone();
+    for source in resolved_sources {
+        digest_input.push('\0');
+        digest_input.push_str(source);
+    }
+    let digest = Sha256::digest(digest_input.as_bytes());
+    let advisory = (sql_is_advisory_lock(&expression_source)
+        || resolved_sources
+            .iter()
+            .any(|source| sql_is_advisory_lock(source)))
+    .then_some("|GET_LOCK")
+    .unwrap_or_default();
+    format!("{kind}-sha256:{digest:x}{advisory}")
 }
 
 fn source_looks_like_sql(source: &str) -> bool {
-    if source.starts_with("control-flow-sha256:") {
+    if source.starts_with("control-flow-sha256:") || source.starts_with("binary-add-sha256:") {
         return true;
     }
     const KEYWORDS: &[&str] = &[
@@ -6036,41 +6048,53 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 })
                 .unwrap_or_default(),
             Expr::If(if_expression) => {
-                let then_has_source = if_expression
+                let mut sources = if_expression
                     .then_branch
                     .stmts
                     .last()
                     .and_then(|statement| match statement {
-                        Stmt::Expr(tail, None) => Some(
-                            self.sql_sources(tail)
-                                .iter()
-                                .any(|source| source_looks_like_sql(source)),
-                        ),
+                        Stmt::Expr(tail, None) => Some(self.sql_sources(tail)),
                         _ => None,
                     })
-                    .unwrap_or(false);
-                let else_has_source =
-                    if_expression
-                        .else_branch
-                        .as_ref()
-                        .is_some_and(|(_, alternative)| {
-                            self.sql_sources(alternative)
-                                .iter()
-                                .any(|source| source_looks_like_sql(source))
-                        });
-                if then_has_source || else_has_source {
-                    BTreeSet::from([compact_control_flow_sql_source(expression)])
+                    .unwrap_or_default();
+                if let Some((_, alternative)) = &if_expression.else_branch {
+                    sources.extend(self.sql_sources(alternative));
+                }
+                if sources.iter().any(|source| source_looks_like_sql(source)) {
+                    BTreeSet::from([compact_composed_sql_source(
+                        "control-flow",
+                        expression,
+                        &sources,
+                    )])
                 } else {
                     BTreeSet::new()
                 }
             }
             Expr::Match(match_expression) => {
-                if match_expression.arms.iter().any(|arm| {
-                    self.sql_sources(&arm.body)
-                        .iter()
-                        .any(|source| source_looks_like_sql(source))
-                }) {
-                    BTreeSet::from([compact_control_flow_sql_source(expression)])
+                let sources = match_expression
+                    .arms
+                    .iter()
+                    .flat_map(|arm| self.sql_sources(&arm.body))
+                    .collect::<BTreeSet<_>>();
+                if sources.iter().any(|source| source_looks_like_sql(source)) {
+                    BTreeSet::from([compact_composed_sql_source(
+                        "control-flow",
+                        expression,
+                        &sources,
+                    )])
+                } else {
+                    BTreeSet::new()
+                }
+            }
+            Expr::Binary(binary) if matches!(binary.op, syn::BinOp::Add(_)) => {
+                let mut sources = self.sql_sources(&binary.left);
+                sources.extend(self.sql_sources(&binary.right));
+                if sources.iter().any(|source| source_looks_like_sql(source)) {
+                    BTreeSet::from([compact_composed_sql_source(
+                        "binary-add",
+                        expression,
+                        &sources,
+                    )])
                 } else {
                     BTreeSet::new()
                 }
@@ -16690,6 +16714,56 @@ mod tests {
                 row.enclosing == enclosing && row.operation == PersistenceOperation::AdvisoryLock
             }));
         }
+    }
+
+    #[test]
+    fn persistence_inventory_hashes_resolved_control_flow_sql_sources() {
+        let collect = |sql: &str| {
+            inventory(&format!(
+                r#"
+                    const FORWARDED: &str = {sql:?};
+                    fn forwarded(flag: bool) {{
+                        let sql = if flag {{ FORWARDED }} else {{ "SELECT 2" }};
+                        sqlx::query(sql);
+                    }}
+                "#
+            ))
+            .unwrap()
+        };
+        let clean = collect("SELECT 1");
+        let locked = collect("SELECT GET_LOCK('forwarded', 0)");
+        let query_fingerprint = |baseline: &PersistenceAccessBaseline| {
+            baseline
+                .accesses
+                .iter()
+                .find(|row| {
+                    row.enclosing == "fn forwarded" && row.operation == PersistenceOperation::Query
+                })
+                .map(|row| row.fingerprint.clone())
+                .unwrap()
+        };
+        assert_ne!(query_fingerprint(&clean), query_fingerprint(&locked));
+        assert!(locked.accesses.iter().any(|row| {
+            row.enclosing == "fn forwarded" && row.operation == PersistenceOperation::AdvisoryLock
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_preserves_sql_sources_across_string_addition() {
+        let baseline = inventory(
+            r#"
+                fn added() {
+                    let sql = String::from("SELECT ") + "GET_LOCK('added', 0)";
+                    sqlx::query(&sql);
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn added"
+                && row.operation == PersistenceOperation::AdvisoryLock
+                && row.fingerprint.contains("GET_LOCK")
+        }));
     }
 
     #[test]
