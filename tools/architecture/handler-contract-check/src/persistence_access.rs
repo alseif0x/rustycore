@@ -1275,6 +1275,7 @@ struct VariableInfo {
     callable_signatures: BTreeSet<CallableSignature>,
     closure_mutations: BTreeMap<String, VariableInfo>,
     mutable_pointees: BTreeSet<String>,
+    mutable_places: BTreeSet<MutablePlace>,
     query_callable: bool,
 }
 
@@ -1307,6 +1308,8 @@ impl VariableInfo {
         self.sql_sources.extend(other.sql_sources.iter().cloned());
         self.mutable_pointees
             .extend(other.mutable_pointees.iter().cloned());
+        self.mutable_places
+            .extend(other.mutable_places.iter().cloned());
         self.query_callable |= other.query_callable;
         if self.tuple_items.len() < other.tuple_items.len() {
             self.tuple_items
@@ -1938,6 +1941,7 @@ fn tuple_items_in_type(ty: &Type, symbols: &ModuleSymbols) -> Vec<VariableInfo> 
                 callable_signatures: BTreeSet::new(),
                 closure_mutations: BTreeMap::new(),
                 mutable_pointees: BTreeSet::new(),
+                mutable_places: BTreeSet::new(),
                 query_callable: false,
             })
             .collect(),
@@ -2008,6 +2012,7 @@ fn variable_info_in_type(ty: &Type, symbols: &ModuleSymbols) -> VariableInfo {
         callable_signatures: BTreeSet::new(),
         closure_mutations: BTreeMap::new(),
         mutable_pointees: BTreeSet::new(),
+        mutable_places: BTreeSet::new(),
         query_callable: false,
     };
     if let Type::Path(path) = ty
@@ -4852,6 +4857,11 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                     && let Some(name) = simple_assignment_name(&reference.expr)
                 {
                     info.mutable_pointees.insert(name);
+                } else if reference.mutability.is_some()
+                    && let Some((root, projections)) = assignment_place(&reference.expr)
+                {
+                    info.mutable_places
+                        .insert(MutablePlace { root, projections });
                 }
                 return info;
             }
@@ -5163,6 +5173,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 callable_signatures: BTreeSet::new(),
                 closure_mutations: BTreeMap::new(),
                 mutable_pointees: BTreeSet::new(),
+                mutable_places: BTreeSet::new(),
                 query_callable: false,
             };
         }
@@ -5247,6 +5258,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 callable_signatures: BTreeSet::new(),
                 closure_mutations: BTreeMap::new(),
                 mutable_pointees: BTreeSet::new(),
+                mutable_places: BTreeSet::new(),
                 query_callable: false,
             };
             let mut names = path_names(&path.path);
@@ -5290,6 +5302,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             callable_signatures: BTreeSet::new(),
             closure_mutations: BTreeMap::new(),
             mutable_pointees: BTreeSet::new(),
+            mutable_places: BTreeSet::new(),
             query_callable: false,
         }
     }
@@ -5808,6 +5821,16 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                     .map(|info| info.sql_expression)
                     .unwrap_or(SqlExpressionKind::Nonliteral)
             }
+            Expr::Call(call)
+                if matches!(call.func.as_ref(), Expr::Path(path)
+                    if path.path.segments.iter().rev().take(2).map(|segment| normalized_ident(&segment.ident)).collect::<Vec<_>>()
+                        == ["from", "String"]) =>
+            {
+                call.args
+                    .first()
+                    .map(|argument| self.sql_expression_kind(argument))
+                    .unwrap_or(SqlExpressionKind::Nonliteral)
+            }
             Expr::Macro(mac)
                 if self
                     .canonical_local_path_names(path_names(&mac.mac.path))
@@ -5861,7 +5884,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             Expr::MethodCall(method)
                 if matches!(
                     normalized_ident(&method.method).as_str(),
-                    "as_str" | "as_ref"
+                    "as_str" | "as_ref" | "to_owned" | "to_string"
                 ) =>
             {
                 self.sql_expression_kind(&method.receiver)
@@ -5913,6 +5936,16 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 .get(&self.package_function_key(path_names(&path.path)))
                 .map(|info| info.sql_sources.clone())
                 .unwrap_or_default(),
+            Expr::Call(call)
+                if matches!(call.func.as_ref(), Expr::Path(path)
+                    if path.path.segments.iter().rev().take(2).map(|segment| normalized_ident(&segment.ident)).collect::<Vec<_>>()
+                        == ["from", "String"]) =>
+            {
+                call.args
+                    .first()
+                    .map(|argument| self.sql_sources(argument))
+                    .unwrap_or_default()
+            }
             Expr::Macro(mac)
                 if self
                     .canonical_local_path_names(path_names(&mac.mac.path))
@@ -5924,7 +5957,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             Expr::MethodCall(method)
                 if matches!(
                     normalized_ident(&method.method).as_str(),
-                    "as_str" | "as_ref"
+                    "as_str" | "as_ref" | "to_owned" | "to_string"
                 ) =>
             {
                 self.sql_sources(&method.receiver)
@@ -7209,10 +7242,16 @@ fn simple_assignment_name(expression: &Expr) -> Option<String> {
         .flatten()
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum PlaceProjection {
     Field(String),
     Index(Option<usize>),
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct MutablePlace {
+    root: String,
+    projections: Vec<PlaceProjection>,
 }
 
 fn assignment_place(expression: &Expr) -> Option<(String, Vec<PlaceProjection>)> {
@@ -8463,6 +8502,16 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             }
             union_into_assignment_place(self, &method.receiver, &stored);
         }
+        if name == "push_str"
+            && let Some(argument) = method.args.first()
+        {
+            let appended = VariableInfo {
+                sql_expression: self.sql_expression_kind(argument),
+                sql_sources: self.sql_sources(argument),
+                ..VariableInfo::default()
+            };
+            union_into_assignment_place(self, &method.receiver, &appended);
+        }
         let (receiver_effect, parameter_effects) = self.method_mutation_effects(method);
         if receiver_effect != VariableInfo::default() {
             union_into_assignment_place(self, &method.receiver, &receiver_effect);
@@ -8540,6 +8589,11 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                 let pointee = self.info_from_expr(&unary.expr);
                 for name in pointee.mutable_pointees {
                     self.assign(&name, info.clone());
+                }
+                for place in pointee.mutable_places {
+                    let mut aggregate = self.lookup(&place.root).cloned().unwrap_or_default();
+                    assign_place_projection(&mut aggregate, &place.projections, &info);
+                    self.assign(&place.root, aggregate);
                 }
             }
             if let Some((root, projections)) = assignment_place(&assignment.left) {
@@ -15286,18 +15340,32 @@ mod tests {
     fn persistence_inventory_tracks_writes_through_mutable_aliases() {
         let baseline = inventory(
             r#"
+                struct Holder { slot: Option<wow_database::CharacterDatabase> }
                 fn persistent(database: wow_database::CharacterDatabase) {
                     let mut slot = None;
                     let output = &mut slot;
                     *output = Some(database);
                     consume(slot.unwrap().pool());
                 }
+                fn projected(database: wow_database::CharacterDatabase, mut holder: Holder) {
+                    let output = &mut holder.slot;
+                    *output = Some(database);
+                    consume(holder.slot.unwrap().pool());
+                }
+                fn indexed(database: wow_database::CharacterDatabase) {
+                    let mut slots = [None];
+                    let output = &mut slots[0];
+                    *output = Some(database);
+                    consume(slots[0].unwrap().pool());
+                }
             "#,
         )
         .unwrap();
-        assert!(baseline.accesses.iter().any(|row| {
-            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
-        }));
+        for enclosing in ["fn persistent", "fn projected", "fn indexed"] {
+            assert!(baseline.accesses.iter().any(|row| {
+                row.enclosing == enclosing && row.operation == PersistenceOperation::PoolAccess
+            }));
+        }
     }
 
     #[test]
@@ -15923,6 +15991,23 @@ mod tests {
         );
         assert!(first.accesses.iter().any(|row| {
             row.enclosing == "fn constant" && row.operation == PersistenceOperation::AdvisoryLock
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_tracks_sql_appended_to_string_bindings() {
+        let baseline = inventory(
+            r#"
+                fn appended() {
+                    let mut sql = String::from("SELECT 1");
+                    sql.push_str(" GET_LOCK('inventory', 0)");
+                    consume(sqlx::query(&sql));
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn appended" && row.operation == PersistenceOperation::AdvisoryLock
         }));
     }
 
