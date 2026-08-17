@@ -922,6 +922,11 @@ impl<'ast> Visit<'ast> for MutableParameterWrites {
         {
             self.receiver_fields.insert(field.clone());
         }
+        if let Some((root, _)) = assignment_place(&assignment.left)
+            && let Some(index) = self.parameters.get(&root)
+        {
+            self.written.insert(*index);
+        }
         if let Expr::Unary(unary) = assignment.left.as_ref()
             && matches!(unary.op, syn::UnOp::Deref(_))
             && let Some(name) = simple_assignment_name(&unary.expr)
@@ -6663,14 +6668,53 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             // the definition row covers the body, but each call site must
             // leave its own row so adding another invocation cannot bypass
             // both ratchets without touching the generated artifacts.
+            let mut fingerprint = normalized_tokens(mac);
+            let mut sql_sources = BTreeSet::new();
+            let mut sql_kind = SqlExpressionKind::Static;
+            if let Ok(expressions) =
+                syn::punctuated::Punctuated::<Expr, syn::Token![,]>::parse_terminated
+                    .parse2(mac.tokens.clone())
+            {
+                for expression in expressions {
+                    let sources = self.sql_sources(&expression);
+                    if !sources.is_empty() {
+                        sql_kind = sql_kind.max(self.sql_expression_kind(&expression));
+                        sql_sources.extend(sources);
+                    }
+                }
+            }
+            if !sql_sources.is_empty() {
+                fingerprint = format!(
+                    "{fingerprint}|sql-source:{}",
+                    sql_sources.into_iter().collect::<Vec<_>>().join("|")
+                );
+            }
             for target in targets {
                 self.add(
                     target,
                     PersistenceOperation::MacroReference,
                     &name,
                     &cfg,
-                    normalized_tokens(mac),
+                    fingerprint.clone(),
                 );
+                if sql_is_advisory_lock(&fingerprint) {
+                    self.add(
+                        target,
+                        PersistenceOperation::AdvisoryLock,
+                        &name,
+                        &cfg,
+                        fingerprint.clone(),
+                    );
+                }
+                if matches!(sql_kind, SqlExpressionKind::Interpolated) {
+                    self.add(
+                        target,
+                        PersistenceOperation::InterpolatedSql,
+                        &name,
+                        &cfg,
+                        fingerprint.clone(),
+                    );
+                }
             }
             return;
         }
@@ -7097,6 +7141,33 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             }
         }
         result
+    }
+
+    fn is_unresolved_opaque_call(&self, expression: &Expr) -> bool {
+        let expression = match expression {
+            Expr::Await(value) => value.base.as_ref(),
+            Expr::Try(value) => value.expr.as_ref(),
+            Expr::Paren(value) => value.expr.as_ref(),
+            Expr::Group(value) => value.expr.as_ref(),
+            _ => expression,
+        };
+        let Expr::Call(call) = expression else {
+            return false;
+        };
+        let Expr::Path(path) = call.func.as_ref() else {
+            return false;
+        };
+        let names = path_names(&path.path);
+        let local = names
+            .last()
+            .and_then(|name| self.symbols.function_returns.get(name));
+        let package = self
+            .symbols
+            .package_function_returns
+            .get(&self.package_function_key(names));
+        local.or(package).is_some_and(|info| {
+            info.flow.is_empty() && !info.trait_bounds.is_empty() && call.args.is_empty()
+        })
     }
 
     fn closure_mutations_for_args(
@@ -8136,6 +8207,9 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                 targets.insert(PersistenceTarget::Sqlx);
             }
             for target in targets {
+                let prepared_statement_sql = name == "new"
+                    && target == PersistenceTarget::PreparedStatement
+                    && call.args.first().is_some();
                 let operation = match (name.as_str(), target) {
                     ("new", PersistenceTarget::PreparedStatement)
                     | ("new", PersistenceTarget::SqlQueryHolder)
@@ -8148,7 +8222,56 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                     ("new", _) => PersistenceOperation::PathReference,
                     _ => operation,
                 };
-                self.add(target, operation, &name, &cfg, canonical_call(call));
+                let fingerprint = if prepared_statement_sql {
+                    self.fingerprint_with_sql_source(canonical_call(call), call.args.first())
+                } else {
+                    canonical_call(call)
+                };
+                self.add(target, operation, &name, &cfg, fingerprint.clone());
+                if prepared_statement_sql {
+                    self.add(
+                        target,
+                        PersistenceOperation::RawSql,
+                        &name,
+                        &cfg,
+                        fingerprint.clone(),
+                    );
+                    if sql_is_advisory_lock(&fingerprint) {
+                        self.add(
+                            target,
+                            PersistenceOperation::AdvisoryLock,
+                            &name,
+                            &cfg,
+                            fingerprint.clone(),
+                        );
+                    }
+                    let argument = call.args.first().expect("SQL argument was checked");
+                    match self.sql_expression_kind(argument) {
+                        SqlExpressionKind::Static => {}
+                        SqlExpressionKind::Included => self.errors.push(format!(
+                            "{} passes include_str! SQL whose content is outside the persistence snapshot; mount and fingerprint the included SQL source explicitly",
+                            self.enclosing
+                        )),
+                        SqlExpressionKind::Environment => self.errors.push(format!(
+                            "{} passes env! SQL whose expanded content is outside the persistence snapshot; pin the SQL in reviewed source",
+                            self.enclosing
+                        )),
+                        SqlExpressionKind::Nonliteral => self.add(
+                            target,
+                            PersistenceOperation::NonliteralSql,
+                            &name,
+                            &cfg,
+                            fingerprint.clone(),
+                        ),
+                        SqlExpressionKind::Interpolated => self.add(
+                            target,
+                            PersistenceOperation::InterpolatedSql,
+                            &name,
+                            &cfg,
+                            fingerprint.clone(),
+                        ),
+                    }
+                }
             }
         }
 
@@ -8331,6 +8454,28 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         let cfg = item_cfg(&self.cfg, &method.attrs);
         let name = normalized_ident(&method.method);
         let receiver = self.flow_of_expr(&method.receiver);
+        if receiver.is_empty()
+            && self.is_unresolved_opaque_call(&method.receiver)
+            && matches!(
+                name.as_str(),
+                "pool"
+                    | "acquire"
+                    | "begin"
+                    | "prepare"
+                    | "query"
+                    | "execute"
+                    | "fetch"
+                    | "fetch_all"
+                    | "fetch_many"
+                    | "fetch_one"
+                    | "fetch_optional"
+            )
+        {
+            self.errors.push(format!(
+                "{} invokes persistence-shaped method {name} on a zero-argument opaque return whose concrete flow is not represented",
+                self.enclosing
+            ));
+        }
         let validated_flow_passthrough = FLOW_PASSTHROUGH_METHODS.contains(&name.as_str())
             || (name == "bind" && receiver.has_stage(FlowStage::Query));
         let operation = if is_query_name(&name) && !receiver.0.is_empty() {
@@ -8502,12 +8647,38 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             }
             union_into_assignment_place(self, &method.receiver, &stored);
         }
-        if name == "push_str"
-            && let Some(argument) = method.args.first()
-        {
+        let sql_mutation_argument = match name.as_str() {
+            "push_str" | "push" | "extend" | "append" => method.args.first(),
+            "insert_str" | "insert" | "replace_range" => method.args.get(1),
+            "clear" | "truncate" | "remove" | "pop" | "retain" | "drain" | "split_off" => None,
+            _ => None,
+        };
+        if matches!(
+            name.as_str(),
+            "push_str"
+                | "push"
+                | "extend"
+                | "append"
+                | "insert_str"
+                | "insert"
+                | "replace_range"
+                | "clear"
+                | "truncate"
+                | "remove"
+                | "pop"
+                | "retain"
+                | "drain"
+                | "split_off"
+        ) {
+            let mut sql_sources = BTreeSet::from([normalized_tokens(method)]);
+            if let Some(argument) = sql_mutation_argument {
+                sql_sources.extend(self.sql_sources(argument));
+            }
             let appended = VariableInfo {
-                sql_expression: self.sql_expression_kind(argument),
-                sql_sources: self.sql_sources(argument),
+                sql_expression: sql_mutation_argument
+                    .map(|argument| self.sql_expression_kind(argument))
+                    .unwrap_or(SqlExpressionKind::Nonliteral),
+                sql_sources,
                 ..VariableInfo::default()
             };
             union_into_assignment_place(self, &method.receiver, &appended);
@@ -14312,8 +14483,11 @@ mod tests {
         let baseline = inventory(
             r#"
                 macro_rules! hidden_query { () => { sqlx::query("SELECT 1") } }
+                macro_rules! forwarded_query { ($sql:expr) => { sqlx::query($sql) } }
+                const LOCK_SQL: &str = "SELECT GET_LOCK('macro', 0)";
                 fn persistent() {
                     consume(hidden_query!());
+                    consume(forwarded_query!(LOCK_SQL));
                 }
                 fn clean() {
                     consume(1_u8);
@@ -14327,6 +14501,11 @@ mod tests {
                 && row.target == PersistenceTarget::Sqlx
                 && row.operation == PersistenceOperation::MacroReference
                 && row.symbol == "hidden_query"
+        }));
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn persistent"
+                && row.operation == PersistenceOperation::AdvisoryLock
+                && row.symbol == "forwarded_query"
         }));
         assert!(
             !baseline
@@ -16003,12 +16182,24 @@ mod tests {
                     sql.push_str(" GET_LOCK('inventory', 0)");
                     consume(sqlx::query(&sql));
                 }
+                fn inserted() {
+                    let mut sql = String::from("SELECT 1");
+                    sql.insert_str(sql.len(), " GET_LOCK('inventory', 0)");
+                    consume(sqlx::query(&sql));
+                }
+                fn replaced() {
+                    let mut sql = String::from("SELECT 1");
+                    sql.replace_range(.., "SELECT GET_LOCK('inventory', 0)");
+                    consume(sqlx::query(&sql));
+                }
             "#,
         )
         .unwrap();
-        assert!(baseline.accesses.iter().any(|row| {
-            row.enclosing == "fn appended" && row.operation == PersistenceOperation::AdvisoryLock
-        }));
+        for enclosing in ["fn appended", "fn inserted", "fn replaced"] {
+            assert!(baseline.accesses.iter().any(|row| {
+                row.enclosing == enclosing && row.operation == PersistenceOperation::AdvisoryLock
+            }));
+        }
     }
 
     #[test]
@@ -16041,6 +16232,28 @@ mod tests {
             row.enclosing == "fn dynamic"
                 && row.symbol == "raw_sql"
                 && row.operation == PersistenceOperation::NonliteralSql
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_fingerprints_prepared_statement_sql() {
+        let baseline = inventory(
+            r#"
+                const LOCK_SQL: &str = "SELECT GET_LOCK('prepared', 0)";
+                fn prepared() {
+                    consume(wow_database::PreparedStatement::new(LOCK_SQL));
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn prepared"
+                && row.target == PersistenceTarget::PreparedStatement
+                && row.operation == PersistenceOperation::RawSql
+                && row.fingerprint.contains("GET_LOCK")
+        }));
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn prepared" && row.operation == PersistenceOperation::AdvisoryLock
         }));
     }
 
@@ -17280,6 +17493,7 @@ mod tests {
     fn persistence_inventory_applies_synthesized_mutable_helper_writes() {
         let baseline = inventory(
             r#"
+                struct Holder { slot: Option<wow_database::CharacterDatabase> }
                 fn make_database() -> wow_database::CharacterDatabase { unreachable!() }
                 fn install(slot: &mut Option<wow_database::CharacterDatabase>) {
                     *slot = Some(make_database());
@@ -17289,12 +17503,22 @@ mod tests {
                     install(&mut slot);
                     consume(slot.unwrap().pool());
                 }
+                fn install_holder(holder: &mut Holder) {
+                    holder.slot = Some(make_database());
+                }
+                fn projected() {
+                    let mut holder = Holder { slot: None };
+                    install_holder(&mut holder);
+                    consume(holder.slot.unwrap().pool());
+                }
             "#,
         )
         .unwrap();
-        assert!(baseline.accesses.iter().any(|row| {
-            row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
-        }));
+        for enclosing in ["fn persistent", "fn projected"] {
+            assert!(baseline.accesses.iter().any(|row| {
+                row.enclosing == enclosing && row.operation == PersistenceOperation::PoolAccess
+            }));
+        }
     }
 
     #[test]
@@ -17556,6 +17780,17 @@ mod tests {
         assert!(baseline.accesses.iter().any(|row| {
             row.enclosing == "fn persistent" && row.operation == PersistenceOperation::PoolAccess
         }));
+
+        let error = inventory(
+            r#"
+                trait HasPool { fn pool(self); }
+                fn make_database() -> wow_database::CharacterDatabase { unreachable!() }
+                fn make() -> impl HasPool { make_database() }
+                fn hidden() { make().pool(); }
+            "#,
+        )
+        .expect_err("zero-argument opaque persistence flow must fail closed");
+        assert!(error.contains("zero-argument opaque return"), "{error}");
     }
 
     #[test]
