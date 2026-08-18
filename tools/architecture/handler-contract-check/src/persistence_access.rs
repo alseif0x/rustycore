@@ -781,7 +781,7 @@ const ADVISORY_LOCK_FUNCTIONS: &[&str] = &[
 fn executable_sql_text(
     fingerprint: &str,
     backslash_escapes: bool,
-    resolve_alias: &dyn Fn(&str) -> Option<String>,
+    resolve_path: &dyn Fn(Vec<String>) -> Vec<String>,
 ) -> String {
     // A fingerprint is Rust token text whose statements live inside string
     // literals. Read those out first: the double quotes around them belong to
@@ -792,7 +792,7 @@ fn executable_sql_text(
     // the expression says so — `"SELECT GET_" + name.as_str() + "LOCK(…)"`
     // never builds `GET_LOCK`. Separate them so no call can be fabricated
     // across whatever stands between them.
-    let sql = match string_literal_values(fingerprint.parse().unwrap_or_default(), resolve_alias)
+    let sql = match string_literal_values(fingerprint.parse().unwrap_or_default(), resolve_path)
         .as_slice()
     {
         [] => fingerprint.to_owned(),
@@ -918,13 +918,16 @@ fn calls_sql_function(executable: &str, function: &str) -> bool {
 /// Whether the executable SQL carried by `fingerprint` takes a MySQL advisory
 /// lock. Valid MySQL spells these functions in any case
 /// (`SELECT get_lock(...)`), so the comparison is case-insensitive.
-fn sql_is_advisory_lock(fingerprint: &str, resolve_alias: &dyn Fn(&str) -> Option<String>) -> bool {
+fn sql_is_advisory_lock(
+    fingerprint: &str,
+    resolve_path: &dyn Fn(Vec<String>) -> Vec<String>,
+) -> bool {
     // The repository pins no `sql_mode`, and `NO_BACKSLASH_ESCAPES` decides
     // where a quoted token ends. Read the statement under both meanings and
     // keep the identity if either one calls the function: a ratchet may record
     // a lock the session does not take, but it must not miss one it does.
     [true, false].into_iter().any(|backslash_escapes| {
-        let executable = executable_sql_text(fingerprint, backslash_escapes, resolve_alias);
+        let executable = executable_sql_text(fingerprint, backslash_escapes, resolve_path);
         ADVISORY_LOCK_FUNCTIONS
             .iter()
             .any(|function| calls_sql_function(&executable, function))
@@ -941,10 +944,10 @@ fn sql_is_advisory_lock(fingerprint: &str, resolve_alias: &dyn Fn(&str) -> Optio
 /// The statement a source pins, when it pins exactly one.
 fn string_literal_values(
     tokens: TokenStream,
-    resolve_alias: &dyn Fn(&str) -> Option<String>,
+    resolve_path: &dyn Fn(Vec<String>) -> Vec<String>,
 ) -> Vec<String> {
     let mut values = Vec::new();
-    collect_string_literal_values(tokens, resolve_alias, &mut values);
+    collect_string_literal_values(tokens, resolve_path, &mut values);
     values
 }
 
@@ -976,20 +979,20 @@ fn rendered_literal(literal: &proc_macro2::Literal) -> Option<String> {
 
 fn collect_string_literal_values(
     tokens: TokenStream,
-    resolve_alias: &dyn Fn(&str) -> Option<String>,
+    resolve_path: &dyn Fn(Vec<String>) -> Vec<String>,
     values: &mut Vec<String>,
 ) {
     let trees = tokens.into_iter().collect::<Vec<_>>();
     let mut index = 0;
     while index < trees.len() {
-        if let Some((macro_name, group)) = compile_time_string_macro(&trees, index, resolve_alias) {
+        if let Some((macro_name, group)) = compile_time_string_macro(&trees, index, resolve_path) {
             if macro_name == "stringify" {
                 // `stringify!` renders its input tokens, not the literals in
                 // them.
                 values.push(group.stream().to_string());
             } else {
                 let mut joined = Vec::new();
-                collect_concat_pieces(group.stream(), resolve_alias, &mut joined);
+                collect_concat_pieces(group.stream(), resolve_path, &mut joined);
                 if !joined.is_empty() {
                     values.push(joined.concat());
                 }
@@ -1004,7 +1007,7 @@ fn collect_string_literal_values(
                 }
             }
             TokenTree::Group(group) => {
-                collect_string_literal_values(group.stream(), resolve_alias, values)
+                collect_string_literal_values(group.stream(), resolve_path, values)
             }
             _ => {}
         }
@@ -1017,20 +1020,29 @@ fn collect_string_literal_values(
 fn compile_time_string_macro(
     trees: &[TokenTree],
     index: usize,
-    resolve_alias: &dyn Fn(&str) -> Option<String>,
+    resolve_path: &dyn Fn(Vec<String>) -> Vec<String>,
 ) -> Option<(String, proc_macro2::Group)> {
     let TokenTree::Ident(ident) = trees.get(index)? else {
         return None;
     };
-    // Only an unqualified name can be an alias in this scope. `other::c!`
-    // shares a leaf name with `use std::concat as c` and is a different macro.
-    let qualified = index >= 2
-        && matches!(trees.get(index - 1), Some(TokenTree::Punct(punct)) if punct.as_char() == ':');
-    let written = normalized_ident(ident);
-    let name = if qualified {
-        written
-    } else {
-        resolve_alias(&written).unwrap_or(written)
+    // A leaf name does not identify a macro: `other::concat!` is somebody's own
+    // macro and `strings::c!` may re-export the standard one. Resolve the whole
+    // path and apply compile-time-string semantics only to what it names.
+    let mut written = vec![normalized_ident(ident)];
+    let mut segment = index;
+    while segment >= 2
+        && matches!(trees.get(segment - 1), Some(TokenTree::Punct(punct)) if punct.as_char() == ':')
+        && matches!(trees.get(segment - 2), Some(TokenTree::Punct(punct)) if punct.as_char() == ':')
+        && let Some(TokenTree::Ident(owner)) = trees.get(segment - 3)
+    {
+        written.insert(0, normalized_ident(owner));
+        segment -= 3;
+    }
+    let resolved = resolve_path(written);
+    let name = match resolved.as_slice() {
+        [name] => name.clone(),
+        [root, name] if matches!(root.as_str(), "std" | "core") => name.clone(),
+        _ => return None,
     };
     if !matches!(name.as_str(), "concat" | "stringify") {
         return None;
@@ -1053,17 +1065,17 @@ fn compile_time_string_macro(
 /// expands to `SELECT GETtrue_LOCK(…)`, which calls nothing.
 fn collect_concat_pieces(
     tokens: TokenStream,
-    resolve_alias: &dyn Fn(&str) -> Option<String>,
+    resolve_path: &dyn Fn(Vec<String>) -> Vec<String>,
     pieces: &mut Vec<String>,
 ) {
     let trees = tokens.into_iter().collect::<Vec<_>>();
     let mut index = 0;
     while index < trees.len() {
-        if let Some((macro_name, group)) = compile_time_string_macro(&trees, index, resolve_alias) {
+        if let Some((macro_name, group)) = compile_time_string_macro(&trees, index, resolve_path) {
             if macro_name == "stringify" {
                 pieces.push(group.stream().to_string());
             } else {
-                collect_concat_pieces(group.stream(), resolve_alias, pieces);
+                collect_concat_pieces(group.stream(), resolve_path, pieces);
             }
             index += 3;
             continue;
@@ -1080,7 +1092,7 @@ fn collect_concat_pieces(
                     pieces.push(name);
                 }
             }
-            TokenTree::Group(group) => collect_concat_pieces(group.stream(), resolve_alias, pieces),
+            TokenTree::Group(group) => collect_concat_pieces(group.stream(), resolve_path, pieces),
             _ => {}
         }
         index += 1;
@@ -6374,9 +6386,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
     /// (`use std::concat as c`), and only an *unqualified* name is the alias:
     /// `other::c!` is a different macro that happens to share a leaf name.
     fn statement_takes_advisory_lock(&self, fingerprint: &str) -> bool {
-        sql_is_advisory_lock(fingerprint, &|name: &str| {
-            self.canonical_names(vec![name.to_owned()]).pop()
-        })
+        sql_is_advisory_lock(fingerprint, &|path: Vec<String>| self.canonical_names(path))
     }
 
     /// The path a name really refers to: a block-local `use` alias first, then
@@ -6607,12 +6617,39 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         }
         if rooted_sqlx
             && last == "new"
-            && names
+            && canonical
                 .iter()
                 .nth_back(1)
                 .is_some_and(|owner| owner == "QueryBuilder")
         {
             return Flow::query();
+        }
+        // UFCS `begin` opens a transaction on its receiver; falling through to
+        // the generic path targets would return a pool stage and the later
+        // `commit` would no longer be recognized.
+        if rooted_sqlx
+            && last == "begin"
+            && let Some(receiver) = call.args.first()
+        {
+            let flow = self.flow_of_expr(receiver);
+            let opened = flow.map_pool_stage(FlowStage::Transaction);
+            if !opened.is_empty() {
+                return opened;
+            }
+            // A connection carries no pool stage, yet `begin` opens a
+            // transaction on it just the same.
+            let opened_on_targets = flow
+                .targets()
+                .iter()
+                .map(|target| (*target, FlowStage::Transaction))
+                .collect::<BTreeSet<_>>();
+            if !opened_on_targets.is_empty() {
+                return Flow(opened_on_targets);
+            }
+            return Flow(BTreeSet::from([(
+                PersistenceTarget::Sqlx,
+                FlowStage::Transaction,
+            )]));
         }
         if is_flow_passthrough_call(&names)
             || is_standard_identity(&self.canonical_local_path_names(names.clone()))
@@ -6715,6 +6752,13 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         }
         match name.as_str() {
             "begin" => receiver.map_pool_stage(FlowStage::Transaction),
+            // `QueryBuilder::build*` hands back the query it has assembled, so
+            // what is chained onto it still executes SQL.
+            "build" | "build_query_as" | "build_query_scalar"
+                if receiver.targets().contains(&PersistenceTarget::Sqlx) =>
+            {
+                Flow::query()
+            }
             "acquire" | "pool" => receiver.map_pool_stage(FlowStage::DerivedPool),
             "prepare" => receiver.map_pool_stage(FlowStage::Query),
             "query" | "direct_query" | "delay_query_holder_like_cpp" => {
@@ -8738,6 +8782,8 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             },
         )
         {
+            // The trait can be imported under another name, and `prepare`
+            // receives its statement the same way the executors do.
             let ufcs_executor_sql = matches!(
                 operation,
                 PersistenceOperation::Execute
@@ -8746,11 +8792,14 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                     | PersistenceOperation::FetchMany
                     | PersistenceOperation::FetchOne
                     | PersistenceOperation::FetchOptional
+                    | PersistenceOperation::PrepareStatement
             ) && matches!(call.func.as_ref(), Expr::Path(path)
                 if rooted_sqlx
-                    && path.path.segments.iter().nth_back(1).is_some_and(|segment| {
-                        normalized_ident(&segment.ident) == "Executor"
-                    }))
+                    && self
+                        .canonical_names(path_names(&path.path))
+                        .iter()
+                        .nth_back(1)
+                        .is_some_and(|segment| segment == "Executor"))
                 && call.args.first().is_some_and(|receiver| {
                     let flow = self.flow_of_expr(receiver);
                     !flow.is_empty() && !flow.has_stage(FlowStage::Query)
@@ -9092,6 +9141,10 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             };
             if valid {
                 valid_persistence_method = true;
+                // An executor is handed either a statement or an already built
+                // query. `pool.execute(sqlx::query("…"))` is the second, and
+                // reading it as raw SQL would report ordinary typed execution
+                // as dynamic.
                 let executor_consumes_raw_sql = matches!(
                     operation,
                     PersistenceOperation::Execute
@@ -9101,7 +9154,9 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                         | PersistenceOperation::FetchOne
                         | PersistenceOperation::FetchOptional
                 ) && !receiver.has_stage(FlowStage::Query)
-                    && method.args.first().is_some();
+                    && method.args.first().is_some_and(|argument| {
+                        !self.flow_of_expr(argument).has_stage(FlowStage::Query)
+                    });
                 let mut targets = receiver.targets();
                 for argument in &method.args {
                     targets.extend(self.flow_of_expr(argument).targets());
@@ -17922,6 +17977,87 @@ mod tests {
         }));
         assert!(baseline.accesses.iter().any(|row| {
             row.enclosing == "fn builtin" && row.operation == PersistenceOperation::AdvisoryLock
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_follows_aliased_ufcs_and_builder_flow() {
+        let baseline = inventory(
+            r#"
+                use sqlx::QueryBuilder as B;
+                use sqlx::Executor as E;
+                fn chained_builder(pool: sqlx::MySqlPool, sql: String) {
+                    let mut b = B::new("SELECT ");
+                    b.push(sql);
+                    b.build().execute(&pool);
+                }
+                fn ufcs_executor(pool: sqlx::MySqlPool, sql: String) {
+                    E::execute(&pool, &sql);
+                }
+                fn ufcs_prepare(pool: sqlx::MySqlPool) {
+                    sqlx::Executor::prepare(&pool, "SELECT GET_LOCK('ufcs', 0)");
+                }
+            "#,
+        )
+        .unwrap();
+        // An aliased constructor still returns query flow, so what is chained
+        // onto it stays in the inventory.
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn chained_builder" && row.operation == PersistenceOperation::Execute
+        }));
+        // UFCS through an aliased trait still hands its second argument as SQL.
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn ufcs_executor"
+                && row.operation == PersistenceOperation::NonliteralSql
+        }));
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn ufcs_prepare"
+                && row.operation == PersistenceOperation::AdvisoryLock
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_keeps_the_transaction_opened_by_ufcs_begin() {
+        let baseline = inventory(
+            r#"
+                async fn scoped(mut connection: sqlx::MySqlConnection) {
+                    let tx = sqlx::Acquire::begin(&mut connection).await.unwrap();
+                    tx.commit().await.unwrap();
+                }
+            "#,
+        )
+        .unwrap();
+        // The transaction the call opens must survive to its commit.
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn scoped" && row.operation == PersistenceOperation::Commit
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_separates_query_objects_from_raw_executor_sql() {
+        let baseline = inventory(
+            r#"
+                fn typed(pool: sqlx::MySqlPool) {
+                    pool.execute(sqlx::query("SELECT 1"));
+                }
+            "#,
+        )
+        .unwrap();
+        // An executor handed a built query is not executing dynamic SQL.
+        for operation in [
+            PersistenceOperation::RawSql,
+            PersistenceOperation::NonliteralSql,
+        ] {
+            assert!(
+                !baseline
+                    .accesses
+                    .iter()
+                    .any(|row| row.enclosing == "fn typed" && row.operation == operation),
+                "typed execution was reported as {operation:?}"
+            );
+        }
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn typed" && row.operation == PersistenceOperation::Query
         }));
     }
 
