@@ -1813,6 +1813,19 @@ fn collect_workspace_persistence_baseline(
 }
 
 fn collect_repository_baseline(repository_root: &Path) -> Result<SessionSyntaxBaseline, String> {
+    collect_repository_baseline_with_persistence(repository_root, true)
+}
+
+/// Collect the session syntax surface, optionally without the persistence scan.
+///
+/// The persistence inventory costs a full workspace scan — minutes, and the
+/// dominant cost of the whole gate. `print-baseline` renders an envelope whose
+/// persistence field is `#[serde(skip)]`, so paying for that scan there bought
+/// a value that was then discarded unread.
+fn collect_repository_baseline_with_persistence(
+    repository_root: &Path,
+    with_persistence: bool,
+) -> Result<SessionSyntaxBaseline, String> {
     let mut units = repository_units(
         repository_root,
         PackageRole::World,
@@ -1831,7 +1844,11 @@ fn collect_repository_baseline(repository_root: &Path) -> Result<SessionSyntaxBa
         NETWORK_PACKAGE_ROOT,
         NETWORK_CRATE_ROOT,
     )?);
-    let persistence_accesses = collect_workspace_persistence_baseline(repository_root)?;
+    let persistence_accesses = if with_persistence {
+        collect_workspace_persistence_baseline(repository_root)?
+    } else {
+        PersistenceAccessBaseline::default()
+    };
     let baseline = collect_units(units, persistence_accesses)?;
     validate_curated_bridge_anchors(&baseline.bridge_accesses)
         .map_err(|error| format!("invalid curated bridge inventory:\n{error}"))?;
@@ -2096,7 +2113,9 @@ pub fn check_repository(policy_path: Option<&Path>) -> Result<String, String> {
 /// `syntax_baseline` object deliberately into the semantic policy.
 pub fn print_repository_baseline() -> Result<String, String> {
     let repository_root = crate::repository_root()?;
-    let baseline = collect_repository_baseline(&repository_root)?;
+    // Without persistence: the envelope skips that field when serializing, so
+    // scanning for it would discard the result.
+    let baseline = collect_repository_baseline_with_persistence(&repository_root, false)?;
     serde_json::to_string_pretty(&BaselineEnvelope {
         schema_version: 1,
         persistence_access_snapshot: PERSISTENCE_ACCESS_SNAPSHOT_RELATIVE_PATH,

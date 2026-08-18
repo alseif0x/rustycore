@@ -149,7 +149,11 @@ jobs:
 
       - name: Cargo check
         run: |
-          cargo +1.88.0 check --locked -p wow-data -p wow-database -p wow-network -p wow-world -p bnet-server -p world-server
+          # The two builds below already type-check these crates: world-server
+          # depends directly on wow-data, wow-database, wow-network and
+          # wow-world, and bnet-server on wow-database. Checking them first
+          # compiled the same crates twice. wow-test-bot stays: it is outside
+          # the workspace and nothing else builds it.
           cargo +1.88.0 check --locked --manifest-path tools/wow-test-bot/Cargo.toml
           # `-j1` was introduced to stop two large debug binaries from linking
           # concurrently, but it also serialized every dependency compile in the
@@ -158,11 +162,6 @@ jobs:
           cargo +1.88.0 build --locked -j4 -p bnet-server
           cargo +1.88.0 build --locked -j4 -p world-server
 
-      - name: Clippy loot authority boundary
-        run: cargo +1.88.0 clippy --locked --no-deps --message-format short -p wow-loot -p wow-entities -p wow-map -p wow-network --lib
-
-      - name: Clippy world target with inherited debt capped
-        run: cargo +1.88.0 clippy --locked --no-deps --message-format short -p wow-world --lib -- --cap-lints warn
 
   tests:
     name: Focused library tests
@@ -239,3 +238,13 @@ jobs:
         run: |
           cargo +stable check --locked -p bnet-server -p world-server
           cargo +stable build --locked -p bnet-server -p world-server
+
+      # Neither pass can fail: no crate sets `lints.workspace = true`, none
+      # denies a lint in source, there is no `-D warnings`, and the world
+      # target caps lints to warnings outright. They were costing every PR
+      # 1.1 minutes to print advice nobody was gated on. Keep the signal
+      # where it is free, and make it enforcing in its own change.
+      - name: Clippy advisory sweep
+        run: |
+          cargo +1.88.0 clippy --locked --no-deps --message-format short -p wow-loot -p wow-entities -p wow-map -p wow-network --lib
+          cargo +1.88.0 clippy --locked --no-deps --message-format short -p wow-world --lib -- --cap-lints warn
