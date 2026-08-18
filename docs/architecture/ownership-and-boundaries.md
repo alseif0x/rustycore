@@ -277,13 +277,13 @@ progress:
 
 | Hotspot | Production | Tests | Total |
 |---|---:|---:|---:|
-| `crates/wow-world/src/session.rs` | 71,997 | 94,772 | 166,769 |
-| `crates/wow-map/src/map.rs` | 15,247 | 18,413 | 33,660 |
-| `crates/wow-world/src/handlers/character.rs` | 20,235 | 10,618 | 30,853 |
-| `crates/wow-world/src/handlers/loot.rs` | 13,660 | 16,193 | 29,853 |
-| `crates/world-server/src/main.rs` | 15,380 | 12,795 | 28,175 |
+| `crates/wow-world/src/session.rs` | 71,881 | 94,888 | 166,769 |
+| `crates/wow-map/src/map.rs` | 15,245 | 18,415 | 33,660 |
+| `crates/wow-world/src/handlers/character.rs` | 20,200 | 10,653 | 30,853 |
+| `crates/wow-world/src/handlers/loot.rs` | 13,619 | 16,234 | 29,853 |
+| `crates/world-server/src/main.rs` | 15,370 | 12,805 | 28,175 |
 | `crates/wow-world/src/handlers/misc.rs` | 7,315 | 11,473 | 18,788 |
-| `crates/wow-world/src/handlers/quest.rs` | 8,231 | 10,241 | 18,472 |
+| `crates/wow-world/src/handlers/quest.rs` | 8,255 | 10,217 | 18,472 |
 | `crates/wow-entities/src/player.rs` | 9,265 | 8,907 | 18,172 |
 
 At the same HEAD, the syntax-aware ratchet records 738 `WorldSession` fields: 727 production and
@@ -323,7 +323,12 @@ exact field/variant memberships, while `session-ownership-check` rejects added, 
 re-visibility-scoped, re-owned, generated, factory-wiring, command-payload, broadcast, and direct
 registry, persistence, and bridge surfaces. `print-baseline` only writes reviewed JSON to stdout;
 `print-persistence-baseline` independently reproduces the dedicated persistence snapshot and
-`print-persistence-policy` derives the policy from the reviewed workflow annotations. None of these
+`print-persistence-policy` derives the policy from the reviewed workflow annotations. Because the
+policy is a pure function of those annotations and the exact inventory,
+`print-persistence-policy --from-snapshot PATH` derives it from an already computed snapshot
+instead of scanning the workspace again: CI publishes both files as the `persistence-access-snapshot`
+artifact when the ratchet moves, and a repository test rejects a checked-in snapshot and policy that
+disagree, so the pair can never be updated by halves. None of these
 commands updates a checked-in artifact automatically.
 
 Workflow annotation schema v2 is the reviewed source of truth for each workflow's logical

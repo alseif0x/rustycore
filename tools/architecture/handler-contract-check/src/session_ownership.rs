@@ -44,6 +44,8 @@ const PERSISTENCE_POLICY_RELATIVE_PATH: &str =
     "tools/architecture/persistence-boundary-policy.json";
 const PERSISTENCE_ANNOTATIONS_RELATIVE_PATH: &str =
     "tools/architecture/persistence-boundary-workflows.json";
+const PERSISTENCE_ACCESS_SNAPSHOT_RELATIVE_PATH: &str =
+    "tools/architecture/persistence-access-snapshot.json";
 const ISSUE_LEDGER_RELATIVE_PATH: &str = "tools/architecture/architecture-issue-ledger.json";
 const WORLD_PACKAGE_ROOT: &str = "crates/wow-world";
 const WORLD_CRATE_ROOT: &str = "crates/wow-world/src/lib.rs";
@@ -2097,7 +2099,7 @@ pub fn print_repository_baseline() -> Result<String, String> {
     let baseline = collect_repository_baseline(&repository_root)?;
     serde_json::to_string_pretty(&BaselineEnvelope {
         schema_version: 1,
-        persistence_access_snapshot: "tools/architecture/persistence-access-snapshot.json",
+        persistence_access_snapshot: PERSISTENCE_ACCESS_SNAPSHOT_RELATIVE_PATH,
         syntax_baseline: &baseline,
     })
     .map_err(|error| format!("cannot serialize session ownership baseline: {error}"))
@@ -2108,6 +2110,32 @@ pub fn print_repository_persistence_baseline() -> Result<String, String> {
     let repository_root = crate::repository_root()?;
     let baseline = collect_workspace_persistence_baseline(&repository_root)?;
     render_persistence_access_baseline(&baseline)
+}
+
+/// Render the canonical semantic policy from an already computed snapshot.
+///
+/// The policy is a pure function of the reviewed annotations and the exact
+/// inventory, but recomputing that inventory costs a full workspace scan. CI
+/// publishes the recomputed snapshot as an artifact when the ratchet moves;
+/// deriving the policy from that same artifact keeps both checked-in files
+/// consistent without paying for a second scan, and without letting a
+/// separately scanned policy disagree with the snapshot beside it.
+pub fn print_repository_persistence_policy_from_snapshot(
+    snapshot_path: &Path,
+) -> Result<String, String> {
+    let repository_root = crate::repository_root()?;
+    let source = fs::read_to_string(snapshot_path)
+        .map_err(|error| format!("cannot read {}: {error}", snapshot_path.display()))?;
+    let baseline: PersistenceAccessBaseline = serde_json::from_str(&source).map_err(|error| {
+        format!(
+            "invalid persistence access snapshot {}: {error}",
+            snapshot_path.display()
+        )
+    })?;
+    crate::persistence_policy::render_persistence_policy(
+        &repository_root.join(PERSISTENCE_ANNOTATIONS_RELATIVE_PATH),
+        &baseline,
+    )
 }
 
 /// Render the canonical semantic policy derived from reviewed workflow annotations.
@@ -2123,6 +2151,55 @@ pub fn print_repository_persistence_policy() -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // The checker regenerates the semantic policy from the annotations and the
+    // freshly scanned inventory and demands exact equality. Both checked-in
+    // files must therefore already agree with each other: a snapshot updated
+    // without its policy fails CI only after a full scan, which is the one
+    // feedback loop this tool cannot afford to leave to CI.
+    // A missing or non-JSON snapshot must name the offending path instead of
+    // rendering a policy from nothing: this command exists to install a CI
+    // artifact, so the plausible mistake is pointing it at the wrong download.
+    #[test]
+    fn rendering_a_policy_rejects_an_unreadable_or_invalid_snapshot() {
+        let repository_root = crate::repository_root().expect("repository root");
+
+        let missing = repository_root.join("tools/architecture/no-such-snapshot.json");
+        let error = print_repository_persistence_policy_from_snapshot(&missing)
+            .expect_err("a missing snapshot cannot render a policy");
+        assert!(
+            error.starts_with("cannot read") && error.contains("no-such-snapshot.json"),
+            "unexpected error: {error}"
+        );
+
+        let not_json = repository_root.join("AGENTS.md");
+        let error = print_repository_persistence_policy_from_snapshot(&not_json)
+            .expect_err("a non-JSON snapshot cannot render a policy");
+        assert!(
+            error.starts_with("invalid persistence access snapshot") && error.contains("AGENTS.md"),
+            "unexpected error: {error}"
+        );
+    }
+
+    #[test]
+    fn checked_persistence_policy_matches_the_checked_snapshot() {
+        let repository_root = crate::repository_root().expect("repository root");
+        let rendered = print_repository_persistence_policy_from_snapshot(
+            &repository_root.join(PERSISTENCE_ACCESS_SNAPSHOT_RELATIVE_PATH),
+        )
+        .expect("render policy from the checked snapshot");
+        let rendered: serde_json::Value =
+            serde_json::from_str(&rendered).expect("rendered policy is JSON");
+        let checked = fs::read_to_string(repository_root.join(PERSISTENCE_POLICY_RELATIVE_PATH))
+            .expect("read checked policy");
+        let checked: serde_json::Value =
+            serde_json::from_str(&checked).expect("checked policy is JSON");
+        assert_eq!(
+            checked, rendered,
+            "checked persistence policy disagrees with the checked snapshot; \
+             regenerate it with print-persistence-policy --from-snapshot"
+        );
+    }
 
     fn unit(role: PackageRole, source_path: &str, source: &str) -> SourceUnit {
         SourceUnit {
@@ -2642,7 +2719,7 @@ mod tests {
             .expect("baseline parses");
         let mut value = serde_json::to_value(BaselineEnvelope {
             schema_version: 1,
-            persistence_access_snapshot: "tools/architecture/persistence-access-snapshot.json",
+            persistence_access_snapshot: PERSISTENCE_ACCESS_SNAPSHOT_RELATIVE_PATH,
             syntax_baseline: &baseline,
         })
         .expect("baseline serializes");

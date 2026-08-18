@@ -120,13 +120,25 @@ jobs:
           cargo +1.88.0 run --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml \
             --bin session-ownership-check -- print-persistence-baseline \
             > "${RUNNER_TEMP}/persistence-access-snapshot.json"
+          # The semantic policy is a pure function of the reviewed annotations
+          # and this snapshot, so derive it here rather than paying for a
+          # second workspace scan. Publishing the snapshot alone would hand the
+          # author a policy that the next run rejects as stale — and a stale
+          # policy never reaches this step, because only a persistence
+          # mismatch does.
+          cargo +1.88.0 run --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml \
+            --bin session-ownership-check -- print-persistence-policy \
+            --from-snapshot "${RUNNER_TEMP}/persistence-access-snapshot.json" \
+            > "${RUNNER_TEMP}/persistence-boundary-policy.json"
 
       - name: Upload recomputed persistence baseline
         if: failure() && steps.ratchets.outputs.persistence_mismatch == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: persistence-access-snapshot
-          path: ${{ runner.temp }}/persistence-access-snapshot.json
+          path: |
+            ${{ runner.temp }}/persistence-access-snapshot.json
+            ${{ runner.temp }}/persistence-boundary-policy.json
           if-no-files-found: ignore
 
       - name: Cargo check

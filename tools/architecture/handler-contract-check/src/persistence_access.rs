@@ -3661,7 +3661,7 @@ fn collect_module_symbols(
         );
     }
 
-    for (item_index, item) in items.iter().enumerate() {
+    for item in items {
         match item {
             Item::Struct(item_struct)
                 if source_class_allows(source_class, cfg, &item_struct.attrs, errors, "struct") =>
