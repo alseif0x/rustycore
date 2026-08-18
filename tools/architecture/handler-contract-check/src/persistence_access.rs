@@ -1661,6 +1661,73 @@ enum SqlExpressionKind {
     Interpolated,
 }
 
+/// The SQL an item initializer pins, resolving a forwarded item by name.
+///
+/// `const SQL: &str = BASE_SQL;` carries the statement of `BASE_SQL`. The
+/// symbol pass that calls this runs to a fixed point, so a chain resolves one
+/// link per round and a cycle simply never adds provenance.
+fn resolved_source_sql_info(
+    expression: &Expr,
+    item_values: &BTreeMap<String, VariableInfo>,
+) -> (SqlExpressionKind, BTreeSet<String>) {
+    let (kind, sources) = source_sql_info(expression);
+    if !sources.is_empty() {
+        return (kind, sources);
+    }
+    let forwarded = match expression {
+        Expr::Reference(reference) => reference.expr.as_ref(),
+        other => other,
+    };
+    if let Expr::Path(path) = forwarded
+        && path.qself.is_none()
+        && let Some(name) = last_path_name(&path.path)
+        && let Some(info) = item_values.get(&name)
+        && !info.sql_sources.is_empty()
+    {
+        return (info.sql_expression, info.sql_sources.clone());
+    }
+    (kind, sources)
+}
+
+/// Every expression a body can yield: its tail and each explicit `return`.
+fn returned_expressions(block: &syn::Block) -> Vec<&Expr> {
+    struct Returns<'ast> {
+        expressions: Vec<&'ast Expr>,
+    }
+    impl<'ast> Visit<'ast> for Returns<'ast> {
+        fn visit_expr_return(&mut self, node: &'ast ExprReturn) {
+            if let Some(expression) = &node.expr {
+                self.expressions.push(expression);
+            }
+            visit::visit_expr_return(self, node);
+        }
+    }
+    let mut returns = Returns {
+        expressions: Vec::new(),
+    };
+    returns.visit_block(block);
+    if let Some(Stmt::Expr(tail, None)) = block.stmts.last() {
+        returns.expressions.push(tail);
+    }
+    returns.expressions
+}
+
+/// The SQL a helper hands back, so `sqlx::query(statement())` still pins the
+/// statement that `fn statement() -> &'static str { LOCK_SQL }` returns.
+fn function_return_sql_info(
+    block: &syn::Block,
+    item_values: &BTreeMap<String, VariableInfo>,
+) -> (SqlExpressionKind, BTreeSet<String>) {
+    let mut kind = SqlExpressionKind::Static;
+    let mut sources = BTreeSet::new();
+    for expression in returned_expressions(block) {
+        let (returned_kind, returned_sources) = resolved_source_sql_info(expression, item_values);
+        kind = kind.max(returned_kind);
+        sources.extend(returned_sources);
+    }
+    (kind, sources)
+}
+
 fn source_sql_info(expression: &Expr) -> (SqlExpressionKind, BTreeSet<String>) {
     match expression {
         Expr::Lit(literal) if matches!(literal.lit, syn::Lit::Str(_)) => (
@@ -3466,7 +3533,8 @@ fn collect_module_symbols(
                     ) =>
                 {
                     let mut info = variable_info_in_type(&item_const.ty, &symbols);
-                    let (kind, sources) = source_sql_info(&item_const.expr);
+                    let (kind, sources) =
+                        resolved_source_sql_info(&item_const.expr, &symbols.item_values);
                     info.sql_expression = kind;
                     info.sql_sources = sources;
                     let entry = symbols
@@ -3487,7 +3555,8 @@ fn collect_module_symbols(
                     ) =>
                 {
                     let mut info = variable_info_in_type(&item_static.ty, &symbols);
-                    let (kind, sources) = source_sql_info(&item_static.expr);
+                    let (kind, sources) =
+                        resolved_source_sql_info(&item_static.expr, &symbols.item_values);
                     info.sql_expression = kind;
                     info.sql_sources = sources;
                     let entry = symbols
@@ -3709,12 +3778,20 @@ fn collect_module_symbols(
                 }
                 if let ReturnType::Type(_, ty) = &function.sig.output {
                     let mut return_info = variable_info_in_type(ty, &symbols);
-                    return_info.sql_expression = SqlExpressionKind::Nonliteral;
+                    let (returned_kind, returned_sources) =
+                        function_return_sql_info(&function.block, &symbols.item_values);
+                    return_info.sql_expression = if returned_sources.is_empty() {
+                        SqlExpressionKind::Nonliteral
+                    } else {
+                        returned_kind
+                    };
+                    return_info.sql_sources = returned_sources;
                     if !return_info.flow.is_empty()
                         || !return_info.nominal_types.is_empty()
                         || !return_info.payload_variants.is_empty()
                         || !return_info.tuple_items.is_empty()
                         || !return_info.trait_bounds.is_empty()
+                        || !return_info.sql_sources.is_empty()
                     {
                         symbols
                             .function_returns
@@ -6644,6 +6721,15 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             {
                 self.sql_sources(&method.receiver)
             }
+            // A helper hands back whatever its body returns, so the call site
+            // pins the statement instead of the unchanging call syntax.
+            Expr::Call(call) => match call.func.as_ref() {
+                Expr::Path(path) => last_path_name(&path.path)
+                    .and_then(|name| self.symbols.function_returns.get(&name))
+                    .map(|info| info.sql_sources.clone())
+                    .unwrap_or_default(),
+                _ => BTreeSet::new(),
+            },
             // A projection resolves to the source stored for the selected
             // field or element; without this, `sqlx::query(statements.sql)`
             // pins only the projection syntax and edits to the statement
@@ -6829,7 +6915,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             match expression {
                 // A projection selects a stored value exactly like a binding
                 // does, so its SQL provenance must be looked up too.
-                Expr::Path(_) | Expr::Field(_) | Expr::Index(_) => true,
+                Expr::Path(_) | Expr::Field(_) | Expr::Index(_) | Expr::Call(_) => true,
                 Expr::Reference(reference) => is_indirect(&reference.expr),
                 Expr::Paren(paren) => is_indirect(&paren.expr),
                 Expr::Group(group) => is_indirect(&group.expr),
@@ -9378,6 +9464,16 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
             && receiver.targets().contains(&PersistenceTarget::Sqlx)
         {
             Some(PersistenceOperation::RawSql)
+        } else if matches!(
+            name.as_str(),
+            "push_bind" | "push_bind_unseparated" | "push_bindings" | "push_values" | "push_tuples"
+        ) && (receiver.targets().contains(&PersistenceTarget::Sqlx)
+            || receiver.has_stage(FlowStage::Query))
+        {
+            // A `QueryBuilder` bind changes the executed statement as surely as
+            // pushed SQL does: without a row, altering a bound value or its
+            // order moves past a baselined constructor unnoticed.
+            Some(PersistenceOperation::RawSql)
         } else {
             PersistenceOperation::from_executor_method(&name)
         };
@@ -9833,6 +9929,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
         let mut next_arm_scopes = pre_match_scopes.clone();
         let mut merged: Option<Vec<BTreeMap<String, VariableInfo>>> = None;
         for arm in &expression.arms {
+            let arm_entry_scopes = next_arm_scopes.clone();
             self.scopes = next_arm_scopes.clone();
             self.push_scope();
             self.bind_pattern(&arm.pat, &scrutinee);
@@ -9840,6 +9937,10 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                 self.visit_expr(guard);
                 next_arm_scopes = self.scopes.clone();
                 next_arm_scopes.pop();
+                // The pattern can fail before the guard runs, so a later arm
+                // must also represent the path on which the guard never
+                // executed and its side effects never happened.
+                merge_scope_stacks(&mut next_arm_scopes, &arm_entry_scopes);
             }
             self.visit_expr(&arm.body);
             self.pop_scope();
@@ -18082,6 +18183,143 @@ mod tests {
         assert!(locked.accesses.iter().any(|row| {
             row.enclosing == "fn projected" && row.operation == PersistenceOperation::AdvisoryLock
         }));
+    }
+
+    #[test]
+    fn persistence_inventory_resolves_forwarded_constant_sql() {
+        let collect = |base: &str| {
+            inventory(&format!(
+                r#"
+                    const BASE_SQL: &str = {base:?};
+                    const SQL: &str = BASE_SQL;
+                    fn forwarded_constant() {{
+                        sqlx::query(SQL);
+                    }}
+                "#
+            ))
+            .unwrap()
+        };
+        let locked = collect("SELECT GET_LOCK('forwarded', 0)");
+        let clean = collect("SELECT 1");
+        let fingerprint = |baseline: &PersistenceAccessBaseline| {
+            baseline
+                .accesses
+                .iter()
+                .find(|row| {
+                    row.enclosing == "fn forwarded_constant"
+                        && row.operation == PersistenceOperation::Query
+                })
+                .map(|row| row.fingerprint.clone())
+                .unwrap()
+        };
+        assert_ne!(fingerprint(&locked), fingerprint(&clean));
+        assert!(locked.accesses.iter().any(|row| {
+            row.enclosing == "fn forwarded_constant"
+                && row.operation == PersistenceOperation::AdvisoryLock
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_summarizes_sql_returned_by_helpers() {
+        let collect = |sql: &str| {
+            inventory(&format!(
+                r#"
+                    const LOCK_SQL: &str = {sql:?};
+                    fn statement() -> &'static str {{
+                        LOCK_SQL
+                    }}
+                    fn branching(flag: bool) -> &'static str {{
+                        if flag {{
+                            return LOCK_SQL;
+                        }}
+                        "SELECT 2"
+                    }}
+                    fn from_helper() {{
+                        sqlx::query(statement());
+                    }}
+                    fn from_branching_helper() {{
+                        sqlx::query(branching(true));
+                    }}
+                "#
+            ))
+            .unwrap()
+        };
+        let locked = collect("SELECT GET_LOCK('helper', 0)");
+        let clean = collect("SELECT 1");
+        let fingerprint = |baseline: &PersistenceAccessBaseline, enclosing: &str| {
+            baseline
+                .accesses
+                .iter()
+                .find(|row| {
+                    row.enclosing == enclosing && row.operation == PersistenceOperation::Query
+                })
+                .map(|row| row.fingerprint.clone())
+                .unwrap()
+        };
+        for enclosing in ["fn from_helper", "fn from_branching_helper"] {
+            assert_ne!(
+                fingerprint(&locked, enclosing),
+                fingerprint(&clean, enclosing),
+                "{enclosing} kept one fingerprint after the returned statement changed"
+            );
+            assert!(
+                locked.accesses.iter().any(|row| {
+                    row.enclosing == enclosing
+                        && row.operation == PersistenceOperation::AdvisoryLock
+                }),
+                "{enclosing} lost the advisory identity of the returned statement"
+            );
+        }
+    }
+
+    #[test]
+    fn persistence_inventory_records_query_builder_binds() {
+        let baseline = inventory(
+            r#"
+                fn built() {
+                    let mut builder = sqlx::QueryBuilder::new("SELECT 1 WHERE id = ");
+                    builder.push_bind(42);
+                }
+            "#,
+        )
+        .unwrap();
+        assert!(
+            baseline.accesses.iter().any(|row| {
+                row.enclosing == "fn built"
+                    && row.operation == PersistenceOperation::RawSql
+                    && row.fingerprint.contains("push_bind")
+            }),
+            "a bound value can change the executed statement and must be inventoried"
+        );
+    }
+
+    #[test]
+    fn persistence_inventory_keeps_pattern_failure_path_before_a_guard() {
+        let baseline = inventory(
+            r#"
+                fn guarded(value: u8, pool: sqlx::MySqlPool) {
+                    let mut slot = Some(pool);
+                    match value {
+                        0 if { slot = None; false } => {}
+                        _ => {}
+                    }
+                    let kept = slot.unwrap();
+                    sqlx::query("SELECT 1").execute(&kept);
+                }
+            "#,
+        )
+        .unwrap();
+        // The pattern fails before the guard whenever `value != 0`, so the
+        // wildcard arm must not inherit the cleared slot: the pool still
+        // reaches the executor on that path.
+        assert!(
+            baseline.accesses.iter().any(|row| {
+                row.enclosing == "fn guarded"
+                    && row.target == PersistenceTarget::MySqlPool
+                    && row.operation == PersistenceOperation::Execute
+            }),
+            "the pool access on the pattern-failure path was omitted"
+        );
     }
 
     #[test]
