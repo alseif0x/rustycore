@@ -1001,6 +1001,13 @@ run_self_test() {
   require_exact_occurrences "$ci_dry_run_output" \
     "test --release --locked --manifest-path $HANDLER_CONTRACT_CHECK_MANIFEST" 1 \
     "local CI handler-contract checker tests"
+  # Pinned separately from the command above: both sides wrap the argument
+  # onto a continuation line, and without its own invariant the skip could be
+  # dropped while the self-test stayed green — silently restoring the duplicate
+  # full-workspace scan this profile exists to avoid.
+  require_exact_occurrences "$ci_dry_run_output" \
+    "-- --skip repository_surface_can_be_collected" 1 \
+    "local CI single-collection skip"
   require_exact_occurrences "$ci_dry_run_output" \
     "run --release --locked --manifest-path $HANDLER_CONTRACT_CHECK_MANIFEST -- check" 1 \
     "local CI handler-contract repository check"
@@ -1016,7 +1023,13 @@ run_self_test() {
     "CI profile did not print the capped wow-world clippy command"
   require_exact_occurrences "$ci_dry_run_output" \
     "build --locked -j4 -p bnet-server" 1 \
-    "local CI serialized linked-server build"
+    "local CI bnet-server linked build"
+  # Both halves are pinned: the split exists so the two servers never link
+  # concurrently, and pinning only one would let the other be dropped or
+  # recombined without the self-test noticing.
+  require_exact_occurrences "$ci_dry_run_output" \
+    "build --locked -j4 -p world-server" 1 \
+    "local CI world-server linked build"
   [[ "$ci_dry_run_output" == *"test --locked -p wow-loot --lib"* ]] || die \
     "CI profile did not print the wow-loot tests"
   [[ "$ci_dry_run_output" == *"test --locked -p wow-entities --lib"* ]] || die \
@@ -1051,6 +1064,9 @@ run_self_test() {
     "cargo +1.88.0 test --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml" 1 \
     "GitHub workflow handler-contract checker tests"
   require_exact_occurrences "$github_workflow_text" \
+    "-- --skip repository_surface_can_be_collected" 1 \
+    "GitHub workflow single-collection skip"
+  require_exact_occurrences "$github_workflow_text" \
     "cargo +1.88.0 run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml -- check" 1 \
     "GitHub workflow handler-contract repository check"
   require_exact_occurrences "$github_workflow_text" \
@@ -1064,7 +1080,10 @@ run_self_test() {
     "GitHub workflow non-incremental Rust 1.88 contract"
   require_exact_occurrences "$github_workflow_text" \
     "cargo +1.88.0 build --locked -j4 -p bnet-server" 1 \
-    "GitHub workflow serialized linked-server build"
+    "GitHub workflow bnet-server linked build"
+  require_exact_occurrences "$github_workflow_text" \
+    "cargo +1.88.0 build --locked -j4 -p world-server" 1 \
+    "GitHub workflow world-server linked build"
   require_exact_occurrences "$github_workflow_text" \
     "cargo +1.88.0 test --locked -p capture-diff" 1 \
     "GitHub workflow capture-diff test command"
