@@ -65,31 +65,34 @@ jobs:
           class TransientGitHubApiError(RuntimeError):
               pass
 
-          def gh_json(path):
+          def gh_json_pages(path):
+              separator = "&" if "?" in path else "?"
               result = subprocess.run(
-                  ["gh", "api", path],
+                  [
+                      "gh",
+                      "api",
+                      "--paginate",
+                      f"{path}{separator}per_page=100",
+                      "--jq",
+                      ".[]",
+                  ],
                   text=True,
                   capture_output=True,
               )
               if result.returncode:
                   error = result.stderr.strip() or result.stdout.strip()
-                  if re.search(r"\(HTTP 5\d\d\)", error):
+                  if (
+                      re.search(r"\(HTTP (?:404|5\d\d)\)", error)
+                      or "unexpected end of JSON input" in error
+                  ):
                       raise TransientGitHubApiError(error)
                   raise RuntimeError(f"gh api {path} failed: {error}")
-              return json.loads(result.stdout)
-
-          def gh_json_pages(path):
-              page = 1
-              items = []
-              while True:
-                  separator = "&" if "?" in path else "?"
-                  page_items = gh_json(f"{path}{separator}per_page=100&page={page}")
-                  if not isinstance(page_items, list):
-                      raise TypeError(f"Expected paginated list from gh api {path}")
-                  items.extend(page_items)
-                  if len(page_items) < 100:
-                      return items
-                  page += 1
+              try:
+                  return [json.loads(line) for line in result.stdout.splitlines() if line]
+              except json.JSONDecodeError as error:
+                  raise TransientGitHubApiError(
+                      f"gh api {path} returned invalid paginated JSON: {error}"
+                  ) from error
 
           def reviewed_commits(body, fallback_commit=None):
               commits = [

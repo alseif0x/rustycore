@@ -89,6 +89,21 @@ Cargo-declared `wow-handler` production `lib` root. Arbitrary expansion inside t
 or external procedural macros is not claimed and must be made inspectable before use. The tool
 ratchets registration-to-dispatch-arm coverage against the checked-in snapshot.
 
+The same repository check recomputes `tools/architecture/persistence-access-snapshot.json` from
+the locked workspace `lib`/`bin` module graphs. It inventories production and test-fixture syntax
+separately and marks generated inputs as an orthogonal subset. Every exact identity and
+multiplicity must remain unchanged, and every row must match exactly one group in
+`tools/architecture/persistence-boundary-policy.json`. That policy is deterministically derived
+from the exact, reviewed workflow assignments in
+`tools/architecture/persistence-boundary-workflows.json`; it is not a catch-all or an
+auto-authorizing baseline. Its schema v2 records connection affinity, order, and
+failure/unknown-commit behavior as reviewed inputs rather than generated boilerplate. New unowned access, overlap, a semantic
+group that matches nothing, a closed/absent removal issue, or stale syntax fails the profile.
+Review logical database, capability owner, connection affinity, order and failure/unknown-commit
+semantics before deliberately regenerating any persistence artifact. Use
+`session-ownership-check print-persistence-baseline` and
+`session-ownership-check print-persistence-policy`; both print to stdout and never write files.
+
 The focused test profile separately runs both the four-test `wow-handler` integration suite and
 the production-linked `wow-world` snapshot. Integration targets can exercise their own registry
 submissions without adding `cfg(test)` registrations to production library sources. The formatting
