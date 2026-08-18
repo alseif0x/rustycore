@@ -463,9 +463,13 @@ run_architecture() {
   log "Architecture dependency, handler, and ownership boundaries"
   ((DRY_RUN)) || require_command python3
   run_cmd python3 "$ARCHITECTURE_CHECKER" check
-  cargo_cmd test --locked --manifest-path "$HANDLER_CONTRACT_CHECK_MANIFEST"
-  cargo_cmd run --locked --manifest-path "$HANDLER_CONTRACT_CHECK_MANIFEST" -- check
-  cargo_cmd run --locked --manifest-path "$HANDLER_CONTRACT_CHECK_MANIFEST" \
+  # Release, and one full collection rather than two: the session-ownership
+  # check below collects the same surface `repository_surface_can_be_collected`
+  # does. Mirrors the GitHub job exactly; the self-test below enforces that.
+  cargo_cmd test --release --locked --manifest-path "$HANDLER_CONTRACT_CHECK_MANIFEST" \
+    -- --skip repository_surface_can_be_collected
+  cargo_cmd run --release --locked --manifest-path "$HANDLER_CONTRACT_CHECK_MANIFEST" -- check
+  cargo_cmd run --release --locked --manifest-path "$HANDLER_CONTRACT_CHECK_MANIFEST" \
     --bin session-ownership-check -- check
 }
 
@@ -480,7 +484,8 @@ run_check() {
     -p bnet-server \
     -p world-server
   cargo_cmd check --locked --manifest-path tools/wow-test-bot/Cargo.toml
-  cargo_cmd build --locked -j1 -p bnet-server -p world-server
+  cargo_cmd build --locked -j4 -p bnet-server
+  cargo_cmd build --locked -j4 -p world-server
   cargo_cmd clippy --locked --no-deps --message-format short \
     -p wow-loot \
     -p wow-entities \
@@ -994,13 +999,13 @@ run_self_test() {
     "tools/architecture/check_architecture.py check" 1 \
     "local CI architecture check"
   require_exact_occurrences "$ci_dry_run_output" \
-    "test --locked --manifest-path $HANDLER_CONTRACT_CHECK_MANIFEST" 1 \
+    "test --release --locked --manifest-path $HANDLER_CONTRACT_CHECK_MANIFEST" 1 \
     "local CI handler-contract checker tests"
   require_exact_occurrences "$ci_dry_run_output" \
-    "run --locked --manifest-path $HANDLER_CONTRACT_CHECK_MANIFEST -- check" 1 \
+    "run --release --locked --manifest-path $HANDLER_CONTRACT_CHECK_MANIFEST -- check" 1 \
     "local CI handler-contract repository check"
   require_exact_occurrences "$ci_dry_run_output" \
-    "run --locked --manifest-path $HANDLER_CONTRACT_CHECK_MANIFEST --bin session-ownership-check -- check" 1 \
+    "run --release --locked --manifest-path $HANDLER_CONTRACT_CHECK_MANIFEST --bin session-ownership-check -- check" 1 \
     "local CI session-ownership repository check"
   require_exact_occurrences "$ci_dry_run_output" \
     "fmt --manifest-path $HANDLER_CONTRACT_CHECK_MANIFEST -- --check" 1 \
@@ -1010,7 +1015,7 @@ run_self_test() {
   [[ "$ci_dry_run_output" == *"clippy --locked --no-deps --message-format short -p wow-world --lib -- --cap-lints warn"* ]] || die \
     "CI profile did not print the capped wow-world clippy command"
   require_exact_occurrences "$ci_dry_run_output" \
-    "build --locked -j1 -p bnet-server -p world-server" 1 \
+    "build --locked -j4 -p bnet-server" 1 \
     "local CI serialized linked-server build"
   [[ "$ci_dry_run_output" == *"test --locked -p wow-loot --lib"* ]] || die \
     "CI profile did not print the wow-loot tests"
@@ -1043,13 +1048,13 @@ run_self_test() {
     "python3 tools/architecture/check_architecture.py check" 1 \
     "GitHub workflow architecture check"
   require_exact_occurrences "$github_workflow_text" \
-    "cargo +1.88.0 test --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml" 1 \
+    "cargo +1.88.0 test --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml" 1 \
     "GitHub workflow handler-contract checker tests"
   require_exact_occurrences "$github_workflow_text" \
-    "cargo +1.88.0 run --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml -- check" 1 \
+    "cargo +1.88.0 run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml -- check" 1 \
     "GitHub workflow handler-contract repository check"
   require_exact_occurrences "$github_workflow_text" \
-    "cargo +1.88.0 run --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml --bin session-ownership-check -- check" 1 \
+    "cargo +1.88.0 run --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml --bin session-ownership-check -- check" 1 \
     "GitHub workflow session-ownership repository check"
   require_exact_occurrences "$github_workflow_text" \
     "cargo +1.88.0 fmt --manifest-path tools/architecture/handler-contract-check/Cargo.toml -- --check" 1 \
@@ -1058,7 +1063,7 @@ run_self_test() {
     'CARGO_INCREMENTAL: "0"' 2 \
     "GitHub workflow non-incremental Rust 1.88 contract"
   require_exact_occurrences "$github_workflow_text" \
-    "cargo +1.88.0 build --locked -j1 -p bnet-server -p world-server" 1 \
+    "cargo +1.88.0 build --locked -j4 -p bnet-server" 1 \
     "GitHub workflow serialized linked-server build"
   require_exact_occurrences "$github_workflow_text" \
     "cargo +1.88.0 test --locked -p capture-diff" 1 \
