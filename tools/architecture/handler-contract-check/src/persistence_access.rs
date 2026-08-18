@@ -753,11 +753,23 @@ const ADVISORY_LOCK_FUNCTIONS: &[&str] = &[
 /// `/*!…*/` or `/*M!…*/` comment is kept because the server runs it. Double
 /// quotes are left alone — in this grammar they delimit the Rust literal that
 /// carries the statement, not a SQL string.
-fn executable_sql_text(sql: &str) -> String {
+fn executable_sql_text(fingerprint: &str) -> String {
+    // A fingerprint is Rust token text whose statements live inside string
+    // literals. Read those out first: the double quotes around them belong to
+    // Rust, while double quotes *inside* a statement are SQL — a string under
+    // MySQL's default mode and a quoted identifier under `ANSI_QUOTES`, and
+    // neither one calls a function.
+    // Two literals of one expression are not concatenated at runtime unless
+    // the expression says so — `"SELECT GET_" + name.as_str() + "LOCK(…)"`
+    // never builds `GET_LOCK`. Separate them so no call can be fabricated
+    // across whatever stands between them.
+    let sql = match string_literal_values(fingerprint.parse().unwrap_or_default()).as_slice() {
+        [] => fingerprint.to_owned(),
+        values => values.join("\0"),
+    };
     let mut executable = String::with_capacity(sql.len());
-    let characters = sql.as_bytes();
     let mut index = 0;
-    while index < characters.len() {
+    while index < sql.len() {
         let rest = &sql[index..];
         if let Some(body) = rest.strip_prefix("/*") {
             if let Some(payload) = executable_comment_payload(body) {
@@ -769,19 +781,25 @@ fn executable_sql_text(sql: &str) -> String {
             executable.push(' ');
             continue;
         }
-        if rest.starts_with("--")
-            || (rest.starts_with('#')
-                && !rest.starts_with("#\"")
-                && executable
+        // MySQL opens a comment on `--` only when whitespace or a control
+        // character follows; `SELECT 1--1` is arithmetic, not a remark.
+        let opens_line_comment = rest.strip_prefix("--").is_some_and(|tail| {
+            tail.is_empty()
+                || tail
                     .chars()
-                    .next_back()
-                    .is_none_or(char::is_whitespace))
-        {
+                    .next()
+                    .is_some_and(|character| character.is_whitespace() || character.is_control())
+        }) || (rest.starts_with('#')
+            && executable
+                .chars()
+                .next_back()
+                .is_none_or(char::is_whitespace));
+        if opens_line_comment {
             index += rest.find('\n').map_or(rest.len(), |end| end + 1);
             executable.push(' ');
             continue;
         }
-        if rest.starts_with('\'') || rest.starts_with('`') {
+        if rest.starts_with('\'') || rest.starts_with('`') || rest.starts_with('"') {
             let quote = rest.as_bytes()[0] as char;
             let closing = rest[1..].find(quote).map_or(rest.len(), |end| end + 2);
             index += closing;
@@ -1014,6 +1032,10 @@ enum FormatPiece {
         before: Vec<FormatArgument>,
         value: FormatArgument,
         referenced: Vec<FormatArgument>,
+        /// A precision truncates what the value prints, so the rendered text
+        /// is not the argument's text. The value stays as provenance but is
+        /// never pinned into the rebuilt statement.
+        truncates: bool,
     },
 }
 
@@ -1093,6 +1115,7 @@ fn format_template_pieces(template: &str) -> Option<Vec<FormatPiece>> {
                     before,
                     value,
                     referenced,
+                    truncates: format.contains('.'),
                 });
             }
             _ => text.push(character),
@@ -1121,20 +1144,27 @@ fn sql_source_text(source: &str) -> Option<String> {
     if is_composed_sql_source(source) {
         return None;
     }
-    let mut text = String::new();
-    collect_string_literal_values(source.parse().ok()?, &mut text);
-    (!text.is_empty()).then_some(text)
+    // A pinned source is one literal, or a `concat!`/`format!` whose literal
+    // pieces really are joined, so they are joined here too.
+    let values = string_literal_values(source.parse().ok()?);
+    (!values.is_empty()).then(|| values.concat())
 }
 
-fn collect_string_literal_values(tokens: TokenStream, text: &mut String) {
+fn string_literal_values(tokens: TokenStream) -> Vec<String> {
+    let mut values = Vec::new();
+    collect_string_literal_values(tokens, &mut values);
+    values
+}
+
+fn collect_string_literal_values(tokens: TokenStream, values: &mut Vec<String>) {
     for token in tokens {
         match token {
             TokenTree::Literal(literal) => {
                 if let Ok(literal) = syn::parse_str::<syn::LitStr>(&literal.to_string()) {
-                    text.push_str(&literal.value());
+                    values.push(literal.value());
                 }
             }
-            TokenTree::Group(group) => collect_string_literal_values(group.stream(), text),
+            TokenTree::Group(group) => collect_string_literal_values(group.stream(), values),
             _ => {}
         }
     }
@@ -6614,6 +6644,31 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             {
                 self.sql_sources(&method.receiver)
             }
+            // A projection resolves to the source stored for the selected
+            // field or element; without this, `sqlx::query(statements.sql)`
+            // pins only the projection syntax and edits to the statement
+            // behind it leave the fingerprint unchanged.
+            Expr::Field(field) => {
+                let name = match &field.member {
+                    Member::Named(ident) => normalized_ident(ident),
+                    Member::Unnamed(index) => index.index.to_string(),
+                };
+                self.info_from_expr(&field.base)
+                    .field_items
+                    .get(&name)
+                    .map(|info| info.sql_sources.clone())
+                    .unwrap_or_default()
+            }
+            Expr::Index(index) => {
+                let mut sources = self.sql_sources(&index.expr);
+                sources.extend(
+                    self.info_from_expr(&index.expr)
+                        .field_items
+                        .values()
+                        .flat_map(|info| info.sql_sources.iter().cloned()),
+                );
+                sources
+            }
             _ => BTreeSet::new(),
         }
     }
@@ -6706,6 +6761,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                     before,
                     value,
                     referenced,
+                    truncates,
                 } => {
                     // A `.*` precision is read before the value it formats, so
                     // it consumes the earlier positional argument.
@@ -6727,7 +6783,15 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                         &named,
                         &mut next_positional,
                     );
-                    slots.push(composed_sql_slot(&format!("value{}", slots.len()), sources));
+                    // `{:.4}` prints a prefix of the value, so the rendered
+                    // text is not the argument's text: keep the provenance and
+                    // fail closed on the rebuilt statement.
+                    let position = if truncates {
+                        format!("{FORMAT_INPUT_POSITION}{}", slots.len())
+                    } else {
+                        format!("value{}", slots.len())
+                    };
+                    slots.push(composed_sql_slot(&position, sources));
                     for argument in referenced {
                         let sources = self.format_argument_sources(
                             &argument,
@@ -6763,7 +6827,9 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         };
         fn is_indirect(expression: &Expr) -> bool {
             match expression {
-                Expr::Path(_) => true,
+                // A projection selects a stored value exactly like a binding
+                // does, so its SQL provenance must be looked up too.
+                Expr::Path(_) | Expr::Field(_) | Expr::Index(_) => true,
                 Expr::Reference(reference) => is_indirect(&reference.expr),
                 Expr::Paren(paren) => is_indirect(&paren.expr),
                 Expr::Group(group) => is_indirect(&group.expr),
@@ -17727,7 +17793,10 @@ mod tests {
     #[test]
     fn persistence_inventory_resolves_dynamic_format_parameters() {
         // `{:.*}` reads the precision from the argument before the value, so a
-        // parser that consumed them in source order would resolve the wrong one.
+        // parser that consumed them in source order would resolve the wrong
+        // one. The precision also truncates what the value prints, so the
+        // statement is never rebuilt from the argument's full text; only the
+        // provenance must follow it.
         let collect = |call: &str| {
             inventory(&format!(
                 r#"
@@ -17753,7 +17822,7 @@ mod tests {
                 .unwrap()
         };
         assert_ne!(query_fingerprint(&locked), query_fingerprint(&clean));
-        assert!(locked.accesses.iter().any(|row| {
+        assert!(!locked.accesses.iter().any(|row| {
             row.enclosing == "fn dynamic" && row.operation == PersistenceOperation::AdvisoryLock
         }));
     }
@@ -17896,6 +17965,123 @@ mod tests {
                 "{enclosing} lost its advisory identity"
             );
         }
+    }
+
+    #[test]
+    fn persistence_inventory_fails_closed_on_truncated_format_values() {
+        let baseline = inventory(
+            r#"
+                fn truncated_away() {
+                    let sql = format!("SELECT GET_{:.*}", 4, "LOCK('x', 0)");
+                    sqlx::query(&sql);
+                }
+                fn truncated_prefix() {
+                    let sql = format!("SELECT GET_{:.4}('x', 0)", "LOCK_SUFFIX");
+                    sqlx::query(&sql);
+                }
+            "#,
+        )
+        .unwrap();
+        // A precision changes what the value prints, so neither statement may
+        // be rebuilt from the argument's full text.
+        for enclosing in ["fn truncated_away", "fn truncated_prefix"] {
+            assert!(
+                !baseline.accesses.iter().any(|row| {
+                    row.enclosing == enclosing
+                        && row.operation == PersistenceOperation::AdvisoryLock
+                }),
+                "{enclosing} guessed at a truncated value instead of failing closed"
+            );
+        }
+        // The value still travels as provenance: editing it must be visible.
+        let collect = |value: &str| {
+            inventory(&format!(
+                r#"
+                    const VALUE: &str = {value:?};
+                    fn truncated(flag: bool) {{
+                        let sql = format!("SELECT {{:.4}}", VALUE);
+                        sqlx::query(&sql);
+                        let _ = flag;
+                    }}
+                "#
+            ))
+            .unwrap()
+        };
+        let fingerprint = |baseline: &PersistenceAccessBaseline| {
+            baseline
+                .accesses
+                .iter()
+                .find(|row| {
+                    row.enclosing == "fn truncated" && row.operation == PersistenceOperation::Query
+                })
+                .map(|row| row.fingerprint.clone())
+                .unwrap()
+        };
+        assert_ne!(fingerprint(&collect("aaaa")), fingerprint(&collect("bbbb")));
+    }
+
+    #[test]
+    fn persistence_inventory_reads_arithmetic_double_hyphen_as_sql() {
+        let baseline = inventory(
+            r#"
+                fn arithmetic() {
+                    sqlx::query("SELECT 1--1, GET_LOCK('live', 0)");
+                }
+                fn remark() {
+                    sqlx::query("SELECT 1 -- GET_LOCK('inert', 0)");
+                }
+                fn quoted_identifier() {
+                    sqlx::query("SELECT \"GET_LOCK('x', 0)\"");
+                }
+            "#,
+        )
+        .unwrap();
+        // `--` opens a comment only before whitespace; here it is arithmetic.
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn arithmetic" && row.operation == PersistenceOperation::AdvisoryLock
+        }));
+        for enclosing in ["fn remark", "fn quoted_identifier"] {
+            assert!(
+                !baseline.accesses.iter().any(|row| {
+                    row.enclosing == enclosing
+                        && row.operation == PersistenceOperation::AdvisoryLock
+                }),
+                "{enclosing} treated inert text as a call"
+            );
+        }
+    }
+
+    #[test]
+    fn persistence_inventory_resolves_sql_through_projections() {
+        let collect = |sql: &str| {
+            inventory(&format!(
+                r#"
+                    const LOCK_SQL: &str = {sql:?};
+                    struct Statements {{ sql: &'static str }}
+                    fn projected() {{
+                        let statements = Statements {{ sql: LOCK_SQL }};
+                        sqlx::query(statements.sql);
+                    }}
+                "#
+            ))
+            .unwrap()
+        };
+        let locked = collect("SELECT GET_LOCK('projected', 0)");
+        let clean = collect("SELECT 1");
+        let fingerprint = |baseline: &PersistenceAccessBaseline| {
+            baseline
+                .accesses
+                .iter()
+                .find(|row| {
+                    row.enclosing == "fn projected" && row.operation == PersistenceOperation::Query
+                })
+                .map(|row| row.fingerprint.clone())
+                .unwrap()
+        };
+        assert_ne!(fingerprint(&locked), fingerprint(&clean));
+        assert!(locked.accesses.iter().any(|row| {
+            row.enclosing == "fn projected" && row.operation == PersistenceOperation::AdvisoryLock
+        }));
     }
 
     #[test]
