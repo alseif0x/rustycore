@@ -925,6 +925,14 @@ fn sql_is_advisory_lock(fingerprint: &str) -> bool {
 /// `"SELECT GET_" + name.as_str() + "LOCK(…)"` never builds a call. The
 /// exception is `concat!`, which does join its arguments, so its literals form
 /// a single entry.
+/// The statement a source pins, when it pins exactly one.
+fn single_pinned_statement(source: &str) -> Option<String> {
+    match string_literal_values(source.parse().ok()?).as_slice() {
+        [statement] => Some(statement.clone()),
+        _ => None,
+    }
+}
+
 fn string_literal_values(tokens: TokenStream) -> Vec<String> {
     let mut values = Vec::new();
     collect_string_literal_values(tokens, &mut values);
@@ -6323,6 +6331,52 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             .get(&self.package_function_key(names))
     }
 
+    /// Whether the statement `text` carries takes an advisory lock, reading it
+    /// with this scope's knowledge.
+    ///
+    /// A compile-time string macro can be invoked under an alias
+    /// (`use std::concat as c`), and the reader below recognizes only the macro
+    /// it actually is. Rename them first so a pinned statement is not split
+    /// into unrelated pieces.
+    fn statement_takes_advisory_lock(&self, text: &str) -> String {
+        let mut renamed = text.to_owned();
+        for scope in &self.local_path_alias_scopes {
+            for (alias, source) in scope {
+                if let Some(canonical) = source.last()
+                    && canonical != alias
+                    && matches!(canonical.as_str(), "concat" | "stringify")
+                {
+                    renamed = renamed.replace(&format!("{alias} !"), &format!("{canonical} !"));
+                }
+            }
+        }
+        renamed
+    }
+
+    /// The statement a `QueryBuilder` has accumulated in `receiver`, together
+    /// with the piece this call appends.
+    ///
+    /// `QueryBuilder::new("SELECT GET_")` followed by `push("LOCK('x', 0)")`
+    /// builds one statement, and the call it makes is visible only in their
+    /// concatenation.
+    fn builder_statement(&self, receiver: &Expr, appended: Option<&Expr>) -> String {
+        let mut statement = self
+            .info_from_expr(receiver)
+            .sql_sources
+            .iter()
+            .filter_map(|source| single_pinned_statement(source))
+            .collect::<Vec<_>>()
+            .join("");
+        if let Some(appended) = appended {
+            for source in self.sql_sources(appended) {
+                if let Some(text) = single_pinned_statement(&source) {
+                    statement.push_str(&text);
+                }
+            }
+        }
+        statement
+    }
+
     fn sql_sources(&self, expression: &Expr) -> BTreeSet<String> {
         match expression {
             Expr::Lit(literal) if matches!(literal.lit, syn::Lit::Str(_)) => {
@@ -6339,6 +6393,18 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 if matches!(call.func.as_ref(), Expr::Path(path)
                     if path.path.segments.iter().rev().take(2).map(|segment| normalized_ident(&segment.ident)).collect::<Vec<_>>()
                         == ["from", "String"]) =>
+            {
+                call.args
+                    .first()
+                    .map(|argument| self.sql_sources(argument))
+                    .unwrap_or_default()
+            }
+            // A `QueryBuilder` opens with the first fragment of one statement,
+            // and the rest is pushed onto it.
+            Expr::Call(call)
+                if matches!(call.func.as_ref(), Expr::Path(path)
+                    if path.path.segments.iter().rev().take(2).map(|segment| normalized_ident(&segment.ident)).collect::<Vec<_>>()
+                        == ["new", "QueryBuilder"]) =>
             {
                 call.args
                     .first()
@@ -6984,8 +7050,17 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
         }
         let names = path_names(&mac.path);
         let name = names.last().cloned().unwrap_or_default();
-        let rooted_sqlx = path_is_sqlx(&names, self.symbols);
-        let imported_query = names.len() == 1 && self.symbols.query_callables.contains(&name);
+        // An alias — module-level or block-local — hides which macro is being
+        // invoked, and every decision below depends on knowing that: whether
+        // this is a query macro at all, which argument carries the statement,
+        // and whether the referenced SQL lives outside the snapshot.
+        let canonical_names = self.canonical_local_path_names(names.clone());
+        let canonical_name = canonical_names.last().cloned().unwrap_or_default();
+        let rooted_sqlx =
+            path_is_sqlx(&names, self.symbols) || path_is_sqlx(&canonical_names, self.symbols);
+        let imported_query = names.len() == 1
+            && (self.symbols.query_callables.contains(&name)
+                || self.symbols.query_callables.contains(&canonical_name));
         let cfg = item_cfg(&self.cfg, attributes);
         if name == "include" && !is_pinned_wow_proto_include(&self.context, mac) {
             self.errors.push(format!(
@@ -7021,13 +7096,19 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                 return;
             }
         }
-        if (rooted_sqlx && is_query_name(&name)) || imported_query {
+        if (rooted_sqlx && is_query_name(&canonical_name)) || imported_query {
             if matches!(
-                name.as_str(),
+                canonical_name.as_str(),
                 "query_file" | "query_file_as" | "query_file_scalar"
             ) {
+                // Name the macro that is actually invoked: under an alias,
+                // reporting `q!` alone leaves the reader to guess which SQLx
+                // macro put the SQL outside the snapshot.
+                let invoked = (canonical_name != name)
+                    .then(|| format!("{name}! ({canonical_name}!)"))
+                    .unwrap_or_else(|| format!("{canonical_name}!"));
                 self.errors.push(format!(
-                    "{} uses {name}! SQL whose referenced file is outside the persistence snapshot; mount and fingerprint the SQL file explicitly",
+                    "{} uses {invoked} SQL whose referenced file is outside the persistence snapshot; mount and fingerprint the SQL file explicitly",
                     self.enclosing
                 ));
                 return;
@@ -7043,12 +7124,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
             // Only one argument of a query macro is the statement; the rest are
             // bound values. `query!("SELECT ?", "GET_LOCK('x', 0)")` executes no
             // lock, so classifying the whole invocation would invent one.
-            let canonical_macro = self
-                .canonical_local_path_names(names.clone())
-                .last()
-                .cloned()
-                .unwrap_or_else(|| name.clone());
-            if query_macro_statement(&canonical_macro, &mac.tokens)
+            if query_macro_statement(&canonical_name, &mac.tokens)
                 .as_deref()
                 .is_some_and(sql_is_advisory_lock)
             {
@@ -7125,7 +7201,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                     &cfg,
                     fingerprint.clone(),
                 );
-                if sql_is_advisory_lock(&fingerprint) {
+                if sql_is_advisory_lock(&self.statement_takes_advisory_lock(&fingerprint)) {
                     self.add(
                         target,
                         PersistenceOperation::AdvisoryLock,
@@ -7171,7 +7247,7 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                     &cfg,
                     call_fingerprint.clone(),
                 );
-                if sql_is_advisory_lock(&call_fingerprint) {
+                if sql_is_advisory_lock(&self.statement_takes_advisory_lock(&call_fingerprint)) {
                     self.add(
                         PersistenceTarget::Sqlx,
                         PersistenceOperation::AdvisoryLock,
@@ -7243,7 +7319,9 @@ impl<'a, 'b> BodyAnalyzer<'a, 'b> {
                     &cfg,
                     fingerprint.clone(),
                 );
-                if target == PersistenceTarget::Sqlx && sql_is_advisory_lock(&fingerprint) {
+                if target == PersistenceTarget::Sqlx
+                    && sql_is_advisory_lock(&self.statement_takes_advisory_lock(&fingerprint))
+                {
                     self.add(
                         target,
                         PersistenceOperation::AdvisoryLock,
@@ -8570,7 +8648,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                     fingerprint.clone(),
                 );
             }
-            if sql_is_advisory_lock(&fingerprint) {
+            if sql_is_advisory_lock(&self.statement_takes_advisory_lock(&fingerprint)) {
                 self.add(
                     PersistenceTarget::Sqlx,
                     PersistenceOperation::AdvisoryLock,
@@ -8686,7 +8764,7 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                         &cfg,
                         fingerprint.clone(),
                     );
-                    if sql_is_advisory_lock(&fingerprint) {
+                    if sql_is_advisory_lock(&self.statement_takes_advisory_lock(&fingerprint)) {
                         self.add(
                             target,
                             PersistenceOperation::AdvisoryLock,
@@ -8925,6 +9003,32 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                 self.enclosing
             ));
         }
+        // A pushed fragment belongs to the statement the builder is building,
+        // so it has to join the pieces already accumulated there: an advisory
+        // call divided between `new` and `push` is visible only in their
+        // concatenation.
+        if matches!(name.as_str(), "push" | "push_unseparated")
+            && receiver.targets().contains(&PersistenceTarget::Sqlx)
+        {
+            let pushed = method
+                .args
+                .first()
+                .map(|argument| self.sql_sources(argument))
+                .unwrap_or_default();
+            if !pushed.is_empty() {
+                let mut accumulated = self.info_from_expr(&method.receiver);
+                accumulated.sql_sources.extend(pushed);
+                let sql_sources = accumulated.sql_sources.clone();
+                union_into_assignment_place(
+                    self,
+                    &method.receiver,
+                    &VariableInfo {
+                        sql_sources,
+                        ..VariableInfo::default()
+                    },
+                );
+            }
+        }
         let validated_flow_passthrough = FLOW_PASSTHROUGH_METHODS.contains(&name.as_str())
             || (name == "bind" && receiver.has_stage(FlowStage::Query));
         let operation = if is_query_name(&name) && !receiver.0.is_empty() {
@@ -9011,7 +9115,12 @@ impl<'ast> Visit<'ast> for BodyAnalyzer<'_, '_> {
                         PersistenceOperation::DirectQuery | PersistenceOperation::RawSql
                     ) || executor_consumes_raw_sql
                     {
-                        if sql_is_advisory_lock(&fingerprint) {
+                        let statement = format!(
+                            "{}{}",
+                            self.statement_takes_advisory_lock(&fingerprint),
+                            self.builder_statement(&method.receiver, method.args.first())
+                        );
+                        if sql_is_advisory_lock(&statement) {
                             self.add(
                                 target,
                                 PersistenceOperation::AdvisoryLock,
@@ -17487,6 +17596,80 @@ mod tests {
         // macro name decides it.
         assert!(baseline.accesses.iter().any(|row| {
             row.enclosing == "fn aliased" && row.operation == PersistenceOperation::AdvisoryLock
+        }));
+    }
+
+    #[test]
+    fn persistence_inventory_reads_aliased_macros_through_their_canonical_name() {
+        let baseline = inventory(
+            r#"
+                struct Row;
+                fn block_local_alias() {
+                    use sqlx::query_as as q;
+                    q!(Row, "SELECT GET_LOCK('block', 0)");
+                }
+                fn aliased_concat() {
+                    use std::concat as c;
+                    sqlx::query(c!("SELECT GET_", "LOCK('joined', 0)"));
+                }
+            "#,
+        )
+        .unwrap();
+        for enclosing in ["fn block_local_alias", "fn aliased_concat"] {
+            assert!(
+                baseline.accesses.iter().any(|row| {
+                    row.enclosing == enclosing
+                        && row.operation == PersistenceOperation::AdvisoryLock
+                }),
+                "{enclosing} lost a statement hidden behind an alias"
+            );
+        }
+    }
+
+    #[test]
+    fn persistence_inventory_rejects_aliased_query_file_macros() {
+        let baseline = inventory(
+            r#"
+                fn aliased_file() {
+                    use sqlx::query_file as q;
+                    q!("query.sql");
+                }
+            "#,
+        );
+        // The referenced file is outside the snapshot however the macro is
+        // named, so the call must be refused rather than fingerprinted.
+        let error = baseline
+            .err()
+            .expect("an aliased query-file macro must be rejected");
+        assert!(
+            error.contains("query_file") && error.contains("fn aliased_file"),
+            "unexpected rejection: {error}"
+        );
+    }
+
+    #[test]
+    fn persistence_inventory_classifies_the_whole_query_builder_statement() {
+        let baseline = inventory(
+            r#"
+                fn split_builder() {
+                    let mut builder = sqlx::QueryBuilder::new("SELECT GET_");
+                    builder.push("LOCK('built', 0)");
+                }
+                fn plain_builder() {
+                    let mut builder = sqlx::QueryBuilder::new("SELECT ");
+                    builder.push("1");
+                }
+            "#,
+        )
+        .unwrap();
+        // The call exists only in the concatenation of the fragments.
+        assert!(baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn split_builder"
+                && row.operation == PersistenceOperation::AdvisoryLock
+        }));
+        assert!(!baseline.accesses.iter().any(|row| {
+            row.enclosing == "fn plain_builder"
+                && row.operation == PersistenceOperation::AdvisoryLock
         }));
     }
 
